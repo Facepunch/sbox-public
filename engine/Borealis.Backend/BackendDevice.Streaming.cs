@@ -179,6 +179,9 @@ public sealed partial class BackendDevice
 	sealed class ModelLife
 	{
 		public (string Path, ulong Groups) Key;
+
+		/// <summary>A model made at run time (<see cref="TrackModel"/>), which has no key in the loaded models.</summary>
+		public RenderMesh Mesh;
 		public int Holders;
 		public bool Pinned;
 		public long ReleasedAt;
@@ -217,6 +220,18 @@ public sealed partial class BackendDevice
 		}
 	}
 
+	/// <summary>
+	/// A model made at run time (<see cref="MakeModel"/>, no file behind it) is held by worlds as a loaded one is
+	/// (<see cref="HoldModel"/>) and freed <see cref="ModelGraceSeconds"/> after the last lets go: a game's procedural model
+	/// still referenced after its map was unloaded held a vertex page and a 56 MiB index page. Its maker makes it again if
+	/// it's asked for after that (<see cref="BackendModel.Freed"/>).
+	/// </summary>
+	public void TrackModel( RenderMesh mesh )
+	{
+		if ( mesh is null ) return;
+		lock ( modelLives ) modelLives.TryAdd( mesh, new ModelLife { Mesh = mesh } );
+	}
+
 	void PinModel( RenderMesh mesh )
 	{
 		lock ( modelLives )
@@ -247,7 +262,12 @@ public sealed partial class BackendDevice
 
 					if ( life.ReleasedAt > due ) continue;
 					unheldModels.RemoveAt( i );
-					if ( streamedModels.Remove( life.Key, out var mesh ) && mesh is not null )
+					if ( life.Mesh is { } made )
+					{
+						modelLives.Remove( made );
+						freeing.Add( made );
+					}
+					else if ( streamedModels.Remove( life.Key, out var mesh ) && mesh is not null )
 					{
 						modelLives.Remove( mesh );
 						freeing.Add( mesh );
@@ -333,19 +353,17 @@ public sealed partial class BackendDevice
 
 	/// <summary>
 	/// A texture as <see cref="LoadTexture"/> makes it, without waiting: read and decoded on a worker, then made within
-	/// <see cref="LoadBudgetMs"/>; null with <paramref name="pending"/> set until then. Call on one thread at a time.
+	/// <see cref="LoadBudgetMs"/>; null with <paramref name="pending"/> set until then. Call on one thread at a time. With
+	/// <paramref name="hold"/> the texture it returns is held by the caller until <see cref="ReleaseTexture"/> (as
+	/// <see cref="HoldTexture"/> holds one), not pinned.
 	/// </summary>
-	public GpuTexture LoadTextureAsync( string path, out bool pending )
+	public GpuTexture LoadTextureAsync( string path, out bool pending, bool hold = false )
 	{
 		pending = false;
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		lock ( loadedTextures )
 		{
-			if ( loadedTextures.TryGetValue( path, out var loaded ) )
-			{
-				PinTexture( path );
-				return loaded;
-			}
+			if ( loadedTextures.ContainsKey( path ) ) return LoadOnce( path, streamed: false, hold );
 		}
 
 		var read = textureReads.GetOrAdd( path, StartTextureRead );
@@ -358,7 +376,7 @@ public sealed partial class BackendDevice
 
 		textureReads.TryRemove( path, out _ );
 		using ( Gpu.DeferUploads() )
-			return LoadTexture( path );
+			return LoadOnce( path, streamed: false, hold );
 	}
 
 	Task StartTextureRead( string path )
@@ -382,6 +400,9 @@ public sealed partial class BackendDevice
 
 	/// <summary>Whether a model's files have been read for <see cref="LoadModelAsync"/>, so asking again can make it.</summary>
 	public bool ModelRead( string path ) => modelReads.TryGetValue( path, out var read ) && read.IsCompleted;
+
+	/// <summary>A model's file as <see cref="LoadModelAsync"/> reads it, on a worker, shared with it: null where there's none.</summary>
+	public Task<ModelFile> ReadModel( string path ) => modelReads.GetOrAdd( path, StartRead );
 
 	Task<ModelFile> StartRead( string path )
 	{

@@ -115,13 +115,17 @@ internal static class ReflectionUtility
 				return true;
 			}
 
-			// IList — remove matching items in reverse to avoid index shifting
+			// IList — remove matching items in reverse to avoid index shifting; arrays can't shrink, so theirs are nulled
 			if ( value is System.Collections.IList list )
 			{
+				if ( list.IsReadOnly ) return false;
+
 				for ( var i = list.Count - 1; i >= 0; i-- )
 				{
-					if ( list[i] is not null && targetType.IsInstanceOfType( list[i] ) )
-						list.RemoveAt( i );
+					if ( list[i] is null || !targetType.IsInstanceOfType( list[i] ) ) continue;
+
+					if ( list.IsFixedSize ) list[i] = null;
+					else list.RemoveAt( i );
 				}
 
 				return true;
@@ -138,7 +142,7 @@ internal static class ReflectionUtility
 		}
 
 		// Non-generic IList fallback (e.g. ArrayList) — remove matching items
-		if ( value is System.Collections.IList nonGenericList )
+		if ( value is System.Collections.IList nonGenericList && !nonGenericList.IsReadOnly )
 		{
 			var removed = false;
 
@@ -146,7 +150,8 @@ internal static class ReflectionUtility
 			{
 				if ( nonGenericList[i] is not null && targetType.IsInstanceOfType( nonGenericList[i] ) )
 				{
-					nonGenericList.RemoveAt( i );
+					if ( nonGenericList.IsFixedSize ) nonGenericList[i] = null;
+					else nonGenericList.RemoveAt( i );
 					removed = true;
 				}
 			}

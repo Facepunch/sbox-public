@@ -38,6 +38,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	public const int DrawStride = 32;
 	public const int CommandStride = 20;
 
+	/// <summary>Frames a buffer a table or store grew out of is kept before it's freed: past the frames it was recorded in.</summary>
+	public const ulong RetiredFrames = 4;
+
 	/// <summary>Bytes of a geometry record before its attributes: one bit per semantic.</summary>
 	const int MaskBytes = 32;
 
@@ -71,9 +74,8 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>
 	/// A table in host-visible memory that only grows: records are appended and never change. Growing copies it into a
-	/// bigger buffer with a slot of its own. The old buffer is kept until the tables are disposed: draws recorded earlier
-	/// in the frame being recorded read it at its slot, and a destroy only waits for what's been submitted. It only doubles a
-	/// few times, so that's at most its size again.
+	/// bigger buffer with a slot of its own. The old buffer is kept a few frames (<see cref="FreeRetired"/>): draws recorded
+	/// earlier in the frame being recorded read it at its slot, and a destroy only waits for what's been submitted.
 	/// </summary>
 	sealed class Table( Device gpu, string name, int initial )
 	{
@@ -81,7 +83,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		public int Slot = -1;
 		public long Used;
 		long size;
-		readonly List<BufferHandle> retired = new();
+		readonly List<(BufferHandle Buffer, ulong Frame)> retired = new();
 
 		public uint Append( ReadOnlySpan<byte> record )
 		{
@@ -117,7 +119,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			if ( Buffer.IsValid )
 			{
 				gpu.Map( Buffer )[..(int)Used].CopyTo( gpu.Map( buffer ) );
-				retired.Add( Buffer );
+				retired.Add( (Buffer, gpu.FrameNumber) );
 			}
 
 			Buffer = buffer;
@@ -125,10 +127,25 @@ internal sealed class GpuDrivenTables : IDisposable
 			Slot = gpu.BindlessIndex( buffer );
 		}
 
+		/// <summary>Free the buffers it grew out of <see cref="RetiredFrames"/> frames or more ago: what was recorded with them has been submitted.</summary>
+		public void FreeRetired()
+		{
+			if ( retired.Count == 0 ) return;
+			lock ( this )
+			{
+				for ( int i = retired.Count - 1; i >= 0; i-- )
+				{
+					if ( gpu.FrameNumber - retired[i].Frame < RetiredFrames ) continue;
+					gpu.Destroy( retired[i].Buffer );
+					retired.RemoveAt( i );
+				}
+			}
+		}
+
 		public void Dispose()
 		{
 			if ( Buffer.IsValid ) gpu.Destroy( Buffer );
-			foreach ( var old in retired ) gpu.Destroy( old );
+			foreach ( var (old, _) in retired ) gpu.Destroy( old );
 			retired.Clear();
 		}
 	}
@@ -324,8 +341,8 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>
 	/// A mesh's <paramref name="bytes"/> of vertices or indices in the page at <paramref name="slot"/> are no longer drawn
-	/// (its model has gone). A page none of whose meshes are left goes once nothing it holds is in flight: the page being
-	/// filled stays. Freed ranges in a page that's still held aren't reused.
+	/// (its model has gone). A page none of whose meshes are left goes once nothing it holds is in flight, the page being
+	/// filled too (the next mesh starts a new one). Freed ranges in a page that's still held aren't reused.
 	/// </summary>
 	public void ReleaseRange( int slot, int bytes )
 	{
@@ -333,11 +350,21 @@ internal sealed class GpuDrivenTables : IDisposable
 		{
 			if ( !vertexPagesBySlot.TryGetValue( slot, out var page ) && !indexPagesBySlot.TryGetValue( slot, out page ) ) return;
 			page.Live -= (bytes + 15) & ~15;
-			if ( page.Live <= 0 && !IsCurrent( page ) && !emptyPages.Contains( page ) ) emptyPages.Add( page );
+			if ( page.Live <= 0 && !emptyPages.Contains( page ) ) emptyPages.Add( page );
 		}
 	}
 
-	bool IsCurrent( Page page ) => page == vertexPage || indexPages.ContainsValue( page );
+	/// <summary>Stop filling <paramref name="page"/> if it's the one being filled: the next mesh of its kind starts a new page. Under the pages' lock.</summary>
+	void StopFilling( Page page )
+	{
+		if ( page == vertexPage ) vertexPage = null;
+		foreach ( var (format, current) in indexPages )
+		{
+			if ( current != page ) continue;
+			indexPages.Remove( format );
+			break;
+		}
+	}
 
 	/// <summary>Pages freed since the tables were made (<see cref="ReleaseRange"/>), for soaks and tests.</summary>
 	public int PagesFreed { get; private set; }
@@ -349,18 +376,24 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	public void FreeEmptyPages()
 	{
+		geometry.FreeRetired();
+		draws.FreeRetired();
+		materials.FreeRetired();
+		fragments.FreeRetired();
+		lighting.FreeRetired();
 		if ( emptyPages.Count == 0 ) return;
 		lock ( pagesLock )
 		{
 			for ( int i = emptyPages.Count - 1; i >= 0; i-- )
 			{
 				var page = emptyPages[i];
-				if ( page.Live > 0 || IsCurrent( page ) )
+				if ( page.Live > 0 )
 				{
 					emptyPages.RemoveAt( i );
 					continue;
 				}
 
+				StopFilling( page );
 				if ( Meshlets is { } meshlets && !meshlets.TryForgetPage( page.Slot ) ) continue;
 				if ( Lods is { } lods && !lods.TryForgetPage( page.Slot ) ) continue;
 				emptyPages.RemoveAt( i );
@@ -439,6 +472,72 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>A field's semantic as shaders number them (<c>usage * 16 + index</c>, the attribute map's numbering).</summary>
 	static int Semantic( VertexLayout.Field field ) => field.Index < 16 ? (int)field.Semantic * 16 + field.Index : -1;
+
+	/// <summary>The vertex id semantics a vertex-cache draw reads (<c>TEXCOORD14</c>, <c>TEXCOORD15</c>), as shaders number them.</summary>
+	const int VertexIdSemantic = (int)VertexSemantic.TexCoord * 16 + 14, CacheVertexSemantic = (int)VertexSemantic.TexCoord * 16 + 15;
+
+	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count, int FirstVertexId, int FirstCacheVertex), uint> cacheGeometryRecords = new();
+	(int Slot, long Offset) vertexIds = (-1, 0);
+
+	/// <summary>
+	/// 0, 1, 2 ... as floats, <see cref="BackendDevice.MaxVertexIds"/> of them, in a vertex page (made the first time it's
+	/// asked for): what a vertex-cache draw's geometry record reads its vertex ids from, as its classic draw binds
+	/// <see cref="BackendDevice.VertexIds"/> on streams 2 and 3.
+	/// </summary>
+	(int Slot, long Offset) VertexIds()
+	{
+		lock ( cacheGeometryRecords )
+		{
+			if ( vertexIds.Slot >= 0 ) return vertexIds;
+			var ids = new float[BackendDevice.MaxVertexIds];
+			for ( int i = 0; i < ids.Length; i++ ) ids[i] = i;
+			var (_, offset, slot) = AddVertexStream( MemoryMarshal.AsBytes( ids.AsSpan() ) );
+			return vertexIds = (slot, offset);
+		}
+	}
+
+	/// <summary>
+	/// The geometry record of a skinned mesh's draw from the vertex cache: its vertices' semantics as <see cref="Geometry"/>
+	/// writes them, and its two vertex id streams from <see cref="VertexIds"/> - <c>TEXCOORD14</c> from its first vertex
+	/// among its mesh's draws, <c>TEXCOORD15</c> from its vertex buffer's place in the mesh's block of the cache - which its
+	/// classic draw binds on streams 2 and 3. A vertex's place in the cache is then its instance's cache offset (its base
+	/// entry's) plus <c>TEXCOORD15</c>, as the shaders' <c>D_CS_VERTEX_ANIMATION</c> code reads it. 0 when the ids run out.
+	/// </summary>
+	public uint VertexCacheGeometry( int slot, long offset, VertexLayout layout, int count, int firstVertexId, int firstCacheVertex )
+	{
+		var max = BackendDevice.MaxVertexIds;
+		if ( firstVertexId < 0 || firstCacheVertex < 0 || firstVertexId >= max || firstCacheVertex + count > max ) return 0;
+		var ids = VertexIds();
+		lock ( cacheGeometryRecords )
+		{
+			var key = (slot, offset, layout, count, firstVertexId, firstCacheVertex);
+			if ( cacheGeometryRecords.TryGetValue( key, out var found ) ) return found;
+
+			// The vertices' own fields but for any of the ids' semantics, then the two id streams: in semantic order, as the
+			// fetch counts attributes by the mask's bits
+			var fields = layout.Fields.Where( f => Semantic( f ) is >= 0 and < 256 and not VertexIdSemantic and not CacheVertexSemantic && Encode( f.Format ) != 0 ).ToArray();
+			var attributes = fields.Select( f => (Semantic: Semantic( f ), Slot: slot, Offset: offset + f.Offset, Format: Encode( f.Format ) | (uint)layout.Stride << 16, Count: count) )
+				.Append( (Semantic: VertexIdSemantic, Slot: ids.Slot, Offset: ids.Offset + firstVertexId * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: Math.Min( count, max - firstVertexId )) )
+				.Append( (Semantic: CacheVertexSemantic, Slot: ids.Slot, Offset: ids.Offset + firstCacheVertex * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: count) )
+				.OrderBy( a => a.Semantic ).ToArray();
+
+			var record = new byte[MaskBytes + attributes.Length * 16];
+			for ( int i = 0; i < attributes.Length; i++ )
+			{
+				var semantic = attributes[i].Semantic;
+				var word = BinaryPrimitives.ReadUInt32LittleEndian( record.AsSpan( semantic / 32 * 4 ) );
+				BinaryPrimitives.WriteUInt32LittleEndian( record.AsSpan( semantic / 32 * 4 ), word | 1u << (semantic % 32) );
+
+				var attribute = record.AsSpan( MaskBytes + i * 16 );
+				BinaryPrimitives.WriteUInt32LittleEndian( attribute, (uint)attributes[i].Slot + 1 );
+				BinaryPrimitives.WriteUInt32LittleEndian( attribute[4..], (uint)attributes[i].Offset );
+				BinaryPrimitives.WriteUInt32LittleEndian( attribute[8..], attributes[i].Format );
+				BinaryPrimitives.WriteUInt32LittleEndian( attribute[12..], (uint)attributes[i].Count << 1 );
+			}
+
+			return cacheGeometryRecords[key] = geometry.Append( record );
+		}
+	}
 
 	/// <summary>
 	/// A vertex format as the decoder reads it: bits 0-5 component width, 6-8 count, 9-11 conversion (0 float, 1 unorm,

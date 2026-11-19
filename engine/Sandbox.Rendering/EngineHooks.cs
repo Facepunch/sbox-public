@@ -21,5 +21,12 @@ internal static class EngineHooks
 
 		// What the engine reads for a realtime probe's cube is the capture Borealis draws it into, on the same device
 		BorealisGpuRenderBackend.RenderedInto ??= ( backend, texture ) => MirrorContent.IsCaptureCube( texture ) && MirrorContent.Gpu == backend.Services ? MirrorContent.CaptureCube( texture ) : null;
+
+		// And that capture goes when the engine texture is disposed, not only once it's collected: a map's probes' cubes are
+		// disposed as their components go but stayed referenced, so each map loaded left its cubes behind
+		BorealisGpuRenderBackend.Released ??= ( backend, texture ) =>
+		{
+			if ( MirrorContent.Gpu == backend.Services ) MirrorContent.ReleaseCapture( texture );
+		};
 	}
 }

@@ -97,7 +97,7 @@ internal sealed partial class MeshRenderFeature
 	internal static ShaderParameters ResidentProbe( MeshObject obj, List<LightProbeVolume> volumes, long volumesKey, Vector3 center, Vector3 extents )
 	{
 		if ( !obj.NeedsLightProbe || volumes.Count == 0 ) return null;
-		var probe = ProbeFor( obj, volumes, volumesKey, center, extents );
+		var probe = ProbeFor( obj, volumes, volumesKey, center, extents, 0 );
 		return probe >= 0 ? volumes[probe].Attributes : null;
 	}
 }

@@ -25,6 +25,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	readonly Dictionary<(ShadowMap Map, int Slice, int Region), ViewPass> passPool = new();
 
 	readonly ShadowMap[] cascadeTargets = new ShadowMap[MaxCascades];
+	readonly ShadowMap[] extraSunTargets = new ShadowMap[SceneLighting.MaxExtraSuns];
 	readonly List<GpuTexture> targets = new();
 
 	// Group shared queries after all views are known, then cull chunks in parallel.
@@ -136,6 +137,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 		PrepareSun( world.Lighting, enabled || skybox );
 		if ( enabled ) PrepareLocalLights( lightBinner );
+		if ( enabled ) PrepareExtraSuns( world.Lighting, lightBinner );
 	}
 
 	/// <summary>
@@ -273,6 +275,31 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		ref var data = ref mapper.DirectionalLightData;
 		data.Color = new Vector4( sun.Color, sun.FogStrength );
 		data.Direction = new Vector4( sun.Direction, 0 );
+	}
+
+	/// <summary>
+	/// Give the extra suns that cast shadows their maps, after the local lights' (<see cref="LightBinnerFeature.ExtraSunCount"/>).
+	/// </summary>
+	void PrepareExtraSuns( SceneLighting lighting, LightBinnerFeature lightBinner )
+	{
+		var suns = CollectionsMarshal.AsSpan( lighting.ExtraSuns );
+		for ( int i = 0; i < lightBinner.ExtraSunCount; i++ )
+		{
+			ref readonly var sun = ref suns[lightBinner.ExtraSunSource( i )];
+			if ( !sun.Shadows ) continue;
+
+			var light = new ShadowLight
+			{
+				Key = lighting,
+				Type = ShadowLightType.Directional,
+				Direction = sun.Direction,
+				Hardness = sun.ShadowHardness,
+				ShadowsEnabled = true,
+				Baked = sun.ShadowsBaked,
+			};
+
+			lightBinner.SetExtraSunShadow( i, mapper.FindOrCreateExtraSunShadow( i, light ) );
+		}
 	}
 
 	/// <summary>
@@ -495,6 +522,21 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	public ShadowMap GetCascadeTarget( int cascade, int resolution )
 	{
 		ref var target = ref cascadeTargets[cascade];
+		if ( target is null || target.Resolution != resolution )
+		{
+			target?.Dispose();
+			target = new ShadowMap( resolution, false, TextureFormat.D32 );
+		}
+
+		return target;
+	}
+
+	/// <summary>
+	/// Reuse one persistent target per extra sun.
+	/// </summary>
+	public ShadowMap GetExtraSunTarget( int sun, int resolution )
+	{
+		ref var target = ref extraSunTargets[sun];
 		if ( target is null || target.Resolution != resolution )
 		{
 			target?.Dispose();
@@ -866,6 +908,12 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		{
 			cascadeTargets[i]?.Dispose();
 			cascadeTargets[i] = null;
+		}
+
+		for ( int i = 0; i < extraSunTargets.Length; i++ )
+		{
+			extraSunTargets[i]?.Dispose();
+			extraSunTargets[i] = null;
 		}
 	}
 }

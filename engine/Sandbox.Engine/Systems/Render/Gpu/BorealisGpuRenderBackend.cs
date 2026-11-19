@@ -593,6 +593,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	public override void Release( object resource )
 	{
+		if ( resource is Texture released ) Released?.Invoke( this, released );
+
 		switch ( resource )
 		{
 			case Texture texture when textures.TryGetValue( texture, out var backing ):
@@ -697,6 +699,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// through the engine reads the capture. Null for any other texture. Set by Sandbox.Rendering.
 	/// </summary>
 	internal static Func<BorealisGpuRenderBackend, Texture, global::Borealis.GpuTexture> RenderedInto { get; set; }
+
+	/// <summary>
+	/// An engine texture was released (disposed, or its contents replaced): what was rendered into it for this device
+	/// (<see cref="RenderedInto"/>, a realtime probe's cube) goes with it. Set by Sandbox.Rendering.
+	/// </summary>
+	internal static Action<BorealisGpuRenderBackend, Texture> Released { get; set; }
 
 	/// <summary>
 	/// The most multisampling up to <paramref name="wanted"/> this device's colour targets take, as Source 2's
@@ -892,12 +900,12 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>
-	/// The material's own texture for one read from a material (<see cref="Material.GetTexture"/>) with no path of its
-	/// own, or null.
+	/// The material's own texture for one read from a material (<see cref="Material.GetTexture"/>), or null: borrowed from
+	/// the device, which frees it with the worlds that hold the material, rather than copied here, where the copy stayed with
+	/// the engine's texture after the map was unloaded.
 	/// </summary>
 	BackendTexture MaterialTextureOf( Texture texture )
 	{
-		if ( !string.IsNullOrEmpty( texture.ResourcePath ) ) return null;
 		if ( !Texture.MaterialOrigins.TryGetValue( texture, out var origin ) || origin is not Texture.MaterialOrigin o ) return null;
 		return services.LoadedMaterialTexture( o.Material, o.Parameter ) as BackendTexture;
 	}

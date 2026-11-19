@@ -231,6 +231,9 @@ public sealed unsafe partial class Device
 			if ( carried is not null ) frame.Lists.AddRange( carried );
 		}
 
+		// Spare lists before the frame's come back: those every frame in flight left unused (TrimSpares)
+		for ( int q = 0; q < freeLists.Length; q++ ) freeListsLow[q] = Math.Min( freeListsLow[q], freeLists[q].Count );
+
 		foreach ( var list in recycle )
 		{
 			list.Recycle();
@@ -238,7 +241,7 @@ public sealed unsafe partial class Device
 		}
 
 		CollectGarbage();
-		TrimUploadPages();
+		TrimSpares();
 		Allocator.Trim( FrameNumber );
 	}
 
@@ -284,23 +287,65 @@ public sealed unsafe partial class Device
 	/// <summary>Frames a free upload page has to go unused before it's freed.</summary>
 	internal const ulong UploadPageIdleFrames = 300;
 
+	/// <summary>Spare command lists of each queue kept however few frames use.</summary>
+	internal const int KeptFreeCommandLists = 16;
+
 	int freePagesLow = int.MaxValue;
+	readonly int[] freeListsLow = [int.MaxValue, int.MaxValue];
 	ulong trimFrom;
 
 	/// <summary>
-	/// Free upload pages that stayed unused for <see cref="UploadPageIdleFrames"/> frames, past
-	/// <see cref="KeptFreeUploadPages"/>: a load's uploads take hundreds of pages (Construct's held 1.4 GB of mapped memory
-	/// from then on), steady frames a few.
+	/// Free upload pages and spare command lists that stayed unused for <see cref="UploadPageIdleFrames"/> frames, past
+	/// <see cref="KeptFreeUploadPages"/> and <see cref="KeptFreeCommandLists"/>: a load's uploads take hundreds of pages
+	/// (Construct's held 1.4 GB of mapped memory from then on), and a map's frames take over a hundred lists, whose command
+	/// pools keep the driver's command memory (Construct's held ~370 MB of video memory in the menu after it); steady
+	/// frames take a few.
 	/// </summary>
-	void TrimUploadPages()
+	void TrimSpares()
 	{
 		freePagesLow = Math.Min( freePagesLow, FreePages.Count );
 		if ( FrameNumber - trimFrom < UploadPageIdleFrames ) return;
 
 		for ( int i = KeptFreeUploadPages; i < freePagesLow && FreePages.TryTake( out var page ); i++ ) Destroy( page.Buffer );
 		freePagesLow = int.MaxValue;
+
+		// A spare list's frame has finished: its command pool and descriptor pool can go at once
+		for ( int q = 0; q < freeLists.Length; q++ )
+		{
+			int freed = 0;
+			for ( int i = KeptFreeCommandLists; i < freeListsLow[q] && freeLists[q].TryTake( out var list ); i++ )
+			{
+				list.Destroy();
+				freed++;
+			}
+
+			freeListsLow[q] = int.MaxValue;
+			if ( freed == 0 ) continue;
+
+			// The demand dropped: the spares kept still hold what the busy frames grew their pools to
+			commandListsFreed += freed;
+			int kept = 0;
+			while ( kept < keptLists.Length && freeLists[q].TryTake( out var list ) ) keptLists[kept++] = list;
+			for ( int i = 0; i < kept; i++ )
+			{
+				keptLists[i].ReleaseCommandMemory();
+				freeLists[q].Add( keptLists[i] );
+				keptLists[i] = null;
+			}
+		}
+
 		trimFrom = FrameNumber;
 	}
+
+	readonly CommandList[] keptLists = new CommandList[KeptFreeCommandLists];
+
+	int commandListsFreed;
+
+	/// <summary>Spare command lists freed for going unused, for tests and reports.</summary>
+	public int CommandListsFreed => commandListsFreed;
+
+	/// <summary>Spare command lists of a queue, for tests.</summary>
+	internal int FreeCommandLists( QueueType queue ) => freeLists[(int)queue].Count;
 
 	/// <summary>
 	/// A command list to record into, from the current frame. Submit it with <see cref="Submit"/> in the same frame; it's

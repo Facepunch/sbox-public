@@ -10,7 +10,7 @@ internal sealed class SkyLayer : RenderLayer
 
 	public SkyLayer() : base( "Sky" ) { }
 
-	public override bool IsNeeded( RenderFrame frame ) => frame.System.DrawSky && frame.Skybox is null && RenderSystem.ShowsSkies( frame.View )
+	public override bool IsNeeded( RenderFrame frame ) => frame.System.DrawSky && frame.Skybox is null && RenderSystem.ShowsSkies( frame.View ) && !ToolsViews.Counts( frame.View )
 		&& frame.World.Lighting.SkyMaterial is not null;
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )

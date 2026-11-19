@@ -40,7 +40,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// What a scene object is in the mirror, or null if it isn't drawn.
 	/// </summary>
 	internal RenderObject Find( SceneObject sceneObject ) => sceneObject is not null && objects.TryGetValue( sceneObject, out var obj ) ? obj : null;
-	readonly HashSet<SceneDirectionalLight> suns = new();
+	// In the order they were added: the last enabled one is the sun
+	readonly List<SceneDirectionalLight> suns = new();
 
 	// Objects with attributes, read when a view draws them (Refresh).
 	readonly Dictionary<MeshObject, RenderAttributes> attributed = new();
@@ -146,10 +147,43 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	}
 
 	/// <summary>
-	/// Queue changes from any thread for the next sync.
+	/// What a change waits for the next sync to apply, merged with the object's other changes: an object coming or going, and
+	/// what works its draws or attributes out again. The rest of a change to an object that reads nothing from native applies
+	/// at once (<see cref="WritesDirectly"/>).
+	/// </summary>
+	const SceneObjectChange Queued = SceneObjectChange.Added | SceneObjectChange.Removed | SceneObjectChange.Deleted | SceneObjectChange.Model
+		| SceneObjectChange.Material | SceneObjectChange.Attributes;
+
+	// While Sync applies changes: a change reported meanwhile (a texture that loaded) waits for the next
+	bool syncing;
+
+	/// <summary>
+	/// Whether an object's changes go straight into its render object rather than waiting for a sync: the kinds that read
+	/// nothing from native code (decals, point and spot lights, cubemaps, custom and dynamic objects, and models managed code
+	/// made). Animated objects and those native code made (a map's) wait for the sync, which reads what native has.
+	/// </summary>
+	static bool WritesDirectly( SceneObject sceneObject ) => sceneObject switch
+	{
+		SceneModel or SceneDirectionalLight or SceneLightProbe or SceneSkyBox => false,
+		DecalSceneObject or SceneLight or SceneCubemap or SceneCustomObject or SceneDynamicObject => true,
+		_ => sceneObject.GetType() == typeof( SceneObject ) && sceneObject.ResolvesDraws,
+	};
+
+	/// <summary>
+	/// A change, from any thread. One to an object that writes directly (<see cref="WritesDirectly"/>), made on the main thread
+	/// outside a sync and outside a render of the world, goes into its render object at once; anything else is queued for the
+	/// next sync.
 	/// </summary>
 	public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
 	{
+		if ( (change & Queued) == 0 && !syncing && World.Rendering == 0 && ThreadSafe.IsMainThread && WritesDirectly( sceneObject )
+			&& objects.TryGetValue( sceneObject, out var obj ) && obj is not null && sceneObject.IsValid() )
+		{
+			using ( Borealis.Zones.MirrorDirect.Start() )
+				ApplyTo( sceneObject, obj, change );
+			return;
+		}
+
 		lock ( gate )
 		{
 			// Native lights with a deleted light until its frame ends: the frame it was deleted in decides how long it's kept
@@ -169,6 +203,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	public void Dispose()
 	{
 		Listeners.Remove( source, this );
+		DisposeMaps();
 		lock ( lightmapFolders )
 		{
 			if ( MirrorContent.Gpu is { } gpu )
@@ -229,6 +264,19 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	{
 		using var zone = Borealis.Zones.MirrorSync.Start();
 		HasSynced = true;
+		syncing = true;
+		try
+		{
+			SyncChanges( camera, skyboxView );
+		}
+		finally
+		{
+			syncing = false;
+		}
+	}
+
+	void SyncChanges( SceneCamera camera, bool skyboxView )
+	{
 
 		// A reload queues the objects drawing what it changed, and so does a model finishing loading
 		using ( Borealis.Zones.MirrorLoaded.Start() )
@@ -259,6 +307,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		{
 			foreach ( var (sceneObject, change) in applying )
 				Apply( sceneObject, change, frame );
+
+			SyncMaps();
 		}
 
 		applying.Clear();
@@ -307,6 +357,12 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			change = Everything;
 		}
 
+		ApplyTo( sceneObject, obj, change );
+	}
+
+	/// <summary>A change to an object already mirrored (<paramref name="obj"/> null for one that isn't drawn as an object).</summary>
+	void ApplyTo( SceneObject sceneObject, RenderObject obj, SceneObjectChange change )
+	{
 		if ( obj is not null && (change & SceneObjectChange.Tags) != 0 )
 			obj.Tags = TagsOf( sceneObject );
 
@@ -456,11 +512,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	/// </summary>
 	RenderObject Add( SceneObject sceneObject )
 	{
-		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn: the list is the
-		// main world's, for every view of it
-		if ( sceneObject is SceneLightProbe probe && SubWorld == 0 )
+		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's go in the main world's list
+		// with its sub-world, so they light only views drawing it
+		if ( sceneObject is SceneLightProbe probe )
 		{
-			var volume = new Borealis.LightProbeVolume();
+			var volume = new Borealis.LightProbeVolume { SubWorld = SubWorld };
 			lightProbes[probe] = volume;
 			World.LightProbeVolumes.Add( volume );
 			objects[sceneObject] = null;
@@ -492,7 +548,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			obj.SubWorld = SubWorld;
 			World.Add( obj );
 		}
-		else if ( sceneObject is SceneDirectionalLight sun ) suns.Add( sun );
+		else if ( sceneObject is SceneDirectionalLight sun && !suns.Contains( sun ) ) suns.Add( sun );
 		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
 
 		return obj;
@@ -592,8 +648,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			mesh.Transform = sceneObject.Transform;
 
 		// Local lighting origins move with the object.
+		// Only a map's objects have one (worldnode.cpp), so one managed code made isn't asked
 		if ( (change & (SceneObjectChange.Transform | SceneObjectChange.Flags | Draws)) != 0 )
-			mesh.LightingOrigin = sceneObject.native.HasLightingOrigin() ? sceneObject.native.GetLightingOrigin() : null;
+			mesh.LightingOrigin = !sceneObject.ResolvesDraws && sceneObject.native.HasLightingOrigin() ? sceneObject.native.GetLightingOrigin() : null;
 
 		// Track mutable attributes, read when a view draws the object (Refresh)
 		if ( (change & SceneObjectChange.Attributes) != 0 )
@@ -739,9 +796,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			var transform = sceneObject.Transform;
 			custom.Transform = transform == default ? Transform.Zero : transform;
 
-			// Read native bounds: SceneObject.Bounds collapses infinity to a point.
+			// Bounds as kept (WorldBounds): SceneObject.Bounds collapses infinity to a point.
 			// Use large finite bounds to keep culling math valid.
-			var bounds = sceneObject.native.GetBounds();
+			var bounds = sceneObject.WorldBounds;
 			if ( !float.IsFinite( bounds.Mins.x + bounds.Mins.y + bounds.Mins.z + bounds.Maxs.x + bounds.Maxs.y + bounds.Maxs.z ) || bounds.Size.x > 1e9f )
 				bounds = new BBox( new Vector3( -1e9f ), new Vector3( 1e9f ) );
 
@@ -782,7 +839,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		mesh.Decal = flags.HasFlag( SceneObjectFlags.IsDecal );
 		mesh.NeedsLightProbe = flags.HasFlag( SceneObjectFlags.NeedsLightProbe );
 		mesh.LightGroup = (uint)sceneObject.LightGroup;
-		mesh.LightProbeHandshake = SceneNative.LightProbeHandshake( sceneObject );
+		mesh.LightProbeHandshake = sceneObject.ResolvesDraws ? 0 : SceneNative.LightProbeHandshake( sceneObject );
 
 		mesh.LayerMatch = LayerMatchFor( sceneObject.LayerMatchToken );
 		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.RenderOrder : 0;
@@ -955,11 +1012,39 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		return own;
 	}
 
+	/// <summary>
+	/// Every other enabled directional light, in the order they were added: each lights the world as an extra sun.
+	/// </summary>
+	void SyncExtraSuns( SceneLighting lighting, SceneDirectionalLight sun )
+	{
+		var extras = lighting.ExtraSuns;
+		extras.Clear();
+
+		foreach ( var light in suns )
+		{
+			if ( light == sun || !light.IsValid() || !light.RenderingEnabled ) continue;
+			if ( extras.Count == SceneLighting.MaxExtraSuns ) break;
+
+			LightPacking.Pack( light, out var packed, out var flags, out var bakeIndex );
+			extras.Add( new ExtraSun
+			{
+				Direction = -light.WorldDirection,
+				Color = light.LightColor,
+				Shadows = light.ShadowsEnabled,
+				ShadowHardness = light.ShadowHardness,
+				ShadowsBaked = (flags & LightTypeFlagsBaked) != 0 && !light.IncludeStaticShadowCasters,
+				BakeIndex = bakeIndex,
+				Baked = bakeIndex >= 0 ? packed : null,
+			} );
+		}
+	}
+
 	static bool SameValues( ManagedRenderAttributes values, RenderAttributes other ) => other.ManagedValues is { } theirs && values.SameValues( theirs );
 
 	/// <summary>
 	/// Refresh dirty sun state, per-view sky selection and camera lighting (<c>CameraRenderer.Configure</c>).
-	/// Uses the first enabled sun; native uses the last encountered by its binner.
+	/// The sun is the last enabled one added, as native's binner keeps the last directional light it meets in its light list
+	/// (<c>CLightBinnerStandard::GatherVisibleLights</c>). Native lights with no other; here the rest light too, as extra suns.
 	/// </summary>
 	void SyncLighting( SceneCamera camera, bool skyboxView )
 	{
@@ -970,8 +1055,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			sunDirty = false;
 
 			SceneDirectionalLight sun = null;
-			foreach ( var candidate in suns )
+			for ( int i = suns.Count - 1; i >= 0; i-- )
 			{
+				var candidate = suns[i];
 				if ( candidate.IsValid() && candidate.RenderingEnabled )
 				{
 					sun = candidate;
@@ -1010,6 +1096,8 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 				lighting.SunShadowsBaked = false;
 				lighting.SunContactShadows = false;
 			}
+
+			SyncExtraSuns( lighting, sun );
 		}
 
 		// Sky selection is per view: cameras can exclude different skies without changing the world.
@@ -1095,7 +1183,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		var lighting = World.Lighting;
 		var text = new System.Text.StringBuilder();
 		var others = suns.Count( x => x.IsValid() && x.RenderingEnabled ) - 1;
-		text.Append( $"sun {lighting.SunColor} towards {lighting.SunDirection} (shadows {lighting.SunShadows}, {lighting.SunShadowCascades} cascades{(others > 0 ? $", {others} more: " + string.Join( ", ", suns.Where( x => x.IsValid() && x.RenderingEnabled ).Skip( 1 ).Select( x => $"{x.LightColor} towards {-x.WorldDirection}" ) ) : "")}), ambient {lighting.AmbientColor}, gradient fog {lighting.GradientFog.Enabled}, cubemap fog {lighting.CubemapFog.Enabled}, volumetric fog {lighting.VolumetricFog.Enabled} with {World.FogVolumes.Count} volumes" );
+		text.Append( $"sun {lighting.SunColor} towards {lighting.SunDirection} (shadows {lighting.SunShadows}, {lighting.SunShadowCascades} cascades{(others > 0 ? $", {others} more: " + string.Join( ", ", suns.Where( x => x.IsValid() && x.RenderingEnabled ).SkipLast( 1 ).Select( x => $"{x.LightColor} towards {-x.WorldDirection}" ) ) : "")}), ambient {lighting.AmbientColor}, gradient fog {lighting.GradientFog.Enabled}, cubemap fog {lighting.CubemapFog.Enabled}, volumetric fog {lighting.VolumetricFog.Enabled} with {World.FogVolumes.Count} volumes" );
 
 		foreach ( var obj in World.Objects )
 		{

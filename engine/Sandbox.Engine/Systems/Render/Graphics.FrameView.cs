@@ -55,6 +55,12 @@ public static partial class Graphics
 		ITexture GetDepthTarget( out bool owned );
 
 		/// <summary>
+		/// The depth being drawn into as an engine texture, where it is one (a frame on another device than Source 2's, whose
+		/// targets have no native handle); null for a native view, which <see cref="GetDepthTarget"/> answers.
+		/// </summary>
+		Texture DepthTexture { get; }
+
+		/// <summary>
 		/// The mode a material draws with here.
 		/// </summary>
 		IMaterialMode ModeFor( Material material );
@@ -139,6 +145,8 @@ public static partial class Graphics
 			owned = true;
 			return Layer.GetDepthTarget();
 		}
+
+		public Texture DepthTexture => null;
 
 		public IMaterialMode ModeFor( Material material ) => material.native.GetMode( Layer );
 
@@ -241,4 +249,10 @@ public static partial class Graphics
 	/// The current frame's depth target, like <see cref="GetColorTarget"/>.
 	/// </summary>
 	internal static ITexture GetDepthTarget( out bool owned ) => View.GetDepthTarget( out owned );
+
+	/// <summary>
+	/// The current frame's depth target as an engine texture, where it is one (a frame on Borealis.Gpu); null where
+	/// <see cref="GetDepthTarget"/> answers (a native view).
+	/// </summary>
+	internal static Texture DepthTexture => View.DepthTexture;
 }

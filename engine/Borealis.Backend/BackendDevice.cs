@@ -413,7 +413,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		// Two triangles a face; the sky draws with culling off, so the winding doesn't matter
 		uint[] indices = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3];
-		return BackendMesh.Create( this, vertices, indices, null, "Sky box" );
+		return BackendMesh.Create( this, vertices, indices, null, "Sky box", pooled: false );
 	}
 
 	/// <summary>
@@ -426,7 +426,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			new MeshVertex( new Vector3( 1, -1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 1, 1 ) ),
 			new MeshVertex( new Vector3( -1, 1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 0, 0 ) ),
 			new MeshVertex( new Vector3( 1, 1, 0.5f ), new Vector3( 0, 0, -1 ), new Vector2( 1, 0 ) ),
-		], [0, 1, 2, 2, 1, 3], null, "Fullscreen quad" );
+		], [0, 1, 2, 2, 1, 3], null, "Fullscreen quad", pooled: false );
 
 	RenderMesh fullscreenQuad;
 
@@ -1219,14 +1219,30 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuTexture MaterialTexture( string material, string variable ) => MaterialTexture( LoadMaterial( material ), variable );
 
 	/// <summary>
-	/// <see cref="MaterialTexture(string, string)"/> without pinning a material that's loaded already (a world's mirror holds
-	/// it, its sky's): what's drawn outside the worlds borrows it, and it goes with the world. Loaded here otherwise.
+	/// <see cref="MaterialTexture(string, string)"/> without pinning the material: what's drawn outside the worlds (a water
+	/// body's reflection reading the sky's cubemap) borrows it, and it goes with the worlds that hold it (their sky's). One not
+	/// loaded yet is loaded unheld (<see cref="UnheldMaterial"/>), so the first world to hold it and let go frees it.
 	/// </summary>
 	public GpuTexture LoadedMaterialTexture( string material, string variable )
 	{
 		GpuMaterial loaded;
 		lock ( sharedMaterials ) sharedMaterials.TryGetValue( material, out loaded );
-		return loaded is not null ? MaterialTexture( loaded, variable ) : MaterialTexture( material, variable );
+		return MaterialTexture( loaded ?? UnheldMaterial( material ), variable );
+	}
+
+	/// <summary>
+	/// A material loaded as <see cref="ModelMaterial"/> loads one (its textures held by it), but neither held nor pinned: it
+	/// stays until something holds it (<see cref="ModelMaterial"/>) and lets it go (<see cref="ReleaseModelMaterial"/>).
+	/// </summary>
+	GpuMaterial UnheldMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return LoadMaterial( path );
+		lock ( sharedMaterials )
+		{
+			var material = ModelMaterial( path );
+			LifeOf( path ).Holders--;
+			return material;
+		}
 	}
 
 	/// <summary>A material's texture for a shader variable, or null (<see cref="MaterialTexture(string, string)"/>).</summary>
@@ -1587,12 +1603,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
 	/// input layouts do for streams a mesh doesn't have. A vertex-cache layout reads vertex ids from streams 2 and 3 and
 	/// the default stream from 4. With <paramref name="normals"/>, the opaque pass's normals target follows colour, unwritten
-	/// (<see cref="AddNormalsTarget"/>).
+	/// (<see cref="AddNormalsTarget"/>). In a tools pass (<paramref name="tools"/>) a colour pipeline draws with the engine's
+	/// pixel stage (<see cref="ToolsViewStage"/>).
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null, bool normals = false )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null, bool normals = false, ToolsPass tools = ToolsPass.None )
 	{
 		normals &= color != Format.Unknown && !ids;
-		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom, normals );
+		if ( ids || color == Format.Unknown ) tools = ToolsPass.None;
+		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom, normals, tools );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -1640,6 +1658,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 			// A GPU-driven pixel shader reading its bucket's one material (borealis_gpu_driven.h's specialization constant)
 			if ( materialPerDraw && info.FragmentShader.IsValid ) info.FragmentConstants = [.. info.FragmentConstants ?? [], new SpecializationConstant( GpuDrivenMaterialPerDrawConstant, 1 )];
+
+			if ( tools != ToolsPass.None ) ToolsViewStage.Apply( Shaders, ref info, tools, ToolsViews.ShaderColor( variant.Shader?.Name ) );
 
 			// Stripped pixel shaders: depth passes of opaque materials don't need them (alpha-tested ones keep theirs)
 			if ( depthOnly && color == Format.Unknown )
@@ -1715,7 +1735,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal static readonly string DumpSurfaceShaders = Environment.GetEnvironmentVariable( "BOREALIS_DUMP_SURFACE_SHADERS" );
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null, bool Normals = false );
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null, bool Normals = false, ToolsPass Tools = ToolsPass.None );
 
 	/// <summary>
 	/// <c>kForwardNormalsOutput</c> in sbox/forward_normals.slangh: a pixel stage that has it writes the opaque pass's normals
@@ -1803,6 +1823,16 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// workers drew between them; <c>-no-gpudriven-meshes</c> turns it off.
 	/// </summary>
 	public bool GpuDrivenMeshes { get; set; } = !HasSwitch( "-no-gpudriven-meshes" );
+
+	/// <summary>
+	/// Skinned meshes' opaque draws join the static meshes' GPU-driven call (docs/managed/borealis-gpu-driven.md, "Skinned
+	/// meshes"): those from the vertex cache through a geometry record that pulls their vertex ids, the rest skinned in the
+	/// vertex shader from their bones. On by default with <see cref="GpuDrivenMeshes"/>; <c>-no-gpudriven-skinned</c> turns
+	/// it off.
+	/// </summary>
+	public bool GpuDrivenSkinned { get; set; } = !HasSwitch( "-no-gpudriven-skinned" );
+
+	internal override bool DrawsSkinnedGpuDriven => GpuDrivenSkinned && DrawsMeshesGpuDriven;
 
 	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>borealis_gpu_driven_cull_cs</c>), by the same frustum and size

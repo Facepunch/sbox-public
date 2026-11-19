@@ -261,6 +261,11 @@ internal interface IShadowRenderer
 	ShadowMap GetCascadeTarget( int cascade, int resolution );
 
 	/// <summary>
+	/// The depth target an extra sun's shadow renders into this frame.
+	/// </summary>
+	ShadowMap GetExtraSunTarget( int sun, int resolution );
+
+	/// <summary>
 	/// Bindless index of a directional light's contact shadow mask, or 0 for none.
 	/// </summary>
 	uint GetShadowMaskIndex( object light );

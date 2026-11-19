@@ -121,4 +121,58 @@ public sealed class SceneLighting
 	public Vector4 WindDirection { get; set; }
 
 	internal bool SunEnabled => SunColor.r > 0 || SunColor.g > 0 || SunColor.b > 0;
+
+	/// <summary>
+	/// The most <see cref="ExtraSuns"/> that light a view; the rest are left out.
+	/// </summary>
+	public const int MaxExtraSuns = 8;
+
+	/// <summary>
+	/// Directional lights besides the sun. Each lights every pixel (the light loop's short list after the binned lights),
+	/// with one orthographic shadow map around the camera instead of cascades, and no fog, contact shadows or sky.
+	/// </summary>
+	public List<ExtraSun> ExtraSuns { get; } = new();
+}
+
+/// <summary>
+/// A directional light besides the sun (<see cref="SceneLighting.ExtraSuns"/>).
+/// </summary>
+public struct ExtraSun
+{
+	/// <summary>
+	/// The direction its light travels, pointing away from it.
+	/// </summary>
+	public Vector3 Direction;
+
+	/// <summary>
+	/// Linear color. Black turns it off.
+	/// </summary>
+	public Color Color;
+
+	/// <summary>
+	/// Draw its shadow map.
+	/// </summary>
+	public bool Shadows;
+
+	/// <summary>
+	/// Zero is the softest the shadow filter goes, one the sharpest - <c>Light.ShadowHardness</c>.
+	/// </summary>
+	public float ShadowHardness;
+
+	/// <summary>
+	/// Its shadow map leaves static casters out: their shadows are baked.
+	/// </summary>
+	public bool ShadowsBaked;
+
+	/// <summary>
+	/// Baked-light index that lightmaps and probes reach it by, with <see cref="Baked"/>; read only when that's set.
+	/// </summary>
+	internal int BakeIndex;
+
+	/// <summary>
+	/// Bridge-provided packing for its bake index, as <see cref="SceneLighting.SunBaked"/> is the sun's.
+	/// </summary>
+	internal Features.LightBinnerFeature.GpuLight? Baked;
+
+	internal readonly bool Enabled => Color.r > 0 || Color.g > 0 || Color.b > 0;
 }

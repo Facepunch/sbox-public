@@ -1,5 +1,4 @@
-// particle_lighting_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// particle_lighting_cs: a standalone module, the whole shader for Borealis.Gpu (docs/managed/standalone-modules.md).
 // Lights lit sprites per froxel, 4x4x2 to a light cluster, in the clusters around them (ParticleLightingSystem)
 // HEADER: DevShader = true;
 // HEADER: Description = "Lights particles per froxel in the light clusters around them";
@@ -155,6 +154,14 @@ void LightPass( uint3 cluster, uint3 froxel )
 	{
 		float flShadow = g_DirectionalLightCascadeCount > 0 ? DirectionalLightShadow::GetVisibility( vPositionWs, float4( 0, 0, 0, 0 ) ) : 1.0f;
 		vLight += g_DirectionalLightColor.rgb * flShadow;
+	}
+
+	// The directional lights besides the sun, each with its own map
+	const uint nSuns = ExtraSunCount();
+	for ( uint i = 0; i < nSuns; i++ )
+	{
+		BinnedLight sun = ExtraSunByIndex( i );
+		vLight += sun.Color * ProjectedShadow::GetSunVisibility( sun.ShadowMapIndex, vPositionWs, float3( 0, 0, 0 ), float2( 0, 0 ) );
 	}
 
 	// The group is one cluster, so its lights are wave-uniform

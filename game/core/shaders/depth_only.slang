@@ -43,9 +43,10 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_VS )
 #include "instancing.fxc"
 
-// GPU-driven: positions pulled by vertex index, the transform from the instance record. Not skinned (the vertex cache
-// never draws GPU-driven), and not alpha-tested or translucent (those read the material's texture: they draw classic)
-GpuDrivenVariant( !S_ALPHA_TEST && !S_TRANSLUCENT && !D_CS_VERTEX_ANIMATION );
+// GPU-driven: positions pulled by vertex index, the transform from the instance record; a skinned draw from the vertex
+// cache pulls its vertex's place there instead. Not alpha-tested or translucent (those read the material's texture: they
+// draw classic)
+GpuDrivenVariant( !S_ALPHA_TEST && !S_TRANSLUCENT );
 
 struct VS_INPUT
 {
@@ -106,8 +107,12 @@ struct GpuDrivenOutput
 	uint4 vDraw = BorealisGpuDrivenDraw( vInstance.y );
 
 	VS_INPUT i = (VS_INPUT)0;
-	i.vPositionOs = asfloat( BorealisGpuDrivenFetch( vDraw.x, 0, nVertex, true ).xyz );	// POSITION
-	i.nBoneIndex = BorealisGpuDrivenFetch( vDraw.x, 32, nVertex, false ).x;			// BLENDINDICES
+	#if ( D_CS_VERTEX_ANIMATION )
+		i.nVertexCacheIndex = asfloat( BorealisGpuDrivenFetch( vDraw.x, 95, nVertex, true ).x );	// TEXCOORD15
+	#else
+		i.vPositionOs = asfloat( BorealisGpuDrivenFetch( vDraw.x, 0, nVertex, true ).xyz );	// POSITION
+		i.nBoneIndex = BorealisGpuDrivenFetch( vDraw.x, 32, nVertex, false ).x;			// BLENDINDICES
+	#endif
 	i.nInstanceTransformID = vInstance.x;
 
 	GpuDrivenOutput o;

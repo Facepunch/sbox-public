@@ -44,7 +44,7 @@ public class MemoryAllocatorTests : GpuTest
 	}
 
 	/// <summary>
-	/// Allocations over a quarter of a small block share large blocks, made only when one is needed, and only the biggest get
+	/// Images over a quarter of a small block share large blocks, made only when one is needed, and only the biggest get
 	/// their own; and once the last empty block of a kind is taken, another is made ahead on a worker, so the next allocation
 	/// that needs one doesn't wait for the driver (a map's first seconds waited ~0.5 s on the main thread).
 	/// </summary>
@@ -67,18 +67,54 @@ public class MemoryAllocatorTests : GpuTest
 		var a = allocator.Allocate( small, MemoryLocation.Device, image: false );
 		WaitFor( 2 * allocator.BlockSize, "a small block and one made ahead" );
 
-		// Two big ones share a large block, and another large block is made ahead
-		var b = allocator.Allocate( big, MemoryLocation.Device, image: false );
-		var c = allocator.Allocate( big, MemoryLocation.Device, image: false );
+		// Two big images share a large block, and another large block is made ahead
+		var b = allocator.Allocate( big, MemoryLocation.Device, image: true );
+		var c = allocator.Allocate( big, MemoryLocation.Device, image: true );
 		Assert.AreSame( b.Block, c.Block, "big allocations share a large block" );
 		Assert.AreNotSame( a.Block, b.Block );
 		WaitFor( 2 * allocator.BlockSize + 2 * MemoryAllocator.LargeBlockSize, "a large block and one made ahead" );
 
 		// The biggest gets its own
-		var d = allocator.Allocate( biggest, MemoryLocation.Device, image: false );
+		var d = allocator.Allocate( biggest, MemoryLocation.Device, image: true );
 		Assert.AreEqual( 2 * allocator.BlockSize + 2 * MemoryAllocator.LargeBlockSize + biggest.size, allocator.Reserved, "the biggest allocation is its own" );
 
 		foreach ( var allocation in (Allocation[])[a, b, c, d] ) allocator.Free( allocation );
+	}
+
+	/// <summary>
+	/// A buffer over a quarter of a small block (a map's vertex and index pages, a view's visibility buffers, a growing table)
+	/// is its own allocation, so one still used after its map has gone doesn't hold a large block (three 128 MiB blocks
+	/// held 26 MiB after three maps); once a size is taken twice the next is made ahead on a worker, and one freed of each
+	/// size is kept as a spare until <see cref="MemoryAllocator.SpareFrames"/> frames pass.
+	/// </summary>
+	[TestMethod]
+	public void BigBuffersAreTheirOwnAndMadeAhead()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false );
+		var page = new VkMemoryRequirements { size = 2 * allocator.OwnBufferSize, alignment = 256, memoryTypeBits = ~0u };
+
+		void WaitFor( ulong reserved, string what )
+		{
+			var clock = System.Diagnostics.Stopwatch.StartNew();
+			while ( allocator.Reserved != reserved && clock.Elapsed.TotalSeconds < 10 ) System.Threading.Thread.Sleep( 5 );
+			Assert.AreEqual( reserved, allocator.Reserved, what );
+		}
+
+		var first = allocator.Allocate( page, MemoryLocation.Device, image: false, content: true );
+		Assert.IsTrue( first.Block.Dedicated, "a big buffer is its own allocation" );
+		Assert.AreEqual( page.size, allocator.Reserved, "nothing is made ahead for a size taken once" );
+
+		var second = allocator.Allocate( page, MemoryLocation.Device, image: false, content: true );
+		WaitFor( 3 * page.size, "the second of a size makes the next ahead" );
+		var third = allocator.Allocate( page, MemoryLocation.Device, image: false, content: true );
+		Assert.AreNotSame( second.Block, third.Block );
+		WaitFor( 4 * page.size, "the third takes the spare, and another is made" );
+
+		// Freed: one spare page is kept, then trimmed
+		foreach ( var allocation in (Allocation[])[first, second, third] ) allocator.Free( allocation );
+		Assert.AreEqual( page.size, allocator.Reserved, "one spare is kept" );
+		allocator.Trim( MemoryAllocator.SpareFrames + 1 );
+		Assert.AreEqual( 0ul, allocator.Reserved, "and freed after a while" );
 	}
 
 	/// <summary>

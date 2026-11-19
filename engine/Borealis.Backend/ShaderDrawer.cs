@@ -1,5 +1,6 @@
 using Borealis.Gpu;
 using Borealis.Source2.Shaders;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace Borealis.Backend;
@@ -344,12 +345,22 @@ public sealed class ShaderDrawer : IDisposable
 	readonly Device gpu;
 	readonly ShaderLibrary shaders;
 	readonly ShaderDefaults defaults;
-	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos), ShaderVariant> variants = new();
+	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos, ulong Specialization), ShaderVariant> variants = new();
 
 	// Variants by their combos' values packed (ShaderAttributes.ComboBits) and the material's features array, built with no
 	// strings: what most draws find theirs by
-	readonly Dictionary<(ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More), ShaderVariant> packedVariants = new();
-	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids), PipelineHandle> pipelines = new();
+	readonly Dictionary<(ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More, ulong Specialization), ShaderVariant> packedVariants = new();
+	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids, ToolsPass Tools), PipelineHandle> pipelines = new();
+
+	// The attribute ids a shader's specialization constants come from (ToolsVisMode, ShadowFilterQuality...), whose values
+	// pick its variant as its combos' do
+	readonly ConditionalWeakTable<ShaderFile, int[]> specializations = new();
+
+	/// <summary>
+	/// The tools pass colour draws take (<see cref="ToolsViews"/>): a custom object in a debug view's colour layer draws with
+	/// its own vertex stage and the engine's tools view pixel stage (<see cref="ToolsViewStage"/>).
+	/// </summary>
+	internal ToolsPass ToolsPass { get; set; }
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
 	MaterialObjectCache cache;
 	readonly bool ownsCache;
@@ -471,16 +482,30 @@ public sealed class ShaderDrawer : IDisposable
 	{
 		mode ??= shader.Modes[0].Name;
 		var features = MaterialOf( shader )?.Features ?? [];
+		var specialization = SpecializationKey( shader, attributes );
 		if ( attributes.ComboBits( shader, out var bits, out var more ) )
 		{
-			var packed = (shader, mode, features, bits, more);
+			var packed = (shader, mode, features, bits, more, specialization);
 			if ( packedVariants.TryGetValue( packed, out var found ) ) return found;
-			found = VariantByName( shader, attributes, mode, features );
+			found = VariantByName( shader, attributes, mode, features, specialization );
 			if ( found is not null && !pendingVariant ) packedVariants[packed] = found;
 			return found;
 		}
 
-		return VariantByName( shader, attributes, mode, features );
+		return VariantByName( shader, attributes, mode, features, specialization );
+	}
+
+	/// <summary>The values of the shader's specialization attributes in <paramref name="attributes"/>, as one key.</summary>
+	ulong SpecializationKey( ShaderFile shader, ShaderAttributes attributes )
+	{
+		var ids = specializations.GetValue( shader, static s => new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute }
+			.SelectMany( t => s[t]?.Variables ?? [] )
+			.Where( v => v.Register == RegisterType.Specialization && v.Source == VariableSource.Attribute && !string.IsNullOrEmpty( v.Attribute ) )
+			.Select( v => v.Attribute ).Distinct( StringComparer.Ordinal ).Select( AttributeIds.Of ).ToArray() );
+
+		ulong key = 0;
+		foreach ( var id in ids ) key = key * 1000003 + (uint)(attributes.Get( id ) is float[] { Length: > 0 } f ? (int)f[0] : 0) + 1;
+		return key;
 	}
 
 	// A material's feature values as a variant key's part, made once per array (materials keep theirs)
@@ -491,12 +516,12 @@ public sealed class ShaderDrawer : IDisposable
 	// Whether the last VariantByName's variant was one whose module is still compiling
 	bool pendingVariant;
 
-	ShaderVariant VariantByName( ShaderFile shader, ShaderAttributes attributes, string mode, int[] features )
+	ShaderVariant VariantByName( ShaderFile shader, ShaderAttributes attributes, string mode, int[] features, ulong specialization )
 	{
 		pendingVariant = false;
 		var combos = attributes.ComboKey( shader );
 		if ( features.Length > 0 ) combos = string.Concat( combos, "|", FeaturesKey( features ) );
-		var key = (shader, mode, combos);
+		var key = (shader, mode, combos, specialization);
 		if ( variants.TryGetValue( key, out var variant ) ) return variant;
 
 		// Not kept while its module compiles: its programs draw until then
@@ -645,7 +670,7 @@ public sealed class ShaderDrawer : IDisposable
 		var ids = ReadsInstanceIds( variant );
 		if ( Objects( variant ) )
 		{
-			var key = new MaterialObjectCache.Key( null, variant, LayoutKey( layout, ids ), color, depth, samples, false, false, topology );
+			var key = new MaterialObjectCache.Key( null, variant, LayoutKey( layout, ids ), color, depth, samples, false, false, topology, Tools: color == Format.Unknown ? ToolsPass.None : ToolsPass );
 			var materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant, Color: color, Depth: depth, Samples: samples, Layout: layout, Topology: topology, Ids: ids),
 				static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Depth, s.Samples, s.Layout, s.Topology, materialLayout.Sets, s.Ids ) );
 			SetViewport( list, viewport );
@@ -778,7 +803,8 @@ public sealed class ShaderDrawer : IDisposable
 	/// <summary>A graphics pipeline for the reflection path (cached here) or for a material object's sets (the object keeps it).</summary>
 	PipelineHandle Pipeline( ShaderVariant variant, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets, bool ids = false )
 	{
-		var key = (variant, color, depth, samples, layout, topology, ids);
+		var tools = color == Format.Unknown ? ToolsPass.None : ToolsPass;
+		var key = (variant, color, depth, samples, layout, topology, ids, tools);
 		if ( sets is null && pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 		// Inputs the stream lacks (or every input, with no stream) read the default stream. No colour format draws into
@@ -822,6 +848,7 @@ public sealed class ShaderDrawer : IDisposable
 
 		info.Topology = topology;
 		if ( sets is not null ) info.Sets = sets;
+		if ( tools != ToolsPass.None ) ToolsViewStage.Apply( shaders, ref info, tools, ToolsViews.ShaderColor( variant.Shader?.Name ) );
 		using ( Zones.PipelineCreate.Start() ) pipeline = gpu.CreateGraphicsPipeline( info );
 		if ( sets is null ) pipelines[key] = pipeline;
 		return pipeline;
