@@ -448,6 +448,7 @@ internal sealed class MaterialObject
 		public readonly SetEntry[] LastSets = new SetEntry[ShaderAbi.BindlessSet * Remembered];
 		public readonly int[] Next = new int[ShaderAbi.BindlessSet];
 		public ulong LastConstantsKey;
+		public int ValuesVersion;
 		public ConstantVariant LastConstants;
 	}
 
@@ -473,7 +474,7 @@ internal sealed class MaterialObject
 	{
 		this.cache = cache;
 		Material = material;
-		MaterialVersion = material?.Version ?? 0;
+		MaterialVersion = material?.LayoutVersion ?? 0;
 		Layout = layout;
 		Pipeline = pipeline;
 		DepthOnly = depthOnly;
@@ -516,7 +517,11 @@ internal sealed class MaterialObject
 	}
 
 	/// <summary>Whether the material changed since this object was made, so it has to be made again.</summary>
-	public bool Stale => Material is not null && Material.Version != MaterialVersion;
+	public bool Stale => Material is not null && Material.LayoutVersion != MaterialVersion;
+
+	// The material's values version (BackendMaterial.ValuesVersion): values set in code reach the object's constants, which a
+	// context resolves again when it moves on
+	int ValuesVersion => Material?.ValuesVersion ?? 0;
 
 	Binding MaterialTexture( in ShaderResource resource )
 	{
@@ -550,7 +555,7 @@ internal sealed class MaterialObject
 		}
 
 		var state = ContextState( pass.Slot );
-		if ( passEpoch != state.Epoch || pass.LayerEpoch != state.Layer || AnyDead( state ) ) Resolve( state, passEpoch, pass );
+		if ( passEpoch != state.Epoch || pass.LayerEpoch != state.Layer || state.ValuesVersion != ValuesVersion || AnyDead( state ) ) Resolve( state, passEpoch, pass );
 
 		for ( int set = 0; set < state.Bound.Length; set++ )
 		{
@@ -573,9 +578,12 @@ internal sealed class MaterialObject
 	{
 		state.Epoch = passEpoch;
 		state.Layer = resolver.LayerEpoch;
+		state.ValuesVersion = ValuesVersion;
 		var frame = cache.Frame;
 		var pass = Layout.For( passEpoch, resolver );
-		var constants = hasMaterialConstants ? ConstantVariantFor( state, pass.Constants, resolver, frame ) : null;
+		// A variant per value of the attribute constants and of the material's own values
+		var constantsKey = pass.Constants ^ (ulong)(uint)state.ValuesVersion * 0x9E3779B97F4A7C15UL;
+		var constants = hasMaterialConstants ? ConstantVariantFor( state, constantsKey, resolver, frame ) : null;
 
 		for ( int set = 0; set < template.Length; set++ )
 		{
@@ -833,6 +841,10 @@ internal sealed class MaterialObjectCache : IDisposable
 	/// <summary>Sets and constant buffers freed for not being bound, for tests.</summary>
 	public int Evicted { get; private set; }
 
+	/// <summary>Objects made so far, including those made again for a changed material.</summary>
+	public int Made => Volatile.Read( ref objectsMade );
+	int objectsMade;
+
 	/// <summary>Objects made.</summary>
 	public int Count
 	{
@@ -994,6 +1006,7 @@ internal sealed class MaterialObjectCache : IDisposable
 
 		var layout = LayoutOf( key.Variant, immediate );
 		var made = new MaterialObject( this, key.Material, layout, pipeline( state, layout ), key.DepthOnly, key.UncompressedTangentFrame );
+		Interlocked.Increment( ref objectsMade );
 		MaterialObject replaced;
 		lock ( objects )
 		{

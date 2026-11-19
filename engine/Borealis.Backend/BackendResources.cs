@@ -615,6 +615,18 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 	/// <summary>Moves on whenever a value, texture or the material itself changes.</summary>
 	public int Version => Volatile.Read( ref version );
 
+	/// <summary>
+	/// Moves on when <see cref="Version"/> does but for values set in code: what its material objects are made from (its
+	/// textures, shader and file). A change of values alone gives them new constants (<see cref="ValuesVersion"/>) instead of
+	/// making them again: code that sets a material's values every frame (a weapon's glow) made every object of it every frame.
+	/// </summary>
+	public int LayoutVersion => Volatile.Read( ref layoutVersion );
+
+	/// <summary>Moves on whenever a value is set in code (<see cref="Set"/>).</summary>
+	public int ValuesVersion => Volatile.Read( ref valuesVersion );
+
+	int layoutVersion, valuesVersion;
+
 	/// <summary>The material's value of a variable: set in code, else the compiled material's; null for the shader's default.</summary>
 	public float[] Value( string variable )
 	{
@@ -631,6 +643,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 			values[variable] = value;
 		}
 
+		Interlocked.Increment( ref valuesVersion );
 		Interlocked.Increment( ref version );
 	}
 
@@ -642,6 +655,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		var textures = new Dictionary<string, BackendTexture>( Textures, StringComparer.OrdinalIgnoreCase ) { [variable] = texture };
 		Textures = textures;
 		Streamed();
+		Interlocked.Increment( ref layoutVersion );
 		Interlocked.Increment( ref version );
 	}
 
@@ -662,7 +676,11 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		Asks.Textures = streamed?.ToArray();
 	}
 
-	void IStreamDependent.TexturesChanged() => Interlocked.Increment( ref version );
+	void IStreamDependent.TexturesChanged()
+	{
+		Interlocked.Increment( ref layoutVersion );
+		Interlocked.Increment( ref version );
+	}
 
 	/// <summary>
 	/// Take a material's new compiled form, after its file (or its shader) changed on disk: values set in code stay.
@@ -680,6 +698,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 			loads++;
 		}
 
+		Interlocked.Increment( ref layoutVersion );
 		Interlocked.Increment( ref version );
 	}
 
