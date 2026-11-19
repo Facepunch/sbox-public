@@ -314,4 +314,60 @@ public class TextureStreamingTests : GpuTest
 		Assert.AreEqual( stream.TailTop, stream.TopFor( 0 ) );
 		Assert.AreEqual( stream.TailTop, stream.TopFor( 1 ) );
 	}
+
+	/// <summary>
+	/// Video memory full: a build whose image can't be made is dropped and the texture keeps the mips it has, nothing throws,
+	/// and once there's room again it grows. A capped budget (<see cref="Device.MemoryBudgetLimit"/>) makes it give mips back
+	/// down to its tail.
+	/// </summary>
+	[TestMethod]
+	public void FullVideoMemoryKeepsFewerMips()
+	{
+		var path = StreamingTextures( 1 )[0];
+		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		var texture = (BackendTexture)backend.MaterialTextureFile( path );
+		var stream = texture.Stream;
+		using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
+
+		void Ask( int frames, Func<bool> until )
+		{
+			for ( int frame = 0; frame < frames && !until(); frame++ )
+			{
+				backend.AskTextures( material, TextureSizes.All );
+				backend.BeginFrame();
+				Thread.Sleep( 5 );
+			}
+		}
+
+		try
+		{
+			Device.Allocator.RefuseDeviceLocal = true;
+			Device.Allocator.SystemFallback = false;
+			Ask( 100, () => backend.Streamer.OutOfMemoryBuilds > 0 );
+			Assert.IsTrue( backend.Streamer.OutOfMemoryBuilds > 0, "a build ran out of memory" );
+			Assert.AreEqual( stream.TailTop, stream.ResidentTop, "and the texture kept its tail" );
+			Assert.IsTrue( texture.IsValid );
+		}
+		finally
+		{
+			Device.Allocator.RefuseDeviceLocal = false;
+			Device.Allocator.SystemFallback = true;
+		}
+
+		Ask( 400, () => stream.ResidentTop == 0 );
+		Assert.AreEqual( 0, stream.ResidentTop, "with room again it grows" );
+
+		try
+		{
+			Device.MemoryBudgetLimit = 1;
+			Ask( 400, () => stream.ResidentTop == stream.TailTop );
+			Assert.AreEqual( stream.TailTop, stream.ResidentTop, "a capped budget gives mips back" );
+		}
+		finally
+		{
+			Device.MemoryBudgetLimit = 0;
+		}
+
+		Device.WaitIdle();
+	}
 }

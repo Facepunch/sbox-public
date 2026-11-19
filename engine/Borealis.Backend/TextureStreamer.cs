@@ -445,7 +445,18 @@ internal sealed class TextureStreamer
 
 			if ( build.NextMip < 0 )
 			{
-				build.Image = file.CreateEmpty( gpu, texture.Path );
+				try
+				{
+					build.Image = file.CreateEmpty( gpu, texture.Path );
+				}
+				catch ( GpuException e ) when ( e.Result == OutOfDeviceMemory )
+				{
+					// Video memory is full: the texture keeps the mips it has, and nothing grows until room is measured again
+					OutOfMemory( build.Top );
+					Drop( build, i-- );
+					continue;
+				}
+
 				build.NextMip = file.Mips - 1;
 			}
 
@@ -470,6 +481,23 @@ internal sealed class TextureStreamer
 			texture.Swapped();
 			builds.RemoveAt( i-- );
 		}
+	}
+
+	const int OutOfDeviceMemory = -2;
+
+	/// <summary>Builds whose image couldn't be made because video memory was full, so far.</summary>
+	public int OutOfMemoryBuilds { get; private set; }
+
+	uint growAfter;
+
+	// A build's image didn't fit video memory: measure again at once and start no growth for a window of frames, so what's
+	// resident gives mips back (GiveBack) instead of more being asked for
+	void OutOfMemory( int top )
+	{
+		OutOfMemoryBuilds++;
+		memoryFrame = 0;
+		growAfter = Frame + (uint)Math.Max( WindowFrames, 1 );
+		if ( OutOfMemoryBuilds == 1 ) Console.Error.WriteLine( $"Borealis.Gpu: streaming: video memory is full, so textures keep fewer mips (a build from mip {top} was dropped)" );
 	}
 
 	// A texture whose file couldn't give mips from top: not tried from there or finer again, said once
@@ -561,6 +589,12 @@ internal sealed class TextureStreamer
 	void Start()
 	{
 		candidates.Clear();
+		if ( Frame < growAfter )
+		{
+			Waiting = builds.Count;
+			return;
+		}
+
 		foreach ( var texture in textures )
 		{
 			if ( texture.Building is null && texture.Reachable < texture.ResidentTop ) candidates.Add( texture );
