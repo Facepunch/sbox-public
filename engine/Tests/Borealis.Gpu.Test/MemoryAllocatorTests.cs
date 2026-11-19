@@ -309,7 +309,18 @@ public class MemoryAllocatorTests : GpuTest
 			MemoryAllocator.ExistingBlocksOnly = false;
 		}
 
+		// An empty block (a spare) isn't room for a move: filling it would make the next block to drain
 		allocator.Free( first );
+		Assert.AreEqual( allocator.BlockSize, allocator.Reserved, "kept as a spare" );
+		MemoryAllocator.ExistingBlocksOnly = true;
+		try
+		{
+			Assert.ThrowsException<GpuException>( () => allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+		}
+		finally
+		{
+			MemoryAllocator.ExistingBlocksOnly = false;
+		}
 	}
 
 	/// <summary>
@@ -392,5 +403,27 @@ public class MemoryAllocatorTests : GpuTest
 		}
 
 		foreach ( var allocation in placed ) allocator.Free( allocation );
+	}
+
+	/// <summary>A drain is given up as soon as something in the block has no room elsewhere, and not tried again for a while.</summary>
+	[TestMethod]
+	public void DrainsWithNoRoomAreAbandoned()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
+		var first = new List<Allocation>();
+		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+		for ( int i = 0; i < 6; i++ ) allocator.Free( first[i] );
+		for ( int i = 8; i < 10; i++ ) allocator.Free( first[i] );
+		allocator.Trim( MemoryAllocator.QuietFrames + 30 );
+		Assert.IsTrue( allocator.Draining( first[6] ) );
+
+		allocator.Abandon( first[6] );
+		Assert.IsFalse( allocator.AnyDraining );
+		Assert.AreEqual( 1, allocator.DrainsAbandoned );
+		allocator.Trim( MemoryAllocator.QuietFrames + 60 );
+		Assert.IsFalse( allocator.Draining( first[6] ), "not tried again at once" );
+
+		foreach ( var allocation in first.Skip( 6 ).Where( ( _, i ) => i is < 2 or > 3 ) ) allocator.Free( allocation );
 	}
 }

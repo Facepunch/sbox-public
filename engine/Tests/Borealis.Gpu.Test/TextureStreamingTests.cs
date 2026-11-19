@@ -389,6 +389,9 @@ public class TextureStreamingTests : GpuTest
 		var block = Device.Get( before ).Memory.Block;
 		var version = material.Version;
 		Device.Allocator.Drain( block );
+
+		// Room in another block of its kind that's in use (a move never fills an empty block)
+		var room = Device.CreateTexture( new TextureInfo { Width = 256, Height = 256, Format = Format.RGBA8Unorm, Usage = TextureUsage.Sampled | TextureUsage.CopyDestination, Name = "Room", Content = true } );
 		try
 		{
 			for ( int frame = 0; frame < 20 && texture.Handle == before; frame++ ) backend.BeginFrame();
@@ -396,6 +399,7 @@ public class TextureStreamingTests : GpuTest
 		finally
 		{
 			Device.Allocator.Undrain( block );
+			Device.Destroy( room );
 		}
 
 		Assert.AreNotEqual( before, texture.Handle, "moved" );

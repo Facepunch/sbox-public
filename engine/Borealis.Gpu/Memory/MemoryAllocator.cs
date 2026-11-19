@@ -361,6 +361,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// </summary>
 	[ThreadStatic] internal static bool ExistingBlocksOnly;
 
+	// The one block moves out of a large block being drained made (ChooseDraining), which they may fill though it starts empty
+	MemoryBlock movesInto;
+
 	/// <summary>
 	/// While set on a thread, its buffers are allocations of their own (<see cref="OwnBuffer"/>) whatever their size: upload
 	/// pages, whose number rises and falls with how many lists a frame records, left 4 MiB holes through shared blocks.
@@ -426,6 +429,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		lock ( allocationLock )
 		{
 			Add( fresh );
+			if ( ExistingBlocksOnly ) movesInto = fresh;
 			if ( TryShared( type, image, large, content, fallback, size, alignment ) is { } placed ) return placed;
 			throw new GpuException( "A new memory block couldn't fit an allocation" );
 		}
@@ -640,7 +644,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		MemoryBlock best = null;
 		foreach ( var block in kind.Blocks )
 		{
-			if ( block.Draining || (best is not null && block.Used <= best.Used) ) continue;
+			// A move out of a draining block never fills an empty one: that block would only be the next to drain
+			if ( block.Draining || (best is not null && block.Used <= best.Used) || (ExistingBlocksOnly && block.Used == 0 && block != movesInto) ) continue;
 			if ( block.Fits( size, alignment ) ) best = block;
 		}
 
@@ -757,7 +762,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			ulong free = 0;
 			foreach ( var block in kind.Blocks )
 			{
-				free += block.Size - block.Used;
+				if ( block.Used != 0 ) free += block.Size - block.Used;
 				if ( block.Used == 0 || frame < block.DrainFrame || block.Used > block.Size * DrainBelow ) continue;
 				if ( emptiest is null || block.Used < emptiest.Used ) emptiest = block;
 			}
@@ -803,6 +808,25 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	internal void Undrain( MemoryBlock block )
 	{
 		lock ( allocationLock ) EndDrain( block );
+	}
+
+	/// <summary>
+	/// Stop draining the block <paramref name="allocation"/> is in, as <see cref="Trim"/> does when it hasn't emptied in
+	/// <see cref="DrainFrames"/>: something in it has no room elsewhere.
+	/// </summary>
+	public void Abandon( in Allocation allocation )
+	{
+		lock ( allocationLock )
+		{
+			var block = allocation.Block;
+			if ( block is not { Draining: true } ) return;
+			var kind = KindOf( block );
+			block.Draining = false;
+			block.DrainFrame = frame + DrainRetryFrames;
+			if ( kind.Draining == block ) kind.Draining = null;
+			drainingCount--;
+			DrainsAbandoned++;
+		}
 	}
 
 	/// <summary>Whether any block is being drained.</summary>
@@ -860,6 +884,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		if ( !block.Dedicated ) KindOf( block ).Blocks.Remove( block );
 		Unspare( block );
 		EndDrain( block );
+		if ( movesInto == block ) movesInto = null;
 	}
 
 	// A drained block emptied (or went): it takes allocations again

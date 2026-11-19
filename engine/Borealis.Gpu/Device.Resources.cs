@@ -587,6 +587,7 @@ public sealed unsafe partial class Device
 		if ( record.External || info.Dimension == TextureDimension.Texture3D || info.Samples > 1 ) return default;
 		var layers = record.ArrayLayers;
 		var bytes = (long)record.Memory.Size;
+		var from = record.Memory;
 
 		// Made before anything reads the record again: making it can move the records
 		TextureHandle copy;
@@ -597,6 +598,8 @@ public sealed unsafe partial class Device
 		}
 		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorFragmentedPool )
 		{
+			// No room for it: the block it's in won't empty, so it stops draining now rather than after DrainFrames
+			Allocator.Abandon( from );
 			return default;
 		}
 		finally
