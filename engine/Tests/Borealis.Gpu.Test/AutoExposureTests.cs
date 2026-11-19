@@ -171,13 +171,13 @@ public class AutoExposureTests : GpuTest
 	}
 
 	/// <summary>
-	/// A frame picks its bucket as it begins (<see cref="AutoExposure.Reserve"/>, where native's pipeline picks it), so a child
-	/// view counted while the frame draws (water's refraction) takes the next one, as on native: a 4x frame whose luminance
-	/// is in the first bucket and a single-sampled child whose luminance is in the second land each in their own, the frame's
-	/// pixels four times each. Counted the other way round, both would count nothing.
+	/// A frame picks its bucket as it begins (<see cref="AutoExposure.Reserve"/>, where native's pipeline picks it), so another
+	/// count drawn while the frame draws takes the next one: a 4x frame whose luminance is in the first bucket and a
+	/// single-sampled image whose luminance is in the second land each in their own, the frame's pixels four times each.
+	/// Counted the other way round, both would count nothing.
 	/// </summary>
 	[TestMethod]
-	public void FramesPickTheirBucketBeforeTheirChildViews()
+	public void FramesPickTheirBucketAsTheyBegin()
 	{
 		using var backend = new BackendDevice( Device );
 		var errors = new List<string>();
@@ -191,11 +191,11 @@ public class AutoExposureTests : GpuTest
 
 			// Log luminance -7.6 (the first bucket takes everything below -7.19) and -6.8 (the second, -7.19 to -6.38)
 			var frame = Upload( MathF.Pow( 2, -7.6f ) );
-			var child = Upload( MathF.Pow( 2, -6.8f ) );
+			var other = Upload( MathF.Pow( 2, -6.8f ) );
 
 			var context = new GraphicsContext( Device, drawer, null );
 			context.Track( frame, ImageLayout.CopyDestination );
-			context.Track( child, ImageLayout.CopyDestination );
+			context.Track( other, ImageLayout.CopyDestination );
 			exposure.FrameUpdate( 0 );
 			var bucket = exposure.Reserve();
 			Assert.AreEqual( 0, bucket );
@@ -204,7 +204,7 @@ public class AutoExposureTests : GpuTest
 			context.Begin( list );
 			var target = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Target" );
 			context.SetTarget( target );
-			Assert.IsTrue( exposure.Draw( context, shader, child, 0, 0, Size, Size ) );
+			Assert.IsTrue( exposure.Draw( context, shader, other, 0, 0, Size, Size ) );
 			Assert.IsTrue( exposure.Draw( context, shader, frame, 0, 0, Size, Size, 4, bucket ) );
 			Assert.IsFalse( exposure.Draw( context, shader, frame, 0, 0, Size, Size, 4, bucket ), "a reservation counts once" );
 			context.Finish();
@@ -213,12 +213,12 @@ public class AutoExposureTests : GpuTest
 			// Read three frames on
 			for ( int i = 0; i < 3; i++ ) exposure.FrameUpdate( 0 );
 			Assert.AreEqual( 57 * 57 * 4, exposure.BucketAt( 0 ).Pixels, "the frame's bucket" );
-			Assert.AreEqual( 57 * 57, exposure.BucketAt( 1 ).Pixels, "the child's bucket" );
+			Assert.AreEqual( 57 * 57, exposure.BucketAt( 1 ).Pixels, "the other count's bucket" );
 
 			Assert.AreEqual( 0, errors.Count, string.Join( "; ", errors ) );
 			context.Release();
 			Device.Destroy( frame );
-			Device.Destroy( child );
+			Device.Destroy( other );
 		}
 		finally
 		{

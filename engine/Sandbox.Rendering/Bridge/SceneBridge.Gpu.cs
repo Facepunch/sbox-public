@@ -284,8 +284,7 @@ internal sealed partial class SceneBridge
 		exposure?.FrameUpdate( RealTime.NowDouble );
 		state.View.ToneMapScalar = exposure?.Scale ?? 1.0f;
 
-		// The frame's bucket is picked now, as native picks it when its pipeline adds the frame's AutoExposure layer: before
-		// the child views drawn on the way (water's refraction) pick and count theirs
+		// The frame's bucket is picked now, as native picks it when its pipeline adds the frame's AutoExposure layer
 		var exposureBucket = exposure?.Reserve() ?? -1;
 
 		// Its planar reflection first, with its exposure: it depends on nothing in the frame
@@ -360,8 +359,8 @@ internal sealed partial class SceneBridge
 	/// <see cref="RenderChild"/>: prepared, recorded and submitted now, so it reaches the GPU before the parent's lists. It draws
 	/// into targets of its own the engine texture's size and format, which
 	/// Borealis's draws then read in place of <paramref name="target"/> (and <paramref name="depthTarget"/>), through
-	/// <see cref="MirrorContent.SetCapture"/>. It takes the parent's exposure, or its camera's own when that has auto exposure,
-	/// which it moves and counts into as native's does (<see cref="RenderOnGpu"/>). The engine draws nothing in it: the graphics
+	/// <see cref="MirrorContent.SetCapture"/>. It takes the parent's exposure and doesn't count into it: native's camera
+	/// histogram counts its child views too, which Borealis leaves out on purpose. The engine draws nothing in it: the graphics
 	/// context is the parent's (custom objects, dynamic objects and command lists aren't drawn, nor the camera's stages).
 	/// </summary>
 	bool RenderChildOnGpu( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state )
@@ -369,9 +368,7 @@ internal sealed partial class SceneBridge
 
 	/// <summary>
 	/// Render a view on the Borealis.Gpu device into targets of its own for <paramref name="target"/> and
-	/// <paramref name="depthTarget"/> (<see cref="RenderChildOnGpu"/>), with <paramref name="toneMapScalar"/> as its exposure,
-	/// or its camera's own: a camera with auto exposure moves it for the view and, unless the view is a reflection, counts the
-	/// view's colour into it.
+	/// <paramref name="depthTarget"/> (<see cref="RenderChildOnGpu"/>), with <paramref name="toneMapScalar"/> as its exposure.
 	/// </summary>
 	bool RenderOnGpu( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, float toneMapScalar, out CameraState state )
 	{
@@ -380,14 +377,7 @@ internal sealed partial class SceneBridge
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
 		(var render, state) = Prepare( camera, setup, target.Size );
-
-		// Native renders each of a camera's views through a camera renderer of its own, which moves the camera's exposure
-		// first (FrameUpdate) and gives the view its scale; the standard pipeline then counts the view into the camera's
-		// buckets, unless it's a reflection. So a camera with auto exposure meters its child views (water's refraction) too
-		var backend = Gpu;
-		var exposure = backend is null ? null : camera.Tonemap?.GpuExposure( backend );
-		exposure?.FrameUpdate( RealTime.NowDouble );
-		state.View.ToneMapScalar = exposure?.Scale ?? toneMapScalar;
+		state.View.ToneMapScalar = toneMapScalar;
 
 		var size = new Vector2Int( target.Width, target.Height );
 		var format = Source2Formats.From( target.ImageFormat );
@@ -422,7 +412,6 @@ internal sealed partial class SceneBridge
 		// What reads them samples them
 		var gpu = MirrorContent.Gpu;
 		gpu.MakeReadable( drawn.Resolved );
-		if ( exposure is not null && !setup.Reflection ) backend.CountExposure( exposure, drawn.Resolved, drawn.Samples );
 		MirrorContent.SetCapture( target, drawn.Resolved );
 		if ( depthTarget is not null )
 		{

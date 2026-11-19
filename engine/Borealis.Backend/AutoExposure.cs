@@ -165,8 +165,8 @@ public sealed class AutoExposure : IDisposable
 	/// frame's size bound, which isn't drawn to. False when every bucket is still waiting for its count.
 	/// <paramref name="samples"/>: the frame's multisampling. Above one, <paramref name="color"/> is its resolved colour,
 	/// metered as native meters the multisampled colour itself: its query reads only red there, and counts every sample of
-	/// its multisampled target, so each pixel counts <paramref name="samples"/> times. That weighs a multisampled view
-	/// against a single-sampled one counted into the same buckets (a child view of the camera's, as native's does).
+	/// its multisampled target, so each pixel counts <paramref name="samples"/> times, as a multisampled view's do on native
+	/// against a single-sampled one's.
 	/// <paramref name="bucket"/>: the bucket <see cref="Reserve"/> picked for this count, or -1 to pick one now.
 	/// </summary>
 	public bool Draw( GraphicsContext context, ShaderFile shader, TextureHandle color, int x, int y, int width, int height, int samples = 1, int bucket = -1 )
@@ -323,10 +323,9 @@ public sealed class AutoExposure : IDisposable
 
 	/// <summary>
 	/// Pick the bucket a frame's own count will draw into (<see cref="Draw"/>), now: where native picks it
-	/// (<c>GenerateRendererData</c>, as its pipeline adds the frame's <c>AutoExposure</c> layer), before the views the frame
-	/// renders on the way (a camera's child views, each counted as it's drawn) pick theirs. That order decides which view
-	/// each bucket's count comes from, frame to frame. -1 when every bucket is still waiting for its count. A reservation
-	/// not drawn by the next one goes back as it was.
+	/// (<c>GenerateRendererData</c>, as its pipeline adds the frame's <c>AutoExposure</c> layer), before anything drawn on
+	/// the way that counts too picks its own. -1 when every bucket is still waiting for its count. A reservation not drawn
+	/// by the next one goes back as it was.
 	/// </summary>
 	public int Reserve()
 	{
