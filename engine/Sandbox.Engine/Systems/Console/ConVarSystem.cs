@@ -1,5 +1,6 @@
 ﻿using Sandbox.Network;
 using System.Reflection;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -199,12 +200,28 @@ internal static partial class ConVarSystem
 	}
 
 	/// <summary>
+	/// Counts up whenever a convar is set or a command run through here, and whenever native changes one of its own (cfg
+	/// exec, its console, video settings applied natively), so code that reads one every frame (its value comes back from
+	/// native as a new string) can keep what it read until something changes.
+	/// </summary>
+	internal static int Changes => Volatile.Read( ref changes );
+
+	static int changes;
+
+	/// <summary>
+	/// Called from native when any of its convars changes, on whichever thread set it.
+	/// </summary>
+	internal static void OnNativeConVarChanged() => Interlocked.Increment( ref changes );
+
+	/// <summary>
 	/// Get a ConVar value as an integer. If the ConVar value is a boolean, this will return
 	/// the value in its integer form.
 	/// </summary>
 	public static int GetInt( string name, int defaultValue, bool allowEngineVariable )
 	{
+		// The default isn't made a string to be parsed back: read every frame, that was an allocation each time
 		var value = GetValue( name, null, allowEngineVariable );
+		if ( value is null ) return defaultValue;
 
 		if ( bool.TryParse( value, out var boolean ) )
 			return boolean ? 1 : 0;
@@ -232,6 +249,7 @@ internal static partial class ConVarSystem
 		if ( cmd.IsProtected && !allowProtected ) return;
 
 		cmd.Value = value;
+		Interlocked.Increment( ref changes );
 
 		// Let the ConVar save itself, if it wants to
 		cmd.Save();
@@ -355,6 +373,7 @@ internal static partial class ConVarSystem
 		if ( command.IsVariable )
 		{
 			command.Value = args.SplitQuotesStrings()[0];
+			Interlocked.Increment( ref changes );
 			return;
 		}
 
@@ -366,6 +385,7 @@ internal static partial class ConVarSystem
 		}
 
 		command.Run( args );
+		Interlocked.Increment( ref changes );
 	}
 
 	/// <summary>

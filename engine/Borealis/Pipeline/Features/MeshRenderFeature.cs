@@ -1386,8 +1386,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				// sets it per draw): so it's clear on both sides of them
 				if ( vertexAnimation != 0 ) context.SetCombo( CsVertexAnimation, vertexAnimation = 0 );
 
+				// The wireframe view mode is the scene's objects' (native's wireframe override replaces their materials' modes):
+				// a custom object draws as it asks, as tool overlays keep their colours in a wireframe view
+				var tools = context.ToolsPass;
+				if ( tools == ToolsPass.Wireframe ) context.ToolsPass = ToolsPass.None;
+
 				context.BindInstances( 1, run.FirstInstance );
 				using ( Zones.CustomObject.Start() ) custom.Render( context, view, layer );
+				context.ToolsPass = tools;
 				context.SetCombo( CsVertexAnimation, 0 );
 				context.RestoreBound();
 				stats.CustomDraws++;

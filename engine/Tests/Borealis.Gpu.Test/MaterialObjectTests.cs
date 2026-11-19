@@ -82,7 +82,8 @@ public class MaterialObjectTests : GpuTest
 
 	/// <summary>
 	/// Changing a material's value (as <c>Material.Set</c> does) draws it with the new value on the next frame, without
-	/// anything invalidating it by hand; setting the old value back draws the first frame again.
+	/// anything invalidating it by hand; setting the old value back draws the first frame again. A change of values alone
+	/// keeps the material's objects, with new constants, rather than making them again.
 	/// </summary>
 	[TestMethod]
 	public void ChangedMaterialsDrawTheirNewValues()
@@ -107,6 +108,7 @@ public class MaterialObjectTests : GpuTest
 		var material = scene.Backend.MaterialCache.Materials.First( m => m.Value( "g_vColorTint" ) is not null );
 		var tint = material.Value( "g_vColorTint" );
 		var objects = scene.Backend.MaterialObjectStats.Objects;
+		var made = scene.Backend.MaterialCache.Made;
 
 		material.Set( "g_vColorTint", [0, 1, 0, 0] );
 		var changed = Frame();
@@ -116,6 +118,7 @@ public class MaterialObjectTests : GpuTest
 		Assert.IsTrue( Different( before, changed ) > 0, $"{material.Name} drew with its new tint" );
 		CollectionAssert.AreEqual( before, restored, "setting the old tint back draws the first frame again" );
 		Assert.AreEqual( objects, scene.Backend.MaterialObjectStats.Objects, "the changed material's objects were made again, not added to" );
+		Assert.AreEqual( made, scene.Backend.MaterialCache.Made, "a change of values made no objects" );
 	}
 
 	/// <summary>

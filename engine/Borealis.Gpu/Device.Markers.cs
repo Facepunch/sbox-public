@@ -21,12 +21,19 @@ public sealed unsafe partial class Device
 	int nextMarkerSlot;
 	readonly MarkerTrail[] markerTrails = new MarkerTrail[MarkerSlots];
 
-	/// <summary>A slot's list and its markers' names, in order: marker n is <c>Names[n - 1]</c>.</summary>
+	// Names a slot keeps of its markers: the first this many, in a window of one array made with the slots (lists of names
+	// per slot grew as lists reached them, allocating in every frame until each slot had been through the longest lists)
+	const int NamedMarkers = 128;
+	string[] markerNames;
+
+	/// <summary>A slot's list and how many markers it has written: marker n is named at <c>n - 1</c> of the slot's window.</summary>
 	sealed class MarkerTrail
 	{
 		public string List;
-		public readonly List<string> Names = new();
+		public int Count;
 	}
+
+	string MarkerName( int slot, uint n ) => n > NamedMarkers ? "(unnamed)" : markerNames[slot * NamedMarkers + (int)n - 1];
 
 	/// <summary>Whether lists write progress markers.</summary>
 	internal bool ProgressMarkers => bufferMarkers && markerWords != null;
@@ -39,6 +46,7 @@ public sealed unsafe partial class Device
 		markerVkBuffer = Get( markerBuffer ).Buffer;
 		new Span<uint>( markerWords, MarkerSlots * 2 ).Clear();
 		for ( int i = 0; i < MarkerSlots; i++ ) markerTrails[i] = new MarkerTrail();
+		markerNames = new string[MarkerSlots * NamedMarkers];
 	}
 
 	/// <summary>The next slot for a list beginning, cleared.</summary>
@@ -51,7 +59,7 @@ public sealed unsafe partial class Device
 		lock ( trail )
 		{
 			trail.List = list;
-			trail.Names.Clear();
+			trail.Count = 0;
 		}
 
 		return slot;
@@ -64,8 +72,8 @@ public sealed unsafe partial class Device
 		uint number;
 		lock ( trail )
 		{
-			trail.Names.Add( name );
-			number = (uint)trail.Names.Count;
+			number = (uint)++trail.Count;
+			if ( number <= NamedMarkers ) markerNames[slot * NamedMarkers + (int)number - 1] = name;
 		}
 
 		// VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT as the front end reaches it, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT once the work before it is done
@@ -98,9 +106,9 @@ public sealed unsafe partial class Device
 		var trail = markerTrails[slot];
 		lock ( trail )
 		{
-			var count = trail.Names.Count;
+			var count = trail.Count;
 			if ( done == count && reached == count ) return $" [markers {count}/{count}]";
-			string Name( uint n ) => n >= 1 && n <= count ? $"'{trail.Names[(int)n - 1]}'" : "none";
+			string Name( uint n ) => n >= 1 && n <= count ? $"'{MarkerName( slot, n )}'" : "none";
 			return $" [markers reached {reached}/{count}, done {done}/{count}: done to {Name( done )}, first not done {Name( done + 1 )}, reached {Name( reached )}, next {Name( reached + 1 )}]";
 		}
 	}

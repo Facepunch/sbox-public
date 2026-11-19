@@ -440,7 +440,9 @@ internal static class MirrorContent
 	/// <summary>
 	/// An object's attributes as its draws read them: its managed copy (<c>RenderAttributes.Shadow</c>) converted, again only
 	/// when it changed. Numbers, vectors, matrices, combos, textures and buffers carry over; samplers and constant buffers
-	/// don't yet.
+	/// don't yet. Values set again (a time or colour each frame, or all of them after a clear) are written into the same
+	/// parameters; a value added or gone, or a combo changed, makes new ones, so the object's draws are made again
+	/// (<c>MeshObject.Attributes</c>).
 	/// </summary>
 	public static ShaderParameters ObjectParameters( RenderAttributes attributes )
 	{
@@ -449,19 +451,49 @@ internal static class MirrorContent
 		var converted = convertedAttributes.GetOrCreateValue( shadow );
 		if ( converted.Parameters is not null && converted.Version == shadow.Version ) return converted.Parameters;
 
+		var shape = Shape( shadow );
+		if ( converted.Parameters is not null && shape == converted.Shape )
+		{
+			foreach ( var (token, value) in shadow.ValuesSince( converted.Version ) ) Set( converted.Parameters, new StringToken( token ), value );
+			converted.Version = shadow.Version;
+			return converted.Parameters;
+		}
+
 		var parameters = gpu.CreateParameters();
 		foreach ( var (token, value) in shadow.Values ) Set( parameters, new StringToken( token ), value );
 
 		foreach ( var (token, value) in shadow.Combos ) parameters.SetCombo( new StringToken( token ), value );
 		converted.Parameters = parameters;
 		converted.Version = shadow.Version;
+		converted.Shape = shape;
 		return parameters;
+	}
+
+	/// <summary>The names a set holds and its combos' values, whatever order they were set in, as a hash.</summary>
+	static ulong Shape( ManagedRenderAttributes attributes )
+	{
+		var shape = (ulong)attributes.ValueCount;
+		foreach ( var (token, _) in attributes.Values ) shape += Mix( token );
+		foreach ( var (token, value) in attributes.Combos ) shape += Mix( (ulong)token << 32 | (uint)value ) * 3;
+		return shape;
+	}
+
+	static ulong Mix( ulong x )
+	{
+		x ^= x >> 33;
+		x *= 0xff51afd7ed558ccdUL;
+		x ^= x >> 33;
+		x *= 0xc4ceb9fe1a85ec53UL;
+		return x ^ x >> 33;
 	}
 
 	sealed class ConvertedAttributes
 	{
 		public ShaderParameters Parameters;
 		public int Version;
+
+		/// <summary>The <see cref="Shape"/> it was made with.</summary>
+		public ulong Shape;
 	}
 
 	static readonly ConditionalWeakTable<ManagedRenderAttributes, ConvertedAttributes> convertedAttributes = new();

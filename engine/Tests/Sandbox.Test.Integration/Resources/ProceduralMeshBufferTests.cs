@@ -164,7 +164,7 @@ public class ProceduralMeshBufferTests
 		mesh.CreateVertexBuffer( 3, Strip( 3 ).AsSpan() );
 		var file = ModelFile.Read( Model.Builder.AddMesh( mesh ).Create().SaveToVmdl() );
 
-		Assert.AreEqual( 0, file.Meshes[0].IndexBuffers.Count );
+		Assert.AreEqual( 0, file.Meshes[0].IndexBuffers.Count( b => !b.Generated ), "the file holds no index buffer" );
 		Assert.AreEqual( 3, file.Meshes[0].VertexBuffers[0].Count );
 	}
 

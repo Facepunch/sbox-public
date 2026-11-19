@@ -29,7 +29,7 @@ internal sealed partial class BackendContext
 		if ( lighting.SkyMaterial is not BackendMaterial { Shader: { } shader } material || shader.Modes.Count == 0 ) return false;
 
 		// The material's mode, else its first, as native's GetMode() falls back
-		var mode = ModeName( shader, shaderMode ) is null ? Token( shader.Modes[0].Name ) : shaderMode;
+		var mode = CachedModeName( shader, shaderMode ) is null ? Token( shader.Modes[0].Name ) : shaderMode;
 
 		var rotation = lighting.SkyRotation;
 		Vector3 forward = rotation.Forward, left = rotation.Left, up = rotation.Up;

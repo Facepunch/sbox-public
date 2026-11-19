@@ -146,6 +146,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	static Material depthResolve;
 	Texture resolvedDepth, resolveScratch;
+	RenderTarget resolveTarget;
 	RenderAttributes resolveAttributes;
 
 	// The multisampled depth was resolved for this frame already (the depth doesn't change after the scene)
@@ -169,6 +170,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			resolvedDepth = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithDepthFormat(), "Borealis.Gpu frame resolved depth" );
 			// The resolve writes depth alone; the engine's drawing always has a colour target
 			resolveScratch = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithFormat( ImageFormat.RGBA8888 ), "Borealis.Gpu depth resolve scratch" );
+			resolveTarget = RenderTarget.From( resolveScratch, resolvedDepth );
 		}
 
 		resolveAttributes ??= RenderAttributes.CreateManaged();
@@ -177,8 +179,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		resolveAttributes.SetCombo( "D_UPSCALE", 0 );
 		resolveAttributes.Set( "DownsampleFactor", 1 );
 
-		using var target = RenderTarget.From( resolveScratch, resolvedDepth );
-		backend.BindRenderTarget( target );
+		backend.BindRenderTarget( resolveTarget );
 		Graphics.Viewport = new Rect( 0, 0, Depth.Width, Depth.Height );
 		Graphics.Clear( global::Color.Transparent, false, true, true );
 		Graphics.Blit( depthResolve, resolveAttributes );
@@ -395,12 +396,13 @@ internal sealed class BorealisGpuFrame : IDisposable
 			// A block that threw before taking the list leaves it lent: later frames would take themselves as inside it
 			backend.LendNextBlock( null );
 
-			// Back to the frame, where the block left them, and no longer the engine's to track
+			// Back to the frame, where the block left them, and no longer the engine's to track; the engine textures keep their
+			// backings for the next block on these textures
 			foreach ( var (engine, gpu) in (ReadOnlySpan<(Texture, BackendTexture)>)[color, depth, chain, normals, fog] )
 			{
 				if ( engine is null ) continue;
 				context.SetLayout( gpu, backend.LayoutOf( engine ) );
-				backend.Release( engine );
+				backend.ForgetBorrowed( gpu.Handle );
 			}
 
 			backend.DepthRange = (0, 1);
@@ -409,9 +411,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		}
 	}
 
-	// Depth targets drawn into alone (RunInDepth), by size: engine textures kept from frame to frame, each borrowed for a draw,
-	// and a target of each
-	readonly Dictionary<Vector2Int, (Texture Texture, RenderTarget Target)> depthAlone = new();
+	// Depth targets drawn into alone (RunInDepth), one per Borealis texture (shadow maps, the prepass's depth): engine textures
+	// kept from frame to frame with their backings, each borrowed for a draw, and a target of each
+	readonly Dictionary<BackendTexture, (Texture Texture, RenderTarget Target)> depthAlone = new();
 
 	/// <summary>
 	/// <see cref="RunInFrame"/> into <paramref name="target"/>'s depth alone, at its slice: what a custom object in a shadow map
@@ -423,11 +425,11 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 		var context = (BackendContext)target.Context;
 		var list = context.Lend();
-		var size = new Vector2Int( gpu.Width, gpu.Height );
-		if ( !depthAlone.TryGetValue( size, out var kept ) )
+		if ( !depthAlone.TryGetValue( gpu, out var kept ) )
 		{
-			var texture = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithDepthFormat(), "Borealis.Gpu depth drawn alone" );
-			depthAlone[size] = kept = (texture, RenderTarget.FromDepth( texture ));
+			if ( depthAlone.Count > 8 ) DropDisposedDepthTextures();
+			var texture = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( gpu.Width, gpu.Height ).WithDepthFormat(), "Borealis.Gpu depth drawn alone" );
+			depthAlone[gpu] = kept = (texture, RenderTarget.FromDepth( texture ));
 		}
 
 		backend.Borrow( kept.Texture, gpu.Handle, context.LendLayout( gpu, Borealis.Gpu.ImageLayout.DepthTarget ) );
@@ -447,11 +449,21 @@ internal sealed class BorealisGpuFrame : IDisposable
 		{
 			backend.LendNextBlock( null );
 			context.SetLayout( gpu, backend.LayoutOf( kept.Texture ) );
-			backend.Release( kept.Texture );
+			backend.ForgetBorrowed( gpu.Handle );
 			backend.DepthRange = (0, 1);
 			view.Target = null;
 			view.DepthSlice = 0;
 			context.Reclaim();
+		}
+	}
+
+	void DropDisposedDepthTextures()
+	{
+		foreach ( var (gpu, kept) in depthAlone )
+		{
+			if ( gpu.IsValid ) continue;
+			depthAlone.Remove( gpu );
+			kept.Texture.Dispose();
 		}
 	}
 
@@ -470,7 +482,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// </summary>
 	public Graphics.Scope Begin( BorealisGpuView view )
 	{
-		frameTarget = Multisampled ? RenderTarget.From( Color ) : RenderTarget.From( Color, Depth );
+		frameTarget = StageTarget( Color, Multisampled ? null : Depth );
 		if ( view is not null ) view.Target = frameTarget;
 		var scope = Graphics.Scope.CreateOnView( backend, view );
 		try
@@ -480,7 +492,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			// RenderValue.DepthTarget, depth grabs) reads it. The view chain is built from every sample
 			if ( Multisampled && ResolvedDepth() is { } resolved )
 			{
-				frameTarget = RenderTarget.From( Color, resolved );
+				frameTarget = StageTarget( Color, resolved );
 				if ( view is not null ) view.Target = frameTarget;
 			}
 

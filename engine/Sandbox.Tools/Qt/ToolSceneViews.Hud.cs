@@ -55,17 +55,25 @@ internal static partial class ToolSceneViews
 		readonly RenderAttributes attributes = new();
 
 		/// <summary>
-		/// The HUD's objects this frame, from <paramref name="source"/> for a view of the given size. Outside a render block:
-		/// images seen for the first time become textures here.
+		/// The HUD's objects this frame for the request's view, from <paramref name="source"/>, or with none the HUD the request
+		/// carries (a tool scene's own) when <paramref name="requestHud"/>. Outside a render block: images seen for the first
+		/// time become textures here.
 		/// </summary>
-		public void Gather( HudSource source, int width, int height )
+		public void Gather( HudSource source, ref Request request, bool requestHud )
 		{
 			items.Clear();
-			if ( source is null || width < 1 || height < 1 ) return;
+			var width = request.Width;
+			var height = request.Height;
+			if ( width < 1 || height < 1 ) return;
 
 			int count;
 			fixed ( HudItem* all = native )
-				count = Math.Clamp( source( all, MaxItems, width, height ), 0, MaxItems );
+			{
+				if ( source is not null ) count = source( all, MaxItems, width, height );
+				else if ( requestHud && request.GetHud != null && request.Hud != IntPtr.Zero ) count = request.GetHud( request.Hud, all, MaxItems, width, height );
+				else return;
+			}
+			count = Math.Clamp( count, 0, MaxItems );
 
 			for ( int i = 0; i < count; i++ )
 			{

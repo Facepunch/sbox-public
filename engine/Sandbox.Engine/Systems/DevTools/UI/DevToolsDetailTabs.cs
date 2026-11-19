@@ -294,6 +294,8 @@ internal sealed class DevToolsMemoryTab : DevToolsTab
 		_facts.Set( "Process", DevToolsFormat.Bytes( PerformanceStats.ApproximateProcessMemoryUsage ) );
 		_facts.Set( "Managed heap", DevToolsFormat.Bytes( GC.GetTotalMemory( false ) ) );
 		_facts.Set( "Alloc", $"{DevToolsFormat.Bytes( second.ByteAlloc )}/s", second.ByteAlloc > 20 * 1024 * 1024 ? DevTools.Severity.Warning : null, "Managed allocations in the last second" );
+		_facts.Set( "Renderer alloc", $"{DevToolsFormat.Bytes( PerformanceStats.RendererBytesAllocated )}/frame", PerformanceStats.RendererBytesAllocated > 64 * 1024 ? DevTools.Severity.Warning : null,
+			"Managed allocations by the renderer in the last frame, on every thread: none once a scene is steady" );
 		_facts.Set( "GC pause", $"{gcMs:0.0} ms/s", gcMs > 2 || second.Gc2 > 0 ? DevTools.Severity.Warning : null );
 		_facts.Set( "GCs /s", $"{second.Gc0} / {second.Gc1} / {second.Gc2}", second.Gc2 > 0 ? DevTools.Severity.Warning : null, "gen0 / gen1 / gen2 collections in the last second" );
 

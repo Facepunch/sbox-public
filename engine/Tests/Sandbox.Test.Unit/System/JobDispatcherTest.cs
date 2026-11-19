@@ -12,6 +12,46 @@ public class JobDispatcherTest
 	// Workers only take part when there are some and parallelism isn't capped at 1 (SBOX_MAX_PARALLELISM)
 	static bool Parallel => JobDispatcher.Workers.Count > 0 && JobDispatcher.MaxDegreeOfParallelism > 1;
 
+	/// <summary>
+	/// A caller whose synchronization context hears of its waits (the main thread's) waits for the workers through it, and
+	/// allocates nothing doing so: waiting on a monitor there made the runtime allocate the handles' array every time.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	[DoNotParallelize]
+	public void JoiningUnderAWaitNotifiedContextAllocatesNothing()
+	{
+		if ( !Parallel ) Assert.Inconclusive( "No workers to wait for." );
+
+		var previous = SynchronizationContext.Current;
+		var context = new WaitNotifiedContext();
+		SynchronizationContext.SetSynchronizationContext( context );
+		try
+		{
+			// Each item takes a while, so the caller runs out of its own and waits for a worker's
+			var items = JobDispatcher.Workers.Count + 1;
+			Allocations.AssertSettles( "a join that waits", () => JobDispatcher.For( items, 0, static ( _, _ ) => Thread.Sleep( 2 ), itemsPerBatch: 1 ) );
+			Assert.IsTrue( context.Waits > 0, "the caller waited through its context" );
+		}
+		finally
+		{
+			SynchronizationContext.SetSynchronizationContext( previous );
+		}
+	}
+
+	sealed class WaitNotifiedContext : SynchronizationContext
+	{
+		public int Waits;
+
+		public WaitNotifiedContext() => SetWaitNotificationRequired();
+
+		public override int Wait( IntPtr[] waitHandles, bool waitAll, int millisecondsTimeout )
+		{
+			Waits++;
+			return base.Wait( waitHandles, waitAll, millisecondsTimeout );
+		}
+	}
+
 	[TestMethod]
 	public void RunsEveryItemOnce()
 	{
