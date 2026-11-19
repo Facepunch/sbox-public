@@ -62,6 +62,43 @@ public class ModelFileTests
 	}
 
 	/// <summary>
+	/// A world aggregate's fragment names its draw by mesh id, not by place: Construct's red-brick aggregate
+	/// (<c>node000_lr0_agg72_16_wall_brick_b</c>) has its two draws with culling data, mesh ids 1 and 12, written last in a
+	/// vertex buffer of their own, so fragment 8 draws the eighth draw in the file (mesh id 8), as native does.
+	/// </summary>
+	[TestMethod]
+	public void AggregateFragmentsDrawTheCallTheirMeshIdNames()
+	{
+		int[] ids = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 1, 12];
+		var mesh = new ModelMesh { DrawCalls = ids.Select( id => new MeshDrawCall { MeshId = id, VertexBuffers = [] } ).ToArray() };
+
+		var draws = ModelFile.AggregateDraws( [mesh] );
+
+		Assert.AreEqual( 7, draws[8], "fragment 8 draws the call with mesh id 8" );
+		Assert.AreEqual( 14, draws[1] );
+		Assert.AreEqual( 15, draws[12] );
+		for ( int i = 0; i < ids.Length; i++ ) Assert.AreEqual( i, ids[draws[i]], $"fragment {i}" );
+
+		var read = MeshDrawCall.Read( new Dictionary<string, object> { ["m_nMeshID"] = 12L }, [], "mesh" );
+		Assert.AreEqual( 12, read.MeshId, "m_nMeshID is read" );
+		Assert.AreEqual( -1, MeshDrawCall.Read( new Dictionary<string, object>(), [], "mesh" ).MeshId, "-1 where it isn't written" );
+	}
+
+	/// <summary>
+	/// Draws whose mesh ids don't number them (none written, or one twice) are drawn by fragments in file order.
+	/// </summary>
+	[TestMethod]
+	public void AggregateDrawsWithoutMeshIdsAreInFileOrder()
+	{
+		static ModelMesh Mesh( params int[] ids ) => new() { DrawCalls = ids.Select( id => new MeshDrawCall { MeshId = id, VertexBuffers = [] } ).ToArray() };
+
+		CollectionAssert.AreEqual( new[] { 0, 1, 2 }, ModelFile.AggregateDraws( [Mesh( -1, -1, -1 )] ), "none written" );
+		CollectionAssert.AreEqual( new[] { 0, 1, 2 }, ModelFile.AggregateDraws( [Mesh( 0, 0, 1 )] ), "one twice" );
+		CollectionAssert.AreEqual( new[] { 0, 1, 2 }, ModelFile.AggregateDraws( [Mesh( 0, 1, 3 )] ), "one past the end" );
+		CollectionAssert.AreEqual( new[] { 2, 0, 1 }, ModelFile.AggregateDraws( [Mesh( 1, 2 ), Mesh( 0 )] ), "numbered across meshes" );
+	}
+
+	/// <summary>
 	/// Every compiled model in the content reads: meshes, buffers (meshopt decoded), draws and skeletons. Every vertex
 	/// lies in its mesh's bounds, every index reaches a vertex, and packed normals decode to unit vectors at right angles
 	/// to their tangents, which a misdecoded buffer wouldn't manage.
