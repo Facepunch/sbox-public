@@ -85,8 +85,7 @@ internal partial class SurfaceWindow
 			{
 				// Scene panels queue their render during simulate - fill them in before we draw,
 				// otherwise a panel that just resized draws a texture with nothing in it yet.
-				// Scenes don't render on Borealis.Gpu yet.
-				if ( _borealis is null ) ScenePanel.RenderPending();
+				ScenePanel.RenderPending();
 
 				DrawFrame();
 				return true;
