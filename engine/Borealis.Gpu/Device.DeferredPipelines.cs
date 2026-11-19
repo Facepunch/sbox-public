@@ -74,16 +74,16 @@ public sealed unsafe partial class Device
 		if ( Interlocked.Exchange( ref lastSkipFrame, frame ) != frame ) Interlocked.Increment( ref framesWithSkips );
 	}
 
-	/// <summary>Whether the four parts a pipeline links are all made, so linking it is quick.</summary>
+	/// <summary>Whether the parts a pipeline links are all made, so linking it is quick.</summary>
 	bool PartsReady( in GraphicsPipelineInfo info, ulong layout )
 	{
 		var preRasterization = PreRasterizationKey( info, layout );
 		var fragment = FragmentKey( info, layout );
-		var vertexInput = VertexInputKey( info );
+		var vertexInput = info.MeshShader.IsValid ? null : VertexInputKey( info );
 		var output = OutputKey( info );
 		lock ( partLock )
 		{
-			return Made( preRasterizationParts, preRasterization ) && Made( fragmentParts, fragment ) && Made( vertexInputParts, vertexInput ) && Made( outputParts, output );
+			return Made( preRasterizationParts, preRasterization ) && Made( fragmentParts, fragment ) && (vertexInput is null || Made( vertexInputParts, vertexInput )) && Made( outputParts, output );
 		}
 
 		static bool Made( Dictionary<PartKey, PipelinePart> cache, PartKey key ) => cache.TryGetValue( key, out var part ) && part.Ready && part.Failed is null;
