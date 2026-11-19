@@ -54,7 +54,7 @@ namespace Sandbox
 				if ( Tokens.Contains( token ) ) return;
 				tokens.Add( token );
 				SceneObject.native.AddTag( token );
-				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
+				SceneObject.TagsChanged();
 			}
 
 			public override IEnumerable<string> TryGetAll()
@@ -86,7 +86,7 @@ namespace Sandbox
 				var token = StringToken.FindOrCreate( tag );
 				if ( !Tokens.Remove( token ) ) return;
 				SceneObject.native.RemoveTag( token );
-				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
+				SceneObject.TagsChanged();
 			}
 
 			public override void RemoveAll()
@@ -95,7 +95,7 @@ namespace Sandbox
 				read = true;
 				tokens.Clear();
 				SceneObject.native.RemoveAllTags();
-				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
+				SceneObject.TagsChanged();
 			}
 		}
 	}

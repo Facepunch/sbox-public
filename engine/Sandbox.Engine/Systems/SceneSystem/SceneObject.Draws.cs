@@ -76,9 +76,20 @@ public partial class SceneObject
 		/// <summary>Per scene object of a mesh (a mesh instance), in draw order: its mesh group mask and local bounds.</summary>
 		public (ulong MeshGroupMask, BBox Bounds)[] Instances;
 
+		/// <summary>The model's <see cref="Resource.Revision"/> these were read at: a reload reads them again.</summary>
+		public int Revision;
+
 		static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Model, ModelDraws> cache = new();
 
-		public static ModelDraws For( Model model ) => cache.GetValue( model, Read );
+		public static ModelDraws For( Model model )
+		{
+			var draws = cache.GetValue( model, Read );
+			if ( draws.Revision == model.Revision ) return draws;
+
+			draws = Read( model );
+			cache.AddOrUpdate( model, draws );
+			return draws;
+		}
 
 		static ModelDraws Read( Model model )
 		{
@@ -127,6 +138,7 @@ public partial class SceneObject
 				DefaultIndex = defaults,
 				Translucency = (int)translucency == -1 ? TranslucencyType.Opaque : translucency,
 				Instances = instances.ToArray(),
+				Revision = model.Revision,
 			};
 		}
 	}

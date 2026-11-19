@@ -615,6 +615,86 @@ public class ObjectAttributeTests : GpuTest
 	}
 
 	/// <summary>
+	/// A resident mesh whose draws change every frame (game code setting its state each frame) goes the views' own way until it
+	/// keeps them, and the lists stay as they are: making every list again each frame drew Construct's whole world the views'
+	/// own way while a first-person body's held weapon copy changed its tags twice a frame.
+	/// </summary>
+	[TestMethod]
+	public void ResidentListsOutlastAMeshDrawnAnotherWayEachFrame()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, GpuDrivenResidentMeshes = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Resident restless draws test" );
+			var material = backend.CreateMaterial( "Resident restless draws boxes", new Color( 0.8f, 0.8f, 0.8f ) );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.0f, 0.9f, 0.8f );
+			world.Lighting.AmbientColor = new Color( 0.1f, 0.1f, 0.1f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+			var box = BoxMesh( backend, material );
+			var boxes = new List<MeshObject>();
+			for ( int b = 0; b < 3; b++ )
+			{
+				var obj = new MeshObject( box, new Transform( Centres[b] ) ) { IsStatic = true };
+				world.Add( obj );
+				boxes.Add( obj );
+			}
+
+			var view = new RenderView { Name = "Resident restless draws test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( 0, -700, 150 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 20 ) );
+
+			void Frame()
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+			}
+
+			var aggregates = system.GetFeature<Borealis.Features.AggregateRenderFeature>();
+			for ( int i = 0; i < 8; i++ ) Frame();
+			Device.WaitIdle();
+			Assert.AreEqual( 3, aggregates.ResidentFor( system.MainPass )?.MeshGroups.SingleOrDefault()?.Members.Length ?? 0, "the boxes are one resident group" );
+
+			// One box's draws change every frame: once out of the lists, they're made no more
+			var made = aggregates.ResidentListsMade;
+			for ( int i = 0; i < 12; i++ )
+			{
+				boxes[1].LodOverride = i % 2 == 0 ? 0 : -1;
+				Frame();
+			}
+
+			Device.WaitIdle();
+			Assert.IsTrue( aggregates.ResidentListsMade - made <= 2, $"lists made {aggregates.ResidentListsMade - made} times in 12 frames" );
+			var list = aggregates.ResidentFor( system.MainPass );
+			Assert.AreEqual( 2, list?.MeshGroups.SingleOrDefault()?.Members.Length ?? 0, "the boxes that keep still stay resident" );
+			Assert.IsFalse( list.Holds[boxes[1].Index], "the box drawn another way each frame is the views' own" );
+
+			// It keeps its draws: resident again once settled
+			var settle = Borealis.Features.AggregateRenderFeature.SettleFrames;
+			for ( int i = 0; i < settle + 4; i++ ) Frame();
+			Device.WaitIdle();
+			Assert.AreEqual( 3, aggregates.ResidentFor( system.MainPass )?.MeshGroups.SingleOrDefault()?.Members.Length ?? 0, "resident again once it kept its draws" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A light probe's attributes as native's <c>SetLightProbeVolumeAttributes</c> sets them: the volume's constants (its
 	/// world-to-texture transform and a probe texture of one colour), <c>UsesBakedLightingFromProbe</c> and the combos.
 	/// </summary>

@@ -34,11 +34,28 @@ public partial class SceneObject
 	/// </summary>
 	internal virtual void WriteRender( Borealis.RenderObject obj, Rendering.SceneObjectChange change, Rendering.ISceneWorldRender render )
 	{
-		if ( (change & Rendering.SceneObjectChange.Tags) != 0 ) obj.Tags = RenderTags();
+		if ( (change & Rendering.SceneObjectChange.Tags) != 0 ) WriteTags( obj );
 
 		// A model's draws are worked out from the model's mesh the world holds; an aggregate's fragments are fixed when made
 		if ( obj is Borealis.MeshObject mesh ) render.WriteMesh( this, mesh, change );
 		else if ( obj is Borealis.AggregateObject aggregate ) render.WriteAggregate( this, aggregate, change );
+	}
+
+	/// <summary>
+	/// Its tags changed: they're written into its render object at its world's next frame preparation, once however many times
+	/// they changed since. Game code that sets a copy's tags from another's and then takes one off (a first-person body's copies,
+	/// every frame) would otherwise change how it draws twice a frame, and the world's resident lists with it.
+	/// </summary>
+	internal void TagsChanged() => World?.Render?.Later( this, Rendering.SceneObjectChange.Tags );
+
+	/// <summary>Its tags into its render object, made again only when they differ from what it holds.</summary>
+	private protected void WriteTags( Borealis.RenderObject obj )
+	{
+		var tokens = TagTokens;
+		var held = obj.Tags;
+		var same = held.Length == tokens.Count;
+		for ( int i = 0; same && i < held.Length; i++ ) same = held[i] == tokens[i];
+		if ( !same ) obj.Tags = RenderTags();
 	}
 
 	/// <summary>
