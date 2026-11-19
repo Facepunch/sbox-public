@@ -21,7 +21,7 @@ internal static partial class ToolSceneViews
 	[StructLayout( LayoutKind.Sequential )]
 	internal unsafe struct Request
 	{
-		public const int Version = 6;
+		public const int Version = 7;
 		public const int MaxWorlds = 16;
 		public const int MaxSkyboxWorlds = 4;
 
@@ -105,6 +105,19 @@ internal static partial class ToolSceneViews
 		public int RaytracedVersion;
 		public float RaytracedScale;
 		public IntPtr StatusText;
+
+		/// <summary>
+		/// The scene's screen layer (a texture or bitmap asset's preview, <see cref="ToolScreenLayer"/>): its texture's resource
+		/// name (UTF-8), or its pixels (BGRA8, their size and a version that moves when they change); the channel it shows
+		/// and where it draws, in view pixels from the top left.
+		/// </summary>
+		public IntPtr OverlayTexture;
+		public byte* OverlayPixels;
+		public int OverlayWidth;
+		public int OverlayHeight;
+		public int OverlayVersion;
+		public int OverlayChannel;
+		public Vector4 OverlayRect;
 	}
 
 	/// <summary><c>ToolSceneManagedFlags_t</c>.</summary>
@@ -193,6 +206,7 @@ internal static partial class ToolSceneViews
 		public ToolHud Hud;
 		public ToolEnvironment Environment = new();
 		public ToolRaytraced Raytraced = new();
+		public ToolScreenLayer ScreenLayer = new();
 	}
 
 	static readonly Dictionary<IntPtr, View> views = new();
@@ -205,6 +219,7 @@ internal static partial class ToolSceneViews
 	static ToolHud bitmapHud;
 	static ToolEnvironment bitmapEnvironment;
 	static ToolRaytraced bitmapRaytraced;
+	static ToolScreenLayer bitmapScreenLayer;
 
 	/// <summary>
 	/// The tool HUD read-backs draw: none by default, as native's (its multisampled read-back is resolved before its
@@ -280,10 +295,11 @@ internal static partial class ToolSceneViews
 		{
 			view.Selection = new ToolSelection();
 			view.Hud = new ToolHud();
-			view.Camera.OnRenderStageHook = StageHook( view.Selection, view.Hud, view.Raytraced );
+			view.Camera.OnRenderStageHook = StageHook( view.Selection, view.Hud, view.Raytraced, view.ScreenLayer );
 		}
 
 		Setup( view.Camera, view.Lights, view.Overlays, view.Selection, view.Environment, view.Raytraced, ref request, managedWorlds );
+		view.ScreenLayer.Update( ref request );
 		view.Hud.Gather( hud, ref request, true );
 		request.Handled = 1;
 
@@ -305,12 +321,17 @@ internal static partial class ToolSceneViews
 	static readonly Action NoOverlay = () => { };
 
 	/// <summary>
-	/// A view camera's stages: the raytraced preview's image, the selection's (<see cref="ToolSelection.OnStage"/>), then the
+	/// A view camera's stages: the raytraced preview's image and the screen layer, the selection's (<see cref="ToolSelection.OnStage"/>), then the
 	/// preview's status and the HUD over everything.
 	/// </summary>
-	static Action<Stage, SceneCamera> StageHook( ToolSelection selection, ToolHud hud, ToolRaytraced raytraced ) => ( stage, camera ) =>
+	static Action<Stage, SceneCamera> StageHook( ToolSelection selection, ToolHud hud, ToolRaytraced raytraced, ToolScreenLayer screenLayer ) => ( stage, camera ) =>
 	{
-		if ( stage == Stage.AfterPostProcess ) raytraced.DrawImage();
+		if ( stage == Stage.AfterPostProcess )
+		{
+			raytraced.DrawImage();
+			screenLayer.Draw();
+		}
+
 		selection.OnStage( stage, camera );
 		if ( stage == Stage.AfterUI )
 		{
@@ -333,15 +354,17 @@ internal static partial class ToolSceneViews
 		}
 
 		bitmapRaytraced ??= new ToolRaytraced();
+		bitmapScreenLayer ??= new ToolScreenLayer();
 		if ( bitmapSelection is null )
 		{
 			bitmapSelection = new ToolSelection();
 			bitmapHud = new ToolHud();
-			bitmapCamera.OnRenderStageHook = StageHook( bitmapSelection, bitmapHud, bitmapRaytraced );
+			bitmapCamera.OnRenderStageHook = StageHook( bitmapSelection, bitmapHud, bitmapRaytraced, bitmapScreenLayer );
 		}
 
 		bitmapEnvironment ??= new ToolEnvironment();
 		Setup( bitmapCamera, bitmapLights, bitmapOverlays, bitmapSelection, bitmapEnvironment, bitmapRaytraced, ref request, managedWorlds );
+		bitmapScreenLayer.Update( ref request );
 
 		// A read-back's view is a new one each time, its HUD's images numbered afresh
 		bitmapHud.Clear();
@@ -508,6 +531,7 @@ internal static partial class ToolSceneViews
 		view.Hud?.Dispose();
 		view.Environment.Dispose();
 		view.Raytraced.Dispose();
+		view.ScreenLayer.Dispose();
 		view.Lights.Dispose();
 	}
 
@@ -531,6 +555,8 @@ internal static partial class ToolSceneViews
 		bitmapEnvironment = null;
 		bitmapRaytraced?.Dispose();
 		bitmapRaytraced = null;
+		bitmapScreenLayer?.Dispose();
+		bitmapScreenLayer = null;
 		bitmapLights?.Dispose();
 		bitmapLights = null;
 	}
