@@ -73,6 +73,22 @@ public sealed unsafe partial class Device
 		Vk.vkCmdWriteBufferMarkerAMD( list, 0x2000, markerVkBuffer, (ulong)slot * 8 + 4, number );
 	}
 
+	/// <summary>Set a slot's words as a GPU that stopped in its list leaves them (tests).</summary>
+	internal void SetMarkerProgress( int slot, uint reached, uint done )
+	{
+		Volatile.Write( ref markerWords[slot * 2], reached );
+		Volatile.Write( ref markerWords[slot * 2 + 1], done );
+	}
+
+	/// <summary>Whether the GPU started a slot's list but didn't finish it: past its first marker, short of its last.</summary>
+	internal bool MarkersPartway( int slot )
+	{
+		if ( !ProgressMarkers || slot < 0 ) return false;
+		var done = Volatile.Read( ref markerWords[slot * 2 + 1] );
+		var reached = Volatile.Read( ref markerWords[slot * 2] );
+		lock ( markerTrails[slot] ) return reached > 0 && done < markerTrails[slot].Names.Count;
+	}
+
 	/// <summary>How far the GPU got in a slot's list: "reached 12/40, done 11/40 (after 'Opaque Forward', in 'Static World Overlays')".</summary>
 	internal string DescribeMarkers( int slot )
 	{
@@ -85,7 +101,7 @@ public sealed unsafe partial class Device
 			var count = trail.Names.Count;
 			if ( done == count && reached == count ) return $" [markers {count}/{count}]";
 			string Name( uint n ) => n >= 1 && n <= count ? $"'{trail.Names[(int)n - 1]}'" : "none";
-			return $" [markers reached {reached}/{count}, done {done}/{count}: done to {Name( done )}, reached {Name( reached )}, next {Name( reached + 1 )}]";
+			return $" [markers reached {reached}/{count}, done {done}/{count}: done to {Name( done )}, first not done {Name( done + 1 )}, reached {Name( reached )}, next {Name( reached + 1 )}]";
 		}
 	}
 }
