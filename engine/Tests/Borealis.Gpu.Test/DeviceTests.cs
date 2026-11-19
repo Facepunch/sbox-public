@@ -588,6 +588,41 @@ public class DeviceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// A cache the size of a big map's (Construct's runs to about 300 MiB) is saved whole from native memory without a managed
+	/// copy, and loads back in one array.
+	/// </summary>
+	[TestMethod]
+	public unsafe void AMapSizedPipelineCacheSavesWithoutAManagedCopy()
+	{
+		const int size = 300 << 20;
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-pipelines-{Guid.NewGuid():N}" );
+		var data = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc( size );
+		try
+		{
+			var span = new Span<byte>( data, size );
+			for ( int i = 0; i < size; i += 4096 ) span[i] = (byte)(i >> 12);
+
+			var path = Path.Combine( folder, "cache.bin" );
+			var before = GC.GetAllocatedBytesForCurrentThread();
+			Assert.IsTrue( PipelineCacheFile.Save( path, span ), "within the cap" );
+			var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+			Assert.IsTrue( allocated < 1 << 20, $"saving {size} B allocated {allocated} B" );
+
+			before = GC.GetAllocatedBytesForCurrentThread();
+			var loaded = PipelineCacheFile.Load( path );
+			allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+			Assert.IsNotNull( loaded, "loads back" );
+			Assert.IsTrue( span.SequenceEqual( loaded ), "as saved" );
+			Assert.IsTrue( allocated < size + (1 << 20), $"loading {size} B allocated {allocated} B" );
+		}
+		finally
+		{
+			System.Runtime.InteropServices.NativeMemory.Free( data );
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, true );
+		}
+	}
+
 	/// <summary>A pipeline cache file that's truncated, corrupted or not one loads as nothing; a good one as what was saved.</summary>
 	[TestMethod]
 	public void DamagedPipelineCacheFilesLoadAsNothing()
