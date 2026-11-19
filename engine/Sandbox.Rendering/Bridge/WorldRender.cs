@@ -519,7 +519,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		const SceneObjectChange Draws = SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Visibility;
 		if ( (change & Draws) != 0 )
 		{
-			var drawnModel = sceneObject.Model;
+			var drawnModel = sceneObject.Model ?? sceneObject.BufferObjectModel;
 			var drawn = sceneObject.RenderingEnabled ? VariantFor( sceneObject, ModelFor( drawnModel ) ) : null;
 			if ( drawn is null && drawnModel is not null && loading.Contains( drawnModel ) ) WaitFor( drawnModel, sceneObject );
 			if ( drawn != mesh.Mesh )
