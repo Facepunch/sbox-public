@@ -126,8 +126,8 @@ public class WorldVisibilityNativeTests
 			Assert.AreEqual( 0, wrong, firstWrong );
 
 			// Both answers came up plenty, so the comparison means something
-			Assert.IsTrue( pointsSeen > points / 10 && pointsSeen < points * 9 / 10, $"points seen {pointsSeen}/{points}" );
-			Assert.IsTrue( boxesSeen > boxes / 10 && boxesSeen < boxes * 9 / 10, $"boxes seen {boxesSeen}/{boxes}" );
+			Assert.IsTrue( pointsSeen >= 1000 && points - pointsSeen >= 1000, $"points seen {pointsSeen}/{points}" );
+			Assert.IsTrue( boxesSeen >= 1000 && boxes - boxesSeen >= 1000, $"boxes seen {boxesSeen}/{boxes}" );
 		}
 		finally
 		{
@@ -154,6 +154,8 @@ public class WorldVisibilityNativeTests
 		var sceneMap = instance.GetNetworkMap();
 		Assert.IsNotNull( sceneMap, "the map loaded" );
 
+		// Read on a worker, as a host does, then taken when first asked for
+		sceneMap.PrefetchVisibility();
 		var visibility = sceneMap.Visibility;
 		Assert.IsNotNull( visibility );
 		Assert.IsFalse( visibility.IsEmpty );

@@ -19,18 +19,27 @@ public sealed partial class SceneMap : IValid
 
 	/// <summary>
 	/// The map's visibility for network culling (<see cref="Scene.IsBBoxVisibleToConnection"/>), read from its compiled
-	/// world (<c>world_visibility.vvis</c>) the first time a connection's visibility is checked, so only whoever checks
-	/// (the host) holds it; null when the map has none, and then everything is visible. Rendering doesn't read it.
+	/// world (<c>world_visibility.vvis</c>) only by whoever checks connections (the host): in the background once it hosts
+	/// (<see cref="PrefetchVisibility"/>), or else the first time it's asked for. Null when the map has none, and then
+	/// everything is visible. Rendering doesn't read it.
 	/// </summary>
 	internal WorldVisibility Visibility
 	{
 		get
 		{
 			if ( visibilityRead ) return visibility;
-			visibility = ReadVisibility();
+			visibility = visibilityTask is { } task ? task.GetAwaiter().GetResult() : ReadVisibility();
+			visibilityTask = null;
 			visibilityRead = true;
 			return visibility;
 		}
+	}
+
+	/// <summary>Start reading <see cref="Visibility"/> on a worker, if nothing has yet, so the first check doesn't wait for it.</summary>
+	internal void PrefetchVisibility()
+	{
+		if ( visibilityRead || visibilityTask is not null ) return;
+		visibilityTask = Task.Run( ReadVisibility );
 	}
 
 	/// <summary>Where the map is placed, which <see cref="Visibility"/> is relative to.</summary>
@@ -38,6 +47,7 @@ public sealed partial class SceneMap : IValid
 
 	WorldVisibility visibility;
 	bool visibilityRead;
+	Task<WorldVisibility> visibilityTask;
 
 	// The map's VPK on disk, which its visibility is read from
 	string fullVpkPath;
@@ -398,8 +408,10 @@ public sealed partial class SceneMap : IValid
 			mountedVpk = null;
 		}
 
+		// A read still going finishes on its own, and nothing keeps what it reads
 		visibility = null;
 		visibilityRead = true;
+		visibilityTask = null;
 		fullVpkPath = null;
 
 		WorldGroup = null;

@@ -108,6 +108,13 @@ public partial class Scene : GameObject
 			return;
 		}
 
+		// The host culls what it sends by the maps' visibility: have it read before the first client needs it
+		if ( Networking.IsHost )
+		{
+			for ( var i = 0; i < _networkMapInstanceCache.Count; i++ )
+				_networkMapInstanceCache[i].GetNetworkMap()?.PrefetchVisibility();
+		}
+
 		var now = RealTime.NowDouble;
 		if ( now < _nextNetworkUpdate )
 			return;
