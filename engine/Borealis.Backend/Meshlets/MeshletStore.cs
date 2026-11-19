@@ -68,6 +68,14 @@ internal sealed class MeshletStore : IDisposable
 	/// <summary>Bytes a frame uploads at most (indices and records); the rest waits for the next frame.</summary>
 	public long FrameUploadBytes { get; set; } = 16 << 20;
 
+	/// <summary>Whether a loading screen hides the frames (<see cref="BackendDevice.Loading"/>): a frame uploads <see cref="LoadingUploadBytes"/>.</summary>
+	public bool Loading { get; set; }
+
+	/// <summary>Bytes a frame behind a loading screen uploads at most.</summary>
+	public long LoadingUploadBytes { get; set; } = 128 << 20;
+
+	long UploadBudget => Loading ? Math.Max( LoadingUploadBytes, FrameUploadBytes ) : FrameUploadBytes;
+
 	enum State { Building, Built, Uploaded, Published, None }
 
 	sealed class Entry
@@ -507,7 +515,8 @@ internal sealed class MeshletStore : IDisposable
 		using var zone = Zones.MeshletUpload.Start();
 		CommandList list = null;
 		long bytes = 0;
-		while ( bytes < FrameUploadBytes && built.TryDequeue( out var entry ) )
+		var most = UploadBudget;
+		while ( bytes < most && built.TryDequeue( out var entry ) )
 		{
 			lock ( gate ) Built++;
 			if ( entry.Set is not { } set )

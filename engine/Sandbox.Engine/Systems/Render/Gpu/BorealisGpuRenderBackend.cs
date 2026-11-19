@@ -150,6 +150,64 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
+	/// <summary>The longest a scene's load waits for models in <see cref="WaitForContent"/>, so one that keeps asking still loads.</summary>
+	internal static double ContentWaitSeconds { get; set; } = 8;
+
+	/// <summary>
+	/// The longest it waits for textures to stream once the models are made: those follow the view, which the loading
+	/// screen's isn't always.
+	/// </summary>
+	internal static double TextureWaitSeconds { get; set; } = 3;
+
+	/// <summary>
+	/// Unseen renders of a loading scene's view so far (the bridge's, behind the loading screen): <see cref="WaitForContent"/>
+	/// lets the load finish after one more once the models are made, so the first frame after it finds its view made.
+	/// </summary>
+	internal static int UnseenRenders;
+
+	/// <summary>The most frames it waits for an unseen render once the models are made (a scene with no camera has none).</summary>
+	internal static int UnseenRenderWaitFrames { get; set; } = 8;
+
+	/// <summary>
+	/// Once a scene's loading tasks are done: wait, behind the loading screen, while the game window's device still reads and
+	/// makes the models and textures the scene's frames asked for (<see cref="BackendDevice.LoadingModels"/>,
+	/// <see cref="BackendDevice.StreamingTextures"/>), up to <see cref="ContentWaitSeconds"/>. Native's load makes its models
+	/// before the first frame; without this a map drew its first seconds with models missing and textures at their tails.
+	/// </summary>
+	internal static async Task WaitForContent()
+	{
+		if ( (RenderBackend.Default as BorealisGpuRenderBackend)?.services is not { AsyncModels: true } services ) return;
+		var start = System.Diagnostics.Stopwatch.GetTimestamp();
+		double? madeAt = null;
+		var rendersAt = 0;
+		ulong madeFrame = 0;
+		while ( true )
+		{
+			var waited = System.Diagnostics.Stopwatch.GetElapsedTime( start ).TotalSeconds;
+			if ( waited >= ContentWaitSeconds ) break;
+			if ( services.LoadingModels )
+			{
+				madeAt = null;
+			}
+			else
+			{
+				if ( madeAt is null )
+				{
+					madeAt = waited;
+					madeFrame = Application.FrameCount;
+					rendersAt = System.Threading.Volatile.Read( ref UnseenRenders );
+				}
+
+				// Frames, not seconds: a loading frame can take half a second
+				var since = waited - madeAt.Value;
+				var rendered = System.Threading.Volatile.Read( ref UnseenRenders ) > rendersAt || Application.FrameCount - madeFrame >= (ulong)UnseenRenderWaitFrames;
+				if ( rendered && !(services.StreamingTextures && since < TextureWaitSeconds) ) break;
+			}
+
+			await GameTask.DelayRealtime( 10 );
+		}
+	}
+
 	/// <summary>A device beside Source 2's, logging its messages, for comparing the two in one process.</summary>
 	public static BorealisGpuRenderBackend CreateBeside( bool validation ) => Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ) );
 
@@ -172,6 +230,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		SubmitUploads();
 		FreeModelGeometry();
 		FreeCollectedBackings();
+
+		// Behind a loading screen nobody watches the frames: what a map loads is made and streamed with bigger budgets
+		services.Loading = LoadingScreen.IsVisible || (Sandbox.Engine.GlobalContext.Game?.ActiveScene?.IsLoading ?? false) || (IGameInstance.Current?.IsLoading ?? false);
 		services.BeginFrame();
 		TimeFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();

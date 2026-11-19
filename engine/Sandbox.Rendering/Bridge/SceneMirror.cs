@@ -156,6 +156,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 	/// </summary>
 	public bool HasSynced { get; private set; }
 
+	/// <summary>Whether a frame on screen has drawn this world: until then a game's scene is loaded ahead (<see cref="SceneBridge.BeginFrame"/>).</summary>
+	internal bool Shown { get; set; }
+
+	/// <summary>Unseen renders of this world before it was shown (<see cref="SceneBridge.BeginFrame"/>).</summary>
+	internal int UnseenRenders { get; set; }
+
+	/// <summary>The frame the game's load was first seen finished while this world wasn't shown yet, or 0.</summary>
+	internal ulong LoadedFrame { get; set; }
+
 	/// <summary>Whether <see cref="Sync"/> defers what applying changes writes into one list (on). For comparisons.</summary>
 	internal static bool DeferApplyUploads { get; set; } = true;
 
