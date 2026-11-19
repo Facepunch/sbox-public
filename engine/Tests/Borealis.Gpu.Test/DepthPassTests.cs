@@ -6,8 +6,8 @@ using Sandbox;
 namespace BorealisGpuTests;
 
 /// <summary>
-/// Depth passes on Borealis.Gpu keep the pixel shader of an alpha-tested material: its depth is what it clips (alpha test,
-/// alpha to coverage), so a prepass without it would hide what's behind the cut-out parts.
+/// Depth passes on Borealis.Gpu keep the pixel shader of an alpha-tested material, and any that discards: its depth is what
+/// it clips (alpha test, alpha to coverage, <c>clip</c>), so a prepass without it would hide what's behind the cut-out parts.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -75,6 +75,31 @@ public class DepthPassTests : GpuTest
 			Device.WaitIdle();
 			RenderHost.Current = previousHost;
 		}
+	}
+
+	/// <summary>
+	/// A depth draw keeps a pixel shader that discards even when it was asked to go without (its draw isn't flagged
+	/// alpha-tested, as a package shader's that cuts holes with <c>clip</c> isn't): complex's alpha-tested depth variant
+	/// discards and keeps it, its plain one doesn't and goes without.
+	/// </summary>
+	[TestMethod]
+	public void DepthDrawsKeepAPixelShaderThatDiscards()
+	{
+		using var backend = new BackendDevice( Device );
+		var shader = backend.Shaders.Load( "shaders/complex.shader" );
+		var features = new int[shader.Features.StaticCombos.Length];
+		var plain = backend.Shaders.Variant( shader, "Depth", features );
+		features[shader.FeatureIndex( "F_ALPHA_TEST" )] = 1;
+		var cutOut = backend.Shaders.Variant( shader, "Depth", features );
+		Assert.IsFalse( plain.Pixel?.Reflection is { Discards: true }, "complex's plain depth variant doesn't discard" );
+		Assert.IsTrue( cutOut.Pixel?.Reflection is { Discards: true }, "its alpha-tested one does" );
+
+		var opaque = (BackendMaterial)backend.CreateMaterial( "Opaque", Color.White );
+		Assert.IsFalse( opaque.IsAlphaTest || opaque.IsTranslucent );
+		Assert.IsTrue( BackendContext.StripsPixelShader( opaque, plain, noColor: true, stripPixelShader: true ) );
+		Assert.IsFalse( BackendContext.StripsPixelShader( opaque, cutOut, noColor: true, stripPixelShader: true ), "asked to strip, it keeps a pixel shader that discards" );
+		Assert.IsTrue( BackendContext.StripsPixelShader( opaque, plain, noColor: true, stripPixelShader: false ), "a prepass of an opaque material goes without" );
+		Assert.IsFalse( BackendContext.StripsPixelShader( opaque, plain, noColor: false, stripPixelShader: false ), "a colour pass keeps it" );
 	}
 
 	/// <summary>
