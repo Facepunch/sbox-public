@@ -46,7 +46,8 @@ internal sealed partial class BorealisGpuRenderBackend
 			};
 
 			view.Handle = handle;
-			view.Texture = new BackendTexture( services, handle, desc, $"Engine texture {info.Width}x{info.Height}" ) { Layout = ImageLayout.ShaderRead };
+			// Its image's own shape (an array's, a cube array's), which a shader binding it must expect
+			view.Texture = new BackendTexture( services, handle, desc, $"Engine texture {info.Width}x{info.Height}" ) { Layout = ImageLayout.ShaderRead, Dimension = info.Dimension };
 			return view.Texture;
 		}
 	}

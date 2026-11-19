@@ -56,6 +56,41 @@ internal sealed partial class BorealisGpuRenderBackend
 	}
 
 	/// <summary>
+	/// An array or cube made with no pixels (an atlas a game fills a layer at a time with <see cref="Texture.Update3D"/>):
+	/// every layer in its own format, storage when made for compute, cleared to the colour it was made with. Null for
+	/// another texture, a format with no Borealis.Gpu form, or a cube made for compute (a realtime probe's, which cube
+	/// captures draw into instead).
+	/// </summary>
+	TextureHandle? LayeredOf( Texture texture )
+	{
+		var desc = texture.Desc;
+		var storage = desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV );
+		if ( !(desc.IsArray || desc.IsCube) || texture.InitialPixels is not null || (desc.IsCube && storage) ) return null;
+
+		var format = DataFormatOf( texture.ImageFormat );
+		if ( format == GpuFormat.Unknown ) return null;
+
+		var info = new TextureInfo
+		{
+			Width = texture.Width,
+			Height = texture.Height,
+			Depth = 1,
+			Layers = desc.IsCube ? Math.Max( desc.ArrayCount / 6, 1 ) : Math.Max( desc.ArrayCount, 1 ),
+			Mips = Math.Max( texture.Mips, 1 ),
+			Samples = 1,
+			Dimension = desc.IsCube ? (desc.IsArray ? TextureDimension.TextureCubeArray : TextureDimension.TextureCube) : TextureDimension.Texture2DArray,
+			Format = format,
+			Usage = TextureUsage.Sampled | TextureUsage.CopyDestination | TextureUsage.CopySource | (storage ? TextureUsage.Storage : 0),
+			Name = $"Engine layers {texture.Width}x{texture.Height}x{desc.ArrayCount}",
+		};
+
+		var handle = gpu.CreateTexture( info );
+		context.Track( handle, ImageLayout.Undefined );
+		ClearNow( handle, texture.InitialColor ?? Color.Transparent );
+		return handle;
+	}
+
+	/// <summary>
 	/// Whether <paramref name="data"/> holds every mip of a texture (true) or only its first (false), or null when it's
 	/// shorter than that.
 	/// </summary>

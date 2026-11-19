@@ -1207,7 +1207,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <inheritdoc/>
-	public override GpuTexture SheetMetadata => sheetMetadata;
+	public override GpuTexture SheetMetadata => SheetCache ?? sheetMetadata;
+
+	/// <summary>
+	/// The sheet cache sprite shaders read sheet textures' frames from (native's layout, which the engine fills), or null for
+	/// none: <see cref="SheetMetadata"/> is a placeholder then.
+	/// </summary>
+	public GpuTexture SheetCache { get; set; }
 
 	/// <summary>A compiled material's texture for a shader variable (<c>g_tSkyTexture</c>), or null.</summary>
 	public GpuTexture MaterialTexture( string material, string variable ) => MaterialTexture( LoadMaterial( material ), variable );
@@ -1616,8 +1622,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				if ( input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13 ) return new VertexAttribute( 0, 1, VertexFormat.UInt, 0 );
 				if ( vertexCache && input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex is 14 or 15 ) return new VertexAttribute( 0, input.SemanticIndex == 14 ? 2 : 3, VertexFormat.Float, 0 );
 				if ( layout.Find( input.Semantic, input.SemanticIndex ) is not { } field ) return null;
-				var integer = field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4;
-				if ( integer != (input.Kind != SpirvScalar.Float) ) return null;
+				if ( field.Format.IsInteger() != (input.Kind != SpirvScalar.Float) ) return null;
 				return new VertexAttribute( 0, 0, field.Format, field.Offset );
 			}, defaultBuffer: vertexCache ? 4 : 2 );
 

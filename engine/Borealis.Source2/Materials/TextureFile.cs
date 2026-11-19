@@ -277,12 +277,22 @@ public sealed class TextureFile
 	/// <summary>
 	/// Make it a sampled texture on <paramref name="gpu"/> of every mip read (<see cref="TopMip"/> its first) with every
 	/// slice filled; throws for formats there's no Borealis.Gpu form of. Formats with an sRGB form get both views, so
-	/// shaders that read sRGB can.
+	/// shaders that read sRGB can. A write that fails (memory for its upload ran out) frees the texture before it throws,
+	/// so a load tried again doesn't leave another behind each time.
 	/// </summary>
 	public TextureHandle Create( Device gpu, string name )
 	{
 		var texture = CreateEmpty( gpu, name );
-		for ( int mip = TopMip; mip < Mips; mip++ ) Write( gpu, texture, mip );
+		try
+		{
+			for ( int mip = TopMip; mip < Mips; mip++ ) Write( gpu, texture, mip );
+		}
+		catch
+		{
+			gpu.Destroy( texture );
+			throw;
+		}
+
 		return texture;
 	}
 

@@ -46,7 +46,12 @@ internal sealed class BorealisGpuFrame : IDisposable
 			if ( viewTextures[i] is not { IsValid: true } ) viewTextures[i] = Texture.Load( ViewTextureFiles[i].Path );
 			attributes.Set( ViewTextureFiles[i].Name, viewTextures[i] );
 		}
+
+		// The sheet cache, which sprites read their sheets' frames from (the view environment's SheetTexture lookup)
+		if ( RenderBackend.Default is BorealisGpuRenderBackend { SheetCacheTexture: { } sheets } ) attributes.Set( SheetTextureName, sheets );
 	}
+
+	static readonly StringToken SheetTextureName = new( "SheetTexture" );
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 	static readonly StringToken NormalsName = new( "NormalsGBuffer" );
 
@@ -504,7 +509,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// <see cref="Begin()"/> before tonemapping, as a camera's stages do on Source 2. The exposure it moves to
 	/// (<see cref="AutoExposure.FrameUpdate"/>, before the scene) is the next frames' <c>ToneMapScalar</c>.
 	/// </summary>
-	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, SceneColor, new Rect( 0, 0, SceneColor.Width, SceneColor.Height ) );
+	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, SceneColor, new Rect( 0, 0, SceneColor.Width, SceneColor.Height ), target is { Samples: > 1 } );
 
 	/// <summary>
 	/// In the block from <see cref="Begin(BorealisGpuView)"/>, once an upscaler has written <paramref name="color"/> and

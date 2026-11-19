@@ -88,6 +88,9 @@ RenderState( ColorWriteEnable0, false );
 float g_flLuminanceMin < Attribute( "LuminanceMin" ); Default( 0.0 ); >;
 float g_flLuminanceMax < Attribute( "LuminanceMax" ); Default( 0.0 ); >;
 float g_flUseAlphaChannel < Attribute( "UseAlphaForAutoExposure" ); Default( 0.0 ); >;
+// A multisampled frame's colour as native's query reads it: its Texture2DMS< float > loads red alone, into every channel.
+// Borealis reads the resolved colour, so it meters red itself to expose as native does
+float g_flMeterRed < Attribute( "MeterRedAsMultisampled" ); Default( 0.0 ); >;
 float3 g_vTonemapMaskColor < Default3( -1.0, -1.0, -1.0 ); >;
 
 // Main ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -123,6 +126,7 @@ struct PS_OUTPUT
 
 	// Formula for calculating luminance based on NTSC standard
 	float3 tmpv = float3( 0.2125, 0.7154, 0.0721 );
+	if ( g_flMeterRed > 0.0 ) cColor = cColor.rrrr;
 	float flLuminance = dot( cColor.rgb, tmpv.rgb );
 	flLuminance = lerp( flLuminance, cColor.a, g_flUseAlphaChannel );
 
