@@ -225,7 +225,8 @@ public sealed unsafe partial class Device : IDisposable
 			graphicsQueue = new DeviceQueue( this, Vk, queueFamilies[0], QueueType.Graphics );
 			computeQueue = computeFamily ? new DeviceQueue( this, Vk, queueFamilies[1], QueueType.Compute ) : graphicsQueue;
 
-			var subgroups = new VkPhysicalDeviceSubgroupProperties { sType = VkStructureType.PhysicalDeviceSubgroupProperties };
+			var driver = new VkPhysicalDeviceDriverProperties { sType = VkStructureType.PhysicalDeviceDriverProperties };
+			var subgroups = new VkPhysicalDeviceSubgroupProperties { sType = VkStructureType.PhysicalDeviceSubgroupProperties, pNext = &driver };
 			var indexing = new VkPhysicalDeviceDescriptorIndexingProperties { sType = VkStructureType.PhysicalDeviceDescriptorIndexingProperties, pNext = &subgroups };
 			var properties2 = new VkPhysicalDeviceProperties2 { sType = VkStructureType.PhysicalDeviceProperties2, pNext = &indexing };
 			Instance.vkGetPhysicalDeviceProperties2( PhysicalDevice, &properties2 );
@@ -272,6 +273,7 @@ public sealed unsafe partial class Device : IDisposable
 			CreateMarkers();
 			CreateDefaultViewSet();
 			CreateBindlessDefaults();
+			CreateIndirectCounts( driver.driverID, features.drawIndirectCount );
 			LoadPartManifest( options );
 		}
 		catch
