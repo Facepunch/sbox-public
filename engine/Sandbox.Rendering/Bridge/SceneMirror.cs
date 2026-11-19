@@ -564,12 +564,13 @@ internal sealed partial class SceneMirror : ISceneObjectListener, ISceneWorldRen
 			mesh.Attributes = null;
 		}
 
-		// Restore posed local bounds after mesh changes reset them to bind-pose bounds.
+		// Restore posed local bounds after mesh changes reset them to bind-pose bounds. Bounds alone: posed on another thread,
+		// which wrote the bones already (SceneModel.BonesChanged)
 		const SceneObjectChange Pose = SceneObjectChange.Bones | SceneObjectChange.Transform | SceneObjectChange.Model;
-		if ( ((change & Pose) != 0 || meshChanged) && sceneObject is SceneModel model && mesh.Mesh is { IsSkinned: true } )
+		if ( ((change & (Pose | SceneObjectChange.Bounds)) != 0 || meshChanged) && sceneObject is SceneModel model && mesh.Mesh is { IsSkinned: true } )
 		{
 			// The matrices native skins with, straight into the object's own: a bone each, as many as its mesh's bind pose has
-			model.GetBoneWorldMatrices( mesh.PoseBoneMatrices( mesh.Mesh.BindPose.Length ) );
+			if ( (change & Pose) != 0 || meshChanged ) model.GetBoneWorldMatrices( mesh.PoseBoneMatrices( mesh.Mesh.BindPose.Length ) );
 
 			// Native evaluates morph flex rules each frame, from the model's: only a new model or mesh changes whether it morphs
 			if ( meshChanged || (change & SceneObjectChange.Model) != 0 )

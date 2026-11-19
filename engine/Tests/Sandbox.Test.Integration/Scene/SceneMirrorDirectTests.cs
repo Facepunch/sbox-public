@@ -6,7 +6,7 @@ namespace SceneTests;
 /// <summary>
 /// Objects that read nothing from native (decals, point and spot lights, cubemaps, custom objects, models managed code made)
 /// write a change straight into their render object on the main thread, with nothing left for the mirror's next sync; a
-/// model or material change, and an animated object's, still wait for it.
+/// model or material change still waits for it.
 /// </summary>
 [TestClass]
 public class SceneMirrorDirectTests
@@ -55,12 +55,14 @@ public class SceneMirrorDirectTests
 			Assert.AreEqual( moved.Position, boxObject.Transform.Position, "model moved" );
 			Assert.AreEqual( Color.Green, boxObject.Tint, "model tint" );
 
-			// Draws are worked out once per sync, and an animated object's state is read then
-			box.SetMaterialOverride( Material.Load( "materials/default/white.vmat" ) );
+			// A scene model writes its own too
 			animated.Position = moved.Position;
-			Assert.AreEqual( 2, (int)pending.GetValue( mirror ), "a material change and an animated object wait" );
+			Assert.AreEqual( moved.Position, ((Borealis.RenderObject)find.Invoke( mirror, [animated] )).Transform.Position, "animated" );
+
+			// Draws are worked out once per sync
+			box.SetMaterialOverride( Material.Load( "materials/default/white.vmat" ) );
+			Assert.AreEqual( 1, (int)pending.GetValue( mirror ), "a material change waits" );
 			sync.Invoke( mirror, [camera, false] );
-			Assert.AreEqual( moved.Position, ((Borealis.RenderObject)find.Invoke( mirror, [animated] )).Transform.Position, "animated after the sync" );
 		}
 		finally
 		{
@@ -129,6 +131,58 @@ public class SceneMirrorDirectTests
 			var obj = (Borealis.DecalObject)decal.RenderObject;
 			Assert.AreEqual( 7u, obj.SortOrder );
 			Assert.AreEqual( new Vector3( 1, 2, 3 ), obj.Transform.Position );
+		}
+		finally
+		{
+			mirror.Dispose();
+			camera.Dispose();
+			world.Delete();
+		}
+	}
+
+	/// <summary>
+	/// A scene model posed on another thread (the animation passes run on workers) writes its bones straight into its mesh
+	/// object there; only its bounds, which move it in the world, wait for the next render.
+	/// </summary>
+	[TestMethod]
+	public void BonesPosedOnAWorkerGoStraightIn()
+	{
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
+
+		var world = new SceneWorld();
+		var camera = new SceneCamera { World = world };
+		var mirror = (System.IDisposable)System.Activator.CreateInstance( MirrorType, [world] );
+		try
+		{
+			var human = new SceneModel( world, Model.Load( "models/citizen_human/human.vmdl" ), new Transform( new Vector3( 50, 0, 0 ) ) );
+			human.UseAnimGraph = false;
+			human.CurrentSequence.Name = "Jump_Standing";
+			human.CurrentSequence.Looping = true;
+			Assert.IsTrue( human.animNative.HasInstance );
+
+			var sync = MirrorType.GetMethod( "Sync", Any );
+			var pending = MirrorType.GetProperty( "PendingChanges", Any );
+			sync.Invoke( mirror, [camera, false] );
+			var mesh = (Borealis.MeshObject)human.RenderObject;
+
+			// No device makes the human's mesh here: it draws a skinned stand-in with as many bones
+			var bones = human.Model.BoneCount;
+			var standIn = new Borealis.RenderMesh( new BBox( new Vector3( -10 ), new Vector3( 10 ) ), [[]] );
+			standIn.SetSkinning( [new Borealis.RenderMesh.MeshSkin { BlendWeightCount = 1, VertexCount = 1, InverseBindPoses = new Matrix3x4[bones], MasterBones = new int[bones] }], new Matrix3x4[bones] );
+			mesh.Mesh = standIn;
+			Assert.IsTrue( mesh.Mesh.IsSkinned, "skinned" );
+
+			System.Threading.Tasks.Task.Run( () => human.Update( 0.4f ) ).Wait();
+
+			var expected = new Matrix3x4[mesh.Mesh.BindPose.Length];
+			human.GetBoneWorldMatrices( expected );
+			var written = mesh.BoneMatrices.ToArray();
+			CollectionAssert.AreEqual( expected, written, "the pose, written on the worker" );
+			Assert.AreEqual( 1, (int)pending.GetValue( mirror ), "the bounds wait" );
+
+			sync.Invoke( mirror, [camera, false] );
+			var bounds = SceneObject.ToLocal( human.Bounds, mesh.Transform );
+			Assert.IsTrue( bounds.Mins.Distance( mesh.LocalBounds.Mins ) < 1e-3f && bounds.Maxs.Distance( mesh.LocalBounds.Maxs ) < 1e-3f, "bounds after the render's sync" );
 		}
 		finally
 		{
