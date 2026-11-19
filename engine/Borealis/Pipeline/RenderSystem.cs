@@ -131,6 +131,9 @@ public sealed partial class RenderSystem : IDisposable
 		AddFeature( meshes );
 		AddFeature( aggregates );
 
+		// Opaque custom objects after the meshes and aggregates, as native draws the world before dynamic objects
+		AddFeature( new LateCustomFeature( meshes ) );
+
 		// Static mesh draws join the aggregates' GPU-driven call, after the mesh feature prepares each view
 		aggregates.Meshes = meshes;
 		meshes.Aggregates = aggregates;
