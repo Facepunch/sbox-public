@@ -42,19 +42,22 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public bool Repeat
 	{
-		get => native.GetRepeat();
-		set => native.SetRepeat( value );
+		get => native.IsValid && native.GetRepeat();
+		set
+		{
+			if ( native.IsValid ) native.SetRepeat( value );
+		}
 	}
 
 	/// <summary>
 	/// Gets the total duration of the video in seconds.
 	/// </summary>
-	public float Duration => native.GetDuration();
+	public float Duration => native.IsValid ? native.GetDuration() : 0.0f;
 
 	/// <summary>
 	/// Gets the current playback time in seconds.
 	/// </summary>
-	public float PlaybackTime => native.GetPlaybackTime();
+	public float PlaybackTime => native.IsValid ? native.GetPlaybackTime() : 0.0f;
 
 	/// <summary>
 	/// Audio sample rate.
@@ -69,12 +72,12 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// <summary>
 	/// Does the loaded video have audio?
 	/// </summary>
-	public bool HasAudio => native.HasAudioStream();
+	public bool HasAudio => native.IsValid && native.HasAudioStream();
 
 	/// <summary>
 	/// Has the video been paused?
 	/// </summary>
-	public bool IsPaused => native.IsPaused();
+	public bool IsPaused => native.IsValid && native.IsPaused();
 
 	/// <summary>
 	/// Texture of the video frame.
@@ -84,23 +87,23 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// <summary>
 	/// Width of the video.
 	/// </summary>
-	public int Width => native.GetWidth();
+	public int Width => native.IsValid ? native.GetWidth() : 0;
 
 	/// <summary>
 	/// Height of the video.
 	/// </summary>
-	public int Height => native.GetHeight();
+	public int Height => native.IsValid ? native.GetHeight() : 0;
 
 	// Overlay stats. Monotonic totals - the reader derives a rate over its own window - plus
 	// the queue depths that say whether a decoder is keeping up or starved.
-	internal double VideoDecodeSeconds => native.GetVideoDecodeSeconds();
-	internal double AudioDecodeSeconds => native.GetAudioDecodeSeconds();
-	internal int DecodedFrames => native.GetDecodedFrameCount();
-	internal int PacketQueueDepth => native.GetPacketQueueDepth();
-	internal int FrameQueueDepth => native.GetFrameQueueDepth();
+	internal double VideoDecodeSeconds => native.IsValid ? native.GetVideoDecodeSeconds() : 0.0;
+	internal double AudioDecodeSeconds => native.IsValid ? native.GetAudioDecodeSeconds() : 0.0;
+	internal int DecodedFrames => native.IsValid ? native.GetDecodedFrameCount() : 0;
+	internal int PacketQueueDepth => native.IsValid ? native.GetPacketQueueDepth() : 0;
+	internal int FrameQueueDepth => native.IsValid ? native.GetFrameQueueDepth() : 0;
 	ulong _lastPresentedFrame;
 	bool _tracksPresentation;
-	internal int LastPresented => _tracksPresentation ? (int)Math.Min( Application.FrameCount - _lastPresentedFrame, 1000UL ) : Texture.LastUsed;
+	internal int LastPresented => _tracksPresentation ? (int)Math.Min( Application.FrameCount - _lastPresentedFrame, 1000UL ) : Texture?.LastUsed ?? 0;
 
 	internal void TrackPresentation( bool presented )
 	{
@@ -250,6 +253,9 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 
 		internal ReadOnlySpan<float> GetSpectrum()
 		{
+			if ( !Player.native.IsValid )
+				return ReadOnlySpan<float>.Empty;
+
 			CUtlVectorFloat spectrumVector = CUtlVectorFloat.Create( 0, 0 );
 			Player.native.GetSpectrum( spectrumVector );
 
@@ -264,7 +270,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 
 		internal float GetAmplitude()
 		{
-			return Player.native.GetAmplitude();
+			return Player.native.IsValid ? Player.native.GetAmplitude() : 0.0f;
 		}
 	}
 
@@ -273,11 +279,16 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	internal string GetMeta( string key )
 	{
-		return native.GetMetadata( key );
+		return native.IsValid ? native.GetMetadata( key ) : null;
 	}
 
 	public VideoPlayer()
 	{
+		Audio = new AudioAccessor( this );
+
+		if ( Application.IsHeadless )
+			return;
+
 		InteropSystem.AllocWeak( this );
 		native = CVideoPlayer.Create( this );
 
@@ -288,8 +299,6 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 
 		Texture.IsLoaded = false;
 		Texture.ParentObject = this;
-
-		Audio = new AudioAccessor( this );
 	}
 
 	~VideoPlayer()
@@ -320,7 +329,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	{
 		FreeAudio();
 
-		var stream = native.GetAudioStream();
+		var stream = native.IsValid ? native.GetAudioStream() : null;
 		if ( stream is not null )
 		{
 			Sound = stream.Play();
@@ -357,6 +366,9 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 
 	internal void OnTextureCreatedInternal()
 	{
+		if ( !native.IsValid )
+			return;
+
 		using var tex = Texture.FromNative( native.GetTexture() );
 		Texture.CopyFrom( tex );
 		Texture.IsLoaded = true;
@@ -384,7 +396,8 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	{
 		FreeAudio();
 
-		Texture.ParentObject = null;
+		if ( Texture is not null )
+			Texture.ParentObject = null;
 
 		if ( native.IsValid )
 		{
@@ -402,7 +415,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public void Play( string url )
 	{
-		if ( string.IsNullOrWhiteSpace( url ) )
+		if ( !native.IsValid || string.IsNullOrWhiteSpace( url ) )
 			return;
 
 		url = url.Trim();
@@ -430,7 +443,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public void Play( BaseFileSystem filesystem, string path )
 	{
-		if ( string.IsNullOrWhiteSpace( path ) )
+		if ( !native.IsValid || string.IsNullOrWhiteSpace( path ) )
 			return;
 
 		// if it looks like a url, play it as a url
@@ -457,7 +470,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public void Resume()
 	{
-		native.Resume();
+		if ( native.IsValid ) native.Resume();
 	}
 
 	/// <summary>
@@ -465,7 +478,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public void Stop()
 	{
-		native.Stop();
+		if ( native.IsValid ) native.Stop();
 	}
 
 	/// <summary>
@@ -473,7 +486,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public void Pause()
 	{
-		native.Pause();
+		if ( native.IsValid ) native.Pause();
 	}
 
 	/// <summary>
@@ -481,6 +494,8 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public void TogglePause()
 	{
+		if ( !native.IsValid ) return;
+
 		if ( IsPaused ) native.Resume();
 		else native.Pause();
 	}
@@ -490,7 +505,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public void Seek( float time )
 	{
-		native.Seek( time );
+		if ( native.IsValid ) native.Seek( time );
 	}
 
 	/// <summary>
@@ -498,7 +513,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public void Present()
 	{
-		native.Update();
+		if ( native.IsValid ) native.Update();
 	}
 
 	/// <summary>
@@ -506,12 +521,15 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public bool Muted
 	{
-		get => native.IsMuted();
-		set => native.SetMuted( value );
+		get => native.IsValid && native.IsMuted();
+		set
+		{
+			if ( native.IsValid ) native.SetMuted( value );
+		}
 	}
 
 	internal void SetVideoOnly()
 	{
-		native.SetVideoOnly();
+		if ( native.IsValid ) native.SetVideoOnly();
 	}
 }
