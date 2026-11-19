@@ -261,42 +261,100 @@ public class SceneModelAnimationInstanceTests
 			world.Delete();
 		}
 	}
+
+	/// <summary>
+	/// Scene models animate on an instance unless <c>-noaniminstance</c> turns it off.
+	/// </summary>
+	[TestMethod]
+	public void InstanceIsTheDefault()
+	{
+		var world = new SceneWorld();
+		try
+		{
+			var model = new SceneModel( world, Human, Placement );
+			Assert.IsTrue( model.animNative.HasInstance );
+			model.Delete();
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	/// <summary>
+	/// The twin of a scene model on an instance never animates: with nothing reading it, it keeps the bind pose through updates
+	/// and a model change, and the bounds are the pose's, kept in managed code.
+	/// </summary>
+	[TestMethod]
+	public void TwinStaysInBindPose()
+	{
+		var world = new SceneWorld();
+		SceneObject.WritesNativeOverride = false;
+		try
+		{
+			var model = Make( world, Model.Load( "models/dev/box.vmdl" ), Placement, true );
+			model.Model = Human;
+			PlaySequence( model );
+
+			var hand = Human.Bones.GetBone( "hand_R" ).Index;
+			var bind = model.animNative.Twin.GetWorldSpaceRenderBoneTransform( hand );
+			var start = model.GetBoneWorldTransform( hand );
+			for ( int frame = 0; frame < 10; frame++ ) model.Update( 1.0f / 30.0f );
+
+			Assert.IsTrue( model.GetBoneWorldTransform( hand ).Position.Distance( start.Position ) > 0.1f, "the instance animates" );
+			Assert.IsTrue( model.animNative.Twin.GetWorldSpaceRenderBoneTransform( hand ).Position.Distance( bind.Position ) < 1e-4f, "the twin doesn't" );
+			Assert.IsFalse( model.animNative.Twin.HasPhysicsBones() );
+
+			var pose = model.AnimatedWorldBounds;
+			var quantised = new BBox( new Vector3( MathF.Floor( pose.Mins.x ), MathF.Floor( pose.Mins.y ), MathF.Floor( pose.Mins.z ) ),
+				new Vector3( MathF.Ceiling( pose.Maxs.x ), MathF.Ceiling( pose.Maxs.y ), MathF.Ceiling( pose.Maxs.z ) ) );
+			AssertSameBox( quantised, model.Bounds, "kept bounds" );
+
+			model.Delete();
+		}
+		finally
+		{
+			SceneObject.WritesNativeOverride = null;
+			world.Delete();
+		}
+	}
 }
 
+
 /// <summary>
-/// <see cref="Components.SkinnedRendererTest"/> with scene models animated by their own instance.
+/// <see cref="Components.SkinnedRendererTest"/> with scene models animated by their native twin (<c>-noaniminstance</c>).
 /// </summary>
 [TestClass]
-public class SkinnedRendererAnimationInstanceTest : Components.SkinnedRendererTest
+public class SkinnedRendererTwinAnimationTest : Components.SkinnedRendererTest
 {
 	[TestInitialize]
-	public void UseInstances() => SceneModel.AnimationInstanceOverride = true;
+	public void UseTwins() => SceneModel.AnimationInstanceOverride = false;
 
 	[TestCleanup]
 	public void Cleanup() => SceneModel.AnimationInstanceOverride = null;
 }
 
 /// <summary>
-/// <see cref="Components.ModelPhysicsTest"/> (ragdolls, physics bones) with scene models animated by their own instance.
+/// <see cref="Components.ModelPhysicsTest"/> (ragdolls, physics bones) with scene models animated by their native twin.
 /// </summary>
 [TestClass]
-public class ModelPhysicsAnimationInstanceTest : Components.ModelPhysicsTest
+public class ModelPhysicsTwinAnimationTest : Components.ModelPhysicsTest
 {
 	[TestInitialize]
-	public void UseInstances() => SceneModel.AnimationInstanceOverride = true;
+	public void UseTwins() => SceneModel.AnimationInstanceOverride = false;
 
 	[TestCleanup]
 	public void Cleanup() => SceneModel.AnimationInstanceOverride = null;
 }
 
 /// <summary>
-/// <see cref="Components.DresserTests"/> (clothing, bone merge) with scene models animated by their own instance.
+/// <see cref="Components.DresserTests"/> (clothing, bone merge) with scene models animated by their native twin.
 /// </summary>
 [TestClass]
-public class DresserAnimationInstanceTests : Components.DresserTests
+public class DresserTwinAnimationTests : Components.DresserTests
 {
 	[TestInitialize]
-	public void UseInstances() => SceneModel.AnimationInstanceOverride = true;
+	public void UseTwins() => SceneModel.AnimationInstanceOverride = false;
 
 	[TestCleanup]
 	public void Cleanup() => SceneModel.AnimationInstanceOverride = null;
@@ -304,13 +362,13 @@ public class DresserAnimationInstanceTests : Components.DresserTests
 
 /// <summary>
 /// <see cref="ResourceTests.ModelBuilderTests"/> (bounds of a posed runtime model among them) with scene models animated by
-/// their own instance.
+/// their native twin.
 /// </summary>
 [TestClass]
-public class ModelBuilderAnimationInstanceTests : ResourceTests.ModelBuilderTests
+public class ModelBuilderTwinAnimationTests : ResourceTests.ModelBuilderTests
 {
 	[TestInitialize]
-	public void UseInstances() => SceneModel.AnimationInstanceOverride = true;
+	public void UseTwins() => SceneModel.AnimationInstanceOverride = false;
 
 	[TestCleanup]
 	public void Cleanup() => SceneModel.AnimationInstanceOverride = null;
