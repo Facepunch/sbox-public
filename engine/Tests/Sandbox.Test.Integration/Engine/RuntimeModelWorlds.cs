@@ -30,7 +30,7 @@ public class RuntimeModelWorldsTest
 		var model = Model.Builder.AddMesh( mesh ).Create();
 		Assert.IsTrue( model.IsProcedural );
 
-		int Drawn( SceneWorld world )
+		static int Drawn( SceneWorld world )
 		{
 			using var camera = new SceneCamera( "runtime model" ) { World = world, Position = new Vector3( -100, 0, 0 ), Rotation = Rotation.Identity, FieldOfView = 60, BackgroundColor = Color.Black };
 			camera.DebugMode = SceneCameraDebugMode.FullBright;
