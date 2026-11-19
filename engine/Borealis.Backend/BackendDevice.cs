@@ -2752,15 +2752,27 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	BufferHandle vertexCacheBuffer;
 	int vertexCacheCapacity;
 	ulong vertexCacheFrame = ulong.MaxValue;
-	bool vertexCacheGrew;
+
+	// This frame's vertices so far (its high-water mark at its end), how many went in the next slot's region, and whether
+	// any did (the next frame waits for this one then)
+	int vertexCacheTotal, vertexCacheOverflow;
+
+	// Past every region, after a growth mid-frame: where the rest of the frame allocates, or 0
+	int vertexCacheTail;
+	bool vertexCacheOverflowed;
+
+	/// <summary>Vertex cache growths so far, and allocations past a frame's own region, for tests.</summary>
+	internal int VertexCacheGrowths, VertexCacheOverflows;
 
 	/// <summary>The vertex cache, or an invalid handle before anything was skinned.</summary>
 	internal BufferHandle VertexCacheBuffer => vertexCacheBuffer;
 
 	/// <summary>
 	/// Room for <paramref name="vertices"/> skinned vertices in this frame's region of the vertex cache; the first one's
-	/// index. A region that's too small grows the cache, after the GPU is idle, and the next frame waits for this one too,
-	/// since this frame's earlier blocks may lie in the next one's region.
+	/// index. The cache only grows as a frame starts (its first allocation), to the last frame's high-water mark, once the
+	/// frames before are done: switched mid-frame, work this frame recorded earlier would read a buffer its skinning didn't
+	/// write (it binds the cache by handle, draws read it through the bindless table). A frame needing more than its region
+	/// takes the next slot's, once the frames before are done, and the next frame waits for this one.
 	/// </summary>
 	public override int AllocateVertexCache( int vertices )
 	{
@@ -2768,32 +2780,76 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			if ( Gpu.FrameNumber != vertexCacheFrame )
 			{
-				if ( vertexCacheGrew ) Gpu.WaitIdle();
-				vertexCacheGrew = false;
 				vertexCacheFrame = Gpu.FrameNumber;
-				vertexCache = 0;
+				var needed = Math.Max( vertexCacheTotal, vertices );
+				if ( vertexCacheOverflowed || needed > vertexCacheCapacity ) Gpu.WaitForEarlierFrames();
+				if ( needed > vertexCacheCapacity ) GrowVertexCache( needed + needed / 4 );
+				vertexCacheOverflowed = false;
+				vertexCache = vertexCacheOverflow = vertexCacheTotal = vertexCacheTail = 0;
 			}
 
-			if ( vertexCache + vertices > vertexCacheCapacity ) GrowVertexCache( vertexCache + vertices );
+			vertexCacheTotal += vertices;
+			if ( vertexCacheTail == 0 && vertexCache + vertices <= vertexCacheCapacity )
+			{
+				var first = Gpu.FrameSlot * vertexCacheCapacity + vertexCache;
+				vertexCache += vertices;
+				return first;
+			}
 
-			var first = Gpu.FrameSlot * vertexCacheCapacity + vertexCache;
-			vertexCache += vertices;
-			return first;
+			// Past this frame's region: the next slot's, free once the frames before are done (the next frame waits for this
+			// one before writing it)
+			if ( !vertexCacheOverflowed )
+			{
+				Gpu.WaitForEarlierFrames();
+				vertexCacheOverflowed = true;
+			}
+
+			VertexCacheOverflows++;
+			if ( vertexCacheTail == 0 && vertexCacheOverflow + vertices <= vertexCacheCapacity && Gpu.FramesInFlight > 1 )
+			{
+				var first = (Gpu.FrameSlot + 1) % Gpu.FramesInFlight * vertexCacheCapacity + vertexCacheOverflow;
+				vertexCacheOverflow += vertices;
+				return first;
+			}
+
+			// More than two regions in one frame (a first frame of many skinned meshes): only growing now makes room. What the
+			// frame sent already is copied to where it was, past which the rest of the frame allocates; skinning recorded but
+			// not yet sent still writes the old buffer it bound, so it's said
+			if ( vertexCacheTail == 0 )
+			{
+				Gpu.WaitIdle();
+				var held = vertexCacheCapacity * Gpu.FramesInFlight;
+				GrowVertexCache( (held + vertices) * 2 / Gpu.FramesInFlight + 1, copy: true );
+				vertexCacheTail = held;
+				Console.Error.WriteLine( $"Borealis.Gpu: the vertex cache grew mid-frame to {vertexCacheCapacity} vertices a frame; skinned meshes recorded before may draw wrong this frame" );
+			}
+
+			if ( vertexCacheTail + vertices > vertexCacheCapacity * Gpu.FramesInFlight ) throw new InvalidOperationException( $"The vertex cache has no room for {vertices} more vertices this frame" );
+			var tail = vertexCacheTail;
+			vertexCacheTail += vertices;
+			return tail;
 		}
 	}
 
-	void GrowVertexCache( int needed )
+	void GrowVertexCache( int needed, bool copy = false )
 	{
-		Gpu.WaitIdle();
 		var capacity = Math.Max( 1 << 16, vertexCacheCapacity );
 		while ( capacity < needed ) capacity *= 2;
 
 		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = (long)capacity * VertexCacheStride * Gpu.FramesInFlight, Usage = BufferUsage.Storage, Name = "Borealis vertex cache" } );
+		if ( copy && vertexCacheBuffer.IsValid )
+		{
+			// This frame's region so far, where it stays (the slot's start moves with the capacity)
+			var list = Gpu.BeginCommandList( QueueType.Graphics, "Vertex cache growth" );
+			list.CopyBuffer( vertexCacheBuffer, (long)Gpu.FrameSlot * vertexCacheCapacity * VertexCacheStride, buffer, (long)Gpu.FrameSlot * capacity * VertexCacheStride, (long)vertexCache * VertexCacheStride );
+			Gpu.Wait( Gpu.Submit( list ) );
+		}
+
 		Gpu.SetBindlessBuffer( ShaderAbi.BindlessVertexCache, buffer );
 		if ( vertexCacheBuffer.IsValid ) Gpu.Destroy( vertexCacheBuffer );
 		vertexCacheBuffer = buffer;
 		vertexCacheCapacity = capacity;
-		vertexCacheGrew = true;
+		VertexCacheGrowths++;
 	}
 
 	/// <summary>Vertices <see cref="VertexIds"/> numbers (native's <c>VERTEX_ID_BUFFER_MAX_VERTICES</c>).</summary>

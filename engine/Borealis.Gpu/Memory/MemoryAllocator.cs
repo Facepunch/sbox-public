@@ -345,7 +345,12 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	public static bool BlocksAhead { get; set; } = true;
 
 	/// <summary>Whether big allocations share large blocks (on), or each over a quarter of a small block is its own. For comparisons.</summary>
-	public static bool LargeBlocks { get; set; } = true;
+	public static bool LargeBlocks { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_LARGE_BLOCKS" ) != "0";
+
+	/// <summary>Blocks asked of the driver so far (<c>vkAllocateMemory</c>), shared and dedicated.</summary>
+	public long DriverAllocations => System.Threading.Interlocked.Read( ref driverAllocations );
+
+	long driverAllocations;
 
 	// Kinds (type, images, large) with a block being made ahead
 	readonly HashSet<(int Type, bool Images, bool Large, bool Content, bool Fallback)> makingAhead = new();
@@ -843,6 +848,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	MemoryBlock NewBlock( int type, ulong size, bool image, bool content, bool refusable )
 	{
 		CheckBudget( type, size, content, refusable );
+		System.Threading.Interlocked.Increment( ref driverAllocations );
 		var info = new VkMemoryAllocateInfo
 		{
 			sType = VkStructureType.MemoryAllocateInfo,

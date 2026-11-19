@@ -121,7 +121,21 @@ public sealed unsafe partial class Device
 	Frame[] frames;
 	Frame frame;
 	readonly ConcurrentBag<CommandList>[] freeLists = [new(), new()];
-	internal readonly ConcurrentBag<UploadPage> FreePages = new();
+	/// <summary>Free upload pages of each size (<see cref="CommandList.PageSizes"/>).</summary>
+	internal readonly ConcurrentBag<UploadPage>[] FreePages = [new(), new(), new()];
+
+	/// <summary>Bytes of upload pages there are, free or in lists.</summary>
+	internal long UploadPageBytes;
+
+	/// <summary>Upload pages lists have taken so far (made or recycled), for measuring.</summary>
+	internal long UploadPagesTaken;
+
+	/// <summary>Destroy an upload page once the GPU is done with it.</summary>
+	internal void DestroyPage( UploadPage page )
+	{
+		Interlocked.Add( ref UploadPageBytes, -page.Size );
+		Destroy( page.Buffer );
+	}
 
 	// Descriptor pools for command lists' transient sets, shared by every list: a list keeps one when its frame retires and
 	// gives the rest back reset, and a recording thread takes one rather than making one (making them cost ~70 ms of
@@ -192,6 +206,20 @@ public sealed unsafe partial class Device
 
 	/// <summary>Which of the <see cref="FramesInFlight"/> slots the current frame uses.</summary>
 	public int FrameSlot => (int)(FrameNumber % (ulong)FramesInFlight);
+
+	/// <summary>
+	/// Wait until the GPU has finished every frame before the current one, without sending anything of this one: what they
+	/// used (their slots' per-frame memory) is free for this frame then.
+	/// </summary>
+	public void WaitForEarlierFrames()
+	{
+		for ( int i = 0; i < frames.Length; i++ )
+		{
+			if ( i == FrameSlot ) continue;
+			graphicsQueue.Wait( frames[i].Graphics );
+			computeQueue.Wait( frames[i].Compute );
+		}
+	}
 
 	void CreateFrames()
 	{
@@ -291,13 +319,16 @@ public sealed unsafe partial class Device
 	/// </summary>
 	internal const int KeptFreeUploadPages = 1;
 
+	/// <summary>Free upload pages of every size, for tests.</summary>
+	internal int FreePageCount => FreePages[0].Count + FreePages[1].Count + FreePages[2].Count;
+
 	/// <summary>Frames a free upload page has to go unused before it's freed.</summary>
 	internal const ulong UploadPageIdleFrames = 300;
 
 	/// <summary>Spare command lists of each queue kept however few frames use.</summary>
 	internal const int KeptFreeCommandLists = 16;
 
-	int freePagesLow = int.MaxValue;
+	readonly int[] freePagesLow = [int.MaxValue, int.MaxValue, int.MaxValue];
 	readonly List<UploadPage> trimPages = new();
 	PagesByBlock pagesByBlock;
 
@@ -319,25 +350,26 @@ public sealed unsafe partial class Device
 	/// </summary>
 	void TrimSpares()
 	{
-		freePagesLow = Math.Min( freePagesLow, FreePages.Count );
+		for ( int c = 0; c < FreePages.Length; c++ ) freePagesLow[c] = Math.Min( freePagesLow[c], FreePages[c].Count );
 		if ( FrameNumber - trimFrom < UploadPageIdleFrames ) return;
 
-		var excess = freePagesLow - KeptFreeUploadPages;
-		if ( excess > 0 && freePagesLow != int.MaxValue )
+		for ( int c = 0; c < FreePages.Length; c++ )
 		{
+			var excess = freePagesLow[c] - KeptFreeUploadPages;
+			freePagesLow[c] = int.MaxValue;
+			if ( excess <= 0 ) continue;
+
 			trimPages.Clear();
-			while ( FreePages.TryTake( out var page ) ) trimPages.Add( page );
+			while ( FreePages[c].TryTake( out var page ) ) trimPages.Add( page );
 			trimPages.Sort( pagesByBlock ??= new PagesByBlock( this ) );
 			for ( int i = 0; i < trimPages.Count; i++ )
 			{
-				if ( i < excess ) Destroy( trimPages[i].Buffer );
-				else FreePages.Add( trimPages[i] );
+				if ( i < excess ) DestroyPage( trimPages[i] );
+				else FreePages[c].Add( trimPages[i] );
 			}
 
 			trimPages.Clear();
 		}
-
-		freePagesLow = int.MaxValue;
 
 		// A spare list's frame has finished: its command pool and descriptor pool can go at once
 		for ( int q = 0; q < freeLists.Length; q++ )
@@ -975,7 +1007,10 @@ public sealed unsafe partial class Device
 			while ( bag.TryTake( out var list ) ) list.Destroy();
 		}
 
-		while ( FreePages.TryTake( out var page ) ) Destroy( page.Buffer );
+		foreach ( var pages in FreePages )
+		{
+			while ( pages.TryTake( out var page ) ) DestroyPage( page );
+		}
 
 		// Pools being made ahead first
 		while ( Volatile.Read( ref makingDescriptorPools ) != 0 ) Thread.Sleep( 1 );
@@ -993,4 +1028,7 @@ internal sealed class UploadPage
 	public nint Mapped;
 	public long Size;
 	public long Used;
+
+	/// <summary>Its size's index in <see cref="CommandList.PageSizes"/>, or -1 for a page made for one big request.</summary>
+	public int Class;
 }
