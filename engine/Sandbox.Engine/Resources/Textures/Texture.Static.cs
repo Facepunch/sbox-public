@@ -40,7 +40,10 @@ public partial class Texture
 			result?.RegisterWeakResourceId( name );
 
 		if ( result is not null )
+		{
 			result.CreatedMultisample = config.m_nMultisampleType;
+			result.MadeAtRunTime = true;
+		}
 
 		// Another device makes its copy from these rather than reading Source 2's back (with -borealisgpu, from before
 		// the device is made too: without Source 2's device there's nothing to read back)

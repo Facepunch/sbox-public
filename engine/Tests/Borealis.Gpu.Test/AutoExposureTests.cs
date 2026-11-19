@@ -96,4 +96,76 @@ public class AutoExposureTests : GpuTest
 			defaults.Dispose();
 		}
 	}
+
+	/// <summary>
+	/// A multisampled frame's resolved colour is metered as native's query meters the multisampled colour, whose
+	/// <c>Texture2DMS&lt; float &gt;</c> reads only red: a frame of red 0.8 and green and blue 0.2 (luminance 0.33) counts
+	/// every pixel in the bucket holding 0.8, and a single-sampled one in the bucket holding its luminance.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void MultisampledFramesMeterRed( bool multisampled )
+	{
+		// The Slang module, as the game draws it: its .shader_c is only Source 2's renderer's
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Passes.Error = e => errors.Add( e );
+		using var drawer = new ShaderDrawer( backend );
+		var exposure = new AutoExposure( Device );
+		try
+		{
+			var shader = backend.Shaders.Load( "shaders/tonemap_query.shader" );
+			if ( shader is null ) Assert.Inconclusive( "tonemap_query isn't built" );
+
+			var pixels = new Half[Size * Size * 4];
+			for ( int i = 0; i < Size * Size; i++ )
+			{
+				pixels[i * 4] = (Half)0.8f;
+				pixels[i * 4 + 1] = (Half)0.2f;
+				pixels[i * 4 + 2] = (Half)0.2f;
+				pixels[i * 4 + 3] = (Half)1.0f;
+			}
+
+			var color = Device.CreateTexture( TextureInfo.Texture2D( Size, Size, Format.RGBA16Float, name: "Frame" ) );
+			var upload = Device.BeginCommandList( QueueType.Graphics, "Frame" );
+			upload.Barrier( TextureBarrier.Transition( color, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+			upload.UpdateTexture( color, MemoryMarshal.AsBytes( pixels.AsSpan() ), 0, 0, Size, Size );
+			Device.Wait( Device.Submit( upload ) );
+
+			TextureHandle target = default;
+			var context = new GraphicsContext( Device, drawer, null );
+			context.Track( color, ImageLayout.CopyDestination );
+			for ( int frame = 0; frame < exposure.Buckets + 4; frame++ )
+			{
+				exposure.FrameUpdate( 0 );
+				var list = Device.BeginCommandList( QueueType.Graphics, "Count" );
+				context.Begin( list );
+				if ( !target.IsValid ) target = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Target" );
+				context.SetTarget( target );
+				exposure.Draw( context, shader, color, 0, 0, Size, Size, multisampled );
+				context.Finish();
+				Device.Wait( Device.Submit( list ) );
+			}
+
+			exposure.FrameUpdate( 0 );
+
+			var metered = MathF.Log2( multisampled ? 0.8f : 0.2125f * 0.8f + 0.7154f * 0.2f + 0.0721f * 0.2f );
+			for ( int i = 0; i < exposure.Buckets; i++ )
+			{
+				var bucket = exposure.BucketAt( i );
+				var expected = bucket.Min <= metered && metered <= bucket.Max ? 57 * 57 : 0;
+				Assert.AreEqual( expected, bucket.Pixels, $"bucket {i} ({bucket.Min}..{bucket.Max})" );
+			}
+
+			Assert.AreEqual( 0, errors.Count, string.Join( "; ", errors ) );
+			context.Release();
+			Device.Destroy( color );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			exposure.Dispose();
+		}
+	}
 }
