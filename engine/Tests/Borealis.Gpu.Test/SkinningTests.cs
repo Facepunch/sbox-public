@@ -246,6 +246,71 @@ public class SkinningTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// With the raw buffer array nearly full, a skinned model made after that still loads (Strike Force's models threw "out
+	/// of raw buffer slots" every frame and its frame drew black): its vertex buffers get no slot, leaving the last ones to
+	/// the GPU-driven pages and views, its draws draw classic, and it looks as with GPU-driven skinning off.
+	/// </summary>
+	[TestMethod]
+	public void SkinnedModelsLoadWithTheRawBufferArrayNearlyFull()
+	{
+		var previousHost = RenderHost.Current;
+		var fillers = new List<BufferHandle>();
+		try
+		{
+			byte[] classic;
+			using ( var backend = new BackendDevice( Device ) { GpuDrivenSkinned = false } )
+			{
+				RenderHost.Current = new BackendRenderHost( backend );
+				var mesh = backend.LoadModel( Citizen );
+				if ( mesh is null ) Assert.Inconclusive( $"{Citizen} isn't built" );
+				classic = Render( mesh, Transform.Zero, mesh.BindPose.Select( ToTransform ).ToArray() );
+			}
+
+			using ( var backend = new BackendDevice( Device ) { GpuDrivenSkinned = true } )
+			{
+				RenderHost.Current = new BackendRenderHost( backend );
+
+				// Loaded once first, so the GPU-driven pages the second copy's indices go in are there
+				var first = backend.LoadModel( Citizen );
+				if ( first is null ) Assert.Inconclusive( $"{Citizen} isn't built" );
+				Assert.AreEqual( 0, backend.SkinnedBuffersWithoutSlot );
+
+				while ( true )
+				{
+					var filler = Device.CreateBuffer( new BufferInfo { Size = 16, Usage = BufferUsage.Storage, Name = "raw buffer slot filler" } );
+					fillers.Add( filler );
+					if ( !Device.TryBindlessIndex( filler, out _, BackendDevice.RawBufferReserve ) ) break;
+				}
+
+				var mesh = backend.LoadModel( Citizen );
+				Assert.IsNotNull( mesh, "made with the raw buffer array nearly full" );
+				Assert.IsTrue( backend.SkinnedBuffersWithoutSlot > 0, "its vertex buffers got no slot" );
+
+				var pixels = Render( mesh, Transform.Zero, mesh.BindPose.Select( ToTransform ).ToArray() );
+				Save( pixels, Width, Height, "skinning-no-raw-buffer-slot" );
+				var difference = MeanDifference( pixels, classic );
+				Assert.IsTrue( difference < 0.25, $"drawn classic, it looks as with GPU-driven skinning off: mean difference {difference:F3}" );
+
+				// With every slot taken it's still made, rather than throwing
+				while ( true )
+				{
+					var filler = Device.CreateBuffer( new BufferInfo { Size = 16, Usage = BufferUsage.Storage, Name = "raw buffer slot filler" } );
+					fillers.Add( filler );
+					if ( !Device.TryBindlessIndex( filler, out _ ) ) break;
+				}
+
+				Assert.IsNotNull( backend.LoadModel( Citizen ), "made with the raw buffer array full" );
+			}
+		}
+		finally
+		{
+			Device.WaitIdle();
+			foreach ( var filler in fillers ) Device.Destroy( filler );
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>A model-space bone (<c>matrix3x4_t</c> rows) as a transform.</summary>
 	static Transform ToTransform( Matrix3x4 m )
 	{
