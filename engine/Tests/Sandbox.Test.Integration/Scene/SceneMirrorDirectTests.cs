@@ -5,8 +5,8 @@ namespace SceneTests;
 
 /// <summary>
 /// Objects that read nothing from native (decals, point and spot lights, cubemaps, custom objects, models managed code made)
-/// write a change straight into their render object on the main thread, with nothing left for the mirror's next sync; a
-/// model or material change still waits for it.
+/// write a change straight into their render object on the main thread, with nothing left for the mirror's next sync: a
+/// model, its materials and its attributes too.
 /// </summary>
 [TestClass]
 public class SceneMirrorDirectTests
@@ -59,10 +59,12 @@ public class SceneMirrorDirectTests
 			animated.Position = moved.Position;
 			Assert.AreEqual( moved.Position, ((Borealis.RenderObject)find.Invoke( mirror, [animated] )).Transform.Position, "animated" );
 
-			// Draws are worked out once per sync
+			// Its draws are worked out as they change, and its attributes are read as it draws from when they're made
 			box.SetMaterialOverride( Material.Load( "materials/default/white.vmat" ) );
-			Assert.AreEqual( 1, (int)pending.GetValue( mirror ), "a material change waits" );
-			sync.Invoke( mirror, [camera, false] );
+			box.Model = Model.Load( "models/dev/plane.vmdl" );
+			box.Attributes.Set( "Tint", Color.Red );
+			Assert.AreEqual( 0, (int)pending.GetValue( mirror ), "a model, material and attribute change wait for nothing" );
+			Assert.IsNotNull( boxObject.AttributesFrom, "attributes read as it draws" );
 		}
 		finally
 		{

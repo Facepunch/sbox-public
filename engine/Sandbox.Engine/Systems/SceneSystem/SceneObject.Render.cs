@@ -133,12 +133,10 @@ public partial class SceneObject
 	}
 
 	/// <summary>
-	/// What waits for its world's renderer even for an object that writes its own render object: coming and going, and its
-	/// attributes being made. A model's draws are worked out once per sync for however many model and material changes came.
+	/// What waits for its world's renderer even for an object that writes its own render object: coming and going.
 	/// </summary>
 	const Rendering.SceneObjectChange RendererChanges = Rendering.SceneObjectChange.Added | Rendering.SceneObjectChange.Removed
-		| Rendering.SceneObjectChange.Deleted | Rendering.SceneObjectChange.Attributes | Rendering.SceneObjectChange.Model
-		| Rendering.SceneObjectChange.Material;
+		| Rendering.SceneObjectChange.Deleted;
 
 	/// <summary>
 	/// Write a change straight into its own render object if it can: one that owns it, made already, on the main thread, outside
