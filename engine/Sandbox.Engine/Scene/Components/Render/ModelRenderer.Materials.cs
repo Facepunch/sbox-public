@@ -109,7 +109,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 			for ( int i = 0; i < _materialAccessor.Count; i++ )
 			{
 				if ( _materialAccessor.GetOverride( i ) is { } material )
-					target.native.SetMaterialOverrideByIndex( i, material.native );
+					target.SetMaterialOverrideByIndex( i, material );
 			}
 		}
 		target.NotifyChanged( Rendering.SceneObjectChange.Material );
