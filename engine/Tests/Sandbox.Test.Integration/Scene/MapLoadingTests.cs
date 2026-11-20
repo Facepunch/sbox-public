@@ -42,6 +42,36 @@ public class MapLoadingTests
 		}
 	}
 
+	/// <summary>
+	/// A scene trace with render meshes that hits a map's world geometry, which has no scene object behind it (the editor's
+	/// click, a tool's placement trace): the map's tags, no game object.
+	/// </summary>
+	[TestMethod]
+	public void SceneTraceHitsMapGeometry()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var map = new SceneMap( scene.SceneWorld, "maps/dev/preview_flat.vmap" );
+		try
+		{
+			Assert.IsTrue( map.IsValid );
+			var center = map.Bounds.Center;
+			// UseRenderMeshes( true ), which only the editor may ask for: front faces
+			var trace = scene.Trace.Ray( center.WithZ( map.Bounds.Maxs.z + 100 ), center.WithZ( map.Bounds.Mins.z - 100 ) ).UsePhysicsWorld( false );
+			trace.IncludeRenderMeshes = true;
+			trace.CullMode = 2;
+			var hit = trace.Run();
+			Assert.IsTrue( hit.Hit, "hits the map" );
+			Assert.IsNull( hit.GameObject );
+			Assert.IsTrue( hit.HasTag( "world" ) && hit.HasTag( "map" ) && hit.HasTag( "solid" ), "the map's tags" );
+		}
+		finally
+		{
+			map.Delete();
+			scene.Destroy();
+		}
+	}
+
 	[TestMethod]
 	public void MissingMapIsInvalid()
 	{
