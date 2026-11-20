@@ -41,6 +41,10 @@ public static partial class EmbeddedCompatibility
 	{
 		body = EngineCbuffersOnce( body );
 
+		// common.fxc's descriptor sets, which a package's own copy of an older system header declares too (vfx's parser takes
+		// each once): the engine's include declares them, where the package did
+		body = DescriptorSetDeclaration().Replace( body, m => $"#include \"common.fxc\" // {m.Groups["name"].Value}, declared by the engine" );
+
 		// A sampler the engine declares for every module is declared once, by the engine
 		body = SamplerDeclaration().Replace( body, m => Array.IndexOf( EngineSamplers, m.Groups["name"].Value ) >= 0 ? $"// {m.Groups["name"].Value}: declared by the engine" : m.Value );
 
@@ -143,6 +147,10 @@ public static partial class EmbeddedCompatibility
 
 	[GeneratedRegex( @"(?<=^|\n)[ \t]*cbuffer[ \t]+(?<name>\w+)[^{;\n]*\s*\{" )]
 	private static partial Regex CbufferStart();
+
+	// A file-scope declaration of one of common.fxc's descriptor sets on its own line
+	[GeneratedRegex( @"(?<=^|\n)[ \t]*ExternalDescriptorSet[ \t]+(?<name>g_globalLateBoundBindlessSet|g_viewSet)[ \t]+Slot[ \t]+\d+[ \t]*;" )]
+	private static partial Regex DescriptorSetDeclaration();
 
 	// A file-scope sampler declaration on its own line, with its annotations (which hold semicolons)
 	[GeneratedRegex( @"(?<=^|\n)[ \t]*SamplerState[ \t]+(?<name>\w+)\s*(?:<[^>]*>)?\s*;" )]

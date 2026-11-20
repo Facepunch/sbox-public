@@ -268,6 +268,30 @@ public class EmbeddedCompatibilityTests
 		Assert.IsTrue( end > text.IndexOf( "extension TraceResult", StringComparison.Ordinal ), text );
 	}
 
+	/// <summary>
+	/// A package's own copy of an older system header declares common.fxc's descriptor sets (a post-process library's
+	/// <c>Class/System.slang</c>); vfx's parser takes each once, so the package's are the engine's include.
+	/// </summary>
+	[TestMethod]
+	public void PackageCopiesOfTheEnginesDescriptorSetsAreTheEngines()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#ifndef SYSTEM
+			#define SYSTEM
+			ExternalDescriptorSet g_globalLateBoundBindlessSet Slot 1;
+			#endif
+			#include "common.fxc"
+			Texture2D g_tColor < Attribute( "Color" ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float4 MainPs( PS_INPUT i ) : SV_Target0 { return g_tColor.Sample( g_sBilinearClamp, i.vUv ); }
+			""";
+		var text = EmbeddedCompatibility.Apply( pixel );
+		Assert.IsFalse( text.Contains( "ExternalDescriptorSet", StringComparison.Ordinal ), text );
+		Assert.IsTrue( text.Contains( "#include \"common.fxc\" // g_globalLateBoundBindlessSet, declared by the engine", StringComparison.Ordinal ), text );
+		Compiles( pixel, "embedded_descriptor_sets" );
+	}
+
 	/// <summary>The samplers the converter leaves to the engine are common_samplers.fxc's.</summary>
 	[TestMethod]
 	public void EngineSamplersAreCommonSamplers()
