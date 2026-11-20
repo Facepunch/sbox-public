@@ -171,11 +171,14 @@ public class MeshletTests
 
 		var config = MeshletConfig.Default;
 		var cut = MeshletBuilder.Cut( config );
+		var lodConfig = Borealis.Backend.Lods.LodConfig.Default;
+		var levelCut = Borealis.Backend.Lods.LodStore.Cut( lodConfig );
+		var levelCount = 0;
 		var file = Borealis.Source2.Models.ModelFile.Read( data, content.TryRead );
 		var ranges = 0;
 		foreach ( var mesh in file.Meshes )
 		{
-			var cooked = Borealis.Source2.Models.MeshletCooker.Cook( mesh, config.MaxVertices, config.MaxTriangles, cut );
+			var cooked = Borealis.Source2.Models.MeshletCooker.Cook( mesh, config.MaxVertices, config.MaxTriangles, cut, Borealis.Backend.Lods.LodStore.Cooked( lodConfig ), levelCut );
 			Assert.IsNotNull( cooked, $"{mesh.Name} cooks" );
 			foreach ( var draw in mesh.DrawCalls )
 			{
@@ -197,10 +200,35 @@ public class MeshletTests
 				Assert.IsNull( MeshletSet.FromCooked( stored, records.Span, new MeshletConfig( 64, 4 ) ), "but not with meshlets over its config" );
 				Assert.IsTrue( mesh.IndexBuffers[ibIndex].Meshlets is null, "the mesh as compiled has none" );
 				ranges++;
+
+				// Its levels: what a load makes of it as compiled, as stored (meshlet order) and with every triangle rotated (as
+				// the index buffer's encoding stores them), each with meshlets over all of it
+				var levels = cooked.IndexBuffers[ibIndex].Meshlets.FindLevels( start, draw.IndexCount, cooked.VertexBuffers[vbIndex], baseVertex );
+				Assert.IsNotNull( levels, "the range's levels were made" );
+				var rotated = new uint[original.Length];
+				for ( int t = 0; t < original.Length; t += 3 ) (rotated[t], rotated[t + 1], rotated[t + 2]) = (original[t + 1], original[t + 2], original[t]);
+				foreach ( var from in (uint[][])[original, stored, rotated] )
+				{
+					var (madeLevels, madeErrors) = levelCut( from, vb, position, baseVertex ).Value;
+					CollectionAssert.AreEqual( madeErrors, levels.Errors.ToArray(), "each level's error is the load's" );
+					Assert.AreEqual( madeLevels.Length, levels.Buffers.Count, "and so is their count" );
+					for ( int k = 0; k < madeLevels.Length; k++ )
+						CollectionAssert.AreEqual( Triangles( madeLevels[k] ), Triangles( System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( levels.Buffers[k].Data ).ToArray() ), "and so are its triangles (stored in meshlet order)" );
+				}
+
+				for ( int k = 0; k < levels.Buffers.Count; k++ )
+				{
+					var level = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( levels.Buffers[k].Data ).ToArray();
+					var own = levels.Buffers[k].Meshlets.Find( 0, level.Length, cooked.VertexBuffers[vbIndex], baseVertex );
+					Assert.IsTrue( MeshletSet.FromCooked( level, own.Span, config ) is { InPlace: true }, "each level's meshlets cover it, taken as they are" );
+				}
+
+				levelCount += levels.Buffers.Count;
 			}
 		}
 
 		Assert.IsTrue( ranges > 0, "a range was cooked" );
+		Assert.IsTrue( levelCount > 0, "with levels" );
 
 		// A compiled mesh file cooked: read back, its ranges are the same; a block of another version reads as none
 		var vmesh = File.ReadAllBytes( Path.Combine( content.Roots.First(), "models", "dev", "error.vmesh_c" ) );
@@ -216,8 +244,38 @@ public class MeshletTests
 		}
 
 		var block = resource.Block( "MSHL" ).ToArray();
-		block[4] = 2;
+
+		// The same block as version 1 wrote it (32-byte header and ranges, no levels): its ranges read, with no levels
+		var rangeCount = BitConverter.ToInt32( block, 16 );
+		var recordCount = BitConverter.ToInt32( block, 24 );
+		var recordsAt = BitConverter.ToInt32( block, 28 );
+		var first = new byte[32 + rangeCount * 32 + recordCount * 32];
+		block.AsSpan( 0, 32 ).CopyTo( first );
+		BitConverter.TryWriteBytes( first.AsSpan( 4 ), 1u );
+		BitConverter.TryWriteBytes( first.AsSpan( 12 ), 1u );
+		BitConverter.TryWriteBytes( first.AsSpan( 20 ), 32 );
+		BitConverter.TryWriteBytes( first.AsSpan( 28 ), 32 + rangeCount * 32 );
+		for ( int i = 0; i < rangeCount; i++ ) block.AsSpan( 80 + i * 48, 28 ).CopyTo( first.AsSpan( 32 + i * 32 ) );
+		block.AsSpan( recordsAt, recordCount * 32 ).CopyTo( first.AsSpan( 32 + rangeCount * 32 ) );
+		var version1 = Borealis.Source2.Models.CookedMeshlets.Read( first, read.VertexBuffers.ToArray(), read.IndexBuffers.ToArray() );
+		Assert.IsNotNull( version1, "a version 1 block reads" );
+		for ( int b = 0; b < read.IndexBuffers.Count; b++ )
+		{
+			Assert.AreEqual( read.IndexBuffers[b].Meshlets?.Count ?? 0, version1[b]?.Count ?? 0, "with the same ranges" );
+			Assert.IsNull( version1[b]?.Lods, "and no levels" );
+		}
+
+		block[4] = 3;
 		Assert.IsNull( Borealis.Source2.Models.CookedMeshlets.Read( block, read.VertexBuffers.ToArray(), read.IndexBuffers.ToArray() ), "another version is left to the load" );
+	}
+
+	/// <summary>A range's triangles sorted, each as stored, to compare ranges in other orders.</summary>
+	static (uint, uint, uint)[] Triangles( uint[] indices )
+	{
+		var triangles = new (uint, uint, uint)[indices.Length / 3];
+		for ( int t = 0; t < triangles.Length; t++ ) triangles[t] = (indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]);
+		Array.Sort( triangles );
+		return triangles;
 	}
 
 	[TestMethod]

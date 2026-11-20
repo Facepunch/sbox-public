@@ -2312,24 +2312,28 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
-	/// A model whose meshlets the resource compiler cooked (<see cref="Borealis.Source2.Models.MeshletCooker"/>: its draws'
-	/// indices in meshlet order, the records in the mesh) and one whose meshlets are built at load, as aggregates side by side:
-	/// the cooked one's ranges are taken as they are and the other's built, every range publishes, and the frame is the one
-	/// drawn without meshlets; with the compute pass and with task and mesh shaders.
+	/// A model whose meshlets and levels the resource compiler cooked (<see cref="Borealis.Source2.Models.MeshletCooker"/>: its
+	/// draws' indices in meshlet order, the records and levels in the mesh) and one whose meshlets and levels are made at load,
+	/// as aggregates side by side: the cooked one's ranges are taken as they are and the other's made, every range publishes,
+	/// and the frame is the one drawn without meshlets and the one drawn with nothing taken cooked; with the compute pass and
+	/// with task and mesh shaders, without generated LODs and with them.
 	/// </summary>
 	[TestMethod]
-	[DataRow( false )]
-	[DataRow( true )]
-	public void CookedAndBuiltMeshletsBothDraw( bool meshTasks )
+	[DataRow( false, false )]
+	[DataRow( true, false )]
+	[DataRow( false, true )]
+	[DataRow( true, true )]
+	public void CookedAndBuiltMeshletsBothDraw( bool meshTasks, bool lods )
 	{
 		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
 		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
 		if ( !Borealis.Backend.Meshlets.MeshOptimizer.Available ) Assert.Inconclusive( "meshopt isn't built" );
 		if ( meshTasks && !Device.Capabilities.MeshShaders ) Assert.Inconclusive( "The device has no mesh shaders" );
 
-		byte[] Frame( bool meshlets, out Borealis.Backend.Meshlets.MeshletStore store )
+		byte[] Frame( bool meshlets, bool cookedTaken, out Borealis.Backend.Meshlets.MeshletStore store, out Borealis.Backend.Lods.LodStore lodStore )
 		{
-			using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, Meshlets = meshlets, MeshletTasks = meshTasks, GeneratedLods = false };
+			lodStore = null;
+			using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, Meshlets = meshlets, MeshletTasks = meshTasks, GeneratedLods = lods };
 			foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
 			{
 				if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
@@ -2341,7 +2345,9 @@ public class GpuDrivenTests : GpuTest
 			// The same model twice: as compiled, and cooked as the resource compiler cooks an aggregate's meshes
 			var file = Borealis.Source2.Models.ModelFile.Read( data, backend.Content.TryRead );
 			var cut = Borealis.Backend.Meshlets.MeshletBuilder.Cut( Borealis.Backend.Meshlets.MeshletConfig.Default );
-			var cookedFile = file.WithMeshes( file.Meshes.Select( m => Borealis.Source2.Models.MeshletCooker.Cook( m, 64, 124, cut ) ?? m ).ToArray() );
+			var lodConfig = Borealis.Backend.Lods.LodConfig.Default;
+			var levelCut = Borealis.Backend.Lods.LodStore.Cut( lodConfig );
+			var cookedFile = file.WithMeshes( file.Meshes.Select( m => Borealis.Source2.Models.MeshletCooker.Cook( m, 64, 124, cut, Borealis.Backend.Lods.LodStore.Cooked( lodConfig ), levelCut ) ?? m ).ToArray() );
 			Assert.IsTrue( cookedFile.Meshes.Any( m => m.IndexBuffers.Any( b => b.Meshlets is not null ) ), "the model cooks" );
 			Assert.IsTrue( file.Meshes.All( m => m.IndexBuffers.All( b => b.Meshlets is null ) ), "and as compiled has no cooked meshlets" );
 			var built = BackendModel.Create( backend, file );
@@ -2349,6 +2355,7 @@ public class GpuDrivenTests : GpuTest
 
 			var previousHost = RenderHost.Current;
 			RenderHost.Current = new BackendRenderHost( backend );
+			Borealis.Backend.Meshlets.MeshletStore.UseCooked = cookedTaken;
 			try
 			{
 				using var system = new RenderSystem { ParallelRecording = false };
@@ -2405,33 +2412,47 @@ public class GpuDrivenTests : GpuTest
 					return pixels;
 				}
 
-				// Every range built or taken, uploaded and published before the frame that's kept
-				for ( int i = 0; i < 300 && (i < 4 || backend.MeshletStore is { Pending: > 0 }); i++ )
+				// Every range's levels and meshlets made or taken, uploaded and published before the frame that's kept
+				bool Pending() => backend.MeshletStore is { Pending: > 0 } || backend.LodStore is { Pending: > 0 };
+				for ( int i = 0; i < 300 && (i < 4 || Pending()); i++ )
 				{
 					Render();
-					if ( backend.MeshletStore is { Pending: > 0 } ) Thread.Sleep( 10 );
+					if ( Pending() ) Thread.Sleep( 10 );
 				}
 
 				for ( int i = 0; i < 6; i++ ) Render();
 				store = backend.MeshletStore;
+				lodStore = backend.LodStore;
 				return Render();
 			}
 			finally
 			{
 				Device.WaitIdle();
 				RenderHost.Current = previousHost;
+				Borealis.Backend.Meshlets.MeshletStore.UseCooked = true;
 			}
 		}
 
-		var with = Frame( true, out var meshletStore );
-		var without = Frame( false, out _ );
+		var with = Frame( true, true, out var meshletStore, out var lodStore );
+		var made = Frame( true, false, out var madeStore, out _ );
+		var without = Frame( false, true, out _, out _ );
 		Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 		Assert.IsNotNull( meshletStore, "meshlets were on" );
 		Assert.AreEqual( 0, meshletStore.Pending, "every range was built or taken" );
 		Assert.IsTrue( meshletStore.CookedHits > 0, $"the cooked model's ranges were taken as cooked ({meshletStore.Published} published)" );
 		Assert.IsTrue( meshletStore.Published > meshletStore.CookedHits, $"and the other model's built ({meshletStore.Published} published, {meshletStore.CookedHits} cooked)" );
 		Assert.AreEqual( meshletStore.Requested, meshletStore.Published, "every range asked for published" );
+		Assert.AreEqual( 0, madeStore.CookedHits, "with cooked meshlets left out, none is taken" );
+		if ( lods )
+		{
+			Assert.IsNotNull( lodStore, "generated LODs were on" );
+			Assert.IsTrue( lodStore.CookedHits > 0, $"the cooked model's levels were taken as cooked ({lodStore.Requested} asked for)" );
+			Assert.IsTrue( lodStore.Requested > lodStore.CookedHits, $"and the other model's made ({lodStore.Requested} asked for, {lodStore.CookedHits} cooked)" );
+			Assert.IsTrue( lodStore.Levels > 0, $"levels were published ({lodStore.Published} ranges)" );
+		}
+
 		Assert.IsTrue( Same( with, without ), $"both draw what they draw without meshlets ({Differences( with, without )})" );
+		Assert.IsTrue( Same( with, made ), $"and what they draw with everything made at load ({Differences( with, made )})" );
 	}
 
 	/// <summary>
