@@ -415,8 +415,15 @@ internal sealed partial class SceneBridge
 		var samples = depthTarget is null ? 1 : Source2Formats.Samples( depthTarget.MultisampleType );
 		if ( state.GpuTarget is not { } drawn || drawn.Size != size || drawn.Samples != samples || drawn.Color.Format != format )
 		{
-			state.GpuTarget?.Dispose();
-			state.GpuTarget = drawn = ViewTarget.Create( size, samples, format, state.System.DepthFormat, "Borealis.Gpu child view" );
+			// The other size's target, kept for views that alternate sizes
+			(state.GpuTarget, state.GpuOtherTarget) = (state.GpuOtherTarget, state.GpuTarget);
+			if ( state.GpuTarget is not { } other || other.Size != size || other.Samples != samples || other.Color.Format != format )
+			{
+				state.GpuTarget?.Dispose();
+				state.GpuTarget = ViewTarget.Create( size, samples, format, state.System.DepthFormat, "Borealis.Gpu child view" );
+			}
+
+			drawn = state.GpuTarget;
 		}
 
 		state.System.Render( render.World, state.View, drawn, null );

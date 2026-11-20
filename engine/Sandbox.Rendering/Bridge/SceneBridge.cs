@@ -83,6 +83,12 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public GpuTexture GpuOutput;
 
 		/// <summary>
+		/// The child view's float target of the size before <see cref="GpuTarget"/>'s, kept: one camera's views drawn at two sizes
+		/// in turn (the window's and a 128 px cube face's) made a new target, the driver's allocation, at every turn.
+		/// </summary>
+		public ViewTarget GpuOtherTarget;
+
+		/// <summary>
 		/// A top-level view's own attributes (its planar reflection), and what Borealis reads them as.
 		/// </summary>
 		public RenderAttributes GpuViewAttributes;
@@ -104,6 +110,8 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			GpuUpscaler = null;
 			GpuTarget?.Dispose();
 			GpuTarget = null;
+			GpuOtherTarget?.Dispose();
+			GpuOtherTarget = null;
 			GpuOutput?.Dispose();
 			GpuOutput = null;
 		}

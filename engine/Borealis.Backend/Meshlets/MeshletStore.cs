@@ -283,26 +283,41 @@ internal sealed class MeshletStore : IDisposable
 			var started = Stopwatch.GetTimestamp();
 			var s = entry.Source;
 			var count = (int)entry.Range.IndexCount;
-			var indices = new uint[count];
-			uint min = uint.MaxValue, max = 0;
-			for ( int k = 0; k < count; k++ )
-			{
-				var index = s.Indices[s.IndexBase + k];
-				indices[k] = index;
-				min = Math.Min( min, index );
-				max = Math.Max( max, index );
-			}
+			MeshletSet set;
 
-			// Its vertices' positions, from the lowest index it uses; with its indices and the config, the cache's key
-			var positions = new V3[max - min + 1];
-			for ( int v = 0; v < positions.Length; v++ ) positions[v] = Position( s, s.VertexBase + (int)min + v );
-			var key = CacheFolder is null ? null : Key( indices, positions );
-			var set = key is null ? null : ReadCached( key );
-			if ( set is not null ) Interlocked.Increment( ref CacheHits );
-			else
+			// The range's indices and its vertices' positions, from the lowest index it uses, in pooled scratch: with the config,
+			// the cache's key
+			var indexArray = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+			V3[] positionArray = null;
+			try
 			{
-				set = MeshletBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config );
-				if ( key is not null && set is not null ) WriteCached( key, set );
+				var indices = indexArray.AsSpan( 0, count );
+				uint min = uint.MaxValue, max = 0;
+				for ( int k = 0; k < count; k++ )
+				{
+					var index = s.Indices[s.IndexBase + k];
+					indices[k] = index;
+					min = Math.Min( min, index );
+					max = Math.Max( max, index );
+				}
+
+				var vertexCount = count == 0 ? 0 : (int)(max - min + 1);
+				positionArray = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+				for ( int v = 0; v < vertexCount; v++ ) positionArray[v] = Position( s, s.VertexBase + (int)min + v );
+				var key = CacheFolder is null ? null : Key( indices, positionArray.AsSpan( 0, vertexCount ) );
+				set = key is null ? null : ReadCached( key );
+				if ( set is not null ) Interlocked.Increment( ref CacheHits );
+				else
+				{
+					var positions = positionArray;
+					set = MeshletBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config );
+					if ( key is not null && set is not null ) WriteCached( key, set );
+				}
+			}
+			finally
+			{
+				System.Buffers.ArrayPool<uint>.Shared.Return( indexArray );
+				if ( positionArray is not null ) System.Buffers.ArrayPool<V3>.Shared.Return( positionArray );
 			}
 
 			Interlocked.Add( ref BuildTicks, Stopwatch.GetTimestamp() - started );
@@ -352,13 +367,13 @@ internal sealed class MeshletStore : IDisposable
 
 	const uint CacheMagic = 0x4C48534D, CacheVersion = 1;
 
-	string Key( uint[] indices, V3[] positions )
+	string Key( ReadOnlySpan<uint> indices, ReadOnlySpan<V3> positions )
 	{
 		using var hash = System.Security.Cryptography.IncrementalHash.CreateHash( System.Security.Cryptography.HashAlgorithmName.SHA256 );
 		Span<int> head = [(int)CacheVersion, Config.MaxVertices, Config.MaxTriangles, indices.Length, positions.Length];
 		hash.AppendData( MemoryMarshal.AsBytes( head ) );
-		hash.AppendData( MemoryMarshal.AsBytes( indices.AsSpan() ) );
-		hash.AppendData( MemoryMarshal.AsBytes( positions.AsSpan() ) );
+		hash.AppendData( MemoryMarshal.AsBytes( indices ) );
+		hash.AppendData( MemoryMarshal.AsBytes( positions ) );
 		return Convert.ToHexString( hash.GetHashAndReset() );
 	}
 
@@ -370,16 +385,26 @@ internal sealed class MeshletStore : IDisposable
 		{
 			var path = CachePath( key );
 			if ( !System.IO.File.Exists( path ) ) return null;
-			var bytes = System.IO.File.ReadAllBytes( path );
-			var head = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( 0, 16 ) );
-			if ( head[0] != CacheMagic || head[1] != CacheVersion ) return null;
-			var (indexCount, meshletCount) = ((int)head[2], (int)head[3]);
-			if ( bytes.Length != 16 + indexCount * 4 + meshletCount * MeshletSet.RecordBytes ) return null;
-			return new MeshletSet
+			// Read into pooled scratch: only the set's own arrays are new
+			var buffer = PooledFile.Read( path, out var length );
+			try
 			{
-				Indices = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( 16, indexCount * 4 ) ).ToArray(),
-				Meshlets = MemoryMarshal.Cast<byte, MeshletRecord>( bytes.AsSpan( 16 + indexCount * 4 ) ).ToArray(),
-			};
+				if ( length < 16 ) return null;
+				var bytes = buffer.AsSpan( 0, length );
+				var head = MemoryMarshal.Cast<byte, uint>( bytes[..16] );
+				if ( head[0] != CacheMagic || head[1] != CacheVersion ) return null;
+				var (indexCount, meshletCount) = ((int)head[2], (int)head[3]);
+				if ( length != 16 + indexCount * 4 + meshletCount * MeshletSet.RecordBytes ) return null;
+				return new MeshletSet
+				{
+					Indices = MemoryMarshal.Cast<byte, uint>( bytes.Slice( 16, indexCount * 4 ) ).ToArray(),
+					Meshlets = MemoryMarshal.Cast<byte, MeshletRecord>( bytes[(16 + indexCount * 4)..] ).ToArray(),
+				};
+			}
+			finally
+			{
+				PooledFile.Return( buffer );
+			}
 		}
 		catch ( System.IO.IOException )
 		{
