@@ -262,7 +262,7 @@ internal sealed partial class SceneBridge
 		var display = new Vector2Int( (int)size.x, (int)size.y );
 		var displayViewport = gpuView.Viewport;
 		var upscaler = upscale ? StateFor( camera, setup.ViewHash ).GpuUpscaler ??= new BorealisGpuUpscaler( backend ) : null;
-		var upscaling = upscaler?.Begin( display, allowed: true ) ?? false;
+		var upscaling = upscaler?.Begin( display, allowed: true, debugReactiveMask: gpuView.ToolsVisMode == (int)SceneCameraDebugMode.ReactiveMask ) ?? false;
 		if ( upscaling )
 		{
 			size = upscaler.RenderSize;
@@ -275,8 +275,10 @@ internal sealed partial class SceneBridge
 		using ( PrepareTiming.Scope() )
 			(render, state) = Prepare( camera, setup, size );
 
-		// A temporal upscaler's sub-pixel offset this frame, which the view's projection takes; none otherwise
+		// A temporal upscaler's sub-pixel offset this frame, which the view's projection takes, and its reactive mask's
+		// overlays drawn depth only; neither otherwise
 		state.View.Jitter = upscaling ? upscaler.ClipJitter : Vector2.Zero;
+		state.View.ReactiveDepth = upscaling && upscaler.IsTemporal;
 
 		// Graphics.Render in its stages (a highlight's outline) draws the camera's mirrored objects again
 		gpuView.RenderSceneObject = state.Drawer.RenderOnGpu;
@@ -321,7 +323,7 @@ internal sealed partial class SceneBridge
 		using ( new Drawing( this, state ) )
 			state.System.Render( render.World, state.View, state.GpuTarget, stages );
 
-		frame.Adopt( state.GpuTarget, state.System.Frame.Constants, state.System.BloomObjects );
+		frame.Adopt( state.GpuTarget, state.System.Frame.Constants, state.System.BloomObjects, state.System.ReactiveDepth );
 
 		gpuView.LayerType = SceneLayerType.Translucent;
 		if ( upscaling ) gpuView.Viewport = state.View.Viewport;
@@ -338,6 +340,9 @@ internal sealed partial class SceneBridge
 			RunStage( camera, Stage.BeforePostProcess );
 			if ( exposure is not null && exposureBucket >= 0 ) frame.CountExposure( exposure, exposureBucket );
 			RunStage( camera, Stage.Tonemapping );
+
+			// Native's debug view of the reactive mask, over the frame
+			if ( upscaling && gpuView.ToolsVisMode == (int)SceneCameraDebugMode.ReactiveMask ) upscaler.DrawReactiveMask( displayViewport );
 		}
 
 		frame.End();

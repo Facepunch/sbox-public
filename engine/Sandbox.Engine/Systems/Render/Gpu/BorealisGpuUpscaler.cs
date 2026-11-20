@@ -35,6 +35,9 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	// FSR1 works in 16x16 tiles, 64 threads each
 	const int Fsr1TileSize = 16;
 
+	// reactive_mask_generate's default: any depth nearer than the far plane in the overlays' own depth
+	const float NativeReactiveThreshold = 0.001f;
+
 	/// <summary>
 	/// The mode the settings ask for and its render scale, as native's <c>GetActiveUpscalerMode</c> and
 	/// <c>GetUpscalerViewportScale</c> work them out: off (and the old stretch setting) with a render scale under 1 stretches.
@@ -98,6 +101,9 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	/// <summary>The size it's upscaled to.</summary>
 	public Vector2Int DisplaySize { get; private set; }
 
+	/// <summary>Whether a temporal upscaler (FSR3, DLSS) runs this frame: the frame is jittered and draws a reactive mask.</summary>
+	public bool IsTemporal => temporal is not null && Active is Mode.Fsr3 or Mode.Dlss;
+
 	/// <summary>Whether the scene renders single-sampled: every mode but the stretch, as native turns MSAA off for them.</summary>
 	public bool SingleSampled => Active is Mode.Fsr1 or Mode.Fsr3 or Mode.Dlss;
 
@@ -106,6 +112,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	public Vector2 ClipJitter => RenderSize.x < 1 ? default : new Vector2( 2.0f * Jitter.x / RenderSize.x, -2.0f * Jitter.y / RenderSize.y );
 
 	TemporalUpscaler temporal;
+	bool debugReactiveMask;
 	int jitterIndex;
 	double lastDispatch = -1;
 	bool resetHistory;
@@ -113,7 +120,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 
 	Texture output, intermediate, depth, motionVectors, reactiveMask, temporalDepth;
 	RenderTarget depthTarget, motionTarget, reactiveTarget, temporalDepthTarget;
-	Material motionMaterial, reactiveMaterial;
+	Material motionMaterial, reactiveMaterial, reactiveDebugMaterial;
 	ComputeShader easu, rcas;
 	RenderAttributes easuAttributes, rcasAttributes, depthAttributes, reactiveAttributes;
 
@@ -122,8 +129,9 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	/// and jitter, the upscaler made (again) when the settings or size changed. <paramref name="allowed"/> is native's main
 	/// view outside the tools: false renders at the display size. Returns whether the frame upscales.
 	/// </summary>
-	public bool Begin( Vector2Int display, bool allowed )
+	public bool Begin( Vector2Int display, bool allowed, bool debugReactiveMask = false )
 	{
+		this.debugReactiveMask = debugReactiveMask;
 		var (mode, scale) = allowed ? Settings() : (Mode.Off, 1.0f);
 		DisplaySize = display;
 		var render = new Vector2Int( Math.Max( 1, (int)(scale * display.x) ), Math.Max( 1, (int)(scale * display.y) ) );
@@ -248,6 +256,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			motionMaterial ??= Material.FromShader( "shaders/motion_vectors.shader" );
 			reactiveMaterial ??= Material.FromShader( "shaders/reactive_mask_generate.shader" );
 			reactiveAttributes ??= RenderAttributes.CreateManaged();
+			if ( debugReactiveMask ) reactiveDebugMaterial ??= Material.FromShader( "shaders/reactive_mask_debug.shader" );
 		}
 	}
 
@@ -299,8 +308,11 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			Graphics.Clear( Color.Transparent, true, false, false );
 			Graphics.Blit( motionMaterial );
 
-			reactiveAttributes.Set( ReactiveDepth, sceneDepth );
-			reactiveAttributes.Set( ReactiveDepthThreshold, 1.0f - Borealis.GameOverlayLayer.DepthRange - 0.0001f );
+			// The overlays drawn again depth only, translucent ones too, as native's mask has them; without any, the frame's depth
+			// in the overlays' range (custom objects' only)
+			var overlays = frame.ReactiveDepth;
+			reactiveAttributes.Set( ReactiveDepth, overlays ?? sceneDepth );
+			reactiveAttributes.Set( ReactiveDepthThreshold, overlays is not null ? NativeReactiveThreshold : 1.0f - Borealis.GameOverlayLayer.DepthRange - 0.0001f );
 			Graphics.RenderTarget = reactiveTarget;
 			Graphics.Viewport = renderViewport;
 			Graphics.Clear( Color.Transparent, true, false, false );
@@ -341,6 +353,23 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		view.Viewport = displayViewport;
 		frame.Upscaled( output, depth, upscaledConstants, view );
 	}
+
+	/// <summary>
+	/// The reactive mask as a red overlay over the upscaled colour, in the frame's block after the stages
+	/// (<see cref="SceneCameraDebugMode.ReactiveMask"/>), as native's <c>ReactiveMaskDebugLayer</c> draws it over its final
+	/// colour: read a pixel at a time, so the render-size mask covers the top left of the display.
+	/// </summary>
+	public void DrawReactiveMask( Rect displayViewport )
+	{
+		if ( !IsTemporal || reactiveMask is null || reactiveDebugMaterial is null || depthTarget is null ) return;
+		reactiveAttributes.Set( ReactiveMaskName, reactiveMask );
+		Graphics.RenderTarget = depthTarget;
+		Graphics.Viewport = displayViewport;
+		Graphics.Blit( reactiveDebugMaterial, reactiveAttributes );
+		Graphics.RenderTarget = null;
+	}
+
+	static readonly StringToken ReactiveMaskName = "ReactiveMask";
 
 	static Material depthResolve;
 	static Material DepthResolve => depthResolve ??= Material.FromShader( "shaders/depthresolve.shader" );
