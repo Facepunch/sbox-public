@@ -65,6 +65,12 @@ internal sealed class MeshletStore : IDisposable
 	/// </summary>
 	public static bool StageOnWorkers { get; set; } = true;
 
+	/// <summary>
+	/// Whether ranges the resource compiler cooked (<see cref="Borealis.Source2.Models.CookedMeshlets"/>) take its meshlets
+	/// rather than being built (on; <c>-no-cooked-meshlets</c> builds every range, for comparisons).
+	/// </summary>
+	public static bool UseCooked { get; set; } = true;
+
 	/// <summary>Bytes a frame uploads at most (indices and records); the rest waits for the next frame.</summary>
 	public long FrameUploadBytes { get; set; } = 16 << 20;
 
@@ -134,6 +140,9 @@ internal sealed class MeshletStore : IDisposable
 
 	/// <summary>Ranges asked for, built, published and refused; meshlets and triangles published; build time on the workers.</summary>
 	public long Requested, Built, Published, Refused, Meshlets, Triangles, Triangles16, BuildTicks;
+
+	/// <summary>Ranges whose meshlets were cooked into their model, taken as they are, and the worker time that took.</summary>
+	public long CookedHits, CookedTicks;
 
 	public MeshletStore( Device gpu, MeshletConfig config, int threads, string cacheFolder = null )
 	{
@@ -218,14 +227,16 @@ internal sealed class MeshletStore : IDisposable
 	{
 		var set = entry.Set;
 		var wide = entry.Source.Format == IndexFormat.UInt32;
-		var indexBytes = (set.Indices.Length * (wide ? 4L : 2L) + 3) & ~3L;
+
+		// A cooked range's indices are in the page in this order already
+		var indexBytes = set.InPlace ? 0 : (set.Indices.Length * (wide ? 4L : 2L) + 3) & ~3L;
 		var recordBytes = set.Meshlets.Length * (long)MeshletSet.RecordBytes;
 		var local = entry.Local;
 		var triangleBytes = local is null ? 0 : local.Triangles.Length * 4L;
 		var vertexBytes = local is null ? 0 : (local.Vertices.Length * (wide ? 4L : 2L) + 3) & ~3L;
 		var staging = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( indexBytes + recordBytes + triangleBytes + vertexBytes, 4 ), Usage = BufferUsage.CopySource, Memory = MemoryLocation.Upload, Name = "Borealis meshlet staging" } );
 		var mapped = gpu.Map( staging );
-		Write( mapped, set.Indices, wide );
+		if ( !set.InPlace ) Write( mapped, set.Indices, wide );
 		MemoryMarshal.AsBytes( set.Meshlets.AsSpan() ).CopyTo( mapped[(int)indexBytes..] );
 		if ( local is not null )
 		{
@@ -234,7 +245,7 @@ internal sealed class MeshletStore : IDisposable
 		}
 
 		entry.Staging = staging;
-		entry.IndexBytes = set.Indices.Length * (wide ? 4L : 2L);
+		entry.IndexBytes = set.InPlace ? 0 : set.Indices.Length * (wide ? 4L : 2L);
 		entry.LocalTrianglesAt = indexBytes + recordBytes;
 		entry.LocalVerticesAt = indexBytes + recordBytes + triangleBytes;
 		entry.LocalVertexBytes = vertexBytes;
@@ -293,19 +304,26 @@ internal sealed class MeshletStore : IDisposable
 				max = Math.Max( max, index );
 			}
 
-			// Its vertices' positions, from the lowest index it uses; with its indices and the config, the cache's key
-			var positions = new V3[max - min + 1];
-			for ( int v = 0; v < positions.Length; v++ ) positions[v] = Position( s, s.VertexBase + (int)min + v );
-			var key = CacheFolder is null ? null : Key( indices, positions );
-			var set = key is null ? null : ReadCached( key );
-			if ( set is not null ) Interlocked.Increment( ref CacheHits );
+			// Cooked into the model with this config: taken as it is, its indices already in that order
+			var set = Cooked( s, indices );
+			var cooked = set is not null;
+			if ( cooked ) Interlocked.Increment( ref CookedHits );
 			else
 			{
-				set = MeshletBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config );
-				if ( key is not null && set is not null ) WriteCached( key, set );
+				// Its vertices' positions, from the lowest index it uses; with its indices and the config, the cache's key
+				var positions = new V3[max - min + 1];
+				for ( int v = 0; v < positions.Length; v++ ) positions[v] = Position( s, s.VertexBase + (int)min + v );
+				var key = CacheFolder is null ? null : Key( indices, positions );
+				set = key is null ? null : ReadCached( key );
+				if ( set is not null ) Interlocked.Increment( ref CacheHits );
+				else
+				{
+					set = MeshletBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config );
+					if ( key is not null && set is not null ) WriteCached( key, set );
+				}
 			}
 
-			Interlocked.Add( ref BuildTicks, Stopwatch.GetTimestamp() - started );
+			Interlocked.Add( ref cooked ? ref CookedTicks : ref BuildTicks, Stopwatch.GetTimestamp() - started );
 			entry.Set = set is not null && set.Meshlets.Length <= MaxRunMeshlets ? set : null;
 			if ( LocalData && entry.Set is not null ) entry.Local = entry.Set.Local();
 			if ( StageOnWorkers && entry.Set is not null ) Stage( entry );
@@ -321,6 +339,17 @@ internal sealed class MeshletStore : IDisposable
 		{
 			workers.Release();
 		}
+	}
+
+	/// <summary>
+	/// A range's cooked meshlets (<see cref="Borealis.Source2.Models.MeshIndexBuffer.Meshlets"/>), when they were cut with
+	/// this store's config and cover it; null to build it.
+	/// </summary>
+	MeshletSet Cooked( Source s, uint[] indices )
+	{
+		if ( !UseCooked || s.Indices.Meshlets is not { } cooked || cooked.MaxVertices != Config.MaxVertices || cooked.MaxTriangles != Config.MaxTriangles ) return null;
+		var records = cooked.Find( s.IndexBase, indices.Length, s.Vertices, s.VertexBase );
+		return records.IsEmpty ? null : MeshletSet.FromCooked( indices, records.Span, Config );
 	}
 
 	/// <summary>
@@ -560,7 +589,11 @@ internal sealed class MeshletStore : IDisposable
 			var s = entry.Source;
 			var range = entry.Range;
 			var staging = entry.Staging;
-			if ( staging.IsValid )
+			if ( set.InPlace )
+			{
+				// Cooked: already in this order in the page
+			}
+			else if ( staging.IsValid )
 			{
 				list.CopyBuffer( staging, 0, s.IndexPage, range.FirstIndex * (s.Format == IndexFormat.UInt32 ? 4L : 2L), entry.IndexBytes );
 				bytes += entry.IndexBytes;

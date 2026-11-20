@@ -593,6 +593,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
+					if ( HasSwitch( "-no-cooked-meshlets" ) ) Borealis.Backend.Meshlets.MeshletStore.UseCooked = false;
 					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders } : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
@@ -2175,7 +2176,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>What meshlets have been built, for reports.</summary>
 	public string MeshletReport => meshletStore is not { } s ? (Meshlets ? "meshlets: none (meshopt not found or no GPU-driven geometry)" : "meshlets: off")
-		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
+		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache), {s.CookedHits:N0} cooked into their models and taken in {s.CookedTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms; pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
 
 	/// <summary>
 	/// Debug only (<c>borealislab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this
