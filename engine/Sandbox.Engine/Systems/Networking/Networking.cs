@@ -38,6 +38,21 @@ public static partial class Networking
 	[ConVar( "net_host_migration_timeout", ConVarFlags.Protected, Help = "How long a client waits for the new host to show up before giving up, in seconds." )]
 	internal static float HostMigrationTimeout { get; set; } = 15f;
 
+	/// <summary>
+	/// Seconds without hearing from the other end before a connection times out.
+	/// </summary>
+	internal const int ConnectionTimeout = 120;
+
+	/// <summary>
+	/// Seconds a client goes without hearing from the host's game before it disconnects.
+	/// </summary>
+	internal const int HostTimeout = 60;
+
+	/// <summary>
+	/// How long to wait without hearing from the host before we show a "connection problem" warning.
+	/// </summary>
+	internal const float ConnectionProblemTime = 4f;
+
 	internal static Dictionary<string, string> ServerData { get; set; } = new();
 
 	/// <summary>
@@ -287,7 +302,7 @@ public static partial class Networking
 		utils.SetConfig( NetConfig.RecvBufferMessages, 256 * 256 );
 
 		// conna: allow 120s before a client will disconnect from a timeout.
-		utils.SetConfig( NetConfig.TimeoutConnected, 120 * 1000 );
+		utils.SetConfig( NetConfig.TimeoutConnected, ConnectionTimeout * 1000 );
 
 		// conna: when these two values are not the same, there seems to be a bug that causes the send buffer
 		// to often become clogged up and not clear properly. Ultimately resulting in heavier load and backlog.
