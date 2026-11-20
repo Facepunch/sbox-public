@@ -1,5 +1,4 @@
-// ObjectHighlight: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// ObjectHighlight: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // The outside pass draws a quad round each edge of each triangle, the outline's width and half a pixel past it every way,
 // where the .shader's geometry stage draws them: the inside pass's stencil keeps the outline outside the object, and the
 // pixel shader fades it over one pixel from the distance to the edge (OutlineCoverage), so it's smooth at any sample

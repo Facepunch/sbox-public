@@ -1,7 +1,7 @@
 namespace Borealis.Culling;
 
 /// <summary>
-/// A depth chain an occlusion cull tests against, and the view it was drawn from. Viewport is occlusion_cull_cs.shader's: the
+/// A depth chain an occlusion cull tests against, and the view it was drawn from. Viewport is occlusion_cull_cs.slang's: the
 /// view's width and height in pixels, the chain's mip count, and log2 of a mip 0 texel's width in pixels.
 /// </summary>
 internal readonly record struct OcclusionDepth( GpuTexture Chain, Vector4 Viewport, Vector2 DepthRange, Matrix WorldToProjection )

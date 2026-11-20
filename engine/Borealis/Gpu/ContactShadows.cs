@@ -7,7 +7,7 @@ namespace Borealis.Gpu;
 /// </summary>
 internal static class ContactShadows
 {
-	// Must match WAVE_SIZE / numthreads in screen_space_shadows_cs.shader.
+	// Must match WAVE_SIZE / numthreads in screen_space_shadows_cs.slang.
 	const int WaveSize = 64;
 	const int MaxDispatches = 8;
 

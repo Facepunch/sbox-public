@@ -177,8 +177,11 @@ public class ShaderDrawTests : GpuTest
 	[TestMethod]
 	public void UnsetMatrixAttributesAreIdentity()
 	{
-		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
+		// The HUD line is a module alone: a library with modules on describes it
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+		var library = backend.Shaders;
 		var shader = library.Load( "shaders/hud/line.shader" );
+		Assert.IsNotNull( shader, "the HUD line's module" );
 		var stage = library.Variant( shader, "Forward", new int[shader.Features.StaticCombos.Length] ).Vertex;
 		var data = new byte[stage.MaterialBuffer.Size];
 		stage.WriteMaterialConstants( data );

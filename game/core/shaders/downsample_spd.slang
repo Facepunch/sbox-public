@@ -1,5 +1,4 @@
-// downsample_spd: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// downsample_spd: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "FidelityFX SPD style mip chain downsample, six mips a dispatch, for the non-blur methods of downsample_cs.";

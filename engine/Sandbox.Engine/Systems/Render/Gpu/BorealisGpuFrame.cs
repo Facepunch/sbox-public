@@ -171,7 +171,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	/// <summary>
 	/// The frame's depth with one sample, in the block being recorded: <see cref="Depth"/>, or for a multisampled frame its
-	/// first sample written into a depth of its own (<c>depthresolve.shader</c>, as native resolves depth), once a frame, for
+	/// first sample written into a depth of its own (<c>depthresolve</c>, as native resolves depth), once a frame, for
 	/// drawing depth tested over a single-sampled target. Leaves no target bound that the caller should keep.
 	/// </summary>
 	public Texture ResolvedDepth()

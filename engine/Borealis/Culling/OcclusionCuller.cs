@@ -23,7 +23,7 @@ internal enum OcclusionPhase
 /// </summary>
 internal sealed class OcclusionCuller : IDisposable
 {
-	// Must match CullInstance in occlusion_cull_cs.shader. Negative Extents.x disables culling.
+	// Must match CullInstance in occlusion_cull_cs.slang. Negative Extents.x disables culling.
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct CullInstance
 	{
@@ -33,7 +33,7 @@ internal sealed class OcclusionCuller : IDisposable
 		public uint Id;
 	}
 
-	// Must match CullRun in occlusion_cull_cs.shader; Phases contains the shader's PHASE_ bits.
+	// Must match CullRun in occlusion_cull_cs.slang; Phases contains the shader's PHASE_ bits.
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct CullRun
 	{

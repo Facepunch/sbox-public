@@ -1,5 +1,4 @@
-// occlusion_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// occlusion_cull_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Scene renderer occlusion culling: tests instance bounds against last frame's and this frame's depth chains";
 

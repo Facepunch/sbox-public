@@ -1,5 +1,4 @@
-// tonemapping: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// tonemapping: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: Description = "Tonemapping";
 // HEADER: DevShader = true;
   
