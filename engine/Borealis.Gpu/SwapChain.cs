@@ -67,6 +67,23 @@ public sealed unsafe class SwapChain : IDisposable
 	public TextureHandle Current { get; private set; }
 
 	internal bool HasImage => Current.IsValid;
+
+	/// <summary>
+	/// Submissions naming this swap chain since its image was acquired (<see cref="Device.Submit"/>): the first waits for the
+	/// acquire and signals the present; a present must follow exactly one.
+	/// </summary>
+	internal int SubmitsForImage;
+
+	/// <summary>
+	/// Images presented with no submission for them since they were acquired (a frame whose last block never submitted),
+	/// and submissions naming the swap chain again for the same image. Each would leave the queue waiting on a semaphore
+	/// nothing signals, which the GPU's watchdog takes as a hang and resets the device for: <see cref="Present"/> and
+	/// <see cref="Device.Submit"/> now cover both, and count them here.
+	/// </summary>
+	public int PresentsWithoutSubmit { get; private set; }
+
+	/// <inheritdoc cref="PresentsWithoutSubmit"/>
+	public int RepeatedSubmits { get; internal set; }
 	internal ulong AcquireSemaphore => acquireSemaphores[acquireSlot];
 	internal ulong PresentSemaphore => presentSemaphores[imageIndex];
 
@@ -200,6 +217,9 @@ public sealed unsafe class SwapChain : IDisposable
 		swapchain = created;
 		if ( old != 0 ) vk.vkDestroySwapchainKHR( vk.Device, old, null );
 
+		// For device-loss reports: a remade chain starts its images again from the first
+		device.RememberEvent( "swap chain made, width:", w );
+
 		uint imageCount;
 		vk.vkGetSwapchainImagesKHR( vk.Device, swapchain, &imageCount, null ).Check( "vkGetSwapchainImagesKHR" );
 		var vkImages = stackalloc ulong[(int)imageCount];
@@ -292,6 +312,7 @@ public sealed unsafe class SwapChain : IDisposable
 
 			imageIndex = index;
 			Current = image = images[index];
+			SubmitsForImage = 0;
 			device.RememberEvent( "acquired image, slot*16+image:", acquireSlot * 16 + index );
 			return true;
 		}
@@ -305,6 +326,18 @@ public sealed unsafe class SwapChain : IDisposable
 	public void Present()
 	{
 		if ( !Current.IsValid ) throw new InvalidOperationException( "No image was acquired" );
+
+		// Nothing was submitted for the image: the present would wait on a semaphore no submission signals, and the queue behind
+		// it with it, until the watchdog resets the GPU. Submit for it here (an empty frame, the image moved to be presented)
+		if ( SubmitsForImage == 0 && !device.IsLost )
+		{
+			PresentsWithoutSubmit++;
+			device.RememberEvent( "present without a submission for the image:", (int)imageIndex );
+			device.Warn( "Borealis.Gpu.PresentWithoutSubmit", "A swap chain image was presented with nothing submitted for it since it was acquired; an empty frame was submitted for it" + (PresentsWithoutSubmit == 1 ? " (first time, from:\n" + Environment.StackTrace + ")" : "") );
+			var list = device.BeginCommandList( QueueType.Graphics, "Present without a frame" );
+			list.Barrier( new TextureBarrier { Texture = Current, OldLayout = ImageLayout.Undefined, NewLayout = ImageLayout.Present, SourceStage = PipelineStage.AllCommands, SourceAccess = MemoryAccess.None, DestinationStage = PipelineStage.AllCommands, DestinationAccess = MemoryAccess.None, MipCount = 1, LayerCount = 1 } );
+			device.Submit( list, default, this );
+		}
 
 		var semaphore = presentSemaphores[imageIndex];
 		var chain = swapchain;

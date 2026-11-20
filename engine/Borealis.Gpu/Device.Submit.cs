@@ -455,9 +455,21 @@ public sealed unsafe partial class Device
 		var signals = stackalloc VkSemaphoreSubmitInfo[2];
 		var signalCount = 1u;
 
+		// A second submission for the same acquired image would wait for an acquire already waited for, and signal a present
+		// semaphore already signalled: the queue would wait forever. It goes as an ordinary submission
+		if ( swapChain is not null && swapChain.SubmitsForImage > 0 )
+		{
+			swapChain.RepeatedSubmits++;
+			RememberEvent( "repeated submission for a swap chain image:", swapChain.SubmitsForImage );
+			Warn( "Borealis.Gpu.RepeatedSwapChainSubmit", "A swap chain image was submitted for twice before it was presented; the second went as an ordinary submission" + (swapChain.RepeatedSubmits == 1 ? " (first time, from:\n" + Environment.StackTrace + ")" : "") );
+			swapChain = null;
+		}
+
 		if ( swapChain is not null )
 		{
 			if ( !swapChain.HasImage ) throw new InvalidOperationException( "The swap chain has no acquired image to submit for" );
+			swapChain.SubmitsForImage++;
+			RememberEvent( "submitting for a swap chain image, list marker slot:", list.MarkerSlot );
 			waitInfos[waitCount++] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = swapChain.AcquireSemaphore, stageMask = Vulkan.Vk.Stage2AllCommands };
 			signals[signalCount++] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = swapChain.PresentSemaphore, stageMask = Vulkan.Vk.Stage2AllCommands };
 		}
@@ -696,7 +708,7 @@ public sealed unsafe partial class Device
 				var (queue, value, name, held, ticks, markers) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
 				if ( name is null && value == 0 ) continue;
 				var completed = seen.GetValueOrDefault( queue );
-				if ( i < recentSubmissions.Length - RecentSubmissionsShown && (value + 4 <= completed || value > completed + 16) && !MarkersPartway( markers ) )
+				if ( i < recentSubmissions.Length - RecentSubmissionsShown && (value + 4 <= completed || value > completed + 16) && (held == -2 || !MarkersPartway( markers )) )
 				{
 					if ( !skipped ) text.Append( "\n  ..." );
 					skipped = true;
