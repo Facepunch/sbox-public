@@ -38,14 +38,23 @@ internal sealed class LodChain
 internal static unsafe class LodBuilder
 {
 	/// <summary>
-	/// A range's triangles in one order whatever order they're stored in (sorted by their corners, each triangle's corners
-	/// as they are), so its levels don't depend on it: the resource compiler stores aggregate fragments in meshlet order
-	/// (<see cref="Borealis.Source2.Models.CookedMeshlets"/>), and the simplifier's result depends on its input's order.
+	/// A range's triangles in one order whatever order they're stored in: each from the corner that makes it smallest (its
+	/// winding kept), then sorted, so its levels don't depend on it. The resource compiler stores aggregate fragments in
+	/// meshlet order (<see cref="Borealis.Source2.Models.CookedMeshlets"/>), the index buffer's encoding rotates triangles,
+	/// and the simplifier's result depends on its input's order.
 	/// </summary>
 	static uint[] Canonical( ReadOnlySpan<uint> indices )
 	{
 		var triangles = new (uint A, uint B, uint C)[indices.Length / 3];
-		for ( int t = 0; t < triangles.Length; t++ ) triangles[t] = (indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]);
+		for ( int t = 0; t < triangles.Length; t++ )
+		{
+			var (a, b, c) = (indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]);
+			var best = (a, b, c);
+			if ( (b, c, a).CompareTo( best ) < 0 ) best = (b, c, a);
+			if ( (c, a, b).CompareTo( best ) < 0 ) best = (c, a, b);
+			triangles[t] = best;
+		}
+
 		Array.Sort( triangles );
 		var sorted = new uint[indices.Length];
 		for ( int t = 0; t < triangles.Length; t++ ) (sorted[t * 3], sorted[t * 3 + 1], sorted[t * 3 + 2]) = triangles[t];
