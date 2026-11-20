@@ -144,6 +144,9 @@ internal sealed class MeshletStore : IDisposable
 	/// <summary>Ranges whose meshlets were cooked into their model, taken as they are, and the worker time that took.</summary>
 	public long CookedHits, CookedTicks;
 
+	/// <summary>Ranges of index buffers with cooked meshlets that were built all the same: another config, a range not cooked, or records that don't cover it.</summary>
+	public long CookedMisses;
+
 	public MeshletStore( Device gpu, MeshletConfig config, int threads, string cacheFolder = null )
 	{
 		CacheFolder = cacheFolder;
@@ -361,14 +364,19 @@ internal sealed class MeshletStore : IDisposable
 	/// </summary>
 	MeshletSet Cooked( Source s, int count )
 	{
-		if ( !UseCooked || s.Indices.Meshlets is not { } cooked || cooked.MaxVertices != Config.MaxVertices || cooked.MaxTriangles != Config.MaxTriangles ) return null;
-		var records = cooked.Find( s.IndexBase, count, s.Vertices, s.VertexBase );
-		if ( records.IsEmpty ) return null;
+		if ( !UseCooked || s.Indices.Meshlets is not { } cooked ) return null;
+		var records = cooked.MaxVertices == Config.MaxVertices && cooked.MaxTriangles == Config.MaxTriangles ? cooked.Find( s.IndexBase, count, s.Vertices, s.VertexBase ) : default;
+		MeshletSet set = null;
+		if ( !records.IsEmpty )
+		{
+			// The set keeps its indices (for local data and its triangle count): read once, nothing else
+			var indices = new uint[count];
+			for ( int k = 0; k < count; k++ ) indices[k] = s.Indices[s.IndexBase + k];
+			set = MeshletSet.FromCooked( indices, records.Span, Config );
+		}
 
-		// The set keeps its indices (for local data and its triangle count): read once, nothing else
-		var indices = new uint[count];
-		for ( int k = 0; k < count; k++ ) indices[k] = s.Indices[s.IndexBase + k];
-		return MeshletSet.FromCooked( indices, records.Span, Config );
+		if ( set is null ) Interlocked.Increment( ref CookedMisses );
+		return set;
 	}
 
 	/// <summary>

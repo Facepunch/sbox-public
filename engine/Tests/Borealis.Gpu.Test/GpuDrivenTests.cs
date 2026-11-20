@@ -2532,12 +2532,14 @@ public class GpuDrivenTests : GpuTest
 		Assert.IsTrue( meshletStore.CookedHits > 0, $"the cooked model's ranges were taken as cooked ({meshletStore.Published} published)" );
 		Assert.IsTrue( meshletStore.Published > meshletStore.CookedHits, $"and the other model's built ({meshletStore.Published} published, {meshletStore.CookedHits} cooked)" );
 		Assert.AreEqual( meshletStore.Requested, meshletStore.Published, "every range asked for published" );
+		Assert.AreEqual( 0, meshletStore.CookedMisses, "and none of the cooked model's built at load" );
 		Assert.AreEqual( 0, madeStore.CookedHits, "with cooked meshlets left out, none is taken" );
 		if ( lods )
 		{
 			Assert.IsNotNull( lodStore, "generated LODs were on" );
 			Assert.IsTrue( lodStore.CookedHits > 0, $"the cooked model's levels were taken as cooked ({lodStore.Requested} asked for)" );
 			Assert.IsTrue( lodStore.Requested > lodStore.CookedHits, $"and the other model's made ({lodStore.Requested} asked for, {lodStore.CookedHits} cooked)" );
+			Assert.AreEqual( 0, lodStore.CookedMisses, "none of the cooked model's made at load" );
 			Assert.IsTrue( lodStore.Levels > 0, $"levels were published ({lodStore.Published} ranges)" );
 		}
 

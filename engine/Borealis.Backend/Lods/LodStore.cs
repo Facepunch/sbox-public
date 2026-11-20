@@ -179,6 +179,9 @@ internal sealed class LodStore : IDisposable
 	/// <summary>Ranges whose levels were cooked into their model, taken as they are.</summary>
 	public long CookedHits;
 
+	/// <summary>Ranges of index buffers with cooked meshlets whose levels were made all the same: none cooked, another config, or a range not cooked.</summary>
+	public long CookedMisses;
+
 	public LodStore( Device gpu, GpuDrivenTables tables, LodConfig config, int threads, string cacheFolder = null )
 	{
 		this.gpu = gpu;
@@ -438,8 +441,10 @@ internal sealed class LodStore : IDisposable
 	/// <summary>A range's cooked levels (<see cref="CookedMeshlets.FindLevels"/>), when they were made with this store's config; null to make them.</summary>
 	CookedLevels Cooked( Source s, int count )
 	{
-		if ( !MeshletStore.UseCooked || s.Indices.Meshlets is not { Lods: { } lods } cooked || lods != Cooked( Config ) ) return null;
-		return cooked.FindLevels( s.IndexBase, count, s.Vertices, s.VertexBase );
+		if ( !MeshletStore.UseCooked || s.Indices.Meshlets is not { } cooked ) return null;
+		var levels = cooked.Lods == Cooked( Config ) ? cooked.FindLevels( s.IndexBase, count, s.Vertices, s.VertexBase ) : null;
+		if ( levels is null ) Interlocked.Increment( ref CookedMisses );
+		return levels;
 	}
 
 	void BuildOn( Entry entry )
