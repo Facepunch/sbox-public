@@ -20,8 +20,9 @@ public sealed partial class BackendDevice
 	readonly ConcurrentDictionary<string, MaterialFile> readMaterials = new( StringComparer.OrdinalIgnoreCase );
 	readonly ConcurrentDictionary<string, TextureFile> readTextures = new( StringComparer.OrdinalIgnoreCase );
 
-	// Images made on the worker that read a big whole texture (ImageAheadBytes), with the file they're for, for Load to fill
-	readonly ConcurrentDictionary<string, (TextureFile File, Borealis.Gpu.TextureHandle Image)> imagesAhead = new( StringComparer.OrdinalIgnoreCase );
+	// Images made on the worker that read a big whole texture (ImageAheadBytes), with the file they're for and, for one of
+	// StageAheadBytes or more, the upload buffer its mips were copied into there (StageAheadBytes), for Load to fill
+	readonly ConcurrentDictionary<string, (TextureFile File, Borealis.Gpu.TextureHandle Image, Borealis.Gpu.BufferHandle Staged)> imagesAhead = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// A whole texture read ahead (<see cref="LoadTextureAsync"/>, a map's lightmaps, a model's texture that doesn't stream)
@@ -29,6 +30,14 @@ public sealed partial class BackendDevice
 	/// and a map's lightmaps took 100 ms of a frame. 0 makes none ahead. For comparisons.
 	/// </summary>
 	public static long ImageAheadBytes { get; set; } = 1 << 20;
+
+	/// <summary>
+	/// An image made ahead (<see cref="ImageAheadBytes"/>) whose top mip is at least this many bytes has its mips copied
+	/// into an upload buffer of its own on the worker too, so the frame that makes it only records copies: written there, a
+	/// mip larger than an upload page took an upload allocation of its own, about 20 ms each, and Construct's lightmaps took
+	/// 96 ms of a frame after its load. 0 stages none. For comparisons.
+	/// </summary>
+	public static long StageAheadBytes { get; set; } = 4 << 20;
 	readonly Dictionary<(string Path, ulong Groups), RenderMesh> streamedModels = new();
 	int readsPending;
 	ulong loadFrame, budgetFrame;
@@ -584,21 +593,55 @@ public sealed partial class BackendDevice
 			}
 
 			if ( texture is null ) return;
-			if ( !readTextures.TryAdd( path, texture ) )
+
+			// Its image, and a big one's mips staged, before Load can take the file: it releases the mips once it's made
+			var bytes = TextureStreamer.Bytes( texture, 0 );
+			(TextureFile File, Borealis.Gpu.TextureHandle Image, Borealis.Gpu.BufferHandle Staged) ahead = default;
+			if ( ImageAheadBytes > 0 && texture.TopMip == 0 && texture.Format != Borealis.Gpu.Format.Unknown && bytes >= ImageAheadBytes && !imagesAhead.ContainsKey( path ) )
 			{
-				texture.Release();
-				return;
+				ahead = (texture, texture.CreateEmpty( Gpu, path ), default);
+				if ( StageAheadBytes > 0 && bytes >= StageAheadBytes && texture.Dimension != Borealis.Gpu.TextureDimension.Texture3D ) ahead.Staged = Stage( texture );
+				if ( !imagesAhead.TryAdd( path, ahead ) )
+				{
+					DestroyAhead( ahead );
+					ahead = default;
+				}
 			}
 
-			if ( ImageAheadBytes > 0 && texture.TopMip == 0 && texture.Format != Borealis.Gpu.Format.Unknown && TextureStreamer.Bytes( texture, 0 ) >= ImageAheadBytes )
+			if ( !readTextures.TryAdd( path, texture ) )
 			{
-				var image = texture.CreateEmpty( Gpu, path );
-				if ( !imagesAhead.TryAdd( path, (texture, image) ) ) Gpu.Destroy( image );
+				if ( ahead.File is not null && imagesAhead.TryRemove( new KeyValuePair<string, (TextureFile, Borealis.Gpu.TextureHandle, Borealis.Gpu.BufferHandle)>( path, ahead ) ) ) DestroyAhead( ahead );
+				texture.Release();
+				return;
 			}
 		}
 		catch ( InvalidDataException )
 		{
 			// Read again where it's made, which reports it
 		}
+	}
+
+	/// <summary>An upload buffer holding <paramref name="texture"/>'s mips (<see cref="StageAheadBytes"/>), or none when there's no memory for one.</summary>
+	Borealis.Gpu.BufferHandle Stage( TextureFile texture )
+	{
+		Borealis.Gpu.BufferHandle staged = default;
+		try
+		{
+			staged = Gpu.CreateBuffer( new Borealis.Gpu.BufferInfo { Size = texture.StagedBytes, Usage = Borealis.Gpu.BufferUsage.CopySource, Memory = Borealis.Gpu.MemoryLocation.Upload, Name = "Staged texture" } );
+			texture.Stage( Gpu, staged );
+			return staged;
+		}
+		catch ( Borealis.Gpu.GpuException )
+		{
+			// Written where it's made instead
+			if ( staged.IsValid ) Gpu.Destroy( staged );
+			return default;
+		}
+	}
+
+	void DestroyAhead( (TextureFile File, Borealis.Gpu.TextureHandle Image, Borealis.Gpu.BufferHandle Staged) ahead )
+	{
+		Gpu.Destroy( ahead.Image );
+		if ( ahead.Staged.IsValid ) Gpu.Destroy( ahead.Staged );
 	}
 }

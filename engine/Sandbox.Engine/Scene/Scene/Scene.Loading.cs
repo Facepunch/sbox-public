@@ -93,6 +93,9 @@ public partial class Scene : GameObject
 				LoadingScreen.Subtitle = "Loading Finished..";
 			}
 
+			// Finish where the game ticks next, so its first tick and render are in the frame the loading screen goes in
+			if ( this is not PrefabScene ) await BorealisGpuRenderBackend.BeforeLoadFinishes();
+
 			if ( !IsValid ) return;
 
 			using ( Push() )

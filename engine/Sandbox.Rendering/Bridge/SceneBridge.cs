@@ -410,10 +410,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	bool warming;
 
 	/// <summary>
-	/// Whether the game is loading: its scene's loading tasks, the loading screen, connecting, or the game instance's load. Its scene's
-	/// camera draws over the loading screen then (<c>Game.Render</c>), which doesn't count as showing the scene.
+	/// Whether the game is loading (<see cref="BorealisGpuRenderBackend.GameLoading"/>). Its scene's camera draws over the
+	/// loading screen then (<c>Game.Render</c>), which doesn't count as showing the scene.
 	/// </summary>
-	static bool GameLoading( Scene scene ) => (scene?.IsLoading ?? false) || LoadingScreen.IsVisible || Networking.IsConnecting || (IGameInstance.Current?.IsLoading ?? false);
+	static bool GameLoading( Scene scene ) => BorealisGpuRenderBackend.GameLoading( scene );
 
 	WorldRender RenderFor( SceneWorld world )
 	{
