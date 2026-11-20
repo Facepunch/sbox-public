@@ -76,7 +76,7 @@ Texture2D g_tColor < Channel( RGB, Box( TextureColor ), Srgb );
 Channel( A, Box( TextureTranslucency ), Linear );
 OutputFormat( BC7 ); SrgbRead( false ); >;
 #endif
-#include "vr_shared_standard_ps_code.fxc"
+#include "sbox/standard_material_inputs.slangh"
 #if ( S_BLEND_MODE == 3 )
 #elif ( S_BLEND_MODE == 5 )
 #elif( S_BLEND_MODE == 6 )
