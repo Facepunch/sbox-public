@@ -257,6 +257,13 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	int[] lodFrames = new int[256];
 
 	/// <summary>
+	/// The draw version (<see cref="RenderWorld.DrawVersions"/>) of the object whose generated level <see cref="lods"/> holds,
+	/// by world index: the level a view keeps until its error goes over the limit (<see cref="ChooseLevel"/>) is that
+	/// object's only while the version is the same.
+	/// </summary>
+	int[] levelVersions = new int[256];
+
+	/// <summary>
 	/// What main views made of each object, by world index, kept between frames (<see cref="Kept"/>).
 	/// </summary>
 	Kept[] keptMain = new Kept[256];
@@ -312,6 +319,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		NoMesh = 2,
 		Lods = 4,
 		NeedsProbe = 8,
+
+		/// <summary>A static mesh of a model without LODs of its own, which may draw at generated levels (<see cref="ChooseLevel"/>).</summary>
+		Levels = 16,
 	}
 
 	struct Classified
@@ -471,6 +481,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( lods.Length < objects.Length ) Array.Resize( ref lods, Math.Max( objects.Length, lods.Length * 2 ) );
 		if ( probes.Length < lods.Length ) Array.Resize( ref probes, lods.Length );
 		if ( lodFrames.Length < lods.Length ) Array.Resize( ref lodFrames, lods.Length );
+		if ( levelVersions.Length < lods.Length ) Array.Resize( ref levelVersions, lods.Length );
+		if ( levelDirections.Length < lods.Length ) Array.Resize( ref levelDirections, lods.Length );
 		if ( keptMain.Length < lods.Length ) Array.Resize( ref keptMain, lods.Length );
 		if ( keptShadow.Length < lods.Length ) Array.Resize( ref keptShadow, lods.Length );
 		if ( pass.LodTexelsPerUnit > 0 && keptTexel.Length < lods.Length ) Array.Resize( ref keptTexel, lods.Length );
@@ -695,6 +707,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var kept = KeptFor( pass );
 		var texelsPerUnit = pass.LodTexelsPerUnit;
 
+		// Generated levels of static meshes without LODs of their own, where the device makes them
+		var device = RenderHost.Current.Device;
+		var levelPixels = device.LevelPixels;
+		var levelsVersion = device.LevelsVersion;
+
 		var made = 0;
 
 		for ( int k = start; k < end; k++ )
@@ -730,6 +747,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 					// Written only when it changes: a write from a worker would leave the object's memory on that core, for the
 					// main thread to fetch back when it emits the object
 					if ( !shadow && obj.DrawnLod != lod ) obj.DrawnLod = lod;
+				}
+				else if ( (keep.Flags & KeptFlags.Levels) != 0 && levelPixels > 0 )
+				{
+					var known = levelVersions[index] == versions[index];
+					var keptLevel = known ? lods[index] : 0;
+					lod = ChooseLevel( (MeshObject)objects[index], keptLevel, centers[index], extents[index], camera, tanHalfFov, screenWidth, levelPixels, levelsVersion );
+					levelVersions[index] = versions[index];
+					if ( known && lod != keptLevel ) CountLevelChange( index, lod > keptLevel );
 				}
 
 				lods[index] = (byte)lod;
@@ -781,9 +806,10 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			return keep;
 		}
 
-		// A mesh without LODs draws its only one
+		// A mesh without LODs draws its only one, or a generated level of it when it's rigid
 		if ( model.LodCount > 1 ) keep.Flags |= KeptFlags.Lods;
 		else if ( !shadow && mesh.DrawnLod != 0 ) mesh.DrawnLod = 0;
+		if ( model.LodCount == 1 && model.Geometry is not null && !model.IsSkinned && mesh.MorphSource is null ) keep.Flags |= KeptFlags.Levels;
 
 		if ( mesh.NeedsLightProbe ) keep.Flags |= KeptFlags.NeedsProbe;
 		return keep;
@@ -1189,6 +1215,66 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		depthOnlyMaterial ??= RenderHost.Current.Device.LoadMaterial( DepthOnlyMaterial );
 
 		DispatchSkinning( context );
+	}
+
+	/// <summary>
+	/// Generated level changes views have picked for their own meshes (<see cref="ChooseLevel"/>), for borealislab's shimmer
+	/// check, as the culls count theirs: every change, those against the object's last change's direction, to coarser and to
+	/// finer levels.
+	/// </summary>
+	internal static long LevelChanges, LevelReversals, LevelsCoarser, LevelsFiner;
+
+	// Each object's last level change: 1 to coarser, 2 to finer, by world index
+	byte[] levelDirections = new byte[256];
+
+	void CountLevelChange( int index, bool coarser )
+	{
+		if ( levelDirections.Length <= index ) return;
+		var last = levelDirections[index];
+		levelDirections[index] = coarser ? (byte)1 : (byte)2;
+		Interlocked.Increment( ref LevelChanges );
+		Interlocked.Increment( ref coarser ? ref LevelsCoarser : ref LevelsFiner );
+		if ( last != 0 && last != levelDirections[index] ) Interlocked.Increment( ref LevelReversals );
+	}
+
+	/// <summary>Hysteresis of generated levels, as the culls keep them: a level goes coarser only to one under this much of the limit.</summary>
+	internal const float LevelHysteresis = 0.75f;
+
+	/// <summary>
+	/// A static mesh's generated level this frame (LOD 1 and on, <see cref="RenderMesh.LevelCount"/>), as the culls pick an
+	/// aggregate fragment's in a view that keeps levels: the level <paramref name="kept"/> stays until its error, in pixels at
+	/// the object's world bounds' nearest point, goes over <paramref name="pixels"/>; it goes coarser only to a level under
+	/// <see cref="LevelHysteresis"/> of it. A still camera changes nothing, and every view of a frame takes the level the first
+	/// chose. The mesh's levels are asked for here the first time.
+	/// </summary>
+	internal static int ChooseLevel( MeshObject obj, int kept, Vector3 center, Vector3 extents, Vector3 camera, float tanHalfFov, float screenWidth, float pixels, int levelsVersion )
+	{
+		var mesh = obj.Mesh;
+		mesh.RefreshLevels( levelsVersion );
+		var levels = mesh.LevelCount;
+		if ( levels == 0 || obj.LodOverride >= 0 || pixels <= 0 || tanHalfFov <= 0 ) return 0;
+
+		// Per unit of error, the pixels it covers at the bounds' nearest point (never inside them), over the limit
+		var outside = Vector3.Max( (center - camera).Abs() - extents, Vector3.Zero );
+		var distance = outside.Length;
+		if ( !(distance > 0) ) return 0;
+		var units = extents.Length * screenWidth * 0.5f / (tanHalfFov * pixels) / distance;
+
+		kept = Math.Min( kept, levels );
+		if ( mesh.LevelError( kept ) * units > 1 ) return LevelUnder( mesh, levels, 1, units );
+		return Math.Max( kept, LevelUnder( mesh, levels, LevelHysteresis, units ) );
+	}
+
+	/// <summary>The coarsest generated level whose error is at most <paramref name="limit"/>, or 0.</summary>
+	static int LevelUnder( RenderMesh mesh, int levels, float limit, float units )
+	{
+		var level = 0;
+		for ( int k = 1; k <= levels; k++ )
+		{
+			if ( mesh.LevelError( k ) * units <= limit ) level = k;
+		}
+
+		return level;
 	}
 
 	/// <summary>

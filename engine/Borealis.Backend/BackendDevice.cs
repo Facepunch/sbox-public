@@ -633,6 +633,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GeneratedLods { get; set; } = !HasSwitch( "-no-lodgen" );
 
 	/// <summary>
+	/// Whether resident meshes of models without LODs of their own get generated levels too, as aggregate fragments do (on);
+	/// <c>-no-mesh-lodgen</c> leaves them whole, for comparisons.
+	/// </summary>
+	public bool MeshLods { get; set; } = !HasSwitch( "-no-mesh-lodgen" );
+
+	/// <inheritdoc/>
+	internal override float LevelPixels => MeshLods && LodStore is not null ? LodPixels : 0;
+
+	/// <inheritdoc/>
+	internal override int LevelsVersion => lodStore?.PublishVersion ?? 0;
+
+	/// <summary>
 	/// Room index pages keep for generated levels, as a fraction of the indices of the draws that may get them (draws of
 	/// enough triangles in models without LODs of their own).
 	/// </summary>

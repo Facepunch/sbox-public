@@ -157,7 +157,10 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	readonly BackendDevice device;
 	readonly DrawGeometry[][] draws;
 
-	/// <summary>Per draw, whether its meshlets have been asked for (<see cref="FirstMeshletRequest"/>).</summary>
+	/// <summary>
+	/// Per draw, what's been asked for: its meshlets (bit 0, <see cref="FirstMeshletRequest"/>), its generated levels (bit 1)
+	/// and by a colour pass (bit 2, <see cref="FirstLodRequest"/>).
+	/// </summary>
 	readonly int[][] meshletRequested;
 	readonly SkinnedVertexBuffer[][] skinnedBuffers;
 	readonly VertexCacheDraw?[][] vertexCacheDraws;
@@ -171,7 +174,43 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 
 	/// <summary>Whether this is the first ask for a draw's meshlets: a shadow view asks for a static mesh draw's once.</summary>
 	internal bool FirstMeshletRequest( int mesh, int call )
-		=> (uint)mesh < (uint)meshletRequested.Length && (uint)call < (uint)meshletRequested[mesh].Length && System.Threading.Interlocked.Exchange( ref meshletRequested[mesh][call], 1 ) == 0;
+		=> (uint)mesh < (uint)meshletRequested.Length && (uint)call < (uint)meshletRequested[mesh].Length && (System.Threading.Interlocked.Or( ref meshletRequested[mesh][call], 1 ) & 1) == 0;
+
+	/// <inheritdoc/>
+	internal override GeneratedLevels LevelsFor( in RenderMesh.Draw draw )
+	{
+		var (mesh, call) = (draw.Mesh, draw.DrawCall);
+		if ( !device.MeshLods || device.LodStore is not { } store || File.LodCount > 1 || (uint)mesh >= (uint)draws.Length || (uint)call >= (uint)draws[mesh].Length ) return GeneratedLevels.None;
+		if ( levels[mesh][call] is { } known ) return known;
+
+		// A skinned mesh's draws, or a draw outside the GPU-driven pages, have none
+		var geometry = draws[mesh][call];
+		if ( geometry.Pooled is not { } pooled || File.Meshes[mesh].IsSkinned ) return levels[mesh][call] = GeneratedLevels.None;
+
+		var range = new Meshlets.MeshletStore.Range( pooled.IndexPageSlot, pooled.FirstIndex + (uint)draw.StartIndex, (uint)draw.IndexCount, geometry.BaseVertex );
+		if ( FirstLodRequest( mesh, call, color: true ) && Meshlets.MeshletStore.SourceOf( this, mesh, call, pooled.IndexPage, pooled.IndexFormat ) is { } source )
+			store.Request( range, source with { IndexBase = source.IndexBase + draw.StartIndex, VertexBase = source.VertexBase + geometry.BaseVertex }, color: true );
+		if ( !store.TryGetLevels( range, out var placed, out var errors ) ) return GeneratedLevels.Pending;
+
+		// Relative to the draw's index buffer, as its own start is: levels sit after the buffer's indices in its page
+		var ranges = new (int StartIndex, int IndexCount)[placed.Length];
+		for ( int k = 0; k < placed.Length; k++ ) ranges[k] = ((int)(placed[k].First - (pooled.FirstIndex)), (int)placed[k].Count);
+		return levels[mesh][call] = placed.Length == 0 ? GeneratedLevels.None : new GeneratedLevels( ranges, errors );
+	}
+
+	/// <summary>Each draw's generated levels once known (<see cref="LevelsFor"/>).</summary>
+	readonly GeneratedLevels[][] levels;
+
+	/// <summary>
+	/// Whether this is the first ask for a draw's generated levels, or the first by a colour pass (<paramref name="color"/>),
+	/// which publishes them: a resident mesh draw asks once each way.
+	/// </summary>
+	internal bool FirstLodRequest( int mesh, int call, bool color )
+	{
+		if ( (uint)mesh >= (uint)meshletRequested.Length || (uint)call >= (uint)meshletRequested[mesh].Length ) return false;
+		var bits = color ? 6 : 2;
+		return (System.Threading.Interlocked.Or( ref meshletRequested[mesh][call], bits ) & bits) != bits;
+	}
 
 	/// <summary>The model as read.</summary>
 	public ModelFile File { get; }
@@ -185,6 +224,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		File = file;
 		draws = new DrawGeometry[file.Meshes.Count][];
 		meshletRequested = new int[file.Meshes.Count][];
+		levels = new GeneratedLevels[file.Meshes.Count][];
 		skinnedBuffers = new SkinnedVertexBuffer[file.Meshes.Count][];
 		vertexCacheDraws = new VertexCacheDraw?[file.Meshes.Count][];
 		try
@@ -285,6 +325,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 
 			draws[m] = new DrawGeometry[mesh.DrawCalls.Count];
 			meshletRequested[m] = new int[mesh.DrawCalls.Count];
+			levels[m] = new GeneratedLevels[mesh.DrawCalls.Count];
 			vertexCacheDraws[m] = new VertexCacheDraw?[mesh.DrawCalls.Count];
 			var firstVertexId = 0;
 			for ( int d = 0; d < mesh.DrawCalls.Count; d++ )
