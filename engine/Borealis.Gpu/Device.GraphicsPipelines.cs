@@ -252,7 +252,8 @@ public sealed unsafe partial class Device
 	{
 		var layout = PipelineLayout( info.Sets );
 		if ( info.MeshShader.IsValid && !Capabilities.MeshShaders ) throw new InvalidOperationException( $"{info.Name}: the device has no mesh shaders" );
-		if ( info.SkipUntilReady && SkipDrawsUntilReady && !(UsesLibraries( info ) && PartsReady( info, layout )) ) return Defer( info, layout );
+		// One linked optimised at once is made on the builders too: that link takes as long as making the parts
+		if ( info.SkipUntilReady && SkipDrawsUntilReady && !(UsesLibraries( info ) && PartsReady( info, layout ) && !LinksOptimisedAtOnce( info )) ) return Defer( info, layout );
 
 		ulong pipeline;
 		LinkedParts parts = null;
@@ -844,7 +845,8 @@ public sealed unsafe partial class Device
 	/// Whether pipelines whose pixel shader discards are linked optimised from the start rather than fast linked first: AMD's
 	/// driver (26.10.1 on the 7900 XTX) draws the pixels such a shader discards when a pipeline is linked from libraries
 	/// without link-time optimisation, with the discard as OpDemoteToHelperInvocation, and as OpKill with derivatives taken
-	/// after it (a fading object's dither drew solid until its optimised link was in). On with AMD's drivers.
+	/// after it (a fading object's dither drew solid until its optimised link was in). On with AMD's drivers. A pipeline that
+	/// skips its draws until ready is linked so on the builder threads, never where it's asked for.
 	/// </summary>
 	internal bool LinksDiscardsOptimised { get; set; }
 
