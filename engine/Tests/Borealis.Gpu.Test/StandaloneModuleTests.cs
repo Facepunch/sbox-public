@@ -49,10 +49,10 @@ public class StandaloneModuleTests : GpuTest
 		foreach ( var feature in (string[])["F_ALPHA_TEST", "F_TRANSLUCENT", "F_RENDER_BACKFACES"] ) Assert.IsTrue( shader.FeatureIndex( feature ) >= 0, feature );
 		Assert.AreSame( shader, backend.Shaders.GpuDriven( shader ), "its GPU-driven form is the module's" );
 
-		// Skipped, it's the .shader_c again: the A/B switch
+		// Skipped, it's the .shader_c again where one is left from before depth_only.shader went (the A/B switch), else nothing
 		using var skipped = new BackendDevice( Device );
 		skipped.Passes.Skip.Add( "depth_only" );
-		Assert.IsFalse( skipped.Shaders.Load( DepthOnly ).ModuleOnly );
+		if ( skipped.Content.Find( DepthOnly ) is not null ) Assert.IsFalse( skipped.Shaders.Load( DepthOnly ).ModuleOnly );
 	}
 
 	/// <summary>

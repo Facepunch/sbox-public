@@ -1,0 +1,109 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@attribute [InspectWindow.Tab]
+@attribute [Icon( "🔫" )]
+@attribute [Title( "#spawnmenu.tab.physgun" )]
+@attribute [Order( 400 )]
+
+<root>
+    <UISettingsPane Title=@Game.Language.GetPhrase( "spawnmenu.tab.physgun" )>
+        <Body>
+            <UISheet Target="@Settings" PropertyFilter="@UISheet.PropertiesAndButtons" />
+        </Body>
+    </UISettingsPane>
+</root>
+
+@code
+{
+    readonly PhysgunSettings Settings = new();
+
+    protected override int BuildHash() => HashCode.Combine( Game.Language.SelectedCode );
+
+    // Write through the console system so the Saved convars keep their value
+    sealed class PhysgunSettings
+    {
+        //
+        // Drawing
+        //
+        [Button( "#spawnmenu.hud.reset_group", "refresh" ), HeaderButton, Group( "#spawnmenu.physgun.group.drawing" ), Order( 0 )]
+        public void ResetDrawing() => GamePreferences.Reset( "Physgun Drawing" );
+
+        [Property, Title( "#spawnmenu.physgun.draw_beams" ), Group( "#spawnmenu.physgun.group.drawing" ), Order( 0 )]
+        [Description( "#spawnmenu.physgun.draw_beams_description" )]
+        public bool DrawBeams
+        {
+            get => GamePreferences.PhysgunBeams;
+            set => ConsoleSystem.SetValue( "sandbox.physgun_beams", value );
+        }
+
+        [Property, Title( "#spawnmenu.physgun.draw_outline" ), Group( "#spawnmenu.physgun.group.drawing" ), Order( 1 )]
+        [Description( "#spawnmenu.physgun.draw_outline_description" )]
+        public bool DrawOutline
+        {
+            get => GamePreferences.PhysgunOutline;
+            set => ConsoleSystem.SetValue( "sandbox.physgun_outline", value );
+        }
+
+        [Property, Title( "#spawnmenu.physgun.draw_freeze" ), Group( "#spawnmenu.physgun.group.drawing" ), Order( 2 )]
+        [Description( "#spawnmenu.physgun.draw_freeze_description" )]
+        public bool DrawFreezeEffect
+        {
+            get => GamePreferences.PhysgunFreezeEffect;
+            set => ConsoleSystem.SetValue( "sandbox.physgun_freeze_effect", value );
+        }
+
+        [Property, Title( "#spawnmenu.physgun.draw_unfreeze" ), Group( "#spawnmenu.physgun.group.drawing" ), Order( 3 )]
+        [Description( "#spawnmenu.physgun.draw_unfreeze_description" )]
+        public bool DrawUnfreezeEffect
+        {
+            get => GamePreferences.PhysgunUnfreezeEffect;
+            set => ConsoleSystem.SetValue( "sandbox.physgun_unfreeze_effect", value );
+        }
+
+        //
+        // Outline
+        //
+        [Button( "#spawnmenu.hud.reset_group", "refresh" ), HeaderButton, Group( "#spawnmenu.physgun.group.outline" ), Order( 10 )]
+        public void ResetOutline() => GamePreferences.Reset( "Physgun Outline" );
+
+        [Property, Title( "#spawnmenu.physgun.outline_width" ), Group( "#spawnmenu.physgun.group.outline" ), Order( 10 )]
+        [Description( "#spawnmenu.physgun.outline_width_description" ), Range( 0.05f, 1f ), Step( 0.05f )]
+        public float OutlineWidth
+        {
+            get => GamePreferences.OutlineWidth;
+            set => ConsoleSystem.SetValue( "sandbox.physgun_outline_width", value.Clamp( 0.05f, 1f ) );
+        }
+
+        [Property, Title( "#spawnmenu.physgun.obscured_opacity" ), Group( "#spawnmenu.physgun.group.outline" ), Order( 11 )]
+        [Description( "#spawnmenu.physgun.obscured_opacity_description" ), Range( 0f, 1f ), Step( 0.05f )]
+        public float ObscuredOpacity
+        {
+            get => GamePreferences.OutlineObscuredOpacity;
+            set => ConsoleSystem.SetValue( "sandbox.physgun_outline_obscured", value.Clamp( 0f, 1f ) );
+        }
+
+        //
+        // Colors
+        //
+        [Button( "#spawnmenu.hud.reset_group", "refresh" ), HeaderButton, Group( "#spawnmenu.physgun.group.colors" ), Order( 20 )]
+        public void ResetColors() => GamePreferences.Reset( "Physgun Colors" );
+
+        [Property, Title( "#spawnmenu.physgun.beam_color" ), Group( "#spawnmenu.physgun.group.colors" ), Order( 20 )]
+        [Description( "#spawnmenu.physgun.beam_color_description" ), ColorUsage( false, true )]
+        public Color BeamColor
+        {
+            get => GamePreferences.PhysgunColorValue;
+            set => ConsoleSystem.SetValue( "sandbox.physgun_color", GamePreferences.ColorText( value.WithAlpha( 1 ) ) );
+        }
+
+        [Property, Title( "#spawnmenu.physgun.pull_color" ), Group( "#spawnmenu.physgun.group.colors" ), Order( 21 )]
+        [Description( "#spawnmenu.physgun.pull_color_description" ), ColorUsage( false, true )]
+        public Color PullColor
+        {
+            get => GamePreferences.PhysgunPullColorValue;
+            set => ConsoleSystem.SetValue( "sandbox.physgun_pull_color", GamePreferences.ColorText( value.WithAlpha( 1 ) ) );
+        }
+    }
+}

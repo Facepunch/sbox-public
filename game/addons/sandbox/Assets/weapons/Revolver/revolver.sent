@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/revolver/revolver.prefab",
+  "Title": "Ironwood .357",
+  "Description": null,
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

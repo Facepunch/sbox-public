@@ -59,6 +59,12 @@ internal sealed class ViewPass
 	public RenderView Root { get; set; }
 
 	/// <summary>
+	/// The world a main view draws, whose light probe volumes (<see cref="RenderWorld.DrawnLightProbeVolumes"/>) light what its
+	/// custom objects draw; null in shadow views.
+	/// </summary>
+	public RenderWorld World { get; set; }
+
+	/// <summary>
 	/// Draws shadow casters into <see cref="Target"/>'s depth only, in the <see cref="ShadowLayer"/>.
 	/// </summary>
 	public bool IsShadow { get; set; }

@@ -1,5 +1,4 @@
-// yuv_resolve_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// yuv_resolve_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "YUV 4:2:0 to RGB compute resolve. Writes directly to a UAV, avoiding a render pass.";
 

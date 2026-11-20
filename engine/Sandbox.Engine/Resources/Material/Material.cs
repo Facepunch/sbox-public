@@ -39,9 +39,9 @@ public sealed partial class Material : Resource
 		CRenderAttributes attributes = this.native.GetRenderAttributes();
 		Attributes = new RenderAttributes( attributes );
 
-		// A backend that lowers attributes itself (Borealis.Gpu) draws with a managed copy: a post process blits with its
-		// material's attributes (Unicycle Frenzy's speed lines)
-		if ( RenderBackend.Default is not Source2RenderBackend ) Attributes.KeepManagedCopy();
+		// Borealis.Gpu lowers attributes itself: it draws with a managed copy (a post process blits with its material's
+		// attributes: Unicycle Frenzy's speed lines)
+		Attributes.KeepManagedCopy();
 	}
 
 	internal override void Destroy()

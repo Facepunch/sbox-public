@@ -195,7 +195,7 @@ public sealed partial class PassModule
 	[GeneratedRegex( @"^[ \t]*#[ \t]*include[ \t]*""(?<name>[^""]+)""", RegexOptions.Multiline )]
 	private static partial Regex IncludeName();
 
-	static readonly Dictionary<string, (DateTime Time, string Text)> includes = new( StringComparer.OrdinalIgnoreCase );
+	static readonly Dictionary<string, (DateTime Time, long Length, string Text)> includes = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>An include's path and text, from the including file's folder or the search paths; null when there's none.</summary>
 	(string Path, string Text)? Include( string from, string name )
@@ -231,7 +231,9 @@ public sealed partial class PassModule
 			if ( !info.Exists ) continue;
 			lock ( includes )
 			{
-				if ( !includes.TryGetValue( full, out var known ) || known.Time != info.LastWriteTimeUtc ) includes[full] = known = (info.LastWriteTimeUtc, File.ReadAllText( full ));
+				// Its time and length, as PassCache.FileHash looks: an edit within the file system's clock tick keeps the time
+				if ( !includes.TryGetValue( full, out var known ) || known.Time != info.LastWriteTimeUtc || known.Length != info.Length )
+					includes[full] = known = (info.LastWriteTimeUtc, info.Length, File.ReadAllText( full ));
 				return (full, known.Text);
 			}
 		}
@@ -525,6 +527,17 @@ public sealed partial class PassModule
 		var all = ProgramValues( stage );
 		foreach ( var (name, value) in values ) all[name] = value;
 		return string.Join( '\n', PassPreprocessor.ActiveLines( Path, Text, all ) );
+	}
+
+	/// <summary>
+	/// The lines a stage's compile sees with these values, its includes' with them: what a material's texture inputs and
+	/// processed textures are read from (<see cref="MaterialInputs"/>), as vfx reads them from the whole program.
+	/// </summary>
+	public IReadOnlyList<string> CompiledLines( StageKind stage, IReadOnlyDictionary<string, int> values )
+	{
+		var all = ProgramValues( stage );
+		foreach ( var (name, value) in values ) all[name] = value;
+		return Lines( all );
 	}
 
 	[GeneratedRegex( @"\[\s*shader\s*\(\s*""vertex""\s*\)\s*\]" )]

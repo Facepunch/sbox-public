@@ -1,0 +1,124 @@
+@import "/UI/Theme.scss";
+
+menulist.menulist
+{
+	z-index: 10002; // menus may be opened from property pickers above a fullscreen editor
+	min-width: 222px;
+	max-height: 90vh;
+	flex-shrink: 0;
+
+	background-color: transparent;
+	background-image: linear-gradient( to bottom, $ui-section-top, $ui-section-bottom );
+	border: 1px solid $ui-section-border;
+	border-radius: 2px;
+	backdrop-filter: none;
+	padding: 2px;
+	gap: 1px;
+	overflow-x: hidden;
+	@include ui-scroll;
+
+	font-family: "Inter";
+	font-size: 12px;
+	font-weight: 500;
+	color: $ui-text;
+	sound-in: "sounds/kenney/ui/ui.navigate.forward.sound";
+
+	> .menu
+	{
+		height: 26px;
+		padding: 0px 7px;
+		gap: 10px;
+		border: 1px solid transparent;
+		border-radius: 2px;
+		background-color: transparent;
+		color: $ui-text;
+		transition: none;
+
+		// keep hover and clicks on the row as the pointer crosses its contents
+		> .part, > .part *
+		{
+			pointer-events: none;
+		}
+
+		// the slot for the option's icon
+		> .gutter
+		{
+			width: 18px;
+			height: 18px;
+			flex-shrink: 0;
+			overflow: hidden;
+
+			> .icon, > .check
+			{
+				font-family: "Material Icons";
+				font-size: 18px;
+				color: $ui-text;
+				opacity: 1;
+			}
+		}
+
+		> .text
+		{
+			flex-grow: 1;
+			padding: 0px;
+		}
+
+		> .shortcut
+		{
+			margin-left: 0px;
+			color: $ui-text-muted;
+			opacity: 1;
+		}
+
+		> .chevron
+		{
+			margin-left: 0px;
+			font-size: 16px;
+			color: $ui-text-muted;
+			opacity: 1;
+		}
+
+		&.disabled
+		{
+			opacity: 0.4;
+		}
+
+		&:not(.disabled):not(.separator)
+		{
+			&.active, &.open
+			{
+				background-color: $ui-hover-fill;
+				border-color: $ui-hover-border;
+				color: $ui-hover-text;
+
+				> .gutter > .icon, > .gutter > .check, > .chevron, > .shortcut
+				{
+					color: $ui-hover-text;
+				}
+			}
+
+			&:hover { sound-in: ui.hover; }
+
+			&:active
+			{
+				sound-in: ui.select;
+			}
+		}
+
+		// a separator added to a menu is a thin line between groups of rows
+		&.separator
+		{
+			height: 1px;
+			min-height: 1px;
+			margin: 3px 4px;
+			padding: 0px;
+			border: none;
+			background-color: $ui-separator;
+
+			> *
+			{
+				display: none;
+			}
+		}
+	}
+}

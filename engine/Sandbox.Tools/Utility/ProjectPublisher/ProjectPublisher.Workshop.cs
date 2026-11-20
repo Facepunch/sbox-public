@@ -355,7 +355,7 @@ public partial class ProjectPublisher
 		var choices = WorkshopTagChoices( WorkshopType );
 
 		// Make the target searchable without fetching each item's metadata.
-		if ( WorkshopType == "addon" && Package.TryParseIdent( Project.Config.GetMetaOrDefault<string>( "ParentPackage", null ), out var target ) )
+		if ( WorkshopType == "addon" && Package.TryParseIdentParts( Project.Config.GetMetaOrDefault<string>( "ParentPackage", null ), out var target ) )
 		{
 			var ident = $"{target.org}.{target.package}".ToLowerInvariant();
 			tags.Add( $"target_ident:{ident}" );

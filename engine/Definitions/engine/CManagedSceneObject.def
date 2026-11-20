@@ -6,9 +6,3 @@ native class CManagedSceneObject as NativeEngine.CManagedSceneObject : CSceneObj
 {
 	static CManagedSceneObject Create( ISceneWorld world );
 }
-
-
-managed static class Sandbox.SceneCustomObjectRender
-{
-	void RenderObject( ManagedRenderSetup_t setup, CManagedSceneObject obj );
-}

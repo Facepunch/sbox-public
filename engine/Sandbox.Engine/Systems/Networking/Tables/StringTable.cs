@@ -132,7 +132,7 @@ internal class StringTable
 		bs.Dispose();
 	}
 
-	internal void ReadSnapshot( ByteStream bs )
+	internal virtual void ReadSnapshot( ByteStream bs )
 	{
 		while ( true )
 		{
@@ -145,12 +145,17 @@ internal class StringTable
 		OnSnapshot?.Invoke();
 	}
 
+	/// <summary>
+	/// Writes the join payload for one entry. Live updates always carry the entry's data.
+	/// </summary>
+	protected virtual void WriteSnapshotEntry( Entry entry, ref ByteStream bs ) => bs.WriteArray( entry.Data );
+
 	internal void BuildSnapshotMessage( ref ByteStream bs )
 	{
 		foreach ( var entry in Entries )
 		{
 			bs.Write( entry.Value.Name );
-			bs.WriteArray( entry.Value.Data );
+			WriteSnapshotEntry( entry.Value, ref bs );
 		}
 
 		bs.Write( (string)null );

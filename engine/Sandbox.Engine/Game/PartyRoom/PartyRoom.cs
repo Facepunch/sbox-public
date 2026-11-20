@@ -224,7 +224,7 @@ public partial class PartyRoom : ILobby
 			steamLobby.SetData( "buildid", $"{Application.Version}" );
 			steamLobby.SetData( "dev", Application.IsEditor ? "1" : "0" );
 			steamLobby.SetData( "_ownerid", Owner.Id.ToString() );
-			steamLobby.SetData( "package", Application.GamePackage?.GetIdent( false, true ) );
+			steamLobby.SetData( "package", Application.GamePackage?.GetVersionedIdent() );
 			steamLobby.SetData( "packagetitle", Application.GamePackage?.Title );
 
 			var state = DetermineJoinState();
@@ -408,7 +408,7 @@ public partial class PartyRoom : ILobby
 	/// <summary>
 	/// Whether this package matches the chosen game, including its revision when one was selected.
 	/// </summary>
-	public bool IsGameSelected( Package package ) => package is not null && (SelectedGameIdent == package.GetIdent( false, true ) || SelectedGameIdent == package.GetIdent( false, false ));
+	public bool IsGameSelected( Package package ) => package is not null && (SelectedGameIdent == package.GetVersionedIdent() || SelectedGameIdent == package.FullIdent);
 
 	string selectedGameSettingsJson;
 	CreateGameResults? selectedGameSettings;
@@ -487,7 +487,7 @@ public partial class PartyRoom : ILobby
 			throw new InvalidOperationException( "Only the party leader can choose the game." );
 		}
 
-		var ident = package?.GetIdent( false, true ) ?? "";
+		var ident = package?.GetVersionedIdent() ?? "";
 		if ( SelectedGameIdent != ident )
 		{
 			steamLobby.DeleteData( "selected_game_settings" );

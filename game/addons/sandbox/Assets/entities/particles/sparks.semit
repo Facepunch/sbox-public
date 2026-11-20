@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/particles/fx_sparks.prefab",
+  "Title": "#asset.sparks.title",
+  "Description": "",
+  "__references": [],
+  "__version": 0
+}

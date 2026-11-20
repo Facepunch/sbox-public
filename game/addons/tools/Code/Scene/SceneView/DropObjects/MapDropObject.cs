@@ -12,7 +12,7 @@ partial class MapDropObject : BaseDropObject
 		var asset = await InstallAsset( dragData, token );
 		if ( asset is null )
 		{
-			if ( Package.TryParseIdent( dragData, out var ident ) )
+			if ( Package.TryParseIdentParts( dragData, out var ident ) )
 				MapName = $"{ident.org}.{ident.package}";
 
 			return;

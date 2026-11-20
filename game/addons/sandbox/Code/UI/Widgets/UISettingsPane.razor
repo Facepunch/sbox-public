@@ -1,0 +1,28 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <div class="title-bar">
+        <Label Tokenize=@false Text="@Title" />
+    </div>
+
+    <div class="settings-body">
+        @Body
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public string Title { get; set; }
+
+    /// <summary>
+    /// Bump this when the content changed in a way the title does not show, to make the pane build it again.
+    /// </summary>
+    [Parameter] public int Revision { get; set; }
+
+    [Parameter] public RenderFragment Body { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Title, Revision );
+}

@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "scaffolding_ringlock_a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "scaffolding_ringlock_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/construction/scaffolding/scaffolding_ringlock_a.vmdl"
+      }
+    }
+  },
+  "guid": "ea5375b9-08c0-4b1a-94eb-3bebf1ca5549"
+}

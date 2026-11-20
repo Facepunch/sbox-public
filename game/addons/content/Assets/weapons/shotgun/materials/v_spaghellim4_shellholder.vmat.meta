@@ -1,0 +1,29 @@
+{
+  "guid": "46d54515-af22-4131-a03c-7bc07cdb979b",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Spaghellim 4 Shellholder",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_spaghellim4_shellholder",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/shotgun/materials/v_spaghellim4_shellholder.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

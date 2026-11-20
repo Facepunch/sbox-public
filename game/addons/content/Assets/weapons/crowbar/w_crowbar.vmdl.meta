@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Crowbar",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "w_crowbar",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/crowbar/w_crowbar.vmdl"
+      }
+    }
+  },
+  "guid": "0078006f-005f-006d-6500-6c0065006500"
+}

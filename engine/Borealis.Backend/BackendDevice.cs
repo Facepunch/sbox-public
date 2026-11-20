@@ -498,6 +498,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		CheckRecords( Content );
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
+		Shaders.Modules = Passes;
 		SlangPasses = SlangPassesByDefault;
 		CompileGpuDrivenWithShaderCompiler();
 		Defaults = new ShaderDefaults( gpu );
@@ -633,6 +634,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GeneratedLods { get; set; } = !HasSwitch( "-no-lodgen" );
 
 	/// <summary>
+	/// Whether resident meshes of models without LODs of their own get generated levels too, as aggregate fragments do (on);
+	/// <c>-no-mesh-lodgen</c> leaves them whole, for comparisons.
+	/// </summary>
+	public bool MeshLods { get; set; } = !HasSwitch( "-no-mesh-lodgen" );
+
+	/// <inheritdoc/>
+	internal override float LevelPixels => MeshLods && LodStore is not null ? LodPixels : 0;
+
+	/// <inheritdoc/>
+	internal override int LevelsVersion => lodStore?.PublishVersion ?? 0;
+
+	/// <summary>
 	/// Room index pages keep for generated levels, as a fraction of the indices of the draws that may get them (draws of
 	/// enough triangles in models without LODs of their own).
 	/// </summary>
@@ -711,13 +724,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Whether shaders that have a pass module beside them (post-processing, UI, tools, compute, the engine's fullscreen
-	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. Set it before
-	/// drawing: variants already made keep their stages.
+	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. A shader only its
+	/// module describes (no <c>.shader_c</c>) draws from it either way. Set it before drawing: variants already made keep
+	/// their stages.
 	/// </summary>
 	public bool SlangPasses
 	{
-		get => Shaders.Modules is not null;
-		set => Shaders.Modules = value ? Passes : null;
+		get => !Shaders.CompiledFirst;
+		set => Shaders.CompiledFirst = !value;
 	}
 
 	/// <summary>

@@ -1,0 +1,1036 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"M4A1_LOD0",
+							"M4A1_magazine_LOD0",
+							"M4A1_handguard_covers_LOD0",
+							"M4A1_gasblock_high_LOD0",
+							"M4A1_gasblock_low_LOD0",
+							"M4A1_carryhandle_LOD0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 6.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"M4A1_LOD1",
+							"M4A1_magazine_LOD1",
+							"M4A1_handguard_covers_LOD1",
+							"M4A1_gasblock_high_LOD1",
+							"M4A1_gasblock_low_LOD1",
+							"M4A1_carryhandle_LOD1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 12.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"M4A1_LOD2",
+							"M4A1_magazine_LOD2",
+							"M4A1_handguard_covers_LOD2",
+							"M4A1_gasblock_high_LOD2",
+							"M4A1_gasblock_low_LOD2",
+							"M4A1_carryhandle_LOD2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 24.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"M4A1_LOD3",
+							"M4A1_magazine_LOD3",
+							"M4A1_handguard_covers_LOD3",
+							"M4A1_gasblock_high_LOD3",
+							"M4A1_gasblock_low_LOD3",
+							"M4A1_carryhandle_LOD3",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 50.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.3038
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = [  ]
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "m4a1_wm.vmat"
+								to = "weapons/m4a1/materials/w_m4a1.vmat"
+							},
+							{
+								from = "m4a1_wm_bakelod.vmat"
+								to = "weapons/m4a1/materials/w_m4a1_bakelod.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "Folder"
+						name = "M4A1"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_flashhider_lod0",
+										"M4A1_bolt_lod0",
+										"M4A1_lod0",
+										"M4A1_stock_lod0",
+										"M4A1_handguard_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_LOD1"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_bolt_lod1",
+										"M4A1_flashhider_lod1",
+										"M4A1_handguard_lod1",
+										"M4A1_lod1",
+										"M4A1_stock_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_LOD2"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_bolt_lod2",
+										"M4A1_flashhider_lod2",
+										"M4A1_handguard_lod2",
+										"M4A1_lod2",
+										"M4A1_stock_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_LOD3"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_stock_lod3",
+										"M4A1_lod3",
+										"M4A1_handguard_lod3",
+										"M4A1_flashhider_lod3",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "M4A1_magazine"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_magazine_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_magazine_empty_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_magazine_LOD1"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_magazine_empty_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_magazine_LOD2"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_magazine_empty_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_magazine_LOD3"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_magazine_empty_lod3",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "M4A1_handguard_covers"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_handguard_covers_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_handguard_covers_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_handguard_covers_LOD1"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_handguard_covers_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_handguard_covers_LOD2"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_handguard_covers_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_handguard_covers_LOD3"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_handguard_covers_lod3",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "M4A1_gasblock_high"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_gasblock_high_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_gasblock_high_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_gasblock_high_LOD1"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_gasblock_high_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_gasblock_high_LOD2"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_gasblock_high_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_gasblock_high_LOD3"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_gasblock_high_lod3",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "M4A1_gasblock_low"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_gasblock_low_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_gasblock_low_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_gasblock_low_LOD1"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_gasblock_low_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_gasblock_low_LOD2"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_gasblock_low_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_gasblock_low_LOD3"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_gasblock_low_lod3",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "M4A1_carryhandle"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_carryhandle_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_carryhandle_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_carryhandle_LOD1"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_carryhandle_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_carryhandle_LOD2"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_carryhandle_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M4A1_carryhandle_LOD3"
+								filename = "weapons/m4a1/w_m4a1.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"M4A1_carryhandle_lod3",
+									]
+								}
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "BodyGroupList"
+				children = 
+				[
+					{
+						_class = "BodyGroup"
+						name = "M4A1"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M4A1_LOD0",
+									"M4A1_LOD1",
+									"M4A1_LOD2",
+									"M4A1_LOD3",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "magazine"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M4A1_magazine_LOD0",
+									"M4A1_magazine_LOD1",
+									"M4A1_magazine_LOD2",
+									"M4A1_magazine_LOD3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "gasblock"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M4A1_gasblock_high_LOD0",
+									"M4A1_gasblock_high_LOD1",
+									"M4A1_gasblock_high_LOD2",
+									"M4A1_gasblock_high_LOD3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M4A1_gasblock_low_LOD0",
+									"M4A1_gasblock_low_LOD1",
+									"M4A1_gasblock_low_LOD2",
+									"M4A1_gasblock_low_LOD3",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "top_rail"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M4A1_carryhandle_LOD0",
+									"M4A1_carryhandle_LOD1",
+									"M4A1_carryhandle_LOD2",
+									"M4A1_carryhandle_LOD3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "handguard_covers"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M4A1_handguard_covers_LOD0",
+									"M4A1_handguard_covers_LOD1",
+									"M4A1_handguard_covers_LOD2",
+									"M4A1_handguard_covers_LOD3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+				]
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = ""
+						relative_origin = [ 49.419998, 0.0, 18.9 ]
+						relative_angles = [ -0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "eject"
+						parent_bone = ""
+						relative_origin = [ 4.5, -1.0, 19.4 ]
+						relative_angles = [ -30.0, -90.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 3.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.122751, -0.228004, 16.51609 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.641115, 4.461332, 11.316796 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 30.63146, -0.038231, 20.912146 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 5.22256, 2.402902, 9.429564 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -8.386515, -0.015313, 8.283953 ]
+						angles = [ 29.0, 0.0, 0.0 ]
+						dimensions = [ 5.312672, 3.18447, 9.42967 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -19.231495, -0.030322, 18.746401 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 20.725311, 4.343439, 5.036052 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -21.758816, -0.030322, 14.871092 ]
+						angles = [ -7.0, 0.0, 0.0 ]
+						dimensions = [ 14.077412, 4.343439, 5.084078 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -25.296583, -0.030322, 10.34414 ]
+						angles = [ -7.0, 0.0, 0.0 ]
+						dimensions = [ 5.951216, 4.343439, 4.035284 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -6.764067, -1.697196, 19.026072 ]
+						angles = [ 0.0, 20.0, 0.0 ]
+						dimensions = [ 6.911296, 2.771333, 2.155379 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 5.237234, -0.083663, 11.903221 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 7.125439, 2.67675, 7.936513 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 6.189082, -0.083663, 4.822834 ]
+						angles = [ -16.0, 0.0, 0.0 ]
+						dimensions = [ 7.154311, 2.67675, 8.624735 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.392585, 0.01021, 23.664379 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 16.990808, 2.647114, 5.066675 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 3.808129
+						point0 = [ 9.4781, -0.040178, 18.928699 ]
+						point1 = [ 27.4781, -0.040178, 18.928699 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.286239
+						point0 = [ 49.4781, -0.040178, 18.799999 ]
+						point1 = [ 27.4781, -0.040178, 18.799999 ]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

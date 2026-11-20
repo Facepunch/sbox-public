@@ -1,0 +1,29 @@
+{
+  "guid": "8d22965a-d662-4b98-bc9f-16441f21db4c",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "357 Bullet",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "357_bullet",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/materials/357_bullet.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

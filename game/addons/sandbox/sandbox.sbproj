@@ -1,0 +1,60 @@
+{
+  "Title": "Sandbox",
+  "Type": "game",
+  "Org": "facepunch",
+  "OrgTitle": "Facepunch",
+  "Ident": "sandbox",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": "/fonts/*\n/UI/*.png\n/ui/*.png\n/ui/*\n/ui/weapons/melee/*\n*.sent\n*.spawn\n*.spp\n*.tdef\n*.wdef\n*.bdef\n*.hdef\n*.btndef\n*.ldef\n*.smemit\n*.semit\n*.sndef\n*.surface\n/ammo/*\n/ammotype/*\nprefabs/engine/player.prefab\nweapons/toolgun/toolgun.prefab\nweapons/physgun/effects/freeze.prefab\nweapons/physgun/effects/unfreeze.prefab\nweapons/physgun/physgun-screen.vmat\nweapons/toolgun/toolgun-screen.vmat\nweapons/toolgun/sounds/shoot.decal.sound\nweapons/toolgun/sounds/shoot.spray.sound\nmaterials/effects/*.vmat\nmaterials/game/wheel_dir.vmat\nshaders/hud_composite.shader\nshaders/hud_glow.shader\nshaders/snap_grid.shader\nshaders/postprocess/*.shader\nentities/sents/tv/materials/tv_crt_screen.shader\nentities/balloon/sounds/balloon_pop.sound\nentities/thruster/sounds/thruster_basic.sndef\nhydraulics/tool_hydraulic.vmdl\nhydraulics/tool_suspension_base.vmdl\nhydraulics/tool_balljoint.vmdl\nhydraulics/tool_engine_spring_1m.vmdl\nhydraulics/tool_winch.vmdl\nhydraulics/tool_hook.vmdl\nhydraulics/metal_tile_01.vmat\nhydraulics/metal_tile_line.vmat\nsounds/flatline.sound\nsounds/water_enter.sound\nsounds/water_exit.sound\nsounds/damage_taken_*.sound\nsounds/ui/ui.spawn.sound\nsounds/ui/ui.undo.sound\nsounds/ui/ui.hover.sound\nsounds/ui/ui.select.sound\nsounds/weapons/ammo_pickup.sound\nsounds/weapons/gun_pickup.sound",
+  "PublishUsedAssetsOnly": true,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": [],
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
+  "Metadata": {
+    "MapSettings": {
+      "UseCreateGameModal": true,
+      "NeedsMap": true,
+      "ShowChangeMap": true,
+      "DefaultMap": "facepunch.flatgrass",
+      "MapTarget": "*"
+    },
+    "MaxPlayers": 64,
+    "MinPlayers": 1,
+    "TickRate": 50,
+    "GameNetworkType": "Multiplayer",
+    "MapSelect": "Unrestricted",
+    "MapList": [
+      "facepunch.flatgrass"
+    ],
+    "RankType": "None",
+    "PerMapRanking": false,
+    "LeaderboardType": "None",
+    "CsProjName": "",
+    "StartupScene": "scenes/sandbox.scene",
+    "ControlModes": {
+      "Keyboard": true,
+      "VR": false,
+      "Gamepad": true
+    },
+    "LaunchMode": "Launcher",
+    "MapStartupScene": "scenes/sandbox.scene",
+    "DedicatedServerStartupScene": "scenes/sandbox.scene",
+    "SystemScene": "scenes/system.scene",
+    "RecommendedMinPlayers": 1,
+    "RecommendedMaxPlayers": 64,
+    "Coop": true,
+    "Versus": true,
+    "WorkshopTags": [
+      "Building",
+      "Casual",
+      "Physics",
+      "Sandbox",
+      "Social"
+    ]
+  }
+}

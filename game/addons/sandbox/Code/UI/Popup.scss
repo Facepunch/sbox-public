@@ -1,0 +1,66 @@
+@import "/UI/Theme.scss";
+
+// Shared styles for fullscreen modal popups.
+// Add class="popup" to the <root> of any overlay popup component.
+
+.popup
+{
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	bottom: 0px;
+	right: 0px;
+	background-color: #000a;
+	backdrop-filter: blur( 10px );
+	z-index: 10000;
+	justify-content: center;
+	align-items: center;
+	pointer-events: all;
+	font-family: $body-font;
+	opacity: 1;
+	transition: all 0.2s ease;
+
+	&:intro
+	{
+		transform: scale( 1.2 );
+		opacity: 0;
+	}
+
+	&:outro
+	{
+		pointer-events: none;
+		opacity: 0;
+	}
+
+	.inner
+	{
+		padding: 8px;
+		flex-direction: column;
+		gap: 16px;
+
+		.popup-header
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 0.5rem;
+			margin-bottom: 0.5rem;
+
+			h2
+			{
+				font-family: $title-font;
+				color: $color-accent;
+				font-size: 3rem;
+				font-weight: 700;
+				height: 3rem;
+			}
+		}
+
+		h3
+		{
+			color: $color-text;
+			font-size: 1.25rem;
+			font-weight: 500;
+		}
+	}
+}

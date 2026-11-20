@@ -87,12 +87,12 @@ internal static class MovieConsoleCommands
 	{
 		var fileName = $"{_recordingStartTime:yyyy.MM.dd.HH.mm.ss}";
 
-		if ( Package.TryParseIdent( Networking.MapName, out var parsedMap ) )
+		if ( Package.TryParseIdentParts( Networking.MapName, out var parsedMap ) )
 		{
 			fileName = $"{parsedMap.package}.{fileName}";
 		}
 
-		if ( Package.TryParseIdent( Game.Ident, out var parsedGame ) )
+		if ( Package.TryParseIdentParts( Game.Ident, out var parsedGame ) )
 		{
 			fileName = $"{parsedGame.package}.{fileName}";
 		}

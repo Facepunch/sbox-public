@@ -124,7 +124,7 @@ partial class PublishWizard
 		{
 			var ident = $"{a.Arguments[0]}";
 
-			if ( !Package.TryParseIdent( ident, out var parts ) )
+			if ( !Package.TryParseIdentParts( ident, out var parts ) )
 			{
 				Log.Warning( $"Couldn't parse ident {ident}" );
 				continue;

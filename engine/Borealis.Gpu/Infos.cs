@@ -139,6 +139,12 @@ public struct SamplerInfo : IEquatable<SamplerInfo>
 	public float MinLod, MaxLod, MipBias;
 
 	/// <summary>
+	/// Whether the device's <see cref="Device.GlobalMipBias"/> leaves it alone, as native leaves samplers made from a
+	/// <c>SamplerState</c>: only <see cref="MipBias"/> applies.
+	/// </summary>
+	public bool FixedMipBias;
+
+	/// <summary>
 	/// A trilinear sampler with the same address mode on every axis.
 	/// </summary>
 	public static SamplerInfo Linear( AddressMode address = AddressMode.Wrap, float anisotropy = 1 ) => new()
@@ -168,13 +174,13 @@ public struct SamplerInfo : IEquatable<SamplerInfo>
 	/// <summary>Field by field: a dictionary of samplers looks one up without boxing.</summary>
 	public readonly bool Equals( SamplerInfo other ) => MinFilter == other.MinFilter && MagFilter == other.MagFilter && MipFilter == other.MipFilter
 		&& AddressU == other.AddressU && AddressV == other.AddressV && AddressW == other.AddressW && MaxAnisotropy == other.MaxAnisotropy
-		&& Compare == other.Compare && MinLod == other.MinLod && MaxLod == other.MaxLod && MipBias == other.MipBias;
+		&& Compare == other.Compare && MinLod == other.MinLod && MaxLod == other.MaxLod && MipBias == other.MipBias && FixedMipBias == other.FixedMipBias;
 
 	/// <inheritdoc/>
 	public override readonly bool Equals( object obj ) => obj is SamplerInfo other && Equals( other );
 
 	/// <inheritdoc/>
-	public override readonly int GetHashCode() => HashCode.Combine( HashCode.Combine( MinFilter, MagFilter, MipFilter, AddressU, AddressV, AddressW ), MaxAnisotropy, Compare, MinLod, MaxLod, MipBias );
+	public override readonly int GetHashCode() => HashCode.Combine( HashCode.Combine( MinFilter, MagFilter, MipFilter, AddressU, AddressV, AddressW ), MaxAnisotropy, Compare, MinLod, MaxLod, MipBias, FixedMipBias );
 }
 
 /// <summary>

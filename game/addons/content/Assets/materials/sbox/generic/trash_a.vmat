@@ -1,0 +1,52 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- Color ----
+	F_TINT_MASK 1
+
+	//---- PBR ----
+	F_METALNESS_TEXTURE 1
+	F_SPECULAR 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.576"
+	g_flAmbientOcclusionDirectSpecular "1.000"
+	TextureAmbientOcclusion "materials/sbox/generic/trash_a_ao.tga"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "materials/sbox/generic/trash_a_color.tga"
+	TextureTintMask "materials/default/default_mask.tga"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	TextureMetalness "materials/sbox/generic/trash_a_metal.tga"
+
+	//---- Normal ----
+	TextureNormal "materials/sbox/generic/trash_a_normal.tga"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "materials/sbox/generic/trash_a_rough.tga"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	SystemAttributes
+	{
+		WorldMappingWidth "64"
+		WorldMappingHeight "64"
+		PhysicsSurfaceProperties "plastic"
+	}
+}

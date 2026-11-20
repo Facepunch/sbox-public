@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "aircon_unit_small_wall",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "aircon_unit_small_wall",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/aircon_unit_wall/aircon_unit_small_wall.vmdl"
+      }
+    }
+  },
+  "guid": "e6cf45fe-c689-43d1-8a50-67504eab1b60"
+}

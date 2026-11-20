@@ -280,10 +280,39 @@ internal sealed class LodStore : IDisposable
 		}
 	}
 
+	int publishVersion;
+
+	/// <summary>Counts ranges settled (published, or with no levels): what waits for some asks again once it moves.</summary>
+	public int PublishVersion => Volatile.Read( ref publishVersion );
+
 	/// <summary>
-	/// Ask for a range's levels: built once, on a worker. They're published once a GPU-driven colour pass draws the range
-	/// too (<paramref name="color"/>): a range drawn the classic way in colour must keep its full triangles in the prepass,
-	/// whose depth the colour pass tests equal against. <paramref name="label"/> is kept while <see cref="Labelled"/>.
+	/// A range's levels once settled: true with each level's first index and count in the page and its error when
+	/// published, true with none when it has none (no level worth making, no room for any, or too few triangles to ask for);
+	/// false until it's asked for (<see cref="Request"/>), while it's being built and while it waits to be published.
+	/// </summary>
+	public bool TryGetLevels( in Range range, out (uint First, uint Count)[] placed, out float[] errors )
+	{
+		placed = [];
+		errors = [];
+		lock ( gate )
+		{
+			if ( !entries.TryGetValue( range, out var entry ) ) return range.IndexCount / 3 < Config.MinRangeTriangles;
+			if ( entry.State is Phase.Building or Phase.Built ) return false;
+			if ( entry.State == Phase.Published )
+			{
+				placed = entry.Placed;
+				errors = entry.Chain.Errors;
+			}
+
+			return true;
+		}
+	}
+
+	/// <summary>
+	/// Ask for a range's levels: built once, on a worker. They're published once a colour pass whose prepass draws the same
+	/// level draws the range too (<paramref name="color"/>): a GPU-driven one, or a view's own draws, which pick one level per
+	/// object for every pass. A range drawn whole in colour must keep its full triangles in the prepass, whose depth the colour
+	/// pass tests equal against. <paramref name="label"/> is kept while <see cref="Labelled"/>.
 	/// </summary>
 	public void Request( in Range range, Source source, bool color, Label label = default )
 	{
@@ -473,6 +502,7 @@ internal sealed class LodStore : IDisposable
 					Simplest++;
 					entry.State = Phase.None;
 					entry.Source = null;
+					publishVersion++;
 					continue;
 				}
 
@@ -574,6 +604,7 @@ internal sealed class LodStore : IDisposable
 					BaseTriangles += entry.Range.IndexCount / 3;
 				}
 				else Dropped++;
+				publishVersion++;
 			}
 
 			// Outside the lock: making the levels' draw records registers them here

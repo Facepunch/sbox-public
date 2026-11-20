@@ -1,0 +1,35 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+<root>
+</root>
+
+@code
+{
+    PressableSection section;
+
+    protected override void OnDisabled()
+    {
+        if ( section is not null ) section.Hint = null;
+    }
+
+    protected override void OnUpdate()
+    {
+        section = HudLayer.FindSection( this, section );
+        if ( section is null ) return;
+
+        var player = Player.FindLocalPlayer();
+        if ( !player.IsValid() || !Hud.IsVisible( HudElement.InteractionHints ) )
+        {
+            section.Hint = null;
+            return;
+        }
+
+        section.Hint = player.InteractionHint;
+        section.Action = player.Controller.UseButton;
+    }
+
+    protected override int BuildHash() => 0;
+}

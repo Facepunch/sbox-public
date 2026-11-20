@@ -1,0 +1,28 @@
+{
+  "guid": "e7e42061-b0e5-41ef-9234-78c961de3174",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Roof Vent 1",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "roof_vent_1",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/roof_vents/roof_vent_1.vmdl",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

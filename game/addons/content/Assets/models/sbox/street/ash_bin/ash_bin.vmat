@@ -1,0 +1,54 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- PBR ----
+	F_METALNESS_TEXTURE 1
+	F_SPECULAR 1
+
+	//---- Translucent ----
+	F_ALPHA_TEST 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.796"
+	g_flAmbientOcclusionDirectSpecular "0.810"
+	TextureAmbientOcclusion "models/sbox/street/ash_bin/ash_bin_ao.tga"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "models/sbox/street/ash_bin/ash_bin_color.tga"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	TextureMetalness "models/sbox/street/ash_bin/ash_bin_metal.tga"
+
+	//---- Normal ----
+	TextureNormal "models/sbox/street/ash_bin/ash_bin_normal.tga"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "models/sbox/street/ash_bin/ash_bin_rough.tga"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	//---- Translucent ----
+	g_flAlphaTestReference "0.834"
+	g_flAntiAliasedEdgeStrength "0.613"
+	TextureTranslucency "models/sbox/street/ash_bin/ash_bin_trans.tga"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "metal"
+	}
+}

@@ -1,0 +1,29 @@
+{
+  "guid": "31ab4ab1-7140-469d-9ac8-022052e39962",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Toolgun",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_toolgun",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/toolgun/materials/w_toolgun.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

@@ -60,6 +60,12 @@ public sealed class RenderView
 	internal Vector2 Jitter { get; set; }
 
 	/// <summary>
+	/// Draw the overlays again in depth mode for a temporal upscaler's reactive mask (<see cref="ReactiveDepthLayer"/>), into
+	/// <see cref="RenderSystem.ReactiveDepth"/>, as native's standard pipeline does while FSR3 or DLSS runs.
+	/// </summary>
+	internal bool ReactiveDepth { get; set; }
+
+	/// <summary>
 	/// Mirror the finished frame left to right as it goes into a texture (<c>ViewSetup.FlipX</c>): native flips only a texture
 	/// render's final copy (<c>CCameraRenderer::RenderToTexture</c>), so depth stays as drawn and a swap chain's frame isn't
 	/// flipped.

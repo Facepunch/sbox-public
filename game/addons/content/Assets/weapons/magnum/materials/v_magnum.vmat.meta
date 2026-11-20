@@ -1,0 +1,29 @@
+{
+  "guid": "cf6e07c8-032a-42f9-90d2-bdb07ad50cfa",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Magnum",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_magnum",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/materials/v_magnum.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

@@ -1,0 +1,58 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root class="@(Item.Kind == SpawnlistItemKind.Title ? "title-item" : "divider-item")">
+    <SpawnlistDragHandle class="edit-only" Item=@Item />
+
+    @if ( Item.Kind == SpawnlistItemKind.Title )
+    {
+        <Label class="section-title" Tokenize=@false Text=@Item.Title />
+    }
+    else
+    {
+        <div class="divider-line"></div>
+    }
+</root>
+
+@code
+{
+    [Parameter] public SpawnlistItem Item { get; set; }
+    [Parameter] public Action<Guid, string> OnRename { get; set; }
+    [Parameter] public Action<Guid> OnRemove { get; set; }
+
+    public override void Tick()
+    {
+        base.Tick();
+        SetClass( "editing", Ancestors.OfType<SpawnlistView>().FirstOrDefault()?.CanReorder == true );
+    }
+
+    protected override void OnMouseDown( MousePanelEvent e )
+    {
+        if ( e.MouseButton != MouseButtons.Right || Ancestors.OfType<SpawnlistView>().FirstOrDefault()?.CanReorder != true )
+        {
+            base.OnMouseDown( e );
+            return;
+        }
+
+        var menu = new Sandbox.UI.Menu();
+        if ( Item.Kind == SpawnlistItemKind.Title )
+        {
+            menu.AddOption( "#spawnmenu.spawnlist.rename_title_item", "edit", () =>
+            {
+                UIModal.Prompt( this, "#spawnmenu.spawnlist.rename_title_item", Item.Title, value =>
+                {
+                    Item.Title = value;
+                    OnRename?.Invoke( Item.Id, value );
+                    StateHasChanged();
+                }, placeholder: "#spawnmenu.spawnlist.title_placeholder", confirmText: "#spawnmenu.spawnlist.rename_button" );
+            } );
+        }
+
+        menu.AddOption( "#spawnmenu.spawnlist.remove_item", "delete", () => OnRemove?.Invoke( Item.Id ) );
+        e.StopPropagation();
+
+        menu.Open( this, Popup.PositionMode.UnderMouse );
+    }
+}

@@ -1,0 +1,84 @@
+@import "/UI/Theme.scss";
+
+ContextMenuHost
+{
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	color: $ui-text;
+	justify-content: center;
+	font-family: $body-font;
+	font-size: $ui-settings-font;
+	font-weight: 500;
+	z-index: 500;
+
+	> .container
+	{
+		position: absolute;
+		top: 0px;
+		bottom: 0px;
+		right: 0px;
+		left: 0px;
+		margin: 0px;
+		z-index: 100;
+		pointer-events: none;
+	}
+}
+
+// the strip of settings along the top, like Garry's Mod's context menu bar
+$settings-bar-height: 26px;
+
+ContextMenuHost > .settings-bar
+{
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	height: $settings-bar-height;
+	pointer-events: all;
+	z-index: 300;
+
+	background-image: linear-gradient( to bottom, $ui-section-top, $ui-section-bottom );
+	border-bottom: 1px solid $ui-section-border;
+
+	> .menubar
+	{
+		flex-grow: 1;
+		height: 100%;
+		flex-direction: row;
+		align-items: stretch;
+		padding: 0px 4px;
+		gap: 1px;
+
+		// a heading, its dropdown opens under it
+		> .menu
+		{
+			height: 100%;
+			padding: 0px 10px;
+			align-items: center;
+			border: 1px solid transparent;
+			border-top: none;
+			border-bottom: none;
+			color: $ui-text-strong;
+			font-family: $body-font;
+			font-size: 12px;
+			font-weight: 600;
+			cursor: pointer;
+			sound-in: "sounds/kenney/ui/ui.navigate.forward.sound";
+
+			> .part, > .part *
+			{
+				pointer-events: none;
+			}
+
+			&.active, &.open
+			{
+				background-color: $ui-hover-fill;
+				border-color: $ui-hover-border;
+				color: $ui-hover-text;
+			}
+
+			&:hover { sound-in: ui.hover; }
+		}
+	}
+}

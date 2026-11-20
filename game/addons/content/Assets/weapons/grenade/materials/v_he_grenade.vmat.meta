@@ -1,0 +1,29 @@
+{
+  "guid": "6cab705b-17ed-4a15-9003-9e2f1ad87fbe",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V He Grenade",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_he_grenade",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/grenade/materials/v_he_grenade.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

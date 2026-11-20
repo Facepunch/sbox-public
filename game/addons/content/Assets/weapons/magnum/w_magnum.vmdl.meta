@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "WorldModel Magnum",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "wmagnum",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/w_magnum.vmdl"
+      }
+    }
+  },
+  "guid": "49f17b77-996b-4c8c-bf6d-cc1a9b833764"
+}

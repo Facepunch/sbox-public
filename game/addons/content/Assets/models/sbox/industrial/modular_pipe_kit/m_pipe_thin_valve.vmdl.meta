@@ -1,0 +1,28 @@
+{
+  "guid": "506290f5-7826-45ba-8b07-d3de20ef0901",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Thin Valve",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipethinvalve",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_thin_valve.vmdl",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

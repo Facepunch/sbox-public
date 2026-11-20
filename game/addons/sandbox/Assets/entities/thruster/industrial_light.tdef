@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/thruster/industrial_light.prefab",
+  "Title": "#asset.industrial_light.title",
+  "Description": "",
+  "__references": [],
+  "__version": 0
+}

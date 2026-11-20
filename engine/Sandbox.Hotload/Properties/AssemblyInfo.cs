@@ -22,5 +22,3 @@ using System.Runtime.InteropServices;
 [assembly: InternalsVisibleTo( "Sandbox.Test.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Test.NetSim" )]
 [assembly: InternalsVisibleTo( "Sandbox.Test.Integration" )]
-[assembly: InternalsVisibleTo( "Sandbox.Test.Before" )]
-[assembly: InternalsVisibleTo( "Sandbox.Test.After" )]

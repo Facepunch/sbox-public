@@ -70,7 +70,7 @@ internal sealed class Source2Backend
 		appSystem.SetSteamAppId( (uint)Application.AppId );
 
 		// Tools mode makes the render device with no window: windows are made here. Source 2's is the empty one: the lab draws
-		// on a Borealis.Gpu device of its own, and Source 2 only describes and loads resources (-vulkan keeps a real one)
+		// on a Borealis.Gpu device of its own, and Source 2 only describes and loads resources
 		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr -empty";
 		if ( !EngineGlobal.SourceEnginePreInit( commandLine, appSystem ) )
 			throw new Exception( "SourceEnginePreInit failed" );

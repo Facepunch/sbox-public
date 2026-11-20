@@ -1,0 +1,9 @@
+@import "/UI/Theme.scss";
+
+UISeparator
+{
+	height: 1px;
+	flex-shrink: 0;
+	margin: 6px 0px;
+	background-color: $ui-separator;
+}

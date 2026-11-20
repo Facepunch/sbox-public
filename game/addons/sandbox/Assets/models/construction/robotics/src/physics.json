@@ -1,0 +1,362 @@
+{
+ "a1": [
+  "a1_phys_00"
+ ],
+ "a2": [
+  "a2_phys_00"
+ ],
+ "a3": [
+  "a3_phys_00"
+ ],
+ "a4": [
+  "a4_phys_00"
+ ],
+ "b1": [
+  "b1_phys_00",
+  "b1_phys_01",
+  "b1_phys_02"
+ ],
+ "b2": [
+  "b2_phys_00",
+  "b2_phys_01",
+  "b2_phys_02"
+ ],
+ "b3": [
+  "b3_phys_00",
+  "b3_phys_01",
+  "b3_phys_02"
+ ],
+ "b4": [
+  "b4_phys_00",
+  "b4_phys_01",
+  "b4_phys_02"
+ ],
+ "c1": [
+  "c1_phys_00",
+  "c1_phys_01",
+  "c1_phys_02",
+  "c1_phys_03"
+ ],
+ "c2": [
+  "c2_phys_00",
+  "c2_phys_01",
+  "c2_phys_02",
+  "c2_phys_03"
+ ],
+ "c3": [
+  "c3_phys_00",
+  "c3_phys_01",
+  "c3_phys_02",
+  "c3_phys_03"
+ ],
+ "c4": [
+  "c4_phys_00",
+  "c4_phys_01",
+  "c4_phys_02",
+  "c4_phys_03"
+ ],
+ "claw": [
+  "claw_phys_00",
+  "claw_phys_01",
+  "claw_phys_02",
+  "claw_phys_03",
+  "claw_phys_04",
+  "claw_phys_05"
+ ],
+ "claw_guide": [
+  "claw_guide_phys_00",
+  "claw_guide_phys_01",
+  "claw_guide_phys_02",
+  "claw_guide_phys_03",
+  "claw_guide_phys_04"
+ ],
+ "claw_guide2": [
+  "claw_guide2_phys_00",
+  "claw_guide2_phys_01",
+  "claw_guide2_phys_02",
+  "claw_guide2_phys_03",
+  "claw_guide2_phys_04"
+ ],
+ "claw_guide2a": [
+  "claw_guide2a_phys_00",
+  "claw_guide2a_phys_01",
+  "claw_guide2a_phys_02",
+  "claw_guide2a_phys_03",
+  "claw_guide2a_phys_04",
+  "claw_guide2a_phys_05",
+  "claw_guide2a_phys_06"
+ ],
+ "claw_guide2l": [
+  "claw_guide2l_phys_00",
+  "claw_guide2l_phys_01",
+  "claw_guide2l_phys_02",
+  "claw_guide2l_phys_03",
+  "claw_guide2l_phys_04"
+ ],
+ "claw_guide2la": [
+  "claw_guide2la_phys_00",
+  "claw_guide2la_phys_01",
+  "claw_guide2la_phys_02",
+  "claw_guide2la_phys_03",
+  "claw_guide2la_phys_04",
+  "claw_guide2la_phys_05",
+  "claw_guide2la_phys_06"
+ ],
+ "clawl": [
+  "clawl_phys_00",
+  "clawl_phys_01",
+  "clawl_phys_02",
+  "clawl_phys_03",
+  "clawl_phys_04",
+  "clawl_phys_05"
+ ],
+ "d1": [
+  "d1_phys_00",
+  "d1_phys_01",
+  "d1_phys_02",
+  "d1_phys_03",
+  "d1_phys_04"
+ ],
+ "d2": [
+  "d2_phys_00",
+  "d2_phys_01",
+  "d2_phys_02",
+  "d2_phys_03",
+  "d2_phys_04"
+ ],
+ "d3": [
+  "d3_phys_00",
+  "d3_phys_01",
+  "d3_phys_02",
+  "d3_phys_03",
+  "d3_phys_04"
+ ],
+ "d4": [
+  "d4_phys_00",
+  "d4_phys_01",
+  "d4_phys_02",
+  "d4_phys_03",
+  "d4_phys_04"
+ ],
+ "e1": [
+  "e1_phys_00",
+  "e1_phys_01",
+  "e1_phys_02",
+  "e1_phys_03"
+ ],
+ "e2": [
+  "e2_phys_00",
+  "e2_phys_01",
+  "e2_phys_02",
+  "e2_phys_03"
+ ],
+ "e3": [
+  "e3_phys_00",
+  "e3_phys_01",
+  "e3_phys_02",
+  "e3_phys_03"
+ ],
+ "e4": [
+  "e4_phys_00",
+  "e4_phys_01",
+  "e4_phys_02",
+  "e4_phys_03"
+ ],
+ "f1": [
+  "f1_phys_00",
+  "f1_phys_01",
+  "f1_phys_02"
+ ],
+ "f2": [
+  "f2_phys_00",
+  "f2_phys_01",
+  "f2_phys_02"
+ ],
+ "f3": [
+  "f3_phys_00",
+  "f3_phys_01",
+  "f3_phys_02"
+ ],
+ "foot": [
+  "foot_phys_00",
+  "foot_phys_01",
+  "foot_phys_02"
+ ],
+ "g1": [
+  "g1_phys_00",
+  "g1_phys_01",
+  "g1_phys_02"
+ ],
+ "g3": [
+  "g3_phys_00",
+  "g3_phys_01",
+  "g3_phys_02"
+ ],
+ "g4": [
+  "g4_phys_00",
+  "g4_phys_01",
+  "g4_phys_02"
+ ],
+ "h1": [
+  "h1_phys_00",
+  "h1_phys_01",
+  "h1_phys_02"
+ ],
+ "h2": [
+  "h2_phys_00",
+  "h2_phys_01",
+  "h2_phys_02",
+  "h2_phys_03",
+  "h2_phys_04"
+ ],
+ "h3": [
+  "h3_phys_00",
+  "h3_phys_01",
+  "h3_phys_02",
+  "h3_phys_03",
+  "h3_phys_04"
+ ],
+ "h4": [
+  "h4_phys_00",
+  "h4_phys_01",
+  "h4_phys_02",
+  "h4_phys_03",
+  "h4_phys_04"
+ ],
+ "i1": [
+  "i1_phys_00",
+  "i1_phys_01",
+  "i1_phys_02"
+ ],
+ "i2": [
+  "i2_phys_00",
+  "i2_phys_01",
+  "i2_phys_02",
+  "i2_phys_03",
+  "i2_phys_04"
+ ],
+ "i3": [
+  "i3_phys_00",
+  "i3_phys_01",
+  "i3_phys_02",
+  "i3_phys_03",
+  "i3_phys_04"
+ ],
+ "i4": [
+  "i4_phys_00",
+  "i4_phys_01",
+  "i4_phys_02",
+  "i4_phys_03",
+  "i4_phys_04"
+ ],
+ "j1": [
+  "j1_phys_00",
+  "j1_phys_01",
+  "j1_phys_02",
+  "j1_phys_03"
+ ],
+ "j2": [
+  "j2_phys_00",
+  "j2_phys_01",
+  "j2_phys_02",
+  "j2_phys_03"
+ ],
+ "j3": [
+  "j3_phys_00",
+  "j3_phys_01",
+  "j3_phys_02",
+  "j3_phys_03"
+ ],
+ "j4": [
+  "j4_phys_00",
+  "j4_phys_01",
+  "j4_phys_02",
+  "j4_phys_03"
+ ],
+ "k1": [
+  "k1_phys_00",
+  "k1_phys_01",
+  "k1_phys_02"
+ ],
+ "k2": [
+  "k2_phys_00",
+  "k2_phys_01",
+  "k2_phys_02"
+ ],
+ "k3": [
+  "k3_phys_00",
+  "k3_phys_01",
+  "k3_phys_02"
+ ],
+ "k4": [
+  "k4_phys_00",
+  "k4_phys_01",
+  "k4_phys_02"
+ ],
+ "l1": [
+  "l1_phys_00",
+  "l1_phys_01",
+  "l1_phys_02",
+  "l1_phys_03",
+  "l1_phys_04",
+  "l1_phys_05",
+  "l1_phys_06",
+  "l1_phys_07",
+  "l1_phys_08"
+ ],
+ "l2": [
+  "l2_phys_00",
+  "l2_phys_01",
+  "l2_phys_02",
+  "l2_phys_03",
+  "l2_phys_04",
+  "l2_phys_05",
+  "l2_phys_06",
+  "l2_phys_07",
+  "l2_phys_08"
+ ],
+ "l3": [
+  "l3_phys_00",
+  "l3_phys_01",
+  "l3_phys_02",
+  "l3_phys_03",
+  "l3_phys_04",
+  "l3_phys_05",
+  "l3_phys_06",
+  "l3_phys_07",
+  "l3_phys_08"
+ ],
+ "l4": [
+  "l4_phys_00",
+  "l4_phys_01",
+  "l4_phys_02",
+  "l4_phys_03",
+  "l4_phys_04",
+  "l4_phys_05",
+  "l4_phys_06",
+  "l4_phys_07",
+  "l4_phys_08"
+ ],
+ "m3": [
+  "m3_phys_00",
+  "m3_phys_01",
+  "m3_phys_02"
+ ],
+ "m4": [
+  "m4_phys_00",
+  "m4_phys_01",
+  "m4_phys_02"
+ ],
+ "stand": [
+  "stand_phys_00",
+  "stand_phys_01",
+  "stand_phys_02",
+  "stand_phys_03",
+  "stand_phys_04"
+ ],
+ "xfoot": [
+  "xfoot_phys_00",
+  "xfoot_phys_01",
+  "xfoot_phys_02"
+ ]
+}

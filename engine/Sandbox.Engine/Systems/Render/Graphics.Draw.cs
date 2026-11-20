@@ -132,7 +132,7 @@ public static partial class Graphics
 		if ( !obj.IsValid() ) return;
 
 		// Native draws it through its layer's view; a Borealis frame draws it from its own copy of the object
-		_state.view?.RenderSceneObject( Context, obj, transform ?? obj.Transform, color ?? Color.White, material, Attributes );
+		_state.view?.RenderSceneObject( obj, transform ?? obj.Transform, color ?? Color.White, material, Attributes );
 	}
 
 	/// <summary>

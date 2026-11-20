@@ -13,7 +13,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1118;
+	public static int Network => 1119;
 }
 
 // Api Versions
@@ -34,6 +34,7 @@ public static class Protocol
 
 
 // Network Versions
+// 1119. 18 November 2026 - CodeArchive join snapshots advertise checksums
 // 1118. 16 November 2026 - WorkshopItems table for maps and addons; game Workshop ID in ServerInfo
 // 1117. 11 November 2026 - Scripts string table and ServerPackages resource readiness payload
 // 1116. 4 November 2026 - LoadSceneSnapshotMsg carries the maps to mount

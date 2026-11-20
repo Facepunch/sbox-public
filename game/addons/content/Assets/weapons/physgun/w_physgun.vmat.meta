@@ -1,0 +1,29 @@
+{
+  "guid": "f571f90d-b460-4809-8a3e-728c2065d221",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Physgun",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_physgun",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/physgun/w_physgun.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

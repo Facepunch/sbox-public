@@ -38,7 +38,8 @@ internal static class BorealisGpuCustomDraw
 	/// recording, on what it has bound, as <paramref name="layerType"/> from <paramref name="camera"/>. False when there's
 	/// nothing to draw into: no Borealis.Gpu backend, no target, or no view constants. Not in a view rendered while
 	/// the engine draws in another frame (a water body's refraction, from its command list): the graphics context is that
-	/// frame's.
+	/// frame's. <see cref="Graphics.SetupLighting"/> in the draw lights from <paramref name="lightingWorld"/>'s probe volumes
+	/// that a view showing <paramref name="subWorlds"/> shows (the object's own world's, without one).
 	/// </summary>
 	/// <remarks>
 	/// With depth bound alone (a shadow map's slice, the depth prepass) it draws into that depth, its materials in
@@ -47,7 +48,7 @@ internal static class BorealisGpuCustomDraw
 	/// In colour it draws with <paramref name="cameraAttributes"/> (the camera's, <c>SceneCamera.Attributes</c>) under the
 	/// frame's, as native's custom objects read their view's: lit sprites read the camera's particle lighting there.
 	/// </remarks>
-	public static bool Draw( GpuContext context, SceneLayerType layerType, RenderView camera, Action draw, StringToken shaderMode = default, int depthBias = 0, float slopeScaledDepthBias = 0, RenderAttributes cameraAttributes = null )
+	public static bool Draw( GpuContext context, SceneLayerType layerType, RenderView camera, Action draw, StringToken shaderMode = default, int depthBias = 0, float slopeScaledDepthBias = 0, RenderAttributes cameraAttributes = null, RenderWorld lightingWorld = null, ulong subWorlds = 0 )
 	{
 		ThreadSafe.AssertIsMainThread();
 		if ( !Enabled || Graphics.IsActive ) return false;
@@ -62,6 +63,8 @@ internal static class BorealisGpuCustomDraw
 		view ??= new BorealisGpuView( backend );
 		view.LayerType = layerType;
 		view.ShaderMode = shaderMode;
+		view.LightingWorld = lightingWorld;
+		view.LightingSubWorlds = subWorlds;
 		var viewport = target.Viewport;
 		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
 		view.SetCamera( camera.Position, camera.Rotation, camera.FieldOfView, camera.ZNear, camera.ZFar, aspect, camera.Orthographic, camera.OrthoSize );
@@ -80,6 +83,7 @@ internal static class BorealisGpuCustomDraw
 		finally
 		{
 			drawer.ToolsPass = ToolsPass.None;
+			view.LightingWorld = null;
 			backend.LendInstances( default, default, 0 );
 			backend.DrawMode = null;
 			backend.DepthBias = default;

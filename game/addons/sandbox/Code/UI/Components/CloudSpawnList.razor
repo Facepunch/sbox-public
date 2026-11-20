@@ -1,0 +1,238 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<SpawnMenuContent>
+
+    <Header>
+        <SpawnMenuToolbar>
+            <Left>
+                <TextEntry Placeholder="#spawnmenu.common.search" class="filter menu-input" Value:bind=@Filter />
+            </Left>
+
+            <Right>
+                <UIButton Icon=@IconSize.Icon() Tooltip="#ui.icon_size.title" @onclick=@OpenIconSizeMenu />
+                <UIButton Icon="verified" Active=@VerifiedOnly Tooltip="#ui.verified_only" @onclick=@ToggleVerified />
+                <UIDropdown class="big sort" Items=@SortItems Value=@SortOrder ValueChanged=@OnSortChanged Tooltip="#ui.sort_order" />
+            </Right>
+        </SpawnMenuToolbar>
+    </Header>
+
+    <Body>
+        @if ( Entries.Count == 0 && Loading )
+        {
+            <UILoadingState />
+        }
+        else if ( Entries.Count == 0 )
+        {
+            if ( string.IsNullOrEmpty( EmptyTitle ) )
+            {
+                <SpawnMenuEmptyState Icon="search_off" Subtitle="#spawnmenu.empty.try_another_category" />
+            }
+            else
+            {
+                <SpawnMenuEmptyState Icon="search_off" Title=@EmptyTitle Subtitle="#spawnmenu.empty.try_another_category" />
+            }
+        }
+        else
+        {
+            <MixedVirtualGrid @ref=Grid Items=@Entries ItemSize=@IconSize.ItemSize() class=@IconSize.CssClass()>
+                <Item Context="item">
+                    @if ( item is Entry entry )
+                    {
+                        <SpawnMenuIcon Ident=@entry.Ident Title=@entry.Title Developer=@entry.Developer HideText=@(IconSize == SpawnMenuIconSize.Small) Tooltip=@(IconSize == SpawnMenuIconSize.Small ? entry.Title : "") />
+                    }
+                    else if ( item is CommunitySection )
+                    {
+                        <div class="community-section">
+                            <label>#spawnmenu.section.community_items</label>
+                        </div>
+                    }
+                </Item>
+            </MixedVirtualGrid>
+        }
+    </Body>
+
+</SpawnMenuContent>
+
+@code
+{
+    /// <summary>
+    /// A single tile in the grid, whether it came from disk or from the cloud.
+    /// </summary>
+    public record Entry( string Ident, string Title, bool Developer = false, bool Verified = true );
+
+    sealed record CommunitySection : IMixedVirtualGridFullRow
+    {
+        public bool IsFullRow => true;
+        public float Height => 72f;
+    }
+
+    protected string Filter
+    {
+        get;
+        set { field = value; Rebuild(); }
+    }
+
+    public PackageSortMode SortOrder
+    {
+        get;
+        set { field = value; Rebuild(); }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // the setter rebuilds
+        SortOrder = PackageSortMode.Popular;
+    }
+
+    /// <summary>
+    /// Reapplies searches and sorting to the translated names of local entries.
+    /// </summary>
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
+        Rebuild();
+    }
+
+    List<object> Entries = [];
+    bool Loading;
+    int _rebuildVersion;
+
+    const string VerifiedOnlyCookie = "spawnmenu.verified_only";
+    static bool? _verifiedOnly;
+    static bool VerifiedOnly => _verifiedOnly ??= Game.Cookies.Get( VerifiedOnlyCookie, false );
+    bool _lastVerifiedOnly = VerifiedOnly;
+
+    void ToggleVerified()
+    {
+        _verifiedOnly = !VerifiedOnly;
+        Game.Cookies.Set( VerifiedOnlyCookie, VerifiedOnly );
+        _lastVerifiedOnly = VerifiedOnly;
+        Rebuild();
+    }
+
+    SpawnMenuIconSize IconSize
+    {
+        get => SpawnMenuIconSizeExtensions.Current;
+        set
+        {
+            if ( value == IconSize ) return;
+            SpawnMenuIconSizeExtensions.Current = value;
+            OnIconSizeChanged();
+        }
+    }
+    SpawnMenuIconSize _lastIconSize = SpawnMenuIconSizeExtensions.Current;
+    MixedVirtualGrid Grid;
+
+    void OnIconSizeChanged()
+    {
+        _lastIconSize = IconSize;
+
+        // the tiles' text and tooltip depend on the size
+        if ( Grid.IsValid() )
+            Grid.RecreateCells();
+
+        StateHasChanged();
+    }
+
+    List<UIDropdown.Item> SortItems => DisplayInfo.ForEnumValues<PackageSortMode>()
+        .Select( entry => new UIDropdown.Item( entry.info.Name, entry.value ) )
+        .ToList();
+
+    void OnSortChanged( object value )
+    {
+        if ( value is PackageSortMode mode )
+            SortOrder = mode;
+    }
+
+    void OpenIconSizeMenu() => SpawnMenuIconSizeExtensions.OpenMenu( this, size => IconSize = size );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Another list may have changed these while we weren't visible
+        if ( _lastIconSize != IconSize )
+            OnIconSizeChanged();
+
+        if ( _lastVerifiedOnly == VerifiedOnly ) return;
+
+        _lastVerifiedOnly = VerifiedOnly;
+        Rebuild();
+    }
+
+    async void Rebuild()
+    {
+        var rebuildVersion = ++_rebuildVersion;
+        var popular = SortOrder == PackageSortMode.Popular;
+        var localEntries = FindLocalEntries().Cast<object>().ToList();
+        var entries = popular ? localEntries.ToList() : new List<object>();
+        Entries = entries;
+        Loading = true;
+        StateHasChanged();
+
+        var query = $"sort:{SortOrder.ToIdentifier()} type:{PackageType}";
+        if ( !string.IsNullOrEmpty( Filter ) ) query += $" {Filter}";
+        if ( !string.IsNullOrEmpty( PackageQuery ) ) query += $" {PackageQuery}";
+
+        var result = await Package.FindAsync( query );
+        if ( rebuildVersion != _rebuildVersion ) return;
+
+        var packages = result.Packages.AsEnumerable();
+        if ( VerifiedOnly )
+            packages = packages.Where( IsVerified );
+
+        var packageList = packages.ToList();
+        if ( popular )
+        {
+            entries.AddRange( packageList.Where( IsVerified ).Select( CreateEntry ) );
+
+            var communityPackages = packageList.Where( package => !IsVerified( package ) ).ToList();
+            if ( communityPackages.Count > 0 && entries.Count > 0 && !VerifiedOnly )
+                entries.Add( new CommunitySection() );
+
+            entries.AddRange( communityPackages.Select( CreateEntry ) );
+        }
+        else
+        {
+            // Keep the requested workshop order; local items have no ranking metadata.
+            entries.AddRange( packageList.Select( CreateEntry ) );
+            entries.AddRange( localEntries );
+        }
+        Entries = entries;
+        Loading = false;
+        StateHasChanged();
+    }
+
+    static bool IsVerified( Package package ) => string.Equals( package.Org?.Ident, "facepunch", StringComparison.OrdinalIgnoreCase );
+
+    Entry CreateEntry( Package package ) => new( PackageIdent( package ), package.Title, false, IsVerified( package ) );
+
+    /// <summary>
+    /// Value of the "type:" term in the package search, e.g. "sent" or "model".
+    /// </summary>
+    protected virtual string PackageType => "";
+
+    /// <summary>
+    /// Extra terms appended to the package search.
+    /// </summary>
+    protected virtual string PackageQuery => null;
+
+    /// <summary>
+    /// Title shown when nothing matched. Null uses the empty state's default.
+    /// </summary>
+    protected virtual string EmptyTitle => null;
+
+    /// <summary>
+    /// Build the spawn ident for a cloud package.
+    /// </summary>
+    protected virtual string PackageIdent( Package package ) => $"{package.TypeName}:{package.FullIdent}";
+
+    /// <summary>
+    /// Local entries shown ahead of cloud results in Popular mode, otherwise after them.
+    /// Should respect <see cref="Filter"/>.
+    /// </summary>
+    protected virtual IEnumerable<Entry> FindLocalEntries() => [];
+}

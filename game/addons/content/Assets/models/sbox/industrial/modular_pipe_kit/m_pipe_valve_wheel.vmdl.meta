@@ -1,0 +1,28 @@
+{
+  "guid": "1d22c50e-95e1-4ecb-8f6f-4e3f91952e27",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Valve Wheel",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipevalvewheel",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_valve_wheel.vmdl",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

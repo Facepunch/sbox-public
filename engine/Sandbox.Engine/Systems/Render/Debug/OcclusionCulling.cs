@@ -130,8 +130,6 @@ internal static partial class DebugOverlay
 			if ( target[Count.Early] > 0 ) Note( $"early prepass drew {target[Count.EarlyDrawn]:N0} of {target[Count.Early]:N0}", Muted );
 			if ( OcclusionDebug.EarlyCull == OcclusionEarlyCull.Off ) Note( "Early cull off", Warning );
 			if ( OcclusionDebug.EarlyCull == OcclusionEarlyCull.RejectAll ) Note( "Early cull rejects everything", Warning );
-			if ( target.Native && RenderPipeline.OcclusionAggregates == RenderPipeline.AggregateOcclusion.Off ) Note( "aggregates not culled", Muted );
-			if ( target.Native && RenderPipeline.OcclusionAggregates == RenderPipeline.AggregateOcclusion.Empty ) Note( "hidden fragments drawn empty", Muted );
 			if ( !all ) Note( "r_occlusion_debug 2 for every box", Muted );
 
 			void Note( string text, Color color )

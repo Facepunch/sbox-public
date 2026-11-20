@@ -1,0 +1,41 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+
+@if ( Entities.Count == 0 )
+{
+    <SpawnMenuEmptyState Icon="search_off" Title="#spawnmenu.entity.no_results" Subtitle="#spawnmenu.empty.try_another_category" />
+    return;
+}
+
+<VirtualGrid Items=@Entities ItemSize=@(new Vector2( 123, 123 ))>
+    <Item Context="item">
+        @if (item is ScriptedEntity entry)
+        {
+            <SpawnMenuIcon Ident=@($"entity:{entry.ResourcePath}") Title=@entry.Title Developer=@entry.Developer></SpawnMenuIcon>
+        }
+    </Item>
+</VirtualGrid>
+
+@code
+{
+    public string Category { get; set; }
+    public bool IncludeSubcategories { get; set; } = true;
+
+    List<ScriptedEntity> Entities = [];
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        var all = ResourceLibrary.GetAll<ScriptedEntity>()
+            .Where( e => !e.IsRemote && ( !e.Developer || ServerSettings.ShowDeveloperEntities ) );
+
+        Entities = (Category is null
+            ? all
+            : all.Where( e => SpawnMenuCategory.Matches( e.Category, Category, IncludeSubcategories ) )
+        ).ToList();
+    }
+}

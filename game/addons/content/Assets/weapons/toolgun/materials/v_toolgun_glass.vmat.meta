@@ -1,0 +1,29 @@
+{
+  "guid": "abf39477-ae81-4f49-aed8-3a1674c5e7ac",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Toolgun Glass",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_toolgun_glass",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "eurorp.door01_right_01#12553"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/toolgun/materials/v_toolgun_glass.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

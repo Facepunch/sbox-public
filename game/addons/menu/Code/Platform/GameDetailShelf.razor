@@ -39,7 +39,7 @@
                 </div>
             </Heading>
             <Tools>
-                @if ( !PageLoading && Package is not null )
+                @if ( !PageLoading && Package is { IsRemote: true } )
                 {
                     <PackageReactions Package=@Package ShowReviews=@false OnWorkshop=@OnWorkshop Workshop=@WorkshopItem />
                 }
@@ -103,7 +103,7 @@
                             }
 
                             <div class="kv">
-                                @if ( IsGame )
+                                @if ( IsGame && Package.IsRemote )
                                 {
                                     <div class="kv-row">
                                         <label class="k">Players</label>
@@ -117,10 +117,13 @@
                                         <label class="v">@released.ToLocalTime().ToString( "d MMM, yyyy" )</label>
                                     </div>
                                 }
-                                <div class="kv-row link" onclick=@( () => ShowPage( "changes" ) )>
-                                    <label class="k">Updated</label>
-                                    <label class="v link">@MenuHelpers.TimeAgo( WorkshopItem?.Updated ?? Package.Updated )</label>
-                                </div>
+                                @if ( Package.IsRemote )
+                                {
+                                    <div class="kv-row link" onclick=@( () => ShowPage( "changes" ) )>
+                                        <label class="k">Updated</label>
+                                        <label class="v link">@MenuHelpers.TimeAgo( WorkshopItem?.Updated ?? Package.Updated )</label>
+                                    </div>
+                                }
                                 @if ( Creator is { Length: > 0 } creator )
                                 {
                                     <div class="kv-row">
@@ -231,25 +234,25 @@
                             </div>
 
                             <div class="side">
-                                @if ( IsGame )
+                                @if ( IsGame && Package.IsRemote )
                                 {
-                                <div class="block">
-                                    <label class="block-title">Your time</label>
-                                    <div class="record">
-                                        <div class="stat">
-                                            <label class="value @(Package.Interaction.Used ? "" : "none")">@(Package.Interaction.Used ? MenuHelpers.PlayTime( TimeSpan.FromSeconds( Package.Interaction.Seconds ) ) : "Never")</label>
-                                            <label class="caption">Played</label>
-                                        </div>
-                                        <div class="stat">
-                                            <label class="value @(Package.Interaction.FirstUsed is null ? "none" : "")">@(Package.Interaction.FirstUsed is { } first ? first.ToLocalTime().ToString( "d MMM yyyy" ) : "–")</label>
-                                            <label class="caption">First played</label>
-                                        </div>
-                                        <div class="stat">
-                                            <label class="value @(Package.Interaction.LastUsed is null ? "none" : "")">@(Package.Interaction.LastUsed is { } last ? MenuHelpers.TimeAgo( last ) : "–")</label>
-                                            <label class="caption">Last played</label>
+                                    <div class="block">
+                                        <label class="block-title">Your time</label>
+                                        <div class="record">
+                                            <div class="stat">
+                                                <label class="value @(Package.Interaction.Used ? "" : "none")">@(Package.Interaction.Used ? MenuHelpers.PlayTime( TimeSpan.FromSeconds( Package.Interaction.Seconds ) ) : "Never")</label>
+                                                <label class="caption">Played</label>
+                                            </div>
+                                            <div class="stat">
+                                                <label class="value @(Package.Interaction.FirstUsed is null ? "none" : "")">@(Package.Interaction.FirstUsed is { } first ? first.ToLocalTime().ToString( "d MMM yyyy" ) : "–")</label>
+                                                <label class="caption">First played</label>
+                                            </div>
+                                            <div class="stat">
+                                                <label class="value @(Package.Interaction.LastUsed is null ? "none" : "")">@(Package.Interaction.LastUsed is { } last ? MenuHelpers.TimeAgo( last ) : "–")</label>
+                                                <label class="caption">Last played</label>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
                                 }
 
                                 @if ( HasAchievements )
@@ -259,22 +262,25 @@
                                     </div>
                                 }
 
-                                <div class="block link" onclick=@( () => ShowPage( "changes" ) )>
-                                    <div class="block-head">
-                                        <label class="block-title">@(LatestChange is { } change ? $"Update {change.Time.ToLocalTime():d MMM yyyy}" : "Update notes")</label>
-                                        <div class="grow"></div>
-                                        @if ( LatestChange is { } dated )
-                                        {
-                                            <label class="when">@MenuHelpers.TimeAgo( dated.Time.UtcDateTime )</label>
-                                        }
-                                        <i class="chevron">chevron_right</i>
-                                    </div>
+                                @if ( Package.IsRemote )
+                                {
+                                    <div class="block link" onclick=@( () => ShowPage( "changes" ) )>
+                                        <div class="block-head">
+                                            <label class="block-title">@(LatestChange is { } change ? $"Update {change.Time.ToLocalTime():d MMM yyyy}" : "Update notes")</label>
+                                            <div class="grow"></div>
+                                            @if ( LatestChange is { } dated )
+                                            {
+                                                <label class="when">@MenuHelpers.TimeAgo( dated.Time.UtcDateTime )</label>
+                                            }
+                                            <i class="chevron">chevron_right</i>
+                                        </div>
 
-                                    @foreach ( var line in ChangeLines )
-                                    {
-                                        <label class="update-line">@line</label>
-                                    }
-                                </div>
+                                        @foreach ( var line in ChangeLines )
+                                        {
+                                            <label class="update-line">@line</label>
+                                        }
+                                    </div>
+                                }
 
                             </div>
                         </div>
@@ -543,7 +549,8 @@
         await current.Run( Changed );
         if ( !Changed() || Package is null ) return;
 
-        _ = CheckAchievements( ident );
+        if ( Package.IsRemote )
+            _ = CheckAchievements( ident );
 
         // Read after the rest, as it's slow
         if ( current.WorkshopId == 0 ) return;

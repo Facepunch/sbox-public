@@ -1,0 +1,20 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <UIHintLabel class="label" Text="#spawnmenu.npc.weapon" Hint="#spawnmenu.npc.weapon_hint"></UIHintLabel>
+    <UIDropdown Items=@Items Value=@GamePreferences.NpcWeapon ValueChanged=@(( object value ) => ConsoleSystem.SetValue( "sandbox.npc.weapon", value as string ?? "" ))></UIDropdown>
+</root>
+
+@code
+{
+    List<UIDropdown.Item> Items => Sandbox.Npcs.CombatNpc.CombatNpc.PickableWeapons
+        .OrderBy( entity => LocalizedText.Resolve( entity.Title ), StringComparer.CurrentCultureIgnoreCase )
+        .Select( entity => new UIDropdown.Item( entity.Title, entity.Prefab.ResourcePath ) )
+        .Prepend( new UIDropdown.Item( "#spawnmenu.npc.weapon_default", "" ) )
+        .ToList();
+
+    protected override int BuildHash() => HashCode.Combine( GamePreferences.NpcWeapon, ServerSettings.ShowDeveloperEntities );
+}

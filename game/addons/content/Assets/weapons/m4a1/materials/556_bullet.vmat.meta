@@ -1,0 +1,29 @@
+{
+  "guid": "5731020f-a99b-4989-8e9b-e6b3efc0d6ba",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "556 Bullet",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "556_bullet",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m4a1/materials/556_bullet.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

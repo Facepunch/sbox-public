@@ -24,6 +24,10 @@ public class StandaloneAppSystem : AppSystem
 			Utility.CommandLine.Parse();
 		}
 
+		// An exported game draws on Borealis.Gpu, as the game does; a headless one draws nothing
+		if ( !Utility.CommandLine.HasSwitch( "-headless" ) )
+			DrawOnBorealisGpu();
+
 		CreateGame();
 
 		var createInfo = new AppSystemCreateInfo()

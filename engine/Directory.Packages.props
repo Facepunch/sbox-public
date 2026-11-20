@@ -1,0 +1,6 @@
+<Project>
+	<!-- The engine and its tools copy these assemblies to game/bin/managed. -->
+	<PropertyGroup>
+		<MicrosoftExtensionsVersion>10.0.0</MicrosoftExtensionsVersion>
+	</PropertyGroup>
+</Project>

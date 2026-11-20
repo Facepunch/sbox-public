@@ -1,0 +1,13 @@
+{
+  "Prefab": {
+    "Id": "88886dcb-25b6-42e4-ad13-f750c4ad135f",
+    "Path": "entities/sents/npc/combat_npc_friendly.prefab"
+  },
+  "Title": "Rebel",
+  "Description": "",
+  "Category": "Npc/Humanoid",
+  "IncludeCode": false,
+  "Developer": false,
+  "__references": [],
+  "__version": 0
+}

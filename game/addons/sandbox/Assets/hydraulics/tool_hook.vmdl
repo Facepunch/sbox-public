@@ -1,0 +1,324 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = false
+						global_default_material = "materials/default.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "lod0"
+						filename = "hydraulics/sandbox_hydraulics.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hook",
+								"hook_LOD0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod1"
+						filename = "hydraulics/sandbox_hydraulics.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hook",
+								"hook_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod2"
+						filename = "hydraulics/sandbox_hydraulics.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hook",
+								"hook_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod3"
+						filename = "hydraulics/sandbox_hydraulics.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hook",
+								"hook_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod4"
+						filename = "hydraulics/sandbox_hydraulics.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hook",
+								"hook_LOD4",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ 2.27939, 0.0, 7.028548 ]
+						point1 = [ 2.27939, 0.0, 3.486359 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -0.004574, -0.002076, 1.210624 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 12.017788, 12.025572, 2.43492 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.00735, 0.00281, 2.881616 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 7.646171, 7.291969, 1.405217 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ -2.24803, 0.0, 7.028548 ]
+						point1 = [ -2.24803, 0.0, 3.486359 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ -1.176264, 0.0, 8.57071 ]
+						point1 = [ -2.047024, 0.0, 7.5201 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ -0.641846, 0.0, 8.821013 ]
+						point1 = [ 0.722697, 0.0, 8.826209 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ -0.235239, 0.0, 8.92488 ]
+						point1 = [ -1.458599, 0.0, 8.32039 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ 1.843954, 0.0, 8.022401 ]
+						point1 = [ 2.323739, 0.0, 6.744977 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ -1.813421, 0.0, 8.0224 ]
+						point1 = [ -2.2932, 0.0, 6.74498 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ 1.235952, 0.0, 8.570709 ]
+						point1 = [ 2.106714, 0.0, 7.5201 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.8
+						point0 = [ 0.312824, 0.0, 8.924875 ]
+						point1 = [ 1.536182, 0.0, 8.320394 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.2
+						point0 = [ -4.82946, 4.838163, 3.434978 ]
+						point1 = [ -4.82946, 4.838163, 2.402697 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.2
+						point0 = [ 4.811562, -4.838517, 3.434978 ]
+						point1 = [ 4.811562, -4.838517, 2.402697 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.2
+						point0 = [ 4.811562, 4.838163, 3.434978 ]
+						point1 = [ 4.811562, 4.838163, 2.402697 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.2
+						point0 = [ -4.832113, -4.838517, 3.434978 ]
+						point1 = [ -4.832113, -4.838517, 2.402697 ]
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes = 
+						[
+							"lod0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 5.0
+						meshes = 
+						[
+							"lod1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 12.0
+						meshes = 
+						[
+							"lod2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 50.0
+						meshes = 
+						[
+							"lod3",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 90.0
+						meshes = 
+						[
+							"lod4",
+						]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

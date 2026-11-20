@@ -91,6 +91,48 @@ public class PackageManagerTest
 	}
 
 	/// <summary>
+	/// Installing a project over a published copy transfers its owners and removes published-only files.
+	/// </summary>
+	[TestMethod]
+	public async Task ProjectReplacesMountedPublishedFiles()
+	{
+		Project.Clear();
+		const string ident = "local.testmap";
+		const string remoteFile = "package-tests/published-only.txt";
+		var published = new RemotePackage
+		{
+			Org = new Package.Organization { Ident = "local" },
+			Ident = "testmap",
+			TypeName = "content",
+			Version = new PackageRevision()
+		};
+		await published.Revision.DownloadManifestAsync( default );
+		published.Revision.Manifest.Files = [new ManifestSchema.File { Path = remoteFile, Crc = "0", Size = 0 }];
+
+		try
+		{
+			var previous = await PackageManager.InstallAsync( new PackageLoadOptions( ident, "published_owner" ) { Package = published } );
+			Assert.IsTrue( PackageManager.MountedFileSystem.FileExists( remoteFile ) );
+
+			var project = Project.AddFromFile( "unittest/addons/testmap/.sbproj" );
+			var installed = await PackageManager.InstallAsync( new PackageLoadOptions( ident, "project_owner" ) );
+			Assert.AreSame( project.Package, installed.Package );
+			Assert.IsFalse( PackageManager.ActivePackages.Contains( previous ) );
+			Assert.IsFalse( PackageManager.MountedFileSystem.FileExists( remoteFile ) );
+
+			PackageManager.UnmountTagged( "project_owner" );
+			Assert.AreSame( installed, PackageManager.Find( ident ) );
+			PackageManager.UnmountTagged( "published_owner" );
+			Assert.IsNull( PackageManager.Find( ident ) );
+		}
+		finally
+		{
+			PackageManager.UnmountAll();
+			Project.Clear();
+		}
+	}
+
+	/// <summary>
 	/// Find and load a local package
 	/// </summary>
 	[TestMethod]
@@ -111,7 +153,7 @@ public class PackageManagerTest
 		//
 		// Installing it should make no difference at all
 		//
-		var fs = await PackageManager.InstallAsync( new PackageLoadOptions( "local.testmap#local", "test" ) );
+		var fs = await PackageManager.InstallAsync( new PackageLoadOptions( "local.testmap", "test" ) );
 		Assert.AreNotEqual( 0, fs.FileSystem.FileCount );
 		Assert.AreNotEqual( 0, PackageManager.MountedFileSystem.FileCount );
 

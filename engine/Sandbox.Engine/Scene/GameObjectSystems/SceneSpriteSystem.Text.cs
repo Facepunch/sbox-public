@@ -43,9 +43,8 @@ public sealed partial class SceneSpriteSystem
 
 		internal void Invalidate() => Frame = ulong.MaxValue;
 
-		internal bool CanRender => this.IsValid() && Frame == Application.FrameCount
-			&& Graphics.CurrentView is Graphics.NativeFrameView
-			&& !Graphics.Attributes.GetBool( "WorldPanelLighting" ) && !Graphics.Attributes.GetBool( "UIGammaOutput" );
+		// Only native's views drew the batch, and there are none: each text renderer draws itself on Borealis
+		internal bool CanRender => false;
 
 		public override void RenderSceneObject()
 		{

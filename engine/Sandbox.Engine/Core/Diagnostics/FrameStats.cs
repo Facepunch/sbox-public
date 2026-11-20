@@ -50,7 +50,7 @@ public struct FrameStats
 		ObjectsCulledByVis = stats.m_nNumObjectsRejectedByVis;
 		ObjectsCulledByScreenSize = stats.m_nNumObjectsRejectedByScreenSizeCulling;
 		ObjectsCulledByFade = stats.m_nNumObjectsRejectedByFading;
-		ObjectsCulledByOcclusion = Rendering.RenderPipeline.GetOcclusionCulled();
+		ObjectsCulledByOcclusion = 0;
 		ObjectsFading = stats.m_nNumFadingObjects;
 		ShadowedLightsInView = stats.m_nNumShadowedLightsInView;
 		UnshadowedLightsInView = stats.m_nNumUnshadowedLightsInView;

@@ -1,0 +1,49 @@
+{
+  "UI": false,
+  "Volume": "1",
+  "Pitch": "1",
+  "Decibels": 70,
+  "SelectionMode": "Random",
+  "Sounds": [
+    "sounds/weapons/gun_pickup_02.vsnd",
+    "sounds/weapons/gun_pickup_01.vsnd"
+  ],
+  "Occlusion": true,
+  "AirAbsorption": true,
+  "Transmission": true,
+  "OcclusionRadius": 64,
+  "DistanceAttenuation": true,
+  "Distance": 1024,
+  "Falloff": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 0,
+      "out": -1.8,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.05,
+      "y": 0.22,
+      "in": 3.5,
+      "out": -3.5,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.2,
+      "y": 0.04,
+      "in": 0.16,
+      "out": -0.16,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    }
+  ],
+  "__references": [],
+  "__version": 1
+}

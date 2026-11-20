@@ -1,0 +1,11 @@
+{
+  "Title": "#asset.basic.title",
+  "Description": "#asset.trails.basic.description",
+  "Material": null,
+  "WorldSpace": true,
+  "UnitsPerTexture": 32,
+  "Opaque": false,
+  "BlendMode": "Normal",
+  "__references": [],
+  "__version": 0
+}

@@ -282,11 +282,7 @@ public class AppSystem
 		TextRendering.Shutdown();
 		NativeResourceCache.ClearCache();
 
-		// Renderpipeline may hold onto native resources, clear them out
-		RenderPipeline.Shutdown();
-		ShadowMapperCallbacks.Shutdown();
-
-		// So may Borealis, on a Borealis.Gpu device
+		// Borealis holds GPU resources on its Borealis.Gpu device
 		Rendering.SceneRenderer.Shutdown();
 
 		// Destroy all cached render targets immediately — must happen before

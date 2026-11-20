@@ -1,0 +1,16 @@
+Layer0
+{
+	shader "shaders/blueprint_overlay.shader"
+
+	// Amber placeholders distinguish models still downloading from loaded previews.
+	g_vBlueprintColor "[0.750000 0.250000 0.030000]"
+	g_vOutlineColor "[1.000000 0.750000 0.150000]"
+	g_flBrightness "1.500"
+	g_flBodyOpacity "0.045"
+	g_flRimOpacity "0.850"
+	g_flRimPower "4.000"
+	g_flGridSpacing "12.000"
+	g_flGridOpacity "0.180"
+	g_flLineWidth "0.700"
+	g_vGridScrollSpeed "[1.000000 1.000000 2.000000]"
+}

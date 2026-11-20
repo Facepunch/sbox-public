@@ -1,0 +1,24 @@
+@import "/UI/Theme.scss";
+
+NpcWeaponPicker
+{
+	width: 100%;
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+	padding: 6px;
+	border-bottom: 1px solid $ui-separator;
+
+	> .label
+	{
+		@include ui-label;
+		flex-shrink: 0;
+	}
+
+	> UIDropdown
+	{
+		flex-grow: 1;
+		min-width: 0px;
+	}
+}

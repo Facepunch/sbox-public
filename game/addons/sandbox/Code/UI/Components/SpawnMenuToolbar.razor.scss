@@ -1,0 +1,37 @@
+@import "/UI/Theme.scss";
+
+SpawnMenuToolbar
+{
+	width: 100%;
+	flex-direction: row;
+	align-items: center;
+	height: 24px;
+	gap: 6px;
+}
+
+SpawnMenuToolbar > .left,
+SpawnMenuToolbar > .right,
+SpawnMenuToolbar > .body
+{
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+SpawnMenuToolbar > .body
+{
+	flex-grow: 1;
+}
+
+SpawnMenuToolbar .textentry.menu-input
+{
+	@include ui-text-entry;
+	width: 205px;
+	min-width: 205px;
+}
+
+SpawnMenuToolbar UIDropdown
+{
+	width: 166px;
+	flex-grow: 0;
+}

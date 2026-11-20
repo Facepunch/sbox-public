@@ -1,0 +1,28 @@
+{
+  "guid": "1046eb48-00fc-0000-d000-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "ViewModel HE Grenade",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "v_he_grenade",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/grenade/v_he_grenade.vmdl",
+        "ParentPackage": "facepunch.sbox_content",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

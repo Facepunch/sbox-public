@@ -36,23 +36,11 @@ internal sealed class OcclusionDebugTarget : IDisposable
 	// What r_occlusion_debug 1 draws boxes for
 	const int Culled = 1 << (int)Count.PartlyHidden | 1 << (int)Count.Hidden | 1 << (int)Count.Late;
 
-	const RenderBarrierPipelineStageFlags_t ComputeStage = RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
-	const RenderBarrierPipelineStageFlags_t TransferStage = RenderBarrierPipelineStageFlags_t.TransferBit;
-	const RenderBarrierPipelineStageFlags_t PixelStage = RenderBarrierPipelineStageFlags_t.FragmentShaderBit;
-	const RenderBarrierAccessFlags_t ReadAccess = RenderBarrierAccessFlags_t.ShaderReadBit;
-	const RenderBarrierAccessFlags_t WriteAccess = RenderBarrierAccessFlags_t.ShaderWriteBit;
-	const RenderBarrierAccessFlags_t CopyAccess = RenderBarrierAccessFlags_t.TransferReadBit;
-
-	static Material shader;
-
 	GpuBuffer<uint> grid;
 	readonly uint[] counts = new uint[Header];
-	readonly AsyncGPUReadback.BufferReadDelegate onRead;
 
 	public OcclusionDebugTarget()
 	{
-		onRead = OnRead;
-		shader ??= Material.FromShader( "shaders/occlusion_debug_cs.shader" );
 	}
 
 	public Vector2Int Size { get; private set; }
@@ -92,73 +80,12 @@ internal sealed class OcclusionDebugTarget : IDisposable
 		attributes.Set( "OcclusionDebugWorldToProjection", worldToProjection );
 	}
 
-	/// <summary>
-	/// Zeroes the grid and counters before this frame's first cull.
-	/// </summary>
-	public void Clear( IRenderContext context )
-	{
-		// Last frame's counters were copied out for the readback
-		context.BufferBarrierTransition( grid.native, ComputeStage | TransferStage, ComputeStage, ReadAccess | WriteAccess | CopyAccess, WriteAccess );
-		Dispatch( context, null );
-		context.BufferBarrierTransition( grid.native, ComputeStage, ComputeStage, WriteAccess, ReadAccess | WriteAccess );
-	}
-
-	/// <summary>
-	/// Resolves the grid into <see cref="Image"/> after the late cull, over <paramref name="chain"/> in Depth mode, and offers
-	/// it to the overlay.
-	/// </summary>
-	public void Resolve( IRenderContext context, Texture chain, bool native, bool frozen )
-	{
-		context.BufferBarrierTransition( grid.native, ComputeStage, ComputeStage, WriteAccess, ReadAccess );
-		context.TextureBarrierTransition( Image.native, -1, PixelStage, ComputeStage, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_GENERAL, ReadAccess, WriteAccess );
-		Dispatch( context, chain );
-		context.TextureBarrierTransition( Image.native, -1, ComputeStage, PixelStage, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, WriteAccess, ReadAccess );
-
-		Native = native;
-		Frozen = frozen;
-		OcclusionDebug.Publish( this );
-	}
-
-	/// <summary>
-	/// Reads the counters back. Like any readback, this submits everything recorded before it.
-	/// </summary>
-	public void ReadCounts( IRenderContext context )
-	{
-		context.BufferBarrierTransition( grid.native, ComputeStage, TransferStage, WriteAccess, CopyAccess );
-		context.ReadBufferAsync( grid, onRead, 0, Header * sizeof( uint ), inline: true );
-	}
-
 	public uint this[Count count]
 	{
 		get
 		{
 			lock ( counts ) return counts[(int)count];
 		}
-	}
-
-	// Without a chain, clears
-	void Dispatch( IRenderContext context, Texture chain )
-	{
-		var attributes = RenderAttributes.Pool.Get();
-		attributes.SetCombo( "D_RESOLVE", chain is not null );
-		attributes.Set( "OcclusionDebug", grid );
-		attributes.Set( "OcclusionDebugSize", Size );
-
-		if ( chain is not null )
-		{
-			attributes.Set( "OcclusionDebugOutput", Image );
-			attributes.Set( "OcclusionDebugChain", chain );
-			attributes.Set( "OcclusionDebugMip", OcclusionDebug.View == OcclusionDebugView.Depth ? OcclusionDebug.Mip : -1 );
-		}
-
-		RenderTools.Compute( context, attributes.Get(), shader.native.GetMode(), Size.x, Size.y, 1 );
-		RenderAttributes.Pool.Return( attributes );
-	}
-
-	void OnRead( Span<byte> bytes )
-	{
-		var values = MemoryMarshal.Cast<byte, uint>( bytes );
-		lock ( counts ) values[..Header].CopyTo( counts );
 	}
 
 	/// <summary>

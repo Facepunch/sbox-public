@@ -1,5 +1,4 @@
-// cs_compress_dxt5.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
+// cs_compress_dxt5: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -8,9 +7,10 @@
 // HEADER: Description = "Compute shader DXT5 texture compression";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
+
+Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 

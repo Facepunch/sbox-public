@@ -464,12 +464,12 @@ void Expand( uint n )
 	uint nVertexBase = vVisibility.w != None ? vVisibility.w + i * nStride : None;
 	float flRadiusSquared = dot( vExtents, vExtents );
 
-	// A fragment's generated levels (resident meshes have their own LODs), read once for every view
+	// A fragment's generated levels, or a resident mesh's of a model without LODs of its own, read once for every view
 	uint nLevels = 0;
 	float4 vLodErrors = 0;
 	float2 vLodMore = 0;
 	uint nLodAt = nDrawRecord * LodRecord_Size;
-	if ( bActive && !bMeshes && g_nResidentLodTable != None && nDrawRecord < g_nResidentLodCount )
+	if ( bActive && ( !bMeshes || ( vHeader0.x & 0xff ) <= 1 ) && g_nResidentLodTable != None && nDrawRecord < g_nResidentLodCount )
 	{
 		ByteAddressBuffer lods = g_bindless_VertexBuffers[ g_nResidentLodTable ];
 		nLevels = min( lods.Load( nLodAt + LodRecord_Levels ), 6u );

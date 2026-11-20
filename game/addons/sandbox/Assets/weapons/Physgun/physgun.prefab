@@ -1,0 +1,876 @@
+{
+  "RootObject": {
+    "__guid": "3c948bf4-5353-443a-bb65-8f28584fed1b",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "physgun",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 1,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 1,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Physgun",
+        "__guid": "45dbfc9d-3b70-4986-994e-905d4f1670ba",
+        "__enabled": true,
+        "Flags": 0,
+        "AttackSound": null,
+        "AutoReload": true,
+        "Ballistics": {
+          "Damage": 12,
+          "Pellets": 1,
+          "Range": 4096,
+          "Radius": 1,
+          "Force": 3000,
+          "SpreadBase": "0.200000003,0.200000003",
+          "SpreadGrowth": "1.5,1.5",
+          "SpreadRecovery": 0.2
+        },
+        "BeamDamping": 0.8,
+        "BeamFrequency": 128,
+        "BeamHighlight": {
+          "_type": "component",
+          "component_id": "1baf5c79-b37e-48ce-a328-e89114e8659e",
+          "go": "3c948bf4-5353-443a-bb65-8f28584fed1b",
+          "component_type": "HighlightOutline"
+        },
+        "BeamMaxSway": 2,
+        "BeamRenderer": {
+          "_type": "component",
+          "component_id": "f3f80109-6fa0-4a11-a63e-0664044ed0b6",
+          "go": "38c1b57f-3b24-4d7b-b222-982dd9ed9ebf",
+          "component_type": "LineRenderer"
+        },
+        "ButtonInSound": {
+          "Id": "8ed6cc04-facb-48f1-8f74-dea34d80dbf0",
+          "Path": "weapons/physgun/sounds/physgun.button.in.1.sound"
+        },
+        "ButtonOutSound": {
+          "Id": "c01b704f-2a9a-474b-8100-f785bb5443d7",
+          "Path": "weapons/physgun/sounds/physgun.button.out.1.sound"
+        },
+        "CanAim": true,
+        "CanCancelReload": true,
+        "ClipMaxSize": 30,
+        "DeployTime": 0.2,
+        "DisplayIcon": {
+          "$compiler": "texture",
+          "$source": "imagefile",
+          "data": {
+            "FilePath": "ui/weapons/physgun_icon.png",
+            "MaxSize": 4096,
+            "ConvertHeightToNormals": false,
+            "NormalScale": 1,
+            "Rotate": 0,
+            "FlipVertical": false,
+            "FlipHorizontal": false,
+            "Cropping": {
+              "Left": 0,
+              "Top": 0,
+              "Right": 0,
+              "Bottom": 0
+            },
+            "Padding": {
+              "Left": 0,
+              "Top": 0,
+              "Right": 0,
+              "Bottom": 0
+            },
+            "InvertColor": false,
+            "Tint": "1,1,1,1",
+            "Blur": 0,
+            "Sharpen": 0,
+            "Brightness": 1,
+            "Contrast": 1,
+            "Saturation": 1,
+            "Hue": 0,
+            "Colorize": false,
+            "TargetColor": "1,1,1,1",
+            "CacheToDisk": true,
+            "FormatOverride": "RGBA8888"
+          },
+          "compiled": "textures/generated/imagefile/e5edd02486178849.vtex"
+        },
+        "DisplayName": "#weapon.name.physgun",
+        "DroppedGameObject": {
+          "_type": "gameobject",
+          "go": "eee17487-5a77-418f-b927-43e62b57dbbb"
+        },
+        "DryFireSound": null,
+        "EndPointEffectPrefab": {
+          "_type": "gameobject",
+          "prefab": "weapons/physgun/effects/beam-end.prefab"
+        },
+        "ExtendInput": {
+          "Action": null
+        },
+        "FirstShellReloadTime": 0,
+        "GrabEffectPrefab": {
+          "_type": "gameobject",
+          "prefab": "weapons/physgun/effects/grab.prefab"
+        },
+        "GravityDropSound": {
+          "Id": "9994f4f9-0b01-4afb-ad35-a911006cd27b",
+          "Path": "weapons/physgun/sounds/gravgun.shoot.drop.sound"
+        },
+        "GravityDrySound": {
+          "Id": "e5adbd21-eba3-4e5c-8c8f-46ec5f7ca42f",
+          "Path": "weapons/physgun/sounds/gravgun.shoot.dry.sound"
+        },
+        "GravityHoldSound": {
+          "Id": "a9b4e81b-ee16-45e0-92f9-4595281d5a09",
+          "Path": "weapons/physgun/sounds/gravgun.hold.sound"
+        },
+        "GravityLaunchSound": {
+          "Id": "8dd915d9-a147-4121-9339-6d36ecac4353",
+          "Path": "weapons/physgun/sounds/gravgun.shoot.launch.sound"
+        },
+        "GravityLookCloseSound": {
+          "Id": "911e2e0d-fef4-434f-9de5-135f582b65ac",
+          "Path": "weapons/physgun/sounds/gravgun.look.close.sound"
+        },
+        "GravityLookDropCooldown": 0.5,
+        "GravityLookOpenSound": {
+          "Id": "bbb470b2-01e4-4fd3-be53-c4d1b9700533",
+          "Path": "weapons/physgun/sounds/gravgun.look.open.sound"
+        },
+        "GravityPullSound": {
+          "Id": "577c6b4b-dd28-43ab-9ab4-795411f76cf0",
+          "Path": "weapons/physgun/sounds/gravgun.shoot.pull.sound"
+        },
+        "Handedness": "Both",
+        "HoldBone": "hold_r",
+        "HoldType": "Physgun",
+        "IncrementalReloading": false,
+        "Npc": {
+          "MinRange": 0,
+          "MaxRange": 1400,
+          "BurstMin": 2,
+          "BurstMax": 5,
+          "RestMin": 0.3,
+          "RestMax": 0.6,
+          "SpreadScale": 3,
+          "CanBePickedUp": true
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PowerMaxDistance": 512,
+        "PowerMaxFraction": 1,
+        "PowerMinDistance": 64,
+        "PowerMinFraction": 0.5,
+        "PreferredSlot": 0,
+        "PrimaryAmmoType": null,
+        "PrimaryAutomatic": true,
+        "PrimaryDelay": 0.1,
+        "Range": 8196,
+        "ReleasedSound": {
+          "Id": "fe22f215-8ed0-49b4-8f4c-5596d93586a1",
+          "Path": "weapons/physgun/sounds/physgun.shoot.end.sound"
+        },
+        "ReloadStartTime": 0,
+        "ReloadTime": 2,
+        "RetractInput": {
+          "Action": null
+        },
+        "SecondaryAmmoType": null,
+        "SecondaryAutomatic": false,
+        "SecondaryClipSize": -1,
+        "SecondaryDefaultClip": -1,
+        "SecondaryDelay": 0.5,
+        "SecondaryInput": {
+          "Action": null
+        },
+        "ShootInput": {
+          "Action": null
+        },
+        "SlotOrder": 0,
+        "StartingAmmo": 0,
+        "SuccessBeamEffect": null,
+        "SuccessImpactEffect": null,
+        "UsableByNpcs": true,
+        "UsesAmmo": false,
+        "UsesClips": true,
+        "Value": 2,
+        "ViewModelPrefab": {
+          "_type": "gameobject",
+          "prefab": "weapons/physgun/physgun_vm.prefab"
+        },
+        "WorldModelPrefab": {
+          "_type": "gameobject",
+          "prefab": "weapons/physgun/physgun_wm.prefab"
+        }
+      },
+      {
+        "__type": "Sandbox.HighlightOutline",
+        "__guid": "1baf5c79-b37e-48ce-a328-e89114e8659e",
+        "__enabled": true,
+        "Flags": 0,
+        "Color": "1,1,1,1",
+        "InsideColor": "0,0,0,0",
+        "InsideObscuredColor": "0,0,0,0",
+        "Material": null,
+        "ObscuredColor": "0,0,0,0",
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideTargets": true,
+        "Targets": [],
+        "Width": 0.25
+      },
+      {
+        "__type": "Sandbox.ModelCollider",
+        "__guid": "578d9c80-7f3c-4a8e-bdbe-5c2ecfdaa70c",
+        "__enabled": true,
+        "Flags": 0,
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "Model": {
+          "Id": "ed3663c4-3962-4357-9c64-97ae4c71a921",
+          "Path": "weapons/physgun/w_physgun.vmdl"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Static": false,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.Rigidbody",
+        "__guid": "ea100376-3f7f-42e5-ac00-4611c93554f0",
+        "__enabled": true,
+        "Flags": 0,
+        "AngularDamping": 0,
+        "EnableImpactDamage": true,
+        "EnhancedCcd": false,
+        "Gravity": true,
+        "GravityScale": 1,
+        "ImpactDamage": 0,
+        "InertiaScale": 1,
+        "LinearDamping": 0,
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "MassCenterOverride": "0,0,0",
+        "MassOverride": 0,
+        "MinImpactDamageSpeed": 500,
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideMassCenter": false,
+        "RigidbodyFlags": 0,
+        "SleepThreshold": 2,
+        "StartAsleep": false
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "38c1b57f-3b24-4d7b-b222-982dd9ed9ebf",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Beam",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": false,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.LineRenderer",
+            "__guid": "f3f80109-6fa0-4a11-a63e-0664044ed0b6",
+            "__enabled": true,
+            "Flags": 0,
+            "Additive": true,
+            "AutoCalculateNormals": true,
+            "CastShadows": false,
+            "Color": {
+              "blend": "Linear",
+              "color": [
+                {
+                  "t": 0,
+                  "c": "1.93488,3.51814,4,1"
+                },
+                {
+                  "t": 1,
+                  "c": "1.93,3.52,4,1"
+                }
+              ],
+              "alpha": []
+            },
+            "CylinderSegments": 12,
+            "DepthFeather": 4,
+            "EndCap": "None",
+            "Face": "Camera",
+            "FogStrength": 1,
+            "Lighting": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Opaque": false,
+            "Points": [],
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "SplineBias": 0,
+            "SplineContinuity": 0,
+            "SplineInterpolation": 8,
+            "SplineTension": 0,
+            "StartCap": "None",
+            "Texturing": {
+              "Texture": {
+                "$compiler": "texture",
+                "$source": "random",
+                "data": {
+                  "Seed": 0,
+                  "Size": "8,8",
+                  "Gradient": {
+                    "blend": "Linear",
+                    "color": [
+                      {
+                        "t": 0,
+                        "c": "0,0,0,1"
+                      },
+                      {
+                        "t": 1,
+                        "c": "1,1,1,1"
+                      }
+                    ],
+                    "alpha": null
+                  },
+                  "ConvertHeightToNormals": false,
+                  "NormalScale": 1,
+                  "CacheToDisk": true
+                },
+                "compiled": "textures/generated/random/de57f30dc50aa163.vtex"
+              },
+              "Material": {
+                "Id": "8c9d3bed-bd77-4d4e-921d-093f0664857a",
+                "Path": "weapons/physgun/physgun_beam.vmat"
+              },
+              "WorldSpace": true,
+              "UnitsPerTexture": 2048,
+              "Scale": 1,
+              "Offset": 0,
+              "Scroll": -1,
+              "FilterMode": "Anisotropic",
+              "TextureAddressMode": "Wrap",
+              "Clamp": false
+            },
+            "UseVectorPoints": true,
+            "VectorPoints": [
+              "0,0,0",
+              "163.400208,0,0",
+              "307.799988,126.599998,0"
+            ],
+            "Width": {
+              "rangey": "2.99999976,5",
+              "frames": [
+                {
+                  "x": 0,
+                  "y": 0.21875724,
+                  "in": -0.9629625,
+                  "out": 0.9629625,
+                  "mode": "Mirrored"
+                },
+                {
+                  "x": 0.46773395,
+                  "y": 1,
+                  "in": 0,
+                  "out": 0,
+                  "mode": "Mirrored"
+                },
+                {
+                  "x": 1,
+                  "y": 0,
+                  "in": 0.03125016,
+                  "out": -0.03125016,
+                  "mode": "Mirrored"
+                }
+              ]
+            },
+            "Wireframe": false
+          },
+          {
+            "__type": "Sandbox.SoundPointComponent",
+            "__guid": "d009e61e-73b0-45e5-a287-f45052ab18c7",
+            "__enabled": true,
+            "Flags": 0,
+            "Distance": 512,
+            "DistanceAttenuation": false,
+            "DistanceAttenuationOverride": false,
+            "Falloff": [
+              {
+                "x": 0,
+                "y": 1,
+                "in": 3.1415927,
+                "out": -3.1415927,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "Force2d": false,
+            "MaxRepeatTime": 1,
+            "MinRepeatTime": 1,
+            "OcclusionEnabled": false,
+            "OcclusionOverride": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Pitch": 1,
+            "PlayOnStart": true,
+            "Repeat": false,
+            "ReverbEnabled": false,
+            "ReverbOverride": false,
+            "SoundEvent": {
+              "Id": "891eb113-09c5-4a78-8c82-6959aa706a4f",
+              "Path": "weapons/physgun/sounds/physgun.active.loop.sound"
+            },
+            "SoundOverride": false,
+            "StopOnNew": false,
+            "TargetMixer": {
+              "Name": "unknown",
+              "Id": "00000000-0000-0000-0000-000000000000"
+            },
+            "Volume": 1
+          },
+          {
+            "__type": "Sandbox.SoundPointComponent",
+            "__guid": "d3511a52-adea-4eee-92ab-ebd116f411e4",
+            "__enabled": true,
+            "Flags": 0,
+            "Distance": 512,
+            "DistanceAttenuation": false,
+            "DistanceAttenuationOverride": false,
+            "Falloff": [
+              {
+                "x": 0,
+                "y": 1,
+                "in": 3.1415927,
+                "out": -3.1415927,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "Force2d": false,
+            "MaxRepeatTime": 1,
+            "MinRepeatTime": 1,
+            "OcclusionEnabled": false,
+            "OcclusionOverride": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Pitch": 1,
+            "PlayOnStart": true,
+            "Repeat": false,
+            "ReverbEnabled": false,
+            "ReverbOverride": false,
+            "SoundEvent": {
+              "Id": "20359398-ea43-4d92-9b7a-2cfe372897da",
+              "Path": "weapons/physgun/sounds/physgun.shoot.start.sound"
+            },
+            "SoundOverride": false,
+            "StopOnNew": false,
+            "TargetMixer": {
+              "Name": "unknown",
+              "Id": "00000000-0000-0000-0000-000000000000"
+            },
+            "Volume": 1
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "bc2a94aa-20b4-4269-bc4c-af4d2ff65d8d",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "idle_sound",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SoundPointComponent",
+            "__guid": "75a73c6d-9838-4f0c-8739-8bb4e7f22442",
+            "__enabled": true,
+            "Flags": 0,
+            "Distance": 1000,
+            "DistanceAttenuation": true,
+            "DistanceAttenuationOverride": true,
+            "Falloff": [
+              {
+                "x": 0,
+                "y": 1,
+                "in": 3.1415927,
+                "out": -3.1415927,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "Force2d": false,
+            "MaxRepeatTime": 1,
+            "MinRepeatTime": 1,
+            "OcclusionEnabled": false,
+            "OcclusionOverride": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Pitch": 1,
+            "PlayOnStart": true,
+            "Repeat": false,
+            "ReverbEnabled": false,
+            "ReverbOverride": false,
+            "SoundEvent": {
+              "Id": "74a1a755-3e42-4bb0-9ee0-cb2471031b36",
+              "Path": "weapons/physgun/sounds/physgun.idle.sound"
+            },
+            "SoundOverride": false,
+            "StopOnNew": false,
+            "TargetMixer": {
+              "Name": "unknown",
+              "Id": "00000000-0000-0000-0000-000000000000"
+            },
+            "Volume": 1
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "eee17487-5a77-418f-b927-43e62b57dbbb",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "standalone_wm",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "6db9066b-b035-4403-8c6c-77716c4bb6cd",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": null,
+            "BoneOffsetData": null,
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "ed3663c4-3962-4357-9c64-97ae4c71a921",
+              "Path": "weapons/physgun/w_physgun.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          },
+          {
+            "__type": "Sandbox.BaseWeaponModel",
+            "__guid": "5d90b75d-4489-449b-93e4-8de1007de4e7",
+            "__enabled": true,
+            "Flags": 0,
+            "DeploySound": null,
+            "EjectBrass": null,
+            "MuzzleEffect": null,
+            "MuzzleGameObject": {
+              "_type": "gameobject",
+              "go": "6fb841db-2a8c-429c-9db2-6dd3298f18f7"
+            },
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Renderer": {
+              "_type": "component",
+              "component_id": "6db9066b-b035-4403-8c6c-77716c4bb6cd",
+              "go": "eee17487-5a77-418f-b927-43e62b57dbbb",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "ShellEjectGameObject": null,
+            "TracerEffect": null
+          },
+          {
+            "__type": "PhygunWorldmodel",
+            "__guid": "03f10cd3-9c31-4821-bb17-3a51e201af8c",
+            "__enabled": true,
+            "Flags": 0,
+            "GlowEffect": {
+              "_type": "component",
+              "component_id": "5e76084d-9107-4f38-9084-5b4a513b8cc2",
+              "go": "4b0f5e82-61b1-4741-98e6-5a3494a762dd",
+              "component_type": "ParticleEffect"
+            },
+            "GlowLight": {
+              "_type": "component",
+              "component_id": "5e5f9ab1-8787-4cde-8375-73eb57d76646",
+              "go": "46aa8309-7659-4f73-ad63-6869b56bbd4c",
+              "component_type": "PointLight"
+            },
+            "GravTint": "1,0.8,0,1",
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "PhysTint": "0,0.68333,1,1"
+          }
+        ],
+        "Children": [
+          {
+            "__guid": "6fb841db-2a8c-429c-9db2-6dd3298f18f7",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "muzzle",
+            "Position": "12.7835922,0,5.33333349",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "c0c2a398-6d71-418b-b883-12ee49db7ac8",
+                "__version": 2,
+                "__Prefab": {
+                  "Id": "9ae80f7b-f980-48f9-80a7-d10a4a34927a",
+                  "Path": "weapons/physgun/effects/wm-glow.prefab"
+                },
+                "__PrefabInstancePatch": {
+                  "AddedObjects": [],
+                  "RemovedObjects": [],
+                  "PropertyOverrides": [
+                    {
+                      "Target": {
+                        "Type": "Component",
+                        "IdValue": "feb67b66-6937-4970-b707-655e5b1eb784"
+                      },
+                      "Property": "Sprite",
+                      "Value": {
+                        "$compiler": "embed",
+                        "$source": null,
+                        "data": {
+                          "Animations": [
+                            {
+                              "Name": "Default",
+                              "FrameRate": 15,
+                              "Origin": "0.5,0.5",
+                              "LoopMode": "Loop",
+                              "LoopStart": -1,
+                              "LoopEnd": -1,
+                              "Frames": [
+                                {
+                                  "Texture": {
+                                    "Id": "35e7103a-860f-4a6d-820c-0d0e8926e31a",
+                                    "Path": "textures/lightcookies/lightcookies_09.vtex"
+                                  },
+                                  "BroadcastMessages": []
+                                }
+                              ]
+                            }
+                          ],
+                          "__references": null
+                        },
+                        "compiled": null
+                      }
+                    }
+                  ],
+                  "MovedObjects": []
+                },
+                "__PrefabIdToInstanceId": {
+                  "e5cf5f34-17b5-4e70-b8db-d7f54a8ad61d": "c0c2a398-6d71-418b-b883-12ee49db7ac8",
+                  "3c06d747-a92f-49b3-9749-0902446440a0": "46aa8309-7659-4f73-ad63-6869b56bbd4c",
+                  "14848a05-e916-4b3f-abdf-34cf6ff912c9": "4b0f5e82-61b1-4741-98e6-5a3494a762dd",
+                  "1eade6ef-bca3-4844-967d-98d7e79c224e": "5e5f9ab1-8787-4cde-8375-73eb57d76646",
+                  "41ef4816-f57a-420c-bc59-2411a9f5251a": "5e76084d-9107-4f38-9084-5b4a513b8cc2",
+                  "feb67b66-6937-4970-b707-655e5b1eb784": "0c9dbabf-2bd9-4610-996a-7f21d6eecdbc",
+                  "aa79498c-82a3-4823-9f26-a5eda7dac889": "e0c725b0-acdb-48ee-a228-78f47efc10a4"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "__guid": "06a9db01-42fa-45fa-ade6-ae2048f95026",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Thumbnail Camera",
+        "Position": "10.1912127,57.7972412,12.4747009",
+        "Rotation": "0.0881090015,-0.262080997,0.718499005,-0.638207972",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "ThumbnailCamera",
+            "__guid": "9182adbc-cbe7-4e55-90e6-9939fe384657",
+            "__enabled": true,
+            "Flags": 0,
+            "FieldOfView": 12,
+            "FitToBounds": true,
+            "Focus": "0.129999995,0",
+            "GizmoDistance": 60,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Padding": 0.08,
+            "Zoom": 1.75
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}
