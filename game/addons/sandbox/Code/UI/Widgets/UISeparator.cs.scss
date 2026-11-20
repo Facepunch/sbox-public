@@ -1,9 +1,14 @@
 @import "/UI/Theme.scss";
 
-UISeparator
+@mixin component-theme
 {
-	height: 1px;
-	flex-shrink: 0;
-	margin: 6px 0px;
-	background-color: $ui-separator;
+	UISeparator
+	{
+		height: 1px;
+		flex-shrink: 0;
+		margin: 6px 0px;
+		background-color: $ui-separator;
+	}
 }
+
+@import "/UI/Theme/Apply.scss";

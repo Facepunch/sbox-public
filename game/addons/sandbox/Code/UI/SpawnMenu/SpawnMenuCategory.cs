@@ -9,6 +9,15 @@ public static class SpawnMenuCategory
 		return separator < 0 ? normalized : normalized[..separator];
 	}
 
+	/// <summary>
+	/// The second level of a category, such as the game in "Weapon/Half-Life 2". Null if there isn't one.
+	/// </summary>
+	public static string Section( string category )
+	{
+		var parts = Normalize( category ).Split( '/' );
+		return parts.Length > 1 ? parts[1] : null;
+	}
+
 	public static bool Matches( string category, string parentCategory, bool includeSubcategories = true )
 	{
 		var path = Normalize( category );

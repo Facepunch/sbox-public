@@ -21,8 +21,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/shotgun/materials/v_spaghellim4_shellholder.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/shotgun/materials/v_spaghellim4_shellholder.vmat"
       }
     }
   }

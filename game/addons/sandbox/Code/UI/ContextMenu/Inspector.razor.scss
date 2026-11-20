@@ -1,27 +1,32 @@
 @import "/UI/Theme.scss";
 
-Inspector
+@mixin component-theme
 {
-    font-family: $body-font;
-    font-size: $ui-settings-font;
-    font-weight: 500;
-    width: 100%;
-    color: $ui-text;
-    transition: all 0.2s linear;
-
-    > .canvas
+    Inspector
     {
+        font-family: $body-font;
+        font-size: $ui-settings-font;
+        font-weight: 500;
         width: 100%;
-        height: 100%;
-        z-index: 0;
-        position: absolute;
-        top: 0px;
-        left: 0px;
-        pointer-events: all;
+        color: $ui-text;
+        transition: all 0.2s linear;
+
+        > .canvas
+        {
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            pointer-events: all;
+        }
+    }
+
+    Inventory.hidden
+    {
+        opacity: 0;
     }
 }
 
-Inventory.hidden
-{
-    opacity: 0;
-}
+@import "/UI/Theme/Apply.scss";

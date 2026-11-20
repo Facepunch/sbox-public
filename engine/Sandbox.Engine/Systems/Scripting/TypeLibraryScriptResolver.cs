@@ -45,8 +45,10 @@ internal sealed partial class TypeLibraryScriptResolver( TypeLibrary library ) :
 
 		members.AddRange( GetGeneratedBaseMethods( type ) );
 
+		// Every accessible constructor, so a script can name one with base( ... ) when the base has no
+		// parameterless constructor, as GameObjectSystem does not.
 		members.AddRange( type.GetConstructors( BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance )
-			.Where( constructor => (constructor.IsPublic || constructor.IsFamily) && constructor.GetParameters().Length == 0 )
+			.Where( constructor => constructor.IsPublic || constructor.IsFamily )
 			.Where( IsExposedConstructor ) );
 
 		// Public properties already arrive through GetMembers. Only add protected-only properties here,

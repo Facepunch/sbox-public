@@ -44,7 +44,21 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 	/// <summary>
 	/// The slot this item occupies, or -1 if unassigned. Set by the inventory.
 	/// </summary>
-	[Sync( SyncFlags.FromHost )] public int Slot { get; set; } = -1;
+	[Sync( SyncFlags.FromHost ), Change( nameof( OnSlotChanged ) )] public int Slot { get; set; } = -1;
+
+	[Expose]
+	private void OnSlotChanged( int oldSlot, int newSlot )
+	{
+		// Dropped into the world. Every peer disabled the item itself when it was holstered, and only the host
+		// enables it again in OnDrop: its enabled state then reads as it did before, so nothing reaches the others.
+		if ( oldSlot >= 0 && newSlot < 0 && !Networking.IsHost )
+			GameObject.Enabled = true;
+
+		SlotChanged( oldSlot, newSlot );
+	}
+
+	// The slot changed, on every peer, also while the item is disabled
+	internal virtual void SlotChanged( int oldSlot, int newSlot ) { }
 
 	/// <summary>
 	/// The inventory this item currently belongs to, or null if it isn't in one. Derived from the

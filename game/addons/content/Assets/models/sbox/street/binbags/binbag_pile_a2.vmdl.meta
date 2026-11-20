@@ -20,8 +20,7 @@
       },
       "Metadata": {
         "SingleAssetSource": "models/sbox/street/binbags/binbag_pile_a2.vmdl",
-        "AssetLicense": "CC0",
-        "ParentPackage": "facepunch.sbox_content"
+        "AssetLicense": "CC0"
       }
     },
     "HammerAutoPackageReferences": null

@@ -1,92 +1,97 @@
 @import "/UI/Theme.scss";
 
-GameObjectInspector
+@mixin component-theme
 {
-    flex-direction: column;
-    overflow: hidden;
-    width: 100%;
-}
-
-GameObjectInspector .object-info
-{
-    flex-direction: row;
-    gap: 12px;
-    padding-bottom: 6px;
-    margin-bottom: 3px;
-    font-size: $ui-settings-font;
-    color: $ui-text-muted;
-    border-bottom: 1px solid $ui-separator;
-
-    span
+    GameObjectInspector
     {
-        gap: 4px;
-        align-items: center;
+        flex-direction: column;
+        overflow: hidden;
+        width: 100%;
     }
-}
 
-GameObjectInspector .empty-state
-{
-    text-align: center;
-    color: $ui-text-muted;
-    font-size: $ui-settings-font;
-    padding: 10px 8px;
-}
-
-GameObjectInspector .material-row
-{
-    flex-direction: row;
-    align-items: center;
-    gap: 0px;
-    padding: 2px 0;
-    width: 100%;
-
-    > label, > .label
+    GameObjectInspector .object-info
     {
-        flex-shrink: 0;
+        flex-direction: row;
+        gap: 12px;
+        padding-bottom: 6px;
+        margin-bottom: 3px;
         font-size: $ui-settings-font;
-        color: $ui-text-label;
-        width: 121px;
-        padding-right: 6px;
+        color: $ui-text-muted;
+        border-bottom: 1px solid $ui-separator;
+
+        span
+        {
+            gap: 4px;
+            align-items: center;
+        }
     }
 
-    .material-picker
+    GameObjectInspector .empty-state
     {
-        min-width: 0px;
+        text-align: center;
+        color: $ui-text-muted;
+        font-size: $ui-settings-font;
+        padding: 10px 8px;
     }
 
-    .material-revert
+    GameObjectInspector .material-row
     {
-        flex-shrink: 0;
-        width: 24px;
-        padding: 0;
-        margin-left: 6px;
-    }
+        flex-direction: row;
+        align-items: center;
+        gap: 0px;
+        padding: 2px 0;
+        width: 100%;
 
-    &.overridden .material-picker
-    {
-        border-color: $ui-blue;
-        color: $ui-blue;
-    }
-
-    // slots replaced by the whole-model override can't be edited until it's cleared
-    &.locked
-    {
-        opacity: 0.4;
+        > label, > .label
+        {
+            flex-shrink: 0;
+            font-size: $ui-settings-font;
+            color: $ui-text-label;
+            width: 121px;
+            padding-right: 6px;
+        }
 
         .material-picker
         {
-            pointer-events: none;
+            min-width: 0px;
         }
+
+        .material-revert
+        {
+            flex-shrink: 0;
+            width: 24px;
+            padding: 0;
+            margin-left: 6px;
+        }
+
+        &.overridden .material-picker
+        {
+            border-color: $ui-blue;
+            color: $ui-blue;
+        }
+
+        // slots replaced by the whole-model override can't be edited until it's cleared
+        &.locked
+        {
+            opacity: 0.4;
+
+            .material-picker
+            {
+                pointer-events: none;
+            }
+        }
+    }
+
+    GameObjectInspector UISheet UIColor
+    {
+        justify-content: flex-end;
+    }
+
+    GameObjectInspector .group-header
+    {
+        @include ui-section-header;
+        margin-top: $ui-section-gap;
     }
 }
 
-GameObjectInspector UISheet UIColor
-{
-    justify-content: flex-end;
-}
-
-GameObjectInspector .group-header
-{
-    @include ui-section-header;
-    margin-top: $ui-section-gap;
-}
+@import "/UI/Theme/Apply.scss";

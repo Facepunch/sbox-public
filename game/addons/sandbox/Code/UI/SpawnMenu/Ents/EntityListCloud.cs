@@ -20,7 +20,7 @@ public class EntityListCloud : CloudSpawnList
 		if ( !IncludeLocalEntities && string.IsNullOrWhiteSpace( LocalCategory ) ) return [];
 
 		var entities = ResourceLibrary.GetAll<ScriptedEntity>()
-			.Where( entity => !entity.IsRemote && ( !entity.Developer || ServerSettings.ShowDeveloperEntities ) );
+			.Where( entity => !entity.IsRemote && entity.IsMountAvailable && ( !entity.Developer || ServerSettings.ShowDeveloperEntities ) );
 
 		if ( !string.IsNullOrWhiteSpace( LocalCategory ) )
 			entities = entities.Where( entity => SpawnMenuCategory.Matches( entity.Category, LocalCategory, IncludeLocalSubcategories ) );

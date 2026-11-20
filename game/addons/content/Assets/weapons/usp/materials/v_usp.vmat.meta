@@ -22,8 +22,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/usp/materials/v_usp.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/usp/materials/v_usp.vmat"
       }
     },
     "HammerAutoPackageReferences": null

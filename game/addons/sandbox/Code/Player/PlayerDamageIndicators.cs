@@ -65,8 +65,8 @@ public sealed class PlayerDamageIndicators : Component, Local.IPlayerEvents
 
 	void Local.IPlayerEvents.OnDamage( PlayerDamageParams args )
 	{
-		if ( !args.Attacker.IsValid() ) return;
+		if ( args.Origin == Vector3.Zero && !args.Instigator.IsValid() ) return;
 		
-		radialIndicators.Add( (args.Attacker.WorldPosition, 0f) );
+		radialIndicators.Add( (args.Origin, 0f) );
 	}
 }

@@ -40,12 +40,16 @@ public class UICheckbox : BaseControl
 		SetClass( "checked", Value );
 	}
 
+	internal void Toggle()
+	{
+		Value = !Value;
+		OnValueChanged?.Invoke( Value );
+	}
+
 	protected override void OnMouseDown( MousePanelEvent e )
 	{
 		base.OnMouseDown( e );
-
-		Value = !Value;
-		OnValueChanged?.Invoke( Value );
+		Toggle();
 		e.StopPropagation();
 	}
 }

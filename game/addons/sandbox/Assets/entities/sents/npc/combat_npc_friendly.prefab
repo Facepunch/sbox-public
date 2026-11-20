@@ -45,9 +45,44 @@
         "Flags": 0,
         "AimSpreadScale": 1,
         "CalloutRange": 1500,
+        "IdleBehaviour": "HoldPost",
+        "PainLines": [
+          "#npc.speech.combat.pain.1",
+          "#npc.speech.combat.pain.2",
+          "#npc.speech.combat.pain.3",
+          "#npc.speech.combat.pain.4",
+          "#npc.speech.combat.pain.5"
+        ],
+        "PatrolLines": [
+          "#npc.speech.combat.patrol.1",
+          "#npc.speech.combat.patrol.2",
+          "#npc.speech.combat.patrol.3",
+          "#npc.speech.combat.patrol.4",
+          "#npc.speech.combat.patrol.5",
+          "#npc.speech.combat.patrol.6",
+          "#npc.speech.combat.patrol.7",
+          "#npc.speech.combat.patrol.8"
+        ],
+        "SpotLines": [
+          "#npc.speech.combat.spot.1",
+          "#npc.speech.combat.spot.2",
+          "#npc.speech.combat.spot.3",
+          "#npc.speech.combat.spot.4",
+          "#npc.speech.combat.spot.5",
+          "#npc.speech.combat.spot.6",
+          "#npc.speech.combat.spot.7"
+        ],
+        "TauntLines": [
+          "#npc.speech.combat.taunt.1",
+          "#npc.speech.combat.taunt.2",
+          "#npc.speech.combat.taunt.3",
+          "#npc.speech.combat.taunt.4",
+          "#npc.speech.combat.taunt.5",
+          "#npc.speech.combat.taunt.6",
+          "#npc.speech.combat.taunt.7",
+          "#npc.speech.combat.taunt.8"
+        ],
         "DisplayName": "Rebel",
-        "DroppedWeaponLifetime": 20,
-        "EngageSpeed": 150,
         "FollowDistance": 256,
         "Friendly": true,
         "Health": 100,
@@ -58,8 +93,6 @@
         "OnComponentStart": null,
         "OnComponentUpdate": null,
         "PatrolRadius": 2048,
-        "Patrols": false,
-        "PatrolSpeed": 85,
         "ReactionTimeAlert": "0.5,0.899999976",
         "ReactionTimeRelaxed": "1,1.60000002",
         "RelaxDelay": 5,
@@ -69,7 +102,6 @@
           "go": "20ebc983-bcde-4769-9dda-e8b4ae45a063",
           "component_type": "SkinnedModelRenderer"
         },
-        "SearchSpeed": 85,
         "SearchTimeout": 20,
         "ShowDebugOverlay": false,
         "SpeedVariation": 0.05,
@@ -520,16 +552,17 @@
         "OnComponentStart": null,
         "OnComponentUpdate": null,
         "RunDistance": 200,
-        "RunSpeed": 190,
+        "RunSpeed": 150,
         "StopDistance": 10,
-        "TurnSpeed": 4
+        "TurnSpeed": 4,
+        "WalkSpeed": 85
       },
       {
         "__type": "Sandbox.Npcs.Layers.AnimationLayer",
         "__guid": "e1a29173-65ce-4d8b-84d5-27c5503bbe38",
         "__enabled": true,
         "Flags": 0,
-        "EnableFootsteps": true,
+        "EnableFootstepSounds": true,
         "FootstepVolume": 1,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
@@ -537,6 +570,12 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null
+      },
+      {
+        "__type": "Sandbox.Npcs.CitizenNpcAnimator",
+        "__guid": "4ca93042-0dbc-46bd-9b0f-a8f50d159e2f",
+        "__enabled": true,
+        "Flags": 0
       },
       {
         "__type": "Sandbox.Npcs.Layers.SpeechLayer",

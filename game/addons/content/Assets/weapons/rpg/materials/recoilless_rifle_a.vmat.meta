@@ -21,8 +21,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/rpg/materials/recoilless_rifle_a.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/rpg/materials/recoilless_rifle_a.vmat"
       }
     }
   }

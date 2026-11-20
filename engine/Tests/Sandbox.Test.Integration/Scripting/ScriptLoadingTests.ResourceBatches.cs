@@ -15,10 +15,10 @@ public partial class ScriptLoadingTests
 		files.WriteAllText( "z-art.csx", "class ResourceArt { public static int Old() { return 17; } }" );
 		var replace = context.ReplaceScriptAssembly;
 		int publications = 0;
-		context.ReplaceScriptAssembly = ( previous, incoming, register ) =>
+		context.ReplaceScriptAssembly = ( previous, incoming ) =>
 		{
 			publications++;
-			replace( previous, incoming, register );
+			return replace( previous, incoming );
 		};
 		try
 		{

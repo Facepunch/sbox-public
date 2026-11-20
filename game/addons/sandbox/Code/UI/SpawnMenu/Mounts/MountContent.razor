@@ -6,42 +6,44 @@
 
 @if ( mount is null || !mount.IsMounted )
 {
-    <root>
-        <SpawnMenuEmptyState Icon="error_outline" Title="#spawnmenu.mounts.error" Subtitle="#spawnmenu.empty.mount_unavailable" />
-    </root>
-    return;
+	<root>
+		<SpawnMenuEmptyState Icon="extension" Title="#spawnmenu.mounts.error" Subtitle="#spawnmenu.empty.mount_unavailable" />
+	</root>
+	return;
 }
 
+@{
+	var models = GetData().ToArray();
+}
 
 <SpawnMenuContent>
-
-    <Header>
-        <SpawnMenuToolbar>
-			<Body>
-				<label>@Game.Language.GetPhrase( "ui.mounts.item_count", new() { { "mount", mount.Title }, { "count", GetData().Count() } } )</label>
-			</Body>
+	<Header>
+		<SpawnMenuToolbar>
+			<Left>
+				<SpawnMenuFilter Query:bind="@Filter" />
+			</Left>
 			<Right>
-				<SpawnMenuFilter Query:bind="@Filter"></SpawnMenuFilter>
+				<label class="mount-count">@Game.Language.GetPhrase( "ui.mounts.item_count", new() { { "mount", Folder?.Name ?? mount.Title }, { "count", models.Length } } )</label>
 			</Right>
 		</SpawnMenuToolbar>
-        <Label class="mount-title" Tokenize=@false Text=@( Folder?.Name ?? mount.Title ) />
-    </Header>
-
-    <Body>
-		
-        <VirtualGrid Items=@( GetData() ) ItemSize=@(new Vector2( 123, 123 ))>
-            <Item Context="item">
-
-                @if (item is ResourceLoader loader)
-                {
-                    var nameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(loader.Name);
-                    <SpawnMenuIcon Ident=@($"mount:{loader.Path}") Title="@nameWithoutExt" />
-                }
-
-            </Item>
-        </VirtualGrid>
-    </Body>
-
+	</Header>
+	<Body>
+		@if ( models.Length == 0 )
+		{
+			<SpawnMenuEmptyState Icon="search_off" Subtitle="#spawnmenu.empty.try_another_category" />
+		}
+		else
+		{
+			<VirtualGrid Items=@models ItemSize=@(new Vector2( 123, 123 ))>
+				<Item Context="item">
+					@if ( item is ResourceLoader loader )
+					{
+						<SpawnMenuIcon Ident=@($"mount:{loader.Path}") Title=@(System.IO.Path.GetFileNameWithoutExtension( loader.Name )) />
+					}
+				</Item>
+			</VirtualGrid>
+		}
+	</Body>
 </SpawnMenuContent>
 
 @code

@@ -85,7 +85,7 @@ public sealed class PlayerCarry : Component, Local.IPlayerEvents
 	/// <summary>
 	/// What we had out before picking something up, to take it back out when we let go.
 	/// </summary>
-	BaseSandboxWeapon _weaponBeforeCarry;
+	BaseCombatWeapon _weaponBeforeCarry;
 
 	/// <summary>
 	/// How long a client waits for the host to put away <see cref="_weaponBeforeCarry"/> before taking it as refused.
@@ -384,7 +384,7 @@ public sealed class PlayerCarry : Component, Local.IPlayerEvents
 
 		var inventory = Player.GetComponent<PlayerInventory>();
 		if ( !inventory.IsValid() || inventory.ActiveWeapon.IsValid() ) return;
-		if ( !weapon.IsValid() || weapon.Owner != Player || Player.IsSeated ) return;
+		if ( !weapon.IsValid() || weapon.Owner != Player.Controller || Player.IsSeated ) return;
 
 		inventory.SwitchWeapon( weapon );
 	}

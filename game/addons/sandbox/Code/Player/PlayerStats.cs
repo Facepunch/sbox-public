@@ -45,7 +45,7 @@ internal sealed class PlayerStats : Component, Local.IPlayerEvents
 	{
 		if ( IsProxy ) return;
 
-		Sandbox.Services.Stats.Increment( "damage_taken", args.Damage );
+		Sandbox.Services.Stats.Increment( "damage_taken", args.DamageTaken );
 	}
 
 	void Local.IPlayerEvents.OnDied( PlayerDiedParams args )

@@ -146,7 +146,7 @@
         },
         "Handedness": "Both",
         "HoldBone": "hold_r",
-        "HoldType": "Physgun",
+        "HoldType": "tool",
         "IncrementalReloading": false,
         "Npc": {
           "MinRange": 0,

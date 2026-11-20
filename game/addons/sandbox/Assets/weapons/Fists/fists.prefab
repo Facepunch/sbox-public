@@ -88,7 +88,7 @@
         "Handedness": "Both",
         "HitSound": null,
         "HoldBone": "hold_r",
-        "HoldType": "melee_punch",
+        "HoldType": "fists",
         "IncrementalReloading": false,
         "MissSwingDelay": 0.4,
         "Npc": {

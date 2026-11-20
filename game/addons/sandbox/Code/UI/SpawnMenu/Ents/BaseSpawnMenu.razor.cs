@@ -13,7 +13,7 @@ public partial class BaseSpawnMenu : Panel
 	bool _addedFooter;
 
 	Panel TreeContainer;
-	readonly TreeView<SpawnMenuOption> Tree = new();
+	readonly TreeView<SpawnMenuOption> Tree = new() { RowHeight = 30, IndentWidth = 12 };
 
 	/// <summary>
 	/// Top level options and headers.
@@ -37,6 +37,7 @@ public partial class BaseSpawnMenu : Panel
 		Tree.GetChildren = o => o.Children;
 		Tree.GetParent = o => o.Parent;
 		Tree.CanExpand = o => o.Enabled && o.HasChildren;
+		Tree.GetHeight = o => o.IsHeader ? 34f + HeadingGap( o ) : o.Parent is null ? Tree.RowHeight : 26f;
 		Tree.OnRow = BindRow;
 		Tree.OnSelect = OnTreeSelect;
 		Tree.OnContextMenu = o => o.OnRightClick?.Invoke();
@@ -79,6 +80,7 @@ public partial class BaseSpawnMenu : Panel
 
 	protected bool _firstViewed;
 	readonly RealTimeSince _created = 0;
+	internal Tab MenuTab { get; set; }
 
 	public override void Tick()
 	{
@@ -86,7 +88,7 @@ public partial class BaseSpawnMenu : Panel
 
 		if ( _firstViewed ) return;
 
-		var prewarm = !HasClass( "hidden" ) && _created > 2f;
+		var prewarm = MenuTab?.Selected == true && _created > 2f;
 		if ( !IsVisible && !prewarm ) return;
 		if ( roots.Count == 0 ) return;
 		if ( !Switcher.IsValid() ) return;
@@ -112,11 +114,71 @@ public partial class BaseSpawnMenu : Panel
 	}
 
 	/// <summary>
+	/// A section with an option for each mounted game that has prefabs tagged <paramref name="tag"/> (see <see cref="MountedPrefabs"/>),
+	/// or scripted entities made from its art that <paramref name="where"/> accepts, filed under the game by the second level
+	/// of their category - "Half-Life 2" for "Npc/Half-Life 2". An installed game that isn't mounted gets an option
+	/// that mounts it for the session, unless it's been seen mounted with nothing for this tab.
+	/// </summary>
+	protected void AddMountedSections( string tag, Func<ScriptedEntity, bool> where )
+	{
+		MountedPrefabs.Learn();
+
+		var sections = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
+
+		foreach ( var prefab in MountedPrefabs.WithTag( tag ) )
+			if ( MountedPrefabs.GameTitle( prefab.Path ) is { Length: > 0 } title && Sandbox.Mounting.MountUtility.TryParse( prefab.Path, out string ident ) )
+				sections.TryAdd( title, ident );
+
+		foreach ( var entity in ResourceLibrary.GetAll<ScriptedEntity>().Where( e => !string.IsNullOrEmpty( e.RequiredMount ) && !e.IsRemote && e.IsMountAvailable && where( e ) ) )
+			if ( SpawnMenuCategory.Section( entity.Category ) is { Length: > 0 } title )
+				sections.TryAdd( title, entity.RequiredMount );
+
+		foreach ( var mount in MountedPrefabs.Unmounted( tag ) )
+			sections.TryAdd( mount.Title, mount.Ident );
+
+		if ( sections.Count == 0 ) return;
+
+		AddHeader( "#spawnmenu.tab.games" );
+
+		foreach ( var (section, ident) in sections.OrderBy( x => x.Key, StringComparer.CurrentCultureIgnoreCase ) )
+		{
+			var mounted = Sandbox.Mounting.Directory.Get( ident )?.IsMounted == true;
+			var option = mounted
+				? AddOption( "🧩", section, () => new MountedEntityList { Game = section, Tag = tag, Where = where } )
+				: AddOption( "🧩", section, () => new MountGamePanel { Ident = ident, Mounted = RebuildOptions } );
+
+			option.Key = $"mounted:{section}";
+			option.Tokenize = false;
+		}
+	}
+
+	/// <summary>
+	/// Make the options again, after what they list changed, such as a game being mounted. The open one stays open.
+	/// </summary>
+	protected void RebuildOptions()
+	{
+		var key = activeOption?.Key;
+		var previous = activeOption?.Panel;
+		activeOption = null;
+		previous?.Delete();
+
+		roots.Clear();
+		currentHeader = null;
+		Rebuild();
+		Tree.Refresh();
+
+		if ( AllOptions().FirstOrDefault( x => x.Key == key && (x.PanelCreator != null || x.Panel != null) ) is { } again )
+			SwitchOption( again );
+
+		StateHasChanged();
+	}
+
+	/// <summary>
 	/// Start a collapsible section. Options added after this go inside it.
 	/// </summary>
 	public SpawnMenuOption AddHeader( string name, string icon = null )
 	{
-		currentHeader = new SpawnMenuOption { Name = name, Icon = icon };
+		currentHeader = new SpawnMenuOption { Name = name, Icon = icon, IsHeader = true };
 		roots.Add( currentHeader );
 
 		if ( knownHeaders.Add( name ) ) Tree.Open( currentHeader );
@@ -219,10 +281,14 @@ public partial class BaseSpawnMenu : Panel
 		SwitchOption( o );
 	}
 
+	float HeadingGap( SpawnMenuOption o ) => o.IsHeader && o != roots.FirstOrDefault() ? 10f : 0f;
+
 	void BindRow( TreeRow row, SpawnMenuOption o )
 	{
 		row.SetClass( "active", activeOption is not null && Tree.Comparer.Equals( o, activeOption ) );
 		row.SetClass( "disabled", !o.Enabled );
+		row.SetClass( "section-heading", o.IsHeader );
+		row.Style.PaddingTop = HeadingGap( o );
 
 		row.IconName = o.Icon;
 		row.Label.Tokenize = o.Tokenize;
@@ -264,6 +330,8 @@ public partial class BaseSpawnMenu : Panel
 
 	public class SpawnMenuOption
 	{
+		internal bool IsHeader { get; init; }
+
 		public string Name { get; set; }
 
 		/// <summary>

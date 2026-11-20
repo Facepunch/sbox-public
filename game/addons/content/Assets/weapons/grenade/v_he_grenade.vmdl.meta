@@ -20,7 +20,6 @@
       },
       "Metadata": {
         "SingleAssetSource": "weapons/grenade/v_he_grenade.vmdl",
-        "ParentPackage": "facepunch.sbox_content",
         "AssetLicense": "CC0"
       }
     }

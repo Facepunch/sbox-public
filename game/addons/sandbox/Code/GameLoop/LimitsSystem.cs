@@ -145,7 +145,7 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 		new( () => MaxCameras, "#limit.cameras", x => x.Has<CameraEntity>(), tool => tool is CameraTool ),
 		new( () => MaxDynamite, "#limit.dynamite", x => x.Has<DynamiteEntity>() ),
 		new( () => MaxLights, "#limit.lights", x => x.Has<PointLightEntity>() || x.Has<SpotLightEntity>(), tool => tool is LightTool { PlacingNew: true } ),
-		new( () => MaxNpcs, "#limit.npcs", x => x.Has<Npc>() ),
+		new( () => MaxNpcs, "#limit.npcs", x => x.Has<BaseNpc>() ),
 		new( () => MaxVehicles, "#limit.vehicles", x => x.Has<FourWheelVehicle>() ),
 	];
 

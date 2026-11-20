@@ -157,6 +157,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private void SendNetworkSpawnBatch()
 	{
+		// Late joiners get the current scene snapshot, not these transient spawn messages.
+		if ( BatchSpawnList.Count == 0 || !HasBroadcastRecipients() )
+		{
+			BatchSpawnList.Clear();
+			return;
+		}
+
 		// If we only have one, just send a normal message.
 		if ( BatchSpawnList.Count == 1 )
 		{
@@ -216,7 +223,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal void NetworkSpawnBroadcast( NetworkObject networkObject )
 	{
 		// We're not supposed to send spawn messages right now.
-		if ( IsSuppressingSpawnMessages )
+		if ( IsSuppressingSpawnMessages || !HasBroadcastRecipients() )
 			return;
 
 		if ( IsBatchNetworkSpawning )

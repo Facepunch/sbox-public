@@ -3,7 +3,7 @@
 @inherits Panel
 @namespace Sandbox
 @attribute [InspectWindow.Tab( InspectWindow.Corner.BottomRight )]
-@attribute [Icon( "📦" )]
+@attribute [Icon( "view_in_ar" )]
 @attribute [Title( "#spawnmenu.inspect.prop_inspector" )]
 @attribute [Order( 100 )]
 
@@ -15,9 +15,9 @@
 			@foreach ( var entry in _editors.Where( e => e.WasVisible ) )
 			{
 				var e = entry;
-				<div class="tab @( _active == e ? "active" : "" )" @onclick="@(() => SetActive( e ))">
-					@e.Editor.Title
-				</div>
+				<button class="tab @( _active == e ? "selected" : "" )" @onclick="@(() => SetActive( e ))">
+					<Label Text=@e.Editor.Title />
+				</button>
 			}
 		</div>
 	}

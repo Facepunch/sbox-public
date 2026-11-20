@@ -1,3 +1,4 @@
+using Sandbox.Npcs.Layers;
 using Sandbox.Npcs.Tasks;
 
 namespace Sandbox.Npcs.Schedules;
@@ -8,12 +9,12 @@ namespace Sandbox.Npcs.Schedules;
 /// scientist, so it says goodbye to their face instead of muttering it while
 /// wandering off.
 /// </summary>
-public sealed class ScientistFarewellSchedule : ScheduleBase
+public sealed class ScientistFarewellSchedule : BaseSchedule
 {
 	public GameObject Target { get; set; }
 	public SoundEvent Voice { get; set; }
 
-	public override int Priority => SchedulePriority.Ambient;
+	public override int Priority => SchedulePriorities.Ambient;
 
 	protected override void OnStart()
 	{
@@ -21,16 +22,11 @@ public sealed class ScientistFarewellSchedule : ScheduleBase
 			return;
 
 		// Plant our feet - we might still be mid-step from following them
-		Npc.Navigation.Stop();
+		Npc.Movement.Stop();
 
-		// Face them first, then say the line - Say waits for the speech to
-		// finish, so we stand our ground until the sentence is done
-		AddTask( new LookAt( Target ) );
-		AddTask( new Say( Voice, 0f, Target )
-		{
-			Tags = ["reaction", "acknowledgement"],
-			Priority = int.MaxValue
-		} );
+		// SayTask keeps the schedule active until speech finishes.
+		AddTask( new LookAtTask( Target ) );
+		AddTask( new SayTask( Voice, new SpeechOptions { LookAt = Target, Tags = ["reaction", "acknowledgement"], Priority = int.MaxValue } ) );
 	}
 
 	protected override void OnEnd()

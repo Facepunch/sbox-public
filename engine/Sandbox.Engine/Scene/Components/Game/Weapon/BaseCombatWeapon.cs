@@ -8,9 +8,9 @@ namespace Sandbox;
 /// tracing and damage for you. Non-combat items just don't call them.
 /// </summary>
 /// <remarks>
-/// Hold-type animation stays animation agnostic: <see cref="HoldType"/> is an option name resolved
-/// against whatever "holdtype" enum the holder's animgraph defines - the engine ships no hold-type
-/// enum of its own.
+/// The weapon doesn't animate its holder: it advertises how it's held (<see cref="HoldType"/>,
+/// optionally <see cref="HoldFallback"/>) and posts <see cref="IEvents"/> for what it does. The
+/// holder's animator maps those onto whatever its model has.
 /// </remarks>
 [Title( "Weapon" )]
 [Group( "Game" )]
@@ -18,8 +18,6 @@ namespace Sandbox;
 [Alias( "Sandbox.BaseWeapon" )]
 public partial class BaseCombatWeapon : BaseInventoryItem
 {
-	private bool _deployAnimationPending;
-
 	/// <summary>
 	/// The player controller holding this, or null if it isn't held by one (it's in the world, or
 	/// held by something that isn't a <see cref="PlayerController"/>). Derived from the hierarchy.
@@ -27,41 +25,29 @@ public partial class BaseCombatWeapon : BaseInventoryItem
 	public PlayerController Owner => GetComponentInParent<PlayerController>( true );
 
 	/// <summary>
-	/// True while held by a player.
+	/// Whoever holds this: the nearest <see cref="IHolder"/> above it in the hierarchy, a player or
+	/// anything else that carries weapons. Null when it isn't held.
 	/// </summary>
-	public bool IsHeld => Owner.IsValid();
+	public IHolder Holder => GetComponentInParent<IHolder>( true );
+
+	/// <summary>
+	/// True while something holds this, a player or any other <see cref="IHolder"/>.
+	/// </summary>
+	public bool IsHeld => Holder is not null;
 
 	/// <summary>
 	/// The body renderer the world model attaches to - the holder's renderer.
 	/// </summary>
-	public SkinnedModelRenderer HolderRenderer => Owner?.Renderer;
+	public SkinnedModelRenderer HolderRenderer => Holder?.Renderer;
 
 	/// <summary>
-	/// Where this weapon is aiming. When held by a player: the holder's eye-forward, or the
-	/// camera-forward in third person (so you aim where the camera looks, not where the head points).
-	/// When not held it defers to <see cref="UnheldAimRay"/>.
+	/// Where this weapon is aiming: where its <see cref="Holder"/> aims it. For a player that is the
+	/// eye-forward, or the camera-forward in third person. When not held it defers to <see cref="UnheldAimRay"/>.
 	/// </summary>
-	public virtual Ray AimRay
-	{
-		get
-		{
-			// Owner walks the hierarchy - resolve it once.
-			var owner = Owner;
-
-			if ( owner.IsValid() )
-			{
-				if ( owner.ThirdPerson && Scene.Camera.IsValid() )
-					return Scene.Camera.WorldTransform.ForwardRay;
-
-				return owner.EyeTransform.ForwardRay;
-			}
-
-			return UnheldAimRay;
-		}
-	}
+	public virtual Ray AimRay => Holder is { } holder ? holder.CalculateAimRay( this ) : UnheldAimRay;
 
 	/// <summary>
-	/// The aim ray to use when this weapon isn't held by a player - placed in the world, mounted, or
+	/// The aim ray to use when nothing holds this weapon - placed in the world, mounted, or
 	/// controlled from a seat. Base fires from the muzzle; override for camera-targeted aim.
 	/// </summary>
 	protected virtual Ray UnheldAimRay
@@ -117,27 +103,34 @@ public partial class BaseCombatWeapon : BaseInventoryItem
 
 	/// <summary>
 	/// Drive the holder's body animation for this weapon. Runs every frame while deployed, on every
-	/// peer, with the holder's renderer. Base sets the hold type; override to drive aiming, leaning
-	/// and any other body parameters.
+	/// peer, with the holding player's renderer. Base has the player's animator set the hold and play the
+	/// pending deploy, attack and reload gestures; override without calling it to drive the body yourself.
+	/// The engine only calls this for a player. Called with any other body, by a game that holds the weapon
+	/// its own way, base sets <see cref="HoldType"/>, <see cref="Handedness"/> and the pending gestures on that
+	/// body directly.
 	/// </summary>
 	protected virtual void UpdateBodyAnimations( SkinnedModelRenderer body )
 	{
+		if ( Holder is PlayerController player )
+		{
+			player.UpdateWeaponAnimation( this, body );
+			return;
+		}
+
 		if ( body.Animation.Graph is not null )
 		{
+			// Not running yet: the gestures wait for it.
 			if ( !body.Animation.IsValid )
 				return;
 
 			var parameters = body.Animation.Parameters;
-			parameters.TrySet( "b_attack", _attackAnimationPending );
-			parameters.TrySet( "b_reload", _reloadAnimationPending );
-			parameters.TrySet( "b_deploy", _deployAnimationPending );
-			parameters.TrySet( "b_reload_cancel", _reloadCancelAnimationPending );
+			parameters.TrySet( "b_attack", (_pendingGestures & PendingGestures.Attack) != 0 );
+			parameters.TrySet( "b_reload", (_pendingGestures & PendingGestures.Reload) != 0 );
+			parameters.TrySet( "b_deploy", (_pendingGestures & PendingGestures.Deploy) != 0 );
+			parameters.TrySet( "b_reload_cancel", (_pendingGestures & PendingGestures.ReloadCancel) != 0 );
 		}
 
-		_attackAnimationPending = false;
-		_reloadAnimationPending = false;
-		_deployAnimationPending = false;
-		_reloadCancelAnimationPending = false;
+		ClearPendingGestures();
 
 		if ( string.IsNullOrEmpty( HoldType ) )
 			return;
@@ -159,44 +152,27 @@ public partial class BaseCombatWeapon : BaseInventoryItem
 	{
 		base.OnEquipped();
 
-		_attackAnimationPending = false;
-		_reloadAnimationPending = false;
-		_deployAnimationPending = true;
-		_reloadCancelAnimationPending = false;
-
 		CreateWorldModel();
 		CreateViewModel();
 
 		// Can't fire for a moment after switching to the weapon.
 		SetNextPrimaryFire( DeployTime );
 		SetNextSecondaryFire( DeployTime );
+
+		// Last: a listener may switch away from this or destroy it.
+		PostWeaponEvent( WeaponEvents.Deploy );
 	}
 
 	protected override void OnHolstered()
 	{
 		base.OnHolstered();
 
-		// Empty hands - the next weapon's equip sets its own hold type.
-		if ( !string.IsNullOrEmpty( HoldType ) && HolderRenderer is { } body )
-		{
-			if ( body.Animation.Graph is not null )
-				body.Animation.Parameters.TrySet( "holdtype", "none" );
-			else
-			{
-#pragma warning disable CS0618
-				body.Set( "holdtype", "none" );
-#pragma warning restore CS0618
-			}
-		}
-
 		CancelReload();
-
-		_attackAnimationPending = false;
-		_reloadAnimationPending = false;
-		_deployAnimationPending = false;
-		_reloadCancelAnimationPending = false;
 
 		DestroyWorldModel();
 		DestroyViewModel();
+
+		// Last: a listener may take this out again or destroy it.
+		PostWeaponEvent( WeaponEvents.Holster );
 	}
 }

@@ -1,5 +1,8 @@
 using Sandbox.Engine;
 using Sandbox.Internal;
+using System;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Text.Json.Nodes;
 
 namespace MountingTests;
@@ -21,10 +24,6 @@ public enum TestMountEnum
 	Value
 }
 
-/// <summary>
-/// Mount assemblies loaded outside the package system have their types enrolled in the menu and game
-/// type libraries, and keep them when a library is rebuilt.
-/// </summary>
 [TestClass]
 public class MountTypeLibraryTests
 {
@@ -58,6 +57,39 @@ public class MountTypeLibraryTests
 	}
 
 	[TestMethod]
+	public void EditorMountRegistrationExposesPrefabComponentsWithoutAGameDependency()
+	{
+		var builder = AssemblyBuilder.DefineDynamicAssembly( new AssemblyName( $"EditorMountTypes{Guid.NewGuid():N}" ), AssemblyBuilderAccess.Run );
+		var module = builder.DefineDynamicModule( "main" );
+		var mount = module.DefineType( $"EditorMount{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class, typeof( TestConsoleMount ) );
+		mount.DefineDefaultConstructor( MethodAttributes.Public );
+		mount.CreateType();
+		var component = module.DefineType( "EditorMountComponent", TypeAttributes.Public | TypeAttributes.Class, typeof( Component ) );
+		component.DefineDefaultConstructor( MethodAttributes.Public );
+		component.SetCustomAttribute( new CustomAttributeBuilder( typeof( LibraryAttribute ).GetConstructor( Type.EmptyTypes ), [] ) );
+		var componentType = component.CreateType();
+		var assembly = componentType.Assembly;
+
+		try
+		{
+			// The same registration used by ToolsDll's package enroller, without a game package dependency.
+			Sandbox.Mounting.Directory.AddAssembly( assembly, exposeMountTypes: true );
+			Assert.IsNotNull( GlobalContext.Game.TypeLibrary.GetType( componentType ) );
+			Assert.IsNotNull( GlobalContext.Menu.TypeLibrary.GetType( componentType ) );
+
+			var rebuilt = new TypeLibrary();
+			Sandbox.Mounting.Directory.AddTypesTo( rebuilt );
+			Assert.IsNotNull( rebuilt.GetType( componentType ) );
+		}
+		finally
+		{
+			Sandbox.Mounting.Directory.RemoveAssembly( assembly );
+		}
+
+		Assert.IsNull( GlobalContext.Game.TypeLibrary.GetType( componentType ) );
+	}
+
+	[TestMethod]
 	public void MountTypesSurviveRebuildAndRemoval()
 	{
 		var assembly = typeof( TestMountComponent ).Assembly;
@@ -71,7 +103,6 @@ public class MountTypeLibraryTests
 		Assert.IsNotNull( game.GetType( typeof( TestMountComponent ) ) );
 		Assert.IsNotNull( menu.GetType( typeof( TestMountComponent ) ) );
 
-		// What Game.InitTypeLibrary does for a rebuilt library
 		var rebuilt = new TypeLibrary();
 		Sandbox.Mounting.Directory.AddTypesTo( rebuilt );
 		Assert.IsNotNull( rebuilt.GetType( typeof( TestMountComponent ) ) );

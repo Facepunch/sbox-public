@@ -3,7 +3,7 @@ using Sandbox.Npcs.Schedules;
 
 namespace Sandbox.Npcs.Scientist;
 
-public sealed class ScientistNpc : Npc, Component.IPressable
+public sealed class ScientistNpc : BaseNpc, Component.IPressable
 {
 	/// <summary>
 	/// Current fear level (0–1). Computed from peak fear and time since last hurt.
@@ -47,8 +47,6 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 	private TimeSince _timeSinceStruggling { get; set; }
 	private GameObject _farewellTarget;
 
-	// Voice lines by situation. Each SoundEvent picks a random clip. These replace the old
-	// on-screen text -- the scientist speaks instead.
 	[Property, Group( "Voice" )] public SoundEvent FollowVoice { get; set; }
 	[Property, Group( "Voice" )] public SoundEvent StayVoice { get; set; }
 	[Property, Group( "Voice" )] public SoundEvent ScaredVoice { get; set; }
@@ -104,34 +102,34 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 		EndCurrentSchedule();
 	}
 
-	// Normal lines respect the personal cooldown. Max priority always speaks.
-	// If lookAt is given, the scientist looks them in the eyes while talking.
+	// Urgent lines bypass the normal speech cooldown.
 	private void SayVoice( SoundEvent voice, TagSet tags = null,
 		int priority = 1000, GameObject lookAt = null )
 	{
 		if ( voice is null ) return;
 		if ( priority <= 1000 && !Speech.CanSpeak ) return;
 
-		Speech.TrySay( voice, lookAt: lookAt, tags: tags, priority: priority );
+		Speech.TrySay( voice, new SpeechOptions { LookAt = lookAt, Tags = tags, Priority = priority } );
 	}
 
-	// Defenceless -- flees anything dangerous, indifferent to everyone else.
 	public override string Faction => Factions.Citizen;
 
-	protected override void SetupRelationships() => Fears( Factions.Enemy, Factions.Monster );
+	protected override void SetupRelationships()
+	{
+		SetRelationship( Factions.Enemy, Disposition.Fearful );
+		SetRelationship( Factions.Monster, Disposition.Fearful );
+	}
 
-	public override ScheduleBase GetSchedule()
+	protected override BaseSchedule SelectSchedule()
 	{
 		var fear = AfraidLevel;
 
-		// Fear fully decayed — clear state
 		if ( fear <= 0f && _peakFear > 0f )
 		{
 			_peakFear = 0f;
 			_attacker = null;
 		}
 
-		// Afraid — flee from the attacker
 		if ( fear > 0f && _attacker.IsValid() )
 		{
 			if ( !_isFleeing )
@@ -142,28 +140,26 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 
 			SayVoice( ScaredVoice, ["reaction", "fear"], 2000, _attacker );
 
-			var flee = GetSchedule<ScientistFleeSchedule>();
+			var flee = GetSchedule<FleeSchedule>();
 			flee.Source = _attacker;
 			flee.PanicLevel = fear;
 			return flee;
 		}
 
 		// Flee from anything we're scared of on sight, before it even hurts us.
-		var threat = Senses.GetNearestVisible( Disposition.Fearful );
+		var threat = Senses.FindNearestVisible( Disposition.Fearful );
 		if ( threat.IsValid() )
 		{
 			SayVoice( ScaredVoice, ["reaction", "fear"], 2000, threat );
 
-			var sightFlee = GetSchedule<ScientistFleeSchedule>();
+			var sightFlee = GetSchedule<FleeSchedule>();
 			sightFlee.Source = threat;
 			sightFlee.PanicLevel = 0.5f;
 			return sightFlee;
 		}
 
-		// Not fleeing anything.
 		_isFleeing = false;
 
-		// A player is walking into us - they want to get past, step out of their way
 		var pusher = Senses.GetPushingPlayer();
 		if ( pusher.IsValid() )
 		{
@@ -173,8 +169,7 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 			return moveAside;
 		}
 
-		// Someone just dismissed us - stand, face them, say goodbye, then move on.
-		// Fear above still preempts; no goodbyes mid panic.
+		// Fear takes priority over farewells.
 		if ( _farewellTarget.IsValid() )
 		{
 			var farewell = GetSchedule<ScientistFarewellSchedule>();
@@ -184,8 +179,7 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 			return farewell;
 		}
 
-		// Following a player who recruited us with USE. (Fear above takes priority, so we
-		// still cower from danger, then resume following once it passes.)
+		// Following resumes when fear subsides.
 		if ( Leader.IsValid() )
 		{
 			// Keep track of whether we're keeping up; if we fall too far behind for too long,
@@ -212,9 +206,8 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 	/// <summary>
 	/// Pick a random idle behavior so the scientist doesn't just stand around.
 	/// </summary>
-	private ScheduleBase GetIdleSchedule()
+	private BaseSchedule GetIdleSchedule()
 	{
-		// Occasionally mutter something while pottering about.
 		SayVoice( IdleVoice );
 
 		var roll = Game.Random.Float();
@@ -238,7 +231,7 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 			}
 		}
 
-		return GetSchedule<ScientistIdleSchedule>();
+		return GetSchedule<IdleSchedule>();
 	}
 
 	/// <summary>
@@ -246,8 +239,6 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 	/// </summary>
 	private GameObject FindNearbyProp()
 	{
-		// TODO: I feel like the senses layer should be able to hand all of this in a cost effective way.
-
 		var nearby = Scene.FindInPhysics( new Sphere( WorldPosition, 2048 ) );
 
 		GameObject best = null;
@@ -269,20 +260,19 @@ public sealed class ScientistNpc : Npc, Component.IPressable
 		return best;
 	}
 
-	protected override void OnHurt( in DamageInfo damage )
+	protected override void OnDamaged( Component.IDamageable.DamageEvent damage )
 	{
-		// Escalate fear — each hit stacks, clamped to 1.
-		_peakFear = MathF.Min( _peakFear + damage.Damage / 50f, 1f );
-		_attacker = GetAttacker( damage );
+		_peakFear = MathF.Min( _peakFear + damage.AcceptedDamage / 50f, 1f );
+		_attacker = damage.Instigator;
 		_timeSinceHurt = 0;
 
 		// React immediately so flee picks up.
 		EndCurrentSchedule();
 	}
 
-	protected override void Die( in DamageInfo damage )
+	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
-		GetAttacker( damage )?.GetComponent<Player>()?.PlayerData?.AddStat( "npc.scientist.kill" );
-		base.Die( damage );
+		death.Instigator?.GetComponent<Player>()?.PlayerData?.AddStat( "npc.scientist.kill" );
+		base.OnDeath( death );
 	}
 }

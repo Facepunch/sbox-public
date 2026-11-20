@@ -1,33 +1,38 @@
 @import "/UI/Theme.scss";
 
-OwnerLabel
+@mixin component-theme
 {
-	position: absolute;
-	left: 0;
-	right: 0;
-	bottom: $deadzone-y;
-	flex-direction: column;
-	align-items: center;
-	pointer-events: none;
-
-	.box
+	OwnerLabel
 	{
-		@include ui-section;
-		padding: 5px 15px;
-		opacity: 0;
-		transition: opacity 0.2s ease;
-	}
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: $deadzone-y;
+		flex-direction: column;
+		align-items: center;
+		pointer-events: none;
 
-	&.visible .box
-	{
-		opacity: 1;
-	}
+		.box
+		{
+			@include ui-section;
+			padding: 5px 15px;
+			opacity: 0;
+			transition: opacity 0.2s ease;
+		}
 
-	label
-	{
-		font-family: $body-font;
-		font-size: 12px;
-		font-weight: 500;
-		white-space: nowrap;
+		&.visible .box
+		{
+			opacity: 1;
+		}
+
+		label
+		{
+			font-family: $body-font;
+			font-size: 12px;
+			font-weight: 500;
+			white-space: nowrap;
+		}
 	}
 }
+
+@import "/UI/Theme/Apply.scss";

@@ -366,7 +366,7 @@
         "__guid": "646e2ab5-f09d-4a51-883c-6318853b12ef",
         "__enabled": true,
         "Flags": 0,
-        "EnableFootsteps": true,
+        "EnableFootstepSounds": true,
         "FootstepVolume": 1,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
@@ -374,6 +374,12 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null
+      },
+      {
+        "__type": "Sandbox.Npcs.CitizenNpcAnimator",
+        "__guid": "7ebfd936-55e7-4806-8216-3e3dee8b0ccf",
+        "__enabled": true,
+        "Flags": 0
       },
       {
         "__type": "Sandbox.Npcs.Layers.SpeechLayer",

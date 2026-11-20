@@ -3,7 +3,7 @@
 /// <summary>
 /// This component has a kill icon that can be used in the killfeed, or somewhere else.
 /// </summary>
-[Title( "#spawnmenu.tab.games" ), Order( 2050 ), Icon( "🧩" )]
+[Title( "#spawnmenu.tab.games" ), Order( 2050 ), Icon( "extension" )]
 public class MountsPage : BaseSpawnMenu
 {
 	Dictionary<string, SpawnMenuOption> mountOptions = new ();

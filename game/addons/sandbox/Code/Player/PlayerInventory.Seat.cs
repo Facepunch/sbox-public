@@ -10,7 +10,9 @@ public sealed partial class PlayerInventory
 	public bool IsSeatHolstered { get; private set; }
 
 	private ISitTarget _seat;
-	private BaseSandboxWeapon _weaponBeforeSeat;
+	private BaseCombatWeapon _weaponBeforeSeat;
+
+	protected override bool OnSwitching( BaseInventoryItem item ) => item is null || !IsSeatHolstered;
 
 	protected override void OnFixedUpdate()
 	{

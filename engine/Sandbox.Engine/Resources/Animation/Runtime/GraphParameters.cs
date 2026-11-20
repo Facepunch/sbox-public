@@ -4,6 +4,7 @@ namespace Sandbox.Animation;
 /// Animation graph parameter access. Writes affect the live instance unless explicitly persisted.
 /// Inspector values are saved with the owner and reapplied when its instance is recreated.
 /// </summary>
+[Expose]
 public sealed partial class GraphParameters : IJsonPopulator
 {
 	private readonly AnimationAccessor _graph;
@@ -13,7 +14,7 @@ public sealed partial class GraphParameters : IJsonPopulator
 	[Hide]
 	public Graph Graph => _graph.Graph;
 
-	/// <summary>Resets this graph's control parameters to their authored defaults.</summary>
+	/// <summary>Restores authored control parameter defaults and cancels pending triggers.</summary>
 	public void Reset()
 	{
 		var controller = _graph.Controller;
@@ -53,6 +54,24 @@ public sealed partial class GraphParameters : IJsonPopulator
 
 	public bool TrySet( string name, bool value )
 		=> TryGetController( name, out var controller ) && controller.SetParamBool( name, value );
+
+	/// <summary>
+	/// Queues a pulse on a Bool parameter for the next live graph evaluation. Repeated requests
+	/// before that evaluation coalesce. The parameter's regular value is preserved.
+	/// </summary>
+	/// <remarks>
+	/// The pulse stays pending through skipped live evaluations. It is discarded when its parameter
+	/// is reset, when recording playback ends, or when the graph instance is replaced.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">There is no running animation graph.</exception>
+	/// <exception cref="ArgumentException">The name is empty, missing from the graph, or names a non-Bool parameter.</exception>
+	public void Trigger( string name ) => RequireSuccess( TryTrigger( name ), name );
+
+	/// <summary>
+	/// Queues a Bool pulse, returning false if there is no running graph or the parameter is missing or of another type.
+	/// </summary>
+	public bool TryTrigger( string name )
+		=> TryGetController( name, out var controller ) && controller.TriggerParamBool( name );
 
 	public bool TrySet( string name, float value )
 		=> TryGetController( name, out var controller ) && controller.SetParamFloat( name, value );

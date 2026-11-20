@@ -24,9 +24,9 @@
     InventorySection section;
 
     PlayerInventory inventory;
-    BaseSandboxWeapon prev;
+    BaseCombatWeapon prev;
 
-    BaseSandboxWeapon selected;
+    BaseCombatWeapon selected;
     RealTimeSince sinceSelectionChanged;
 
     bool IsSelecting => selected.IsValid();
@@ -142,7 +142,7 @@
         Input.ReleaseAction( "SlotPrev" );
     }
 
-    List<BaseSandboxWeapon> Selectable() => inventory.Weapons.Where( x => x == inventory.ActiveWeapon || inventory.CanSwitchTo( x ) ).ToList();
+    List<BaseCombatWeapon> Selectable() => inventory.Weapons.Where( x => x == inventory.ActiveWeapon || inventory.CanSwitchTo( x ) ).ToList();
 
     /// <summary>
     /// Pressing a bucket's key opens it on its first weapon (or the one after the held weapon), pressing it again steps through the bucket
@@ -178,7 +178,7 @@
         SetSelected( items[index] );
     }
 
-    void SetSelected( BaseSandboxWeapon weapon )
+    void SetSelected( BaseCombatWeapon weapon )
     {
         selected = weapon;
         sinceSelectionChanged = 0;

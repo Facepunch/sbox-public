@@ -90,7 +90,7 @@
           "Path": "weapons/crowbar/sounds/crowbar.hit.sound"
         },
         "HoldBone": "hold_r",
-        "HoldType": "melee_weapons",
+        "HoldType": "melee",
         "IncrementalReloading": false,
         "MissSwingDelay": 0.4,
         "Npc": {

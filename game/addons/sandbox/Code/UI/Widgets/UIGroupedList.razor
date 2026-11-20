@@ -5,10 +5,17 @@
 
 <root>
 
-    <TextEntry class="filter" Placeholder="#spawnmenu.common.filter" Value:bind=@Filter HasClearButton=@false />
+    <SpawnMenuToolbar>
+        <Body><TextEntry class="filter menu-input" Placeholder="#spawnmenu.common.filter" Value:bind=@Filter HasClearButton /></Body>
+    </SpawnMenuToolbar>
 
     <div class="list">
-        @foreach ( var group in VisibleGroups() )
+        @{ var groups = VisibleGroups().ToList(); }
+        @if ( groups.Count == 0 && !string.IsNullOrWhiteSpace( Filter ) )
+        {
+            <SpawnMenuEmptyState />
+        }
+        @foreach ( var group in groups )
         {
             <div class="group">
                 @if ( !string.IsNullOrWhiteSpace( group.Title ) )
@@ -19,14 +26,11 @@
                 }
 
                 <div class="group-items">
-                    @for ( int i = 0; i < group.Items.Count; i++ )
+                    @foreach ( var item in group.Items )
                     {
-                        var item = group.Items[i];
-                        var rowClass = $"item{(i % 2 == 0 ? " alt" : "")}{(Equals( item.Value, Selected ) ? " active" : "")}";
-
-                        <div class="@rowClass" @onclick=@( () => OnSelect?.Invoke( item.Value ) )>
+                        <button class="item @(Equals( item.Value, Selected ) ? "selected" : "")" @onclick=@( () => OnSelect?.Invoke( item.Value ) )>
                             <Label Tokenize=@item.Tokenize Text="@item.Title" />
-                        </div>
+                        </button>
                     }
                 </div>
             </div>
@@ -43,7 +47,7 @@
     public record ListItem( string Title, object Value, bool Tokenize = true );
 
     /// <summary>
-    /// A blue header and the entries under it.
+    /// A group heading and its selectable entries.
     /// </summary>
     public record ListGroup( string Title, List<ListItem> Items );
 

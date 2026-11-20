@@ -3,6 +3,66 @@
 [AssetType( Name = "Sandbox Entity", Extension = "sent", Category = "Sandbox", Flags = AssetTypeFlags.NoEmbedding | AssetTypeFlags.IncludeThumbnails )]
 public class ScriptedEntity : GameResource, IDefinitionResource
 {
+	/// <summary>Optional local game content required to spawn this entity.</summary>
+	[Property] public string RequiredMount { get; set; }
+
+	public bool IsMountAvailable => string.IsNullOrEmpty( RequiredMount ) || Sandbox.Mounting.Directory.Get( RequiredMount )?.IsInstalled == true;
+
+	/// <summary>
+	/// Texture in <see cref="RequiredMount"/> to use as the spawn menu icon, such as the game's own spawn icon.
+	/// Mounted art loads at runtime, so it can't be rendered from the prefab or baked into a thumbnail.
+	/// </summary>
+	[Property] public string PreviewIcon { get; set; }
+
+	/// <summary>
+	/// Model in <see cref="RequiredMount"/> the prefab shows once mounted, such as models/police.mdl. Rendered for the
+	/// spawn menu icon when there's no <see cref="PreviewIcon"/>, and gives the spawn bounds.
+	/// </summary>
+	[Property] public string PreviewModel { get; set; }
+
+	/// <summary>
+	/// Sequence <see cref="PreviewModel"/> is posed in for its icon, instead of its reference pose.
+	/// </summary>
+	[Property] public string PreviewSequence { get; set; }
+
+	/// <summary>
+	/// Mount <see cref="RequiredMount"/> and load <see cref="PreviewModel"/> from it. Null when either isn't there.
+	/// </summary>
+	public async Task<Model> LoadPreviewModelAsync( bool animated = false )
+	{
+		if ( string.IsNullOrEmpty( RequiredMount ) || string.IsNullOrEmpty( PreviewModel ) ) return null;
+
+		var mount = await Sandbox.Mounting.Directory.Mount( RequiredMount );
+		if ( mount?.IsMounted != true ) return null;
+
+		var model = await Model.LoadAsync( $"mount://{RequiredMount}/{PreviewModel}{(animated ? ".animated" : "")}.vmdl" );
+		return model.IsValid() && !model.IsError ? model : null;
+	}
+
+	/// <summary>
+	/// The spawn menu icon of an entity whose art comes from <see cref="RequiredMount"/>, mounting it first if it's
+	/// installed but not mounted yet. Null when the mount or its art is missing.
+	/// </summary>
+	public async Task<Texture> LoadMountedIconAsync()
+	{
+		if ( string.IsNullOrEmpty( RequiredMount ) ) return null;
+
+		if ( !string.IsNullOrEmpty( PreviewIcon ) )
+		{
+			var mount = await Sandbox.Mounting.Directory.Mount( RequiredMount );
+			if ( mount?.IsMounted != true ) return null;
+
+			var icon = await Texture.LoadAsync( $"mount://{RequiredMount}/{PreviewIcon}.vtex" );
+			return icon.IsValid() && !icon.IsError ? icon : null;
+		}
+
+		var model = await LoadPreviewModelAsync( !string.IsNullOrEmpty( PreviewSequence ) );
+		if ( model is null ) return null;
+
+		Rotation? weaponView = SpawnMenuCategory.Matches( Category, "Weapon" ) ? ThumbnailCamera.ViewOf( Prefab ) ?? Rotation.FromYaw( -90 ) : null;
+		return await ThumbnailLoader.RenderModelIcon( model, PreviewSequence, weaponView );
+	}
+
 	[Property]
 	public PrefabFile Prefab { get; set; }
 
@@ -35,8 +95,8 @@ public class ScriptedEntity : GameResource, IDefinitionResource
 
 	public override Bitmap RenderThumbnail( ThumbnailOptions options )
 	{
-		// No prefab - can't make a thumbnail
-		if ( Prefab is null ) return default;
+		// No prefab - can't make a thumbnail. Mounted art isn't loaded here, and mustn't be baked into one.
+		if ( Prefab is null || !string.IsNullOrEmpty( RequiredMount ) ) return default;
 
 		var bitmap = new Bitmap( options.Width, options.Height );
 		bitmap.Clear( Color.Transparent );

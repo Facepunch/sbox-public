@@ -71,9 +71,7 @@
 			font-size: $ui-settings-font;
 			font-weight: 500;
 			color: $ui-text;
-			white-space: nowrap;
-			text-overflow: ellipsis;
-			overflow: hidden;
+			@include ui-ellipsis;
 
 			&.empty
 			{

@@ -79,7 +79,7 @@ SignalsOverlay
 				i
 				{
 					color: $menu-accent;
-					font-family: "Material Icons";
+					font-family: $ui-icon;
 					font-size: 18px;
 					font-style: normal;
  				}
@@ -136,7 +136,7 @@ SignalsOverlay
 					{
 						color: $menu-accent;
 						width: 28px;
-						font-family: "Material Icons";
+						font-family: $ui-icon;
 						font-size: 19px;
 						font-style: normal;
 						text-align: center;
@@ -153,9 +153,7 @@ SignalsOverlay
 							font-size: 14px;
 							font-weight: 650;
 							color: inherit;
-							white-space: nowrap;
-							text-overflow: ellipsis;
-							overflow: hidden;
+							@include ui-ellipsis;
 						}
 
 						.option-subtitle
@@ -164,9 +162,7 @@ SignalsOverlay
 							font-weight: 500;
 							color: inherit;
 							opacity: 0.7;
-							white-space: nowrap;
-							text-overflow: ellipsis;
-							overflow: hidden;
+							@include ui-ellipsis;
 						}
 
 						.option-description

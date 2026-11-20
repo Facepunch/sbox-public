@@ -18,9 +18,10 @@ public partial class BaseInventoryComponent
 	private static string AmmoKey( BaseAmmoResource type ) => type?.ResourcePath;
 
 	/// <summary>
-	/// How much reserve ammo of the given type this inventory holds. Null is 0.
+	/// How much reserve ammo of the given type this inventory holds. Null is 0. Override together with
+	/// <see cref="TakeAmmo"/> to keep the reserve somewhere else, or to never run out.
 	/// </summary>
-	public int GetAmmo( BaseAmmoResource type )
+	public virtual int GetAmmo( BaseAmmoResource type )
 	{
 		var key = AmmoKey( type );
 		if ( string.IsNullOrEmpty( key ) )
@@ -70,7 +71,7 @@ public partial class BaseInventoryComponent
 	/// actually removed. The owning client spends locally and the spend is mirrored to the host,
 	/// whose pool is the truth.
 	/// </summary>
-	public int TakeAmmo( BaseAmmoResource type, int amount )
+	public virtual int TakeAmmo( BaseAmmoResource type, int amount )
 	{
 		var key = AmmoKey( type );
 		if ( string.IsNullOrEmpty( key ) || amount <= 0 )

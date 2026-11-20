@@ -9,7 +9,14 @@
     <div class="tabs">
         @foreach ( var tab in _tabs.Where( IsAvailable ) )
         {
-            <div class="tab @( tab == _active ? "active" : "" )" @onclick=@(() => OnTabClicked( tab ))>@TitleOf( tab )</div>
+            var type = Game.TypeLibrary.GetType( tab.GetType() );
+            <button class="tab @(tab == _active ? "selected" : "")" @onclick=@(() => OnTabClicked( tab ))>
+                @if ( !string.IsNullOrWhiteSpace( type?.Icon ) )
+                {
+                    <IconPanel class="tab-icon" Text=@type.Icon />
+                }
+                <Label Text=@type?.Title />
+            </button>
         }
     </div>
 
@@ -239,8 +246,6 @@
 
         Show( _tabs.FirstOrDefault( x => x.GetType().FullName == saved && IsAvailable( x ) ) ?? _tabs.FirstOrDefault( IsAvailable ), false );
     }
-
-    static string TitleOf( Panel tab ) => Game.TypeLibrary.GetType( tab.GetType() )?.Title;
 
     static bool IsAvailable( Panel tab ) => tab.IsValid() && (Game.TypeLibrary.GetType( tab.GetType() )?.GetAttribute<Tab>()?.CheckCondition() ?? false);
 

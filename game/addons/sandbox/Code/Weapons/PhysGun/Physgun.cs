@@ -534,6 +534,7 @@ public partial class Physgun : Local.IPlayerEvents
 			if ( _state.GameObject is { } go )
 			{
 				go.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
+				CarryNpcs( go );
 			}
 
 			if ( _state.IsValid() )
@@ -721,6 +722,7 @@ public partial class Physgun : Local.IPlayerEvents
 			if ( _state.GameObject is { } go )
 			{
 				go.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
+				CarryNpcs( go );
 			}
 
 			if ( _state.IsValid() )
@@ -760,6 +762,17 @@ public partial class Physgun : Local.IPlayerEvents
 		if ( !held.IsValid() ) return;
 
 		held.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
+
+		foreach ( var npc in held.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
+		{
+			npc.StopCarry( GameObject );
+		}
+	}
+
+	void CarryNpcs( GameObject go )
+	{
+		foreach ( var npc in go.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
+			npc.StartCarry( GameObject );
 	}
 
 	protected override void OnDisabled()

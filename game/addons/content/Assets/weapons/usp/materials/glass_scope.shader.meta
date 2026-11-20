@@ -18,8 +18,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/usp/materials/glass_scope.shader",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/usp/materials/glass_scope.shader"
       }
     }
   }

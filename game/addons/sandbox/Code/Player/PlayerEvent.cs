@@ -1,12 +1,12 @@
 public struct PlayerDiedParams
 {
-	public GameObject Attacker { get; set; }
+	public GameObject Instigator { get; set; }
 }
 
 public struct PlayerDamageParams
 {
-	public float Damage { get; set; }
-	public GameObject Attacker { get; set; }
+	public float DamageTaken { get; set; }
+	public GameObject Instigator { get; set; }
 	public GameObject Weapon { get; set; }
 	public TagSet Tags { get; set; }
 	public Vector3 Position { get; set; }
@@ -19,7 +19,7 @@ public struct PlayerDamageParams
 public class PlayerPickupEvent
 {
 	public Player Player { get; init; }
-	public BaseSandboxWeapon Weapon { get; init; }
+	public BaseCombatWeapon Weapon { get; init; }
 	public int Slot { get; init; }
 	public bool Cancelled { get; set; }
 }
@@ -30,7 +30,7 @@ public class PlayerPickupEvent
 public class PlayerDropEvent
 {
 	public Player Player { get; init; }
-	public BaseSandboxWeapon Weapon { get; init; }
+	public BaseCombatWeapon Weapon { get; init; }
 	public bool Cancelled { get; set; }
 }
 
@@ -53,8 +53,8 @@ public class PlayerCarryEvent
 public class PlayerSwitchWeaponEvent
 {
 	public Player Player { get; init; }
-	public BaseSandboxWeapon From { get; init; }
-	public BaseSandboxWeapon To { get; init; }
+	public BaseCombatWeapon From { get; init; }
+	public BaseCombatWeapon To { get; init; }
 	public bool Cancelled { get; set; }
 }
 
@@ -64,7 +64,7 @@ public class PlayerSwitchWeaponEvent
 public class PlayerRemoveWeaponEvent
 {
 	public Player Player { get; init; }
-	public BaseSandboxWeapon Weapon { get; init; }
+	public BaseCombatWeapon Weapon { get; init; }
 	public bool Cancelled { get; set; }
 }
 
@@ -87,7 +87,7 @@ public class PlayerSeatHolsterEvent
 {
 	public Player Player { get; init; }
 	public GameObject Seat { get; init; }
-	public BaseSandboxWeapon Weapon { get; init; }
+	public BaseCombatWeapon Weapon { get; init; }
 	public bool Cancelled { get; set; }
 }
 
@@ -102,7 +102,7 @@ public class PlayerFlashlightEvent
 }
 
 /// <summary>
-/// Pre-damage event. Fired before damage is applied. Listeners can modify <see cref="Damage"/>
+/// Pre-damage event. Fired before damage is applied. Listeners can modify <see cref="AcceptedDamage"/>
 /// or set <see cref="Cancelled"/> to block damage entirely.
 /// </summary>
 public class PlayerDamageEvent
@@ -111,11 +111,11 @@ public class PlayerDamageEvent
 	public DamageInfo DamageInfo { get; init; }
 
 	/// <summary>
-	/// The player behind the damage, can be the victim. Null for the world and NPCs.
+	/// The object responsible for the damage. May be the victim or null for world damage.
 	/// </summary>
-	public Player BlamedPlayer { get; init; }
+	public GameObject Instigator { get; init; }
 
-	public float Damage { get; set; }
+	public float AcceptedDamage { get; set; }
 	public bool Cancelled { get; set; }
 }
 
@@ -230,7 +230,7 @@ public static partial class Global
 		void OnPlayerSeatHolster( PlayerSeatHolsterEvent e ) { }
 		void OnPlayerFlashlight( PlayerFlashlightEvent e ) { }
 		void OnPlayerCarry( PlayerCarryEvent e ) { }
-		[Obsolete( "Use Global.IDamageEvents, it covers players and NPCs" )]
+		[Obsolete( "Use Component.IDamageable.IEvents, it covers players and NPCs" )]
 		void OnPlayerDamaging( PlayerDamageEvent e ) { }
 		void OnPlayerRespawning( PlayerRespawnEvent e ) { }
 		void OnPlayerLoadout( PlayerLoadoutEvent e ) { }

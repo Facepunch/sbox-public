@@ -1,56 +1,23 @@
 @import "/UI/Theme.scss";
 
-UISheet
+@mixin component-theme
 {
-	flex-direction: column;
-	flex-shrink: 0;
-	font-family: "Inter";
-	font-size: $ui-settings-font;
-	font-weight: 500;
-	color: $ui-text-label;
-
-	> .body
+	UISheet
 	{
 		flex-direction: column;
 		flex-shrink: 0;
-	}
+		font-family: $body-font;
+		font-size: $ui-settings-font;
+		font-weight: 500;
+		color: $ui-text-label;
 
-	.sheet-group
-	{
-		flex-direction: column;
-		flex-shrink: 0;
-
-		&.hidden
+		> .body
 		{
-			display: none;
-		}
-
-		> .header
-		{
-			flex-direction: row;
-			align-items: center;
+			flex-direction: column;
 			flex-shrink: 0;
-			gap: 6px;
-			@include ui-section-header;
-
-			.title
-			{
-				@include ui-heading-text;
-			}
-
-			.header-button
-			{
-				margin-left: auto;
-			}
 		}
 
-		// the first group stays against the top of the sheet
-		&:not(:first-child) > .header
-		{
-			margin-top: $ui-section-gap;
-		}
-
-		> .rows
+		.sheet-group
 		{
 			flex-direction: column;
 			flex-shrink: 0;
@@ -59,145 +26,194 @@ UISheet
 			{
 				display: none;
 			}
+
+			> .header
+			{
+				flex-direction: row;
+				align-items: center;
+				flex-shrink: 0;
+				gap: 6px;
+				@include ui-section-header;
+				margin: 0 0 8px 0;
+				padding: 0;
+				border-bottom: 0;
+
+				.title
+				{
+					@include ui-heading-text;
+				}
+
+				.header-button
+				{
+					margin-left: auto;
+				}
+
+				&.toggle-header
+				{
+					gap: 0;
+					min-height: 34px;
+
+					.title
+					{
+						width: 32%;
+						padding-right: 6px;
+						cursor: pointer;
+						pointer-events: all;
+					}
+				}
+			}
+
+			// the first group stays against the top of the sheet
+			&:not(:first-child) > .header
+			{
+				margin-top: $ui-section-gap;
+				padding-top: 12px;
+				border-top: 1px solid $ui-separator;
+			}
+
+			> .rows
+			{
+				flex-direction: column;
+				flex-shrink: 0;
+				gap: 7px;
+
+				&.hidden
+				{
+					display: none;
+				}
+			}
 		}
-	}
 
-	.textentry.text-field
-	{
-		@include ui-text-entry;
-		width: 100%;
-		flex-shrink: 0;
-
-		&.text-area
+		.textentry.text-field
 		{
-			height: auto;
-			min-height: 96px;
-			padding: 5px 6px;
-			align-items: flex-start;
-		}
-	}
+			@include ui-text-entry;
+			width: 100%;
+			flex-shrink: 0;
+			min-height: 34px;
+			border-radius: 7px;
+			border-color: $ui-field-border;
 
-	// the empty gap of [Space]
-	.space
-	{
-		flex-shrink: 0;
-	}
-
-	.sheet-row
-	{
-		flex-direction: row;
-		align-items: center;
-		flex-shrink: 0;
-		min-height: 22px;
-		margin-bottom: 2px;
-
-		&.hidden
-		{
-			display: none;
+			&.text-area
+			{
+				height: auto;
+				min-height: 96px;
+				padding: 8px 10px;
+				align-items: flex-start;
+			}
 		}
 
-		&.disabled
+		// the empty gap of [Space]
+		.space
 		{
-			opacity: 0.4;
+			flex-shrink: 0;
+		}
 
-			// widgets turn pointer-events back on, so switch them off on every child too
-			> .control, > .control *
+		.sheet-row
+		{
+			flex-direction: row;
+			align-items: center;
+			flex-shrink: 0;
+			min-height: 34px;
+
+			&.hidden
+			{
+				display: none;
+			}
+
+			&.disabled
+			{
+				opacity: 0.4;
+
+				// widgets turn pointer-events back on, so switch them off on every child too
+				> .label, > .control, > .control *
+				{
+					pointer-events: none;
+				}
+			}
+
+			> .label
+			{
+				width: 32%;
+				flex-shrink: 0;
+				padding-right: 6px;
+				@include ui-ellipsis;
+				font-size: $ui-settings-font;
+				font-weight: 500;
+				color: $ui-text-label;
+			}
+
+			> .control
+			{
+				flex-direction: row;
+				flex-grow: 1;
+				flex-shrink: 1;
+				min-width: 0px;
+			}
+
+			// a [SameLine] control whose condition hides it
+			> .control > .hidden
+			{
+				display: none;
+			}
+
+			// or greys it out, the way a disabled button and a disabled row look
+			> .control > .disabled
+			{
+				opacity: 0.4;
+			}
+
+			> .control > .disabled, > .control > .disabled *
 			{
 				pointer-events: none;
 			}
-		}
 
-		> .label
-		{
-			width: 121px;
-			flex-shrink: 0;
-			padding-right: 6px;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			font-size: $ui-settings-font;
-			font-weight: 500;
-			color: $ui-text-label;
-		}
-
-		> .control
-		{
-			flex-direction: row;
-			flex-grow: 1;
-			flex-shrink: 1;
-			min-width: 0px;
-		}
-
-		// a [SameLine] control whose condition hides it
-		> .control > .hidden
-		{
-			display: none;
-		}
-
-		// or greys it out, the way a disabled button and a disabled row look
-		> .control > .disabled
-		{
-			opacity: 0.4;
-		}
-
-		> .control > .disabled, > .control > .disabled *
-		{
-			pointer-events: none;
-		}
-
-		// control takes the whole row if it has no name
-		&.bare > .control
-		{
-			width: 100%;
-		}
-
-		// buttons share the row evenly
-		&.buttons > .control
-		{
-			gap: 6px;
-
-			> UIButton
+			// control takes the whole row if it has no name
+			&.bare > .control
 			{
-				flex-grow: 1;
-				flex-basis: 0px;
-			}
-		}
-
-		// a checkbox sits in front of its name, the name gets the rest of the row
-		&.toggle
-		{
-			> .control
-			{
-				flex-grow: 0;
-				flex-shrink: 0;
+				width: 100%;
 			}
 
-			> .label
+			// buttons share the row evenly
+			&.buttons > .control
 			{
-				width: auto;
-				flex-grow: 1;
-				flex-shrink: 1;
-				padding-left: 6px;
-			}
-		}
+				gap: 6px;
 
-		&.wide
-		{
-			flex-direction: column;
-			align-items: stretch;
-
-			> .label
-			{
-				width: auto;
-				height: 18px;
-				justify-content: center;
+				> UIButton
+				{
+					flex-grow: 1;
+					flex-basis: 0px;
+				}
 			}
 
-			> .control
+			&.toggle > .label
 			{
-				flex-grow: 0;
-				margin-top: 1px;
+				white-space: normal;
+				cursor: pointer;
+				pointer-events: all;
+			}
+
+			&.toggle.disabled > .label { pointer-events: none; }
+
+			&.wide
+			{
+				flex-direction: column;
+				align-items: stretch;
+
+				> .label
+				{
+					width: auto;
+					height: 18px;
+					justify-content: center;
+				}
+
+				> .control
+				{
+					flex-grow: 0;
+					margin-top: 1px;
+				}
 			}
 		}
 	}
 }
+
+@import "/UI/Theme/Apply.scss";

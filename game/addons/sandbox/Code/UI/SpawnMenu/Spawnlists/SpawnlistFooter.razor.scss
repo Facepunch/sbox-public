@@ -1,8 +1,13 @@
 @import "/UI/Theme.scss";
 
-SpawnlistFooter
+@mixin component-theme
 {
-    @include ui-footer-bar;
-    flex-direction: column;
-    gap: 4px;
+    SpawnlistFooter
+    {
+        @include ui-footer-bar;
+        flex-direction: column;
+        gap: 4px;
+    }
 }
+
+@import "/UI/Theme/Apply.scss";

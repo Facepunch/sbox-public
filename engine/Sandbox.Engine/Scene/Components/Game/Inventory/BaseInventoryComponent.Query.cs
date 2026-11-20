@@ -104,9 +104,18 @@ public partial class BaseInventoryComponent
 	/// </summary>
 	public virtual BaseInventoryItem GetBestItem()
 	{
-		var candidates = Items.Where( x => x.CanSwitchTo() ).ToList();
-
-		return candidates.Where( x => !x.ShouldAvoid ).OrderByDescending( x => x.Value ).FirstOrDefault()
-			?? candidates.OrderByDescending( x => x.Value ).FirstOrDefault();
+		BaseInventoryItem best = null;
+		bool bestAvoid = true;
+		foreach ( var item in Items )
+		{
+			if ( !OnSwitching( item ) || !item.CanSwitchTo() ) continue;
+			var avoid = item.ShouldAvoid;
+			if ( best is null || (bestAvoid && !avoid) || (avoid == bestAvoid && item.Value > best.Value) )
+			{
+				best = item;
+				bestAvoid = avoid;
+			}
+		}
+		return best;
 	}
 }

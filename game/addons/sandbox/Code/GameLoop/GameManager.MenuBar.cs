@@ -19,8 +19,8 @@ public sealed partial class GameManager : IMenuBarEvent
 		// Write through the host so the replicated convars change for everyone.
 		var npcs = e.GetOrAddMenu( Game.Language.GetPhrase( "spawnmenu.menubar.npcs" ), 200 );
 
-		IMenuBarEvent.Event.AddServerToggle( npcs, Game.Language.GetPhrase( "spawnmenu.utility.ai_enabled" ), () => NpcConVars.Enabled, v => SetConVar( "sandbox.ai.enabled", v ) );
-		IMenuBarEvent.Event.AddServerToggle( npcs, Game.Language.GetPhrase( "spawnmenu.utility.no_target" ), () => NpcConVars.NoTarget, v => SetConVar( "sandbox.ai.notarget", v ) );
+		IMenuBarEvent.Event.AddServerToggle( npcs, Game.Language.GetPhrase( "spawnmenu.utility.ai_enabled" ), () => NpcConVars.Enabled, v => SetConVar( "npc_enabled", v ) );
+		IMenuBarEvent.Event.AddServerToggle( npcs, Game.Language.GetPhrase( "spawnmenu.utility.no_target" ), () => NpcConVars.NoTarget, v => SetConVar( "npc_notarget", v ) );
 
 		var server = e.GetOrAddMenu( Game.Language.GetPhrase( "spawnmenu.menubar.server" ), 300 );
 

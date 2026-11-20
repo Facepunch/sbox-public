@@ -27,6 +27,8 @@ internal partial class NetworkSystem
 
 	void SendToRecipients( List<Connection> recipients, ByteStream msg, NetFlags flags )
 	{
+		if ( recipients.Count == 0 ) return;
+
 		// Encode once so every recipient gets the same wire bytes without re-compressing per connection.
 		var encoded = Connection.EncodePacket( msg );
 		byte[][] packets = null;
@@ -83,11 +85,31 @@ internal partial class NetworkSystem
 
 	static void AddRecipient( List<Connection> into, Connection c, Connection.ChannelState minimumState, Connection.Filter? filter )
 	{
-		if ( c == Connection.Local ) return;
-		if ( c.State < minimumState ) return;
-		if ( filter.HasValue && !filter.Value.IsRecipient( c ) ) return;
+		if ( !IsRecipient( c, minimumState, filter ) ) return;
 
 		into.Add( c );
+	}
+
+	static bool IsRecipient( Connection c, Connection.ChannelState minimumState, Connection.Filter? filter )
+		=> c != Connection.Local && c.State >= minimumState && (!filter.HasValue || filter.Value.IsRecipient( c ));
+
+	/// <summary>
+	/// Check the same recipients as Broadcast without building a message or allocating a connection list.
+	/// </summary>
+	internal bool HasBroadcastRecipients( Connection.ChannelState minimumState = Connection.ChannelState.Snapshot, Connection.Filter? filter = null )
+	{
+		if ( Networking.IsHost )
+		{
+			foreach ( var c in _connections )
+				if ( IsRecipient( c, minimumState, filter ) ) return true;
+		}
+		else
+		{
+			foreach ( var info in ConnectionInfo.All )
+				if ( Connection.Find( info.Key ) is { } c && IsRecipient( c, minimumState, filter ) ) return true;
+		}
+
+		return Connection is not null && IsRecipient( Connection, minimumState, filter );
 	}
 
 	/// <summary>
@@ -127,6 +149,8 @@ internal partial class NetworkSystem
 	internal void Broadcast<T>( T msg, Connection.ChannelState minimumState = Connection.ChannelState.Snapshot,
 		Connection.Filter? filter = null, NetFlags flags = NetFlags.Reliable )
 	{
+		if ( !HasBroadcastRecipients( minimumState, filter ) ) return;
+
 		var bs = ByteStream.Create( 32 );
 
 		bs.Write( InternalMessageType.Packed );
