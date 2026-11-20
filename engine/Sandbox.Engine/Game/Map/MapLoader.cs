@@ -20,26 +20,37 @@ public abstract class MapLoader
 		public Vector3 WorldOrigin { get; init; }
 		public ITagSet Tags { get; init; }
 
-		private readonly Dictionary<uint, string> values = new();
+		private readonly Dictionary<uint, string> values;
 
 		internal ObjectEntry( CEntityKeyValues keyValues, Vector3 origin )
+			: this( ReadValues( keyValues ) )
 		{
+			WorldOrigin = origin;
+			Position = GetValue<Vector3>( "origin" ) + origin;
+			Angles = GetValue<Angles>( "angles" );
+			Scales = GetValue( "scales", Vector3.One );
+			Rotation = Angles.ToRotation();
+			Transform = new( Position, Rotation, Scales );
+		}
+
+		static Dictionary<uint, string> ReadValues( CEntityKeyValues keyValues )
+		{
+			var values = new Dictionary<uint, string>();
 			var keyCount = keyValues.GetKeyCount();
 			for ( int i = 0; i < keyCount; i++ )
 			{
 				var key = keyValues.GetKey( i );
 				values.Add( key, keyValues.GetValueString( key, null ) );
 			}
+			return values;
+		}
 
+		internal ObjectEntry( Dictionary<uint, string> keyValues )
+		{
+			values = keyValues;
 			TypeName = GetValueString( "classname", null );
 			TargetName = GetValueString( "targetname", null );
 			ParentName = GetValueString( "parentname", null );
-			WorldOrigin = origin;
-			Position = GetValue<Vector3>( "origin" ) + WorldOrigin;
-			Angles = GetValue<Angles>( "angles" );
-			Scales = GetValue( "scales", Vector3.One );
-			Rotation = Angles.ToRotation();
-			Transform = new( Position, Rotation, Scales );
 
 			var tags = GetValue<string>( "tags" ) ?? string.Empty;
 			Tags = new ReadOnlyTagSet( tags.Split( ",", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) );
