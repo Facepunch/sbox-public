@@ -163,7 +163,7 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
 #include "vr_lighting.fxc"
-#include "volumetric_fog.fxc"
+#include "sbox/volumetric_fog.slangh"
 #include "common/classes/Fog.hlsl"
 #include "common/Shadow.hlsl"
 

@@ -24,8 +24,8 @@ Mode( Default );
 	#include "system.fxc" // This should always be the first include in COMMON
 	#include "vr_common.fxc"
 
-	#include "volumetric_fog.fxc"
-	#include "light_probe_volume.fxc"
+	#include "sbox/volumetric_fog.slangh"
+	#include "sbox/light_probe_volume.slangh"
 	
     #include "common/lightbinner.hlsl"
     #include "common/classes/Depth.hlsl"
@@ -114,7 +114,7 @@ Mode( Default );
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
 	#include "sbox/math.slangh"
-	#include "light_probe_volume.fxc"
+	#include "sbox/light_probe_volume.slangh"
 	#include "vr_lighting.fxc"
 	
 	DynamicCombo( D_PASS, 0..1, Sys( PC || VULKAN ) );

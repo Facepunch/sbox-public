@@ -1,0 +1,48 @@
+// Ambient cubes: light from the six axis directions, blended by the squared normal. Ours, in place of the old
+// ambient_cube.fxc in Slang compiles (SlangHeaders): the same names and results. Shares its include guard.
+#ifndef AMBIENT_CUBE_FXC
+#define AMBIENT_CUBE_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "system.fxc"
+
+/// A single-channel cube: the positive axes' intensities in `positive`, the negative axes' in `negative`.
+float EvalGreyAmbientCube( float3 vNormalWs, float3 positive, float3 negative )
+{
+	float3 up = saturate( vNormalWs );
+	float3 down = saturate( -vNormalWs );
+	return dot( positive, up * up ) + dot( negative, down * down );
+}
+
+// The colour cubes' faces are ordered +X, -X, +Y, -Y, +Z, -Z
+
+/// Indexing the faces by sign: fewest instructions where indexing a constant array is cheap.
+float3 EvalRGBAmbientCubeVS( float3 vNormalWs, const float3 vAmbientCube[6] )
+{
+	float3 weight = vNormalWs * vNormalWs;
+	int3 negative = int3( vNormalWs < float3( 0.0, 0.0, 0.0 ) );
+	return ( weight.x * vAmbientCube[negative.x] ) + ( weight.y * vAmbientCube[negative.y + 2] ) + ( weight.z * vAmbientCube[negative.z + 4] );
+}
+
+/// Weighting all six faces: no indexing.
+float3 EvalRGBAmbientCubePS( float3 vNormalWs, const float3 vAmbientCube[6] )
+{
+	float3 weight = vNormalWs * vNormalWs;
+	float3 negative = float3( vNormalWs < float3( 0.0, 0.0, 0.0 ) );
+	float3 positive = ( 1.0 - negative ) * weight;
+	negative *= weight;
+	return positive.x * vAmbientCube[0] + negative.x * vAmbientCube[1] +
+		positive.y * vAmbientCube[2] + negative.y * vAmbientCube[3] +
+		positive.z * vAmbientCube[4] + negative.z * vAmbientCube[5];
+}
+
+float3 EvalRGBAmbientCube( float3 vNormalWs, const float3 vAmbientCube[6] )
+{
+#if ( PROGRAM == VFX_PROGRAM_VS )
+	return EvalRGBAmbientCubeVS( vNormalWs, vAmbientCube );
+#else
+	return EvalRGBAmbientCubePS( vNormalWs, vAmbientCube );
+#endif
+}
+
+#endif // AMBIENT_CUBE_FXC

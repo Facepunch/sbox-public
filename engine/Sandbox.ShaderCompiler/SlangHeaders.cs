@@ -22,6 +22,14 @@ public static partial class SlangHeaders
 		["vs_decompress.fxc"] = "sbox/vertex_decompress.slangh",
 		["morph.fxc"] = "sbox/morph.slangh",
 		["ffd.fxc"] = "sbox/ffd.slangh",
+		["baked_lighting_constants.fxc"] = "sbox/baked_lighting.slangh",
+		["ambient_cube.fxc"] = "sbox/ambient_cube.slangh",
+		["sky.fxc"] = "sbox/sky.slangh",
+		["sheet_sampling.fxc"] = "sbox/sheet.slangh",
+		["volumetric_fog.fxc"] = "sbox/volumetric_fog.slangh",
+		["light_probe_volume.fxc"] = "sbox/light_probe_volume.slangh",
+		["irradiance_probe_lighting.fxc"] = "sbox/irradiance_probe.slangh",
+		["quad_overdraw_ps.fxc"] = "sbox/quad_overdraw.slangh",
 	};
 
 	[GeneratedRegex( @"^([ \t]*#[ \t]*include[ \t]*"")([^""]+)("")", RegexOptions.Multiline )]

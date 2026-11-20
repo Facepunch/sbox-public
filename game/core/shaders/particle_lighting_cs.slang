@@ -12,7 +12,7 @@ Mode( Default );
 
 #include "system.fxc"
 #include "vr_common.fxc"
-#include "light_probe_volume.fxc"
+#include "sbox/light_probe_volume.slangh"
 #include "common/lightbinner.hlsl"
 #include "common/DDGI/DDGI.hlsl"
 

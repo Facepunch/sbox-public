@@ -135,7 +135,7 @@ float4 SnapToScreenPixels( float4 vPositionPs )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 #include "sbox/encoding.slangh"
 
-#include "irradiance_probe_lighting.fxc"
+#include "sbox/irradiance_probe.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 DynamicCombo( D_NO_ZTEST, 0..1, Sys( ALL ) );

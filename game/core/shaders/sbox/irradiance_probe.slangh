@@ -1,0 +1,98 @@
+// Irradiance probes in a 2D texture (256x512): each probe an ambient cube of six texels in a row (+X, -X, +Y, -Y, +Z, -Z),
+// and probe volumes as 4x4x4 grids flattened into bands of slices. Ours, in place of the old irradiance_probe_lighting.fxc
+// in Slang compiles (SlangHeaders): the same bindings, names and results. Shares the old header's include guard.
+#ifndef IRRADIANCE_PROBE_LIGHTING_FXC
+#define IRRADIANCE_PROBE_LIGHTING_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "system.fxc"
+#include "sbox/math.slangh"
+
+Texture2D g_tIrradianceProbes < Attribute( "IrradianceProbeTexture" ); SrgbRead( false ); >;
+Texture2D g_tIrradianceSampleParams < Attribute( "CustomTexture0" ); SrgbRead( false ); >;
+
+// The textures' sizes, which the engine's probe code uses too
+static const float2 g_flInvIrradianceProbeTextureDim = { 1.0 / 256.0, 1.0 / 512.0 };
+static const float2 g_flInvIrradianceProbeParamTextureDim = { 1.0 / 512.0, 1.0 / 512.0 };
+
+cbuffer IrradTextureActiveRectCB
+{
+	float4 g_vInvIrradTexDim;   // the part of the probe texture in use
+};
+
+float3 GetIrradianceProbeSample( float flSampleIndex )
+{
+	float2 uv = float2( 0.5 + flSampleIndex, 0.5 ) * g_flInvIrradianceProbeTextureDim;
+	return g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv, 0 ).rgb;
+}
+
+/// Irradiance towards a direction from the probe whose first texel is at `baseUv` (in texels).
+float3 SampleIrradianceCube( float2 baseUv, float3 vDirectionWs )
+{
+	float3 weight = vDirectionWs * vDirectionWs;
+	float3 negative = float3( vDirectionWs < float3( 0.0, 0.0, 0.0 ) );
+	float4 uv = float4( 0.5, 2.5, 4.5, 0.5 ) + baseUv.xxxy;
+	uv.xyz += negative;
+	uv *= g_flInvIrradianceProbeTextureDim.xxxy;
+	return ( weight.x * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.xw, 0 ).rgb ) +
+		( weight.y * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.yw, 0 ).rgb ) +
+		( weight.z * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.zw, 0 ).rgb );
+}
+
+/// Irradiance towards a direction in a 4x4x4 probe grid at a 0..1 position, blended between its two nearest z slices.
+float3 SampleIrradianceCubeVolume( float2 baseUv, float3 vPositionVoxelSpace, float3 vDirectionWs )
+{
+	const float3 grid = float3( 4, 4, 4 );
+	float2 slices = floor( vPositionVoxelSpace.zz * grid.zz ) + float2( 0, 1 );
+	slices = min( slices, grid.zz - float2( 1, 1 ) ) * grid.x;
+
+	float2 uv0 = float2( 0.5, 0.5 ) + baseUv + vPositionVoxelSpace.xy * ( grid.xy - float2( 1, 1 ) );
+	float2 uv1 = uv0;
+	uv0.x += slices.x;
+	uv1.x += slices.y;
+
+	float3 weight = vDirectionWs * vDirectionWs;
+	float3 negative = float3( vDirectionWs < float3( 0.0, 0.0, 0.0 ) );
+	// x: the slice's u; y, z, w: the v of the X, Y and Z bands (each band grid.y texels tall)
+	float4 uv = grid.y * ( float4( 0, 0, 2, 4 ) + float4( 0, negative ) );
+	uv += uv0.xyyy;
+	uv *= g_flInvIrradianceProbeTextureDim.xyyy;
+	float3 first = ( weight.x * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.xy, 0 ).rgb ) +
+		( weight.y * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.xz, 0 ).rgb ) +
+		( weight.z * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.xw, 0 ).rgb );
+	uv.x = uv1.x * g_flInvIrradianceProbeTextureDim.x;
+	float3 second = ( weight.x * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.xy, 0 ).rgb ) +
+		( weight.y * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.xz, 0 ).rgb ) +
+		( weight.z * g_tIrradianceProbes.SampleLevel( g_sTrilinearWrap, uv.xw, 0 ).rgb );
+	return lerp( first, second, frac( vPositionVoxelSpace.z * grid.z ) );
+}
+
+/// Where a screen pixel's probe parameters are in the parameter texture: the position at .xz, the normal at .yz.
+float3 ComputeTexCoordForIrradianceProbeParamTextureFromScreenSpacePosition( float2 vPositionSs )
+{
+	float3 uv = vPositionSs.xxy;
+	uv.xy = 2.0 * floor( uv.xy ) + float2( 0.5, 1.5 );
+	return uv * g_flInvIrradianceProbeParamTextureDim.xxy;
+}
+
+float3 FetchPositionWsFromIrradianceProbeParamTexture( float3 uv )
+{
+	return g_tIrradianceSampleParams.SampleLevel( g_sPointWrap, uv.xz, 0 ).xyz;
+}
+
+float3 FetchNormalWsAndSpecExpFromIrradianceProbeParamTexture( float3 uv, out float flSpecExpOut )
+{
+	float4 texel = g_tIrradianceSampleParams.SampleLevel( g_sPointWrap, uv.yz, 0 );
+	flSpecExpOut = texel.w;
+	return texel.xyz;
+}
+
+/// A fullscreen quad's clip-space position squeezed onto the part of the probe texture in use.
+float4 TransformFullscreenPosToCoverActiveIrradianceTextureRegion( float4 vPosPs )
+{
+	float2 p = ( vPosPs.xy * 0.5 + 0.5 ) * g_vInvIrradTexDim.xy;
+	p.y += 1.0 - g_vInvIrradTexDim.y;
+	return float4( p * 2.0 - 1.0, vPosPs.zw );
+}
+
+#endif // IRRADIANCE_PROBE_LIGHTING_FXC

@@ -18,17 +18,9 @@ internal static partial class CheckShaderIncludes
 	/// </summary>
 	static readonly HashSet<string> StillReached = new( StringComparer.OrdinalIgnoreCase )
 	{
-		"core/shaders/ambient_cube.fxc",
-		"core/shaders/baked_lighting_constants.fxc",
 		"core/shaders/common.fxc",
 		"core/shaders/descriptor_set_support.fxc",
-		"core/shaders/irradiance_probe_lighting.fxc",
-		"core/shaders/light_probe_volume.fxc",
-		"core/shaders/quad_overdraw_ps.fxc",
-		"core/shaders/sheet_sampling.fxc",
-		"core/shaders/sky.fxc",
 		"core/shaders/system.fxc",
-		"core/shaders/volumetric_fog.fxc",
 		"core/shaders/vr_common.fxc",
 		"core/shaders/vr_common_features.fxc",
 		"core/shaders/vr_common_ps_code.fxc",

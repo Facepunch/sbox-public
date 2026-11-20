@@ -100,7 +100,7 @@ struct PS_OUTPUT
 };
 
 #if ( D_QUAD_OVERDRAW )
-	#include "quad_overdraw_ps.fxc"
+	#include "sbox/quad_overdraw.slangh"
 #else
 	[shader( "pixel" )] PS_OUTPUT MainPs( PS_INPUT i )
 	{

@@ -1,0 +1,33 @@
+// The 3D skybox's space: the sky's object-to-world transforms and the lookup direction its passes interpolate. Ours, in
+// place of the old sky.fxc in Slang compiles (SlangHeaders): the same constant buffer, names and results. Shares its
+// include guard.
+#ifndef SKY_FXC
+#define SKY_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "system.fxc"
+
+cbuffer SkyConstantBuffer_t
+{
+	float4x3 g_matSkyOsToWs;
+	float4x3 g_matSkyWsToOs;
+};
+
+/// What the vertex stage passes on: the position itself when drawing the sky map (a disc in xy), else the direction in
+/// the sky's space.
+float3 ComputeSkyLookupInterpolant( float3 vPositionOs, bool bRenderSkyMap )
+{
+	if ( bRenderSkyMap ) return vPositionOs;
+	return normalize( mul( float4( vPositionOs, 0.0 ), g_matSkyWsToOs ).xyz );
+}
+
+/// The world-space direction from the camera to the sky, back from the interpolant (the sky map's disc lifted onto the
+/// upper hemisphere).
+float3 ExtractCameraToSkyDirFromSkyLookupInterpolant( float3 vSkyLookupInterpolant, bool bRenderSkyMap )
+{
+	if ( !bRenderSkyMap ) return normalize( vSkyLookupInterpolant );
+	float z = max( 0.0, 0.5 - 0.5 * dot( vSkyLookupInterpolant.xy, vSkyLookupInterpolant.xy ) );
+	return mul( float4( normalize( float3( vSkyLookupInterpolant.xy, z ) ), 1.0 ), g_matSkyOsToWs ).xyz;
+}
+
+#endif // SKY_FXC
