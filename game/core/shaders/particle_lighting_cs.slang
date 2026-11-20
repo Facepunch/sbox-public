@@ -17,7 +17,7 @@ Mode( Default );
 #include "common/DDGI/DDGI.hlsl"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "vr_lighting.fxc"
 
 DynamicCombo( D_PASS, 0..1, Sys( ALL ) );

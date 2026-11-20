@@ -21,7 +21,7 @@ DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-    #include "math_general.fxc"
+    #include "sbox/math.slangh"
     #include "common/classes/ForwardNormals.hlsl"
 
     static const uint TILE_COORD_MASK = 0xFFFFu;

@@ -170,7 +170,7 @@ struct VS_INPUT
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "instancing.fxc"
 #include "ui/gamma.hlsl"
 

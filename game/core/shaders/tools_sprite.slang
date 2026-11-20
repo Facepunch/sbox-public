@@ -22,7 +22,7 @@ Feature( F_CULL_LARGER_THAN_BOX, 0..1, "Cull if Larger Than Box" );
 
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 
 // Functions ----------------------------------------------------------------------------------------------------------------------------------------------
 

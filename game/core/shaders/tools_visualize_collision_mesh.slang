@@ -22,7 +22,7 @@ Feature( F_WIREFRAME, 0..1 );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "vr_common.fxc"
 
 #define SUPPORTS_COMPRESSED_NORMAL_AND_TANGENT 1

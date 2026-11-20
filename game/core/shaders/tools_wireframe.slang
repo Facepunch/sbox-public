@@ -22,7 +22,7 @@ Feature( F_NO_CULLING, 0..1 );
 
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "vr_common.fxc"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -244,7 +244,7 @@ float3 PositionWs( float3x4 matObjectToWorld, float3 vPositionOs )
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "encoded_normals.fxc"
+#include "sbox/encoding.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 StaticCombo( S_MODE_DEPTH, 0..1, Sys( ALL ) );

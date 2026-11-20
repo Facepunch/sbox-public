@@ -15,8 +15,8 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
-#include "math_general.fxc"
-#include "encoded_normals.fxc"
+#include "sbox/math.slangh"
+#include "sbox/encoding.slangh"
 
 #define PASS_INTERSECT 1
 #define PASS_BILATERAL_UPSCALE 2

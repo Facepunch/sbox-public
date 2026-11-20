@@ -16,7 +16,7 @@ Feature( F_SHOW_BENT_NORMALS, 0..1, "General" );
 #include "system.fxc" // This should always be the first include in COMMON
 #include "vr_common.fxc"
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 
 #define SUPPORTS_COMPRESSED_NORMAL_AND_TANGENT 1
 

@@ -11,7 +11,7 @@ Mode( Forward );
 
 #include "system.fxc"
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 
 struct VS_INPUT
 {

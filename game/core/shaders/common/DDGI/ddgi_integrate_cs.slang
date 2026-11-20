@@ -13,7 +13,7 @@ Mode( Default );
 
 //---------------------------------------------------------------------------------------------------------------------
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "common_samplers.fxc"
 #include "common/DDGI/DDGI.hlsl"
 #include "common/Bindless.hlsl"
