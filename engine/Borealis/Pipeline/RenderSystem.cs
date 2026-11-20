@@ -316,6 +316,7 @@ public sealed partial class RenderSystem : IDisposable
 		view.Update();
 		frame.Begin( world, view, output, stages );
 		BloomObjects = null;
+		ReactiveDepth = null;
 
 		var allocStart = GC.GetAllocatedBytesForCurrentThread();
 		var start = Stopwatch.GetTimestamp();
@@ -619,6 +620,12 @@ public sealed partial class RenderSystem : IDisposable
 	/// none: what a camera's bloom effect after the frame adds. Valid until this system renders again.
 	/// </summary>
 	internal GpuTexture BloomObjects { get; set; }
+
+	/// <summary>
+	/// The overlays' depth the last frame drew for a temporal upscaler's reactive mask (<see cref="ReactiveDepthLayer"/>), the
+	/// size of its output, or null when it drew none. Valid until this system renders again.
+	/// </summary>
+	internal GpuTexture ReactiveDepth { get; set; }
 
 	/// <summary>
 	/// Milliseconds since the last lap, starting the next.

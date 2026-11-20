@@ -117,6 +117,15 @@ internal sealed class BorealisGpuFrame : IDisposable
 	BackendTexture bloomObjects;
 
 	/// <summary>
+	/// The overlays' depth the scene drew for a temporal upscaler's reactive mask (<see cref="RenderSystem.ReactiveDepth"/>), or
+	/// null when it drew none.
+	/// </summary>
+	public Texture ReactiveDepth { get; private set; }
+
+	// The Borealis texture behind ReactiveDepth this frame
+	BackendTexture reactiveDepth;
+
+	/// <summary>
 	/// The view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads): the min and max of the frame's
 	/// depth, mipped, built by <see cref="Begin()"/> (and from the upscaled depth by <see cref="Upscaled"/>). Null for a frame
 	/// with no depth.
@@ -145,9 +154,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 	/// <summary>
 	/// Take a frame Borealis rendered into <paramref name="target"/> on the backend's device, with the view constants it drew
-	/// with, and the bloom objects it drew (<see cref="RenderSystem.BloomObjects"/>), if any.
+	/// with, the bloom objects it drew (<see cref="RenderSystem.BloomObjects"/>) and the overlays' reactive depth
+	/// (<see cref="RenderSystem.ReactiveDepth"/>), if any.
 	/// </summary>
-	public void Adopt( ViewTarget target, in GpuViewConstants viewConstants, GpuTexture bloom = null )
+	public void Adopt( ViewTarget target, in GpuViewConstants viewConstants, GpuTexture bloom = null, GpuTexture reactive = null )
 	{
 		this.target = target;
 		var color = target.Resolved ?? target.Color;
@@ -158,6 +168,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( bloomObjects is not null && !ReferenceEquals( bloomObjects, bloom ) && bloomObjects.IsValid ) backend.ForgetBorrowed( bloomObjects.Handle );
 		bloomObjects = bloom as BackendTexture;
 		BloomObjects = bloomObjects is null ? null : FrameTexture( null, bloomObjects, new Vector2Int( bloomObjects.Width, bloomObjects.Height ), ImageFormat.RGBA1010102, depth: false );
+
+		if ( reactiveDepth is not null && !ReferenceEquals( reactiveDepth, reactive ) && reactiveDepth.IsValid ) backend.ForgetBorrowed( reactiveDepth.Handle );
+		reactiveDepth = reactive as BackendTexture;
+		ReactiveDepth = reactiveDepth is null ? null : FrameTexture( null, reactiveDepth, new Vector2Int( reactiveDepth.Width, reactiveDepth.Height ), ImageFormat.D32, depth: true );
 
 		if ( constants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
@@ -615,6 +629,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		BackendDevice.SetLayout( target.Resolved ?? target.Color, backend.LayoutOf( SceneColor ) );
 		if ( target.Depth is not null ) BackendDevice.SetLayout( target.Depth, backend.LayoutOf( SceneDepth ) );
 		if ( bloomObjects is not null ) BackendDevice.SetLayout( bloomObjects, backend.LayoutOf( BloomObjects ) );
+		if ( reactiveDepth is not null ) BackendDevice.SetLayout( reactiveDepth, backend.LayoutOf( ReactiveDepth ) );
 	}
 
 	/// <summary>
@@ -634,6 +649,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( bloomObjects is not null ) backend.ForgetBorrowed( bloomObjects.Handle );
 		bloomObjects = null;
 		BloomObjects = null;
+		if ( reactiveDepth is not null ) backend.ForgetBorrowed( reactiveDepth.Handle );
+		reactiveDepth = null;
+		ReactiveDepth = null;
 		target = null;
 	}
 
