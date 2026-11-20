@@ -308,7 +308,8 @@ internal sealed partial class SceneBridge
 			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, state.System.DepthFormat, "Borealis.Gpu camera" );
 		}
 
-		// The stages before the scene is finished draw inside its frame; ambient occlusion runs in its stage, not early
+		// The stages before the scene is finished draw inside its frame. Ambient occlusion runs early on the async compute queue
+		// when the frame overlaps compute (GpuCameraStages.RenderEarlyPostProcess), which its stage then skips; else in its stage
 		var frame = state.GpuFrame ??= new BorealisGpuFrame( backend );
 		var stages = state.GpuStages ??= new GpuCameraStages { Run = RunStage };
 		stages.Camera = camera;

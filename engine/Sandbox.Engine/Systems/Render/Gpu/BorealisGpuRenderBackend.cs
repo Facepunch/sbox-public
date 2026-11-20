@@ -540,16 +540,34 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		_ = Recording;
 		Span<uint> index = [(uint)TextureIndex( texture )];
+		if ( list.Queue == QueueType.Compute ) computeSlots |= 1 << slot;
 		context.MemoryBarrier();
 		context.UpdateBuffer( pipelineTextures, MemoryMarshal.AsBytes( index ), slot * 4 );
 	}
 
-	/// <summary>Name no pipeline textures for what draws after, in this block's list: what a frame starts with.</summary>
+	// Pipeline texture slots set on the async compute queue since the last clear (ambient occlusion, run early)
+	int computeSlots;
+
+	/// <summary>
+	/// Name no pipeline textures for what draws after, in this block's list: what a frame starts with. Slots the async compute
+	/// queue set for this frame (<see cref="SetPipelineTexture"/> in a compute block, before the frame's first stage) are left
+	/// as they are: that queue may be writing them while this one clears.
+	/// </summary>
 	internal void ClearPipelineTextures()
 	{
 		_ = Recording;
 		context.MemoryBarrier();
-		context.UpdateBuffer( pipelineTextures, stackalloc byte[16], 0 );
+		if ( computeSlots == 0 ) context.UpdateBuffer( pipelineTextures, stackalloc byte[16], 0 );
+		else
+		{
+			Span<byte> none = stackalloc byte[4];
+			for ( int slot = 0; slot < 4; slot++ )
+			{
+				if ( (computeSlots & (1 << slot)) == 0 ) context.UpdateBuffer( pipelineTextures, none, slot * 4 );
+			}
+		}
+
+		computeSlots = 0;
 	}
 
 	public override void EndBlock()
