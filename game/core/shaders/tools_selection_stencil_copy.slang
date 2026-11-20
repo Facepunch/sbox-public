@@ -17,8 +17,8 @@ Mode( Default );
 //Feature( F_COLOR_CHANNEL, 0..3 ( 0="Red", 1="Green", 2="Blue", 3="Alpha" ), "Color channel" );
 
 //--------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 
 //--------------------------------------------------------------------------------------------------

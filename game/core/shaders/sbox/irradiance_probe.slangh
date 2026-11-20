@@ -5,7 +5,7 @@
 #define IRRADIANCE_PROBE_LIGHTING_FXC
 
 // What the old header included, which code that includes it may rely on
-#include "system.fxc"
+#include "sbox/system.slangh"
 #include "sbox/math.slangh"
 
 Texture2D g_tIrradianceProbes < Attribute( "IrradianceProbeTexture" ); SrgbRead( false ); >;

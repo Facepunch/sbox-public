@@ -6,8 +6,8 @@ Mode( Default );
 Mode( VrForward );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 
 struct VS_INPUT

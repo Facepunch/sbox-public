@@ -11,7 +11,7 @@
 
 Mode( Default );
 
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 float2 g_vFsrInputViewportSize	< Attribute( "FsrInputViewportSize" ); >;

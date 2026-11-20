@@ -16,7 +16,7 @@ Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // !!! DO NOT INCLUDE ANY OTHER FILES IN THIS SHADER !!!
-#include "system.fxc"
+#include "sbox/system.slangh"
 // !!! DO NOT INCLUDE ANY OTHER FILES IN THIS SHADER !!!
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -43,7 +43,7 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_VS )
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 	#include "sbox/math.slangh"
-	#include "vr_common.fxc"
+	#include "sbox/shading.slangh"
 	#define IS_SPRITECARD 1 // So GetViewSubviewAndAdjustInstanceId() doesn't cause compile error
 	#include "sbox/lighting.slangh"
 

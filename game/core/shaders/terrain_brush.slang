@@ -6,7 +6,7 @@
 #include "sbox/pass.slangh"
 
 Mode( Forward );
-    #include "vr_common_features.fxc"
+    #include "sbox/features.slangh"
 
 #include "common/shared.hlsl"
 

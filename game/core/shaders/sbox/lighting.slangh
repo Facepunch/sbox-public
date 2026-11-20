@@ -8,7 +8,7 @@
 #define VR_LIGHTING_FXC
 
 // What the old header included, in its order, which code that includes it may rely on
-#include "system.fxc"
+#include "sbox/system.slangh"
 #include "common_samplers.fxc"
 #include "sbox/light_probe_volume.slangh"
 #include "Shadows/ProjectedShadow.hlsl"

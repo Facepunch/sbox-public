@@ -6,8 +6,8 @@
 #define SHEET_SAMPLING_FXC
 
 // What the old header included, which code that includes it may rely on
-#include "system.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 
 struct SheetDataSamplerParams_t

@@ -11,11 +11,11 @@
 Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
+#include "sbox/system.slangh" // This should always be the first include in COMMON
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "common.fxc"
+#include "sbox/view.slangh"
 #include "borealis_records.fxc"
 #include "sbox/transform.slangh"
 #include "borealis_meshlet.fxc"

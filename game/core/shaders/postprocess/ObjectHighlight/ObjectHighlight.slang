@@ -174,7 +174,7 @@ PixelInput OutlineCorner( PixelInput a, PixelInput b, uint nCorner, float flRadi
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "common.fxc"
+#include "sbox/view.slangh"
 #include "common/classes/Depth.hlsl"
 StaticCombo( S_USE_PATTERN, F_USE_PATTERN, Sys( ALL ) );
 

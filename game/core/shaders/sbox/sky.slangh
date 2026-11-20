@@ -5,7 +5,7 @@
 #define SKY_FXC
 
 // What the old header included, which code that includes it may rely on
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 cbuffer SkyConstantBuffer_t
 {

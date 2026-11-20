@@ -5,7 +5,7 @@
 #define BAKED_LIGHTING_CONSTANTS_FXC
 
 // What the old header included, which code that includes it may rely on
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 #ifdef SURFACE_GPU_DRIVEN
 // A GPU-driven surface pass loads them per draw from its lighting record (sbox/surface_passes.slangh)

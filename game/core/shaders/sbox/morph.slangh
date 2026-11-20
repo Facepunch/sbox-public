@@ -6,8 +6,8 @@
 #define VR_MORPH_FXC
 
 // What the old header included, which code that includes it may rely on
-#include "system.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 #include "sbox/transform.slangh"
 

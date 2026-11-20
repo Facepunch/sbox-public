@@ -13,9 +13,9 @@ Mode( ToolsUtil, S_MODE_FORWARD );
 Feature( F_SHOW_TANGENTS, 0..1, "General" );
 Feature( F_SHOW_BENT_NORMALS, 0..1, "General" );
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 
 #define SUPPORTS_COMPRESSED_NORMAL_AND_TANGENT 1

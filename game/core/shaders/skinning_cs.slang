@@ -6,9 +6,9 @@
 
 Mode( Default );
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
-#include "vr_common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
+#include "sbox/shading.slangh"
 #include "sbox/math.slangh"
 #include "common/utils/normal_transform.hlsl"
 #include "sbox/transform.slangh"

@@ -4,7 +4,7 @@
 #define AMBIENT_CUBE_FXC
 
 // What the old header included, which code that includes it may rely on
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 /// A single-channel cube: the positive axes' intensities in `positive`, the negative axes' in `negative`.
 float EvalGreyAmbientCube( float3 vNormalWs, float3 positive, float3 negative )

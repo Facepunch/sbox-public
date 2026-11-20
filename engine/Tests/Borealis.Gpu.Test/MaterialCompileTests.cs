@@ -149,7 +149,7 @@ public class MaterialCompileTests
 	[TestMethod]
 	public void CompilesReadOurHeadersInPlaceOfTheOldOnes()
 	{
-		Assert.AreEqual( "\t#include \"sbox/math.slangh\" // x\n#include \"common.fxc\"\n", SlangHeaders.Replace( "\t#include \"math_general.fxc\" // x\n#include \"common.fxc\"\n" ) );
+		Assert.AreEqual( "\t#include \"sbox/math.slangh\" // x\n#include \"common/shared.hlsl\"\n", SlangHeaders.Replace( "\t#include \"math_general.fxc\" // x\n#include \"common/shared.hlsl\"\n" ) );
 
 		var shaders = Shaders();
 		var native = EngineFolders.NativeIn( Path.GetDirectoryName( Path.GetDirectoryName( shaders ) ) );

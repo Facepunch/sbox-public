@@ -21,8 +21,8 @@ Mode( Default );
 	#define FORCE_BILINEAR_PCF_SHADOWS_ONLY
 	#define COMPUTE_SHADER
 	
-	#include "system.fxc" // This should always be the first include in COMMON
-	#include "vr_common.fxc"
+	#include "sbox/system.slangh" // This should always be the first include in COMMON
+	#include "sbox/shading.slangh"
 
 	#include "sbox/volumetric_fog.slangh"
 	#include "sbox/light_probe_volume.slangh"

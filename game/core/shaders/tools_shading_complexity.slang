@@ -17,19 +17,19 @@ Feature( F_RENDER_BACKFACES, 0..1, "Rendering" );
 Feature( F_TRANSLUCENT, 0..1, "Translucent" );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc" 
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh" 
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT
 {
-	#include "vr_common_vs_input.fxc"
+	#include "sbox/vertex_input.slangh"
 };
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct PS_INPUT
 {
-	#include "vr_common_ps_input.fxc"
+	#include "sbox/pixel_input.slangh"
 };
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -37,7 +37,7 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "vr_common_vs_code.fxc"
+#include "sbox/vertex_processing.slangh"
 
 DynamicCombo( D_CS_VERTEX_ANIMATION, 0..1, Sys( PC ) );
 

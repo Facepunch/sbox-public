@@ -20,8 +20,8 @@ Feature( F_LIGHTING_ONLY, 0..1, "Rendering" );
 Feature( F_TEXTURE_FORMAT2, 0..6( 0 = "HDR (float16)", 1 = "RGB (8-bit uncompressed)", 2 = "YCoCg (dxt compressed)", 3 = "Dxt1 (LDR)", 4 = "RGBM (dxt compressed)", 5 = "RGBM (8-bit uncompressed)", 6 = "BC6H (HDR compressed - recommended)" ), "Format" );   // the .shader's enum misses its closing bracket, which vfx forgives
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
 #include "sbox/math.slangh"
 #include "sbox/sky.slangh"
 

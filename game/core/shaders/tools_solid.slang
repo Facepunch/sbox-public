@@ -25,9 +25,9 @@ Feature( F_NO_ZTEST, 0..1 );
 Feature( F_NO_CULLING, 0..1 );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -71,7 +71,7 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 #include "sbox/instancing.slangh"
-#include "vr_common.fxc"
+#include "sbox/shading.slangh"
 #include "sbox/lighting.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------

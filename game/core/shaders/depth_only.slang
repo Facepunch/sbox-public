@@ -3,7 +3,7 @@
 // module: Borealis.Gpu draws it from here alone, GPU-driven too; depth_only.shader is only Source 2's renderer's now.
 // See docs/reference/borealis-standalone-modules.md.
 #include "sbox/pass.slangh"
-#include "vr_common.fxc"
+#include "sbox/shading.slangh"
 
 Mode( Depth );
 

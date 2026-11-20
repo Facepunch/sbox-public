@@ -9,9 +9,9 @@ Mode( Forward );
 
 #include "ui/features.hlsl"
 
-#include "system.fxc"
-#include "common.fxc"
-#include "vr_common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
+#include "sbox/shading.slangh"
 #include "common/Bindless.hlsl"
 
 DynamicCombo( D_WORLDPANEL, 0..1, Sys( ALL ) );

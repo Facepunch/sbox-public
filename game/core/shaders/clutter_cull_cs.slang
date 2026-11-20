@@ -6,8 +6,8 @@
 
 Mode( Default );
 
-#include "system.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
 #include "sbox/transform.slangh" // TransformBufferData_t
 
 #if ( PROGRAM == VFX_PROGRAM_CS )

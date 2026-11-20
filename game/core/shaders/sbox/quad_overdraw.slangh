@@ -6,7 +6,7 @@
 #define QUAD_OVERDRAW_FXC
 
 // What the old header included, which code that includes it may rely on
-#include "system.fxc"
+#include "sbox/system.slangh"
 #include "sbox/math.slangh"
 
 RWTexture2D<uint> g_tQuadOverdrawMutexUAV < Attribute( "QuadOverdrawMutexUAV" ); >;

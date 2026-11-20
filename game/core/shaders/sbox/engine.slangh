@@ -5,7 +5,7 @@
 #ifndef SBOX_ENGINE_SLANGH
 #define SBOX_ENGINE_SLANGH
 
-#include "system.fxc"
+#include "sbox/system.slangh"
 #include "common/shared.hlsl"
 
 struct VertexInput

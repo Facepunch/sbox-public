@@ -6,10 +6,10 @@
 #define LIGHT_PROBE_VOLUME_FXC
 
 // What the old header included, which code that includes it may rely on
-#include "system.fxc"
+#include "sbox/system.slangh"
 #include "sbox/math.slangh"
 #include "sbox/ambient_cube.slangh"
-#include "common.fxc"
+#include "sbox/view.slangh"
 #include "common/classes/Bindless.hlsl"
 
 #ifdef SURFACE_GPU_DRIVEN

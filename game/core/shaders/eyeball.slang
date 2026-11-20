@@ -25,21 +25,21 @@ Feature( F_SELF_ILLUM, 0..1, "Self Illum" );
 #define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_WRAP
 #define S_SPECULAR 1
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
 
 //=========================================================================================================================
 
 struct VS_INPUT
 {
-	#include "vr_shared_standard_vs_input.fxc"
+	#include "sbox/standard_vertex_input.slangh"
 };
 
 //=========================================================================================================================
 
 struct PS_INPUT
 {
-	#include "vr_shared_standard_ps_input.fxc"
+	#include "sbox/standard_pixel_input.slangh"
 	
 	float2 vOcclusionUV : TEXCOORD15;
 };
@@ -47,7 +47,7 @@ struct PS_INPUT
 //=========================================================================================================================
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "vr_shared_standard_vs_code.fxc"
+#include "sbox/standard_vertex_processing.slangh"
 
 float4x4 g_vEyeOcclusionViewProj < Attribute("EyeOcclusionViewProj"); >;
 
