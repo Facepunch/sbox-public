@@ -54,7 +54,7 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 #include "sbox/instancing.slangh"
-#include "vr_lighting.fxc"
+#include "sbox/lighting.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 DynamicCombo( D_DEPTH_BIAS, 0..1, Sys( ALL ) );

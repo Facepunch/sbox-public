@@ -61,7 +61,7 @@ struct PS_INPUT
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
 #include "sbox/instancing.slangh"
-#include "vr_lighting.fxc"
+#include "sbox/lighting.slangh"
 
 // Four vertices per line, as a strip: the geometry stage's order (end 0 and 1 on one side, then on the other)
 ExpandPrimitives( LINES, 4, TRIANGLE_STRIP );

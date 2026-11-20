@@ -421,7 +421,7 @@ public class SurfaceTests : GpuTest
 			var second = compiler.CompileSurface( module );
 			Assert.IsFalse( first.FromCache );
 			Assert.IsTrue( second.FromCache );
-			Assert.IsTrue( first.Dependencies.Any( d => d.EndsWith( "vr_lighting.fxc", StringComparison.OrdinalIgnoreCase ) ), "the core includes are dependencies" );
+			Assert.IsTrue( first.Dependencies.Any( d => d.EndsWith( "lighting.slangh", StringComparison.OrdinalIgnoreCase ) ), "the core includes are dependencies" );
 			CollectionAssert.AreEquivalent( first.Passes.Keys.ToArray(), second.Passes.Keys.ToArray() );
 			foreach ( var (name, pass) in first.Passes )
 			{
@@ -924,7 +924,7 @@ public class SurfaceTests : GpuTest
 				if ( p.Pixel is not null ) CollectionAssert.AreEqual( p.Pixel.Spirv, read.Pass( name ).Pixel.Spirv, name );
 			}
 
-			Assert.IsTrue( read.Dependencies.Any( d => d.EndsWith( "vr_lighting.fxc", StringComparison.OrdinalIgnoreCase ) ), "the files it read, found again" );
+			Assert.IsTrue( read.Dependencies.Any( d => d.EndsWith( "lighting.slangh", StringComparison.OrdinalIgnoreCase ) ), "the files it read, found again" );
 			var values = pass.Combos( StageKind.Pixel ).ToDictionary( c => c.Name, c => c.Min );
 			Assert.IsTrue( game.CompilePass( pass, StageKind.Pixel, values ).Offline, "the pass stage came from its offline compile" );
 			Assert.AreEqual( 0, compiling.Count, string.Join( "; ", compiling ) );

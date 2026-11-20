@@ -162,6 +162,7 @@ public class MaterialCompileTests
 
 		var names = read.Select( d => Path.GetRelativePath( shaders, d ).Replace( '\\', '/' ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 		Assert.IsTrue( names.Contains( "sbox/math.slangh" ), string.Join( ", ", names ) );
+		Assert.IsTrue( names.Contains( "sbox/lighting.slangh" ), string.Join( ", ", names ) );
 		foreach ( var old in SlangHeaders.Replaced.Keys ) Assert.IsFalse( names.Contains( old ), old );
 	}
 }

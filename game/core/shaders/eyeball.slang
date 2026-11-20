@@ -76,7 +76,7 @@ float4x4 g_vEyeOcclusionViewProj < Attribute("EyeOcclusionViewProj"); >;
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "vr_common_ps_code.fxc"
+#include "sbox/final_combiner.slangh"
 #include "common/classes/Fog.hlsl"
 
 // Disable this warning since our tangent frame is computed with ddx/ddy instructions, and this is somehow tripping this warning when it shouldn't.

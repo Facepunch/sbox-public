@@ -18,7 +18,7 @@ Mode( Default );
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "sbox/math.slangh"
-#include "vr_lighting.fxc"
+#include "sbox/lighting.slangh"
 
 DynamicCombo( D_PASS, 0..1, Sys( ALL ) );
 

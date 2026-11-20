@@ -49,7 +49,7 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_VS )
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 	#define IS_SPRITECARD 1// To avoid compile errors with missing VS_INPUT
-	#include "vr_lighting.fxc"
+	#include "sbox/lighting.slangh"
 
 	// Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 	StaticCombo( S_LIGHTING_ONLY, F_LIGHTING_ONLY, Sys( ALL ) );
@@ -87,7 +87,7 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
-#include "vr_lighting.fxc"
+#include "sbox/lighting.slangh"
 #include "sbox/volumetric_fog.slangh"
 #include "common/classes/Fog.hlsl"
 

@@ -91,7 +91,7 @@ struct PixelInput
 	RenderState( DepthWriteEnable, false );
 	RenderState( DepthFunc, LESS_EQUAL );
 
-    #include "vr_common_ps_code.fxc"
+    #include "sbox/final_combiner.slangh"
 
 	// Could use Depth::GetWorldPosition in the future if it supports giving rays?
 	float3 CalculateWorldSpacePosition( float3 vCameraToPositionRayWs, float2 vPositionSs )

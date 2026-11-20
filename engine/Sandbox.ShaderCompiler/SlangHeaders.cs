@@ -32,6 +32,8 @@ public static partial class SlangHeaders
 		["quad_overdraw_ps.fxc"] = "sbox/quad_overdraw.slangh",
 		["vr_environment_map.fxc"] = "sbox/environment_map.slangh",
 		["vr_detail_texture.fxc"] = "sbox/detail_texture.slangh",
+		["vr_lighting.fxc"] = "sbox/lighting.slangh",
+		["vr_common_ps_code.fxc"] = "sbox/final_combiner.slangh",
 	};
 
 	[GeneratedRegex( @"^([ \t]*#[ \t]*include[ \t]*"")([^""]+)("")", RegexOptions.Multiline )]

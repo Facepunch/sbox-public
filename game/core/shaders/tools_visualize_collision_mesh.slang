@@ -58,7 +58,7 @@ struct PS_INPUT
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 #include "sbox/instancing.slangh"
 #include "sbox/vertex_decompress.slangh"
-#include "vr_lighting.fxc"
+#include "sbox/lighting.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 StaticCombo( S_WIREFRAME, F_WIREFRAME, Sys( ALL ) );

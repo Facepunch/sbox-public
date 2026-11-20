@@ -115,7 +115,7 @@ Mode( Default );
 
 	#include "sbox/math.slangh"
 	#include "sbox/light_probe_volume.slangh"
-	#include "vr_lighting.fxc"
+	#include "sbox/lighting.slangh"
 	
 	DynamicCombo( D_PASS, 0..1, Sys( PC || VULKAN ) );
 	DynamicCombo( D_ENABLE_BAKED_FOG_TEXTURE, 0..1, Sys( ALL ) );

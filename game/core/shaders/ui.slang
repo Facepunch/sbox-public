@@ -45,7 +45,7 @@ struct PS_INPUT
 	#include "sbox/math.slangh"
 	#include "vr_common.fxc"
 	#define IS_SPRITECARD 1 // So GetViewSubviewAndAdjustInstanceId() doesn't cause compile error
-	#include "vr_lighting.fxc"
+	#include "sbox/lighting.slangh"
 
 	// Constants ----------------------------------------------------------------------------------------------------------------------------------------------
 	float4 g_vViewport < Source( Viewport ); >;
