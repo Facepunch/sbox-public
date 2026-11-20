@@ -83,9 +83,10 @@ public abstract class BlobData
 	object _pendingLock;
 
 	/// <summary>
-	/// The stored data of a blob that hasn't been loaded yet - saving writes it back as is.
+	/// The data (version prefix + payload) to save as is, when it's already known: a blob that hasn't been loaded yet
+	/// saves the bytes it was loaded from.
 	/// </summary>
-	internal byte[] PendingData => _pending;
+	internal virtual byte[] PendingData => _pending;
 
 	/// <summary>
 	/// Keeps <paramref name="data"/> (version prefix + payload) to deserialize on first use, if this blob

@@ -129,4 +129,37 @@ public partial class InstancesTest
 		}
 	}
 
+	/// <summary>
+	/// The prefab diff compares meshes by hash: an edited instance mesh must still be saved with its data, an unchanged
+	/// identical one must not be overridden, and nothing kept may hold a hash instead of data.
+	/// </summary>
+	[TestMethod]
+	public void EditedInstanceMeshIsSavedWithItsData()
+	{
+		const string path = "___prefab_mesh_instance_edit.prefab";
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var source = new GameObject( "MeshPrefab" );
+		CreateMeshBlock( "Edited" ).Parent = source;
+		CreateMeshBlock( "Untouched" ).Parent = source;
+		using var registration = Helpers.RegisterPrefabFromJson( path, source.Serialize().ToJsonString() );
+		var cache = (PrefabCacheScene)GameObject.GetPrefab( path );
+		Assert.IsFalse( cache.FullPrefabInstanceJson.ToJsonString().Contains( "\"mesh:" ) );
+
+		var instance = cache.Clone();
+		var edited = instance.Children.Single( x => x.Name == "Edited" ).Components.Get<MeshComponent>().Mesh;
+		edited.SetVertexPosition( edited.VertexHandles.First(), new Vector3( 1, 2, 3 ) );
+
+		var json = instance.Serialize().ToJsonString();
+		Assert.IsFalse( json.Contains( "\"mesh:" ), "The saved patch must hold mesh data, not a hash" );
+		Assert.AreEqual( 1, instance.PrefabInstance.Patch.PropertyOverrides.Count( x => x.Property == "Mesh" ) );
+
+		var loaded = new GameObject();
+		loaded.Deserialize( JsonNode.Parse( json ).AsObject() );
+		var loadedEdited = loaded.Children.Single( x => x.Name == "Edited" ).Components.Get<MeshComponent>().Mesh;
+		var loadedUntouched = loaded.Children.Single( x => x.Name == "Untouched" ).Components.Get<MeshComponent>().Mesh;
+		Assert.AreEqual( new Vector3( 1, 2, 3 ), loadedEdited.GetVertexPosition( loadedEdited.VertexHandles.First() ) );
+		Assert.AreEqual( Vector3.Zero, loadedUntouched.GetVertexPosition( loadedUntouched.VertexHandles.First() ) );
+	}
+
 }

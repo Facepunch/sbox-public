@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Runtime.InteropServices;
 
 namespace HalfEdgeMesh;
 
@@ -44,6 +45,11 @@ internal abstract class ComponentData<T> : IEnumerable<T>, IDataStream where T :
 
 	public int Count => _list.Count;
 
+	/// <summary>
+	/// The values as stored, without copying. Only valid until the stream next grows.
+	/// </summary>
+	internal ReadOnlySpan<T> AsSpan() => CollectionsMarshal.AsSpan( _list );
+
 	public T this[int index]
 	{
 		get => index >= 0 && index < Count ? _list[index] : default;
@@ -81,6 +87,11 @@ internal class ComponentList<T> : IEnumerable<T>
 	private readonly Dictionary<string, IDataStream> _streams = new();
 
 	public int Count => _list.Count;
+
+	/// <summary>
+	/// The components as stored, deallocated ones included, without copying. Only valid until the list next grows.
+	/// </summary>
+	internal ReadOnlySpan<T> AsSpan() => CollectionsMarshal.AsSpan( _list );
 
 	public IEnumerator<T> GetEnumerator() => _list.GetEnumerator();
 	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
