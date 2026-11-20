@@ -2312,6 +2312,129 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A model whose meshlets the resource compiler cooked (<see cref="Borealis.Source2.Models.MeshletCooker"/>: its draws'
+	/// indices in meshlet order, the records in the mesh) and one whose meshlets are built at load, as aggregates side by side:
+	/// the cooked one's ranges are taken as they are and the other's built, every range publishes, and the frame is the one
+	/// drawn without meshlets; with the compute pass and with task and mesh shaders.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void CookedAndBuiltMeshletsBothDraw( bool meshTasks )
+	{
+		var core = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( core is not null ) Borealis.Backend.Meshlets.MeshOptimizer.Directory = EngineFolders.NativeIn( Path.GetDirectoryName( core ) );
+		if ( !Borealis.Backend.Meshlets.MeshOptimizer.Available ) Assert.Inconclusive( "meshopt isn't built" );
+		if ( meshTasks && !Device.Capabilities.MeshShaders ) Assert.Inconclusive( "The device has no mesh shaders" );
+
+		byte[] Frame( bool meshlets, out Borealis.Backend.Meshlets.MeshletStore store )
+		{
+			using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, Meshlets = meshlets, MeshletTasks = meshTasks, GeneratedLods = false };
+			foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+			{
+				if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+			}
+
+			var plane = backend.LoadModel( "models/dev/plane_large.vmdl" );
+			if ( plane is null || backend.Content.TryRead( "models/citizen_props/trashcan01.vmdl" ) is not { } data ) { Assert.Inconclusive( "models/dev/plane_large.vmdl or models/citizen_props/trashcan01.vmdl isn't built" ); store = null; return null; }
+
+			// The same model twice: as compiled, and cooked as the resource compiler cooks an aggregate's meshes
+			var file = Borealis.Source2.Models.ModelFile.Read( data, backend.Content.TryRead );
+			var cut = Borealis.Backend.Meshlets.MeshletBuilder.Cut( Borealis.Backend.Meshlets.MeshletConfig.Default );
+			var cookedFile = file.WithMeshes( file.Meshes.Select( m => Borealis.Source2.Models.MeshletCooker.Cook( m, 64, 124, cut ) ?? m ).ToArray() );
+			Assert.IsTrue( cookedFile.Meshes.Any( m => m.IndexBuffers.Any( b => b.Meshlets is not null ) ), "the model cooks" );
+			Assert.IsTrue( file.Meshes.All( m => m.IndexBuffers.All( b => b.Meshlets is null ) ), "and as compiled has no cooked meshlets" );
+			var built = BackendModel.Create( backend, file );
+			var cooked = BackendModel.Create( backend, cookedFile );
+
+			var previousHost = RenderHost.Current;
+			RenderHost.Current = new BackendRenderHost( backend );
+			try
+			{
+				using var system = new RenderSystem { ParallelRecording = false };
+				using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 4, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Cooked meshlets test" );
+				if ( meshlets && (backend.MeshletStore is null || backend.MeshletCullShader is null) ) Assert.Inconclusive( "no meshlets: meshopt or borealis_meshlet_cull_cs is missing" );
+				if ( meshlets && meshTasks && backend.MeshletIds is null ) Assert.Inconclusive( "borealis_meshlet_ids isn't built" );
+
+				var world = new RenderWorld();
+				world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+				world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+				world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+				world.Lighting.SunShadowCascades = 0;
+
+				AggregateObject Aggregate( RenderMesh model, Color colour, (Vector3 Position, float Scale)[] placed )
+				{
+					var draw = model.DrawsForLod( 0 ).ToArray().MaxBy( d => d.IndexCount ) with { Material = backend.CreateMaterial( $"Cooked {colour}", colour ), ShadowFastPath = true };
+					var baseVertex = ((IBackendGeometry)model.Geometry).For( draw.Mesh, draw.DrawCall ).BaseVertex;
+					var fragments = placed.Select( ( p, i ) =>
+					{
+						var transform = new Transform( p.Position, Rotation.FromYaw( i * 50 ), p.Scale );
+						var bounds = model.Bounds.Transform( transform );
+						return new AggregateObject.FragmentDraw
+						{
+							Transform = Matrix3x4.From( transform ),
+							BoundsMin = bounds.Mins,
+							BoundsMax = bounds.Maxs,
+							DrawTint = Vector3.One,
+							Args = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)draw.IndexCount, InstanceCount = 1, FirstIndex = (uint)draw.StartIndex, BaseVertex = baseVertex, FirstInstance = (uint)i },
+						};
+					} ).ToArray();
+					return new AggregateObject( new RenderMesh( model.Geometry, model.Bounds, [[draw]] ), fragments ) { IsStatic = true };
+				}
+
+				// Cooked trashcans on the left, built ones on the right, on a ground plane
+				var size = cooked.Bounds.Size;
+				var scale = 160 / MathF.Max( MathF.Max( size.x, size.y ), 1 );
+				world.Add( Aggregate( plane, new Color( 0.5f, 0.5f, 0.5f ), [(new Vector3( 300, 0, 0 ), 6000 / MathF.Max( plane.Bounds.Size.x, 1 ))] ) );
+				world.Add( Aggregate( cooked, new Color( 0.7f, 0.6f, 0.5f ), [(new Vector3( 0, -200, 0 ), scale), (new Vector3( 250, -320, 0 ), scale * 0.7f)] ) );
+				world.Add( Aggregate( built, new Color( 0.3f, 0.7f, 0.4f ), [(new Vector3( 0, 200, 0 ), scale), (new Vector3( 250, 320, 0 ), scale * 0.7f)] ) );
+
+				var view = new RenderView { Name = "Cooked meshlets test", FieldOfView = 70, ZNear = 4, ZFar = 6000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+				view.Position = new Vector3( -700, 0, 260 );
+				view.Rotation = Rotation.LookAt( new Vector3( 1, 0, -0.3f ) );
+
+				byte[] Render()
+				{
+					backend.BeginFrame();
+					RenderHost.Current.NextFrame();
+					system.Render( world, view, target );
+					Device.WaitIdle();
+					var (texture, layout) = BackendDevice.Unwrap( target.Resolved );
+					var pixels = ReadBack( texture, layout );
+					BackendDevice.SetLayout( target.Resolved, ImageLayout.CopySource );
+					return pixels;
+				}
+
+				// Every range built or taken, uploaded and published before the frame that's kept
+				for ( int i = 0; i < 300 && (i < 4 || backend.MeshletStore is { Pending: > 0 }); i++ )
+				{
+					Render();
+					if ( backend.MeshletStore is { Pending: > 0 } ) Thread.Sleep( 10 );
+				}
+
+				for ( int i = 0; i < 6; i++ ) Render();
+				store = backend.MeshletStore;
+				return Render();
+			}
+			finally
+			{
+				Device.WaitIdle();
+				RenderHost.Current = previousHost;
+			}
+		}
+
+		var with = Frame( true, out var meshletStore );
+		var without = Frame( false, out _ );
+		Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		Assert.IsNotNull( meshletStore, "meshlets were on" );
+		Assert.AreEqual( 0, meshletStore.Pending, "every range was built or taken" );
+		Assert.IsTrue( meshletStore.CookedHits > 0, $"the cooked model's ranges were taken as cooked ({meshletStore.Published} published)" );
+		Assert.IsTrue( meshletStore.Published > meshletStore.CookedHits, $"and the other model's built ({meshletStore.Published} published, {meshletStore.CookedHits} cooked)" );
+		Assert.AreEqual( meshletStore.Requested, meshletStore.Published, "every range asked for published" );
+		Assert.IsTrue( Same( with, without ), $"both draw what they draw without meshlets ({Differences( with, without )})" );
+	}
+
+	/// <summary>
 	/// Four boxes along x at <paramref name="y"/> and a fifth beyond the far plane, which culling drops, in world space in
 	/// one mesh, and a fragment per box.
 	/// </summary>

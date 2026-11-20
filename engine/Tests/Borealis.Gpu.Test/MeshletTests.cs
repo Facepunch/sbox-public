@@ -156,6 +156,70 @@ public class MeshletTests
 		Assert.ThrowsException<ArgumentException>( () => MeshletBuilder.Build( indices.AsSpan( 0, 4 ), Position, 0, MeshletConfig.Default ) );
 	}
 
+	/// <summary>
+	/// A mesh cooked as the resource compiler cooks an aggregate's meshes (<see cref="Borealis.Source2.Models.MeshletCooker"/>)
+	/// holds, per draw, the indices and records <see cref="MeshletBuilder"/> builds from it as compiled, which the store takes
+	/// as they are (<see cref="MeshletSet.FromCooked"/>); its file reads back the same; a block of another version or config
+	/// is left for the load to build.
+	/// </summary>
+	[TestMethod]
+	public void CookedMeshletsAreTheLoadTimeBuild()
+	{
+		UseEngineLibrary();
+		var content = ContentFiles.FindGame();
+		if ( content.TryRead( "models/citizen_props/trashcan01.vmdl" ) is not { } data ) { Assert.Inconclusive( "models/citizen_props/trashcan01.vmdl isn't built" ); return; }
+
+		var config = MeshletConfig.Default;
+		var cut = MeshletBuilder.Cut( config );
+		var file = Borealis.Source2.Models.ModelFile.Read( data, content.TryRead );
+		var ranges = 0;
+		foreach ( var mesh in file.Meshes )
+		{
+			var cooked = Borealis.Source2.Models.MeshletCooker.Cook( mesh, config.MaxVertices, config.MaxTriangles, cut );
+			Assert.IsNotNull( cooked, $"{mesh.Name} cooks" );
+			foreach ( var draw in mesh.DrawCalls )
+			{
+				var (vbIndex, vbOffset) = draw.VertexBuffers[0];
+				var (ibIndex, ibOffset) = draw.IndexBuffer;
+				var vb = mesh.VertexBuffers[vbIndex];
+				var position = vb.Find( "POSITION" ).Value;
+				var start = ibOffset / mesh.IndexBuffers[ibIndex].Size + draw.StartIndex;
+				var baseVertex = vbOffset / vb.Stride + draw.BaseVertex;
+				var original = Enumerable.Range( start, draw.IndexCount ).Select( k => mesh.IndexBuffers[ibIndex][k] ).ToArray();
+				var expected = MeshletBuilder.Build( original, v => { var p = vb.Read( position, v ); return new V3( p.X, p.Y, p.Z ); }, baseVertex, config );
+
+				var stored = Enumerable.Range( start, draw.IndexCount ).Select( k => cooked.IndexBuffers[ibIndex][k] ).ToArray();
+				CollectionAssert.AreEqual( expected.Indices, stored, "the range's indices are stored in the order the load would put them in" );
+				var records = cooked.IndexBuffers[ibIndex].Meshlets.Find( start, draw.IndexCount, cooked.VertexBuffers[vbIndex], baseVertex );
+				CollectionAssert.AreEqual( System.Runtime.InteropServices.MemoryMarshal.AsBytes( expected.Meshlets.AsSpan() ).ToArray(), records.ToArray(), "and its records are the load's" );
+				var set = MeshletSet.FromCooked( stored, records.Span, config );
+				Assert.IsTrue( set is { InPlace: true } && set.Meshlets.Length == expected.Meshlets.Length, "which the store takes as they are" );
+				Assert.IsNull( MeshletSet.FromCooked( stored, records.Span, new MeshletConfig( 64, 4 ) ), "but not with meshlets over its config" );
+				Assert.IsTrue( mesh.IndexBuffers[ibIndex].Meshlets is null, "the mesh as compiled has none" );
+				ranges++;
+			}
+		}
+
+		Assert.IsTrue( ranges > 0, "a range was cooked" );
+
+		// A compiled mesh file cooked: read back, its ranges are the same; a block of another version reads as none
+		var vmesh = File.ReadAllBytes( Path.Combine( content.Roots.First(), "models", "dev", "error.vmesh_c" ) );
+		if ( Borealis.Source2.Models.MeshletCooker.CookMesh( vmesh, config.MaxVertices, config.MaxTriangles, cut ) is not { } cookedFile ) { Assert.Inconclusive( "models/dev/error.vmesh_c has nothing to cook" ); return; }
+		var resource = Borealis.Source2.Resources.ResourceFile.Read( cookedFile );
+		Assert.IsTrue( resource.Has( "MSHL" ), "the cooked file has the block" );
+		var read = Borealis.Source2.Models.ModelMesh.Read( resource.Block( "DATA" ), resource.Block( "VBIB" ), "error", 0, ulong.MaxValue, 0xFF, false, null, null, resource.Block( "MSHL" ) );
+		var inMemory = Borealis.Source2.Models.MeshletCooker.Cook( Borealis.Source2.Models.ModelMesh.Read( Borealis.Source2.Resources.ResourceFile.Read( vmesh ).Block( "DATA" ), Borealis.Source2.Resources.ResourceFile.Read( vmesh ).Block( "VBIB" ), "error", 0, ulong.MaxValue, 0xFF, false, null ), config.MaxVertices, config.MaxTriangles, cut );
+		for ( int b = 0; b < read.IndexBuffers.Count; b++ )
+		{
+			CollectionAssert.AreEqual( inMemory.IndexBuffers[b].Data, read.IndexBuffers[b].Data, "the file's indices are the cooked mesh's" );
+			Assert.AreEqual( inMemory.IndexBuffers[b].Meshlets?.Count ?? 0, read.IndexBuffers[b].Meshlets?.Count ?? 0, "and so are its ranges" );
+		}
+
+		var block = resource.Block( "MSHL" ).ToArray();
+		block[4] = 2;
+		Assert.IsNull( Borealis.Source2.Models.CookedMeshlets.Read( block, read.VertexBuffers.ToArray(), read.IndexBuffers.ToArray() ), "another version is left to the load" );
+	}
+
 	[TestMethod]
 	public void ConfigsParse()
 	{
