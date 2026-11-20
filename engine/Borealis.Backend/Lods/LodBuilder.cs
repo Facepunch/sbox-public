@@ -38,6 +38,21 @@ internal sealed class LodChain
 internal static unsafe class LodBuilder
 {
 	/// <summary>
+	/// A range's triangles in one order whatever order they're stored in (sorted by their corners, each triangle's corners
+	/// as they are), so its levels don't depend on it: the resource compiler stores aggregate fragments in meshlet order
+	/// (<see cref="Borealis.Source2.Models.CookedMeshlets"/>), and the simplifier's result depends on its input's order.
+	/// </summary>
+	static uint[] Canonical( ReadOnlySpan<uint> indices )
+	{
+		var triangles = new (uint A, uint B, uint C)[indices.Length / 3];
+		for ( int t = 0; t < triangles.Length; t++ ) triangles[t] = (indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]);
+		Array.Sort( triangles );
+		var sorted = new uint[indices.Length];
+		for ( int t = 0; t < triangles.Length; t++ ) (sorted[t * 3], sorted[t * 3 + 1], sorted[t * 3 + 2]) = triangles[t];
+		return sorted;
+	}
+
+	/// <summary>
 	/// The levels of <paramref name="indices"/> (index values as stored, vertex <c>baseVertex + index</c> at
 	/// <paramref name="position"/>), or null when it's too small, nothing simplifies or the library isn't there.
 	/// </summary>
@@ -48,6 +63,7 @@ internal static unsafe class LodBuilder
 		if ( config.MaxLevels is < 1 or > LodStore.MaxLevels ) throw new ArgumentOutOfRangeException( nameof( config ), config, $"1 to {LodStore.MaxLevels} levels" );
 		var count = indices.Length;
 		if ( count / 3 < Math.Max( config.MinRangeTriangles, 1 ) || !MeshOptimizer.Available ) return null;
+		indices = Canonical( indices );
 
 		uint min = uint.MaxValue, max = 0;
 		for ( int k = 0; k < count; k++ )

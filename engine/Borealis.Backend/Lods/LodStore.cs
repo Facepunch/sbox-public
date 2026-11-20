@@ -41,7 +41,7 @@ internal sealed class LodStore : IDisposable
 	/// <summary>Bytes of a view's levels: a byte per aggregate visibility fragment (level, last direction, changed before).</summary>
 	public const int StateSliceBytes = GpuDrivenTables.FrameVisibilityFragmentBase;
 
-	const uint CacheMagic = 0x53444F4C, CacheVersion = 3;
+	const uint CacheMagic = 0x53444F4C, CacheVersion = 4;
 	const int CounterRing = 4;
 
 	readonly Device gpu;
