@@ -1,13 +1,12 @@
-// water.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
+// water: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: Description = "Lit water surface with waves, reflection and refraction";
 
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( Depth, S_MODE_DEPTH );
 #include "common/features.hlsl"
 Feature( F_CAUSTICS, 0..1, "Caustics" );
-
-// MODES: Forward();
-// MODES: Depth( S_MODE_DEPTH );
 
 #define S_SPECULAR 1
 #include "common/shared.hlsl"

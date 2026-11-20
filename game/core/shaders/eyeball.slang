@@ -1,5 +1,4 @@
-// eyeball.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
+// eyeball: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -9,11 +8,12 @@
 // HEADER: Version = 22;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Forward();
-// MODES: Depth( S_MODE_DEPTH );
-// MODES: ToolsShadingComplexity( "tools_shading_complexity.shader" );
 
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( Depth, S_MODE_DEPTH );
+Mode( ToolsShadingComplexity, "tools_shading_complexity.shader" );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 Feature( F_SPECULAR_CUBE_MAP, 0..2( 0 = "None", 1 = "In-game Cube Map", 2 = "Artist Cube Map" ), "Specular" );

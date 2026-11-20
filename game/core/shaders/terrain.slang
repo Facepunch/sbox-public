@@ -1,5 +1,4 @@
-// terrain.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
+// terrain: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //
 // Simple Terrain shader with 4 layer splat
 //
@@ -9,11 +8,11 @@
 // HEADER: DebugInfo = false;
 
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( Depth, S_MODE_DEPTH );
     // gonna go crazy the amount of shit this stuff adds and fails to compile without
     #include "vr_common_features.fxc"
-
-// MODES: Forward();
-// MODES: Depth( S_MODE_DEPTH );
 
     // Opt out of stupid shitCould
     #define CUSTOM_MATERIAL_INPUTS
