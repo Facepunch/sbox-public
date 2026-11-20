@@ -24,6 +24,9 @@ managed static class Editor.AssetSystem
 	void OnSoundReload( string filename );
 	void OnSoundReloaded( string filename );
 
+	// The material editor's view of a shader only a Slang module describes, for a feature state (IAssetSystem::DescribeModuleShader)
+	string DescribeModuleShader( string modulePath, string featureValues );
+
 	// Lots of parameters, a struct would be nice but pointers are weird in structs
 	void OpenPicker( QWidget pParentWidget, CUtlVectorAssetType assetTypes, IAssetPickerListener callback, int viewmode, IAsset selectedAsset, string titleAndSettingsName, bool cloudAllowed, string initialSearchText );
 	void PopulateAssetMenu( QMenu qMenu, IAsset asset );

@@ -100,6 +100,40 @@ native class CVfx as NativeEngine.CVfx
 		for ( int index : indices ) if ( !V_strcmp( descriptions[index].m_szName, variableName ) ) return true;
 		return false;
 	}
+
+	// The material editor's view of a feature state ("F_A=1 F_B=2"; a feature not named is at its minimum) as
+	// CVfx::DescribeUi writes it: what a Slang module's description is checked against
+	inline string DescribeUi( string featureValues )
+	{
+		static thread_local CUtlString result;
+		VfxComboValueVector_t values;
+		values.SetCount( self->FeatureArray().Count() );
+		for ( int i = 0; i < values.Count(); ++i ) values[i] = self->Feature( i ).m_nMin;
+		CUtlVector< CUtlString > pairs;
+		V_SplitString( featureValues, " ", pairs );
+		for ( const CUtlString &pair : pairs )
+		{
+			CUtlVector< CUtlString > parts;
+			V_SplitString( pair.Get(), "=", parts );
+			if ( parts.Count() != 2 ) continue;
+			int feature = self->FindFeatureByName( parts[0].Get() );
+			if ( feature >= 0 ) values[feature] = (VfxComboValue_t)Clamp( V_atoi( parts[1].Get() ), (int)self->Feature( feature ).m_nMin, (int)self->Feature( feature ).m_nMax );
+		}
+		self->DescribeUi( result, values );
+		return result.Get();
+	}
+
+	// The features and feature rules FEATURES-block lines declare, as the material editor reads a Slang module's
+	inline static string DescribeFeatureText( string name, string featureLines )
+	{
+		static thread_local CUtlString result;
+		CVfx vfx;
+		result.Clear();
+		if ( !vfx.CreateFromFeatureText( name, featureLines ) ) return "";
+		VfxComboValueVector_t values;
+		vfx.DescribeUi( result, values );
+		return result.Get();
+	}
 }
 
 native static class ShaderTools

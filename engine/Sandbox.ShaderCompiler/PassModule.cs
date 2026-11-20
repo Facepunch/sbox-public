@@ -729,6 +729,22 @@ internal static partial class PassPreprocessor
 		}
 	}
 
+	/// <summary>
+	/// Whether a condition (an <c>ActiveIf</c>'s) holds with these defines, which may name each other (<c>S_X</c> as
+	/// <c>F_X</c>); a combo or feature nothing defines is 0. Null when it doesn't parse.
+	/// </summary>
+	public static bool? Holds( string expression, IReadOnlyDictionary<string, string> defines )
+	{
+		try
+		{
+			return new Parser( expression, new Dictionary<string, string>( defines, StringComparer.Ordinal ), symbols: false ).Run().IsTrue;
+		}
+		catch ( FormatException )
+		{
+			return null;
+		}
+	}
+
 	/// <summary>A value: a number, or (render-state values) a constant's name.</summary>
 	readonly record struct Value( double? Number, string Symbol )
 	{
