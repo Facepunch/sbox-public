@@ -350,11 +350,6 @@ public partial class SceneLight : SceneObject
 			World.InternalSceneLights.Remove( this );
 		}
 
-		// Return any cached shadow map to the pool before this object becomes
-		// eligible for GC. Without this the ConditionalWeakTable silently drops
-		// the entry on collection and the shadow texture is orphaned.
-		Rendering.ShadowMapper.OnLightRemoved( this );
-
 		lightNative = IntPtr.Zero;
 
 		base.OnNativeDestroy();

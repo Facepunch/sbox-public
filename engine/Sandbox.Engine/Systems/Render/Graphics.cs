@@ -162,19 +162,6 @@ public static partial class Graphics
 	}
 
 	/// <summary>
-	/// Record for Source 2's device on this thread until disposed: native's callbacks into managed code (its render
-	/// pipeline's setup, its shadow mapper) upload buffers and resolve bindless indices for its views, also in a process
-	/// that draws on another device (the editor's native tools beside Borealis.Gpu).
-	/// </summary>
-	internal static RecordingScope RecordOnSource2() => new( SetRecordingBackend( Source2RenderBackend.Instance ) );
-
-	/// <summary>Puts the thread's recording device back (<see cref="RecordOnSource2"/>).</summary>
-	internal readonly struct RecordingScope( RenderBackend previous ) : IDisposable
-	{
-		public void Dispose() => SetRecordingBackend( previous );
-	}
-
-	/// <summary>
 	/// Whether the block records into an async compute context: compute and copies only.
 	/// </summary>
 	internal static bool OnComputeQueue => _state.computeQueue;
