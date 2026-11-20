@@ -6,8 +6,8 @@
 
 Mode( Default );
 
-#include "system.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 // 0 clears the grid and counters, 1 resolves the grid into OcclusionDebugOutput

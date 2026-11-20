@@ -1,6 +1,6 @@
 {
   "Title": "Menu Addon",
-  "Type": "game",
+  "Type": "menu",
   "Org": "local",
   "Ident": "menu",
   "Schema": 1,

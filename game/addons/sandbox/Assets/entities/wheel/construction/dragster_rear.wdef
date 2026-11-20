@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/dragster_rear.prefab",
+  "Title": "#asset.wheel.dragster_rear.title",
+  "Description": "#asset.wheel.dragster_rear.description",
+  "__references": [],
+  "__version": 0
+}

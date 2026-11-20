@@ -17,6 +17,7 @@ public sealed partial class RenderSystem
 		mainPass.Reset( features.Count );
 		mainPass.View = view;
 		mainPass.Root = view;
+		mainPass.World = world;
 
 		// The cull reasons view sees every object in the frustum, so it can tell the small ones from the off-screen ones and
 		// draw them anyway

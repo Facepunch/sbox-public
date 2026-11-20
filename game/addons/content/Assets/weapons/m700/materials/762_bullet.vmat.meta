@@ -1,0 +1,28 @@
+{
+  "guid": "4bf0e532-9c33-432c-ad05-dd6eb7c65f0b",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "762 Bullet",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "762_bullet",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m700/materials/762_bullet.vmat"
+      }
+    }
+  }
+}

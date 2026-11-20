@@ -1,0 +1,733 @@
+{
+  "Title": "Robotics",
+  "Description": "",
+  "Icon": "precision_manufacturing",
+  "RequiredMount": null,
+  "Parent": null,
+  "Order": 0,
+  "HideInSidebar": true,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Normal",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/a1.vmdl",
+      "Title": "Pole A1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/a2.vmdl",
+      "Title": "Pole A2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/a3.vmdl",
+      "Title": "Pole A3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/a4.vmdl",
+      "Title": "Pole A4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/b1.vmdl",
+      "Title": "Hinge Pole B1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/b2.vmdl",
+      "Title": "Hinge Pole B2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/b3.vmdl",
+      "Title": "Hinge Pole B3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/b4.vmdl",
+      "Title": "Hinge Pole B4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/c1.vmdl",
+      "Title": "Fork Arm C1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/c2.vmdl",
+      "Title": "Fork Arm C2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/c3.vmdl",
+      "Title": "Fork Arm C3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/c4.vmdl",
+      "Title": "Fork Arm C4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw.vmdl",
+      "Title": "Claw",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide.vmdl",
+      "Title": "Claw Guide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide2.vmdl",
+      "Title": "Claw Guide 2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide2a.vmdl",
+      "Title": "Claw Guide 2A",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide2l.vmdl",
+      "Title": "Claw Guide 2L",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide2la.vmdl",
+      "Title": "Claw Guide 2LA",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/clawl.vmdl",
+      "Title": "Claw L",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/d1.vmdl",
+      "Title": "Double Hinge Arm D1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/d2.vmdl",
+      "Title": "Double Hinge Arm D2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/d3.vmdl",
+      "Title": "Double Hinge Arm D3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/d4.vmdl",
+      "Title": "Double Hinge Arm D4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/e1.vmdl",
+      "Title": "Wide Fork Arm E1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/e2.vmdl",
+      "Title": "Wide Fork Arm E2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/e3.vmdl",
+      "Title": "Wide Fork Arm E3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/e4.vmdl",
+      "Title": "Wide Fork Arm E4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/f1.vmdl",
+      "Title": "Tab Pole F1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/f2.vmdl",
+      "Title": "Tab Pole F2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/f3.vmdl",
+      "Title": "Tab Pole F3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/foot.vmdl",
+      "Title": "Foot",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/g1.vmdl",
+      "Title": "U Bracket G1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/g2.vmdl",
+      "Title": "U Bracket G2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/g3.vmdl",
+      "Title": "U Bracket G3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/g4.vmdl",
+      "Title": "U Bracket G4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/h1.vmdl",
+      "Title": "Offset Hinge Arm H1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/h2.vmdl",
+      "Title": "Offset Hinge Arm H2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/h3.vmdl",
+      "Title": "Offset Hinge Arm H3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/h4.vmdl",
+      "Title": "Offset Hinge Arm H4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/i1.vmdl",
+      "Title": "Pivot Arm I1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/i2.vmdl",
+      "Title": "Pivot Arm I2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/i3.vmdl",
+      "Title": "Pivot Arm I3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/i4.vmdl",
+      "Title": "Pivot Arm I4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/j1.vmdl",
+      "Title": "Fork Pivot Arm J1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/j2.vmdl",
+      "Title": "Fork Pivot Arm J2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/j3.vmdl",
+      "Title": "Fork Pivot Arm J3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/j4.vmdl",
+      "Title": "Fork Pivot Arm J4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/k1.vmdl",
+      "Title": "Fork Axle Arm K1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/k2.vmdl",
+      "Title": "Fork Axle Arm K2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/k3.vmdl",
+      "Title": "Fork Axle Arm K3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/k4.vmdl",
+      "Title": "Fork Axle Arm K4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/l1.vmdl",
+      "Title": "Segmented Pole L1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/l2.vmdl",
+      "Title": "Segmented Pole L2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/l3.vmdl",
+      "Title": "Segmented Pole L3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/l4.vmdl",
+      "Title": "Segmented Pole L4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/m3.vmdl",
+      "Title": "H Frame M3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/m4.vmdl",
+      "Title": "H Frame M4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/stand.vmdl",
+      "Title": "Stand",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/xfoot.vmdl",
+      "Title": "X Foot",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/a1_large.vmdl",
+      "Title": "Pole A1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/a2_large.vmdl",
+      "Title": "Pole A2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/a3_large.vmdl",
+      "Title": "Pole A3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/a4_large.vmdl",
+      "Title": "Pole A4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/b1_large.vmdl",
+      "Title": "Hinge Pole B1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/b2_large.vmdl",
+      "Title": "Hinge Pole B2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/b3_large.vmdl",
+      "Title": "Hinge Pole B3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/b4_large.vmdl",
+      "Title": "Hinge Pole B4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/c1_large.vmdl",
+      "Title": "Fork Arm C1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/c2_large.vmdl",
+      "Title": "Fork Arm C2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/c3_large.vmdl",
+      "Title": "Fork Arm C3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/c4_large.vmdl",
+      "Title": "Fork Arm C4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_large.vmdl",
+      "Title": "Claw Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide_large.vmdl",
+      "Title": "Claw Guide Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide2_large.vmdl",
+      "Title": "Claw Guide 2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide2a_large.vmdl",
+      "Title": "Claw Guide 2A Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide2l_large.vmdl",
+      "Title": "Claw Guide 2L Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/claw_guide2la_large.vmdl",
+      "Title": "Claw Guide 2LA Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/clawl_large.vmdl",
+      "Title": "Claw L Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/d1_large.vmdl",
+      "Title": "Double Hinge Arm D1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/d2_large.vmdl",
+      "Title": "Double Hinge Arm D2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/d3_large.vmdl",
+      "Title": "Double Hinge Arm D3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/d4_large.vmdl",
+      "Title": "Double Hinge Arm D4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/e1_large.vmdl",
+      "Title": "Wide Fork Arm E1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/e2_large.vmdl",
+      "Title": "Wide Fork Arm E2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/e3_large.vmdl",
+      "Title": "Wide Fork Arm E3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/e4_large.vmdl",
+      "Title": "Wide Fork Arm E4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/f1_large.vmdl",
+      "Title": "Tab Pole F1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/f2_large.vmdl",
+      "Title": "Tab Pole F2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/f3_large.vmdl",
+      "Title": "Tab Pole F3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/foot_large.vmdl",
+      "Title": "Foot Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/g1_large.vmdl",
+      "Title": "U Bracket G1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/g2_large.vmdl",
+      "Title": "U Bracket G2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/g3_large.vmdl",
+      "Title": "U Bracket G3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/g4_large.vmdl",
+      "Title": "U Bracket G4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/h1_large.vmdl",
+      "Title": "Offset Hinge Arm H1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/h2_large.vmdl",
+      "Title": "Offset Hinge Arm H2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/h3_large.vmdl",
+      "Title": "Offset Hinge Arm H3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/h4_large.vmdl",
+      "Title": "Offset Hinge Arm H4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/i1_large.vmdl",
+      "Title": "Pivot Arm I1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/i2_large.vmdl",
+      "Title": "Pivot Arm I2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/i3_large.vmdl",
+      "Title": "Pivot Arm I3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/i4_large.vmdl",
+      "Title": "Pivot Arm I4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/j1_large.vmdl",
+      "Title": "Fork Pivot Arm J1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/j2_large.vmdl",
+      "Title": "Fork Pivot Arm J2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/j3_large.vmdl",
+      "Title": "Fork Pivot Arm J3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/j4_large.vmdl",
+      "Title": "Fork Pivot Arm J4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/k1_large.vmdl",
+      "Title": "Fork Axle Arm K1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/k2_large.vmdl",
+      "Title": "Fork Axle Arm K2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/k3_large.vmdl",
+      "Title": "Fork Axle Arm K3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/k4_large.vmdl",
+      "Title": "Fork Axle Arm K4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/l1_large.vmdl",
+      "Title": "Segmented Pole L1 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/l2_large.vmdl",
+      "Title": "Segmented Pole L2 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/l3_large.vmdl",
+      "Title": "Segmented Pole L3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/l4_large.vmdl",
+      "Title": "Segmented Pole L4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/m3_large.vmdl",
+      "Title": "H Frame M3 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/m4_large.vmdl",
+      "Title": "H Frame M4 Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/stand_large.vmdl",
+      "Title": "Stand Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/robotics/xfoot_large.vmdl",
+      "Title": "X Foot Large",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

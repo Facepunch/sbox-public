@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Ține apăsat {input:SpawnMenu} pentru a deschide meniul de creare",
+    "hint.openinspectmenu": "Ține apăsat {input:InspectMenu} pentru a deschide meniul de inspectare",
+    "hint.openpausemenu": "Apasă ESC pentru a deschide meniul de pauză și a consulta comenzile"
+}

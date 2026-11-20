@@ -18,10 +18,11 @@ namespace BorealisGpuTests;
 [DoNotParallelize]
 public class EmbeddedSourceTests : GpuTest
 {
-	const string Shader = "shaders/copytexture.shader";
+	// A pass shader the engine still compiles from a .shader (unlit, a UI pass), so there is a current .shader_c to compare with
+	const string Shader = "shaders/unlit.shader";
 
 	/// <summary>
-	/// copytexture as a package would ship it from an older engine: the ABI epoch it was compiled for isn't this one, and
+	/// unlit as a package would ship it from an older engine: the ABI epoch it was compiled for isn't this one, and
 	/// each program's source is embedded as the compiler embeds it. It loads and draws from that source, the variant the
 	/// same as the current file's, and nothing recompiles it.
 	/// </summary>
@@ -189,7 +190,7 @@ public class EmbeddedSourceTests : GpuTest
 
 	/// <summary>
 	/// A shader with a Slang module and no compiled file at all: it loads by its path from what the module declares (its
-	/// MODES lines, combos) and draws from the module, the variant the same as copytexture's own; with modules off it has
+	/// MODES lines, combos) and draws from the module, the variant the same as unlit's own; with modules off it has
 	/// nothing to draw.
 	/// </summary>
 	[TestMethod]

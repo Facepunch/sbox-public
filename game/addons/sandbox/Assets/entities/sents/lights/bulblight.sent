@@ -1,0 +1,9 @@
+{
+  "Prefab": "entities/sents/lights/bulblight.prefab",
+  "Title": "#asset.bulblight.title",
+  "Description": "#asset.bulblight.description",
+  "Category": "World",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

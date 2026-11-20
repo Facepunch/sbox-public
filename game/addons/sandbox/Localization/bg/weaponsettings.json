@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Откат",
+    "weapon.setting.primary.description": "Управлява основното действие на оръжието.",
+    "weapon.setting.secondary.description": "Управлява вторичното действие на оръжието.",
+    "weapon.setting.recoil_force": "Сила на отката",
+    "weapon.setting.recoil_force.description": "Физически откат при стрелба с оръжие, което не се държи.",
+    "weapon.setting.extend": "Увеличаване на разстоянието",
+    "weapon.setting.extend.description": "Отдалечава хванатия обект.",
+    "weapon.setting.retract": "Намаляване на разстоянието",
+    "weapon.setting.retract.description": "Приближава хванатия обект.",
+    "weapon.setting.camera_aim": "Прицелване с камерата",
+    "weapon.setting.camera_aim.description": "Прицелване по посоката на камерата на седналия играч.",
+    "weapon.setting.guide_rockets": "Насочване на ракети",
+    "weapon.setting.guide_rockets.description": "Насочва изстреляните ракети към мерника на играча."
+}

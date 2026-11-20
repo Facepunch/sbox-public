@@ -1,0 +1,17 @@
+{
+	"MasterVolume": "0.10,1.00,0",
+	"LoopedSounds":
+	[
+		{
+			"Volume": "0.25,1.00,0",
+			"SoundFile": "sounds/ambience/fluorescent-humming-loop.vsnd"
+		},
+		{
+			"Volume": "0.10,1.00,0",
+			"SoundFile": "sounds/ambience/electric_loop.vsnd"
+		}
+	],
+	"StingSounds":
+	[
+	]
+}

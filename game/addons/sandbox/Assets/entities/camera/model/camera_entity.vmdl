@@ -1,0 +1,28 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+    rootNode = {
+        _class = "RootNode"
+        children = [
+            { _class = "MaterialGroupList" children = [
+                { _class = "DefaultMaterialGroup" remaps = [] use_global_default = true global_default_material = "entities/camera/model/camera_entity.vmat" },
+            ] },
+            { _class = "RenderMeshList" children = [
+                { _class = "RenderMeshFile" name = "camera" filename = "entities/camera/model/camera_entity.obj"
+                  import_translation = [ 0, 0, 0 ] import_rotation = [ 0, 0, 0 ] import_scale = 1.0
+                  align_origin_x_type = "None" align_origin_y_type = "None" align_origin_z_type = "None"
+                  parent_bone = "" import_filter = { exclude_by_default = false exception_list = [] } },
+            ] },
+            { _class = "PhysicsShapeList" children = [ { _class = "PhysicsShapeBox" parent_bone = "" surface_prop = "metal" collision_tags = "solid" origin = [ 0, 0, 0.715 ] angles = [ 0, 0, 0 ] dimensions = [ 11.05, 7.15, 1.43 ] },
+{ _class = "PhysicsShapeBox" parent_bone = "" surface_prop = "metal" collision_tags = "solid" origin = [ 0, 0, 5.72 ] angles = [ 0, 0, 0 ] dimensions = [ 9.099999, 5.85, 8.19 ] },
+{ _class = "PhysicsShapeCylinder" parent_bone = "" surface_prop = "metal" collision_tags = "solid" point0 = [ -3.38, -1.755, 13.065 ] point1 = [ -3.38, 1.755, 13.065 ] radius = 3.64 },
+{ _class = "PhysicsShapeCylinder" parent_bone = "" surface_prop = "metal" collision_tags = "solid" point0 = [ 3.51, -1.755, 14.365 ] point1 = [ 3.51, 1.755, 14.365 ] radius = 4.095 },
+{ _class = "PhysicsShapeCylinder" parent_bone = "" surface_prop = "metal" collision_tags = "solid" point0 = [ 4.225, 0, 5.6875 ] point1 = [ 9.36, 0, 5.6875 ] radius = 2.3725 },
+ ] },
+            { _class = "PhysicsBodyMarkupList" children = [
+                { _class = "PhysicsBodyMarkup" target_body = "" mass_override = 4.0 inertia_scale = 1.0
+                  linear_damping = 0.0 angular_damping = 0.1 use_mass_center_override = false mass_center_override = [0,0,0] gravity_scale = 1.0 },
+            ] },
+        ]
+        model_archetype = "" primary_associated_entity = "" anim_graph_name = "" base_model_name = ""
+    }
+}

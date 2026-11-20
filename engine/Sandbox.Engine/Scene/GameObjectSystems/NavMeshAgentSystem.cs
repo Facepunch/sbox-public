@@ -5,6 +5,7 @@
 /// </summary>
 internal sealed class NavMeshGameSystem : GameObjectSystem
 {
+	private static readonly string[] NpcGroundExcludedTags = ["npc"];
 	private readonly List<NavMeshAgent> _agents = new();
 
 	public NavMeshGameSystem( Scene scene ) : base( scene )
@@ -75,6 +76,10 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 				.WithAnyTags( Scene.NavMesh.IncludedBodies )
 				.WithCollisionRules( agent.Tags )
 				.WithoutTags( Scene.NavMesh.ExcludedBodies );
+
+		// Grounded NPCs are keyframed, so IgnoreDynamic alone still lets crowds climb each other.
+		if ( agent.Tags.Has( "npc" ) )
+			baseTrace = baseTrace.WithoutTags( NpcGroundExcludedTags );
 
 		if ( !Scene.NavMesh.IncludeStaticBodies )
 		{

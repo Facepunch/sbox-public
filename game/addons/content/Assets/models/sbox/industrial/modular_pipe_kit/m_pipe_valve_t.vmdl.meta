@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Valve T",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipevalvet",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_valve_t.vmdl"
+      }
+    }
+  },
+  "guid": "08a5c4e4-a17b-49df-92b4-633dd7dd688d"
+}

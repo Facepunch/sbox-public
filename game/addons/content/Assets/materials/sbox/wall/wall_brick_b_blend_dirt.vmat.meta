@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wall Brick b Blend Dirt",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "wallbrickbblenddirt",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/wall/wall_brick_b_blend_dirt.vmat"
+      }
+    }
+  },
+  "guid": "0f56ebc8-00fc-0000-dc00-000000000000"
+}

@@ -1,0 +1,754 @@
+{
+ "747wheel": [
+  "747wheel_phys_00"
+ ],
+ "airplanewheel1": [
+  "airplanewheel1_phys_00"
+ ],
+ "airplanewheel1big": [
+  "airplanewheel1big_phys_00"
+ ],
+ "airplanewheel1huge": [
+  "airplanewheel1huge_phys_00"
+ ],
+ "airplanewheel1large": [
+  "airplanewheel1large_phys_00"
+ ],
+ "airplanewheel1medium": [
+  "airplanewheel1medium_phys_00"
+ ],
+ "big_wheel": [
+  "nateswheel_phys_00"
+ ],
+ "big_wheel_wide": [
+  "nateswheelwide_phys_00"
+ ],
+ "breakable_tire": [
+  "breakable_tire_phys_00"
+ ],
+ "drugster_back": [
+  "drugster_back_phys_00"
+ ],
+ "drugster_front": [
+  "drugster_front_phys_00"
+ ],
+ "magnetic_large": [
+  "magnetic_large_phys_00",
+  "magnetic_large_phys_01",
+  "magnetic_large_phys_02",
+  "magnetic_large_phys_03",
+  "magnetic_large_phys_04",
+  "magnetic_large_phys_05",
+  "magnetic_large_phys_06",
+  "magnetic_large_phys_07",
+  "magnetic_large_phys_08",
+  "magnetic_large_phys_09",
+  "magnetic_large_phys_10",
+  "magnetic_large_phys_11",
+  "magnetic_large_phys_12",
+  "magnetic_large_phys_13",
+  "magnetic_large_phys_14",
+  "magnetic_large_phys_15",
+  "magnetic_large_phys_16"
+ ],
+ "magnetic_large_base": [
+  "magnetic_large_base_phys_00",
+  "magnetic_large_base_phys_01",
+  "magnetic_large_base_phys_02",
+  "magnetic_large_base_phys_03"
+ ],
+ "magnetic_med_base": [
+  "magnetic_med_base_phys_00",
+  "magnetic_med_base_phys_01",
+  "magnetic_med_base_phys_02",
+  "magnetic_med_base_phys_03"
+ ],
+ "magnetic_medium": [
+  "magnetic_medium_phys_00",
+  "magnetic_medium_phys_01",
+  "magnetic_medium_phys_02",
+  "magnetic_medium_phys_03",
+  "magnetic_medium_phys_04",
+  "magnetic_medium_phys_05",
+  "magnetic_medium_phys_06",
+  "magnetic_medium_phys_07",
+  "magnetic_medium_phys_08",
+  "magnetic_medium_phys_09",
+  "magnetic_medium_phys_10",
+  "magnetic_medium_phys_11",
+  "magnetic_medium_phys_12"
+ ],
+ "magnetic_small": [
+  "magnetic_small_phys_00",
+  "magnetic_small_phys_01",
+  "magnetic_small_phys_02",
+  "magnetic_small_phys_03",
+  "magnetic_small_phys_04",
+  "magnetic_small_phys_05",
+  "magnetic_small_phys_06",
+  "magnetic_small_phys_07",
+  "magnetic_small_phys_08",
+  "magnetic_small_phys_09",
+  "magnetic_small_phys_10",
+  "magnetic_small_phys_11",
+  "magnetic_small_phys_12"
+ ],
+ "magnetic_small_base": [
+  "magnetic_small_base_phys_00",
+  "magnetic_small_base_phys_01",
+  "magnetic_small_base_phys_02",
+  "magnetic_small_base_phys_03"
+ ],
+ "metal_wheel1": [
+  "metal_wheel1_phys_00",
+  "metal_wheel1_phys_01",
+  "metal_wheel1_phys_02",
+  "metal_wheel1_phys_03",
+  "metal_wheel1_phys_04",
+  "metal_wheel1_phys_05",
+  "metal_wheel1_phys_06",
+  "metal_wheel1_phys_07",
+  "metal_wheel1_phys_08",
+  "metal_wheel1_phys_09",
+  "metal_wheel1_phys_10",
+  "metal_wheel1_phys_11",
+  "metal_wheel1_phys_12",
+  "metal_wheel1_phys_13",
+  "metal_wheel1_phys_14",
+  "metal_wheel1_phys_15",
+  "metal_wheel1_phys_16",
+  "metal_wheel1_phys_17",
+  "metal_wheel1_phys_18",
+  "metal_wheel1_phys_19",
+  "metal_wheel1_phys_20",
+  "metal_wheel1_phys_21",
+  "metal_wheel1_phys_22",
+  "metal_wheel1_phys_23",
+  "metal_wheel1_phys_24",
+  "metal_wheel1_phys_25",
+  "metal_wheel1_phys_26",
+  "metal_wheel1_phys_27",
+  "metal_wheel1_phys_28",
+  "metal_wheel1_phys_29",
+  "metal_wheel1_phys_30",
+  "metal_wheel1_phys_31",
+  "metal_wheel1_phys_32",
+  "metal_wheel1_phys_33",
+  "metal_wheel1_phys_34",
+  "metal_wheel1_phys_35",
+  "metal_wheel1_phys_36",
+  "metal_wheel1_phys_37"
+ ],
+ "metal_wheel2": [
+  "metal_wheel2_phys_00",
+  "metal_wheel2_phys_01",
+  "metal_wheel2_phys_02",
+  "metal_wheel2_phys_03",
+  "metal_wheel2_phys_04",
+  "metal_wheel2_phys_05",
+  "metal_wheel2_phys_06",
+  "metal_wheel2_phys_07",
+  "metal_wheel2_phys_08",
+  "metal_wheel2_phys_09",
+  "metal_wheel2_phys_10",
+  "metal_wheel2_phys_11",
+  "metal_wheel2_phys_12",
+  "metal_wheel2_phys_13",
+  "metal_wheel2_phys_14",
+  "metal_wheel2_phys_15",
+  "metal_wheel2_phys_16",
+  "metal_wheel2_phys_17",
+  "metal_wheel2_phys_18",
+  "metal_wheel2_phys_19",
+  "metal_wheel2_phys_20",
+  "metal_wheel2_phys_21",
+  "metal_wheel2_phys_22",
+  "metal_wheel2_phys_23",
+  "metal_wheel2_phys_24",
+  "metal_wheel2_phys_25",
+  "metal_wheel2_phys_26",
+  "metal_wheel2_phys_27",
+  "metal_wheel2_phys_28",
+  "metal_wheel2_phys_29",
+  "metal_wheel2_phys_30",
+  "metal_wheel2_phys_31",
+  "metal_wheel2_phys_32",
+  "metal_wheel2_phys_33",
+  "metal_wheel2_phys_34",
+  "metal_wheel2_phys_35",
+  "metal_wheel2_phys_36",
+  "metal_wheel2_phys_37"
+ ],
+ "monster_truck": [
+  "monster_truck_phys_00"
+ ],
+ "moped_tire": [
+  "moped_tire_phys_00"
+ ],
+ "normal_tire": [
+  "normal_tire_phys_00",
+  "normal_tire_phys_01",
+  "normal_tire_phys_02"
+ ],
+ "off_road_20": [
+  "off-road-20_phys_00"
+ ],
+ "off_road_30": [
+  "off-road-30_phys_00"
+ ],
+ "off_road_40": [
+  "off-road-40_phys_00"
+ ],
+ "off_road_50": [
+  "off-road-50_phys_00"
+ ],
+ "off_road_60": [
+  "off-road-60_phys_00"
+ ],
+ "off_road_70": [
+  "off-road-70_phys_00"
+ ],
+ "off_road_80": [
+  "off-road-80_phys_00"
+ ],
+ "pwm": [
+  "bmw_phys_00"
+ ],
+ "pwm_large": [
+  "bmwl_phys_00"
+ ],
+ "race_wheel_30": [
+  "race-wheel-30_phys_00"
+ ],
+ "race_wheel_30_s": [
+  "race-wheel-30_s_phys_00"
+ ],
+ "race_wheel_35": [
+  "race-wheel-35_phys_00"
+ ],
+ "race_wheel_35_s": [
+  "race-wheel-35_s_phys_00"
+ ],
+ "race_wheel_40": [
+  "race-wheel-40_phys_00"
+ ],
+ "race_wheel_40_s": [
+  "race-wheel-40_s_phys_00"
+ ],
+ "race_wheel_45": [
+  "race-wheel-45_phys_00"
+ ],
+ "race_wheel_45_s": [
+  "race-wheel-45_s_phys_00"
+ ],
+ "race_wheel_50": [
+  "race-wheel-50_phys_00"
+ ],
+ "race_wheel_50_s": [
+  "race-wheel-50_s_phys_00"
+ ],
+ "race_wheel_55": [
+  "race-wheel-55_phys_00"
+ ],
+ "race_wheel_55_s": [
+  "race-wheel-55_s_phys_00"
+ ],
+ "race_wheel_60": [
+  "race-wheel-60_phys_00"
+ ],
+ "race_wheel_60_s": [
+  "race-wheel-60_s_phys_00"
+ ],
+ "race_wheel_65": [
+  "race-wheel-65_phys_00"
+ ],
+ "race_wheel_65_s": [
+  "race-wheel-65_s_phys_00"
+ ],
+ "race_wheel_70": [
+  "race-wheel-70_phys_00"
+ ],
+ "race_wheel_70_s": [
+  "race-wheel-70_s_phys_00"
+ ],
+ "race_wheel_75": [
+  "race-wheel-75_phys_00"
+ ],
+ "race_wheel_75_s": [
+  "race-wheel-75_s_phys_00"
+ ],
+ "race_wheel_80": [
+  "race-wheel-80_phys_00"
+ ],
+ "race_wheel_80_s": [
+  "race-wheel-80_s_phys_00"
+ ],
+ "rim_1": [
+  "rim_1_phys_00",
+  "rim_1_phys_01",
+  "rim_1_phys_02"
+ ],
+ "tractor": [
+  "tractor_phys_00",
+  "tractor_phys_01",
+  "tractor_phys_02",
+  "tractor_phys_03",
+  "tractor_phys_04",
+  "tractor_phys_05",
+  "tractor_phys_06",
+  "tractor_phys_07",
+  "tractor_phys_08",
+  "tractor_phys_09",
+  "tractor_phys_10",
+  "tractor_phys_11",
+  "tractor_phys_12",
+  "tractor_phys_13",
+  "tractor_phys_14",
+  "tractor_phys_15",
+  "tractor_phys_16",
+  "tractor_phys_17",
+  "tractor_phys_18",
+  "tractor_phys_19",
+  "tractor_phys_20",
+  "tractor_phys_21",
+  "tractor_phys_22",
+  "tractor_phys_23",
+  "tractor_phys_24",
+  "tractor_phys_25",
+  "tractor_phys_26",
+  "tractor_phys_27",
+  "tractor_phys_28",
+  "tractor_phys_29",
+  "tractor_phys_30",
+  "tractor_phys_31",
+  "tractor_phys_32",
+  "tractor_phys_33",
+  "tractor_phys_34",
+  "tractor_phys_35",
+  "tractor_phys_36",
+  "tractor_phys_37",
+  "tractor_phys_38",
+  "tractor_phys_39"
+ ],
+ "tractor_small": [
+  "tractors_phys_00",
+  "tractors_phys_01",
+  "tractors_phys_02",
+  "tractors_phys_03",
+  "tractors_phys_04",
+  "tractors_phys_05",
+  "tractors_phys_06",
+  "tractors_phys_07",
+  "tractors_phys_08",
+  "tractors_phys_09",
+  "tractors_phys_10",
+  "tractors_phys_11",
+  "tractors_phys_12",
+  "tractors_phys_13",
+  "tractors_phys_14",
+  "tractors_phys_15",
+  "tractors_phys_16",
+  "tractors_phys_17",
+  "tractors_phys_18",
+  "tractors_phys_19",
+  "tractors_phys_20",
+  "tractors_phys_21",
+  "tractors_phys_22",
+  "tractors_phys_23",
+  "tractors_phys_24",
+  "tractors_phys_25",
+  "tractors_phys_26",
+  "tractors_phys_27",
+  "tractors_phys_28",
+  "tractors_phys_29",
+  "tractors_phys_30",
+  "tractors_phys_31",
+  "tractors_phys_32",
+  "tractors_phys_33",
+  "tractors_phys_34",
+  "tractors_phys_35",
+  "tractors_phys_36",
+  "tractors_phys_37",
+  "tractors_phys_38",
+  "tractors_phys_39"
+ ],
+ "trucktire": [
+  "trucktire_phys_00"
+ ],
+ "trucktire2": [
+  "trucktire2_phys_00"
+ ],
+ "wheel_2": [
+  "wheel_2_phys_00"
+ ],
+ "wheel_2l": [
+  "wheel_2l_phys_00"
+ ],
+ "wheel_extruded_48": [
+  "wheel_extruded_48_phys_00",
+  "wheel_extruded_48_phys_01",
+  "wheel_extruded_48_phys_02",
+  "wheel_extruded_48_phys_03",
+  "wheel_extruded_48_phys_04",
+  "wheel_extruded_48_phys_05",
+  "wheel_extruded_48_phys_06",
+  "wheel_extruded_48_phys_07",
+  "wheel_extruded_48_phys_08",
+  "wheel_extruded_48_phys_09",
+  "wheel_extruded_48_phys_10",
+  "wheel_extruded_48_phys_11",
+  "wheel_extruded_48_phys_12",
+  "wheel_extruded_48_phys_13",
+  "wheel_extruded_48_phys_14",
+  "wheel_extruded_48_phys_15"
+ ],
+ "wheel_race": [
+  "wheel_race_phys_00"
+ ],
+ "wheel_rounded_36": [
+  "wheel_rounded_36_phys_00",
+  "wheel_rounded_36_phys_01",
+  "wheel_rounded_36_phys_02"
+ ],
+ "wheel_rounded_36s": [
+  "wheel_rounded_36s_phys_00",
+  "wheel_rounded_36s_phys_01",
+  "wheel_rounded_36s_phys_02"
+ ],
+ "wheel_rounded_72": [
+  "wheel_rounded_72_phys_00",
+  "wheel_rounded_72_phys_01",
+  "wheel_rounded_72_phys_02"
+ ],
+ "wheel_rugged_24": [
+  "wheel_rugged_24_phys_00",
+  "wheel_rugged_24_phys_01",
+  "wheel_rugged_24_phys_02",
+  "wheel_rugged_24_phys_03"
+ ],
+ "wheel_rugged_24w": [
+  "wheel_rugged_24w_phys_00",
+  "wheel_rugged_24w_phys_01",
+  "wheel_rugged_24w_phys_02",
+  "wheel_rugged_24w_phys_03",
+  "wheel_rugged_24w_phys_04",
+  "wheel_rugged_24w_phys_05",
+  "wheel_rugged_24w_phys_06",
+  "wheel_rugged_24w_phys_07",
+  "wheel_rugged_24w_phys_08",
+  "wheel_rugged_24w_phys_09",
+  "wheel_rugged_24w_phys_10",
+  "wheel_rugged_24w_phys_11",
+  "wheel_rugged_24w_phys_12",
+  "wheel_rugged_24w_phys_13",
+  "wheel_rugged_24w_phys_14",
+  "wheel_rugged_24w_phys_15",
+  "wheel_rugged_24w_phys_16",
+  "wheel_rugged_24w_phys_17",
+  "wheel_rugged_24w_phys_18",
+  "wheel_rugged_24w_phys_19",
+  "wheel_rugged_24w_phys_20",
+  "wheel_rugged_24w_phys_21",
+  "wheel_rugged_24w_phys_22",
+  "wheel_rugged_24w_phys_23",
+  "wheel_rugged_24w_phys_24",
+  "wheel_rugged_24w_phys_25",
+  "wheel_rugged_24w_phys_26",
+  "wheel_rugged_24w_phys_27",
+  "wheel_rugged_24w_phys_28",
+  "wheel_rugged_24w_phys_29",
+  "wheel_rugged_24w_phys_30",
+  "wheel_rugged_24w_phys_31",
+  "wheel_rugged_24w_phys_32",
+  "wheel_rugged_24w_phys_33",
+  "wheel_rugged_24w_phys_34",
+  "wheel_rugged_24w_phys_35",
+  "wheel_rugged_24w_phys_36",
+  "wheel_rugged_24w_phys_37"
+ ],
+ "wheel_rugged_48": [
+  "wheel_rugged_48_phys_00",
+  "wheel_rugged_48_phys_01",
+  "wheel_rugged_48_phys_02",
+  "wheel_rugged_48_phys_03",
+  "wheel_rugged_48_phys_04",
+  "wheel_rugged_48_phys_05",
+  "wheel_rugged_48_phys_06",
+  "wheel_rugged_48_phys_07",
+  "wheel_rugged_48_phys_08",
+  "wheel_rugged_48_phys_09",
+  "wheel_rugged_48_phys_10",
+  "wheel_rugged_48_phys_11",
+  "wheel_rugged_48_phys_12",
+  "wheel_rugged_48_phys_13",
+  "wheel_rugged_48_phys_14",
+  "wheel_rugged_48_phys_15",
+  "wheel_rugged_48_phys_16",
+  "wheel_rugged_48_phys_17",
+  "wheel_rugged_48_phys_18",
+  "wheel_rugged_48_phys_19",
+  "wheel_rugged_48_phys_20",
+  "wheel_rugged_48_phys_21",
+  "wheel_rugged_48_phys_22",
+  "wheel_rugged_48_phys_23",
+  "wheel_rugged_48_phys_24",
+  "wheel_rugged_48_phys_25",
+  "wheel_rugged_48_phys_26",
+  "wheel_rugged_48_phys_27",
+  "wheel_rugged_48_phys_28",
+  "wheel_rugged_48_phys_29",
+  "wheel_rugged_48_phys_30",
+  "wheel_rugged_48_phys_31",
+  "wheel_rugged_48_phys_32",
+  "wheel_rugged_48_phys_33",
+  "wheel_rugged_48_phys_34",
+  "wheel_rugged_48_phys_35",
+  "wheel_rugged_48_phys_36",
+  "wheel_rugged_48_phys_37"
+ ],
+ "wheel_rugged_48w": [
+  "wheel_rugged_48w_phys_00",
+  "wheel_rugged_48w_phys_01",
+  "wheel_rugged_48w_phys_02",
+  "wheel_rugged_48w_phys_03",
+  "wheel_rugged_48w_phys_04",
+  "wheel_rugged_48w_phys_05",
+  "wheel_rugged_48w_phys_06",
+  "wheel_rugged_48w_phys_07",
+  "wheel_rugged_48w_phys_08",
+  "wheel_rugged_48w_phys_09",
+  "wheel_rugged_48w_phys_10",
+  "wheel_rugged_48w_phys_11",
+  "wheel_rugged_48w_phys_12",
+  "wheel_rugged_48w_phys_13",
+  "wheel_rugged_48w_phys_14",
+  "wheel_rugged_48w_phys_15",
+  "wheel_rugged_48w_phys_16",
+  "wheel_rugged_48w_phys_17",
+  "wheel_rugged_48w_phys_18",
+  "wheel_rugged_48w_phys_19",
+  "wheel_rugged_48w_phys_20",
+  "wheel_rugged_48w_phys_21",
+  "wheel_rugged_48w_phys_22",
+  "wheel_rugged_48w_phys_23",
+  "wheel_rugged_48w_phys_24",
+  "wheel_rugged_48w_phys_25",
+  "wheel_rugged_48w_phys_26",
+  "wheel_rugged_48w_phys_27",
+  "wheel_rugged_48w_phys_28",
+  "wheel_rugged_48w_phys_29",
+  "wheel_rugged_48w_phys_30",
+  "wheel_rugged_48w_phys_31",
+  "wheel_rugged_48w_phys_32",
+  "wheel_rugged_48w_phys_33",
+  "wheel_rugged_48w_phys_34",
+  "wheel_rugged_48w_phys_35",
+  "wheel_rugged_48w_phys_36",
+  "wheel_rugged_48w_phys_37"
+ ],
+ "wheel_smooth2": [
+  "wheel_smooth2_phys_00",
+  "wheel_smooth2_phys_01",
+  "wheel_smooth2_phys_02",
+  "wheel_smooth2_phys_03",
+  "wheel_smooth2_phys_04",
+  "wheel_smooth2_phys_05",
+  "wheel_smooth2_phys_06",
+  "wheel_smooth2_phys_07",
+  "wheel_smooth2_phys_08",
+  "wheel_smooth2_phys_09",
+  "wheel_smooth2_phys_10",
+  "wheel_smooth2_phys_11",
+  "wheel_smooth2_phys_12",
+  "wheel_smooth2_phys_13"
+ ],
+ "wheel_smooth_24": [
+  "wheel_smooth_24_phys_00",
+  "wheel_smooth_24_phys_01",
+  "wheel_smooth_24_phys_02",
+  "wheel_smooth_24_phys_03",
+  "wheel_smooth_24_phys_04",
+  "wheel_smooth_24_phys_05",
+  "wheel_smooth_24_phys_06",
+  "wheel_smooth_24_phys_07",
+  "wheel_smooth_24_phys_08",
+  "wheel_smooth_24_phys_09",
+  "wheel_smooth_24_phys_10",
+  "wheel_smooth_24_phys_11",
+  "wheel_smooth_24_phys_12",
+  "wheel_smooth_24_phys_13"
+ ],
+ "wheel_smooth_24f": [
+  "wheel_smooth_24f_phys_00",
+  "wheel_smooth_24f_phys_01",
+  "wheel_smooth_24f_phys_02",
+  "wheel_smooth_24f_phys_03",
+  "wheel_smooth_24f_phys_04",
+  "wheel_smooth_24f_phys_05",
+  "wheel_smooth_24f_phys_06",
+  "wheel_smooth_24f_phys_07",
+  "wheel_smooth_24f_phys_08",
+  "wheel_smooth_24f_phys_09",
+  "wheel_smooth_24f_phys_10",
+  "wheel_smooth_24f_phys_11",
+  "wheel_smooth_24f_phys_12",
+  "wheel_smooth_24f_phys_13"
+ ],
+ "wheel_smooth_48": [
+  "wheel_smooth_48_phys_00",
+  "wheel_smooth_48_phys_01",
+  "wheel_smooth_48_phys_02",
+  "wheel_smooth_48_phys_03",
+  "wheel_smooth_48_phys_04",
+  "wheel_smooth_48_phys_05",
+  "wheel_smooth_48_phys_06",
+  "wheel_smooth_48_phys_07",
+  "wheel_smooth_48_phys_08",
+  "wheel_smooth_48_phys_09",
+  "wheel_smooth_48_phys_10",
+  "wheel_smooth_48_phys_11",
+  "wheel_smooth_48_phys_12",
+  "wheel_smooth_48_phys_13",
+  "wheel_smooth_48_phys_14"
+ ],
+ "wheel_smooth_72": [
+  "wheel_smooth_72_phys_00",
+  "wheel_smooth_72_phys_01",
+  "wheel_smooth_72_phys_02",
+  "wheel_smooth_72_phys_03",
+  "wheel_smooth_72_phys_04",
+  "wheel_smooth_72_phys_05",
+  "wheel_smooth_72_phys_06",
+  "wheel_smooth_72_phys_07",
+  "wheel_smooth_72_phys_08",
+  "wheel_smooth_72_phys_09",
+  "wheel_smooth_72_phys_10",
+  "wheel_smooth_72_phys_11",
+  "wheel_smooth_72_phys_12",
+  "wheel_smooth_72_phys_13"
+ ],
+ "wheel_smooth_72w": [
+  "wheel_smooth_72w_phys_00",
+  "wheel_smooth_72w_phys_01",
+  "wheel_smooth_72w_phys_02",
+  "wheel_smooth_72w_phys_03",
+  "wheel_smooth_72w_phys_04",
+  "wheel_smooth_72w_phys_05",
+  "wheel_smooth_72w_phys_06",
+  "wheel_smooth_72w_phys_07",
+  "wheel_smooth_72w_phys_08",
+  "wheel_smooth_72w_phys_09",
+  "wheel_smooth_72w_phys_10",
+  "wheel_smooth_72w_phys_11",
+  "wheel_smooth_72w_phys_12",
+  "wheel_smooth_72w_phys_13"
+ ],
+ "wheel_smooth_96": [
+  "wheel_smooth_96_phys_00",
+  "wheel_smooth_96_phys_01",
+  "wheel_smooth_96_phys_02",
+  "wheel_smooth_96_phys_03",
+  "wheel_smooth_96_phys_04",
+  "wheel_smooth_96_phys_05",
+  "wheel_smooth_96_phys_06",
+  "wheel_smooth_96_phys_07",
+  "wheel_smooth_96_phys_08",
+  "wheel_smooth_96_phys_09",
+  "wheel_smooth_96_phys_10",
+  "wheel_smooth_96_phys_11",
+  "wheel_smooth_96_phys_12",
+  "wheel_smooth_96_phys_13",
+  "wheel_smooth_96_phys_14"
+ ],
+ "wheel_speed_72": [
+  "wheel_speed_72_phys_00"
+ ],
+ "wheel_spike_24": [
+  "wheel_spike_24_phys_00",
+  "wheel_spike_24_phys_01",
+  "wheel_spike_24_phys_02",
+  "wheel_spike_24_phys_03",
+  "wheel_spike_24_phys_04",
+  "wheel_spike_24_phys_05",
+  "wheel_spike_24_phys_06",
+  "wheel_spike_24_phys_07",
+  "wheel_spike_24_phys_08",
+  "wheel_spike_24_phys_09",
+  "wheel_spike_24_phys_10",
+  "wheel_spike_24_phys_11",
+  "wheel_spike_24_phys_12",
+  "wheel_spike_24_phys_13",
+  "wheel_spike_24_phys_14",
+  "wheel_spike_24_phys_15",
+  "wheel_spike_24_phys_16",
+  "wheel_spike_24_phys_17",
+  "wheel_spike_24_phys_18",
+  "wheel_spike_24_phys_19",
+  "wheel_spike_24_phys_20",
+  "wheel_spike_24_phys_21",
+  "wheel_spike_24_phys_22",
+  "wheel_spike_24_phys_23",
+  "wheel_spike_24_phys_24",
+  "wheel_spike_24_phys_25",
+  "wheel_spike_24_phys_26",
+  "wheel_spike_24_phys_27",
+  "wheel_spike_24_phys_28",
+  "wheel_spike_24_phys_29",
+  "wheel_spike_24_phys_30",
+  "wheel_spike_24_phys_31",
+  "wheel_spike_24_phys_32",
+  "wheel_spike_24_phys_33",
+  "wheel_spike_24_phys_34",
+  "wheel_spike_24_phys_35",
+  "wheel_spike_24_phys_36",
+  "wheel_spike_24_phys_37",
+  "wheel_spike_24_phys_38",
+  "wheel_spike_24_phys_39",
+  "wheel_spike_24_phys_40",
+  "wheel_spike_24_phys_41"
+ ],
+ "wheel_spike_48": [
+  "wheel_spike_48_phys_00",
+  "wheel_spike_48_phys_01",
+  "wheel_spike_48_phys_02",
+  "wheel_spike_48_phys_03",
+  "wheel_spike_48_phys_04",
+  "wheel_spike_48_phys_05",
+  "wheel_spike_48_phys_06",
+  "wheel_spike_48_phys_07",
+  "wheel_spike_48_phys_08",
+  "wheel_spike_48_phys_09",
+  "wheel_spike_48_phys_10",
+  "wheel_spike_48_phys_11",
+  "wheel_spike_48_phys_12",
+  "wheel_spike_48_phys_13",
+  "wheel_spike_48_phys_14",
+  "wheel_spike_48_phys_15",
+  "wheel_spike_48_phys_16",
+  "wheel_spike_48_phys_17",
+  "wheel_spike_48_phys_18",
+  "wheel_spike_48_phys_19",
+  "wheel_spike_48_phys_20",
+  "wheel_spike_48_phys_21",
+  "wheel_spike_48_phys_22",
+  "wheel_spike_48_phys_23",
+  "wheel_spike_48_phys_24",
+  "wheel_spike_48_phys_25",
+  "wheel_spike_48_phys_26",
+  "wheel_spike_48_phys_27",
+  "wheel_spike_48_phys_28",
+  "wheel_spike_48_phys_29",
+  "wheel_spike_48_phys_30",
+  "wheel_spike_48_phys_31",
+  "wheel_spike_48_phys_32",
+  "wheel_spike_48_phys_33",
+  "wheel_spike_48_phys_34",
+  "wheel_spike_48_phys_35",
+  "wheel_spike_48_phys_36",
+  "wheel_spike_48_phys_37",
+  "wheel_spike_48_phys_38",
+  "wheel_spike_48_phys_39",
+  "wheel_spike_48_phys_40",
+  "wheel_spike_48_phys_41"
+ ]
+}

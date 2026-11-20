@@ -1,0 +1,360 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "plastic_trim.vmat"
+								to = "materials/sbox/trimsheets/metal/iron_trim_rust_blend.vmat"
+							},
+							{
+								from = "wood_trim.vmat"
+								to = "materials/sbox/trimsheets/wood/wood_trim_polished.vmat"
+							},
+							{
+								from = "metal_details.vmat"
+								to = "materials/sbox/trimsheets/metal_details/metal_details_02.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/default.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0_base"
+						children =
+						[
+							{
+								_class = "RenameStream"
+								from_name = "color$0"
+								to_name = "VertexPaintTintColor"
+							},
+							{
+								_class = "RenameStream"
+								from_name = "color$1"
+								to_name = "VertexPaintBlendParams$"
+							},
+						]
+						filename = "models/sbox/office/ceiling_fan/ceilingfan_b.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"ceilingfan_a",
+								"ceilingfan_b",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0_blades"
+						children =
+						[
+							{
+								_class = "RenameStream"
+								from_name = "color$0"
+								to_name = "VertexPaintTintColor"
+							},
+							{
+								_class = "RenameStream"
+								from_name = "color$1"
+								to_name = "VertexPaintBlendParams$"
+							},
+						]
+						filename = "models/sbox/office/ceiling_fan/ceilingfan_b.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "fans"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"ceilingfan_blades_a",
+								"ceilingfan_blades_b",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "fans"
+						surface_prop = "wood"
+						collision_tags = "solid"
+						origin = [ -18.418209, 0.075796, -10.548209 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 25.093113, 5.648321, 0.723455 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "fans"
+						surface_prop = "wood"
+						collision_tags = "solid"
+						origin = [ -5.747346, -17.632177, -10.542636 ]
+						angles = [ -0.0, 71.883446, 0.0 ]
+						dimensions = [ 24.932259, 5.648321, 0.734604 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "fans"
+						surface_prop = "wood"
+						collision_tags = "solid"
+						origin = [ 14.907295, -10.885472, -10.55906 ]
+						angles = [ -0.0, 144.450546, 0.0 ]
+						dimensions = [ 25.318213, 5.648321, 0.701752 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "fans"
+						surface_prop = "wood"
+						collision_tags = "solid"
+						origin = [ 14.879776, 10.977125, -10.550537 ]
+						angles = [ -0.0, -144.829086, 0.0 ]
+						dimensions = [ 25.039066, 5.648321, 0.7188 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "fans"
+						surface_prop = "wood"
+						collision_tags = "solid"
+						origin = [ -5.71113, 17.621101, -10.546877 ]
+						angles = [ 0.0, -71.568451, 0.0 ]
+						dimensions = [ 25.055925, 5.648321, 0.726121 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = "base"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 6.5
+						point0 = [ 0.0, 0.0, -6.822321 ]
+						point1 = [ 0.0, 0.0, -10.010395 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = "base"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 3.5
+						point0 = [ 0.0, 0.0, -0.016105 ]
+						point1 = [ 0.0, 0.0, -1.603262 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = "base"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 2.7
+						point0 = [ 0.0, 0.0, -1.599132 ]
+						point1 = [ 0.0, 0.0, -2.646227 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = "base"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 2.5
+						point0 = [ 0.0, 0.0, -10.650976 ]
+						point1 = [ 0.0, 0.0, -12.742829 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "base"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 0.0, -4.754181 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.004024, 1.004024, 4.417074 ]
+					},
+					{
+						_class = "PhysicsShapeSphere"
+						parent_bone = "base"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 1.3
+						center = [ 0.0, 0.0, -7.075541 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "base"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 0.0, -9.809723 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.004024, 1.004024, 1.721286 ]
+					},
+				]
+			},
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "Bone"
+						name = "base"
+						children =
+						[
+							{
+								_class = "Bone"
+								name = "fans"
+								origin = [ 0.0, 0.0, 0.0 ]
+								angles = [ 0.0, 0.0, 0.0 ]
+								do_not_discard = true
+							},
+						]
+						origin = [ 0.0, 0.0, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						do_not_discard = true
+					},
+				]
+			},
+			{
+				_class = "PhysicsJointList"
+				children =
+				[
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "base"
+						child_body = "fans"
+						anchor_origin = [ 0.0, 0.0, 0.0 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.0
+						enable_limit = false
+						min_angle = 0.0
+						max_angle = 0.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "base"
+						mass_override = 6.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "fans"
+						mass_override = 4.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes =
+						[
+							"LOD0_base",
+							"LOD0_blades",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 15.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.5216
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						meshes = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 50.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.2579
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						meshes = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 120.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						meshes = [  ]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

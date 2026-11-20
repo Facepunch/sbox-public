@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "gutter_roof_bracket_a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "gutter_roof_bracket_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_roof_bracket_a.vmdl"
+      }
+    }
+  },
+  "guid": "340bc8fd-0e07-470f-9c60-1e3cd4388316"
+}

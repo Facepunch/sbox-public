@@ -1,0 +1,133 @@
+{
+  "RootObject": {
+    "__guid": "70850fe1-3c55-4e1c-bdeb-9d41aab399bf",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "fists_vm",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 0,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "ViewModel",
+        "__guid": "20b11117-5424-4514-96d7-dffc13e2cb5c",
+        "__enabled": true,
+        "Flags": 0,
+        "ADSInertiaScale": 0.3,
+        "AnimationSpeed": 1,
+        "DeploySound": null,
+        "EjectBrass": null,
+        "IncrementalAnimationSpeed": 1,
+        "IncrementalReloadFinishSounds": [],
+        "IncrementalReloadSoundEvents": [],
+        "IncrementalReloadStartSounds": [],
+        "InertiaScale": "2,2",
+        "IsIncremental": false,
+        "IsThrowable": false,
+        "LookInertia": false,
+        "LookInertiaAmount": 1,
+        "LookInertiaDamping": 0.35,
+        "LookInertiaFrequency": 3,
+        "LookInertiaPivotDistance": 10,
+        "MaxInertia": 15,
+        "MuzzleEffect": null,
+        "MuzzleGameObject": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "ReloadSoundEvents": [],
+        "Renderer": {
+          "_type": "component",
+          "component_id": "1d526944-21c4-4962-aeb4-e5f7a353db0d",
+          "go": "9cf07a9f-3f35-4a5e-a198-78e0b1fbe3e7",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "ShellEjectGameObject": null,
+        "ThrowableType": "HEGrenade",
+        "TracerEffect": null
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "9cf07a9f-3f35-4a5e-a198-78e0b1fbe3e7",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Arms",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "1d526944-21c4-4962-aeb4-e5f7a353db0d",
+            "__enabled": true,
+            "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
+            "AnimationGraph": null,
+            "BodyGroups": 21,
+            "BoneMergeTarget": null,
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "LowDetailAnimation": false,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "15671037-746f-4238-a9d8-1cb41b45be92",
+              "Path": "weapons/shared/first_person/v_first_person_arms_human.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": false,
+              "OverlayLayer": true,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      }
+    ]
+  },
+  "ResourceVersion": 2,
+  "__version": 2,
+  "__references": []
+}

@@ -8,7 +8,7 @@ Mode( Forward );
 Mode( Depth, S_MODE_DEPTH );
 // Why do I need this to compile?
 // I don't want this, none of the features work for this shader.
-#include "vr_common_features.fxc"
+#include "sbox/features.slangh"
 
 #include "common/shared.hlsl"
 

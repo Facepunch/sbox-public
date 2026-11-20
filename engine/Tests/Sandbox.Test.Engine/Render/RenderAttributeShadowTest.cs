@@ -34,12 +34,14 @@ public class RenderAttributeShadowTest
 		Assert.AreNotEqual( version, source.Shadow.Version );
 		CollectionAssert.AreEqual( new[] { 3f }, source.Shadow.GetFloats( "Height" ) );
 
-		// Without the copy a native set has nothing to give a managed one
-		var plain = new RenderAttributes();
+		// Without the copy (a native set wrapped as it is) a native set has nothing to give a managed one
+		var native = NativeEngine.CRenderAttributes.Create();
+		var plain = new RenderAttributes( native );
 		plain.Set( "Height", 2.5f );
 		var empty = RenderAttributes.CreateManaged();
 		plain.MergeTo( empty );
 		Assert.IsNull( empty.Managed.GetFloats( "Height" ) );
+		native.DeleteThis();
 	}
 
 	/// <summary>
@@ -70,7 +72,8 @@ public class RenderAttributeShadowTest
 	[TestMethod]
 	public void ShadowSetIsTheManagedCopy()
 	{
-		var source = new RenderAttributes();
+		var native = NativeEngine.CRenderAttributes.Create();
+		var source = new RenderAttributes( native );
 		Assert.IsNull( source.ShadowSet, "no copy, no set" );
 
 		source.KeepManagedCopy();
@@ -81,6 +84,7 @@ public class RenderAttributeShadowTest
 		CollectionAssert.AreEqual( new[] { 3f }, set.Managed.GetFloats( "LineThickness" ) );
 		Assert.AreEqual( 1, set.Managed.GetCombo( "D_NO_ZTEST" ) );
 		Assert.AreSame( set, source.ShadowSet );
+		native.DeleteThis();
 	}
 
 	/// <summary>

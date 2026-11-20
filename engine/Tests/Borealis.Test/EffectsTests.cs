@@ -115,6 +115,27 @@ public class EffectsTests
 		Assert.AreEqual( 0, layers.Refraction.Count );
 	}
 
+	/// <summary>
+	/// A renderer that draws views of two sizes in turn (a camera's window-sized view and its 128 px cube faces) keeps a
+	/// frame-buffer copy of each. Before, it made a new 10 MiB copy, the driver's allocation, at every turn.
+	/// </summary>
+	[TestMethod]
+	public void FrameBufferCopiesOfTwoSizesAreKept()
+	{
+		using var system = new RenderSystem();
+		var window = system.FrameBufferCopy( new Rect( 0, 0, 1280, 720 ) );
+		var face = system.FrameBufferCopy( new Rect( 0, 0, 128, 128 ) );
+		Assert.AreNotSame( window, face );
+		Assert.AreSame( window, system.FrameBufferCopy( new Rect( 0, 0, 1280, 720 ) ), "the window's copy is kept" );
+		Assert.AreSame( face, system.FrameBufferCopy( new Rect( 0, 0, 128, 128 ) ), "and the face's" );
+		Assert.AreEqual( 1280, window.Width );
+
+		// A third size takes the place of the one not used last
+		var other = system.FrameBufferCopy( new Rect( 0, 0, 640, 360 ) );
+		Assert.AreSame( face, system.FrameBufferCopy( new Rect( 0, 0, 128, 128 ) ) );
+		Assert.AreSame( other, system.FrameBufferCopy( new Rect( 0, 0, 640, 360 ) ) );
+	}
+
 	[TestMethod]
 	public void DecalsBinInSortOrder()
 	{

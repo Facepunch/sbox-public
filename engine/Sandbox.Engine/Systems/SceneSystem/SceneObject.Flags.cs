@@ -138,7 +138,7 @@ public partial class SceneObject
 	/// </summary>
 	void TranslucencyToNative()
 	{
-		if ( Graphics.HasSource2Device || _flags is not { } flags || native.IsNull ) return;
+		if ( _flags is not { } flags || native.IsNull ) return;
 		if ( ((native.GetFlags() ^ flags) & TranslucencyFlags) != 0 ) native.ChangeFlags( flags & TranslucencyFlags, TranslucencyFlags );
 	}
 
@@ -150,7 +150,7 @@ public partial class SceneObject
 	/// </summary>
 	void NativeTranslucencyFromMaterials( Model model )
 	{
-		if ( Graphics.HasSource2Device || model is null || model.native.IsNull || native.IsNull ) return;
+		if ( model is null || model.native.IsNull || native.IsNull ) return;
 
 		var current = CurrentFlags;
 		var computed = ComputeTranslucency( ModelDraws.For( model ).Translucency, current );
@@ -256,15 +256,6 @@ public partial class SceneObject
 
 		// The standard pipeline's updater, installed only with a Vulkan device: a translucent override list entry makes the
 		// object translucent
-		if ( Graphics.HasSource2Device && _overrideList is not null )
-		{
-			foreach ( var entry in _overrideList )
-			{
-				if ( entry.Material is null || !entry.Material.native.GetBoolAttributeOrDefault( TranslucentName, false ) ) continue;
-				flags |= ObjectFlags.IsTranslucent;
-				flags &= ~ObjectFlags.IsOpaque;
-			}
-		}
 
 		return flags;
 	}

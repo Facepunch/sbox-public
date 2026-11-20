@@ -83,6 +83,12 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public GpuTexture GpuOutput;
 
 		/// <summary>
+		/// The child view's float target of the size before <see cref="GpuTarget"/>'s, kept: one camera's views drawn at two sizes
+		/// in turn (the window's and a 128 px cube face's) made a new target, the driver's allocation, at every turn.
+		/// </summary>
+		public ViewTarget GpuOtherTarget;
+
+		/// <summary>
 		/// A top-level view's own attributes (its planar reflection), and what Borealis reads them as.
 		/// </summary>
 		public RenderAttributes GpuViewAttributes;
@@ -104,6 +110,8 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			GpuUpscaler = null;
 			GpuTarget?.Dispose();
 			GpuTarget = null;
+			GpuOtherTarget?.Dispose();
+			GpuOtherTarget = null;
 			GpuOutput?.Dispose();
 			GpuOutput = null;
 		}
@@ -410,10 +418,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	bool warming;
 
 	/// <summary>
-	/// Whether the game is loading: its scene's loading tasks, the loading screen, connecting, or the game instance's load. Its scene's
-	/// camera draws over the loading screen then (<c>Game.Render</c>), which doesn't count as showing the scene.
+	/// Whether the game is loading (<see cref="BorealisGpuRenderBackend.GameLoading"/>). Its scene's camera draws over the
+	/// loading screen then (<c>Game.Render</c>), which doesn't count as showing the scene.
 	/// </summary>
-	static bool GameLoading( Scene scene ) => (scene?.IsLoading ?? false) || LoadingScreen.IsVisible || Networking.IsConnecting || (IGameInstance.Current?.IsLoading ?? false);
+	static bool GameLoading( Scene scene ) => BorealisGpuRenderBackend.GameLoading( scene );
 
 	WorldRender RenderFor( SceneWorld world )
 	{
@@ -772,15 +780,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			return;
 		}
 
-		// A game window on Borealis.Gpu has no Source 2 swap chain: the camera draws into the window's frame
+		// A game window on Borealis.Gpu: the camera draws into the window's frame. Nothing draws into a Source 2 swap chain
 		if ( swapChain.self == default && BorealisGpuWindow.Drawing is { } window )
-		{
 			RenderInto( window, camera, size, setup );
-			return;
-		}
-
-		// Anything else presents on Source 2's device
-		SceneRenderer.Native.Render( camera, swapChain, size, setup );
 	}
 
 	/// <summary>
@@ -814,13 +816,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		RenderInBlock( gpu, camera, setup, target, null, out _ );
 	}
 
-	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData )
+	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData )
 	{
 		viewData = default;
 		if ( Gpu is not { } gpu ) return false;
 
 		// Between blocks, a texture with no depth of the caller's renders on the device
-		if ( !Graphics.IsActive && parent == default && depthTarget is null && target is { native.IsNull: false } )
+		if ( !Graphics.IsActive && depthTarget is null && target is { native.IsNull: false } )
 		{
 			RenderIntoTexture( gpu, camera, target, target.Size, setup );
 			return true;

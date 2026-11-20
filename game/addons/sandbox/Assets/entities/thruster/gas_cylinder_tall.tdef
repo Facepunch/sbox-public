@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/thruster/gas_cylinder_tall.prefab",
+  "Title": "#asset.gas_cylinder_tall.title",
+  "Description": "",
+  "__references": [],
+  "__version": 0
+}

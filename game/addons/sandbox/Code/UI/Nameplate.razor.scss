@@ -1,0 +1,62 @@
+@import "/UI/Theme.scss";
+
+Nameplate
+{
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    white-space: nowrap;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+
+    .card
+    {
+        flex-direction: row;
+        border-radius: 5px;
+        padding: 10px 20px;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        font-size: 48px;
+
+        .avatar-wrap
+        {
+            position: relative;
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+        }
+
+        .speaking-glow
+        {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            left: -16px;
+            top: -16px;
+            border-radius: 100%;
+            background: radial-gradient( rgba(0, 148, 255, 0.7) 0%, transparent 70% );
+        }
+
+        .avatar
+        {
+            width: 48px;
+            height: 48px;
+            background-position: center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 1px 1px 5px rgba( black, 0.75 );
+        }
+
+        .name
+        {
+            font-family: $body-font;
+            color: $color-accent;
+            text-shadow: 1px 1px 0px rgba( black, 0.75 );
+            text-overflow: ellipsis;
+        }
+    }
+}

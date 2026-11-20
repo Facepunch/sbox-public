@@ -67,7 +67,7 @@ public partial class BaseInventoryComponent : Component
 	BaseInventoryItem _equippedItem;
 
 	[Expose]
-	private void OnActiveItemChanged( BaseInventoryItem _, BaseInventoryItem newItem )
+	internal void OnActiveItemChanged( BaseInventoryItem _, BaseInventoryItem newItem )
 	{
 		// Initial snapshots don't run Change callbacks. Track what was actually equipped locally.
 		var oldItem = _equippedItem;
@@ -78,7 +78,10 @@ public partial class BaseInventoryComponent : Component
 
 		if ( oldItem.IsValid() )
 		{
-			oldItem.GameObject.Enabled = false;
+			// One that was dropped already has no slot and is the world's: it is put away but stays enabled
+			if ( oldItem.Slot >= 0 )
+				oldItem.GameObject.Enabled = false;
+
 			oldItem.Holster();
 		}
 

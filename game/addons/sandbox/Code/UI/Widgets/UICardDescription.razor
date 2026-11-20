@@ -1,0 +1,130 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <div class="viewport">
+        <div class="text" @ref="TextPanel">@Text</div>
+        <div class="sizer" @ref="SizerPanel">@Text</div>
+    </div>
+</root>
+
+@code
+{
+    /// <summary>
+    /// How long text pauses scrolling before continuing
+    /// </summary>
+    const float PauseTime = 1.0f;
+
+    /// <summary>
+    /// How fast we're scrolling overflowing description text
+    /// </summary>
+    const float ScrollSpeed = 14.0f;
+
+    /// <summary>
+    /// Maximum height of description block, all text that overflows will be scrolled
+    /// </summary>
+    const float MaxHeight = 44.0f;
+
+    const float FadeHeight = 8.0f;
+
+    public string Text { get; set; }
+
+    Panel TextPanel;
+    Panel SizerPanel;
+    Panel Viewport => TextPanel?.Parent;
+
+    float _time;
+    float _offset;
+    float _height = -1;
+    float _textHeight = -1;
+    string _mask;
+    Panel _boundText;
+
+    protected override int BuildHash() => HashCode.Combine( Text );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        var viewport = Viewport;
+        var scale = ScaleToScreen;
+        if ( viewport is null || SizerPanel is null || scale <= 0 ) return;
+
+        // the panels are rebuilt when the text changes, and a fresh one has none of what was set on the old one
+        if ( _boundText != TextPanel )
+        {
+            _boundText = TextPanel;
+            _time = 0;
+            _offset = 0;
+            _height = -1;
+            _textHeight = -1;
+            _mask = null;
+        }
+
+        // the sizer lays out at its full height, the text is given that so it is never squashed, show up to two lines of it
+        var textHeight = SizerPanel.Box.Rect.Height / scale;
+        if ( textHeight > 0 && MathF.Abs( textHeight - _textHeight ) > 0.01f )
+        {
+            _textHeight = textHeight;
+            TextPanel.Style.Height = Length.Pixels( textHeight );
+        }
+
+        var height = MathF.Min( textHeight, MaxHeight );
+        if ( textHeight > 0 && MathF.Abs( height - _height ) > 0.01f )
+        {
+            _height = height;
+            viewport.Style.Height = Length.Pixels( height );
+        }
+
+        var overflow = textHeight - height;
+
+        // only scrolls while the card is hovered, and always starts from the top
+        if ( overflow <= 0.5f || Parent is null || !Parent.HasHovered )
+        {
+            _time = 0;
+            SetOffset( 0, overflow, height );
+            return;
+        }
+
+        // wait, scroll down, wait, scroll up, repeat
+        var travel = overflow / ScrollSpeed;
+        var cycle = PauseTime * 3 + travel * 2;
+        _time = (_time + Time.Delta) % cycle;
+
+        var t = _time;
+        float y;
+        if ( t < PauseTime ) y = 0;
+        else if ( (t -= PauseTime) < travel ) y = overflow * (t / travel);
+        else if ( (t -= travel) < PauseTime ) y = overflow;
+        else if ( (t -= PauseTime) < travel ) y = overflow * (1 - t / travel);
+        else y = 0;
+
+        SetOffset( y, overflow, height );
+    }
+
+    void SetOffset( float y, float overflow, float height )
+    {
+        if ( y != _offset )
+        {
+            _offset = y;
+            TextPanel.Style.Top = Length.Pixels( -y );
+        }
+
+        // fade out whatever is clipped, the top only once the text has moved and the bottom until it has reached the end
+        string mask = null;
+        if ( overflow > 0.5f && height > 0 )
+        {
+            var top = 1 - Math.Clamp( y / FadeHeight, 0, 1 );
+            var bottom = 1 - Math.Clamp( (overflow - y) / FadeHeight, 0, 1 );
+            var fade = Math.Clamp( FadeHeight / height * 100, 0, 50 );
+            mask = $"linear-gradient( to bottom, rgba( 0, 0, 0, {top:0.##} ) 0%, black {fade:0.##}%, black {100 - fade:0.##}%, rgba( 0, 0, 0, {bottom:0.##} ) 100% )";
+        }
+
+        if ( mask == _mask ) return;
+        _mask = mask;
+        if ( mask is null ) Viewport.Style.MaskImage = null;
+        else Viewport.Style.Set( "mask-image", mask );
+    }
+}

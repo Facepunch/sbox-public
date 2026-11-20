@@ -54,6 +54,7 @@ internal static partial class VfxIncludes
 	/// </summary>
 	public static string Rewrite( string text, Dictionary<string, Annotations> annotations, string macroText = null )
 	{
+		text = SlangHeaders.Replace( text );
 		text = ExternalSet().Replace( text, m => $"#define {m.Groups[1].Value} {3 + int.Parse( m.Groups[2].Value, CultureInfo.InvariantCulture )}" );
 
 		// SpecializedConstant() globals are specialization constants, as vfx compiles them: the pipeline is made per value. Each also

@@ -15,7 +15,6 @@
       "IsStandaloneOnly": false,
       "Metadata": {
         "SingleAssetSource": "models/props/couch/side_cushion_right.vmdl",
-        "ParentPackage": "facepunch.sbox_content",
         "AssetLicense": "CC0"
       }
     }

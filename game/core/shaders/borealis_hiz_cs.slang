@@ -11,11 +11,11 @@
 Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
+#include "sbox/system.slangh" // This should always be the first include in COMMON
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "common.fxc"
+#include "sbox/view.slangh"
 #include "borealis_records.fxc"
 
 // 1: the Hi-Z's first levels from the depth (D_MSAA: multisampled); 0: its later levels, or the second phase's cull

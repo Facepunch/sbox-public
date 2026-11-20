@@ -2,8 +2,6 @@ namespace Sandbox;
 
 public partial class BaseCombatWeapon
 {
-	private bool _attackAnimationPending;
-
 	//
 	// Shot presentation, modelled on GMod's ShootEffects / DoImpactEffect. ShootEffects plays the
 	// muzzle/fire presentation and relays it across the network; ImpactEffect is a static utility that
@@ -95,14 +93,21 @@ public partial class BaseCombatWeapon
 
 	/// <summary>
 	/// Define the presentation for a resolved shot. Base spawns the surface impact and flies the
-	/// tracer for every pellet, then plays <see cref="AttackSound"/>, fires the holder's "b_attack"
-	/// gesture and runs <see cref="BaseWeaponModel.OnAttack"/> on the shown model (muzzle flash,
+	/// tracer for every pellet, then plays <see cref="AttackSound"/>, posts <see cref="WeaponEvents.Attack"/>
+	/// to the holder and runs <see cref="BaseWeaponModel.OnAttack"/> on the shown model (muzzle flash,
 	/// brass) - those are skipped for <see cref="ShotEffect.NoEvents"/> pellets, which share the lead
-	/// pellet's. Call it when you override. Runs on every peer that should see the shot.
+	/// pellet's. Call it when you override. Runs on every peer that should see the shot. A dedicated
+	/// server plays none of it and only posts the event.
 	/// </summary>
 	protected virtual void OnShootEffects( ShotEffect shot )
 	{
-		if ( Application.IsDedicatedServer ) return;
+		if ( Application.IsDedicatedServer )
+		{
+			if ( !shot.NoEvents )
+				PostWeaponEvent( WeaponEvents.Attack );
+
+			return;
+		}
 
 		// Every pellet leaves its mark, even the NoEvents ones.
 		OnShootImpact( shot );
@@ -119,12 +124,8 @@ public partial class BaseCombatWeapon
 		if ( shot.NoEvents ) return;
 
 		PlayAttackSound();
-		_attackAnimationPending = true;
-#pragma warning disable CS0618
-		if ( HolderRenderer is { Animation.Graph: null } renderer )
-			renderer.Set( "b_attack", true );
-#pragma warning restore CS0618
 		WeaponModel?.OnAttack( hitPoint, shot.Origin );
+		PostWeaponEvent( WeaponEvents.Attack );
 	}
 
 	/// <summary>

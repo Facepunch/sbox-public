@@ -43,7 +43,7 @@ Texture2D SurfaceDiffuseFalloffTexture()
 // GPU-driven passes (docs/reference/borealis-gpu-driven.md): the draw comes from the instance and draw records, the material
 // record from the materials table, at the draw record's offsets
 #include "borealis_gpu_driven.fxc"
-#include "baked_lighting_constants.fxc"
+#include "sbox/baked_lighting.slangh"
 
 static uint s_SurfaceDrawRecord = 0;   // the draw's material record, set by the GPU-driven vertex entry
 uint SurfaceDrawRecord() { return s_SurfaceDrawRecord; }

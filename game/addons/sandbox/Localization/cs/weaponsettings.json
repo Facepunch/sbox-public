@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Zpětný ráz",
+    "weapon.setting.primary.description": "Ovládá primární akci zbraně.",
+    "weapon.setting.secondary.description": "Ovládá sekundární akci zbraně.",
+    "weapon.setting.recoil_force": "Síla zpětného rázu",
+    "weapon.setting.recoil_force.description": "Fyzický zpětný ráz při střelbě ze zbraně, kterou nikdo nedrží.",
+    "weapon.setting.extend": "Prodloužit vzdálenost uchopení",
+    "weapon.setting.extend.description": "Posune uchopený objekt dál.",
+    "weapon.setting.retract": "Zkrátit vzdálenost uchopení",
+    "weapon.setting.retract.description": "Přitáhne uchopený objekt blíž.",
+    "weapon.setting.camera_aim": "Mířit podle kamery",
+    "weapon.setting.camera_aim.description": "Míří ve směru kamery sedícího hráče.",
+    "weapon.setting.guide_rockets": "Navádět rakety",
+    "weapon.setting.guide_rockets.description": "Navádí vystřelené rakety k zaměřovači hráče."
+}

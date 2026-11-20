@@ -1,0 +1,27 @@
+{
+  "guid": "0eaef008-00fc-0000-fc00-000000000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Modular Pipe Set",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "modularpipeset",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/modular_pipe_set.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

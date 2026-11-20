@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe L Strap",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipelstrap",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_l_strap.vmdl"
+      }
+    }
+  },
+  "guid": "0eaef008-00fc-0000-d200-000000000000"
+}

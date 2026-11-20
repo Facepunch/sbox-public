@@ -140,6 +140,8 @@ public abstract partial class GameNetworkSystem : IDisposable
 
 	internal void CollectConnections( List<Connection> into, Connection.ChannelState minimumState ) => NetworkSystem.CollectConnections( into, minimumState );
 
+	internal bool HasBroadcastRecipients( Connection.Filter? filter = null ) => NetworkSystem.HasBroadcastRecipients( Connection.ChannelState.Snapshot, filter );
+
 	public void BroadcastRaw( ByteStream msg, Connection.Filter? filter = null )
 	{
 		BroadcastRaw( msg, filter, NetFlags.Reliable );
@@ -147,6 +149,8 @@ public abstract partial class GameNetworkSystem : IDisposable
 
 	internal void Broadcast<T>( T obj, Connection.Filter? filter, NetFlags flags )
 	{
+		if ( !HasBroadcastRecipients( filter ) ) return;
+
 		var bs = ByteStream.Create( 512 );
 		bs.Write( InternalMessageType.Packed );
 

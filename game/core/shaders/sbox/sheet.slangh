@@ -1,0 +1,85 @@
+// Sprite sheet sequences, read from the sheet's data texture: row 3n holds sequence n's control data (y: frame count in
+// 1/16ths of 65535, z: clamp rather than loop) and its frames' blend values, rows 3n+1 and 3n+2 its frames' cropped
+// bounds, the texel after each frame its crop rectangle. Ours, in place of the old sheet_sampling.fxc in Slang compiles
+// (SlangHeaders): the same names and results. Shares its include guard.
+#ifndef SHEET_SAMPLING_FXC
+#define SHEET_SAMPLING_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
+
+struct SheetDataSamplerParams_t
+{
+	float m_flOOSheetTextureWidth;
+	float m_flOOSheetTextureHeight;
+	float m_flSheetTextureWidth;
+	float m_flSheetSequenceCount;
+	float m_flSequenceAnimationTimescale;
+	float m_flSheetTextureBaseV;
+	float m_flSequenceIndex;
+	float m_flSequenceAnimationTime;
+};
+
+struct SheetDataSamplerOutput_t
+{
+	float4 m_vFrame0Bounds;          // the frame's whole bounds in the sheet, after the crop is undone
+	float4 m_vFrame1Bounds;          // the next frame's
+	float4 m_vNormalizedCropRect;    // the part of a frame that has anything in it, 0..1 within the frame
+	float m_flAnimationBlendValue;   // how far between the two frames
+};
+
+/// The v of the sequence's control row; a sequence past the sheet's count reads sequence 0.
+float SheetTextureVCoord( in SheetDataSamplerParams_t params )
+{
+	float sequence = fsel( params.m_flSequenceIndex - params.m_flSheetSequenceCount, 0, params.m_flSequenceIndex );
+	return params.m_flSheetTextureBaseV + 3 * sequence * params.m_flOOSheetTextureHeight;
+}
+
+/// The two frames to show for the sequence's time and how far between them, with their uncropped bounds. With
+/// `bAnimateInFPS` the time is in frames rather than in fractions of the sequence.
+SheetDataSamplerOutput_t SampleSheetData( SamplerState tSheetTexture_sampler, Texture2D tSheetTexture, in SheetDataSamplerParams_t params, bool bAnimateInFPS )
+{
+	SheetDataSamplerOutput_t o;
+	float v = SheetTextureVCoord( params );
+	float4 control = tSheetTexture.SampleLevel( tSheetTexture_sampler, float2( 0, v ), 0 );
+
+	float ageScale = 1.0;
+	if ( bAnimateInFPS ) ageScale *= 1.0 / ( control.y * ( 65535.0 / 16.0 ) );
+
+	float time = ageScale * params.m_flSheetTextureWidth * 0.5 * params.m_flSequenceAnimationTime * params.m_flSequenceAnimationTimescale;
+	float blend = frac( time );
+	float frame = 2.0 * floor( time );
+	if ( control.z > 0 ) frame = min( params.m_flSheetTextureWidth - 2, frame );
+	else frame = fmod( frame, params.m_flSheetTextureWidth );
+	frame = frame * params.m_flOOSheetTextureWidth;
+
+	float4 frameControl = tSheetTexture.SampleLevel( tSheetTexture_sampler, float2( frame, v ), 0 );
+	o.m_flAnimationBlendValue = lerp( frameControl.x, frameControl.w, blend );
+
+	// The sheet stores cropped bounds (they always fit 0..1 in 16-bit fixed point); the crop rectangle gives back the whole frame's
+	o.m_vFrame0Bounds = tSheetTexture.SampleLevel( tSheetTexture_sampler, float2( frame, v + params.m_flOOSheetTextureHeight ), 0 );
+	o.m_vFrame1Bounds = tSheetTexture.SampleLevel( tSheetTexture_sampler, float2( frame, v + 2.0 * params.m_flOOSheetTextureHeight ), 0 );
+	o.m_vNormalizedCropRect = tSheetTexture.SampleLevel( tSheetTexture_sampler, float2( frame + params.m_flOOSheetTextureWidth, v + params.m_flOOSheetTextureHeight ), 0 );
+
+	float2 croppedSize = o.m_vNormalizedCropRect.zw - o.m_vNormalizedCropRect.xy;
+	float2 size = ( o.m_vFrame0Bounds.zw - o.m_vFrame0Bounds.xy ) / croppedSize;
+	o.m_vFrame0Bounds.xy -= o.m_vNormalizedCropRect.xy * size;
+	o.m_vFrame0Bounds.zw = o.m_vFrame0Bounds.xy + size;
+	size = ( o.m_vFrame1Bounds.zw - o.m_vFrame1Bounds.xy ) / croppedSize;
+	o.m_vFrame1Bounds.xy -= o.m_vNormalizedCropRect.xy * size;
+	o.m_vFrame1Bounds.zw = o.m_vFrame1Bounds.xy + size;
+	return o;
+}
+
+/// Sequence zoom: the first frame's uvs (xy) go from half to fully zoomed in by `flZoomAmount` over the blend, the
+/// second's (zw) from unzoomed to half. Never zooms out.
+float4 ComputeTexcoordsForZoomAmount( float flZoomAmount, float flAnimationBlendValue, in float4 vLocalUVs )
+{
+	float4 zoomed = ( vLocalUVs - 0.5 ) * saturate( 1.0 / flZoomAmount ) + 0.5;
+	float halfBlend = flAnimationBlendValue * 0.5;
+	return lerp( vLocalUVs, zoomed, float4( halfBlend + 0.5, halfBlend + 0.5, halfBlend, halfBlend ) );
+}
+
+#endif // SHEET_SAMPLING_FXC

@@ -1,0 +1,66 @@
+@import "/UI/Theme.scss";
+
+PackageInformationPopup
+{
+	width: 300px;
+	flex-direction: column;
+	padding: 1rem;
+	font-family: $body-font;
+	font-size: 12px;
+
+	.title
+	{
+		font-size: 16px;
+		font-weight: 600;
+		color: #fff;
+		cursor: pointer;
+		white-space: nowrap;
+		overflow: hidden;
+		opacity: 0.8;
+
+		&:hover
+		{
+			opacity: 1;
+		}
+	}
+
+	.summary
+	{
+		font-size: 12px;
+		font-weight: 500;
+		padding: 5px 0;
+	}
+
+	.created
+	{
+		opacity: 0.4;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.meta 
+	{
+		gap: 1rem;
+		justify-content: flex-start;
+	}
+
+	.org
+	{
+		gap: 0.5rem;
+		align-items: center;
+		cursor: pointer;
+		opacity: 0.8;
+		padding-bottom: 5px;
+
+		&:hover
+		{
+			opacity: 1;
+		}
+
+		img
+		{
+			width: 20px;
+			height: 20px;
+		}
+	}
+}

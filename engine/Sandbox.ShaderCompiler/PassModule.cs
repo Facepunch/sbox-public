@@ -20,7 +20,7 @@ public sealed partial class PassModule
 	public string Text { get; }
 
 	/// <summary>Its features (<c>Feature( F_X, 0..1 )</c>), which static combos can follow.</summary>
-	public IReadOnlyList<PassCombo> Features { get; }
+	public IReadOnlyList<PassCombo> Features { get; private set; }
 
 	readonly Dictionary<StageKind, IReadOnlyList<PassCombo>> combos = new();
 	readonly Dictionary<StageKind, List<(string Kind, string[] Arguments)>> rules = new();
@@ -61,8 +61,16 @@ public sealed partial class PassModule
 		this.searchPaths = searchPaths ?? [];
 
 		// Each stage's lines, its includes' with them: what declares its combos, features and entry point
+		var missing = false;
+		PassPreprocessor.Includer include = ( from, name ) =>
+		{
+			var found = Include( from, name );
+			missing |= found is null;
+			return found;
+		};
+
 		var lines = new Dictionary<StageKind, List<string>>();
-		foreach ( var stage in new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute, StageKind.Task, StageKind.Mesh } ) lines[stage] = PassPreprocessor.ActiveLines( path, text, ProgramValues( stage ), Include );
+		foreach ( var stage in new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute, StageKind.Task, StageKind.Mesh } ) lines[stage] = PassPreprocessor.ActiveLines( path, text, ProgramValues( stage ), include );
 
 		var features = new List<PassCombo>();
 		foreach ( var line in lines.Values.SelectMany( l => l ) )
@@ -136,7 +144,7 @@ public sealed partial class PassModule
 			{
 				var last = ProgramValues( stage );
 				foreach ( var combo in found ) last[combo.Name] = combo.Max;
-				foreach ( var line in PassPreprocessor.ActiveLines( path, text, last, Include ) )
+				foreach ( var line in PassPreprocessor.ActiveLines( path, text, last, include ) )
 				{
 					var comment = line.IndexOf( "//", StringComparison.Ordinal );
 					var code = comment >= 0 ? line[..comment] : line;
@@ -148,6 +156,118 @@ public sealed partial class PassModule
 			rules[stage] = stageRules;
 			staticRules[stage] = stageStaticRules;
 		}
+
+		// A player's install has none of the private headers the build leaves out: what they declare (instancing.fxc's
+		// D_CS_VERTEX_ANIMATION) comes from the offline compile's record of what this module declared where they were there,
+		// so draws ask for the combos it compiled
+		if ( missing && SlangOutput.At( SlangOutput.PathOf( Path ) )?.DeclarationsOf( Text ) is { } declarations ) ReadDeclarations( declarations );
+	}
+
+	/// <summary>
+	/// What it declares, includes and all: its features, each stage's combos, rules and GPU-driven condition, its stages and
+	/// binding names. The offline compile keeps it (<see cref="SlangOutput"/>) for an install without the private headers.
+	/// </summary>
+	internal byte[] Declarations()
+	{
+		using var stream = new MemoryStream();
+		using ( var w = new BinaryWriter( stream ) )
+		{
+			void Combos( IReadOnlyList<PassCombo> list )
+			{
+				w.Write( list.Count );
+				foreach ( var c in list )
+				{
+					w.Write( c.Name );
+					w.Write( c.Min );
+					w.Write( c.Max );
+					w.Write( c.Static );
+					w.Write( c.Feature ?? "" );
+				}
+			}
+
+			void Rules( List<(string Kind, string[] Arguments)> list )
+			{
+				w.Write( list.Count );
+				foreach ( var (kind, arguments) in list )
+				{
+					w.Write( kind );
+					w.Write( arguments.Length );
+					foreach ( var argument in arguments ) w.Write( argument );
+				}
+			}
+
+			Combos( Features );
+			w.Write( combos.Count );
+			foreach ( var (stage, list) in combos )
+			{
+				w.Write( (int)stage );
+				Combos( list );
+				Rules( rules.TryGetValue( stage, out var r ) ? r : [] );
+				Rules( staticRules.TryGetValue( stage, out var s ) ? s : [] );
+				w.Write( stages.Contains( stage ) );
+				w.Write( gpuDrivenConditions.TryGetValue( stage, out var condition ) ? condition : "" );
+			}
+
+			var names = BindingNames().Order( StringComparer.Ordinal ).ToList();
+			w.Write( names.Count );
+			foreach ( var name in names ) w.Write( name );
+		}
+
+		return stream.ToArray();
+	}
+
+	void ReadDeclarations( byte[] bytes )
+	{
+		using var r = new BinaryReader( new MemoryStream( bytes, writable: false ) );
+		List<PassCombo> Combos()
+		{
+			var list = new List<PassCombo>();
+			for ( int i = r.ReadInt32(); i > 0; i-- )
+			{
+				var (name, min, max, isStatic, feature) = (r.ReadString(), r.ReadInt32(), r.ReadInt32(), r.ReadBoolean(), r.ReadString());
+				list.Add( new PassCombo( name, min, max, isStatic, feature.Length > 0 ? feature : null ) );
+			}
+
+			return list;
+		}
+
+		List<(string, string[])> Rules()
+		{
+			var list = new List<(string, string[])>();
+			for ( int i = r.ReadInt32(); i > 0; i-- )
+			{
+				var kind = r.ReadString();
+				var arguments = new string[r.ReadInt32()];
+				for ( int a = 0; a < arguments.Length; a++ ) arguments[a] = r.ReadString();
+				list.Add( (kind, arguments) );
+			}
+
+			return list;
+		}
+
+		Features = Combos();
+		combos.Clear();
+		rules.Clear();
+		staticRules.Clear();
+		stages.Clear();
+		gpuDriven.Clear();
+		gpuDrivenConditions.Clear();
+		for ( int i = r.ReadInt32(); i > 0; i-- )
+		{
+			var stage = (StageKind)r.ReadInt32();
+			combos[stage] = Combos();
+			rules[stage] = Rules();
+			staticRules[stage] = Rules();
+			if ( r.ReadBoolean() ) stages.Add( stage );
+			var condition = r.ReadString();
+			if ( condition.Length == 0 ) continue;
+			gpuDriven.Add( stage );
+			gpuDrivenConditions[stage] = condition;
+		}
+
+		var names = new HashSet<string>( StringComparer.Ordinal );
+		for ( int i = r.ReadInt32(); i > 0; i-- ) names.Add( r.ReadString() );
+		bindingNames = names;
 	}
 
 	/// <summary>Read the module at <paramref name="path"/>, finding its includes beside it and in <paramref name="searchPaths"/>.</summary>
@@ -195,12 +315,13 @@ public sealed partial class PassModule
 	[GeneratedRegex( @"^[ \t]*#[ \t]*include[ \t]*""(?<name>[^""]+)""", RegexOptions.Multiline )]
 	private static partial Regex IncludeName();
 
-	static readonly Dictionary<string, (DateTime Time, string Text)> includes = new( StringComparer.OrdinalIgnoreCase );
+	static readonly Dictionary<string, (DateTime Time, long Length, string Text)> includes = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>An include's path and text, from the including file's folder or the search paths; null when there's none.</summary>
 	(string Path, string Text)? Include( string from, string name )
 	{
 		name = name.Replace( '\\', '/' );
+		if ( SlangHeaders.Replaced.TryGetValue( name, out var ours ) ) name = ours;
 		var here = System.IO.Path.GetDirectoryName( from );
 
 		// Found within the last check interval: its text as read then, without looking at the disk again
@@ -231,7 +352,9 @@ public sealed partial class PassModule
 			if ( !info.Exists ) continue;
 			lock ( includes )
 			{
-				if ( !includes.TryGetValue( full, out var known ) || known.Time != info.LastWriteTimeUtc ) includes[full] = known = (info.LastWriteTimeUtc, File.ReadAllText( full ));
+				// Its time and length, as PassCache.FileHash looks: an edit within the file system's clock tick keeps the time
+				if ( !includes.TryGetValue( full, out var known ) || known.Time != info.LastWriteTimeUtc || known.Length != info.Length )
+					includes[full] = known = (info.LastWriteTimeUtc, info.Length, File.ReadAllText( full ));
 				return (full, known.Text);
 			}
 		}
@@ -525,6 +648,17 @@ public sealed partial class PassModule
 		var all = ProgramValues( stage );
 		foreach ( var (name, value) in values ) all[name] = value;
 		return string.Join( '\n', PassPreprocessor.ActiveLines( Path, Text, all ) );
+	}
+
+	/// <summary>
+	/// The lines a stage's compile sees with these values, its includes' with them: what a material's texture inputs and
+	/// processed textures are read from (<see cref="MaterialInputs"/>), as vfx reads them from the whole program.
+	/// </summary>
+	public IReadOnlyList<string> CompiledLines( StageKind stage, IReadOnlyDictionary<string, int> values )
+	{
+		var all = ProgramValues( stage );
+		foreach ( var (name, value) in values ) all[name] = value;
+		return Lines( all );
 	}
 
 	[GeneratedRegex( @"\[\s*shader\s*\(\s*""vertex""\s*\)\s*\]" )]

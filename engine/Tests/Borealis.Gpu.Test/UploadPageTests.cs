@@ -20,6 +20,10 @@ public class UploadPageTests : GpuTest
 		Device.Wait( Device.Submit( list ) );
 
 		for ( int i = 0; i <= Device.FramesInFlight; i++ ) Device.BeginFrame();
+
+		// Pages the burst's misses had made ahead are among the free ones once made
+		var clock = System.Diagnostics.Stopwatch.StartNew();
+		while ( Device.MakingUploadPagesAhead && clock.Elapsed.TotalSeconds < 10 ) System.Threading.Thread.Sleep( 5 );
 		Assert.IsTrue( Device.FreePages[2].Count >= 24, $"the burst's pages are free for reuse ({Device.FreePages[2].Count})" );
 		Assert.IsTrue( Device.FreePages[2].TryPeek( out var page ) && Device.Get( page.Buffer ).Memory.Block.Dedicated, "each page is its own allocation" );
 
@@ -31,6 +35,35 @@ public class UploadPageTests : GpuTest
 		// an empty one) but for the spare's
 		for ( ulong i = 0; i <= Borealis.Gpu.Memory.MemoryAllocator.SpareFrames; i++ ) Device.BeginFrame();
 		Assert.IsTrue( Device.MemoryUsage.Reserved - reserved <= (long)Device.Allocator.BlockSize, $"{(Device.MemoryUsage.Reserved - reserved) >> 20} MiB more reserved than before the burst" );
+	}
+
+	/// <summary>
+	/// A frame whose lists had to make pages of the biggest size (none free) has twice as many made on a worker when the next
+	/// frame starts, so a burst's next frames find them free instead of each list waiting for the driver.
+	/// </summary>
+	[TestMethod]
+	public void MissedPagesAreMadeAheadForTheNextFrame()
+	{
+		// Two windows first, so free pages other tests left are trimmed to the spare
+		for ( ulong i = 0; i <= 2 * Device.UploadPageIdleFrames; i++ ) Device.BeginFrame();
+		var ahead = Device.UploadPagesAhead;
+		var list = Device.BeginCommandList( QueueType.Graphics, "Burst" );
+		for ( int i = 0; i < 6; i++ ) list.AllocateUpload( 3 << 20 );
+		Device.Wait( Device.Submit( list ) );
+
+		// The frame that saw the misses starts: the pages are made ahead, then waited for here
+		Device.BeginFrame();
+		var clock = System.Diagnostics.Stopwatch.StartNew();
+		while ( Device.UploadPagesAhead - ahead < 10 && clock.Elapsed.TotalSeconds < 10 ) System.Threading.Thread.Sleep( 5 );
+		Assert.IsTrue( Device.UploadPagesAhead - ahead >= 10, $"twice the five missed pages made ahead ({Device.UploadPagesAhead - ahead})" );
+
+		// The same burst again takes free pages: no list makes one
+		Device.UploadPageMisses = 0;
+		var again = Device.BeginCommandList( QueueType.Graphics, "Burst again" );
+		for ( int i = 0; i < 6; i++ ) again.AllocateUpload( 3 << 20 );
+		Device.Wait( Device.Submit( again ) );
+		Assert.AreEqual( 0, Device.UploadPageMisses, "the burst's pages were free" );
+		for ( int i = 0; i <= Device.FramesInFlight; i++ ) Device.BeginFrame();
 	}
 
 	/// <summary>

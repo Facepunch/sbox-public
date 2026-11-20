@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Ανάκρουση",
+    "weapon.setting.primary.description": "Ελέγχει την κύρια ενέργεια του όπλου.",
+    "weapon.setting.secondary.description": "Ελέγχει τη δευτερεύουσα ενέργεια του όπλου.",
+    "weapon.setting.recoil_force": "Δύναμη ανάκρουσης",
+    "weapon.setting.recoil_force.description": "Φυσική ανάκρουση όταν πυροβολεί ένα όπλο που δεν κρατιέται.",
+    "weapon.setting.extend": "Αύξηση απόστασης λαβής",
+    "weapon.setting.extend.description": "Μετακινεί το πιασμένο αντικείμενο πιο μακριά.",
+    "weapon.setting.retract": "Μείωση απόστασης λαβής",
+    "weapon.setting.retract.description": "Μετακινεί το πιασμένο αντικείμενο πιο κοντά.",
+    "weapon.setting.camera_aim": "Στόχευση με κάμερα",
+    "weapon.setting.camera_aim.description": "Στοχεύει προς την κατεύθυνση της κάμερας του καθισμένου παίκτη.",
+    "weapon.setting.guide_rockets": "Καθοδήγηση πυραύλων",
+    "weapon.setting.guide_rockets.description": "Καθοδηγεί τους εκτοξευμένους πυραύλους προς το στόχαστρο του παίκτη."
+}

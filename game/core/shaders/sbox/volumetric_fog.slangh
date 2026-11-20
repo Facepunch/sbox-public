@@ -1,0 +1,59 @@
+// Volumetric fog: the froxel volume the fog compute pass fills (in-scattered light in rgb, transmittance in alpha) and its
+// lookup from a world position. The volume's slices are spaced by the square root of depth. Ours, in place of the old
+// volumetric_fog.fxc in Slang compiles (SlangHeaders): the same binding, constants and results. The per-view constants
+// (g_mVolFogFromWorld and the rest) come from the includer's view constants. Shares the old header's include guard.
+#ifndef VOLUMETRIC_FOG_FXC
+#define VOLUMETRIC_FOG_FXC
+
+CreateTexture3DWithoutSampler( g_tFogVolume ) : register( t11 ) < Attribute( "FogVolume" ); SrgbRead( false ); >;
+
+#define FOG_VOLUME_WIDTH 240
+#define FOG_VOLUME_HEIGHT 160
+#define FOG_VOLUME_DEPTH 64
+
+float VoxelSliceZToRealDepth( float flSliceZ ) { return g_flVolFogClipPlaneRange * flSliceZ * flSliceZ + g_flVolFogNearClipPlane; }
+float FogFrustumDepthToVoxelSliceZ( float flDepth ) { return sqrt( max( 0, flDepth ) ); }
+
+#if !defined( COMPUTE_SHADER )
+
+/// A world position as volume coordinates (0..1 across, slice z).
+float3 GetVoxelInCurrentEyeFrustum( float3 vPositionWS, float2 vPositionSs )
+{
+	float4 p = mul( g_mVolFogFromWorld[0], float4( vPositionWS, 1.0f ) );
+	p.xy /= p.w;
+	p.xyz = p.xyw * g_vVolFogPostWorldToFrustumScale.xyz + g_vVolFogPostWorldToFrustumBias.xyz;
+	p.z = FogFrustumDepthToVoxelSliceZ( p.z );
+	return p.xyz;
+}
+
+float4 CalculateVolumetricFog( float3 vPositionWs, float2 vPositionSs )
+{
+	return Tex3DS( g_tFogVolume, g_sTrilinearClamp, GetVoxelInCurrentEyeFrustum( vPositionWs, vPositionSs ) );
+}
+
+/// A colour seen through the fog in front of it.
+float3 ApplyVolumetricFog( float3 vColor, float3 vPositionWs, float2 vPositionSs )
+{
+	if ( !g_bVolumetricFogEnabled ) return vColor;
+	float4 fog = CalculateVolumetricFog( vPositionWs, vPositionSs );
+	return fog.rgb + vColor * fog.aaa;
+}
+
+/// The fog's transmittance in front of a position; 1 without fog.
+float GetVolumetricFogInfluence( float3 vPositionWs, float2 vPositionSs )
+{
+	if ( !g_bVolumetricFogEnabled ) return 1.0f;
+	return g_tFogVolume.Sample( g_sTrilinearClamp, GetVoxelInCurrentEyeFrustum( vPositionWs, vPositionSs ) ).a;
+}
+
+/// The transmittance, reduced where the fog is lit (for translucent alpha); 1 without fog.
+float GetVolumetricFogAlphaBias( float3 vPositionWs, float2 vPositionSs )
+{
+	if ( !g_bVolumetricFogEnabled ) return 1.0f;
+	float4 fog = g_tFogVolume.Sample( g_sTrilinearClamp, GetVoxelInCurrentEyeFrustum( vPositionWs, vPositionSs ) );
+	return saturate( 1.0 - dot( fog.rgb, float3( 64, 64, 64 ) ) ) * fog.a;
+}
+
+#endif // !defined( COMPUTE_SHADER )
+
+#endif // VOLUMETRIC_FOG_FXC

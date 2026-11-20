@@ -1,0 +1,21 @@
+@import "/UI/Theme.scss";
+
+BuilderPage
+{
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	.material-picker > .icon.icon-texture
+	{
+		width: 14px;
+		height: 14px;
+		min-width: 14px;
+		max-width: 14px;
+		min-height: 14px;
+		max-height: 14px;
+		flex-shrink: 0;
+		border-radius: 2px;
+	}
+}
+
+BuilderThumbnail { width: 100%; height: 100%; pointer-events: none; }

@@ -1,0 +1,45 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Npcs;
+@inherits UtilityPage
+@namespace Sandbox
+@attribute [Icon( "🤖" )]
+@attribute [Title( "#spawnmenu.utility.npcs" )]
+@attribute [Group( "#spawnmenu.utility.group.world" )]
+@attribute [Order( 1 )]
+
+<root class="page">
+    @if ( Permissions.Has( Connection.Local, Permissions.Admin ) )
+    {
+        <UISheet Target="@Settings" PropertyFilter="@UISheet.PropertiesAndButtons" />
+    }
+    else
+    {
+        <Label class="note" Tokenize=@false Text=@( $"⚠️ {Game.Language.GetPhrase( "spawnmenu.common.admin_only" )}" ) />
+    }
+</root>
+
+@code
+{
+    public override bool IsPageVisible() => Permissions.Has( Connection.Local, Permissions.Admin );
+
+    readonly NpcSettings Settings = new();
+
+    // Write through the host so the replicated convars change for everyone.
+    sealed class NpcSettings
+    {
+        [Property, Title( "#spawnmenu.utility.ai_enabled" ), Description( "#spawnmenu.utility.ai_enabled_description" ), Order( 0 )]
+        public bool AiEnabled
+        {
+            get => NpcConVars.Enabled;
+            set => GameManager.SetConVar( "npc_enabled", value );
+        }
+
+        [Property, Title( "#spawnmenu.utility.no_target" ), Description( "#spawnmenu.utility.no_target_description" ), Order( 1 )]
+        public bool NoTarget
+        {
+            get => NpcConVars.NoTarget;
+            set => GameManager.SetConVar( "npc_notarget", value );
+        }
+    }
+}

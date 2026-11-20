@@ -1,0 +1,1609 @@
+{
+  "RootObject": {
+    "__guid": "0a06c34c-bbb9-40eb-8362-2618d2e930e8",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "buggy",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 1,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.Prop",
+        "__guid": "07d72dd4-7d55-427f-9cd2-230e9368902c",
+        "__enabled": true,
+        "Flags": 0,
+        "BodyGroups": 18446744073709551615,
+        "Health": 0,
+        "IsStatic": false,
+        "MaterialGroup": null,
+        "Model": {
+          "Id": "e80f3255-bba5-4b92-9e4d-8ad0003545a8",
+          "Path": "vehicles/buggy/buggy_rigged.vmdl"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnGibsCreated": null,
+        "OnPropBreak": null,
+        "OnPropTakeDamage": null,
+        "StartAsleep": false,
+        "Tint": "1,1,1,1"
+      },
+      {
+        "__type": "Sandbox.SkinnedModelRenderer",
+        "__guid": "2516ca8f-68f5-4f07-9cb5-b6d678907754",
+        "__enabled": true,
+        "Flags": 0,
+        "Animation": {
+          "Graph": null,
+          "Parameters": {}
+        },
+        "AnimationGraph": null,
+        "BodyGroups": 18446744073709551615,
+        "BoneMergeTarget": null,
+        "CreateAttachments": false,
+        "CreateBoneObjects": true,
+        "DeformationMode": "Normal",
+        "LodOverride": null,
+        "LowDetailAnimation": false,
+        "MaterialGroup": null,
+        "MaterialOverride": null,
+        "Materials": null,
+        "Model": {
+          "Id": "e80f3255-bba5-4b92-9e4d-8ad0003545a8",
+          "Path": "vehicles/buggy/buggy_rigged.vmdl"
+        },
+        "Morphs": {},
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Parameters": {},
+        "PlaybackRate": 1,
+        "RenderOptions": {
+          "GameLayer": true,
+          "OverlayLayer": false,
+          "BloomLayer": false,
+          "AfterUILayer": false
+        },
+        "RenderType": "On",
+        "Sequence": {
+          "Name": null,
+          "Looping": true,
+          "Blending": false
+        },
+        "Tint": "1,1,1,1",
+        "UseAnimGraph": true
+      },
+      {
+        "__type": "Sandbox.ModelCollider",
+        "__guid": "9b087f08-e103-43d2-8737-4b71b136e26f",
+        "__enabled": true,
+        "Flags": 0,
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "Model": {
+          "Id": "e80f3255-bba5-4b92-9e4d-8ad0003545a8",
+          "Path": "vehicles/buggy/buggy_rigged.vmdl"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Static": false,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.Rigidbody",
+        "__guid": "07ef457d-96a6-4e0b-9a20-7b325f53ec36",
+        "__enabled": true,
+        "Flags": 0,
+        "AngularDamping": 0,
+        "EnableImpactDamage": true,
+        "EnhancedCcd": false,
+        "Gravity": true,
+        "GravityScale": 1,
+        "ImpactDamage": 0,
+        "InertiaScale": 1,
+        "LinearDamping": 0,
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "MassCenterOverride": "0,0,0",
+        "MassOverride": 1000,
+        "MinImpactDamageSpeed": 500,
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideMassCenter": false,
+        "RigidbodyFlags": 0,
+        "SleepThreshold": 2,
+        "StartAsleep": false
+      },
+      {
+        "__type": "FourWheelVehicle",
+        "__guid": "1f06362f-c675-4c1c-a7bb-d00948a606e5",
+        "__enabled": true,
+        "Flags": 0,
+        "Back": {
+          "Action": "Backward"
+        },
+        "Body": {
+          "MassCenterOverride": "-15,0,12",
+          "MassOverride": 1000,
+          "AddGravity": 0.5,
+          "MaxAngularVelocity": 720
+        },
+        "Boost": {
+          "Action": "Run"
+        },
+        "BrakeFoot": {
+          "_type": "gameobject",
+          "go": "5a17e021-7fff-406b-a69e-aa9abc1b421f"
+        },
+        "ClutchShiftTime": 0.3,
+        "DrawDebug": false,
+        "DriverTilt": 15,
+        "Engine": {
+          "Horsepower": 350,
+          "MaxRpm": 4200,
+          "MaxSpeed": 90,
+          "MaxReverseSpeed": 14,
+          "AutobrakeSpeedGain": 1.1,
+          "AutobrakeSpeedFactor": 3,
+          "AxleRatio": 4.56,
+          "GearRatios": [
+            3.2,
+            2.4,
+            1.5,
+            1,
+            0.84
+          ],
+          "ShiftUpRpm": 4100,
+          "ShiftDownRpm": 1600,
+          "BoostForce": 1.5,
+          "BoostDuration": 3,
+          "BoostDelay": 3,
+          "BoostMaxSpeed": 90,
+          "BoostLowSpeedFactor": 1
+        },
+        "FatalImpactSpeed": 1400,
+        "FootLift": 2.5,
+        "FootSwitchTime": 0.15,
+        "Forward": {
+          "Action": "Forward"
+        },
+        "FrontAxle": {
+          "WheelRadius": 15.5,
+          "TyreWidth": 8.6,
+          "WheelMass": 100,
+          "Friction": 1.337,
+          "BrakeFriction": 0.6,
+          "SkidFriction": 0.2,
+          "RollingResistance": 0.02,
+          "SpringAdditionalLength": 3.5,
+          "MaximumCompression": 4,
+          "SpringConstant": 40,
+          "SpringDamping": 0.7,
+          "StabilizerConstant": 10,
+          "SpringDampingCompression": 9,
+          "TorqueFactor": 0.3,
+          "BrakeFactor": 0.4
+        },
+        "Gravity": 600,
+        "Handbrake": {
+          "Action": "Jump"
+        },
+        "HornHand": {
+          "_type": "gameobject",
+          "go": "755735d1-3804-45b7-ace4-18c7a15425ca"
+        },
+        "HornHandPose": 1,
+        "HornHandTime": 0.1,
+        "HornHoldType": "holditem",
+        "ImpactDamageScale": 1,
+        "Left": {
+          "Action": "Left"
+        },
+        "LeftFoot": {
+          "_type": "gameobject",
+          "go": "49bac6cb-ed8b-4cf8-972a-dbc5a60c925a"
+        },
+        "LeftHand": {
+          "_type": "gameobject",
+          "go": "2af41e37-908c-4618-97eb-8bcdfb9acdcf"
+        },
+        "MaxSafeImpactSpeed": 750,
+        "MaxSway": 10,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PedalTravel": 25,
+        "RearAxle": {
+          "WheelRadius": 21.6,
+          "TyreWidth": 14.8,
+          "WheelMass": 100,
+          "Friction": 1.337,
+          "BrakeFriction": 0.6,
+          "SkidFriction": 0.2,
+          "RollingResistance": 0.02,
+          "SpringAdditionalLength": 8,
+          "MaximumCompression": 4,
+          "SpringConstant": 40,
+          "SpringDamping": 0.7,
+          "StabilizerConstant": 10,
+          "SpringDampingCompression": 9,
+          "TorqueFactor": 0.7,
+          "BrakeFactor": 0.6
+        },
+        "Right": {
+          "Action": "Right"
+        },
+        "RightFoot": {
+          "_type": "gameobject",
+          "go": "9d774757-e3eb-4b67-b277-3bced0970ba1"
+        },
+        "RightHand": {
+          "_type": "gameobject",
+          "go": "b3d777f5-0467-48a2-a56e-7ad579a82192"
+        },
+        "Seat": {
+          "_type": "component",
+          "component_id": "ed9bb092-2170-409f-aa65-9a2d1e84591d",
+          "go": "0a06c34c-bbb9-40eb-8362-2618d2e930e8",
+          "component_type": "BaseChair"
+        },
+        "Steering": {
+          "DegreesSlow": 40,
+          "DegreesFast": 30,
+          "DegreesBoost": 11,
+          "SteeringExponent": 1.4,
+          "SpeedSlow": 14,
+          "SpeedFast": 20,
+          "SteeringRateSlow": 4,
+          "SteeringRateFast": 2,
+          "SteeringRestRateSlow": 4,
+          "SteeringRestRateFast": 2,
+          "TurnThrottleReduceSlow": 0.01,
+          "TurnThrottleReduceFast": 2,
+          "BrakeSteeringRateFactor": 6,
+          "ThrottleSteeringRestRateFactor": 2,
+          "BoostSteeringRestRateFactor": 1.7,
+          "BoostSteeringRateFactor": 1.7,
+          "PowerSlideAccel": 125
+        },
+        "SteeringWheelAngle": 90,
+        "SteeringWheelAxis": "-0.939999998,0,0.342000008",
+        "SwayDamping": 7,
+        "SwayFullAcceleration": 600,
+        "SwayStiffness": 60,
+        "TiltPivot": null,
+        "WheelObstacleCollisions": true
+      },
+      {
+        "__type": "VehicleCamera",
+        "__guid": "3fdcbaec-8c3e-4c7e-923f-9076eebcdaa1",
+        "__enabled": true,
+        "Flags": 0,
+        "AccelerationLag": 0.06,
+        "BoostFov": 6,
+        "Distance": 230,
+        "FollowRate": 4,
+        "Height": 120,
+        "LookAhead": 45,
+        "LookHeight": 75,
+        "LookResetDelay": 1.5,
+        "LookResetSpeed": 10,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SlideFollow": 0.5,
+        "SlopeFollow": 0.5,
+        "SpeedDistance": 40,
+        "SpeedFov": 8,
+        "SpeedShake": 0.8
+      },
+      {
+        "__type": "Sandbox.BaseChair",
+        "__guid": "ed9bb092-2170-409f-aa65-9a2d1e84591d",
+        "__enabled": true,
+        "Flags": 0,
+        "ExitPoints": [
+          {
+            "_type": "gameobject",
+            "go": "cb601b4e-7f58-4e64-b9b3-a2244c69bcea"
+          },
+          {
+            "_type": "gameobject",
+            "go": "5834c181-b1e7-49c0-811f-ef90317b17a5"
+          },
+          {
+            "_type": "gameobject",
+            "go": "a5887363-2176-42af-8247-35e612754832"
+          }
+        ],
+        "EyePosition": {
+          "_type": "gameobject",
+          "go": "97264915-0461-48f5-a8a1-f9abf7226b76"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PitchRange": "-90,70",
+        "SeatPosition": {
+          "_type": "gameobject",
+          "go": "d4eff07e-86f4-42ff-bde0-680704e6e01b"
+        },
+        "SitHeight": 0.115207314,
+        "SitPose": "Chair",
+        "TooltipDescription": "",
+        "TooltipIcon": "directions_car",
+        "TooltipTitle": "Drive",
+        "YawRange": "-120,120"
+      },
+      {
+        "__type": "VehicleSounds",
+        "__guid": "d942361e-d0bb-4764-987e-d6c684d4fcb5",
+        "__enabled": true,
+        "Flags": 0,
+        "BackfireEffect": {
+          "_type": "gameobject",
+          "prefab": "vehicles/buggy/buggy_backfire.prefab"
+        },
+        "BackfireSound": {
+          "Id": "fde16a87-ec9b-4d9c-80a1-af55db1d818f",
+          "Path": "sounds/vehicles/buggy/backfire.sound"
+        },
+        "CrackleRate": 6,
+        "CrackleRevs": 0.55,
+        "CrashSounds": [
+          {
+            "MinSpeed": 80,
+            "Sound": {
+              "Id": "62a83d83-29c5-47dc-b216-a1379125990f",
+              "Path": "sounds/vehicles/buggy/impact_small.sound"
+            },
+            "DropsToIdle": false
+          },
+          {
+            "MinSpeed": 250,
+            "Sound": {
+              "Id": "430e7fde-1262-4d49-aec6-af3fd9400a0d",
+              "Path": "sounds/vehicles/buggy/impact_medium.sound"
+            },
+            "DropsToIdle": true
+          },
+          {
+            "MinSpeed": 500,
+            "Sound": {
+              "Id": "df4d6854-2205-485e-967e-cd0d9c830ee5",
+              "Path": "sounds/vehicles/buggy/impact_heavy.sound"
+            },
+            "DropsToIdle": true
+          }
+        ],
+        "Exhaust": {
+          "_type": "gameobject",
+          "go": "07d59a99-16b6-45c3-81a0-ef2228ec35f9"
+        },
+        "Gears": [
+          {
+            "MaxSpeed": 0.27,
+            "SpeedApproachFactor": 1
+          },
+          {
+            "MaxSpeed": 0.5,
+            "SpeedApproachFactor": 0.05
+          },
+          {
+            "MaxSpeed": 0.75,
+            "SpeedApproachFactor": 0.052
+          },
+          {
+            "MaxSpeed": 0.95,
+            "SpeedApproachFactor": 0.034
+          },
+          {
+            "MaxSpeed": 1.5,
+            "SpeedApproachFactor": 0.033
+          },
+          {
+            "MaxSpeed": 2,
+            "SpeedApproachFactor": 0.03
+          }
+        ],
+        "Horn": {
+          "Action": "Attack1"
+        },
+        "HornFadeTime": 0.1,
+        "HornSound": {
+          "Id": "39fb423f-8c33-4338-ab73-fe1475c025b6",
+          "Path": "sounds/vehicles/buggy/horn.sound"
+        },
+        "ImpactCooldown": 0.15,
+        "LimiterRate": 3,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "ShiftPops": true,
+        "SkidSound": {
+          "Id": "d03c333e-eb04-470c-b0ee-487775e63855",
+          "Path": "sounds/vehicles/buggy/skid_normalfriction.sound"
+        },
+        "States": [
+          {
+            "State": "StartIdle",
+            "Sound": {
+              "Id": "d9340982-a610-42ae-bce5-1076a85ac699",
+              "Path": "sounds/vehicles/buggy/engine_start.sound"
+            },
+            "MinTime": 4
+          },
+          {
+            "State": "Idle",
+            "Sound": {
+              "Id": "09346dc3-6760-4cfb-a53f-f2b4968debeb",
+              "Path": "sounds/vehicles/buggy/engine_idle.sound"
+            },
+            "MinTime": 0
+          },
+          {
+            "State": "Reverse",
+            "Sound": {
+              "Id": "ff7dbb58-f0d8-4f3e-98da-cf6bf3116015",
+              "Path": "sounds/vehicles/buggy/reverse.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear0",
+            "Sound": {
+              "Id": "777df3b6-1b28-4929-87e8-258437090cac",
+              "Path": "sounds/vehicles/buggy/rev.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear0Resume",
+            "Sound": {
+              "Id": "09346dc3-6760-4cfb-a53f-f2b4968debeb",
+              "Path": "sounds/vehicles/buggy/engine_idle.sound"
+            },
+            "MinTime": 0.75
+          },
+          {
+            "State": "Gear1",
+            "Sound": {
+              "Id": "8ef29b78-d983-42bf-9063-648672af44e9",
+              "Path": "sounds/vehicles/buggy/firstgear.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear1Resume",
+            "Sound": {
+              "Id": "8ef29b78-d983-42bf-9063-648672af44e9",
+              "Path": "sounds/vehicles/buggy/firstgear.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear2",
+            "Sound": {
+              "Id": "bb6ed7c6-a484-4264-b10e-42f414f57c48",
+              "Path": "sounds/vehicles/buggy/secondgear.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear2Resume",
+            "Sound": {
+              "Id": "8ef29b78-d983-42bf-9063-648672af44e9",
+              "Path": "sounds/vehicles/buggy/firstgear.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear3",
+            "Sound": {
+              "Id": "6a293297-e32b-4803-a709-80d0ece3bd69",
+              "Path": "sounds/vehicles/buggy/thirdgear.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear3Resume",
+            "Sound": {
+              "Id": "8ef29b78-d983-42bf-9063-648672af44e9",
+              "Path": "sounds/vehicles/buggy/firstgear.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear4",
+            "Sound": {
+              "Id": "97cfb859-bfa0-4c31-9b05-e0950a7f8736",
+              "Path": "sounds/vehicles/buggy/fourthgear.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "Gear4Resume",
+            "Sound": {
+              "Id": "97cfb859-bfa0-4c31-9b05-e0950a7f8736",
+              "Path": "sounds/vehicles/buggy/fourthgear.sound"
+            },
+            "MinTime": 0.5
+          },
+          {
+            "State": "SlowdownHighSpeed",
+            "Sound": {
+              "Id": "eec3741a-9c86-4431-918a-ae66b66c693f",
+              "Path": "sounds/vehicles/buggy/throttleoff_fastspeed.sound"
+            },
+            "MinTime": 2
+          },
+          {
+            "State": "Slowdown",
+            "Sound": {
+              "Id": "10affe72-51db-416f-9c68-4abf8fb7cfed",
+              "Path": "sounds/vehicles/buggy/throttleoff_slowspeed.sound"
+            },
+            "MinTime": 2
+          },
+          {
+            "State": "Turbo",
+            "Sound": {
+              "Id": "2cc6212c-6623-45d8-8e3a-e85b02d2a954",
+              "Path": "sounds/vehicles/buggy/turbo_on.sound"
+            },
+            "MinTime": 2.5
+          },
+          {
+            "State": "Shutdown",
+            "Sound": {
+              "Id": "fd9b8462-8400-46c6-9a67-781d29795da5",
+              "Path": "sounds/vehicles/buggy/engine_stop.sound"
+            },
+            "MinTime": 0
+          }
+        ],
+        "SuspensionCooldown": 0.3,
+        "SuspensionMaxSpeed": 300,
+        "SuspensionMinSpeed": 80,
+        "SuspensionSound": {
+          "Id": "a893935a-3e7e-40f7-beeb-97d41c671d4c",
+          "Path": "sounds/vehicles/buggy/suspension.sound"
+        },
+        "Vehicle": {
+          "_type": "component",
+          "component_id": "1f06362f-c675-4c1c-a7bb-d00948a606e5",
+          "go": "0a06c34c-bbb9-40eb-8362-2618d2e930e8",
+          "component_type": "FourWheelVehicle"
+        }
+      },
+      {
+        "__type": "VehicleLights",
+        "__guid": "b7134d8a-6bf7-4b0c-9485-d89fb422b2ac",
+        "__enabled": true,
+        "Flags": 0,
+        "HighBeamBrightness": 28,
+        "HighBeamCone": 44,
+        "HighBeamCookie": "vehicles/buggy/textures/headlight_high.png",
+        "HighBeamRange": 4000,
+        "HighBeams": [
+          {
+            "_type": "component",
+            "component_id": "ca869fae-3a54-460f-9148-8dee074887c0",
+            "go": "3590de3d-099f-4642-a4b4-1d3abd978304",
+            "component_type": "SpotLight"
+          },
+          {
+            "_type": "component",
+            "component_id": "5736aeda-00b6-4bee-bdc2-658b95e1f3e5",
+            "go": "99f894fb-6e0b-484d-afad-4189041503c4",
+            "component_type": "SpotLight"
+          }
+        ],
+        "HoldTime": 0.35,
+        "LightColor": "1,0.94,0.84,1",
+        "LowBeamBrightness": 14,
+        "LowBeamCone": 62,
+        "LowBeamCookie": "vehicles/buggy/textures/headlight_low.png",
+        "LowBeamRange": 1800,
+        "LowBeams": [
+          {
+            "_type": "component",
+            "component_id": "5114b06f-6501-4c82-b14e-ca24ef65d5b1",
+            "go": "eb16cb28-e64e-43e7-96c5-21c7337c5b9d",
+            "component_type": "SpotLight"
+          },
+          {
+            "_type": "component",
+            "component_id": "bf9ed575-307b-4faf-adb5-a3cb2fbe6021",
+            "go": "01a3afa7-b825-4fe7-91bb-cd6a7efd381a",
+            "component_type": "SpotLight"
+          }
+        ],
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Switch": {
+          "Action": "Flashlight"
+        },
+        "SwitchOffSound": {
+          "Id": "f50ca98a-6e4e-48e5-9b70-f21a7661e54b",
+          "Path": "sounds/flashlight/flashlight-off.sound"
+        },
+        "SwitchOnSound": {
+          "Id": "53c65873-c084-48c8-91e8-4306a6d13259",
+          "Path": "sounds/flashlight/flashlight-on.sound"
+        },
+        "Vehicle": {
+          "_type": "component",
+          "component_id": "1f06362f-c675-4c1c-a7bb-d00948a606e5",
+          "go": "0a06c34c-bbb9-40eb-8362-2618d2e930e8",
+          "component_type": "FourWheelVehicle"
+        },
+        "WarmUpTime": 0.12
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "a661012c-ba29-48f2-b4ab-90b92d36261a",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "driver_seat",
+        "Position": "0,0,-2.35809779",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [],
+        "Children": [
+          {
+            "__guid": "d4eff07e-86f4-42ff-bde0-680704e6e01b",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "sit",
+            "Position": "4.5,14.1000004,11.8000002",
+            "Rotation": "0,-0.168995306,0,0.985617101",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "97264915-0461-48f5-a8a1-f9abf7226b76",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "eye",
+            "Position": "-9.95884895,13.6846704,51.2175713",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "a3ae9c9b-e4c9-46e0-9abc-45aa1b40d138",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "exit",
+            "Position": "-5,14.1000004,8",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "cb601b4e-7f58-4e64-b9b3-a2244c69bcea",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "left",
+                "Position": "0,50,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              },
+              {
+                "__guid": "5834c181-b1e7-49c0-811f-ef90317b17a5",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "right",
+                "Position": "0,-95,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              },
+              {
+                "__guid": "a5887363-2176-42af-8247-35e612754832",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "back",
+                "Position": "-110,-14,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "__guid": "07d59a99-16b6-45c3-81a0-ef2228ec35f9",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "exhaust",
+        "Position": "-88.9893875,-18.9348717,48.5629768",
+        "Rotation": "-0.309693903,-0.0565609969,-0.933708072,0.170527935",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [],
+        "Children": []
+      },
+      {
+        "__guid": "eb16cb28-e64e-43e7-96c5-21c7337c5b9d",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "headlight_l",
+        "Position": "83.6682129,26.7330837,37.5904198",
+        "Rotation": "7.11651925E-15,2.33310218E-20,3.27843168E-06,1",
+        "Scale": "1,1,1",
+        "Tags": "light_spot,light",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SpotLight",
+            "__guid": "5114b06f-6501-4c82-b14e-ca24ef65d5b1",
+            "__enabled": false,
+            "Flags": 0,
+            "__version": 1,
+            "AnimationCurve": [
+              {
+                "x": 0,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 0.5,
+                "y": 1,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "AnimationDuration": 2,
+            "AnimationEnabled": false,
+            "AnimationGradient": {
+              "blend": "Linear",
+              "color": [
+                {
+                  "t": 0.5,
+                  "c": "1,1,1,1"
+                }
+              ],
+              "alpha": []
+            },
+            "AnimationPattern": "Flicker",
+            "AnimationSpeed": 1,
+            "AnimationTimeOffset": 0,
+            "Attenuation": 1,
+            "BakeLightIndex": -1,
+            "ConeInner": 15,
+            "ConeOuter": 45,
+            "Contribution": "Diffuse, Specular, Transmissive",
+            "Cookie": null,
+            "FogMode": "Enabled",
+            "FogStrength": 1,
+            "Intensity": 1,
+            "LightColor": "0.91373,0.98039,1,1",
+            "MixedShadows": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Radius": 500,
+            "ShadowBias": 0,
+            "ShadowHardness": 0,
+            "Shadows": true,
+            "Temperature": 6500
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "01a3afa7-b825-4fe7-91bb-cd6a7efd381a",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "headlight_r",
+        "Position": "82.43573,-26.5943394,37.5900002",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "light_spot,light",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SpotLight",
+            "__guid": "bf9ed575-307b-4faf-adb5-a3cb2fbe6021",
+            "__enabled": false,
+            "Flags": 0,
+            "__version": 1,
+            "AnimationCurve": [
+              {
+                "x": 0,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 0.5,
+                "y": 1,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "AnimationDuration": 2,
+            "AnimationEnabled": false,
+            "AnimationGradient": {
+              "blend": "Linear",
+              "color": [
+                {
+                  "t": 0.5,
+                  "c": "1,1,1,1"
+                }
+              ],
+              "alpha": []
+            },
+            "AnimationPattern": "Flicker",
+            "AnimationSpeed": 1,
+            "AnimationTimeOffset": 0,
+            "Attenuation": 1,
+            "BakeLightIndex": -1,
+            "ConeInner": 15,
+            "ConeOuter": 45,
+            "Contribution": "Diffuse, Specular, Transmissive",
+            "Cookie": null,
+            "FogMode": "Enabled",
+            "FogStrength": 1,
+            "Intensity": 1,
+            "LightColor": "0.91373,0.98039,1,1",
+            "MixedShadows": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Radius": 500,
+            "ShadowBias": 0,
+            "ShadowHardness": 0,
+            "Shadows": true,
+            "Temperature": 6500
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "3590de3d-099f-4642-a4b4-1d3abd978304",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "lightbar_l",
+        "Position": "22,9,73.5",
+        "Rotation": "0,0.0174524058,0,0.99984771",
+        "Scale": "1,1,1",
+        "Tags": "light_spot,light",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SpotLight",
+            "__guid": "ca869fae-3a54-460f-9148-8dee074887c0",
+            "__enabled": false,
+            "Flags": 0,
+            "__version": 1,
+            "AnimationCurve": [
+              {
+                "x": 0,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 0.5,
+                "y": 1,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "AnimationDuration": 2,
+            "AnimationEnabled": false,
+            "AnimationGradient": {
+              "blend": "Linear",
+              "color": [
+                {
+                  "t": 0.5,
+                  "c": "1,1,1,1"
+                }
+              ],
+              "alpha": []
+            },
+            "AnimationPattern": "Flicker",
+            "AnimationSpeed": 1,
+            "AnimationTimeOffset": 0,
+            "Attenuation": 1,
+            "BakeLightIndex": -1,
+            "ConeInner": 15,
+            "ConeOuter": 45,
+            "Contribution": "Diffuse, Specular, Transmissive",
+            "Cookie": null,
+            "FogMode": "Enabled",
+            "FogStrength": 1,
+            "Intensity": 1,
+            "LightColor": "0.91373,0.98039,1,1",
+            "MixedShadows": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Radius": 500,
+            "ShadowBias": 0,
+            "ShadowHardness": 0,
+            "Shadows": true,
+            "Temperature": 6500
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "99f894fb-6e0b-484d-afad-4189041503c4",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "lightbar_r",
+        "Position": "22,-9,73.5",
+        "Rotation": "0,0.0174524058,0,0.99984771",
+        "Scale": "1,1,1",
+        "Tags": "light_spot,light",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SpotLight",
+            "__guid": "5736aeda-00b6-4bee-bdc2-658b95e1f3e5",
+            "__enabled": false,
+            "Flags": 0,
+            "__version": 1,
+            "AnimationCurve": [
+              {
+                "x": 0,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 0.5,
+                "y": 1,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "AnimationDuration": 2,
+            "AnimationEnabled": false,
+            "AnimationGradient": {
+              "blend": "Linear",
+              "color": [
+                {
+                  "t": 0.5,
+                  "c": "1,1,1,1"
+                }
+              ],
+              "alpha": []
+            },
+            "AnimationPattern": "Flicker",
+            "AnimationSpeed": 1,
+            "AnimationTimeOffset": 0,
+            "Attenuation": 1,
+            "BakeLightIndex": -1,
+            "ConeInner": 15,
+            "ConeOuter": 45,
+            "Contribution": "Diffuse, Specular, Transmissive",
+            "Cookie": null,
+            "FogMode": "Enabled",
+            "FogStrength": 1,
+            "Intensity": 1,
+            "LightColor": "0.91373,0.98039,1,1",
+            "MixedShadows": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Radius": 500,
+            "ShadowBias": 0,
+            "ShadowHardness": 0,
+            "Shadows": true,
+            "Temperature": 6500
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "514e2d82-4abc-4222-83fe-583ae9c3734a",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "root",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [],
+        "Children": [
+          {
+            "__guid": "71f7fb34-d6fd-4c8a-9cde-953c0d4ed483",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "steering_wheel",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "2af41e37-908c-4618-97eb-8bcdfb9acdcf",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "Hand L Position",
+                "Position": "-1.44646168,8.24333096,2.73498631",
+                "Rotation": "0.500041544,0.353521466,-0.500000417,0.612356782",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              },
+              {
+                "__guid": "b3d777f5-0467-48a2-a56e-7ad579a82192",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "Hand R Position",
+                "Position": "-2.32194424,-6.42892218,3.36539912",
+                "Rotation": "0.499975681,0.353577495,-0.500009,0.612370968",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              }
+            ]
+          },
+          {
+            "__guid": "8c0b01a4-1e66-4846-8b1d-b9e83b3fac07",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "wheel_fl",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "fdf34dc0-37ef-4e28-82f2-26b5bf652fd5",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "wheel_fl_steer",
+                "Position": "0,0,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": [
+                  {
+                    "__guid": "36a180d7-fbd8-44dc-8581-2a3afd8e9d0d",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "wheel_fl_spin",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "__guid": "860549ef-f856-4e97-a5f0-0b5a415e08ce",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "wheel_fr",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "e08dcf5f-de1e-400a-af44-94edcb967813",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "wheel_fr_steer",
+                "Position": "0,0,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": [
+                  {
+                    "__guid": "85600acb-50da-4edd-ad7c-4b763de6f5cf",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "wheel_fr_spin",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "__guid": "653f8969-a7d7-4b23-8aae-8a37445d9de9",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "wheel_rl",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "8088f199-b18e-4b8e-83a7-e4b662f1a995",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "wheel_rl_spin",
+                "Position": "0,0,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              }
+            ]
+          },
+          {
+            "__guid": "d2801357-79e4-4d72-94eb-3adcc2ca9232",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "wheel_rr",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "d19d2fc9-9874-47af-ab8e-26ccd54b5276",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "wheel_rr_spin",
+                "Position": "0,0,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              }
+            ]
+          },
+          {
+            "__guid": "b07dfd4b-991b-4f8b-8dd9-aec5b274a3a6",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "pedal_brake",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "5a17e021-7fff-406b-a69e-aa9abc1b421f",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "Foot Brake",
+                "Position": "8.06564903,-1.31410825,10.54533",
+                "Rotation": "0.612453103,0.353426069,-0.353541285,0.612372756",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              }
+            ]
+          },
+          {
+            "__guid": "aabb8e13-c5cd-448e-ba29-627f50beea76",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "pedal_gas",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "9d774757-e3eb-4b67-b277-3bced0970ba1",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "Foot Gas",
+                "Position": "6.63449383,-2.03094268,9.69692707",
+                "Rotation": "0.61236459,0.353574306,-0.353528798,0.612383306",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              }
+            ]
+          },
+          {
+            "__guid": "8021ec05-8ad1-490c-a60e-595ecfef6423",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "pedal_clutch",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "49bac6cb-ed8b-4cf8-972a-dbc5a60c925a",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "Foot Clutch",
+                "Position": "6.1118269,0.00200998783,9.38729668",
+                "Rotation": "0.612353623,0.353578568,-0.353537619,0.61238569",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              }
+            ]
+          },
+          {
+            "__guid": "755735d1-3804-45b7-ace4-18c7a15425ca",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "Hand Horn Position",
+            "Position": "8.62451267,13.1204433,41.3775406",
+            "Rotation": "0,-0.382683456,0,0.923879504",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          }
+        ]
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

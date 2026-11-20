@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M4A1",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "w_m4a1",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/m4a1/w_m4a1.vmdl"
+      }
+    }
+  },
+  "guid": "0ec6ecb8-00fc-0000-ba00-000000000000"
+}

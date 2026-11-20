@@ -480,25 +480,4 @@ public partial class Package
 		}
 	}
 
-	/// <summary>
-	/// Download and mount this package. If withCode is true we'll try to load the assembly if it exists.
-	/// </summary>
-	public async Task<BaseFileSystem> MountAsync( bool withCode = false )
-	{
-		SentrySdk.AddBreadcrumb( $"Mounting {this.FullIdent}", "package.mount" );
-
-		if ( IsWorkshopMap )
-			return await MountWorkshopMapAsync();
-
-		int? version = Revision?.VersionId > 0 ? (int)Revision.VersionId : null;
-		var fs = await ServerPackages.DownloadAndMount( FormatIdent( Org.Ident, Ident, version, !IsRemote ) );
-		if ( fs is null ) return default;
-
-		if ( withCode )
-		{
-			await IGameInstanceDll.Current?.LoadPackageAssembliesAsync( this );
-		}
-
-		return fs;
-	}
 }

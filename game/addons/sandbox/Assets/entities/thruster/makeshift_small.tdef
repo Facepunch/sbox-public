@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/thruster/makeshift_small.prefab",
+  "Title": "#asset.makeshift_small.title",
+  "Description": "",
+  "__references": [],
+  "__version": 0
+}

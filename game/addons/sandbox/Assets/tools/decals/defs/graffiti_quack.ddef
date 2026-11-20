@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "4f93bd54-aa4d-421c-a1d5-f8e5448c654c",
+    "Path": "decals/graffiti/graffiti_quack.decal"
+  },
+  "Title": "#asset.decal.quack.title",
+  "__references": [],
+  "__version": 0
+}

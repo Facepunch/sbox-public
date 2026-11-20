@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "gutter_wall_pipe_junction_a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "gutter_wall_pipe_junction_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_wall_pipe_junction_a.vmdl"
+      }
+    }
+  },
+  "guid": "11070b01-6d2a-486a-a29b-ad67bd727381"
+}

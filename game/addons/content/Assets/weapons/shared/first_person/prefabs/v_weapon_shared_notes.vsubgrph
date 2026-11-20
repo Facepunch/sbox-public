@@ -1,0 +1,109 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 30911408
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -208.0, -368.0 ]
+					m_nNodeID = 
+					{
+						m_id = 30911408
+					}
+					m_sNote = ""
+					m_proxyItems = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 510782220
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Order of operations"
+					m_vecPosition = [ -928.0, -304.0 ]
+					m_nNodeID = 
+					{
+						m_id = 510782220
+					}
+					m_sNote = ""
+					m_commentText = "Everything usually goes in this order:\n\n• All the \'absolute\', non-additive actions; this generally means deploy & reloads\n• Ironsight manager\n• Specific additive reload animations (e.g. bolt action reloads)\n• Fire additives\n• Jump/land additives\n• Idle additives\n\n• Holster animation (so it naturally stomps everything above)\n• Run/sprint additives (nice to still have those playing over the holster)\n• Aim offsets (likewise)\n• IK chains manager\n\n• DIRECT PLAYBACK node\n\n• Camera modifiers (when moving, less animated rotation of camera)\n• Global skeleton delta (adapt e.g. animations made for human arms to citizen arms)\n• Per-weapon skeleton delta (same thing, but tweaks specific to this graph)\n• Adjustments (all the finger parametric controls)\n\n"
+					m_size = [ 800.0, 560.0 ]
+					m_color = [ 38, 42, 47, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 621496169
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Dates on groups"
+					m_vecPosition = [ -80.0, -304.0 ]
+					m_nNodeID = 
+					{
+						m_id = 621496169
+					}
+					m_sNote = ""
+					m_commentText = "When you see a date like (2025-01-19) after a group, it\'s just a useful way for me to remember when I last touched it.\n\nFor subgraphs, they\'re in comment nodes inside (like here!)"
+					m_size = [ 352.0, 240.0 ]
+					m_color = [ 38, 42, 47, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1877526351
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Last update"
+					m_vecPosition = [ -352.0, -448.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1877526351
+					}
+					m_sNote = ""
+					m_commentText = "2025-06-27"
+					m_size = [ 288.0, 80.0 ]
+					m_color = [ 255, 69, 0, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1973987314
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -352.0, -368.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1973987314
+					}
+					m_sNote = ""
+					m_proxyItems = [  ]
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

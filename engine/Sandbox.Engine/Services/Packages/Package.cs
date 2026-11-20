@@ -37,7 +37,7 @@ public partial class Package
 
 			if ( _fullIdent is null || _fullIdentOrg != org || _fullIdentIdent != Ident )
 			{
-				_fullIdent = FormatIdent( org, Ident, local: !IsRemote );
+				_fullIdent = FormatIdent( org, Ident );
 				_fullIdentOrg = org;
 				_fullIdentIdent = Ident;
 			}
@@ -492,7 +492,7 @@ public partial class Package
 	/// </summary>
 	internal bool IsNamed( string ident )
 	{
-		if ( !Package.TryParseIdent( ident, out var parsed ) )
+		if ( !Package.TryParseIdentParts( ident, out var parsed ) )
 			return false;
 
 		if ( !string.Equals( Org.Ident, parsed.org, System.StringComparison.OrdinalIgnoreCase ) )
@@ -544,7 +544,7 @@ public partial class Package
 		if ( !string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase ) )
 		{
 			var parent = Info.ParentPackage;
-			if ( TryParseIdent( parent, out _ ) )
+			if ( TryParseIdentParts( parent, out _ ) )
 				yield return parent;
 		}
 	}

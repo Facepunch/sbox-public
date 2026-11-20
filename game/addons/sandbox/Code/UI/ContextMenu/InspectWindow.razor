@@ -1,0 +1,295 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Utility;
+@inherits Panel
+@namespace Sandbox
+
+<root @onmousedown=@WindowPress>
+
+    <div class="tabs">
+        @foreach ( var tab in _tabs.Where( IsAvailable ) )
+        {
+            var type = Game.TypeLibrary.GetType( tab.GetType() );
+            <button class="tab @(tab == _active ? "selected" : "")" @onclick=@(() => OnTabClicked( tab ))>
+                @if ( !string.IsNullOrWhiteSpace( type?.Icon ) )
+                {
+                    <IconPanel class="tab-icon" Text=@type.Icon />
+                }
+                <Label Text=@type?.Title />
+            </button>
+        }
+    </div>
+
+    <div class="body" @ref="Body"></div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// Which window of the inspect menu a tab goes in.
+    /// </summary>
+    public enum Corner
+    {
+        /// <summary>
+        /// Saves and effects, under the settings bar.
+        /// </summary>
+        TopLeft,
+
+        /// <summary>
+        /// The inspected object and the tool options, with the tabs under the page.
+        /// </summary>
+        BottomRight
+    }
+
+    /// <summary>
+    /// Puts a panel in one of the inspect menu windows, under a tab of its own, can be implemented this way:
+    /// <code>
+    /// [InspectWindow.Tab, Title( "My Tab" ), Order( 300 )]
+    /// public class MyTab : Panel { }
+    ///
+    /// [InspectWindow.Tab( InspectWindow.Corner.BottomRight ), Title( "My Options" ), Order( 300 )]
+    /// public class MyOptions : Panel { }
+    /// </code>
+    /// Tabs are sorted by [Order], then by title. Without a corner they go in the window at the top left.
+    /// The window is sized by the page, so give it a width of its own: it is measured at its own size to roll the window open.
+    /// </summary>
+    public class Tab : System.Attribute
+    {
+        public Corner Corner { get; }
+
+        public Tab( Corner corner = Corner.TopLeft )
+        {
+            Corner = corner;
+        }
+
+        public virtual bool CheckCondition() => true;
+    }
+
+    /// <summary>
+    /// A tab that only shows while <typeparamref name="T"/> says so, like <see cref="SpawnMenuHost.HostOnly"/>.
+    /// </summary>
+    public class Tab<T> : Tab where T : SpawnMenuHost.ISpawnMenuCondition
+    {
+        public Tab( Corner corner = Corner.TopLeft ) : base( corner ) { }
+
+        public override bool CheckCondition() => T.IsVisible();
+    }
+
+    /// <summary>
+    /// The tabs of this corner are the ones that go in this window.
+    /// </summary>
+    [Parameter] public Corner Placement { get; set; } = Corner.TopLeft;
+
+    // the type of the open tab, or empty when the window was collapsed
+    string CookieKey => Placement switch
+    {
+        Corner.BottomRight => "inspectmenu.inspector.tab",
+        _ => "inspectmenu.tab"
+    };
+
+    Panel Body = default;
+
+    readonly List<Panel> _tabs = new();
+    readonly HashSet<Type> _failed = new();
+    Panel _active;
+    bool _restored;
+    int _revision;
+
+    // the page in the body, it stays up while the window rolls up after its tab was closed
+    Panel _shown;
+
+    // opening or closing the window rolls the body between nothing and the size of the page
+    const float RollTime = 0.1f;
+    bool _rolling;
+    Vector2 _rollFrom;
+    Vector2? _rollTo;
+    RealTimeSince _sinceRoll;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        ScanTabs();
+
+        if ( _active is not null && !IsAvailable( _active ) )
+            Show( _tabs.FirstOrDefault( IsAvailable ), false );
+
+        UpdateRoll();
+
+        SetClass( "top-left", Placement == Corner.TopLeft );
+        SetClass( "bottom-right", Placement == Corner.BottomRight );
+        SetClass( "collapsed", _shown is null );
+        SetClass( "rolling", _rolling );
+    }
+
+    void UpdateRoll()
+    {
+        if ( !_rolling ) return;
+
+        // the body was held at its old size last frame while the new page got laid out at its own size
+        if ( _rollTo is null )
+        {
+            var size = _active.IsValid() ? _active.Box.RectOuter.Size * Body.ScaleFromScreen : Vector2.Zero;
+            if ( _active.IsValid() && size.Length < 1f && _sinceRoll < RollTime ) return;
+
+            _rollTo = size;
+            _sinceRoll = 0;
+        }
+
+        var t = Math.Clamp( _sinceRoll / RollTime, 0f, 1f );
+        SetBodySize( Vector2.Lerp( _rollFrom, _rollTo.Value, Easing.EaseOut( t ) ) );
+        if ( t < 1f ) return;
+
+        // done, the body follows its page again
+        _rolling = false;
+        SetBodySize( null );
+
+        if ( _active is null )
+        {
+            _shown = null;
+            UpdatePages();
+        }
+    }
+
+    void SetBodySize( Vector2? size )
+    {
+        Body.Style.Width = size is { } s ? Length.Pixels( s.x ) : null;
+        Body.Style.Height = size is { } h ? Length.Pixels( h.y ) : null;
+    }
+
+    /// <summary>
+    /// Makes a panel for every tab type and drops the ones whose type is gone
+    /// </summary>
+    void ScanTabs()
+    {
+        if ( !Body.IsValid() ) return;
+
+        var types = Game.TypeLibrary.GetTypesWithAttribute<Tab>().Where( x => x.Attribute.Corner == Placement ).Select( x => x.Type ).Where( x => !x.IsAbstract ).ToList();
+        var changed = false;
+
+        foreach ( var panel in _tabs.ToList() )
+        {
+            if ( panel.IsValid() && types.Any( t => t.TargetType == panel.GetType() ) ) continue;
+
+            if ( panel.IsValid() ) panel.Delete( true );
+            if ( _active == panel ) _active = null;
+            if ( _shown == panel ) _shown = null;
+
+            _tabs.Remove( panel );
+            changed = true;
+        }
+
+        foreach ( var type in types )
+        {
+            if ( _failed.Contains( type.TargetType ) ) continue;
+            if ( _tabs.Any( p => p.GetType() == type.TargetType ) ) continue;
+
+            Panel panel = null;
+
+            try
+            {
+                panel = type.Create<Panel>();
+            }
+            catch ( Exception e )
+            {
+                Log.Warning( e, $"Couldn't create the inspect menu tab {type.FullName}" );
+            }
+
+            // not tried again every frame, a hotload makes a new type that gets its own go
+            if ( panel is null )
+            {
+                _failed.Add( type.TargetType );
+                continue;
+            }
+
+            panel.AddClass( "hidden" );
+            Body.AddChild( panel );
+            _tabs.Add( panel );
+            changed = true;
+        }
+
+        if ( !changed ) return;
+
+        _tabs.Sort( CompareTabs );
+        _revision++;
+
+        if ( !_restored && _tabs.Count > 0 )
+        {
+            _restored = true;
+            Restore();
+        }
+
+        StateHasChanged();
+    }
+
+    static int CompareTabs( Panel a, Panel b )
+    {
+        var typeA = Game.TypeLibrary.GetType( a.GetType() );
+        var typeB = Game.TypeLibrary.GetType( b.GetType() );
+
+        var order = (typeA?.Order ?? 0).CompareTo( typeB?.Order ?? 0 );
+        if ( order != 0 ) return order;
+
+        return StringComparer.CurrentCultureIgnoreCase.Compare( LocalizedText.Resolve( typeA?.Title ), LocalizedText.Resolve( typeB?.Title ) );
+    }
+
+    void Restore()
+    {
+        var saved = Game.Cookies.Get<string>( CookieKey, null );
+
+        if ( saved == "" )
+        {
+            Show( null, false );
+            return;
+        }
+
+        Show( _tabs.FirstOrDefault( x => x.GetType().FullName == saved && IsAvailable( x ) ) ?? _tabs.FirstOrDefault( IsAvailable ), false );
+    }
+
+    static bool IsAvailable( Panel tab ) => tab.IsValid() && (Game.TypeLibrary.GetType( tab.GetType() )?.GetAttribute<Tab>()?.CheckCondition() ?? false);
+
+    // the open tab closes the window when clicked again, leaving only the tabs, opening and closing rolls the window but switching pages doesn't
+    void OnTabClicked( Panel tab ) => Show( _active == tab ? null : tab, animate: _active is null || _active == tab );
+
+    void Show( Panel tab, bool remember = true, bool animate = false )
+    {
+        _rolling = animate && Body.IsValid();
+
+        if ( _rolling )
+        {
+            // starts from where the body is now, even halfway through rolling the other way
+            _rollFrom = _shown is null ? Vector2.Zero : Body.Box.Rect.Size * Body.ScaleFromScreen;
+            _rollTo = null;
+            _sinceRoll = 0;
+            SetBodySize( _rollFrom );
+        }
+        else if ( Body.IsValid() )
+        {
+            SetBodySize( null );
+        }
+
+        _active = tab;
+        if ( remember ) Game.Cookies.Set( CookieKey, tab?.GetType().FullName ?? "" );
+
+        if ( tab is not null || !_rolling )
+            _shown = tab;
+
+        UpdatePages();
+        StateHasChanged();
+    }
+
+    void UpdatePages()
+    {
+        foreach ( var t in _tabs )
+            t.SetClass( "hidden", t != _shown );
+    }
+
+    void WindowPress( PanelEvent e )
+    {
+        Sandbox.UI.InputFocus.Clear();
+        e.StopPropagation();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( _active, _revision, _tabs.Count( IsAvailable ), Game.Language.SelectedCode );
+}

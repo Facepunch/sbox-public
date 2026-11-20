@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Python Attack",
+      "Type": "vsnd",
+      "Org": "rust",
+      "Ident": "pythonattack",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/sounds/python-attack.wav"
+      }
+    }
+  },
+  "guid": "bdc82420-b400-48da-94d1-66d386833a58"
+}
