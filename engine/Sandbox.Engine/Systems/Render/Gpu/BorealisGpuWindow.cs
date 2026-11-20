@@ -326,9 +326,9 @@ internal sealed class BorealisGpuWindow : IDisposable
 	}
 
 	/// <summary>
-	/// Draw a window's frame into <paramref name="target"/> on <paramref name="device"/>, as a UI-only camera draws it on
-	/// Source 2: the background cleared (when <paramref name="clear"/>), then <paramref name="draw"/>, with the UI's
-	/// shaders writing gamma-encoded output (<c>ui_gamma_blend</c> on an 8-bit target, bound through a linear view).
+	/// Draw a window's frame into <paramref name="target"/> on <paramref name="device"/>, as a UI-only camera draws it: the
+	/// background cleared (when <paramref name="clear"/>), then <paramref name="draw"/>, with the UI's shaders writing
+	/// gamma-encoded output (blended in gamma space like a browser, on an 8-bit target bound through a linear view).
 	/// </summary>
 	public static void Draw( RenderBackend device, Texture target, Color background, bool clear, Action draw ) => Draw( device, target, background, clear, draw, null );
 

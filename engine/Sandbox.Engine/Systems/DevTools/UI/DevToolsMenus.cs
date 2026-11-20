@@ -66,7 +66,6 @@ internal static class DevToolsMenus
 		("debug_hitbox", "Hitboxes"),
 		("mat_wireframe", "Wireframe"),
 		("r_showsceneobjectbounds", "Scene object bounds"),
-		("r.shadows.debug", "Shadow budget"),
 		("ui_visualize_batches", "UI batches"),
 	];
 
