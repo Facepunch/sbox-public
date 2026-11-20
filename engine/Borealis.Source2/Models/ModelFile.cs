@@ -12,7 +12,8 @@ namespace Borealis.Source2.Models;
 /// See the <c>.vmdl_c</c> section of docs/reference/borealis-gpu.md.
 /// <para>
 /// Read from the <c>DATA</c> block (KV3, <c>PermModelData_t</c>), the <c>CTRL</c> block (KV3, which blocks hold each
-/// embedded mesh) and each mesh's <c>MDAT</c> (KV3, <c>CRenderMesh</c>) and <c>MBUF</c> (buffers) blocks. Morph targets
+/// embedded mesh) and each mesh's <c>MDAT</c> (KV3, <c>CRenderMesh</c>), <c>MBUF</c> (buffers) and <c>MSHL</c> (cooked meshlets,
+/// <see cref="CookedMeshlets"/>) blocks. Morph targets
 /// (<c>MRPH</c>), animation (<c>ANIM</c>, <c>ASEQ</c>, <c>AGRP</c>), physics (<c>PHYS</c>), attachments and hit boxes
 /// aren't read.
 /// </para>
@@ -87,6 +88,26 @@ public sealed class ModelFile
 		this.remapping = remapping;
 		this.remappingStarts = remappingStarts;
 	}
+
+	/// <summary>The same model with other meshes (as many, in the same order): a copy with its meshes cooked (<see cref="MeshletCooker.Cook"/>).</summary>
+	internal ModelFile WithMeshes( IReadOnlyList<ModelMesh> meshes ) => new( remapping, remappingStarts )
+	{
+		Name = Name,
+		Flags = Flags,
+		Meshes = meshes,
+		LodSwitchDistances = LodSwitchDistances,
+		LodCount = LodCount,
+		MeshGroups = MeshGroups,
+		DefaultMeshGroupMask = DefaultMeshGroupMask,
+		BodyGroups = BodyGroups,
+		MaterialGroups = MaterialGroups,
+		Skeleton = Skeleton,
+		Mins = Mins,
+		Maxs = Maxs,
+		KeyValues = KeyValues,
+		HasAnimation = HasAnimation,
+		HasPhysics = HasPhysics,
+	};
 
 	/// <summary>
 	/// The model bone each of a mesh's bones is (<c>m_remappingTable</c> from <c>m_remappingTableStarts[mesh]</c>);
@@ -211,7 +232,8 @@ public sealed class ModelFile
 				var vbibBlock = Block( resource, blocks, info.Get( "vbib_block" ), "MBUF", meshName );
 				var morphBlock = (int)Kv.Number( info.Get( "morph_block" ), -1 );
 				var morphs = morphBlock >= 0 ? ReadMorphs( Block( resource, blocks, info.Get( "morph_block" ), "MRPH", meshName ) ) : null;
-				meshes[i] = ModelMesh.Read( dataBlock, vbibBlock, meshName, i, groups, lods, morphBlock >= 0, info.Get( "morph_texture" ) as string, morphs );
+				var meshlets = Kv.Number( info.Get( "meshlet_block" ), -1 ) >= 0 ? Block( resource, blocks, info.Get( "meshlet_block" ), CookedMeshlets.BlockName, meshName ) : default;
+				meshes[i] = ModelMesh.Read( dataBlock, vbibBlock, meshName, i, groups, lods, morphBlock >= 0, info.Get( "morph_texture" ) as string, morphs, meshlets );
 			}
 			else if ( references[i] is string path && path.Length > 0 )
 			{
@@ -219,7 +241,7 @@ public sealed class ModelFile
 				var mesh = ResourceFile.Read( bytes );
 				var buffers = mesh.Has( "VBIB" ) ? mesh.Block( "VBIB" ) : mesh.Block( "MBUF" );
 				var morphs = mesh.Has( "MRPH" ) ? ReadMorphs( mesh.Block( "MRPH" ) ) : null;
-				meshes[i] = ModelMesh.Read( mesh.Block( "DATA" ), buffers, Path.GetFileNameWithoutExtension( path ), i, groups, lods, mesh.Has( "MRPH" ), null, morphs );
+				meshes[i] = ModelMesh.Read( mesh.Block( "DATA" ), buffers, Path.GetFileNameWithoutExtension( path ), i, groups, lods, mesh.Has( "MRPH" ), null, morphs, mesh.Block( CookedMeshlets.BlockName ) );
 			}
 			else
 			{
