@@ -84,63 +84,9 @@ internal class HotloadManager : IDisposable
 		Name = name;
 
 		Hotload = new Hotload( logger: log );
-
-		//
-		// This will skip types that it automatically decides are safe. This is
-		// just for performance, so if it seems over-zealous just comment out this
-		// line until it's fixed.
-		//
-		Hotload.AddUpgrader<Upgraders.AutoSkipUpgrader>();
-
-		//
-		// Sandbox.Reflection has some instance upgraders we need to add.
-		//
-		Hotload.AddUpgraders( typeof( TypeLibrary ).Assembly );
-
-		//
-		// During hotloads, recurse into the static fields of types in these assemblies to
-		// find instances to upgrade
-		//
-		Hotload.WatchAssembly( "Sandbox.Engine" );
-		Hotload.WatchAssembly( "Sandbox.System" );
-		Hotload.WatchAssembly( typeof( Sandbox.Internal.EventSystem ).Assembly );
-
-		//
-		// Ignore these assemblies because they can't hold anything
-		// that can be swappable.
-		//
-		Hotload.IgnoreAssembly<NLog.Logger>();
-		Hotload.IgnoreAssembly<Sentry.SentryStackFrame>();
-		Hotload.IgnoreAssembly<System.Net.Http.HttpClient>();
-		Hotload.IgnoreAssembly<System.Text.RegularExpressions.Regex>();
-		Hotload.IgnoreAssembly<LiteDB.LiteDatabase>();
-		Hotload.IgnoreAssembly<SkiaSharp.SKBitmap>();
-		Hotload.IgnoreAssembly<Microsoft.CodeAnalysis.Diagnostic>();
-		Hotload.IgnoreAssembly<Refit.PostAttribute>();
-		Hotload.IgnoreAssembly<Nav.NavMesh>();
-
-		var skipUpgrader = Hotload.GetUpgrader<Upgraders.SkipUpgrader>();
-
-		//
-		// Skip types that reference things that often cause errors during hotload.
-		//
-		skipUpgrader.AddSkippedType<ExceptionDispatchInfo>();
-		skipUpgrader.AddSkippedType<NodeLibrary>();
-		skipUpgrader.AddSkippedType<NodeDefinition>();
-
-		// Compiler plans are rebuilt on binding invalidation. Runtime stores still migrate normally.
-		foreach ( var type in Breen.ScriptSystem.CompilationCacheTypes )
-		{
-			skipUpgrader.AddSkippedType( type );
-		}
-
-		//
-		// These are safe to skip for speed.
-		//
-		skipUpgrader.AddSkippedType<JsonNode>();
-		skipUpgrader.AddSkippedType<JsonElement>();
-		skipUpgrader.AddSkippedType<JsonObject>();
-		skipUpgrader.AddSkippedType<JsonArray>();
+		Hotload.AddDefaultUpgraders();
+		Hotload.AddDefaultWatchAssemblies();
+		Hotload.AddDefaultSkips();
 	}
 
 	internal void Watch( Assembly assembly )
@@ -418,6 +364,78 @@ internal class HotloadManager : IDisposable
 		if ( Hotload.ReplacingAssembly( oldAssembly, newAssembly ) )
 		{
 			NeedsSwap = true;
+		}
+	}
+}
+
+internal static class HotloadExtensions
+{
+	extension( Hotload hotload )
+	{
+		/// <summary>
+		/// Add Sandbox-specific instance upgraders defined in the <c>Sandbox.Reflection</c> project.
+		/// </summary>
+		public void AddDefaultUpgraders()
+		{
+			hotload.AddUpgraders( typeof( TypeLibrary ).Assembly );
+		}
+
+		/// <summary>
+		/// Watch static fields in Sandbox assemblies so we can find instances to upgrade.
+		/// </summary>
+		public void AddDefaultWatchAssemblies()
+		{
+			hotload.WatchAssembly( "Sandbox.Engine" );
+			hotload.WatchAssembly( "Sandbox.System" );
+			hotload.WatchAssembly( typeof( Sandbox.Internal.EventSystem ).Assembly );
+		}
+
+		/// <summary>
+		/// Ignore assemblies and types that we know can't contain instances that need
+		/// upgrading, or that we intentionally don't want to upgrade for whatever reason.
+		/// </summary>
+		public void AddDefaultSkips()
+		{
+			// This will skip types that it automatically decides are safe. This is
+			// just for performance, so if it seems over-zealous just comment out this
+			// line until it's fixed.
+
+			hotload.AddUpgrader<Upgraders.AutoSkipUpgrader>();
+
+			// Ignore these assemblies because they can't hold anything
+			// that can be swappable.
+
+			hotload.IgnoreAssembly<NLog.Logger>();
+			hotload.IgnoreAssembly<Sentry.SentryStackFrame>();
+			hotload.IgnoreAssembly<System.Net.Http.HttpClient>();
+			hotload.IgnoreAssembly<System.Text.RegularExpressions.Regex>();
+			hotload.IgnoreAssembly<LiteDB.LiteDatabase>();
+			hotload.IgnoreAssembly<SkiaSharp.SKBitmap>();
+			hotload.IgnoreAssembly<Microsoft.CodeAnalysis.Diagnostic>();
+			hotload.IgnoreAssembly<Refit.PostAttribute>();
+			hotload.IgnoreAssembly<Nav.NavMesh>();
+
+			var skipUpgrader = hotload.GetUpgrader<Upgraders.SkipUpgrader>();
+
+			// Skip types that reference things that often cause errors during hotload.
+
+			skipUpgrader.AddSkippedType<ExceptionDispatchInfo>();
+			skipUpgrader.AddSkippedType<NodeLibrary>();
+			skipUpgrader.AddSkippedType<NodeDefinition>();
+
+			// Compiler plans are rebuilt on binding invalidation. Runtime stores still migrate normally.
+
+			foreach ( var type in Breen.ScriptSystem.CompilationCacheTypes )
+			{
+				skipUpgrader.AddSkippedType( type );
+			}
+
+			// These are safe to skip for speed.
+
+			skipUpgrader.AddSkippedType<JsonNode>();
+			skipUpgrader.AddSkippedType<JsonElement>();
+			skipUpgrader.AddSkippedType<JsonObject>();
+			skipUpgrader.AddSkippedType<JsonArray>();
 		}
 	}
 }
