@@ -168,6 +168,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// </summary>
 	internal static int UnseenRenders;
 
+	/// <summary>
+	/// Whether the game's scene is loading as the engine shows it: its loading tasks, the loading screen, or connecting.
+	/// <c>Game.Render</c> draws the scene as usual otherwise. Not the game instance's own flag: nothing clears that when a
+	/// game started without a scene load adds its map (a <c>MapInstance</c>), so its frames, on screen, kept loading budgets
+	/// and native's envmap order, and its world was never counted as shown.
+	/// </summary>
+	internal static bool GameLoading( Scene scene ) => (scene?.IsLoading ?? false) || LoadingScreen.IsVisible || Networking.IsConnecting;
+
 	/// <summary>The most frames it waits for an unseen render once the models are made (a scene with no camera has none).</summary>
 	internal static int UnseenRenderWaitFrames { get; set; } = 8;
 
@@ -234,7 +242,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		LimitAnisotropy();
 
 		// Behind a loading screen nobody watches the frames: what a map loads is made and streamed with bigger budgets
-		services.Loading = LoadingScreen.IsVisible || (Sandbox.Engine.GlobalContext.Game?.ActiveScene?.IsLoading ?? false) || (IGameInstance.Current?.IsLoading ?? false);
+		services.Loading = GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene );
 		services.BeginFrame();
 		TimeFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
