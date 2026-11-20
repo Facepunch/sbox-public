@@ -21,7 +21,9 @@ internal sealed class IdsNormalsLayer : RenderLayer
 
 	public override bool IsNeeded( RenderFrame frame )
 	{
-		if ( frame.System.DepthPrepass && !frame.IsSkybox && RenderHost.Current.Device is { ResolvesIdsNormals: true } ) return true;
+		// Not for reflections, captures, or a child view drawn inside another's frame with no camera stages of its own: AO runs
+		// for a camera's own view
+		if ( (frame.Stages is not null || frame.World.Rendering <= 1) && frame.System.DepthPrepass && !frame.IsSkybox && !frame.View.Reflection && !frame.View.Capture && RenderHost.Current.Device is { ResolvesIdsNormals: true } ) return true;
 		LastResolved = null;
 		return false;
 	}

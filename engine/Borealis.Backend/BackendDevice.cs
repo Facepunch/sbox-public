@@ -577,6 +577,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool IdsNormals { get; set; } = HasSwitch( "-ids-normals" );
 
+	/// <summary>Views resolved into normals from their ids, and asked for but left to depth, for reports and the tests.</summary>
+	public int IdsNormalsResolved, IdsNormalsSkipped;
+
 	/// <summary>The ids target's format: the vertex bit + 1, and with <see cref="IdsNormals"/> the instance record.</summary>
 	internal Format IdsFormat => IdsNormals ? Format.RG32Uint : Format.R32Uint;
 

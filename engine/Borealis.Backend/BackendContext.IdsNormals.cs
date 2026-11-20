@@ -33,7 +33,9 @@ internal sealed partial class BackendContext
 	/// <inheritdoc/>
 	internal override bool IdsNormalsReady( object view ) => device.ResolvesIdsNormals && device.ExistingVisibility( view ) is { } visibility && IdsNormalsReady( visibility );
 
-	bool IdsNormalsReady( BackendDevice.VisibilityView visibility ) => visibility.ClearedFrame == device.GpuDrivenFrame && visibility.Ids.IsValid && visibility.IdsCalls.IsValid;
+	// The ids alive too: a child view drawn inside another's frame (water's refraction) was seen with its ids target gone
+	// after its clear (idsfx note), which the resolve then leaves to depth
+	bool IdsNormalsReady( BackendDevice.VisibilityView visibility ) => visibility.ClearedFrame == device.GpuDrivenFrame && visibility.Ids.IsValid && visibility.IdsCalls.IsValid && Gpu.IsAlive( visibility.Ids ) && Gpu.IsAlive( visibility.IdsCalls );
 
 	/// <summary>
 	/// Sample 0's place in its pixel, as Vulkan's standard sample locations put it for <paramref name="samples"/>: the ids and
@@ -52,7 +54,12 @@ internal sealed partial class BackendContext
 	internal override bool ResolveIdsNormals( object view, GpuTexture depth, GpuTexture target, in System.Numerics.Matrix4x4 worldToClip, Rect viewport, float minZ, float maxZ )
 	{
 		if ( recording is null || depth is not BackendTexture depthTexture || target is not BackendTexture output ) return false;
-		if ( !device.ResolvesIdsNormals || device.ExistingVisibility( view ) is not { } visibility || !IdsNormalsReady( visibility ) ) return false;
+		if ( !device.ResolvesIdsNormals || device.ExistingVisibility( view ) is not { } visibility || !IdsNormalsReady( visibility ) )
+		{
+			System.Threading.Interlocked.Increment( ref device.IdsNormalsSkipped );
+			return false;
+		}
+
 		if ( device.IdsNormalsShader is not { } shader || !System.Numerics.Matrix4x4.Invert( worldToClip, out var clipToWorld ) ) return false;
 
 		var r = recording;
@@ -102,6 +109,7 @@ internal sealed partial class BackendContext
 		MemoryMarshal.Write( idsNormalsTables, new GpuDrivenConstants { Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, Lighting = (uint)slots.Lighting } );
 		attributes.SetData( "BorealisGpuDriven_t", idsNormalsTables );
 		cullDrawer.Dispatch( r.List, shader, attributes, width, height, 1 );
+		System.Threading.Interlocked.Increment( ref device.IdsNormalsResolved );
 
 		r.List.Marker( "end Ids normals" );
 		timer?.End( r.List, scope );
