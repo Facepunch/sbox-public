@@ -103,6 +103,29 @@ public class EmbeddedCompatibilityTests
 	}
 
 	/// <summary>
+	/// An older engine's pixel input had the face's side as <c>bIsFrontFace</c> (My Summer Cottage's shaders read it); today's
+	/// has it as <c>face</c>, and only when back faces draw. Both compile, with back faces and without.
+	/// </summary>
+	[TestMethod]
+	public void FrontFaceOfAnOlderPixelInputCompiles()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			struct PixelInput
+			{
+				#include "common/pixelinput.hlsl"
+			};
+			float4 MainPs( PixelInput i ) : SV_Target0
+			{
+				return i.bIsFrontFace ? float4( 1, 1, 1, 1 ) : float4( 0, 0, 0, 1 );
+			}
+			""";
+		Compiles( pixel, "embedded_front_face" );
+		Compiles( "#define S_RENDER_BACKFACES 1\n" + pixel, "embedded_front_face_backfaces" );
+	}
+
+	/// <summary>
 	/// What an older engine's includes had and today's don't: system.fxc's Translucent(), material.hlsl's TextureFiltering,
 	/// the cube shadow's Poisson discs, the light lookups by world position and by tile, HLSL's classes
 	/// and a wider vector truncated into a narrower one.

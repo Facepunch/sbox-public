@@ -284,6 +284,9 @@ internal sealed partial class SceneBridge
 		exposure?.FrameUpdate( RealTime.NowDouble );
 		state.View.ToneMapScalar = exposure?.Scale ?? 1.0f;
 
+		// The frame's bucket is picked now, as native picks it when its pipeline adds the frame's AutoExposure layer
+		var exposureBucket = exposure?.Reserve() ?? -1;
+
 		// Its planar reflection first, with its exposure: it depends on nothing in the frame
 		RenderPlanarReflectionOnGpu( camera, render, state, setup );
 
@@ -327,7 +330,7 @@ internal sealed partial class SceneBridge
 			if ( upscaling ) Upscale( upscaler, frame, state.View, displayViewport );
 
 			RunStage( camera, Stage.BeforePostProcess );
-			if ( exposure is not null ) frame.CountExposure( exposure );
+			if ( exposure is not null && exposureBucket >= 0 ) frame.CountExposure( exposure, exposureBucket );
 			RunStage( camera, Stage.Tonemapping );
 		}
 
@@ -356,7 +359,8 @@ internal sealed partial class SceneBridge
 	/// <see cref="RenderChild"/>: prepared, recorded and submitted now, so it reaches the GPU before the parent's lists. It draws
 	/// into targets of its own the engine texture's size and format, which
 	/// Borealis's draws then read in place of <paramref name="target"/> (and <paramref name="depthTarget"/>), through
-	/// <see cref="MirrorContent.SetCapture"/>. It takes the parent's exposure. The engine draws nothing in it: the graphics
+	/// <see cref="MirrorContent.SetCapture"/>. It takes the parent's exposure and doesn't count into it: native's camera
+	/// histogram counts its child views too, which Borealis leaves out on purpose. The engine draws nothing in it: the graphics
 	/// context is the parent's (custom objects, dynamic objects and command lists aren't drawn, nor the camera's stages).
 	/// </summary>
 	bool RenderChildOnGpu( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state )

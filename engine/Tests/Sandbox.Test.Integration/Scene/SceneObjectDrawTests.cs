@@ -216,6 +216,55 @@ public class SceneObjectDrawTests
 		}
 	}
 
+	/// <summary>
+	/// Without Source 2's device, native keeps the translucency a mesh was made with; a device works it out from the mesh's
+	/// materials. Managed code works it out from the materials then: a model of an opaque and a translucent mesh is both
+	/// opaque and translucent, a translucent one alone translucent, as with a device; native's object gets the same flags.
+	/// </summary>
+	[TestMethod]
+	public void TranslucencyComesFromTheMaterialsWithoutADevice()
+	{
+		if ( Graphics.HasSource2Device ) Assert.Inconclusive( "Source 2's device works the translucency out itself" );
+
+		static Mesh Quad( Material material )
+		{
+			var mesh = new Mesh( material );
+			var vertices = new System.Collections.Generic.List<Vertex>
+			{
+				new( new Vector3( 0, -32, -32 ), Vector3.Backward, Vector3.Up, new Vector4( 0, 0, 0, 0 ) ),
+				new( new Vector3( 0, 32, -32 ), Vector3.Backward, Vector3.Up, new Vector4( 1, 0, 0, 0 ) ),
+				new( new Vector3( 0, 0, 32 ), Vector3.Backward, Vector3.Up, new Vector4( 0.5f, 1, 0, 0 ) ),
+			};
+			mesh.CreateVertexBuffer( vertices.Count, vertices );
+			mesh.CreateIndexBuffer( 3, new System.Collections.Generic.List<int> { 0, 2, 1 } );
+			mesh.Bounds = new BBox( new Vector3( -1, -32, -32 ), new Vector3( 1, 32, 32 ) );
+			return mesh;
+		}
+
+		var world = new SceneWorld();
+		try
+		{
+			var white = Material.Load( "materials/default/white.vmat" );
+			// The human's eyelashes: its translucent material
+			var glass = Material.Load( "models/citizen_human/heads/citizen_human_femalehead01/eyelashes_01_opacity.vmat" );
+			Assert.IsTrue( glass.Flags.IsTranslucent && !white.Flags.IsTranslucent, $"glass {glass.Flags.IsTranslucent}, white {white.Flags.IsTranslucent}" );
+
+			var mixed = new SceneObject( world, Model.Builder.AddMesh( Quad( white ) ).AddMesh( Quad( glass ) ).Create() );
+			Assert.IsTrue( mixed.Flags.IsOpaque && mixed.Flags.IsTranslucent, $"opaque and translucent meshes: {mixed.CurrentFlags}" );
+			Assert.AreEqual( "", mixed.CompareFlags(), "native's twin" );
+
+			var ghost = new SceneObject( world, Model.Builder.AddMesh( Quad( glass ) ).Create() );
+			Assert.IsTrue( !ghost.Flags.IsOpaque && ghost.Flags.IsTranslucent, $"a translucent mesh: {ghost.CurrentFlags}" );
+
+			var solid = new SceneObject( world, Model.Builder.AddMesh( Quad( white ) ).Create() );
+			Assert.IsTrue( solid.Flags.IsOpaque && !solid.Flags.IsTranslucent, $"an opaque mesh: {solid.CurrentFlags}" );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
 	/// <summary>Custom and dynamic objects keep their bounds in managed code: infinite until set, and not moved by their transform.</summary>
 	[TestMethod]
 	public void CustomBoundsAreNatives()

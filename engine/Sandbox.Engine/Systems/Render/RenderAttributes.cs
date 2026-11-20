@@ -372,7 +372,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public Vector3 GetVector( in StringToken name, in Vector3 defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: >= 3 } f ? new Vector3( f[0], f[1], f[2] ) : defaultValue;
 		return attributes.GetVectorValue( name, defaultValue );
 	}
 
@@ -381,7 +381,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public Vector4 GetVector4( in StringToken name, in Vector4 defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: >= 4 } f ? new Vector4( f[0], f[1], f[2], f[3] ) : defaultValue;
 		return attributes.GetVector4DValue( name, defaultValue );
 	}
 
@@ -390,7 +390,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public Angles GetAngles( in StringToken name, in Angles defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: >= 3 } f ? new Angles( f[0], f[1], f[2] ) : defaultValue;
 
 		var d = new Vector3( defaultValue.pitch, defaultValue.yaw, defaultValue.roll );
 		d = attributes.GetVectorValue( name, d );
@@ -421,7 +421,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public uint GetUInt( in StringToken name, in uint defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: > 0 } f ? (uint)f[0] : defaultValue;
 		return unchecked((uint)attributes.GetIntValue( name, unchecked((int)defaultValue) ));
 	}
 
@@ -430,7 +430,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public Matrix GetMatrix( in StringToken name, in Matrix defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: 16 } f ? MemoryMarshal.Cast<float, Matrix>( f )[0] : defaultValue;
 		return attributes.GetVMatrixValue( name, defaultValue );
 	}
 

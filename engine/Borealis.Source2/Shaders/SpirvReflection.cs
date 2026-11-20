@@ -36,8 +36,15 @@ public sealed class SpirvReflection
 	/// </summary>
 	public IReadOnlyList<SpirvBlock> Blocks { get; }
 
-	SpirvReflection( List<SpirvBinding> bindings, List<SpirvInput> inputs, List<SpirvInput> outputs, List<string> entryPoints, List<uint> specialization, List<SpirvBlock> blocks )
+	/// <summary>
+	/// Whether a pixel shader can leave or change the depth it's drawn at: it discards (<c>clip</c>, <c>discard</c>: a kill,
+	/// terminate or demote instruction) or writes depth or the sample mask. Its depth draws then need it.
+	/// </summary>
+	public bool Discards { get; }
+
+	SpirvReflection( List<SpirvBinding> bindings, List<SpirvInput> inputs, List<SpirvInput> outputs, List<string> entryPoints, List<uint> specialization, List<SpirvBlock> blocks, bool discards )
 	{
+		Discards = discards;
 		Bindings = bindings;
 		Inputs = inputs;
 		Outputs = outputs;
@@ -53,6 +60,7 @@ public sealed class SpirvReflection
 	const int DecorationOffset = 35;
 	const int DecorationBinding = 33, DecorationDescriptorSet = 34;
 	const int StorageUniformConstant = 0, StorageInput = 1, StorageUniform = 2, StorageBuffer = 12;
+	const int OpKill = 252, OpTerminateInvocation = 4416, OpDemoteToHelperInvocation = 5380, BuiltInSampleMask = 20, BuiltInFragDepth = 22;
 
 	/// <summary>Reflect a SPIR-V module.</summary>
 	public static SpirvReflection Read( ReadOnlySpan<byte> spirv )
@@ -72,6 +80,7 @@ public sealed class SpirvReflection
 		var memberNames = new Dictionary<(uint, int), string>();
 		var memberOffsets = new Dictionary<(uint, int), uint>();
 		var matrixStrides = new Dictionary<(uint, int), uint>();
+		var discards = false;
 
 		for ( int i = 5; i < words.Length; )
 		{
@@ -113,6 +122,9 @@ public sealed class SpirvReflection
 				case OpVariable:
 					variables.Add( (words[i + 2], words[i + 1], (int)words[i + 3]) );
 					break;
+				case OpKill or OpTerminateInvocation or OpDemoteToHelperInvocation:
+					discards = true;
+					break;
 			}
 
 			i += count;
@@ -136,6 +148,7 @@ public sealed class SpirvReflection
 
 			if ( storage == StorageOutput )
 			{
+				if ( decorated is not null && decorated.TryGetValue( DecorationBuiltIn, out var builtIn ) && builtIn is BuiltInFragDepth or BuiltInSampleMask ) discards = true;
 				if ( decorated is null || !decorated.TryGetValue( DecorationLocation, out var location ) || decorated.ContainsKey( DecorationBuiltIn ) ) continue;
 				outputs.Add( Input( (int)location, pointee, types, words ) );
 				continue;
@@ -201,7 +214,7 @@ public sealed class SpirvReflection
 		inputs.Sort( ( a, b ) => a.Location.CompareTo( b.Location ) );
 		outputs.Sort( ( a, b ) => a.Location.CompareTo( b.Location ) );
 		blocks.Sort( ( a, b ) => a.Set != b.Set ? a.Set.CompareTo( b.Set ) : a.Binding.CompareTo( b.Binding ) );
-		return new SpirvReflection( bindings, inputs, outputs, entryPoints, specialization, blocks );
+		return new SpirvReflection( bindings, inputs, outputs, entryPoints, specialization, blocks, discards );
 	}
 
 	/// <summary>A member type's size in bytes as laid out: scalars by width, vectors by count, matrices by stride, arrays by stride; 0 if unknown.</summary>

@@ -4,9 +4,10 @@
 // refractive (unblended, alpha 1: it replaces what's behind it), simple (blended by opacity, no frame-buffer copy) and
 // layered (premultiplied, its transmission's common floor left to the blend).
 //
-// Glass materials with F_TRANSLUCENT draw in the translucent layer whatever their quality, and write depth, as the
-// .shader's default depth state does. Their shadows and depth passes are the .shader's (its depth mode dithers by an
-// opacity of its own). In the 3D skybox it doesn't refract, as the .shader's D_SKYBOX. Not done: the tools' refraction view.
+// Every glass material draws in the translucent layer whatever its quality, as glass.shader defines S_TRANSLUCENT itself,
+// and writes depth, as the .shader's default depth state does. Its shadows and depth passes are the .shader's (its depth
+// mode dithers by an opacity of its own), so the glass of an object that is partly opaque casts no shadow, as on native.
+// In the 3D skybox it doesn't refract, as the .shader's D_SKYBOX. Not done: the tools' refraction view.
 import sbox.surface;
 
 // The engine's, bound by attribute as glass.shader's are
@@ -27,13 +28,12 @@ float3 ReflectionFactor( float nDotV, float roughness, float3 specular )
 	return specular * terms.x + terms.y;
 }
 
-[Material, DepthWrite]
+[Material, DepthWrite, Translucent]
 public struct Glass : ICompositeSurface
 {
 	// Features
 	[Group( "Glass" ), Source( "F_GLASS_QUALITY" ), Range( 0, 2 ), RenderState( "Blend: Opaque, Alpha, Premultiplied" )] int Quality;
 	[Group( "Glass" ), Source( "F_OVERLAY_LAYER" )] bool OverlayLayer;
-	[Group( "Features" ), Source( "F_TRANSLUCENT" ), RenderState( "Translucent" )] bool UseTranslucent;
 	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
 	// Material.CommonInputs.hlsl's textures and tint

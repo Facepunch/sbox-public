@@ -2069,12 +2069,13 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// Count this frame's luminance bucket over <paramref name="viewport"/> of <paramref name="color"/> (the frame's HDR
 	/// colour, before tonemapping) in the block being recorded, as <c>RenderTools.RenderAutoExposure</c> does on Source 2.
-	/// The bound colour target sets the size counted in and isn't drawn to.
+	/// The bound colour target sets the size counted in and isn't drawn to. <paramref name="bucket"/>: the one
+	/// <see cref="AutoExposure.Reserve"/> picked for the frame, or -1 to pick one now.
 	/// </summary>
-	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport, bool multisampled = false )
+	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport, int samples = 1, int bucket = -1 )
 	{
 		_ = Recording;
-		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, multisampled );
+		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, samples, bucket );
 	}
 
 	//
