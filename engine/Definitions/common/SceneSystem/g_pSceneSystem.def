@@ -168,16 +168,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     uint AddVolumetricFogVolume( ISceneWorld pWorld, SceneVolumetricFogVolume_t volume );
     void RemoveVolumetricFogVolume( ISceneWorld pWorld, uint nId );
 
-	inline void DownsampleTexture( IRenderContext ctx, ITexture src, byte nDownsampleType )
-	{
-		return g_pSceneSystem->DownsampleTexture( ctx, src, nullptr, nDownsampleType );
-	}
-
-	void BindTransformSlot( IRenderContext pCtx, int nVBSlot, int nTransformSlotIndex );
-
-	int AllocatePipelineTextureIndices();
-	void SetPipelineTextureIndex( int nViewOffset, int nSlot, int nBindlessIndex );
-	void UpdateGlobalPerFrameDescriptorBindings();
 
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
