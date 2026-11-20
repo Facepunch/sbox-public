@@ -161,6 +161,59 @@ public class EmbeddedCompatibilityTests
 	}
 
 	/// <summary>
+	/// A sampler an include declares in two <c>#if</c> branches (embedded_end.slangh's TextureFiltering) has the active
+	/// branch's states, as vfx reads them from the preprocessed program, wherever the other branch is in the file.
+	/// </summary>
+	[TestMethod]
+	public void IncludedSamplersTakeTheActiveBranchesStates()
+	{
+		const string header = """
+			#ifdef SBOX_BRANCH_POINT
+			SamplerState Chosen < Filter( POINT ); >;
+			#else
+			SamplerState Chosen < Filter( BILINEAR ); >;
+			#endif
+			#ifndef SBOX_BRANCH_UNDEFINED
+			SamplerState Kept < Filter( TRILINEAR ); AddressU( CLAMP ); >;
+			#else
+			SamplerState Kept < Filter( POINT ); >;
+			#endif
+			""";
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			#define SBOX_BRANCH_POINT
+			#include "embedded_branch_samplers.hlsl"
+			Texture2D g_tColor < Attribute( "Color" ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float4 MainPs( PS_INPUT i ) : SV_Target0
+			{
+				return g_tColor.Sample( Chosen, i.vUv ) + g_tColor.Sample( Kept, i.vUv );
+			}
+			""";
+		var (compiler, shaders) = Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), $"embedded_branches_{Guid.NewGuid():N}" );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			File.WriteAllText( Path.Combine( folder, "embedded_branch_samplers.hlsl" ), header );
+			var module = PassModule.FromText( Path.Combine( folder, "embedded_branches.slang" ), Module( pixel, "embedded_branches" ), [shaders] );
+			var stage = compiler.CompilePass( module, StageKind.Pixel, new Dictionary<string, int>() ).Stage;
+			Annotations Of( string name ) => stage.Bindings.Single( b => b.Kind == BindingKind.Sampler && b.Variable == name ).Annotations;
+			Assert.AreEqual( "POINT", Of( "Chosen" ).Filter?.Trim(), "the branch the module's #define takes" );
+			Assert.AreEqual( ("TRILINEAR", "CLAMP"), (Of( "Kept" ).Filter?.Trim(), Of( "Kept" ).AddressU?.Trim()), "the branch nothing defined takes" );
+		}
+		catch ( ShaderCompileException e )
+		{
+			Assert.Fail( e.Errors );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// An older engine's screen-space trace gave the hit's uv as <c>HitClipSpace</c> and whether it hit as <c>ValidHit</c> (a
 	/// water shader's reflections); today's gives <c>HitUv</c> and a confidence.
 	/// </summary>
