@@ -44,6 +44,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 		/// <summary>Whether moves out of it may make one <see cref="DrainBlockSize"/> block, and whether they have.</summary>
 		public bool DrainMayMake, DrainMade;
+
+		/// <summary>The frame a shared block of this kind was last made in.</summary>
+		public ulong LastNewBlock;
 	}
 
 	// Empty blocks kept as spares (shared ones, and big buffers' own allocations), which Trim frees after a while
@@ -344,8 +347,16 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary><see cref="MakeBlocksAhead"/> for every allocator, for comparisons.</summary>
 	public static bool BlocksAhead { get; set; } = true;
 
-	/// <summary>Whether big allocations share large blocks (on), or each over a quarter of a small block is its own. For comparisons.</summary>
-	public static bool LargeBlocks { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_LARGE_BLOCKS" ) != "0";
+	/// <summary>
+	/// Whether images over a quarter of a small block share large blocks (<c>BOREALIS_LARGE_BLOCKS=1</c>), or each is its own
+	/// allocation (the default). Large blocks of a map's big textures stranded 76-114 MiB on Construct, holes between
+	/// 4-32 MiB images that only a new block could pack; their own allocations strand nothing for a driver call per big
+	/// texture made, which the texture streamer makes on its reading workers.
+	/// </summary>
+	public static bool LargeBlocks { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_LARGE_BLOCKS" ) == "1";
+
+	/// <summary><see cref="LargeBlocks"/> for this allocator.</summary>
+	public bool ShareLargeBlocks { get; init; } = LargeBlocks;
 
 	/// <summary>Blocks asked of the driver so far (<c>vkAllocateMemory</c>), shared and dedicated.</summary>
 	public long DriverAllocations => System.Threading.Interlocked.Read( ref driverAllocations );
@@ -389,7 +400,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	{
 		var size = requirements.size;
 		var alignment = Math.Max( requirements.alignment, 1 );
-		var ownAbove = (LargeBlocks && !target ? LargeBlockSize : blockSize) / 4;
+		var ownAbove = (ShareLargeBlocks && !target ? LargeBlockSize : blockSize) / 4;
 		if ( ExistingBlocksOnly && (fallback || (!image && size > OwnBufferSize && (content || OwnBigBuffers)) || size > ownAbove) ) throw NoRoom();
 
 		// A buffer over a quarter of a small block is its own (a map's vertex and index pages, views' visibility buffers,
@@ -755,12 +766,10 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary>Frames without a new block before blocks are drained: while a map loads, blocks fill and empty by themselves.</summary>
 	public const ulong QuietFrames = 120;
 
-	ulong lastNewBlock;
 
 	// Under the lock; allocates nothing
 	void ChooseDraining()
 	{
-		var quiet = frame - lastNewBlock >= QuietFrames;
 		foreach ( var (key, kind) in kinds )
 		{
 			if ( kind.Draining is { } draining )
@@ -774,6 +783,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				continue;
 			}
 
+			// Per kind: upload memory makes and frees blocks all the time, which says nothing about images or device buffers
+			var quiet = frame - kind.LastNewBlock >= QuietFrames;
 			if ( !quiet || !Movable( key.Type, key.Images, key.Content ) || key.Fallback || kind.Blocks.Count < 2 ) continue;
 
 			MemoryBlock emptiest = null;
@@ -1029,7 +1040,10 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		if ( block.Used == 0 ) KeepSpare( block );
 		Reserved += block.Size;
 		heapReserved[properties.Type( block.TypeIndex ).heapIndex] += (long)block.Size;
-		lastNewBlock = frame;
+
+		// Only shared blocks: allocations of their own (big streamed textures, upload pages) come and go all the time and
+		// leave no holes, and counting them kept blocks from ever draining while textures streamed
+		if ( !block.Dedicated ) KindOf( block ).LastNewBlock = frame;
 	}
 
 	/// <summary>Take a block out of the lists before it's freed; under the lock.</summary>

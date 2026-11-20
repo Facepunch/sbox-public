@@ -51,7 +51,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigAllocationsShareLargeBlocksAndBlocksAreMadeAhead()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, ShareLargeBlocks = true };
 		var small = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		var big = small with { size = allocator.BlockSize / 2 };
 		var biggest = small with { size = MemoryAllocator.LargeBlockSize / 2 };
@@ -125,7 +125,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigTargetsGetTheirOwnAllocation()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = true };
 		var big = new VkMemoryRequirements { size = allocator.BlockSize / 2, alignment = 256, memoryTypeBits = ~0u };
 		var small = big with { size = allocator.BlockSize / 8 };
 
@@ -142,6 +142,19 @@ public class MemoryAllocatorTests : GpuTest
 
 		allocator.Free( smallTarget );
 		allocator.Free( texture );
+	}
+
+	/// <summary>Without large blocks (the default), an image over a quarter of a small block is its own allocation, target or not.</summary>
+	[TestMethod]
+	public void BigImagesAreTheirOwnAllocation()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = false };
+		var big = new VkMemoryRequirements { size = allocator.BlockSize / 2, alignment = 256, memoryTypeBits = ~0u };
+		var texture = allocator.Allocate( big, MemoryLocation.Device, image: true, content: true );
+		Assert.IsTrue( texture.Block.Dedicated );
+		Assert.AreEqual( big.size, allocator.Reserved, "nothing stranded beside it" );
+		allocator.Free( texture );
+		Assert.AreEqual( 0ul, allocator.Reserved );
 	}
 
 	/// <summary>
@@ -360,7 +373,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void LargeBlocksDrainIntoOneSmallerBlock()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = true };
 		var page = new VkMemoryRequirements { size = MemoryAllocator.LargeBlockSize / 16, alignment = 256, memoryTypeBits = ~0u };
 		var first = new List<Allocation>();
 		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( page, MemoryLocation.Device, image: true, content: true ) );
