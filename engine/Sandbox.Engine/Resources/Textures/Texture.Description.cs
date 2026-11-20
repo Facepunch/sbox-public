@@ -55,7 +55,7 @@ public partial class Texture
 		get
 		{
 			if ( fileHeaderRead ) return fileHeader;
-			if ( describedAtCreation || Graphics.HasSource2Device || native.IsNull ) return null;
+			if ( describedAtCreation || native.IsNull ) return null;
 
 			var path = FilePath();
 			TextureHeader header = null;

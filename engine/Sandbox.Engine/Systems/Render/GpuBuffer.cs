@@ -90,13 +90,12 @@ public partial class GpuBuffer : IValid, IDisposable
 	public bool IsValid => native != IntPtr.Zero || deviceOnly;
 
 	/// <summary>
-	/// Made without Source 2's device (<see cref="Graphics.HasSource2Device"/>): only <see cref="RenderBackend.Default"/>'s
-	/// backing holds it, and this stays valid until disposed.
+	/// Held by the devices alone: <see cref="RenderBackend.Default"/>'s backing holds it, and this stays valid until disposed.
 	/// </summary>
 	bool deviceOnly;
 
 	/// <summary>
-	/// The device that was being recorded for when this was made: another device's backing starts with what Source 2's
+	/// The device that was being recorded for when this was made: another device's backing starts with what that device's
 	/// copy holds, this one's starts empty.
 	/// </summary>
 	internal RenderBackend Origin { get; private set; }
@@ -150,28 +149,8 @@ public partial class GpuBuffer : IValid, IDisposable
 			throw new InvalidOperationException( $"Buffer can't exceed 4GB" );
 		}
 
-		BufferDesc bufferDesc = new()
-		{
-			m_nElementCount = elementCount,
-			m_nElementSizeInBytes = elementSize
-		};
-
-		// Map managed to native enums
-		RenderBufferFlags nativeFlags = (RenderBufferFlags)usageFlags;
-
-		// Always allow unordered access from shaders when we can.. This might be presumptuous but I've never not needed this
-		nativeFlags |= RenderBufferFlags.RENDER_BUFFER_USAGE_SHADER_RESOURCE;
-		if ( usageFlags != UsageFlags.ByteAddress )
-		{
-			nativeFlags |= RenderBufferFlags.RENDER_BUFFER_USAGE_UNORDERED_ACCESS;
-		}
-
-		// Semistatic lets GPU & CPU write to it
-		// There are other types we could potentially expose. Without Source 2's device the default device's backing is all.
-		if ( RenderBackend.Default is Source2RenderBackend || Graphics.HasSource2Device )
-			native = g_pRenderDevice.CreateGPUBuffer( RenderBufferType.RENDER_BUFFER_TYPE_SEMISTATIC, bufferDesc, nativeFlags, debugName );
-		else
-			deviceOnly = true;
+		// The default device's backing is all there is
+		deviceOnly = true;
 
 		ElementCount = elementCount;
 		ElementSize = elementSize;
@@ -303,16 +282,7 @@ public partial class GpuBuffer : IValid, IDisposable
 
 	private unsafe void GetDataInternal( Span<byte> data, uint startInBytes, uint countInBytes )
 	{
-		if ( deviceOnly )
-		{
-			RenderBackend.Default.ReadBuffer( this, data[..(int)countInBytes], (int)startInBytes );
-			return;
-		}
-
-		fixed ( byte* dataPtr = data )
-		{
-			g_pRenderDevice.ReadBuffer( native, startInBytes, (IntPtr)dataPtr, countInBytes );
-		}
+		RenderBackend.Default.ReadBuffer( this, data[..(int)countInBytes], (int)startInBytes );
 	}
 
 	/// <summary>

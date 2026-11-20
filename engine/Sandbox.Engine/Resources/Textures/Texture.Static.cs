@@ -31,12 +31,6 @@ public partial class Texture
 		var texture = g_pRenderDevice.FindOrCreateTexture2( string.IsNullOrEmpty( name ) ? "unnamed" : name, anonymous, config, data, dataSize );
 		//bool isRenderTarget = builder.common.m_nFlags.HasFlag( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );
 
-		// Source 2's empty device has no image to clear; what's drawn makes its copy cleared (InitialColor)
-		if ( (data == IntPtr.Zero || dataSize <= 0) && Graphics.HasSource2Device )
-		{
-			g_pRenderDevice.ClearTexture( texture, builder._initialColor ?? Color.Transparent );
-		}
-
 		var result = FromNative( texture );
 		if ( !string.IsNullOrWhiteSpace( name ) )
 			result?.RegisterWeakResourceId( name );
@@ -56,9 +50,9 @@ public partial class Texture
 			result.describedAtCreation = true;
 		}
 
-		// Another device makes its copy from these rather than reading Source 2's back (with -borealisgpu, from before
-		// the device is made too: without Source 2's device there's nothing to read back)
-		if ( result is not null && (RenderBackend.Default is not Source2RenderBackend || RenderBackend.OthersExist || Graphics.BorealisGpuRequested) )
+		// The drawing device makes its copy from these (Source 2's empty device holds no pixels), and a headless process reads
+		// them back; what's drawn makes a copy cleared (InitialColor)
+		if ( result is not null )
 		{
 			result.InitialPixels = data != IntPtr.Zero && dataSize > 0 ? new ReadOnlySpan<byte>( (void*)data, dataSize ).ToArray() : null;
 			result.InitialColor = builder._initialColor ?? Color.Transparent;

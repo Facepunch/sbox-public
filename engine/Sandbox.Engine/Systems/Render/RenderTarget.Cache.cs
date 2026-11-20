@@ -43,7 +43,7 @@ public sealed partial class RenderTarget
 
 		// Source 2's empty device keeps its default, 24-bit depth
 		if ( depthFormat == ImageFormat.Default )
-			depthFormat = Graphics.HasSource2Device && g_pRenderDevice.IsUsing32BitDepthBuffer() ? ImageFormat.D32FS8 : ImageFormat.D24S8;
+			depthFormat = ImageFormat.D24S8;
 
 		// Resolve this once, so the key matches the sample count the texture is created with
 		if ( msaa == MultisampleAmount.MultisampleScreen )

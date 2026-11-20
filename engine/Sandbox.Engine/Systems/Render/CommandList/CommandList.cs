@@ -574,7 +574,7 @@ public sealed unsafe partial class CommandList
 			}
 			finally
 			{
-				CloseScope( Graphics.Context, listScope );
+				CloseScope( listScope );
 			}
 		}
 	}
@@ -1107,18 +1107,9 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			// Source 2's table is its scene system's; Borealis.Gpu's is its backend's, written in the block's list
+			// Borealis.Gpu's table is its backend's, written in the block's list; a headless process has none
 			if ( Graphics.Backend is BorealisGpuRenderBackend gpu )
-			{
 				gpu.SetPipelineTexture( (int)entry.Data1.x, target.ColorTarget );
-				return;
-			}
-
-			if ( Graphics.Backend is not Source2RenderBackend )
-				throw new NotSupportedException( "Pipeline textures (ambient occlusion's and reflections' results) need Source 2's device or Borealis.Gpu" );
-
-			var offset = Graphics.Attributes.GetInt( "PipelineTextureOffset" );
-			NativeEngine.CSceneSystem.SetPipelineTextureIndex( offset, (int)entry.Data1.x, target.ColorTarget.Index );
 		}
 
 		// Dont write out of bounds of the pipeline slots

@@ -355,10 +355,8 @@ public class BorealisGpuTexturesTest
 		RequireVulkan();
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
-		var hadDevice = Graphics.HasSource2Device;
 		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
-		Graphics.HasSource2Device = false;
 		try
 		{
 			var buffer = new GpuBuffer<uint>( 4 );
@@ -377,7 +375,6 @@ public class BorealisGpuTexturesTest
 		}
 		finally
 		{
-			Graphics.HasSource2Device = hadDevice;
 			RenderBackend.SetDefault( previous );
 		}
 
