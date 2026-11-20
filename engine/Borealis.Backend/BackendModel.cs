@@ -157,7 +157,10 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	readonly BackendDevice device;
 	readonly DrawGeometry[][] draws;
 
-	/// <summary>Per draw, whether its meshlets have been asked for (<see cref="FirstMeshletRequest"/>).</summary>
+	/// <summary>
+	/// Per draw, what's been asked for: its meshlets (bit 0, <see cref="FirstMeshletRequest"/>), its generated levels (bit 1)
+	/// and by a colour pass (bit 2, <see cref="FirstLodRequest"/>).
+	/// </summary>
 	readonly int[][] meshletRequested;
 	readonly SkinnedVertexBuffer[][] skinnedBuffers;
 	readonly VertexCacheDraw?[][] vertexCacheDraws;
@@ -171,7 +174,18 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 
 	/// <summary>Whether this is the first ask for a draw's meshlets: a shadow view asks for a static mesh draw's once.</summary>
 	internal bool FirstMeshletRequest( int mesh, int call )
-		=> (uint)mesh < (uint)meshletRequested.Length && (uint)call < (uint)meshletRequested[mesh].Length && System.Threading.Interlocked.Exchange( ref meshletRequested[mesh][call], 1 ) == 0;
+		=> (uint)mesh < (uint)meshletRequested.Length && (uint)call < (uint)meshletRequested[mesh].Length && (System.Threading.Interlocked.Or( ref meshletRequested[mesh][call], 1 ) & 1) == 0;
+
+	/// <summary>
+	/// Whether this is the first ask for a draw's generated levels, or the first by a colour pass (<paramref name="color"/>),
+	/// which publishes them: a resident mesh draw asks once each way.
+	/// </summary>
+	internal bool FirstLodRequest( int mesh, int call, bool color )
+	{
+		if ( (uint)mesh >= (uint)meshletRequested.Length || (uint)call >= (uint)meshletRequested[mesh].Length ) return false;
+		var bits = color ? 6 : 2;
+		return (System.Threading.Interlocked.Or( ref meshletRequested[mesh][call], bits ) & bits) != bits;
+	}
 
 	/// <summary>The model as read.</summary>
 	public ModelFile File { get; }

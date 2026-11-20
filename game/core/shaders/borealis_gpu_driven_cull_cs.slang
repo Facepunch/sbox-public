@@ -210,6 +210,22 @@ uint PickLod( uint nMode, float flScale, float3 vEye, float3 vCenter, float3 vEx
 	return nLevel;
 }
 
+// The draw record of a draw's generated level in this view (view words 38 and 39), or the draw's own: a fragment's or a
+// resident mesh's of a model without LODs, by its bounds and visibility fragment (whose byte keeps its level)
+uint LevelDraw( uint nDrawRecord, uint4 vLod, float3 vEye, float3 vCenter, float3 vExtents, uint nFragment )
+{
+	if ( g_nCullLodTable == None || nDrawRecord >= g_nCullLodCount )
+		return nDrawRecord;
+
+	ByteAddressBuffer lods = g_bindless_VertexBuffers[ g_nCullLodTable ];
+	uint nLodAt = nDrawRecord * LodRecord_Size;
+	uint nLevels = min( lods.Load( nLodAt + LodRecord_Levels ), 6u );
+	float4 vErrors = asfloat( lods.Load4( nLodAt + LodRecord_Errors ) );
+	float2 vMore = asfloat( lods.Load2( nLodAt + LodRecord_Errors + 4 * LodRecord_ErrorsStride ) );
+	uint nLevel = PickLod( vLod.z, asfloat( vLod.w ), vEye, vCenter, vExtents, nLevels, vErrors, vMore, nFragment );
+	return nLevel > 0 ? lods.Load( nLodAt + LodRecord_Level + ( nLevel - 1 ) * LodRecord_LevelStride + LodLevel_Draw ) : nDrawRecord;
+}
+
 // One index of a draw, from its index page (16 or 32 bits)
 uint LoadIndex( ByteAddressBuffer page, uint nIndex, bool b32 )
 {
@@ -380,6 +396,10 @@ uint TakeSlot( uint nRun )
 				bVisible = bVisible && MeshLod( vHeader0, vHeader1, vCenter, asfloat( fragments.Load( nMeshAt + ResidentMeshRecord_LodScale ) ), vLodCamera, flLodWidth, bLodTexels ) == nBatchLod;
 				nTransform = fragments.Load( nMeshAt + ResidentMeshRecord_Transform );
 				nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * FragmentRecord_Size + i * 4 ) : vBatch.z;
+
+				// A model without LODs of its own: its draw's generated level, as a fragment's
+				if ( bVisible && ( vHeader0.x & 0xff ) <= 1 )
+					nDrawRecord = LevelDraw( nDrawRecord, vLod, vLodCamera.xyz, vCenter, vExtents, vVisibility.x != None ? vVisibility.x + i : None );
 			}
 			else
 			{
@@ -410,17 +430,8 @@ uint TakeSlot( uint nRun )
 				nDrawRecord = fragments.Load( nFragmentAt + FragmentRecord_Draw );
 
 				// Its generated level in this view (LodMode and LodUnits): that level's draw record from here on
-				if ( bVisible && g_nCullLodTable != None && nDrawRecord < g_nCullLodCount )
-				{
-					ByteAddressBuffer lods = g_bindless_VertexBuffers[ g_nCullLodTable ];
-					uint nLodAt = nDrawRecord * LodRecord_Size;
-					uint nLevels = min( lods.Load( nLodAt + LodRecord_Levels ), 6u );
-					float4 vErrors = asfloat( lods.Load4( nLodAt + LodRecord_Errors ) );
-					float2 vMore = asfloat( lods.Load2( nLodAt + LodRecord_Errors + 4 * LodRecord_ErrorsStride ) );
-					uint nLevel = PickLod( vLod.z, asfloat( vLod.w ), vLodCamera.xyz, vCenter, vExtents, nLevels, vErrors, vMore, vVisibility.x != None ? vVisibility.x + i : None );
-					if ( nLevel > 0 )
-						nDrawRecord = lods.Load( nLodAt + LodRecord_Level + ( nLevel - 1 ) * LodRecord_LevelStride + LodLevel_Draw );
-				}
+				if ( bVisible )
+					nDrawRecord = LevelDraw( nDrawRecord, vLod, vLodCamera.xyz, vCenter, vExtents, vVisibility.x != None ? vVisibility.x + i : None );
 			}
 
 			if ( nFilter != 0 && vVisibility.y != None && !TakesMoved( nFilter, g_Frame.Load( vVisibility.y + i * 4 ), vViewFlags.z, vViewFlags.w ) )
