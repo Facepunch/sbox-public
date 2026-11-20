@@ -538,14 +538,13 @@ public class FieldInitializerTest : HotloadFixtureTestBase
 	}
 
 	[TestMethod]
-	public async Task AddedRecordParameterProperty()
+	public async Task AddedRecordParameterDefault()
 	{
-		// Positional record properties are initialized from a primary constructor parameter,
-		// so they keep their default with a warning.
+		// Positional record properties are initialized from their primary constructor parameter's default value
 
 		var result = await HotloadFixtureAsync(
 			"""
-			public class AddedRecordParameterProperty : IHotloadTestFixture
+			public class AddedRecordParameterDefault : IHotloadTestFixture
 			{
 				public Inner Value = new( 1 );
 
@@ -557,13 +556,88 @@ public class FieldInitializerTest : HotloadFixtureTestBase
 			+	void IHotloadTestFixture.Test()
 			+	{
 			+		Assert.AreEqual( 1, Value.A );
+			+		Assert.AreEqual( 2, Value.B );
+			+	}
+			}
+			""" );
+
+		Assert.IsFalse( result.HasWarnings );
+	}
+
+	[TestMethod]
+	public async Task AddedRecordParameterDefaultWithoutBody()
+	{
+		// The record has no body to generate methods in, so it gets one, keeping the line numbers after it
+
+		var result = await HotloadFixtureAsync(
+			"""
+			public class AddedRecordParameterDefaultWithoutBody : IHotloadTestFixture
+			{
+				public Inner Value = new( 1 );
+
+			-	public record Inner( int A );
+			+	public record Inner( int A, int B = 2, string C = "c" );
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		Assert.AreEqual( 2, Value.B );
+			+		Assert.AreEqual( "c", Value.C );
+			+		Assert.AreEqual( 11, new System.Diagnostics.StackTrace( true ).GetFrame( 0 ).GetFileLineNumber() );
+			+	}
+			}
+			""" );
+
+		Assert.IsFalse( result.HasWarnings );
+	}
+
+	[TestMethod]
+	public async Task AddedRecordStructParameterDefault()
+	{
+		var result = await HotloadFixtureAsync(
+			"""
+			public class AddedRecordStructParameterDefault : IHotloadTestFixture
+			{
+				public Inner Value = new( 1 );
+
+			-	public record struct Inner( int A );
+			+	public record struct Inner( int A, int B = 2 );
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		Assert.AreEqual( 1, Value.A );
+			+		Assert.AreEqual( 2, Value.B );
+			+	}
+			}
+			""" );
+
+		Assert.IsFalse( result.HasWarnings );
+	}
+
+	[TestMethod]
+	public async Task AddedRecordParameterWithoutDefault()
+	{
+		// Without a default, the parameter is always passed in like a field assigned in a constructor,
+		// so existing instances get the default value without a warning
+
+		var result = await HotloadFixtureAsync(
+			"""
+			public class AddedRecordParameterWithoutDefault : IHotloadTestFixture
+			{
+			-	public Inner Value = new( 1 );
+			+	public Inner Value = new( 1, 5 );
+
+			-	public record Inner( int A );
+			+	public record Inner( int A, int B );
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		Assert.AreEqual( 1, Value.A );
 			+		Assert.AreEqual( 0, Value.B );
 			+	}
 			}
 			""" );
 
-		var warned = result.Warnings.Select( x => x.Member?.Name ).ToArray();
-		CollectionAssert.AreEqual( new[] { "<B>k__BackingField" }, warned );
+		Assert.IsFalse( result.HasWarnings );
 	}
 
 	[TestMethod]

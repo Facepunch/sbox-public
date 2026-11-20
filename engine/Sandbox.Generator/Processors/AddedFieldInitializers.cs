@@ -72,7 +72,7 @@ partial class HotloadProcessor
 			}
 		}
 
-		var insertions = new Dictionary<SyntaxTree, SortedDictionary<int, StringBuilder>>();
+		var insertions = new Dictionary<SyntaxTree, SortedDictionary<int, Insertion>>();
 
 		foreach ( var field in addedFields )
 		{
@@ -158,7 +158,7 @@ partial class HotloadProcessor
 	}
 
 	private static void AddFieldInitializer( Compilation compilation, IFieldSymbol field,
-		Dictionary<SyntaxTree, SortedDictionary<int, StringBuilder>> insertions )
+		Dictionary<SyntaxTree, SortedDictionary<int, Insertion>> insertions )
 	{
 		// Fields we couldn't return from a method, or assign with reflection
 
@@ -167,21 +167,27 @@ partial class HotloadProcessor
 
 		if ( !TryGetInitializer( field, out var value, out var insertAfter, out var modifiers, out var type ) ) return;
 
-		var supported = value is not null
-			&& !UsesConstructorParameter( compilation, value )
+		var supported = !UsesConstructorParameter( compilation, value )
 			&& !value.DescendantTrivia().Any( x => x.IsDirective || x.IsKind( SyntaxKind.DisabledTextTrivia ) );
 
 		var tree = type.SyntaxTree;
 		var methodName = AddedFieldInitializerPrefix + GetSafeIdentifier( field.Name );
 		var text = new StringBuilder();
 
-		// Insert at the start of the next line, unless the type ends on this one
+		// Insert at the start of the next line, unless the type ends on this one. A record without a body, like
+		// record R( int A );, gets one before its semicolon.
 
 		var position = insertAfter;
 		var lines = tree.GetText().Lines;
 		var line = lines.GetLineFromPosition( position );
+		var addBody = type.OpenBraceToken.IsKind( SyntaxKind.None );
 
-		if ( line.LineNumber + 1 < lines.Count && lines[line.LineNumber + 1].Start <= type.CloseBraceToken.SpanStart )
+		if ( addBody )
+		{
+			position = type.SemicolonToken.SpanStart;
+			text.AppendLine();
+		}
+		else if ( line.LineNumber + 1 < lines.Count && lines[line.LineNumber + 1].Start <= type.CloseBraceToken.SpanStart )
 		{
 			position = lines[line.LineNumber + 1].Start;
 		}
@@ -223,21 +229,31 @@ partial class HotloadProcessor
 
 		if ( !insertions.TryGetValue( tree, out var treeInsertions ) )
 		{
-			insertions[tree] = treeInsertions = new SortedDictionary<int, StringBuilder>();
+			insertions[tree] = treeInsertions = new SortedDictionary<int, Insertion>();
 		}
 
-		if ( !treeInsertions.TryGetValue( position, out var builder ) )
+		if ( !treeInsertions.TryGetValue( position, out var insertion ) )
 		{
-			treeInsertions[position] = builder = new StringBuilder();
+			treeInsertions[position] = insertion = new Insertion( addBody );
 		}
 
-		builder.Append( text );
+		insertion.Text.Append( text );
+	}
+
+	/// <summary>
+	/// Generated methods to insert at one position, wrapped in braces if they're the body of a record without one.
+	/// </summary>
+	private sealed class Insertion( bool addBody )
+	{
+		public StringBuilder Text { get; } = new();
+
+		public override string ToString() => addBody ? $"{{{Text}}}" : Text.ToString();
 	}
 
 	/// <summary>
 	/// Finds the declaration with <paramref name="field"/>'s initializer, which for a backing field is its property
-	/// or event. <paramref name="value"/> is null if it's initialized from a primary constructor parameter, like
-	/// a positional record property. Returns false if there's no initializer.
+	/// or event, or for a positional record property, its primary constructor parameter's default value.
+	/// Returns false if there's no initializer.
 	/// </summary>
 	/// <param name="insertAfter">Position to generate the method after.</param>
 	/// <param name="modifiers">Modifiers of the declaration, which might make it unsafe.</param>
@@ -266,12 +282,13 @@ partial class HotloadProcessor
 					type = propertyType;
 					return true;
 
-				case ParameterSyntax { Parent.Parent: TypeDeclarationSyntax { OpenBraceToken.IsMissing: false } recordType }
+				case ParameterSyntax { Default: { } defaultValue, Parent.Parent: TypeDeclarationSyntax recordType }
 					when declaringSymbol is IPropertySymbol:
 
-					// A positional record property, so the marker goes at the start of the record's body
+					// A positional record property. Without a default value the parameter is always passed in, like a
+					// field assigned in a constructor, so there's no initializer.
 
-					value = null;
+					value = defaultValue.Value;
 					insertAfter = recordType.OpenBraceToken.Span.End;
 					modifiers = default;
 					type = recordType;
