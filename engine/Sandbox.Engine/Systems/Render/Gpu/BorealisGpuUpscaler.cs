@@ -112,6 +112,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	public Vector2 ClipJitter => RenderSize.x < 1 ? default : new Vector2( 2.0f * Jitter.x / RenderSize.x, -2.0f * Jitter.y / RenderSize.y );
 
 	TemporalUpscaler temporal;
+	CutDetector cuts;
 	bool debugReactiveMask;
 	int jitterIndex;
 	double lastDispatch = -1;
@@ -171,6 +172,46 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 
 		MakeTargets();
 		return true;
+	}
+
+	/// <summary>
+	/// The camera this frame, after <see cref="Begin"/>: a cut from last frame (<see cref="CutDetector"/>) resets the temporal
+	/// upscaler's history, so it doesn't blend the frames before the cut into the ones after.
+	/// </summary>
+	public void Track( Vector3 position, Rotation rotation, object world )
+	{
+		var cut = cuts.Cut( position, rotation, world, Application.FrameCount );
+		if ( cut && IsTemporal ) resetHistory = true;
+	}
+
+	/// <summary>
+	/// Tells a camera cut from a camera's pose frame to frame: a jump of more than <see cref="TeleportDistance"/> or a turn of
+	/// more than <see cref="TeleportAngle"/> degrees in one frame (a teleport, a respawn), another world (a map or scene
+	/// change), or frames it didn't render in between (a switch to another camera and back, a loading screen). The first
+	/// frame is a cut. A camera rendered twice in a frame isn't.
+	/// </summary>
+	internal struct CutDetector
+	{
+		/// <summary>The most a camera moves in a frame without cutting: 256 inches, about 6.5 metres.</summary>
+		public const float TeleportDistance = 256.0f;
+
+		/// <summary>The most a camera turns in a frame without cutting, in degrees.</summary>
+		public const float TeleportAngle = 45.0f;
+
+		Vector3 position;
+		Rotation rotation;
+		object world;
+		ulong frame;
+		bool seen;
+
+		/// <summary>Whether <paramref name="frame"/>'s pose cuts from the last one seen, which it then becomes.</summary>
+		public bool Cut( Vector3 position, Rotation rotation, object world, ulong frame )
+		{
+			var cut = !seen || frame > this.frame + 1 || !ReferenceEquals( world, this.world )
+				|| position.Distance( this.position ) > TeleportDistance || rotation.Distance( this.rotation ) > TeleportAngle;
+			(this.position, this.rotation, this.world, this.frame, seen) = (position, rotation, world, frame, true);
+			return cut;
+		}
 	}
 
 	bool EnsureTemporal( Mode mode, Vector2Int render, Vector2Int display )

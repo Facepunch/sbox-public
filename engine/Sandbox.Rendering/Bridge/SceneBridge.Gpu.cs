@@ -263,6 +263,7 @@ internal sealed partial class SceneBridge
 		var displayViewport = gpuView.Viewport;
 		var upscaler = upscale ? StateFor( camera, setup.ViewHash ).GpuUpscaler ??= new BorealisGpuUpscaler( backend ) : null;
 		var upscaling = upscaler?.Begin( display, allowed: true, debugReactiveMask: gpuView.ToolsVisMode == (int)SceneCameraDebugMode.ReactiveMask ) ?? false;
+		upscaler?.Track( camera.Position, camera.Rotation, camera.World );
 		if ( upscaling )
 		{
 			size = upscaler.RenderSize;
