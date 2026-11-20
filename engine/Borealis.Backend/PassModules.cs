@@ -206,6 +206,9 @@ public sealed class PassModules : IShaderModules
 	}
 
 	/// <inheritdoc/>
+	public bool Skips( string compiledPath ) => Skip.Count > 0 && Skip.Contains( Path.GetFileName( compiledPath ).Split( '.' )[0] );
+
+	/// <inheritdoc/>
 	public ShaderFile DescribeStandalone( string compiledPath ) =>
 		!(Skip.Count > 0 && Skip.Contains( Path.GetFileName( compiledPath ).Split( '.' )[0] )) && ModuleBeside( compiledPath ) is { Standalone: true } ? Describe( compiledPath ) : null;
 
