@@ -458,7 +458,7 @@ internal sealed partial class BackendContext
 			var (frameBuffer, frameSlot, frameOffset) = tables.Allocate( frameBytes );
 			var data = Gpu.Map( frameBuffer ).Slice( (int)frameOffset, frameBytes );
 			var firstInstance = (uint)(frameOffset / GpuDrivenTables.InstanceStride);
-			var instances = MemoryMarshal.Cast<byte, uint>( data[..instanceBytes] );
+			var instances = MemoryMarshal.Cast<byte, InstanceRecord>( data[..instanceBytes] );
 			var commands = MemoryMarshal.Cast<byte, GpuBuffer.IndirectDrawIndexedArguments>( data.Slice( commandBase, totalCommands * GpuDrivenTables.CommandStride ) );
 
 			// The tables' slots as the draws bind them: read again before a run is drawn when a table grew since (a record appended
@@ -543,8 +543,7 @@ internal sealed partial class BackendContext
 								draw = entry.Draw;
 							}
 
-							instances[written * 2] = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance );
-							instances[written * 2 + 1] = draw;
+							instances[written] = new InstanceRecord { Transform = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance ), Draw = draw };
 							commands[written] = new GpuBuffer.IndirectDrawIndexedArguments
 							{
 								IndexCount = arg.IndexCount,
@@ -668,7 +667,7 @@ internal sealed partial class BackendContext
 	byte[] cullConstants;
 	readonly List<(int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)> cullRuns = new();
 
-	const int CullViewBytes = 160;
+	const int CullViewBytes = CullViewRecord.Size;
 	const int CullBatchBytes = 32;
 
 	/// <summary>

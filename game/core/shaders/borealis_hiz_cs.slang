@@ -16,6 +16,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "common.fxc"
+#include "borealis_records.fxc"
 
 // 1: the Hi-Z's first levels from the depth (D_MSAA: multisampled); 0: its later levels, or the second phase's cull
 DynamicCombo( D_HIZ_DEPTH, 0..1, Sys( ALL ) );
@@ -259,7 +260,8 @@ void Cull( uint nCandidate )
 	}
 
 	uint nSlot = TakeSlot( c3.y );
-	g_Frame.Store2( g_nHiZInstances + nSlot * 8, uint2( c0.w, c1.w ) );
+	g_Frame.Store( g_nHiZInstances + nSlot * InstanceRecord_Size + InstanceRecord_Transform, c0.w );
+	g_Frame.Store( g_nHiZInstances + nSlot * InstanceRecord_Size + InstanceRecord_Draw, c1.w );
 	uint nCommand = g_nHiZCommands + nSlot * 20;
 	g_Frame.Store4( nCommand, uint4( c2.y, 1, c2.x, c2.z ) );
 	g_Frame.Store( nCommand + 16, g_nHiZFirstInstance + nSlot );

@@ -34,8 +34,8 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>Index pages: one multi-draw per page per bucket, so few pages means few draws.</summary>
 	public const int IndexPageSize = 32 << 20;
 
-	public const int InstanceStride = 8;
-	public const int DrawStride = 32;
+	public const int InstanceStride = InstanceRecord.Size;
+	public const int DrawStride = DrawRecord.Size;
 	public const int CommandStride = 20;
 
 	/// <summary>Frames a buffer a table or store grew out of is kept before it's freed: past the frames it was recorded in.</summary>
@@ -610,8 +610,8 @@ internal sealed class GpuDrivenTables : IDisposable
 		{
 			if ( drawRecords.TryGetValue( key, out var found ) ) return found;
 
-			Span<uint> record = [geometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, (uint)baseVertex, (uint)indexPage];
-			index = draws.Append( MemoryMarshal.AsBytes( record ) ) / DrawStride;
+			var record = new DrawRecord { Geometry = geometryRecord, VertexMaterial = vertexMaterial, PixelMaterial = pixelMaterial, Flags = flags, FirstIndex = firstIndex, IndexCount = indexCount, BaseVertex = baseVertex, IndexPage = indexPage };
+			index = draws.Append( MemoryMarshal.AsBytes( new Span<DrawRecord>( ref record ) ) ) / DrawStride;
 			drawRecords[key] = index;
 		}
 
@@ -629,9 +629,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>A draw record's geometry and material records, flags and base vertex, as <see cref="Draw"/> made it.</summary>
 	public (uint Geometry, uint Vertex, uint Pixel, uint Flags, int BaseVertex) DrawFields( uint index )
 	{
-		Span<uint> record = stackalloc uint[DrawStride / 4];
-		draws.Read( index * (uint)DrawStride, MemoryMarshal.AsBytes( record ) );
-		return (record[0], record[1], record[2], record[3], (int)record[6]);
+		var record = default( DrawRecord );
+		draws.Read( index * (uint)DrawStride, MemoryMarshal.AsBytes( new Span<DrawRecord>( ref record ) ) );
+		return (record.Geometry, record.VertexMaterial, record.PixelMaterial, record.Flags, record.BaseVertex);
 	}
 
 	/// <summary>Where draw records find their ranges' meshlets (<see cref="BackendDevice.Meshlets"/>), or null.</summary>

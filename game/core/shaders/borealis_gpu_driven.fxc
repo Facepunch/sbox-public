@@ -7,10 +7,12 @@
 // Borealis's GPU-driven variant of a shader (compiled with ShaderCompiler -gpudriven). The compiler appends this to
 // every vertex and pixel program and wraps MainVs and MainPs: vertex inputs are pulled by vertex index, the transform
 // comes from the instance record, material constants and texture slots from the material record. Shader authors
-// don't include or call anything here. Record layouts: docs/reference/borealis-gpu-driven.md.
+// don't include or call anything here. Record layouts: sbox/records.slangh, read at borealis_records.fxc's offsets
+// (docs/reference/borealis-records.md).
 //
 
 #include "common.fxc"
+#include "borealis_records.fxc"
 
 // The raw buffer array in the bindless set: geometry pages and Borealis's tables. Binding 63, as RENDER_GLOBAL_BINDING_VERTEX_BUFFERS
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
@@ -21,8 +23,8 @@ ByteAddressBuffer g_bindless_VertexBuffers[] EXTERNAL_DESC_SET( t, g_globalLateB
 // Which entries of g_bindless_VertexBuffers hold the tables, for the draws being recorded
 cbuffer BorealisGpuDriven_t
 {
-	uint g_nBorealisInstances;	// instance records, 8 bytes: transform, draw
-	uint g_nBorealisDraws;		// draw records, 32 bytes: geometry, vertex material, pixel material, flags, first index, index count, base vertex, index page
+	uint g_nBorealisInstances;	// instance records (InstanceRecord)
+	uint g_nBorealisDraws;		// draw records (DrawRecord)
 	uint g_nBorealisGeometry;		// geometry records: 32-byte semantic mask, then 16 bytes per present semantic
 	uint g_nBorealisMaterials;	// material records: $Globals as compiled, then a bindless slot per material texture
 	uint g_nBorealisVertexBases;	// with the visibility-driven forward pass's ids: each instance's first vertex bit, a word per instance from here
@@ -39,7 +41,9 @@ cbuffer BorealisGpuDrivenMaterial_t
 // The instance's transform slot and draw
 uint2 BorealisGpuDrivenInstance( uint nInstance )
 {
-	return g_bindless_VertexBuffers[ g_nBorealisInstances ].Load2( nInstance * 8 );
+	ByteAddressBuffer instances = g_bindless_VertexBuffers[ g_nBorealisInstances ];
+	uint nAt = nInstance * InstanceRecord_Size;
+	return uint2( instances.Load( nAt + InstanceRecord_Transform ), instances.Load( nAt + InstanceRecord_Draw ) );
 }
 
 // The vertex's bit in the visibility mask: its aggregate's first vertex bit (written beside the instance records, where
@@ -53,7 +57,9 @@ uint BorealisGpuDrivenVertexBit( uint nInstance, uint nVertex )
 // The draw's geometry record, vertex material record and pixel material record offsets, and its flags
 uint4 BorealisGpuDrivenDraw( uint nDraw )
 {
-	return g_bindless_VertexBuffers[ g_nBorealisDraws ].Load4( nDraw * 32 );
+	ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nBorealisDraws ];
+	uint nAt = nDraw * DrawRecord_Size;
+	return uint4( draws.Load( nAt + DrawRecord_Geometry ), draws.Load( nAt + DrawRecord_VertexMaterial ), draws.Load( nAt + DrawRecord_PixelMaterial ), draws.Load( nAt + DrawRecord_Flags ) );
 }
 
 //

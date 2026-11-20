@@ -17,6 +17,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "common.fxc"
+#include "borealis_records.fxc"
 
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
 #define BINDLESS_VERTEX_BUFFERS_DECLARED
@@ -73,8 +74,8 @@ uint LoadIndex( ByteAddressBuffer page, uint nIndex, bool b32 )
 
 void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nIndexCount, uint nFirstIndex, uint nBaseVertex )
 {
-	g_Frame.Store( g_nCullInstances + nSlot * 8, nTransform );
-	g_Frame.Store( g_nCullInstances + nSlot * 8 + 4, nDraw );
+	g_Frame.Store( g_nCullInstances + nSlot * InstanceRecord_Size + InstanceRecord_Transform, nTransform );
+	g_Frame.Store( g_nCullInstances + nSlot * InstanceRecord_Size + InstanceRecord_Draw, nDraw );
 
 	uint nCommand = g_nCullCommands + nSlot * 20;
 	g_Frame.Store( nCommand, nIndexCount );
@@ -124,11 +125,11 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 	uint nCompactRun = g_Frame.Load( nEntry + 16 );
 
 	ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nCullDraws ];
-	uint4 vDrawHead = draws.Load4( nDrawRecord * 32 );
-	uint4 vDraw = draws.Load4( nDrawRecord * 32 + 16 );
+	uint nDrawAt = nDrawRecord * DrawRecord_Size;
+	uint4 vDraw = uint4( draws.Load( nDrawAt + DrawRecord_FirstIndex ), draws.Load( nDrawAt + DrawRecord_IndexCount ), draws.Load( nDrawAt + DrawRecord_BaseVertex ), draws.Load( nDrawAt + DrawRecord_IndexPage ) );
 	uint nTriangles = vDraw.y / 3;
 	ByteAddressBuffer page = g_bindless_VertexBuffers[ NonUniformResourceIndex( vDraw.w ) ];
-	bool b32 = ( vDrawHead.w & 2 ) != 0;
+	bool b32 = ( draws.Load( nDrawAt + DrawRecord_Flags ) & 2 ) != 0;
 
 	if ( nThread == 0 )
 	{

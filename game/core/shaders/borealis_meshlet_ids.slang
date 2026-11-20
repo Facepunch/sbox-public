@@ -115,7 +115,7 @@ groupshared uint gs_RoundCount;
 	ByteAddressBuffer frame = g_bindless_VertexBuffers[ g_nBorealisInstances ];
 	uint nSlot = frame.Load( g_MeshletTask.nRunAt ) + vGroupId.x;
 	uint nInstance = g_MeshletTask.nFirstInstance + nSlot;
-	uint2 vInstance = frame.Load2( nInstance * 8 );
+	uint2 vInstance = BorealisGpuDrivenInstance( nInstance );
 	uint nFragment = frame.Load( g_MeshletTask.nCommands + nSlot * 20 );
 	uint4 vRun = g_bindless_VertexBuffers[ g_MeshletTask.nRunTable ].Load4( vInstance.y * 16 );
 	uint nMeshlets = min( vRun.z, MaxMeshlets );
@@ -184,8 +184,8 @@ groupshared uint gs_RoundCount;
 			gs_Payload.nKept[nKept >> 1] = nCarry;
 		gs_Payload.nInstance = nInstance;
 		uint4 vDrawHead = BorealisGpuDrivenDraw( vInstance.y );
-		uint4 vDraw = g_bindless_VertexBuffers[ g_nBorealisDraws ].Load4( vInstance.y * 32 + 16 );
-		gs_Payload.vVertices = uint4( vInstance.x, vDraw.z, frame.Load( g_nBorealisVertexBases + nInstance * 4 ), ( vDrawHead.w & 2 ) != 0 ? 1 : 0 );
+		uint nBaseVertex = g_bindless_VertexBuffers[ g_nBorealisDraws ].Load( vInstance.y * DrawRecord_Size + DrawRecord_BaseVertex );
+		gs_Payload.vVertices = uint4( vInstance.x, nBaseVertex, frame.Load( g_nBorealisVertexBases + nInstance * 4 ), ( vDrawHead.w & 2 ) != 0 ? 1 : 0 );
 		gs_Payload.vPosition = StreamOf( vDrawHead.x, 0 );
 		gs_Payload.nMeshletPage = vRun.x;
 		gs_Payload.nFirstMeshlet = vRun.y;
@@ -203,7 +203,7 @@ groupshared uint gs_RoundCount;
 		uint nWord = g_MeshletTask.nKeptAt / 4 + 1 + nListAt;
 		if ( nFragment != None )
 		{
-			uint nTriangles = g_bindless_VertexBuffers[ g_nBorealisDraws ].Load( vInstance.y * 32 + 20 ) / 3;
+			uint nTriangles = g_bindless_VertexBuffers[ g_nBorealisDraws ].Load( vInstance.y * DrawRecord_Size + DrawRecord_IndexCount ) / 3;
 			g_MeshletStamps.Store4( nFragment * 16, nListAt != None ? uint4( g_MeshletTask.nFrame, nWord, nKeptTriangles, 2 )
 				: uint4( g_MeshletTask.nFrame, None, nKept == 0 ? 0 : nTriangles, 0 ) );
 		}

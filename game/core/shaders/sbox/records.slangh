@@ -1,0 +1,149 @@
+// The records Borealis writes into GPU buffers and its shaders read: the one place each layout is written. Each struct is
+// a record, its fields in order, each four-byte aligned with no padding (the layout ByteAddressBuffer.Load<T> reads):
+// float, int, uint, float2 to float4, or fixed arrays of those. Sandbox.ShaderCompiler reflects them and makes the C#
+// structs the engine writes them with (engine/Borealis.Backend/Records.g.cs) and borealis_records.fxc, the size and
+// byte offset of every field for shaders that read a word at a time (RecordName_FieldName); build-shaders and
+// ShaderCompiler -records write both. A record and its readers change together: a shader reads a field at its macro, or
+// loads the whole struct (Load<DrawRecord>( offset )) where it includes this file. The /// comments become the C#
+// structs' documentation. See docs/reference/borealis-records.md.
+#ifndef SBOX_RECORDS_SLANGH
+#define SBOX_RECORDS_SLANGH
+
+//
+// GPU-driven draws (docs/reference/borealis-gpu-driven.md "Tables")
+//
+
+/// A GPU-driven draw: what a fragment draws with, made once (GpuDrivenTables.Draw).
+struct DrawRecord
+{
+	/// Byte offset of its geometry record.
+	uint Geometry;
+	/// Byte offset of its vertex stage's material record.
+	uint VertexMaterial;
+	/// Byte offset of its pixel stage's material record.
+	uint PixelMaterial;
+	/// Bit 0: an uncompressed tangent frame; bit 1: 32-bit indices; from bit 8 its lighting record's index in 16 bytes (0 for none).
+	uint Flags;
+	/// Its first index in its index page.
+	uint FirstIndex;
+	/// Its index count.
+	uint IndexCount;
+	/// Its base vertex.
+	int BaseVertex;
+	/// Its index page's bindless slot.
+	int IndexPage;
+};
+
+/// A GPU-driven instance, indexed by the command's first instance (SV_VulkanInstanceID).
+struct InstanceRecord
+{
+	/// Its transform's slot in g_TransformBuffer.
+	uint Transform;
+	/// Its draw record's index.
+	uint Draw;
+};
+
+/// A view of a GPU cull (borealis_gpu_driven_cull_cs, borealis_resident_cull_cs), at the start of its region.
+struct CullViewRecord
+{
+	/// The frustum's planes: left, right, bottom, top, near, far.
+	float4 Planes[6];
+	/// The camera's position, and the squared size threshold (negative: a sun cascade's squared radius by its texel size).
+	float4 CameraAndThreshold;
+	/// Bit 0: a shadow view; bits 1-2: its resident filter (GpuContext.ResidentFilter); bit 3: two-phase Hi-Z occlusion.
+	uint Flags;
+	/// Non-zero: resident meshes skip the size test (a static shadow cache, kept while the camera moves).
+	uint KeepsSmallMeshes;
+	/// A resident filter's settled stamp; with Hi-Z, last frame's visible bits' bindless slot.
+	uint SettledStamp;
+	/// A resident filter's restless stamp; with Hi-Z, the candidates' byte offset in the region's buffer.
+	uint RestlessStamp;
+	/// The LOD camera's position, and the tangent of half its field of view.
+	float4 LodCamera;
+	/// The screen width resident meshes pick their LOD by, or texels per unit for a texel view.
+	float LodWidth;
+	/// Non-zero: LodWidth is texels per unit.
+	uint LodTexels;
+	/// How fragments pick generated levels: 0 not at all, 1 by distance, 2 by texels, 3 by distance with the level kept per visibility fragment (its view's slice in bits 8-15).
+	uint LodMode;
+	/// The generated levels' error units: pixels per unit at distance 1, or texels per unit, over the limit.
+	float LodUnits;
+};
+
+//
+// The resident cull (borealis_resident_cull_cs, BackendContext.ResidentCull.cs)
+//
+
+/// One plan's batches in the resident cull, in the frame's region: a thread per entry (an element of one of its batch records) loops over its views. Items are in order of FirstEntry, each starting on a multiple of 64 threads.
+struct ResidentCullItem
+{
+	/// Its first entry's thread in the dispatch.
+	uint FirstEntry;
+	/// Its entries: every element of its batch records.
+	uint Entries;
+	/// The bindless slot of its plan's records: its batch records (32 bytes each), then its entry map of ResidentCullEntry, then a resident filter's moved words, which a batch record's sixth word finds.
+	uint Records;
+	/// The entry map's byte offset in its plan's records.
+	uint EntryMap;
+	/// Its first view (ResidentCullView).
+	uint FirstView;
+	/// How many views cull it.
+	uint Views;
+	/// Byte offset in its plan's records of its entry records (ResidentCullEntryRecord).
+	uint EntryRecords;
+	/// Byte offset in its plan's records of its batches' headers.
+	uint Headers;
+};
+
+/// An entry of an item: its batch record and its place in the batch's fragments or meshes. A forward entry whose prepass draws ids for it has bit 31 set in Batch (ResidentCullEntry.PrepassIds).
+struct ResidentCullEntry
+{
+	/// Its batch record's index in its plan's records; bit 31: the view's prepass draws ids for it.
+	uint Batch;
+	/// Its place in the batch's fragments or meshes.
+	uint Element;
+};
+
+/// What the resident cull reads of an entry's fragment or resident mesh and draw, in its plan's records after the moved words: written by the expand dispatch (ResidentCullConstants.Expand) from the fragment and draw tables. Each resident mesh batch has a 32-byte header after them, its group's header record (LOD count and switch distances), at its batch's index.
+struct ResidentCullEntryRecord
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Transform slot.
+	uint Transform;
+	/// Bounds extents.
+	float3 Extents;
+	/// Draw record.
+	uint Draw;
+	/// The draw record's first index.
+	uint FirstIndex;
+	/// The draw record's index count.
+	uint IndexCount;
+	/// The draw record's base vertex.
+	uint BaseVertex;
+	/// A resident mesh's LOD scale, or 1 for a fragment that casts no shadow.
+	uint Last;
+};
+
+/// One view that culls an item: where its view record is, and where the call that draws it reads what the cull writes (as a call's own region in borealis_gpu_driven_cull_cs). Byte offsets are in the frame's region.
+struct ResidentCullView
+{
+	/// Its view record (CullViewRecord).
+	uint View;
+	/// Its instance records (InstanceRecord a slot).
+	uint Instances;
+	/// Its commands (20 bytes a slot).
+	uint Commands;
+	/// Its multi-draws (first slot and count).
+	uint Runs;
+	/// Its first instance record's index in the region.
+	uint FirstInstance;
+	/// The byte offset of instance 0's fragment word (ids).
+	uint FragmentWords;
+	/// Its listed fragments for forward's compaction: dispatch arguments, then 32 bytes each.
+	uint Listed;
+	/// 1: it lists what its prepass draws ids for (ResidentCullEntry.PrepassIds), whose culling is in the same dispatch, instead of what the prepass's culling stamped. 2: a prepass that stamps what it keeps, for its forward pass. 4: a meshlet-culling view (its prepass lists fragments for the meshlet pass).
+	uint Flags;
+};
+
+#endif

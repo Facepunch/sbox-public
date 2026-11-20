@@ -16,6 +16,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "common.fxc"
+#include "borealis_records.fxc"
 #include "transform_buffer.fxc"
 #include "borealis_meshlet.fxc"
 
@@ -80,8 +81,8 @@ uint TakeSlot( uint nRun )
 // An instance record and its command, and the ids' fragment word
 void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nVertexBase, uint nIndexCount, uint nFirstIndex, uint nBaseVertex )
 {
-	g_Frame.Store( g_nMeshletInstances + nSlot * 8, nTransform );
-	g_Frame.Store( g_nMeshletInstances + nSlot * 8 + 4, nDraw );
+	g_Frame.Store( g_nMeshletInstances + nSlot * InstanceRecord_Size + InstanceRecord_Transform, nTransform );
+	g_Frame.Store( g_nMeshletInstances + nSlot * InstanceRecord_Size + InstanceRecord_Draw, nDraw );
 
 	uint nCommand = g_nMeshletCommands + nSlot * 20;
 	g_Frame.Store( nCommand, nIndexCount );
@@ -178,9 +179,10 @@ void Copy( uint nJob, uint nThread )
 	float3x4 mTransform = g_TransformData[ nTransform ].transform;
 	uint nVertexBase = g_Frame.Load( nEntry + 8 );
 	uint nFragment = g_Frame.Load( nEntry + 28 );
-	uint4 vDraw = g_bindless_VertexBuffers[ g_nMeshletDraws ].Load4( nDrawRecord * 32 + 16 );
-	uint4 vDrawHead = g_bindless_VertexBuffers[ g_nMeshletDraws ].Load4( nDrawRecord * 32 );
-	bool b32 = ( vDrawHead.w & 2 ) != 0;
+	ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nMeshletDraws ];
+	uint nDrawAt = nDrawRecord * DrawRecord_Size;
+	uint4 vDraw = uint4( draws.Load( nDrawAt + DrawRecord_FirstIndex ), draws.Load( nDrawAt + DrawRecord_IndexCount ), draws.Load( nDrawAt + DrawRecord_BaseVertex ), draws.Load( nDrawAt + DrawRecord_IndexPage ) );
+	bool b32 = ( draws.Load( nDrawAt + DrawRecord_Flags ) & 2 ) != 0;
 	uint nPage = vDraw.w | ( b32 ? 0x80000000u : 0 );
 	bool bWhole = false;
 	MeshletView view = View();
