@@ -12,7 +12,8 @@ namespace Sandbox;
 internal abstract class RenderBackend
 {
 	/// <summary>
-	/// The process's device: Source 2's, or a Borealis.Gpu device's with <c>-borealisgpu</c> (<see cref="Graphics.Initialize"/>).
+	/// The process's device: a Borealis.Gpu device's with <c>-borealisgpu</c>, Source 2's where it's a real one, else none
+	/// (<see cref="HeadlessRenderBackend"/>). Set by <see cref="Graphics.Initialize"/>.
 	/// </summary>
 	public static RenderBackend Default { get; private set; } = Source2RenderBackend.Instance;
 

@@ -37,6 +37,9 @@ public static partial class Graphics
 		HasSource2Device = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
 		IsAvailable = HasSource2Device || borealisGpu;
 
+		// Nothing to draw on: buffers keep their bytes and textures read back from their files (HeadlessRenderBackend)
+		if ( !IsAvailable && RenderBackend.Default is Source2RenderBackend ) RenderBackend.SetDefault( HeadlessRenderBackend.Instance );
+
 		// -borealisgpu: the process draws on a Borealis.Gpu device of its own (docs/reference/borealis-gpu-path.md, stage 2)
 		if ( IsAvailable && borealisGpu && RenderBackend.Default is Source2RenderBackend )
 		{

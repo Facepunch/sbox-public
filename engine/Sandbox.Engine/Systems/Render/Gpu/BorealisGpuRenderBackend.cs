@@ -344,7 +344,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// Where the game's or the menu's mounted files have a compiled file on disk: a game package's models, materials,
 	/// textures and shaders, which are named by their hash in the download cache.
 	/// </summary>
-	static string MountedFile( string path )
+	internal static string MountedFile( string path )
 	{
 		foreach ( var context in (Sandbox.Engine.GlobalContext[])[Sandbox.Engine.GlobalContext.Game, Sandbox.Engine.GlobalContext.Menu] )
 		{
@@ -2172,7 +2172,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>The engine form of a backing's format, for converting what's read back, or null.</summary>
-	static ImageFormat? ImageFormatOf( GpuFormat format ) => format.Linear() switch
+	internal static ImageFormat? ImageFormatOf( GpuFormat format ) => format.Linear() switch
 	{
 		GpuFormat.RGBA8Unorm => ImageFormat.RGBA8888,
 		GpuFormat.BGRA8Unorm => ImageFormat.BGRA8888,
