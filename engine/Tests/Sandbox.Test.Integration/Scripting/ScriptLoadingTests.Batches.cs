@@ -87,7 +87,7 @@ public partial class ScriptLoadingTests
 		Assert.IsTrue( scripting.LoadFile( "edit.csx", original ).Success );
 		reloadRoots = [scripting.Run<object>( "return new Editable { Saved = 42 };" )];
 
-		void Interrupt() => throw new InvalidOperationException( "Interrupted before migration" );
+		static void Interrupt() => throw new InvalidOperationException( "Interrupted before migration" );
 		scriptPackageLoader.HotloadManager.PreSwap += Interrupt;
 		try
 		{
