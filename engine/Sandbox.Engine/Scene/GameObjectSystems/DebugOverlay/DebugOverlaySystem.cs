@@ -62,6 +62,7 @@ public sealed partial class DebugOverlaySystem : GameObjectSystem<DebugOverlaySy
 	{
 		RemoveExpired();
 		RemoveSingleFrame( false );
+		DrawNativeVisualizers();
 	}
 
 	void StartFixedUpdate()

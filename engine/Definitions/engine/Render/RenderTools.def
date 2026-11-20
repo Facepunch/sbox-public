@@ -15,6 +15,9 @@ native static class RenderTools as NativeEngine.RenderTools
 	int GetAggregateFragments( CSceneObject sceneObject, void* pOut, int nMaxFragments );
 	int GetLightProbeVolumeHandshake( CSceneObject sceneObject );
 
+	// The engine's debug visualizers as lines and labels for Borealis to draw (native views drew them before)
+	int GetDebugVisualizers( void* pLines, int nMaxLines, void* pTexts, int nMaxTexts, CastTo[int*] void* pTextCount );
+
 	// The resource a texture was loaded from, or empty for one made at run time
 	inline string GetTextureResourceName( ITexture texture )
 	{

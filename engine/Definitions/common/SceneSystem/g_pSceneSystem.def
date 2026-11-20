@@ -105,11 +105,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     bool WaitForRenderingToComplete();
     bool IsRenderingBusy();
 
-    inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject )
-    {
-        g_pSceneSystem->SetupPerObjectLighting( *renderAttributes, pSceneObject, nullptr );
-    }
-
     inline CSceneLightObject CreatePointLight( ISceneWorld pWorld )
     {
         LightDesc_t desc;
@@ -183,12 +178,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 	int AllocatePipelineTextureIndices();
 	void SetPipelineTextureIndex( int nViewOffset, int nSlot, int nBindlessIndex );
 	void UpdateGlobalPerFrameDescriptorBindings();
-
-	// Per-view static descriptor sets (g_viewSet) for a renderer that fills its own views: see docs/reference/borealis-static-descriptor-sets.md
-	RenderDescriptorSetHandle_t AcquireViewDescriptorSet();
-	void ReleaseViewDescriptorSet( RenderDescriptorSetHandle_t hSet );
-	void FillViewDescriptorSet( RenderDescriptorSetHandle_t hSet, CRenderAttributes pAttributes, CRenderAttributes pFallback );
-	void SetViewEnvironment( IRenderContext pRenderContext, CRenderAttributes pAttributes );
 
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
