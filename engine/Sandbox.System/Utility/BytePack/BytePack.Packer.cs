@@ -38,6 +38,27 @@ internal partial class BytePack
 			throw new NotImplementedException();
 		}
 
+		/// <summary>
+		/// A collection's element count, which can't be more than the bytes left to hold them.
+		/// </summary>
+		protected static int ReadCount( ref ByteStream bs, int elementSize = 1 )
+		{
+			var count = bs.Read<int>();
+			if ( count < 0 || (long)count * elementSize > bs.ReadRemaining )
+				throw new System.IO.InvalidDataException( $"Collection of {count} elements doesn't fit in {bs.ReadRemaining} bytes" );
+
+			return count;
+		}
+
+		/// <summary>
+		/// Some types read no bytes at all, so a hostile count would keep making them after the data ends.
+		/// </summary>
+		protected static void AssertAdvanced( ref ByteStream bs, int position )
+		{
+			if ( bs.Position == position )
+				throw new System.IO.InvalidDataException( "Collection element read no data" );
+		}
+
 		public virtual void WriteTypeIdentifier( ref ByteStream bs, Type targetType )
 		{
 			bs.Write( Header );
