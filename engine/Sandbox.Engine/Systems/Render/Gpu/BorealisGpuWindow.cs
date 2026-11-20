@@ -156,7 +156,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 		if ( pixelSize != Size ) swapChain.Resize( (int)pixelSize.x, (int)pixelSize.y );
 		Size = pixelSize;
 		target?.Dispose();
-		target = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( (int)pixelSize.x, (int)pixelSize.y ).WithFormat( ImageFormat.RGBA8888 ), "Borealis.Gpu window" );
+		target = Texture.CreateRenderTarget().WithSize( (int)pixelSize.x, (int)pixelSize.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu window" );
 		return true;
 	}
 

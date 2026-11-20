@@ -49,11 +49,7 @@ public sealed partial class RenderTarget
 		if ( msaa == MultisampleAmount.MultisampleScreen )
 			msaa = Graphics.IsActive ? Graphics.IdealMsaaLevel : CSceneSystem.GetMainSwapChainMultisampleType().FromEngine();
 
-		// Drawn on Borealis.Gpu with Source 2's device kept beside it (the editor): Source 2's images of it are placeholders
-		// (Texture.CreateOnBorealisGpu), kept apart from targets Source 2 draws into (a native tool's views)
-		var onBorealisGpu = Graphics.HasSource2Device && Graphics.Backend is BorealisGpuRenderBackend;
-
-		int hash = HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa, targetName, HashCode.Combine( targetId, onBorealisGpu ) );
+		int hash = HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa, targetName, targetId );
 
 		RenderTarget rt = null;
 
@@ -75,8 +71,8 @@ public sealed partial class RenderTarget
 				bool realDepthFormat = depthFormat.IsDepthFormat();
 
 				var size = new Vector2( width, height );
-				var rtColor = colorFormat == ImageFormat.None ? null : Make( Texture.CreateRenderTarget().WithFormat( colorFormat ).WithMSAA( msaa ).WithSize( size ).WithMips( numMips ).WithUAVBinding(), $"__cache_color_{targetName}_{hash}", onBorealisGpu );
-				var rtDepth = depthFormat == ImageFormat.None ? null : Make( Texture.CreateRenderTarget().WithFormat( depthFormat ).WithMSAA( msaa ).WithSize( size ).WithMips( realDepthFormat ? 1 : numMips ).WithUAVBinding( !realDepthFormat ), $"__cache_depth_{targetName}_{hash}", onBorealisGpu );
+				var rtColor = colorFormat == ImageFormat.None ? null : Texture.CreateRenderTarget().WithFormat( colorFormat ).WithMSAA( msaa ).WithSize( size ).WithMips( numMips ).WithUAVBinding().Create( $"__cache_color_{targetName}_{hash}" );
+				var rtDepth = depthFormat == ImageFormat.None ? null : Texture.CreateRenderTarget().WithFormat( depthFormat ).WithMSAA( msaa ).WithSize( size ).WithMips( realDepthFormat ? 1 : numMips ).WithUAVBinding( !realDepthFormat ).Create( $"__cache_depth_{targetName}_{hash}" );
 
 				rt = new RenderTarget()
 				{
@@ -97,8 +93,6 @@ public sealed partial class RenderTarget
 
 		return rt;
 	}
-
-	static Texture Make( TextureBuilder builder, string name, bool onBorealisGpu ) => onBorealisGpu ? Texture.CreateOnBorealisGpu( builder, name ) : builder.Create( name );
 
 	internal static int CalculateMaxMipCount( int width, int height )
 	{

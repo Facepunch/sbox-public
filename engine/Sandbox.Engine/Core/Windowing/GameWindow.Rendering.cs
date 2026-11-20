@@ -20,9 +20,8 @@ internal sealed partial class GameWindow
 
 	/// <summary>
 	/// The frame gate: native's loop calls it after the frame's rendering has finished, and renders the next frame only if
-	/// it returns true. On Borealis.Gpu it presents the frame <see cref="Render"/> drew. Source 2's empty render device has
-	/// no work queued for a frame's end (it frees constant buffers at once, nothing posts render thread events and it
-	/// streams no textures), so only a real Source 2 device is told the frame ended.
+	/// it returns true. On Borealis.Gpu it presents the frame <see cref="Render"/> drew. Source 2's device there is the empty
+	/// one, which has no work queued for a frame's end, so it isn't told the frame ended.
 	/// </summary>
 	internal static bool Present()
 	{
@@ -33,7 +32,6 @@ internal sealed partial class GameWindow
 		{
 			game.borealis.PresentFrame();
 			game.UpdateBorealisGpuTitle();
-			if ( Graphics.HasSource2Device ) g_pRenderDevice.Present( default );
 		}
 
 		return true;

@@ -215,7 +215,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			if ( temporalDepth is null || temporalDepth.Width != RenderSize.x || temporalDepth.Height != RenderSize.y )
 			{
 				temporalDepth?.Dispose();
-				temporalDepth = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( RenderSize.x, RenderSize.y ).WithFormat( ImageFormat.D32 ), "Borealis.Gpu upscaler depth" );
+				temporalDepth = Texture.CreateRenderTarget().WithSize( RenderSize.x, RenderSize.y ).WithFormat( ImageFormat.D32 ).Create( "Borealis.Gpu upscaler depth" );
 			}
 
 			if ( temporalDepthTarget is null || temporalDepthTarget.ColorTarget != motionVectors || temporalDepthTarget.DepthTarget != temporalDepth )
@@ -246,14 +246,14 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	{
 		if ( existing is not null && existing.Width == size.x && existing.Height == size.y ) return existing;
 		existing?.Dispose();
-		return Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( format ).WithUAVBinding(), name );
+		return Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( format ).WithUAVBinding().Create( name );
 	}
 
 	static Texture DepthTarget( Texture existing, Vector2Int size, string name )
 	{
 		if ( existing is not null && existing.Width == size.x && existing.Height == size.y ) return existing;
 		existing?.Dispose();
-		return Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithDepthFormat(), name );
+		return Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithDepthFormat().Create( name );
 	}
 
 	/// <summary>

@@ -29,7 +29,7 @@ public class BorealisGpuStageDepthRangeTest
 		using var depth = borealis.Services.CreateTexture( TextureDesc.Target( size, size, TextureFormat.D32FS8, samples ), "stage depth" );
 		using var resolved = samples > 1 ? borealis.Services.CreateTexture( TextureDesc.Target( size, size, TextureFormat.RGBA16161616F ), "stage resolved" ) : null;
 		using var target = new ViewTarget( color, depth, resolved );
-		using var own = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( size, size ).WithFormat( ImageFormat.RGBA8888 ), "stage's own target" );
+		using var own = Texture.CreateRenderTarget().WithSize( size, size ).WithFormat( ImageFormat.RGBA8888 ).Create( "stage's own target" );
 		using var ownTarget = RenderTarget.From( own );
 
 		var constants = new GpuViewConstants { ViewportMinZ = 0.02f, ViewportMaxZ = 1.0f };

@@ -73,13 +73,6 @@ public partial class GpuBuffer : IValid, IDisposable
 	RenderBufferHandle_t pendingDestroy;
 
 	/// <summary>
-	/// Whether a write outside a block also updates Source 2's copy while another device draws and Source 2's is kept
-	/// beside it (the editor on Borealis.Gpu): native's views may read the buffer. Off for buffers only the drawing device
-	/// reads, such as the UI's instance tables, which then skip a native upload per write.
-	/// </summary>
-	internal bool CopiesToSource2 { get; set; } = true;
-
-	/// <summary>
 	/// Number of elements in the buffer.
 	/// </summary>
 	public int ElementCount { get; private set; }
@@ -417,11 +410,6 @@ public partial class GpuBuffer : IValid, IDisposable
 		fixed ( byte* dataPtr = data )
 		{
 			Graphics.Backend.SetBufferData( this, (IntPtr)dataPtr, data.Length, elementOffset );
-
-			// With Source 2's device kept beside another (the editor), a write outside a block keeps Source 2's copy current
-			// too: native's views read it (a native tool's, a bake's captures)
-			if ( CopiesToSource2 && Graphics.HasSource2Device && !Graphics.IsActive && Graphics.Backend is not Source2RenderBackend && native != IntPtr.Zero )
-				Source2RenderBackend.Instance.SetBufferData( this, (IntPtr)dataPtr, data.Length, elementOffset );
 		}
 	}
 
