@@ -32,6 +32,7 @@ public static class OfflineShaders
 		}
 
 		SlangCompiler.CompileThreads = Environment.ProcessorCount;
+		if ( UpdateRecords( game, log ) != 0 ) return 1;
 		var roots = ContentFiles.FindGame().Roots;
 		var library = Path.Combine( shaders, "sbox" ) + Path.DirectorySeparatorChar;
 		var sources = roots.Select( r => Path.Combine( r, "shaders" ) ).Prepend( shaders ).Distinct( StringComparer.OrdinalIgnoreCase ).Where( Directory.Exists )
@@ -59,5 +60,27 @@ public static class OfflineShaders
 		var failed = results.Count( r => r == OfflineResult.Failed );
 		log?.Invoke( $"Slang offline: {results.Count( r => r == OfflineResult.Compiled )} compiled, {results.Count( r => r == OfflineResult.UpToDate )} up to date, {failed} failed, {results.Count( r => r == OfflineResult.Skipped )} not shaders, in {clock.Elapsed.TotalSeconds:F0} s" );
 		return failed;
+	}
+
+	/// <summary>
+	/// Make what the record definitions (<see cref="RecordDefinitions.File"/> in the core shaders) generate, where it isn't
+	/// current: <see cref="RecordWriter.HlslFile"/> beside them and, in a source tree, <see cref="RecordWriter.CSharpFile"/>
+	/// (whose change takes with the next managed build). Returns 0 on success.
+	/// </summary>
+	public static int UpdateRecords( string game, Action<string> log )
+	{
+		var shaders = Path.Combine( game, "core", "shaders" );
+		try
+		{
+			var definitions = new SlangCompiler( EngineFolders.NativeIn( game ), [shaders] ).ReflectRecords();
+			foreach ( var file in RecordWriter.Update( definitions, Path.Combine( game, "..", "engine" ), shaders ) )
+				log?.Invoke( $"Records: wrote {Path.GetFullPath( file )}" );
+			return 0;
+		}
+		catch ( ShaderCompileException e )
+		{
+			log?.Invoke( $"Records: {e.Message}" );
+			return 1;
+		}
 	}
 }

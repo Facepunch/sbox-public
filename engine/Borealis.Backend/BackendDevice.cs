@@ -495,6 +495,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Gpu = gpu;
 		SurfacePassBindings = !HasSwitch( "-no-pass-bindings" );
 		Content = content ?? ContentFiles.FindGame();
+		CheckRecords( Content );
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
 		SlangPasses = SlangPassesByDefault;
@@ -514,6 +515,26 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			GpuDrivenGeometry = true;
 			GpuDriven = true;
 		}
+	}
+
+	/// <summary>
+	/// Throw when the core shaders' record definitions (<c>sbox/records.slangh</c>) or the offsets made from them
+	/// (<c>borealis_records.fxc</c>) aren't what this build's record structs (Records.g.cs) were generated from: the
+	/// backend would write records its shaders read at other offsets, which reads garbage on the GPU or loses the device.
+	/// Nothing where the content has no definitions.
+	/// </summary>
+	internal static void CheckRecords( ContentFiles content )
+	{
+		var core = content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", Sandbox.ShaderCompiler.RecordDefinitions.File ) ) );
+		if ( core is null ) return;
+
+		var shaders = Path.Combine( core, "shaders" );
+		var definitions = Sandbox.ShaderCompiler.RecordDefinitions.HashOf( File.ReadAllText( Path.Combine( shaders, Sandbox.ShaderCompiler.RecordDefinitions.File ) ) );
+		var header = Path.Combine( shaders, Sandbox.ShaderCompiler.RecordWriter.HlslFile );
+		string problem = null;
+		if ( definitions != RecordDefinitionsHash.Value ) problem = $"{Sandbox.ShaderCompiler.RecordDefinitions.File} (hash {definitions}) isn't what this build's record structs were generated from ({RecordDefinitionsHash.Value})";
+		else if ( !File.Exists( header ) || !File.ReadAllText( header ).Contains( $"Definitions hash {definitions}.", StringComparison.Ordinal ) ) problem = $"{Sandbox.ShaderCompiler.RecordWriter.HlslFile} wasn't generated from {Sandbox.ShaderCompiler.RecordDefinitions.File}";
+		if ( problem is not null ) throw new InvalidOperationException( $"Borealis records: {problem}. Run ShaderCompiler -records in the game folder (build-shaders does), then build managed." );
 	}
 
 	/// <summary>
@@ -722,7 +743,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Shaders.GpuDrivenCache = Path.Combine( game, ".source2", "borealisgpudriven" );
 		// The variant's form, the wrapper it appends and the vfx_vulkan that rewrites it: a stale variant from an older
 		// rewriter, whose record offsets may not be the ones the backend writes, can read a bindless index out of range
-		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "borealis_gpu_driven.fxc" ) ) ), 0, 8 );
+		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "borealis_gpu_driven.fxc" ) ) ), 0, 8 ) + RecordDefinitionsHash.Value[..8];
 		var vfx = new FileInfo( Path.Combine( AppContext.BaseDirectory, "..", EngineFolders.Native, EngineFolders.Library( "vfx_vulkan" ) ) );
 		var rewriter = vfx.Exists ? $".{vfx.Length:x}.{vfx.LastWriteTimeUtc.Ticks:x}" : "";
 		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}{rewriter}";
