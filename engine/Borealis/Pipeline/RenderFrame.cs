@@ -230,7 +230,7 @@ internal sealed class RenderFrame
 		var stageColor = !color ? null : final ? rc.OutputColor( output, out srgbWrite ) : target.Color;
 
 		// Retain HDR depth only when output sample counts match; resolved textures have one sample.
-		var samples = final && ((output.Texture is not null && output.Scratch is null) || (!output.HasCopy && target.Samples > 1)) ? 1 : target.Samples;
+		var samples = final && ((output.Texture is not null && output.Scratch is null) || (output.Texture is null && target.Samples > 1)) ? 1 : target.Samples;
 
 		return new StageTarget
 		{
@@ -246,7 +246,7 @@ internal sealed class RenderFrame
 			Viewport = View.Viewport,
 			MinZ = DepthMin,
 			MaxZ = DepthMax,
-			ColorFormat = final && output.Texture is { } texture ? texture.Format : final && output.HasCopy ? TextureFormat.RGBA8888 : target.Color.Format,
+			ColorFormat = final && output.Texture is { } texture ? texture.Format : target.Color.Format,
 			Samples = samples,
 		};
 	}

@@ -242,7 +242,7 @@ public class BackendTests : GpuTest
 			Assert.AreEqual( viewSet, segment.Lend().BoundViewSet, "the segment's lent list binds the frame's view set" );
 
 			frame.Submit();
-			segment.SubmitNext();
+			segment.Submit();
 		}
 		finally
 		{

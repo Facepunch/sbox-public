@@ -38,4 +38,21 @@ internal sealed class HeadlessRenderHost : Borealis.RenderHost
 	public static Borealis.DebugViews Views { get; set; }
 
 	public override Borealis.DebugViews DebugViews => Views;
+
+	/// <summary>
+	/// Whether frames drawn into a window describe themselves (<see cref="WantsFramePlan"/>), for the tests of it, which are
+	/// [DoNotParallelize] and turn it off after.
+	/// </summary>
+	public static bool WantsPlans { get; set; }
+
+	/// <summary>The last frame plan and debug views' report a frame drawn into a window published.</summary>
+	public static Borealis.FramePlan LastPlan { get; set; }
+
+	public static Borealis.DebugViewReport LastReport { get; set; }
+
+	public override bool WantsFramePlan => WantsPlans;
+
+	public override void PublishFramePlan( Borealis.FramePlan plan ) => LastPlan = plan;
+
+	public override void PublishDebugViews( Borealis.DebugViewReport report ) => LastReport = report;
 }

@@ -207,9 +207,7 @@ internal sealed partial class BackendContext : GpuContext
 		CensusBegin();
 	}
 
-	public override void Submit( GpuSwapChain swapChain = default ) => SubmitNext();
-
-	public override void SubmitNext()
+	public override void Submit()
 	{
 		if ( recording is null ) return;
 		if ( Census ) CensusScope( null, pop: false );
@@ -1295,7 +1293,7 @@ internal sealed partial class BackendContext : GpuContext
 		List.CopyTextureRegion( from.Handle, to.Handle, sourceX, sourceY, destinationX, destinationY, width, height );
 	}
 
-	public override void CopyToSwapChain( in RenderOutput output, Rect viewport )
+	public override void CopyToOutput( in RenderOutput output, Rect viewport )
 	{
 		// Only texture outputs: windows present what a ViewTarget holds themselves (BackendDevice.Unwrap)
 		if ( recording is null || output.Texture is not BackendTexture texture || output.Target?.Resolved is not BackendTexture source ) return;
