@@ -97,8 +97,8 @@ internal sealed class ManagedRenderAttributes
 	readonly Dictionary<uint, Entry<object>> values = new();
 	readonly Dictionary<uint, Entry<int>> combos = new();
 
-	// Arrays and texture boxes that cleared or replaced values left, by token, reused when the token is set again; boxes
-	// (which hold their texture) only until the next clear
+	// Arrays that cleared or replaced values left, by token, reused when the token is set again. Not texture boxes: they're
+	// shared per texture (WholeTextures, MipValue), and one kept here would hold its texture past the set's clear
 	readonly Dictionary<uint, object> spare = new();
 
 	// Constant buffer bytes set without a copy (SetShared): the caller's, never written or reused here
@@ -163,7 +163,6 @@ internal sealed class ManagedRenderAttributes
 		var value = new TextureValue( texture, mip );
 		object boxed;
 		if ( values.TryGetValue( k.Value, out var current ) && current.Value is TextureValue now && now == value ) boxed = current.Value;
-		else if ( spare.Remove( k.Value, out var old ) && old is TextureValue left && left == value ) boxed = old;
 		else if ( mip < 0 ) boxed = WholeTextures.GetValue( texture, static t => new TextureValue( t, -1 ) );
 		else boxed = MipValue( texture, mip );
 
@@ -250,12 +249,6 @@ internal sealed class ManagedRenderAttributes
 
 	public void Clear()
 	{
-		// Boxes left at the last clear and not taken since go, so they don't keep their textures
-		foreach ( var (k, old) in spare )
-		{
-			if ( old is TextureValue ) spare.Remove( k );
-		}
-
 		foreach ( var (k, entry) in values ) Keep( k, entry.Value );
 		values.Clear();
 		combos.Clear();
@@ -319,10 +312,10 @@ internal sealed class ManagedRenderAttributes
 		entry.Stamp = stamp;
 	}
 
-	// A value this set made (numbers' and copied bytes' arrays, texture boxes) waits to be reused for its token
+	// An array this set made (numbers', copied bytes') waits to be reused for its token
 	void Keep( uint k, object old )
 	{
-		if ( old is float[] or TextureValue || (old is byte[] && !borrowed.Contains( k )) ) spare[k] = old;
+		if ( old is float[] || (old is byte[] && !borrowed.Contains( k )) ) spare[k] = old;
 	}
 
 	bool Owns( uint k, object value ) => value is not byte[] || !borrowed.Contains( k );
