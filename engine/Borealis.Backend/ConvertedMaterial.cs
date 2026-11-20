@@ -57,6 +57,41 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		return found;
 	}
 
+	/// <summary>Every texture field nothing has set takes <paramref name="texture"/>: a material made in code, as native makes one.</summary>
+	public void FillUnsetTextures( GpuTexture texture )
+	{
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.Kind == MaterialFieldKind.Texture2D && GetTexture( field.Offset ) is null ) SetTexture( field.Offset, texture, field.Srgb );
+		}
+	}
+
+	IReadOnlyDictionary<string, int> featuresSet;
+
+	/// <summary>
+	/// Feature values (<c>F_*</c>) set in code over the material's own, as <c>Material.SetFeature</c> does: every feature
+	/// code set, so one no longer set goes back to the material's value (its file's, else off). The surface's
+	/// fields whose <c>[Source]</c> is the feature take it; features it has no field for change nothing.
+	/// </summary>
+	public void SetFeatures( IReadOnlyDictionary<string, int> features )
+	{
+		Span<float> one = stackalloc float[1];
+		foreach ( var (name, _) in featuresSet ?? new Dictionary<string, int>() )
+		{
+			if ( features is not null && features.ContainsKey( name ) ) continue;
+			one[0] = File?.Value( name ) is { Length: > 0 } v ? v[0] : 0;
+			Set( name, one );
+		}
+
+		foreach ( var (name, value) in features ?? new Dictionary<string, int>() )
+		{
+			one[0] = value;
+			Set( name, one );
+		}
+
+		featuresSet = features is { Count: > 0 } ? new Dictionary<string, int>( features, StringComparer.OrdinalIgnoreCase ) : null;
+	}
+
 	static bool Fills( MaterialField field, string variable )
 	{
 		if ( field.Source is { } source ) return string.Equals( source, variable, StringComparison.OrdinalIgnoreCase );
@@ -65,7 +100,24 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 			if ( variable.Length == prefix.Length + field.Name.Length && variable.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) && variable.EndsWith( field.Name, StringComparison.OrdinalIgnoreCase ) ) return true;
 		}
 
-		return false;
+		return field.Kind == MaterialFieldKind.Texture2D && Numbered( field, variable );
+	}
+
+	/// <summary>
+	/// Whether a texture variable is a numbered variant of a texture field's (<c>g_tColor2</c> for <c>Color</c>): the same
+	/// texture made another way (vr_shared_standard_ps_code.fxc's, which vertex_color's materials name), as the material
+	/// compiler's inputs take it (<see cref="MaterialInputs"/>).
+	/// </summary>
+	static bool Numbered( MaterialField field, string variable )
+	{
+		var stem = "g_t" + field.Name;
+		if ( variable.Length <= stem.Length || !variable.StartsWith( stem, StringComparison.OrdinalIgnoreCase ) ) return false;
+		for ( int i = stem.Length; i < variable.Length; i++ )
+		{
+			if ( !char.IsAsciiDigit( variable[i] ) ) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>The compiled material it was made from: the textures it names by shader variable, read or not.</summary>
@@ -149,6 +201,12 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		foreach ( var prefix in Prefixes )
 		{
 			if ( textures.TryGetValue( prefix + field.Name, out var texture ) ) return texture;
+		}
+
+		// A numbered variant of it (g_tColor2), where the material's shader declared that one
+		foreach ( var (variable, texture) in textures )
+		{
+			if ( Numbered( field, variable ) ) return texture;
 		}
 
 		return null;

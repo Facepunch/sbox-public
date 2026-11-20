@@ -1635,83 +1635,32 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>
 	/// What a draw with <paramref name="material"/> draws with: its shader (prepared as <see cref="Prepare"/> does), or, for a
 	/// material whose shader has no compiled <c>.shader</c> (one a surface alone stands for: standard, and complex for it;
-	/// skin, glass), the surface material its scene draws use, with what code set on it. Throws as <see cref="Require"/> when
-	/// it has neither.
+	/// skin, glass), the surface material its scene draws use, with what code set on it. A surface's module where the
+	/// <c>.shader_c</c> would be (<c>vertex_color.slang</c>) describes a shader with no stages to draw: that's a surface alone
+	/// too. Throws as <see cref="Require"/> when it has neither.
 	/// </summary>
 	(ShaderFile Shader, SurfaceMaterial Surface) PrepareDraw( Material material )
 	{
-		if ( ShaderOf( material ) is null && SurfaceOf( material ) is { } surface ) return (null, surface);
+		if ( ShaderOf( material ) is not { } shader || shader[global::Borealis.Source2.Shaders.ShaderProgramType.Vertex] is null )
+		{
+			if ( SurfaceOf( material ) is { } surface ) return (null, surface);
+		}
+
 		return (Prepare( material ), null);
 	}
 
-	// A material's surface material, the version of what code set on it that it has, and whether it's the material's own copy
-	sealed class SurfaceBacking
-	{
-		public Borealis.GpuMaterial Material;
-		public int Version;
-		public bool Own;
-	}
-
-	readonly ConditionalWeakTable<Material, SurfaceBacking> surfaceMaterials = new();
+	/// <summary>
+	/// The material the scene draws for an engine material on this device (<c>MirrorContent.Material</c>: its compiled file,
+	/// or for one made or changed in code a material of its own with what code set on it, following later sets). Null when
+	/// the scene has none on this device. Set by Sandbox.Rendering.
+	/// </summary>
+	internal static Func<BorealisGpuRenderBackend, Material, global::Borealis.GpuMaterial> SceneMaterial { get; set; }
 
 	/// <summary>
-	/// The surface a material's draws use where its shader is a surface alone: its compiled file's as the scene loads it, a
-	/// copy of its own once code set values or textures on it (<see cref="Material.SetInCode"/>), or for one made in code from
-	/// a shader (<see cref="Material.MadeFromShader"/>) the surface with its defaults and those. Null when it isn't one.
+	/// The surface a material's draws use where its shader is a surface alone: the very material the scene draws it with
+	/// (<see cref="SceneMaterial"/>), so code's values, textures and features reach both alike. Null when it isn't one.
 	/// </summary>
-	SurfaceMaterial SurfaceOf( Material material )
-	{
-		if ( material is null ) return null;
-		if ( surfaceMaterials.TryGetValue( material, out var known ) )
-		{
-			if ( known.Version == material.SetInCodeVersion ) return known.Material as SurfaceMaterial;
-
-			// Code set more on it since: its own copy takes the new values, made now if it was the shared one
-			if ( !known.Own && known.Material is SurfaceMaterial && material.FilePath is { Length: > 0 } shared )
-			{
-				known.Material = services.LoadMaterial( shared, (IReadOnlyDictionary<string, float[]>)null, $"{shared} (set in code)" );
-				known.Own = true;
-			}
-
-			if ( known.Own && known.Material is ConvertedMaterial copied && material.SetInCode is { } changed ) SetOnSurface( copied, changed );
-			known.Version = material.SetInCodeVersion;
-			return known.Material as SurfaceMaterial;
-		}
-
-		Borealis.GpuMaterial made = null;
-		var own = false;
-		var path = material.FilePath;
-		var set = material.SetInCode is { Count: > 0 } s ? s : null;
-		if ( material.MadeFromShader is { } shader )
-		{
-			made = ((Borealis.GpuDevice)services).CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) );
-			own = true;
-		}
-		else if ( !string.IsNullOrEmpty( path ) && files.Find( path ) is not null )
-		{
-			own = set is not null;
-			made = own ? services.LoadMaterial( path, (IReadOnlyDictionary<string, float[]>)null, $"{path} (set in code)" ) : services.LoadMaterial( path );
-		}
-
-		if ( own && made is ConvertedMaterial copy && set is not null ) SetOnSurface( copy, set );
-		surfaceMaterials.AddOrUpdate( material, new SurfaceBacking { Material = made, Version = material.SetInCodeVersion, Own = own } );
-		return made as SurfaceMaterial;
-	}
-
-	/// <summary>Values and textures set on a material in code, on its own surface copy, by the shader variables they name.</summary>
-	void SetOnSurface( ConvertedMaterial surface, IReadOnlyDictionary<string, object> set )
-	{
-		Span<float> value = stackalloc float[4];
-		foreach ( var (name, given) in set )
-		{
-			if ( given is Vector4 v )
-			{
-				(value[0], value[1], value[2], value[3]) = (v.x, v.y, v.z, v.w);
-				surface.Set( name, value );
-			}
-			else if ( given is Texture { IsValid: true } texture ) surface.Set( name, BorealisViewOf( texture ) );
-		}
-	}
+	SurfaceMaterial SurfaceOf( Material material ) => material is null ? null : SceneMaterial?.Invoke( this, material ) as SurfaceMaterial;
 
 	/// <summary>Draw with materials' compiled values (the default); off draws their shaders' defaults, for comparisons.</summary>
 	internal static bool MaterialValues { get; set; } = true;

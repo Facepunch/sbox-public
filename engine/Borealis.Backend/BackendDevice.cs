@@ -1672,6 +1672,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuMaterial CreateRawMaterial( string name, string shaderPath )
 	{
 		var shader = Shaders.Load( shaderPath );
+
+		// A shader that's a surface alone (standard, complex for it; skin, glass): the surface with its defaults, every texture
+		// the error texture until code sets one, as its .shader's material had (no texture of theirs names a default)
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( shader is null && Surfaces.HasConversions && Converted( name, EmptyMaterial( shaderPath ), () => null ) is { } converted )
+		{
+			converted.FillUnsetTextures( ErrorTexture );
+			return converted;
+		}
+#pragma warning restore CA2000
+
 		return Track( new BackendMaterial( name, shader, null, RawMaterialTextures( shader ) ) );
 	}
 
@@ -1777,8 +1788,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures, string name = null )
 	{
-		var material = Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
-		SetOn( material, null, textures );
+		// A material of a shader that's a surface alone is the surface with them
+		var material = LoadMaterial( path, values, name );
+		SetOnMaterial( material, null, textures );
 		return material;
 	}
 
@@ -1790,6 +1802,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void SetOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
 	{
 		if ( material is BackendMaterial own ) SetOn( own, values, textures );
+		else if ( material is ConvertedMaterial surface )
+		{
+			foreach ( var (variable, value) in values ?? new Dictionary<string, float[]>() ) surface.Set( variable, value );
+			foreach ( var (variable, texture) in textures ?? new Dictionary<string, GpuTexture>() )
+			{
+				if ( texture is not null ) surface.Set( variable, texture );
+			}
+		}
 	}
 
 	/// <summary>
@@ -1801,6 +1821,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void SetFeaturesOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, int> features )
 	{
 		if ( material is BackendMaterial own ) own.SetFeatures( features );
+		else if ( material is ConvertedMaterial surface ) surface.SetFeatures( features );
 	}
 
 	static void SetOn( BackendMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
