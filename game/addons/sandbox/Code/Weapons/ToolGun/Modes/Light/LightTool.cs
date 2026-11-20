@@ -96,6 +96,7 @@ public sealed class LightTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void PlaceOrUpdate( SelectionPoint point, bool withRope, float length, string configuration, bool forceNew = false )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !point.IsValid() || !Player.IsValid() ) return;
 		var input = withRope ? ToolInput.Primary : ToolInput.Secondary;
 

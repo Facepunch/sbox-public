@@ -140,6 +140,7 @@ public sealed class InflatorTool : ToolMode
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
 	private void ResetScale( GameObject go )
 	{
+		if ( !CanTarget( go ) ) return;
 		if ( !go.IsValid() ) return;
 		if ( go.IsProxy ) return;
 		if ( !FireToolAction( ToolInput.Reload ) ) return;
@@ -152,6 +153,7 @@ public sealed class InflatorTool : ToolMode
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
 	private void Resize( GameObject go, float size )
 	{
+		if ( !CanTarget( go ) ) return;
 		if ( !go.IsValid() ) return;
 		if ( go.IsProxy ) return;
 		if ( !FireToolAction( size > 0 ? ToolInput.Primary : ToolInput.Secondary ) ) return;

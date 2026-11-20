@@ -64,6 +64,7 @@ public sealed class ButtonTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Spawn( SelectionPoint point, PrefabFile buttonPrefab, Transform transform, bool noWeld, string configuration )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( noWeld ? ToolInput.Secondary : ToolInput.Primary ) ) return;
 
 		if ( buttonPrefab?.GetScene() is not Scene scene ) return;

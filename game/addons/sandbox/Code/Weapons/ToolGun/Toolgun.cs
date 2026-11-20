@@ -115,6 +115,8 @@
 	[Rpc.Host]
 	public void SetToolMode( string name )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		var targetMode = Game.TypeLibrary.GetType<ToolMode>( name );
 		if ( targetMode == null )
 		{

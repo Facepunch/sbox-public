@@ -107,6 +107,7 @@ public sealed class WheelTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void SpawnWheel( SelectionPoint point, WheelDefinition def, Transform tx, string configuration )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( ToolInput.Primary ) ) return;
 
 		if ( def == null || def.Prefab?.GetScene() is not Scene scene ) return;

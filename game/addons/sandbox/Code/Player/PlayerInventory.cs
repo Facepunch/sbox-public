@@ -69,6 +69,8 @@ public sealed partial class PlayerInventory : BaseInventoryComponent, Local.IPla
 	[Rpc.Host]
 	private void HostSetToolMode( string toolModeName )
 	{
+		if ( Rpc.Caller != Network.Owner ) return;
+
 		SetToolMode( toolModeName );
 	}
 
@@ -350,6 +352,7 @@ public sealed partial class PlayerInventory : BaseInventoryComponent, Local.IPla
 	[Rpc.Host]
 	private void DropActiveWeapon()
 	{
+		if ( Rpc.Caller != Network.Owner ) return;
 		if ( !ActiveWeapon.IsValid() ) return;
 		Drop( ActiveWeapon );
 	}

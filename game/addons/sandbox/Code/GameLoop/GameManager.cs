@@ -345,12 +345,17 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static void ChangeProperty( Component c, string propertyName, object value )
 	{
 		if ( !c.IsValid() ) return;
+		if ( !c.GameObject.HasAccess( Rpc.Caller ) ) return;
+
+		// Players are never edited this way, not even by themselves (health, godmode)
+		if ( !Rpc.Caller.IsHost && c.GameObject.FindPlayer().IsValid() ) return;
 
 		var tl = TypeLibrary.GetType( c.GetType() );
 		if ( tl is null ) return;
 
 		var prop = tl.GetProperty( propertyName );
 		if ( prop is null ) return;
+		if ( !prop.HasAttribute<PropertyAttribute>() ) return;
 
 		prop.SetValue( c, value );
 
@@ -366,6 +371,7 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static async void ChangeMaterialOverride( ModelRenderer renderer, int materialIndex, string materialPath )
 	{
 		if ( !renderer.IsValid() ) return;
+		if ( !renderer.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		Material material = null;
 
@@ -389,6 +395,7 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static async void ChangeWholeMaterialOverride( ModelRenderer renderer, string materialPath )
 	{
 		if ( !renderer.IsValid() ) return;
+		if ( !renderer.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		Material material = null;
 
@@ -409,6 +416,7 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static void ChangeMaterialGroup( ModelRenderer renderer, string group )
 	{
 		if ( !renderer.IsValid() ) return;
+		if ( !renderer.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		renderer.MaterialGroup = group;
 
@@ -423,6 +431,7 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static void ChangeBodyGroup( ModelRenderer renderer, string partName, int choice )
 	{
 		if ( !renderer.IsValid() ) return;
+		if ( !renderer.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		// several objects can be selected at once, skip the ones whose model doesn't have this choice
 		var part = renderer.Model?.Parts.Get( partName );

@@ -406,6 +406,8 @@ public sealed class PlayerCarry : Component, Local.IPlayerEvents
 	[Rpc.Host]
 	void ThrowBody( Rigidbody body, Vector3 velocity )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		// Only what we accepted and are moving for them, not a pickup we refused or haven't got to yet
 		if ( !body.IsValid() || body.IsProxy || _simulated != body.GameObject ) return;
 

@@ -356,6 +356,8 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 	[Rpc.Host]
 	internal void EquipBestWeapon()
 	{
+		if ( Rpc.Caller != Network.Owner ) return;
+
 		var inventory = GetComponent<PlayerInventory>();
 
 		if ( inventory.IsValid() )

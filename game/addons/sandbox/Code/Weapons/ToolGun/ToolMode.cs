@@ -203,6 +203,10 @@
 	/// Fire <see cref="IToolActionEvents.OnToolAction"/> at the top of the host RPC that carries out an action,
 	/// so listeners can refuse it where it counts. Returns true if the action should proceed, false if cancelled.
 	/// </summary>
+	protected static bool CanTarget( GameObject go ) => !go.IsValid() || go.HasAccess( Rpc.Caller );
+
+	protected static bool CanTarget( SelectionPoint point ) => CanTarget( point.GameObject );
+
 	protected bool FireToolAction( ToolInput input )
 	{
 		_createdObjects.Clear();

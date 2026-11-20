@@ -468,6 +468,7 @@ internal sealed class SignalSystem : GameObjectSystem<SignalSystem>, IContextMen
 	private static void UnlinkRpc( Component source, string outputId, Component target, string inputId )
 	{
 		if ( !source.IsValid() || !target.IsValid() ) return;
+		if ( !source.GameObject.HasAccess( Rpc.Caller ) || !target.GameObject.HasAccess( Rpc.Caller ) ) return;
 		if ( !TryFindOutput( source, outputId, out var output ) || !TryFindInput( target, inputId, out var input ) ) return;
 
 		// Destroying the carrying pair disconnects the wire through ManualLink.OnDestroy.
@@ -689,6 +690,7 @@ internal sealed class SignalSystem : GameObjectSystem<SignalSystem>, IContextMen
 	private static void CreateLinkRpc( Component source, string outputId, Component target, string inputId )
 	{
 		if ( !source.IsValid() || !target.IsValid() ) return;
+		if ( !source.GameObject.HasAccess( Rpc.Caller ) || !target.GameObject.HasAccess( Rpc.Caller ) ) return;
 		if ( !TryFindOutput( source, outputId, out var output ) || !TryFindInput( target, inputId, out var input ) ) return;
 		if ( IsConnectedInternal( source, output, target, input ) ) return;
 
@@ -725,6 +727,7 @@ internal sealed class SignalSystem : GameObjectSystem<SignalSystem>, IContextMen
 	private static void SetConnectionRpc( Component source, string outputId, Component target, string inputId, bool connected )
 	{
 		if ( !source.IsValid() || !target.IsValid() ) return;
+		if ( !source.GameObject.HasAccess( Rpc.Caller ) || !target.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		// Wires can't leave the contraption.
 		var linked = new LinkedGameObjectBuilder();

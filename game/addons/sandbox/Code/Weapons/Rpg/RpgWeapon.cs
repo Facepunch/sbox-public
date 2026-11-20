@@ -94,6 +94,8 @@ public sealed class RpgWeapon : BaseSandboxWeapon
 	[Rpc.Host]
 	private void ToggleTrackedAim()
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		IsTrackedAim = !IsTrackedAim;
 	}
 
@@ -166,6 +168,8 @@ public sealed class RpgWeapon : BaseSandboxWeapon
 	[Rpc.Host]
 	void CreateProjectile( Vector3 start, Vector3 direction, float speed )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		var go = ProjectilePrefab?.Clone( start );
 
 		var projectile = go.GetComponent<RpgProjectile>();

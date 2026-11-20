@@ -126,6 +126,7 @@
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	private void Create( SelectionPoint point1, SelectionPoint point2, ToolInput input, string configuration )
 	{
+		if ( !CanTarget( point1 ) || !CanTarget( point2 ) ) return;
 		if ( !FireToolAction( input ) ) return;
 
 		if ( !UpdateValidity( point1, point2 ) )
@@ -145,6 +146,7 @@
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	private void RemoveConstraints( GameObject go )
 	{
+		if ( !CanTarget( go ) ) return;
 		if ( !FireToolAction( ToolInput.Reload ) ) return;
 
 		if ( !go.IsValid() ) return;

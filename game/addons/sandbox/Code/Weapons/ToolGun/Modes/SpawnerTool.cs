@@ -87,6 +87,8 @@ public sealed class SpawnerTool : ToolMode
 	[Rpc.Host]
 	private void ClearPayload()
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		SpawnerData = null;
 	}
 

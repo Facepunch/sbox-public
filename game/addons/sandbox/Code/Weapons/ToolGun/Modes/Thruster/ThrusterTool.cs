@@ -98,6 +98,7 @@ public sealed class ThrusterTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Spawn( SelectionPoint point, PrefabFile thrusterPrefab, Transform tx, bool noWeld, string configuration )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( noWeld ? ToolInput.Secondary : ToolInput.Primary ) ) return;
 
 		if ( thrusterPrefab == null )

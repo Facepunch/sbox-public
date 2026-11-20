@@ -43,6 +43,8 @@ public sealed class Mp5Weapon : BaseBulletWeapon
 	[Rpc.Host]
 	void LaunchGrenade( Vector3 start, Vector3 direction )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		if ( !GrenadePrefab.IsValid() )
 			return;
 

@@ -145,6 +145,8 @@ public sealed partial class DuplicatorTool : ToolMode
 	[Rpc.Host]
 	public void Load( string json )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		CopiedJson = json;
 	}
 
@@ -163,6 +165,8 @@ public sealed partial class DuplicatorTool : ToolMode
 	[Rpc.Host]
 	public void Copy( GameObject obj, Transform selectionAngle, bool additive )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		if ( !additive )
 			builder.Clear();
 
@@ -245,6 +249,8 @@ public sealed partial class DuplicatorTool : ToolMode
 	[Rpc.Host]
 	public async void Duplicate( Transform dest )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		if ( spawner is null )
 			return;
 

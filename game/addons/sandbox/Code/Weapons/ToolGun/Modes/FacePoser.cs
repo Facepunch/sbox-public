@@ -162,7 +162,7 @@ public sealed class FacePoser : ToolMode, ICustomSettingsSheet
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void ApplyPose( SkinnedModelRenderer face, ToolInput input, string json, bool reset )
 	{
-		if ( !CanPose( face ) || face.IsProxy || !FireToolAction( input ) ) return;
+		if ( !CanPose( face ) || face.IsProxy || !face.GameObject.HasAccess( Rpc.Caller ) || !FireToolAction( input ) ) return;
 		var weights = Json.Deserialize<Dictionary<string, float>>( json );
 		if ( weights is null || weights.Values.Any( v => !float.IsFinite( v ) ) ) return;
 		var supported = face.Morphs.Names.Where( n => reset || weights.ContainsKey( n ) )

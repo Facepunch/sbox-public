@@ -42,6 +42,7 @@ public sealed class RemoverTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Remove( GameObject go )
 	{
+		if ( !CanTarget( go ) ) return;
 		if ( !FireToolAction( ToolInput.Primary ) ) return;
 
 		go = go?.Network?.RootGameObject;

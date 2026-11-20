@@ -214,6 +214,8 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 	[Rpc.Host]
 	void DropGrenade()
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		if ( !Prefab.IsValid() ) return;
 
 		var go = Prefab.Clone( WorldPosition );
@@ -239,6 +241,8 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 	[Rpc.Host]
 	void SpawnProjectile( Player player, Vector3 startPos, Vector3 direction, float powerScale )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		if ( !player.IsValid() ) return;
 		if ( !Prefab.IsValid() ) return;
 
@@ -276,6 +280,8 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 	[Rpc.Host]
 	void ExplodeInHand()
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		// Spawn the explosion directly
 		Explosion.Spawn( new ExplosionEvent
 		{

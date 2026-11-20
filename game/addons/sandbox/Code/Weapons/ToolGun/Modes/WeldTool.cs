@@ -186,6 +186,7 @@ public sealed class WeldTool : BaseConstraintToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	private void CreateRotatedWeld( SelectionPoint point1, SelectionPoint point2, float angle )
 	{
+		if ( !CanTarget( point1 ) || !CanTarget( point2 ) ) return;
 		if ( !FireToolAction( ToolInput.Primary ) ) return;
 
 		if ( !point1.GameObject.IsValid() || !point2.GameObject.IsValid() )
