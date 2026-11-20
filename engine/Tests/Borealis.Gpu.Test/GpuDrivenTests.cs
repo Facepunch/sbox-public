@@ -687,6 +687,74 @@ public class GpuDrivenTests : GpuTest
 	}
 
 	/// <summary>
+	/// A render system disposed takes its views out of the resident cull's state (<see cref="GpuDevice.ReleaseView"/>): the
+	/// device keeps which calls each view drew, and with them the view's pass and what it last drew, until frames age them
+	/// out, which after the renderer has gone (at shutdown) never happens.
+	/// </summary>
+	[TestMethod]
+	public void DisposedRenderSystemLeavesNoViewsInTheResidentCull()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		if ( backend.ResidentCullShader is null ) Assert.Inconclusive( "borealis_resident_cull_cs isn't compiled" );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			var system = new RenderSystem { ParallelRecording = false };
+			try
+			{
+				using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Resident cull release test" );
+				var world = new RenderWorld();
+				world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+				world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+				world.Lighting.SunShadowCascades = 2;
+
+				var material = (BackendMaterial)backend.CreateMaterial( "Resident cull release boxes", new Color( 0.5f, 0.6f, 0.4f ) );
+				var (rowMesh, fragments) = Boxes( backend, material, -120 );
+				world.Add( new AggregateObject( rowMesh, fragments ) { IsStatic = true } );
+
+				var view = new RenderView { Name = "Resident cull release test", FieldOfView = 70, ZNear = 4, ZFar = 4000, Viewport = new Rect( 0, 0, Width, Height ) };
+				view.Position = new Vector3( -400, 0, 200 );
+				view.Rotation = Rotation.LookAt( new Vector3( 1, 0, -0.15f ) );
+
+				void Frame( bool cull )
+				{
+					backend.GpuDrivenResidentCull = cull;
+					backend.BeginFrame();
+					RenderHost.Current.NextFrame();
+					system.Render( world, view, target );
+					Device.WaitIdle();
+				}
+
+				// Each call culling its own until its plans are kept, then the resident cull until calls draw from it
+				for ( int i = 0; i < 3; i++ ) Frame( false );
+				for ( int i = 0; i < 4 && backend.ResidentCullCalls == 0; i++ ) Frame( true );
+				Frame( true );
+				Assert.IsTrue( backend.ResidentCullCalls > 0, "calls drew from the resident cull" );
+				Assert.IsTrue( backend.ResidentCulls.HeldViews >= 2, $"it kept the main view and a cascade ({backend.ResidentCulls.HeldViews})" );
+			}
+			finally
+			{
+				system.Dispose();
+			}
+
+			Assert.AreEqual( 0, backend.ResidentCulls.HeldViews, "the disposed system's views are gone from the resident cull" );
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// The sun's far cascade cache takes resident casters that aren't static by when each last moved,
 	/// on the GPU (<see cref="GpuContext.ResidentFilter"/>): its lists hold the boxes and the aggregate that aren't static,
 	/// settled or not (what's drawn over it takes its own), and each call culling its own and the resident cull draw what every

@@ -897,6 +897,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 	public void Dispose()
 	{
+		foreach ( var pass in passPool.Values ) RenderHost.Current?.Device?.ReleaseView( pass );
 		passPool.Clear();
 		tilesRaw?.Dispose();
 		tiles?.Dispose();

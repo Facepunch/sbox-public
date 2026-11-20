@@ -143,6 +143,14 @@ public abstract class GpuDevice
 	}
 
 	/// <summary>
+	/// A view (<see cref="GpuContext.GpuDrivenCull.View"/>) that won't draw again, from its owner as it disposes it: the device
+	/// forgets what it kept of the view's draws, which otherwise holds the view and what it last drew.
+	/// </summary>
+	internal virtual void ReleaseView( object view )
+	{
+	}
+
+	/// <summary>
 	/// Whether it streams textures by the sizes draws ask for, so what draws without a size of its own should give one
 	/// through <see cref="AddTextureSizes"/>.
 	/// </summary>

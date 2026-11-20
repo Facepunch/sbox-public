@@ -332,6 +332,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	internal override long LightingFreeKey( ShaderParameters attributes ) => attributes is BackendParameters parameters ? parameters.LightingFreeKey : base.LightingFreeKey( attributes );
 
+	/// <summary>The resident cull's calls and assignments of the view.</summary>
+	internal override void ReleaseView( object view ) => ResidentCulls.ForgetView( view );
+
 	/// <summary>A resident owner's fragment records and its draws' (tinted records, each mesh's draw records), for reuse.</summary>
 	internal override void ReleaseResident( object owner )
 	{
