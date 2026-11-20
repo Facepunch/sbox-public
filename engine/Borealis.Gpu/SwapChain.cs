@@ -186,7 +186,9 @@ public sealed unsafe class SwapChain : IDisposable
 
 		var presentMode = VkPresentMode.Fifo;
 		PresentMode = PresentMode.Fifo;
-		if ( info.PresentMode == PresentMode.Immediate && Has( VkPresentMode.Immediate ) ) (presentMode, PresentMode) = (VkPresentMode.Immediate, PresentMode.Immediate);
+		if ( info.PresentMode == PresentMode.FifoLatestReady && device.FifoLatestReady && Has( VkPresentMode.FifoLatestReady ) ) (presentMode, PresentMode) = (VkPresentMode.FifoLatestReady, PresentMode.FifoLatestReady);
+		else if ( info.PresentMode == PresentMode.FifoLatestReady && !Has( VkPresentMode.Mailbox ) && Has( VkPresentMode.Immediate ) ) (presentMode, PresentMode) = (VkPresentMode.Immediate, PresentMode.Immediate);
+		else if ( info.PresentMode == PresentMode.Immediate && Has( VkPresentMode.Immediate ) ) (presentMode, PresentMode) = (VkPresentMode.Immediate, PresentMode.Immediate);
 		else if ( info.PresentMode != PresentMode.Fifo && Has( VkPresentMode.Mailbox ) ) (presentMode, PresentMode) = (VkPresentMode.Mailbox, PresentMode.Mailbox);
 
 		var count = (uint)(info.ImageCount > 0 ? info.ImageCount : 3);

@@ -188,7 +188,7 @@ internal sealed class BorealisGpuWindow : IDisposable
 	public void SetVSync( bool vsync )
 	{
 		if ( VSync == vsync ) return;
-		swapChain.SetPresentMode( vsync ? PresentMode.Fifo : PresentMode.Immediate );
+		swapChain.SetPresentMode( vsync ? PresentMode.Fifo : BorealisGpuRenderBackend.NoVSyncMode );
 	}
 
 	/// <summary>
