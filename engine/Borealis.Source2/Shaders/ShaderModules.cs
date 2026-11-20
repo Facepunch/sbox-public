@@ -41,6 +41,9 @@ public interface IShaderModules
 	/// </summary>
 	ShaderFile DescribeStandalone( string compiledPath ) => null;
 
+	/// <summary>Whether the shader at <paramref name="compiledPath"/> is one modules are switched off for (an A/B comparison), so its compiled file draws.</summary>
+	bool Skips( string compiledPath ) => false;
+
 	/// <summary>Whether a shader's module compiles a GPU-driven form (<c>GpuDrivenVariant</c>) for its GPU-driven buckets.</summary>
 	bool HasGpuDriven( ShaderFile shader ) => false;
 
