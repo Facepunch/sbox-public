@@ -455,7 +455,8 @@ internal sealed class BorealisGpuFrame : IDisposable
 	}
 
 	// Depth targets drawn into alone (RunInDepth), one per Borealis texture (shadow maps, the prepass's depth): engine textures
-	// kept from frame to frame with their backings, each borrowed for a draw, and a target of each
+	// kept from frame to frame with their backings, each borrowed for a draw, and a target of each. Those whose Borealis texture
+	// was destroyed (a world's shadow maps, after a map change) go as the next one is made
 	readonly Dictionary<BackendTexture, (Texture Texture, RenderTarget Target)> depthAlone = new();
 
 	/// <summary>
@@ -470,7 +471,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		var list = context.Lend();
 		if ( !depthAlone.TryGetValue( gpu, out var kept ) )
 		{
-			if ( depthAlone.Count > 8 ) DropDisposedDepthTextures();
+			DropDisposedDepthTextures();
 			var texture = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( gpu.Width, gpu.Height ).WithDepthFormat(), "Borealis.Gpu depth drawn alone" );
 			depthAlone[gpu] = kept = (texture, RenderTarget.FromDepth( texture ));
 		}
