@@ -22,7 +22,18 @@ BoolAttribute( NeedsLightProbe, true );
 // End of the material editor's lines
 #define BLEND_MODE_ALREADY_SET
 #include "vr_shared_standard_vs_code.fxc"
-#include "vr_shared_standard_ps_code.fxc"
+// What vr_shared_standard_ps_code.fxc (Valve's, which Slang shaders don't include) declared for vertex_color's features
+#include "vr_common_ps_code.fxc"
+CreateInputTexture2D( TextureColor, Srgb, 8, "", "_color", "Color/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureTranslucency, Linear, 8, "", "_trans", "Translucent,15", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tColor2 < Channel( RGB, Box( TextureColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+CreateInputTexture2D( TextureAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion,40/10", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tAmbientOcclusion < Channel( R, Box3( TextureAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+BoolAttribute( DoNotCastShadows, F_DO_NOT_CAST_SHADOWS ? true : false );
+BoolAttribute( SupportsMappingDimensions, true );
+TextureAttribute( RepresentativeTexture, g_tColor2 );
+BoolAttribute( renderbackfaces, F_RENDER_BACKFACES ? true : false );
+BoolAttribute( ShadowFastPath, true );
 #endif
 
 // g_sTrilinearWrap, for occlusion
