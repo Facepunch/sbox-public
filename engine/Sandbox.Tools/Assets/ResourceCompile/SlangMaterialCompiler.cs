@@ -97,12 +97,13 @@ internal class SlangMaterialCompiler : ResourceCompiler
 
 	/// <summary>
 	/// The module of a shader only a module describes (as materialsystem2's <c>ShaderIsSlangModuleOnly</c> decides it): no
-	/// <c>.shader</c> or <c>.shader_c</c> in any root, a <c>.slang</c> in one. Null otherwise.
+	/// <c>.shader</c> in any root, a <c>.slang</c> in one. Null otherwise. A <c>.shader_c</c> without its <c>.shader</c> is a
+	/// leftover (a build machine's or a checkout's from before the <c>.shader</c> went) and doesn't count.
 	/// </summary>
 	static string ModuleOnly( string shader, List<string> roots )
 	{
 		var stem = shader[..^".shader".Length];
-		if ( roots.Exists( r => File.Exists( Path.Combine( r, stem + ".shader" ) ) || File.Exists( Path.Combine( r, stem + ".shader_c" ) ) ) ) return null;
+		if ( roots.Exists( r => File.Exists( Path.Combine( r, stem + ".shader" ) ) ) ) return null;
 		return roots.Select( r => Path.Combine( r, stem + ".slang" ) ).FirstOrDefault( File.Exists );
 	}
 
