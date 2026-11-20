@@ -1634,6 +1634,68 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuMaterial CreateMaterial( string name, ShaderFile shader ) => Track( new BackendMaterial( name, shader, null, null ) );
 
 	/// <summary>
+	/// A material made in code from a shader as native makes one (<c>CMaterialSystem2::CreateRawMaterial</c>, what
+	/// <c>Material.Create</c> calls): every texture its shader reads from the material is the variable's default texture, or
+	/// the error texture (<see cref="ErrorTexture"/>) where it names none, until code sets one. Values and features are set
+	/// on it later (<see cref="SetOnMaterial"/>, <see cref="SetFeaturesOnMaterial"/>).
+	/// </summary>
+	public GpuMaterial CreateRawMaterial( string name, string shaderPath )
+	{
+		var shader = Shaders.Load( shaderPath );
+		return Track( new BackendMaterial( name, shader, null, RawMaterialTextures( shader ) ) );
+	}
+
+	Dictionary<string, BackendTexture> RawMaterialTextures( ShaderFile shader )
+	{
+		var textures = new Dictionary<string, BackendTexture>( StringComparer.OrdinalIgnoreCase );
+		if ( shader is null ) return textures;
+
+		// Every program's but the features', as native fills a raw material's parameters
+		for ( var type = ShaderProgramType.Vertex; (int)type < shader.Programs.Length; type++ )
+		{
+			foreach ( var variable in shader[type]?.Variables ?? [] )
+			{
+				if ( variable is not { Source: VariableSource.Material, Register: RegisterType.Texture, Type: VariableType.Texture2D } || textures.ContainsKey( variable.Name ) ) continue;
+				var texture = string.IsNullOrEmpty( variable.DefaultTexture ) ? null : LoadTexture( variable.DefaultTexture ) as BackendTexture;
+				textures[variable.Name] = texture ?? ErrorTexture;
+			}
+		}
+
+		return textures;
+	}
+
+	/// <summary>
+	/// What native binds for a texture nothing set (<c>CTextureManagerBase</c>'s error texture): 32 by 32, magenta and black
+	/// squares of 4 texels. Made on first use.
+	/// </summary>
+	internal BackendTexture ErrorTexture
+	{
+		get
+		{
+			if ( errorTexture is { } made ) return made;
+			lock ( sharedMaterials )
+			{
+				if ( errorTexture is not null ) return errorTexture;
+				var pixels = new byte[32 * 32 * 4];
+				for ( int y = 0; y < 32; y++ )
+				{
+					for ( int x = 0; x < 32; x++ )
+					{
+						var at = (y * 32 + x) * 4;
+						var magenta = (byte)(((x ^ y) & 4) != 0 ? 255 : 0);
+						pixels[at] = pixels[at + 2] = magenta;
+						pixels[at + 3] = 255;
+					}
+				}
+
+				return errorTexture = (BackendTexture)CreateTexture( new TextureDesc { Width = 32, Height = 32, Depth = 1, Format = TextureFormat.RGBA8888, Samples = 1, Mips = 1, Data = pixels }, "Error" );
+			}
+		}
+	}
+
+	BackendTexture errorTexture;
+
+	/// <summary>
 	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>:
 	/// <c>materials/default/white.vmat</c> (complex.shader, white, flat normal) tinted with <paramref name="albedo"/>.
 	/// </summary>
@@ -1672,6 +1734,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void SetOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
 	{
 		if ( material is BackendMaterial own ) SetOn( own, values, textures );
+	}
+
+	/// <summary>
+	/// Set feature values (<c>F_*</c>) in code on a material made by <see cref="CreateMaterial(string, string)"/> or
+	/// <see cref="LoadMaterial(string, IReadOnlyDictionary{string, float[]}, IReadOnlyDictionary{string, GpuTexture}, string)"/>,
+	/// over its file's, as <c>Material.SetFeature</c> does: every feature code set, so one no longer set goes back to the
+	/// file's. What draws with it draws the variants of those features from its next draw. Call between frames.
+	/// </summary>
+	public void SetFeaturesOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, int> features )
+	{
+		if ( material is BackendMaterial own ) own.SetFeatures( features );
 	}
 
 	static void SetOn( BackendMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )

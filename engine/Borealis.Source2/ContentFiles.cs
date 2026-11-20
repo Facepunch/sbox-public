@@ -26,9 +26,26 @@ public sealed class ContentFiles
 		if ( Directory.Exists( root ) ) roots.Add( Path.GetFullPath( root ) );
 	}
 
+	readonly List<string> fallbacks = new();
+
+	/// <summary>
+	/// Folders searched last, after <see cref="Resolve"/>: the rest of the engine's GAME search path, which a game's files
+	/// come before.
+	/// </summary>
+	public IReadOnlyList<string> Fallbacks => fallbacks;
+
+	/// <summary>Search another folder last, after the others and <see cref="Resolve"/>.</summary>
+	public void AddFallback( string root )
+	{
+		if ( Directory.Exists( root ) ) fallbacks.Add( Path.GetFullPath( root ) );
+	}
+
 	/// <summary>
 	/// The game folder above <paramref name="start"/> (a repo checkout's <c>game/</c>): its <c>core</c> folder, then the
 	/// citizen addon's assets when they're there, as the engine mounts them into its core content; empty if none is found.
+	/// The rest of the engine's GAME search path are <see cref="Fallbacks"/>: the content addon's assets, then the menu's
+	/// assets and the files compiled for them (<c>addons/menu/Transients</c>, which has the <c>sbox_props</c> models the menu
+	/// uses, such as tall grass).
 	/// </summary>
 	public static ContentFiles FindGame( string start = null )
 	{
@@ -39,7 +56,11 @@ public sealed class ContentFiles
 			{
 				var core = Path.Combine( game, "core" );
 				if ( !Directory.Exists( Path.Combine( core, "shaders" ) ) ) continue;
-				return new ContentFiles( core, Path.Combine( game, "addons", "citizen", "Assets" ) );
+				var files = new ContentFiles( core, Path.Combine( game, "addons", "citizen", "Assets" ) );
+				files.AddFallback( Path.Combine( game, "addons", "content", "Assets" ) );
+				files.AddFallback( Path.Combine( game, "addons", "menu", "Assets" ) );
+				files.AddFallback( Path.Combine( game, "addons", "menu", "Transients" ) );
+				return files;
 			}
 
 			directory = directory.Parent;
@@ -69,7 +90,15 @@ public sealed class ContentFiles
 			if ( File.Exists( full ) ) return full;
 		}
 
-		return Resolve?.Invoke( path ) is { } resolved && File.Exists( resolved ) ? MostOf( resolved ) : null;
+		if ( Resolve?.Invoke( path ) is { } resolved && File.Exists( resolved ) ) return MostOf( resolved );
+
+		foreach ( var root in fallbacks )
+		{
+			var full = Path.Combine( root, path );
+			if ( File.Exists( full ) ) return full;
+		}
+
+		return null;
 	}
 
 	/// <summary>

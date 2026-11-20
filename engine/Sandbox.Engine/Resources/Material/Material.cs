@@ -80,6 +80,7 @@ public sealed partial class Material : Resource
 			copy.MadeFromShader = MadeFromShader;
 			copy.ShaderSetInCode = ShaderSetInCode;
 			copy.SetInCode = SetInCode;
+			copy.FeaturesSetInCode = FeaturesSetInCode;
 			copy.SetInCodeVersion = SetInCodeVersion;
 			// The native copy merges raw buffer pointers, so the copy needs its own bindings
 			Attributes?.MergeUsedBuffersTo( copy.Attributes );
