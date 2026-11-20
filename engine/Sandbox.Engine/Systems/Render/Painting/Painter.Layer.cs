@@ -70,7 +70,7 @@ public readonly ref partial struct Painter
 			var commands = output.CommandList;
 			commands.PushRenderTarget();
 			var target = commands.GetRenderTarget( _name, LayerTargetSize( (int)MathF.Ceiling( _layerBounds.Width ) ), LayerTargetSize( (int)MathF.Ceiling( _layerBounds.Height ) ),
-				ImageFormat.RGBA8888, ImageFormat.None, numMips: filter.Blur > 0 ? 16 : 1 );
+				ImageFormat.RGBA8888, ImageFormat.None, MultisampleAmount.MultisampleNone, filter.Blur > 0 ? 16 : 1, engineOwned: true );
 			commands.SetRenderTarget( target );
 			commands.Clear( Color.Transparent, clearDepth: false, clearStencil: false );
 			output.Destination = new() { GammaOutput = true };

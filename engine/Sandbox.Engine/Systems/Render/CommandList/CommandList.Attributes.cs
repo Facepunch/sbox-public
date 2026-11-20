@@ -383,12 +383,12 @@ public sealed partial class CommandList
 		/// Takes a copy of the current viewport's color texture, like <see cref="GrabFrameTexture(string, Graphics.DownsampleMethod, int)"/>,
 		/// and outputs the recorded command for <see cref="RaiseGrabFrameTextureMips"/>.
 		/// </summary>
-		internal RenderTargetHandle GrabFrameTexture( string token, Graphics.DownsampleMethod downsampleMethod, int maxMips, out int entry )
+		internal RenderTargetHandle GrabFrameTexture( string token, Graphics.DownsampleMethod downsampleMethod, int maxMips, out int entry, bool engineOwned = false )
 		{
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object2;
-				var temp = Graphics.GrabFrameTexture( (string)entry.Object5, attrAccess.attributes, (Graphics.DownsampleMethod)(int)entry.Data1.x, (int)entry.Data1.y );
+				var temp = Graphics.GrabFrameTexture( (string)entry.Object5, attrAccess.attributes, (Graphics.DownsampleMethod)(int)entry.Data1.x, (int)entry.Data1.y, entry.Data1.z != 0 );
 				commandList.state.renderTargets[(string)entry.Object5] = temp;
 				attrAccess._renderTargets[(string)entry.Object5] = temp;
 			}
@@ -396,14 +396,14 @@ public sealed partial class CommandList
 			lock ( list._lock )
 			{
 				entry = list._entries.Count;
-				list.AddEntry( &Execute, new Entry { Object5 = token, Object2 = this, Data1 = new Vector4( (int)downsampleMethod, maxMips, 0, 0 ) } );
+				list.AddEntry( &Execute, new Entry { Object5 = token, Object2 = this, Data1 = new Vector4( (int)downsampleMethod, maxMips, engineOwned ? 1 : 0, 0 ) } );
 			}
 
 			return new RenderTargetHandle { Name = token };
 		}
 
 		/// <summary>
-		/// Lets a grab recorded by <see cref="GrabFrameTexture(string, Graphics.DownsampleMethod, int, out int)"/> generate at least
+		/// Lets a grab recorded by <see cref="GrabFrameTexture(string, Graphics.DownsampleMethod, int, out int, bool)"/> generate at least
 		/// <paramref name="mips"/> mips, for later draws that sample it more deeply.
 		/// </summary>
 		internal void RaiseGrabFrameTextureMips( int entry, int mips )

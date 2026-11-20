@@ -154,7 +154,7 @@ public readonly ref partial struct Painter
 			_volatile = output.Volatile;
 			_index = output.PushTarget();
 			var commands = output.CommandList;
-			_target = commands.GetRenderTarget( name, LayerTargetSize( (int)bounds.Width ), LayerTargetSize( (int)bounds.Height ), ImageFormat.RGBA8888, ImageFormat.None, numMips: numMips );
+			_target = commands.GetRenderTarget( name, LayerTargetSize( (int)bounds.Width ), LayerTargetSize( (int)bounds.Height ), ImageFormat.RGBA8888, ImageFormat.None, MultisampleAmount.MultisampleNone, numMips, engineOwned: true );
 			_checkpoint = commands.GetCheckpoint();
 			try
 			{
