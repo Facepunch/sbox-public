@@ -319,6 +319,62 @@ public class EmbeddedSourceTests : GpuTest
 		TestContext.WriteLine( lines[0] );
 	}
 
+	/// <summary>
+	/// A sampler whose filter a feature chooses (Material.CommonInputs.hlsl's <c>TextureFiltering</c>, by
+	/// <c>F_TEXTURE_FILTERING</c>) follows each material's feature in a module made from embedded source, as in the
+	/// compiled programs: each value's module variant matches the recompiled file's, anisotropic, bilinear, trilinear, point.
+	/// </summary>
+	[TestMethod]
+	public void EmbeddedSamplersFollowTheMaterialsFeatures()
+	{
+		const string water = "shaders/water_simple.shader";
+		var folder = Folder();
+		try
+		{
+			using var backend = Backend( folder, out _ );
+			var errors = new List<string>();
+			backend.Passes.Error = errors.Add;
+			backend.Shaders.UpgradeCache = Path.Combine( folder, "upgraded" );
+			backend.Shaders.Upgrader = ( _, _ ) => throw new AssertFailedException( "recompiled through the ShaderCompiler" );
+			var current = ShaderFileTests.Files.Read( water );
+			Write( folder, Outdated( current, Embedded( File.ReadAllText( Path.Combine( ShaderFileTests.Files.Roots[0], water ) ) ) ), "package_water" );
+			var shader = backend.Shaders.Load( "shaders/package_water.shader" );
+			Assert.IsNotNull( shader?.Outdated );
+			var index = shader.FeatureIndex( "F_TEXTURE_FILTERING" );
+			Assert.IsTrue( index >= 0 );
+
+			var variants = new List<ShaderVariant>();
+			for ( int value = 0; value < 4; value++ )
+			{
+				var features = new int[shader.Features.StaticCombos.Length];
+				features[index] = value;
+				var module = backend.Shaders.Variant( shader, shader.Modes[0].Name, features );
+				Assert.IsTrue( module is { FromModule: true }, $"F_TEXTURE_FILTERING {value}: drawn from its embedded source ({string.Join( "; ", errors )})" );
+				backend.SlangPasses = false;
+				ShaderVariant classic;
+				try
+				{
+					classic = backend.Shaders.Variant( ShaderFile.Read( current, "current" ), shader.Modes[0].Name, features );
+				}
+				finally
+				{
+					backend.SlangPasses = true;
+				}
+
+				var differences = PassModuleTests.Compare( classic, module ).ToList();
+				Assert.AreEqual( 0, differences.Count, $"F_TEXTURE_FILTERING {value}: {string.Join( "\n", differences )}" );
+				variants.Add( module );
+			}
+
+			Assert.AreEqual( 4, variants.Distinct().Count(), "each value its own variant" );
+			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
 	const string Rock = "shaders/surface_test_rock.shader";
 
 	/// <summary>
