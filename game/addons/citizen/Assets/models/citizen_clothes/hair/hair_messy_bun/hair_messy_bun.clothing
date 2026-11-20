@@ -1,13 +1,15 @@
 {
   "HasHumanSkin": false,
   "HumanSkinModel": null,
-  "HumanSkinMaterial": null,
-  "HumanEyesMaterial": null,
   "HumanSkinBodyGroups": 0,
   "HumanSkinMaterialGroup": null,
   "HumanSkinTags": null,
+  "AllowedSlots": "All",
+  "HumanSkinMaterial": null,
+  "HumanEyesMaterial": null,
   "Title": "Messy Bun",
   "Subtitle": null,
+  "Type": "Clothing",
   "Category": "HairUpdo",
   "ConditionalModels": {},
   "Tags": null,
@@ -19,7 +21,7 @@
   "MaterialGroup": null,
   "HeelHeight": 0,
   "SlotsUnder": "HeadTop",
-  "SlotsOver": 0,
+  "SlotsOver": "None",
   "HideBody": 0,
   "DeformationMode": "Normal",
   "AllowTintSelect": true,
@@ -58,8 +60,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/hair/hair_messy_bun/hair_messy_bun.clothing.vtex",
     "Mode": "Head",
-    "UsePositionOffset": false,
-    "PositionOffset": "12.5999699,0,-1.10000002"
+    "UsePositionOffset": true,
+    "PositionOffset": "4.69997358,-0.190000057,-0.179999262"
   },
   "__references": [],
   "__version": 0
