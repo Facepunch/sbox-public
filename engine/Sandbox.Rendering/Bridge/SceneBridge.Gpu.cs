@@ -67,6 +67,7 @@ internal sealed partial class SceneBridge
 		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
 		gpuView.SetCamera( camera, viewport.Size );
 		gpuView.RenderSceneObject = null;
+		gpuView.LightingWorld = null;
 
 		// The main view outside the tools upscales as the player's settings ask, as native's does
 		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup, upscale: !Application.IsEditor && !camera.ToolsView );
@@ -119,6 +120,7 @@ internal sealed partial class SceneBridge
 		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
 		gpuView.SetCamera( camera, viewport.Size );
 		gpuView.RenderSceneObject = null;
+		gpuView.LightingWorld = null;
 		RenderScene( backend, camera, size, samples, setup, upscale: !Application.IsEditor && !camera.ToolsView )?.Release();
 	}
 
@@ -278,6 +280,10 @@ internal sealed partial class SceneBridge
 
 		// Graphics.Render in its stages (a highlight's outline) draws the camera's mirrored objects again
 		gpuView.RenderSceneObject = state.Drawer.RenderOnGpu;
+
+		// Graphics.SetupLighting in its stages lights from the probe volumes its view shows
+		gpuView.LightingWorld = render.World;
+		gpuView.LightingSubWorlds = state.View.SubWorlds;
 
 		// Auto exposure is the port on this device: its frame update here, where native's runs, its scale this frame's
 		var exposure = camera.Tonemap?.GpuExposure( backend );
