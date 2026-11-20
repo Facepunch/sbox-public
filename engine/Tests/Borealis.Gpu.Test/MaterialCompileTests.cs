@@ -99,7 +99,7 @@ public class MaterialCompileTests
 		StringAssert.EndsWith( texture.Path, ".generated.vtex" );
 		StringAssert.Contains( compiled.Data, $"{{ m_name = \"g_tColorB\" m_pValue = resource:\"{texture.Path}\" }}" );
 		StringAssert.Contains( texture.Definition, "\"m_fileName\" \"string\" \"materials/tools/handle_circle_color.tga\"" );
-		StringAssert.Contains( texture.Definition, "\"m_fileName\" \"string\" \"[1.000000 1.000000 1.000000 0.000000]\"", "the translucency input it doesn't set is the shader's default" );
+		StringAssert.Contains( texture.Definition, "\"m_fileName\" \"string\" \"materials/default/default.tga\"", "the translucency input it doesn't set, with no default image for its ending, is the grey default image" );
 		StringAssert.Contains( texture.Definition, "\"m_outputFormat\" \"string\" \"DXT5\"" );
 		StringAssert.Contains( texture.Definition, "\"m_algorithm\" \"string\" \"AlphaWeighted\"" );
 		CollectionAssert.AreEqual( new[] { texture.Path }, compiled.Textures.ToArray() );

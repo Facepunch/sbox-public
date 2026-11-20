@@ -311,7 +311,11 @@ public sealed class MaterialCompile
 
 	static bool IsDefault( string file ) => file.Replace( '\\', '/' ).Contains( "materials/default/", StringComparison.OrdinalIgnoreCase );
 
-	/// <summary>An input's file: the material's, the shader's default file, a default image for its ending, or its default colour.</summary>
+	/// <summary>
+	/// An input's file: the material's, the shader's default file, or a default image for its ending, else
+	/// <c>materials/default/default.tga</c> (grey), as the material compiler falls back (it reads MET's configuration, which
+	/// could pick the default colour instead, from a path where there's none).
+	/// </summary>
 	static string InputFile( string value, MaterialInputs.Input input, Func<string, bool> fileExists )
 	{
 		if ( !string.IsNullOrWhiteSpace( value ) ) return value.Replace( '\\', '/' );
@@ -323,7 +327,7 @@ public sealed class MaterialCompile
 			if ( fileExists( candidate ) ) return candidate;
 		}
 
-		return string.Create( CultureInfo.InvariantCulture, $"[{input.Default[0]:F6} {input.Default[1]:F6} {input.Default[2]:F6} {input.Default[3]:F6}]" );
+		return "materials/default/default.tga";
 	}
 
 	static void Field( StringBuilder text, int indent, string name, string type, string value ) =>
