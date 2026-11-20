@@ -36,10 +36,24 @@ public static partial class EmbeddedCompatibility
 		"g_sTrilinearMirror", "g_sTrilinearBorder", "g_sPointBorder", "g_sPointClamp", "g_sPointWrap", "g_sPointMirror",
 	];
 
+	/// <summary>
+	/// Includes a package's text keeps that no package ships (a library's file its author had, or the package's own file left
+	/// out of it), by path, with the stand-in in <c>sbox/standins</c> for each: what the package reads from it, doing
+	/// nothing. Without one the shader compiles nowhere.
+	/// </summary>
+	static readonly Dictionary<string, string> StandIns = new( StringComparer.OrdinalIgnoreCase )
+	{
+		["environmentsystems/shaders/tonemap_exempt.hlsl"] = "tonemap_exempt.slangh",
+		["materials/shaders/void_infection.hlsl"] = "void_infection.slangh",
+	};
+
 	/// <summary>One program's text adjusted to compile against today's includes.</summary>
 	public static string Apply( string body )
 	{
 		body = EngineCbuffersOnce( body );
+
+		// An include no package ships is its stand-in
+		body = IncludeLine().Replace( body, m => StandIns.TryGetValue( m.Groups["path"].Value.Replace( '\\', '/' ), out var standIn ) ? $"{m.Groups["lead"].Value}#include \"sbox/standins/{standIn}\"" : m.Value );
 
 		// common.fxc's descriptor sets, which a package's own copy of an older system header declares too (vfx's parser takes
 		// each once): the engine's include declares them, where the package did
@@ -81,8 +95,11 @@ public static partial class EmbeddedCompatibility
 		return ShimInclude().Replace( text, m => System.IO.File.ReadAllText( System.IO.Path.Combine( shaders, "sbox", m.Groups["file"].Value ) ).Replace( "\r\n", "\n" ) + "\n" );
 	}
 
-	[GeneratedRegex( @"^#include ""sbox/(?<file>embedded(?:_end)?\.slangh)""\n", RegexOptions.Multiline )]
+	[GeneratedRegex( @"^[ \t]*#include ""sbox/(?<file>embedded(?:_end)?\.slangh|standins/\w+\.slangh)""[ \t]*\r?\n", RegexOptions.Multiline )]
 	private static partial Regex ShimInclude();
+
+	[GeneratedRegex( @"(?<=^|\n)(?<lead>[ \t]*)#[ \t]*include[ \t]+""(?<path>[^""\n]+)""" )]
+	private static partial Regex IncludeLine();
 
 	/// <summary>
 	/// The package's copies of the engine's cbuffers replaced by the engine's include, so each member is declared once and

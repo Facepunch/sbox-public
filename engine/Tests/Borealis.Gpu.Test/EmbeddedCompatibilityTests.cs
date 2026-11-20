@@ -292,6 +292,38 @@ public class EmbeddedCompatibilityTests
 		Compiles( pixel, "embedded_descriptor_sets" );
 	}
 
+	/// <summary>
+	/// Includes no package ships (a library's <c>tonemap_exempt.hlsl</c>, Mouse Fishing's materials; retro_shader's own
+	/// <c>void_infection.hlsl</c>) are their stand-ins, so the shaders compile, here and, inlined, in vfx's recompile.
+	/// </summary>
+	[TestMethod]
+	public void IncludesNoPackageShipsAreStandIns()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+				#include "environmentsystems/shaders/tonemap_exempt.hlsl"
+			#include "materials/shaders/void_infection.hlsl"
+			Texture2D g_tColor < Attribute( "Color" ); >;
+			float g_flTonemapExempt < Default1( 0 ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float4 MainPs( PS_INPUT i ) : SV_Target0
+			{
+				float voidFactor, fogFactor;
+				GetVoidFactors( i.vPositionWs, g_flTime, voidFactor, fogFactor );
+				float4 c = g_tColor.Sample( g_sBilinearClamp, i.vUv ) * voidFactor;
+				return MarkTonemapExempt( float4( lerp( c.rgb, 0, fogFactor ), c.a ), g_flTonemapExempt );
+			}
+			""";
+		Compiles( pixel, "embedded_stand_ins" );
+
+		var (_, shaders) = Compiler();
+		var text = EmbeddedCompatibility.ForRecompile( pixel, shaders );
+		Assert.IsFalse( text.Contains( "tonemap_exempt.hlsl\"", StringComparison.Ordinal ) || text.Contains( "void_infection.hlsl\"", StringComparison.Ordinal ), text );
+		Assert.IsFalse( text.Contains( "#include \"sbox/", StringComparison.Ordinal ), text );
+		Assert.IsTrue( text.Contains( "float4 MarkTonemapExempt(", StringComparison.Ordinal ) && text.Contains( "void GetVoidFactors(", StringComparison.Ordinal ), text );
+	}
+
 	/// <summary>The samplers the converter leaves to the engine are common_samplers.fxc's.</summary>
 	[TestMethod]
 	public void EngineSamplersAreCommonSamplers()
