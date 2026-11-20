@@ -68,6 +68,12 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		return (mode, scale);
 	}
 
+	/// <summary>
+	/// The texture mip bias a temporal upscaler samples with at <paramref name="scale"/> (native's <c>GetMipBias</c>): mips
+	/// picked as at the display size, and one finer, since the upscaler gathers detail over frames.
+	/// </summary>
+	internal static float MipBias( float scale ) => scale >= 1.0f || scale <= 0.0f ? 0.0f : MathF.Log2( scale ) - 1.0f;
+
 	/// <summary>A quality preset's render scale, shared by FSR3 and DLSS (native's <c>QualityPresetToScale</c>).</summary>
 	internal static float QualityScale( int quality ) => quality switch
 	{
@@ -147,6 +153,9 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		RenderSize = render;
 		if ( temporal is not null )
 		{
+			// Native's global mip bias, while a temporal upscaler runs: it lapses once none asks
+			backend.RequestMipBias( MipBias( scale ) );
+
 			var (x, y) = temporal.Jitter( jitterIndex );
 			jitterIndex = (jitterIndex + 1) % temporal.JitterPhaseCount;
 			Jitter = new Vector2( x, y );
