@@ -292,6 +292,40 @@ public class ShaderDrawTests : GpuTest
 		Assert.AreEqual( "Forward", library.Load( "shaders/unlit.shader" ).Modes[0].Name );
 	}
 
+	/// <summary>
+	/// A compiled shader with no .shader where a Slang file stands in its place is a leftover (a package's copy of an engine
+	/// shader the module replaced, or a stale local one) and isn't loaded; with its .shader it is.
+	/// </summary>
+	[TestMethod]
+	public void CompiledLeftoversBesideSlangDontLoad()
+	{
+		var folder = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"borealis-leftover-{Guid.NewGuid():N}" );
+		var shaders = System.IO.Path.Combine( folder, "shaders" );
+		System.IO.Directory.CreateDirectory( shaders );
+		try
+		{
+			System.IO.File.WriteAllBytes( System.IO.Path.Combine( shaders, "leftover_test.shader_c" ), ShaderFileTests.Files.Read( "shaders/unlit.shader" ) );
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "leftover_test.slang" ), "import sbox.surface;\n" );
+			using ( var backend = new Borealis.Backend.BackendDevice( Device ) )
+			{
+				backend.Content.Add( folder );
+				Assert.IsNull( backend.Shaders.Load( "shaders/leftover_test.shader" ), "a compiled file beside a module, with no source" );
+				Assert.IsNull( backend.Shaders.Load( "shaders/leftover_test.shader_c" ) );
+			}
+
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "leftover_test.shader" ), "" );
+			using ( var backend = new Borealis.Backend.BackendDevice( Device ) )
+			{
+				backend.Content.Add( folder );
+				Assert.IsNotNull( backend.Shaders.Load( "shaders/leftover_test.shader" ), "with its source it loads" );
+			}
+		}
+		finally
+		{
+			System.IO.Directory.Delete( folder, true );
+		}
+	}
+
 	static Vector4 Half4( byte[] pixels, int x, int y )
 	{
 		var i = (y * Size + x) * 8;

@@ -163,6 +163,11 @@ public sealed class ShaderLibrary : IDisposable
 		var full = Files.Find( key );
 		var bare = !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
 		if ( full is null && bare ) full = Files.Find( $"shaders/{key}.shader" );
+
+		// A compiled file with no .shader in any root where a Slang module or surface stands in its place is a leftover (a
+		// package's copy of an engine shader the module replaced, or a stale local one): the module's, as native's
+		// ShaderIsSlangModuleOnly decides
+		if ( full is not null && Modules is not null && Leftover( bare ? $"shaders/{key}.shader" : key ) ) full = null;
 		if ( full is not null )
 		{
 			// A standalone module describes its shader itself: the compiled file beside it is only Source 2's renderer's
@@ -179,6 +184,23 @@ public sealed class ShaderLibrary : IDisposable
 		}
 
 		return (null, false);
+	}
+
+	/// <summary>Whether no root has <paramref name="shader"/>'s source and one has a Slang file in its place.</summary>
+	bool Leftover( string shader )
+	{
+		var relative = shader.Replace( '\\', '/' ).TrimStart( '/' );
+		if ( relative.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ) ) relative = relative[..^2];
+		if ( !relative.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) return false;
+		var slang = relative[..^".shader".Length] + ".slang";
+		var module = false;
+		foreach ( var root in Files.Roots )
+		{
+			if ( File.Exists( Path.Combine( root, relative ) ) ) return false;
+			module |= File.Exists( Path.Combine( root, slang ) ) || File.Exists( Path.Combine( root, slang + "_c" ) );
+		}
+
+		return module;
 	}
 
 	/// <summary>
