@@ -26,11 +26,6 @@ internal static class PlanarReflections
 	static int _captureCount;
 
 	/// <summary>
-	/// The view whose reflection is being set up on this thread, while it is.
-	/// </summary>
-	[ThreadStatic] static ISceneView _reflecting;
-
-	/// <summary>
 	/// Number of planar reflections rendered, for tests.
 	/// </summary>
 	internal static int CaptureCount => System.Threading.Volatile.Read( ref _captureCount );
@@ -63,59 +58,6 @@ internal static class PlanarReflections
 	internal interface IVisibility
 	{
 		bool Sees( in BBox bounds );
-	}
-
-	readonly struct NativeFrustum( CFrustum frustum ) : IVisibility
-	{
-		public bool Sees( in BBox bounds ) => frustum.BoundingVolumeIntersectsFrustum( bounds );
-	}
-
-	/// <summary>
-	/// Plan and start the view's planar reflection, and publish it in the view's attributes. Called as the view's
-	/// layers are set up, on the thread setting up views.
-	/// </summary>
-	internal static void AddToView( ISceneView view, SceneCamera camera )
-	{
-		var attributes = view.GetRenderAttributesPtr();
-		bool reflection = attributes.GetBoolValue( "IsReflection", false );
-		attributes.SetBoolValue( "HasPlanarReflection", false );
-
-		// Our reflection depends on nothing else this frame: issue it before every view and submit it before its own
-		if ( reflection && _reflecting.IsValid )
-		{
-			view.SetIssueSortIndex( int.MinValue );
-			view.SetPriority( _reflecting.GetPriority() - 1 );
-		}
-
-		// Reflections and child views (shadows, monitors) never render reflections of their own
-		if ( camera?.World is null || reflection || view.GetParent().IsValid )
-			return;
-
-		var frustum = view.GetFrustum();
-		if ( frustum.IsOrthographic() )
-			return;
-
-		var eye = new Transform( frustum.GetCameraPosition(), frustum.GetCameraAngles() );
-		float fieldOfView = frustum.GetCameraFOV();
-		float aspect = frustum.GetCameraAspect();
-		float zNear = frustum.GetCameraNearPlane();
-		float zFar = frustum.GetCameraFarPlane();
-		var viewport = view.GetMainViewport().Rect;
-		if ( !Plan( camera, eye, fieldOfView, aspect, zNear, zFar, viewport.Size, new NativeFrustum( frustum ), out var planned ) )
-			return;
-
-		ViewData data;
-		_reflecting = view;
-		try
-		{
-			data = CommandList.RenderReflection( camera, default, eye, fieldOfView, aspect, zNear, zFar, planned.Plane, planned.Target, planned.Setup, "Planar reflection" );
-		}
-		finally
-		{
-			_reflecting = default;
-		}
-
-		Publish( attributes, planned, data );
 	}
 
 	/// <summary>
@@ -244,30 +186,6 @@ internal static class PlanarReflections
 
 	/// <summary>
 	/// Publish a rendered reflection in the attributes of the view it was rendered for: materials on its plane sample it.
-	/// </summary>
-	internal static void Publish( CRenderAttributes attributes, in Reflection reflection, in ViewData data )
-	{
-		if ( !data.IsValid )
-			return;
-
-		System.Threading.Interlocked.Increment( ref _captureCount );
-		LastSharedCount = reflection.Shared;
-		LastPlane = reflection.Plane;
-
-		var target = reflection.Target;
-		attributes.SetTextureValue( "PlanarReflectionTexture", target.ColorTarget.native, -1 );
-		attributes.SetTextureValue( "PlanarReflectionDepthTexture", target.DepthTarget.native, -1 );
-		attributes.SetVMatrixValue( "PlanarReflectionProjectionToView", data.ProjectionToView );
-		attributes.SetVector4DValue( "PlanarReflectionDepthUvScaleBias", data.DepthUvScaleBias );
-		attributes.SetVector4DValue( "PlanarReflectionViewport", data.Viewport );
-		attributes.SetVector2DValue( "PlanarReflectionDepthRange", data.DepthRange );
-		attributes.SetVector4DValue( "PlanarReflectionPlane", new Vector4( reflection.Plane.Normal, reflection.Plane.Distance ) );
-		attributes.SetBoolValue( "HasPlanarReflection", true );
-	}
-
-	/// <summary>
-	/// <see cref="Publish(CRenderAttributes, in Reflection, in ViewData)"/> into attributes with a managed store, for a view on a
-	/// Borealis.Gpu device.
 	/// </summary>
 	internal static void Publish( RenderAttributes attributes, in Reflection reflection, in ViewData data )
 	{

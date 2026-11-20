@@ -29,13 +29,6 @@ internal static partial class DebugOverlay
 		using var painter = Painter.Begin( CommandList );
 		Vector2 pos = new Vector2( 64, 64 );
 
-		// First, since its image covers the view. The managed renderer's cull reasons view turns its boxes on too
-		if ( OcclusionDebug.View != OcclusionDebugView.Off || (ManagedDebugViews.CullReasons && ManagedSceneRendering.Enabled) )
-		{
-			DebugOverlay.OcclusionCulling.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
 		if ( ManagedViews.Showing )
 		{
 			DebugOverlay.ManagedViews.Draw( painter, ref pos );
