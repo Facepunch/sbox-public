@@ -39,12 +39,6 @@ public partial class ProjectRow
 
 		menu.AddOption( $"Open with Vulkan validation layers", "developer_mode", () => OpenProject( LaunchFlags.VulkanValidation ) );
 
-		// If the game supports VR, make it so that we can easily open with OpenXR debug layers
-		if ( ControlModes.VR )
-		{
-			menu.AddOption( $"Open with VR debug layers", "developer_mode", () => OpenProject( LaunchFlags.VRDebug ) );
-		}
-
 		if ( Project.Config.Directory != null )
 		{
 			var o = menu.AddOption( $"Open {Project.Config.Directory.FullName}", "folder", () => EditorUtility.OpenFolder( Project.Config.Directory.FullName ) );
