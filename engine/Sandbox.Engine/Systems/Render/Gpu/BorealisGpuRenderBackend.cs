@@ -1625,11 +1625,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( material is null ) return null;
 		if ( materialFiles.TryGetValue( material, out var known ) )
 		{
-			// Code set more on it since: its own copy of the file takes the new values
-			if ( known.Version != material.SetInCodeVersion && known.File is not null && material.SetInCode is { } changed )
+			// Code set more on it since: its own copy of the file takes the new values and features
+			if ( known.Version != material.SetInCodeVersion && known.File is not null )
 			{
-				var (values, textures) = LowerSetInCode( changed );
-				services.SetOnMaterial( known.File, values, textures );
+				if ( material.SetInCode is { } changed )
+				{
+					var (values, textures) = LowerSetInCode( changed );
+					services.SetOnMaterial( known.File, values, textures );
+				}
+
+				services.SetFeaturesOnMaterial( known.File, material.FeaturesSetInCode );
 				known.Version = material.SetInCodeVersion;
 			}
 
@@ -1637,8 +1642,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 
 		// A copy's path is its original's file (FilePath); as the .shader draws it, also where a surface stands in for its shader in
-		// the scene. One with values set in code is a file of its own with them over the file's; one made in code from a shader
-		// is that shader's defaults with them over
+		// the scene. One with values or features set in code is a file of its own with them over the file's; one made in code from
+		// a shader is that shader's defaults with them over
 		var path = material.FilePath;
 		BackendMaterial file = null;
 		if ( material.MadeFromShader is { } shader )
@@ -1652,13 +1657,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 				var (values, textures) = LowerSetInCode( set );
 				services.SetOnMaterial( file, values, textures );
 			}
+
+			services.SetFeaturesOnMaterial( file, material.FeaturesSetInCode );
 		}
 		else if ( !string.IsNullOrEmpty( path ) && files.Find( path ) is not null )
 		{
-			if ( material.SetInCode is { Count: > 0 } set )
+			if ( material.SetInCode is { Count: > 0 } || material.FeaturesSetInCode is { Count: > 0 } )
 			{
-				var (values, textures) = LowerSetInCode( set );
+				var (values, textures) = LowerSetInCode( material.SetInCode ?? new Dictionary<string, object>() );
 				file = services.LoadMaterial( path, values, textures, $"{path} (set in code)" ) as BackendMaterial;
+				services.SetFeaturesOnMaterial( file, material.FeaturesSetInCode );
 			}
 			else file = services.ShaderMaterial( path );
 		}

@@ -383,7 +383,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	/// </summary>
 	public GpuMaterial WorldMaterial( Material material )
 	{
-		if ( MirrorContent.Gpu is not { } gpu || material?.FilePath is not { Length: > 0 } path || material.MadeFromShader is not null || material.SetInCode is { Count: > 0 } ) return MirrorContent.Material( material );
+		if ( MirrorContent.Gpu is not { } gpu || material?.FilePath is not { Length: > 0 } path || material.ChangedInCode ) return MirrorContent.Material( material );
 		lock ( heldMaterials ) return heldMaterials.Add( path ) ? gpu.ModelMaterial( path ) : gpu.HeldMaterial( path );
 	}
 
