@@ -103,8 +103,9 @@ public static class ShaderCompile
 		var output = compileOptions.GpuDriven ? GpuDrivenPath( shader.AbsolutePath ) : shader.AbsolutePath + "_c";
 
 		// The GPU-driven variant has no source hash of its own to check: it's up to date when it's newer than the classic file
+		// and than the wrapper vfx appends and the record offsets it reads (beside the core shaders)
 		var upToDate = compileOptions.GpuDriven
-			? !shader.IsOutOfDate && System.IO.File.Exists( output ) && System.IO.File.GetLastWriteTimeUtc( output ) >= System.IO.File.GetLastWriteTimeUtc( shader.AbsolutePath + "_c" )
+			? !shader.IsOutOfDate && System.IO.File.Exists( output ) && GpuDrivenInputs( shader.AbsolutePath ).All( i => System.IO.File.GetLastWriteTimeUtc( output ) >= System.IO.File.GetLastWriteTimeUtc( i ) )
 			: !shader.IsOutOfDate;
 
 		if ( !compileOptions.ForceRecompile && !dumping && upToDate )
@@ -129,6 +130,21 @@ public static class ShaderCompile
 	/// Where a shader's GPU-driven variant is written: <c>shaders/complex.shader</c> to <c>shaders/complex.gpudriven.shader_c</c>.
 	/// </summary>
 	internal static string GpuDrivenPath( string shaderPath ) => System.IO.Path.ChangeExtension( shaderPath, null ) + ".gpudriven.shader_c";
+
+	/// <summary>
+	/// What a shader's GPU-driven variant is made from besides its source: its classic file, and the wrapper vfx appends
+	/// (<c>borealis_gpu_driven.fxc</c>) and the record offsets it includes (<c>borealis_records.fxc</c>) where they're beside it.
+	/// </summary>
+	static IEnumerable<string> GpuDrivenInputs( string shaderPath )
+	{
+		yield return shaderPath + "_c";
+		var folder = System.IO.Path.GetDirectoryName( shaderPath );
+		foreach ( var file in new[] { "borealis_gpu_driven.fxc", "borealis_records.fxc" } )
+		{
+			var path = System.IO.Path.Combine( folder, file );
+			if ( System.IO.File.Exists( path ) ) yield return path;
+		}
+	}
 
 	/// <summary>The compile flag that makes vfx_vulkan compile the GPU-driven variant (<c>VFX_COMPILE_SHADER_FLAGS_BOREALIS_GPU_DRIVEN</c>).</summary>
 	const uint GpuDrivenFlag = 0x8;

@@ -391,6 +391,8 @@ public class BorealisGpuTexturesTest
 	[TestMethod]
 	public void NextFrameStartsTheServicesFrame()
 	{
+		RequireVulkan();
+
 		// A device of its own: no Source 2 renderer needed
 		using var borealis = BorealisGpuRenderBackend.Create();
 
@@ -407,6 +409,8 @@ public class BorealisGpuTexturesTest
 	[TestMethod]
 	public void VolumesAreThreeDimensional()
 	{
+		RequireVulkan();
+
 		// A device of its own: the volumes are made from their descriptions, whatever Source 2's device is
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 

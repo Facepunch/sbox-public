@@ -17,6 +17,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "common.fxc"
+#include "borealis_records.fxc"
 
 // The raw buffer array in the bindless set (binding 63): the fragment and draw tables
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
@@ -60,6 +61,28 @@ static const uint None = 0xffffffffu;
 bool Inside( float4 vPlane, float3 vCenter, float3 vExtents )
 {
 	return dot( vPlane.xyz, vCenter ) + vPlane.w + dot( vExtents, abs( vPlane.xyz ) ) >= 0;
+}
+
+// A resident mesh group's header (ResidentMeshHeader) as MeshLod reads it: its LOD word and switch distances 1 to 3, then 4 to 7
+void LoadMeshHeader( ByteAddressBuffer records, uint nAt, out uint4 vHeader0, out uint4 vHeader1 )
+{
+	uint nSwitches = nAt + ResidentMeshHeader_SwitchDistances;
+	vHeader0 = uint4( records.Load( nAt + ResidentMeshHeader_Lods ), records.Load( nSwitches ), records.Load( nSwitches + 4 ), records.Load( nSwitches + 8 ) );
+	vHeader1 = uint4( records.Load( nSwitches + 12 ), records.Load( nSwitches + 16 ), records.Load( nSwitches + 20 ), records.Load( nSwitches + 24 ) );
+}
+
+// A batch record (BatchRecord) as the culls read it: first, count, transform and run; then first visibility fragment,
+// moved words or compacted run, flags and first vertex bit
+void LoadBatch( ByteAddressBuffer records, uint nAt, out uint4 vBatch, out uint4 vVisibility )
+{
+	vBatch = uint4( records.Load( nAt + BatchRecord_First ), records.Load( nAt + BatchRecord_Count ), records.Load( nAt + BatchRecord_Transform ), records.Load( nAt + BatchRecord_Run ) );
+	vVisibility = uint4( records.Load( nAt + BatchRecord_FirstVisibility ), records.Load( nAt + BatchRecord_Moved ), records.Load( nAt + BatchRecord_Flags ), records.Load( nAt + BatchRecord_FirstVertexBit ) );
+}
+
+void LoadBatch( RWByteAddressBuffer records, uint nAt, out uint4 vBatch, out uint4 vVisibility )
+{
+	vBatch = uint4( records.Load( nAt + BatchRecord_First ), records.Load( nAt + BatchRecord_Count ), records.Load( nAt + BatchRecord_Transform ), records.Load( nAt + BatchRecord_Run ) );
+	vVisibility = uint4( records.Load( nAt + BatchRecord_FirstVisibility ), records.Load( nAt + BatchRecord_Moved ), records.Load( nAt + BatchRecord_Flags ), records.Load( nAt + BatchRecord_FirstVertexBit ) );
 }
 
 // A resident filter's test (GpuContext.ResidentFilter): whether a view keeps a caster by its moved word (its frame, bit 31
@@ -130,8 +153,8 @@ uint LodUnder( float flLimit, float flUnits, uint nLevels, float4 vErrors, float
 	return nLevel;
 }
 
-// A fragment's level in a view, by the view's LOD mode (view record word 38: 0 none, 1 by distance, 2 by texels, 3 by
-// distance with the level kept per visibility fragment, its view's slice in bits 8-15) and units (word 39: pixels per unit at
+// A fragment's level in a view, by the view's LOD mode (CullViewRecord.LodMode: 0 none, 1 by distance, 2 by texels, 3 by
+// distance with the level kept per visibility fragment, its view's slice in bits 8-15) and units (LodUnits: pixels per unit at
 // distance 1, or texels per unit, over the limit). Mode 1 takes the coarsest level under LodHysteresis of the limit. Mode 3
 // keeps a fragment's level until its error goes over the limit, and goes coarser only to a level under LodHysteresis of it,
 // so a still camera changes none and a slowly moving one changes each once; the prepass and forward of a view read and
@@ -230,8 +253,8 @@ uint WaveTakeSlot( bool bTake, uint nRuns, uint nRun, ByteAddressBuffer frame )
 		uint nBase = 0;
 		if ( WaveIsFirstLane() )
 		{
-			g_Frame.InterlockedAdd( nRuns + nLeader * 8 + 4, nCount, nBase );
-			nBase += frame.Load( nRuns + nLeader * 8 );
+			g_Frame.InterlockedAdd( nRuns + nLeader * MultiDraw_Size + MultiDraw_Count, nCount, nBase );
+			nBase += frame.Load( nRuns + nLeader * MultiDraw_Size + MultiDraw_FirstSlot );
 		}
 		nBase = WaveReadLaneFirst( nBase );
 		if ( bMine )
@@ -243,7 +266,7 @@ uint WaveTakeSlot( bool bTake, uint nRuns, uint nRun, ByteAddressBuffer frame )
 	return nSlot;
 }
 
-// Two-phase Hi-Z occlusion (view word 28 bit 3; docs/reference/borealis-gpu-driven.md, "Hi-Z occlusion"), as
+// Two-phase Hi-Z occlusion (CullViewRecord.Flags bit 3; docs/reference/borealis-gpu-driven.md, "Hi-Z occlusion"), as
 // borealis_gpu_driven_cull_cs defers: an ids fragment (not a forward one) forward didn't see last frame (its bit clear in the
 // bits at bindless slot vViewFlags.z) is left for the second phase, as a 64-byte candidate at byte offset vViewFlags.w (group
 // count, 1, 1, count, occluded; then from byte 32 the candidates, 256 a group). bMeshlets: the view's prepass would list it for the meshlet pass
@@ -256,21 +279,29 @@ bool HiZDeferred( uint4 vViewFlags, uint4 vVisibility, float3 vCenter, float3 vE
 
 	bool bMeshlets = false;
 	if ( bMeshletView && ( vVisibility.z & 12 ) == 0 && g_nResidentMeshletRuns != None && ( vVisibility.y & 0x80000000u ) == 0 )
-		bMeshlets = g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+		bMeshlets = g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nDrawRecord * MeshletRun_Size + MeshletRun_Count ) - 1 < 4096u;
 
 	uint nAt;
-	g_Frame.InterlockedAdd( vViewFlags.w + 12, 1, nAt );
+	g_Frame.InterlockedAdd( vViewFlags.w + HiZCandidates_Count, 1, nAt );
 	if ( ( nAt & 255 ) == 0 )
 	{
 		uint nGroups;
-		g_Frame.InterlockedAdd( vViewFlags.w, 1, nGroups );
+		g_Frame.InterlockedAdd( vViewFlags.w + HiZCandidates_GroupsX, 1, nGroups );
 	}
 
-	uint nEntry = vViewFlags.w + 32 + nAt * 64;
-	g_Frame.Store4( nEntry, uint4( asuint( vCenter ), nTransform ) );
-	g_Frame.Store4( nEntry + 16, uint4( asuint( vExtents ), nDrawRecord ) );
-	g_Frame.Store4( nEntry + 32, uint4( vDraw, nVertexBase ) );
-	g_Frame.Store4( nEntry + 48, uint4( nFragment, nRun, vVisibility.y, bMeshlets ? 1u : 0u ) );
+	uint nEntry = vViewFlags.w + HiZCandidates_Size + nAt * HiZCandidate_Size;
+	g_Frame.Store3( nEntry + HiZCandidate_Center, asuint( vCenter ) );
+	g_Frame.Store( nEntry + HiZCandidate_Transform, nTransform );
+	g_Frame.Store3( nEntry + HiZCandidate_Extents, asuint( vExtents ) );
+	g_Frame.Store( nEntry + HiZCandidate_Draw, nDrawRecord );
+	g_Frame.Store( nEntry + HiZCandidate_FirstIndex, vDraw.x );
+	g_Frame.Store( nEntry + HiZCandidate_IndexCount, vDraw.y );
+	g_Frame.Store( nEntry + HiZCandidate_BaseVertex, vDraw.z );
+	g_Frame.Store( nEntry + HiZCandidate_VertexBase, nVertexBase );
+	g_Frame.Store( nEntry + HiZCandidate_Fragment, nFragment );
+	g_Frame.Store( nEntry + HiZCandidate_Run, nRun );
+	g_Frame.Store( nEntry + HiZCandidate_CompactRun, vVisibility.y );
+	g_Frame.Store( nEntry + HiZCandidate_Meshlets, bMeshlets ? 1u : 0u );
 	return true;
 }
 
@@ -284,49 +315,61 @@ void Expand( uint n )
 	if ( n >= g_nResidentEntries )
 		return;
 
-	uint2 vMap = g_Frame.Load2( g_nResidentExpandMap + n * 8 );
+	uint nMapAt = g_nResidentExpandMap + n * ResidentCullEntry_Size;
+	uint2 vMap = uint2( g_Frame.Load( nMapAt + ResidentCullEntry_Batch ), g_Frame.Load( nMapAt + ResidentCullEntry_Element ) );
 	uint nBatch = vMap.x & 0x7fffffffu;
 	uint i = vMap.y;
-	uint4 vBatch = g_Frame.Load4( nBatch * 32 );
-	uint4 vVisibility = g_Frame.Load4( nBatch * 32 + 16 );
+	uint4 vBatch;
+	uint4 vVisibility;
+	LoadBatch( g_Frame, nBatch * BatchRecord_Size, vBatch, vVisibility );
 	ByteAddressBuffer fragments = g_bindless_VertexBuffers[ g_nResidentFragments ];
 	ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nResidentDraws ];
 
-	uint4 a;
-	uint4 b;
+	uint3 vCenter;
+	uint3 vExtents;
 	uint nTransform;
 	uint nDrawRecord;
 	uint nLast;
 	if ( ( vVisibility.z & 8 ) != 0 )
 	{
-		// Resident mesh record: centre and LOD scale, extents and transform slot
-		a = fragments.Load4( ( vBatch.x + 1 + i ) * 32 );
-		b = fragments.Load4( ( vBatch.x + 1 + i ) * 32 + 16 );
-		nTransform = b.w;
-		nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * 32 + i * 4 ) : vBatch.z;
-		nLast = a.w;
+		// Resident mesh record (ResidentMeshRecord)
+		uint nMeshAt = ( vBatch.x + 1 + i ) * ResidentMeshRecord_Size;
+		vCenter = fragments.Load3( nMeshAt + ResidentMeshRecord_Center );
+		vExtents = fragments.Load3( nMeshAt + ResidentMeshRecord_Extents );
+		nTransform = fragments.Load( nMeshAt + ResidentMeshRecord_Transform );
+		nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * FragmentRecord_Size + i * 4 ) : vBatch.z;
+		nLast = fragments.Load( nMeshAt + ResidentMeshRecord_LodScale );
 		if ( i == 0 )
 		{
-			g_Frame.Store4( g_nResidentExpandHeaders + nBatch * 32, fragments.Load4( vBatch.x * 32 ) );
-			g_Frame.Store4( g_nResidentExpandHeaders + nBatch * 32 + 16, fragments.Load4( vBatch.x * 32 + 16 ) );
+			// Its group's header (ResidentMeshHeader), copied whole
+			[unroll]
+			for ( uint w = 0; w < ResidentMeshHeader_Size; w += 4 )
+				g_Frame.Store( g_nResidentExpandHeaders + nBatch * ResidentMeshHeader_Size + w, fragments.Load( vBatch.x * ResidentMeshHeader_Size + w ) );
 		}
 	}
 	else
 	{
-		// Fragment record: centre and draw record, extents and fragment index (bit 31: casts no shadow)
-		a = fragments.Load4( ( vBatch.x + i ) * 32 );
-		b = fragments.Load4( ( vBatch.x + i ) * 32 + 16 );
-		nTransform = vBatch.z + ( b.w & 0x7fffffffu );
-		nDrawRecord = a.w;
-		nLast = b.w >> 31;
+		// Fragment record (FragmentRecord): bit 31 of its instance word: it casts no shadow
+		uint nFragmentAt = ( vBatch.x + i ) * FragmentRecord_Size;
+		uint nInstance = fragments.Load( nFragmentAt + FragmentRecord_Instance );
+		vCenter = fragments.Load3( nFragmentAt + FragmentRecord_Center );
+		vExtents = fragments.Load3( nFragmentAt + FragmentRecord_Extents );
+		nTransform = vBatch.z + ( nInstance & 0x7fffffffu );
+		nDrawRecord = fragments.Load( nFragmentAt + FragmentRecord_Draw );
+		nLast = nInstance >> 31;
 	}
 
-	// Draw record's second half: first index, index count, base vertex, index page
-	uint4 vDraw = draws.Load4( nDrawRecord * 32 + 16 );
-	uint nAt = g_nResidentExpand + n * 48;
-	g_Frame.Store4( nAt, uint4( a.xyz, nTransform ) );
-	g_Frame.Store4( nAt + 16, uint4( b.xyz, nDrawRecord ) );
-	g_Frame.Store4( nAt + 32, uint4( vDraw.xyz, nLast ) );
+	// The draw record's first index, index count and base vertex
+	uint nDrawAt = nDrawRecord * DrawRecord_Size;
+	uint nAt = g_nResidentExpand + n * ResidentCullEntryRecord_Size;
+	g_Frame.Store3( nAt + ResidentCullEntryRecord_Center, vCenter );
+	g_Frame.Store( nAt + ResidentCullEntryRecord_Transform, nTransform );
+	g_Frame.Store3( nAt + ResidentCullEntryRecord_Extents, vExtents );
+	g_Frame.Store( nAt + ResidentCullEntryRecord_Draw, nDrawRecord );
+	g_Frame.Store( nAt + ResidentCullEntryRecord_FirstIndex, draws.Load( nDrawAt + DrawRecord_FirstIndex ) );
+	g_Frame.Store( nAt + ResidentCullEntryRecord_IndexCount, draws.Load( nDrawAt + DrawRecord_IndexCount ) );
+	g_Frame.Store( nAt + ResidentCullEntryRecord_BaseVertex, draws.Load( nDrawAt + DrawRecord_BaseVertex ) );
+	g_Frame.Store( nAt + ResidentCullEntryRecord_Last, nLast );
 }
 
 [numthreads( 64, 1, 1 )]
@@ -350,7 +393,7 @@ void Expand( uint n )
 	while ( nItem < nHigh )
 	{
 		uint nMid = ( nItem + nHigh + 1 ) / 2;
-		if ( frame.Load( g_nResidentItems + nMid * 32 ) <= nGroupEntry )
+		if ( frame.Load( g_nResidentItems + nMid * ResidentCullItem_Size + ResidentCullItem_FirstEntry ) <= nGroupEntry )
 			nItem = nMid;
 		else
 			nHigh = nMid - 1;
@@ -358,14 +401,16 @@ void Expand( uint n )
 
 	// Item: first entry, entries, the bindless slot of its plan's records and its entry map's offset in them; its first view
 	// and views, and its entry records' and batch headers' offsets in its records
-	uint4 vItem = frame.Load4( g_nResidentItems + nItem * 32 );
-	uint4 vItemViews = frame.Load4( g_nResidentItems + nItem * 32 + 16 );
+	uint nItemAt = g_nResidentItems + nItem * ResidentCullItem_Size;
+	uint4 vItem = uint4( frame.Load( nItemAt + ResidentCullItem_FirstEntry ), frame.Load( nItemAt + ResidentCullItem_Entries ), frame.Load( nItemAt + ResidentCullItem_Records ), frame.Load( nItemAt + ResidentCullItem_EntryMap ) );
+	uint4 vItemViews = uint4( frame.Load( nItemAt + ResidentCullItem_FirstView ), frame.Load( nItemAt + ResidentCullItem_Views ), frame.Load( nItemAt + ResidentCullItem_EntryRecords ), frame.Load( nItemAt + ResidentCullItem_Headers ) );
 	uint nLocal = nGroupEntry + nThread - vItem.x;
 	bool bActive = g_nResidentItemCount > 0 && nGroupEntry + nThread < g_nResidentEntries && nLocal < vItem.y;
 
 	// The entry: its batch and its place in it
 	ByteAddressBuffer records = g_bindless_VertexBuffers[ vItem.z ];
-	uint2 vMap = bActive ? records.Load2( vItem.w + nLocal * 8 ) : 0;
+	uint nMapAt = vItem.w + nLocal * ResidentCullEntry_Size;
+	uint2 vMap = bActive ? uint2( records.Load( nMapAt + ResidentCullEntry_Batch ), records.Load( nMapAt + ResidentCullEntry_Element ) ) : 0;
 	uint i = vMap.y;
 
 	// Forward: whether the view's prepass draws ids for it (ResidentCullEntry.PrepassIds)
@@ -376,8 +421,10 @@ void Expand( uint n )
 	// fragments, the first fragment's transform slot (resident meshes: the draw record, bit 31 a list of one per mesh), its
 	// multi-draw; then its first visibility fragment, its multi-draw of compacted triangles, its flags (1: ids, 2: lists,
 	// 8: resident meshes, bits 4-7 their LOD, the top 24 bits the vertex stride) and its first vertex bit
-	uint4 vBatch = bActive ? records.Load4( vMap.x * 32 ) : 0;
-	uint4 vVisibility = bActive ? records.Load4( vMap.x * 32 + 16 ) : 0;
+	uint4 vBatch = 0;
+	uint4 vVisibility = 0;
+	if ( bActive )
+		LoadBatch( records, vMap.x * BatchRecord_Size, vBatch, vVisibility );
 	bool bMeshes = ( vVisibility.z & 8 ) != 0;
 	uint nBatchLod = ( vVisibility.z >> 4 ) & 15;
 	uint nStride = vVisibility.z >> 8;
@@ -395,24 +442,21 @@ void Expand( uint n )
 	uint4 vDraw = 0;
 	if ( bActive )
 	{
-		uint nAt = vItemViews.z + nLocal * 48;
-		uint4 e0 = records.Load4( nAt );
-		uint4 e1 = records.Load4( nAt + 16 );
-		uint4 e2 = records.Load4( nAt + 32 );
-		vCenter = asfloat( e0.xyz );
-		nTransform = e0.w;
-		vExtents = asfloat( e1.xyz );
-		nDrawRecord = e1.w;
-		vDraw = uint4( e2.xyz, 0 );
+		uint nAt = vItemViews.z + nLocal * ResidentCullEntryRecord_Size;
+		vCenter = asfloat( records.Load3( nAt + ResidentCullEntryRecord_Center ) );
+		nTransform = records.Load( nAt + ResidentCullEntryRecord_Transform );
+		vExtents = asfloat( records.Load3( nAt + ResidentCullEntryRecord_Extents ) );
+		nDrawRecord = records.Load( nAt + ResidentCullEntryRecord_Draw );
+		vDraw = uint4( records.Load( nAt + ResidentCullEntryRecord_FirstIndex ), records.Load( nAt + ResidentCullEntryRecord_IndexCount ), records.Load( nAt + ResidentCullEntryRecord_BaseVertex ), 0 );
+		uint nLast = records.Load( nAt + ResidentCullEntryRecord_Last );
 		if ( bMeshes )
 		{
-			flLodScale = asfloat( e2.w );
-			vHeader0 = records.Load4( vItemViews.w + vMap.x * 32 );
-			vHeader1 = records.Load4( vItemViews.w + vMap.x * 32 + 16 );
+			flLodScale = asfloat( nLast );
+			LoadMeshHeader( records, vItemViews.w + vMap.x * ResidentMeshHeader_Size, vHeader0, vHeader1 );
 		}
 		else
 		{
-			bNoShadow = e2.w != 0;
+			bNoShadow = nLast != 0;
 		}
 	}
 
@@ -424,28 +468,26 @@ void Expand( uint n )
 	uint nLevels = 0;
 	float4 vLodErrors = 0;
 	float2 vLodMore = 0;
-	uint nLodAt = nDrawRecord * 128;
+	uint nLodAt = nDrawRecord * LodRecord_Size;
 	if ( bActive && !bMeshes && g_nResidentLodTable != None && nDrawRecord < g_nResidentLodCount )
 	{
 		ByteAddressBuffer lods = g_bindless_VertexBuffers[ g_nResidentLodTable ];
-		uint4 h0 = lods.Load4( nLodAt );
-		uint4 h1 = lods.Load4( nLodAt + 16 );
-		nLevels = min( h0.x, 6u );
-		vLodErrors = asfloat( uint4( h0.zw, h1.xy ) );
-		vLodMore = asfloat( h1.zw );
+		nLevels = min( lods.Load( nLodAt + LodRecord_Levels ), 6u );
+		vLodErrors = asfloat( lods.Load4( nLodAt + LodRecord_Errors ) );
+		vLodMore = asfloat( lods.Load2( nLodAt + LodRecord_Errors + 4 * LodRecord_ErrorsStride ) );
 	}
 
 	// Each view in turn, the same for the whole group: its 32-byte record (view record, instance records, commands,
-	// multi-draws; first instance, fragment words, listed fragments, flags), then the 160-byte view record (six planes, the
+	// multi-draws; first instance, fragment words, listed fragments, flags), then its CullViewRecord (six planes, the
 	// camera and squared size threshold, whether it's a shadow view (bit 0) and its resident filter (bits 1-2), whether
 	// resident meshes skip the size test, the filter's settled and restless stamps, the LOD camera, and the LOD width and
 	// whether it's texels per unit). Every lane runs every view to the wave operations at its end, kept or not
 	for ( uint v = 0; v < vItemViews.y; v++ )
 	{
-		uint nViewAt = g_nResidentViews + ( vItemViews.x + v ) * 32;
-		uint4 vView = frame.Load4( nViewAt );
-		uint4 vViewOut = frame.Load4( nViewAt + 16 );
-		uint4 vViewFlags = frame.Load4( vView.x + 112 );
+		uint nViewAt = g_nResidentViews + ( vItemViews.x + v ) * ResidentCullView_Size;
+		uint4 vView = uint4( frame.Load( nViewAt + ResidentCullView_View ), frame.Load( nViewAt + ResidentCullView_Instances ), frame.Load( nViewAt + ResidentCullView_Commands ), frame.Load( nViewAt + ResidentCullView_Runs ) );
+		uint4 vViewOut = uint4( frame.Load( nViewAt + ResidentCullView_FirstInstance ), frame.Load( nViewAt + ResidentCullView_FragmentWords ), frame.Load( nViewAt + ResidentCullView_Listed ), frame.Load( nViewAt + ResidentCullView_Flags ) );
+		uint4 vViewFlags = uint4( frame.Load( vView.x + CullViewRecord_Flags ), frame.Load( vView.x + CullViewRecord_KeepsSmallMeshes ), frame.Load( vView.x + CullViewRecord_SettledStamp ), frame.Load( vView.x + CullViewRecord_RestlessStamp ) );
 		bool bKept = bActive && !( ( vViewFlags.x & 1 ) != 0 && bNoShadow );
 
 		// A resident filter: the casters it keeps by when each last moved, whose words the batch record's sixth word finds
@@ -455,11 +497,11 @@ void Expand( uint n )
 
 		[unroll]
 		for ( uint p = 0; p < 6; p++ )
-			bKept = bKept && Inside( asfloat( frame.Load4( vView.x + p * 16 ) ), vCenter, vExtents );
+			bKept = bKept && Inside( asfloat( frame.Load4( vView.x + CullViewRecord_Planes + p * CullViewRecord_PlanesStride ) ), vCenter, vExtents );
 
 		// Borealis's size cull: too small for the threshold unless the camera is inside the bounding sphere. A negative
 		// threshold is a sun cascade's, by its texel size: the squared radius below which it culls, wherever it is
-		float4 vCamera = asfloat( frame.Load4( vView.x + 96 ) );
+		float4 vCamera = asfloat( frame.Load4( vView.x + CullViewRecord_CameraAndThreshold ) );
 		bool bSize = !bMeshes || ( vViewFlags.y & 1 ) == 0;
 		float3 vToCamera = vCenter - vCamera.xyz;
 		float flDistanceSquared = dot( vToCamera, vToCamera );
@@ -471,23 +513,22 @@ void Expand( uint n )
 		// A resident mesh is kept only in the batch of its LOD in this view
 		if ( bKept && bMeshes )
 		{
-			float4 vLodCamera = asfloat( frame.Load4( vView.x + 128 ) );
-			uint4 vLod = frame.Load4( vView.x + 144 );
-			bKept = MeshLod( vHeader0, vHeader1, vCenter, flLodScale, vLodCamera, asfloat( vLod.x ), vLod.y != 0 ) == nBatchLod;
+			float4 vLodCamera = asfloat( frame.Load4( vView.x + CullViewRecord_LodCamera ) );
+			bKept = MeshLod( vHeader0, vHeader1, vCenter, flLodScale, vLodCamera, asfloat( frame.Load( vView.x + CullViewRecord_LodWidth ) ), frame.Load( vView.x + CullViewRecord_LodTexels ) != 0 ) == nBatchLod;
 		}
 
-		// A fragment's generated level in this view (view words 38 and 39): its draw record and range from here on
+		// A fragment's generated level in this view (LodMode and LodUnits): its draw record and range from here on
 		uint nViewDraw = nDrawRecord;
 		uint2 vViewRange = vDraw.xy;
 		if ( bKept && nLevels > 0 )
 		{
-			uint4 vLodView = frame.Load4( vView.x + 144 );
-			uint nLevel = PickLod( vLodView.z, asfloat( vLodView.w ), asfloat( frame.Load4( vView.x + 128 ) ).xyz, vCenter, vExtents, nLevels, vLodErrors, vLodMore, nFragment );
+			uint nLevel = PickLod( frame.Load( vView.x + CullViewRecord_LodMode ), asfloat( frame.Load( vView.x + CullViewRecord_LodUnits ) ), asfloat( frame.Load3( vView.x + CullViewRecord_LodCamera ) ), vCenter, vExtents, nLevels, vLodErrors, vLodMore, nFragment );
 			if ( nLevel > 0 )
 			{
-				uint4 vLevel = g_bindless_VertexBuffers[ g_nResidentLodTable ].Load4( nLodAt + 32 + ( nLevel - 1 ) * 16 );
-				nViewDraw = vLevel.z;
-				vViewRange = vLevel.xy;
+				ByteAddressBuffer lods = g_bindless_VertexBuffers[ g_nResidentLodTable ];
+				uint nLevelAt = nLodAt + LodRecord_Level + ( nLevel - 1 ) * LodRecord_LevelStride;
+				nViewDraw = lods.Load( nLevelAt + LodLevel_Draw );
+				vViewRange = uint2( lods.Load( nLevelAt + LodLevel_FirstIndex ), lods.Load( nLevelAt + LodLevel_IndexCount ) );
 			}
 		}
 
@@ -511,7 +552,7 @@ void Expand( uint n )
 		// meshlet pass, which draws those that can reach a sample (borealis_meshlet_cull_cs); its stamp is written here
 		// (A depth prepass lists only aggregates' fragments: static meshes' draws have meshlets for shadow views.)
 		bool bMeshlets = bKept && !bListed && ( vViewOut.w & 4 ) != 0 && ( vVisibility.z & 1 ) != 0 && ( ( vViewFlags.x & 1 ) != 0 || ( vVisibility.z & 12 ) == 0 ) && g_nResidentMeshletRuns != None
-			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nViewDraw * 16 + 8 ) - 1 < 4096u;
+			&& g_bindless_VertexBuffers[ g_nResidentMeshletRuns ].Load( nViewDraw * MeshletRun_Size + MeshletRun_Count ) - 1 < 4096u;
 
 		// In a bucket drawn with task and mesh shaders (the sixth word's top bit), it takes a slot of the bucket's task run
 		// instead, a task group of borealis_meshlet_ids each
@@ -521,17 +562,17 @@ void Expand( uint n )
 		uint nAt = WaveAppend( bListed || bMeshlets, vViewOut.z );
 		if ( bListed || bMeshlets )
 		{
-			uint nListed = vViewOut.z + 16 + nAt * 32;
-			g_Frame.Store( nListed, nTransform );
-			g_Frame.Store( nListed + 4, nViewDraw );
-			g_Frame.Store( nListed + 8, bMeshlets ? ( nFragment != None ? nVertexBase : None ) : nVertexBase + vDraw.z );
-			g_Frame.Store( nListed + 12, vBatch.w );
-			g_Frame.Store( nListed + 16, vVisibility.y );
+			uint nListed = vViewOut.z + ListedArguments_Size + nAt * ListedFragment_Size;
+			g_Frame.Store( nListed + ListedFragment_Transform, nTransform );
+			g_Frame.Store( nListed + ListedFragment_Draw, nViewDraw );
+			g_Frame.Store( nListed + ListedFragment_VertexBase, bMeshlets ? ( nFragment != None ? nVertexBase : None ) : nVertexBase + vDraw.z );
+			g_Frame.Store( nListed + ListedFragment_Run, vBatch.w );
+			g_Frame.Store( nListed + ListedFragment_CompactRun, vVisibility.y );
 
-			// The meshlet pass's kept triangles and room (zeroed), and the visibility fragment forward's compaction checks
-			g_Frame.Store( nListed + 20, 0 );
-			g_Frame.Store( nListed + 24, 0 );
-			g_Frame.Store( nListed + 28, nFragment );
+			// Zeroed, and the visibility fragment forward's compaction checks
+			g_Frame.Store( nListed + ListedFragment_Reserved0, 0 );
+			g_Frame.Store( nListed + ListedFragment_Reserved1, 0 );
+			g_Frame.Store( nListed + ListedFragment_Fragment, nFragment );
 		}
 
 		if ( ( bMeshlets || bTask ) && nFragment != None && ( vViewOut.w & 2 ) != 0 )
@@ -542,15 +583,16 @@ void Expand( uint n )
 		uint nSlot = WaveTakeSlot( bDrawn || bTask, vView.w, bTask ? vVisibility.y & ~TaskRun : vBatch.w, frame );
 		if ( bTask )
 		{
-			g_Frame.Store2( vView.y + nSlot * 8, uint2( nTransform, nViewDraw ) );
+			g_Frame.Store( vView.y + nSlot * InstanceRecord_Size + InstanceRecord_Transform, nTransform );
+			g_Frame.Store( vView.y + nSlot * InstanceRecord_Size + InstanceRecord_Draw, nViewDraw );
 			g_Frame.Store( vViewOut.y + ( vViewOut.x + nSlot ) * 4, nFragment != None ? nVertexBase : None );
 			g_Frame.Store( vView.z + nSlot * 20, nFragment );
 		}
 
 		if ( bDrawn )
 		{
-			g_Frame.Store( vView.y + nSlot * 8, nTransform );
-			g_Frame.Store( vView.y + nSlot * 8 + 4, nViewDraw );
+			g_Frame.Store( vView.y + nSlot * InstanceRecord_Size + InstanceRecord_Transform, nTransform );
+			g_Frame.Store( vView.y + nSlot * InstanceRecord_Size + InstanceRecord_Draw, nViewDraw );
 
 			uint nCommand = vView.z + nSlot * 20;
 			g_Frame.Store( nCommand, vViewRange.y );

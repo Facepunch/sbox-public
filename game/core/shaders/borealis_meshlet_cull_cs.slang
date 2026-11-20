@@ -16,6 +16,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "common.fxc"
+#include "borealis_records.fxc"
 #include "transform_buffer.fxc"
 #include "borealis_meshlet.fxc"
 
@@ -73,15 +74,15 @@ uint LoadIndex( ByteAddressBuffer page, uint nIndex, bool b32 )
 uint TakeSlot( uint nRun )
 {
 	uint nIndex;
-	g_Frame.InterlockedAdd( g_nMeshletRuns + nRun * 8 + 4, 1, nIndex );
-	return g_Frame.Load( g_nMeshletRuns + nRun * 8 ) + nIndex;
+	g_Frame.InterlockedAdd( g_nMeshletRuns + nRun * MultiDraw_Size + MultiDraw_Count, 1, nIndex );
+	return g_Frame.Load( g_nMeshletRuns + nRun * MultiDraw_Size + MultiDraw_FirstSlot ) + nIndex;
 }
 
 // An instance record and its command, and the ids' fragment word
 void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nVertexBase, uint nIndexCount, uint nFirstIndex, uint nBaseVertex )
 {
-	g_Frame.Store( g_nMeshletInstances + nSlot * 8, nTransform );
-	g_Frame.Store( g_nMeshletInstances + nSlot * 8 + 4, nDraw );
+	g_Frame.Store( g_nMeshletInstances + nSlot * InstanceRecord_Size + InstanceRecord_Transform, nTransform );
+	g_Frame.Store( g_nMeshletInstances + nSlot * InstanceRecord_Size + InstanceRecord_Draw, nDraw );
 
 	uint nCommand = g_nMeshletCommands + nSlot * 20;
 	g_Frame.Store( nCommand, nIndexCount );
@@ -168,19 +169,22 @@ void Copy( uint nJob, uint nThread )
 
 	// The listed arguments' fourth word: where the entries start past the arguments (a Hi-Z prepass's second phase lists
 	// after its first's, borealis_hiz_cs)
-	uint nEntry = g_nMeshletListed + 16 + g_Frame.Load( g_nMeshletListed + 12 ) + vGroupId.x * 32;
-	uint nDrawRecord = g_Frame.Load( nEntry + 4 );
-	uint4 vRun = g_bindless_VertexBuffers[ g_nMeshletRunTable ].Load4( nDrawRecord * 16 );
+	uint nEntry = g_nMeshletListed + ListedArguments_Size + g_Frame.Load( g_nMeshletListed + ListedArguments_Entries ) + vGroupId.x * ListedFragment_Size;
+	uint nDrawRecord = g_Frame.Load( nEntry + ListedFragment_Draw );
+	ByteAddressBuffer runs = g_bindless_VertexBuffers[ g_nMeshletRunTable ];
+	uint nRunAt = nDrawRecord * MeshletRun_Size;
+	uint4 vRun = uint4( runs.Load( nRunAt + MeshletRun_Page ), runs.Load( nRunAt + MeshletRun_First ), runs.Load( nRunAt + MeshletRun_Count ), runs.Load( nRunAt + MeshletRun_Global ) );
 	uint nMeshlets = min( vRun.z, 4 * ChunkMeshlets );
 	bool bOneChunk = nMeshlets <= ChunkMeshlets;
 	ByteAddressBuffer meshlets = g_bindless_VertexBuffers[ vRun.x ];
-	uint nTransform = g_Frame.Load( nEntry );
+	uint nTransform = g_Frame.Load( nEntry + ListedFragment_Transform );
 	float3x4 mTransform = g_TransformData[ nTransform ].transform;
-	uint nVertexBase = g_Frame.Load( nEntry + 8 );
-	uint nFragment = g_Frame.Load( nEntry + 28 );
-	uint4 vDraw = g_bindless_VertexBuffers[ g_nMeshletDraws ].Load4( nDrawRecord * 32 + 16 );
-	uint4 vDrawHead = g_bindless_VertexBuffers[ g_nMeshletDraws ].Load4( nDrawRecord * 32 );
-	bool b32 = ( vDrawHead.w & 2 ) != 0;
+	uint nVertexBase = g_Frame.Load( nEntry + ListedFragment_VertexBase );
+	uint nFragment = g_Frame.Load( nEntry + ListedFragment_Fragment );
+	ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nMeshletDraws ];
+	uint nDrawAt = nDrawRecord * DrawRecord_Size;
+	uint4 vDraw = uint4( draws.Load( nDrawAt + DrawRecord_FirstIndex ), draws.Load( nDrawAt + DrawRecord_IndexCount ), draws.Load( nDrawAt + DrawRecord_BaseVertex ), draws.Load( nDrawAt + DrawRecord_IndexPage ) );
+	bool b32 = ( draws.Load( nDrawAt + DrawRecord_Flags ) & 2 ) != 0;
 	uint nPage = vDraw.w | ( b32 ? 0x80000000u : 0 );
 	bool bWhole = false;
 	MeshletView view = View();
@@ -201,9 +205,9 @@ void Copy( uint nJob, uint nThread )
 		// Each meshlet tested once; a kept one joins the list (a 16-bit one's triangles padded to an even count)
 		for ( uint m = nThread; m < nChunkMeshlets; m += 64 )
 		{
-			uint nAt = ( vRun.y + nChunk + m ) * 32;
-			uint4 r0 = meshlets.Load4( nAt );
-			uint4 r1 = meshlets.Load4( nAt + 16 );
+			uint nAt = ( vRun.y + nChunk + m ) * MeshletRecord_Size;
+			uint4 r0 = uint4( meshlets.Load3( nAt + MeshletRecord_Center ), meshlets.Load( nAt + MeshletRecord_FirstTriangle ) );
+			uint4 r1 = uint4( meshlets.Load3( nAt + MeshletRecord_Extents ), meshlets.Load( nAt + MeshletRecord_TriangleCount ) );
 			if ( !MeshletOutside( view, asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform, bShadow ) )
 			{
 				uint nSlot;
@@ -258,14 +262,14 @@ void Copy( uint nJob, uint nThread )
 			if ( nStart != None )
 			{
 				// The bucket's compacted multi-draws: 32-bit, then 16-bit
-				WriteDraw( TakeSlot( g_Frame.Load( nEntry + 16 ) + ( b32 ? 0 : 1 ) ), nTransform, nDrawRecord, nVertexBase, nPadded * 3, nStart, vDraw.z );
+				WriteDraw( TakeSlot( g_Frame.Load( nEntry + ListedFragment_CompactRun ) + ( b32 ? 0 : 1 ) ), nTransform, nDrawRecord, nVertexBase, nPadded * 3, nStart, vDraw.z );
 				if ( bOneChunk && nFragment != None )
 					g_MeshletStamps.Store4( nFragment * 16, uint4( g_nMeshletFrame, nStart, nPadded, b32 ? 0 : 1 ) );
 			}
 			else
 			{
 				// Whole, once a fragment: a chunk without room ends its fragment's chunks
-				WriteDraw( TakeSlot( g_Frame.Load( nEntry + 12 ) ), nTransform, nDrawRecord, nVertexBase, vDraw.y, vDraw.x, vDraw.z );
+				WriteDraw( TakeSlot( g_Frame.Load( nEntry + ListedFragment_Run ) ), nTransform, nDrawRecord, nVertexBase, vDraw.y, vDraw.x, vDraw.z );
 				if ( bOneChunk && nFragment != None )
 					g_MeshletStamps.Store4( nFragment * 16, uint4( g_nMeshletFrame, None, vDraw.y / 3, 0 ) );
 			}

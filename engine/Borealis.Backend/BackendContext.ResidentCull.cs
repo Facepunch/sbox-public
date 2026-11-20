@@ -56,9 +56,9 @@ internal sealed partial class BackendContext
 	bool residentRecordsCopied;
 	byte[] residentConstants;
 
-	const int ResidentItemBytes = 32;
-	const int ResidentViewBytes = 32;
-	const int ResidentHeaderBytes = 32;
+	const int ResidentItemBytes = ResidentCullItem.Size;
+	const int ResidentViewBytes = ResidentCullView.Size;
+	const int ResidentHeaderBytes = ResidentMeshHeader.Size;
 
 	/// <summary>Bytes of a view's region for a plan, as <see cref="DrawGpuCulled"/> lays out a call's, and its offsets.</summary>
 	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands, int HiZ) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists, bool hiz = false )
@@ -66,13 +66,13 @@ internal sealed partial class BackendContext
 		var fragments = plan.Fragments;
 		var slots = fragments * (plan.Key.Meshlets ? 1 + 2 * (int)MeshletChunks : lists ? 2 : 1);
 		var runs = CullViewBytes;
-		var listed = (runs + plan.Runs.Length * 8 + 15) & ~15;
-		var instances = listed + (lists ? 16 + fragments * 32 : 0);
+		var listed = (runs + plan.Runs.Length * MultiDraw.Size + 15) & ~15;
+		var instances = listed + (lists ? ListedArguments.Size + fragments * ListedFragment.Size : 0);
 		var fragmentWords = instances + slots * GpuDrivenTables.InstanceStride;
 		var commands = (fragmentWords + (ids ? slots * 4 : 0) + 15) & ~15;
 		var bytes = (commands + slots * GpuDrivenTables.CommandStride + 15) & ~15;
 		var tail = hiz ? bytes : 0;
-		if ( hiz ) bytes += HiZTailBytes( plan.Runs.Length * 8, fragments );
+		if ( hiz ) bytes += HiZTailBytes( plan.Runs.Length * MultiDraw.Size, fragments );
 		return (bytes, runs, listed, instances, fragmentWords, commands, tail);
 	}
 
@@ -81,7 +81,7 @@ internal sealed partial class BackendContext
 	/// phase's multi-draws (as many as the first's, <paramref name="runBytes"/>), its listed fragments' arguments, then the
 	/// candidates' arguments, their count and the second phase's occluded count (32 bytes) and a 64-byte candidate per fragment.
 	/// </summary>
-	static int HiZTailBytes( int runBytes, int fragments ) => ((runBytes + 15) & ~15) + 48 + fragments * 64;
+	static int HiZTailBytes( int runBytes, int fragments ) => ((runBytes + 15) & ~15) + ListedArguments.Size + HiZCandidates.Size + fragments * HiZCandidate.Size;
 
 	/// <summary>
 	/// Write a region's Hi-Z tail at <paramref name="tail"/>: the second phase's multi-draws as the first's <paramref name="runs"/>
@@ -91,52 +91,41 @@ internal sealed partial class BackendContext
 	{
 		var runs2 = tail;
 		var listed2 = tail + ((runs.Length * 4 + 15) & ~15);
-		var candidates = listed2 + 16;
+		var candidates = listed2 + ListedArguments.Size;
 		runs.CopyTo( MemoryMarshal.Cast<byte, uint>( region.Slice( runs2, runs.Length * 4 ) ) );
-		var arguments = MemoryMarshal.Cast<byte, uint>( region.Slice( listed2, 48 ) );
-		arguments.Clear();
-		arguments[1] = arguments[2] = arguments[5] = arguments[6] = 1;
+		MemoryMarshal.Write( region.Slice( listed2, ListedArguments.Size ), new ListedArguments { GroupsY = 1, GroupsZ = 1 } );
+		MemoryMarshal.Write( region.Slice( candidates, HiZCandidates.Size ), new HiZCandidates { GroupsY = 1, GroupsZ = 1 } );
 		return (runs2, listed2, candidates);
 	}
 
 	/// <summary>
-	/// A view record: the six planes, camera and size threshold, flags (shadow and its resident filter, whether resident
-	/// meshes skip the size test, the filter's settled and restless stamps), LOD camera and LOD width, and how fragments
-	/// pick generated levels (<see cref="LodMode"/>) (160 bytes).
+	/// A view record (<see cref="CullViewRecord"/>): the six planes, camera and size threshold, flags (shadow and its
+	/// resident filter, whether resident meshes skip the size test, the filter's settled and restless stamps), LOD camera
+	/// and LOD width, and how fragments pick generated levels (<see cref="LodMode"/>).
 	/// </summary>
 	void WriteCullView( in GpuDrivenCull cull, Span<byte> bytes, uint hizBits = uint.MaxValue, uint hizCandidates = 0 )
 	{
-		var view = MemoryMarshal.Cast<byte, float>( bytes[..CullViewBytes] );
-		Span<Vector4> planes = [cull.Left, cull.Right, cull.Bottom, cull.Top, cull.Near, cull.Far, cull.CameraAndThreshold];
-		for ( int p = 0; p < planes.Length; p++ )
-		{
-			view[p * 4] = planes[p].x;
-			view[p * 4 + 1] = planes[p].y;
-			view[p * 4 + 2] = planes[p].z;
-			view[p * 4 + 3] = planes[p].w;
-		}
-
-		var viewWords = MemoryMarshal.Cast<byte, uint>( bytes[..CullViewBytes] );
-		viewWords[28] = (cull.Shadow ? 1u : 0u) | (uint)cull.Filter << 1;
-		viewWords[29] = cull.KeepsSmallMeshes ? 1u : 0u;
-		viewWords[30] = cull.Filter != ResidentFilter.None ? cull.SettledStamp : 0;
-		viewWords[31] = cull.Filter != ResidentFilter.None ? cull.RestlessStamp : 0;
-		view[32] = cull.LodCamera.x;
-		view[33] = cull.LodCamera.y;
-		view[34] = cull.LodCamera.z;
-		view[35] = cull.LodCamera.w;
-		view[36] = cull.LodWidth;
-		viewWords[37] = cull.LodTexels ? 1u : 0u;
-		(viewWords[38], view[39]) = LodMode( cull );
+		ref var view = ref MemoryMarshal.AsRef<CullViewRecord>( bytes[..CullViewRecord.Size] );
+		var planes = view.Planes;
+		(planes[0], planes[1], planes[2], planes[3], planes[4], planes[5]) = (cull.Left, cull.Right, cull.Bottom, cull.Top, cull.Near, cull.Far);
+		view.CameraAndThreshold = cull.CameraAndThreshold;
+		view.Flags = (cull.Shadow ? 1u : 0u) | (uint)cull.Filter << 1;
+		view.KeepsSmallMeshes = cull.KeepsSmallMeshes ? 1u : 0u;
+		view.SettledStamp = cull.Filter != ResidentFilter.None ? cull.SettledStamp : 0;
+		view.RestlessStamp = cull.Filter != ResidentFilter.None ? cull.RestlessStamp : 0;
+		view.LodCamera = cull.LodCamera;
+		view.LodWidth = cull.LodWidth;
+		view.LodTexels = cull.LodTexels ? 1u : 0u;
+		(view.LodMode, view.LodUnits) = LodMode( cull );
 
 		// Two-phase Hi-Z occlusion (bit 3): last frame's visible bits' bindless slot and the candidates' byte offset in the
 		// region's buffer, in the words a resident filter (never with it) uses
 		if ( hizCandidates != 0 )
 		{
-			viewWords[28] |= 8;
-			(viewWords[30], viewWords[31]) = (hizBits, hizCandidates);
+			view.Flags |= 8;
+			(view.SettledStamp, view.RestlessStamp) = (hizBits, hizCandidates);
 		}
-		System.Threading.Interlocked.Increment( ref device.LodModes[viewWords[38] & 3] );
+		System.Threading.Interlocked.Increment( ref device.LodModes[view.LodMode & 3] );
 	}
 
 	/// <summary>
@@ -405,11 +394,7 @@ internal sealed partial class BackendContext
 
 			if ( listing )
 			{
-				var arguments = MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Listed, 16 ) );
-				arguments[0] = 0;
-				arguments[1] = 1;
-				arguments[2] = 1;
-				arguments[3] = 0;
+				MemoryMarshal.Write( region.Slice( layout.Listed, ListedArguments.Size ), new ListedArguments { GroupsX = 0, GroupsY = 1, GroupsZ = 1, Entries = 0 } );
 			}
 
 			var firstInstance = (uint)((regionOffset + layout.Instances) / GpuDrivenTables.InstanceStride);
@@ -572,9 +557,9 @@ internal sealed partial class BackendContext
 		if ( plan.Key.Lists && prepass is not null )
 		{
 			var prepassRecords = prepass.BatchRecords;
-			for ( int word = 0; word < prepassRecords.Length; word += CullBatchBytes / 4 )
+			foreach ( var batch in MemoryMarshal.Cast<uint, BatchRecord>( prepassRecords.AsSpan() ) )
 			{
-				if ( (prepassRecords[word + 6] & 1) != 0 && prepassRecords[word + 4] != GpuDrivenTables.NoVisibility ) residentIds.Add( prepassRecords[word + 4] );
+				if ( (batch.Flags & 1) != 0 && batch.FirstVisibility != GpuDrivenTables.NoVisibility ) residentIds.Add( batch.FirstVisibility );
 			}
 
 			plan.IdsFrom = prepass;
@@ -583,7 +568,7 @@ internal sealed partial class BackendContext
 		var records = plan.BatchRecords;
 		var batches = records.Length / (CullBatchBytes / 4);
 		var entries = 0;
-		for ( int b = 0; b < batches; b++ ) entries += (int)records[b * (CullBatchBytes / 4) + 1];
+		foreach ( var batch in MemoryMarshal.Cast<uint, BatchRecord>( records.AsSpan() ) ) entries += (int)batch.Count;
 		if ( entries == 0 ) return false;
 
 		var mapOffset = records.Length * 4;
@@ -602,20 +587,20 @@ internal sealed partial class BackendContext
 		if ( plan.Moved is { } moved )
 		{
 			MemoryMarshal.AsBytes( moved.AsSpan() ).CopyTo( data[movedOffset..] );
-			var words = MemoryMarshal.Cast<byte, uint>( data[..mapOffset] );
+			var written = MemoryMarshal.Cast<byte, BatchRecord>( data[..mapOffset] );
 			for ( int b = 0; b < plan.MovedAt.Length; b++ )
 			{
-				if ( plan.MovedAt[b] >= 0 ) words[b * (CullBatchBytes / 4) + 5] = (uint)(movedOffset + plan.MovedAt[b] * 4);
+				if ( plan.MovedAt[b] >= 0 ) written[b].Moved = (uint)(movedOffset + plan.MovedAt[b] * 4);
 			}
 		}
 		var map = MemoryMarshal.Cast<byte, ResidentCullEntry>( data[mapOffset..] );
 		var at = 0;
+		var batchRecords = MemoryMarshal.Cast<uint, BatchRecord>( records.AsSpan() );
 		for ( int b = 0; b < batches; b++ )
 		{
-			var count = records[b * (CullBatchBytes / 4) + 1];
-			var at4 = b * (CullBatchBytes / 4);
-			var ids = (records[at4 + 6] & 2) != 0 && residentIds.Contains( records[at4 + 4] ) ? ResidentCullEntry.PrepassIds : 0;
-			for ( uint e = 0; e < count; e++ ) map[at++] = new ResidentCullEntry { Batch = (uint)b | ids, Element = e };
+			var batch = batchRecords[b];
+			var ids = (batch.Flags & 2) != 0 && residentIds.Contains( batch.FirstVisibility ) ? ResidentCullEntry.PrepassIds : 0;
+			for ( uint e = 0; e < batch.Count; e++ ) map[at++] = new ResidentCullEntry { Batch = (uint)b | ids, Element = e };
 		}
 
 		recording.List.CopyBuffer( staging, stagingOffset, buffer, 0, copied );

@@ -1,20 +1,4 @@
-using System.Runtime.InteropServices;
-using V3 = System.Numerics.Vector3;
-
 namespace Borealis.Backend.Meshlets;
-
-/// <summary>
-/// A meshlet's bounds and triangles, as the GPU reads it (<see cref="MeshletSet.RecordBytes"/> bytes): its box's centre and
-/// half extents in the mesh's space, and its triangles, a run of the range's triangles in meshlet order.
-/// </summary>
-[StructLayout( LayoutKind.Sequential )]
-internal struct MeshletRecord
-{
-	public V3 Center;
-	public uint FirstTriangle;
-	public V3 Extents;
-	public uint TriangleCount;
-}
 
 /// <summary>How meshes are cut into meshlets: at most this many vertices and triangles each.</summary>
 internal readonly record struct MeshletConfig( int MaxVertices = 64, int MaxTriangles = 124 )
@@ -46,7 +30,7 @@ internal readonly record struct MeshletConfig( int MaxVertices = 64, int MaxTria
 internal sealed class MeshletSet
 {
 	/// <summary>Bytes of a <see cref="MeshletRecord"/>.</summary>
-	public const int RecordBytes = 32;
+	public const int RecordBytes = MeshletRecord.Size;
 
 	public uint[] Indices { get; init; }
 	public MeshletRecord[] Meshlets { get; init; }

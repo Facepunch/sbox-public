@@ -18,6 +18,10 @@ public static partial class Program
 		if ( args.Any( x => x.Equals( "-slang", StringComparison.OrdinalIgnoreCase ) ) )
 			return Borealis.Backend.OfflineShaders.CompileAll( System.IO.Directory.GetCurrentDirectory(), Console.WriteLine ) == 0 ? 0 : 1;
 
+		// The record definitions (core/shaders/sbox/records.slangh): the C# structs and HLSL offsets they make, where stale
+		if ( args.Any( x => x.Equals( "-records", StringComparison.OrdinalIgnoreCase ) ) )
+			return Borealis.Backend.OfflineShaders.UpdateRecords( System.IO.Directory.GetCurrentDirectory(), Console.WriteLine );
+
 		var options = new ShaderCompileOptions();
 		// Exact matches - substring matching meant any other flag containing these letters (e.g. -slang) turned them on
 		options.ForceRecompile = args.Any( x => x == "-f" );
