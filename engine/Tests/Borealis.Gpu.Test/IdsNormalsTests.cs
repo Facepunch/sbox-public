@@ -139,6 +139,62 @@ public class IdsNormalsTests : GpuTest
 	}
 
 	/// <summary>
+	/// The ids' readers declare their image with an unknown format: the ids target is <c>R32_UINT</c> without normals from the
+	/// ids and <c>R32G32_UINT</c> with them, and an image typed with a format (Slang types a <c>uint2</c> texture
+	/// <c>Rg32ui</c>) reads undefined values through a view of another.
+	/// </summary>
+	[TestMethod]
+	public void IdsReadersTakeEitherTarget()
+	{
+		using var backend = new BackendDevice( Device );
+		using var drawer = new ShaderDrawer( backend );
+		var images = 0;
+		foreach ( var path in (string[])["shaders/borealis_gpu_driven_mark_cs.shader", "shaders/borealis_ids_normals_cs.shader"] )
+		{
+			var shader = backend.Shaders.Load( path );
+			if ( shader is null ) Assert.Inconclusive( $"{path} isn't built" );
+			foreach ( var msaa in (int[])[0, 1] )
+			{
+				var attributes = new ShaderAttributes();
+				attributes.SetCombo( "D_MSAA", msaa );
+				var variant = drawer.Variant( shader, attributes );
+				var spirv = variant?.Compute?.Bytecode?.Spirv ?? variant?.Compute?.Bytecode?.Shared?.Spirv;
+				Assert.IsNotNull( spirv, $"{path} D_MSAA {msaa} compiled" );
+				var ids = variant.Resources.Single( r => r.Name == "BorealisIds" );
+				Assert.AreEqual( 0u, ImageFormatAt( spirv, ids.Set, ids.Binding ), $"{path} D_MSAA {msaa}: g_tIds's image format (0 is Unknown)" );
+				images++;
+			}
+		}
+
+		Assert.AreEqual( 4, images );
+	}
+
+	/// <summary>The format operand of the image type of the SPIR-V's variable at a set and binding.</summary>
+	static uint ImageFormatAt( byte[] bytes, int set, int binding )
+	{
+		var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( bytes ).ToArray();
+		var sets = new Dictionary<uint, uint>();
+		var bindings = new Dictionary<uint, uint>();
+		var types = new Dictionary<uint, uint[]>();
+		var variables = new Dictionary<uint, uint>();
+		for ( int at = 5; at < words.Length; )
+		{
+			var (op, count) = (words[at] & 0xffff, (int)(words[at] >> 16));
+			var instruction = words.AsSpan( at, count );
+			if ( op == 71 && instruction[2] == 34 ) sets[instruction[1]] = instruction[3];       // OpDecorate DescriptorSet
+			if ( op == 71 && instruction[2] == 33 ) bindings[instruction[1]] = instruction[3];   // OpDecorate Binding
+			if ( op is 25 or 27 or 28 or 29 or 32 ) types[instruction[1]] = instruction.ToArray();   // image, sampled image, arrays, pointer
+			if ( op == 59 ) variables[instruction[2]] = instruction[1];                         // OpVariable: its pointer type
+			at += count;
+		}
+
+		var variable = variables.Keys.Single( v => sets.TryGetValue( v, out var s ) && s == set && bindings.TryGetValue( v, out var b ) && b == binding );
+		var type = types[variables[variable]];
+		while ( (type[0] & 0xffff) != 25 ) type = types[(type[0] & 0xffff) == 32 ? type[3] : type[2]];
+		return type[8];
+	}
+
+	/// <summary>
 	/// One box model drawn five times in one aggregate, each turned and tipped its own way, and a view of them: what each
 	/// instance's transform is, and the model's bounds. Inconclusive without the model.
 	/// </summary>

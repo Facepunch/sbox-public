@@ -20,11 +20,12 @@ Mode( Default );
 
 DynamicCombo( D_MSAA, 0..1, Sys( ALL ) );
 
-// The vertex bit + 1, then (with normals from the ids) the instance record; a target of one word reads 0 for the second
+// The vertex bit + 1, then (with normals from the ids) the instance record; a target of one word reads 0 for the second.
+// Unknown format: Slang would type it Rg32ui, which an R32_UINT view (the default ids target) leaves undefined
 #if D_MSAA
-	Texture2DMS<uint2> g_tIds < Attribute( "BorealisIds" ); >;
+	[format( "unknown" )] Texture2DMS<uint2> g_tIds < Attribute( "BorealisIds" ); >;
 #else
-	Texture2D<uint2> g_tIds < Attribute( "BorealisIds" ); >;
+	[format( "unknown" )] Texture2D<uint2> g_tIds < Attribute( "BorealisIds" ); >;
 #endif
 
 RWByteAddressBuffer g_Mask < Attribute( "BorealisCullMask" ); >;

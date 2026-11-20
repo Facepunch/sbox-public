@@ -22,12 +22,12 @@ Mode( Default );
 DynamicCombo( D_MSAA, 0..1, Sys( ALL ) );
 
 // The view's ids (vertex bit + 1, instance record: BorealisGpuDrivenIds) and depth, read at sample 0, which the depth
-// chain's first mip holds
+// chain's first mip holds. The ids' format is unknown, as the mark's, so either ids target's view matches
 #if D_MSAA
-	Texture2DMS<uint2> g_tIds < Attribute( "BorealisIds" ); >;
+	[format( "unknown" )] Texture2DMS<uint2> g_tIds < Attribute( "BorealisIds" ); >;
 	Texture2DMS<float> g_tDepth < Attribute( "BorealisIdsDepth" ); >;
 #else
-	Texture2D<uint2> g_tIds < Attribute( "BorealisIds" ); >;
+	[format( "unknown" )] Texture2D<uint2> g_tIds < Attribute( "BorealisIds" ); >;
 	Texture2D<float> g_tDepth < Attribute( "BorealisIdsDepth" ); >;
 #endif
 
