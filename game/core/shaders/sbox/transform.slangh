@@ -1,0 +1,55 @@
+// The per-instance transform buffer and the animated vertex cache, as the engine writes them. Ours, in place of the old
+// transform_buffer.fxc in Slang compiles (SlangHeaders): the same layouts, bindings and names. Needs the declaration macros
+// (EXTERNAL_DESC_SET, annotations) its includer has. Shares the old header's include guard.
+#ifndef TRANSFORM_BUFFER_FXC
+#define TRANSFORM_BUFFER_FXC
+
+#include "sbox/encoding.slangh"
+
+/// One entry of the transform buffer, 64 bytes. A mesh's first entry is its object transform and its second the
+/// translucency/morph one; a skinned mesh's two come first and its bones follow.
+struct TransformBufferData_t
+{
+	row_major float3x4 transform;
+	float m_fAlpha;
+	uint m_vTintRGB888;           // tint, 8 bits a channel, red highest
+	uint m_nVertexCacheOffset;    // first vertex in the animated vertex cache, for meshes skinned on the GPU
+	uint m_nBlendWeightCount;     // bones per vertex; 0 when the mesh isn't skinned
+};
+
+StructuredBuffer<TransformBufferData_t> g_TransformData < Attribute( "g_TransformBuffer" ); >;
+
+// Vertices skinned and morphed by the compute pass, 24 bytes each
+ByteAddressBuffer g_animatedVertexCache EXTERNAL_DESC_SET( t, g_globalLateBoundBindlessSet, 3 );
+
+struct CachedAnimatedVertex_t
+{
+	float3 vPosWs;
+	// Octahedral normal (16 bits an axis) in x; octahedral tangent (15 bits an axis) above the bitangent sign bit in y
+	uint2 vPackedNormalTangentWs;
+	float flMorphWrinkle;
+};
+
+CachedAnimatedVertex_t FetchCachedVertex( uint n )
+{
+	uint at = n * 24;
+	CachedAnimatedVertex_t v;
+	v.vPosWs = asfloat( g_animatedVertexCache.Load3( at ) );
+	v.vPackedNormalTangentWs = g_animatedVertexCache.Load2( at + 12 );
+	v.flMorphWrinkle = asfloat( g_animatedVertexCache.Load( at + 20 ) );
+	return v;
+}
+
+void DecodeCachedVertexTangentSpace( CachedAnimatedVertex_t v, out float3 vNormal, out float3 vTangent, out float flTangentSign )
+{
+	const uint normalMask = ( 1u << 16 ) - 1;
+	const uint tangentMask = ( 1u << 15 ) - 1;
+	uint2 packed = v.vPackedNormalTangentWs;
+	float2 normal = float2( float( packed.x & normalMask ), float( ( packed.x >> 16 ) & normalMask ) ) / float( normalMask );
+	float2 tangent = float2( float( ( packed.y >> 1 ) & tangentMask ), float( ( packed.y >> 16 ) & tangentMask ) ) / float( tangentMask );
+	vNormal = OctohedralDecode( normal * 2.0 - 1.0 );
+	vTangent = OctohedralDecode( tangent * 2.0 - 1.0 );
+	flTangentSign = ( ( packed.y & 1 ) != 0 ) ? 1.0 : -1.0;
+}
+
+#endif // TRANSFORM_BUFFER_FXC

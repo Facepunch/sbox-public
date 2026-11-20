@@ -14,7 +14,7 @@
 
 Mode( Default );
 
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "ui/text.hlsl"

@@ -15,7 +15,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
+#include "sbox/system.slangh" // This should always be the first include in COMMON
 
 #define DISPATCH_2x1 0		// Process 2x1 DXT5 blocks (32 threads)
 #define DISPATCH_2x2 1		// Process 2x2 DXT5 blocks (64 threads)

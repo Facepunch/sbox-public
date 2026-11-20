@@ -14,8 +14,8 @@ Mode( Depth, "depth_only.shader" );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT
@@ -41,8 +41,8 @@ struct PS_INPUT
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "instancing.fxc"
-#include "vs_decompress.fxc"
+#include "sbox/instancing.slangh"
+#include "sbox/vertex_decompress.slangh"
 
 [shader( "vertex" )] PS_INPUT MainVs( const VS_INPUT i )
 {

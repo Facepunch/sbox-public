@@ -82,10 +82,10 @@ public sealed partial class SlangCompiler
 	/// defines and passes, the generated instance and GPU-driven files, the source rewrites, reflection. A change to the
 	/// generated text alone fails <c>GeneratedCodeNeedsAVersion</c> until <see cref="GeneratedFingerprint"/> is updated here too.
 	/// </summary>
-	public const int Version = 5;
+	public const int Version = 11;
 
 	/// <summary>The <see cref="Fingerprint"/> of the generated code <see cref="Version"/> was raised for.</summary>
-	internal const string GeneratedFingerprint = "76BE6AD6FD8F85B8";
+	internal const string GeneratedFingerprint = "A3C07B8547152C1E";
 
 	/// <summary>
 	/// A hash of what the compiler generates for fixed inputs (the Slang command lines, instance and GPU-driven files and
@@ -293,7 +293,6 @@ public sealed partial class SlangCompiler
 	static string Rewrite( string path, string text, Dictionary<string, Annotations> annotations )
 	{
 		if ( path.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ) return VfxIncludes.Rewrite( MaterialSource.Rewrite( text, out _ ), annotations );
-		if ( path.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) ) return text;
 		return VfxIncludes.Rewrite( text, annotations );
 	}
 

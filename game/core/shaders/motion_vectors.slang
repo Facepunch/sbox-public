@@ -16,8 +16,8 @@ Mode( Default );
 // We want absolute motion vectors even without viewmodel correction
 #define ABSOLUTE_MOTION 1
 
-#include "system.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
 #include "sbox_shared.fxc"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

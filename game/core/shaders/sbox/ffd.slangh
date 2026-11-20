@@ -1,0 +1,102 @@
+// Free-form deformation: a mesh bent by four corner transforms over a tile, blended by where each vertex sits in the tile.
+// Ours, in place of the old ffd.fxc in Slang compiles (SlangHeaders): the same names, constant buffer, combo and results.
+// Shares the old header's include guard.
+#ifndef FFD_FXC
+#define FFD_FXC
+
+DynamicCombo( D_FREEFORM_DEFORMATION, 0..1, Sys( ALL ) );
+
+#if ( D_FREEFORM_DEFORMATION )
+cbuffer FFDTransforms_t
+{
+	// Object space to the tile's space; the tile's width and depth in [0].w and [1].w
+	float4x4 g_FFDBaseTransform;
+	// Each corner's transform: scaled, possibly skewed basis vectors, with that corner's scale along the tile in [3][3]
+	float4x4 g_FFDTransform0;
+	float4x4 g_FFDTransform1;
+	float4x4 g_FFDTransform2;
+	float4x4 g_FFDTransform3;
+};
+#endif
+
+struct DeformationParameters_t
+{
+	float4 vWeight;        // each corner's share
+	float2 vScaleFactor;   // 1 inside the tile, 0 outside, per axis: the corners' scales apply only inside
+};
+
+/// The corner weights for a position: a smoothstepped bilinear blend over the tile. All zero without D_FREEFORM_DEFORMATION.
+DeformationParameters_t ComputeDeformationWeight( float3 vPositionOs )
+{
+	DeformationParameters_t params;
+	params.vWeight = float4( 0.0, 0.0, 0.0, 0.0 );
+	params.vScaleFactor = float2( 1.0, 1.0 );
+#if ( D_FREEFORM_DEFORMATION )
+	float3 p = mul( float4( vPositionOs, 1.0 ), g_FFDBaseTransform ).xyz;
+	float2 size = float2( g_FFDBaseTransform[0].w, g_FFDBaseTransform[1].w );
+	float2 t = ( p.xy - float2( -size.x * 0.5, -size.y * 0.5 ) ) / size;
+	params.vScaleFactor = step( t, float2( 1.0f, 1.0f ) ) * step( float2( 0.0, 0.0 ), t );
+	t = saturate( t );
+	t = t * t * ( 3.0 - 2.0 * t );
+	params.vWeight = float4( ( 1.0 - t.x ) * ( 1.0 - t.y ), t.x * ( 1.0 - t.y ), t.x * t.y, ( 1.0 - t.x ) * t.y );
+#endif
+	return params;
+}
+
+#if ( D_FREEFORM_DEFORMATION )
+/// A tile-space position through one corner's transform, its forward and left scales applied inside the tile, relative to that corner.
+float3 ComputeFFDCornerTransform( float3 vPosition, float4x4 baseTransform, float flForwardScale, float flLeftScale, float2 vScaleFactor, float2 vCornerOffset )
+{
+	baseTransform[0].xyz *= lerp( 1.0f, flForwardScale, vScaleFactor.x );
+	baseTransform[1].xyz *= lerp( 1.0f, flLeftScale, vScaleFactor.y );
+	vPosition.xy += float2( g_FFDBaseTransform[0].w, g_FFDBaseTransform[1].w ) * vCornerOffset;
+	return mul( float4( vPosition, 1.0 ), baseTransform ).xyz;
+}
+#endif
+
+/// A position deformed by the four corners. Unchanged without D_FREEFORM_DEFORMATION.
+float3 ComputeDeformedPosition( float3 vPositionOs, DeformationParameters_t params )
+{
+#if ( D_FREEFORM_DEFORMATION )
+	float3 p = mul( float4( vPositionOs, 1.0 ), g_FFDBaseTransform ).xyz;
+	float3 p0 = ComputeFFDCornerTransform( p, g_FFDTransform0, g_FFDTransform0[3][3], g_FFDTransform3[3][3], params.vScaleFactor, float2( 0.5, 0.5 ) );
+	float3 p1 = ComputeFFDCornerTransform( p, g_FFDTransform1, g_FFDTransform0[3][3], g_FFDTransform1[3][3], params.vScaleFactor, float2( -0.5, 0.5 ) );
+	float3 p2 = ComputeFFDCornerTransform( p, g_FFDTransform2, g_FFDTransform2[3][3], g_FFDTransform1[3][3], params.vScaleFactor, float2( -0.5, -0.5 ) );
+	float3 p3 = ComputeFFDCornerTransform( p, g_FFDTransform3, g_FFDTransform2[3][3], g_FFDTransform3[3][3], params.vScaleFactor, float2( 0.5, -0.5 ) );
+	return ( p0 * params.vWeight.x ) + ( p1 * params.vWeight.y ) + ( p2 * params.vWeight.z ) + ( p3 * params.vWeight.w );
+#else
+	return vPositionOs;
+#endif
+}
+
+/// The transform a corner applies to directions: forward and left made perpendicular to up and to each other's original,
+/// and every axis's scale inverted, as normals need.
+float4x4 ComputeFFDVectorTransform( float4x4 baseTransform, float flForwardScale, float flLeftScale, float2 vScaleFactor )
+{
+	float3 forward = baseTransform[0].xyz;
+	float3 left = baseTransform[1].xyz;
+	float3 up = float3( baseTransform[0].w, baseTransform[1].w, baseTransform[2].w );
+	float upLength = length( up );
+	float4x4 result = baseTransform;
+	result[0].xyz = normalize( cross( left, up ) ) / lerp( 1.0f, flForwardScale, vScaleFactor.x );
+	result[1].xyz = normalize( cross( up, forward ) ) / lerp( 1.0f, flLeftScale, vScaleFactor.y );
+	result[2].xyz = up / ( upLength * upLength );
+	return result;
+}
+
+/// A direction (normal) deformed by the four corners' direction transforms. Unchanged without D_FREEFORM_DEFORMATION.
+float3 ComputeDeformedVector( float3 vNormalOs, DeformationParameters_t params )
+{
+#if ( D_FREEFORM_DEFORMATION )
+	float4x4 m0 = ComputeFFDVectorTransform( g_FFDTransform0, g_FFDTransform0[3][3], g_FFDTransform3[3][3], params.vScaleFactor );
+	float4x4 m1 = ComputeFFDVectorTransform( g_FFDTransform1, g_FFDTransform0[3][3], g_FFDTransform1[3][3], params.vScaleFactor );
+	float4x4 m2 = ComputeFFDVectorTransform( g_FFDTransform2, g_FFDTransform2[3][3], g_FFDTransform1[3][3], params.vScaleFactor );
+	float4x4 m3 = ComputeFFDVectorTransform( g_FFDTransform3, g_FFDTransform2[3][3], g_FFDTransform3[3][3], params.vScaleFactor );
+	float4 n = float4( mul( float4( vNormalOs, 0.0 ), g_FFDBaseTransform ).xyz, 0.0 );
+	return ( mul( n, m0 ).xyz * params.vWeight.x ) + ( mul( n, m1 ).xyz * params.vWeight.y ) + ( mul( n, m2 ).xyz * params.vWeight.z ) + ( mul( n, m3 ).xyz * params.vWeight.w );
+#else
+	return vNormalOs;
+#endif
+}
+
+#endif // FFD_FXC

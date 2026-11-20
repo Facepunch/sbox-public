@@ -9,8 +9,8 @@
 
 Mode( Forward );
 
-#include "system.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 
 struct VS_INPUT

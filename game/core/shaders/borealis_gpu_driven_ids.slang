@@ -12,8 +12,8 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
 #include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -29,7 +29,7 @@ struct PS_INPUT
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 #include "borealis_gpu_driven.fxc"
 
 // depth_only's position, pulled as its GPU-driven variant pulls it, so the depth is the same

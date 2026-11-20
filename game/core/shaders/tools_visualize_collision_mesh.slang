@@ -20,10 +20,10 @@ Feature( F_DEPTH_TEST, 0..1 );
 Feature( F_WIREFRAME, 0..1 );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
-#include "vr_common.fxc"
+#include "sbox/shading.slangh"
 
 #define SUPPORTS_COMPRESSED_NORMAL_AND_TANGENT 1
 
@@ -56,9 +56,9 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "instancing.fxc"
-#include "vs_decompress.fxc"
-#include "vr_lighting.fxc"
+#include "sbox/instancing.slangh"
+#include "sbox/vertex_decompress.slangh"
+#include "sbox/lighting.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 StaticCombo( S_WIREFRAME, F_WIREFRAME, Sys( ALL ) );
