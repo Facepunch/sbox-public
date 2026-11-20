@@ -1,0 +1,12 @@
+// Stands in for materials/shaders/void_infection.hlsl, which the package that includes it (retro_shader's) doesn't ship:
+// no void and no fog anywhere.
+#ifndef SBOX_STANDIN_VOID_INFECTION
+#define SBOX_STANDIN_VOID_INFECTION
+
+void GetVoidFactors( float3 vPositionWs, float flTime, out float flVoid, out float flFog )
+{
+	flVoid = 1.0;
+	flFog = 0.0;
+}
+
+#endif

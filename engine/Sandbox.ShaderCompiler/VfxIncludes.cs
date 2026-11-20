@@ -16,10 +16,11 @@ internal static partial class VfxIncludes
 	private static partial Regex ExternalSet();
 
 	// A global's name before its annotations: "Type name [: register( ... )] < ... >;" or "CreateTexture2D( name ) < ... >;"
-	[GeneratedRegex( @"(?:\bCreate\w+\(\s*(?<call>\w+)\s*\)|\b(?<name>\w+))\s*(?:\[[^\]]*\]\s*)?(?::\s*register\s*\([^)]*\)\s*)?<(?<annotations>[^<>]*)>\s*;" )]
+	[GeneratedRegex( @"(?:\b(?<create>Create\w+)\(\s*(?<call>\w+)\s*\)|\b(?<name>\w+))\s*(?:\[[^\]]*\]\s*)?(?::\s*register\s*\([^)]*\)\s*)?<(?<annotations>[^<>]*)>\s*;" )]
 	private static partial Regex Annotated();
 
-	[GeneratedRegex( @"(\w+)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)" )]
+	// "Name( argument )", the argument's parentheses balanced however deep (Material.CommonInputs.hlsl's Filter( ( F == 0 ? A : ( ... ) ) ))
+	[GeneratedRegex( @"(\w+)\s*\(((?>[^()]+|\((?<depth>)|\)(?<-depth>))*(?(depth)(?!)))\)" )]
 	private static partial Regex Entry();
 
 	// "int X < Attribute( "Y" ); Default( 0 ); SpecializedConstant(); >;"
@@ -81,7 +82,11 @@ internal static partial class VfxIncludes
 		{
 			var name = m.Groups["call"].Success ? m.Groups["call"].Value : m.Groups["name"].Value;
 			var parsed = Parse( ExpandMacros( m.Groups["annotations"].Value, macros ) );
-			if ( parsed is not null ) annotations[name] = parsed;
+			if ( parsed is null ) continue;
+			annotations[name] = parsed;
+
+			// CreateTexture2D( name ) declares name_sampler beside the texture, whose state the texture's annotations give
+			if ( m.Groups["create"].Success && !m.Groups["create"].Value.EndsWith( "WithoutSampler", StringComparison.Ordinal ) ) annotations[name + "_sampler"] = parsed;
 		}
 
 		return text;
