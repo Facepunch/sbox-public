@@ -58,6 +58,9 @@ public static partial class EmbeddedCompatibility
 		if ( PcfDiscUse().IsMatch( body ) && !PcfDiscDeclaration().IsMatch( body ) ) end.Append( "#define SBOX_EMBEDDED_PCF_DISCS\n" );
 		if ( TextureFilteringUse().IsMatch( body ) && !TextureFilteringDeclaration().IsMatch( body ) && !body.Contains( "Material.CommonInputs.hlsl", StringComparison.OrdinalIgnoreCase ) )
 			end.Append( "#define SBOX_EMBEDDED_TEXTURE_FILTERING\n" );
+		if ( ExtraDataFromInput().Match( body ) is { Success: true } extra && Regex.IsMatch( body, $@"\b(?:VS_INPUT|VertexInput)\s+{extra.Groups["arg"].Value}\b" ) )
+			end.Append( "#define SBOX_EMBEDDED_EXTRA_DATA_FROM_INPUT\n" );
+		if ( !body.Contains( "g_nMorphTextureAtlasWidth", StringComparison.Ordinal ) ) end.Append( "#define SBOX_EMBEDDED_MORPH_ATLAS_WIDTH\n" );
 		end.Append( "#include \"sbox/embedded_end.slangh\"\n" );
 		return body + end;
 	}
@@ -164,6 +167,10 @@ public static partial class EmbeddedCompatibility
 
 	[GeneratedRegex( @"\bstruct\s+PixelInput\s*\{[^}]*?#include\s+""common/pixelinput\.hlsl""[^\n]*\n" )]
 	private static partial Regex PixelInputInclude();
+
+	// GetExtraPerInstanceShaderData called with a variable (an older engine took the vertex input) rather than a member
+	[GeneratedRegex( @"\bGetExtraPerInstanceShaderData\(\s*(?<arg>\w+)\s*\)" )]
+	private static partial Regex ExtraDataFromInput();
 
 	[GeneratedRegex( @"\bTextureFiltering\b" )]
 	private static partial Regex TextureFilteringUse();
