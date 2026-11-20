@@ -53,7 +53,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			HashCode hc = new HashCode();
 			hc.Add( Value.Name );
 			hc.Add( Value.IsPrefabInstance );
-			hc.Add( (Value.Scene.Editor as SceneEditorSession)?.IsInstance( Value ) );
+			hc.Add( (Value.Scene?.Editor as SceneEditorSession)?.IsInstance( Value ) );
 			hc.Add( Value.Flags );
 			hc.Add( Value.NetworkMode );
 			hc.Add( Value.Network.Active );
