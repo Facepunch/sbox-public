@@ -527,15 +527,22 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// </summary>
 	public static bool OwnBigBuffers { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_SHARED_BIG_BUFFERS" ) != "1";
 
-	// Own buffer sizes with a spare being made ahead, and the size last taken per memory type
-	readonly HashSet<(int Type, ulong Size)> makingPagesAhead = new();
-	readonly Dictionary<int, ulong> lastPageSize = new();
+	// Own buffer sizes with spares being made ahead (how many), and how often each size has been taken
+	readonly Dictionary<(int Type, ulong Size), int> makingPagesAhead = new();
+	readonly Dictionary<(int Type, ulong Size), int> pageTakes = new();
+
+	/// <summary>
+	/// Spares of an own buffer size made ahead after a take found none ready (<see cref="OwnBuffer"/>): a map's loads take
+	/// upload and geometry pages in bursts, and one made ahead at a time left most of them to the driver on the thread that
+	/// asked (about 350 in the seconds after a load, 0.7-3 ms each). They're spares like any other, freed once unused.
+	/// </summary>
+	public const int PagesAheadInBurst = 3;
 
 	/// <summary>
 	/// A big buffer's own allocation: an empty one of its size kept as a spare (made ahead, or freed and not yet trimmed)
-	/// when there is one, else the driver's. Once a size is taken twice in a row (pages, and each view's buffers, come at a
-	/// few sizes), the next is made ahead on a worker, so a map loading doesn't wait for the driver on the thread that
-	/// makes them.
+	/// when there is one, else the driver's. Once a size has been taken before (pages, and each view's buffers, come at a
+	/// few sizes), spares of it are made ahead on a worker: one while takes find one ready, <see cref="PagesAheadInBurst"/>
+	/// once one didn't, so a map loading doesn't wait for the driver on the thread that makes them.
 	/// </summary>
 	Allocation OwnBuffer( int type, ulong size, ulong alignment, bool content, bool refusable, bool fallback )
 	{
@@ -548,7 +555,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				Unspare( block );
 				block.TryAllocate( size, alignment, out var spareOffset, out var spareNode );
 				CountUsed( type, (long)size );
-				if ( !fallback ) PageTaken( type, size );
+				if ( !fallback ) PageTaken( type, size, ready: true );
 				return new Allocation( block, spareOffset, size, spareNode );
 			}
 		}
@@ -562,19 +569,35 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		{
 			Add( page );
 			CountUsed( type, (long)size );
-			if ( !fallback ) PageTaken( type, size );
+			if ( !fallback ) PageTaken( type, size, ready: false );
 		}
 
 		return new Allocation( page, offset, size, node );
 	}
 
-	/// <summary>A page of <paramref name="size"/> was taken: make the next ahead when that size was the last taken too. Under the lock.</summary>
-	void PageTaken( int type, ulong size )
+	/// <summary>
+	/// A page of <paramref name="size"/> was taken (a spare <paramref name="ready"/>, or the driver's): once the size has been
+	/// taken before, make spares of it ahead, one or <see cref="PagesAheadInBurst"/> with those already kept or being made.
+	/// Under the lock.
+	/// </summary>
+	void PageTaken( int type, ulong size, bool ready )
 	{
-		var again = lastPageSize.TryGetValue( type, out var last ) && last == size;
-		lastPageSize[type] = size;
-		if ( !again || !MakeBlocksAhead || !BlocksAhead || disposed || HasSparePage( type, size, null ) || !makingPagesAhead.Add( (type, size) ) ) return;
+		var key = (type, size);
+		var takes = pageTakes.GetValueOrDefault( key ) + 1;
+		pageTakes[key] = takes;
+		if ( takes < 2 || !MakeBlocksAhead || !BlocksAhead || disposed ) return;
 
+		var wanted = ready ? 1 : PagesAheadInBurst;
+		for ( var have = SparePages( type, size ) + makingPagesAhead.GetValueOrDefault( key ); have < wanted; have++ )
+		{
+			makingPagesAhead[key] = makingPagesAhead.GetValueOrDefault( key ) + 1;
+			MakePageAhead( type, size );
+		}
+	}
+
+	/// <summary>Make an empty own buffer allocation of <paramref name="size"/> on a worker and keep it as a spare.</summary>
+	void MakePageAhead( int type, ulong size )
+	{
 		System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static state =>
 		{
 			var (allocator, type, size) = state;
@@ -592,7 +615,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 			lock ( allocator.allocationLock )
 			{
-				allocator.makingPagesAhead.Remove( (type, size) );
+				var making = allocator.makingPagesAhead[(type, size)] - 1;
+				if ( making > 0 ) allocator.makingPagesAhead[(type, size)] = making;
+				else allocator.makingPagesAhead.Remove( (type, size) );
 				if ( block is null ) return;
 				if ( allocator.disposed )
 				{
@@ -603,6 +628,18 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				allocator.Add( block );
 			}
 		}, (this, type, size), preferLocal: false );
+	}
+
+	/// <summary>Empty own buffer allocations of <paramref name="size"/> kept; under the lock.</summary>
+	int SparePages( int type, ulong size )
+	{
+		var count = 0;
+		foreach ( var block in spares )
+		{
+			if ( block.Dedicated && block.Reusable && block.Used == 0 && block.Size == size && block.TypeIndex == type && !block.Images ) count++;
+		}
+
+		return count;
 	}
 
 	/// <summary>Whether an empty own buffer allocation of <paramref name="size"/> other than <paramref name="except"/> is kept; under the lock.</summary>

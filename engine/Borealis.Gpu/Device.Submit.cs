@@ -130,6 +130,55 @@ public sealed unsafe partial class Device
 	/// <summary>Upload pages lists have taken so far (made or recycled), for measuring.</summary>
 	internal long UploadPagesTaken;
 
+	/// <summary>Pages of the biggest size lists had to make since the last frame began, none being free.</summary>
+	internal long UploadPageMisses;
+
+	/// <summary>Pages of the biggest size made ahead on a worker so far (<see cref="MakeUploadPagesAhead"/>), for tests.</summary>
+	internal long UploadPagesAhead;
+
+	/// <summary>The most pages of the biggest size made ahead at a frame's start.</summary>
+	internal const int MaxUploadPagesAhead = 16;
+
+	int makingUploadPages;
+
+	/// <summary>Whether pages are being made ahead on a worker now (<see cref="MakeUploadPagesAhead"/>), for tests.</summary>
+	internal bool MakingUploadPagesAhead => Volatile.Read( ref makingUploadPages ) != 0;
+
+	/// <summary>
+	/// At a frame's start: when lists had to make pages of the biggest size last frame (none were free), make twice as many on
+	/// a worker, up to <see cref="MaxUploadPagesAhead"/>, so the frames of a burst (a map's first frames, a new view) find
+	/// them free rather than each making its own on the recording thread (the driver's allocation, about a millisecond
+	/// each). Unused ones are trimmed with the other free pages (<see cref="TrimSpares"/>).
+	/// </summary>
+	void MakeUploadPagesAhead()
+	{
+		var misses = Interlocked.Exchange( ref UploadPageMisses, 0 );
+		if ( misses == 0 || IsLost || Volatile.Read( ref makingUploadPages ) != 0 ) return;
+		var count = (int)Math.Min( misses * 2, MaxUploadPagesAhead );
+		Interlocked.Exchange( ref makingUploadPages, 1 );
+		ThreadPool.UnsafeQueueUserWorkItem( static state =>
+		{
+			var (device, count) = state;
+			try
+			{
+				var largest = CommandList.PageSizes.Length - 1;
+				for ( int i = 0; i < count && !device.disposed && !device.IsLost; i++ )
+				{
+					device.FreePages[largest].Add( CommandList.CreatePage( device, CommandList.PageSizes[largest], largest ) );
+					Interlocked.Increment( ref device.UploadPagesAhead );
+				}
+			}
+			catch ( GpuException )
+			{
+				// Out of memory ahead: the list that needs a page reports it
+			}
+			finally
+			{
+				Volatile.Write( ref device.makingUploadPages, 0 );
+			}
+		}, (this, count), preferLocal: false );
+	}
+
 	/// <summary>Destroy an upload page once the GPU is done with it.</summary>
 	internal void DestroyPage( UploadPage page )
 	{
@@ -271,6 +320,7 @@ public sealed unsafe partial class Device
 		recycle.Clear();
 		CollectGarbage();
 		TrimSpares();
+		MakeUploadPagesAhead();
 		Allocator.Trim( FrameNumber );
 		if ( FrameNumber % MemoryBudgetFrames == 0 ) RefreshMemoryBudget();
 	}
