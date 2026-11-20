@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wiring Junction Wide",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "wiring_junction_wide",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/wiring/wiring_junction_wide.vmdl",
+        "Summary": "",
+        "Description": "",
+        "Public": true,
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "3cea466d-e366-4aec-a639-dabac91722e8"
+}

@@ -1,0 +1,9 @@
+{
+  "Prefab": "entities/sents/npc/scientist.prefab",
+  "Title": "#asset.scientist.title",
+  "Description": "#asset.scientist.description",
+  "Category": "Npc/Humanoid",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+} 

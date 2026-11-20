@@ -8,7 +8,13 @@ namespace Sandbox.ContentBuild;
 /// <param name="Mod">Mount name; compiled outputs are staged under it.</param>
 /// <param name="Path">Content root; compiled outputs are published beside their sources.</param>
 /// <param name="StateDirectory">Records, journal and staging. Outside every root, on the same volume as this one.</param>
-public sealed record ContentRoot( string Mod, string Path, string StateDirectory );
+public sealed record ContentRoot( string Mod, string Path, string StateDirectory )
+{
+	/// <summary>
+	/// Publish staged transient files in this root with the resource that generated them.
+	/// </summary>
+	public bool PublishTransientsWithAssets { get; init; }
+}
 
 public sealed class BuildRequest
 {
@@ -69,6 +75,13 @@ public sealed class BuildRequest
 	/// Whether another compile may start beside the ones running, asked again as each finishes; one always runs.
 	/// </summary>
 	public Func<bool> CanStartJob { get; init; }
+
+	/// <summary>
+	/// Reports the number of finished compile jobs and the mount names of roots currently compiling.
+	/// Called on the scheduling thread when a compile starts or finishes.
+	/// </summary>
+	public Action<int, IReadOnlyList<string>> CompileProgress { get; init; }
+
 	public Action<string> JobFinished { get; init; }
 
 	/// <summary>
@@ -222,6 +235,9 @@ public static class ContentBuilder
 
 		public string Relative( string path ) => Path.GetRelativePath( Directory, path ).Replace( '\\', '/' );
 
+		bool IsLocalTransient( string mod ) =>
+			Def.PublishTransientsWithAssets && string.Equals( mod, "transient", StringComparison.OrdinalIgnoreCase );
+
 		public string InRoot( string path )
 		{
 			if ( string.IsNullOrEmpty( path ) ) return null;
@@ -237,7 +253,7 @@ public static class ContentBuilder
 		{
 			var parts = Path.GetRelativePath( staging, staged ).Replace( '\\', '/' ).Split( '/', 2 );
 			if ( parts.Length < 2 || parts[0] == ".." ) return null;
-			if ( string.Equals( parts[0], Def.Mod, StringComparison.OrdinalIgnoreCase ) ) return parts[1];
+			if ( string.Equals( parts[0], Def.Mod, StringComparison.OrdinalIgnoreCase ) || IsLocalTransient( parts[0] ) ) return parts[1];
 			return outputRoots.Keys.FirstOrDefault( x => string.Equals( x, parts[0], StringComparison.OrdinalIgnoreCase ) ) is { } mod ? $"{mod}:{parts[1]}" : null;
 		}
 
@@ -251,6 +267,8 @@ public static class ContentBuilder
 			var full = Path.GetFullPath( path );
 			foreach ( var (mod, dir) in outputRoots.Concat( fallbacks ) )
 			{
+				if ( IsLocalTransient( mod ) ) continue;
+
 				var root = Path.GetFullPath( dir ).TrimEnd( Path.DirectorySeparatorChar ) + Path.DirectorySeparatorChar;
 				if ( full.StartsWith( root, StringComparison.OrdinalIgnoreCase ) ) return $"{mod}:{Path.GetRelativePath( root, full ).Replace( '\\', '/' )}";
 			}
@@ -751,6 +769,18 @@ public static class ContentBuilder
 
 		async Task ScheduleUntilDone( Dictionary<Task<CompileResult>, (Node Node, CompileJob Job)> running )
 		{
+			void ReportProgress( Node starting = null )
+			{
+				if ( request.CompileProgress is null ) return;
+
+				var activeRoots = running.Values.Select( x => x.Node.Root.Def.Mod );
+				if ( starting is not null ) activeRoots = activeRoots.Append( starting.Root.Def.Mod );
+
+				var finished = report.Jobs.Count - running.Count;
+				var names = activeRoots.Distinct( StringComparer.OrdinalIgnoreCase ).Order( StringComparer.OrdinalIgnoreCase );
+				request.CompileProgress( finished, [.. names] );
+			}
+
 			var queue = new List<Node>();
 			while ( true )
 			{
@@ -797,6 +827,7 @@ public static class ContentBuilder
 					node.State = State.Running;
 					node.Started = ++clock;
 					node.Launched = DateTime.UtcNow;
+					ReportProgress( node );
 					report.Jobs.Add( node.Name );
 
 					// A thread of its own, not the pool's, as it waits for the whole compile
@@ -827,6 +858,7 @@ public static class ContentBuilder
 				finally { ReleaseStaging( finishedJob.Staging ); }
 
 				request.JobFinished?.Invoke( finished.Name );
+				ReportProgress();
 			}
 		}
 
@@ -1128,6 +1160,10 @@ public static class ContentBuilder
 			List<(string Key, FileStamp Stamp)> restamp = null;
 			foreach ( var (key, stamp) in node.Record.Outputs )
 			{
+				// A shared output from an older build must be compiled and recorded in its owning root.
+				if ( node.Root.Def.PublishTransientsWithAssets && key.StartsWith( "transient:", StringComparison.OrdinalIgnoreCase ) )
+					return ($"{key} now belongs in the asset root", null);
+
 				// An output in a root this build doesn't mount can't be checked or rebuilt here
 				if ( node.Root.Resolve( key ) is not { } path ) continue;
 

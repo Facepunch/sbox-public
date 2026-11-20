@@ -10,7 +10,6 @@ public class BorealisGpuDeviceQueries
 	public void VideoMemoryIsTheDrawingDevicesOwn()
 	{
 		TestGraphics.Require();
-		if ( Graphics.HasSource2Device ) Assert.Inconclusive( "Source 2's device reports its own." );
 
 		Assert.IsTrue( Graphics.VideoMemoryBudget > 0, "a budget" );
 		Assert.IsTrue( Graphics.VideoMemoryUsed > 0, "some used" );

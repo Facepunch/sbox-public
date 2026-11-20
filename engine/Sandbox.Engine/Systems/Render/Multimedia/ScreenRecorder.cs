@@ -72,23 +72,6 @@ internal static class ScreenRecorder
 	}
 
 	/// <summary>
-	/// Captures a video frame from the provided render context and view.
-	/// </summary>
-	public static void RecordVideoFrame( IRenderContext renderContext, ITexture nativeTexture )
-	{
-		if ( !_isRecording ) return;
-		if ( nativeTexture.IsNull || !nativeTexture.IsStrongHandleValid() ) return;
-
-		if ( _videoWriter == null )
-		{
-			var desc = g_pRenderDevice.GetOnDiskTextureDesc( nativeTexture );
-			if ( !StartWriter( desc.m_nWidth, desc.m_nHeight ) ) return;
-		}
-
-		renderContext.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) => OnFrame( pData, width, height ) );
-	}
-
-	/// <summary>
 	/// Captures a video frame from a Borealis.Gpu window's frame (RGBA8), read back from the device without waiting: recorded
 	/// at this point of the block being recorded (before the recording border is drawn), handed back on a worker once the
 	/// GPU has done it. Frames before the next one's due time aren't read at all.

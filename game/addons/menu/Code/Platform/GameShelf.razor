@@ -25,7 +25,7 @@
     </div>
 
     <div class="cards" @ref="Cards">
-        @if ( Row?.Games is null )
+        @if ( Row?.Games is null && Local is not { Count: > 0 } )
         {
             @* Cards' shapes, as many as it'll show (a row of them for one showing all) *@
             @for ( var i = 0; i < Columns * Math.Max( 1, MaxRows ); i++ )
@@ -41,7 +41,7 @@
         }
         else
         {
-            @* Local projects opened this run - not on the Workshop *@
+            @* Installed addons and local projects opened this run *@
             @foreach ( var game in Local ?? [] )
             {
                 <div class="cell" style="@CellStyle"><GameCard Local=@game OnPicked=@OnPicked /></div>
@@ -73,7 +73,7 @@
 
     bool IsYours => Row == PlatformMenu.YourGames;
 
-    List<Package> Local => IsYours ? PlatformMenu.LocalGames : null;
+    IReadOnlyList<Package> Local => IsYours ? PlatformMenu.LocalGames : null;
 
     [Parameter] public Action<Package> OnPicked { get; set; }
 
@@ -93,7 +93,7 @@
     {
         get
         {
-            var games = Row.Games.Where( x => Skip is null || !Skip.Contains( x.Id ) );
+            var games = (Row?.Games ?? []).Where( x => Skip is null || !Skip.Contains( x.Id ) );
             return MaxRows > 0 ? games.Take( Columns * MaxRows ) : games;
         }
     }
@@ -189,5 +189,5 @@
         StateHasChanged();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Row, Row?.Games, Skip?.Count, Local?.Count, HashCode.Combine( CardSize, Columns, MaxRows ) );
+    protected override int BuildHash() => HashCode.Combine( Row, Row?.Games, Skip?.Count, Local, HashCode.Combine( CardSize, Columns, MaxRows ) );
 }

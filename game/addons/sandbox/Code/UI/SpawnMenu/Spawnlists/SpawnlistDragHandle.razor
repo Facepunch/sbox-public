@@ -1,0 +1,32 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root Tooltip="#spawnmenu.spawnlist.drag_to_reorder">
+    <IconPanel Text="drag_indicator" />
+</root>
+
+@code
+{
+    [Parameter] public SpawnlistItem Item { get; set; }
+
+    public override bool WantsDrag => Ancestors.OfType<SpawnlistView>().FirstOrDefault()?.CanReorder == true;
+
+    protected override void OnDragStart( DragEvent e )
+    {
+        if ( Item is null ) return;
+
+        DragHandler.StartDragging( new DragData
+        {
+            Source = this,
+            SpawnlistItemId = Item.Id,
+            Title = Item.Kind == SpawnlistItemKind.Title ? Item.Title : Game.Language.GetPhrase( "spawnmenu.spawnlist.divider" )
+        } );
+    }
+
+    protected override void OnDragEnd( DragEvent e )
+    {
+        DragHandler.StopDragging();
+    }
+}

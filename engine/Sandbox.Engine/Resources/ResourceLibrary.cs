@@ -808,7 +808,7 @@ public static class ResourceLibrary
 	public static IEnumerable<T> GetAll<T>( string filepath, bool recursive = true ) where T : Resource => Game.Resources.GetAll<T>( filepath, recursive );
 
 	/// <summary>
-	/// Load a resource by its file path.
+	/// Load a resource by its file path. Abstract resource types resolve to the file's concrete type.
 	/// </summary>
 	public static async Task<T> LoadAsync<T>( string path ) where T : Resource
 	{
@@ -822,6 +822,14 @@ public static class ResourceLibrary
 		path = Resource.FixPath( path );
 		if ( TryGet<T>( path, out var cached ) )
 			return cached;
+
+		// Mounts know their resource types. Disk resources use their file extension.
+		if ( type.IsAbstract && !Mounting.MountUtility.IsMountPath( path ) )
+		{
+			var resolvedType = ResolveResourceType( path );
+			if ( resolvedType is null || !resolvedType.IsAssignableTo( type ) ) return null;
+			type = resolvedType;
+		}
 
 		if ( type == typeof( Model ) )
 			return (T)(object)(await Sandbox.Model.LoadAsync( path ));
@@ -861,6 +869,34 @@ public static class ResourceLibrary
 			await manifest.WaitForLoad();
 
 		return Resource.LoadNative( type, path ) as T;
+	}
+
+	/// <summary>
+	/// Resolve native formats without editor services, then check declared game resource types.
+	/// </summary>
+	private static Type ResolveResourceType( string path )
+	{
+		var extension = System.IO.Path.GetExtension( path );
+		var nativeType = extension switch
+		{
+			".vmdl" => typeof( Model ),
+			".vmat" => typeof( Material ),
+			".vtex" => typeof( Texture ),
+			".vsnd" or ".wav" or ".mp3" or ".ogg" => typeof( SoundFile ),
+#pragma warning disable CS0618
+			".vanmgrph" => typeof( AnimationGraph ),
+#pragma warning restore CS0618
+			".ag" => typeof( Animation.Graph ),
+			".anim" => typeof( Animation.Clip ),
+			".skel" => typeof( Animation.Skeleton ),
+			".shader" => typeof( Shader ),
+			".vphys" => typeof( PhysicsGroupDescription ),
+			_ => null
+		};
+
+		if ( nativeType is not null ) return nativeType;
+
+		return Game.Resources.TryGetType( extension, out var attribute ) ? attribute.TargetType : null;
 	}
 
 	/// <summary>

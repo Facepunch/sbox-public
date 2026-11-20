@@ -1,0 +1,47 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	//---- Number Of Blendable Layers ----
+	F_MULTIBLEND 1 // 2 Layers
+
+	//---- Use Tint Masks In Vertex Paint ----
+	F_USE_TINT_MASKS_IN_VERTEX_PAINT 1
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/sbox/trimsheets/basic/trim_sheet_ao.png"
+	TextureBlendMaskA "materials/sbox/trimsheets/wood/wood_trim_weathered_blend.tga"
+	TextureColorA "materials/sbox/trimsheets/wood/plywood_trim_01_color.tga"
+	TextureMetalnessA "materials/default/default_metal.tga"
+	TextureNormalA "materials/sbox/trimsheets/wood/wood_trim_01_normal.tga"
+	TextureRoughnessA "materials/sbox/trimsheets/wood/plywood_trim_01_rough.tga"
+	TextureTintMaskA "[0.000000 0.000000 0.000000 0.000000]"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "0.118"
+	g_flTintColorB "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale2 "[1.000 1.000]"
+	TextureAmbientOcclusionB "materials/sbox/trimsheets/basic/trim_sheet_ao.png"
+	TextureBlendMaskB "materials/sbox/trimsheets/wood/wood_trim_weathered_blend.tga"
+	TextureColorB "materials/sbox/trimsheets/wood/wood_trim_painted_color.tga"
+	TextureMetalnessB "materials/default/default_metal.tga"
+	TextureNormalB "materials/sbox/trimsheets/wood/wood_trim_01_normal.tga"
+	TextureRoughnessB "materials/sbox/trimsheets/wood/wood_trim_painted_rough.tga"
+	TextureTintMaskB "materials/sbox/trimsheets/wood/wood_trim_painted_tint.tga"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "wood"
+	}
+
+	ToolAttributes
+	{
+		SubrectDefinition "materials/sbox/trimsheets/trim_sheet_master_01a.rect"
+	}
+}

@@ -1,0 +1,28 @@
+{
+  "guid": "23c86778-4e98-4e0d-a92a-25b1702ce6d1",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V 1911 Magazine",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_1911_magazine",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/1911/materials/v_1911_magazine.vmat"
+      }
+    }
+  }
+}

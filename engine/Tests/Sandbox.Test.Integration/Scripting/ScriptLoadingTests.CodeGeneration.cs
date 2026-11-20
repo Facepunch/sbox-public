@@ -1,11 +1,74 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using SceneTests;
 
 namespace ScriptingTests;
 
 public partial class ScriptLoadingTests
 {
+	/// <summary>
+	/// A network refresh sends the updated value of an existing script component after host bindings change.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "[Sync] public int Value { get; set; }" )]
+	[DataRow( "int saved; [Sync] public int Value { get => saved; set => saved = value; }" )]
+	[DataRow( "int saved; [Sync] public int Value { get { return saved; } set { saved = value; } }" )]
+	public void SyncAccessorsSurviveBindingInvalidation( string declaration )
+	{
+		var loaded = Game.Scripting.LoadFile( "tool.csx", $"class ScriptTool : Component {{ {declaration} }}" );
+		Assert.IsTrue( loaded.Success, string.Join( "\n", loaded.Diagnostics ) );
+
+		scene = new Scene();
+		using var scope = scene.Push();
+		using var network = new ClientAndHost( Game.TypeLibrary );
+		network.BecomeHost();
+
+		var go = new GameObject( scene );
+		var component = go.Components.Create( Game.TypeLibrary.GetType( "ScriptTool" ) );
+		go.NetworkSpawn();
+
+		var property = component.GetType().GetProperty( "Value" );
+		var get = property.GetMethod.CreateDelegate<Func<int>>( component );
+		var set = property.SetMethod.CreateDelegate<Action<int>>( component );
+		set( 1 );
+		Assert.AreEqual( 1, get() );
+		go.Network.Refresh( go );
+
+		Game.Scripting.InvalidateBindings();
+		Assert.AreEqual( 1, get() );
+		set( 2 );
+		Assert.AreEqual( 2, get() );
+		go.Network.Refresh( go );
+
+		var sync = ReflectionQueryCache.SyncProperties( component.GetType() ).Single( x => x.Property.Name == "Value" );
+		var slot = NetworkObject.GetPropertySlot( sync.NameHash, component.Id );
+		Assert.AreEqual( 2, Game.TypeLibrary.FromBytes<int>( go._net.LocalSnapshotState.Lookup[slot].Value ) );
+	}
+
+	/// <summary>
+	/// A scripted sync getter can throw its own exception when read.
+	/// </summary>
+	[TestMethod]
+	public void SyncGetterCanThrowFromExpressionBody()
+	{
+		const string source = """
+			class ScriptTool : Component
+			{
+				[Sync] public int Value { get => throw new Exception( "getter offline" ); set {} }
+			}
+			""";
+		var loaded = Game.Scripting.LoadFile( "tool.csx", source );
+		Assert.IsTrue( loaded.Success, string.Join( "\n", loaded.Diagnostics ) );
+
+		scene = new Scene();
+		var component = new GameObject( scene ).Components.Create( Game.TypeLibrary.GetType( "ScriptTool" ) );
+		var property = component.GetType().GetProperty( "Value" );
+		var error = Assert.ThrowsException<TargetInvocationException>( () => property.GetValue( component ) );
+		StringAssert.Contains( error.InnerException.Message, "getter offline" );
+	}
+
 	/// <summary>
 	/// Generator failures identify the original companion file, not its synthetic declaration path.
 	/// </summary>

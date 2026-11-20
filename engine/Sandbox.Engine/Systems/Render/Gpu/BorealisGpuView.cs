@@ -7,7 +7,8 @@ namespace Sandbox;
 /// the targets it draws into, the camera's frustum and whether post processing is on. A block made with
 /// <see cref="Graphics.Scope.CreateOnView"/> draws into <see cref="Target"/> at
 /// <see cref="Viewport"/>, and setting <see cref="Graphics.RenderTarget"/> back to null comes back to them. It has no native
-/// targets or layer: what asks for those (native readbacks of the frame, per-object lighting) gets nothing. Drawing a scene
+/// targets or layer: what asks for those (native readbacks of the frame) gets nothing, and per-object lighting comes from
+/// <see cref="LightingWorld"/>'s probe volumes. Drawing a scene
 /// object again (<c>Graphics.Render</c>, a highlight's outline) goes to <see cref="RenderSceneObject"/>.
 /// </summary>
 internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
@@ -131,7 +132,62 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 
 	StringToken Graphics.IFrameView.DrawShaderMode => ShaderMode;
 
-	void Graphics.IFrameView.SetupLighting( SceneObject obj, RenderAttributes attributes ) { }
+	/// <summary>
+	/// The world whose light probe volumes light what the view draws (<see cref="Graphics.SetupLighting"/>), with the sub-worlds
+	/// the view shows (<see cref="Borealis.RenderView.SubWorlds"/>); null for the lit object's own world, with all of its volumes.
+	/// </summary>
+	public Borealis.RenderWorld LightingWorld;
+
+	/// <inheritdoc cref="LightingWorld"/>
+	public ulong LightingSubWorlds;
+
+	static readonly StringToken ProbeConstantsName = new( "PerBatchLightProbeVolumeConstantBuffer_t" );
+	static readonly StringToken UsesProbeName = new( "UsesBakedLightingFromProbe" );
+	static readonly StringToken ProbeComboName = new( "D_BAKED_LIGHTING_FROM_PROBE" );
+
+	/// <summary>
+	/// The light probe volume an object is in, as <c>CSceneSystem::SetupPerObjectLighting</c> binds it: the one native's
+	/// <c>ChooseLightProbeVolume</c> picks from its lighting origin, bounds, light group and handshake, its constants, its
+	/// flag and its combo; outside every volume they're cleared, and the shaders light from the environment maps instead.
+	/// Only the managed values are written, which are all Borealis.Gpu reads.
+	/// </summary>
+	void Graphics.IFrameView.SetupLighting( SceneObject obj, RenderAttributes attributes )
+	{
+		if ( attributes.ManagedValues is not { } values ) return;
+		var world = LightingWorld ?? obj.RenderObject?.World;
+		if ( world is null ) return;
+
+		if ( LightProbeConstants( world, LightingWorld is null ? ~0UL : LightingSubWorlds, obj ) is { } constants )
+		{
+			// The same volume as last time (a set filled each frame) changes nothing
+			if ( values.Get( ProbeConstantsName ) is byte[] held && held.AsSpan().SequenceEqual( constants ) && values.GetCombo( ProbeComboName ) == 1 && values.GetFloats( UsesProbeName ) is [1f] ) return;
+			values.SetBytes( ProbeConstantsName, constants );
+			values.Set( UsesProbeName, 1f );
+			values.SetCombo( ProbeComboName, 1 );
+		}
+		else if ( values.GetCombo( ProbeComboName ) is > 0 || values.GetFloats( UsesProbeName ) is [> 0, ..] )
+		{
+			values.Set( UsesProbeName, 0f );
+			values.SetCombo( ProbeComboName, 0 );
+		}
+	}
+
+	/// <summary>
+	/// The constants of the volume of <paramref name="world"/> that lights <paramref name="obj"/> in a view showing
+	/// <paramref name="subWorlds"/>, or null for none.
+	/// </summary>
+	internal static byte[] LightProbeConstants( Borealis.RenderWorld world, ulong subWorlds, SceneObject obj )
+	{
+		var volumes = world.DrawnLightProbeVolumes;
+		if ( volumes.Count == 0 ) return null;
+
+		var bounds = obj.Bounds;
+		var center = bounds.Center;
+		var origin = obj.native.IsValid && obj.native.HasLightingOrigin() ? obj.native.GetLightingOrigin() : center;
+		var handshake = obj.native.IsValid ? RenderTools.GetLightProbeVolumeHandshake( obj ) : 0;
+		var chosen = Borealis.LightProbeVolume.Choose( volumes, origin, center, bounds.Extents, (uint)obj.LightGroup, handshake, subWorlds );
+		return chosen >= 0 && volumes[chosen].Attributes is Borealis.Backend.BackendParameters parameters ? parameters.Get( ProbeConstantsName ) as byte[] : null;
+	}
 
 	/// <summary>
 	/// Draws a scene object of the camera's world again where <c>Graphics.Render</c> asks (the camera's mirror knows it):
@@ -139,13 +195,13 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	/// </summary>
 	public Action<SceneObject, Transform, Color, Material, RenderAttributes> RenderSceneObject;
 
-	void Graphics.IFrameView.RenderSceneObject( IRenderContext context, SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes )
+	void Graphics.IFrameView.RenderSceneObject( SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes )
 		=> RenderSceneObject?.Invoke( obj, transform, color, material, attributes );
 
 	// A target of only depth draws into the frame's colour, as native's layer binding assumes. Drawing into a target of its
 	// own maps depth 0 to 1, as native's viewport for it does (Graphics.RenderTarget sets only its rectangle, which native
 	// takes as the whole range): an outline effect reads the depth it draws there as that
-	void Graphics.IFrameView.BindTarget( IRenderContext context, RenderTarget target )
+	void Graphics.IFrameView.BindTarget( RenderTarget target )
 	{
 		if ( backend is BorealisGpuRenderBackend gpu ) gpu.DepthRange = (0, 1);
 		if ( target.ColorTarget is null && Target?.ColorTarget is null ) return;
@@ -166,7 +222,7 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	}
 
 	// Back on the frame's targets, with the depth range they had before (the frame's, where depth of field places its quad)
-	void Graphics.IFrameView.RestoreTargets( IRenderContext context, float minZ, float maxZ )
+	void Graphics.IFrameView.RestoreTargets( float minZ, float maxZ )
 	{
 		BindOwn();
 		backend.SetViewport( new RenderViewport( Viewport, minZ, maxZ ) );

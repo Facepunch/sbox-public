@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/toolgun/toolgun.prefab",
+  "Title": "#asset.toolgun.title",
+  "Description": "#asset.toolgun.description",
+  "Category": "Weapon/Utility",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

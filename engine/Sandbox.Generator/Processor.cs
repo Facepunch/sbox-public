@@ -51,6 +51,11 @@ public class Processor
 	public SourceProductionContext? Context { get; set; }
 	public bool EnableCorelibPolyfills { get; set; }
 
+	/// <summary>
+	/// Keeps wrapped property callbacks between calls. Script bindings can change while an instance is alive.
+	/// </summary>
+	public bool CachePropertyDelegates { get; set; } = true;
+
 	public List<Diagnostic> Diagnostics = new List<Diagnostic>();
 
 	/// <summary>

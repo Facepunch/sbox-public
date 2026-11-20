@@ -27,6 +27,7 @@ public partial class ScriptLoadingTests
 		var mounted = new AggregateFileSystem();
 		var items = new WorkshopItems();
 		var folder = CreateWorkshopContent( validMap ? "map" : "addon" );
+		Project localMap = null;
 
 		try
 		{
@@ -83,9 +84,24 @@ public partial class ScriptLoadingTests
 				Assert.IsTrue( packages.StringTable.Entries[dependencyIdent].Read<ServerPackages.PackageInfo>().ResourcesReady );
 				Assert.AreEqual( 1, packages.StringTable.Entries.Count, "Only the dependency belongs in the package table." );
 				Assert.AreEqual( Workshop.ItemType.Map, items.StringTable.Entries["4321"].Read<WorkshopItems.ItemInfo>().Type );
+
+				// Changing the registry must not divert teardown from the Workshop requirement we acquired.
+				var projectPath = Path.Combine( folder, "local", ".sbproj" );
+				Directory.CreateDirectory( Path.Combine( folder, "local", "Assets" ) );
+				File.WriteAllText( projectPath, """{"Title":"Local map","Type":"map","Org":"test","Ident":"workshop-map","Schema":1,"Metadata":{"PrimaryAsset":"maps/test.scene"}}""" );
+				localMap = Project.AddFromFile( projectPath, active: false );
+				Assert.IsNotNull( localMap );
+				Assert.IsFalse( map.IsMounted(), "The selected local source hasn't been mounted yet." );
+
 				map.RemoveMountRequirement();
 				Assert.AreEqual( 0, items.StringTable.Entries.Count, "Releasing the map must remove its Workshop requirement." );
 				Assert.AreEqual( 0, packages.StringTable.Entries.Count, "Duplicate package references must only install once." );
+
+				AsyncPump.RunSynchronously( async () => Assert.IsNotNull( await map.MountAsync() ) );
+				Assert.IsTrue( map.IsMounted(), "A published map handle observes its locally mounted source." );
+				Assert.IsTrue( packages.StringTable.Entries.ContainsKey( localMap.Package.FullIdent ) );
+				localMap.Package.RemoveMountRequirement();
+				Assert.AreEqual( 0, packages.StringTable.Entries.Count );
 			}
 			else
 			{
@@ -95,6 +111,17 @@ public partial class ScriptLoadingTests
 		}
 		finally
 		{
+			if ( localMap is not null )
+			{
+				if ( PackageManager.Find( localMap.Package.FullIdent ) is { } activeMap )
+				{
+					activeMap.Delete();
+					PackageManager.ActivePackages.Remove( activeMap );
+				}
+
+				Project.Remove( localMap );
+			}
+
 			items.Clear();
 			context.FileMount = files;
 			mounted.Dispose();

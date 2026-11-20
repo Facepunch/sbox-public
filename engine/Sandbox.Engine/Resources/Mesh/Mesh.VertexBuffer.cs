@@ -145,8 +145,7 @@ namespace Sandbox
 
 	/// <summary>
 	/// A mesh's vertex buffer. Its bytes and the fields each vertex carries live here, so the mesh reads back and saves
-	/// without a render device; with Source 2's (<see cref="Graphics.HasSource2Device"/>) a native buffer holds a copy to
-	/// draw from.
+	/// without a render device.
 	/// </summary>
 	internal struct VertexBufferHandle
 	{
@@ -224,20 +223,6 @@ namespace Sandbox
 				new ReadOnlySpan<byte>( (void*)data, bytes.Length ).CopyTo( bytes );
 
 			var handle = default( VertexBufferHandle_t );
-			if ( Graphics.HasSource2Device )
-			{
-				var layout = VertexLayout.Get( type );
-				if ( !layout.IsValid )
-					throw new ArgumentException( $"{type} invalid vertex type" );
-
-				fixed ( byte* pBytes = bytes )
-				{
-					handle = MeshGlue.CreateVertexBuffer( vertexCount, layout, (IntPtr)pBytes );
-				}
-
-				if ( handle == IntPtr.Zero )
-					throw new Exception( $"Failed to create vertex buffer" );
-			}
 
 			return new VertexBufferHandle()
 			{
@@ -324,16 +309,6 @@ namespace Sandbox
 				new ReadOnlySpan<byte>( (void*)data, dataLength * vertexSize ).CopyTo( bytes );
 
 			var handle = default( VertexBufferHandle_t );
-			if ( Graphics.HasSource2Device )
-			{
-				fixed ( byte* pBytes = bytes )
-				{
-					handle = MeshGlue.CreateVertexBuffer( vertexSize, vertexCount, sb.ToString(), (IntPtr)vertexFields, fieldCount, (IntPtr)pBytes, vertexCount );
-				}
-
-				if ( handle == IntPtr.Zero )
-					throw new Exception( $"Failed to create vertex buffer" );
-			}
 
 			return new VertexBufferHandle()
 			{

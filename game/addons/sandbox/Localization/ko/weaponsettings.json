@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "반동",
+    "weapon.setting.primary.description": "무기의 주 동작을 제어합니다.",
+    "weapon.setting.secondary.description": "무기의 보조 동작을 제어합니다.",
+    "weapon.setting.recoil_force": "반동 힘",
+    "weapon.setting.recoil_force.description": "들고 있지 않은 무기를 발사할 때 적용되는 물리적 반동입니다.",
+    "weapon.setting.extend": "잡기 거리 늘리기",
+    "weapon.setting.extend.description": "잡은 오브젝트를 더 멀리 이동합니다.",
+    "weapon.setting.retract": "잡기 거리 줄이기",
+    "weapon.setting.retract.description": "잡은 오브젝트를 더 가까이 이동합니다.",
+    "weapon.setting.camera_aim": "카메라로 조준",
+    "weapon.setting.camera_aim.description": "앉아 있는 플레이어의 카메라 방향으로 조준합니다.",
+    "weapon.setting.guide_rockets": "로켓 유도",
+    "weapon.setting.guide_rockets.description": "발사한 로켓을 플레이어의 조준점으로 유도합니다."
+}

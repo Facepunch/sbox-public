@@ -1,0 +1,96 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits Panel
+@attribute [SpawnMenuHost.SpawnMenuMode]
+@attribute [Icon( "📦" )]
+@attribute [Title( "#spawnmenu.tab.spawn" )]
+@attribute [Order( -100 )]
+
+<root>
+    <div class="container">
+        <TabPanel class="spawnmenuleft" @ref="SpawnTabs" />
+        <TabPanel class="spawnmenuright" @ref="UtilityTabs" />
+    </div>
+</root>
+
+@code
+{
+    TabPanel SpawnTabs;
+    TabPanel UtilityTabs;
+    Button ThemeToggle;
+
+    protected override int BuildHash() => (int)GamePreferences.Theme;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        BuildTabs();
+        BuildUtilityTabs();
+
+        if ( !ThemeToggle.IsValid() )
+            ThemeToggle = UtilityTabs.TabBar.AddChild( new Button( null, ToggleTheme ) );
+
+        ThemeToggle.AddClass( "theme-toggle" );
+        var isDark = GamePreferences.Theme == InterfaceTheme.Dark;
+        ThemeToggle.Icon = isDark ? "light_mode" : "dark_mode";
+        ThemeToggle.Tooltip = isDark ? "#spawnmenu.utility.theme.switch_light" : "#spawnmenu.utility.theme.switch_dark";
+    }
+
+    static void ToggleTheme() => GamePreferences.SetTheme( GamePreferences.Theme == InterfaceTheme.Dark ? InterfaceTheme.Light : InterfaceTheme.Dark );
+
+    /// <summary>
+    /// Builds the spawn tabs registered by the game and addons.
+    /// </summary>
+    public void BuildTabs() => PopulateTabs<ISpawnMenuTab>( SpawnTabs, "spawnmenu.tab" );
+
+    /// <summary>
+    /// Builds the tool and utility tabs registered by the game and addons.
+    /// </summary>
+    public void BuildUtilityTabs() => PopulateTabs<IUtilityTab>( UtilityTabs, "spawnmenu.utilitytab" );
+
+    static void PopulateTabs<T>( TabPanel tabs, string cookieKey )
+    {
+        if ( !tabs.IsValid() || tabs.Body.ChildrenCount > 0 ) return;
+
+        var bar = tabs.TabBar;
+        bar.AutoHideText = false;
+
+        var pageTypes = Game.TypeLibrary.GetTypes<T>()
+            .Where( type => !type.IsAbstract && type.TargetType != typeof( BaseSpawnMenu ) )
+            .OrderBy( type => type.Order )
+            .ThenBy( type => LocalizedText.Resolve( type.Title ), StringComparer.CurrentCultureIgnoreCase );
+
+        foreach ( var type in pageTypes )
+        {
+            var page = type.Create<Panel>();
+            var tab = tabs.AddTab( type.Title, page, type.Icon );
+            tab.Tooltip = null;
+            tab.UserData = page;
+
+            if ( page is BaseSpawnMenu spawnPage )
+                spawnPage.MenuTab = tab;
+        }
+
+        var savedPage = Game.Cookies.Get<string>( cookieKey, null );
+        var selected = bar.Tabs.FirstOrDefault( tab => tab.UserData.GetType().Name == savedPage ) ?? bar.SelectedTab;
+        if ( selected is null ) return;
+
+        void SaveSelection( Tab tab ) => Game.Cookies.Set( cookieKey, tab?.UserData?.GetType().Name );
+
+        bar.SelectTab( selected );
+        SaveSelection( selected );
+        bar.SelectionChanged += SaveSelection;
+    }
+
+    /// <summary>
+    /// Opens a stored spawnlist in the props tab.
+    /// </summary>
+    public void OpenSpawnlist( Storage.Entry entry )
+    {
+        var tab = SpawnTabs?.TabBar.Tabs.FirstOrDefault( tab => tab.UserData is PropsPage );
+        if ( tab?.UserData is not PropsPage page ) return;
+
+        SpawnTabs.TabBar.SelectTab( tab );
+        page.SelectSpawnlist( entry );
+    }
+}

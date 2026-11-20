@@ -1,0 +1,27 @@
+{
+  "guid": "020800fa-0000-0000-b0e4-be10fc000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Gutter A Pvc",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "gutterapvc",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_a_pvc.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -1,0 +1,44 @@
+// The quad overdraw view's pixel stage: counts the 2x2 quads each draw shades per screen quad, with a per-quad lock so a
+// primitive counts once (Stephen Hill, "Counting Quads", 2012). Ours, in place of the old quad_overdraw_ps.fxc in Slang
+// compiles (SlangHeaders): the same bindings and entry. The includer declares PS_INPUT with vPositionSs. Shares the old
+// header's include guard.
+#ifndef QUAD_OVERDRAW_FXC
+#define QUAD_OVERDRAW_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "sbox/system.slangh"
+#include "sbox/math.slangh"
+
+RWTexture2D<uint> g_tQuadOverdrawMutexUAV < Attribute( "QuadOverdrawMutexUAV" ); >;
+RWTexture2D<uint> g_tQuadOverdrawUAV < Attribute( "QuadOverdrawUAV" ); >;
+
+[earlydepthstencil]
+void MainPs( PS_INPUT input, uint nPrimitiveId : SV_PrimitiveID )
+{
+	const uint unlocked = 0xFFFFFFFF;
+	uint2 quad = input.vPositionSs.xy * float2( 0.5, 0.5 );
+	uint previous = 0;
+	bool done = false;
+	int held = 0;
+
+	// Take the quad's lock (the slot holds the primitive that has it), keep it one round so the quad's other lanes see
+	// this primitive, then free it; a lane that finds its own primitive already holding it is done
+	[unroll]
+	for ( int i = 0; i < 16; i++ )
+	{
+		if ( !done ) InterlockedCompareExchange( g_tQuadOverdrawMutexUAV[quad], unlocked, nPrimitiveId, previous );
+
+		[branch]
+		if ( previous == unlocked )
+		{
+			if ( ++held == 2 ) InterlockedExchange( g_tQuadOverdrawMutexUAV[quad], unlocked, previous );
+			done = true;
+		}
+
+		if ( previous == nPrimitiveId ) done = true;
+	}
+
+	if ( held ) InterlockedAdd( g_tQuadOverdrawUAV[quad], 1 );
+}
+
+#endif // QUAD_OVERDRAW_FXC

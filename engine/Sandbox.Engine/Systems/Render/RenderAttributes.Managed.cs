@@ -69,11 +69,10 @@ public partial class RenderAttributes
 	}
 
 	/// <summary>
-	/// An attribute set for the device being recorded for (<see cref="Graphics.SetRecordingBackend"/>, else the
-	/// process's): native on Source 2's, as <c>new RenderAttributes()</c> makes, managed on another, so a recording for
-	/// that device (a post process's command list under <c>-borealisgpu</c>) can draw with it.
+	/// An attribute set for the device being recorded for: managed, so a recording (a post process's command list) can draw
+	/// with it.
 	/// </summary>
-	internal static RenderAttributes ForRecording() => Graphics.Backend is Source2RenderBackend ? new RenderAttributes() : CreateManaged();
+	internal static RenderAttributes ForRecording() => CreateManaged();
 }
 
 /// <summary>

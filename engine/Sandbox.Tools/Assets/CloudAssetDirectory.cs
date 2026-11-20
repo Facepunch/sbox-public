@@ -545,10 +545,10 @@ internal class CloudAssetDirectory : IDisposable
 		if ( string.IsNullOrEmpty( ident ) )
 			return default;
 
-		if ( !Package.TryParseIdent( ident, out var p ) )
+		if ( !Package.TryParseIdentParts( ident, out var p ) )
 			return default;
 
-		if ( packageCache.TryGetValue( Package.FormatIdent( p.org, p.package, local: p.local ), out var package ) )
+		if ( packageCache.TryGetValue( Package.FormatIdent( p.org, p.package ), out var package ) )
 			return package;
 
 		return default;

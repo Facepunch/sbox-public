@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "HE Grenade",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "w_he_grenade",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/grenade/w_he_grenade.vmdl"
+      }
+    }
+  },
+  "guid": "5f1b1a67-9096-4238-ac62-f04a8bd39a09"
+}

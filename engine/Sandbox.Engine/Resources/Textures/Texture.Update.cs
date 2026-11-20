@@ -17,9 +17,6 @@ public partial class Texture
 		RenderBackend.ClearEverywhere( this, color );
 		InitialPixels = null;
 		InitialColor = color;
-
-		// Source 2's empty device has no image to clear
-		if ( Graphics.HasSource2Device ) g_pRenderDevice.ClearTexture( native, color );
 	}
 
 	/// <summary>
@@ -102,18 +99,10 @@ public partial class Texture
 			throw new Exception( $"{data.Length} bytes is not enough data to update texture! {memRequired} required." );
 		}
 
-		// Other devices take the same bytes into their copies, or copy the new contents from Source 2 when they next use it
+		// The devices take the same bytes into their copies, or drop them
 		RenderBackend.UpdateEverywhere( this, data, x, y, z, width, height, depth );
 		InitialPixels = null;
 		InitialColor = null;
-
-		// Source 2's empty device has no image to write
-		if ( !Graphics.HasSource2Device ) return;
-
-		fixed ( byte* dataPtr = data )
-		{
-			g_pRenderDevice.AsyncSetTextureData2( native, (IntPtr)dataPtr, data.Length, new Rect3D( x, y, z, width, height, depth ) );
-		}
 	}
 
 	/// <summary>

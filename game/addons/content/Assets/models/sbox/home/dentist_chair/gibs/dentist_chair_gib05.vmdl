@@ -1,0 +1,166 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "barber_chair.vmat"
+								to = "models/sbox/home/dentist_chair/dentist_chair.vmat"
+							},
+							{
+								from = "barber_parts.vmat"
+								to = "models/sbox/home/dentist_chair/dentist_chair_parts.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "models/sbox/home/dentist_chair/dentist_chair.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.419825, 11.892891, 35.831821 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 4.264715, 18.809504, 2.733879 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.416924, -12.018848, 35.831821 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 4.264715, 18.809504, 2.733879 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 3.557144, -11.954214, 30.081408 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 0.679957, 1.492661, 11.192448 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 3.43856, 11.791695, 30.03021 ]
+						angles = [ 0.0, -90.0, 0.0 ]
+						dimensions = [ 0.679957, 1.492661, 11.294842 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -8.271617, 11.874325, 32.895699 ]
+						angles = [ -0.000003, -88.923737, -56.42638 ]
+						dimensions = [ 0.679957, 1.492661, 6.549676 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -8.150549, -11.558643, 32.895699 ]
+						angles = [ 0.0, -90.0, -56.426399 ]
+						dimensions = [ 0.679957, 1.492661, 6.549676 ]
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "dentist_chair_phys02"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "SingleHull"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"dentist_phys_02",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_base_lod0"
+						filename = "models/sbox/home/dentist_chair/dentist_chair_gibs.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"dentist_chair_gib05",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 10.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

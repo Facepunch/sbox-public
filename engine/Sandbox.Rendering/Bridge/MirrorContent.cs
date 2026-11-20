@@ -84,7 +84,7 @@ internal static class MirrorContent
 		RenderMesh mesh;
 		if ( gpu.AsyncModels )
 		{
-			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( SaveOffThread( m ) ) );
+			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( m.SaveToVmdl ) );
 			mesh = gpu.MakeModel( read, ulong.MaxValue, drawFastPath: true, out pending );
 			if ( pending ) return null;
 			runtimeReads.Remove( model );
@@ -95,18 +95,6 @@ internal static class MirrorContent
 		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
 		if ( mesh is not null ) gpu.TrackModel( mesh );
 		return mesh;
-	}
-
-	/// <summary>
-	/// What saves a run-time model for a worker to read: its buffers read back on the worker, or here when Source 2's device
-	/// is a real one (the editor), whose read-backs run its frame's queues and belong on the main thread.
-	/// </summary>
-	static Func<byte[]> SaveOffThread( Model model )
-	{
-		if ( !Graphics.HasSource2Device ) return model.SaveToVmdl;
-
-		var bytes = model.SaveToVmdl();
-		return () => bytes;
 	}
 
 	/// <summary>Whether a model loading asynchronously (<see cref="Mesh(Model, out bool)"/>) has been read, so asking again can make it.</summary>

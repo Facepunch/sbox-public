@@ -1,0 +1,46 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	UIDropdown
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-grow: 1;
+		flex-shrink: 0;
+		height: 24px;
+		padding: 0 4px 0 7px;
+		gap: 4px;
+		font-family: $body-font;
+		font-size: $ui-settings-font;
+		font-weight: 700;
+		@include ui-button-face;
+
+		.value
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0px;
+			@include ui-ellipsis;
+		}
+
+		.chevron
+		{
+			flex-shrink: 0;
+			font-size: 14px;
+			color: $ui-text-strong;
+		}
+	}
+
+	UISheet UIDropdown
+	{
+		height: 34px;
+		min-width: 0;
+		flex-shrink: 1;
+		padding: 0 8px 0 10px;
+		border-radius: 7px;
+		font-weight: 500;
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

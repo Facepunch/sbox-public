@@ -6,7 +6,7 @@
 #include "sbox/pass.slangh"
 
 Mode( Forward );
-    #include "vr_common_features.fxc"
+    #include "sbox/features.slangh"
 
 #include "common/shared.hlsl"
 
@@ -36,7 +36,7 @@ struct PixelInput
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-	#include "instancing.fxc"
+	#include "sbox/instancing.slangh"
 
 	[shader( "vertex" )] PixelInput MainVs( VertexInput i )
 	{
@@ -91,7 +91,7 @@ struct PixelInput
 	RenderState( DepthWriteEnable, false );
 	RenderState( DepthFunc, LESS_EQUAL );
 
-    #include "vr_common_ps_code.fxc"
+    #include "sbox/final_combiner.slangh"
 
 	// Could use Depth::GetWorldPosition in the future if it supports giving rays?
 	float3 CalculateWorldSpacePosition( float3 vCameraToPositionRayWs, float2 vPositionSs )

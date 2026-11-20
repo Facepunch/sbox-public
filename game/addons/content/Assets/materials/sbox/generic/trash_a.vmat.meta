@@ -1,0 +1,28 @@
+{
+  "guid": "4c3a2b35-7faf-4caf-88b7-6f0b7a36b4c5",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Trash a",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "trash_a",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/generic/trash_a.vmat",
+        "AssetLicense": "CC0"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/sniper/sniper.prefab",
+  "Title": "M700",
+  "Description": "#asset.sniper.description",
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

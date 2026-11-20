@@ -324,6 +324,99 @@ public class AnimationResourceGuidTests
 	}
 
 	[TestMethod]
+	public void TriggerPulsesBoolForOneEvaluationAndPreservesItsValue()
+	{
+		var skeletonPath = AssetPath( "trigger.skel" );
+		WriteResource( skeletonPath, Guid.NewGuid(), CompileData( SkeletonData() ) );
+		var clipPath = AssetPath( "trigger.anim" );
+		WriteResource( clipPath, Guid.NewGuid(), CompileData( ClipData( JsonValue.Create( skeletonPath ) ) ) );
+		var builder = Graph.Builder;
+		builder.Skeleton = skeletonPath;
+		var jump = builder.BoolParameter( "b_jump" );
+		var weight = builder.Switch( jump, builder.FloatParameter( "weight" ), builder.Constant( 0f ) );
+		using var graph = builder.Create( builder.Blend( builder.ReferencePose(), builder.Clip( clipPath ), weight ) );
+		var mesh = new Mesh( Material.Load( "materials/default/white.vmat" ) );
+		mesh.CreateVertexBuffer( 3, new Vertex[3].AsSpan() );
+		mesh.CreateIndexBuffer( 3, new[] { 0, 1, 2 } );
+		mesh.Bounds = new BBox( new Vector3( -16 ), new Vector3( 16 ) );
+		var model = Keep( Model.Builder.AddBone( "root", Vector3.Zero, Rotation.Identity ).AddMesh( mesh ).Create() );
+		var world = new SceneWorld();
+		try
+		{
+			var actor = new SceneModel( world, model, Transform.Zero ) { UseAnimGraph = true };
+			var parameters = actor.Animation.Parameters;
+			Assert.IsFalse( parameters.TryTrigger( "b_jump" ) );
+			actor.Animation.Graph = graph;
+
+			float Evaluate()
+			{
+				actor.Update( .016f );
+				return actor.GetParentSpaceBone( 0 ).Position.x;
+			}
+
+			Assert.IsFalse( parameters.TryTrigger( "missing" ) );
+			Assert.IsFalse( parameters.TryTrigger( "weight" ) );
+			parameters.Set( "weight", 1f );
+			Assert.AreEqual( 0f, Evaluate(), .001f );
+
+			parameters.Trigger( "b_jump" );
+			Assert.IsTrue( parameters.TryTrigger( "b_jump" ) );
+			Assert.IsFalse( parameters.GetBool( "b_jump" ) );
+			Assert.AreEqual( 7f, Evaluate(), .001f );
+			Assert.IsFalse( parameters.GetBool( "b_jump" ) );
+			Assert.AreEqual( 0f, Evaluate(), .001f );
+
+			parameters.Trigger( "b_jump" );
+			parameters.Set( "b_jump", true );
+			Assert.AreEqual( 7f, Evaluate(), .001f );
+			Assert.IsTrue( parameters.GetBool( "b_jump" ) );
+			Assert.AreEqual( 7f, Evaluate(), .001f );
+
+			parameters.Trigger( "b_jump" );
+			parameters.Set( "b_jump", false );
+			Assert.AreEqual( 7f, Evaluate(), .001f );
+			Assert.IsFalse( parameters.GetBool( "b_jump" ) );
+
+			parameters.Trigger( "b_jump" );
+			actor.Animation.Graph = null;
+			Assert.IsFalse( parameters.TryTrigger( "b_jump" ) );
+			actor.Animation.Graph = graph;
+			parameters.Set( "weight", 1f );
+			Assert.AreEqual( 0f, Evaluate(), .001f );
+
+			parameters.Trigger( "b_jump" );
+			parameters.Reset();
+			parameters.Set( "weight", 1f );
+			Assert.AreEqual( 0f, Evaluate(), .001f, "Reset cancels pending triggers." );
+
+			parameters.Trigger( "b_jump" );
+			parameters.Clear( "weight" );
+			parameters.Set( "weight", 1f );
+			Assert.AreEqual( 7f, Evaluate(), .001f, "Clearing another parameter preserves the trigger." );
+
+			parameters.Trigger( "b_jump" );
+			parameters.Clear( "b_jump" );
+			Assert.AreEqual( 0f, Evaluate(), .001f, "Clearing the trigger parameter cancels its pulse." );
+
+			var recording = actor.Animation.Recording;
+			Assert.IsTrue( recording.Start() );
+			Assert.AreEqual( 0f, Evaluate(), .001f );
+			recording.Stop();
+
+			parameters.Trigger( "b_jump" );
+			Assert.IsTrue( recording.StartPlayback() );
+			parameters.Trigger( "b_jump" );
+			recording.StopPlayback();
+			parameters.Set( "weight", 1f );
+			Assert.AreEqual( 0f, Evaluate(), .001f, "Stopping playback discards pending live triggers." );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	[TestMethod]
 	public void SlotIdentityDoesNotMergeReusedPathsOrMixedLegacyReferences()
 	{
 		var skeletonPath = AssetPath( "slots.skel" );

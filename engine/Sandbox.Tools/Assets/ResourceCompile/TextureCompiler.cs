@@ -38,15 +38,10 @@ public class TextureResourceCompiler : ResourceCompiler
 		var options = new ResourceGenerator.Options { ForDisk = true, Compiler = this };
 		var texGen = generator as TextureGenerator;
 
-		// The image the generator makes on the CPU, mipped as a texture made from it would be, so this needs no render
-		// device. A generator that only makes a texture is read back from it, which does: without one (a build machine)
-		// that fails here, rather than write a texture of nothing.
+		// The image the generator makes on the CPU, mipped as a texture made from it would be. A generator that only makes a
+		// texture is read back from it: on the CPU from a compiled texture or the pixels it was made with when the process
+		// has no render device (a content worker), from the device otherwise.
 		using var image = texGen is null ? null : await texGen.CreateImage( options, default );
-		if ( image is null && !Graphics.IsAvailable )
-		{
-			Context.Fail( $"{generator.GetType().Name} makes no image of its own, and reading its texture back takes a render device" );
-			return false;
-		}
 
 		var texture = image is null ? await generator.CreateAsync( options, default ) : null;
 		if ( image is null && texture is null ) return false;
@@ -88,6 +83,12 @@ public class TextureResourceCompiler : ResourceCompiler
 			for ( var mip = 0; mip < mipCount; mip++ )
 			{
 				level = image is null ? texture.GetBitmap( mip ) : mip == 0 ? image : level.NextMip();
+				if ( level is null )
+				{
+					Context.Fail( $"{generator.GetType().Name}'s texture can't be read back here: it has no compiled file or pixels to read without a render device" );
+					return false;
+				}
+
 				if ( level != image ) levels.Add( level );
 				writer.SetTexture( level, mip );
 			}

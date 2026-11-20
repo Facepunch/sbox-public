@@ -1,0 +1,28 @@
+{
+  "guid": "f6231286-3945-4dd4-b5aa-6e961022a409",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Mp 5 B",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_mp5_b",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/mp5/materials/v_mp5_b.vmat"
+      }
+    }
+  }
+}

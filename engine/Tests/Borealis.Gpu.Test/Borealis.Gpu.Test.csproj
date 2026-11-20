@@ -29,6 +29,7 @@
 	<ItemGroup>
 		<!-- The engine's SDL3, for the window tests; they're inconclusive without it -->
 		<None Include="Data\bark.shader" CopyToOutputDirectory="PreserveNewest" />
+		<None Include="Data\material.shader" CopyToOutputDirectory="PreserveNewest" />
 		<None Include="..\..\..\game\bin\win64\SDL3.dll" Link="SDL3.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" Condition="Exists('..\..\..\game\bin\win64\SDL3.dll')" />
 		<None Include="..\..\..\game\bin\linuxsteamrt64\libSDL3.so.0" Link="libSDL3.so.0" CopyToOutputDirectory="PreserveNewest" Visible="false" Condition="Exists('..\..\..\game\bin\linuxsteamrt64\libSDL3.so.0')" />
 	</ItemGroup>

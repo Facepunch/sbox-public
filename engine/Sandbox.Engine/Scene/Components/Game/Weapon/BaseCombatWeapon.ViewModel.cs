@@ -26,8 +26,8 @@ public partial class BaseCombatWeapon
 		if ( ViewModelPrefab is null )
 			return;
 
-		// View models are first person and local only - never spawned on proxies.
-		if ( IsProxy || !IsHeld )
+		// View models are first person and local only - never spawned on proxies, or for a holder that isn't a player.
+		if ( IsProxy || Holder is not PlayerController )
 			return;
 
 		ViewModel = ViewModelPrefab.Clone( new CloneConfig

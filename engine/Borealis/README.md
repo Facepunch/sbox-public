@@ -136,7 +136,7 @@ that already exist before the batch. Early camera effects stay at their normal s
 - [RenderTools.def](../Definitions/engine/Render/RenderTools.def) exposes native helpers implemented in
   [rendertools.cpp](../../src/engine2/sbox/rendertools.cpp), which the bridge uses to read native draw and light state.
 - [Gpu/SharedPasses.cs](Gpu/SharedPasses.cs) holds the depth chain, quarter depth and bloom and refraction
-  targets, built from the same shaders as native's pipeline's own (`Sandbox.Rendering/Pipeline/SharedPasses.cs`).
+  targets.
 
 ## Building and testing
 

@@ -1,0 +1,250 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<SpawnMenuContent>
+
+    <Header>
+        <SpawnMenuToolbar>
+            <Left>
+                <TextEntry Placeholder="#spawnmenu.common.search" class="filter menu-input" Value:bind=@Filter />
+            </Left>
+            <Right>
+                <UIDropdown class="big" Items=@SortItems Value=@SortOrder ValueChanged=@OnSortChanged />
+            </Right>
+        </SpawnMenuToolbar>
+    </Header>
+
+    <Body>
+        @if ( Items.Count == 0 && Loading )
+        {
+            <UILoadingState />
+        }
+        else if ( Items.Count == 0 )
+        {
+            <SpawnMenuEmptyState Icon="search_off" Subtitle="#spawnmenu.empty.try_another_category" />
+        }
+        else
+        {
+            <VirtualGrid Items=@Items ItemSize=@(new Vector2( 340, 190 )) OnLastCell="@LoadMore">
+                <Item Context="context">
+                    @if ( context is WorkshopSpawnlist entry )
+                    {
+                        var hasThumbnail = !string.IsNullOrWhiteSpace( entry.Item.Preview );
+                        var hasCollage = !hasThumbnail && entry.PreviewItems.Count > 0;
+
+                        <div class="workshop-spawnlist @( hasThumbnail || hasCollage ? "" : "no-thumbnail" ) @( string.IsNullOrWhiteSpace( entry.Item.Description ) ? "" : "has-description" )" style="@GetWorkshopPreviewStyle( entry.Item )" @onclick="@(() => _ = OnInstall( entry.Item ))">
+
+                            @if ( hasCollage )
+                            {
+                                var visibleCount = Math.Min( entry.PreviewItems.Count, 3 );
+                                var hiddenCount = Math.Max( entry.ItemCount, entry.PreviewItems.Count ) - visibleCount;
+
+                                <div class="preview-collage">
+                                    @for ( var index = 0; index < visibleCount; index++ )
+                                    {
+                                        var preview = entry.PreviewItems[index];
+                                        <div class="preview-item" style="@GetPreviewStyle( preview )">
+                                            <label class="preview-title">@preview.Title</label>
+                                            @if ( index == visibleCount - 1 && hiddenCount > 0 )
+                                            {
+                                                <div class="more-count">+@hiddenCount</div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else if ( !hasThumbnail )
+                            {
+                                <div class="no-preview">
+                                    <div class="no-preview-icon"></div>
+                                    <label>#spawnmenu.spawnlist.preview_unavailable</label>
+                                </div>
+                            }
+
+                            @if ( entry.Item.VotesUp > 0 )
+                            {
+                                <div class="likes"><i>thumb_up</i><label>@entry.Item.VotesUp</label></div>
+                            }
+
+                            @if ( !string.IsNullOrWhiteSpace( entry.Item.Description ) )
+                            {
+                                <UICardDescription class="description" Text="@entry.Item.Description" />
+                            }
+
+                            <div class="info">
+                                <div class="title">@entry.Item.Title</div>
+
+                                <div class="meta">
+                                    <div class="avatar" style="background-image: url('@entry.Item.Owner.Avatar');"></div>
+                                    <div class="author-name">@entry.Item.Owner.Name</div>
+                                    <div class="meta-text" Tooltip="@entry.Item.Updated.ToString()">• @entry.Item.Updated.Humanize()</div>
+                                    @if ( entry.ItemCount > 0 )
+                                    {
+                                        <div class="meta-text">• @SpawnlistData.ItemCountText( entry.ItemCount )</div>
+                                    }
+                                </div>
+
+                                <div class="install">
+                                    <div class="install-button"><i>download</i><label>#spawnmenu.spawnlist.install</label></div>
+                                </div>
+                            </div>
+
+                        </div>
+                    }
+                </Item>
+            </VirtualGrid>
+        }
+    </Body>
+
+</SpawnMenuContent>
+
+@code
+{
+    List<UIDropdown.Item> SortItems => UIDropdown.ForEnum<WorkshopSortMode>();
+
+    void OnSortChanged( object value )
+    {
+        if ( value is WorkshopSortMode mode ) SortOrder = mode;
+    }
+
+    sealed record WorkshopSpawnlist( Storage.QueryItem Item, int ItemCount, List<SpawnlistItem> PreviewItems );
+
+    string _filter;
+    public string Filter
+    {
+        get => _filter;
+        set
+        {
+            if ( _filter == value ) return;
+            _filter = value;
+            Rebuild();
+        }
+    }
+
+    WorkshopSortMode _sortOrder = WorkshopSortMode.Popular;
+    public WorkshopSortMode SortOrder
+    {
+        get => _sortOrder;
+        set
+        {
+            if ( _sortOrder == value ) return;
+            _sortOrder = value;
+            Rebuild();
+        }
+    }
+
+    protected override Task OnParametersSetAsync() => Pager.Restart();
+
+    WorkshopPager<WorkshopSpawnlist> _pager;
+    WorkshopPager<WorkshopSpawnlist> Pager => _pager ??= new( CreateQuery, CreateViewModel, StateHasChanged );
+
+    List<WorkshopSpawnlist> Items => Pager.Items;
+    bool Loading => Pager.Loading;
+
+    // the first load comes from OnParametersSetAsync, initializers shouldn't start one too
+    void Rebuild()
+    {
+        if ( Pager.Started ) _ = Pager.Restart();
+    }
+
+    void LoadMore() => Pager.LoadMore();
+
+    Storage.Query CreateQuery()
+    {
+        var query = new Storage.Query();
+        query.KeyValues["package"] = "facepunch.sandbox";
+        query.KeyValues["type"] = "spawnlist";
+        query.SortOrder = SortOrder.ToSortOrder();
+
+        if ( !string.IsNullOrWhiteSpace( Filter ) )
+            query.SearchText = Filter;
+
+        return query;
+    }
+
+    static WorkshopSpawnlist CreateViewModel( Storage.QueryItem item )
+    {
+        var itemCount = ReadMetaInt( item, "item_count" );
+
+        // nobody wants to install an empty list
+        if ( itemCount <= 0 ) return null;
+
+        var previewItems = ReadMetaJson<List<SpawnlistItem>>( item, "preview_items" ) ?? [];
+
+        return new WorkshopSpawnlist( item, itemCount, previewItems.Take( 6 ).ToList() );
+    }
+
+    static string ReadMeta( Storage.QueryItem item, string key )
+    {
+        try
+        {
+            var raw = Json.ParseToJsonObject( item.Metadata )?["Meta"]?[key]?.ToString();
+            if ( string.IsNullOrWhiteSpace( raw ) ) return null;
+
+            // Storage metadata has existed in both native JSON-value and
+            // JSON-encoded string forms. Normalize either shape here.
+            if ( raw.Length >= 2 && raw[0] == '"' && raw[^1] == '"' )
+            {
+                try
+                {
+                    return Json.Deserialize<string>( raw );
+                }
+                catch
+                {
+                    return raw.Trim( '"' );
+                }
+            }
+
+            return raw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    static T ReadMetaJson<T>( Storage.QueryItem item, string key )
+    {
+        try
+        {
+            var value = ReadMeta( item, key );
+            return string.IsNullOrWhiteSpace( value ) ? default : Json.Deserialize<T>( value );
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
+    static int ReadMetaInt( Storage.QueryItem item, string key )
+    {
+        return int.TryParse( ReadMeta( item, key ), out var value ) ? value : 0;
+    }
+
+    static string GetPreviewStyle( SpawnlistItem item )
+    {
+        var icon = item.Icon;
+        if ( string.IsNullOrWhiteSpace( icon ) )
+        {
+            var (_, path, _) = SpawnlistItem.ParseIdent( item.Ident );
+            if ( !string.IsNullOrWhiteSpace( path ) ) icon = $"thumb:{path}";
+        }
+
+        return string.IsNullOrWhiteSpace( icon ) ? null : $"background-image: url('{icon}');";
+    }
+
+    static string GetWorkshopPreviewStyle( Storage.QueryItem item )
+    {
+        return string.IsNullOrWhiteSpace( item.Preview ) ? null : $"background-image: url('{item.Preview}');";
+    }
+
+    async Task OnInstall( Storage.QueryItem item )
+    {
+        var page = Ancestors.OfType<SpawnlistsPage>().FirstOrDefault();
+        if ( page is null ) return;
+
+        await page.Collection.InstallAsync( item );
+    }
+}

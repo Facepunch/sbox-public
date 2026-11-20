@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Terugslag",
+    "weapon.setting.primary.description": "Bestuurt de primaire actie van het wapen.",
+    "weapon.setting.secondary.description": "Bestuurt de secundaire actie van het wapen.",
+    "weapon.setting.recoil_force": "Terugslagkracht",
+    "weapon.setting.recoil_force.description": "Fysieke terugslag bij het afvuren van een wapen dat niemand vasthoudt.",
+    "weapon.setting.extend": "Grijpafstand vergroten",
+    "weapon.setting.extend.description": "Beweegt het vastgegrepen object verder weg.",
+    "weapon.setting.retract": "Grijpafstand verkleinen",
+    "weapon.setting.retract.description": "Beweegt het vastgegrepen object dichterbij.",
+    "weapon.setting.camera_aim": "Richten met camera",
+    "weapon.setting.camera_aim.description": "Richt in de kijkrichting van de camera van de zittende speler.",
+    "weapon.setting.guide_rockets": "Raketten sturen",
+    "weapon.setting.guide_rockets.description": "Stuurt afgevuurde raketten naar het vizier van de speler."
+}

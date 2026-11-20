@@ -72,7 +72,7 @@ public class PackageParsingTest
 	[DataRow( "ducksworkshop.mobbosstop" )]    // clothing
 	[DataRow( "lies.swagchain" )]              // clothing
 	[DataRow( "facepunch.flatgrass" )]         // map
-	[DataRow( "facepunch.sandbox" )]           // game
+	[DataRow( "facepunch.ss2" )]               // game
 	[DataRow( "facepunch.shatterglass" )]      // library
 	[DataRow( "igrotronika.explosion2" )]      // sound
 	[DataRow( "wmfg.powerkart" )]              // prefab

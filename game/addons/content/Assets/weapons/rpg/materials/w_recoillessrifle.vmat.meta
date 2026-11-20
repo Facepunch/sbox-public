@@ -1,0 +1,28 @@
+{
+  "guid": "6915f94a-2975-4f8d-912b-5b0e33badac3",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Recoillessrifle",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_recoillessrifle",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/rpg/materials/w_recoillessrifle.vmat"
+      }
+    }
+  }
+}

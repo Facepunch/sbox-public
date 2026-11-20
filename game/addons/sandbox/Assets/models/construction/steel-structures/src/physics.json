@@ -1,0 +1,965 @@
+{
+ "box_beam_12": [
+  "box_beam_12_phys_00",
+  "box_beam_12_phys_01",
+  "box_beam_12_phys_02",
+  "box_beam_12_phys_03"
+ ],
+ "box_beam_16": [
+  "box_beam_16_phys_00",
+  "box_beam_16_phys_01",
+  "box_beam_16_phys_02",
+  "box_beam_16_phys_03"
+ ],
+ "box_beam_24": [
+  "box_beam_24_phys_00",
+  "box_beam_24_phys_01",
+  "box_beam_24_phys_02",
+  "box_beam_24_phys_03"
+ ],
+ "box_beam_32": [
+  "box_beam_32_phys_00",
+  "box_beam_32_phys_01",
+  "box_beam_32_phys_02",
+  "box_beam_32_phys_03"
+ ],
+ "box_beam_4": [
+  "box_beam_4_phys_00",
+  "box_beam_4_phys_01",
+  "box_beam_4_phys_02",
+  "box_beam_4_phys_03"
+ ],
+ "box_beam_48": [
+  "box_beam_48_phys_00",
+  "box_beam_48_phys_01",
+  "box_beam_48_phys_02",
+  "box_beam_48_phys_03"
+ ],
+ "box_beam_8": [
+  "box_beam_8_phys_00",
+  "box_beam_8_phys_01",
+  "box_beam_8_phys_02",
+  "box_beam_8_phys_03"
+ ],
+ "crossbeam_12": [
+  "crossbeam_12_phys_00",
+  "crossbeam_12_phys_01",
+  "crossbeam_12_phys_02",
+  "crossbeam_12_phys_03",
+  "crossbeam_12_phys_04"
+ ],
+ "crossbeam_16": [
+  "crossbeam_16_phys_00",
+  "crossbeam_16_phys_01",
+  "crossbeam_16_phys_02",
+  "crossbeam_16_phys_03",
+  "crossbeam_16_phys_04"
+ ],
+ "crossbeam_4": [
+  "crossbeam_4_phys_00",
+  "crossbeam_4_phys_01",
+  "crossbeam_4_phys_02",
+  "crossbeam_4_phys_03",
+  "crossbeam_4_phys_04"
+ ],
+ "crossbeam_8": [
+  "crossbeam_8_phys_00",
+  "crossbeam_8_phys_01",
+  "crossbeam_8_phys_02",
+  "crossbeam_8_phys_03",
+  "crossbeam_8_phys_04"
+ ],
+ "i_beam2_16": [
+  "i_beam2_16_phys_00",
+  "i_beam2_16_phys_01",
+  "i_beam2_16_phys_02"
+ ],
+ "i_beam2_32": [
+  "i_beam2_32_phys_00",
+  "i_beam2_32_phys_01",
+  "i_beam2_32_phys_02"
+ ],
+ "i_beam2_48": [
+  "i_beam2_48_phys_00",
+  "i_beam2_48_phys_01",
+  "i_beam2_48_phys_02"
+ ],
+ "i_beam2_60": [
+  "i_beam2_60_phys_00",
+  "i_beam2_60_phys_01",
+  "i_beam2_60_phys_02"
+ ],
+ "i_beam2_8": [
+  "i_beam2_8_phys_00",
+  "i_beam2_8_phys_01",
+  "i_beam2_8_phys_02"
+ ],
+ "i_beam2_96": [
+  "i_beam2_96_phys_00",
+  "i_beam2_96_phys_01",
+  "i_beam2_96_phys_02"
+ ],
+ "i_beam_16": [
+  "i_beam_16_phys_00",
+  "i_beam_16_phys_01",
+  "i_beam_16_phys_02"
+ ],
+ "i_beam_16_2d": [
+  "i_beam_16_2d_phys_00",
+  "i_beam_16_2d_phys_01",
+  "i_beam_16_2d_phys_02",
+  "i_beam_16_2d_phys_03",
+  "i_beam_16_2d_phys_04",
+  "i_beam_16_2d_phys_05",
+  "i_beam_16_2d_phys_06"
+ ],
+ "i_beam_16_3d": [
+  "i_beam_16_3d_phys_00",
+  "i_beam_16_3d_phys_01",
+  "i_beam_16_3d_phys_02",
+  "i_beam_16_3d_phys_03",
+  "i_beam_16_3d_phys_04",
+  "i_beam_16_3d_phys_05",
+  "i_beam_16_3d_phys_06",
+  "i_beam_16_3d_phys_07",
+  "i_beam_16_3d_phys_08",
+  "i_beam_16_3d_phys_09",
+  "i_beam_16_3d_phys_10",
+  "i_beam_16_3d_phys_11",
+  "i_beam_16_3d_phys_12"
+ ],
+ "i_beam_32": [
+  "i_beam_32_phys_00",
+  "i_beam_32_phys_01",
+  "i_beam_32_phys_02"
+ ],
+ "i_beam_4": [
+  "i_beam_4_phys_00",
+  "i_beam_4_phys_01",
+  "i_beam_4_phys_02"
+ ],
+ "i_beam_48": [
+  "i_beam_48_phys_00",
+  "i_beam_48_phys_01",
+  "i_beam_48_phys_02"
+ ],
+ "i_beam_64": [
+  "i_beam_64_phys_00",
+  "i_beam_64_phys_01",
+  "i_beam_64_phys_02"
+ ],
+ "i_beam_96": [
+  "i_beam_96_phys_00",
+  "i_beam_96_phys_01",
+  "i_beam_96_phys_02"
+ ],
+ "l_beam_4": [
+  "l_beam_4_phys_00",
+  "l_beam_4_phys_01"
+ ],
+ "l_beam__16": [
+  "l-beam__16_phys_00",
+  "l-beam__16_phys_01"
+ ],
+ "l_beam__24": [
+  "l-beam__24_phys_00",
+  "l-beam__24_phys_01"
+ ],
+ "l_beam__32": [
+  "l-beam__32_phys_00",
+  "l-beam__32_phys_01"
+ ],
+ "l_beam__48": [
+  "l-beam__48_phys_00",
+  "l-beam__48_phys_01"
+ ],
+ "plank_16": [
+  "plank_16_phys_00"
+ ],
+ "plank_24": [
+  "plank_24_phys_00"
+ ],
+ "plank_4": [
+  "plank_4_phys_00"
+ ],
+ "plank_48": [
+  "plank_48_phys_00"
+ ],
+ "plank_8": [
+  "plank_8_phys_00"
+ ],
+ "sheetmetal_90_4": [
+  "sheetmetal_90_4_phys_00",
+  "sheetmetal_90_4_phys_01"
+ ],
+ "sheetmetal_box90_4": [
+  "sheetmetal_box90_4_phys_00",
+  "sheetmetal_box90_4_phys_01",
+  "sheetmetal_box90_4_phys_02",
+  "sheetmetal_box90_4_phys_03"
+ ],
+ "sheetmetal_box_4": [
+  "sheetmetal_box_4_phys_00",
+  "sheetmetal_box_4_phys_01",
+  "sheetmetal_box_4_phys_02",
+  "sheetmetal_box_4_phys_03"
+ ],
+ "sheetmetal_h90_4": [
+  "sheetmetal_h90_4_phys_00",
+  "sheetmetal_h90_4_phys_01",
+  "sheetmetal_h90_4_phys_02"
+ ],
+ "sheetmetal_h_4": [
+  "sheetmetal_h_4_phys_00",
+  "sheetmetal_h_4_phys_01",
+  "sheetmetal_h_4_phys_02"
+ ],
+ "sheetmetal_plus_4": [
+  "sheetmetal_plus_4_phys_00",
+  "sheetmetal_plus_4_phys_01"
+ ],
+ "sheetmetal_plusb_4": [
+  "sheetmetal_plusb_4_phys_00",
+  "sheetmetal_plusb_4_phys_01"
+ ],
+ "sheetmetal_t_4": [
+  "sheetmetal_t_4_phys_00",
+  "sheetmetal_t_4_phys_01"
+ ],
+ "sheetmetal_u_4": [
+  "sheetmetal_u_4_phys_00",
+  "sheetmetal_u_4_phys_01",
+  "sheetmetal_u_4_phys_02"
+ ],
+ "sheetmetal_y_8": [
+  "sheetmetal_y_8_phys_00",
+  "sheetmetal_y_8_phys_01",
+  "sheetmetal_y_8_phys_02",
+  "sheetmetal_y_8_phys_03"
+ ],
+ "steel_beam45_12": [
+  "steel_beam45_12_phys_00",
+  "steel_beam45_12_phys_01",
+  "steel_beam45_12_phys_02"
+ ],
+ "steel_beam45_16": [
+  "steel_beam45_16_phys_00",
+  "steel_beam45_16_phys_01",
+  "steel_beam45_16_phys_02"
+ ],
+ "steel_beam45_3": [
+  "steel_beam45_3_phys_00",
+  "steel_beam45_3_phys_01",
+  "steel_beam45_3_phys_02"
+ ],
+ "steel_beam45_4": [
+  "steel_beam45_4_phys_00",
+  "steel_beam45_4_phys_01",
+  "steel_beam45_4_phys_02"
+ ],
+ "steel_beam45_8": [
+  "steel_beam45_8_phys_00",
+  "steel_beam45_8_phys_01",
+  "steel_beam45_8_phys_02"
+ ],
+ "steel_beam_12": [
+  "steel_beam_12_phys_00",
+  "steel_beam_12_phys_01",
+  "steel_beam_12_phys_02"
+ ],
+ "steel_beam_24": [
+  "steel_beam_24_phys_00",
+  "steel_beam_24_phys_01",
+  "steel_beam_24_phys_02"
+ ],
+ "steel_beam_4": [
+  "steel_beam_4_phys_00",
+  "steel_beam_4_phys_01",
+  "steel_beam_4_phys_02"
+ ],
+ "steel_beam_8": [
+  "steel_beam_8_phys_00",
+  "steel_beam_8_phys_01",
+  "steel_beam_8_phys_02"
+ ],
+ "steel_support_24_4": [
+  "steel_support_24_4_phys_00",
+  "steel_support_24_4_phys_01",
+  "steel_support_24_4_phys_02",
+  "steel_support_24_4_phys_03",
+  "steel_support_24_4_phys_04",
+  "steel_support_24_4_phys_05",
+  "steel_support_24_4_phys_06",
+  "steel_support_24_4_phys_07"
+ ],
+ "step_beam_16": [
+  "step_beam_16_phys_00",
+  "step_beam_16_phys_01",
+  "step_beam_16_phys_02",
+  "step_beam_16_phys_03",
+  "step_beam_16_phys_04",
+  "step_beam_16_phys_05"
+ ],
+ "step_beam_32": [
+  "step_beam_32_phys_00",
+  "step_beam_32_phys_01",
+  "step_beam_32_phys_02",
+  "step_beam_32_phys_03",
+  "step_beam_32_phys_04",
+  "step_beam_32_phys_05",
+  "step_beam_32_phys_06",
+  "step_beam_32_phys_07",
+  "step_beam_32_phys_08",
+  "step_beam_32_phys_09"
+ ],
+ "step_beam_48": [
+  "step_beam_48_phys_00",
+  "step_beam_48_phys_01",
+  "step_beam_48_phys_02",
+  "step_beam_48_phys_03",
+  "step_beam_48_phys_04",
+  "step_beam_48_phys_05",
+  "step_beam_48_phys_06",
+  "step_beam_48_phys_07",
+  "step_beam_48_phys_08",
+  "step_beam_48_phys_09",
+  "step_beam_48_phys_10",
+  "step_beam_48_phys_11",
+  "step_beam_48_phys_12",
+  "step_beam_48_phys_13"
+ ],
+ "step_beam_64": [
+  "step_beam_64_phys_00",
+  "step_beam_64_phys_01",
+  "step_beam_64_phys_02",
+  "step_beam_64_phys_03",
+  "step_beam_64_phys_04",
+  "step_beam_64_phys_05",
+  "step_beam_64_phys_06",
+  "step_beam_64_phys_07",
+  "step_beam_64_phys_08",
+  "step_beam_64_phys_09",
+  "step_beam_64_phys_10",
+  "step_beam_64_phys_11",
+  "step_beam_64_phys_12",
+  "step_beam_64_phys_13",
+  "step_beam_64_phys_14",
+  "step_beam_64_phys_15",
+  "step_beam_64_phys_16",
+  "step_beam_64_phys_17"
+ ],
+ "step_beam_96": [
+  "step_beam_96_phys_00",
+  "step_beam_96_phys_01",
+  "step_beam_96_phys_02",
+  "step_beam_96_phys_03",
+  "step_beam_96_phys_04",
+  "step_beam_96_phys_05",
+  "step_beam_96_phys_06",
+  "step_beam_96_phys_07",
+  "step_beam_96_phys_08",
+  "step_beam_96_phys_09",
+  "step_beam_96_phys_10",
+  "step_beam_96_phys_11",
+  "step_beam_96_phys_12",
+  "step_beam_96_phys_13",
+  "step_beam_96_phys_14",
+  "step_beam_96_phys_15",
+  "step_beam_96_phys_16",
+  "step_beam_96_phys_17",
+  "step_beam_96_phys_18",
+  "step_beam_96_phys_19",
+  "step_beam_96_phys_20",
+  "step_beam_96_phys_21",
+  "step_beam_96_phys_22",
+  "step_beam_96_phys_23",
+  "step_beam_96_phys_24",
+  "step_beam_96_phys_25",
+  "step_beam_96_phys_26",
+  "step_beam_96_phys_27",
+  "step_beam_96_phys_28",
+  "step_beam_96_phys_29"
+ ],
+ "truss_144": [
+  "truss_144_phys_00",
+  "truss_144_phys_01",
+  "truss_144_phys_02",
+  "truss_144_phys_03",
+  "truss_144_phys_04",
+  "truss_144_phys_05",
+  "truss_144_phys_06",
+  "truss_144_phys_07",
+  "truss_144_phys_08",
+  "truss_144_phys_09",
+  "truss_144_phys_10",
+  "truss_144_phys_11",
+  "truss_144_phys_12",
+  "truss_144_phys_13",
+  "truss_144_phys_14",
+  "truss_144_phys_15",
+  "truss_144_phys_16",
+  "truss_144_phys_17",
+  "truss_144_phys_18",
+  "truss_144_phys_19",
+  "truss_144_phys_20",
+  "truss_144_phys_21",
+  "truss_144_phys_22",
+  "truss_144_phys_23",
+  "truss_144_phys_24",
+  "truss_144_phys_25",
+  "truss_144_phys_26",
+  "truss_144_phys_27",
+  "truss_144_phys_28",
+  "truss_144_phys_29",
+  "truss_144_phys_30",
+  "truss_144_phys_31",
+  "truss_144_phys_32",
+  "truss_144_phys_33",
+  "truss_144_phys_34",
+  "truss_144_phys_35",
+  "truss_144_phys_36",
+  "truss_144_phys_37",
+  "truss_144_phys_38",
+  "truss_144_phys_39",
+  "truss_144_phys_40",
+  "truss_144_phys_41",
+  "truss_144_phys_42",
+  "truss_144_phys_43",
+  "truss_144_phys_44",
+  "truss_144_phys_45",
+  "truss_144_phys_46",
+  "truss_144_phys_47",
+  "truss_144_phys_48",
+  "truss_144_phys_49",
+  "truss_144_phys_50",
+  "truss_144_phys_51",
+  "truss_144_phys_52",
+  "truss_144_phys_53",
+  "truss_144_phys_54",
+  "truss_144_phys_55",
+  "truss_144_phys_56",
+  "truss_144_phys_57",
+  "truss_144_phys_58",
+  "truss_144_phys_59",
+  "truss_144_phys_60",
+  "truss_144_phys_61",
+  "truss_144_phys_62",
+  "truss_144_phys_63",
+  "truss_144_phys_64",
+  "truss_144_phys_65",
+  "truss_144_phys_66",
+  "truss_144_phys_67",
+  "truss_144_phys_68",
+  "truss_144_phys_69",
+  "truss_144_phys_70",
+  "truss_144_phys_71",
+  "truss_144_phys_72",
+  "truss_144_phys_73",
+  "truss_144_phys_74",
+  "truss_144_phys_75",
+  "truss_144_phys_76",
+  "truss_144_phys_77",
+  "truss_144_phys_78",
+  "truss_144_phys_79",
+  "truss_144_phys_80",
+  "truss_144_phys_81",
+  "truss_144_phys_82",
+  "truss_144_phys_83",
+  "truss_144_phys_84",
+  "truss_144_phys_85",
+  "truss_144_phys_86"
+ ],
+ "truss_48": [
+  "truss_48_phys_00",
+  "truss_48_phys_01",
+  "truss_48_phys_02",
+  "truss_48_phys_03",
+  "truss_48_phys_04",
+  "truss_48_phys_05",
+  "truss_48_phys_06",
+  "truss_48_phys_07",
+  "truss_48_phys_08",
+  "truss_48_phys_09",
+  "truss_48_phys_10",
+  "truss_48_phys_11",
+  "truss_48_phys_12",
+  "truss_48_phys_13",
+  "truss_48_phys_14",
+  "truss_48_phys_15",
+  "truss_48_phys_16",
+  "truss_48_phys_17",
+  "truss_48_phys_18",
+  "truss_48_phys_19",
+  "truss_48_phys_20",
+  "truss_48_phys_21",
+  "truss_48_phys_22",
+  "truss_48_phys_23",
+  "truss_48_phys_24",
+  "truss_48_phys_25",
+  "truss_48_phys_26",
+  "truss_48_phys_27",
+  "truss_48_phys_28"
+ ],
+ "truss_96": [
+  "truss_96_phys_00",
+  "truss_96_phys_01",
+  "truss_96_phys_02",
+  "truss_96_phys_03",
+  "truss_96_phys_04",
+  "truss_96_phys_05",
+  "truss_96_phys_06",
+  "truss_96_phys_07",
+  "truss_96_phys_08",
+  "truss_96_phys_09",
+  "truss_96_phys_10",
+  "truss_96_phys_11",
+  "truss_96_phys_12",
+  "truss_96_phys_13",
+  "truss_96_phys_14",
+  "truss_96_phys_15",
+  "truss_96_phys_16",
+  "truss_96_phys_17",
+  "truss_96_phys_18",
+  "truss_96_phys_19",
+  "truss_96_phys_20",
+  "truss_96_phys_21",
+  "truss_96_phys_22",
+  "truss_96_phys_23",
+  "truss_96_phys_24",
+  "truss_96_phys_25",
+  "truss_96_phys_26",
+  "truss_96_phys_27",
+  "truss_96_phys_28",
+  "truss_96_phys_29",
+  "truss_96_phys_30",
+  "truss_96_phys_31",
+  "truss_96_phys_32",
+  "truss_96_phys_33",
+  "truss_96_phys_34",
+  "truss_96_phys_35",
+  "truss_96_phys_36",
+  "truss_96_phys_37",
+  "truss_96_phys_38",
+  "truss_96_phys_39",
+  "truss_96_phys_40",
+  "truss_96_phys_41",
+  "truss_96_phys_42",
+  "truss_96_phys_43",
+  "truss_96_phys_44",
+  "truss_96_phys_45",
+  "truss_96_phys_46",
+  "truss_96_phys_47",
+  "truss_96_phys_48",
+  "truss_96_phys_49",
+  "truss_96_phys_50",
+  "truss_96_phys_51",
+  "truss_96_phys_52",
+  "truss_96_phys_53",
+  "truss_96_phys_54",
+  "truss_96_phys_55",
+  "truss_96_phys_56",
+  "truss_96_phys_57"
+ ],
+ "type_a_2_12": [
+  "type_a_2_12_phys_00",
+  "type_a_2_12_phys_01",
+  "type_a_2_12_phys_02"
+ ],
+ "type_a_2_16": [
+  "type_a_2_16_phys_00",
+  "type_a_2_16_phys_01",
+  "type_a_2_16_phys_02"
+ ],
+ "type_a_2_2": [
+  "type_a_2_2_phys_00",
+  "type_a_2_2_phys_01",
+  "type_a_2_2_phys_02"
+ ],
+ "type_a_2_20": [
+  "type_a_2_20_phys_00",
+  "type_a_2_20_phys_01",
+  "type_a_2_20_phys_02"
+ ],
+ "type_a_2_24": [
+  "type_a_2_24_phys_00",
+  "type_a_2_24_phys_01",
+  "type_a_2_24_phys_02"
+ ],
+ "type_a_2_4": [
+  "type_a_2_4_phys_00",
+  "type_a_2_4_phys_01",
+  "type_a_2_4_phys_02"
+ ],
+ "type_a_2_6": [
+  "type_a_2_6_phys_00",
+  "type_a_2_6_phys_01",
+  "type_a_2_6_phys_02"
+ ],
+ "type_a_2_8": [
+  "type_a_2_8_phys_00",
+  "type_a_2_8_phys_01",
+  "type_a_2_8_phys_02"
+ ],
+ "type_a_3_12": [
+  "type_a_3_12_phys_00",
+  "type_a_3_12_phys_01",
+  "type_a_3_12_phys_02",
+  "type_a_3_12_phys_03"
+ ],
+ "type_a_3_16": [
+  "type_a_3_16_phys_00",
+  "type_a_3_16_phys_01",
+  "type_a_3_16_phys_02",
+  "type_a_3_16_phys_03"
+ ],
+ "type_a_3_20": [
+  "type_a_3_20_phys_00",
+  "type_a_3_20_phys_01",
+  "type_a_3_20_phys_02",
+  "type_a_3_20_phys_03"
+ ],
+ "type_a_3_24": [
+  "type_a_3_24_phys_00",
+  "type_a_3_24_phys_01",
+  "type_a_3_24_phys_02",
+  "type_a_3_24_phys_03"
+ ],
+ "type_a_3_4": [
+  "type_a_3_4_phys_00",
+  "type_a_3_4_phys_01",
+  "type_a_3_4_phys_02",
+  "type_a_3_4_phys_03"
+ ],
+ "type_a_3_6": [
+  "type_a_3_6_phys_00",
+  "type_a_3_6_phys_01",
+  "type_a_3_6_phys_02",
+  "type_a_3_6_phys_03"
+ ],
+ "type_a_3_8": [
+  "type_a_3_8_phys_00",
+  "type_a_3_8_phys_01",
+  "type_a_3_8_phys_02",
+  "type_a_3_8_phys_03"
+ ],
+ "type_a_4_12": [
+  "type_a_4_12_phys_00",
+  "type_a_4_12_phys_01",
+  "type_a_4_12_phys_02",
+  "type_a_4_12_phys_03",
+  "type_a_4_12_phys_04"
+ ],
+ "type_a_4_6": [
+  "type_a_4_6_phys_00",
+  "type_a_4_6_phys_01",
+  "type_a_4_6_phys_02",
+  "type_a_4_6_phys_03",
+  "type_a_4_6_phys_04"
+ ],
+ "type_a_5_16": [
+  "type_a_5_16_phys_00",
+  "type_a_5_16_phys_01",
+  "type_a_5_16_phys_02",
+  "type_a_5_16_phys_03",
+  "type_a_5_16_phys_04",
+  "type_a_5_16_phys_05"
+ ],
+ "type_a_5_24": [
+  "type_a_5_24_phys_00",
+  "type_a_5_24_phys_01",
+  "type_a_5_24_phys_02",
+  "type_a_5_24_phys_03",
+  "type_a_5_24_phys_04",
+  "type_a_5_24_phys_05"
+ ],
+ "type_a_5_8": [
+  "type_a_5_8_phys_00",
+  "type_a_5_8_phys_01",
+  "type_a_5_8_phys_02",
+  "type_a_5_8_phys_03",
+  "type_a_5_8_phys_04",
+  "type_a_5_8_phys_05"
+ ],
+ "type_a_6_20": [
+  "type_a_6_20_phys_00",
+  "type_a_6_20_phys_01",
+  "type_a_6_20_phys_02",
+  "type_a_6_20_phys_03",
+  "type_a_6_20_phys_04",
+  "type_a_6_20_phys_05",
+  "type_a_6_20_phys_06"
+ ],
+ "type_b_2_12": [
+  "type_b_2_12_phys_00",
+  "type_b_2_12_phys_01",
+  "type_b_2_12_phys_02"
+ ],
+ "type_b_2_16": [
+  "type_b_2_16_phys_00",
+  "type_b_2_16_phys_01",
+  "type_b_2_16_phys_02"
+ ],
+ "type_b_2_2": [
+  "type_b_2_2_phys_00",
+  "type_b_2_2_phys_01",
+  "type_b_2_2_phys_02"
+ ],
+ "type_b_2_20": [
+  "type_b_2_20_phys_00",
+  "type_b_2_20_phys_01",
+  "type_b_2_20_phys_02"
+ ],
+ "type_b_2_24": [
+  "type_b_2_24_phys_00",
+  "type_b_2_24_phys_01",
+  "type_b_2_24_phys_02"
+ ],
+ "type_b_2_4": [
+  "type_b_2_4_phys_00",
+  "type_b_2_4_phys_01",
+  "type_b_2_4_phys_02"
+ ],
+ "type_b_2_6": [
+  "type_b_2_6_phys_00",
+  "type_b_2_6_phys_01",
+  "type_b_2_6_phys_02"
+ ],
+ "type_b_2_8": [
+  "type_b_2_8_phys_00",
+  "type_b_2_8_phys_01",
+  "type_b_2_8_phys_02"
+ ],
+ "type_c_3_12": [
+  "type_c_3_12_phys_00",
+  "type_c_3_12_phys_01",
+  "type_c_3_12_phys_02",
+  "type_c_3_12_phys_03",
+  "type_c_3_12_phys_04"
+ ],
+ "type_c_3_16": [
+  "type_c_3_16_phys_00",
+  "type_c_3_16_phys_01",
+  "type_c_3_16_phys_02",
+  "type_c_3_16_phys_03",
+  "type_c_3_16_phys_04"
+ ],
+ "type_c_3_20": [
+  "type_c_3_20_phys_00",
+  "type_c_3_20_phys_01",
+  "type_c_3_20_phys_02",
+  "type_c_3_20_phys_03",
+  "type_c_3_20_phys_04"
+ ],
+ "type_c_3_24": [
+  "type_c_3_24_phys_00",
+  "type_c_3_24_phys_01",
+  "type_c_3_24_phys_02",
+  "type_c_3_24_phys_03",
+  "type_c_3_24_phys_04"
+ ],
+ "type_c_3_4": [
+  "type_c_3_4_phys_00",
+  "type_c_3_4_phys_01",
+  "type_c_3_4_phys_02",
+  "type_c_3_4_phys_03",
+  "type_c_3_4_phys_04"
+ ],
+ "type_c_3_6": [
+  "type_c_3_6_phys_00",
+  "type_c_3_6_phys_01",
+  "type_c_3_6_phys_02",
+  "type_c_3_6_phys_03",
+  "type_c_3_6_phys_04"
+ ],
+ "type_c_3_8": [
+  "type_c_3_8_phys_00",
+  "type_c_3_8_phys_01",
+  "type_c_3_8_phys_02",
+  "type_c_3_8_phys_03",
+  "type_c_3_8_phys_04"
+ ],
+ "type_d_3_12": [
+  "type_d_3_12_phys_00",
+  "type_d_3_12_phys_01",
+  "type_d_3_12_phys_02",
+  "type_d_3_12_phys_03",
+  "type_d_3_12_phys_04"
+ ],
+ "type_d_3_16": [
+  "type_d_3_16_phys_00",
+  "type_d_3_16_phys_01",
+  "type_d_3_16_phys_02",
+  "type_d_3_16_phys_03",
+  "type_d_3_16_phys_04"
+ ],
+ "type_d_3_20": [
+  "type_d_3_20_phys_00",
+  "type_d_3_20_phys_01",
+  "type_d_3_20_phys_02",
+  "type_d_3_20_phys_03",
+  "type_d_3_20_phys_04"
+ ],
+ "type_d_3_24": [
+  "type_d_3_24_phys_00",
+  "type_d_3_24_phys_01",
+  "type_d_3_24_phys_02",
+  "type_d_3_24_phys_03",
+  "type_d_3_24_phys_04"
+ ],
+ "type_d_3_4": [
+  "type_d_3_4_phys_00",
+  "type_d_3_4_phys_01",
+  "type_d_3_4_phys_02",
+  "type_d_3_4_phys_03",
+  "type_d_3_4_phys_04"
+ ],
+ "type_d_3_6": [
+  "type_d_3_6_phys_00",
+  "type_d_3_6_phys_01",
+  "type_d_3_6_phys_02",
+  "type_d_3_6_phys_03",
+  "type_d_3_6_phys_04"
+ ],
+ "type_d_3_8": [
+  "type_d_3_8_phys_00",
+  "type_d_3_8_phys_01",
+  "type_d_3_8_phys_02",
+  "type_d_3_8_phys_03",
+  "type_d_3_8_phys_04"
+ ],
+ "type_e_3_20": [
+  "type_e_3_20_phys_00",
+  "type_e_3_20_phys_01",
+  "type_e_3_20_phys_02",
+  "type_e_3_20_phys_03",
+  "type_e_3_20_phys_04"
+ ],
+ "type_e_3_24": [
+  "type_e_3_24_phys_00",
+  "type_e_3_24_phys_01",
+  "type_e_3_24_phys_02",
+  "type_e_3_24_phys_03",
+  "type_e_3_24_phys_04"
+ ],
+ "type_e_3_6": [
+  "type_e_3_6_phys_00",
+  "type_e_3_6_phys_01",
+  "type_e_3_6_phys_02",
+  "type_e_3_6_phys_03",
+  "type_e_3_6_phys_04"
+ ],
+ "type_e_3_8": [
+  "type_e_3_8_phys_00",
+  "type_e_3_8_phys_01",
+  "type_e_3_8_phys_02",
+  "type_e_3_8_phys_03",
+  "type_e_3_8_phys_04"
+ ],
+ "type_f_6_12": [
+  "type_f_6_12_phys_00",
+  "type_f_6_12_phys_01",
+  "type_f_6_12_phys_02",
+  "type_f_6_12_phys_03",
+  "type_f_6_12_phys_04",
+  "type_f_6_12_phys_05",
+  "type_f_6_12_phys_06",
+  "type_f_6_12_phys_07",
+  "type_f_6_12_phys_08"
+ ],
+ "type_f_6_16": [
+  "type_f_6_16_phys_00",
+  "type_f_6_16_phys_01",
+  "type_f_6_16_phys_02",
+  "type_f_6_16_phys_03",
+  "type_f_6_16_phys_04",
+  "type_f_6_16_phys_05",
+  "type_f_6_16_phys_06",
+  "type_f_6_16_phys_07",
+  "type_f_6_16_phys_08"
+ ],
+ "type_f_6_20": [
+  "type_f_6_20_phys_00",
+  "type_f_6_20_phys_01",
+  "type_f_6_20_phys_02",
+  "type_f_6_20_phys_03",
+  "type_f_6_20_phys_04",
+  "type_f_6_20_phys_05",
+  "type_f_6_20_phys_06",
+  "type_f_6_20_phys_07",
+  "type_f_6_20_phys_08"
+ ],
+ "type_f_6_24": [
+  "type_f_6_24_phys_00",
+  "type_f_6_24_phys_01",
+  "type_f_6_24_phys_02",
+  "type_f_6_24_phys_03",
+  "type_f_6_24_phys_04",
+  "type_f_6_24_phys_05",
+  "type_f_6_24_phys_06",
+  "type_f_6_24_phys_07",
+  "type_f_6_24_phys_08"
+ ],
+ "type_f_6_4": [
+  "type_f_6_4_phys_00",
+  "type_f_6_4_phys_01",
+  "type_f_6_4_phys_02",
+  "type_f_6_4_phys_03",
+  "type_f_6_4_phys_04",
+  "type_f_6_4_phys_05",
+  "type_f_6_4_phys_06",
+  "type_f_6_4_phys_07",
+  "type_f_6_4_phys_08"
+ ],
+ "type_f_6_6": [
+  "type_f_6_6_phys_00",
+  "type_f_6_6_phys_01",
+  "type_f_6_6_phys_02",
+  "type_f_6_6_phys_03",
+  "type_f_6_6_phys_04",
+  "type_f_6_6_phys_05",
+  "type_f_6_6_phys_06",
+  "type_f_6_6_phys_07",
+  "type_f_6_6_phys_08"
+ ],
+ "type_f_6_8": [
+  "type_f_6_8_phys_00",
+  "type_f_6_8_phys_01",
+  "type_f_6_8_phys_02",
+  "type_f_6_8_phys_03",
+  "type_f_6_8_phys_04",
+  "type_f_6_8_phys_05",
+  "type_f_6_8_phys_06",
+  "type_f_6_8_phys_07",
+  "type_f_6_8_phys_08"
+ ],
+ "u_beam_12": [
+  "u_beam_12_phys_00",
+  "u_beam_12_phys_01",
+  "u_beam_12_phys_02"
+ ],
+ "u_beam_16": [
+  "u_beam_16_phys_00",
+  "u_beam_16_phys_01",
+  "u_beam_16_phys_02"
+ ],
+ "u_beam_24": [
+  "u_beam_24_phys_00",
+  "u_beam_24_phys_01",
+  "u_beam_24_phys_02"
+ ],
+ "u_beam_32": [
+  "u_beam_32_phys_00",
+  "u_beam_32_phys_01",
+  "u_beam_32_phys_02"
+ ],
+ "u_beam_48": [
+  "u_beam_48_phys_00",
+  "u_beam_48_phys_01",
+  "u_beam_48_phys_02"
+ ],
+ "u_beam_8": [
+  "u_beam_8_phys_00",
+  "u_beam_8_phys_01",
+  "u_beam_8_phys_02"
+ ]
+}

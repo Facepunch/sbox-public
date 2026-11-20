@@ -12,9 +12,9 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
+#include "sbox/math.slangh"
 
 cbuffer BorealisGpuDrivenFigure_t
 {
@@ -37,7 +37,7 @@ struct PS_INPUT
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 #include "borealis_gpu_driven.fxc"
 
 [shader( "vertex" )] PS_INPUT MainVs( uint nVertex : SV_VulkanVertexID, uint nInstance : SV_VulkanInstanceID )

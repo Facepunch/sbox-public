@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/knobby.prefab",
+  "Title": "#asset.wheel.knobby.title",
+  "Description": "#asset.wheel.knobby.description",
+  "__references": [],
+  "__version": 0
+}

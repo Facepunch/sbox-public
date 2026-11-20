@@ -79,7 +79,7 @@ internal static class ThumbLoader
 			//
 			// if it looks like a package, try to load the thumb from there
 			//
-			if ( filename.Count( x => x == '/' || x == '\\' ) == 0 && filename.Count( '.' ) == 1 && Package.TryParseIdent( filename, out var ident ) )
+			if ( filename.Count( x => x == '/' || x == '\\' ) == 0 && filename.Count( '.' ) == 1 && Package.TryParseIdentParts( filename, out var ident ) )
 			{
 				var packageInfo = await Package.FetchAsync( $"{ident.org}.{ident.package}", true );
 				if ( packageInfo == null || ct.IsCancellationRequested ) return;

@@ -1,0 +1,377 @@
+// The view: the static descriptor sets, the per-view constant buffer the engine fills (PerViewConstantBuffer_t, bound by
+// name; its layout is the engine's, scenesystem's and Borealis.Gpu's ViewConstants), the wireframe and lighting debug
+// globals, and transforms between world, view, projection, tangent and screen space. Ours, in place of the old common.fxc
+// in Slang compiles (SlangHeaders): the same names, layout and results. Shares the old header's include guard.
+#ifndef COMMON_FXC
+#define COMMON_FXC
+
+// Nothing else is included here: the error shader includes this alone
+#include "sbox/system.slangh"
+
+// Static descriptor sets, declared here only, at the first slots after the render system's three
+ExternalDescriptorSet g_globalLateBoundBindlessSet Slot 1;
+
+// Per view: fog and wind, lighting config, the sun, the cluster grid, lights, decals, shadows, indirect light volumes and light
+// modulators, bound once per view. Each binding is filled from the render attribute of the same name, so shaders built
+// before the set still find them. Layout: scenesystem/viewdescriptorset.h, docs/reference/borealis-static-descriptor-sets.md.
+ExternalDescriptorSet g_viewSet Slot 2;
+
+#ifndef PER_VIEW_CBUFFER_DESCRIPTOR_SET
+	#define PER_VIEW_CBUFFER_DESCRIPTOR_SET
+#endif
+
+cbuffer PerViewConstantBuffer_t PER_VIEW_CBUFFER_DESCRIPTOR_SET
+{
+	float4x4 g_matWorldToProjection;
+	float4x4 g_matProjectionToWorld;
+	float4x4 g_matWorldToView;
+	float4x4 g_matViewToProjection;
+	float4 g_vInvProjRow3;
+
+	float4 g_vClipPlane0; // deprecated: use an oblique projection
+
+	float g_flToneMapScalarLinear;
+	float g_flLightMapScalar;
+	float g_flEnvMapScalar;
+	float g_flToneMapScalarGamma;
+
+	float3 g_vCameraPositionWs;
+	float g_flViewportMinZ;
+
+	float3 g_vCameraDirWs;
+	float g_flViewportMaxZ;
+
+	float3 g_vCameraUpDirWs;
+	float g_flTime;
+
+	float3 g_vDepthPsToVsConversion; // projected depth to view-space depth (ConvertDepthPsToVs)
+	float g_flNearPlane;
+
+	float g_flFarPlane;
+	float g_flCameraFOV; // radians
+	float2 g_vInvViewportSize;
+
+	float2 g_vViewportToGBufferRatio; // viewport size over G-buffer size
+	float2 g_vMorphTextureAtlasSize;
+
+	float4 g_vInvGBufferSize; // 1 / G-buffer size, 1 / transform texture size
+	#define g_flOOTransformTextureWidth ( g_vInvGBufferSize.z )
+	#define g_flOOTransformTextureHeight ( g_vInvGBufferSize.w )
+
+	float2 g_vViewportOffset;
+	float2 g_vViewportSize;
+	float2 g_vRenderTargetSize;
+
+	float g_flFogBlendToBackground;
+	float g_flHenyeyGreensteinCoeff;
+	float3 g_vFogColor;
+	float g_flNegFogStartOverFogRange; // -start / ( end - start )
+
+	float g_flInvFogRange; // 1 / ( end - start )
+	float g_flFogMaxDensity;
+	float g_flFogExponent;
+
+	float g_flMod2xIdentity;
+
+	float2 g_bRoughnessParams;
+	#define g_bUseRoughnessCone ( bool( g_bRoughnessParams.x ) )
+	#define g_bUseRoughnessEllipse ( bool( g_bRoughnessParams.y ) )
+
+	int g_nMSAASampleCount;
+
+	// Stereo
+	float g_flStereoCameraIndex;
+	float3 g_vMiddleEyePositionWs;
+	float g_flPad2;
+	float4x4 g_matUnusedMultiview1[ 2 ];
+	float4 g_vUnusedMultiview2[ 2 ];
+
+	float4 g_vFrameBufferCopyInvSizeAndUvScale;
+	float4 g_vCameraAngles;
+	float4 g_vWorldToCameraOffset;
+	float4 g_vUnusedMultiview3[ 2 ];
+	float4 g_vPerViewConstantExtraData0;
+	float4 g_vPerViewConstantExtraData1;
+	float4 g_vPerViewConstantExtraData2;
+	float4 g_vPerViewConstantExtraData3;
+
+	float4x4 g_matPrevProjectionToWorld;
+
+	float4x4 g_matViewToScreen; // projection to pixel coordinates
+	float4x4 g_matProjectionToView; // inverse projection
+	float4x4 g_matCurrFrameViewToPrevFrameProj;
+
+	float4 g_vRandomFloats;
+};
+
+// Tools: wireframe, and lighting without direction
+bool g_bWireframeMode < Attribute( "g_bWireframeMode" ); Default( 0 ); >;
+float4 g_vWireframeColor < Attribute("wireframeColor"); Default4(1,1,1,1); >;
+
+bool g_bNonDirectionalDiffuseLighting < Attribute( "g_bNonDirectionalDiffuseLighting" ); Default( 0 ); >;
+
+/// Pixel centres are half a pixel in.
+static const float g_flPixelCenter = 0.5;
+
+/// For comparing during development: 0 or 1, switching every flNumSeconds ( if ( Blink( 1.0 ) ) ).
+float Blink( float flNumSeconds )
+{
+	return step( 0.5, frac( g_flTime * 0.5 / flNumSeconds ) );
+}
+
+// World to view
+float4 Position4WsToVs( float4 vPositionWs )
+{
+	return mul( g_matWorldToView, vPositionWs.xyzw );
+}
+
+float4 Position3WsToVs( float3 vPositionWs )
+{
+	return Position4WsToVs( float4( vPositionWs.xyz, 1.0 ) );
+}
+
+float3 Vector3WsToVs( float3 vVecWs )
+{
+	return Position4WsToVs( float4( vVecWs.xyz, 0.0 ) ).xyz;
+}
+
+float3 Vector3VsToWs( float3 vVecVs )
+{
+	return mul( float4( vVecVs.xyz, 0.0f ), g_matWorldToView ).xyz;
+}
+
+// View to projection
+float4 Position4VsToPs( float4 vPositionVs )
+{
+	return mul( g_matViewToProjection, vPositionVs.xyzw );
+}
+
+float4 Position3VsToPs( float3 vPositionVs )
+{
+	return Position4VsToPs( float4( vPositionVs.xyz, 1.0 ) );
+}
+
+/// World to projection. World positions here are camera-relative: the view's offset moves them back first.
+float4 Position4WsToPs( float4 vPositionWs )
+{
+	vPositionWs += ( g_vWorldToCameraOffset * vPositionWs.w );
+	return mul( g_matWorldToProjection, vPositionWs.xyzw );
+}
+
+float4 Position3WsToPs( float3 vPositionWs )
+{
+	return Position4WsToPs( float4( vPositionWs.xyz, 1.0 ) );
+}
+
+float3 ToneMapLinear( float3 vColor )
+{
+	return vColor.rgb * g_flToneMapScalarLinear;
+}
+
+float3 ToneMapGamma( float3 vColor )
+{
+	return vColor.rgb * g_flToneMapScalarGamma;
+}
+
+/// The clip position with z as the distance along the view between the near and far planes (0..1), for the light binner.
+float4 ClipSpacePositionForLightBinner( float3 vPositionWs, float4 vPositionPs )
+{
+	float3 vCameraToPositionWs = vPositionWs.xyz - g_vCameraPositionWs.xyz;
+	float flAlongView = dot( vCameraToPositionWs.xyz, g_vCameraDirWs.xyz );
+	float flZ = ( flAlongView - g_flNearPlane ) / ( g_flFarPlane - g_flNearPlane );
+	return float4( vPositionPs.xy, flZ, vPositionPs.w );
+}
+
+/// A world vector in a tangent frame, not normalized.
+float3 Vec3WsToTs( float3 vVectorWs, float3 vNormalWs, float3 vTangentUWs, float3 vTangentVWs )
+{
+	float3 vVectorTs;
+	vVectorTs.x = dot( vVectorWs.xyz, vTangentUWs.xyz );
+	vVectorTs.y = dot( vVectorWs.xyz, vTangentVWs.xyz );
+	vVectorTs.z = dot( vVectorWs.xyz, vNormalWs.xyz );
+	return vVectorTs.xyz;
+}
+
+float3 Vec3WsToTsNormalized( float3 vVectorWs, float3 vNormalWs, float3 vTangentUWs, float3 vTangentVWs )
+{
+	return normalize( Vec3WsToTs( vVectorWs.xyz, vNormalWs.xyz, vTangentUWs.xyz, vTangentVWs.xyz ) );
+}
+
+/// A tangent-space vector in world space, not normalized.
+float3 Vec3TsToWs( float3 vVectorTs, float3 vNormalWs, float3 vTangentUWs, float3 vTangentVWs )
+{
+	float3 vVectorWs;
+	vVectorWs.xyz = vVectorTs.x * vTangentUWs.xyz;
+	vVectorWs.xyz += vVectorTs.y * vTangentVWs.xyz;
+	vVectorWs.xyz += vVectorTs.z * vNormalWs.xyz;
+	return vVectorWs.xyz;
+}
+
+/// A tangent-space vector in world space, normalized (an interpolated frame isn't orthonormal).
+float3 Vec3TsToWsNormalized( float3 vVectorTs, float3 vNormalWs, float3 vTangentUWs, float3 vTangentVWs )
+{
+	return normalize( Vec3TsToWs( vVectorTs.xyz, vNormalWs.xyz, vTangentUWs.xyz, vTangentVWs.xyz ) );
+}
+
+// Camera to position and back, as rays (not normalized) and directions. The position-to-camera ones negate the others, so
+// code using both computes the difference once. The .xyz on arguments here and above are kept on purpose: every caller's
+// value then reaches the arithmetic in the same form, which the optimizer needs to share it between callers
+float3 CalculateCameraToPositionRayWs( float3 vPositionWs )
+{
+	return ( vPositionWs.xyz - g_vCameraPositionWs.xyz );
+}
+
+float3 CalculateCameraToPositionDirWs( float3 vPositionWs )
+{
+	return normalize( CalculateCameraToPositionRayWs( vPositionWs.xyz ) );
+}
+
+// The tangent frame's arguments here are in the order U, V, normal, passed on to Vec3WsToTs's normal, U, V as they come
+float3 CalculateCameraToPositionRayTs( float3 vPositionWs, float3 vTangentUWs, float3 vTangentVWs, float3 vNormalWs )
+{
+	float3 vRayWs = CalculateCameraToPositionRayWs( vPositionWs.xyz );
+	return Vec3WsToTs( vRayWs.xyz, vTangentUWs.xyz, vTangentVWs.xyz, vNormalWs.xyz );
+}
+
+float3 CalculateCameraToPositionDirTs( float3 vPositionWs, float3 vTangentUWs, float3 vTangentVWs, float3 vNormalWs )
+{
+	return normalize( CalculateCameraToPositionRayTs( vPositionWs.xyz, vTangentUWs.xyz, vTangentVWs.xyz, vNormalWs.xyz ) );
+}
+
+float3 CalculatePositionToCameraRayWs( float3 vPositionWs )
+{
+	return -CalculateCameraToPositionRayWs( vPositionWs.xyz );
+}
+
+float3 CalculatePositionToCameraDirWs( float3 vPositionWs )
+{
+	return -CalculateCameraToPositionDirWs( vPositionWs.xyz );
+}
+
+float3 CalculatePositionToCameraRayTs( float3 vPositionWs, float3 vTangentUWs, float3 vTangentVWs, float3 vNormalWs )
+{
+	return -CalculateCameraToPositionRayTs( vPositionWs.xyz, vTangentUWs.xyz, vTangentVWs.xyz, vNormalWs.xyz );
+}
+
+float3 CalculatePositionToCameraDirTs( float3 vPositionWs, float3 vTangentUWs, float3 vTangentVWs, float3 vNormalWs )
+{
+	return -CalculateCameraToPositionDirTs( vPositionWs.xyz, vTangentUWs.xyz, vTangentVWs.xyz, vNormalWs.xyz );
+}
+
+/// The view direction reflected about the normal.
+float3 CalculateCameraReflectionDirWs( float3 vPositionWs, float3 vNormalWs )
+{
+	float3 vViewDirWs = CalculateCameraToPositionDirWs( vPositionWs.xyz );
+	float3 vReflectionWs = reflect( vViewDirWs.xyz, vNormalWs.xyz );
+	return vReflectionWs.xyz;
+}
+
+float CalculateDistanceToCamera( float3 vPositionWs )
+{
+	return length( g_vCameraPositionWs.xyz - vPositionWs.xyz );
+}
+
+/// A depth buffer's projected depth to view-space depth, and back. The view looks down -Z, so view depth is negative.
+float ConvertDepthPsToVs( float flDepthPs )
+{
+	return g_vDepthPsToVsConversion.x / ( g_vDepthPsToVsConversion.y * flDepthPs + g_vDepthPsToVsConversion.z );
+}
+
+float ConvertDepthVsToPs( float flDepthVs )
+{
+	return ( g_vDepthPsToVsConversion.y * flDepthVs + g_vDepthPsToVsConversion.z ) / g_vDepthPsToVsConversion.x;
+}
+
+/// Schlick's Fresnel with any exponent: from flFrenselReflectance facing the camera to 1 at grazing.
+float CalculateFresnel( float flFrenselReflectance, float flFresnelExponent, float3 vPositionWs, float3 vNormalWs )
+{
+	float flGrazing = pow( abs( 1.0 - saturate( dot( CalculatePositionToCameraDirWs( vPositionWs.xyz ), vNormalWs.xyz ) ) ), flFresnelExponent );
+	return flFrenselReflectance + ( 1.0 - flFrenselReflectance ) * flGrazing;
+}
+
+/// CalculateFresnel scaled to integrate to 1 over the hemisphere.
+float CalculateNormalizedFresnel( float flFresnelReflectance, float flFresnelExponent, float3 vPositionWs, float3 vNormalWs )
+{
+	float flFresnel = CalculateFresnel( flFresnelReflectance, flFresnelExponent, vPositionWs, vNormalWs );
+	float flExponentPlusOne = flFresnelExponent + 1.0;
+	float flDenominator = ( 1.0 - flFresnelReflectance ) + flFresnelReflectance * flExponentPlusOne;
+	return ( flExponentPlusOne / flDenominator ) * flFresnel;
+}
+
+/// Fresnel from min (facing) to max (grazing), exponent in z.
+float CalculateFresnel( float3 vFresnelMinMaxExp, float3 vPositionWs, float3 vNormalWs )
+{
+	float flGrazing = pow( abs( 1.0 - saturate( dot( CalculatePositionToCameraDirWs( vPositionWs.xyz ), vNormalWs.xyz ) ) ), vFresnelMinMaxExp.z );
+	return ( flGrazing * ( vFresnelMinMaxExp.y - vFresnelMinMaxExp.x ) ) + vFresnelMinMaxExp.x;
+}
+
+/// The other way round: from min at grazing to max facing (self-illumination by facing).
+float CalculateInvFresnel( float3 vFresnelMinMaxExp, float3 vPositionWs, float3 vNormalWs )
+{
+	float flFacing = pow( abs( saturate( dot( CalculatePositionToCameraDirWs( vPositionWs.xyz ), vNormalWs.xyz ) ) ), vFresnelMinMaxExp.z );
+	return ( flFacing * ( vFresnelMinMaxExp.y - vFresnelMinMaxExp.x ) ) + vFresnelMinMaxExp.x;
+}
+
+/// A specular exponent 1..150 to 0..1, and back.
+float PackSpecularExponent( float flSpecularExponent )
+{
+	return ( flSpecularExponent - 1.0 ) * ( 1.0 / 149.0 );
+}
+
+float UnpackSpecularExponent( float flSpecularExponentPacked )
+{
+	return 1.0 + ( 149.0 * flSpecularExponentPacked );
+}
+
+/// A pixel position to 0..1 by an inverse size (such as Source( InvTextureDim )).
+float2 CalculateViewportUvFromInvSize( float2 vPositionSs, float2 vInvViewportSize )
+{
+	float2 vScreenUv;
+	vScreenUv.xy = vPositionSs.xy * vInvViewportSize.xy;
+	return vScreenUv.xy;
+}
+
+/// A pixel position to 0..1 across the viewport.
+float2 CalculateViewportUv( float2 vPositionSs )
+{
+	vPositionSs.xy -= g_vViewportOffset.xy;
+	return CalculateViewportUvFromInvSize( vPositionSs.xy, g_vInvViewportSize.xy ) * 1.0f;
+}
+
+/// CalculateViewportUv, for the depth buffer (which isn't upscaled).
+float2 CalculateViewportDepthUv( float2 vPositionSs )
+{
+	vPositionSs.xy -= g_vViewportOffset.xy;
+	return CalculateViewportUvFromInvSize( vPositionSs.xy, g_vInvViewportSize.xy ) * 1.0f;
+}
+
+float GetEnvMapScalar()
+{
+	return g_flEnvMapScalar;
+}
+
+float GetLightMapScalar()
+{
+	return g_flLightMapScalar;
+}
+
+/// The world position at a projected depth along a camera ray (camera to a point on the far plane).
+float3 RecoverWorldPosFromProjectedDepthAndRay( float flProjectedDepth, float3 vCameraToPositionRayWs )
+{
+	float flZScale = g_vInvProjRow3.z;
+	float flZTranslate = g_vInvProjRow3.w;
+	float flAlongRay = 1.0 / ( ( flProjectedDepth * flZScale + flZTranslate ) * dot( g_vCameraDirWs.xyz, vCameraToPositionRayWs.xyz ) );
+	float3 vPositionWs = g_vCameraPositionWs.xyz + ( vCameraToPositionRayWs.xyz * flAlongRay );
+	return vPositionWs.xyz;
+}
+
+/// Where a world position was on screen last frame (projected, after the divide); angleOnly reprojects a direction.
+float3 ReprojectFromLastFrameSs( float3 vPositionWs, bool angleOnly = false )
+{
+	float3 vPositionVs = Position4WsToVs( float4( vPositionWs, 1.0 ) ).xyz;
+	float4 vPrevPs = mul( g_matCurrFrameViewToPrevFrameProj, float4( vPositionVs.xyz, angleOnly ? 0.0 : 1.0 ) );
+	vPrevPs.xyz /= vPrevPs.w;
+	return vPrevPs.xyz;
+}
+
+#endif // COMMON_FXC

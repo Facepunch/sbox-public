@@ -24,6 +24,18 @@ namespace Sandbox
 		private readonly Dictionary<Type, Dictionary<FieldInfo, DefaultDelegate>> DefaultDelegates
 			= new Dictionary<Type, Dictionary<FieldInfo, DefaultDelegate>>();
 
+		private readonly Dictionary<Assembly, AssemblyDefinition> LoadedDefinitions = new();
+
+		private void CloseAssemblyImages()
+		{
+			foreach ( var definition in LoadedDefinitions.Values )
+			{
+				definition.Dispose();
+			}
+
+			LoadedDefinitions.Clear();
+		}
+
 		private void ClearFieldDefaults()
 		{
 			DefaultDelegates.Clear();
@@ -35,6 +47,14 @@ namespace Sandbox
 			{
 				Log( HotloadEntryType.Warning, $"No assembly resolver provided" );
 				return null;
+			}
+
+			if ( LoadedDefinitions.TryGetValue( asm, out var loaded ) ) return loaded;
+
+			if ( AssemblyResolver is IAssemblyImageResolver images && images.OpenAssemblyImage( asm ) is { } exact )
+			{
+				LoadedDefinitions.Add( asm, exact );
+				return exact;
 			}
 
 			var name = asm.GetName();
@@ -352,7 +372,7 @@ namespace Sandbox
 				}
 			}
 
-			Log( HotloadEntryType.Error, $"Unable to resolve method definition", method );
+			Log( HotloadEntryType.Warning, $"Unable to resolve method definition", method );
 			return null;
 		}
 

@@ -1,5 +1,4 @@
-// tools_selection_outline: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// tools_selection_outline: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //===================== Copyright (c) Valve Corporation. All Rights Reserved. ======================
 //
 //==================================================================================================
@@ -17,9 +16,9 @@ Mode( Default );
 //--------------------------------------------------------------------------------------------------
 
 //--------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 //--------------------------------------------------------------------------------------------------
 struct VS_INPUT

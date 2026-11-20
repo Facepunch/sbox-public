@@ -1,0 +1,30 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "102eecd8-00fc-0000-bc00-000000000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Usp",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_usp",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/usp/materials/v_usp.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -4,8 +4,7 @@ using System.Runtime.InteropServices;
 namespace Sandbox
 {
 	/// <summary>
-	/// A mesh's index buffer, 32-bit indices. They live here, so the mesh reads back and saves without a render device;
-	/// with Source 2's (<see cref="Graphics.HasSource2Device"/>) a native buffer holds a copy to draw from.
+	/// A mesh's index buffer, 32-bit indices. They live here, so the mesh reads back and saves without a render device.
 	/// </summary>
 	internal struct IndexBufferHandle : IValid
 	{
@@ -59,17 +58,6 @@ namespace Sandbox
 			_data = new int[indexCount];
 			data[..dataCount].CopyTo( _data );
 
-			if ( Graphics.HasSource2Device )
-			{
-				fixed ( int* data_ptr = _data )
-				{
-					var handle = MeshGlue.CreateIndexBuffer( indexCount, true, (IntPtr)data_ptr, indexCount );
-					if ( handle == IntPtr.Zero )
-						throw new Exception( $"Failed to create index buffer" );
-
-					_native = handle;
-				}
-			}
 
 			_elementCount = indexCount;
 			_lockDataSize = 0;

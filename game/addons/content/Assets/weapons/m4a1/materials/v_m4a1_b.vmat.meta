@@ -1,0 +1,28 @@
+{
+  "guid": "e1c65763-d664-45de-b85a-152c76b1843e",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V M 4A 1 B",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_m4a1_b",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m4a1/materials/v_m4a1_b.vmat"
+      }
+    }
+  }
+}

@@ -224,6 +224,15 @@ internal abstract partial class PhysicsWorldInternal : IValid
 	public virtual IEnumerable<GameObject> FindInPhysics( Sphere sphere ) => Enumerable.Empty<GameObject>();
 
 	/// <summary>
+	/// Add overlapping game objects to caller-owned storage.
+	/// </summary>
+	internal virtual void FindInPhysics( Sphere sphere, HashSet<GameObject> results )
+	{
+		foreach ( var go in FindInPhysics( sphere ) )
+			results.Add( go );
+	}
+
+	/// <summary>
 	/// Find game objects overlapping a box.
 	/// </summary>
 	public virtual IEnumerable<GameObject> FindInPhysics( BBox box ) => Enumerable.Empty<GameObject>();

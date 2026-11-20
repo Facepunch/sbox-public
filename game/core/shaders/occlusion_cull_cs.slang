@@ -6,8 +6,8 @@
 
 Mode( Default );
 
-#include "system.fxc"
-#include "common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 // Native only: the instance count is in OcclusionStats[STAT_INSTANCES]

@@ -109,11 +109,6 @@ public static partial class PerformanceStats
 			GpuFrametime = (float)busy;
 			GpuFrameNumber = (uint)borealisGpu.GpuBusyFrame;
 		}
-		else if ( Graphics.HasSource2Device && g_pRenderDevice.GetGPUFrameTimeMS( IntPtr.Zero, out float gpuFrametime, out uint gpuFrameNo ) )
-		{
-			GpuFrametime = gpuFrametime;
-			GpuFrameNumber = gpuFrameNo;
-		}
 
 		var allocatedBytes = AppDomain.CurrentDomain.MonitoringTotalAllocatedMemorySize;
 		PerformanceStats.BytesAllocated = allocatedBytes - _prevAllocatedBytes;
@@ -184,13 +179,12 @@ public static partial class PerformanceStats
 		_history.Clear();
 		secondTimer.Restart();
 
-		// Source 2's texture pool, and the drawing device's summary
+		// The drawing device's summary; Source 2's texture pool is the empty device's, which has none
 		ulong poolUsed = 0, poolLimit = 0, poolNonEvictable = 0;
-		if ( Graphics.HasSource2Device ) g_pRenderDevice.GetTexturePoolStats( out poolUsed, out poolLimit, out poolNonEvictable );
 		FrameStats._current = new FrameStats(
 			NativeEngine.CSceneSystem.GetPerFrameStats(),
 			NativeEngine.CSceneSystem.GetNumUnbatchableMaterials(),
-			RenderBackend.Default is BorealisGpuRenderBackend borealis ? borealis.DescribeResources() : Graphics.HasSource2Device ? g_pRenderDevice.GetGpuStatsSummary() : "",
+			RenderBackend.Default is BorealisGpuRenderBackend borealis ? borealis.DescribeResources() : "",
 			NativeEngine.g_pResourceSystem.GetNumPendingStreamingRequests(),
 			poolUsed, poolLimit, poolNonEvictable );
 		FrameStats._current.AddManaged( Rendering.ManagedSceneRendering.LastFrame );

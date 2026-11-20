@@ -1,0 +1,10 @@
+{
+  "Prefab": "weapons/physgun/physgun.prefab",
+  "Title": "#weapon.name.physgun",
+  "Description": "#asset.physgun.description",
+  "Category": "Weapon/Utility",
+  "IncludeCode": false,
+  "Developer": false,
+  "__references": [],
+  "__version": 0
+}

@@ -1,0 +1,52 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+<root>
+    @if ( !string.IsNullOrEmpty( _shownText ) )
+    {
+        <div class="box">
+            <Label Tokenize=@false Text=@_shownText />
+        </div>
+    }
+</root>
+
+@code
+{
+    string _name, _language, _text;
+
+    // the last text that was shown, kept so the label can fade out with it
+    string _shownText;
+
+	protected override void OnUpdate()
+	{
+        var name = FindOwnerName();
+        if ( name != _name || Game.Language.SelectedCode != _language )
+        {
+            _name = name;
+            _language = Game.Language.SelectedCode;
+            _text = name is null ? null : Game.Language.GetPhrase( "ui.owner.owned_by", new() { { "name", name } } );
+        }
+
+        if ( _text is not null ) _shownText = _text;
+        Panel.SetClass( "visible", _text is not null );
+        Panel.Style.Bottom = Hud.MarginLength;
+	}
+
+    string FindOwnerName()
+    {
+        if ( !Hud.IsVisible( HudElement.OwnerLabel ) ) return null;
+
+		// only while the Inspect menu is open, for the object it highlights
+		if ( !SpawnMenuHost.IsOpen || SpawnMenuHost.GetActiveMode() is not ContextMenuHost host ) return null;
+
+		var hovered = host.Hovered;
+		if ( !hovered.IsValid() ) return null;
+
+		var ownable = hovered.GetComponentInParent<Ownable>( true );
+		return ownable.IsValid() ? ownable.Owner?.DisplayName : null;
+    }
+
+	protected override int BuildHash() => System.HashCode.Combine( _shownText );
+}

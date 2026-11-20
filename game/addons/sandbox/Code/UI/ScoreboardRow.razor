@@ -1,0 +1,96 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root class="row player">
+
+	@if ( Connection is not null )
+	{
+		var steamId = Connection.SteamId;
+		var data = PlayerData.For( Connection );
+		bool isMuted = SandboxVoice.IsMuted( steamId );
+
+		<img class="avatar" src="avatar:@steamId" />
+		<label class="name">@Connection.DisplayName</label>
+		<label class="stat">@(data?.Kills ?? 0)</label>
+		<label class="stat">@(data?.Deaths ?? 0)</label>
+		<label class="stat">@(Connection.Ping.CeilToInt())</label>
+		@if ( Connection != Connection.Local )
+		{
+			<div class="mute-btn @(isMuted ? "muted" : "")" onclick="@( () => SandboxVoice.Mute( steamId ) )">
+				<i>@(isMuted ? "volume_off" : "volume_up")</i>
+			</div>
+		}
+		else
+		{
+			<div class="mute-spacer"></div>
+		}
+	}
+
+</root>
+
+@code
+{
+    public Connection Connection { get; set; }
+
+    public override void Tick()
+    {
+        if ( Connection is null ) return;
+        SetClass( "me", Connection == Connection.Local );
+        SetClass( "friend", new Friend( Connection.SteamId ).IsFriend );
+        SetClass( "dead", !Player.FindForConnection( Connection ).IsValid() );
+    }
+
+    protected override int BuildHash()
+    {
+        if ( Connection is null ) return 0;
+        var data = PlayerData.For( Connection );
+        return System.HashCode.Combine( Connection.DisplayName, data?.Kills ?? 0, data?.Deaths ?? 0, Connection.Ping );
+    }
+
+    protected override void OnRightClick( MousePanelEvent e )
+    {
+        if ( Connection is null ) return;
+
+        var steamId = Connection.SteamId;
+        var menu = new Sandbox.UI.Menu();
+
+        menu.AddOption( "#spawnmenu.utility.copy_steam_id", "content_copy", () =>
+        {
+            Clipboard.SetText( steamId.ToString() );
+            Notices.AddNotice( "copy_all", Color.Cyan, Game.Language.GetPhrase( "spawnmenu.utility.copied_steam_id", new() { { "name", Connection.DisplayName } } ), 5 );
+        } );
+
+		if ( Connection != Connection.Local )
+		{
+			bool isMuted = SandboxVoice.IsMuted( steamId );
+			menu.AddOption( isMuted ? "#ui.scoreboard.unmute" : "#ui.scoreboard.mute", isMuted ? "volume_up" : "volume_off", () => SandboxVoice.Mute( steamId ) );
+
+			if ( Permissions.Has( Connection.Local, Permissions.Admin ) )
+			{
+				menu.AddSeparator();
+				menu.AddOption( "#ui.scoreboard.kick", "person_remove", () => OpenKickConfirm( Connection ) );
+				menu.AddOption( "#ui.scoreboard.ban", "gavel", () => OpenBanConfirm( Connection ) );
+			}
+		}
+
+		e.StopPropagation();
+
+		menu.Open( this, Popup.PositionMode.UnderMouse );
+	}
+
+	void OpenKickConfirm( Connection connection )
+	{
+		UIModal.Prompt( this, "#ui.scoreboard.kick_player", "", reason => GameManager.RpcKickPlayer( connection, reason ),
+			"#ui.query.placeholder", "#ui.scoreboard.kick", "check", ReasonPrompt( "ui.scoreboard.kick_prompt", connection ) );
+	}
+
+	void OpenBanConfirm( Connection connection )
+	{
+		UIModal.Prompt( this, "#ui.scoreboard.ban_player", "", reason => BanSystem.RpcBanPlayer( connection, reason ),
+			"#ui.query.placeholder", "#ui.scoreboard.ban", "check", ReasonPrompt( "ui.scoreboard.ban_prompt", connection ) );
+	}
+
+	static string ReasonPrompt( string phrase, Connection connection ) =>
+		Game.Language.GetPhrase( phrase, new() { { "name", UIModal.Escape( connection.DisplayName ) } } );
+}

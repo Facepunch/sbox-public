@@ -1,0 +1,336 @@
+{
+  "RootObject": {
+    "__guid": "c7e1a3f0-2b84-4d59-a611-0de23f94b101",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "rollermine",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "npc",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.Npcs.Roller.RollerNpc",
+        "__guid": "d4a29b17-3f65-4c80-b752-1e8a5c7d9e02",
+        "__enabled": true,
+        "Flags": 0,
+        "BounceForce": 303750,
+        "ContactDamage": 20,
+        "ContactEffect": {
+          "_type": "gameobject",
+          "prefab": "entities/sents/npc/rollermine/rollermine_contact_fx.prefab"
+        },
+        "DisplayName": "#asset.roller.title",
+        "Eye": {
+          "_type": "gameobject",
+          "go": "f9b3c841-5d72-4e1a-8c06-2a7d4f0e3b05"
+        },
+        "Health": 35,
+        "HuntingEffects": {
+          "_type": "gameobject",
+          "go": "19b83c12-b341-4d99-a660-c2131044ae84"
+        },
+        "LeapEffect": {
+          "_type": "gameobject",
+          "prefab": "entities/sents/npc/rollermine/rollermine_leap_fx.prefab"
+        },
+        "LeapForce": 202500,
+        "LeapRange": 160,
+        "LeapUpwardBias": 0.8,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PitchMax": 1.6,
+        "PitchMin": 0.6,
+        "PitchSpeedMax": 600,
+        "Renderer": {
+          "_type": "component",
+          "component_id": "7a3c0e25-4b68-4f91-d506-2b8f1e7c4d11",
+          "go": "c4d81f96-2e53-4a07-b480-1f6e3d9c5a10",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "RollForce": 40000,
+        "RollSound": "entities/sents/npc/rollermine/rollermine_move_loop.sound",
+        "RollTorque": 20000,
+        "ShowDebugOverlay": false,
+        "StuckJumpForce": 500
+      },
+      {
+        "__type": "Sandbox.SphereCollider",
+        "__guid": "8e7f2a04-1c93-4b56-d8e5-3a9c6b0d1f03",
+        "__enabled": true,
+        "Flags": 0,
+        "Center": "0,0,0",
+        "ColliderFlags": 0,
+        "Elasticity": 0.3,
+        "Friction": 0.8,
+        "IsTrigger": false,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "Radius": 10,
+        "RollingResistance": null,
+        "Static": false,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.Npcs.Layers.SensesLayer",
+        "__guid": "a6c50d28-7b14-4e87-9f31-5c2e8a1b4d04",
+        "__enabled": true,
+        "Flags": 0,
+        "HearingRange": 800,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "SightRange": 1500,
+        "TargetTags": "player"
+      },
+      {
+        "__type": "Sandbox.Npcs.Layers.NavigationLayer",
+        "__guid": "b1d73e59-8a25-4f96-c042-6d3b7e2a5c06",
+        "__enabled": true,
+        "Flags": 0,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "StopDistance": 10
+      },
+      {
+        "__type": "Sandbox.Npcs.Layers.AnimationLayer",
+        "__guid": "e5f84c61-9b37-4d08-a153-7e4c9f3b2d07",
+        "__enabled": true,
+        "Flags": 0,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
+      },
+      {
+        "__type": "Sandbox.Npcs.Layers.SpeechLayer",
+        "__guid": "f2a95d73-0c48-4e17-b264-8f5d0a4c1e08",
+        "__enabled": true,
+        "Flags": 0,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null
+      },
+      {
+        "__type": "Sandbox.Rigidbody",
+        "__guid": "31b06e84-ac59-4f28-d375-9e1b2c8a0d09",
+        "__enabled": true,
+        "Flags": 0,
+        "AngularDamping": 1.5,
+        "EnableImpactDamage": false,
+        "EnhancedCcd": false,
+        "Gravity": true,
+        "GravityScale": 1,
+        "ImpactDamage": 0,
+        "LinearDamping": 0.3,
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "MassCenterOverride": "0,0,0",
+        "MassOverride": 0,
+        "MinImpactDamageSpeed": 500,
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideMassCenter": false,
+        "RigidbodyFlags": 0,
+        "StartAsleep": false
+      },
+      {
+        "__type": "Sandbox.Npcs.Roller.RollerMorphs",
+        "__guid": "08db7bd7-6381-412e-bd62-050e342a56ed",
+        "__enabled": true,
+        "Flags": 0,
+        "GlowMaterial": "entities/hoverball/materials/hoverball.vmat",
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Speed": 15
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "19b83c12-b341-4d99-a660-c2131044ae84",
+        "__version": 2,
+        "__Prefab": "entities/sents/npc/rollermine/rollermine_hunting_fx.prefab",
+        "__PrefabInstancePatch": {
+          "AddedObjects": [],
+          "RemovedObjects": [],
+          "PropertyOverrides": [
+            {
+              "Target": {
+                "Type": "GameObject",
+                "IdValue": "eef3a57b-aa75-4a8b-b52f-2ccad977ffbb"
+              },
+              "Property": "Enabled",
+              "Value": false
+            }
+          ],
+          "MovedObjects": []
+        },
+        "__PrefabIdToInstanceId": {
+          "eef3a57b-aa75-4a8b-b52f-2ccad977ffbb": "19b83c12-b341-4d99-a660-c2131044ae84",
+          "4ea7f593-94f8-4ffa-8514-3d88095cf402": "fa00b0a0-9828-40df-8ff5-afc4a1700815",
+          "8a730490-5045-4c62-bd11-2069a03338f6": "5cbbdb2c-29ff-430c-9a80-e949610d7ebe",
+          "3005c6a7-0e0c-4765-a36a-3b423ecce8b1": "550d3e4c-3574-403c-ac38-fecb2d29aaa9",
+          "9d57dd02-9432-4b3b-88ed-f74df060e7e7": "c066bdbc-06f3-4b3c-b2be-e5859631c01b",
+          "4c1df0c8-7d33-4768-a3f9-234caad29c82": "bc4cd856-6184-4056-938a-c8f75e429416",
+          "a2bd0693-00a9-402c-bd08-5b26737d34bf": "1a7e679c-048b-4b37-badd-751d11d39915"
+        }
+      },
+      {
+        "__guid": "c4d81f96-2e53-4a07-b480-1f6e3d9c5a10",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "model",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1.25,1.25,1.25",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "7a3c0e25-4b68-4f91-d506-2b8f1e7c4d11",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": null,
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "LodOverride": null,
+            "MaterialGroup": "default",
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": "entities/hoverball/hoverball_morph.vmdl",
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {
+              "bools": {},
+              "ints": {},
+              "floats": {},
+              "vectors": {},
+              "rotations": {}
+            },
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "f9b3c841-5d72-4e1a-8c06-2a7d4f0e3b05",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Eye",
+        "Position": "18,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

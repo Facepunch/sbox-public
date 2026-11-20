@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Geri tepme",
+    "weapon.setting.primary.description": "Silahın birincil eylemini kontrol eder.",
+    "weapon.setting.secondary.description": "Silahın ikincil eylemini kontrol eder.",
+    "weapon.setting.recoil_force": "Geri tepme kuvveti",
+    "weapon.setting.recoil_force.description": "Elde tutulmayan bir silah ateşlendiğinde uygulanan fiziksel geri tepme.",
+    "weapon.setting.extend": "Kavrama mesafesini artır",
+    "weapon.setting.extend.description": "Tutulan nesneyi uzaklaştırır.",
+    "weapon.setting.retract": "Kavrama mesafesini azalt",
+    "weapon.setting.retract.description": "Tutulan nesneyi yaklaştırır.",
+    "weapon.setting.camera_aim": "Kamerayla nişan al",
+    "weapon.setting.camera_aim.description": "Oturan oyuncunun kamerasının baktığı yöne nişan alır.",
+    "weapon.setting.guide_rockets": "Roketleri yönlendir",
+    "weapon.setting.guide_rockets.description": "Ateşlenen roketleri oyuncunun nişangâhına yönlendirir."
+}

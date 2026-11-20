@@ -1,0 +1,165 @@
+@import "/UI/Theme.scss";
+@import "/UI/Effects/EffectRow.scss";
+
+@mixin component-theme
+{
+    EffectsList
+    {
+        @include ui-sidebar;
+        width: 228px;
+        padding: 0;
+        font-family: $body-font;
+
+        > .source
+        {
+            @include ui-menu-segments;
+            margin: 8px;
+            height: $ui-menu-control-height;
+            flex-grow: 0;
+            flex-shrink: 0;
+        }
+
+        > .list-section
+        {
+            flex-direction: column;
+            flex-grow: 1;
+            min-height: 0px;
+        }
+
+        .search
+        {
+            flex-shrink: 0;
+            padding: 0 8px 8px;
+            border-bottom: 1px solid $ui-separator;
+
+            TextEntry
+            {
+                @include ui-text-entry;
+                height: $ui-menu-control-height;
+                border-radius: $ui-menu-radius;
+                flex-grow: 1;
+            }
+        }
+
+        .list
+        {
+            @include ui-scroll-column;
+            flex-grow: 1;
+            min-height: 0px;
+            padding: 0 8px 8px;
+        }
+
+        .group-header
+        {
+            @include ui-section-band;
+            align-items: center;
+            flex-shrink: 0;
+            height: $ui-menu-control-height;
+            padding: 0 8px;
+        }
+
+        .group-items
+        {
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .empty-state
+        {
+            flex-shrink: 0;
+            padding: 16px 12px;
+            justify-content: center;
+            text-align: center;
+            color: $ui-text-muted;
+            font-size: 13px;
+        }
+
+        // on the white list, not the gray block it's made for
+        UILoadingState
+        {
+            flex-grow: 1;
+            height: auto;
+            color: $ui-text;
+
+            .spinner
+            {
+                color: $ui-text-muted;
+            }
+        }
+
+        .footer
+        {
+            flex-shrink: 0;
+            padding: 8px 7px 7px 7px;
+
+            UIButton
+            {
+                flex-grow: 1;
+            }
+        }
+    }
+
+    EffectsList .effect-row
+    {
+        @include ui-effect-row;
+        font-size: 12px;
+
+        &.active .author { color: $ui-selected-text; }
+
+        // packages from the workshop, with their picture and who made them
+        &.workshop
+        {
+            height: 44px;
+
+            .thumb
+            {
+                width: 32px;
+                height: 32px;
+                flex-shrink: 0;
+                background-color: $ui-tile-bg;
+                background-size: cover;
+                background-position: center;
+            }
+
+            .info
+            {
+                flex-direction: column;
+                flex-grow: 1;
+                min-width: 0px;
+                gap: 2px;
+            }
+
+            .author
+            {
+                flex-direction: row;
+                align-items: center;
+                gap: 4px;
+                font-size: 11px;
+                color: $ui-text-muted;
+            }
+
+            .author-avatar
+            {
+                width: 12px;
+                height: 12px;
+                flex-shrink: 0;
+                background-size: cover;
+                background-position: center;
+                background-color: $ui-tile-bg;
+            }
+        }
+
+        // mounting the package before it can be used
+        &.loading
+        {
+            opacity: 0.5;
+        }
+
+        &.loading, &.loading *
+        {
+            pointer-events: none;
+        }
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

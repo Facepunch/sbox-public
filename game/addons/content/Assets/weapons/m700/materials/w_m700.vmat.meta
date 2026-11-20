@@ -1,0 +1,28 @@
+{
+  "guid": "539e56d1-c55f-4b5f-a8d9-7a18df414dab",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W M 700",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_m700",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m700/materials/w_m700.vmat"
+      }
+    }
+  }
+}

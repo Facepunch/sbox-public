@@ -1,0 +1,58 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	//---- Number Of Blendable Layers ----
+	F_MULTIBLEND 2 // 3 Layers
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/sbox/trimsheets/basic/trim_sheet_ao.png"
+	TextureBlendMaskA "materials/default/default_blend.tga"
+	TextureColorA "materials/sbox/trimsheets/concrete/concrete_trim_01_color.tga"
+	TextureMetalnessA "materials/default/default_metal.tga"
+	TextureNormalA "materials/sbox/trimsheets/concrete/concrete_trim_01_normal.tga"
+	TextureRoughnessA "materials/sbox/trimsheets/concrete/concrete_trim_01_rough.tga"
+	TextureTintMaskA "[1.000000 1.000000 1.000000 0.000000]"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "0.145"
+	g_flTintColorB "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale2 "[1.000 1.000]"
+	TextureAmbientOcclusionB "materials/sbox/trimsheets/basic/trim_sheet_ao.png"
+	TextureBlendMaskB "materials/default/default_blend.tga"
+	TextureColorB "materials/sbox/trimsheets/concrete/concrete_trim_damaged_01_color.tga"
+	TextureMetalnessB "materials/default/default_metal.tga"
+	TextureNormalB "materials/sbox/trimsheets/concrete/concrete_trim_damaged_01_normal.tga"
+	TextureRoughnessB "materials/sbox/trimsheets/concrete/concrete_trim_damaged_01_rough.tga"
+	TextureTintMaskB "materials/default/default.tga"
+
+	//---- Material C ----
+	g_flBlendSoftnessC "0.100"
+	g_flTintColorC "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale3 "[2.000 2.000]"
+	TextureAmbientOcclusionC "materials/sbox/trimsheets/concrete/concrete_damaged_ao.tga"
+	TextureBlendMaskC "materials/sbox/trimsheets/concrete/concrete_damaged_blend.tga"
+	TextureColorC "materials/sbox/trimsheets/concrete/concrete_damaged_02_color.tga"
+	TextureMetalnessC "materials/default/default_metal.tga"
+	TextureNormalC "materials/sbox/trimsheets/concrete/concrete_damaged_normal.tga"
+	TextureRoughnessC "materials/sbox/trimsheets/concrete/concrete_damaged_rough.tga"
+	TextureTintMaskC "materials/default/default.tga"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "concrete"
+		WorldMappingWidth "64"
+		WorldMappingHeight "64"
+	}
+
+	ToolAttributes
+	{
+		SubrectDefinition "materials/sbox/trimsheets/trim_sheet_master_01a.rect"
+	}
+}

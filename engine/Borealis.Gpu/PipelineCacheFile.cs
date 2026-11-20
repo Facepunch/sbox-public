@@ -62,10 +62,11 @@ internal static class PipelineCacheFile
 			BinaryPrimitives.WriteUInt32LittleEndian( header[8..], (uint)data.Length );
 			BinaryPrimitives.WriteUInt64LittleEndian( header[12..], Checksum( data ) );
 
-			using ( var stream = File.Create( temporary ) )
+			// Through the handle, not a stream: a stream's buffer would be a managed allocation on every save
+			using ( var file = File.OpenHandle( temporary, FileMode.Create, FileAccess.Write, FileShare.None, FileOptions.None, HeaderSize + (long)data.Length ) )
 			{
-				stream.Write( header );
-				stream.Write( data );
+				RandomAccess.Write( file, header, 0 );
+				RandomAccess.Write( file, data, HeaderSize );
 			}
 
 			File.Move( temporary, path, overwrite: true );

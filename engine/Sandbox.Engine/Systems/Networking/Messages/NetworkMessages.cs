@@ -232,6 +232,9 @@ public record struct NetworkFile( string Name, byte[] Content )
 }
 
 [Expose]
+internal record struct RequestCodeArchive( string Name, ulong Checksum );
+
+[Expose]
 struct RequestMountedVPKs
 {
 	public Guid HandshakeId { get; set; }

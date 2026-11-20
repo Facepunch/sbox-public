@@ -1,0 +1,909 @@
+{
+  "Title": "Wheels and Frames",
+  "Description": "",
+  "Icon": "settings",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "881eeef9-7802-4ab2-b0a8-7a4335c15b87",
+    "Path": "spawnlists/garrysmod/garrys_mod/builder.spawn"
+  },
+  "Order": 15,
+  "Items": [
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/bmw.mdl",
+      "Title": "bmw",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/bmwl.mdl",
+      "Title": "bmwl",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/rim_1.mdl",
+      "Title": "rim_1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/tractor.mdl",
+      "Title": "tractor",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/tractors.mdl",
+      "Title": "tractors",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_2.mdl",
+      "Title": "wheel_2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_2l.mdl",
+      "Title": "wheel_2l",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_smooth_18r.mdl",
+      "Title": "wheel_smooth_18r",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_rounded_36s.mdl",
+      "Title": "wheel_rounded_36s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_rounded_36.mdl",
+      "Title": "wheel_rounded_36",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_rounded_72.mdl",
+      "Title": "wheel_rounded_72",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_rugged_24.mdl",
+      "Title": "wheel_rugged_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_rugged_48.mdl",
+      "Title": "wheel_rugged_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_rugged_24w.mdl",
+      "Title": "wheel_rugged_24w",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_rugged_48w.mdl",
+      "Title": "wheel_rugged_48w",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_smooth_24.mdl",
+      "Title": "wheel_smooth_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_smooth_24f.mdl",
+      "Title": "wheel_smooth_24f",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_smooth2.mdl",
+      "Title": "wheel_smooth2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_smooth_72w.mdl",
+      "Title": "wheel_smooth_72w",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_smooth_72.mdl",
+      "Title": "wheel_smooth_72",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_smooth_48.mdl",
+      "Title": "wheel_smooth_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_smooth_96.mdl",
+      "Title": "wheel_smooth_96",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_spike_24.mdl",
+      "Title": "wheel_spike_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_spike_48.mdl",
+      "Title": "wheel_spike_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_extruded_48.mdl",
+      "Title": "wheel_extruded_48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_race.mdl",
+      "Title": "wheel_race",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/wheels/wheel_speed_72.mdl",
+      "Title": "wheel_speed_72",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nateswheel/nateswheel.mdl",
+      "Title": "nateswheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/nateswheel/nateswheelwide.mdl",
+      "Title": "nateswheelwide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/747wheel.mdl",
+      "Title": "747wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/smallwheel.mdl",
+      "Title": "smallwheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/chrome_tire.mdl",
+      "Title": "chrome_tire",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/breakable_tire.mdl",
+      "Title": "breakable_tire",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/normal_tire.mdl",
+      "Title": "normal_tire",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/drugster_front.mdl",
+      "Title": "drugster_front",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/drugster_back.mdl",
+      "Title": "drugster_back",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/magnetic_small_base.mdl",
+      "Title": "magnetic_small_base",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/magnetic_med_base.mdl",
+      "Title": "magnetic_med_base",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/magnetic_large_base.mdl",
+      "Title": "magnetic_large_base",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/magnetic_small.mdl",
+      "Title": "magnetic_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/magnetic_medium.mdl",
+      "Title": "magnetic_medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/magnetic_large.mdl",
+      "Title": "magnetic_large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/metal_wheel1.mdl",
+      "Title": "metal_wheel1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/metal_wheel2.mdl",
+      "Title": "metal_wheel2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/trucktire.mdl",
+      "Title": "trucktire",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/trucktire2.mdl",
+      "Title": "trucktire2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/wooden_wheel1.mdl",
+      "Title": "wooden_wheel1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/wooden_wheel2.mdl",
+      "Title": "wooden_wheel2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/monster_truck.mdl",
+      "Title": "monster_truck",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheels/moped_tire.mdl",
+      "Title": "moped_tire",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Offroad",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/offroad/off-road-20.mdl",
+      "Title": "off-road-20",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/offroad/off-road-30.mdl",
+      "Title": "off-road-30",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/offroad/off-road-40.mdl",
+      "Title": "off-road-40",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/offroad/off-road-50.mdl",
+      "Title": "off-road-50",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/offroad/off-road-60.mdl",
+      "Title": "off-road-60",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/offroad/off-road-70.mdl",
+      "Title": "off-road-70",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/offroad/off-road-80.mdl",
+      "Title": "off-road-80",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Wide Race Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-30.mdl",
+      "Title": "race-wheel-30",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-35.mdl",
+      "Title": "race-wheel-35",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-40.mdl",
+      "Title": "race-wheel-40",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-45.mdl",
+      "Title": "race-wheel-45",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-50.mdl",
+      "Title": "race-wheel-50",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-55.mdl",
+      "Title": "race-wheel-55",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-60.mdl",
+      "Title": "race-wheel-60",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-65.mdl",
+      "Title": "race-wheel-65",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-70.mdl",
+      "Title": "race-wheel-70",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-75.mdl",
+      "Title": "race-wheel-75",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheel/race-wheel-80.mdl",
+      "Title": "race-wheel-80",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Race Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-30_s.mdl",
+      "Title": "race-wheel-30_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-35_s.mdl",
+      "Title": "race-wheel-35_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-40_s.mdl",
+      "Title": "race-wheel-40_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-45_s.mdl",
+      "Title": "race-wheel-45_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-50_s.mdl",
+      "Title": "race-wheel-50_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-55_s.mdl",
+      "Title": "race-wheel-55_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-60_s.mdl",
+      "Title": "race-wheel-60_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-65_s.mdl",
+      "Title": "race-wheel-65_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-70_s.mdl",
+      "Title": "race-wheel-70_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-75_s.mdl",
+      "Title": "race-wheel-75_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xeon133/racewheelskinny/race-wheel-80_s.mdl",
+      "Title": "race-wheel-80_s",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Airplane wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/airplanewheel1.mdl",
+      "Title": "airplanewheel1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/airplanewheel1medium.mdl",
+      "Title": "airplanewheel1medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/airplanewheel1big.mdl",
+      "Title": "airplanewheel1big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/airplanewheel1huge.mdl",
+      "Title": "airplanewheel1huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/airplanewheel1large.mdl",
+      "Title": "airplanewheel1large",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: Straight",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_2.mdl",
+      "Title": "type_a_2_2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_4.mdl",
+      "Title": "type_a_2_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_6.mdl",
+      "Title": "type_a_2_6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_8.mdl",
+      "Title": "type_a_2_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_12.mdl",
+      "Title": "type_a_2_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_16.mdl",
+      "Title": "type_a_2_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_20.mdl",
+      "Title": "type_a_2_20",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_24.mdl",
+      "Title": "type_a_2_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_2_36.mdl",
+      "Title": "type_a_2_36",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_3_4.mdl",
+      "Title": "type_a_3_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_3_6.mdl",
+      "Title": "type_a_3_6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_3_8.mdl",
+      "Title": "type_a_3_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_3_12.mdl",
+      "Title": "type_a_3_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_3_16.mdl",
+      "Title": "type_a_3_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_3_20.mdl",
+      "Title": "type_a_3_20",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_3_24.mdl",
+      "Title": "type_a_3_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_4_6.mdl",
+      "Title": "type_a_4_6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_4_12.mdl",
+      "Title": "type_a_4_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_5_8.mdl",
+      "Title": "type_a_5_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_5_16.mdl",
+      "Title": "type_a_5_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_5_24.mdl",
+      "Title": "type_a_5_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_a_6_20.mdl",
+      "Title": "type_a_6_20",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: 90 Deg Bends",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_c_3_4.mdl",
+      "Title": "type_c_3_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_c_3_6.mdl",
+      "Title": "type_c_3_6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_c_3_8.mdl",
+      "Title": "type_c_3_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_c_3_12.mdl",
+      "Title": "type_c_3_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_c_3_16.mdl",
+      "Title": "type_c_3_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_c_3_20.mdl",
+      "Title": "type_c_3_20",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_c_3_24.mdl",
+      "Title": "type_c_3_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: 45 Deg Bends",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_d_3_4.mdl",
+      "Title": "type_d_3_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_d_3_6.mdl",
+      "Title": "type_d_3_6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_d_3_8.mdl",
+      "Title": "type_d_3_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_d_3_12.mdl",
+      "Title": "type_d_3_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_d_3_16.mdl",
+      "Title": "type_d_3_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_d_3_20.mdl",
+      "Title": "type_d_3_20",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_d_3_24.mdl",
+      "Title": "type_d_3_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: 90 Deg Long Bends",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_e_3_6.mdl",
+      "Title": "type_e_3_6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_e_3_8.mdl",
+      "Title": "type_e_3_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_e_3_20.mdl",
+      "Title": "type_e_3_20",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_e_3_24.mdl",
+      "Title": "type_e_3_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: Single Axles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_b_2_2.mdl",
+      "Title": "type_b_2_2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_b_2_4.mdl",
+      "Title": "type_b_2_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_b_2_6.mdl",
+      "Title": "type_b_2_6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_b_2_8.mdl",
+      "Title": "type_b_2_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_b_2_12.mdl",
+      "Title": "type_b_2_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_b_2_16.mdl",
+      "Title": "type_b_2_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_b_2_20.mdl",
+      "Title": "type_b_2_20",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_b_2_24.mdl",
+      "Title": "type_b_2_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: Double Axles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_f_6_4.mdl",
+      "Title": "type_f_6_4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_f_6_6.mdl",
+      "Title": "type_f_6_6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_f_6_8.mdl",
+      "Title": "type_f_6_8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_f_6_12.mdl",
+      "Title": "type_f_6_12",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_f_6_16.mdl",
+      "Title": "type_f_6_16",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_f_6_24.mdl",
+      "Title": "type_f_6_24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/solid_steel/type_f_6_20.mdl",
+      "Title": "type_f_6_20",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

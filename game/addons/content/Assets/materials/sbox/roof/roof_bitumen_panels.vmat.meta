@@ -1,0 +1,27 @@
+{
+  "guid": "020800da-0000-0000-b0e4-7e11fc000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Roof Bitumen Panels",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "roof_bitumen_panels",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/roof/roof_bitumen_panels.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

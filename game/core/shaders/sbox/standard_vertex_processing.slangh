@@ -1,0 +1,54 @@
+// The standard vertex shader's processing: the classic one (sbox/vertex_processing.slangh), then the detail texture's UVs,
+// the material's UV scale, offset and scroll, and its tint and fade. Ours, in place of the old vr_shared_standard_vs_code.fxc
+// in Slang compiles (SlangHeaders): the same names, combo, material parameters (in the same order) and results. Shares the
+// old header's include guard.
+#ifndef VR_SHARED_VS_CODE_FXC
+#define VR_SHARED_VS_CODE_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "sbox/vertex_processing.slangh"
+#include "sbox/detail_texture.slangh"
+
+DynamicCombo( D_BAKED_LIGHTING_FROM_LIGHTMAP, 0..1, Sys( ALL ) );
+
+float2 g_vTexCoordScale < Default2( 1.0, 1.0 ); Range2( 0.0, 0.0, 100.0, 100.0 ); UiGroup( "Texture Coordinates,80/10" ); >;
+float2 g_vTexCoordOffset < Default2( 0.0, 0.0 ); Range2( -1.0, -1.0, 1.0, 1.0 ); UiGroup( "Texture Coordinates/20" ); >;
+float2 g_vTexCoordScrollSpeed < Default2( 0.0, 0.0 ); Range2( -10.0, -10.0, 10.0, 10.0 ); UiGroup( "Texture Coordinates/30" ); >;
+
+#if ( !S_LIQUID_SHADING && !D_NO_MODEL_TINT )
+	float3 g_vColorTint < UiType( Color ); Default3( 1.0, 1.0, 1.0 ); UiGroup( "Color,10/20" ); >;
+	float g_flModelTintAmount < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Color,10/30" ); >;
+	float g_flFadeExponent < Default( 1.0 ); Range( 1.0, 16.0 ); UiGroup( "Fade,400/10" ); >;
+	Float3Attribute( LightSim_MaterialTint, g_vColorTint );
+#endif
+
+bool g_bUseSecondaryUvForDetailTexture < Default( 1.0 ); UiGroup( "Detail Texture, 170" ); >;
+
+#ifdef SHARED_STANDARD_VS_INPUT_DEFINED
+
+/// The interpolants from a standard vertex input.
+PS_INPUT VS_SharedStandardProcessing( const VS_INPUT i )
+{
+	PS_INPUT o = VS_CommonProcessing( i );
+
+#if S_DETAIL_TEXTURE
+	float2 vDetailUv = GetUVDefault1( g_bUseSecondaryUvForDetailTexture, o.vTextureCoords );
+	o.vDetailTextureCoords = CalculateDetailTextureCoordinates( vDetailUv );
+#endif
+
+	o.vTextureCoords.xy = o.vTextureCoords.xy * g_vTexCoordScale + g_vTexCoordOffset;
+	o.vTextureCoords.xy += g_vTexCoordScrollSpeed * g_flTime;
+
+#if ( !S_LIQUID_SHADING && !D_NO_MODEL_TINT )
+	// How much the instance's tint applies, times the material's (sRGB) tint; alpha shaped by the fade exponent
+	o.vVertexColor.rgb = lerp( float3( 1.0, 1.0, 1.0 ), o.vVertexColor.rgb, g_flModelTintAmount );
+	o.vVertexColor.rgb *= SrgbGammaToLinear( g_vColorTint.rgb );
+	o.vVertexColor.a = pow( o.vVertexColor.a, g_flFadeExponent );
+#endif
+
+	return o;
+}
+
+#endif // SHARED_STANDARD_VS_INPUT_DEFINED
+
+#endif // VR_SHARED_VS_CODE_FXC

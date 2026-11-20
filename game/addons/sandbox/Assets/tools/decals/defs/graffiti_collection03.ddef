@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "29768fd3-7439-47cb-9a71-4ce521fdff27",
+    "Path": "decals/graffiti/graffiti_collection03.decal"
+  },
+  "Title": "#asset.decal.collection03.title",
+  "__references": [],
+  "__version": 0
+}

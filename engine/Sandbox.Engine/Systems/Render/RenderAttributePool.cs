@@ -22,13 +22,7 @@ internal class RenderAttributePool
 	/// </summary>
 	public RenderAttributes Get()
 	{
-		if ( Graphics.Backend is not Source2RenderBackend )
-			return ManagedPool.TryDequeue( out var managed ) ? managed : RenderAttributes.CreateManaged();
-
-		if ( Pool.TryDequeue( out var ra ) )
-			return ra;
-
-		return new RenderAttributes();
+		return ManagedPool.TryDequeue( out var managed ) ? managed : RenderAttributes.CreateManaged();
 	}
 
 	/// <summary>

@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Visszarúgás",
+    "weapon.setting.primary.description": "A fegyver elsődleges műveletét vezérli.",
+    "weapon.setting.secondary.description": "A fegyver másodlagos műveletét vezérli.",
+    "weapon.setting.recoil_force": "Visszarúgás ereje",
+    "weapon.setting.recoil_force.description": "Fizikai visszarúgás, amikor egy kézben nem tartott fegyver tüzel.",
+    "weapon.setting.extend": "Fogási távolság növelése",
+    "weapon.setting.extend.description": "Távolabb mozgatja a megfogott tárgyat.",
+    "weapon.setting.retract": "Fogási távolság csökkentése",
+    "weapon.setting.retract.description": "Közelebb mozgatja a megfogott tárgyat.",
+    "weapon.setting.camera_aim": "Célzás a kamerával",
+    "weapon.setting.camera_aim.description": "Az ülő játékos kamerájának irányába céloz.",
+    "weapon.setting.guide_rockets": "Rakéták irányítása",
+    "weapon.setting.guide_rockets.description": "A kilőtt rakétákat a játékos célkeresztje felé irányítja."
+}

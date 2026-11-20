@@ -135,7 +135,20 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool sh
 			return true;
 
 		return (nativeBinariesOnly && artifactPath.StartsWith( "game/bin/", StringComparison.OrdinalIgnoreCase ))
-			|| (shadersOnly && artifactPath.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ));
+			|| (shadersOnly && artifactPath.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ) && HasSource( artifactPath ));
+	}
+
+	/// <summary>
+	/// Whether a seeded shader's <c>.shader</c> is in this checkout. One deleted since the build was published (a shader only
+	/// a Slang module describes now) mustn't come back as a stale <c>.shader_c</c>: materials of it would compile against
+	/// that, and the engine would take it for the shader.
+	/// </summary>
+	private static bool HasSource( string artifactPath )
+	{
+		var stem = artifactPath.EndsWith( ".gpudriven.shader_c", StringComparison.OrdinalIgnoreCase )
+			? artifactPath[..^".gpudriven.shader_c".Length]
+			: artifactPath[..^".shader_c".Length];
+		return File.Exists( Path.Combine( Directory.GetCurrentDirectory(), stem + ".shader" ) );
 	}
 
 	private static ExitCode DownloadArtifacts( HttpClient httpClient, ArtifactManifest manifest, string repoRoot, Func<string, bool> isWanted )

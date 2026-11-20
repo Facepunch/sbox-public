@@ -259,38 +259,6 @@ public partial class SceneLight : SceneObject
 		set { field = value; NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
-	/// <summary>
-	/// Get or create screen-space shadow mask for this light and view, valid for the current frame only.
-	/// </summary>
-	internal Texture GetShadowMask( ISceneView view )
-	{
-		// Only managed cameras reach OnRenderStage, so only they ever clear/dispatch into the mask.
-		// Purely native views (cubemap bakes, capture views) must get no mask, or the CSM pass
-		// samples uninitialized contents instead of "fully lit".
-		var cameraId = view.m_ManagedCameraId;
-		if ( cameraId == 0 )
-			return null;
-
-		// Our SSS assumes a perspective light coordinate, so orthographic views get no mask.
-		if ( view.GetFrustum().IsOrthographic() )
-			return null;
-
-		var vp = view.GetMainViewport();
-
-		int width = (int)vp.Rect.Width;
-		int height = (int)vp.Rect.Height;
-
-		if ( width < 1 || height < 1 )
-			return null;
-
-		// the loan is released immediately - the stable id means both same-frame calls
-		// (CSM setup + the mask pass) resolve to the same cached RT and bindless index. Hold the
-		// loan for the frame if anything else ever starts requesting same-size temporaries by name.
-		using var rt = RenderTarget.GetTemporary( width, height, ImageFormat.A8, ImageFormat.None,
-			MultisampleAmount.MultisampleNone, 1, "ShadowMask", HashCode.Combine( (nint)lightNative, cameraId ) );
-		return rt.ColorTarget;
-	}
-
 	internal override void OnTransformChanged( in Transform tx )
 	{
 		base.OnTransformChanged( tx );
@@ -349,11 +317,6 @@ public partial class SceneLight : SceneObject
 		{
 			World.InternalSceneLights.Remove( this );
 		}
-
-		// Return any cached shadow map to the pool before this object becomes
-		// eligible for GC. Without this the ConditionalWeakTable silently drops
-		// the entry on collection and the shadow texture is orphaned.
-		Rendering.ShadowMapper.OnLightRemoved( this );
 
 		lightNative = IntPtr.Zero;
 

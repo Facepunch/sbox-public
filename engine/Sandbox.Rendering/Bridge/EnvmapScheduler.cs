@@ -38,7 +38,7 @@ internal sealed class EnvmapScheduler( SceneBridge bridge )
 		// is needed, one a frame as native. So it is without a camera to see from: none, or one not enabled yet (or any
 		// more), whose scene camera isn't made
 		var camera = scene.Camera;
-		if ( !Enabled || camera is not { IsValid: true, SceneCamera: not null } || (IGameInstance.Current?.IsLoading ?? false) )
+		if ( !Enabled || camera is not { IsValid: true, SceneCamera: not null } || BorealisGpuRenderBackend.GameLoading( scene ) )
 		{
 			foreach ( var envmap in scene.EnvmapProbes() )
 			{

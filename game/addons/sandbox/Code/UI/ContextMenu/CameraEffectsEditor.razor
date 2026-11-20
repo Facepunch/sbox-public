@@ -1,0 +1,203 @@
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [InspectorEditor(typeof(CameraEntity))]
+@inherits Panel
+@namespace Sandbox
+@implements IInspectorEditor
+
+<root>
+    <div class="list">
+        @foreach ( var resource in _resources )
+        {
+            var path = resource.ResourcePath;
+            var on = IsOn( path );
+
+            <div class="effect-row @(_selectedPath == path ? "active" : "") @(IsChanged( path ) ? "changed" : "")" @onclick=@(() => SelectEffect( path ))>
+                <UICheckbox Value=@on OnValueChanged=@((bool value) => SetOn( path, value )) />
+                <label class="name">@resource.Title</label>
+            </div>
+        }
+
+        @if ( _resources.Count == 0 )
+        {
+            <div class="note">#spawnmenu.effects.no_installed</div>
+        }
+    </div>
+
+    @* always there and always the same height, so picking an effect never resizes the inspector *@
+    <div class="settings">
+        @if ( _selectedPath is null )
+        {
+            <div class="note">#ui.camera_effects.select_effect</div>
+        }
+        else
+        {
+            <div class="settings-header">
+                <label class="title">@SelectedTitle</label>
+                @if ( IsChanged( _selectedPath ) )
+                {
+                    <UIButton class="reset" Text="#ui.common.reset" @onclick=@ResetSelected />
+                }
+            </div>
+
+            <div class="settings-body">
+                @if ( !IsOn( _selectedPath ) )
+                {
+                    <div class="note">#ui.camera_effects.enable_to_edit</div>
+                }
+                else if ( _properties.Count == 0 )
+                {
+                    <div class="note">#spawnmenu.effects.no_properties</div>
+                }
+                else
+                {
+                    <UISheet Target=@_properties PropertyFilter=@UISheet.PropertiesAndButtons />
+                }
+            </div>
+        }
+    </div>
+</root>
+
+@code
+{
+    /// <summary>
+    /// Localized title of the camera effects inspector.
+    /// </summary>
+    public string Title => "🎥 " + Game.Language.GetPhrase( "ui.camera_effects.title" );
+
+    public CameraEntity Target { get; private set; }
+
+    List<PostProcessResource> _resources = new();
+    string _selectedPath;
+    List<SerializedProperty> _properties = new();
+
+    // the effect components the settings sheet is showing, to notice when they get respawned
+    Component _shownComponent;
+
+    public bool TrySetTarget( List<GameObject> selection )
+    {
+        CameraEntity found = null;
+        foreach ( var go in selection )
+        {
+            found = go.GetComponentInChildren<CameraEntity>();
+            if ( found.IsValid() ) break;
+        }
+
+        if ( found == Target ) return Target.IsValid();
+
+        Target = found;
+        _selectedPath = null;
+        RefreshResources();
+        RebuildProperties();
+        StateHasChanged();
+        return Target.IsValid();
+    }
+
+    void RefreshResources()
+    {
+        _resources = ResourceLibrary.GetAll<PostProcessResource>()
+            .OrderBy( r => r.Group )
+            .ThenBy( r => LocalizedText.Resolve( r.Title ), StringComparer.CurrentCultureIgnoreCase )
+            .ToList();
+    }
+
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
+        RefreshResources();
+        StateHasChanged();
+    }
+
+    bool IsOn( string path ) => Target.IsValid() && Target.HasEffect( path );
+
+    bool IsChanged( string path ) => Target.IsValid() && Target.ChangedSettings( path ).Any();
+
+    string SelectedTitle => _resources.FirstOrDefault( r => r.ResourcePath == _selectedPath )?.Title ?? _selectedPath;
+
+    void SelectEffect( string path )
+    {
+        if ( _selectedPath == path ) return;
+        _selectedPath = path;
+        RebuildProperties();
+        StateHasChanged();
+    }
+
+    void SetOn( string path, bool on )
+    {
+        if ( !Target.IsValid() || IsOn( path ) == on ) return;
+
+        // the host adds or removes it, the lens catches up when that syncs back
+        Target.SetEffectEnabled( path, on );
+        _selectedPath = path;
+        RebuildProperties();
+    }
+
+    void ResetSelected()
+    {
+        if ( !Target.IsValid() || _selectedPath is null ) return;
+
+        Target.ResetEffect( _selectedPath );
+
+        // the sheet shows the old values until it's rebuilt over the reset components
+        Target.LensEffects.Apply( Target.Feed?.Camera?.GameObject, Target );
+        RebuildProperties();
+    }
+
+    // the settings of the selected effect's live components on the camera's lens, like the Effects panel
+    void RebuildProperties()
+    {
+        var props = new List<SerializedProperty>();
+        _shownComponent = null;
+
+        if ( Target.IsValid() && _selectedPath is not null )
+        {
+            var components = Target.LensEffects.GetComponents( _selectedPath );
+            _shownComponent = components.FirstOrDefault();
+
+            foreach ( var component in components )
+            {
+                var so = TypeLibrary.GetSerializedObject( component );
+                so.OnPropertyChanged = OnSettingChanged;
+                props.AddRange( so.Where( UISheet.PropertiesAndButtons ) );
+            }
+        }
+
+        _properties = props;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// A setting was changed on the live effect: send just the stored values that now differ, changed or back to default.
+    /// </summary>
+    void OnSettingChanged( SerializedProperty prop )
+    {
+        if ( !Target.IsValid() || _selectedPath is null ) return;
+
+        var path = _selectedPath;
+        var captured = EffectSettings.CaptureJson( path, Target.LensEffects.GetComponents( path ) );
+
+        foreach ( var (setting, json) in captured )
+        {
+            if ( Target.GetEffectValue( path, setting ) != json )
+                Target.EditEffectValue( path, setting, json );
+        }
+
+        foreach ( var setting in Target.ChangedSettings( path ).Where( x => !captured.ContainsKey( x ) ).ToList() )
+            Target.EditEffectValue( path, setting, null );
+
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !Target.IsValid() || _selectedPath is null ) return;
+
+        // turning an effect on spawns its components a frame later, and turning it off removes them
+        var first = Target.LensEffects.GetComponents( _selectedPath ).FirstOrDefault();
+        if ( first != _shownComponent ) RebuildProperties();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Target, Target.IsValid() ? Target.EffectsVersion : 0, _selectedPath, _properties.Count, _resources.Count );
+}

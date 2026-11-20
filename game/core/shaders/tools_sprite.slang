@@ -1,5 +1,4 @@
-// tools_sprite: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// tools_sprite: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // The .shader's geometry stage makes a quad of each point. Here the vertex stage does it: the draw runs four vertices
 // per point (ExpandPrimitives), with the point as per-instance inputs, and each vertex makes one corner. A point the
 // box test rejects collapses to nothing.
@@ -21,9 +20,9 @@ Feature( F_PER_POINT_SIZE, 0..1 );
 Feature( F_WORLD_SPACE_SIZE, 0..1 ( 0 = "Size In Pixels", 1 = "Size In World Space" ) );
 Feature( F_CULL_LARGER_THAN_BOX, 0..1, "Cull if Larger Than Box" );
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 // Functions ----------------------------------------------------------------------------------------------------------------------------------------------
 

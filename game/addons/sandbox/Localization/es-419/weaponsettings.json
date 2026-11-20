@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Retroceso",
+    "weapon.setting.primary.description": "Controla la acción principal del arma.",
+    "weapon.setting.secondary.description": "Controla la acción secundaria del arma.",
+    "weapon.setting.recoil_force": "Fuerza de retroceso",
+    "weapon.setting.recoil_force.description": "Retroceso físico al disparar un arma que nadie sostiene.",
+    "weapon.setting.extend": "Aumentar distancia de agarre",
+    "weapon.setting.extend.description": "Aleja el objeto agarrado.",
+    "weapon.setting.retract": "Reducir distancia de agarre",
+    "weapon.setting.retract.description": "Acerca el objeto agarrado.",
+    "weapon.setting.camera_aim": "Apuntar con la cámara",
+    "weapon.setting.camera_aim.description": "Apunta en la dirección de la cámara del jugador sentado.",
+    "weapon.setting.guide_rockets": "Guiar cohetes",
+    "weapon.setting.guide_rockets.description": "Guía los cohetes disparados hacia la mira del jugador."
+}

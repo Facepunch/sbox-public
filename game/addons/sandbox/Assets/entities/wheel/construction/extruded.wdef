@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/extruded.prefab",
+  "Title": "#asset.wheel.extruded.title",
+  "Description": "#asset.wheel.extruded.description",
+  "__references": [],
+  "__version": 0
+}

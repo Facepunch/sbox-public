@@ -41,9 +41,9 @@ public partial class SceneObject : IHandle
 				// FIXME: What really sucks with this is it allocates CSceneObject::m_pExtraData even if we're only reading
 				_attributes = new RenderAttributes( native.GetAttributesPtrForModify() );
 
-				// A backend that lowers attributes itself reads them from a managed copy: a custom or dynamic object merges them
-				// into the set it draws with, and a model's draws read them as its object attributes
-				if ( RenderBackend.Default is not Source2RenderBackend ) _attributes.KeepManagedCopy();
+				// Borealis reads them from a managed copy: a custom or dynamic object merges them into the set it draws with, and a
+				// model's draws read them as its object attributes
+				_attributes.KeepManagedCopy();
 			}
 
 			NotifyChanged( Rendering.SceneObjectChange.Attributes );

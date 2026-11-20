@@ -1,0 +1,28 @@
+{
+  "guid": "d778836a-4ca3-4177-b399-db418087e710",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Camera Film",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "camera_film",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/camera/materials/camera_film.vmat"
+      }
+    }
+  }
+}
