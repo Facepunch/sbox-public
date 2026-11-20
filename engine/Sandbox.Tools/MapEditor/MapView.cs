@@ -187,21 +187,6 @@ public partial class MapView : IHandle
 		native.GetCamera().BuildRay( MousePosition, out startRay, out endRay );
 	}
 
-	/// <summary>
-	/// Called for each MapView right before rendering begins, this is where you'd give it the scene to render.
-	/// </summary>
-	internal void PreRender( ISceneView sceneView )
-	{
-		if ( !PrepareFrame() )
-			return;
-
-		// Add all our scene worlds to the render list
-		foreach ( var world in FrameWorlds() )
-		{
-			sceneView.AddWorldToRenderList( world );
-		}
-	}
-
 	readonly List<SceneWorld> _frameWorlds = new();
 
 	/// <summary>
@@ -396,8 +381,6 @@ public partial class MapView : IHandle
 
 internal static class MapViewRender
 {
-	internal static void OnPreRender( MapView view, ISceneView sceneView ) => view.PreRender( sceneView );
-
 	/// <summary>
 	/// Draw a view, 3D or 2D, on Borealis.Gpu (<c>CMapView::RenderManaged</c>): Hammer's worlds come in
 	/// the request (a <c>ToolSceneManagedRender_t</c>, drawn as a native tool view is), the map scene and gizmos from here.
