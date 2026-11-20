@@ -23,7 +23,7 @@ public sealed partial class ScriptSystem
 		public bool Published { get; internal init; }
 
 		/// <summary>
-		/// Whether this scripting context must be restarted before further execution.
+		/// Whether the script module needs recovery at the next game tick or source load.
 		/// </summary>
 		public bool RequiresReload { get; internal init; }
 
@@ -92,7 +92,15 @@ public sealed partial class ScriptSystem
 	/// </summary>
 	private FileLoadResult LoadFiles( IReadOnlyDictionary<string, string> files, IReadOnlySet<string> restart )
 	{
-		CheckAccess();
+		var result = ApplyFiles( files, restart );
+		// A rejected edit on a fresh module can leave the accepted files waiting to be restored.
+		_restoreOnTick = Module.IsFaulted || (_compiledFiles is null && _namedFiles.Count > 0);
+		return result;
+	}
+
+	private FileLoadResult ApplyFiles( IReadOnlyDictionary<string, string> files, IReadOnlySet<string> restart )
+	{
+		CheckContextAccess();
 		ArgumentNullException.ThrowIfNull( files );
 		var snapshot = new Dictionary<string, string>( StringComparer.Ordinal );
 		foreach ( var (path, source) in files )
@@ -103,27 +111,30 @@ public sealed partial class ScriptSystem
 		}
 
 		_fileLoadError = null;
-		var revision = Module.Revision;
+		long? revision = null;
 		try
 		{
-			var compiled = snapshot.Count == _namedFiles.Count && snapshot.All( pair => _namedFiles.TryGetValue( pair.Key, out var previous ) && previous == pair.Value )
+			RecoverFaultedModule();
+			revision = Module.Revision;
+			var previousFiles = _compiledFiles ?? [];
+			var compiled = _compiledFiles is not null && snapshot.Count == _namedFiles.Count && snapshot.All( pair => _namedFiles.TryGetValue( pair.Key, out var previous ) && previous == pair.Value )
 				? _compiledFiles : GenerateFiles( snapshot );
 			var changes = new List<Breen.ScriptFileChange>();
 			var changedPaths = new List<string>();
 			foreach ( var (path, source) in compiled.OrderBy( x => x.Key, StringComparer.Ordinal ) )
 			{
-				var exists = _compiledFiles.TryGetValue( path, out var previous );
+				var exists = previousFiles.TryGetValue( path, out var previous );
 				if ( exists && previous == source && restart?.Contains( path ) != true ) continue;
 				var document = Breen.ScriptDocument.Parse( source, path );
 				changes.Add( exists ? Breen.ScriptFileChange.Replace( document ) : Breen.ScriptFileChange.Add( document ) );
-				if ( snapshot.TryGetValue( path, out var authored ) && (!_namedFiles.TryGetValue( path, out var oldSource )
+				if ( snapshot.TryGetValue( path, out var authored ) && (!exists || !_namedFiles.TryGetValue( path, out var oldSource )
 					|| authored != oldSource || restart?.Contains( path ) == true) )
 				{
 					changedPaths.Add( path );
 				}
 			}
 
-			foreach ( var path in _compiledFiles.Keys.Except( compiled.Keys ) )
+			foreach ( var path in previousFiles.Keys.Except( compiled.Keys ) )
 			{
 				changes.Add( Breen.ScriptFileChange.Remove( path ) );
 			}
@@ -145,6 +156,18 @@ public sealed partial class ScriptSystem
 				}
 				WarmMethods();
 			}
+			else if ( _compiledFiles is null )
+			{
+				// The fresh module is already empty when recovery removes the last authored file.
+				_compiledFiles = compiled;
+				_namedFiles = snapshot;
+				PublishNetworkFiles( sendUpdates: true );
+			}
+
+			if ( Module.Assembly is null && Module.Diagnostics.Count == 0 && _fileStartupErrors.Count == 0 )
+			{
+				UnregisterAssembly();
+			}
 		}
 		catch ( FilePreparationException exception )
 		{
@@ -165,7 +188,7 @@ public sealed partial class ScriptSystem
 		return new FileLoadResult
 		{
 			Success = !RequiresReload && diagnostics.Count == 0,
-			Published = Module.Revision != revision,
+			Published = revision.HasValue && Module.Revision != revision,
 			RequiresReload = RequiresReload,
 			Diagnostics = diagnostics
 		};

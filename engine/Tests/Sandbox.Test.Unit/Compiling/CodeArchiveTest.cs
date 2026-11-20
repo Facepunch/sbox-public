@@ -1,4 +1,6 @@
 using System;
+using System.Reflection;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace CompilingTests;
 
@@ -18,7 +20,6 @@ public partial class CodeArchiveTest
 		Assert.AreEqual( a.Configuration.Unsafe, b.Configuration.Unsafe );
 		Assert.AreEqual( a.References.Count(), b.References.Count() );
 		Assert.AreEqual( a.SyntaxTrees.Count(), b.SyntaxTrees.Count() );
-		Assert.AreEqual( a.FileMap.Count(), b.FileMap.Count() );
 	}
 
 	static async Task<CompilerOutput> CompileAndTest( CodeArchive a )
@@ -71,16 +72,63 @@ public partial class CodeArchiveTest
 		a.Deserialize( data );
 
 		AreEqual( a, o.Archive );
+		CollectionAssert.AreEqual( data, a.Serialize() );
+		Assert.IsTrue( a.SyntaxTrees.All( tree => !tree.FilePath.Contains( codePath ) ) );
+		Assert.IsFalse( a.SyntaxTrees.Any( tree => tree.GetText().ToString().Contains( "\"CompileTime\"" ) ) );
 
 		// compile this code archive
 		var p = await CompileAndTest( a );
 
 		// make sure result is identical(ish)
 		Assert.AreEqual( o.Successful, p.Successful );
-		Assert.AreEqual( o.AssemblyData.Length, p.AssemblyData.Length );
+		var assembly = Assembly.Load( p.AssemblyData );
+		Assert.AreEqual( p.Version, assembly.GetName().Version );
+		Assert.IsTrue( assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Any( x => x.Key == "CompileTime" ) );
 		Assert.AreEqual( o.XmlDocumentation, p.XmlDocumentation );
 		Assert.AreEqual( o.Diagnostics.Count, p.Diagnostics.Count );
 
+	}
+
+	/// <summary>
+	/// Compiling a published archive preserves its original assembly version.
+	/// </summary>
+	[TestMethod]
+	public async Task PreservesPublishedAssemblyVersion()
+	{
+		var archive = new CodeArchive { CompilerName = "test", Configuration = new Compiler.Configuration() };
+		archive.References.Add( "Sandbox.Engine" );
+		archive.References.Add( "Sandbox.System" );
+		archive.SyntaxTrees.Add( CSharpSyntaxTree.ParseText( "[assembly: System.Reflection.AssemblyVersion(\"1.2.3.4\")]",
+			path: Sandbox.Generator.Processor.CompilerExtraPath ) );
+
+		var loaded = new CodeArchive( archive.Serialize() );
+		var output = await CompileAndTest( loaded );
+		Assert.IsTrue( output.Successful );
+		Assert.AreEqual( new Version( 1, 2, 3, 4 ), Assembly.Load( output.AssemblyData ).GetName().Version );
+	}
+
+	/// <summary>
+	/// Multiple source roots can contain the same relative filename. Both survive a deterministic round trip.
+	/// </summary>
+	[TestMethod]
+	public void DuplicateSourcePathsRoundTrip()
+	{
+		var archive = new CodeArchive { Configuration = new Compiler.Configuration() };
+		foreach ( var name in new[] { "First", "Second" } )
+		{
+			var path = $"C:/build/{name}/Shared.cs";
+			archive.FileMap[path] = "Shared.cs";
+			archive.SyntaxTrees.Add( CSharpSyntaxTree.ParseText( $"class {name} {{}}", path: path ) );
+			archive.AdditionalFiles.Add( new( "<div/>", $"{name}.razor" ) );
+		}
+
+		var bytes = archive.Serialize();
+		archive.SyntaxTrees.Reverse();
+		archive.AdditionalFiles.Reverse();
+		CollectionAssert.AreEqual( bytes, archive.Serialize() );
+		var copy = new CodeArchive( bytes );
+		Assert.AreEqual( 2, copy.SyntaxTrees.Select( tree => tree.FilePath ).Distinct().Count() );
+		CollectionAssert.AreEqual( bytes, copy.Serialize() );
 	}
 
 	/// <summary>

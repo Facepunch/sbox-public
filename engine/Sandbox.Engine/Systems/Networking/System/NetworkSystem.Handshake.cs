@@ -99,7 +99,7 @@ internal partial class NetworkSystem
 				}
 
 				// The game is loaded during the handshake, independently of the session's map and addon requirements.
-				if ( msg.GameWorkshopId != 0 )
+				if ( msg.GameWorkshopId != 0 && Application.GamePackage is not LocalPackage )
 				{
 					if ( Application.GamePackage?.WorkshopId != msg.GameWorkshopId )
 					{
@@ -316,6 +316,8 @@ internal partial class NetworkSystem
 		}
 
 		source.PreInfo = null;
+		// Existing clients need pending updates. The joining client gets their current values in its snapshots.
+		SendTableUpdates();
 		source.State = Connection.ChannelState.Welcome;
 
 		//log.Info( $"Client SteamId is {data.SteamId}" );

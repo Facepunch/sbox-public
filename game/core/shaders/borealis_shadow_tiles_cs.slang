@@ -10,11 +10,11 @@
 Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
+#include "sbox/system.slangh" // This should always be the first include in COMMON
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-	#include "common.fxc"
+	#include "sbox/view.slangh"
 
 	// 0: a cascade's depth into the min and max of each tile. 1: each tile's min and max over it and its eight neighbours,
 	// so a lit shader reading one tile covers any filter footprint up to a tile wide (DirectionalLightShadow.hlsl)

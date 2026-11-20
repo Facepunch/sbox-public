@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Blood",
+      "Type": "semit",
+      "Org": "devultj",
+      "Ident": "blood",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "entities/particles/blood.semit"
+      }
+    }
+  },
+  "guid": "1557cc80-0051-0000-c22f-7a28e31d0000"
+}

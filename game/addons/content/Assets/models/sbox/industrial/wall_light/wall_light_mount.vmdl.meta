@@ -1,0 +1,23 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Industrial Wall Light Mount",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "industrial_wall_light_mount",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/wall_light/wall_light_mount.vmdl",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "0208010a-0000-0000-40ea-7a13fc000000"
+}

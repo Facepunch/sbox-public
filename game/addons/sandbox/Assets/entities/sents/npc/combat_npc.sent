@@ -1,0 +1,13 @@
+{
+  "Prefab": {
+    "Id": "517fa2e3-e086-4f7c-b98b-e0669d2ad522",
+    "Path": "entities/sents/npc/combat_npc.prefab"
+  },
+  "Title": "Soldier",
+  "Description": "",
+  "Category": "Npc/Humanoid",
+  "IncludeCode": false,
+  "Developer": false,
+  "__references": [],
+  "__version": 0
+}

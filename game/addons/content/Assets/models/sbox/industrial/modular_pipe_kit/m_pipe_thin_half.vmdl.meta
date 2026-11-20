@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Thin Half",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipethinhalf",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_thin_half.vmdl"
+      }
+    }
+  },
+  "guid": "430bd002-27cf-42e6-b6c4-c41a65af8403"
+}

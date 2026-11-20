@@ -4,13 +4,15 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
 // Hotload resolves through this while it walks static fields. Upgrading it swaps in empty caches that are
 // only refilled at the end of the swap, so anything resolved during the hotload isn't found.
 [SkipHotload]
-sealed class PackageAssemblyResolver : IAssemblyResolver
+sealed class PackageAssemblyResolver : IAssemblyImageResolver
 {
 	static readonly ConcurrentDictionary<AssemblyNameReference, AssemblyDefinition> GlobalAssemblyCache = new( AssemblyNameComparer.Instance );
 
@@ -19,6 +21,22 @@ sealed class PackageAssemblyResolver : IAssemblyResolver
 
 	// Added assemblies are only read by hotload, so they're parsed when it first asks rather than on load
 	readonly ConcurrentDictionary<string, byte[]> Unparsed = new( StringComparer.OrdinalIgnoreCase );
+
+	// Fast hotload can keep the original assembly running through several builds with the same name.
+	// Keep its own bytes available for as long as an object can still refer to that assembly.
+	readonly ConditionalWeakTable<Assembly, byte[]> loadedImages = new();
+
+	internal void TrackLoadedImage( Assembly assembly, byte[] bytes ) => loadedImages.Add( assembly, bytes );
+
+	/// <summary>
+	/// Opens the original package image for this assembly instance. Hotload owns the returned definition.
+	/// </summary>
+	public AssemblyDefinition OpenAssemblyImage( Assembly assembly )
+	{
+		if ( !loadedImages.TryGetValue( assembly, out var bytes ) ) return null;
+
+		return AssemblyDefinition.ReadAssembly( new MemoryStream( bytes, writable: false ), new ReaderParameters { AssemblyResolver = this } );
+	}
 
 	public Func<string, byte[]> PackageBytes { get; init; }
 
@@ -30,6 +48,7 @@ sealed class PackageAssemblyResolver : IAssemblyResolver
 		foreach ( var assm in Assemblies.Values )
 			assm.Dispose();
 
+		loadedImages.Clear();
 		Assemblies = null;
 	}
 

@@ -214,6 +214,69 @@ public class CloudAssetDirectoryTest
 		}
 	}
 
+	/// <summary>
+	/// A published selection resolves its primary asset from the working project even when a revision was pinned.
+	/// A missing local asset stays missing and leaves the cloud installation directory alone.
+	/// </summary>
+	[TestMethod]
+	public async Task RegisteredAssetOverridesCloudInstall()
+	{
+		var path = Path.Combine( TestDir, ".sbproj" );
+		Directory.CreateDirectory( Path.Combine( TestDir, "Assets" ) );
+		File.WriteAllText( path, """{"Title":"Local model","Type":"model","Org":"clouddirtest","Ident":"localmodel","Schema":1,"Metadata":{"PrimaryAsset":"missing.vmdl"}}""" );
+		var project = Project.AddFromFile( path, active: false );
+		var published = MakePackage( "clouddirtest", "localmodel", "model", 42, """{"PrimaryAsset":"published.vmdl"}""" );
+		var previousDirectory = AssetSystem.CloudDirectory;
+		AssetSystem.CloudDirectory = null;
+
+		try
+		{
+			var ident = published.GetVersionedIdent();
+			Assert.IsTrue( await CloudAsset.Install( [ident], default ) );
+			Assert.IsTrue( await CloudAsset.Install( "Installing", [ident] ) );
+			Assert.IsNull( await AssetSystem.InstallAsync( published ) );
+
+			var drag = DragAssetData.Parse( ident );
+			Assert.AreSame( project.Package, await drag.GetPackageAsync() );
+			Assert.IsNull( await drag.GetAssetAsync() );
+			Assert.IsFalse( drag.IsInstalled );
+			Assert.AreEqual( 0f, drag.DownloadProgress );
+		}
+		finally
+		{
+			AssetSystem.CloudDirectory = previousDirectory;
+			Project.Remove( project );
+		}
+	}
+
+	/// <summary>
+	/// Installing an explicit library revision uses its registered project without fetching a published manifest.
+	/// </summary>
+	[TestMethod]
+	public async Task RegisteredLibraryOverridesPublishedRevision()
+	{
+		var path = Path.Combine( TestDir, ".sbproj" );
+		File.WriteAllText( path, """{"Title":"Local library","Type":"library","Org":"clouddirtest","Ident":"locallibrary","Schema":1}""" );
+		var project = Project.AddFromFile( path, active: false );
+		var ident = project.Config.FullIdent;
+
+		try
+		{
+			Assert.IsTrue( await LibrarySystem.Install( ident, versionId: 42 ) );
+			Assert.AreSame( project.Package, PackageManager.Find( ident ).Package );
+		}
+		finally
+		{
+			if ( PackageManager.Find( ident ) is { } mounted )
+			{
+				mounted.Delete();
+				PackageManager.ActivePackages.Remove( mounted );
+			}
+
+			Project.Remove( project );
+		}
+	}
+
 	[TestMethod]
 	public async Task VerifiedCrc_SameSizeUpdate_DoesNotTrustManifestRecord()
 	{
@@ -410,7 +473,7 @@ public class CloudAssetDirectoryTest
 		var idents = new[]
 		{
 			"facepunch.flatgrass",      // map
-			"facepunch.sandbox",        // game
+			"facepunch.ss2",            // game
 			"facepunch.watermelon",     // model
 			"facepunch.glass_a",        // material
 			"igrotronika.explosion2",   // sound
@@ -426,9 +489,11 @@ public class CloudAssetDirectoryTest
 		{
 			foreach ( var ident in idents )
 			{
-				var package = await Package.FetchAsync( ident, false );
+				// Local projects can share these idents. This test stores the published revisions.
+				var dto = await Backend.Package.Get( ident );
+				Assert.IsNotNull( dto, $"Failed to fetch {ident} from the cloud" );
 
-				Assert.IsNotNull( package, $"Failed to fetch {ident} from the cloud" );
+				var package = RemotePackage.FromDto( dto );
 				Assert.IsNotNull( package.Revision, $"{ident} came back without a revision" );
 
 				directory.AddPackage( package );

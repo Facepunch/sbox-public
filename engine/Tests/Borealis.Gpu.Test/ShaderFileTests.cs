@@ -25,14 +25,14 @@ public class ShaderFileTests
 	}
 
 	/// <summary>
-	/// Every combo of depth_only decompresses to valid SPIR-V that reflects, and the vertex shader reads the instance
-	/// transform id and position by semantic.
+	/// Every combo of a compiled shader (line, which the engine still compiles from a .shader) decompresses to valid SPIR-V
+	/// that reflects, and the vertex shader reads the position by semantic.
 	/// </summary>
 	[TestMethod]
-	public void DepthOnlyCombosRead()
+	public void CompiledCombosRead()
 	{
-		var shader = ShaderFile.Read( Files.Read( "shaders/depth_only.shader" ), "depth_only" );
-		Assert.AreEqual( "Depth", shader.Modes.Single().Name );
+		var shader = ShaderFile.Read( Files.Read( "shaders/line.shader" ), "line" );
+		CollectionAssert.AreEqual( new[] { "Forward", "Depth" }, shader.Modes.Select( m => m.Name ).ToArray() );
 
 		foreach ( var type in new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel } )
 		{
@@ -51,7 +51,6 @@ public class ShaderFileTests
 		var vertex = shader[ShaderProgramType.Vertex].LoadCombo( 0 ).Dynamic( 0 ).Shader;
 		var semantics = vertex.AttributeMap.Select( s => ((VertexSemantic)(s >> 4), s & 15) ).ToArray();
 		CollectionAssert.Contains( semantics, (VertexSemantic.Position, 0) );
-		CollectionAssert.Contains( semantics, (VertexSemantic.TexCoord, 13) );
 		Assert.AreEqual( "MainVs", vertex.EntryPoint( ShaderProgramType.Vertex ) );
 	}
 
@@ -198,26 +197,6 @@ public class ShaderDrawTests : GpuTest
 	}
 
 	/// <summary>
-	/// depth_only's Depth mode has no pixel shader; it writes a quad's depth.
-	/// </summary>
-	[TestMethod]
-	public void DepthOnlyWritesDepth()
-	{
-		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
-		using var defaults = new ShaderDefaults( Device );
-		var shader = library.Load( "shaders/depth_only.shader" );
-		var variant = library.Variant( shader, "Depth", new int[shader.Features.StaticCombos.Length] );
-		Assert.IsNull( variant.Pixel.Bytecode, "no pixel shader without alpha test" );
-
-		var depth = Device.CreateTexture( TextureInfo.RenderTarget( Size, Size, Format.D32Float, name: "Depth" ) );
-		Draw( library, defaults, variant, default, depth );
-
-		var pixels = ReadBack( depth, ImageLayout.DepthTarget );
-		Assert.AreEqual( 0.5f, BitConverter.ToSingle( pixels, (Size / 2 * Size + Size / 2) * 4 ), 1e-4f, "the quad's depth" );
-		Assert.AreEqual( 0f, BitConverter.ToSingle( pixels, 0 ), "the corner stays cleared" );
-	}
-
-	/// <summary>
 	/// complex's Forward mode (with its specialization constants and the material constant buffer filled from the
 	/// shader's defaults) colours a quad, and its Depth mode draws depth, both through layouts reflected from the SPIR-V.
 	/// </summary>
@@ -293,7 +272,7 @@ public class ShaderDrawTests : GpuTest
 		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
 		Assert.IsNull( library.Load( "compiled/anonymous/1.shader" ), "nothing is there before it's added" );
 
-		var basic = ShaderFileTests.Files.Read( "shaders/ui.shader" );
+		var basic = ShaderFileTests.Files.Read( "shaders/unlit.shader" );
 		Assert.IsTrue( library.Add( "compiled/anonymous/1.shader", basic ) );
 		var added = library.Load( "compiled/anonymous/1.shader" );
 		Assert.IsNotNull( added );
@@ -301,15 +280,50 @@ public class ShaderDrawTests : GpuTest
 		Assert.IsFalse( library.Add( "compiled/anonymous/1.shader", basic ), "the same bytes again" );
 		Assert.AreSame( added, library.Load( "compiled/anonymous/1.shader" ) );
 
-		var depth = ShaderFileTests.Files.Read( "shaders/depth_only.shader" );
-		Assert.IsTrue( library.Add( "compiled/anonymous/1.shader", depth ) );
-		Assert.AreEqual( "Depth", library.Load( "compiled/anonymous/1.shader" ).Modes.Single().Name, "new bytes replace it" );
+		// line's modes are Forward and Depth, unlit's Default alone
+		var line = ShaderFileTests.Files.Read( "shaders/line.shader" );
+		Assert.IsTrue( library.Add( "compiled/anonymous/1.shader", line ) );
+		Assert.AreEqual( "Forward", library.Load( "compiled/anonymous/1.shader" ).Modes[0].Name, "new bytes replace it" );
 
 		// A hotloaded .shader over the one its file loaded
-		var loaded = library.Load( "shaders/ui.shader" );
-		Assert.IsTrue( library.Add( "shaders/ui.shader", depth ) );
-		Assert.AreNotSame( loaded, library.Load( "shaders/ui.shader" ) );
-		Assert.AreEqual( "Depth", library.Load( "shaders/ui.shader" ).Modes.Single().Name );
+		var loaded = library.Load( "shaders/unlit.shader" );
+		Assert.IsTrue( library.Add( "shaders/unlit.shader", line ) );
+		Assert.AreNotSame( loaded, library.Load( "shaders/unlit.shader" ) );
+		Assert.AreEqual( "Forward", library.Load( "shaders/unlit.shader" ).Modes[0].Name );
+	}
+
+	/// <summary>
+	/// A compiled shader with no .shader where a Slang file stands in its place is a leftover (a package's copy of an engine
+	/// shader the module replaced, or a stale local one) and isn't loaded; with its .shader it is.
+	/// </summary>
+	[TestMethod]
+	public void CompiledLeftoversBesideSlangDontLoad()
+	{
+		var folder = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"borealis-leftover-{Guid.NewGuid():N}" );
+		var shaders = System.IO.Path.Combine( folder, "shaders" );
+		System.IO.Directory.CreateDirectory( shaders );
+		try
+		{
+			System.IO.File.WriteAllBytes( System.IO.Path.Combine( shaders, "leftover_test.shader_c" ), ShaderFileTests.Files.Read( "shaders/unlit.shader" ) );
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "leftover_test.slang" ), "import sbox.surface;\n" );
+			using ( var backend = new Borealis.Backend.BackendDevice( Device ) )
+			{
+				backend.Content.Add( folder );
+				Assert.IsNull( backend.Shaders.Load( "shaders/leftover_test.shader" ), "a compiled file beside a module, with no source" );
+				Assert.IsNull( backend.Shaders.Load( "shaders/leftover_test.shader_c" ) );
+			}
+
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "leftover_test.shader" ), "" );
+			using ( var backend = new Borealis.Backend.BackendDevice( Device ) )
+			{
+				backend.Content.Add( folder );
+				Assert.IsNotNull( backend.Shaders.Load( "shaders/leftover_test.shader" ), "with its source it loads" );
+			}
+		}
+		finally
+		{
+			System.IO.Directory.Delete( folder, true );
+		}
 	}
 
 	static Vector4 Half4( byte[] pixels, int x, int y )

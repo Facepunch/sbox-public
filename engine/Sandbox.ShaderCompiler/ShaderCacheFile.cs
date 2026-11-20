@@ -42,7 +42,9 @@ internal static class ShaderCacheFile
 
 	/// <summary>
 	/// The payload of an entry whose key is <paramref name="key"/> and whose every dependency, resolved by
-	/// <paramref name="resolve"/> (null: not here), still hashes the same; with the resolved paths. False otherwise.
+	/// <paramref name="resolve"/> (null: not here), still hashes the same; with the resolved paths. False otherwise. An offline
+	/// (shipped) entry, read with an empty key, is used too where a dependency is missing rather than changed: a player's
+	/// install has no private headers its compile read (the build leaves them out), and compiling again couldn't find them.
 	/// </summary>
 	public static bool TryRead<T>( ReadOnlySpan<byte> bytes, string key, Func<string, string> resolve, Func<BinaryReader, List<string>, T> payload, out T value )
 	{
@@ -59,8 +61,14 @@ internal static class ShaderCacheFile
 			{
 				var path = resolve( r.ReadString() );
 				var hash = r.ReadString();
-				if ( path is null || PassCache.FileHash( path ) != hash ) return false;
-				dependencies.Add( path );
+				var current = path is null ? null : PassCache.FileHash( path );
+				if ( current == hash )
+				{
+					dependencies.Add( path );
+					continue;
+				}
+
+				if ( key.Length > 0 || current is not null ) return false;
 			}
 
 			var length = r.ReadInt32();

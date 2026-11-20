@@ -1,0 +1,554 @@
+// the one stylesheet every sandbox UI element imports: fonts, the color palette and the shared building blocks
+// (blocks, sections, sidebars, buttons, inputs, headers, labels, tables, tabs, cards)
+
+$deadzone-x: 2vw;
+$deadzone-y: 2vw;
+
+$hud-accent: #4d90fc;
+
+$color-accent: #0094ff;
+$color-text: #fafaff;
+
+$body-font: "Inter";
+$title-font: $body-font;
+$subtitle-font: $body-font;
+$ui-icon: "Material Icons";
+$ui-icon-outlined: "Material Icons Outlined";
+
+$ui-mono: "Inconsolata";
+
+// text size in the tool settings and the controls in them
+$ui-settings-font: 12px;
+$spawn-menu-content-inset: 16px;
+$context-menu-bar-height: 40px;
+
+// space above every section header except the first one in a sheet or page
+$ui-section-gap: 20px;
+
+// Components use the dark palette by default. Theme/Apply.scss adds their light variant.
+@import "/UI/Theme/Dark.scss";
+
+// base gray block, all UI stuff is built on top of them
+@mixin ui-block
+{
+	padding: 8px;
+	border: 1px solid $ui-block-border;
+	background-image: linear-gradient( to bottom, $ui-block-top, $ui-block-bottom );
+	border-radius: 2px;
+}
+
+// lists, settings, tool list, etc..
+@mixin ui-section
+{
+	color: $ui-text;
+	border: 1px solid $ui-section-border;
+	background-image: linear-gradient( to bottom, $ui-section-top, $ui-section-bottom );
+	border-radius: 2px;
+}
+
+// scrollbar
+@mixin ui-scroll
+{
+	scrollbar-width: 10px;
+	scrollbar-color: $ui-slider-thumb $ui-scroll-track;
+
+	> scrollbar
+	{
+		border-radius: 0;
+
+		> .thumb
+		{
+			border-radius: 0 !important;
+
+			&:hover
+			{
+				filter: brightness( 1.25 );
+			}
+		}
+	}
+}
+
+@mixin ui-scroll-column
+{
+	@include ui-scroll;
+	flex-direction: column;
+	overflow-y: scroll;
+	scrollbar-gutter: stable;
+}
+
+@mixin ui-ellipsis
+{
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+// for search boxes
+@mixin ui-input
+{
+	height: 24px;
+	min-width: 0px;
+	padding: 0 6px;
+	align-items: center;
+	background-color: $ui-input-bg;
+	border: 1px solid $ui-input-border;
+	border-radius: 2px;
+	font-size: 12px;
+	font-weight: 500;
+	color: $ui-text;
+}
+
+// buttons
+@mixin ui-button-face
+{
+	color: $ui-text;
+	background-image: linear-gradient( to bottom, $ui-button-top 0%, $ui-button-top 46%, $ui-button-bottom 54%, $ui-button-bottom 100% );
+	border: 1px solid $ui-button-border;
+	border-radius: 2px;
+	cursor: pointer;
+
+	&:hover
+	{
+		filter: brightness( 1.10 );
+		sound-in: ui.hover;
+	}
+
+	&:active
+	{
+		transform: translateY( 1px );
+		sound-in: ui.select;
+	}
+
+	&.disabled
+	{
+		opacity: 0.4;
+		background-image: none;
+		background-color: rgba( 0, 0, 0, 0.33 );
+		pointer-events: none;
+	}
+}
+
+@mixin ui-button
+{
+	height: 24px;
+	padding: 0 10px;
+	gap: 6px;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	font-family: $body-font;
+	font-size: 12px;
+	font-weight: 500;
+	@include ui-button-face;
+}
+
+// text entry
+@mixin ui-text-entry
+{
+	@include ui-input;
+	flex-direction: row;
+	justify-content: flex-start;
+	cursor: text;
+	@include ui-focus-ring;
+
+	.placeholder
+	{
+		opacity: 1;
+		color: $ui-text-placeholder;
+	}
+
+	.content-label
+	{
+		color: $ui-text;
+	}
+}
+
+// the dark box of hints
+@mixin ui-hint
+{
+	padding: 5px 15px;
+	background-color: rgba( 46, 46, 46, 0.9 );
+	border: 1px solid rgb( 43, 43, 43 );
+	border-radius: 2px;
+	color: rgb( 221, 221, 221 );
+	opacity: 1;
+	transition: opacity 0.04s ease;
+
+	&:intro, &:outro
+	{
+		opacity: 0;
+	}
+
+	label
+	{
+		font-family: $body-font;
+		font-size: 12px;
+		font-weight: 500;
+		max-width: 28vw;
+	}
+}
+
+@mixin ui-selected( $background: $ui-selected-bg )
+{
+	color: $ui-selected-text;
+	background-color: $background;
+}
+
+// rows you can pick, a soft blue under the mouse and the blue fill on the active one
+@mixin ui-selectable( $selected-background: $ui-selected-bg )
+{
+	cursor: pointer;
+	border-radius: 2px;
+
+	&:hover
+	{
+		background-color: $ui-blue-soft;
+		sound-in: ui.hover;
+	}
+
+	&:active
+	{
+		sound-in: ui.select;
+	}
+
+	&.active
+	{
+		@include ui-selected( $selected-background );
+	}
+}
+
+// blue border on the control that has the keyboard focus
+@mixin ui-focus-ring
+{
+	&:focus
+	{
+		border-color: $ui-blue;
+	}
+}
+
+@mixin ui-title-bar
+{
+	flex-direction: row;
+	align-items: center;
+	flex-shrink: 0;
+	height: 23px;
+	padding: 0 10px;
+	background-color: $ui-title-bg;
+	color: white;
+	font-size: 12px;
+	font-weight: 800;
+	border-radius: 2px 2px 0px 0px;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+// the big heading of a page or of a section, drawn on the gray block of the menu, like the name of a spawnlist
+@mixin ui-display-heading
+{
+	font-size: 32px;
+	font-weight: 700;
+	color: $ui-heading-on-gray;
+	text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.4);
+	@include ui-ellipsis;
+}
+
+// grey uppercase text of group and section names
+@mixin ui-heading-text
+{
+	font-size: $ui-settings-font;
+	font-weight: 800;
+	text-transform: uppercase;
+	color: $ui-text-muted;
+}
+
+// the same group names in the dark menus
+@mixin ui-heading-text-on-dark
+{
+	text-transform: uppercase;
+	color: rgba( 255, 255, 255, 0.35 );
+}
+
+// a group name with a line under it, the first one of a sheet or page sits at the top and the others get $ui-section-gap above
+@mixin ui-section-header
+{
+	flex-shrink: 0;
+	margin: 4px 0px 6px 0px;
+	padding-bottom: 3px;
+	border-bottom: 1px solid $ui-separator;
+	@include ui-heading-text;
+}
+
+// the description strip that slides down from the top of a card on hover for UICardDescription
+@mixin ui-card-description
+{
+	// description block (if available & hovered), parked above the visible area for animation
+	.description
+	{
+		position: absolute;
+		left: 0px;
+		right: 0px;
+		top: -60px;
+		padding: 6px 8px;
+		overflow: hidden;
+		background-color: rgba( 255, 255, 255, 0.35 );
+		color: white;
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 12px;
+		pointer-events: none;
+		transition: top 0.1s ease;
+
+		.viewport
+		{
+			position: relative;
+			width: 100%;
+			height: 0px;
+			overflow: hidden;
+			mask-size: 100% 100%;
+			mask-repeat: no-repeat;
+			mask-mode: alpha;
+		}
+
+		.text
+		{
+			position: relative;
+			width: 100%;
+			flex-shrink: 0;
+		}
+
+		.sizer
+		{
+			position: absolute;
+			left: 0px;
+			right: 0px;
+			top: 0px;
+			opacity: 0;
+			pointer-events: none;
+		}
+	}
+
+	&:hover .description
+	{
+		top: 0px;
+	}
+}
+
+// a card with a picture filling it, a white border under the mouse and a description that slides down over it
+@mixin ui-card
+{
+	width: 100%;
+	height: 100%;
+	position: relative;
+	overflow: hidden;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	background-color: $ui-spawn-preview-bg;
+	background-position: center;
+	background-size: cover;
+	background-repeat: no-repeat;
+	font-family: $body-font;
+	cursor: pointer;
+	transition: border-color 0.1s ease;
+
+	@include ui-card-description;
+
+	&:hover
+	{
+		sound-in: ui.hover;
+		border-color: $ui-tile-outline;
+	}
+
+	&:active
+	{
+		sound-in: ui.select;
+	}
+}
+
+// slots in dupes menu, a card with the name (and the author's avatar) in a footer
+@mixin ui-dupe-card
+{
+	@include ui-card;
+	border-radius: 7px;
+
+	.description
+	{
+		background-color: $ui-popup-bg;
+		color: $ui-text;
+	}
+
+	.footer
+	{
+		position: absolute;
+		left: 0px;
+		right: 0px;
+		bottom: 0px;
+		height: 36px;
+		padding: 0 8px;
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
+		background-color: $ui-popup-bg;
+		transition: background-color 0.1s ease;
+
+		.avatar
+		{
+			width: 24px;
+			height: 24px;
+			flex-shrink: 0;
+			border-radius: 3px;
+			background-position: center;
+			background-size: cover;
+		}
+
+		.name
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0px;
+			color: $ui-text-strong;
+			font-size: 12px;
+			font-weight: 700;
+			@include ui-ellipsis;
+			transition: color 0.1s ease;
+		}
+	}
+
+	&:hover .footer
+	{
+		background-color: $ui-card-hover-bg;
+
+		.name
+		{
+			color: $ui-card-hover-text;
+		}
+	}
+}
+
+// the picture of a spawn icon
+@mixin ui-tile-thumb
+{
+	width: 100%;
+	height: 100%;
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: contain;
+}
+
+// the white strip with the name at the bottom of a spawn icon
+@mixin ui-tile-title
+{
+	position: absolute;
+	left: 1px;
+	right: 1px;
+	bottom: 1px;
+	height: 28px;
+	padding: 0 6px;
+	justify-content: center;
+	align-items: center;
+	background-color: $ui-tile-title-bg;
+	color: $ui-tile-title-text;
+	font-family: $body-font;
+	font-size: 11px;
+	font-weight: 500;
+	text-align: center;
+	@include ui-ellipsis;
+}
+
+// handle for the slider
+@mixin ui-slider-thumb
+{
+	width: 10px;
+	height: 16px;
+	background-color: $ui-slider-thumb;
+	border: 1px solid $ui-slider-thumb-border;
+	border-shape: polygon( 0% 0%, 100% 0%, 100% 62%, 50% 100%, 0% 62% );
+}
+
+// the plain number box next to a slider, an outline shows on hover and focus
+@mixin ui-number-entry
+{
+	width: 100%;
+	height: 22px;
+	min-height: 22px;
+	padding: 0px;
+	justify-content: center;
+	background-color: transparent;
+	border: 1px solid transparent;
+	border-radius: 0;
+	font-family: $body-font;
+	font-size: $ui-settings-font;
+	font-weight: 500;
+	color: $ui-text-label;
+
+	&:hover
+	{
+		border-color: $ui-row-hover-outline;
+	}
+
+	@include ui-focus-ring;
+}
+
+@mixin ui-footer-bar
+{
+	width: 100%;
+	flex-shrink: 0;
+	padding-top: 8px;
+	border-top: 1px solid $ui-separator;
+}
+
+// smaller secondary text under a title, inside a section
+@mixin ui-subtitle
+{
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1.35;
+	color: $ui-text-muted;
+}
+
+// the same secondary text drawn on the block of the menu
+@mixin ui-subtitle-on-gray
+{
+	@include ui-subtitle;
+	color: $ui-text-on-gray;
+}
+
+// the name in front of a control, in settings and inspectors
+@mixin ui-label
+{
+	font-size: $ui-settings-font;
+	font-weight: 500;
+	color: $ui-text-label;
+	@include ui-ellipsis;
+}
+
+// tables: a title bar header, rows with a line under them and every other one shaded
+@mixin ui-table
+{
+	@include ui-section;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+@mixin ui-table-header
+{
+	@include ui-title-bar;
+	gap: 8px;
+}
+
+@mixin ui-table-row
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	color: $ui-text;
+	border-bottom: 1px solid $ui-separator;
+
+	&:nth-child( even )
+	{
+		background-color: $ui-row-alt;
+	}
+}
+
+@import "/UI/Theme/MenuControls.scss";
+@import "/UI/Menu.scss";
+@import "/UI/Hud.scss";

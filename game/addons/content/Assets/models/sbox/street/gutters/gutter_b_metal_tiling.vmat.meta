@@ -1,0 +1,27 @@
+{
+  "guid": "020800ee-0000-0000-e0e6-6e0ffc000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Gutter B Metal Tiling",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "gutterbmetaltiling",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_b_metal_tiling.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

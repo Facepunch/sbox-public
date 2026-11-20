@@ -26,13 +26,8 @@ class Program
 
 		using ( new ToolAppSystem() )
 		{
-			Project.AddFromFileBuiltIn( "addons/tools/.sbproj" );
-			Project.AddFromFileBuiltIn( "editor/ActionGraph/.sbproj" );
-			Project.AddFromFileBuiltIn( "editor/ShaderGraph/.sbproj" );
-			Project.AddFromFileBuiltIn( "editor/MovieMaker/.sbproj" );
-			Project.AddFromFileBuiltIn( "editor/Hammer/.sbproj" );
-			Project.AddFromFileBuiltIn( "editor/DooEditor/DooEditor.sbproj" );
-			var menuProject = Project.AddFromFile( "addons/menu/.sbproj" );
+			SyncContext.RunBlocking( Project.InitializeBuiltIn( false ) );
+			var menuProject = Project.FindByIdent( "local.menu" );
 
 			SyncContext.RunBlocking( Project.CompileAsync() );
 

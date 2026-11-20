@@ -211,20 +211,22 @@ namespace Sandbox.Upgraders
 			var oldMethod = oldDelegate.GetMethodInfo();
 			var messageText = GetErrorDelegateMessage( message );
 
-			var newParamTypes = oldMethod.GetParameters()
-				.Select( x => GetNewType( x.ParameterType ) )
-				.ToArray();
-
-			var newReturnType = GetNewType( oldMethod.ReturnType );
 			var newDelegType = GetNewType( oldDelegate.GetType() );
+			if ( newDelegType is null ) return null;
 
-			// Its code is gone or changed, and the runtime runs it on a thread pool thread where nothing catches an
-			// exception: thrown, it ends the process. Drop it; a suspended async method never resumes, a timer does nothing.
-			if ( IsRuntimeCallback( oldDelegate ) )
+			// Open delegates take the receiver as an argument. Use the signature callers actually invoke.
+			var invoke = newDelegType.GetMethod( "Invoke" );
+			var newParamTypes = invoke.GetParameters().Select( parameter => parameter.ParameterType ).ToArray();
+			var newReturnType = invoke.ReturnType;
+
+			// A runtime callback can throw on a worker thread. A missing event handler can block the remaining handlers.
+			var removedAction = message == ErrorDelegateMessage.NoMatchLambda && newReturnType == typeof( void )
+				&& newParamTypes.All( type => !type.IsByRef );
+			if ( IsRuntimeCallback( oldDelegate ) || removedAction )
 			{
 				if ( oldMethod.Name != DroppedCallbackName )
 				{
-					Log( HotloadEntryType.Warning, $"Dropping a callback the runtime would run, it can't call the new code: {messageText}", oldMethod );
+					Log( HotloadEntryType.Warning, $"Dropping a callback that can't call the new code: {messageText}", oldMethod );
 				}
 
 				var dropped = new DynamicMethod( DroppedCallbackName, newReturnType, newParamTypes );

@@ -281,7 +281,13 @@ internal sealed partial class PhysicsWorld2d
 	public override unsafe IEnumerable<GameObject> FindInPhysics( Sphere sphere )
 	{
 		var results = new HashSet<GameObject>();
-		if ( !IsValid ) return results;
+		FindInPhysics( sphere, results );
+		return results;
+	}
+
+	internal override unsafe void FindInPhysics( Sphere sphere, HashSet<GameObject> results )
+	{
+		if ( !IsValid ) return;
 
 		var handle = GCHandle.Alloc( results );
 		var filter = new b2QueryFilter { categoryBits = ulong.MaxValue, maskBits = ulong.MaxValue };
@@ -301,8 +307,6 @@ internal sealed partial class PhysicsWorld2d
 		{
 			handle.Free();
 		}
-
-		return results;
 	}
 
 	public override unsafe IEnumerable<GameObject> FindInPhysics( BBox box )

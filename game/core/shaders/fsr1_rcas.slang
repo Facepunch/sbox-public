@@ -10,7 +10,7 @@
 
 Mode( Default );
 
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 // Sharpness reduction: 0 = sharpest, 2 = least sharp (FFX RCAS convention).

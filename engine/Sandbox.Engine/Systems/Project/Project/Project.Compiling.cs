@@ -39,7 +39,7 @@ public partial class Project
 	private void UpdateCompiler()
 	{
 		// Menu can be precompiled, load that and don't bother making a compiler if so
-		if ( LoadPrecompiled() )
+		if ( Active && LoadPrecompiled() )
 			return;
 
 		// Only update the compiler if the config has changed
@@ -76,7 +76,7 @@ public partial class Project
 				}
 			}
 
-			if ( Config.Type == "game" )
+			if ( Config.Type is "game" or "menu" )
 			{
 				compilerSettings.IgnoreFolders.Add( "editor" );
 				compilerSettings.IgnoreFolders.Add( "unittest" );
@@ -150,9 +150,9 @@ public partial class Project
 			if ( Config.Type == "addon" )
 			{
 				var parentPackage = Config.GetMetaOrDefault<string>( "ParentPackage", null );
-				if ( !string.IsNullOrWhiteSpace( parentPackage ) && Package.TryParseIdent( parentPackage, out var parentParts ) )
+				if ( !string.IsNullOrWhiteSpace( parentPackage ) && Package.TryParseIdentParts( parentPackage, out var parentParts ) )
 				{
-					var currentAp = PackageManager.Find( Config.FullIdent, true, false );
+					var currentAp = PackageManager.Find( Config.FullIdent );
 					if ( currentAp is not null )
 					{
 						CompileGroup.ReferenceProvider = currentAp;
@@ -168,7 +168,7 @@ public partial class Project
 		{
 			// update editor compiler if we're running in the editor
 
-			if ( Config.Type == "game" || Config.Type == "library" || Config.Type == "addon" )
+			if ( Config.Type is "game" or "menu" or "library" or "addon" )
 			{
 				UpdateEditorCompiler();
 			}
@@ -269,7 +269,7 @@ public partial class Project
 
 	IEnumerable<Package> PackageReferences()
 	{
-		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		if ( Config.Type is "game" or "addon" )
 		{
 			foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
 			{
@@ -283,7 +283,7 @@ public partial class Project
 	/// </summary>
 	IEnumerable<Package> EditorPackageReferences()
 	{
-		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		if ( Config.Type is "game" or "addon" )
 		{
 			foreach ( var library in Project.Libraries.Where( x => x.HasEditorPath() ) )
 			{
@@ -303,13 +303,13 @@ public partial class Project
 		if ( !Active )
 			return;
 
-		// Horrific, but Current isn't avaliable yet, so this is the only way to tell if we're in the menu project
-		var path = Sandbox.Utility.CommandLine.GetSwitch( "-project", "" ).TrimQuoted();
-		var isMenu = path.EndsWith( "menu\\.sbproj" );
-
-		// only want menu editor code if we're in the menu project
-		if ( Config.Ident == "menu" && !isMenu )
-			return;
+		// Current isn't assigned during startup yet. Only compile menu editor code when that project is open.
+		if ( Config.Type == "menu" )
+		{
+			var path = Sandbox.Utility.CommandLine.GetSwitch( "-project", "" ).TrimQuoted();
+			if ( !string.Equals( NormalizeConfigFilePath( path ), ConfigFilePath, StringComparison.OrdinalIgnoreCase ) )
+				return;
+		}
 
 		if ( !HasEditorPath() )
 			return;

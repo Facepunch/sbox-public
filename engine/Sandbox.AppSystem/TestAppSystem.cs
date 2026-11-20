@@ -39,8 +39,7 @@ public class TestAppSystem : AppSystem
 		};
 
 		// Opt in to the real renderer for bitmap comparisons; ordinary tests stay headless. SBOX_TEST_GRAPHICS=1 draws on
-		// Borealis.Gpu, as the game and the editor do; =source2 on Source 2's own device, for the tests of its native
-		// rendering alone (the vfx specialization experiment: ComplexSpecialization, ComplexPerformance)
+		// Borealis.Gpu, as the game and the editor do
 		var arguments = Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS_ARGS" );
 		switch ( Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) )
 		{
@@ -50,9 +49,6 @@ public class TestAppSystem : AppSystem
 				Utility.CommandLine.CommandLineString = (Utility.CommandLine.CommandLineString ?? Environment.CommandLine) + " -wait-for-shaders -borealisgpu-syncload";
 				Utility.CommandLine.Parse();
 				InitGame( createInfo, "-borealisgpu -wait-for-shaders -borealisgpu-syncload -noassert -novr " + arguments );
-				break;
-			case "source2":
-				InitGame( createInfo, "-vulkan -noassert -novr " + arguments );
 				break;
 			default:
 				InitGame( createInfo, "" );

@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe M",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipem",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_m.vmdl"
+      }
+    }
+  },
+  "guid": "548cbabb-ddf4-4661-9087-f0eb4a6a08fc"
+}

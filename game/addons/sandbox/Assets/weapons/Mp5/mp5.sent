@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/mp5/mp5.prefab",
+  "Title": "SG-5",
+  "Description": "#asset.mp5.description",
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

@@ -6,7 +6,7 @@ Mode( Default );
 Mode( Forward );
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-    #include "common.fxc"
+    #include "sbox/view.slangh"
     #include "postprocess/shared.hlsl"
 
     #include "common\classes\Depth.hlsl"

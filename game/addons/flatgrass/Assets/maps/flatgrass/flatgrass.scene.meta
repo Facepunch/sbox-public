@@ -1,0 +1,7 @@
+{
+  "guid": "a790bfcf-1cd4-4e49-96d5-8a1f8aacc4ca",
+  "sceneCompileSettings": {
+    "AggregateCost": 32,
+    "MaxChunkSize": 2048
+  }
+}

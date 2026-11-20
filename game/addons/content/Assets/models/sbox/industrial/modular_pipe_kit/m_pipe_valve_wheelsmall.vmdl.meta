@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Valve Wheelsmall",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipevalvewheelsmall",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_valve_wheelsmall.vmdl"
+      }
+    }
+  },
+  "guid": "e68822b2-a555-4a9c-9f14-0821cb8ebff3"
+}

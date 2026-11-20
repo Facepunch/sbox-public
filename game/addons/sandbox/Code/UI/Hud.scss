@@ -1,0 +1,42 @@
+$hud-element-bg: #0006;
+
+$hud-radius: 8px;
+$hud-radius-sm: 4px;
+$hud-icon-size: 30px;
+
+.hud-panel
+{
+	flex-direction: row;
+	align-items: center;
+	gap: 16px;
+	padding: 22px 22px;
+	background-color: $hud-element-bg;
+	border-radius: $hud-radius;
+	font-family: $title-font;
+	pointer-events: none;
+
+	Image, .icon
+	{
+		width: $hud-icon-size;
+		height: 36px;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-position: center;
+		flex-shrink: 0;
+		background-tint: $color-accent;
+	}
+
+	.value
+	{
+		font-size: 29px;
+		font-weight: 700;
+		color: $color-text;
+	}
+
+	.alternate
+	{
+		font-size: 29px;
+		font-weight: 700;
+		color: #fffa;
+	}
+}

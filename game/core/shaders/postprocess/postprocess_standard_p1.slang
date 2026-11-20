@@ -1,12 +1,11 @@
-// postprocess_standard_p1.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
+// postprocess_standard_p1: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: Description = "Standard post processing shader, Pass 1";
 // HEADER: DevShader = true;
 
-// MODES: Default();
-// MODES: Forward();
-
 #include "sbox/pass.slangh"
+
+Mode( Default );
+Mode( Forward );
 
     #include "postprocess/shared.hlsl"
 

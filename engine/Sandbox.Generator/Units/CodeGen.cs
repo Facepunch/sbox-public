@@ -212,6 +212,20 @@ namespace Sandbox.Generator
 			return FieldExpression();
 		}
 
+		private static ExpressionSyntax CreatePropertyDelegate( Worker master, HashSet<string> generatedFields, bool isStatic, string fieldName, string delegateType, LambdaExpressionSyntax lambda )
+		{
+			if ( !master.Processor.CachePropertyDelegates )
+				return lambda;
+
+			if ( generatedFields.Add( fieldName ) )
+			{
+				var staticModifier = isStatic ? "static " : "";
+				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}{delegateType} {fieldName} = null!;\n", false );
+			}
+
+			return AssignmentExpression( SyntaxKind.CoalesceAssignmentExpression, IdentifierName( fieldName ), lambda );
+		}
+
 		private static void HandleWrapSet( AttributeData attribute, Flags type, string callbackName, ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master, HashSet<string> generatedFields )
 		{
 			if ( symbol.IsStatic && !type.Contains( Flags.Static ) )
@@ -266,18 +280,6 @@ namespace Sandbox.Generator
 			var setterFieldName = $"__{symbol.Name}_{attributeSuffix}__CachedSetter";
 			var getterFieldName = $"__{symbol.Name}_{attributeSuffix}__CachedSetterGetter";
 
-			var staticModifier = symbol.IsStatic ? "static " : "";
-
-			if ( generatedFields.Add( setterFieldName ) )
-			{
-				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Action<{propertyType}> {setterFieldName} = null!;\n", false );
-			}
-
-			if ( generatedFields.Add( getterFieldName ) )
-			{
-				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Func<{propertyType}> {getterFieldName} = null!;\n", false );
-			}
-
 			// GET accessor
 			if ( existingGetter is not null )
 			{
@@ -323,22 +325,12 @@ namespace Sandbox.Generator
 
 				var wrappedType = ParseTypeName( $"global::Sandbox.WrappedPropertySet<{propertyType}>" );
 
-				// Cached setter: __CachedSetter ??= (v) => { ... }
-				var cachedSetterExpr = AssignmentExpression(
-					SyntaxKind.CoalesceAssignmentExpression,
-					IdentifierName( setterFieldName ),
-					setterLambda );
-
-				// Cached getter: __CachedGetter ??= () => PropertyName!
-				// Calls the property by name, which goes through all wrapped getters
-				// This avoids inlining wrapped getter code which would cause recursion
+				// Read through the property so the setter sees the wrapped value.
 				var getterLambda = ParenthesizedLambdaExpression(
 					PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, IdentifierName( symbol.Name ) ) );
 
-				var cachedGetterExpr = AssignmentExpression(
-					SyntaxKind.CoalesceAssignmentExpression,
-					IdentifierName( getterFieldName ),
-					getterLambda );
+				var setter = CreatePropertyDelegate( master, generatedFields, symbol.IsStatic, setterFieldName, $"global::System.Action<{propertyType}>", setterLambda );
+				var getter = CreatePropertyDelegate( master, generatedFields, symbol.IsStatic, getterFieldName, $"global::System.Func<{propertyType}>", getterLambda );
 
 				var wrappedInitializerExpressions = new List<ExpressionSyntax>
 				{
@@ -357,12 +349,12 @@ namespace Sandbox.Generator
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Setter" ),
-						cachedSetterExpr ),
+						setter ),
 
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Getter" ),
-						cachedGetterExpr ),
+						getter ),
 
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,
@@ -474,13 +466,6 @@ namespace Sandbox.Generator
 			var attributeSuffix = attribute.AttributeClass?.Name ?? "Unknown";
 			var getterFieldName = $"__{symbol.Name}_{attributeSuffix}__CachedGetter";
 
-			var staticModifier = symbol.IsStatic ? "static " : "";
-
-			if ( generatedFields.Add( getterFieldName ) )
-			{
-				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Func<{propertyType}> {getterFieldName} = null!;\n", false );
-			}
-
 			// SET accessor
 			if ( existingSetter is not null )
 			{
@@ -493,21 +478,31 @@ namespace Sandbox.Generator
 
 				// Get the current getter body - this allows get wrappers to chain
 				var directGetterBody = GetDirectGetterBody( existingGetter );
-				// Wrap expressions in null suppression to avoid CS8603 for nullable properties: () => field!
-				var getterLambdaBody = directGetterBody is ExpressionSyntax expr
-					? PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, expr )
-					: directGetterBody;
-				var getterLambda = ParenthesizedLambdaExpression( getterLambdaBody );
+				ExpressionSyntax defaultValueExpression;
+				if ( !master.Processor.CachePropertyDelegates && directGetterBody is ExpressionSyntax directValue and not ThrowExpressionSyntax )
+				{
+					// Most expressions can go straight into the initializer. A throw needs to stay in the getter body.
+					defaultValueExpression = directValue;
+				}
+				else
+				{
+					var delegateType = $"global::System.Func<{propertyType}>";
+					if ( directGetterBody is ExpressionSyntax expr and not ThrowExpressionSyntax )
+					{
+						// Keep the suppression on the result of an expression such as "value as string".
+						if ( expr is BinaryExpressionSyntax or IsPatternExpressionSyntax or ConditionalExpressionSyntax )
+							expr = ParenthesizedExpression( expr );
 
-				// Cached getter: __CachedGetter ??= () => <current getter body>
-				var cachedGetterExpr = AssignmentExpression(
-					SyntaxKind.CoalesceAssignmentExpression,
-					IdentifierName( getterFieldName ),
-					getterLambda );
+						directGetterBody = PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, expr );
+					}
 
-				// Invoke the cached getter to get the value
-				var defaultValueExpression = InvocationExpression(
-					ParenthesizedExpression( cachedGetterExpr ) );
+					var getter = CreatePropertyDelegate( master, generatedFields, symbol.IsStatic, getterFieldName, delegateType, ParenthesizedLambdaExpression( directGetterBody ) );
+					if ( getter is LambdaExpressionSyntax )
+						getter = CastExpression( ParseTypeName( delegateType ), ParenthesizedExpression( getter ) );
+
+					var readValue = InvocationExpression( ParenthesizedExpression( getter ) );
+					defaultValueExpression = PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, readValue );
+				}
 
 				var memberIdentity = $"{symbol.ContainingType.GetFullMetadataName().Replace( "global::", "" )}.{symbol.Name}";
 				var memberHash = memberIdentity.FastHash();
@@ -519,7 +514,7 @@ namespace Sandbox.Generator
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Value" ),
-						PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, defaultValueExpression ) ), // Value = expr!
+						defaultValueExpression ),
 
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,

@@ -48,8 +48,6 @@ public static class GpuProfilerStats
 				return;
 
 			_enabled = value;
-			NativeEngine.CSceneSystem.SetGPUProfilerMode( value ? NativeEngine.SceneSystemGPUProfilerMode.SCENE_GPU_PROFILER_TIMESTAMP_ONLY : NativeEngine.SceneSystemGPUProfilerMode.SCENE_GPU_PROFILER_DISABLE );
-
 			if ( !value )
 			{
 				_samples.Clear();
@@ -83,6 +81,11 @@ public static class GpuProfilerStats
 	internal static ulong FrameId { get; private set; }
 	internal static string Renderer { get; private set; } = "unknown";
 	internal static ReadOnlySpan<Row> Rows => System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _rows );
+
+	/// <summary>
+	/// Borealis.Gpu's scopes of the last read frame, in the order of <see cref="Rows"/>.
+	/// </summary>
+	internal static ReadOnlySpan<GpuScope> Scopes => System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _borealisScopes );
 	internal static Row GetRow( int index ) => _rows[index];
 
 	/// <summary>
@@ -114,53 +117,18 @@ public static class GpuProfilerStats
 
 		_frame++;
 
-		// On Borealis.Gpu, its own lists and passes (the busy-time pass timer's)
+		// Borealis.Gpu's lists and passes (the busy-time pass timer's); a process without it draws nothing to time
 		if ( RenderBackend.Default is BorealisGpuRenderBackend borealis )
 		{
 			UpdateFromBorealis( borealis );
 			return;
 		}
 
+		FrameId = 0;
+		Renderer = "none";
+		BusyMs = 0;
 		_rows.Clear();
 		_paths = null;
-
-		NativeEngine.CSceneSystem.RefreshGpuTimestampSnapshot();
-		FrameId = NativeEngine.CSceneSystem.GetGpuTimestampFrameId();
-		Renderer = NativeEngine.CSceneSystem.GetGpuTimestampRenderer() switch
-		{
-			1 => "native",
-			2 => "managed",
-			3 => "managed-async",
-			_ => "unknown"
-		};
-
-		int count = NativeEngine.CSceneSystem.GetGpuTimestampCount();
-		for ( int i = 0; i < count; i++ )
-		{
-			var stableId = NativeEngine.CSceneSystem.GetGpuTimestampStableId( i );
-			var name = _names.TryGetValue( stableId, out var known ) ? known.Name : NativeEngine.CSceneSystem.GetGpuTimestampName( i );
-			_names[stableId] = (name, _frame);
-
-			var row = new Row
-			{
-				Name = name,
-				Parent = NativeEngine.CSceneSystem.GetGpuTimestampParent( i ),
-				StableId = stableId,
-				Measured = NativeEngine.CSceneSystem.GetGpuTimestampMeasured( i ),
-				Unparented = NativeEngine.CSceneSystem.GetGpuTimestampUnparented( i ),
-				Duration = NativeEngine.CSceneSystem.GetGpuTimestampDuration( i ),
-			};
-
-			_rows.Add( row );
-
-			if ( !row.Measured )
-				continue;
-
-			AddSample( row.StableId, row.Duration, Time.Delta );
-		}
-
-		PruneSamples();
-		BusyMs = GraphicsBusy();
 	}
 
 	static void AddSample( uint stableId, float duration, float delta )
@@ -260,33 +228,6 @@ public static class GpuProfilerStats
 			rows.Add( new Row { Name = scope.Name, Parent = parent, StableId = (uint)HashCode.Combine( scope.Name, count, scope.List ), Measured = true, Duration = (float)scope.Ms } );
 			open.Add( rows.Count - 1 );
 		}
-	}
-
-	/// <summary>
-	/// Add up the measured passes with no measured pass inside them, outside the async compute queue.
-	/// </summary>
-	static float GraphicsBusy()
-	{
-		Span<bool> hasChild = _rows.Count <= 1024 ? stackalloc bool[_rows.Count] : new bool[_rows.Count];
-		for ( int i = 0; i < _rows.Count; i++ )
-		{
-			var parent = _rows[i].Parent;
-			if ( _rows[i].Measured && parent >= 0 && parent < _rows.Count ) hasChild[parent] = true;
-		}
-
-		float busy = 0;
-		for ( int i = 0; i < _rows.Count; i++ )
-		{
-			if ( !_rows[i].Measured || hasChild[i] ) continue;
-
-			var root = i;
-			while ( _rows[root].Parent >= 0 && _rows[root].Parent < _rows.Count && _rows[root].Parent != root ) root = _rows[root].Parent;
-			if ( _rows[root].Name == "Async compute" ) continue;
-
-			busy += _rows[i].Duration;
-		}
-
-		return busy;
 	}
 
 	/// <summary>

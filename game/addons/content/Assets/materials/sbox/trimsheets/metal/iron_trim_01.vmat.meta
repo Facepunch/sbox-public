@@ -1,0 +1,27 @@
+{
+  "guid": "341fe791-81b1-41e3-a0d6-d7193293a787",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Iron Trim",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "iron_trim_01",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/trimsheets/metal/iron_trim_01.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

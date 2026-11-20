@@ -1,0 +1,243 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						name = "painted"
+						remaps =
+						[
+							{
+								from = "metal_trim.vmat"
+								to = "materials/sbox/trimsheets/metal/metal_trim_painted_blend_01.vmat"
+							},
+							{
+								from = "rubber_trim.vmat"
+								to = "materials/sbox/trimsheets/rubber/rubber_trim_01.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+					{
+						_class = "MaterialGroup"
+						name = "bare"
+						remaps =
+						[
+							{
+								from = "materials/sbox/trimsheets/metal/metal_trim_painted_blend_01.vmat"
+								to = "materials/sbox/trimsheets/metal/metal_trim_01.vmat"
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						children =
+						[
+							{
+								_class = "RenameStream"
+								from_name = "color$1"
+								to_name = "VertexPaintBlendParams"
+							},
+						]
+						filename = "models/sbox/construction/step_ladder/step_ladder_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Cube_009",
+								"stepladder_01_001",
+								"stepladder_01",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "step_ladder_01"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/construction/step_ladder/step_ladder_01.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerElement"
+						optimization_algorithm = "IFR"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"stepladder_01_001",
+								"stepladder_01_023",
+								"stepladder_01_022",
+								"stepladder_02_001",
+								"stepladder_02_phy_001",
+								"stepladder_01",
+								"stepladder_02",
+								"stepladder_02_phy",
+							]
+						}
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.425133, 0.004907, 19.90645 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 15.287898, 15.311295, 1.626208 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ -2.5079, -7.67994, 15.001678 ]
+						angles = [ -18.941006, 0.000001, 90.0 ]
+						dimensions = [ 0.662145, 11.123181, 0.294748 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 5.045743, 0.004907, 10.274986 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 15.287898, 15.311295, 1.626208 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ -2.5079, 7.691067, 15.001678 ]
+						angles = [ -18.941006, 0.000001, 90.0 ]
+						dimensions = [ 0.662145, 11.123181, 0.294748 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 6.15108, -0.007467, 19.936142 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.949006, 19.771132, 0.913188 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 10.668903, -0.007467, 10.441415 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.949006, 19.771132, 0.913188 ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 2.4
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes =
+						[
+							"LOD0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 15.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.4937
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 40.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.3326
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = [  ]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

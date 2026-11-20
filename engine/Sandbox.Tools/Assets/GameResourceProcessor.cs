@@ -37,7 +37,7 @@ internal static class GameResourceProcessor
 			if ( asset is null ) return v;
 			if ( asset.Package is null ) return v;
 
-			cloudPackages.Add( asset.Package.GetIdent( false, true ) );
+			cloudPackages.Add( asset.Package.GetVersionedIdent() );
 
 			return v;
 		} );

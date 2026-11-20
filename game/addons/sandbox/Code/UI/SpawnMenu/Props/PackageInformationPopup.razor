@@ -1,0 +1,22 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <div class="title" onclick=@( () => Game.Overlay.ShowPackageModal( Package.FullIdent ) )>@Package.Title</div>
+    <div class="org" onclick=@( () => Game.Overlay.ShowOrganizationModal(Package.Org))>
+        <img src="@Package.Org.Thumb" />
+        <label>@Package.Org.Title</label>
+    </div>
+    <div class="meta">
+        <div class="created"><i>alarm</i><span>@Package.Updated.Humanize()</span></div>
+    </div>
+
+    <div class="summary">@Package.Summary</div>
+</root>
+
+@code
+{
+    public Package Package { get; set; }    
+}

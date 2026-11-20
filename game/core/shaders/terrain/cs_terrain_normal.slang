@@ -6,10 +6,10 @@
 
 Mode( Default );
 
-#include "system.fxc" // This should always be the first include in COMMON
+#include "sbox/system.slangh" // This should always be the first include in COMMON
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "common.fxc"
+#include "sbox/view.slangh"
 
 RWTexture2D<float>  Heightmap < Attribute( "Heightmap" ); >;   // R16, normalized height [0,1]
 RWTexture2D<float2> OutputMap < Attribute( "OutputMap" ); >;   // RG = normal.xy * 0.5 + 0.5

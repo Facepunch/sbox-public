@@ -205,9 +205,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		{
 			resolvedDepth?.Dispose();
 			resolveScratch?.Dispose();
-			resolvedDepth = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithDepthFormat(), "Borealis.Gpu frame resolved depth" );
+			resolvedDepth = Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithDepthFormat().Create( "Borealis.Gpu frame resolved depth" );
 			// The resolve writes depth alone; the engine's drawing always has a colour target
-			resolveScratch = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithFormat( ImageFormat.RGBA8888 ), "Borealis.Gpu depth resolve scratch" );
+			resolveScratch = Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu depth resolve scratch" );
 			resolveTarget = RenderTarget.From( resolveScratch, resolvedDepth );
 		}
 
@@ -286,7 +286,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			existing?.Dispose();
 			var builder = Texture.CreateRenderTarget().WithSize( size.x, size.y );
 			builder = depth ? builder.WithDepthFormat() : builder.WithFormat( format );
-			existing = Texture.CreateOnBorealisGpu( builder, depth ? "Borealis.Gpu frame depth" : "Borealis.Gpu frame colour" );
+			existing = builder.Create( depth ? "Borealis.Gpu frame depth" : "Borealis.Gpu frame colour" );
 		}
 
 		backend.Borrow( existing, handle, layout );
@@ -472,7 +472,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( !depthAlone.TryGetValue( gpu, out var kept ) )
 		{
 			DropDisposedDepthTextures();
-			var texture = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( gpu.Width, gpu.Height ).WithDepthFormat(), "Borealis.Gpu depth drawn alone" );
+			var texture = Texture.CreateRenderTarget().WithSize( gpu.Width, gpu.Height ).WithDepthFormat().Create( "Borealis.Gpu depth drawn alone" );
 			depthAlone[gpu] = kept = (texture, RenderTarget.FromDepth( texture ));
 		}
 
@@ -620,7 +620,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( existing is not null && existing.Width == width && existing.Height == height ) return existing;
 		existing?.Dispose();
 		var mips = System.Numerics.BitOperations.Log2( (uint)Math.Min( width, height ) ) + 1;
-		return Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( width, height ).WithFormat( ImageFormat.RG3232F ).WithMips( mips ).WithUAVBinding(), "Borealis.Gpu frame depth chain" );
+		return Texture.CreateRenderTarget().WithSize( width, height ).WithFormat( ImageFormat.RG3232F ).WithMips( mips ).WithUAVBinding().Create( "Borealis.Gpu frame depth chain" );
 	}
 
 	/// <summary>Give the frame's targets back to Borealis, in the layouts the drawing left them in.</summary>

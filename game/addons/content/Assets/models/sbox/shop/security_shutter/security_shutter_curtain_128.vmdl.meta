@@ -1,0 +1,23 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Security Shutter Curtain 128",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "security_shutter_curtain_128",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter_curtain_128.vmdl",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "149209e1-e3fc-4d4f-a8f0-9b87e315c5d5"
+}

@@ -1,0 +1,558 @@
+{
+  "Title": "Gears",
+  "Description": "",
+  "Icon": "settings",
+  "RequiredMount": null,
+  "Parent": null,
+  "Order": 0,
+  "HideInSidebar": true,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Gears",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_12t1.vmdl",
+      "Title": "Gear 12T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_12t2.vmdl",
+      "Title": "Gear 12T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_12t3.vmdl",
+      "Title": "Gear 12T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_18t1.vmdl",
+      "Title": "Gear 18T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_18t2.vmdl",
+      "Title": "Gear 18T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_18t3.vmdl",
+      "Title": "Gear 18T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_24t1.vmdl",
+      "Title": "Gear 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_24t2.vmdl",
+      "Title": "Gear 24T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_24t3.vmdl",
+      "Title": "Gear 24T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_36t1.vmdl",
+      "Title": "Gear 36T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_36t2.vmdl",
+      "Title": "Gear 36T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_36t3.vmdl",
+      "Title": "Gear 36T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_48t1.vmdl",
+      "Title": "Gear 48T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_48t2.vmdl",
+      "Title": "Gear 48T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_48t3.vmdl",
+      "Title": "Gear 48T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_60t1.vmdl",
+      "Title": "Gear 60T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_60t2.vmdl",
+      "Title": "Gear 60T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear_60t3.vmdl",
+      "Title": "Gear 60T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/medgear.vmdl",
+      "Title": "Medium Wheel Gear",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/biggear.vmdl",
+      "Title": "Big Wheel Gear",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Cogs",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x6_small.vmdl",
+      "Title": "Small Cog 12T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x6.vmdl",
+      "Title": "Cog 12T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x6_large.vmdl",
+      "Title": "Large Cog 12T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x12_small.vmdl",
+      "Title": "Small Cog 12T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x12.vmdl",
+      "Title": "Cog 12T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x12_large.vmdl",
+      "Title": "Large Cog 12T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x24_small.vmdl",
+      "Title": "Small Cog 12T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x24.vmdl",
+      "Title": "Cog 12T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear12x24_large.vmdl",
+      "Title": "Large Cog 12T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x6_small.vmdl",
+      "Title": "Small Cog 16T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x6.vmdl",
+      "Title": "Cog 16T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x6_large.vmdl",
+      "Title": "Large Cog 16T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x12_small.vmdl",
+      "Title": "Small Cog 16T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x12.vmdl",
+      "Title": "Cog 16T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x12_large.vmdl",
+      "Title": "Large Cog 16T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x24_small.vmdl",
+      "Title": "Small Cog 16T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x24.vmdl",
+      "Title": "Cog 16T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear16x24_large.vmdl",
+      "Title": "Large Cog 16T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x6_small.vmdl",
+      "Title": "Small Cog 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x6.vmdl",
+      "Title": "Cog 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x6_large.vmdl",
+      "Title": "Large Cog 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x12_small.vmdl",
+      "Title": "Small Cog 24T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x12.vmdl",
+      "Title": "Cog 24T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x12_large.vmdl",
+      "Title": "Large Cog 24T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x24_small.vmdl",
+      "Title": "Small Cog 24T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x24.vmdl",
+      "Title": "Cog 24T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/gear24x24_large.vmdl",
+      "Title": "Large Cog 24T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Bevel Gears",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel_12t1.vmdl",
+      "Title": "Bevel Gear 12T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel_18t1.vmdl",
+      "Title": "Bevel Gear 18T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel_24t1.vmdl",
+      "Title": "Bevel Gear 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel_36t1.vmdl",
+      "Title": "Bevel Gear 36T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel_48t1.vmdl",
+      "Title": "Bevel Gear 48T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel_60t1.vmdl",
+      "Title": "Bevel Gear 60T",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Crown Gears",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/vert_12t1.vmdl",
+      "Title": "Crown Gear 12T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/vert_18t1.vmdl",
+      "Title": "Crown Gear 18T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/vert_24t1.vmdl",
+      "Title": "Crown Gear 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/vert_36t1.vmdl",
+      "Title": "Crown Gear 36T",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Precision Gears",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/spur9.vmdl",
+      "Title": "Precision Spur Gear 9T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/spur12.vmdl",
+      "Title": "Precision Spur Gear 12T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/spur24.vmdl",
+      "Title": "Precision Spur Gear 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/spur36.vmdl",
+      "Title": "Precision Spur Gear 36T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel9.vmdl",
+      "Title": "Precision Bevel Gear 9T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel12.vmdl",
+      "Title": "Precision Bevel Gear 12T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel24.vmdl",
+      "Title": "Precision Bevel Gear 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel36.vmdl",
+      "Title": "Precision Bevel Gear 36T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/bevel90_24.vmdl",
+      "Title": "Precision Mitre Gear 24T",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Racks",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_20t1.vmdl",
+      "Title": "Rack 20T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_20t2.vmdl",
+      "Title": "Rack 20T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_20t3.vmdl",
+      "Title": "Rack 20T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_40t1.vmdl",
+      "Title": "Rack 40T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_40t2.vmdl",
+      "Title": "Rack 40T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_40t3.vmdl",
+      "Title": "Rack 40T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_80t1.vmdl",
+      "Title": "Rack 80T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_80t2.vmdl",
+      "Title": "Rack 80T Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_80t3.vmdl",
+      "Title": "Rack 80T Extra Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/pinion_40.vmdl",
+      "Title": "Rack 40T Extended",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/rack9.vmdl",
+      "Title": "Precision Rack 9T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/rack18.vmdl",
+      "Title": "Precision Rack 18T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/rack36.vmdl",
+      "Title": "Precision Rack 36T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/rack70.vmdl",
+      "Title": "Precision Rack 70T",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/slider1.vmdl",
+      "Title": "Rack Slider",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Linkages",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/mech1.vmdl",
+      "Title": "Linkage Arm",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/mech2.vmdl",
+      "Title": "Linkage, 2 Arms",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/gears/mech3.vmdl",
+      "Title": "Linkage, 3 Arms",
+      "Icon": null
+    }
+  ],
+  "__version": 0
+}

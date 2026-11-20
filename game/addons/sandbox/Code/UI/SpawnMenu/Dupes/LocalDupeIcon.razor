@@ -1,0 +1,72 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Mounting;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    @if ( !string.IsNullOrWhiteSpace( Description ) )
+    {
+        <UICardDescription class="description" Text="@Description" />
+    }
+
+    <div class="footer">
+        <div class="name">@(Content.GetMeta<string>( "name" ) ?? "#ui.dupe.untitled")</div>
+    </div>
+</root>
+
+@code
+{
+    public Storage.Entry Content;
+
+    string Description => Content.GetMeta<string>( "description", "" );
+
+    protected override void OnParametersSet()
+    {
+        Style.SetBackgroundImage( Content.Thumbnail );
+    }
+
+    protected override void OnMouseDown( MousePanelEvent e )
+    {
+        if ( e.MouseButton == MouseButtons.Right )
+        {
+            var menu = new Sandbox.UI.Menu();
+
+            menu.AddOption( "#spawnmenu.common.delete", "delete", () => Content.Delete() );
+            menu.AddOption( "#spawnmenu.common.publish", "publish", Publish );
+
+            SpawnlistData.PopulateContextMenu( menu, this, new SpawnlistItem
+            {
+                Ident = SpawnlistItem.MakeIdent( "dupe", Content.Id.ToString(), "local" ),
+                Title = Content.GetMeta<string>( "name" ) ?? Game.Language.GetPhrase( "ui.dupe.untitled" ),
+                Icon = null,
+            } );
+
+            menu.Open( this, Popup.PositionMode.UnderMouse );
+            return;
+        }
+
+        base.OnMouseDown( e );
+    }
+
+    /// <summary>
+    /// Localize the modal label while keeping the workshop metadata key stable.
+    /// </summary>
+    static void AddLocalizedCategory<T>( Modals.WorkshopPublishOptions options, string name, string phrase ) where T : struct, Enum
+    {
+        options.AddCategory<T>( name );
+        var property = options.Categories[name];
+        options.Categories.Remove( name );
+        options.Categories[Game.Language.GetPhrase( phrase )] = property;
+    }
+
+    void Publish()
+    {
+        var options = new Modals.WorkshopPublishOptions();
+        options.Title = Game.Language.GetPhrase( "spawnmenu.dupes.publish_title" );
+        AddLocalizedCategory<DupeCategory>( options, "Category", "spawnmenu.dupes.publish_category" );
+        AddLocalizedCategory<DupeMovement>( options, "Movement", "spawnmenu.dupes.publish_movement" );
+
+        Content.Publish(options);
+    }
+}

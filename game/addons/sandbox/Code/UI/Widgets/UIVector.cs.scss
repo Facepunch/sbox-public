@@ -1,0 +1,98 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	// design for vector control sheets
+	UIVector
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		gap: 6px;
+		margin: 3px 0px;
+
+		// the square with the axis letter, then 1px apart the box with the number
+		> .axis
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			flex-basis: 0px;
+			min-width: 0px;
+			height: 22px;
+			padding: 0px;
+			align-items: stretch;
+			background-color: transparent;
+			border: 0px;
+			font-size: $ui-settings-font;
+			font-weight: 500;
+			color: $ui-text-label;
+			cursor: text;
+
+			// the axis letter, drag it to scrub the value
+			.prefix-label
+			{
+				width: 22px;
+				height: 22px;
+				flex-shrink: 0;
+				margin-right: 1px;
+				text-align: center;
+				line-height: 22px;
+				color: white;
+				font-size: 11px;
+				font-weight: 800;
+				background-color: $ui-blue;
+
+				// the engine draws prefixes faded
+				opacity: 1;
+
+				&:hover
+				{
+					filter: brightness( 0.8 );
+				}
+			}
+
+			.content-label
+			{
+				flex-grow: 1;
+				min-width: 0px;
+				padding: 0px 4px;
+				line-height: 20px;
+				text-align: center;
+				border: 1px solid $ui-blue;
+			}
+		}
+
+		// the empty slot after a Vector2
+		> .filler
+		{
+			border: 0px;
+		}
+	}
+
+	UISheet UIVector
+	{
+		margin: 0;
+
+		> .axis:not(.filler)
+		{
+			height: 34px;
+			align-items: center;
+			background-color: $ui-control-bg;
+			border: 1px solid $ui-field-border;
+			border-radius: 7px;
+			overflow: hidden;
+
+			.prefix-label
+			{
+				margin: 0;
+				background-color: transparent;
+				color: $ui-text-label;
+				border-right: 1px solid $ui-separator;
+			}
+
+			.content-label { border: 0; }
+			&:focus { border-color: $ui-blue; }
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

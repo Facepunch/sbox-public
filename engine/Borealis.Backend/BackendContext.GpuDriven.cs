@@ -915,6 +915,14 @@ internal sealed partial class BackendContext
 						if ( batch.MeshLighting is { } meshLighting && meshLighting.Length == fragmentCount && (uint)batch.FirstArg < (uint)keys.Length )
 							cullBatch.Transform = MeshLightingDraws( tables, keys[batch.FirstArg], meshLighting, bucket.Attributes, pooled, vertexMaterial, pixelMaterial, flags & 0xff, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex ) | MeshDrawList;
 
+						// A model without LODs of its own: its draw's generated levels, which the culls pick per mesh (not an
+						// overlay's, which keeps the surface under it)
+						if ( device.MeshLods && device.LodStore is { } lods && !cull.KeepsOrder && batch.Mesh.Geometry is BackendModel lodModel && lodModel.File.LodCount <= 1 )
+						{
+							var lodColor = r.Color is not null && !bucket.DepthOnly;
+							if ( lodModel.FirstLodRequest( batch.Draw.Mesh, batch.Draw.DrawCall, lodColor ) ) RequestLods( lods, pooled, lodModel, batch.Draw, geometry.BaseVertex, lodColor );
+						}
+
 						var stride = (uint)pooled.VertexCount;
 						(visibilityFirst, vertexBase) = visibility is not null && stride < 1u << 24 && (long)stride * fragmentCount < int.MaxValue && (uint)batch.FirstArg < (uint)keys.Length
 							? tables.Visibility( keys[batch.FirstArg], fragmentCount, (int)stride * fragmentCount )
@@ -2132,6 +2140,18 @@ internal sealed partial class BackendContext
 			var label = material is null ? default : new Lods.LodStore.Label( material, aggregate.Centers[i], aggregate.Extents[i] );
 			store.Request( range, source with { IndexBase = source.IndexBase + (int)arg.FirstIndex, VertexBase = source.VertexBase + arg.BaseVertex }, color, label );
 		}
+	}
+
+	/// <summary>
+	/// Ask for the generated levels of a model's static mesh draw (resident meshes'), built off the frame; <paramref name="color"/>
+	/// for a colour pass's, which publishes them.
+	/// </summary>
+	static void RequestLods( Lods.LodStore store, PooledGeometry pooled, BackendModel model, in RenderMesh.Draw draw, int baseVertex, bool color )
+	{
+		if ( Meshlets.MeshletStore.SourceOf( model, draw.Mesh, draw.DrawCall, pooled.IndexPage, pooled.IndexFormat ) is not { } source ) return;
+		var range = new Meshlets.MeshletStore.Range( pooled.IndexPageSlot, pooled.FirstIndex + (uint)draw.StartIndex, (uint)draw.IndexCount, baseVertex );
+		var label = store.Labelled ? new Lods.LodStore.Label( model.File.Meshes[draw.Mesh].DrawCalls[draw.DrawCall].Material, default, default ) : default;
+		store.Request( range, source with { IndexBase = source.IndexBase + draw.StartIndex, VertexBase = source.VertexBase + baseVertex }, color, label );
 	}
 
 	static void WriteFragments( GpuDrivenTables tables, AggregateObject aggregate, PooledGeometry pooled, uint vertexMaterial, uint pixelMaterial, uint flags, Span<byte> bytes )

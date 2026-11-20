@@ -1,0 +1,29 @@
+{
+	"MasterVolume": "0.10,1.00,0",
+	"LoopedSounds":
+	[
+		{
+			"Volume": "0.25,1.00,0",
+			"SoundFile": "sounds/ambience/forest-day-loop.vsnd"
+		},
+		{
+			"Volume": "0.10,1.00,0",
+			"SoundFile": "sounds/ambience/plains-wind-loop.vsnd"
+		}
+	],
+	"StingSounds":
+	[
+		{
+			"InstanceCount": 1,
+			"RepeatTime": "60.00,200.00,1",
+			"SoundFile": "sounds/ambience/stings/sting-gulls.sound",
+			"Distance": "150.00,250.00,1"
+		},
+		{
+			"InstanceCount": 1,
+			"RepeatTime": "100.00,300.00,1",
+			"SoundFile": "sounds/ambience/stings/sting-crow.sound",
+			"Distance": "100.00,200.00,1"
+		}
+	]
+}

@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Python Deploy",
+      "Type": "vsnd",
+      "Org": "rust",
+      "Ident": "pythondeploy",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/sounds/python-deploy.wav"
+      }
+    }
+  },
+  "guid": "68076f3d-9e08-47fb-a0c7-2f051b62059a"
+}

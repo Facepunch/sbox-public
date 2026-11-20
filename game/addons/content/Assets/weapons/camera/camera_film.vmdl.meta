@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Film Camera",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "camerafilm",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/camera/camera_film.vmdl"
+      }
+    }
+  },
+  "guid": "3be6da7c-3e12-405d-98b9-fd628ec5f603"
+}

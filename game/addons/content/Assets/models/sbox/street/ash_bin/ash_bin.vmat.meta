@@ -1,0 +1,27 @@
+{
+  "guid": "11deed68-00fc-0000-3201-000000000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Ash Bin",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "ashbin",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/ash_bin/ash_bin.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

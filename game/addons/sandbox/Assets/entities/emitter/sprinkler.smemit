@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/emitter/emitter_sprinkler.prefab",
+  "Title": "#asset.sprinkler.title",
+  "Description": "",
+  "__references": [],
+  "__version": 0
+}

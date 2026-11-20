@@ -51,42 +51,54 @@ internal sealed class MeshletSet
 			max = Math.Max( max, index );
 		}
 
-		// Per index value, the last meshlet that numbered it (plus one) and its number there
-		var seen = new int[Indices.Length == 0 ? 0 : max - min + 1];
-		var number = new byte[seen.Length];
-		var vertices = new List<uint>( Indices.Length / 2 );
-		var triangles = new uint[Triangles];
-		var first = new int[Meshlets.Length];
-		var counts = new int[Meshlets.Length];
-		for ( int m = 0; m < Meshlets.Length; m++ )
+		// Per index value, the last meshlet that numbered it (plus one) and its number there; scratch from the shared pools
+		var range = Indices.Length == 0 ? 0 : (int)(max - min + 1);
+		var seen = System.Buffers.ArrayPool<int>.Shared.Rent( range );
+		var number = System.Buffers.ArrayPool<byte>.Shared.Rent( range );
+		var vertices = System.Buffers.ArrayPool<uint>.Shared.Rent( Indices.Length );
+		try
 		{
-			ref readonly var meshlet = ref Meshlets[m];
-			first[m] = vertices.Count;
-			for ( var t = meshlet.FirstTriangle; t < meshlet.FirstTriangle + meshlet.TriangleCount; t++ )
+			seen.AsSpan( 0, range ).Clear();
+			var vertexCount = 0;
+			var triangles = new uint[Triangles];
+			var first = new int[Meshlets.Length];
+			var counts = new int[Meshlets.Length];
+			for ( int m = 0; m < Meshlets.Length; m++ )
 			{
-				uint packed = 0;
-				for ( int c = 0; c < 3; c++ )
+				ref readonly var meshlet = ref Meshlets[m];
+				first[m] = vertexCount;
+				for ( var t = meshlet.FirstTriangle; t < meshlet.FirstTriangle + meshlet.TriangleCount; t++ )
 				{
-					var index = Indices[t * 3 + c];
-					var at = (int)(index - min);
-					if ( seen[at] != m + 1 )
+					uint packed = 0;
+					for ( int c = 0; c < 3; c++ )
 					{
-						if ( vertices.Count - first[m] > byte.MaxValue ) throw new InvalidOperationException( "A meshlet with more than 256 vertices" );
-						seen[at] = m + 1;
-						number[at] = (byte)(vertices.Count - first[m]);
-						vertices.Add( index );
+						var index = Indices[t * 3 + c];
+						var at = (int)(index - min);
+						if ( seen[at] != m + 1 )
+						{
+							if ( vertexCount - first[m] > byte.MaxValue ) throw new InvalidOperationException( "A meshlet with more than 256 vertices" );
+							seen[at] = m + 1;
+							number[at] = (byte)(vertexCount - first[m]);
+							vertices[vertexCount++] = index;
+						}
+
+						packed |= (uint)number[at] << (c * 8);
 					}
 
-					packed |= (uint)number[at] << (c * 8);
+					triangles[t] = packed;
 				}
 
-				triangles[t] = packed;
+				counts[m] = vertexCount - first[m];
 			}
 
-			counts[m] = vertices.Count - first[m];
+			return new MeshletLocal { Vertices = vertices.AsSpan( 0, vertexCount ).ToArray(), Triangles = triangles, FirstVertex = first, VertexCount = counts };
 		}
-
-		return new MeshletLocal { Vertices = [.. vertices], Triangles = triangles, FirstVertex = first, VertexCount = counts };
+		finally
+		{
+			System.Buffers.ArrayPool<int>.Shared.Return( seen );
+			System.Buffers.ArrayPool<byte>.Shared.Return( number );
+			System.Buffers.ArrayPool<uint>.Shared.Return( vertices );
+		}
 	}
 }
 

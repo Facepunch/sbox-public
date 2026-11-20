@@ -24,7 +24,7 @@ public class SceneDynamicObject : SceneObject
 	{
 		Assert.IsValid( sceneWorld );
 
-		if ( RenderBackend.Default is not Source2RenderBackend ) ManagedVertices = new List<Vertex>();
+		ManagedVertices = new List<Vertex>();
 
 		using ( var h = IHandle.MakeNextHandle( this ) )
 		{

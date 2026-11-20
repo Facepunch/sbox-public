@@ -1,0 +1,219 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "sandbox.vmat"
+								to = "materials/construction/robotics/robotics_hs.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/construction/robotics/robotics_hs.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/construction/steel-structures/src/truss_144.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"truss_144_LOD0",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD0",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 100.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "truss_144_phys"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/construction/steel-structures/src/truss_144_phys.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerMesh"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"truss_144_phys_00",
+								"truss_144_phys_01",
+								"truss_144_phys_02",
+								"truss_144_phys_03",
+								"truss_144_phys_04",
+								"truss_144_phys_05",
+								"truss_144_phys_06",
+								"truss_144_phys_07",
+								"truss_144_phys_08",
+								"truss_144_phys_09",
+								"truss_144_phys_10",
+								"truss_144_phys_11",
+								"truss_144_phys_12",
+								"truss_144_phys_13",
+								"truss_144_phys_14",
+								"truss_144_phys_15",
+								"truss_144_phys_16",
+								"truss_144_phys_17",
+								"truss_144_phys_18",
+								"truss_144_phys_19",
+								"truss_144_phys_20",
+								"truss_144_phys_21",
+								"truss_144_phys_22",
+								"truss_144_phys_23",
+								"truss_144_phys_24",
+								"truss_144_phys_25",
+								"truss_144_phys_26",
+								"truss_144_phys_27",
+								"truss_144_phys_28",
+								"truss_144_phys_29",
+								"truss_144_phys_30",
+								"truss_144_phys_31",
+								"truss_144_phys_32",
+								"truss_144_phys_33",
+								"truss_144_phys_34",
+								"truss_144_phys_35",
+								"truss_144_phys_36",
+								"truss_144_phys_37",
+								"truss_144_phys_38",
+								"truss_144_phys_39",
+								"truss_144_phys_40",
+								"truss_144_phys_41",
+								"truss_144_phys_42",
+								"truss_144_phys_43",
+								"truss_144_phys_44",
+								"truss_144_phys_45",
+								"truss_144_phys_46",
+								"truss_144_phys_47",
+								"truss_144_phys_48",
+								"truss_144_phys_49",
+								"truss_144_phys_50",
+								"truss_144_phys_51",
+								"truss_144_phys_52",
+								"truss_144_phys_53",
+								"truss_144_phys_54",
+								"truss_144_phys_55",
+								"truss_144_phys_56",
+								"truss_144_phys_57",
+								"truss_144_phys_58",
+								"truss_144_phys_59",
+								"truss_144_phys_60",
+								"truss_144_phys_61",
+								"truss_144_phys_62",
+								"truss_144_phys_63",
+								"truss_144_phys_64",
+								"truss_144_phys_65",
+								"truss_144_phys_66",
+								"truss_144_phys_67",
+								"truss_144_phys_68",
+								"truss_144_phys_69",
+								"truss_144_phys_70",
+								"truss_144_phys_71",
+								"truss_144_phys_72",
+								"truss_144_phys_73",
+								"truss_144_phys_74",
+								"truss_144_phys_75",
+								"truss_144_phys_76",
+								"truss_144_phys_77",
+								"truss_144_phys_78",
+								"truss_144_phys_79",
+								"truss_144_phys_80",
+								"truss_144_phys_81",
+								"truss_144_phys_82",
+								"truss_144_phys_83",
+								"truss_144_phys_84",
+								"truss_144_phys_85",
+								"truss_144_phys_86",
+							]
+						}
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

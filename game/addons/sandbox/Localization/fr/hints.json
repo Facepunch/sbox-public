@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Maintenez {input:SpawnMenu} pour ouvrir le menu de création",
+    "hint.openinspectmenu": "Maintenez {input:InspectMenu} pour ouvrir le menu d'inspection",
+    "hint.openpausemenu": "Appuyez sur Échap pour ouvrir le menu Pause et consulter les commandes"
+}

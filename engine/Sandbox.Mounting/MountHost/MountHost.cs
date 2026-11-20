@@ -28,6 +28,11 @@ internal class MountHost : IDisposable
 
 	public IReadOnlyCollection<BaseGameMount> All => Sources.Values;
 
+	/// <summary>
+	/// Called after a mount was mounted or shut down, whichever way it came about.
+	/// </summary>
+	internal Action<BaseGameMount> MountStateChanged;
+
 	public MountHost( Configuration config )
 	{
 		Steam = config.SteamIntegration;

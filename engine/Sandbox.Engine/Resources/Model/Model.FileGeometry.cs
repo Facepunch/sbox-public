@@ -16,7 +16,7 @@ public partial class Model
 	/// </summary>
 	ModelFile FileGeometry()
 	{
-		if ( Graphics.HasSource2Device || IsProcedural || Graphics.BorealisGpuContent is not { } content ) return null;
+		if ( IsProcedural || Graphics.BorealisGpuContent is not { } content ) return null;
 		var path = ResourcePath;
 		if ( string.IsNullOrEmpty( path ) ) return null;
 		if ( fileGeometry.TryGetValue( this, out var known ) ) return known;

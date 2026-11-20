@@ -15,17 +15,17 @@ internal partial class GlobalContext
 	public Assembly LocalAssembly { get; set; }
 
 	/// <summary>
-	/// Publishes script assemblies through this context's package loader, installing the
-	/// incoming catalog after ordinary hotload has migrated references.
+	/// Queues reference migration through the package loader after the script types are registered.
+	/// Returns a migration error if the queued swap was interrupted. An exception means queuing itself failed.
 	/// </summary>
-	internal Action<Assembly, Assembly, Action> ReplaceScriptAssembly { get; set; }
+	internal Func<Assembly, Assembly, Exception> ReplaceScriptAssembly { get; set; }
 
 	/// <summary>
 	/// Rebuilds existing script types before their C# dependencies migrate, without creating a scripting context.
 	/// </summary>
-	internal ScriptSystem.AssemblyHotload PrepareScriptHotload( IReadOnlyList<Assembly> incoming, Action<Assembly, Assembly> replace )
+	internal IDisposable PrepareScriptHotload( IReadOnlyList<Assembly> incoming, HotloadManager manager )
 	{
-		return scripting?.PrepareHotload( incoming, replace );
+		return scripting?.PrepareHotload( incoming, manager );
 	}
 
 	/// <summary>

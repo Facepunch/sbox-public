@@ -1,0 +1,55 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	F_MULTIBLEND 2 // 3 Layers
+
+	//---- Use Tint Masks In Vertex Paint ----
+	F_USE_TINT_MASKS_IN_VERTEX_PAINT 1
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/sbox/floor/floor_tile_01_ao.png"
+	TextureBlendMaskA "materials/sbox/floor/floor_tile_01_blend.png"
+	TextureColorA "materials/sbox/floor/floor_tile_01_color.png"
+	TextureMetalnessA "materials/default/default_metal.tga"
+	TextureNormalA "materials/sbox/floor/floor_tile_01_normal.png"
+	TextureRoughnessA "materials/sbox/floor/floor_tile_01_rough.png"
+	TextureTintMaskA "materials/default/default.tga"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "0.200"
+	g_flTintColorB "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale2 "[1.000 1.000]"
+	TextureAmbientOcclusionB "[1.000000 1.000000 1.000000 0.000000]"
+	TextureBlendMaskB "materials/sbox/floor/floor_tile_01_blend.png"
+	TextureColorB "materials/sbox/floor/floor_tile_01_wet_color.png"
+	TextureMetalnessB "materials/default/default_metal.tga"
+	TextureNormalB "[0.501961 0.501961 1.000000 0.000000]"
+	TextureRoughnessB "[0.002000 0.002000 0.002000 0.000000]"
+	TextureTintMaskB "materials/default/default.tga"
+
+	//---- Material C ----
+	g_flBlendSoftnessC "0.170"
+	g_flTintColorC "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale3 "[1.000 1.000]"
+	TextureAmbientOcclusionC "[1.000000 1.000000 1.000000 0.000000]"
+	TextureBlendMaskC "materials/sbox/floor/floor_tile_01_blend.png"
+	TextureColorC "materials/sbox/floor/dirt_ground_02_color.tga"
+	TextureMetalnessC "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormalC "materials/sbox/floor/dirt_ground_02_normal.tga"
+	TextureRoughnessC "materials/sbox/floor/dirt_ground_02_rough.tga"
+	TextureTintMaskC "[0.000000 0.000000 0.000000 0.000000]"
+
+	SystemAttributes
+	{
+		WorldMappingWidth "128"
+		WorldMappingHeight "128"
+		PhysicsSurfaceProperties "concrete"
+	}
+}

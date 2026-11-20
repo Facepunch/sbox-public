@@ -15,7 +15,7 @@ public static partial class Stats
 		/// <summary>
 		/// Get the stats for the local player
 		/// </summary>
-		public static PlayerStats Local => Stats.GetLocalPlayerStats( Application.MapPackage?.GetIdent( false, false ) ?? "local.map" );
+		public static PlayerStats Local => Stats.GetLocalPlayerStats( Application.MapPackage?.FullIdent ?? "local.map" );
 
 		/// <summary>
 		/// Get the global stats
@@ -24,7 +24,7 @@ public static partial class Stats
 		[Category( "Services/Stats" )]
 		[Icon( "emoji_events" )]
 		[ActionGraphNode( "services.stats.map.getglobal" )]
-		public static GlobalStats Global => Stats.GetGlobalStats( Application.MapPackage?.GetIdent( false, false ) ?? "local.map" );
+		public static GlobalStats Global => Stats.GetGlobalStats( Application.MapPackage?.FullIdent ?? "local.map" );
 
 		/// <summary>
 		/// Add a stat value for this package
@@ -38,7 +38,7 @@ public static partial class Stats
 			var package = Application.MapPackage;
 			if ( package is not null )
 			{
-				var ident = package.GetIdent( false, false );
+				var ident = package.FullIdent;
 				Api.Stats.AddIncrement( ident, name, amount, GetObjectDictionary( data ) );
 			}
 

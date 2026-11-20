@@ -197,6 +197,25 @@ public partial class Texture
 		// if no filesystem provided
 		filesystem ??= GlobalContext.Current.FileMount;
 
+		// Project menu artwork is available before the game's assets are mounted. Keep the
+		// qualified path as the texture's identity, but read the image from that project's folder.
+		if ( filepath.StartsWith( "project:" ) )
+		{
+			var separator = filepath.IndexOf( '/' );
+			if ( separator < 0 ) return null;
+
+			var project = Project.FindByIdent( filepath[8..separator] );
+			var image = filepath[(separator + 1)..];
+			if ( project?.FileSystem is null || image.Contains( ':' ) || image.Split( '/' ).Contains( ".." ) ) return null;
+
+			if ( TextureLoader.SvgLoader.IsAppropriate( image ) )
+				return TextureLoader.SvgLoader.Load( project.FileSystem, image, warnOnMissing );
+
+			return TextureLoader.Image.IsAppropriate( image )
+				? TextureLoader.Image.Load( project.FileSystem, image, warnOnMissing )
+				: null;
+		}
+
 		//
 		// Svg Loader
 		//

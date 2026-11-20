@@ -1,0 +1,84 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+<root>
+    <HudCanvas @ref="Canvas" Layer=@this />
+</root>
+
+@code
+{
+    /// <summary>
+    /// The HUD colour when nothing has set one, also what the HUD panels fall back to without a layer
+    /// </summary>
+    public static readonly Color DefaultTint = new Color( 0.97f, 0.77f, 0.302f );
+
+    /// <summary>
+    /// Colour multiplied into every HUD element
+    /// </summary>
+    [Property] public Color Tint { get; set; } = DefaultTint;
+
+    /// <summary>
+    /// The colour the HUD paints with: the player's HUD colour if they picked one, otherwise <see cref="Tint"/>. Always opaque, see <see cref="Opacity"/>.
+    /// </summary>
+    public Color CurrentTint => (GamePreferences.HudColorOverride ?? Tint).WithAlpha( 1 );
+
+    /// <summary>
+    /// How opaque the HUD and its glow are, the alpha of the player's HUD colour
+    /// </summary>
+    public float Opacity => GamePreferences.HudColorOverride?.a ?? 1f;
+
+    /// <summary>
+    /// HDR color exponent for highlighted HUD elements like digits or selected hotbar slots
+    /// </summary>
+    [Property, Group( "Effects" ), Range( 0, 6 )] public float DigitExponent { get; set; } = 0.75f;
+
+    /// <summary>
+    /// HDR color exponent for regular HUD text
+    /// </summary>
+    [Property, Group( "Effects" ), Range( 0, 6 )] public float TextExponent { get; set; } = 0.16f;
+
+    /// <summary>
+    /// HDR multipliers from <see cref="DigitExponent"/> and <see cref="TextExponent"/>
+    /// </summary>
+    public float DigitGain => MathF.Pow( 2, DigitExponent );
+    public float TextGain => MathF.Pow( 2, TextExponent );
+
+    [Property, Group( "Effects" ), Range( 0, 1 )] public float GlowStrength { get; set; } = 0.22f;
+
+    [Property, Group( "Effects" ), Range( 0, 48 )] public float GlowRadius { get; set; } = 20;
+
+    [Property, Group( "Effects" ), Range( 0, 1 )] public float ScanlineIntensity { get; set; } = 0.46f;
+
+    /// <summary>
+    /// Scanline frequency in pixels
+    /// </summary>
+    [Property, Group( "Effects" ), Range( 2, 12 )] public float ScanlinePeriod { get; set; } = 3.7f;
+
+    [Property, Group( "Effects" ), Range( 0, 1 )] public float ScanlineThickness { get; set; } = 0.55f;
+
+    [Property, Group( "Effects" ), Range( 0, 1 )] public float ScanlineSoftness { get; set; } = 0.04f;
+
+    public HudCanvas Canvas { get; private set; }
+
+    /// <summary>
+    /// The scene's HUD layer. With <paramref name="create"/> it is added next to the screen panel <paramref name="from"/> lives under if there isn't one yet
+    /// </summary>
+    public static HudLayer Find( Component from, bool create = true )
+    {
+        var layer = from.Scene?.Get<HudLayer>();
+        if ( layer.IsValid() || !create ) return layer;
+
+        var screen = from.Components.GetInAncestorsOrSelf<ScreenPanel>();
+        return screen.IsValid() ? screen.GameObject.Components.GetOrCreate<HudLayer>() : null;
+    }
+
+    /// <summary>
+    /// A section of the scene's HUD layer. Hand back the previous result to skip the scene lookup while its canvas is still alive
+    /// </summary>
+    public static T FindSection<T>( Component from, T cached ) where T : HudSection, new()
+        => cached?.Canvas is { } canvas && canvas.IsValid() ? cached : Find( from )?.Canvas?.Section<T>();
+
+    protected override int BuildHash() => 0;
+}

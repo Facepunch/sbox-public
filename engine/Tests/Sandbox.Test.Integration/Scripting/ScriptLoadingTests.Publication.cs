@@ -38,12 +38,12 @@ public partial class ScriptLoadingTests
 	}
 
 	/// <summary>
-	/// Registration callback failures stop script dispatch until reset and leave no script types after cleanup.
+	/// A failed registration skips startup. Correcting the callback lets the same context publish again.
 	/// </summary>
 	[DataTestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
-	public void RegistrationFailureRequiresContextReset( bool reload )
+	public void RegistrationFailureRecoversInSameContext( bool reload )
 	{
 		AddRegistrationProbes();
 		const string source = "[ScriptRegistrationProbe] class NotificationComponent : Component { } [Global] int Started = 0; Started++;";
@@ -51,6 +51,8 @@ public partial class ScriptLoadingTests
 		if ( reload )
 		{
 			Assert.IsTrue( scripting.Load( source, "notification.csx" ), scripting.LastError?.ToString() );
+			scene = new Scene();
+			reloadRoots = [scene.CreateObject().Components.Create( Game.TypeLibrary.GetType( "NotificationComponent" ) )];
 		}
 
 		ScriptRegistrationProbeAttribute.FailRegistration = true;
@@ -58,16 +60,20 @@ public partial class ScriptLoadingTests
 		Assert.IsFalse( scripting.Load( replacement, "notification.csx" ) );
 		StringAssert.Contains( scripting.LastError.Message, "Registration probe failure." );
 		Assert.ThrowsException<InvalidOperationException>( () => scripting.Run<int>( "return 42;" ) );
-		Assert.ThrowsException<InvalidOperationException>( () => scripting.Load( source, "notification.csx" ) );
+		ScriptRegistrationProbeAttribute.FailRegistration = false;
+		Assert.IsTrue( scripting.Load( source, "notification.csx" ), scripting.LastError?.ToString() );
+		Assert.IsFalse( scripting.RequiresReload );
+		Assert.AreSame( Game.TypeLibrary.GetType( "NotificationComponent" ).TargetType, TypeLibrary.Editor.GetType( "NotificationComponent" ).TargetType );
+		Assert.AreEqual( reload ? 2 : 1, scripting.Globals.Get<int>( "Started" ) );
+		Assert.AreEqual( reload ? 3 : 1, ScriptRegistrationProbeAttribute.Unregistrations );
+		if ( reload )
+		{
+			Assert.AreSame( Game.TypeLibrary.GetType( "NotificationComponent" ).TargetType, reloadRoots[0].GetType() );
+		}
 
 		context.Reset();
 		Assert.IsNull( Game.TypeLibrary.GetType( "NotificationComponent" ) );
 		Assert.IsNull( TypeLibrary.Editor.GetType( "NotificationComponent" ) );
-		Assert.AreEqual( reload ? 3 : 1, ScriptRegistrationProbeAttribute.Unregistrations );
-
-		ScriptRegistrationProbeAttribute.FailRegistration = false;
-		Assert.IsTrue( Game.Scripting.Load( source, "notification.csx" ), Game.Scripting.LastError?.ToString() );
-		Assert.AreEqual( 1, Game.Scripting.Globals.Get<int>( "Started" ) );
 	}
 
 	/// <summary>

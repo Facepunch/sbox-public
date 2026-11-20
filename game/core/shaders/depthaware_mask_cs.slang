@@ -1,5 +1,4 @@
-// depthaware_mask_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// depthaware_mask_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DepthAwareMask_CS.shader
 //
@@ -17,12 +16,12 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
+#include "sbox/system.slangh" // This should always be the first include in COMMON
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-    #include "common.fxc"
-    #include "math_general.fxc"
+    #include "sbox/view.slangh"
+    #include "sbox/math.slangh"
 
     #include "common/classes/Depth.hlsl"
     #include "common/classes/Motion.hlsl"

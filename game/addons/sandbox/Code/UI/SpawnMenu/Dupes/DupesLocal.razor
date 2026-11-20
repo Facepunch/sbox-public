@@ -1,0 +1,57 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+@{
+	var dupes = Storage.GetAll( "dupe" ).OrderByDescending( x => x.Created ).ToArray();
+}
+
+<SpawnMenuContent>
+    <Body>
+		@if ( dupes.Length == 0 )
+		{
+			<SpawnMenuEmptyState Icon="content_copy" Title="#spawnmenu.dupes.empty_local" />
+		}
+		else
+		{
+			<VirtualGrid Items=@dupes ItemSize=@(new Vector2( 240, 180 ))>
+				<Item Context="item">
+					@if ( item is Storage.Entry content )
+					{
+						<LocalDupeIcon Content="@content" @onclick="@(() => SwitchToDupe( content ))" />
+					}
+				</Item>
+			</VirtualGrid>
+		}
+    </Body>
+
+</SpawnMenuContent>
+
+@code
+{
+    void SwitchToDupe( Storage.Entry content )
+    {
+		var localPlayer = Player.FindLocalPlayer();
+		if ( localPlayer == null ) return;
+
+		var inventory = localPlayer.GetComponent<PlayerInventory>();
+		if ( !inventory.IsValid() ) return;
+
+		inventory.SetToolMode( "Duplicator" );
+
+		var toolmode = localPlayer.GetComponentInChildren<DuplicatorTool>();
+
+		if ( toolmode is null )
+		{
+			// we are a client and didn't switch tools in time, we need to wait for the server to tell us we have the tool
+			// Some kind of async wait on an rpc would work, probably.
+			Log.Warning( "I thought this might happen. We are a client and didn't switch tools in time." );
+			return;
+		}
+
+		var json = content.Files.ReadAllText( "/dupe.json" );
+		toolmode.Load( json );
+    }
+
+}

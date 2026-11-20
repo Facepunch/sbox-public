@@ -1,0 +1,26 @@
+{
+  "guid": "02080110-0000-0000-f0e2-ce0ffc000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Security Shutter",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "security_shutter",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter.vmat",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

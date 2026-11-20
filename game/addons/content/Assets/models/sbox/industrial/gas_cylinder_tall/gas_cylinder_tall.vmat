@@ -1,0 +1,59 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- Color ----
+	F_TINT_MASK 1
+
+	//---- Detail Texture ----
+	F_DETAIL_TEXTURE 4 // Overlay and Normals
+
+	//---- PBR ----
+	F_METALNESS_TEXTURE 1
+	F_SPECULAR 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.000"
+	g_flAmbientOcclusionDirectSpecular "0.000"
+	TextureAmbientOcclusion "models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall_ao.tga"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[0.909804 0.317647 0.184314 1.000000]"
+	TextureColor "models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall_color.tga"
+	TextureTintMask "models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall_mask.tga"
+
+	//---- Detail Texture ----
+	g_flDetailBlendFactor "1.000"
+	g_flDetailBlendToFull "0.000"
+	g_flDetailNormalStrength "1.000"
+	g_flDetailTexCoordRotation "0.000"
+	g_vDetailTexCoordOffset "[0.000 0.000]"
+	g_vDetailTexCoordScale "[7.000 7.000]"
+	TextureDetail "textures/detail/paint_cracked_detail_color.png"
+	TextureDetailMask "models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall_ao.tga"
+	TextureNormalDetail "materials/sbox/detail/paint_cracked_detail_normal.png"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	TextureMetalness "models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall_metal.tga"
+
+	//---- Normal ----
+	TextureNormal "models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall_normal.tga"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall_rough.tga"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+}

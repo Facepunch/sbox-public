@@ -30,34 +30,6 @@ internal static class ScreenshotService
 		return filePath;
 	}
 
-	internal static void ProcessFrame( IRenderContext context, ITexture nativeTexture )
-	{
-		if ( nativeTexture.IsNull || !nativeTexture.IsStrongHandleValid() )
-			return;
-
-		while ( _pendingRequests.TryDequeue( out var request ) )
-		{
-			CaptureRenderTexture( context, nativeTexture, request.FilePath );
-		}
-	}
-
-	/// <summary>
-	/// Captures the current render target and saves it to the specified file.
-	/// </summary>
-	private static void CaptureRenderTexture( IRenderContext context, ITexture nativeTexture, string filePath )
-	{
-		try
-		{
-			context.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) => Save( pData, format, width, height, filePath ) );
-
-			Log.Info( $"Screenshot saved to: {filePath}" );
-		}
-		catch ( Exception ex )
-		{
-			Log.Error( $"Error capturing screenshot: {ex.Message}" );
-		}
-	}
-
 	/// <summary>
 	/// Take the screenshots asked for from a Borealis.Gpu window's finished frame, <paramref name="frame"/> (RGBA8, as the window
 	/// presents it), read back once its last block has been submitted.

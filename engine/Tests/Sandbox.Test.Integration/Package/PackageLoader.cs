@@ -53,7 +53,7 @@ public partial class PackageLoaderTest
 	[DataRow( "fdd.dark_descent" )]
 	[DataRow( "fish.cat_harvest" )]
 	[DataRow( "facepunch.sbdm" )]
-	[DataRow( "facepunch.sandbox" )]
+	[DataRow( "facepunch.ss2" )]
 	public async Task LoadSingleGamePackage( string packageName )
 	{
 		var (library, packageLoader, enroller) = Preamble();

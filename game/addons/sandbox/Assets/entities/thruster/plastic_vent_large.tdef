@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/thruster/plastic_vent_large.prefab",
+  "Title": "#asset.plastic_vent_large.title",
+  "Description": "",
+  "__references": [],
+  "__version": 0
+}
