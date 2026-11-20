@@ -281,7 +281,7 @@ internal static class SurfaceParity
 	/// <summary>The shaders written the common/pixel.hlsl way that convert as they are, by their path under the game folder.</summary>
 	static readonly string[] Convertible =
 	[
-		"templates/material.shader", "core/shaders/water_simple.shader", "core/shaders/terrain_preview.shader", "core/shaders/bark.shader", "core/shaders/foliage.shader",
+		"core/shaders/water_simple.shader", "core/shaders/terrain_preview.shader", "core/shaders/bark.shader", "core/shaders/foliage.shader",
 		"mount/quake/Assets/shaders/simple_color.shader", "mount/quake/Assets/shaders/quake_sky.shader", "mount/quake/Assets/shaders/quake_water.shader",
 		"mount/goldsrc/Assets/shaders/goldsrc.shader", "mount/se3/Assets/shaders/se3.shader",
 	];
