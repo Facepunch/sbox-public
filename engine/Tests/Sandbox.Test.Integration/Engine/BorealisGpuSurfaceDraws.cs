@@ -64,10 +64,14 @@ public class BorealisGpuSurfaceDrawsTest
 	/// <summary>
 	/// A quad facing the camera drawn by a custom object with a material, from CPU vertices and from a vertex buffer: it
 	/// draws, not the error colour, and the two ways match. Standard's quad is lit as the scene's box face beside it is.
+	/// Materials made or changed in code are drawn by the scene too (the box on the left takes them as its override), and
+	/// both take what code set: a tint, a texture.
 	/// </summary>
 	[TestMethod]
 	[DataRow( "materials/dev/primary_white.vmat" )]
 	[DataRow( "made in code" )]
+	[DataRow( "made skin" )]
+	[DataRow( "set in code" )]
 	[DataRow( "models/citizen/skin/citizen_skin.vmat" )]
 	[DataRow( "models/citizen_clothes/hat/Gasmask/Textures/gasmask_glass.vmat" )]
 	[DataRow( "materials/dev/simple/simple_blend.vmat" )]
@@ -77,18 +81,33 @@ public class BorealisGpuSurfaceDrawsTest
 		TestGraphics.Require();
 		MountCitizen();
 
+		// Made in code from a shader a surface alone draws (complex is standard's; skin), and a file's copy with a value set
 		Material material;
-		if ( materialPath == "made in code" )
+		var inCode = !materialPath.Contains( '/' );
+		switch ( materialPath )
 		{
-			material = Material.Create( "surface draws made in code", "shaders/complex.shader" );
-			material.Set( "g_vColorTint", Color.Red );
-			material.Set( "g_tColor", Texture.White );
+			case "made in code":
+				material = Material.Create( "surface draws made in code", "shaders/complex.shader" );
+				material.Set( "g_vColorTint", Color.Red );
+				material.Set( "g_tColor", Texture.White );
+				break;
+			case "made skin":
+				material = Material.Create( "surface draws made skin", "shaders/skin.shader" );
+				material.Set( "g_tColor", Texture.White );
+				break;
+			case "set in code":
+				material = Material.Load( "materials/dev/primary_white.vmat" ).CreateCopy();
+				material.Set( "g_vColorTint", Color.Green );
+				break;
+			default:
+				material = Material.Load( materialPath );
+				break;
 		}
-		else material = Material.Load( materialPath );
+
 		Assert.IsNotNull( material, materialPath );
 
-		var name = materialPath == "made in code" ? "made" : Path.GetFileNameWithoutExtension( materialPath );
-		var results = new List<Vector3>();
+		var name = inCode ? materialPath.Replace( ' ', '_' ) : Path.GetFileNameWithoutExtension( materialPath );
+		var results = new List<(Vector3 Scene, Vector3 Custom)>();
 		foreach ( var buffered in new[] { false, true } )
 		{
 			var world = new SceneWorld();
@@ -96,7 +115,8 @@ public class BorealisGpuSurfaceDrawsTest
 			try
 			{
 				Light( world );
-				_ = new SceneModel( world, Model.Load( "models/dev/box.vmdl" ), Left );
+				var box = new SceneModel( world, Model.Load( "models/dev/box.vmdl" ), Left );
+				if ( inCode ) box.SetMaterialOverride( material );
 				var quad = Quad( Right.Position );
 				if ( buffered ) buffer = new GpuBuffer<Vertex>( quad.Length, GpuBuffer.UsageFlags.Vertex );
 				buffer?.SetData( quad );
@@ -107,8 +127,7 @@ public class BorealisGpuSurfaceDrawsTest
 					else Graphics.Draw( quad.AsSpan(), quad.Length, material );
 				};
 
-				var (_, right) = Halves( world, $"quad-{name}-{(buffered ? "buffer" : "vertices")}" );
-				results.Add( right );
+				results.Add( Halves( world, $"quad-{name}-{(buffered ? "buffer" : "vertices")}" ) );
 			}
 			finally
 			{
@@ -117,10 +136,24 @@ public class BorealisGpuSurfaceDrawsTest
 			}
 		}
 
-		Assert.IsTrue( results[0].Length > 1, $"{materialPath} drew ({results[0]})" );
-		Assert.IsFalse( results[0].x > 4 * results[0].y && results[0].z > 4 * results[0].y && materialPath != "made in code", $"{materialPath} isn't the error colour ({results[0]})" );
-		AssertClose( results[0], results[1], $"{materialPath}: CPU vertices and a vertex buffer draw the same" );
-		if ( materialPath == "made in code" ) Assert.IsTrue( results[0].x > 3 * results[0].y && results[0].x > 3 * results[0].z, $"its tint set in code is red ({results[0]})" );
+		var (scene, drawn) = results[0];
+		Assert.IsTrue( drawn.Length > 1, $"{materialPath} drew ({drawn})" );
+		Assert.IsFalse( drawn.x > 4 * drawn.y && drawn.z > 4 * drawn.y && !inCode, $"{materialPath} isn't the error colour ({drawn})" );
+		AssertClose( drawn, results[1].Custom, $"{materialPath}: CPU vertices and a vertex buffer draw the same" );
+		if ( inCode ) Assert.IsTrue( scene.Length > 1, $"the scene draws {materialPath} ({scene})" );
+
+		// What code set reaches both: the tint
+		if ( materialPath == "made in code" )
+		{
+			Assert.IsTrue( drawn.x > 3 * drawn.y && drawn.x > 3 * drawn.z, $"its tint set in code is red ({drawn})" );
+			Assert.IsTrue( scene.x > 3 * scene.y && scene.x > 3 * scene.z, $"the scene's is red too ({scene})" );
+		}
+
+		if ( materialPath == "set in code" )
+		{
+			Assert.IsTrue( drawn.y > 3 * drawn.x && drawn.y > 3 * drawn.z, $"its tint set in code is green ({drawn})" );
+			Assert.IsTrue( scene.y > 3 * scene.x && scene.y > 3 * scene.z, $"the scene's is green too ({scene})" );
+		}
 	}
 
 	static void MountCitizen()
