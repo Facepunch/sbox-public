@@ -1,5 +1,4 @@
-// gizmo_grid: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// gizmo_grid: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //
 // An anti-aliased grid shader with major & axis lines.
 // Based on https://bgolus.medium.com/the-best-darn-grid-shader-yet-727f9278b9d8#3e73

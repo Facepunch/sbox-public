@@ -1,5 +1,4 @@
-// tools_sprite: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// tools_sprite: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // The .shader's geometry stage makes a quad of each point. Here the vertex stage does it: the draw runs four vertices
 // per point (ExpandPrimitives), with the point as per-instance inputs, and each vertex makes one corner. A point the
 // box test rejects collapses to nothing.
