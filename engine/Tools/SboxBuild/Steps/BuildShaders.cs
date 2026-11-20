@@ -57,7 +57,6 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 	static readonly string[] GpuDrivenShaders =
 	[
 		"core/shaders/complex.shader",
-		"core/shaders/glass.shader",
 		"core/shaders/generic.shader",
 		"core/shaders/simple.shader",
 	];

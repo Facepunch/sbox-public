@@ -509,7 +509,7 @@ public class PassModuleTests : GpuTest
 	[TestMethod]
 	public void PixelStateMatchesTheVariantWithoutMakingIt()
 	{
-		string[] paths = ["shaders/complex.shader", "shaders/gizmo/gizmo_line.shader", "shaders/tools_solid.shader", "shaders/glass.shader", "shaders/postprocess/ObjectHighlight/ObjectHighlight.shader"];
+		string[] paths = ["shaders/complex.shader", "shaders/gizmo/gizmo_line.shader", "shaders/tools_solid.shader", "shaders/postprocess/ObjectHighlight/ObjectHighlight.shader"];
 		using var backend = new BackendDevice( Device );
 		var library = backend.Shaders;
 		var modules = (PassModules)library.Modules;
