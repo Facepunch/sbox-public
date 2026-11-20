@@ -949,28 +949,45 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		return made;
 	}
 
-	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file
+	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file,
+	// copied from the mips its read staged (StageAheadBytes) when uploads are deferred into a list
 	TextureHandle CreateTexture( TextureFile texture, string path )
 	{
 		if ( !imagesAhead.TryRemove( path, out var ahead ) ) return texture.Create( Gpu, path );
 		if ( ahead.File != texture )
 		{
-			Gpu.Destroy( ahead.Image );
+			DestroyAhead( ahead );
 			return texture.Create( Gpu, path );
 		}
 
 		try
 		{
-			for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+			if ( ahead.Staged.IsValid && Gpu.DeferredList is { } list )
+			{
+				texture.CopyStaged( list, ahead.Staged, ahead.Image );
+				StagedTextures++;
+			}
+			else
+			{
+				for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+			}
 		}
 		catch
 		{
 			Gpu.Destroy( ahead.Image );
 			throw;
 		}
+		finally
+		{
+			// Once the GPU is done with the copies
+			if ( ahead.Staged.IsValid ) Gpu.Destroy( ahead.Staged );
+		}
 
 		return ahead.Image;
 	}
+
+	/// <summary>Textures made from mips staged on the worker that read them (<see cref="StageAheadBytes"/>), for tests.</summary>
+	internal int StagedTextures { get; private set; }
 
 	/// <inheritdoc/>
 	public override GpuTexture Black => black;
