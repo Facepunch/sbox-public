@@ -152,6 +152,13 @@ internal sealed partial class NetworkObject
 	{
 		if ( data is null ) return;
 
+		// An owner only writes the slots it controls, [Sync( SyncFlags.FromHost )] stays with the host
+		if ( source is not null && !source.IsHost )
+		{
+			var inner = filter;
+			filter = ( slot, entry ) => entry.HasControl( source ) && (inner is null || inner( slot, entry ));
+		}
+
 		var reader = ByteStream.CreateReader( data );
 		dataTable.Read( ref reader, filter, source );
 		reader.Dispose();

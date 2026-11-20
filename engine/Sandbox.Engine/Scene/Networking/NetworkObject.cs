@@ -1024,7 +1024,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return;
 
-		ReadDataTable( tableData );
+		ReadDataTable( tableData, source: source );
 		// Owner and host can refresh at once, an older refresh must not roll the version back
 		var version = DeltaSnapshotSystem.ReadVersion( snapshotData );
 		if ( (short)(version - LocalSnapshotState.Version) > 0 )
