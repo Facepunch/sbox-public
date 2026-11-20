@@ -117,7 +117,11 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	int jitterIndex;
 	double lastDispatch = -1;
 	bool resetHistory;
-	static bool warnedDlss;
+	static bool warnedDlss, warnedFsr3;
+
+	// What an upscaler couldn't be made for, not tried again until the settings or size change: native makes its upscaler
+	// once a change too, and DLSS's library sets itself up each time it's asked
+	(TemporalUpscalerKind Kind, Vector2Int Render, Vector2Int Display)? failed;
 
 	Texture output, intermediate, depth, motionVectors, reactiveMask, temporalDepth;
 	RenderTarget depthTarget, motionTarget, reactiveTarget, temporalDepthTarget;
@@ -143,6 +147,11 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			{
 				warnedDlss = true;
 				Log.Warning( "DLSS (r_upscaling 4) is unavailable on this system (requires an NVIDIA GPU) - falling back to no upscaling." );
+			}
+			else if ( mode == Mode.Fsr3 && !warnedFsr3 )
+			{
+				warnedFsr3 = true;
+				Log.Warning( "FSR3 (r_upscaling 3) couldn't start on this system - falling back to no upscaling." );
 			}
 
 			mode = Mode.Off;
@@ -219,6 +228,8 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		var kind = mode == Mode.Dlss ? TemporalUpscalerKind.Dlss : TemporalUpscalerKind.Fsr3;
 		if ( temporal is not null && temporal.Kind == kind && temporal.RenderSize == (render.x, render.y) && temporal.DisplaySize == (display.x, display.y) ) return true;
 
+		if ( failed == (kind, render, display) ) return false;
+
 		DropTemporal();
 		TemporalUpscaler.Message ??= ( severity, text ) =>
 		{
@@ -226,7 +237,18 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			else Log.Info( $"Borealis.Gpu: {text}" );
 		};
 
-		temporal = TemporalUpscaler.Create( backend.Device, kind, (render.x, render.y), (display.x, display.y) );
+		try
+		{
+			temporal = TemporalUpscaler.Create( backend.Device, kind, (render.x, render.y), (display.x, display.y) );
+		}
+		catch ( Exception e )
+		{
+			// Whatever the library or its loading throws, the frame renders without it
+			Log.Warning( $"Borealis.Gpu: {kind} couldn't be made: {e.Message}" );
+			temporal = null;
+		}
+
+		failed = temporal is null ? (kind, render, display) : null;
 		jitterIndex = 0;
 		lastDispatch = -1;
 		resetHistory = true;
