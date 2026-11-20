@@ -581,7 +581,7 @@ public class SurfaceTests : GpuTest
 			var shaders = Path.Combine( Core, "shaders" );
 			var compiler = new SlangCompiler( bin, [shaders] );
 			string Include( string path ) => File.Exists( Path.Combine( shaders, path ) ) ? File.ReadAllText( Path.Combine( shaders, path ) ) : null;
-			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
+			foreach ( var (relative, name) in new[] { (Path.Combine( AppContext.BaseDirectory, "Data", "material.shader" ), "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
 			{
 				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name, Include );
 				Assert.IsNotNull( result.Source, name );
@@ -822,7 +822,7 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>Core pass modules converted from a .shader whose .shader_c the core keeps, cheapest to compile first.</summary>
-	static readonly string[] ConvertedModules = ["cs_compress_dxt5", "downsample_depth", "debug_show_texture"];
+	static readonly string[] ConvertedModules = ["cs_compress_dxt5", "downsample_depth", "debug_show_texture", "terrain", "eyeball", "water"];
 
 	/// <summary>
 	/// Pass modules compiled in the background: a converted module's variant asked for while its stages compile is its

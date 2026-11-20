@@ -120,6 +120,7 @@ internal class SyncPublicRepo( bool dryRun = false )
 		"game/core/shaders/tools_selection_outline.shader",
 		"game/core/shaders/tools_selection_overlay.shader",
 		"game/core/shaders/tools_selection_stencil_copy.shader",
+		"game/core/shaders/tools_shading_complexity.shader",
 		"game/core/shaders/tools_solid.shader",
 		"game/core/shaders/tools_sprite.shader",
 		"game/core/shaders/tools_textured_unlit.shader",
