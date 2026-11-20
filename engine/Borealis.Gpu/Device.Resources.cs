@@ -18,6 +18,9 @@ internal struct BufferRecord
 
 	/// <summary>Its slot in the bindless raw buffer array plus one, or 0 when it isn't there.</summary>
 	public int BindlessSlot;
+
+	/// <summary>Never moved (<see cref="Device.RelocateDraining"/>): the device's own, whose Vulkan buffer is written where nothing tracks it.</summary>
+	public bool Pinned;
 }
 
 /// <summary>
@@ -244,7 +247,9 @@ public sealed unsafe partial class Device
 
 			SetName( VkObjectType.Buffer, buffer, info.Name );
 			var (index, generation) = Buffers.Add( new BufferRecord { Buffer = buffer, Memory = memory, Size = info.Size, Usage = info.Usage, Location = info.Memory, Name = info.Name } );
-			return new BufferHandle( index, generation );
+			var handle = new BufferHandle( index, generation );
+			Allocator.SetOwner( memory, OwnerOf( handle ) );
+			return handle;
 		}
 	}
 
@@ -380,7 +385,9 @@ public sealed unsafe partial class Device
 		if ( (desc.Usage & TextureUsage.Sampled) != 0 ) record.BindlessIndex = Bindless.AddTexture( record.View, record.SrgbView );
 
 		var (index, generation) = Textures.Add( record );
-		return new TextureHandle( index, generation );
+		var handle = new TextureHandle( index, generation );
+		Allocator.SetOwner( memory, OwnerOf( handle ) );
+		return handle;
 	}
 
 	/// <summary>
@@ -572,7 +579,7 @@ public sealed unsafe partial class Device
 	public long MemorySizeOf( TextureHandle texture ) => (long)Get( texture ).Memory.Size;
 
 	/// <summary>Whether the allocator is emptying any block (<see cref="InDrainingBlock"/>), so a look for what to move is worth it.</summary>
-	public bool Defragmenting => Allocator.AnyDraining;
+	public bool Defragmenting => Allocator.AnyDrainingContent;
 
 	/// <summary>
 	/// A copy of a 2D or cube texture (every mip and layer) in new memory, which the allocator places in room its other blocks
@@ -695,23 +702,14 @@ public sealed unsafe partial class Device
 			Bindless.SetSampler( record.Index, record.Sampler );
 		}
 
-		lock ( setSamplers )
-		{
-			foreach ( var (set, bindings) in setSamplers )
-			{
-				var rewrite = new List<Binding>( bindings.Count );
-				foreach ( var binding in bindings )
-				{
-					if ( remade.Contains( binding.Sampler ) ) rewrite.Add( binding );
-				}
-
-				if ( rewrite.Count == 0 ) continue;
-				WriteDescriptors( set, System.Runtime.InteropServices.CollectionsMarshal.AsSpan( rewrite ) );
-				SamplerBindingsRewritten += rewrite.Count;
-			}
-		}
+		SamplerBindingsRewritten += RewriteSets( new SamplersIn( remade ) );
 
 		foreach ( var sampler in old ) Vk.vkDestroySampler( Vk.Device, sampler, null );
+	}
+
+	readonly struct SamplersIn( HashSet<SamplerHandle> samplers ) : IBindingFilter
+	{
+		public bool Names( in Binding binding ) => binding.Type == BindingType.Sampler && samplers.Contains( binding.Sampler );
 	}
 
 	/// <summary>Sampler bindings of persistent sets <see cref="SetAnisotropyLimit"/> has rewritten, for the tests.</summary>
@@ -1156,7 +1154,17 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a buffer once the GPU is done with it.</summary>
 	public void Destroy( BufferHandle buffer )
 	{
-		var record = Buffers.Remove( buffer.Index, buffer.Generation );
+		BufferRecord record;
+		var gated = EnterGate();
+		try
+		{
+			record = Buffers.Remove( buffer.Index, buffer.Generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
+
 		Defer( () =>
 		{
 			if ( record.BindlessSlot > 0 ) Bindless.RemoveBuffer( record.BindlessSlot - 1 );
@@ -1168,7 +1176,17 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a texture, its views and its bindless entries once the GPU is done with it.</summary>
 	public void Destroy( TextureHandle texture )
 	{
-		var record = Textures.Remove( texture.Index, texture.Generation );
+		TextureRecord record;
+		var gated = EnterGate();
+		try
+		{
+			record = Textures.Remove( texture.Index, texture.Generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
+
 		if ( record.External ) throw new InvalidOperationException( "Swap chain images belong to their swap chain" );
 
 		Defer( () => FreeTexture( record ) );
@@ -1189,7 +1207,17 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a view once the GPU is done with it.</summary>
 	public void Destroy( TextureViewHandle view )
 	{
-		var record = Views.Remove( view.Index, view.Generation );
+		ViewRecord record;
+		var gated = EnterGate();
+		try
+		{
+			record = Views.Remove( view.Index, view.Generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
+
 		Defer( () =>
 		{
 			if ( record.BindlessIndex >= 0 ) Bindless.RemoveTexture( record.BindlessIndex );

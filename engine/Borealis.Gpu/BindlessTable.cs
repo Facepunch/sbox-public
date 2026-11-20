@@ -244,6 +244,13 @@ internal sealed unsafe class BindlessTable : IDisposable
 		return true;
 	}
 
+	/// <summary>Point a raw buffer slot at another buffer: the same one moved in place. Only while no work that uses the table is pending.</summary>
+	public void SetBufferSlot( int slot, ulong buffer, ulong size )
+	{
+		var info = new VkDescriptorBufferInfo { buffer = buffer, range = size == 0 ? Vulkan.Vk.WholeSize : size };
+		Write( ShaderAbi.BindlessBuffers, (uint)slot, VkDescriptorType.StorageBuffer, null, &info );
+	}
+
 	public void RemoveBuffer( int slot )
 	{
 		// Without update-after-bind for storage buffers the slot can't be written while other work uses the table

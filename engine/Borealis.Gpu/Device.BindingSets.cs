@@ -16,6 +16,9 @@ internal struct BindingSetRecord
 {
 	public ulong Set;
 	public ulong SetLayout;
+
+	/// <summary>What it holds, as last written, so a resource remade or moved in place can be written again.</summary>
+	public List<Binding> Bindings;
 }
 
 public sealed unsafe partial class Device
@@ -36,15 +39,25 @@ public sealed unsafe partial class Device
 	{
 		var setLayout = Get( layout ).SetLayout;
 		ulong set;
+		List<Binding> held;
 		lock ( bindingSetPools )
 		{
 			set = freeBindingSets.TryGetValue( setLayout, out var free ) && free.Count > 0 ? free.Pop() : AllocatePersistentSet( setLayout );
+			held = freeBindingLists.TryPop( out var list ) ? list : new List<Binding>( bindings.Length );
 		}
 
-		WriteDescriptors( set, bindings );
-		TrackSamplers( set, bindings, true );
-		var (index, generation) = BindingSets.Add( new BindingSetRecord { Set = set, SetLayout = setLayout } );
-		return new BindingSetHandle( index, generation );
+		var gated = EnterGate();
+		try
+		{
+			WriteDescriptors( set, bindings );
+			Track( held, bindings );
+			var (index, generation) = BindingSets.Add( new BindingSetRecord { Set = set, SetLayout = setLayout, Bindings = held } );
+			return new BindingSetHandle( index, generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
 	}
 
 	/// <summary>
@@ -52,50 +65,96 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public void WriteBindingSet( BindingSetHandle bindingSet, ReadOnlySpan<Binding> bindings )
 	{
-		var set = Get( bindingSet ).Set;
-		WriteDescriptors( set, bindings );
-		TrackSamplers( set, bindings, false );
+		var gated = EnterGate();
+		try
+		{
+			ref var record = ref Get( bindingSet );
+			WriteDescriptors( record.Set, bindings );
+			Track( record.Bindings, bindings );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
 	}
 
-	// Persistent sets' bindings of anisotropic samplers, which SetAnisotropyLimit rewrites when it remakes them
-	readonly Dictionary<ulong, List<Binding>> setSamplers = new();
+	// Lists of what persistent sets hold, kept for the next set: view sets are made and destroyed every frame
+	readonly Stack<List<Binding>> freeBindingLists = new();
 
-	void TrackSamplers( ulong set, ReadOnlySpan<Binding> bindings, bool fresh )
+	/// <summary>What a persistent set holds after <paramref name="bindings"/> are written to it; allocates nothing once the list has room.</summary>
+	static void Track( List<Binding> held, ReadOnlySpan<Binding> bindings )
 	{
-		lock ( setSamplers )
+		foreach ( ref readonly var binding in bindings )
 		{
-			setSamplers.TryGetValue( set, out var list );
-			if ( fresh ) list?.Clear();
-			foreach ( ref readonly var binding in bindings )
-			{
-				// Without allocating: persistent sets are rewritten every frame
-				for ( int i = list is null || fresh ? -1 : list.Count - 1; i >= 0; i-- )
-				{
-					if ( list[i].Slot == binding.Slot && list[i].ArrayElement == binding.ArrayElement ) list.RemoveAt( i );
-				}
+			var i = held.Count - 1;
+			while ( i >= 0 && (held[i].Slot != binding.Slot || held[i].ArrayElement != binding.ArrayElement) ) i--;
+			if ( i >= 0 ) held[i] = binding;
+			else held.Add( binding );
+		}
+	}
 
-				if ( binding.Type != BindingType.Sampler || Get( binding.Sampler ).Info.MaxAnisotropy <= 1 ) continue;
-				if ( list is null ) setSamplers[set] = list = new();
-				list.Add( binding );
+	readonly List<Binding> rewrites = new();
+
+	/// <summary>
+	/// Write again every binding of every persistent set that names a resource <paramref name="names"/> picks: one remade
+	/// or moved in place, whose Vulkan object changed under the same handle. Only while no work that uses the sets is
+	/// pending. Allocates nothing once its scratch has room. Returns the bindings written.
+	/// </summary>
+	int RewriteSets<T>( T names ) where T : IBindingFilter
+	{
+		var written = 0;
+		var limit = BindingSets.Limit;
+		for ( uint index = 1; index < limit; index++ )
+		{
+			ref var record = ref BindingSets.At( index, out _ );
+			if ( record.Set == 0 || record.Bindings is not { } held ) continue;
+
+			rewrites.Clear();
+			foreach ( var binding in held )
+			{
+				if ( names.Names( binding ) ) rewrites.Add( binding );
 			}
 
-			if ( list is { Count: 0 } ) setSamplers.Remove( set );
+			if ( rewrites.Count == 0 ) continue;
+			WriteDescriptors( record.Set, System.Runtime.InteropServices.CollectionsMarshal.AsSpan( rewrites ) );
+			written += rewrites.Count;
 		}
+
+		rewrites.Clear();
+		return written;
+	}
+
+	/// <summary>Which bindings <see cref="RewriteSets"/> writes again.</summary>
+	internal interface IBindingFilter
+	{
+		bool Names( in Binding binding );
 	}
 
 	/// <summary>Destroy a persistent set once the GPU is done with it.</summary>
 	public void Destroy( BindingSetHandle bindingSet )
 	{
-		DeferSet( BindingSets.Remove( bindingSet.Index, bindingSet.Generation ) );
+		var gated = EnterGate();
+		try
+		{
+			DeferSet( BindingSets.Remove( bindingSet.Index, bindingSet.Generation ) );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
 	}
 
 	void FreeSet( in BindingSetRecord record )
 	{
-		lock ( setSamplers ) setSamplers.Remove( record.Set );
 		lock ( bindingSetPools )
 		{
 			if ( !freeBindingSets.TryGetValue( record.SetLayout, out var free ) ) freeBindingSets[record.SetLayout] = free = new();
 			free.Push( record.Set );
+			if ( record.Bindings is { } held )
+			{
+				held.Clear();
+				freeBindingLists.Push( held );
+			}
 		}
 	}
 
@@ -145,6 +204,8 @@ public sealed unsafe partial class Device
 		var buffer = CreateBuffer( new BufferInfo { Size = bufferSize, Usage = BufferUsage.Storage, Name = "Bindless default buffer" } );
 		WriteBuffer( buffer, new byte[bufferSize] );
 
+		// What empty slots point at stays where it is
+		Get( buffer ).Pinned = true;
 		Bindless.SetDefaults( Get( texture ).View, Get( storage ).StorageView, Get( sampler ).Sampler, Get( buffer ).Buffer, bufferSize );
 	}
 

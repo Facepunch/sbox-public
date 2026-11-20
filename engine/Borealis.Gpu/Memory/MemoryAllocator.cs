@@ -753,15 +753,13 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 				if ( frame - draining.DrainFrame < DrainFrames ) continue;
 
 				// What's left can't move (textures that don't stream): leave it, and try it again much later
-				draining.Draining = false;
+				StopDrain( draining );
 				draining.DrainFrame = frame + DrainRetryFrames;
-				kind.Draining = null;
-				drainingCount--;
 				DrainsAbandoned++;
 				continue;
 			}
 
-			if ( !quiet || !key.Content || !key.Images || key.Fallback || kind.Blocks.Count < 2 ) continue;
+			if ( !quiet || !Movable( key.Type, key.Images, key.Content ) || key.Fallback || kind.Blocks.Count < 2 ) continue;
 
 			MemoryBlock emptiest = null;
 			ulong free = 0;
@@ -786,11 +784,94 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 			kind.DrainMayMake = mayMake;
 			kind.DrainMade = false;
-			emptiest.Draining = true;
-			emptiest.DrainFrame = frame;
-			kind.Draining = emptiest;
-			drainingCount++;
-			DrainsBegun++;
+			StartDrain( kind, emptiest );
+		}
+	}
+
+	/// <summary>
+	/// Whether blocks of a kind can be drained: content images (the texture streamer moves them) and, with
+	/// <see cref="Relocation"/>, device buffers and images in video memory that aren't content (the device moves them in
+	/// place between frames, <see cref="Device"/>'s relocation).
+	/// </summary>
+	bool Movable( int type, bool images, bool content )
+	{
+		if ( content ) return images;
+		if ( !Relocation || (properties.Type( type ).propertyFlags & Vk.MemoryDeviceLocal) == 0 ) return false;
+		return images ? RelocateImages : RelocateBuffers;
+	}
+
+	/// <summary>
+	/// Whether blocks of device buffers and images that aren't content are drained too, by moving what's in them in place
+	/// (on). <c>BOREALIS_RELOCATE=0</c> turns it off, for comparisons.
+	/// </summary>
+	public static bool Relocation { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_RELOCATE" ) != "0";
+
+	/// <summary>Which of <see cref="Relocation"/>'s kinds are drained: device buffers, and images.</summary>
+	public bool RelocateBuffers { get; set; } = true;
+
+	/// <inheritdoc cref="RelocateBuffers"/>
+	public bool RelocateImages { get; set; }
+
+	// Under the lock
+	void StartDrain( Kind kind, MemoryBlock block )
+	{
+		block.Draining = true;
+		block.DrainFrame = frame;
+		kind.Draining = block;
+		drainingCount++;
+		if ( !block.Content ) drainingToMove++;
+		DrainsBegun++;
+	}
+
+	// Under the lock: a block stops draining, emptied or not
+	void StopDrain( MemoryBlock block )
+	{
+		block.Draining = false;
+		drainingCount--;
+		if ( !block.Content ) drainingToMove--;
+		var kind = KindOf( block );
+		if ( kind.Draining == block ) kind.Draining = null;
+	}
+
+	/// <summary>Whether a block that isn't content (which the device moves, not the streamer) is being drained.</summary>
+	public bool AnyDrainingToMove => System.Threading.Volatile.Read( ref drainingToMove ) > 0;
+
+	int drainingToMove;
+
+	/// <summary>The blocks that aren't content being drained, into <paramref name="into"/>; allocates nothing past its room.</summary>
+	internal void DrainingToMove( List<MemoryBlock> into )
+	{
+		lock ( allocationLock )
+		{
+			foreach ( var kind in kinds.Values )
+			{
+				if ( kind.Draining is { Content: false } block ) into.Add( block );
+			}
+		}
+	}
+
+	/// <summary>What the allocations in <paramref name="block"/> hold (<see cref="SetOwner"/>), into <paramref name="owners"/>.</summary>
+	internal void CollectOwners( MemoryBlock block, List<ulong> owners )
+	{
+		lock ( allocationLock ) block.CollectOwners( owners );
+	}
+
+	/// <summary>Note what <paramref name="allocation"/> holds, so moving out of a block being drained can find it.</summary>
+	public void SetOwner( in Allocation allocation, ulong owner )
+	{
+		if ( allocation.Block is null ) return;
+		lock ( allocationLock ) allocation.Block.SetOwner( allocation.Node, owner );
+	}
+
+	/// <summary>Stop draining <paramref name="block"/>: something in it can't move. Not tried again for <see cref="DrainRetryFrames"/>.</summary>
+	internal void Abandon( MemoryBlock block )
+	{
+		lock ( allocationLock )
+		{
+			if ( !block.Draining ) return;
+			StopDrain( block );
+			block.DrainFrame = frame + DrainRetryFrames;
+			DrainsAbandoned++;
 		}
 	}
 
@@ -801,11 +882,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		{
 			var kind = KindOf( block );
 			if ( block.Dedicated || block.Draining || kind.Draining is not null ) return;
-			block.Draining = true;
-			block.DrainFrame = frame;
-			kind.Draining = block;
-			drainingCount++;
-			DrainsBegun++;
+			StartDrain( kind, block );
 		}
 	}
 
@@ -825,17 +902,17 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		{
 			var block = allocation.Block;
 			if ( block is not { Draining: true } ) return;
-			var kind = KindOf( block );
-			block.Draining = false;
+			StopDrain( block );
 			block.DrainFrame = frame + DrainRetryFrames;
-			if ( kind.Draining == block ) kind.Draining = null;
-			drainingCount--;
 			DrainsAbandoned++;
 		}
 	}
 
 	/// <summary>Whether any block is being drained.</summary>
 	public bool AnyDraining => System.Threading.Volatile.Read( ref drainingCount ) > 0;
+
+	/// <summary>Whether a content block (which the texture streamer moves textures out of) is being drained.</summary>
+	public bool AnyDrainingContent => System.Threading.Volatile.Read( ref drainingCount ) > System.Threading.Volatile.Read( ref drainingToMove );
 
 	int drainingCount;
 
@@ -897,11 +974,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	void EndDrain( MemoryBlock block )
 	{
 		if ( !block.Draining ) return;
-		block.Draining = false;
+		StopDrain( block );
 		DrainsEmptied++;
-		drainingCount--;
-		var kind = KindOf( block );
-		if ( kind.Draining == block ) kind.Draining = null;
 	}
 
 	/// <summary>The shared blocks of a block's kind; under the lock.</summary>

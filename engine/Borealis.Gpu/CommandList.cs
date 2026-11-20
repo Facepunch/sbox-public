@@ -157,9 +157,10 @@ public sealed unsafe class CommandList
 		Handle = buffer;
 	}
 
-	internal void Begin( string name )
+	internal void Begin( string name, bool gate = true )
 	{
 		Name = name;
+		gated = gate && device.EnterGate();
 		var info = new VkCommandBufferBeginInfo { sType = VkStructureType.CommandBufferBeginInfo, flags = Vulkan.Vk.CommandBufferOneTimeSubmit };
 		vk.vkBeginCommandBuffer( Handle, &info ).Check( "vkBeginCommandBuffer" );
 
@@ -200,9 +201,22 @@ public sealed unsafe class CommandList
 		recording = false;
 	}
 
+	// Whether it holds the device's gate (Device.EnterGate) from its beginning until it's submitted: nothing moves under a
+	// list that may name what would move
+	bool gated;
+
+	/// <summary>Submitted (or given up): let the device move what it names again.</summary>
+	internal void LeaveGate()
+	{
+		if ( !gated ) return;
+		gated = false;
+		device.ExitGate();
+	}
+
 	/// <summary>Its frame has finished: reset it for reuse.</summary>
 	internal void Recycle()
 	{
+		LeaveGate();
 		if ( recording )
 		{
 			// Recorded but never submitted
@@ -244,6 +258,7 @@ public sealed unsafe class CommandList
 
 	internal void Destroy()
 	{
+		LeaveGate();
 		foreach ( var p in descriptorPools ) vk.vkDestroyDescriptorPool( vk.Device, p, null );
 		descriptorPools.Clear();
 		foreach ( var p in pages ) device.Destroy( p.Buffer );
