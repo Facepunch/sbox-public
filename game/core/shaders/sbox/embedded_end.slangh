@@ -75,8 +75,6 @@ SamplerState TextureFiltering < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
 #endif
 #endif
 
-// What follows is Slang (extensions, operators, conversions): vfx's own parser, which reads a recompiled package shader
-// before Slang compiles it, skips it
 // instancing.fxc's GetExtraPerInstanceShaderData took the vertex input before it took the instance's transform index
 #ifdef SBOX_EMBEDDED_EXTRA_DATA_FROM_INPUT
 ExtraShaderData_t GetExtraPerInstanceShaderData( VS_INPUT i )
@@ -93,7 +91,12 @@ uint g_nMorphTextureAtlasWidth < Attribute( "MorphTextureAtlasWidth" ); >;
 #endif
 #endif
 
-#if defined( __SLANG__ )
+// What follows is Slang (extensions, operators, conversions). In vfx's compile of a recompiled package shader (SLANG
+// defined, __SLANG__ not) vfx's HLSL parser can't read it: the pragmas take it past the parser to Slang alone
+#if defined( __SLANG__ ) || defined( SLANG )
+#ifndef __SLANG__
+#pragma sbox_slang_begin
+#endif
 
 // A world position's screen position as SV_Position has it in a pixel stage: pixels, depth, 1 / view depth
 #if defined( LIGHT_HLSL ) || defined( AMBIENTLIGHT_HLSL )
@@ -209,6 +212,9 @@ extension TraceResult
 }
 #endif
 
-#endif // __SLANG__
+#ifndef __SLANG__
+#pragma sbox_slang_end
+#endif
+#endif // __SLANG__ || SLANG
 
 #endif // SBOX_EMBEDDED_END_SLANGH

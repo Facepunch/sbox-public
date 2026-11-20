@@ -249,8 +249,8 @@ public class EmbeddedCompatibilityTests
 
 	/// <summary>
 	/// For vfx's recompile (ShaderUpgrade) the shims' text goes in whole, since vfx doesn't find <c>sbox/</c>'s includes,
-	/// with their Slang (extensions, operators) behind <c>__SLANG__</c>, which vfx's own parser doesn't define; and the
-	/// package's copy of an engine cbuffer is the engine's there too.
+	/// with their Slang (extensions, operators) between the pragmas that take it past vfx's own HLSL parser to Slang
+	/// alone; and the package's copy of an engine cbuffer is the engine's there too.
 	/// </summary>
 	[TestMethod]
 	public void RecompileTextHasTheShimsInline()
@@ -261,7 +261,11 @@ public class EmbeddedCompatibilityTests
 		Assert.IsTrue( text.Contains( "#define Translucent()", StringComparison.Ordinal ) );
 		Assert.IsTrue( text.Contains( "#include \"common/ViewEnvironment.hlsl\"", StringComparison.Ordinal ) );
 		Assert.IsFalse( text.Contains( "cbuffer DirectionalLightCB", StringComparison.Ordinal ) );
-		Assert.IsTrue( text.IndexOf( "#if defined( __SLANG__ )", StringComparison.Ordinal ) < text.IndexOf( "extension Light", StringComparison.Ordinal ) );
+		var begin = text.IndexOf( "#pragma sbox_slang_begin", StringComparison.Ordinal );
+		var end = text.IndexOf( "#pragma sbox_slang_end", StringComparison.Ordinal );
+		Assert.IsTrue( begin >= 0 && begin < text.IndexOf( "extension Light", StringComparison.Ordinal ), text );
+		Assert.IsTrue( text.IndexOf( "float3 operator+( float3 a, float4 b )", StringComparison.Ordinal ) is var op && op > begin && op < end, text );
+		Assert.IsTrue( end > text.IndexOf( "extension TraceResult", StringComparison.Ordinal ), text );
 	}
 
 	/// <summary>The samplers the converter leaves to the engine are common_samplers.fxc's.</summary>
