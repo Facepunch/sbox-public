@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Borealis.Backend.Meshlets;
 
 /// <summary>How meshes are cut into meshlets: at most this many vertices and triangles each.</summary>
@@ -22,10 +24,10 @@ internal readonly record struct MeshletConfig( int MaxVertices = 64, int MaxTria
 }
 
 /// <summary>
-/// The meshlets of one index range: what Borealis builds at load (<see cref="MeshletBuilder"/>) and a resource compiler
-/// could cook into a model or map instead, so the renderer takes either. <see cref="Indices"/> are the range's own index
-/// values in meshlet order, each triangle's corners in their order (its first vertex is what the visibility ids name);
-/// each meshlet's triangles are a run of them.
+/// The meshlets of one index range: what Borealis builds at load (<see cref="MeshletBuilder"/>) or the resource compiler
+/// cooked into the model (<see cref="FromCooked"/>). <see cref="Indices"/> are the range's own index values in meshlet
+/// order, each triangle's corners in their order (its first vertex is what the visibility ids name); each meshlet's
+/// triangles are a run of them.
 /// </summary>
 internal sealed class MeshletSet
 {
@@ -34,6 +36,27 @@ internal sealed class MeshletSet
 
 	public uint[] Indices { get; init; }
 	public MeshletRecord[] Meshlets { get; init; }
+
+	/// <summary>Whether the range's indices are already in this order where they're drawn from (cooked): nothing to rewrite.</summary>
+	public bool InPlace { get; init; }
+
+	/// <summary>
+	/// A cooked range's set: its indices as stored (already in meshlet order) and its records, or null when they aren't
+	/// one run covering every triangle once, cut no larger than <paramref name="config"/>.
+	/// </summary>
+	public static MeshletSet FromCooked( uint[] indices, ReadOnlySpan<byte> records, MeshletConfig config )
+	{
+		if ( records.Length == 0 || records.Length % RecordBytes != 0 ) return null;
+		var meshlets = MemoryMarshal.Cast<byte, MeshletRecord>( records ).ToArray();
+		uint next = 0;
+		foreach ( ref readonly var meshlet in meshlets.AsSpan() )
+		{
+			if ( meshlet.FirstTriangle != next || meshlet.TriangleCount == 0 || meshlet.TriangleCount > config.MaxTriangles ) return null;
+			next += meshlet.TriangleCount;
+		}
+
+		return next * 3 == indices.Length ? new MeshletSet { Indices = indices, Meshlets = meshlets, InPlace = true } : null;
+	}
 
 	/// <summary>Triangles in the range.</summary>
 	public int Triangles => Indices.Length / 3;

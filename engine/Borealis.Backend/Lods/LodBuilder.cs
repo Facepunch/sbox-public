@@ -38,6 +38,37 @@ internal sealed class LodChain
 internal static unsafe class LodBuilder
 {
 	/// <summary>
+	/// A range's triangles in one order whatever order they're stored in: each from the corner that makes it smallest (its
+	/// winding kept), then sorted, so its levels don't depend on it. The resource compiler stores aggregate fragments in
+	/// meshlet order (<see cref="Borealis.Source2.Models.CookedMeshlets"/>), the index buffer's encoding rotates triangles,
+	/// and the simplifier's result depends on its input's order.
+	/// </summary>
+	static void Canonical( ReadOnlySpan<uint> indices, Span<uint> sorted )
+	{
+		var count = indices.Length / 3;
+		var scratch = System.Buffers.ArrayPool<(uint A, uint B, uint C)>.Shared.Rent( count );
+		try
+		{
+			var triangles = scratch.AsSpan( 0, count );
+			for ( int t = 0; t < count; t++ )
+			{
+				var (a, b, c) = (indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]);
+				var best = (a, b, c);
+				if ( (b, c, a).CompareTo( best ) < 0 ) best = (b, c, a);
+				if ( (c, a, b).CompareTo( best ) < 0 ) best = (c, a, b);
+				triangles[t] = best;
+			}
+
+			triangles.Sort();
+			for ( int t = 0; t < count; t++ ) (sorted[t * 3], sorted[t * 3 + 1], sorted[t * 3 + 2]) = triangles[t];
+		}
+		finally
+		{
+			System.Buffers.ArrayPool<(uint A, uint B, uint C)>.Shared.Return( scratch );
+		}
+	}
+
+	/// <summary>
 	/// The levels of <paramref name="indices"/> (index values as stored, vertex <c>baseVertex + index</c> at
 	/// <paramref name="position"/>), or null when it's too small, nothing simplifies or the library isn't there.
 	/// </summary>
@@ -48,6 +79,22 @@ internal static unsafe class LodBuilder
 		if ( config.MaxLevels is < 1 or > LodStore.MaxLevels ) throw new ArgumentOutOfRangeException( nameof( config ), config, $"1 to {LodStore.MaxLevels} levels" );
 		var count = indices.Length;
 		if ( count / 3 < Math.Max( config.MinRangeTriangles, 1 ) || !MeshOptimizer.Available ) return null;
+		var canonical = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+		try
+		{
+			Canonical( indices, canonical.AsSpan( 0, count ) );
+			return BuildCanonical( canonical.AsSpan( 0, count ), position, baseVertex, config, coordinates, normal, colors );
+		}
+		finally
+		{
+			System.Buffers.ArrayPool<uint>.Shared.Return( canonical );
+		}
+	}
+
+	// The levels of indices already in canonical order
+	static LodChain BuildCanonical( ReadOnlySpan<uint> indices, Func<int, V3> position, int baseVertex, LodConfig config, Func<int, System.Numerics.Vector2>[] coordinates, Func<int, V3> normal, Func<int, System.Numerics.Vector4>[] colors )
+	{
+		var count = indices.Length;
 
 		uint min = uint.MaxValue, max = 0;
 		for ( int k = 0; k < count; k++ )
