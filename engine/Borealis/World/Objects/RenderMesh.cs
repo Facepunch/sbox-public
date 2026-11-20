@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Threading;
 
 namespace Borealis;
 
@@ -102,12 +103,12 @@ public sealed class RenderMesh
 	/// <summary>
 	/// Cached first-material similarity key for sorting runs and reducing rebinds (<c>IMaterial2::GetSimilarityKey</c>).
 	/// </summary>
-	internal ulong SimilarityForLod( int lod ) => lodSimilarity[lod];
+	internal ulong SimilarityForLod( int lod ) => lodSimilarity[Base( lod )];
 
 	/// <summary>
 	/// A draw's material's similarity key, cached for sorting draws by bind state (<c>IMaterial2::GetSimilarityKey</c>).
 	/// </summary>
-	internal ulong SimilarityForDraw( int lod, int draw ) => drawSimilarity[lod][draw];
+	internal ulong SimilarityForDraw( int lod, int draw ) => drawSimilarity[Base( lod )][draw];
 
 	/// <summary>
 	/// The model's bones in bind pose, in model space - where a skinned object with no bones of its own is posed.
@@ -127,12 +128,12 @@ public sealed class RenderMesh
 	/// <summary>
 	/// The model meshes a LOD's draws come from, each once, in order of first draw.
 	/// </summary>
-	internal ReadOnlySpan<int> MeshesForLod( int lod ) => lodMeshes[lod];
+	internal ReadOnlySpan<int> MeshesForLod( int lod ) => lodMeshes[Base( lod )];
 
 	/// <summary>
 	/// Model mesh's block index within an instanced skinned LOD.
 	/// </summary>
-	internal int BlockForLod( int lod, int mesh ) => lodMeshBlocks[lod][mesh];
+	internal int BlockForLod( int lod, int mesh ) => lodMeshBlocks[Base( lod )][mesh];
 
 	readonly int[] tintOffsets;
 
@@ -150,7 +151,7 @@ public sealed class RenderMesh
 	/// <summary>
 	/// Where a LOD's draws' entries start among an object's (<see cref="HasDrawTints"/>).
 	/// </summary>
-	internal int TintOffsetForLod( int lod ) => tintOffsets[lod];
+	internal int TintOffsetForLod( int lod ) => tintOffsets[Base( lod )];
 
 	/// <summary>
 	/// A model mesh's skinning, or null if it isn't skinned.
@@ -282,7 +283,7 @@ public sealed class RenderMesh
 	/// <summary>
 	/// Aggregate LOD blend mode (<c>ComputeSceneObjectTranslucencyFlags</c>).
 	/// </summary>
-	internal MeshBlend BlendForLod( int lod ) => blends[lod];
+	internal MeshBlend BlendForLod( int lod ) => blends[Base( lod )];
 
 	static MeshBlend BlendOf( Draw[] draws )
 	{
@@ -291,11 +292,94 @@ public sealed class RenderMesh
 	}
 
 	/// <summary>
-	/// LOD draws without enumerator boxing.
+	/// LOD draws without enumerator boxing. A LOD past the model's own is a generated level (<see cref="LevelCount"/>).
 	/// </summary>
-	internal ReadOnlySpan<Draw> DrawsForLod( int lod ) => lods[lod];
+	internal ReadOnlySpan<Draw> DrawsForLod( int lod ) => lod < lods.Length ? lods[lod] : levelDraws[lod - lods.Length];
 
-	internal int TrianglesForLod( int lod ) => triangles[lod];
+	internal int TrianglesForLod( int lod ) => lod < lods.Length ? triangles[lod] : levelTriangles[lod - lods.Length];
+
+	/// <summary>The model's own LOD a LOD index stands for: a generated level is LOD 0's draws over fewer indices.</summary>
+	int Base( int lod ) => lod < lods.Length ? lod : 0;
+
+	// Generated levels of a model without LODs of its own (GpuMesh.LevelsFor): LOD 0's draws over each level's indices (a draw
+	// with fewer levels keeps its coarsest, one with none its own), the largest of their errors, and their triangles. Made
+	// once every draw's are known; until then each newly published level makes the mesh ask again
+	Draw[][] levelDraws = [];
+	float[] levelErrors = [];
+	int[] levelTriangles = [];
+	int levelsAsked = -1;
+	const int LevelsSettled = int.MaxValue;
+	readonly object levelsLock = new();
+
+	/// <summary>
+	/// Generated levels it has: LODs 1 to this count draw them, LOD 0 the model's own draws (<see cref="RefreshLevels"/>).
+	/// Only a model without LODs of its own has any.
+	/// </summary>
+	internal int LevelCount => Volatile.Read( ref levelDraws ).Length;
+
+	/// <summary>
+	/// The error of generated level <paramref name="level"/> (0 for the model's own draws): the largest of its draws', as a
+	/// fraction of their bounds' half diagonal, which a view scales by the object's world bounds.
+	/// </summary>
+	internal float LevelError( int level ) => level <= 0 ? 0 : levelErrors[level - 1];
+
+	/// <summary>
+	/// Ask the geometry for its draws' generated levels while some are still to come, again only once the device has
+	/// published more (<paramref name="version"/>, <see cref="GpuDevice.LevelsVersion"/>). Any thread.
+	/// </summary>
+	internal void RefreshLevels( int version )
+	{
+		if ( Volatile.Read( ref levelsAsked ) is LevelsSettled || levelsAsked == version ) return;
+		lock ( levelsLock )
+		{
+			if ( levelsAsked is LevelsSettled || levelsAsked == version ) return;
+			levelsAsked = version;
+			if ( Geometry is null || lods.Length != 1 )
+			{
+				levelsAsked = LevelsSettled;
+				return;
+			}
+
+			var draws = lods[0];
+			var count = 0;
+			for ( int d = 0; d < draws.Length; d++ )
+			{
+				var levels = Geometry.LevelsFor( draws[d] );
+				if ( ReferenceEquals( levels, GeneratedLevels.Pending ) ) return;
+				count = Math.Max( count, levels.Ranges.Length );
+			}
+
+			levelsAsked = LevelsSettled;
+			if ( count == 0 ) return;
+
+			var made = new Draw[count][];
+			var errors = new float[count];
+			var levelTris = new int[count];
+			for ( int k = 0; k < count; k++ )
+			{
+				made[k] = new Draw[draws.Length];
+				for ( int d = 0; d < draws.Length; d++ )
+				{
+					var levels = Geometry.LevelsFor( draws[d] );
+					var draw = draws[d];
+					if ( levels.Ranges.Length > 0 )
+					{
+						var at = Math.Min( k, levels.Ranges.Length - 1 );
+						var (start, indexCount) = levels.Ranges[at];
+						draw = draw with { StartIndex = start, IndexCount = indexCount };
+						errors[k] = Math.Max( errors[k], levels.Errors[at] );
+					}
+
+					made[k][d] = draw;
+					levelTris[k] += draw.IndexCount / 3;
+				}
+			}
+
+			levelErrors = errors;
+			levelTriangles = levelTris;
+			Volatile.Write( ref levelDraws, made );
+		}
+	}
 
 	/// <summary>
 	/// Select LOD using <c>CModel::LODLevelForScreenSize</c>: scaled switch distance below 50 / screen width.
