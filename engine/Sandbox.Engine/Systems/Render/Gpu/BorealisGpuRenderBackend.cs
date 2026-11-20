@@ -219,6 +219,25 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
+	/// <summary>
+	/// Before a scene's load finishes in the game window on Borealis.Gpu, wait for the next frame's first tasks
+	/// (<see cref="NextFrameStart"/>), so it finishes before the game ticks in that frame. Its waits (for content, the
+	/// navmesh) end in whichever frame's tasks run next, often the last ones, after the frame's render: the game's first tick
+	/// and render then took a frame of their own after the loading screen (220-290 ms after a load on Flatgrass and
+	/// Construct), where native's load finished in a frame's first tasks and had them in the frame it finished in.
+	/// </summary>
+	internal static Task BeforeLoadFinishes() => (RenderBackend.Default as BorealisGpuRenderBackend)?.services is { AsyncModels: true } ? NextFrameStart() : Task.CompletedTask;
+
+	/// <summary>
+	/// Resume in the next frame's first tasks, before the game ticks in it (<c>EngineLoop.FrameStart</c>), wherever in the
+	/// frame this is awaited.
+	/// </summary>
+	internal static async Task NextFrameStart()
+	{
+		var frame = Application.FrameCount;
+		while ( Application.FrameCount == frame ) await Task.Yield();
+	}
+
 	/// <summary>Validation errors the device has reported.</summary>
 	public int ValidationErrors => gpu.ValidationErrors;
 
