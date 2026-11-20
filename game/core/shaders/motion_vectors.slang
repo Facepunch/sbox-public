@@ -1,5 +1,4 @@
-// motion_vectors: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// motion_vectors: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "Reconstructs static motion vectors from depth buffer and previous frame matrices";

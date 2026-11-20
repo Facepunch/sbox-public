@@ -10,7 +10,7 @@ namespace Sandbox.Rendering;
 internal sealed class OcclusionDebugTarget : IDisposable
 {
 	/// <summary>
-	/// Counter slots. Must match occlusion_cull_cs.shader's CELL_ and COUNT_ values.
+	/// Counter slots. Must match occlusion_cull_cs.slang's CELL_ and COUNT_ values.
 	/// </summary>
 	internal enum Count
 	{
@@ -30,7 +30,7 @@ internal sealed class OcclusionDebugTarget : IDisposable
 		EarlyDrawn,
 	}
 
-	// Must match DEBUG_HEADER in occlusion_cull_cs.shader
+	// Must match DEBUG_HEADER in occlusion_cull_cs.slang
 	internal const int Header = 16;
 
 	// What r_occlusion_debug 1 draws boxes for

@@ -696,7 +696,7 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
-	/// Fill the mips after <paramref name="initialMip"/> with <c>downsample_spd.shader</c> (<paramref name="method"/> is
+	/// Fill the mips after <paramref name="initialMip"/> with <c>downsample_spd</c> (<paramref name="method"/> is
 	/// <c>D_DOWNSAMPLE_METHOD</c>: box, max, min or min and max), six mips a dispatch, down to the smaller side's last
 	/// texel, as <c>Graphics.GenerateMipMaps</c> does for those methods. The texture ends readable.
 	/// </summary>

@@ -12,7 +12,7 @@ internal static class ContactShadows
 	[ConVar( "r.shadows.contact.enabled", Help = "Enable screen-space (contact) shadows for directional lights." )]
 	public static bool Enabled { get; set; } = true;
 
-	// Must match WAVE_SIZE / numthreads in screen_space_shadows_cs.shader.
+	// Must match WAVE_SIZE / numthreads in screen_space_shadows_cs.slang.
 	const int WaveSize = 64;
 	const int MaxDispatches = 8;
 

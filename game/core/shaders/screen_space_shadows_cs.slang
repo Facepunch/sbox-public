@@ -1,5 +1,4 @@
-// screen_space_shadows_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// screen_space_shadows_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 //=========================================================================================================
 // Screen Space Shadows (wavefront contact shadows)
 //

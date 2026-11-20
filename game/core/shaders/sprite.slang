@@ -1,5 +1,4 @@
-// sprite: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// sprite: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Sprite Shader for S&box";
 
