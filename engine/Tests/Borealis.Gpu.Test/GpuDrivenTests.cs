@@ -1815,14 +1815,21 @@ public class GpuDrivenTests : GpuTest
 				return pixels;
 			}
 
-			// The first frame dithers before what the fade reads is ready: the comparison starts at the second
-			Frame( false, false );
-			var classic = Frame( false, false );
+			// A pipeline draws fast linked until its optimised link, made on threads at the lowest priority, replaces it, and the
+			// fast links of complex's faded variants draw undithered on the 7900 XTX: each frame compared follows one that made
+			// its pipelines and a wait for their optimised links, so it doesn't depend on when those threads ran
+			byte[] Optimised( bool gpuDriven, bool faded, DrawCensus census = null )
+			{
+				Frame( gpuDriven, faded, census is null ? null : new DrawCensus() );
+				Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ), "the optimised links are made" );
+				return Frame( gpuDriven, faded, census );
+			}
+
+			var classic = Optimised( false, false );
 			var before = new DrawCensus();
 			Frame( true, false, before );
-			Frame( true, true );
 			var census = new DrawCensus();
-			var driven = Frame( true, true, census );
+			var driven = Optimised( true, true, census );
 
 			Assert.IsTrue( before.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Kind.Contains( "faded", StringComparison.Ordinal ) ), $"with the switch off, the faded boxes draw the classic way: {string.Join( ", ", before.Draws.Where( d => d.Path == DrawCensus.Path.Classic ).Select( d => $"{d.Pass} {d.Material} {d.Kind}" ) )}" );
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
