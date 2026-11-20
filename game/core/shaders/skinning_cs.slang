@@ -9,13 +9,13 @@ Mode( Default );
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
 #include "vr_common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "common/utils/normal_transform.hlsl"
 #include "transform_buffer.fxc"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "vs_decompress.fxc"
-#include "octohedral_encoding.fxc"
+#include "sbox/encoding.slangh"
 
 struct VS_INPUT // A bogus dummy struct required to use includes below
 {

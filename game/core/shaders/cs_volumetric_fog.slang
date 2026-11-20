@@ -113,7 +113,7 @@ Mode( Default );
 #if ( PROGRAM == VFX_PROGRAM_CS )
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
-	#include "math_general.fxc"
+	#include "sbox/math.slangh"
 	#include "light_probe_volume.fxc"
 	#include "vr_lighting.fxc"
 	

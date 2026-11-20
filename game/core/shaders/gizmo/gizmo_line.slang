@@ -16,7 +16,7 @@ Feature( F_NO_ZTEST, 0..1 );
 
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "vr_common.fxc"
 
 struct VS_INPUT
@@ -147,7 +147,7 @@ void LineEnd( float3x4 matObjectToWorld, float3 vPositionOs, float3 vNormalOs, f
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "encoded_normals.fxc"
+#include "sbox/encoding.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 StaticCombo( S_NO_ZTEST, F_NO_ZTEST, Sys( ALL ) );

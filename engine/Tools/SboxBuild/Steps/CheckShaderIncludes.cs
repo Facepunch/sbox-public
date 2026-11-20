@@ -22,14 +22,11 @@ internal static partial class CheckShaderIncludes
 		"core/shaders/baked_lighting_constants.fxc",
 		"core/shaders/common.fxc",
 		"core/shaders/descriptor_set_support.fxc",
-		"core/shaders/encoded_normals.fxc",
 		"core/shaders/ffd.fxc",
 		"core/shaders/instancing.fxc",
 		"core/shaders/irradiance_probe_lighting.fxc",
 		"core/shaders/light_probe_volume.fxc",
-		"core/shaders/math_general.fxc",
 		"core/shaders/morph.fxc",
-		"core/shaders/octohedral_encoding.fxc",
 		"core/shaders/quad_overdraw_ps.fxc",
 		"core/shaders/sheet_sampling.fxc",
 		"core/shaders/sky.fxc",
@@ -221,6 +218,8 @@ internal static partial class CheckShaderIncludes
 
 		void Include( string from, int line, string name )
 		{
+			// A Slang compile includes our header in place of one it replaces (Sandbox.ShaderCompiler.SlangHeaders)
+			if ( Sandbox.ShaderCompiler.SlangHeaders.Replaced.TryGetValue( name, out var ours ) ) name = ours;
 			var target = Resolve( from, name );
 			if ( target is null )
 			{

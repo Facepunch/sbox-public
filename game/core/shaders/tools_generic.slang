@@ -27,7 +27,7 @@ Feature( F_VERTEX_COLOR_TINT, 0..1, "Enable tinting by vertex color stream" );
 #include "system.fxc" // This should always be the first include in COMMON
 #include "vr_common.fxc"
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT

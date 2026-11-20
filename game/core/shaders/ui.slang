@@ -42,7 +42,7 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-	#include "math_general.fxc"
+	#include "sbox/math.slangh"
 	#include "vr_common.fxc"
 	#define IS_SPRITECARD 1 // So GetViewSubviewAndAdjustInstanceId() doesn't cause compile error
 	#include "vr_lighting.fxc"

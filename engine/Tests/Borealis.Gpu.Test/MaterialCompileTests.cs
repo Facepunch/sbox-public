@@ -141,4 +141,27 @@ public class MaterialCompileTests
 			Assert.IsTrue( compiled > 0, name );
 		}
 	}
+
+	/// <summary>
+	/// A Slang compile reads our headers in place of the old .fxc ones they replace, also where a shared header that .shader
+	/// files include names the old one (ui_basic's vertex stage, through ui/vertex.hlsl), so it never reads a replaced header.
+	/// </summary>
+	[TestMethod]
+	public void CompilesReadOurHeadersInPlaceOfTheOldOnes()
+	{
+		Assert.AreEqual( "\t#include \"sbox/math.slangh\" // x\n#include \"common.fxc\"\n", SlangHeaders.Replace( "\t#include \"math_general.fxc\" // x\n#include \"common.fxc\"\n" ) );
+
+		var shaders = Shaders();
+		var native = EngineFolders.NativeIn( Path.GetDirectoryName( Path.GetDirectoryName( shaders ) ) );
+		if ( !File.Exists( Path.Combine( native, EngineFolders.Library( "slang" ) ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
+		var compiler = new SlangCompiler( native, [shaders] );
+		var module = Module( "ui_basic" );
+		var read = new List<string>();
+		foreach ( var stage in new[] { StageKind.Vertex, StageKind.Pixel } )
+			read.AddRange( compiler.CompilePass( module, stage, module.Combos( stage ).ToDictionary( c => c.Name, c => c.Min ) ).Dependencies );
+
+		var names = read.Select( d => Path.GetRelativePath( shaders, d ).Replace( '\\', '/' ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+		Assert.IsTrue( names.Contains( "sbox/math.slangh" ), string.Join( ", ", names ) );
+		foreach ( var old in SlangHeaders.Replaced.Keys ) Assert.IsFalse( names.Contains( old ), old );
+	}
 }

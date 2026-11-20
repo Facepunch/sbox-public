@@ -8,7 +8,7 @@ Mode( VrForward );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "system.fxc" // This should always be the first include in COMMON
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 
 struct VS_INPUT
 {
