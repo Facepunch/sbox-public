@@ -168,6 +168,41 @@ public class BackendTests : GpuTest
 	}
 
 	/// <summary>
+	/// A material that's there but whose shader isn't (S&amp;Business's bucket water names <c>shaders/quake_water.shader</c>,
+	/// which its package doesn't ship) draws as the error material too, as native's material system gives it the error
+	/// shader; one whose shader loads keeps its own.
+	/// </summary>
+	[TestMethod]
+	public void MaterialsWhoseShaderIsMissingDrawAsTheErrorMaterial()
+	{
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+		if ( backend.Content.Find( Borealis.Backend.BackendDevice.ErrorMaterial ) is null ) { Assert.Inconclusive( "No compiled error material" ); return; }
+
+		static Borealis.Source2.Materials.MaterialFile File( string shader ) => new()
+		{
+			Name = "materials/test/shader_for_test.vmat",
+			Shader = shader,
+			Ints = new Dictionary<string, int>(),
+			Floats = new Dictionary<string, float>(),
+			Vectors = new Dictionary<string, float[]>(),
+			Textures = new Dictionary<string, string>(),
+			IntAttributes = new Dictionary<string, int>(),
+		};
+
+		// As the .shader draws it: a surface standing in for a shader keeps the material as its fallback
+		Borealis.Backend.BackendMaterial Load( string path, string shader ) => backend.LoadMaterial( path, File( shader ) ) is var loaded && loaded is Borealis.Backend.SurfaceMaterial surface ? (Borealis.Backend.BackendMaterial)surface.Fallback : (Borealis.Backend.BackendMaterial)loaded;
+
+		var water = Load( "materials/test/missing_shader_for_test.vmat", "shaders/not_shipped_for_test.shader" );
+		Assert.IsNotNull( water.Shader, "drawn with the error shader" );
+		StringAssert.Contains( water.File.Shader, "error.shader" );
+		Assert.IsNotNull( water.Shader.Mode( "Forward" ), "the error shader draws in every layer" );
+		Assert.AreEqual( "materials/test/missing_shader_for_test.vmat", water.Name );
+
+		var complex = Load( "materials/test/complex_for_test.vmat", "shaders/complex.shader" );
+		StringAssert.Contains( complex.Shader?.Name ?? "", "complex", "a shader that loads is kept" );
+	}
+
+	/// <summary>
 	/// A mesh drawn with a material that isn't there shows as native's does: the error shader's dark red, in the forward pass.
 	/// </summary>
 	[TestMethod]
