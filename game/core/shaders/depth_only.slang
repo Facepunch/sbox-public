@@ -93,11 +93,11 @@ PS_INPUT DepthVertex( VS_INPUT i )
 #if ( BOREALIS_GPU_DRIVEN )
 #include "borealis_gpu_driven.fxc"
 
-// What GPU-driven stages pass on ahead of their own outputs: the draw, and the vertex's bit for the id prepass
+// What GPU-driven stages pass on ahead of their own outputs: the draw, and the vertex's ids for the id prepass
 struct GpuDrivenOutput
 {
 	nointerpolation uint nDraw : BOREALIS_DRAW;
-	nointerpolation uint nVertexBit : BOREALIS_VERTEX;
+	nointerpolation uint2 vIds : BOREALIS_VERTEX;
 	PS_INPUT o;
 };
 
@@ -118,7 +118,7 @@ struct GpuDrivenOutput
 	GpuDrivenOutput o;
 	o.o = DepthVertex( i );
 	o.nDraw = vInstance.y;
-	o.nVertexBit = BorealisGpuDrivenVertexBit( nInstance, nVertex );
+	o.vIds = BorealisGpuDrivenIds( nInstance, nVertex );
 	return o;
 }
 #else
@@ -195,19 +195,20 @@ void DepthPixel( PS_INPUT i )
 #if ( BOREALIS_GPU_DRIVEN )
 #include "borealis_gpu_driven.fxc"
 
-// The GPU-driven form: the vertex's bit + 1 at target 1, where the id prepass reads ids (target 0 only keeps it there)
+// The GPU-driven form: the vertex's bit + 1 and its instance record at target 1, where the id prepass reads ids (target 0
+// only keeps it there)
 struct GpuDrivenTargets
 {
 	float4 vUnused : SV_Target0;
-	uint nId : SV_Target1;
+	uint2 vId : SV_Target1;
 };
 
-[shader( "pixel" )] GpuDrivenTargets MainPs( nointerpolation uint nDraw : BOREALIS_DRAW, nointerpolation uint nVertexBit : BOREALIS_VERTEX, PS_INPUT i )
+[shader( "pixel" )] GpuDrivenTargets MainPs( nointerpolation uint nDraw : BOREALIS_DRAW, nointerpolation uint2 vIds : BOREALIS_VERTEX, PS_INPUT i )
 {
 	DepthPixel( i );
 	GpuDrivenTargets o;
 	o.vUnused = 1.0;
-	o.nId = nVertexBit + 1;
+	o.vId = uint2( vIds.x + 1, vIds.y );
 	return o;
 }
 #else

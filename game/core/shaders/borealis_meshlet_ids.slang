@@ -18,8 +18,9 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct PS_INPUT
 {
-	// The vertex's bit in the view's mask; flat, so a pixel gets its triangle's first (provoking) vertex's
-	nointerpolation uint nVertexBit : TEXCOORD0;
+	// The vertex's bit in the view's mask and its instance record (BorealisGpuDrivenIds); flat, so a pixel gets its
+	// triangle's first (provoking) vertex's
+	nointerpolation uint2 vIds : TEXCOORD0;
 
 	#if ( PROGRAM != VFX_PROGRAM_PS )
 		noperspective float4 vPositionPs : SV_Position;
@@ -308,6 +309,7 @@ float3 FetchPosition( uint4 attribute, uint nVertex )
 	uint nFirstTriangle = vMeshlet.x;
 	uint nTriangles = min( vMeshlet.y, MaxTriangles );
 	uint nVertices = min( vLocal.w, MaxVertices );
+	uint nPointer = nInstance < ( 1u << 22 ) && g_nBorealisInstances < 1024 ? ( g_nBorealisInstances << 22 ) | nInstance : None;
 	SetMeshOutputCounts( nVertices, nTriangles );
 	ByteAddressBuffer data = g_bindless_VertexBuffers[ vLocal.x ];
 
@@ -331,7 +333,7 @@ float3 FetchPosition( uint4 attribute, uint nVertex )
 		o.vPositionPs.xyzw = Position3WsToPs( vPositionWs.xyz );
 		// As the vertex stage's compile flips it (SlangCompiler.CompilePass)
 		o.vPositionPs.y = -o.vPositionPs.y;
-		o.nVertexBit = vVertices.z == None ? None : vVertices.z + nVertex;
+		o.vIds = uint2( vVertices.z == None ? None : vVertices.z + nVertex, nPointer );
 		vertices[nThread] = o;
 	}
 
@@ -355,18 +357,18 @@ RenderState( DepthWriteEnable, true );
 RenderState( DepthFunc, GREATER_EQUAL );
 RenderState( CullMode, DEFAULT );
 
-// As borealis_gpu_driven_ids: the first vertex's bit + 1 at target 1; target 0 goes nowhere
+// As borealis_gpu_driven_ids: the first vertex's bit + 1 and its instance record at target 1; target 0 goes nowhere
 struct PS_OUTPUT
 {
 	float4 vUnused : SV_Target0;
-	uint nId : SV_Target1;
+	uint2 vId : SV_Target1;
 };
 
 [shader( "pixel" )] PS_OUTPUT MainPs( PS_INPUT i )
 {
 	PS_OUTPUT o;
 	o.vUnused = 1.0;
-	o.nId = i.nVertexBit + 1;
+	o.vId = uint2( i.vIds.x + 1, i.vIds.y );
 	return o;
 }
 

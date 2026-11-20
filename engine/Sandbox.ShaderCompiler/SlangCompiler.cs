@@ -717,12 +717,12 @@ public sealed partial class SlangCompiler
 			$"[shader( \"pixel\" )] {Returns( normals )} {entry}( {output} i, bool front : SV_IsFrontFace ){Target( normals )} {{ s_SurfaceFrontFace = front; float4 color = 0; {ForEachInWave( "i.MaterialOffset", $"{output} w = i; w.MaterialOffset = first; color = Shaded{entry}( w );" )} return {Result( normals )}; }}\n";
 
 		// GPU-driven: the draw's lighting record first; the alpha-tested depth pass also writes the visibility id (the vertex
-		// bit + 1) at target 1, which the visibility pass's prepass reads and other passes have no target for. A draw has
-		// one material record, so the draw is the value the wave goes through
+		// bit + 1, and the instance record) at target 1, which the visibility pass's prepass reads and other passes have no
+		// target for. A draw has one material record, so the draw is the value the wave goes through
 		string GpuDrivenShade( string entry, string result ) =>
 			ForEachInWave( "v.Draw", $"SurfaceFetchLighting( first ); {output} i = v.o; i.MaterialOffset = WaveReadLaneFirst( i.MaterialOffset ); {result} = Shaded{entry}( i );" );
 		string GpuDrivenPixel( string entry, bool alphaTest, bool ids, bool normals = false ) => Shaded( entry, alphaTest ) + (ids
-			? $"[shader( \"pixel\" )] SurfaceIdsOutput {entry}( SurfaceGpuDrivenVertexOutput v, bool front : SV_IsFrontFace ) {{ s_SurfaceFrontFace = front; SurfaceIdsOutput o; o.Color = 0; {GpuDrivenShade( entry, "o.Color" )} o.Id = v.VertexBit + 1; return o; }}\n"
+			? $"[shader( \"pixel\" )] SurfaceIdsOutput {entry}( SurfaceGpuDrivenVertexOutput v, bool front : SV_IsFrontFace ) {{ s_SurfaceFrontFace = front; SurfaceIdsOutput o; o.Color = 0; {GpuDrivenShade( entry, "o.Color" )} o.Id = uint2( v.Ids.x + 1, v.Ids.y ); return o; }}\n"
 			: $"[shader( \"pixel\" )] {Returns( normals )} {entry}( SurfaceGpuDrivenVertexOutput v, bool front : SV_IsFrontFace ){Target( normals )} {{ s_SurfaceFrontFace = front; float4 color = 0; {GpuDrivenShade( entry, "color" )} return {Result( normals )}; }}\n");
 
 		var text = new StringBuilder();
@@ -735,9 +735,9 @@ public sealed partial class SlangCompiler
 		text.Append( "#include \"sbox/surface_passes.slangh\"\n" );
 		text.Append( "import " ).Append( module ).Append( ";\n\n" );
 		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );
-		text.Append( "// What a GPU-driven vertex stage hands the pixel stage: the draw and the vertex's visibility bit, flat, first\n" );
-		text.Append( "struct SurfaceGpuDrivenVertexOutput { nointerpolation uint Draw : BOREALIS_DRAW; nointerpolation uint VertexBit : BOREALIS_VERTEX; " ).Append( output ).Append( " o; };\n" );
-		text.Append( "struct SurfaceIdsOutput { float4 Color : SV_Target0; uint Id : SV_Target1; };\n" );
+		text.Append( "// What a GPU-driven vertex stage hands the pixel stage: the draw and the vertex's visibility ids (BorealisGpuDrivenIds), flat, first\n" );
+		text.Append( "struct SurfaceGpuDrivenVertexOutput { nointerpolation uint Draw : BOREALIS_DRAW; nointerpolation uint2 Ids : BOREALIS_VERTEX; " ).Append( output ).Append( " o; };\n" );
+		text.Append( "struct SurfaceIdsOutput { float4 Color : SV_Target0; uint2 Id : SV_Target1; };\n" );
 		text.Append( "#endif\n\n" );
 		text.Append( "#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
 		if ( stage )
@@ -880,7 +880,7 @@ public sealed partial class SlangCompiler
 		text.Append( $"\to.o = {VertexStage( type, displaces, interpolated )};\n" );
 		text.Append( "\to.o.MaterialOffset = draw.z;\n" );
 		text.Append( "\to.Draw = record.y;\n" );
-		text.Append( "\to.VertexBit = BorealisGpuDrivenVertexBit( instance, vertex );\n" );
+		text.Append( "\to.Ids = BorealisGpuDrivenIds( instance, vertex );\n" );
 		text.Append( "\treturn o;\n}\n#endif\n" );
 		return text.ToString();
 	}
