@@ -3,7 +3,6 @@
 #nullable disable
 
 using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Borealis.Backend;
@@ -11,7 +10,7 @@ namespace Borealis.Backend;
 /// <summary>The record definitions these structs were generated from: the hash of sbox/records.slangh.</summary>
 internal static class RecordDefinitionsHash
 {
-	public const string Value = "90E7373D86295817";
+	public const string Value = "63EA6B924B8FF0BC";
 }
 
 /// <summary>A GPU-driven draw: what a fragment draws with, made once (GpuDrivenTables.Draw).</summary>
@@ -62,6 +61,67 @@ internal partial struct DrawRecord
 	public int IndexPage;
 }
 
+/// <summary>A geometry record's head: a bit per semantic (usage * 16 + index) the mesh has. A GeometryStream per bit set follows it, in semantic order (GpuDrivenTables.Geometry).</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct GeometryRecord
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 32;
+
+	/// <summary>Byte offset of <see cref="Semantics"/> in the record.</summary>
+	public const int SemanticsOffset = 0;
+	/// <summary>Bytes from one element of <see cref="Semantics"/> to the next.</summary>
+	public const int SemanticsStride = 4;
+	/// <summary>Elements of <see cref="Semantics"/>.</summary>
+	public const int SemanticsLength = 8;
+	/// <summary>Element 0 of <see cref="Semantics"/>.</summary>
+	public uint Semantics0;
+	/// <summary>Element 1 of <see cref="Semantics"/>.</summary>
+	public uint Semantics1;
+	/// <summary>Element 2 of <see cref="Semantics"/>.</summary>
+	public uint Semantics2;
+	/// <summary>Element 3 of <see cref="Semantics"/>.</summary>
+	public uint Semantics3;
+	/// <summary>Element 4 of <see cref="Semantics"/>.</summary>
+	public uint Semantics4;
+	/// <summary>Element 5 of <see cref="Semantics"/>.</summary>
+	public uint Semantics5;
+	/// <summary>Element 6 of <see cref="Semantics"/>.</summary>
+	public uint Semantics6;
+	/// <summary>Element 7 of <see cref="Semantics"/>.</summary>
+	public uint Semantics7;
+	/// <summary>The semantics' bits, 32 a word.</summary>
+	[UnscopedRef] public Span<uint> Semantics => MemoryMarshal.CreateSpan( ref Semantics0, 8 );
+}
+
+/// <summary>One semantic's stream in a geometry record. A semantic a mesh lacks reads ( 0, 0, 0, 1 ), as the default stream does.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct GeometryStream
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 16;
+
+	/// <summary>Byte offset of <see cref="Page"/> in the record.</summary>
+	public const int PageOffset = 0;
+	/// <summary>Its page's bindless slot plus 1.</summary>
+	public uint Page;
+
+	/// <summary>Byte offset of <see cref="Offset"/> in the record.</summary>
+	public const int OffsetOffset = 4;
+	/// <summary>The byte offset of element 0 in the page.</summary>
+	public uint Offset;
+
+	/// <summary>Byte offset of <see cref="Format"/> in the record.</summary>
+	public const int FormatOffset = 8;
+	/// <summary>Bits 0-5: component width; 6-8: count; 9-11: conversion (0 float, 1 unorm, 2 snorm, 3 uint, 4 sint); 12: BGRA; the stride in the top 16 bits.</summary>
+	public uint Format;
+
+	/// <summary>Byte offset of <see cref="Count"/> in the record.</summary>
+	public const int CountOffset = 12;
+	/// <summary>Its element count, shifted up 1; bit 0: per instance.</summary>
+	public uint Count;
+}
+
 /// <summary>A GPU-driven instance, indexed by the command's first instance (SV_VulkanInstanceID).</summary>
 [StructLayout( LayoutKind.Sequential, Pack = 4 )]
 internal partial struct InstanceRecord
@@ -94,24 +154,24 @@ internal partial struct CullViewRecord
 	/// <summary>Elements of <see cref="Planes"/>.</summary>
 	public const int PlanesLength = 6;
 	/// <summary>Element 0 of <see cref="Planes"/>.</summary>
-	public Vector4 Planes0;
+	public System.Numerics.Vector4 Planes0;
 	/// <summary>Element 1 of <see cref="Planes"/>.</summary>
-	public Vector4 Planes1;
+	public System.Numerics.Vector4 Planes1;
 	/// <summary>Element 2 of <see cref="Planes"/>.</summary>
-	public Vector4 Planes2;
+	public System.Numerics.Vector4 Planes2;
 	/// <summary>Element 3 of <see cref="Planes"/>.</summary>
-	public Vector4 Planes3;
+	public System.Numerics.Vector4 Planes3;
 	/// <summary>Element 4 of <see cref="Planes"/>.</summary>
-	public Vector4 Planes4;
+	public System.Numerics.Vector4 Planes4;
 	/// <summary>Element 5 of <see cref="Planes"/>.</summary>
-	public Vector4 Planes5;
+	public System.Numerics.Vector4 Planes5;
 	/// <summary>The frustum's planes: left, right, bottom, top, near, far.</summary>
-	[UnscopedRef] public Span<Vector4> Planes => MemoryMarshal.CreateSpan( ref Planes0, 6 );
+	[UnscopedRef] public Span<System.Numerics.Vector4> Planes => MemoryMarshal.CreateSpan( ref Planes0, 6 );
 
 	/// <summary>Byte offset of <see cref="CameraAndThreshold"/> in the record.</summary>
 	public const int CameraAndThresholdOffset = 96;
 	/// <summary>The camera's position, and the squared size threshold (negative: a sun cascade's squared radius by its texel size).</summary>
-	public Vector4 CameraAndThreshold;
+	public System.Numerics.Vector4 CameraAndThreshold;
 
 	/// <summary>Byte offset of <see cref="Flags"/> in the record.</summary>
 	public const int FlagsOffset = 112;
@@ -136,7 +196,7 @@ internal partial struct CullViewRecord
 	/// <summary>Byte offset of <see cref="LodCamera"/> in the record.</summary>
 	public const int LodCameraOffset = 128;
 	/// <summary>The LOD camera's position, and the tangent of half its field of view.</summary>
-	public Vector4 LodCamera;
+	public System.Numerics.Vector4 LodCamera;
 
 	/// <summary>Byte offset of <see cref="LodWidth"/> in the record.</summary>
 	public const int LodWidthOffset = 144;
@@ -169,7 +229,7 @@ internal partial struct FragmentRecord
 	/// <summary>Byte offset of <see cref="Center"/> in the record.</summary>
 	public const int CenterOffset = 0;
 	/// <summary>Bounds centre.</summary>
-	public Vector3 Center;
+	public System.Numerics.Vector3 Center;
 
 	/// <summary>Byte offset of <see cref="Draw"/> in the record.</summary>
 	public const int DrawOffset = 12;
@@ -179,7 +239,7 @@ internal partial struct FragmentRecord
 	/// <summary>Byte offset of <see cref="Extents"/> in the record.</summary>
 	public const int ExtentsOffset = 16;
 	/// <summary>Bounds extents.</summary>
-	public Vector3 Extents;
+	public System.Numerics.Vector3 Extents;
 
 	/// <summary>Byte offset of <see cref="Instance"/> in the record.</summary>
 	public const int InstanceOffset = 28;
@@ -233,7 +293,7 @@ internal partial struct ResidentMeshRecord
 	/// <summary>Byte offset of <see cref="Center"/> in the record.</summary>
 	public const int CenterOffset = 0;
 	/// <summary>Bounds centre.</summary>
-	public Vector3 Center;
+	public System.Numerics.Vector3 Center;
 
 	/// <summary>Byte offset of <see cref="LodScale"/> in the record.</summary>
 	public const int LodScaleOffset = 12;
@@ -243,7 +303,7 @@ internal partial struct ResidentMeshRecord
 	/// <summary>Byte offset of <see cref="Extents"/> in the record.</summary>
 	public const int ExtentsOffset = 16;
 	/// <summary>Bounds extents.</summary>
-	public Vector3 Extents;
+	public System.Numerics.Vector3 Extents;
 
 	/// <summary>Byte offset of <see cref="Transform"/> in the record.</summary>
 	public const int TransformOffset = 28;
@@ -421,6 +481,62 @@ internal partial struct MeshletRun
 	public uint Global;
 }
 
+/// <summary>A meshlet's bounds and triangles, in a meshlet page (MeshletSet, MeshletStore): its box's centre and half extents in the mesh's space, and its triangles, a run of the range's triangles in meshlet order.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct MeshletRecord
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 32;
+
+	/// <summary>Byte offset of <see cref="Center"/> in the record.</summary>
+	public const int CenterOffset = 0;
+	/// <summary>Bounds centre.</summary>
+	public System.Numerics.Vector3 Center;
+
+	/// <summary>Byte offset of <see cref="FirstTriangle"/> in the record.</summary>
+	public const int FirstTriangleOffset = 12;
+	/// <summary>Its first triangle in the range.</summary>
+	public uint FirstTriangle;
+
+	/// <summary>Byte offset of <see cref="Extents"/> in the record.</summary>
+	public const int ExtentsOffset = 16;
+	/// <summary>Bounds half extents.</summary>
+	public System.Numerics.Vector3 Extents;
+
+	/// <summary>Byte offset of <see cref="TriangleCount"/> in the record.</summary>
+	public const int TriangleCountOffset = 28;
+	/// <summary>Its triangles.</summary>
+	public uint TriangleCount;
+}
+
+/// <summary>What task and mesh shaders read of a meshlet besides its record, after its page's records (MeshletStore.PageRecords of them).</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct MeshletLocalRecord
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 16;
+
+	/// <summary>Byte offset of <see cref="Data"/> in the record.</summary>
+	public const int DataOffset = 0;
+	/// <summary>The data page's bindless slot.</summary>
+	public uint Data;
+
+	/// <summary>Byte offset of <see cref="Triangles"/> in the record.</summary>
+	public const int TrianglesOffset = 4;
+	/// <summary>Where its triangles start in the data page, in bytes: a word each, its corners among the meshlet's vertices, a byte each.</summary>
+	public uint Triangles;
+
+	/// <summary>Byte offset of <see cref="Vertices"/> in the record.</summary>
+	public const int VerticesOffset = 8;
+	/// <summary>Where its vertices start in the data page, in bytes: index values in the draw's index size.</summary>
+	public uint Vertices;
+
+	/// <summary>Byte offset of <see cref="VertexCount"/> in the record.</summary>
+	public const int VertexCountOffset = 12;
+	/// <summary>Its vertex count.</summary>
+	public uint VertexCount;
+}
+
 /// <summary>One generated level of a draw record (LodStore).</summary>
 [StructLayout( LayoutKind.Sequential, Pack = 4 )]
 internal partial struct LodLevel
@@ -567,7 +683,7 @@ internal partial struct HiZCandidate
 	/// <summary>Byte offset of <see cref="Center"/> in the record.</summary>
 	public const int CenterOffset = 0;
 	/// <summary>Bounds centre.</summary>
-	public Vector3 Center;
+	public System.Numerics.Vector3 Center;
 
 	/// <summary>Byte offset of <see cref="Transform"/> in the record.</summary>
 	public const int TransformOffset = 12;
@@ -577,7 +693,7 @@ internal partial struct HiZCandidate
 	/// <summary>Byte offset of <see cref="Extents"/> in the record.</summary>
 	public const int ExtentsOffset = 16;
 	/// <summary>Bounds extents.</summary>
-	public Vector3 Extents;
+	public System.Numerics.Vector3 Extents;
 
 	/// <summary>Byte offset of <see cref="Draw"/> in the record.</summary>
 	public const int DrawOffset = 28;
@@ -701,7 +817,7 @@ internal partial struct ResidentCullEntryRecord
 	/// <summary>Byte offset of <see cref="Center"/> in the record.</summary>
 	public const int CenterOffset = 0;
 	/// <summary>Bounds centre.</summary>
-	public Vector3 Center;
+	public System.Numerics.Vector3 Center;
 
 	/// <summary>Byte offset of <see cref="Transform"/> in the record.</summary>
 	public const int TransformOffset = 12;
@@ -711,7 +827,7 @@ internal partial struct ResidentCullEntryRecord
 	/// <summary>Byte offset of <see cref="Extents"/> in the record.</summary>
 	public const int ExtentsOffset = 16;
 	/// <summary>Bounds extents.</summary>
-	public Vector3 Extents;
+	public System.Numerics.Vector3 Extents;
 
 	/// <summary>Byte offset of <see cref="Draw"/> in the record.</summary>
 	public const int DrawOffset = 28;

@@ -205,9 +205,9 @@ void Copy( uint nJob, uint nThread )
 		// Each meshlet tested once; a kept one joins the list (a 16-bit one's triangles padded to an even count)
 		for ( uint m = nThread; m < nChunkMeshlets; m += 64 )
 		{
-			uint nAt = ( vRun.y + nChunk + m ) * 32;
-			uint4 r0 = meshlets.Load4( nAt );
-			uint4 r1 = meshlets.Load4( nAt + 16 );
+			uint nAt = ( vRun.y + nChunk + m ) * MeshletRecord_Size;
+			uint4 r0 = uint4( meshlets.Load3( nAt + MeshletRecord_Center ), meshlets.Load( nAt + MeshletRecord_FirstTriangle ) );
+			uint4 r1 = uint4( meshlets.Load3( nAt + MeshletRecord_Extents ), meshlets.Load( nAt + MeshletRecord_TriangleCount ) );
 			if ( !MeshletOutside( view, asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform, bShadow ) )
 			{
 				uint nSlot;

@@ -1,6 +1,5 @@
 using Borealis.Gpu;
 using Borealis.Source2.Shaders;
-using System.Buffers.Binary;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -42,7 +41,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	public const ulong RetiredFrames = 4;
 
 	/// <summary>Bytes of a geometry record before its attributes: one bit per semantic.</summary>
-	const int MaskBytes = 32;
+	const int MaskBytes = GeometryRecord.Size;
 
 	readonly Device gpu;
 	readonly object pagesLock = new();
@@ -475,21 +474,14 @@ internal sealed class GpuDrivenTables : IDisposable
 			if ( geometryRecords.TryGetValue( (slot, offset, layout, count), out var found ) ) return found;
 
 			var fields = layout.Fields.Where( f => Semantic( f ) is >= 0 and < 256 && Encode( f.Format ) != 0 ).OrderBy( Semantic ).ToArray();
-			var record = new byte[MaskBytes + fields.Length * 16];
-			foreach ( var field in fields )
-			{
-				var semantic = Semantic( field );
-				var word = BinaryPrimitives.ReadUInt32LittleEndian( record.AsSpan( semantic / 32 * 4 ) );
-				BinaryPrimitives.WriteUInt32LittleEndian( record.AsSpan( semantic / 32 * 4 ), word | 1u << (semantic % 32) );
-			}
-
+			var record = new byte[MaskBytes + fields.Length * GeometryStream.Size];
+			var semantics = MemoryMarshal.AsRef<GeometryRecord>( record.AsSpan( 0, MaskBytes ) ).Semantics;
+			var streams = MemoryMarshal.Cast<byte, GeometryStream>( record.AsSpan( MaskBytes ) );
 			for ( int i = 0; i < fields.Length; i++ )
 			{
-				var attribute = record.AsSpan( MaskBytes + i * 16 );
-				BinaryPrimitives.WriteUInt32LittleEndian( attribute, (uint)slot + 1 );
-				BinaryPrimitives.WriteUInt32LittleEndian( attribute[4..], (uint)(offset + fields[i].Offset) );
-				BinaryPrimitives.WriteUInt32LittleEndian( attribute[8..], Encode( fields[i].Format ) | (uint)layout.Stride << 16 );
-				BinaryPrimitives.WriteUInt32LittleEndian( attribute[12..], (uint)count << 1 );
+				var semantic = Semantic( fields[i] );
+				semantics[semantic / 32] |= 1u << (semantic % 32);
+				streams[i] = new GeometryStream { Page = (uint)slot + 1, Offset = (uint)(offset + fields[i].Offset), Format = Encode( fields[i].Format ) | (uint)layout.Stride << 16, Count = (uint)count << 1 };
 			}
 
 			return geometryRecords[(slot, offset, layout, count)] = geometry.Append( record );
@@ -547,18 +539,14 @@ internal sealed class GpuDrivenTables : IDisposable
 				.Append( (Semantic: CacheVertexSemantic, Slot: ids.Slot, Offset: ids.Offset + firstCacheVertex * 4L, Format: Encode( VertexFormat.Float ) | 4u << 16, Count: count) )
 				.OrderBy( a => a.Semantic ).ToArray();
 
-			var record = new byte[MaskBytes + attributes.Length * 16];
+			var record = new byte[MaskBytes + attributes.Length * GeometryStream.Size];
+			var semantics = MemoryMarshal.AsRef<GeometryRecord>( record.AsSpan( 0, MaskBytes ) ).Semantics;
+			var streams = MemoryMarshal.Cast<byte, GeometryStream>( record.AsSpan( MaskBytes ) );
 			for ( int i = 0; i < attributes.Length; i++ )
 			{
 				var semantic = attributes[i].Semantic;
-				var word = BinaryPrimitives.ReadUInt32LittleEndian( record.AsSpan( semantic / 32 * 4 ) );
-				BinaryPrimitives.WriteUInt32LittleEndian( record.AsSpan( semantic / 32 * 4 ), word | 1u << (semantic % 32) );
-
-				var attribute = record.AsSpan( MaskBytes + i * 16 );
-				BinaryPrimitives.WriteUInt32LittleEndian( attribute, (uint)attributes[i].Slot + 1 );
-				BinaryPrimitives.WriteUInt32LittleEndian( attribute[4..], (uint)attributes[i].Offset );
-				BinaryPrimitives.WriteUInt32LittleEndian( attribute[8..], attributes[i].Format );
-				BinaryPrimitives.WriteUInt32LittleEndian( attribute[12..], (uint)attributes[i].Count << 1 );
+				semantics[semantic / 32] |= 1u << (semantic % 32);
+				streams[i] = new GeometryStream { Page = (uint)attributes[i].Slot + 1, Offset = (uint)attributes[i].Offset, Format = attributes[i].Format, Count = (uint)attributes[i].Count << 1 };
 			}
 
 			return cacheGeometryRecords[key] = geometry.Append( record );

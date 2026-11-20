@@ -34,7 +34,7 @@ public class RecordTests
 	public void GeneratedFilesAreCurrent()
 	{
 		var definitions = Compiler().ReflectRecords();
-		Assert.IsTrue( definitions.Records.Count >= 18, $"{definitions.Records.Count} records" );
+		Assert.IsTrue( definitions.Records.Count >= 22, $"{definitions.Records.Count} records" );
 		const string stale = "is stale: run ShaderCompiler -records in the game folder (build-shaders does)";
 		Assert.AreEqual( Normal( RecordWriter.CSharp( definitions, "Borealis.Backend" ) ), Normal( File.ReadAllText( Path.Combine( Engine, RecordWriter.CSharpFile ) ) ), $"{RecordWriter.CSharpFile} {stale}" );
 		Assert.AreEqual( Normal( RecordWriter.Hlsl( definitions ) ), Normal( File.ReadAllText( Path.Combine( Shaders, RecordWriter.HlslFile ) ) ), $"{RecordWriter.HlslFile} {stale}" );
@@ -74,6 +74,9 @@ public class RecordTests
 		Assert.AreEqual( GpuDrivenTables.FragmentStride, ResidentMeshRecord.Size );
 		Assert.AreEqual( Borealis.Backend.Lods.LodStore.RecordBytes, LodRecord.Size );
 		Assert.AreEqual( Borealis.Backend.Meshlets.MeshletStore.RunBytes, MeshletRun.Size );
+		Assert.AreEqual( Borealis.Backend.Meshlets.MeshletSet.RecordBytes, MeshletRecord.Size );
+		Assert.AreEqual( Borealis.Backend.Meshlets.MeshletStore.LocalRecordBytes, MeshletLocalRecord.Size );
+		Assert.AreEqual( 32, GeometryRecord.Size, "a geometry record's head holds a bit for each of 256 semantics" );
 
 		// A record inside a record: the LOD record's levels, after its header
 		var lod = definitions.Record( "LodRecord" );

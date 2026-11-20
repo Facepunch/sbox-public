@@ -34,6 +34,26 @@ struct DrawRecord
 	int IndexPage;
 };
 
+/// A geometry record's head: a bit per semantic (usage * 16 + index) the mesh has. A GeometryStream per bit set follows it, in semantic order (GpuDrivenTables.Geometry).
+struct GeometryRecord
+{
+	/// The semantics' bits, 32 a word.
+	uint Semantics[8];
+};
+
+/// One semantic's stream in a geometry record. A semantic a mesh lacks reads ( 0, 0, 0, 1 ), as the default stream does.
+struct GeometryStream
+{
+	/// Its page's bindless slot plus 1.
+	uint Page;
+	/// The byte offset of element 0 in the page.
+	uint Offset;
+	/// Bits 0-5: component width; 6-8: count; 9-11: conversion (0 float, 1 unorm, 2 snorm, 3 uint, 4 sint); 12: BGRA; the stride in the top 16 bits.
+	uint Format;
+	/// Its element count, shifted up 1; bit 0: per instance.
+	uint Count;
+};
+
 /// A GPU-driven instance, indexed by the command's first instance (SV_VulkanInstanceID).
 struct InstanceRecord
 {
@@ -180,6 +200,32 @@ struct MeshletRun
 	uint Count;
 	/// Its first meshlet's index among every meshlet (a view's meshlet bits).
 	uint Global;
+};
+
+/// A meshlet's bounds and triangles, in a meshlet page (MeshletSet, MeshletStore): its box's centre and half extents in the mesh's space, and its triangles, a run of the range's triangles in meshlet order.
+struct MeshletRecord
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Its first triangle in the range.
+	uint FirstTriangle;
+	/// Bounds half extents.
+	float3 Extents;
+	/// Its triangles.
+	uint TriangleCount;
+};
+
+/// What task and mesh shaders read of a meshlet besides its record, after its page's records (MeshletStore.PageRecords of them).
+struct MeshletLocalRecord
+{
+	/// The data page's bindless slot.
+	uint Data;
+	/// Where its triangles start in the data page, in bytes: a word each, its corners among the meshlet's vertices, a byte each.
+	uint Triangles;
+	/// Where its vertices start in the data page, in bytes: index values in the draw's index size.
+	uint Vertices;
+	/// Its vertex count.
+	uint VertexCount;
 };
 
 /// One generated level of a draw record (LodStore).

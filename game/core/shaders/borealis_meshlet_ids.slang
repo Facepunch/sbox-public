@@ -95,14 +95,15 @@ uint4 StreamOf( uint nGeometry, uint nSemantic )
 	ByteAddressBuffer geometry = g_bindless_VertexBuffers[ g_nBorealisGeometry ];
 	uint nMaskWord = nSemantic >> 5;
 	uint nBit = 1u << ( nSemantic & 31 );
-	uint nMask = geometry.Load( nGeometry + nMaskWord * 4 );
+	uint nMask = geometry.Load( nGeometry + GeometryRecord_Semantics + nMaskWord * GeometryRecord_SemanticsStride );
 	if ( ( nMask & nBit ) == 0 )
 		return 0;
 
 	uint nAttribute = countbits( nMask & ( nBit - 1 ) );
 	for ( uint i = 0; i < nMaskWord; i++ )
-		nAttribute += countbits( geometry.Load( nGeometry + i * 4 ) );
-	return geometry.Load4( nGeometry + 32 + nAttribute * 16 );
+		nAttribute += countbits( geometry.Load( nGeometry + GeometryRecord_Semantics + i * GeometryRecord_SemanticsStride ) );
+	uint nStreamAt = nGeometry + GeometryRecord_Size + nAttribute * GeometryStream_Size;
+	return uint4( geometry.Load( nStreamAt + GeometryStream_Page ), geometry.Load( nStreamAt + GeometryStream_Offset ), geometry.Load( nStreamAt + GeometryStream_Format ), geometry.Load( nStreamAt + GeometryStream_Count ) );
 }
 groupshared uint gs_RoundCount;
 
@@ -145,9 +146,9 @@ groupshared uint gs_RoundCount;
 		uint m = nBase + nThread;
 		if ( m < nMeshlets )
 		{
-			uint nAt = ( vRun.y + m ) * 32;
-			uint4 r0 = meshlets.Load4( nAt );
-			uint4 r1 = meshlets.Load4( nAt + 16 );
+			uint nAt = ( vRun.y + m ) * MeshletRecord_Size;
+			uint4 r0 = uint4( meshlets.Load3( nAt + MeshletRecord_Center ), meshlets.Load( nAt + MeshletRecord_FirstTriangle ) );
+			uint4 r1 = uint4( meshlets.Load3( nAt + MeshletRecord_Extents ), meshlets.Load( nAt + MeshletRecord_TriangleCount ) );
 			if ( !MeshletCulled( view, asfloat( r0.xyz ), asfloat( r1.xyz ), mTransform ) )
 			{
 				uint nWas;
@@ -231,7 +232,7 @@ static const uint MaxTriangles = 128;
 // Where a meshlet page's local records start: after its records (MeshletStore.PageRecords of 32 bytes). Each is the data
 // page's bindless slot, where the meshlet's triangles (a word each: its corners among the meshlet's vertices, a byte each)
 // and its vertices (index values in the draw's index size) start there in bytes, and its vertex count
-static const uint LocalRecordsAt = 131072 * 32;
+static const uint LocalRecordsAt = 131072 * MeshletRecord_Size;
 
 // A vertex's position from its stream, as BorealisGpuDrivenFetch decodes it (the stream is the group's, so its page is too)
 float3 FetchPosition( uint4 attribute, uint nVertex )
@@ -305,8 +306,9 @@ float3 FetchPosition( uint4 attribute, uint nVertex )
 	uint4 vStream = WaveReadLaneFirst( payload.vPosition );
 	bool b32 = vVertices.w != 0;
 	ByteAddressBuffer meshlets = g_bindless_VertexBuffers[ WaveReadLaneFirst( payload.nMeshletPage ) ];
-	uint2 vMeshlet = WaveReadLaneFirst( uint2( meshlets.Load( nMeshlet * 32 + 12 ), meshlets.Load( nMeshlet * 32 + 28 ) ) );
-	uint4 vLocal = WaveReadLaneFirst( meshlets.Load4( LocalRecordsAt + nMeshlet * 16 ) );
+	uint2 vMeshlet = WaveReadLaneFirst( uint2( meshlets.Load( nMeshlet * MeshletRecord_Size + MeshletRecord_FirstTriangle ), meshlets.Load( nMeshlet * MeshletRecord_Size + MeshletRecord_TriangleCount ) ) );
+	uint nLocalAt = LocalRecordsAt + nMeshlet * MeshletLocalRecord_Size;
+	uint4 vLocal = WaveReadLaneFirst( uint4( meshlets.Load( nLocalAt + MeshletLocalRecord_Data ), meshlets.Load( nLocalAt + MeshletLocalRecord_Triangles ), meshlets.Load( nLocalAt + MeshletLocalRecord_Vertices ), meshlets.Load( nLocalAt + MeshletLocalRecord_VertexCount ) ) );
 	uint nFirstTriangle = vMeshlet.x;
 	uint nTriangles = min( vMeshlet.y, MaxTriangles );
 	uint nVertices = min( vLocal.w, MaxVertices );
