@@ -815,10 +815,10 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// Pass modules compiled in the background: a converted module's variant asked for while its stages compile is its
-	/// shader's compiled programs' and the drawer doesn't keep it; once they're done it's the module's, kept. A standalone
-	/// module has no programs to fall back to, and a skipped compute dispatch would leave its outputs unwritten: its variant
-	/// is waited for (with its offline compile, as shipped, nothing compiles in game at all).
+	/// Pass modules compiled in the background: a standalone module has no programs to fall back to, and a skipped compute
+	/// dispatch would leave its outputs unwritten, so its variant is waited for (with its offline compile, as shipped, nothing
+	/// compiles in game at all). A converted module's would draw its shader's compiled programs meanwhile; none is left in
+	/// core to try it with.
 	/// </summary>
 	[TestMethod]
 	[TestCategory( "Slow" )]
@@ -841,28 +841,6 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( standalone is { ModuleOnly: true }, "clutter_cull_cs is standalone" );
 			Assert.IsTrue( drawer.Variant( standalone, new ShaderAttributes() ) is { FromModule: true }, "a standalone module's variant is waited for" );
 			Assert.AreEqual( 0, backend.Passes.PendingAsks );
-
-			// Converted (no Mode lines; cs_compress_dxt5 is one Source 2 alone draws, so its .shader_c is there)
-			var shader = backend.Shaders.Load( "shaders/cs_compress_dxt5.shader" );
-			if ( shader is null ) Assert.Inconclusive( "cs_compress_dxt5 isn't compiled" );
-			Assert.IsFalse( shader.ModuleOnly );
-
-			var clock = System.Diagnostics.Stopwatch.StartNew();
-			var first = drawer.Variant( shader, new ShaderAttributes() );
-			Assert.IsTrue( clock.Elapsed.TotalSeconds < 1, $"the first ask took {clock.Elapsed.TotalSeconds:F1} s" );
-			Assert.IsTrue( first is { FromModule: false }, "its programs draw while the module compiles" );
-			Assert.AreEqual( 1, backend.Passes.PendingAsks );
-
-			Borealis.Source2.Shaders.ShaderVariant module = null;
-			while ( clock.Elapsed.TotalSeconds < 120 )
-			{
-				module = drawer.Variant( shader, new ShaderAttributes() );
-				if ( module.FromModule ) break;
-				System.Threading.Thread.Sleep( 50 );
-			}
-
-			Assert.IsTrue( module is { FromModule: true }, $"the module's variant never came: {string.Join( "; ", errors )}" );
-			Assert.AreSame( module, drawer.Variant( shader, new ShaderAttributes() ), "kept once it's the module's" );
 			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 		}
 		finally
@@ -1396,15 +1374,15 @@ public class SurfaceTests : GpuTest
 		var shaders = Path.Combine( Core, "shaders" );
 		string Convert( string name, out IReadOnlyList<string> notes )
 		{
-			var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( shaders, name + ".shader" ) ), name );
+			// static_overlay.shader is gone (its surface is the whole shader): the test keeps a copy
+			var data = Path.Combine( AppContext.BaseDirectory, "Data", name + ".shader" );
+			var result = ShaderConverter.Convert( File.ReadAllText( File.Exists( data ) ? data : Path.Combine( shaders, name + ".shader" ) ), name );
 			notes = result.Notes;
 			return result.Source;
 		}
 
 		// Shaders that do more than the standard processing: their notes say why
-		Assert.IsNull( Convert( "vertex_color", out var notes ), "vertex_color converted" );
-		StringAssert.Contains( notes[0], "vertex shader" );
-		Assert.IsNull( Convert( "static_overlay", out notes ), "static_overlay converted" );
+		Assert.IsNull( Convert( "static_overlay", out var notes ), "static_overlay converted" );
 		StringAssert.Contains( notes[0], "MainPs works on" );
 		Assert.IsNull( Convert( "generic", out notes ), "generic converted" );
 		StringAssert.Contains( notes[0], "FinalCombiner" );
