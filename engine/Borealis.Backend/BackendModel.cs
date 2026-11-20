@@ -199,6 +199,23 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		}
 	}
 
+	/// <summary>
+	/// Bytes of a mesh's index buffer <paramref name="buffer"/> its draws may get generated levels of (<see cref="Lods.LodStore"/>):
+	/// draws of enough triangles in a model without LODs of its own. Its index page keeps room for their levels.
+	/// </summary>
+	static int LevelCandidateBytes( ModelFile file, ModelMesh mesh, int buffer )
+	{
+		if ( file.LodCount > 1 ) return 0;
+		var size = mesh.IndexBuffers[buffer].Size;
+		long bytes = 0;
+		foreach ( var call in mesh.DrawCalls )
+		{
+			if ( call.IndexBuffer.Buffer == buffer && call.IndexCount / 3 >= Lods.LodConfig.Default.MinRangeTriangles ) bytes += (long)call.IndexCount * size;
+		}
+
+		return (int)Math.Min( bytes, mesh.IndexBuffers[buffer].Data.Length );
+	}
+
 	void Make( ModelFile file )
 	{
 		var gpu = device.Gpu;
@@ -254,7 +271,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				var format = source.Size == 4 ? IndexFormat.UInt32 : IndexFormat.UInt16;
 				if ( indexTables is not null )
 				{
-					var (page, slot, first) = indexTables.AddIndices( source.Data, format );
+					var (page, slot, first) = indexTables.AddIndices( source.Data, format, skinned ? 0 : LevelCandidateBytes( file, mesh, i ) );
 					pageRanges.Add( (slot, source.Data.Length) );
 					indexBuffers[i] = (page, first * (long)source.Size, format, page, slot, first);
 					continue;

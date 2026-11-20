@@ -632,7 +632,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool GeneratedLods { get; set; } = !HasSwitch( "-no-lodgen" );
 
-	/// <summary>Room index pages keep for generated levels, as a fraction of their meshes' indices.</summary>
+	/// <summary>
+	/// Room index pages keep for generated levels, as a fraction of the indices of the draws that may get them (draws of
+	/// enough triangles in models without LODs of their own).
+	/// </summary>
 	public static float LodLevelRoom { get; set; } = 0.75f;
 
 	/// <summary>The error a generated level may have, in pixels at the fragment's nearest point (texels in a texel-sized cascade); <c>-lodgen-pixels</c>.</summary>
@@ -699,7 +702,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			if ( lodStore is not { } s ) return GeneratedLods ? "generated LODs: none (meshopt not found or no GPU-driven geometry)" : "generated LODs: off";
 			var (room, used) = gpuDrivenTables.LevelBytes;
-			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB of {room / 1048576.0:0.0} MB of room, tables {s.Bytes / 1048576.0:0.0} MB; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
+			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB ({room / 1048576.0:0.0} MB still kept for levels), tables {s.Bytes / 1048576.0:0.0} MB; {gpuDrivenTables.DescribeIndexPages()}; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
 		}
 	}
 
