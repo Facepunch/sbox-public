@@ -15,4 +15,7 @@ done
 "$DXC" $FLAGS -T ms_6_6 -E MainMs -fvk-invert-y -fspv-extension=SPV_EXT_mesh_shader -Fo meshtriangle.ms.spv meshtriangle.hlsl
 "$DXC" $FLAGS -T cs_6_6 -E MainCs -Fo pattern.cs.spv pattern.hlsl
 "$DXC" $FLAGS -T cs_6_6 -E MainCs -Fo slots.cs.spv slots.hlsl
+# The discard as OpDemoteToHelperInvocation (Vulkan 1.3) and as OpKill (1.1)
+"$DXC" $FLAGS -T ps_6_6 -E MainPs -Fo discard.ps.spv discard.hlsl
+"$DXC" -spirv -fspv-target-env=vulkan1.1 -O3 -HV 2021 -T ps_6_6 -E MainPs -Fo discardkill.ps.spv discard.hlsl
 echo Compiled

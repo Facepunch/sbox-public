@@ -325,6 +325,54 @@ public class PipelineLibraryTests : GpuTest
 		AssertSame( fast, whole, "the mesh pipeline made whole" );
 	}
 
+	/// <summary>
+	/// A pixel shader that discards two pixels of each quad and takes derivatives after draws without them from its first
+	/// link, as its optimised link does, with the discard as OpDemoteToHelperInvocation and as OpKill. AMD's driver draws them
+	/// in a fast link (<c>Device.LinksDiscardsOptimised</c> links such pipelines optimised at once there).
+	/// </summary>
+	[TestMethod]
+	[DataRow( "discard.ps.spv" )]
+	[DataRow( "discardkill.ps.spv" )]
+	public void DiscardingPixelShadersDiscardFromTheFirstLink( string pixelShader )
+	{
+		RequireLibraries();
+		var info = NoDepth( Triangle( Shader( "triangle.vs.spv" ), Shader( pixelShader ) ) );
+
+		// The first link stays: no optimised link replaces it
+		Device.OptimisesLinks = false;
+		var first = Device.CreateGraphicsPipeline( info );
+		var drawn = DrawTriangle( Device, first, false );
+		Device.OptimisesLinks = true;
+		var linked = Device.CreateGraphicsPipeline( info );
+		Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
+		Assert.IsTrue( Device.IsOptimised( linked ) );
+		var optimised = DrawTriangle( Device, linked, false );
+		if ( Device.LinksDiscardsOptimised ) Assert.IsTrue( Device.IsOptimised( first ), "linked optimised at once" );
+
+		static (int Kept, int Discarded) Count( byte[] pixels )
+		{
+			int kept = 0, discarded = 0;
+			for ( int y = 0; y < Height; y++ )
+			{
+				for ( int x = 0; x < Width; x++ )
+				{
+					if ( pixels[(y * Width + x) * 4 + 3] == 0 ) continue;
+					if ( ((x ^ y) & 1) != 0 ) discarded++;
+					else kept++;
+				}
+			}
+
+			return (kept, discarded);
+		}
+
+		var (optimisedKept, optimisedDiscarded) = Count( optimised );
+		var (firstKept, firstDiscarded) = Count( drawn );
+		Assert.IsTrue( optimisedKept > 1000, $"the optimised link drew {optimisedKept} pixels" );
+		Assert.AreEqual( 0, optimisedDiscarded, "the optimised link drew no discarded pixel" );
+		Assert.AreEqual( optimisedKept, firstKept, "the first link drew the same pixels" );
+		Assert.AreEqual( 0, firstDiscarded, "the first link drew no discarded pixel" );
+	}
+
 	static GraphicsPipelineInfo NoDepth( GraphicsPipelineInfo info )
 	{
 		info.DepthFormat = Format.Unknown;

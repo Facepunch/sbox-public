@@ -1816,8 +1816,8 @@ public class GpuDrivenTests : GpuTest
 			}
 
 			// A pipeline draws fast linked until its optimised link, made on threads at the lowest priority, replaces it, and the
-			// fast links of complex's faded variants draw undithered on the 7900 XTX: each frame compared follows one that made
-			// its pipelines and a wait for their optimised links, so it doesn't depend on when those threads ran
+			// two needn't draw the same pixels: each frame compared follows one that made its pipelines and a wait for their
+			// optimised links, so it doesn't depend on when those threads ran
 			byte[] Optimised( bool gpuDriven, bool faded, DrawCensus census = null )
 			{
 				Frame( gpuDriven, faded, census is null ? null : new DrawCensus() );
@@ -1845,6 +1845,89 @@ public class GpuDrivenTests : GpuTest
 			Assert.AreEqual( 0, Different( classic, driven ), "the classic pixels" );
 			Assert.IsFalse( census.Draws.Any( d => d.Path == DrawCensus.Path.Classic && d.Material == "Faded boxes" ), $"nothing of the faded boxes draws the classic way: {string.Join( ", ", census.Draws.Where( d => d.Path == DrawCensus.Path.Classic ).Select( d => $"{d.Pass} {d.Kind}" ) )}" );
 			Assert.IsTrue( census.Draws.Any( d => d.Path == DrawCensus.Path.Bucket && d.Pass.EndsWith( "Opaque Forward", StringComparison.Ordinal ) && d.BucketMaterials > 0 ), "the opaque pass draws buckets" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// Fading objects dither from their pipelines' first links, not only once their optimised links replace them
+	/// (<c>Device.OptimisesLinks</c> off keeps the first): about half of a half-faded box's pixels show what's behind it,
+	/// drawn the classic way and GPU-driven.
+	/// </summary>
+	[TestMethod]
+	public void FadedObjectsDitherFromTheirFirstLink()
+	{
+		Device.OptimisesLinks = false;
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = false, GpuDrivenMeshes = true };
+		foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
+		{
+			if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
+		}
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "First link fade test" );
+
+			// The ground alone, with the boxes solid, and with them half faded; no shadows, so the boxes change only their own pixels
+			var (ground, _) = Boxes( backend, backend.CreateMaterial( "Faded test ground", new Color( 0.8f, 0.6f, 0.4f ) ), 0 );
+			var (boxes, _) = Boxes( backend, backend.CreateMaterial( "Faded boxes", new Color( 0.3f, 0.7f, 0.4f ) ), 120 );
+			RenderWorld World( float? alpha )
+			{
+				var world = new RenderWorld();
+				world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+				world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+				world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+				world.Lighting.SunShadowCascades = 0;
+				world.Add( new MeshObject( ground, Transform.Zero ) );
+				if ( alpha is { } a ) world.Add( new MeshObject( boxes, Transform.Zero ) { Tint = new Color( 1, 1, 1, a ) } );
+				return world;
+			}
+
+			var (bare, solid, faded) = (World( null ), World( 1 ), World( 0.5f ));
+			var view = new RenderView { Name = "First link fade", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame( RenderWorld world, bool gpuDriven )
+			{
+				backend.GpuDriven = gpuDriven;
+				backend.GpuDrivenFaded = gpuDriven;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			static bool Same( byte[] a, byte[] b, int pixel ) => a.AsSpan( pixel * 8, 8 ).SequenceEqual( b.AsSpan( pixel * 8, 8 ) );
+
+			foreach ( var gpuDriven in (bool[])[false, true] )
+			{
+				var (behind, whole, dithered) = (Frame( bare, gpuDriven ), Frame( solid, gpuDriven ), Frame( faded, gpuDriven ));
+				int covered = 0, holes = 0;
+				for ( int p = 0; p < Width * Height; p++ )
+				{
+					if ( Same( whole, behind, p ) ) continue;
+					covered++;
+					if ( Same( dithered, behind, p ) ) holes++;
+				}
+
+				var path = gpuDriven ? "GPU-driven" : "classic";
+				Assert.IsTrue( covered > 2000, $"{path}: the boxes cover {covered} pixels" );
+				Assert.AreEqual( 0.5, holes / (double)covered, 0.15, $"{path}: {holes} of the {covered} pixels the boxes cover show what's behind them" );
+			}
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 		}
 		finally
 		{
