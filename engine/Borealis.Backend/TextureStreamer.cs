@@ -592,6 +592,28 @@ internal sealed class TextureStreamer
 	/// <summary>Builds started so far.</summary>
 	public int BuildsStarted { get; private set; }
 
+	/// <summary>
+	/// Before the device goes: wait for the builds being read (their workers make images on it) and destroy the images of
+	/// those not swapped in.
+	/// </summary>
+	public void Finish()
+	{
+		for ( int i = builds.Count - 1; i >= 0; i-- )
+		{
+			var build = builds[i];
+			try
+			{
+				build.Read?.Wait();
+			}
+			catch ( AggregateException )
+			{
+				// A read that failed made nothing
+			}
+
+			Drop( build, i );
+		}
+	}
+
 	void Drop( Build build, int index )
 	{
 		build.Release();
