@@ -31,10 +31,17 @@ partial class HotloadProcessor
 	private static readonly SymbolDisplayFormat FieldTypeFormat = SymbolDisplayFormat.FullyQualifiedFormat
 		.AddMiscellaneousOptions( SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier );
 
+	private static readonly DiagnosticDescriptor InheritedFieldsNotInitialized = new(
+		DiagnosticIds.HotloadInheritedFieldsNotInitialized,
+		"Inherited fields not initialized by hotload",
+		"'{0}' now inherits from '{1}', which is in another assembly. Hotload can't run its field initializers, so existing instances of '{0}' will have default values for its fields.",
+		"Hotload", DiagnosticSeverity.Warning, true );
+
 	/// <summary>
 	/// Generates a method for each instance field added since <see cref="Processor.LastSuccessfulCompilation"/>
 	/// that has an initializer. That includes fields whose type changed, and fields of base types newly in a type's
-	/// hierarchy, since hotload treats those as new too.
+	/// hierarchy, since hotload treats those as new too. Base types newly in the hierarchy from another assembly
+	/// get a warning instead.
 	/// </summary>
 	/// <remarks>
 	/// TODO: This assumes the last successful compile is the one that's loaded. If one succeeds but is never
@@ -68,7 +75,7 @@ partial class HotloadProcessor
 			{
 				if ( model.GetDeclaredSymbol( typeDecl ) is not { } type || !visited.Add( type ) ) continue;
 
-				FindAddedFields( compilation, oldCompilation, type, addedFields );
+				FindAddedFields( processor, type, addedFields );
 			}
 		}
 
@@ -99,8 +106,11 @@ partial class HotloadProcessor
 	/// Finds fields that hotload will treat as new when upgrading existing instances of <paramref name="type"/>,
 	/// matching how <c>DefaultUpgrader</c> compares each level of the type hierarchy.
 	/// </summary>
-	private static void FindAddedFields( Compilation compilation, Compilation oldCompilation, INamedTypeSymbol type, HashSet<IFieldSymbol> addedFields )
+	private static void FindAddedFields( Processor processor, INamedTypeSymbol type, HashSet<IFieldSymbol> addedFields )
 	{
+		var compilation = processor.Compilation;
+		var oldCompilation = processor.LastSuccessfulCompilation;
+
 		// New types have no existing instances to initialize
 
 		if ( oldCompilation.Assembly.GetTypeByMetadataName( GetFullMetadataName( type ) ) is not { } oldType ) return;
@@ -112,9 +122,11 @@ partial class HotloadProcessor
 			oldHierarchy.Add( GetFullMetadataName( oldBase ) );
 		}
 
-		// Base types from other assemblies aren't swapped, so their fields don't change
+		// Fields added to base types from other assemblies are found by those assemblies' own compiles
 
-		for ( var baseType = type; baseType is not null && SymbolEqualityComparer.Default.Equals( baseType.ContainingAssembly, compilation.Assembly ); baseType = baseType.BaseType )
+		var baseType = type;
+
+		for ( ; baseType is not null && SymbolEqualityComparer.Default.Equals( baseType.ContainingAssembly, compilation.Assembly ); baseType = baseType.BaseType )
 		{
 			var name = GetFullMetadataName( baseType );
 
@@ -132,6 +144,20 @@ partial class HotloadProcessor
 
 				addedFields.Add( field );
 			}
+		}
+
+		// A base type from another assembly that wasn't in the old hierarchy has fields that hotload treats as new,
+		// but their initializer methods would have to go in that type, and it might not even be our source
+
+		if ( baseType is not null && !oldHierarchy.Contains( GetFullMetadataName( baseType ) ) )
+		{
+			var location = type.DeclaringSyntaxReferences
+				.Select( x => x.GetSyntax() )
+				.OfType<TypeDeclarationSyntax>()
+				.Select( x => x.BaseList?.Types.FirstOrDefault()?.GetLocation() )
+				.FirstOrDefault( x => x is not null ) ?? type.Locations.FirstOrDefault();
+
+			processor.Diagnostics.Add( Diagnostic.Create( InheritedFieldsNotInitialized, location, type.Name, baseType.ToDisplayString() ) );
 		}
 	}
 

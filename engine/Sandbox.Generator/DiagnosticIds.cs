@@ -15,5 +15,8 @@
 
 		// ConCmd
 		public const string ConCmdNotStatic = "SB300";
+
+		// Hotload 400-499
+		public const string HotloadInheritedFieldsNotInitialized = "SB400";
 	}
 }
