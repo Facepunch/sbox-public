@@ -527,6 +527,17 @@ public sealed partial class PassModule
 		return string.Join( '\n', PassPreprocessor.ActiveLines( Path, Text, all ) );
 	}
 
+	/// <summary>
+	/// The lines a stage's compile sees with these values, its includes' with them: what a material's texture inputs and
+	/// processed textures are read from (<see cref="MaterialInputs"/>), as vfx reads them from the whole program.
+	/// </summary>
+	public IReadOnlyList<string> CompiledLines( StageKind stage, IReadOnlyDictionary<string, int> values )
+	{
+		var all = ProgramValues( stage );
+		foreach ( var (name, value) in values ) all[name] = value;
+		return Lines( all );
+	}
+
 	[GeneratedRegex( @"\[\s*shader\s*\(\s*""vertex""\s*\)\s*\]" )]
 	private static partial Regex VertexEntry();
 
