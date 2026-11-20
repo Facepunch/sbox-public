@@ -72,33 +72,41 @@ internal sealed partial class NetworkObject
 		// Register all our Sync properties with the data table.
 		foreach ( var propertyAndAttribute in ReflectionQueryCache.SyncProperties( type ) )
 		{
-			var isHostSync = propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.FromHost );
-#pragma warning disable CS0618 // Existing games still rely on Query polling.
-			var isQuery = propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.Query );
-#pragma warning restore CS0618
-
 			try
 			{
 				var identity = GetPropertySlot( propertyAndAttribute.NameHash, guid );
 
-				var entry = new NetworkTable.Entry
-				{
-					TargetType = propertyAndAttribute.Property.PropertyType,
-					ControlCondition = isHostSync ? static c => c.IsHost : _hasControlCondition ??= HasControl,
-					GetValue = () => propertyAndAttribute.Property.GetValue( instance ),
-					SetValue = ( v ) => propertyAndAttribute.Property?.SetValue( instance, v ),
-					Typed = NetworkTable.TypedAccess.Create( instance, propertyAndAttribute.Property ),
-					NeedsQuery = isQuery,
-					DebugName = propertyAndAttribute.DebugName
-				};
-
-				dataTable.Register( identity, entry );
+				// Refreshes revisit existing slots. Keep their state without allocating unused accessors.
+				if ( dataTable.IsRegistered( identity ) ) continue;
+				RegisterProperty( instance, propertyAndAttribute, identity );
 			}
 			catch ( Exception e )
 			{
 				Log.Warning( e, $"Got exception when creating network table (reading {GameObject}.{propertyAndAttribute.Property.Name}) - {e.Message}" );
 			}
 		}
+	}
+
+	// Keep the accessor closures out of the already-registered path.
+	private void RegisterProperty( object instance, ReflectionQueryCache.SyncVarPropertyAndAttribute propertyAndAttribute, int identity )
+	{
+		var isHostSync = propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.FromHost );
+#pragma warning disable CS0618 // Existing games still rely on Query polling.
+		var isQuery = propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.Query );
+#pragma warning restore CS0618
+
+		var entry = new NetworkTable.Entry
+		{
+			TargetType = propertyAndAttribute.Property.PropertyType,
+			ControlCondition = isHostSync ? static c => c.IsHost : _hasControlCondition ??= HasControl,
+			GetValue = () => propertyAndAttribute.Property.GetValue( instance ),
+			SetValue = ( v ) => propertyAndAttribute.Property?.SetValue( instance, v ),
+			Typed = NetworkTable.TypedAccess.Create( instance, propertyAndAttribute.Property ),
+			NeedsQuery = isQuery,
+			DebugName = propertyAndAttribute.DebugName
+		};
+
+		dataTable.Register( identity, entry );
 	}
 
 	/// <summary>
