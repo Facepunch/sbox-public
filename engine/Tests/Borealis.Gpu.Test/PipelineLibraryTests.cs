@@ -604,6 +604,54 @@ public class PipelineLibraryTests : GpuTest
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
 	}
 
+	/// <summary>
+	/// The SPIR-V kept beside the manifest is made into modules on a loader thread, which queues their parts after making
+	/// each: a module of the same SPIR-V made meanwhile finds it made and queues nothing, so waiting for pending pipelines
+	/// waits for the loader too.
+	/// </summary>
+	[TestMethod]
+	public void WaitingForPendingPipelinesWaitsForTheKeptSpirvsParts()
+	{
+		RequireLibraries();
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-kept-spirv-wait-{Environment.ProcessId}-{Guid.NewGuid():n}" );
+		var errors = new List<string>();
+		using var loaderMade = new System.Threading.ManualResetEventSlim();
+		Device Open( bool holdLoader ) => Device.Create( new DeviceOptions
+		{
+			Presentation = false,
+			Validation = true,
+			PipelineCacheFolder = folder,
+			PipelinePartManifest = true,
+			Message = m => { if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( $"{m.Id}: {m.Text}" ); },
+			// The loader made the module and hasn't queued its parts yet
+			QueueingRecordedParts = holdLoader ? _ => { loaderMade.Set(); System.Threading.Thread.Sleep( 500 ); } : null,
+		} );
+
+		try
+		{
+			using ( var device = Open( false ) )
+			{
+				device.Destroy( device.CreateComputePipeline( new ComputePipelineInfo { Shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" ), Entry = "MainCs" } ) );
+			}
+
+			using ( var device = Open( true ) )
+			{
+				Assert.IsTrue( loaderMade.Wait( TimeSpan.FromSeconds( 30 ) ), "the loader made a module of the kept SPIR-V" );
+				var shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" );
+				Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "the part the loader queued was made" );
+				device.Destroy( device.CreateComputePipeline( new ComputePipelineInfo { Shader = shader, Entry = "MainCs" } ) );
+				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "creating it took the one made ahead" );
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, recursive: true );
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
+	}
+
 	static byte[] Render( Device device, SampleScene scene, TextureHandle target )
 	{
 		var list = device.BeginCommandList( QueueType.Graphics, "Scene" );
