@@ -40,6 +40,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 	// Every block on the frame binds them: looked up once, again only if one was let go
 	static readonly Texture[] viewTextures = new Texture[ViewTextureFiles.Length];
 
+	/// <summary>Let go of the view's lookup tables, at shutdown (before the engine's leak check).</summary>
+	internal static void ReleaseViewTextures() => Array.Clear( viewTextures );
+
 	internal static void SetViewTextures( RenderAttributes attributes )
 	{
 		for ( int i = 0; i < ViewTextureFiles.Length; i++ )

@@ -22,6 +22,17 @@ internal static class BorealisGpuCustomDraw
 	/// <summary>Draw custom objects at all; off skips them, for measuring what they cost.</summary>
 	internal static bool Enabled { get; set; } = true;
 
+	/// <summary>Let go of the frame custom objects draw in and its stage textures, at shutdown (before the engine's leak check).</summary>
+	internal static void Shutdown()
+	{
+		frame?.Dispose();
+		frame = null;
+		view?.Dispose();
+		view = null;
+		overlays.Clear();
+		customAttributes = null;
+	}
+
 	/// <summary>
 	/// Run <paramref name="draw"/> (a custom object's <c>RenderSceneObject</c>) into the list <paramref name="context"/> is
 	/// recording, on what it has bound, as <paramref name="layerType"/> from <paramref name="camera"/>. False when there's
