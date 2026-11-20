@@ -151,8 +151,11 @@ CreateInputTexture2D( TextureAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Oc
 	CreateInputTexture2D( TextureNormalDetail, Linear, 8, "NormalizeNormals", "_normal", "Detail Texture,80/10", Default3( 0.5, 0.5, 1.0 ) );
 	CreateInputTexture2D( TextureDetailMask, Linear, 8, "", "_detailmask", "Detail Texture,80/40", Default4( 1.0, 1.0, 1.0, 1.0 ) );
 
+	// A module that shows them only in the detail modes using each declares them itself (standard)
+	#ifndef DETAIL_TEXTURES_DECLARED
 	Texture2D g_tDetail < Channel( RGB, Box( TextureDetail ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
 	Texture2D g_tNormalDetail < Channel( RG, HemiOctIsoRoughness_RG_B( TextureNormalDetail ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); >;
+	#endif
 	Texture2D g_tDetailMask < Channel( R, Box( TextureDetailMask ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
 
 	float g_flDetailBlendFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Detail Texture,80/20" ); >;

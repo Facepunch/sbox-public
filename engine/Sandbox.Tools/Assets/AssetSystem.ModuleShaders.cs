@@ -1,4 +1,5 @@
-﻿using Sandbox.ShaderCompiler;
+﻿using Borealis.Source2.Shaders;
+using Sandbox.ShaderCompiler;
 using System;
 using System.IO;
 
@@ -25,6 +26,20 @@ public static partial class AssetSystem
 			Log.Warning( $"Couldn't describe {modulePath} for the material editor: {e.Message}" );
 			return "";
 		}
+	}
+
+	/// <summary>
+	/// The engine's module of a core shader only a module describes (<c>shaders/standard.shader</c>, or
+	/// <c>shaders/complex.shader</c> standing for it: <see cref="ShaderAliases"/>), as materialsystem2 finds it: no
+	/// <c>.shader</c> for either, a <c>.slang</c> for the one it stands for. Null for any other shader.
+	/// </summary>
+	internal static PassModule CoreModuleOf( string shader )
+	{
+		if ( MaterialCompile.ShaderName( shader ) is not { } name || EngineFileSystem.Root?.GetFullPath( "/core" ) is not { } core ) return null;
+		var standsFor = ShaderAliases.Resolve( name );
+		if ( File.Exists( Path.Combine( core, name ) ) || File.Exists( Path.Combine( core, standsFor ) ) ) return null;
+		var path = Path.Combine( core, standsFor[..^".shader".Length] + ".slang" );
+		return File.Exists( path ) ? DescribedModule( path ) : null;
 	}
 
 	/// <summary>A module read once while its file is unchanged, its includes found beside it and in the engine's shaders.</summary>

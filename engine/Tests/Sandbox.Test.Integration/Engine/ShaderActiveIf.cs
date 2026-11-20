@@ -12,10 +12,10 @@ public class ShaderActiveIfTest
 	/// <summary>
 	/// The material editor shows a texture input only in the feature states that use it. A shader with a compiled .shader_c
 	/// answers through its CVfx; one only a Slang module describes (skin's .shader is gone) through the module's
-	/// MATERIAL_INPUTS block, as the editor reads it (MaterialEditorDescription).
+	/// MATERIAL_INPUTS block, as the editor reads it (MaterialEditorDescription): complex's is standard's (ShaderAliases).
 	/// </summary>
 	[TestMethod]
-	[DataRow( "complex", "F_USE_BENT_NORMALS", "TextureBentNormal" )]
+	[DataRow( "complex", "F_DETAIL_TEXTURE", "TextureDetailMask" )]
 	[DataRow( "complex", "F_TRANSMISSIVE_BACKFACE_NDOTL", "TextureTransmissiveColor" )]
 	[DataRow( "skin", "F_USE_BENT_NORMALS", "TextureBentNormal" )]
 	[DataRow( "skin", "F_AGE_TEXTURE", "TextureAgeColor" )]
@@ -33,7 +33,7 @@ public class ShaderActiveIfTest
 			}
 			else
 			{
-				var module = Sandbox.ShaderCompiler.PassModule.Read( System.IO.Path.Combine( shaders, $"{name}.slang" ), [shaders] );
+				var module = Sandbox.ShaderCompiler.PassModule.Read( System.IO.Path.Combine( shaders, $"{Borealis.Source2.Shaders.ShaderAliases.Resolve( name )}.slang" ), [shaders] );
 				active = ( variable, f, value ) => Sandbox.ShaderCompiler.MaterialEditorDescription.Describe( module, new Dictionary<string, int> { [f] = value } )
 					.Split( '\n' ).Any( l => l.StartsWith( $"variable\t{variable}\t", StringComparison.Ordinal ) );
 			}

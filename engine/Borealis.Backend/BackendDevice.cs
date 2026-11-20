@@ -1633,29 +1633,63 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	};
 
 	/// <inheritdoc/>
-	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => Track( new BackendMaterial( name, Shaders.Load( shaderPath ), null, null ) );
+	public override GpuMaterial CreateMaterial( string name, string shaderPath )
+	{
+		// A shader that's a surface alone (standard, and complex standing for it) has no compiled file: the surface with its defaults
+		var shader = Shaders.Load( shaderPath );
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( shader is null && Surfaces.HasConversions && Converted( name, EmptyMaterial( shaderPath ), () => null ) is { } converted ) return converted;
+#pragma warning restore CA2000
+		return Track( new BackendMaterial( name, shader, null, null ) );
+	}
 
 	/// <summary>A material of <paramref name="shader"/>'s defaults, values set on it later: one made in code from a shader.</summary>
 	public GpuMaterial CreateMaterial( string name, ShaderFile shader ) => Track( new BackendMaterial( name, shader, null, null ) );
 
 	/// <summary>
 	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>:
-	/// <c>materials/default/white.vmat</c> (complex.shader, white, flat normal) tinted with <paramref name="albedo"/>.
+	/// <c>materials/default/white.vmat</c> (standard, white, flat normal) tinted with <paramref name="albedo"/>, or the
+	/// standard surface with that tint where it isn't built.
 	/// </summary>
 	public GpuMaterial CreateMaterial( string name, Color albedo )
 	{
 		var values = new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase ) { ["g_vColorTint"] = [albedo.r, albedo.g, albedo.b, 0] };
-		return Content.Find( "materials/default/white.vmat" ) is null
-			? Track( new BackendMaterial( name, Shaders.Load( "shaders/complex.shader" ), null, null, values ) )
-			: Material( "materials/default/white.vmat", values, name );
+		if ( Content.Find( "materials/default/white.vmat" ) is not null ) return LoadMaterial( "materials/default/white.vmat", values, name );
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( Surfaces.HasConversions && Converted( name, WithValues( EmptyMaterial( "shaders/standard.shader" ), values ), () => null ) is { } converted ) return converted;
+#pragma warning restore CA2000
+		return Track( new BackendMaterial( name, Shaders.Load( "shaders/standard.shader" ), null, null, values ) );
 	}
 
 	/// <summary>
 	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. It draws nothing if
-	/// it, or its shader, isn't built.
+	/// it, or its shader, isn't built. A material of a shader that's a surface alone (no compiled file to draw it with:
+	/// standard, skin) is the surface with the values.
 	/// </summary>
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
-		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
+	{
+		var own = values is null ? null : new Dictionary<string, float[]>( values, StringComparer.OrdinalIgnoreCase );
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( Surfaces.HasConversions && Content.TryRead( path ) is { } data && ReadMaterial( data ) is { } file && Shaders.Load( file.Shader ) is null
+			&& Converted( name ?? path, WithValues( file, own ), () => null ) is { } converted ) return converted;
+#pragma warning restore CA2000
+		return Material( path, own, name );
+	}
+
+	/// <summary><paramref name="file"/> with <paramref name="values"/> (shader variables by name) over its own.</summary>
+	static MaterialFile WithValues( MaterialFile file, Dictionary<string, float[]> values )
+	{
+		if ( values is not { Count: > 0 } ) return file;
+		var floats = new Dictionary<string, float>( file.Floats, StringComparer.OrdinalIgnoreCase );
+		var vectors = new Dictionary<string, float[]>( file.Vectors, StringComparer.OrdinalIgnoreCase );
+		foreach ( var (variable, value) in values )
+		{
+			if ( floats.ContainsKey( variable ) && value.Length > 0 ) floats[variable] = value[0];
+			else vectors[variable] = value;
+		}
+
+		return new MaterialFile { Name = file.Name, Shader = file.Shader, Ints = file.Ints, Floats = floats, Vectors = vectors, Textures = file.Textures, IntAttributes = file.IntAttributes, ShaderVersion = file.ShaderVersion };
+	}
 
 	/// <summary>
 	/// A compiled material with <paramref name="values"/> and <paramref name="textures"/> (shader variables by name, such as

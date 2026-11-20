@@ -38,31 +38,55 @@ public class MaterialEditorDescriptionTests
 	[DataRow( "addons/citizen/Assets/shaders/citizen_eye" )]
 	public void ModulesDescribeTheirMaterialsAsTheirShaders( string shaderPath )
 	{
-		var name = Path.GetFileName( shaderPath );
 		var stem = Path.Combine( Game, shaderPath );
-		if ( !File.Exists( stem + ".shader_c" ) ) Assert.Inconclusive( $"{name}.shader isn't compiled: nothing to check the module against" );
-		var module = PassModule.Read( stem + ".slang", [Path.GetDirectoryName( stem ), Path.Combine( Game, "core", "shaders" )] );
+		Check( stem + ".slang", stem, [], [] );
+	}
+
+	/// <summary>
+	/// standard.slang describes the materials of complex, simple and generic, which stand for it (ShaderAliases), with
+	/// complex's inputs: while complex.shader is still compiled (a checkout from before it went), its CVfx is the reference,
+	/// less the features the standard surface doesn't do and what only they use.
+	/// </summary>
+	[TestMethod]
+	public void StandardDescribesComplexMaterialsLessWhatItDoesNotDo()
+	{
+		var shaders = Path.Combine( Game, "core", "shaders" );
+		Check( Path.Combine( shaders, "standard.slang" ), Path.Combine( shaders, "complex" ),
+			["F_ANISOTROPIC_GLOSS", "F_RETRO_REFLECTIVE", "F_ENABLE_NORMAL_SELF_SHADOW", "F_USE_BENT_NORMALS", "F_SECONDARY_UV", "F_DIFFUSE_WRAP", "F_CLOTH_SHADING", "F_PARALLAX_OCCLUSION"],
+			["g_flLightRangeForSelfShadowNormals"] );
+	}
+
+	/// <summary>
+	/// The module at <paramref name="modulePath"/> described as the compiled shader at <paramref name="referenceStem"/> is,
+	/// less <paramref name="notOffered"/> features (their rules too) and <paramref name="notOfferedVariables"/>.
+	/// </summary>
+	static void Check( string modulePath, string referenceStem, string[] notOffered, string[] notOfferedVariables )
+	{
+		var name = Path.GetFileName( referenceStem );
+		if ( !File.Exists( referenceStem + ".shader_c" ) ) Assert.Inconclusive( $"{name}.shader isn't compiled: nothing to check the module against" );
+		var module = PassModule.Read( modulePath, [Path.GetDirectoryName( modulePath ), Path.Combine( Game, "core", "shaders" )] );
+		bool Offered( string line ) => !notOffered.Any( f => line.Split( '\t', ' ', '=' ).Contains( f ) ) && !notOfferedVariables.Any( v => line.Split( '\t' )[0] == v );
 
 		var shader = new Shader();
 		try
 		{
-			Assert.IsTrue( shader.LoadCompiledForRecompile( stem + ".shader" ) );
+			Assert.IsTrue( shader.LoadCompiledForRecompile( referenceStem + ".shader" ) );
 
 			// Features and rules: the module's FEATURES lines, read as the editor reads them
 			var reference = Records( shader.native.DescribeUi( "" ) );
 			var featureLines = MaterialEditorDescription.Describe( module, new Dictionary<string, int>() ).Split( '\n' ).First( l => l.StartsWith( "featurelines\t" ) )["featurelines\t".Length..].Replace( "\\n", "\n" );
 			var features = Records( CVfx.DescribeFeatureText( name, featureLines ) );
-			CollectionAssert.AreEquivalent( Lines( reference, "feature" ), Lines( features, "feature" ), "features" );
-			CollectionAssert.AreEquivalent( Lines( reference, "rule" ), Lines( features, "rule" ), "rules" );
+			CollectionAssert.AreEquivalent( Lines( reference, "feature" ).Where( Offered ).ToList(), Lines( features, "feature" ), "features" );
+			CollectionAssert.AreEquivalent( Lines( reference, "rule" ).Where( Offered ).ToList(), Lines( features, "rule" ), "rules" );
 
 			var mismatches = new List<string>();
-			foreach ( var state in States( reference ) )
+			foreach ( var state in States( features ) )
 			{
 				var expected = Records( shader.native.DescribeUi( state ) );
 				var actual = Records( MaterialEditorDescription.Describe( module, MaterialEditorDescription.ParseFeatureValues( state ) ) );
 				foreach ( var kind in new[] { "variable", "attribute" } )
 				{
-					var e = Lines( expected, kind );
+					var e = Lines( expected, kind ).Where( Offered ).ToList();
 					var a = Lines( actual, kind );
 					foreach ( var missing in e.Except( a ) ) mismatches.Add( $"[{state}] {kind} the module lacks or differs: {missing}" );
 					foreach ( var extra in a.Except( e ) ) mismatches.Add( $"[{state}] {kind} only the module has: {extra}" );
@@ -74,7 +98,7 @@ public class MaterialEditorDescriptionTests
 		finally { shader.Destroy(); }
 	}
 
-	/// <summary>Each feature's values alone and every pair of features, from the reference's features.</summary>
+	/// <summary>Each feature's values alone and every pair of features, from the module's features (the reference's, less those not offered).</summary>
 	static IEnumerable<string> States( List<string[]> reference )
 	{
 		// Not pairs an Allow1 rule forbids: the editor applies rules before it asks, as the CVfx does inside

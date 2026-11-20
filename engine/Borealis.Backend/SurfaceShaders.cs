@@ -239,13 +239,13 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>
 	/// The shaders drawn as surfaces by default (<see cref="ConvertShaders"/>): by the surface written beside them
 	/// (<c>standard.slang</c>; in the core shaders, else in a content folder's, as the citizen's <c>citizen_eye.shader</c>),
-	/// or, for null, by what <see cref="ShaderConverter"/> makes of the core <c>.shader</c>.
+	/// or, for null, by what <see cref="ShaderConverter"/> makes of the core <c>.shader</c>. complex, simple and generic are
+	/// standard (<see cref="ShaderAliases"/>).
 	/// </summary>
 	static readonly Dictionary<string, string> DefaultSurfaces = new( StringComparer.OrdinalIgnoreCase )
 	{
-		["complex"] = "standard.slang",
+		["standard"] = "standard.slang",
 		["blendable"] = "blendable.slang",
-		["generic"] = "standard.slang",
 		["vertex_color"] = "vertex_color.slang",
 		["static_overlay"] = "static_overlay.slang",
 		["glass"] = "glass.slang",
@@ -254,7 +254,6 @@ public sealed class SurfaceShaders : IDisposable
 		["skin"] = "skin.slang",
 		["eyeball"] = "eyeball_surface.slang",
 		["citizen_eye"] = "citizen_eye.slang",
-		["simple"] = "standard.slang",
 		["bark"] = null,
 		["terrain_preview"] = "terrain_preview.slang",
 		["water_simple"] = "water_simple.slang",
@@ -417,7 +416,8 @@ public sealed class SurfaceShaders : IDisposable
 
 	internal void CountGpuDriven() => System.Threading.Interlocked.Increment( ref gpuDrivenBatches );
 
-	static string ShaderKey( string shader ) => Path.GetFileNameWithoutExtension( shader.Replace( '\\', '/' ) ).ToLowerInvariant();
+	/// <summary>A shader's name, as the one it stands for when it's an alias (<see cref="ShaderAliases"/>: complex is standard).</summary>
+	static string ShaderKey( string shader ) => Path.GetFileNameWithoutExtension( ShaderAliases.Resolve( shader.Replace( '\\', '/' ) ) ).ToLowerInvariant();
 
 	readonly Dictionary<string, string> conversions = new( StringComparer.OrdinalIgnoreCase );
 

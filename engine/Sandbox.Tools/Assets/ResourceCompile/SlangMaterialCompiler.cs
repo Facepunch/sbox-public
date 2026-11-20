@@ -1,3 +1,4 @@
+using Borealis.Source2.Shaders;
 using NativeEngine;
 using Sandbox.Resources;
 using Sandbox.ShaderCompiler;
@@ -28,8 +29,10 @@ internal class SlangMaterialCompiler : ResourceCompiler
 		if ( shader is null ) return Task.FromResult( false );
 
 		var roots = Roots();
-		if ( ModuleOnly( shader, roots ) is not { } modulePath ) return Task.FromResult( false );
+		if ( ModuleOnly( shader, roots ) is not var (modulePath, standsFor) ) return Task.FromResult( false );
 
+		// A name standing for another shader (complex for standard) compiles as that one's material
+		shader = standsFor;
 		var relative = Context.RelativePath.Replace( '\\', '/' );
 		Context.AddCompileReference( Path.ChangeExtension( shader, ".slang" ) );
 
@@ -97,14 +100,17 @@ internal class SlangMaterialCompiler : ResourceCompiler
 
 	/// <summary>
 	/// The module of a shader only a module describes (as materialsystem2's <c>ShaderIsSlangModuleOnly</c> decides it): no
-	/// <c>.shader</c> in any root, a <c>.slang</c> in one. Null otherwise. A <c>.shader_c</c> without its <c>.shader</c> is a
-	/// leftover (a build machine's or a checkout's from before the <c>.shader</c> went) and doesn't count.
+	/// <c>.shader</c> in any root, a <c>.slang</c> in one, where the shader would be or, for a name standing for another
+	/// (<see cref="ShaderAliases"/>: complex is standard), where that one would be. With it, the shader the material compiles
+	/// for: the one the name stands for. Null otherwise. A <c>.shader_c</c> without its <c>.shader</c> is a leftover (a build
+	/// machine's or a checkout's from before the <c>.shader</c> went) and doesn't count.
 	/// </summary>
-	static string ModuleOnly( string shader, List<string> roots )
+	static (string Path, string Shader)? ModuleOnly( string shader, List<string> roots )
 	{
-		var stem = shader[..^".shader".Length];
-		if ( roots.Exists( r => File.Exists( Path.Combine( r, stem + ".shader" ) ) ) ) return null;
-		return roots.Select( r => Path.Combine( r, stem + ".slang" ) ).FirstOrDefault( File.Exists );
+		var standsFor = ShaderAliases.Resolve( shader );
+		if ( roots.Exists( r => File.Exists( Path.Combine( r, shader ) ) || File.Exists( Path.Combine( r, standsFor ) ) ) ) return null;
+		var stem = standsFor[..^".shader".Length];
+		return roots.Select( r => Path.Combine( r, stem + ".slang" ) ).FirstOrDefault( File.Exists ) is { } path ? (path, standsFor) : null;
 	}
 
 	static readonly Dictionary<string, (DateTime Written, PassModule Module)> modules = new( StringComparer.OrdinalIgnoreCase );
