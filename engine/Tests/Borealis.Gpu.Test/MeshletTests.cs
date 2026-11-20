@@ -144,6 +144,44 @@ public class MeshletTests
 		}
 	}
 
+	/// <summary>
+	/// The first-corner table (normals from the ids): each index value's run lists exactly the triangles whose first corner
+	/// it is, in meshlet order, and the runs tile the triangles.
+	/// </summary>
+	[TestMethod]
+	public void CornerTablesListEachTriangleUnderItsFirstCorner()
+	{
+		UseEngineLibrary();
+		const uint First = 700;
+		var (indices, positions) = Grid( 40, First );
+		V3 Position( int vertex ) => positions[vertex - (int)First];
+
+		var set = MeshletBuilder.Build( indices, Position, 0, MeshletConfig.Default );
+		var corners = set.Corners();
+		var span = (int)corners.Span;
+		Assert.AreEqual( span + 1 + set.Triangles, corners.Words.Length );
+		Assert.AreEqual( 0u, corners.Words[0] );
+		Assert.AreEqual( (uint)set.Triangles, corners.Words[span] );
+
+		var seen = new bool[set.Triangles];
+		for ( int v = 0; v < span; v++ )
+		{
+			Assert.IsTrue( corners.Words[v] <= corners.Words[v + 1] );
+			var last = -1;
+			for ( var k = corners.Words[v]; k < corners.Words[v + 1]; k++ )
+			{
+				var t = (int)corners.Words[span + 1 + k];
+				Assert.AreEqual( corners.Low + (uint)v, set.Indices[t * 3], $"triangle {t} is under {corners.Low + v}" );
+				Assert.IsTrue( t > last, "a run's triangles are in meshlet order" );
+				Assert.IsFalse( seen[t] );
+				seen[t] = true;
+				last = t;
+			}
+		}
+
+		Assert.IsTrue( seen.All( s => s ), "every triangle is under its first corner" );
+	}
+
 	/// <summary>meshoptimizer is built without its asserts: a call it would assert on throws here instead of reaching it.</summary>
 	[TestMethod]
 	public void BadInputsThrowBeforeTheLibrary()

@@ -52,6 +52,9 @@ internal enum FrameResources : ushort
 	/// <summary>Instance ids and indirect draw arguments written by <see cref="OcclusionCullLayer"/>.</summary>
 	CulledInstances = 1 << 11,
 
+	/// <summary>Each pixel's triangle's normal, from the prepass's ids (<see cref="IdsNormalsLayer"/>, <c>BorealisIdsNormals</c>).</summary>
+	IdsNormals = 1 << 12,
+
 	/// <summary>Arbitrary shader, camera-hook or custom-object accesses. Outstanding compute must finish first.</summary>
 	Untracked = 1 << 15,
 }

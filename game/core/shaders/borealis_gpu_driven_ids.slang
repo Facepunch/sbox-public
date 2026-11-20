@@ -19,8 +19,9 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct PS_INPUT
 {
-	// The vertex's bit in the view's mask; flat, so a pixel gets its triangle's first (provoking) vertex's
-	nointerpolation uint nVertexBit : TEXCOORD0;
+	// The vertex's bit in the view's mask and its instance record (BorealisGpuDrivenIds); flat, so a pixel gets its
+	// triangle's first (provoking) vertex's
+	nointerpolation uint2 vIds : TEXCOORD0;
 
 	#if ( PROGRAM != VFX_PROGRAM_PS )
 		noperspective float4 vPositionPs : SV_Position;
@@ -44,7 +45,7 @@ PS_INPUT IdsVertex( uint nVertex, uint nInstance )
 	float3 vPositionWs = mul( matObjectToWorld, float4( vPositionOs.xyz, 1.0 ) );
 	o.vPositionPs.xyzw = Position3WsToPs( vPositionWs.xyz );
 
-	o.nVertexBit = BorealisGpuDrivenVertexBit( nInstance, nVertex );
+	o.vIds = BorealisGpuDrivenIds( nInstance, nVertex );
 	return o;
 }
 
@@ -71,19 +72,19 @@ RenderState( DepthWriteEnable, true );
 RenderState( DepthFunc, GREATER_EQUAL );
 RenderState( CullMode, DEFAULT );
 
-// The first vertex's bit + 1 at target 1, where the ids are (target 0 is the variants' own output, and written here
-// only so the ids stay at location 1); 0 is nothing
+// The first vertex's bit + 1 and its instance record at target 1, where the ids are (target 0 is the variants' own output,
+// and written here only so the ids stay at location 1); 0 is nothing
 struct PS_OUTPUT
 {
 	float4 vUnused : SV_Target0;
-	uint nId : SV_Target1;
+	uint2 vId : SV_Target1;
 };
 
 [shader( "pixel" )] PS_OUTPUT MainPs( PS_INPUT i )
 {
 	PS_OUTPUT o;
 	o.vUnused = 1.0;
-	o.nId = i.nVertexBit + 1;
+	o.vId = uint2( i.vIds.x + 1, i.vIds.y );
 	return o;
 }
 

@@ -30,13 +30,26 @@ Mode( Forward );
     //
     //-------------------------------------------------------------------------------------------------------------------
 
-    // Normals come from depth, not a G-buffer: geometric, without the materials' normal maps. A world-space normal from the
-    // depth around a full resolution pixel. On each axis it takes the neighbour nearer the pixel, so the normal doesn't bend
-    // across a silhouette onto whatever is behind it, and the one inside at the edges
+    // With normals from the visibility ids (Borealis.Gpu, -ids-normals): the normal of each pixel's triangle, found from the
+    // prepass's ids, with w 1 where the pixel has one (docs/reference/borealis-gpu-driven.md, "Normals from the ids")
+    Texture2D<float4>   g_tIdsNormals   < Attribute("BorealisIdsNormals"); SrgbRead( false ); >;
+    int                 g_nIdsNormals   < Attribute("BorealisIdsNormalsOn"); Default(0); >;
+
+    // Normals come from the ids' triangles where there are any, else from depth, not a G-buffer: geometric, without the
+    // materials' normal maps. A world-space normal from the depth around a full resolution pixel. On each axis it takes
+    // the neighbour nearer the pixel, so the normal doesn't bend across a silhouette onto whatever is behind it, and the
+    // one inside at the edges
     float3 ReconstructNormal( int2 screenPos )
     {
         const int2 limit = int2( g_vViewportSize.xy ) - 1;
         screenPos = clamp( screenPos, int2( 0, 0 ), limit );
+
+        if ( g_nIdsNormals != 0 )
+        {
+            const float4 fromIds = g_tIdsNormals.Load( int3( screenPos, 0 ) );
+            if ( fromIds.w > 0 )
+                return fromIds.xyz;
+        }
 
         const float3 c = Depth::GetWorldPosition( screenPos );
         const float3 l = Depth::GetWorldPosition( max( screenPos - int2( 1, 0 ), 0 ) );

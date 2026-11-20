@@ -1296,7 +1296,7 @@ internal sealed class SurfaceProgram : IDisposable
 			// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
 			// .shaders' AlphaToCoverageEnable render state does; so does a fading object's (D_OPAQUE_FADE), unless it blends
 			AlphaToCoverage = samples > 1 && !state.DrawsTranslucent && (opaqueFade || pass.Pass.Name.Contains( "AlphaTest", StringComparison.Ordinal )),
-			ColorFormats = ids ? [Format.R8Unorm, Format.R32Uint] : depthOnly ? [] : [color],
+			ColorFormats = ids ? [Format.R8Unorm, device.IdsFormat] : depthOnly ? [] : [color],
 			DepthFormat = depth,
 			Samples = samples,
 			Name = $"{Compiled.Name} {pass.Pass.Name}",

@@ -591,6 +591,20 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool HiZOcclusion { get; set; } = HasSwitch( "-hiz-occlusion" );
 
 	/// <summary>
+	/// Normals from the visibility ids (docs/reference/borealis-gpu-driven.md, "Normals from the ids"): the ids target gets
+	/// a second word, each sample's instance record, a view's ids hold its whole prepass, and a resolve after the depth chain
+	/// finds each pixel's triangle and writes its normal for ambient occlusion. Off by default; <c>-ids-normals</c> turns it
+	/// on. Set before the first frame: the ids targets and pipelines are made for it.
+	/// </summary>
+	public bool IdsNormals { get; set; } = HasSwitch( "-ids-normals" );
+
+	/// <summary>Views resolved into normals from their ids, and asked for but left to depth, for reports and the tests.</summary>
+	public int IdsNormalsResolved, IdsNormalsSkipped;
+
+	/// <summary>The ids target's format: the vertex bit + 1, and with <see cref="IdsNormals"/> the instance record.</summary>
+	internal Format IdsFormat => IdsNormals ? Format.RG32Uint : Format.R32Uint;
+
+	/// <summary>
 	/// Fragments under which a prepass call draws in one phase with <see cref="HiZOcclusion"/>: a Hi-Z build and a second ids
 	/// pass cost more than a call this small (the 3D skybox's) can save.
 	/// </summary>
@@ -614,7 +628,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
-					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders } : null;
+					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders, CornerData = IdsNormals } : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
 				}
@@ -1748,7 +1762,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				: [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
 			// The visibility-driven forward pass's id prepass: target 0 takes the authored output (its alpha drives alpha to
 			// coverage) and goes nowhere, target 1 the ids (a GPU-driven pixel shader's id output)
-			Format[] colors = ids ? [Format.R8Unorm, Format.R32Uint] : color == Format.Unknown ? [] : [color];
+			Format[] colors = ids ? [Format.R8Unorm, IdsFormat] : color == Format.Unknown ? [] : [color];
 			var name = $"{variant}{(depthOnly ? " depth" : ids ? " ids" : "")}";
 			var depthBias = depthOnly || color == Format.Unknown || ids;
 
@@ -1945,6 +1959,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// (<see cref="NormalsFormat"/>); every other pipeline drawn there leaves it as it is.
 	/// </summary>
 	internal override bool WritesForwardNormals => true;
+
+	/// <inheritdoc/>
+	internal override bool ResolvesIdsNormals => IdsNormals && GpuDriven && GpuDrivenVisibility && IdsNormalsShader is not null;
 
 	/// <summary>The opaque pass's normals target (<see cref="ScreenSpaceReflectionsLayer.NormalsFormat"/>).</summary>
 	internal const Format NormalsFormat = Format.RGB10A2Unorm;
@@ -2145,6 +2162,34 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	bool hizShaderLoaded;
 
 	/// <summary>
+	/// <c>borealis_ids_normals_cs</c>, which finds each pixel's triangle from the ids (<see cref="IdsNormals"/>), when its
+	/// pass module draws: null with <see cref="SlangPasses"/> off or the module missing, and ambient occlusion rebuilds its
+	/// normals from depth.
+	/// </summary>
+	internal ShaderFile IdsNormalsShader
+	{
+		get
+		{
+			if ( !SlangPasses ) return null;
+			if ( Volatile.Read( ref idsNormalsShaderLoaded ) ) return idsNormalsShader;
+			lock ( visibilityViews )
+			{
+				if ( !idsNormalsShaderLoaded )
+				{
+					var shader = Shaders.Load( "shaders/borealis_ids_normals_cs.shader" );
+					idsNormalsShader = shader is not null && Passes.ModuleOf( shader ) is not null ? shader : null;
+					Volatile.Write( ref idsNormalsShaderLoaded, true );
+				}
+
+				return idsNormalsShader;
+			}
+		}
+	}
+
+	ShaderFile idsNormalsShader;
+	bool idsNormalsShaderLoaded;
+
+	/// <summary>
 	/// Whether prepass meshlets are culled and drawn with task and mesh shaders (<c>borealis_meshlet_ids</c>) where the
 	/// device has them, in place of the compute pass, its index copies and indexed draws. Off by default: it costs more GPU
 	/// time than the compute pass on the Steam Deck and on the PC (docs/reference/borealis-gpu-driven.md, "Meshlets");
@@ -2255,7 +2300,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		~VisibilityView() => Retire?.Enqueue( this );
 
 		/// <summary>Every buffer it made.</summary>
-		public IEnumerable<BufferHandle> Buffers() => [Mask, Stamps, .. Compacted, PrepassCompacted, PrepassCompacted16, MeshletStamps, MeshletJobs, .. HiZVisible, HiZ];
+		public IEnumerable<BufferHandle> Buffers() => [Mask, Stamps, .. Compacted, PrepassCompacted, PrepassCompacted16, MeshletStamps, MeshletJobs, .. HiZVisible, HiZ, IdsCalls];
 
 		public TextureHandle Ids, Scratch;
 		public int Width, Height, Samples;
@@ -2330,6 +2375,15 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		public uint HiZBuiltFrame;
 		public object HiZBuiltBy;
 
+		/// <summary>
+		/// With <see cref="IdsNormals"/>: the calls that drew ids into <see cref="Ids"/> this frame, <see cref="IdsCallBytes"/>
+		/// each (the frame chunk's bindless slot, the region's first instance record and how many, and where its fragment
+		/// words are as <c>g_nBorealisVertexBases</c> names them), so an id's instance record finds its vertex base; up to
+		/// <see cref="MaxIdsCalls"/>, cleared with the mask, the rest zeros. <see cref="IdsCallCount"/> counts this frame's.
+		/// </summary>
+		public BufferHandle IdsCalls;
+		public int IdsCallCount;
+
 		/// <summary>Every texture it made.</summary>
 		public IEnumerable<TextureHandle> Textures() => [Ids, Scratch];
 
@@ -2338,6 +2392,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		/// this frame takes its triangles' range from it on the GPU, so calls recorded on different workers reserve nothing.
 		/// </summary>
 		public const uint CompactedCursorIndices = 4;
+
+		/// <summary>Calls a view's ids table holds (<see cref="IdsCalls"/>): a call past them leaves its pixels to depth.</summary>
+		public const int MaxIdsCalls = 16;
+
+		/// <summary>Bytes of a call in <see cref="IdsCalls"/>.</summary>
+		public const int IdsCallBytes = 16;
 	}
 
 	/// <summary>A view's visibility resources if it has any yet.</summary>
@@ -2605,6 +2665,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		(state.HiZBuiltFrame, state.HiZBuiltBy) = (0, null);
 		state.Compacted.AsSpan().Clear();
 		state.Ids = state.Scratch = default;
+		state.IdsCalls = default;
+		state.IdsCallCount = 0;
 		state.MeshletStampsAttribute = null;
 		state.Width = state.Height = state.Samples = 0;
 		state.CompactedCapacity = state.PrepassCapacity = 0;
@@ -2668,6 +2730,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				visibilityBuffers.Add( state.Stamps );
 			}
 
+			if ( IdsNormals && !state.IdsCalls.IsValid )
+			{
+				state.IdsCalls = VisibilityIdsCalls();
+				visibilityBuffers.Add( state.IdsCalls );
+			}
+
 			// Room for every sample's triangle: made with the view, and made again when its target grows past it
 			var compacted = CompactedIndicesFor( depth );
 			if ( !state.Compacted[0].IsValid || compacted > state.CompactedCapacity )
@@ -2696,6 +2764,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				visibilityTextures.Add( state.Scratch );
 				visibilityTextures.Add( state.Ids );
 				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
+				ClearIdsMadeAfterClear( state );
 			}
 
 			state.Ready = true;
@@ -2717,6 +2786,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			var buffers = new BufferHandle[3];
 			for ( int i = 0; i < buffers.Length; i++ ) buffers[i] = VisibilityCompacted( compacted );
 			var (scratch, ids) = VisibilityTargets( depth );
+			var idsCalls = IdsNormals ? VisibilityIdsCalls() : default;
 
 			VisibilityView state;
 			lock ( visibilityViews )
@@ -2726,9 +2796,16 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				{
 					// Made meanwhile where it was asked
 					foreach ( var buffer in (BufferHandle[])[mask, stamps, .. buffers] ) Gpu.Destroy( buffer );
+					if ( idsCalls.IsValid ) Gpu.Destroy( idsCalls );
 					Gpu.Destroy( scratch );
 					Gpu.Destroy( ids );
 					return;
+				}
+
+				if ( idsCalls.IsValid )
+				{
+					state.IdsCalls = idsCalls;
+					visibilityBuffers.Add( idsCalls );
 				}
 
 				(state.Mask, state.Stamps) = (mask, stamps);
@@ -2762,6 +2839,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	BufferHandle VisibilityStamps() => Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility stamps" } );
 
+	BufferHandle VisibilityIdsCalls() => Gpu.CreateBuffer( new BufferInfo { Size = VisibilityView.MaxIdsCalls * VisibilityView.IdsCallBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility ids calls" } );
+
+	/// <summary>
+	/// With <see cref="IdsNormals"/>, a view's ids target made after this frame cleared the view's (its depth target changed
+	/// size): cleared and left readable as that clear leaves it, in a list of its own submitted now, since this frame's calls
+	/// load it. Under the visibility lock.
+	/// </summary>
+	void ClearIdsMadeAfterClear( VisibilityView state )
+	{
+		if ( !IdsNormals || state.ClearedFrame != GpuDrivenFrame || !state.Ids.IsValid ) return;
+		var list = Gpu.BeginCommandList( QueueType.Graphics, "Borealis visibility ids made mid-frame" );
+		list.Barrier( Borealis.Gpu.TextureBarrier.Transition( state.Ids, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( state.Ids );
+		list.Barrier( Borealis.Gpu.TextureBarrier.Transition( state.Ids, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead ) );
+		Gpu.Submit( list );
+	}
+
 	BufferHandle VisibilityCompacted( int indices ) => Gpu.CreateBuffer( new BufferInfo { Size = indices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility triangles" } );
 
 	// Target 0 of the id prepass (the authored output, which only its alpha to coverage is wanted from) and the ids
@@ -2777,8 +2871,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			Mips = 1,
 			Samples = depth.Samples,
 			Dimension = TextureDimension.Texture2D,
-			Format = Format.R32Uint,
-			Usage = TextureUsage.ColorTarget | TextureUsage.Sampled | (Figure is not null ? TextureUsage.CopySource : 0),
+			Format = IdsFormat,
+			Usage = TextureUsage.ColorTarget | TextureUsage.Sampled | (IdsNormals ? TextureUsage.CopyDestination : 0) | (Figure is not null ? TextureUsage.CopySource : 0),
 			Name = "Borealis visibility ids",
 		} );
 		return (scratch, ids);

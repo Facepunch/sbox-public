@@ -190,6 +190,13 @@ public abstract class GpuDevice
 	/// </summary>
 	internal virtual bool WritesForwardNormals => false;
 
+	/// <summary>
+	/// Whether a view's depth prepass leaves ids that each pixel's triangle can be found from, and the device resolves them
+	/// into normals after it (<see cref="GpuContext.ResolveIdsNormals"/>, <see cref="IdsNormalsLayer"/>), which ambient
+	/// occlusion reads instead of rebuilding normals from depth.
+	/// </summary>
+	internal virtual bool ResolvesIdsNormals => false;
+
 	/// <summary>Whether the device has an async compute queue.</summary>
 	public abstract bool SupportsAsyncCompute { get; }
 
