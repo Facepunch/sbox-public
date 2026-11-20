@@ -583,7 +583,10 @@ public class DeviceTests : GpuTest
 
 	/// <summary>
 	/// Saving the pipeline cache reads it into native memory, not a managed array: a map's cache runs to hundreds of MiB,
-	/// and each save in the game put that much on the large object heap.
+	/// and each save in the game put that much on the large object heap. The file is written through its handle, so a save
+	/// allocates only its paths, under 4 KiB whatever the cache's size. The part manifest, which the same call writes as
+	/// lines of text (about 12 KiB for the sample, against a cache the driver sizes at 26 to 33 KiB), is off here: its
+	/// lines are its own allocations, not a copy of the cache.
 	/// </summary>
 	[TestMethod]
 	public void SavingThePipelineCacheAllocatesNoCopyOfIt()
@@ -591,7 +594,7 @@ public class DeviceTests : GpuTest
 		var folder = Path.Combine( Path.GetTempPath(), $"borealis-pipelines-{Guid.NewGuid():N}" );
 		try
 		{
-			using var device = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheFolder = folder } );
+			using var device = Device.Create( new DeviceOptions { Presentation = false, PipelineCacheFolder = folder, PipelinePartManifest = false } );
 			using ( new SampleScene( device, Format.RGBA8Unorm ) ) { }
 
 			var before = GC.GetAllocatedBytesForCurrentThread();
@@ -599,7 +602,7 @@ public class DeviceTests : GpuTest
 			var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
 			var saved = new FileInfo( device.PipelineCachePath ).Length;
-			Assert.IsTrue( allocated < saved / 2, $"saving a {saved} B cache allocated {allocated} B" );
+			Assert.IsTrue( allocated < Math.Min( saved / 2, 4096 ), $"saving a {saved} B cache allocated {allocated} B" );
 		}
 		finally
 		{
