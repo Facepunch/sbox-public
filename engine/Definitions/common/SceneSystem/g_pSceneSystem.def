@@ -5,9 +5,6 @@ native enum SceneSystemWellKnownMaterialObjectID_t as NativeEngine.SceneSystemWe
 native enum SceneSystemWellKnownTextureObjectID_t as NativeEngine.SceneSystemWellKnownTextureObjectID;
 
 native struct SceneVolumetricFogVolume_t is NativeEngine.SceneVolumetricFogVolume;
-native struct SceneSystemTimestampEventData_t is NativeEngine.GpuTimestampEventData;
-
-native enum SceneSystemGPUProfilerMode_t as NativeEngine.SceneSystemGPUProfilerMode;
 
 native class SceneSystemPerFrameStats_t
 {
@@ -172,85 +169,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
 	void DestroyRayTraceWorld( IRayTraceSceneWorld pRayTraceSceneWorld );
-
-	// GPU Profiler
-	void SetGPUProfilerMode( SceneSystemGPUProfilerMode_t eProfilerMode );
-	SceneSystemGPUProfilerMode_t GetGPUProfilerMode();
-
-	inline void RefreshGpuTimestampSnapshot()
-	{
-		g_pSceneSystem->RefreshTimestampSnapshot( SWAP_CHAIN_HANDLE_INVALID );
-	}
-
-	inline int GetGpuTimestampCount()
-	{
-		return g_pSceneSystem->GetTimestampSnapshotCount();
-	}
-
-	inline int GetGpuTimestampRenderer()
-	{
-		return g_pSceneSystem->GetTimestampSnapshotRenderer();
-	}
-
-	inline ulong GetGpuTimestampFrameId()
-	{
-		return g_pSceneSystem->GetTimestampSnapshotFrameId();
-	}
-
-	inline float GetGpuTimestampDuration( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotDurationMs( index );
-	}
-
-	inline string GetGpuTimestampName( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotName( index );
-	}
-
-	inline int GetGpuTimestampParent( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotParent( index );
-	}
-
-	inline uint GetGpuTimestampStableId( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotStableId( index );
-	}
-
-	inline bool GetGpuTimestampMeasured( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotMeasured( index );
-	}
-
-	inline bool GetGpuTimestampUnparented( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotUnparented( index );
-	}
-
-	inline int GetGpuTimestampEventCount()
-	{
-		return g_pSceneSystem->GetTimestampEventCount();
-	}
-
-	inline string GetGpuTimestampEvent( int index, out GpuTimestampEventData data )
-	{
-		const auto *pEvent = g_pSceneSystem->GetTimestampEvent( index );
-		if ( !pEvent )
-		{
-			*data = {};
-			return nullptr;
-		}
-
-		*data = *pEvent;
-		return pEvent->m_sName.Get();
-	}
-
-	// begin returns a scope handle to pass to end
-	inline void* BeginManagedPerfMarker( IRenderContext ctx, void* markerName, bool pass, bool managedRenderer )
-	{
-		return g_pSceneSystem->BeginManagedPerfMarker( (IRenderContext*)ctx, (const char*)markerName, pass, managedRenderer );
-	}
-	void EndManagedPerfMarker( IRenderContext ctx, void* scope );
 
 	inline void SetNextRenderTime( float flNextTime )
 	{

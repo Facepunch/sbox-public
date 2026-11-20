@@ -1,4 +1,3 @@
-using NativeEngine;
 using System.Text.Json;
 
 namespace Sandbox.Diagnostics;
@@ -81,70 +80,27 @@ internal sealed record GpuFrameTimeline( string FrameId, int DroppedEvents, GpuF
 			return null;
 		}
 
-		int count = CSceneSystem.GetGpuTimestampEventCount();
-		if ( count == 0 )
+		// Borealis.Gpu's passes of the last read frame, nested as the profiler's rows are
+		var scopes = GpuProfilerStats.Scopes;
+		var rows = GpuProfilerStats.Rows;
+		if ( scopes.Length == 0 || scopes.Length != rows.Length )
 		{
 			return null;
 		}
 
+		int count = scopes.Length;
 		var events = new Event[Math.Min( count, MaxEvents )];
 		for ( int i = 0; i < events.Length; i++ )
 		{
-			var name = CSceneSystem.GetGpuTimestampEvent( i, out var data );
-			if ( name is null )
-			{
-				return null;
-			}
-
-			var start = data.StartMs;
-			var end = data.EndMs;
-			var queue = data.Queue;
-
-			// Reject corrupt or discontinuous clocks instead of publishing a misleading trace.
-			if ( !double.IsFinite( start ) || !double.IsFinite( end ) || start < 0 || end < start || end > 10_000 || queue is < 0 or > 1 )
-			{
-				return null;
-			}
-
-			if ( name.Length > 128 )
-			{
-				name = name[..128];
-			}
-
-			var parent = data.Parent;
+			var scope = scopes[i];
+			var name = scope.Name.Length > 128 ? scope.Name[..128] : scope.Name;
+			var parent = rows[i].Parent;
 			if ( parent < 0 || parent >= events.Length || parent == i )
 			{
 				parent = -1;
 			}
 
-			var kind = data.Kind;
-			if ( kind is < 0 or > 3 )
-			{
-				return null;
-			}
-
-			var waitMask = data.WaitStageMask;
-			events[i] = new( name, parent, queue == 1 ? "async-compute" : "graphics", start, end )
-			{
-				Kind = kind switch
-				{
-					1 => "submission",
-					3 => "host-submit",
-					_ => "pass"
-				},
-				SubmissionId = Id( data.SubmissionId ),
-				EndSubmissionId = Id( data.EndSubmissionId ),
-				WaitForSubmissionId = Id( data.WaitForSubmissionId ),
-				WaitStage = waitMask == 0 ? null
-					: waitMask == 0x800 ? "compute-shader"
-					: waitMask == 0x10000 ? "all-commands"
-					: $"0x{waitMask:X}",
-				DeviationMs = data.DeviationMs,
-				CommandBuffers = data.CommandBuffers,
-				WaitForAcquire = data.WaitForAcquire,
-				HostTicks = (long)data.HostTicks,
-				SubmitTag = (long)data.SubmitTag
-			};
+			events[i] = new( name, parent, "graphics", scope.Start, scope.End ) { Kind = "pass" };
 		}
 
 		if ( !BuildPaths( events ) )
@@ -269,5 +225,4 @@ internal sealed record GpuFrameTimeline( string FrameId, int DroppedEvents, GpuF
 		return BuildPaths( merged ) ? merged : events;
 	}
 
-	static string Id( ulong value ) => value == 0 ? null : value.ToString( System.Globalization.CultureInfo.InvariantCulture );
 }
