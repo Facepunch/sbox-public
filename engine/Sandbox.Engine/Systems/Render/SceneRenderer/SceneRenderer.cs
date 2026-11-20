@@ -20,10 +20,10 @@ internal interface ISceneRenderer
 	void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup );
 
 	/// <summary>
-	/// Render the camera into colour and optional depth textures, as a child of <paramref name="parent"/> when it's valid,
+	/// Render the camera into colour and optional depth textures, as a child of the frame being drawn when there is one,
 	/// and copy its resolved projection and viewport for whatever samples it.
 	/// </summary>
-	bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData );
+	bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData );
 
 	/// <summary>
 	/// Render the camera into a bitmap, blocking until it's read back.
@@ -154,7 +154,7 @@ internal static class SceneRenderer
 		public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup ) { }
 		public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup ) { }
 
-		public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData )
+		public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData )
 		{
 			viewData = default;
 			return false;

@@ -804,13 +804,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		RenderInBlock( gpu, camera, setup, target, null, out _ );
 	}
 
-	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData )
+	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData )
 	{
 		viewData = default;
 		if ( Gpu is not { } gpu ) return false;
 
 		// Between blocks, a texture with no depth of the caller's renders on the device
-		if ( !Graphics.IsActive && parent == default && depthTarget is null && target is { native.IsNull: false } )
+		if ( !Graphics.IsActive && depthTarget is null && target is { native.IsNull: false } )
 		{
 			RenderIntoTexture( gpu, camera, target, target.Size, setup );
 			return true;

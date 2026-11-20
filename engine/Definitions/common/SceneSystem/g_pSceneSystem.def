@@ -83,15 +83,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     CSceneSkyBoxObject CreateSkyBox( IMaterial skyMaterial, ISceneWorld world );
     CDecalSceneObject CreateDecal( ISceneWorld world );
 
-    void BeginRenderingDynamicView( ISceneView pView );
-    //ISceneView AddDynamicView( string pszDebugName, ISceneView pParentView, CFrustum frustum, void* hSwapChain, ISceneWorld pWorld, RenderViewport mainViewport, void* pVis, int nPriority, int nViewProducerIndex );
-
-	ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias, ITexture cachedShadowTexture );
-
-	inline ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias )
-	{
-		return g_pSceneSystem->AddShadowView( debugName, pParentView, frustum, mainViewport, rt, rtIdx, requiredFlags, excludedFlags, depthBias, slopeScaledDepthBias, RENDER_TEXTURE_HANDLE_INVALID );
-	}
     
 	ITexture GetWellKnownTexture( SceneSystemWellKnownTextureObjectID a );
     IMaterial GetWellKnownMaterialHandle( SceneSystemWellKnownMaterialObjectID a );
@@ -108,22 +99,15 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
     void PerformEndOfFrameDeletes();
 
-    // Frame-level view bracket. Opened once per frame around client output so every
-    // camera / scene panel / overlay render joins one submission window and the main
-    // thread waits once, instead of each render opening its own blocking bracket.
-    inline void BeginRenderingViews( bool bUpdateStats )
-    {
-        g_pSceneSystem->BeginRenderingViews( g_pRenderDevice, bUpdateStats );
-    }
+    // End a frame that renders no views: deletes, dirty objects, the frame counter and render time
+    void FinishFrameWithoutViews();
 
-    void FinishRenderingViews();
     bool WaitForRenderingToComplete();
     bool IsRenderingBusy();
-    bool IsRenderingViews();
 
-    inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject, ISceneLayer pSceneLayerInterface )
+    inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject )
     {
-        g_pSceneSystem->SetupPerObjectLighting( *renderAttributes, pSceneObject, pSceneLayerInterface );
+        g_pSceneSystem->SetupPerObjectLighting( *renderAttributes, pSceneObject, nullptr );
     }
 
     inline CSceneLightObject CreatePointLight( ISceneWorld pWorld )

@@ -410,7 +410,7 @@ public static partial class Graphics
 		}
 
 		// A standalone block has no layer to light from
-		NativeEngine.CSceneSystem.SetupPerObjectLighting( targetAttributes.Get(), obj, default );
+		NativeEngine.CSceneSystem.SetupPerObjectLighting( targetAttributes.Get(), obj );
 	}
 
 	/// <summary>

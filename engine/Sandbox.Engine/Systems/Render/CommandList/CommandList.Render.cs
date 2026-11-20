@@ -114,24 +114,24 @@ public sealed unsafe partial class CommandList
 	internal static ViewData RenderReflection( CameraComponent camera, Plane plane, RenderTarget rt, ReflectionSetup setup )
 	{
 		var viewport = Graphics.Viewport;
-		return RenderReflection( camera.SceneCamera, default, Graphics.CameraTransform, Graphics.FieldOfView, viewport.Width / viewport.Height,
+		return RenderReflection( camera.SceneCamera, Graphics.CameraTransform, Graphics.FieldOfView, viewport.Width / viewport.Height,
 			camera.ZNear, camera.ZFar, plane, rt, setup, $"{camera.GameObject.Name}.Reflection" );
 	}
 
 	/// <summary>
 	/// Render a view seen from <paramref name="eye"/> mirrored in a plane into a render target, clipped to the plane's
-	/// far side, as a child of <paramref name="parent"/>, or a top-level view when it isn't valid.
+	/// far side: a child of the frame being drawn, or a top-level view outside one.
 	/// </summary>
-	internal static ViewData RenderReflection( SceneCamera camera, NativeEngine.ISceneView parent, Transform eye, float fieldOfView, float aspect,
+	internal static ViewData RenderReflection( SceneCamera camera, Transform eye, float fieldOfView, float aspect,
 		float zNear, float zFar, Plane plane, RenderTarget rt, ReflectionSetup setup, string name )
 	{
 		var view = ReflectionView( eye, fieldOfView, aspect, zNear, zFar, plane, setup );
-		camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, parent, view, name, out var result );
+		camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, view, name, out var result );
 		return result;
 	}
 
 	/// <summary>
-	/// The view <see cref="RenderReflection(SceneCamera, NativeEngine.ISceneView, Transform, float, float, float, float, Plane, RenderTarget, ReflectionSetup, string)"/>
+	/// The view <see cref="RenderReflection(SceneCamera, Transform, float, float, float, float, Plane, RenderTarget, ReflectionSetup, string)"/>
 	/// renders: the eye mirrored in the plane, an oblique projection clipped to the plane's far side, flipped, with the
 	/// reflection flag. Borealis renders a top-level view's planar reflection from it itself.
 	/// </summary>

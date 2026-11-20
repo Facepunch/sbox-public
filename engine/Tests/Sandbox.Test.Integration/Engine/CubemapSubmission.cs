@@ -15,30 +15,6 @@ public class CubemapSubmissionTest
 	}
 
 	[TestMethod]
-	public void EmptyNativeBracketKeepsTheActiveDescriptorSet()
-	{
-		if ( Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) != "1" )
-			Assert.Inconclusive( "Set SBOX_TEST_GRAPHICS=1 to test descriptor submission." );
-
-		var before = CRenderAttributes.Create();
-		var after = CRenderAttributes.Create();
-		try
-		{
-			before.SetGlobalBindlessDescriptorSet();
-			CSceneSystem.BeginRenderingViews( true );
-			CSceneSystem.FinishRenderingViews();
-			CSceneSystem.WaitForRenderingToComplete();
-			after.SetGlobalBindlessDescriptorSet();
-			Assert.IsTrue( CRenderAttributes.AreEqual( before, after, false ), "An empty scene batch must not consume a descriptor-set copy." );
-		}
-		finally
-		{
-			before.DeleteThis();
-			after.DeleteThis();
-		}
-	}
-
-	[TestMethod]
 	public void FilteringRunsAfterAllFaces()
 	{
 		if ( Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) != "1" )
