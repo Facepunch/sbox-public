@@ -96,11 +96,6 @@
 			<DesignTime>True</DesignTime>
 			<AutoGen>True</AutoGen>
 		</Compile>
-        <Compile Update="Platform\VR\VRSystem.Generated.cs">
-            <DesignTime>True</DesignTime>
-            <AutoGen>True</AutoGen>
-            <DependentUpon>VRSystem.Generated.tt</DependentUpon>
-        </Compile>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -108,10 +103,6 @@
 			<LastGenOutput>BaseStyles.Generated.cs</LastGenOutput>
 			<Generator>TextTemplatingFileGenerator</Generator>
 		</None>
-        <None Update="Platform\VR\VRSystem.Generated.tt">
-            <Generator>TextTemplatingFileGenerator</Generator>
-            <LastGenOutput>VRSystem.Generated.cs</LastGenOutput>
-        </None>
 	</ItemGroup>
 
 	<ItemGroup>

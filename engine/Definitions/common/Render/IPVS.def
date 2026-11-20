@@ -1,4 +1,4 @@
-﻿
+﻿#include "scenesystem/scenevisibility.h"
 native class IPVS
 {
 	bool IsEmptyPVS();

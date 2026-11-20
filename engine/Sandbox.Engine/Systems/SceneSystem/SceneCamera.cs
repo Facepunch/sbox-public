@@ -951,11 +951,11 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal void RenderToTexture( Texture texture, Vector2? size, in ViewSetup config ) => ChildRenderer.RenderToTexture( this, texture, size, config );
 
 	/// <summary>
-	/// Submit a view into colour and optional depth textures, as a child of <paramref name="parent"/> when it's valid,
-	/// and copy its resolved projection and viewport for whatever samples it.
+	/// Submit a view into colour and optional depth textures, as a child of the frame being drawn when there is one, and copy
+	/// its resolved projection and viewport for whatever samples it.
 	/// </summary>
-	internal bool RenderToTexture( Texture target, Texture depthTarget, ISceneView parent, in ViewSetup config, string name, out ViewData viewData )
-		=> ChildRenderer.RenderToTexture( this, target, depthTarget, parent, config, name, out viewData );
+	internal bool RenderToTexture( Texture target, Texture depthTarget, in ViewSetup config, string name, out ViewData viewData )
+		=> ChildRenderer.RenderToTexture( this, target, depthTarget, config, name, out viewData );
 
 	/// <summary>
 	/// What renders a view into a texture: this frame's renderer, which renders one asked for inside a frame of its own as a

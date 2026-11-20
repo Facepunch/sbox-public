@@ -320,7 +320,7 @@ public partial class RenderAttributes
 		ThrowIfConstantBufferTooLarge( actualSize );
 		Shadow?.SetBytes( k, MemoryMarshal.AsBytes( value ) );
 		fixed ( T* ptr = value )
-			RenderTools.SetDynamicConstantBufferData( attributes, k, default, (IntPtr)ptr, (int)actualSize );
+			RenderTools.SetDynamicConstantBufferData( attributes, k, (IntPtr)ptr, (int)actualSize );
 	}
 
 	/// <summary>
@@ -336,7 +336,7 @@ public partial class RenderAttributes
 		int actualSize = Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
 		ThrowIfConstantBufferTooLarge( actualSize );
-		RenderTools.SetDynamicConstantBufferData( attributes, k, default, (IntPtr)(&value), actualSize );
+		RenderTools.SetDynamicConstantBufferData( attributes, k, (IntPtr)(&value), actualSize );
 	}
 
 

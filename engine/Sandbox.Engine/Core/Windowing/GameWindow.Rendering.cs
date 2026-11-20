@@ -39,27 +39,16 @@ internal sealed partial class GameWindow
 
 	internal void Render()
 	{
-		// All views join one batch so scene jobs overlap and we wait once at the end.
-		CSceneSystem.BeginRenderingViews( true );
 		try
 		{
-			if ( borealis is not null )
-			{
-				RenderOnBorealisGpu();
-				return;
-			}
-
-			Sandbox.UI.ScenePanel.RenderPending();
-
-			using ( gameRender.Start() )
-				IGameInstanceDll.Current?.OnRender( window.SwapChain );
-			using ( menuRender.Start() )
-				IMenuDll.Current?.OnRender( window.SwapChain );
+			// Without a Borealis.Gpu device there's nothing to draw on
+			if ( borealis is not null ) RenderOnBorealisGpu();
 		}
 		finally
 		{
-			CSceneSystem.FinishRenderingViews();
-			CSceneSystem.WaitForRenderingToComplete();
+			// What the scene system does at a frame's end besides rendering views: queued deletes, dirty objects, its frame
+			// counter and render time
+			CSceneSystem.FinishFrameWithoutViews();
 		}
 	}
 
