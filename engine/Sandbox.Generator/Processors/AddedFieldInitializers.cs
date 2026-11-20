@@ -44,9 +44,18 @@ partial class HotloadProcessor
 	/// get a warning instead.
 	/// </summary>
 	/// <remarks>
-	/// TODO: This assumes the last successful compile is the one that's loaded. If one succeeds but is never
-	/// hotloaded, such as when another assembly in its group fails, fields it added are compared against it in
-	/// the next compile instead, so they don't get initializers and keep their default value.
+	/// <para>
+	/// TODO: This assumes existing instances were created from the last successful compile, so fields are only
+	/// new to them for one compile. That isn't always true, and fields added in an earlier compile then have no
+	/// initializer method and keep their default value:
+	/// </para>
+	/// <list type="bullet">
+	/// <item>A compile that succeeds is never hotloaded, such as when another assembly in its group fails.
+	/// Its added fields are compared against it in the next compile instead.</item>
+	/// <item>A script assembly that failed to rebuild is retained (see <c>Hotload.RetainedAssembly</c>) while
+	/// its package base types keep hotloading. When it finally rebuilds, its instances skip from the original
+	/// base types to the latest ones, so fields added to them in any compile but the latest are missed.</item>
+	/// </list>
 	/// </remarks>
 	private static void AddFieldInitializers( Processor processor )
 	{
