@@ -235,6 +235,7 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public void BeginFrame()
 	{
+		FrameStarts[(int)((FrameNumber + 1) & (FrameHistory - 1))] = System.Diagnostics.Stopwatch.GetTimestamp();
 		var carried = CarryRecording();
 		RememberEvent( "frame starts:", (long)FrameNumber + 1 );
 

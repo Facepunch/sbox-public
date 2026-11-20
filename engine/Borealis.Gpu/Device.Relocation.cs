@@ -60,6 +60,27 @@ public sealed unsafe partial class Device
 	/// <inheritdoc cref="RelocationsRefused"/>
 	public long RelocationsWithoutRoom { get; private set; }
 
+	/// <summary>Frames <see cref="FrameStarts"/> remembers, a power of two.</summary>
+	internal const int FrameHistory = 16384;
+
+	/// <summary>
+	/// When each of the last <see cref="FrameHistory"/> frames began (<see cref="System.Diagnostics.Stopwatch"/> ticks at
+	/// <see cref="BeginFrame"/>, by frame number modulo the length), for finding long frames after the fact.
+	/// </summary>
+	internal readonly long[] FrameStarts = new long[FrameHistory];
+
+	/// <summary>Moves <see cref="RelocationFrames"/> remembers, a power of two.</summary>
+	internal const int RelocationHistory = 256;
+
+	/// <summary>
+	/// The last <see cref="RelocationHistory"/> moves (by <see cref="Relocations"/> modulo the length): the frame each ran
+	/// in, its ticks in all (copies made, the wait, the copy, the swaps), and its ticks up to the GPU going idle.
+	/// </summary>
+	internal readonly ulong[] RelocationFrames = new ulong[RelocationHistory];
+
+	/// <inheritdoc cref="RelocationFrames"/>
+	internal readonly long[] RelocationTicks = new long[RelocationHistory], RelocationWaitTicks = new long[RelocationHistory];
+
 	/// <summary>Bindings of persistent sets written again because what they name moved, for the tests.</summary>
 	internal int RelocatedBindings { get; private set; }
 
@@ -84,7 +105,9 @@ public sealed unsafe partial class Device
 	/// </summary>
 	void RelocateDraining()
 	{
-		if ( !Allocator.AnyDrainingToMove || IsLost || !PrepareMoves() ) return;
+		if ( !Allocator.AnyDrainingToMove || IsLost ) return;
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
+		if ( !PrepareMoves() ) return;
 
 		Interlocked.Exchange( ref gateMoving, 1 );
 		if ( Volatile.Read( ref gateUsers ) != 0 )
@@ -103,6 +126,7 @@ public sealed unsafe partial class Device
 			graphicsQueue.Wait( graphicsQueue.Submitted );
 			computeQueue.Wait( computeQueue.Submitted );
 			Relocations++;
+			var waited = System.Diagnostics.Stopwatch.GetTimestamp();
 
 			var list = BeginCommandList( QueueType.Graphics, "Relocation" );
 			list.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead | MemoryAccess.TransferWrite );
@@ -120,6 +144,11 @@ public sealed unsafe partial class Device
 			if ( movedTextures.Count > 0 ) RelocatedBindings += RewriteSets( new TexturesIn( movedTextures, movedViews ) );
 			ReleaseCopies( 0, 0 );
 			foreach ( var view in oldViews ) Vk.vkDestroyImageView( Vk.Device, view, null );
+
+			var slot = (int)((Relocations - 1) & (RelocationHistory - 1));
+			RelocationFrames[slot] = FrameNumber;
+			RelocationTicks[slot] = System.Diagnostics.Stopwatch.GetTimestamp() - started;
+			RelocationWaitTicks[slot] = waited - started;
 		}
 		finally
 		{
