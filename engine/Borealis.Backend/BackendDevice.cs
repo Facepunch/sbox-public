@@ -3068,6 +3068,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			System.Threading.Thread.Sleep( 1 );
 		}
 
+		// Builds read on workers make their images there: finished before the device can go
+		streamer?.Finish();
 		Gpu.WaitIdle();
 		Poll();
 		materialCache?.Dispose();

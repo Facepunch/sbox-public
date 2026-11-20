@@ -51,7 +51,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigAllocationsShareLargeBlocksAndBlocksAreMadeAhead()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, ShareLargeBlocks = true };
 		var small = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		var big = small with { size = allocator.BlockSize / 2 };
 		var biggest = small with { size = MemoryAllocator.LargeBlockSize / 2 };
@@ -125,7 +125,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigTargetsGetTheirOwnAllocation()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = true };
 		var big = new VkMemoryRequirements { size = allocator.BlockSize / 2, alignment = 256, memoryTypeBits = ~0u };
 		var small = big with { size = allocator.BlockSize / 8 };
 
@@ -142,6 +142,19 @@ public class MemoryAllocatorTests : GpuTest
 
 		allocator.Free( smallTarget );
 		allocator.Free( texture );
+	}
+
+	/// <summary>Without large blocks (the default), an image over a quarter of a small block is its own allocation, target or not.</summary>
+	[TestMethod]
+	public void BigImagesAreTheirOwnAllocation()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = false };
+		var big = new VkMemoryRequirements { size = allocator.BlockSize / 2, alignment = 256, memoryTypeBits = ~0u };
+		var texture = allocator.Allocate( big, MemoryLocation.Device, image: true, content: true );
+		Assert.IsTrue( texture.Block.Dedicated );
+		Assert.AreEqual( big.size, allocator.Reserved, "nothing stranded beside it" );
+		allocator.Free( texture );
+		Assert.AreEqual( 0ul, allocator.Reserved );
 	}
 
 	/// <summary>
@@ -245,6 +258,35 @@ public class MemoryAllocatorTests : GpuTest
 		allocator.Free( moved );
 	}
 
+	/// <summary>
+	/// A block of device buffers that aren't content drains, however full, only when what it holds would pack into the other
+	/// blocks' free ranges: the device makes every copy at once, so a block whose biggest buffer finds no hole is passed over
+	/// for one that packs.
+	/// </summary>
+	[TestMethod]
+	public void DeviceBufferBlocksDrainOnlyWhenTheirContentsPack()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		var sixteenth = new VkMemoryRequirements { size = allocator.BlockSize / 16, alignment = 256, memoryTypeBits = ~0u };
+		var first = new List<Allocation>();
+		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( sixteenth, MemoryLocation.Device, image: false ) );
+		var big = allocator.Allocate( sixteenth with { size = sixteenth.size * 3 }, MemoryLocation.Device, image: false );
+		var second = new List<Allocation>();
+		for ( int i = 0; i < 13; i++ ) second.Add( allocator.Allocate( sixteenth, MemoryLocation.Device, image: false ) );
+		Assert.AreNotSame( first[0].Block, big.Block );
+
+		// Holes of one sixteenth apart in the first; the second down to its big buffer, three sixteenths
+		foreach ( var i in (int[])[1, 3, 5, 7] ) allocator.Free( first[i] );
+		foreach ( var allocation in second ) allocator.Free( allocation );
+		allocator.Trim( MemoryAllocator.QuietFrames + 30 );
+		Assert.IsFalse( allocator.Draining( big ), "the emptiest block's big buffer has no hole to go to" );
+		Assert.IsTrue( allocator.Draining( first[0] ), "the fuller block's buffers fit the other's room: it drains instead" );
+		allocator.Undrain( first[0].Block );
+
+		allocator.Free( big );
+		foreach ( var i in (int[])[0, 2, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15] ) allocator.Free( first[i] );
+	}
+
 	/// <summary>A relocated texture is a copy of every mip and layer in new memory, left in the layout it was in.</summary>
 	[TestMethod]
 	public void RelocatedTexturesKeepTheirTexels()
@@ -331,7 +373,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void LargeBlocksDrainIntoOneSmallerBlock()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = true };
 		var page = new VkMemoryRequirements { size = MemoryAllocator.LargeBlockSize / 16, alignment = 256, memoryTypeBits = ~0u };
 		var first = new List<Allocation>();
 		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( page, MemoryLocation.Device, image: true, content: true ) );

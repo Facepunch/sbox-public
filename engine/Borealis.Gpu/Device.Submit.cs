@@ -235,6 +235,7 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public void BeginFrame()
 	{
+		FrameStarts[(int)((FrameNumber + 1) & (FrameHistory - 1))] = System.Diagnostics.Stopwatch.GetTimestamp();
 		var carried = CarryRecording();
 		RememberEvent( "frame starts:", (long)FrameNumber + 1 );
 
@@ -272,6 +273,7 @@ public sealed unsafe partial class Device
 		CollectGarbage();
 		TrimSpares();
 		Allocator.Trim( FrameNumber );
+		RelocateDraining();
 		if ( FrameNumber % MemoryBudgetFrames == 0 ) RefreshMemoryBudget();
 	}
 
@@ -413,7 +415,13 @@ public sealed unsafe partial class Device
 	/// A command list to record into, from the current frame. Submit it with <see cref="Submit"/> in the same frame; it's
 	/// recycled once that frame's work has finished.
 	/// </summary>
-	public CommandList BeginCommandList( QueueType queue = QueueType.Graphics, string name = null )
+	public CommandList BeginCommandList( QueueType queue = QueueType.Graphics, string name = null ) => BeginList( queue, name, gate: true );
+
+	/// <summary>
+	/// <see cref="BeginCommandList(QueueType, string)"/>; a list made under a queue's submit lock (scope pairing) doesn't
+	/// take the gate (<see cref="EnterGate"/>): a move takes that lock to send everything first, and would wait on it.
+	/// </summary>
+	CommandList BeginList( QueueType queue, string name, bool gate )
 	{
 		if ( queue == QueueType.Compute && !Capabilities.AsyncCompute ) queue = QueueType.Graphics;
 
@@ -421,7 +429,7 @@ public sealed unsafe partial class Device
 
 		lock ( frame.Lists ) frame.Lists.Add( list );
 		list.Frame = FrameNumber;
-		list.Begin( name );
+		list.Begin( name, gate );
 		return list;
 	}
 
@@ -495,6 +503,8 @@ public sealed unsafe partial class Device
 			Interlocked.Increment( ref submissions );
 			queue.Pending.Clear();
 			Volatile.Write( ref queue.Flushed, value );
+			ApplyLayouts( list );
+			list.LeaveGate();
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
 	}
@@ -518,6 +528,8 @@ public sealed unsafe partial class Device
 			Remember( queue, value, list, -1 );
 			queue.Pending.Add( list.Handle );
 			queue.Suspended = list.EndsSuspended ? list : null;
+			ApplyLayouts( list );
+			list.LeaveGate();
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
 	}
@@ -543,7 +555,7 @@ public sealed unsafe partial class Device
 	/// <summary>A list holding one empty rendering scope on <paramref name="targets"/>, to pair suspended and resumed scopes.</summary>
 	CommandList ScopeList( DeviceQueue queue, RenderingTargets targets, uint flags )
 	{
-		var list = BeginCommandList( queue.Type, "Rendering scope pairing" );
+		var list = BeginList( queue.Type, "Rendering scope pairing", gate: false );
 		list.RecordScope( targets, flags );
 		list.End();
 		Interlocked.Increment( ref scopePairings );
@@ -970,6 +982,8 @@ public sealed unsafe partial class Device
 		if ( binding != ShaderAbi.BindlessVertexCache && binding != ShaderAbi.BindlessPipelineTextures ) throw new ArgumentException( $"Binding {binding} isn't a bindless buffer" );
 		ref var record = ref Get( buffer );
 		Bindless.SetBuffer( binding, record.Buffer, (ulong)record.Size );
+		if ( binding == ShaderAbi.BindlessVertexCache ) vertexCacheBuffer = buffer;
+		else pipelineTexturesBuffer = buffer;
 	}
 
 	/// <summary>
@@ -993,13 +1007,21 @@ public sealed unsafe partial class Device
 		if ( slot >= 0 ) return true;
 		if ( (record.Usage & BufferUsage.Storage) == 0 ) throw new ArgumentException( $"{record.Name} isn't a storage buffer" );
 
-		lock ( Bindless )
+		var gated = EnterGate();
+		try
 		{
-			slot = record.BindlessSlot - 1;
-			if ( slot >= 0 ) return true;
-			if ( !Bindless.TryAddBuffer( record.Buffer, 0, (ulong)record.Size, out slot, reserve ) ) return false;
-			record.BindlessSlot = slot + 1;
-			return true;
+			lock ( Bindless )
+			{
+				slot = record.BindlessSlot - 1;
+				if ( slot >= 0 ) return true;
+				if ( !Bindless.TryAddBuffer( record.Buffer, 0, (ulong)record.Size, out slot, reserve ) ) return false;
+				record.BindlessSlot = slot + 1;
+				return true;
+			}
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
 		}
 	}
 
