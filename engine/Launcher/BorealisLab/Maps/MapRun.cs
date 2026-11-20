@@ -299,7 +299,7 @@ internal static class MapRun
 	}
 
 	/// <summary>The folder of an installed s&amp;box workshop item whose metadata names <paramref name="ident"/>, or null.</summary>
-	static string FindPackage( string ident )
+	internal static string FindPackage( string ident )
 	{
 		foreach ( var content in WorkshopContent.Folders() )
 		{
