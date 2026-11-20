@@ -3,18 +3,6 @@
 namespace NativeEngine;
 
 [StructLayout( LayoutKind.Sequential )]
-internal struct SceneVolumetricFogParameters
-{
-	public bool m_bFogEnabled;
-	public float m_flAnisotropy;
-	public float m_flScattering;
-	public float m_flDrawDistance;
-	public float m_flFadeInStart;
-	public float m_flFadeInEnd;
-	public float m_flIndirectStrength;
-}
-
-[StructLayout( LayoutKind.Sequential )]
 internal struct SceneVolumetricFogVolume
 {
 	public uint m_uID;

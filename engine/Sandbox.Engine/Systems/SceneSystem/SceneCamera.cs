@@ -16,8 +16,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	// these systems into systems that are configurable per camera and from addon code.
 	// For example, volumetricFog should hold the render state. The addon code should hold
 	// the volumes. Tonemapping should hold the render state for this camera only.
-	internal ToneMapping ToneMapping = Graphics.IsAvailable ? new ToneMapping() : null;
-	internal VolumetricFog VolumetricFogImpl = null;
 	private readonly Lazy<Cmaa2Renderer> _cmaa2Renderer = new( () => new Cmaa2Renderer(), isThreadSafe: true );
 
 	/// <summary>
@@ -226,13 +224,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			{
 				_frustum.Delete();
 				_frustum = default;
-			}
-
-			if ( VolumetricFogImpl != null )
-			{
-				// We may have a view queued to render with this
-				EngineLoop.DisposeAtFrameEnd( VolumetricFogImpl );
-				VolumetricFogImpl = null;
 			}
 
 			if ( _cmaa2Renderer.IsValueCreated )
@@ -903,32 +894,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		Frustum.ViewToWorld( screen, out var result );
 
 		return result;
-	}
-
-	internal void GatherVolumetricFog( RenderAttributes attributes )
-	{
-		if ( !VolumetricFog.Enabled )
-		{
-			if ( VolumetricFogImpl != null )
-			{
-				MainThread.QueueDispose( VolumetricFogImpl );
-				VolumetricFogImpl = null;
-			}
-
-			return;
-		}
-
-		if ( VolumetricFogImpl == null )
-		{
-			VolumetricFogImpl = new();
-		}
-
-		VolumetricFogImpl.Update( VolumetricFog );
-		attributes.SetPointer( "IVolumetricFog", VolumetricFogImpl.native );
-	}
-	internal void GatherTonemapper( RenderAttributes attributes )
-	{
-		attributes.SetPointer( "ITonemapSystem", Tonemap.Enabled ? ToneMapping.GetNative() : IntPtr.Zero );
 	}
 
 	/// <summary>
