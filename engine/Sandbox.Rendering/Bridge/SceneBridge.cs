@@ -255,6 +255,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		foreach ( var (_, render) in renders )
 			render.Dispose();
 		renders.Clear();
+
+		// What every view's custom objects and stages draw with on Borealis.Gpu
+		BorealisGpuCustomDraw.Shutdown();
+		BorealisGpuFrame.ReleaseViewTextures();
 	}
 
 	/// <summary>

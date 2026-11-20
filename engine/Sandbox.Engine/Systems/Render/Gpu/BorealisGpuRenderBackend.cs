@@ -232,6 +232,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		FreeModelGeometry();
 		FreeCollectedBackings();
 		LimitAnisotropy();
+		BiasMips();
 
 		// Behind a loading screen nobody watches the frames: what a map loads is made and streamed with bigger budgets
 		services.Loading = LoadingScreen.IsVisible || (Sandbox.Engine.GlobalContext.Game?.ActiveScene?.IsLoading ?? false) || (IGameInstance.Current?.IsLoading ?? false);
@@ -259,6 +260,30 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( changes == anisotropyChanges ) return;
 		anisotropyChanges = changes;
 		gpu.SetAnisotropyLimit( ConVarSystem.GetFloat( "r_max_anisotropy", 4, true ) );
+	}
+
+	float mipBias;
+	ulong mipBiasFrame;
+
+	/// <summary>
+	/// A temporal upscaler running this frame asks for its texture mip bias (native's <c>SetTextureGlobalMipLODBias</c>):
+	/// the samplers take it at the start of the next frame (<see cref="GpuDevice.SetGlobalMipBias"/>), as native's device
+	/// rebuilds its samplers between frames.
+	/// </summary>
+	internal void RequestMipBias( float bias )
+	{
+		mipBias = bias;
+		mipBiasFrame = Application.FrameCount;
+	}
+
+	/// <summary>
+	/// The mip bias a temporal upscaler asked for within the last two frames, or none, as native drops its upscaler (and the
+	/// bias) once no view has used it for two frames; before anything records in the frame.
+	/// </summary>
+	void BiasMips()
+	{
+		var bias = mipBiasFrame > 0 && Application.FrameCount - mipBiasFrame <= 2 ? mipBias : 0.0f;
+		gpu.SetGlobalMipBias( bias );
 	}
 
 	// The GPU's busy time per device frame: a pass timer over every list (Borealis's and the engine's blocks), read back
@@ -668,6 +693,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			info.AddressV = Address( state.AddressModeV );
 			info.AddressW = Address( state.AddressModeW );
 			info.MaxLod = 15;
+
+			// Native's samplers from a SamplerState don't take the upscalers' global mip bias
+			info.FixedMipBias = true;
 
 			var sampler = gpu.CreateSampler( info );
 			made = (sampler, gpu.SamplerIndex( sampler ));
