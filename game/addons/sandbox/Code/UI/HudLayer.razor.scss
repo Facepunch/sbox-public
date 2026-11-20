@@ -1,0 +1,9 @@
+// see HudCanvas
+HudLayer
+{
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	z-index: 1050; // the weapon buckets sit above the rest of the HUD
+	pointer-events: none;
+}

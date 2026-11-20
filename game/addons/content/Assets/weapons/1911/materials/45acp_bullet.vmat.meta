@@ -1,0 +1,29 @@
+{
+  "guid": "2226c97f-0a73-494e-ae90-504fa0a43af7",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "45Acp Bullet",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "45acp_bullet",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/1911/materials/45acp_bullet.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

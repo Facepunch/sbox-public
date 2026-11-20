@@ -1,0 +1,29 @@
+{
+  "guid": "3e75f15b-7c45-41a5-8fae-2aae9c694e4f",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Magnum Bakelod",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_magnum_bakelod",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/materials/w_magnum_bakelod.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "guid": "8d6b3485-c604-481b-8906-85990d95e0f5",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Physgun Tube",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_physgun_tube",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/physgun/v_physgun_tube.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

@@ -1,0 +1,91 @@
+@import "/UI/Theme.scss";
+
+@mixin resource-picker-base
+{
+	@include ui-input;
+	@include ui-focus-ring;
+	flex-direction: row;
+	flex-grow: 1;
+	height: auto;
+	min-height: 24px;
+	padding: 2px 6px;
+	gap: 6px;
+	font-family: $body-font;
+	cursor: pointer;
+
+	&:hover
+	{
+		background-color: $ui-blue-soft;
+		border-color: $ui-control-border-hover;
+		sound-in: ui.hover;
+	}
+
+	&:active
+	{
+		border-color: $ui-blue;
+		sound-in: ui.select;
+	}
+}
+
+@mixin resource-picker-control
+{
+	@include resource-picker-base;
+
+	.preview
+	{
+		width: 24px;
+		height: 24px;
+		flex-shrink: 0;
+		background-color: $ui-tile-bg;
+		border-radius: 2px;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+
+		.thumb
+		{
+			width: 100%;
+			height: 100%;
+			background-size: cover;
+			background-position: center center;
+		}
+
+		.ext-badge
+		{
+			font-size: 9px;
+			font-weight: 800;
+			color: $ui-text-label;
+		}
+	}
+
+	.content
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		min-width: 0px;
+		justify-content: center;
+		gap: 1px;
+
+		.title
+		{
+			font-size: $ui-settings-font;
+			font-weight: 500;
+			color: $ui-text;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			overflow: hidden;
+
+			&.empty
+			{
+				color: $ui-text-muted;
+			}
+		}
+
+		.subtitle
+		{
+			font-size: 11px;
+			font-weight: 400;
+			color: $ui-text-muted;
+		}
+	}
+}

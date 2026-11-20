@@ -16,6 +16,16 @@ internal class ServerPackages
 	internal StringTable StringTable;
 
 	/// <summary>
+	/// Packages this client can be required to mount. Unpublished local projects only exist on peers that have a copy.
+	/// </summary>
+	internal IEnumerable<StringTable.Entry> ClientRequirements => StringTable.Entries.Values.Where( IsRequiredOnClient );
+
+	static bool IsRequiredOnClient( StringTable.Entry entry )
+	{
+		return !entry.Name.StartsWith( "local.", StringComparison.OrdinalIgnoreCase ) || Project.FindByIdent( entry.Name ) is not null;
+	}
+
+	/// <summary>
 	/// Packages can download early, but their resources need the host's script declarations first.
 	/// The host marks resources ready after scanning the package and publishing its scripts.
 	/// </summary>
@@ -28,7 +38,6 @@ internal class ServerPackages
 	internal class PackageDownload
 	{
 		public string ident;
-		public Package package;
 		public bool IsDownloading;
 		public bool IsMounted;
 		public bool IsErrored;
@@ -41,31 +50,31 @@ internal class ServerPackages
 			if ( IsDownloading )
 			{
 				while ( IsDownloading ) await Task.Delay( 20, token );
-				return activePackage?.FileSystem;
+				if ( activePackage is null || IsErrored ) return null;
 			}
 
-			// Already downloaded
-			if ( activePackage != null )
-				return activePackage.FileSystem;
+			if ( activePackage?.FileSystem is not null && !IsErrored )
+			{
+				// Reuse a shared download unless the registered local project changed since it mounted.
+				var project = (activePackage.Package as LocalPackage)?.Project;
+				if ( project == Project.FindByIdent( ident ) )
+					return activePackage.FileSystem;
+			}
+
+			activePackage = null;
+			resourcesLoaded = false;
+			IsMounted = false;
 
 			IsDownloading = true;
 			IsErrored = false;
 			try
 			{
-				package = await Package.Fetch( ident, false );
-
-				if ( package == null )
-				{
-					Log.Warning( $"Package not found: {ident}" );
-					return null;
-				}
-
+				using var loading = new UpdateLoadingScreen();
 				var o = new PackageLoadOptions
 				{
 					PackageIdent = ident,
 					ContextTag = "game",
-					Loading = new UpdateLoadingScreen(),
-					AllowLocalPackages = true,
+					Loading = loading,
 					CancellationToken = token,
 					ReloadResources = reloadResources
 				};
@@ -78,7 +87,6 @@ internal class ServerPackages
 				}
 
 				IsMounted = true;
-				o.Loading.Dispose();
 
 				return activePackage.FileSystem;
 			}
@@ -109,7 +117,7 @@ internal class ServerPackages
 				if ( resourcesLoaded )
 					return;
 
-				LoadingScreen.Title = $"Loading {package?.Title ?? ident}";
+				LoadingScreen.Title = $"Loading {activePackage.Package.Title ?? ident}";
 				// Addon resources are part of the game's content, not individual cloud assets.
 				var sourcePackage = string.Equals( activePackage.Package.TypeName, "addon", StringComparison.OrdinalIgnoreCase ) ? null : activePackage.Package;
 				await ResourceLoader.LoadAllGameResourceAsync( activePackage.FileSystem, token, sourcePackage: sourcePackage );
@@ -201,35 +209,31 @@ internal class ServerPackages
 		// Conna: let's make a copy here incase the entries table is modified during
 		// the installation. This could happen if a new package is added from
 		// the host while we're installing.
-		var entries = StringTable.Entries.ToDictionary();
+		var entries = ClientRequirements.ToArray();
 
-		Log.Info( $"Installing {entries.Count} server packages.." );
+		Log.Info( $"Installing {entries.Length} server packages.." );
 
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 
 		// What's coming down, all of it sized up before the first byte - so the loading screen can show
 		// it as one bar, room made for each, rather than one download after another
-		if ( entries.Count > 0 )
+		if ( entries.Length > 0 )
 		{
 			LoadingScreen.Title = "Checking Packages";
-			await LoadingScreen.ReserveDownloads( entries.Keys );
+			await LoadingScreen.ReserveDownloads( entries.Select( entry => entry.Name ) );
 
 			LoadingScreen.Title = "Installing Packages";
 		}
 
 		// Install all packages without triggering a resource reload per-package,
 		// then do a single reload at the end.
-		await entries.ForEachTaskAsync( async p =>
-		{
-			await ClientInstallPackage( p.Value, reloadResources: false );
-		} );
+		await entries.ForEachTaskAsync( entry => ClientInstallPackage( entry, reloadResources: false ) );
 
-		foreach ( var ident in entries.Keys )
+		foreach ( var entry in entries )
 		{
-			if ( ident.StartsWith( "local." ) ) continue;
-			if ( Get( ident ) is { IsMounted: true, IsErrored: false, activePackage.FileSystem: not null } ) continue;
+			if ( Get( entry.Name ) is { IsMounted: true, IsErrored: false, activePackage.FileSystem: not null } ) continue;
 
-			Log.Warning( $"Failed to install required server package: {ident}" );
+			Log.Warning( $"Failed to install required server package: {entry.Name}" );
 			return false;
 		}
 
@@ -244,7 +248,7 @@ internal class ServerPackages
 	/// </summary>
 	internal async Task WaitForDownloads()
 	{
-		while ( StringTable.Entries.Values.Any( entry => Get( entry.Name )?.IsDownloading == true ) )
+		while ( ClientRequirements.Any( entry => Get( entry.Name )?.IsDownloading == true ) )
 		{
 			await Task.Delay( 20 );
 		}
@@ -252,10 +256,10 @@ internal class ServerPackages
 
 	internal async Task ClientInstallPackage( StringTable.Entry entry, bool reloadResources = true )
 	{
-		string ident = entry.Name;
-		if ( ident.StartsWith( "local." ) )
+		if ( !IsRequiredOnClient( entry ) )
 			return;
 
+		string ident = entry.Name;
 		Log.Info( $"Installing server package: {ident}" );
 		await DownloadAndMount( ident, reloadResources: reloadResources );
 	}
@@ -265,7 +269,7 @@ internal class ServerPackages
 	/// </summary>
 	internal async Task LoadResources()
 	{
-		foreach ( var entry in StringTable.Entries.Values.ToArray() )
+		foreach ( var entry in ClientRequirements.ToArray() )
 		{
 			if ( entry.Read<PackageInfo>().ResourcesReady && Get( entry.Name ) is { } download )
 			{
@@ -282,9 +286,9 @@ internal class ServerPackages
 	{
 		var mismatched = new List<Workshop.Item>();
 
-		foreach ( var entry in StringTable.Entries.Values )
+		foreach ( var entry in ClientRequirements )
 		{
-			if ( Get( entry.Name )?.package is not { InstallsFromWorkshop: true } package )
+			if ( Get( entry.Name )?.activePackage?.Package is not { InstallsFromWorkshop: true } package )
 				continue;
 
 			// Each package's entry is the version of its workshop item the server has
@@ -300,7 +304,7 @@ internal class ServerPackages
 
 	/// <inheritdoc cref="AddRequirement(string, bool)"/>
 	internal void AddRequirement( Package package )
-		=> AddRequirement( package.GetIdent( false, true ) );
+		=> AddRequirement( package.GetVersionedIdent() );
 
 	/// <summary>
 	/// Add a reference to a package requirement.
@@ -320,7 +324,7 @@ internal class ServerPackages
 
 	/// <inheritdoc cref="RemoveRequirement(string)"/>
 	internal void RemoveRequirement( Package package )
-		=> RemoveRequirement( package.GetIdent( false, true ) );
+		=> RemoveRequirement( package.GetVersionedIdent() );
 
 	/// <summary>
 	/// Remove a reference to a package requirement.
@@ -381,7 +385,7 @@ internal class ServerPackages
 			// Which version of its workshop item we've got, so clients can tell if theirs is the same
 			if ( owner is not null )
 			{
-				var version = dl.package is { InstallsFromWorkshop: true } package ? Workshop.GetInstalledVersion( package.WorkshopId ) : 0;
+				var version = dl.activePackage.Package is { InstallsFromWorkshop: true } package ? Workshop.GetInstalledVersion( package.WorkshopId ) : 0;
 				owner.SetPackageReady( packageIdent, version );
 			}
 
@@ -409,10 +413,7 @@ internal class ServerPackages
 
 	internal static PackageDownload Get( string packageIdent )
 	{
-		if ( !Downloads.TryGetValue( packageIdent, out var dl ) )
-			return null;
-
-		return dl;
+		return Downloads?.GetValueOrDefault( packageIdent );
 	}
 }
 

@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "按住 {input:SpawnMenu} 開啟生成選單",
+    "hint.openinspectmenu": "按住 {input:InspectMenu} 開啟檢查選單",
+    "hint.openpausemenu": "按 ESC 鍵打開暫停菜單並檢查控制設定"
+}

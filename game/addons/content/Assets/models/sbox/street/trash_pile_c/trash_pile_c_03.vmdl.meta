@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Trash Pile c 3",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "trash_pile_c_03",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/trash_pile_c/trash_pile_c_03.vmdl"
+      }
+    }
+  },
+  "guid": "dbb2a4ba-1fe1-49ab-9b9a-43c075c94237"
+}

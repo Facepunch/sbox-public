@@ -1,0 +1,27 @@
+{
+  "guid": "fb08a600-7ffd-0000-7360-2d88fd7f0000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Terrain Grass a",
+      "Type": "tmat",
+      "Org": "facepunch",
+      "Ident": "terrain_grass_a",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "WriteAgentInstructions": true,
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/terrain/grass/terrain_grass_a.tmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

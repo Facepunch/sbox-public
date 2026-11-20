@@ -1,0 +1,34 @@
+@import "/UI/Theme.scss";
+
+DragHandler
+{
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 10000;
+	pointer-events: none;
+
+	.dragging
+	{
+		position: absolute;
+		pointer-events: none;
+		width: 64px;
+		height: 64px;
+		padding: 6px;
+		background-color: $ui-tile-bg;
+		border: 1px solid white;
+		transform: rotate( -2.5deg );
+
+		.thumb
+		{
+			@include ui-tile-thumb;
+		}
+
+		.drag-title
+		{
+			@include ui-tile-title;
+		}
+	}
+}

@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Python Eject Shells 002",
+      "Type": "vsnd",
+      "Org": "rust",
+      "Ident": "pythonejectshells002",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/sounds/python-eject-shells-002.wav"
+      }
+    }
+  },
+  "guid": "9bccc8f5-3863-4675-8749-931c3f8ae6a7"
+}

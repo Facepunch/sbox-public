@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/jumbo.prefab",
+  "Title": "#asset.wheel.jumbo.title",
+  "Description": "#asset.wheel.jumbo.description",
+  "__references": [],
+  "__version": 0
+}

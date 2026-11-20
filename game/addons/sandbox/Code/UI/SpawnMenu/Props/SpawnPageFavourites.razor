@@ -1,0 +1,49 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<SpawnMenuContent>
+
+    <Header>
+        <SpawnMenuToolbar></SpawnMenuToolbar>
+    </Header>
+
+    <Body>
+        <VirtualGrid Items=@( Entries ) ItemSize=@(new Vector2( 123, 123 ))>
+            <Item Context="item">
+                @if (item is Entry entry)
+                {
+                    <SpawnMenuIcon Ident=@($"prop:{entry.Ident}")></SpawnMenuIcon>
+                }
+            </Item>
+        </VirtualGrid>
+    </Body>
+
+</SpawnMenuContent>
+
+@code
+{
+    record class Entry( string Icon, string Ident );
+
+    private readonly List<Entry> Entries = new()
+    {
+        new("https://cdn.sbox.game/asset/facepunch.oildrumexplosive/thumb.png.fff8e3787c17283", "facepunch.oildrumexplosive"),
+        new("https://cdn.sbox.game/asset/facepunch.watermelon/thumb.png.683db0caeab55816", "facepunch.watermelon"),
+        new("https://cdn.sbox.game/asset/facepunch.toolchest/thumb.png.e22d621990091e0d", "facepunch.toolchest"),
+        new("https://cdn.sbox.game/asset/facepunch.cabinet_a3/thumb.png.1bf467b6816cecf8", "facepunch.cabinet_a3"),
+        new("https://cdn.sbox.game/asset/facepunch.wooden_chair_a/thumb.png.e37e2f0a1d36a772", "facepunch.wooden_chair_a"),
+        new("https://cdn.sbox.game/asset/facepunch.water_drum_01/thumb.png.34b58345ab151a28", "facepunch.water_drum_01"),
+        new("https://cdn.sbox.game/asset/facepunch.metalwheelbarrow/thumb.png.25663142bc944891", "facepunch.metalwheelbarrow"),
+        new("https://cdn.sbox.game/asset/facepunch.hoovera/thumb.png.740d47f682e9ebb9", "facepunch.hoovera"),
+        new("https://cdn.sbox.game/asset/facepunch.washingmachine/thumb.png.7aca1114cc535187", "facepunch.washingmachine"),
+        new("https://cdn.sbox.game/asset/fpopium.crackhead_02/thumb.png.195fcd31c282be9f", "fpopium.crackhead_02"),
+        new("https://cdn.sbox.game/asset/fish.moose/thumb.png.56b890737161bf47", "fish.moose"),
+        new("https://cdn.sbox.game/asset/starblue.forklifttruck/thumb.png.d684be52bb80e4d8", "starblue.forklifttruck"),
+    };
+
+    void Spawn( string ident )
+    {
+        GameManager.Spawn( $"prop:{ident}" );
+    }
+}

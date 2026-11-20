@@ -1,0 +1,28 @@
+{
+  "guid": "0de82930-e8bc-4398-bbb7-f5bfb48b04ef",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Aircon Unit Wall",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "airconunitwall",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/aircon_unit_wall/aircon_unit_wall.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

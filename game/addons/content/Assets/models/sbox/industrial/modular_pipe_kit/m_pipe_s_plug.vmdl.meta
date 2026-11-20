@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe S Plug",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipesplug",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_s_plug.vmdl"
+      }
+    }
+  },
+  "guid": "c47690b8-d413-4ecf-8ba4-b3706c6e8434"
+}

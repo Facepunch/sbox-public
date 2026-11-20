@@ -1,0 +1,15 @@
+Layer0
+{
+    shader "shaders/complex.shader"
+    F_SPECULAR 1
+    F_METALNESS_TEXTURE 1
+    TextureColor "entities/camera/model/camera_color.png"
+    TextureNormal "[0.5 0.5 1 1]"
+    TextureRoughness "entities/camera/model/camera_roughness.png"
+    TextureMetalness "entities/camera/model/camera_metalness.png"
+    TextureAmbientOcclusion "[1 1 1 1]"
+    g_flRoughnessScaleFactor "1"
+    g_flModelTintAmount "1"
+    g_vColorTint "[1 1 1 1]"
+    SystemAttributes { PhysicsSurfaceProperties "metal" }
+}

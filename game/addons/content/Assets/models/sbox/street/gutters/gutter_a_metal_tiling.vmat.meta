@@ -1,0 +1,28 @@
+{
+  "guid": "0067005c-0075-0074-7400-650072007300",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Gutter A Metal Tiling",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "gutterametaltiling",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_a_metal_tiling.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

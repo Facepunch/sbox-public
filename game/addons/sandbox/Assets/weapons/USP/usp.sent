@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/usp/usp.prefab",
+  "Title": "UP-45",
+  "Description": null,
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

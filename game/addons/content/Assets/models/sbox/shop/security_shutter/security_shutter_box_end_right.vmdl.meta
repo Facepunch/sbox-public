@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "security_shutter_box_end_right",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "security_shutter_box_end_right",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter_box_end_right.vmdl"
+      }
+    }
+  },
+  "guid": "84ec3f57-14b1-4ad9-9bfc-73d592134019"
+}

@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Airduct a turn 32x32",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "airduct_a_turn_32x32",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": "*",
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_a_turn_32x32.vmdl"
+      }
+    }
+  },
+  "guid": "8a2e5346-11c1-4e4a-9329-23d2c2bcad3a"
+}

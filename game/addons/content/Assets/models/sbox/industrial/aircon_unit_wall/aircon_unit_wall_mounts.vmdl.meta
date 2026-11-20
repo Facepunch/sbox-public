@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "aircon_unit_wall_mounts",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "aircon_unit_wall_mounts",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/aircon_unit_wall/aircon_unit_wall_mounts.vmdl"
+      }
+    }
+  },
+  "guid": "0ad2ca67-d6bc-49ff-8863-bacf329a515f"
+}

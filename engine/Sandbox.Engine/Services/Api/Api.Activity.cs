@@ -79,7 +79,7 @@ internal static partial class Api
 					await CloseActivity( performanceData );
 					sessionGame = game;
 
-					if ( game == null || game.Contains( "#local" ) || game.StartsWith( "local." ) )
+					if ( game == null )
 						return;
 
 					//Log.Info( $"New Session Started! ({game}/{map})" );

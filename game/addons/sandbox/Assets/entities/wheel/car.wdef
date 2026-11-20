@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/car.prefab",
+  "Title": "#asset.car.title",
+  "Description": "#asset.car.description",
+  "__references": [],
+  "__version": 0
+}

@@ -1,0 +1,16 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "weapons/physgun/physgun-screen.shader"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material ----
+	g_flEmissionPower "3.000"
+	TextureColor "weapons/physgun/v_physgun_display_color.png"
+	TextureEmission "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormal "weapons/physgun/v_physgun_display_normal.png"
+	TextureRoughness "weapons/physgun/v_physgun_display_rough.png"
+}

@@ -1,0 +1,28 @@
+{
+  "guid": "0fcee360-00fc-0000-0000-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Concrete Trim Damaged Blend 02",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "concrete_trim_damaged_blend_02",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/trimsheets/concrete/concrete_trim_damaged_blend_02.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

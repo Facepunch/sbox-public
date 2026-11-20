@@ -1,0 +1,118 @@
+@import "/UI/Theme.scss";
+
+CameraEffectsEditor
+{
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+    font-family: $body-font;
+
+    // fixed heights for both halves: the inspector keeps its size whatever effect is picked,
+    // and long effects scroll inside their own box instead of running out of the window
+    > .list
+    {
+        @include ui-section;
+        @include ui-scroll;
+        flex-direction: column;
+        flex-shrink: 0;
+        height: 170px;
+        overflow-y: scroll;
+        padding: 1px;
+    }
+
+    .note
+    {
+        padding: 8px;
+        font-size: $ui-settings-font;
+        color: $ui-text-muted;
+    }
+
+    > .settings
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        height: 230px;
+        overflow: hidden;
+    }
+
+    .settings-body
+    {
+        @include ui-scroll;
+        flex-direction: column;
+        flex-grow: 1;
+        min-height: 0px;
+        overflow-y: scroll;
+        padding-right: 4px;
+    }
+
+    .settings-header
+    {
+        @include ui-section-header;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+
+        .title
+        {
+            @include ui-heading-text;
+            flex-grow: 1;
+        }
+
+        .reset
+        {
+            flex-shrink: 0;
+        }
+    }
+}
+
+CameraEffectsEditor .effect-row
+{
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 9px;
+    height: 30px;
+    padding: 0px 7px;
+    border: 1px solid transparent;
+    color: $ui-text;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+
+    &:nth-child( even )
+    {
+        background-color: $ui-row-alt;
+    }
+
+    &:hover
+    {
+        background-color: $ui-blue-soft;
+        sound-in: ui.hover;
+    }
+
+    &:active
+    {
+        sound-in: ui.select;
+    }
+
+    // the one whose settings are shown
+    &.active
+    {
+        border-color: $ui-blue;
+    }
+
+    // has settings changed from the effect's defaults
+    &.changed .name
+    {
+        color: $ui-blue;
+    }
+
+    .name
+    {
+        flex-grow: 1;
+        min-width: 0px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+    }
+}

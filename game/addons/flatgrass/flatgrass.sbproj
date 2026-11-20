@@ -1,0 +1,12 @@
+{
+  "Title": "Flatgrass",
+  "Type": "map",
+  "Org": "facepunch",
+  "OrgTitle": "Facepunch",
+  "Ident": "flatgrass",
+  "Schema": 1,
+  "Resources": "maps/flatgrass/flatgrass.scene",
+  "Metadata": {
+    "PrimaryAsset": "maps/flatgrass/flatgrass.scene"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "scaffolding_tube_a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "scaffolding_tube_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/construction/scaffolding/scaffolding_tube_a.vmdl"
+      }
+    }
+  },
+  "guid": "13c2eb08-00fc-0000-0c01-000000000000"
+}

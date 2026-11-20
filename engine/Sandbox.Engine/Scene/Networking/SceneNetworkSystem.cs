@@ -586,7 +586,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 					continue;
 				}
 
-				if ( !Package.TryParseIdent( map, out var parts ) )
+				if ( !Package.TryParseIdentParts( map, out var parts ) )
 					continue;
 
 				var package = await Package.Fetch( map, false );

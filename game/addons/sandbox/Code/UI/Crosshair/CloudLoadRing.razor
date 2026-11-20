@@ -1,0 +1,35 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+<root>
+
+    <div class="ring">
+        <div class="track" @ref="Track"></div>
+        <div class="spinner" @ref="Spinner"></div>
+    </div>
+
+</root>
+
+@code
+{
+    Panel Track;
+    Panel Spinner;
+
+    protected override void OnUpdate()
+    {
+        base.OnUpdate();
+
+        var player = Player.FindLocalPlayer();
+        var visible = CloudLoadTracker.IsLoading && player is not null && Hud.IsVisible( HudElement.Crosshair );
+
+        SetClass( "visible", visible );
+
+        if ( Track is null || Spinner is null ) return;
+
+        var tint = HudLayer.Find( this, false )?.CurrentTint ?? HudLayer.DefaultTint;
+        Track.Style.BorderColor = tint.WithAlpha( 0.25f );
+        Spinner.Style.BorderTopColor = tint;
+    }
+}

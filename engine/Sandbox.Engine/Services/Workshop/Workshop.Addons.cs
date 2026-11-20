@@ -72,8 +72,8 @@ internal static partial class Workshop
 			return false;
 		}
 
-		return Package.TryParseIdent( parent, out var target )
-			&& Package.TryParseIdent( gameIdent, out var game )
+		return Package.TryParseIdentParts( parent, out var target )
+			&& Package.TryParseIdentParts( gameIdent, out var game )
 			&& string.Equals( target.org, game.org, StringComparison.OrdinalIgnoreCase )
 			&& string.Equals( target.package, game.package, StringComparison.OrdinalIgnoreCase );
 	}

@@ -17,14 +17,23 @@ partial class Compiler
 	private TaskCompletionSource<CompilerOutput> _compileTcs;
 
 	/// <summary>
-	/// Fill this compiler from a code archive
+	/// Fill this compiler from a code archive.
 	/// </summary>
 	public void UpdateFromArchive( CodeArchive a )
 	{
-		_currentArchive = a;
-
-		CopyReferencesFromArchive( a );
+		SetArchive( a );
 		MarkForRecompile();
+	}
+
+	/// <summary>
+	/// Reuse the installed assembly, retaining the archive for dependency rebuilds.
+	/// </summary>
+	public void UseCompiledArchive( CodeArchive a, byte[] installedAssembly, Compiler project )
+	{
+		SetArchive( a );
+
+		// A fast hotload can leave the earlier assembly resident. Its project knows which reference to use.
+		UpdateFromAssembly( project?.MetadataReference ?? Microsoft.CodeAnalysis.MetadataReference.CreateFromImage( installedAssembly ) );
 	}
 
 	/// <summary>
@@ -32,11 +41,12 @@ partial class Compiler
 	/// </summary>
 	internal void UpdateFromAssembly( byte[] bytes )
 	{
-		using ( var a_stream = new System.IO.MemoryStream( bytes ) )
-		{
-			MetadataReference = Microsoft.CodeAnalysis.MetadataReference.CreateFromStream( a_stream );
-		}
+		UpdateFromAssembly( Microsoft.CodeAnalysis.MetadataReference.CreateFromImage( bytes ) );
+	}
 
+	void UpdateFromAssembly( PortableExecutableReference reference )
+	{
+		MetadataReference = reference;
 		var version = Interlocked.Increment( ref compileCounter );
 		Output = new CompilerOutput( this )
 		{
@@ -104,8 +114,9 @@ partial class Compiler
 		}
 	}
 
-	void CopyReferencesFromArchive( CodeArchive a )
+	void SetArchive( CodeArchive a )
 	{
+		_currentArchive = a;
 		_references.Clear();
 
 		foreach ( var reference in a.References.ToArray() )
@@ -151,12 +162,12 @@ partial class Compiler
 		//
 		GetSyntaxTree( archive, parseOptions );
 
-		if ( GetGeneratedCode( output.Version, parseOptions ) is SyntaxTree generated )
+		if ( GetGeneratedCode( parseOptions ) is SyntaxTree generated )
 		{
 			archive.SyntaxTrees.Add( generated );
 		}
 
-		archive.SyntaxTrees.Sort( ( a, b ) => string.CompareOrdinal( a.FilePath, b.FilePath ) );
+		archive.SyntaxTrees.Sort( archive.CompareSourceOrder );
 
 		return archive;
 	}
@@ -183,7 +194,7 @@ partial class Compiler
 
 		List<SyntaxTree> inputSyntaxTrees =
 		[
-			.. archive.SyntaxTrees, // from source files
+			.. archive.SyntaxTrees.Select( tree => StampAssembly( tree, output.Version ) ),
 			.. ProcessRazorFiles(archive, output) // processed razor files
 		];
 

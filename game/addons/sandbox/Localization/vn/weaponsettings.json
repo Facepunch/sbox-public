@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Độ giật",
+    "weapon.setting.primary.description": "Điều khiển hành động chính của vũ khí.",
+    "weapon.setting.secondary.description": "Điều khiển hành động phụ của vũ khí.",
+    "weapon.setting.recoil_force": "Lực giật",
+    "weapon.setting.recoil_force.description": "Lực giật vật lý khi một vũ khí không được cầm trong tay khai hỏa.",
+    "weapon.setting.extend": "Tăng khoảng cách giữ",
+    "weapon.setting.extend.description": "Đẩy đối tượng đang giữ ra xa.",
+    "weapon.setting.retract": "Giảm khoảng cách giữ",
+    "weapon.setting.retract.description": "Kéo đối tượng đang giữ lại gần.",
+    "weapon.setting.camera_aim": "Ngắm theo camera",
+    "weapon.setting.camera_aim.description": "Ngắm theo hướng camera của người chơi đang ngồi.",
+    "weapon.setting.guide_rockets": "Dẫn đường tên lửa",
+    "weapon.setting.guide_rockets.description": "Dẫn tên lửa đã bắn về phía tâm ngắm của người chơi."
+}

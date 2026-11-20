@@ -1,0 +1,31 @@
+{
+  "guid": "10beea48-00fc-0000-b400-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "USP",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "w_usp",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/usp/w_usp.vmdl",
+        "Summary": "",
+        "Description": "",
+        "Public": true,
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

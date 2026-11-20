@@ -1,0 +1,15 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+<TextEntry class="filter menu-input menu-filter-input" placeholder="Filter.." Value:bind=@Query HasClearButton></TextEntry>
+</root>
+
+
+@code
+{
+	public string Query { get; set; }
+}
+

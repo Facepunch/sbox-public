@@ -1,0 +1,25 @@
+@import "/UI/Theme.scss";
+
+ToolPresetBar
+{
+	width: 100%;
+	flex-direction: column;
+	margin-bottom: 12px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid $ui-separator;
+	.preset-controls
+	{
+		width: 100%;
+		gap: 5px;
+		align-items: center;
+		UIDropdown { flex-grow: 1; min-width: 0px; }
+		UIButton { width: 24px; height: 24px; flex-shrink: 0; }
+	}
+}
+
+ToolPresetBar .preset-error, UIModal.tool-preset-prompt .preset-error
+{
+	color: #edac92;
+	font-size: 11px;
+	margin-top: 5px;
+}

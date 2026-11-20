@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Rückstoß",
+    "weapon.setting.primary.description": "Steuert die primäre Aktion der Waffe.",
+    "weapon.setting.secondary.description": "Steuert die sekundäre Aktion der Waffe.",
+    "weapon.setting.recoil_force": "Rückstoßkraft",
+    "weapon.setting.recoil_force.description": "Physischer Rückstoß beim Abfeuern einer nicht gehaltenen Waffe.",
+    "weapon.setting.extend": "Greifabstand vergrößern",
+    "weapon.setting.extend.description": "Bewegt das gegriffene Objekt weiter weg.",
+    "weapon.setting.retract": "Greifabstand verkleinern",
+    "weapon.setting.retract.description": "Bewegt das gegriffene Objekt näher heran.",
+    "weapon.setting.camera_aim": "Mit Kamera zielen",
+    "weapon.setting.camera_aim.description": "In Blickrichtung der Kamera des sitzenden Spielers zielen.",
+    "weapon.setting.guide_rockets": "Raketen lenken",
+    "weapon.setting.guide_rockets.description": "Abgefeuerte Raketen zum Fadenkreuz des Spielers lenken."
+}

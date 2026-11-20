@@ -1,0 +1,91 @@
+@import "/UI/Popup.scss";
+@import "/UI/Theme.scss";
+
+ToolPresetEditor
+{
+	.preset-window
+	{
+		@include ui-block;
+		width: 900px;
+		height: 720px;
+		max-width: 90vw;
+		max-height: 90vh;
+		flex-direction: column;
+		gap: 8px;
+		font-family: $body-font;
+		font-size: $ui-settings-font;
+		color: $ui-text;
+	}
+	.editor-heading
+	{
+		@include ui-title-bar;
+		flex-shrink: 0;
+		align-items: center;
+		> label { flex-grow: 1; }
+		UIButton { width: 24px; height: 24px; }
+	}
+	.editor-columns { flex-grow: 1; min-height: 0px; gap: 10px; }
+	.preset-list
+	{
+		@include ui-section;
+		@include ui-scroll;
+		width: 220px;
+		flex-shrink: 0;
+		flex-direction: column;
+		overflow-y: scroll;
+		padding: 4px;
+		gap: 3px;
+	}
+	.preset-row
+	{
+		padding: 8px 10px;
+		flex-shrink: 0;
+		cursor: pointer;
+		background-color: $ui-row-alt;
+		label { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+		&:hover { background-color: $ui-popup-hover; sound-in: ui.hover; }
+		&.selected { background-color: $ui-blue; color: white; }
+	}
+	.preset-details
+	{
+		@include ui-section;
+		flex-direction: column;
+		flex-grow: 1;
+		min-width: 0px;
+		padding: 10px;
+		gap: 8px;
+	}
+	.name-row
+	{
+		align-items: center;
+		flex-shrink: 0;
+		gap: 10px;
+		.textentry { @include ui-text-entry; flex-grow: 1; }
+	}
+	.draft-properties { @include ui-scroll; flex-direction: column; flex-grow: 1; min-height: 0px; overflow-y: scroll; }
+	.editor-status { flex-shrink: 0; min-height: 16px; font-size: 11px; color: $ui-text-muted; }
+	.error { color: #edac92; }
+	.empty { padding: 12px; color: $ui-text-muted; }
+	.editor-footer, .confirmation-buttons { gap: 8px; flex-shrink: 0; }
+	.spacer { flex-grow: 1; }
+	.confirmation-shade
+	{
+		position: absolute;
+		left: 0px; right: 0px; top: 0px; bottom: 0px;
+		background-color: #000a;
+		align-items: center;
+		justify-content: center;
+		z-index: 10;
+	}
+	.confirmation
+	{
+		@include ui-block;
+		width: 440px;
+		max-width: 90vw;
+		flex-direction: column;
+		padding: 16px;
+		gap: 14px;
+		color: $ui-text;
+		.confirmation-title { font-weight: 700; font-size: 16px; }
+	}
+}

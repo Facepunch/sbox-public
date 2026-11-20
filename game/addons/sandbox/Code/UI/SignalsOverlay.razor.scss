@@ -1,0 +1,225 @@
+@import "/UI/Theme.scss";
+
+SignalsOverlay
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	pointer-events: none;
+	font-family: $body-font;
+	font-size: 14px;
+	font-weight: 600;
+	color: $menu-color;
+	z-index: 100;
+
+	.connector
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 0;
+
+		.dot
+		{
+			position: absolute;
+			width: 5px;
+			height: 5px;
+			margin-left: -2.5px;
+			margin-top: -2.5px;
+			border-radius: 50%;
+			background-color: rgba( $menu-accent, 0.82 );
+			box-shadow: 0 0 0 1px rgba( 6, 16, 24, 0.75 ), 0 0 6px rgba( $menu-accent, 0.2 );
+			animation: connector-flow 4s ease-in-out infinite;
+		}
+	}
+
+	.world-entry
+	{
+		position: absolute;
+		width: 0;
+		height: 0;
+		overflow: visible;
+		z-index: 1;
+
+		.card-anchor
+		{
+			position: absolute;
+			width: 0;
+			height: 0;
+			overflow: visible;
+		}
+
+		.card-stack
+		{
+			position: absolute;
+			width: 340px;
+			left: -170px;
+			bottom: 14px;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 8px;
+
+			.heading
+			{
+				align-items: center;
+				gap: 7px;
+				padding: 6px 10px;
+				font-family: $subtitle-font;
+				background-color: rgba( 6, 16, 24, 0.82 );
+				backdrop-filter: blur( 8px );
+				border: 1px solid rgba( white, 0.06 );
+				border-radius: 8px;
+				box-shadow: 0 4px 12px rgba( black, 0.25 );
+				z-index: 2;
+
+				i
+				{
+					color: $menu-accent;
+					font-family: "Material Icons";
+					font-size: 18px;
+					font-style: normal;
+ 				}
+
+				.title
+					{
+					font-size: 14px;
+					font-weight: 650;
+					color: $menu-text-strong;
+					white-space: nowrap;
+				}
+			}
+
+			.card
+			{
+				width: 100%;
+				padding: 10px 12px;
+				border: 1px solid rgba( white, 0.06 );
+				border-radius: 8px;
+				background-color: rgba( 9, 21, 31, 0.88 );
+				backdrop-filter: blur( 8px );
+				box-shadow: 0 8px 24px rgba( black, 0.5 );
+				flex-direction: column;
+				gap: 5px;
+			}
+
+			.description
+			{
+				font-size: 11px;
+				font-weight: 450;
+				color: $menu-text;
+				white-space: normal;
+			}
+
+			.option-list
+			{
+				flex-direction: column;
+				gap: 4px;
+
+				.option
+				{
+					min-height: 42px;
+					flex-shrink: 0;
+					padding: 5px 9px;
+					border: 1px solid transparent;
+					border-radius: 4px;
+					background-color: #53698111;
+					color: #D1D7E3AA;
+					opacity: 1;
+					align-items: center;
+					transition: color 0.1s ease, background-color 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease, transform 0.1s ease;
+
+					> i
+					{
+						color: $menu-accent;
+						width: 28px;
+						font-family: "Material Icons";
+						font-size: 19px;
+						font-style: normal;
+						text-align: center;
+					}
+
+					.option-labels
+					{
+						flex-grow: 1;
+						flex-direction: column;
+						padding-left: 7px;
+
+						.option-title
+						{
+							font-size: 14px;
+							font-weight: 650;
+							color: inherit;
+							white-space: nowrap;
+							text-overflow: ellipsis;
+							overflow: hidden;
+						}
+
+						.option-subtitle
+						{
+							font-size: 11px;
+							font-weight: 500;
+							color: inherit;
+							opacity: 0.7;
+							white-space: nowrap;
+							text-overflow: ellipsis;
+							overflow: hidden;
+						}
+
+						.option-description
+						{
+							margin-top: 2px;
+						}
+
+					}
+
+					&.active
+					{
+						color: $menu-text-strong;
+						background-color: rgba( $menu-accent, 0.2 );
+						border-color: rgba( $menu-accent, 0.5 );
+						box-shadow: 0 0 10px rgba( $menu-accent, 0.16 );
+						transform: translateY( -1px );
+					}
+				}
+			}
+
+		}
+
+		&.card-below .card-stack
+		{
+			top: 14px;
+			bottom: auto;
+		}
+
+		&.card-shift-right .card-stack
+		{
+			left: -20px;
+		}
+
+		&.card-shift-left .card-stack
+		{
+			left: -320px;
+		}
+	}
+}
+
+@keyframes connector-flow
+{
+	0%, 14%, 100%
+	{
+		background-color: rgba( $menu-accent, 0.82 );
+		box-shadow: 0 0 0 1px rgba( 6, 16, 24, 0.75 ), 0 0 6px rgba( $menu-accent, 0.2 );
+		transform: scale( 1 );
+	}
+
+	6%
+	{
+		background-color: rgba( white, 0.96 );
+		box-shadow: 0 0 0 1px rgba( 6, 16, 24, 0.6 ), 0 0 8px rgba( $menu-accent, 0.32 );
+		transform: scale( 1.16 );
+	}
+}

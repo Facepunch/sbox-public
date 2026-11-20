@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/thruster/basic.prefab",
+  "Title": "#asset.basic.title",
+  "Description": "#asset.thruster.basic.description",
+  "__references": [],
+  "__version": 0
+}

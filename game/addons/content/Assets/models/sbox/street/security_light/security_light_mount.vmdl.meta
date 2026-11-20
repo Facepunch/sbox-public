@@ -1,0 +1,28 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Security Light Mount",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "security_light_mount",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/security_light/security_light_mount.vmdl",
+        "Summary": "",
+        "Description": "",
+        "Public": true
+      }
+    }
+  },
+  "guid": "0ab3eb58-00fc-0000-e600-000000000000"
+}

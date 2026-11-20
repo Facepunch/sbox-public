@@ -1,0 +1,28 @@
+{
+  "guid": "460b0f4f-e793-47a3-aec3-802f26caa3ee",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Gutter A Pvc Tiling",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "gutterapvctiling",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_a_pvc_tiling.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

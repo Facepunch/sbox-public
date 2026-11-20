@@ -1,0 +1,9 @@
+{
+  "Prefab": "entities/sents/lights/spotlight.prefab",
+  "Title": "#asset.spotlight.title",
+  "Description": "#asset.spotlight.description",
+  "Category": "World",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

@@ -1,0 +1,115 @@
+$menu-color:#cdf;
+$menu-text: #fffa;
+$menu-text-strong: #fff;
+$menu-surface-soft: #0004;
+$menu-accent: $color-accent;
+$menu-accent-soft: rgba($color-accent, 0.13);
+$menu-panel-bg: #0c202fcc;
+
+.menu-header-bar
+{
+	border-radius: 8px 8px 0 0;
+	z-index: 100;
+	font-family: $title-font;
+	font-weight: 600;
+}
+
+.menu-input
+{
+	background-color: $menu-surface-soft;
+	border-radius: 8px;
+	padding: 2px 10px;
+}
+
+span
+{
+	&.grow
+	{
+		gap: 8px;
+
+		> *
+		{
+			flex-grow: 1;
+		}
+	}
+}
+
+.menu-action
+{
+	color: $menu-text-strong;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	cursor: pointer;
+	padding: 6px 10px;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	font-weight: 600;
+	transition: background-color 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease, transform 0.1s ease;
+
+	label, .title
+	{
+		font-size: 14px;
+	}
+
+	IconPanel, .icon
+	{
+		font-size: 1.2rem;
+	}
+
+	&.disabled
+	{
+		pointer-events: none;
+		opacity: 0.25;
+	}
+
+
+	&:not(.disabled):hover
+	{
+		transform: translateY( -1px );
+		box-shadow: 0 0 10px rgba( $menu-accent, 0.16 );
+	}
+
+	&:not(.disabled):active
+	{
+		transform: translateY( 0 );
+		box-shadow: 0 0 6px rgba( $menu-accent, 0.12 );
+	}
+	&.soft
+	{
+		background-color: $menu-accent-soft;
+
+		&:hover
+		{
+			background-color: rgba($color-accent, 0.4);
+			sound-in: ui.button.over;
+		}
+	}
+
+	&.primary
+	{
+		border-color: $menu-accent;
+
+		&:hover
+		{
+			background-color: $menu-accent-soft;
+			sound-in: ui.button.over;
+		}
+	}
+
+	&.wide
+	{
+		width: 100%;
+	}
+}
+
+.menu-filter-input
+{
+	width: 200px;
+}
+
+TextEntry 
+{
+	color: $color-text;
+	font-family: $body-font;
+}

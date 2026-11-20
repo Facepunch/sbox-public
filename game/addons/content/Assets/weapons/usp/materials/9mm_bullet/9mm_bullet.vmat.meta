@@ -1,0 +1,32 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "0e96ee28-00fc-0000-c600-000000000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "9Mm Bullet",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "9mm_bullet",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/usp/materials/9mm_bullet/9mm_bullet.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

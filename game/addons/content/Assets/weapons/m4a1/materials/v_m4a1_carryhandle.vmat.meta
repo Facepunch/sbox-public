@@ -1,0 +1,29 @@
+{
+  "guid": "2fb91f9c-e434-4339-8d2b-68b5cae373e4",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V M 4A 1 Carryhandle",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_m4a1_carryhandle",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m4a1/materials/v_m4a1_carryhandle.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Airduct a turn 16x32",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "airduct_a_turn_16x32",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": "*",
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_a_turn_16x32.vmdl"
+      }
+    }
+  },
+  "guid": "66b3cc70-75aa-4e4c-b80e-a83d8ab41427"
+}

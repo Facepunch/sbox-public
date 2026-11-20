@@ -1,0 +1,9 @@
+{
+  "Prefab": "entities/sents/chairs/trolley.prefab",
+  "Title": "#asset.trolley.title",
+  "Description": "#asset.trolley.description",
+  "Category": "Chair",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

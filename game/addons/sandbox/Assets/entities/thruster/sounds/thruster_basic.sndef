@@ -1,0 +1,8 @@
+{
+  "Title": "#asset.basic.title",
+  "Description": "",
+  "Category": "thruster",
+  "Sound": "entities/thruster/sounds/thruster_loop_default.sound",
+  "__references": [],
+  "__version": 0
+}

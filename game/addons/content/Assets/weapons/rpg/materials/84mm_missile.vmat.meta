@@ -1,0 +1,29 @@
+{
+  "guid": "5ad5adba-aaad-4359-b6e9-6bde483d8d78",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "84Mm Missile",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "84mm_missile",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/rpg/materials/84mm_missile.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

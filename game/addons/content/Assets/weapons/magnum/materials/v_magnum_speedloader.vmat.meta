@@ -1,0 +1,29 @@
+{
+  "guid": "fbe9a6e5-49aa-4878-a289-6fc32022a81b",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Magnum Speedloader",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_magnum_speedloader",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/materials/v_magnum_speedloader.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

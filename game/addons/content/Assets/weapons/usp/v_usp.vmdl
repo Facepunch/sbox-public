@@ -1,0 +1,722 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "usp.vmat"
+								to = "weapons/usp/materials/v_usp.vmat"
+							},
+							{
+								from = "usp_magazine.vmat"
+								to = "weapons/usp/materials/v_usp_magazine.vmat"
+							},
+							{
+								from = "usp_match.vmat"
+								to = "weapons/usp/materials/v_usp_match.vmat"
+							},
+							{
+								from = "usp_raisedsights.vmat"
+								to = "weapons/usp/materials/v_usp_raised_sights.vmat"
+							},
+							{
+								from = "usp_rmr.vmat"
+								to = "weapons/usp/materials/v_usp_rmr.vmat"
+							},
+							{
+								from = "rmr_glass.vmat"
+								to = "weapons/usp/materials/v_usp_rmr_glass.vmat"
+							},
+							{
+								from = "rmr_red_dot.vmat"
+								to = "weapons/usp/materials/v_usp_rmr_red_dot.vmat"
+							},
+							{
+								from = "9mm_bullet.vmat"
+								to = "weapons/usp/materials/9mm_bullet/9mm_bullet.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "Folder"
+						name = "USP"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "USP"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/usp/v_usp.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"pistol_usp_lod0",
+										"pistol_usp_slide_lod0",
+										"pistol_usp_frame_lod0",
+										"pistol_usp_trigger_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "barrel"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/usp/v_usp.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"pistol_usp_barrel_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "sights"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/usp/v_usp.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"pistol_usp_sights_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "magazine_full"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/usp/v_usp.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"pistol_usp_magazine_lod0",
+										"pistol_usp_magazine_full_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "magazine_empty"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/usp/v_usp.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"pistol_usp_magazine_lod0",
+										"pistol_usp_magazine_empty_lod0",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Attachments"
+						children = 
+						[
+							{
+								_class = "Folder"
+								name = "Match"
+								children = 
+								[
+									{
+										_class = "RenderMeshFile"
+										name = "Match_Compensator"
+										children = 
+										[
+											{
+												_class = "RenderMeshMarkup"
+												material_search_path = ""
+												use_expensive_tangents = true
+												high_high_precision_texcoords = false
+												calc_per_vertex_curvature = false
+												prefer_high_density_tris_in_uv_density_calc = false
+											},
+										]
+										filename = "weapons/usp/v_usp.fbx"
+										import_translation = [ 0.0, 0.0, 0.0 ]
+										import_rotation = [ 0.0, 0.0, 0.0 ]
+										import_scale = 1.0
+										align_origin_x_type = "None"
+										align_origin_y_type = "None"
+										align_origin_z_type = "None"
+										parent_bone = ""
+										import_filter = 
+										{
+											exclude_by_default = true
+											exception_list = 
+											[
+												"pistol_usp_match_lod0",
+												"pistol_usp_barrel_extended_lod0",
+											]
+										}
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "Raised_Sights"
+								children = 
+								[
+									{
+										_class = "RenderMeshFile"
+										name = "RaisedSights"
+										children = 
+										[
+											{
+												_class = "RenderMeshMarkup"
+												material_search_path = ""
+												use_expensive_tangents = true
+												high_high_precision_texcoords = false
+												calc_per_vertex_curvature = false
+												prefer_high_density_tris_in_uv_density_calc = false
+											},
+										]
+										filename = "weapons/usp/v_usp.fbx"
+										import_translation = [ 0.0, 0.0, 0.0 ]
+										import_rotation = [ 0.0, 0.0, 0.0 ]
+										import_scale = 1.0
+										align_origin_x_type = "None"
+										align_origin_y_type = "None"
+										align_origin_z_type = "None"
+										parent_bone = ""
+										import_filter = 
+										{
+											exclude_by_default = true
+											exception_list = 
+											[
+												"pistol_usp_raised_sights_lod0",
+											]
+										}
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "Red_Dot"
+								children = 
+								[
+									{
+										_class = "RenderMeshFile"
+										name = "RMR"
+										children = 
+										[
+											{
+												_class = "RenderMeshMarkup"
+												material_search_path = ""
+												use_expensive_tangents = true
+												high_high_precision_texcoords = false
+												calc_per_vertex_curvature = false
+												prefer_high_density_tris_in_uv_density_calc = false
+											},
+										]
+										filename = "weapons/usp/v_usp_rmr.fbx"
+										import_translation = [ 2.14, 0.0, -12.142 ]
+										import_rotation = [ 0.0, 0.0, 0.0 ]
+										import_scale = 1.0
+										align_origin_x_type = "None"
+										align_origin_y_type = "None"
+										align_origin_z_type = "None"
+										parent_bone = "slide"
+										import_filter = 
+										{
+											exclude_by_default = false
+											exception_list = [  ]
+										}
+									},
+								]
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "BodyGroupList"
+				children = 
+				[
+					{
+						_class = "BodyGroup"
+						name = "USP"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"USP",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "magazine"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"magazine_full",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"magazine_empty",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "sights"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"sights",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"RaisedSights",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"RMR",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "muzzle"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"barrel",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"Match_Compensator",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children = 
+				[
+					{
+						_class = "GenericGameData"
+						name = "AO_magazine"
+						disabled = true
+						game_class = "ao_proxy_box"
+						game_keys = 
+						{
+							bonename = "magazine"
+							dimensions = [ 10.0, 1.5, 2.8 ]
+							offset_origin = [ 0.0, 0.0, 0.1 ]
+							offset_angles = [ 0.0, 0.0, 0.0 ]
+						}
+					},
+					{
+						_class = "GenericGameData"
+						name = "AO_magazine_bottom"
+						disabled = true
+						game_class = "ao_proxy_box"
+						game_keys = 
+						{
+							bonename = "magazine"
+							dimensions = [ 0.5, 2.4, 3.67 ]
+							offset_origin = [ 5.65, 0.0, 0.3 ]
+							offset_angles = [ -16.0, 0.0, 0.0 ]
+						}
+					},
+					{
+						_class = "GenericGameData"
+						name = "AO_magazine_bottom_front"
+						disabled = true
+						game_class = "ao_proxy_cylinder"
+						game_keys = 
+						{
+							bonename = "magazine"
+							radius = 1.2
+							point0 = [ 4.98136, 0.0, 1.58228 ]
+							point1 = [ 5.51989, 0.0, 1.73505 ]
+						}
+					},
+					{
+						_class = "GenericGameData"
+						name = "AO_slide"
+						disabled = true
+						game_class = "ao_proxy_box"
+						game_keys = 
+						{
+							bonename = "slide"
+							dimensions = [ 17.0, 1.8, 2.1 ]
+							offset_origin = [ 3.0, 0.0, -0.2 ]
+							offset_angles = [ 0.0, 0.0, 0.0 ]
+						}
+					},
+					{
+						_class = "GenericGameData"
+						name = "AO_frame_upper"
+						disabled = true
+						game_class = "ao_proxy_box"
+						game_keys = 
+						{
+							bonename = "weapon_root"
+							dimensions = [ 18.5, 2.0, 1.0 ]
+							offset_origin = [ 5.75, 0.0, 2.3 ]
+							offset_angles = [ 0.0, 0.0, 0.0 ]
+						}
+					},
+					{
+						_class = "GenericGameData"
+						name = "AO_frame_handle"
+						disabled = true
+						game_class = "ao_proxy_box"
+						game_keys = 
+						{
+							bonename = "weapon_root"
+							dimensions = [ 3.75, 2.0, 9.0 ]
+							offset_origin = [ -0.35, 0.0, -2.45 ]
+							offset_angles = [ 16.0, 0.0, 0.0 ]
+						}
+					},
+					{
+						_class = "GenericGameData"
+						name = "AO_frame_butt"
+						disabled = true
+						game_class = "ao_proxy_cylinder"
+						game_keys = 
+						{
+							bonename = "weapon_root"
+							radius = 1.1
+							point0 = [ -3.751, 0.0, 2.4 ]
+							point1 = [ 0.2, 0.0, 0.85 ]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "weapon_root"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 5.91462, 0.0, 3.57025 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.382999, 3.0, 3.51345 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "weapon_root"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -0.116436, 0.007144, -1.91263 ]
+						angles = [ 13.623733, 0.0, 0.0 ]
+						dimensions = [ 4.54696, 2.5, 9.56332 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "weapon_root"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -1.5632, 0.0, -7.16588 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 2.623504, 5.322322, 1.47856 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "weapon_root"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 5.7082, 0.0, 0.408944 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 6.22571, 1.8, 3.65327 ]
+					},
+				]
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = "weapon_root"
+						relative_origin = [ 15.274986, -0.000001, 4.560665 ]
+						relative_angles = [ -0.000005, 0.0, -0.000005 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "eject"
+						parent_bone = "weapon_root"
+						relative_origin = [ 3.019453, -0.374782, 4.93255 ]
+						relative_angles = [ -30.0, -90.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "BoneMarkup"
+						disabled = true
+						target_bone = ""
+						ignore_Translation = false
+						ignore_rotation = false
+						do_not_discard = false
+					},
+				]
+				bone_cull_type = "None"
+			},
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_ikdata.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "AnimationList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_adjustmentlayers.vmdl_prefab"
+					},
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_shared.vmdl_prefab"
+					},
+					{
+						_class = "Prefab"
+						target_file = "weapons/usp/prefabs/v_usp_animationlist.vmdl_prefab"
+					},
+				]
+				default_root_bone_name = ""
+			},
+			{
+				_class = "WeightListList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_weightlistlist.vmdl_prefab"
+					},
+					{
+						_class = "WeightList"
+						name = "Only_GunIsEmpty"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "camera"
+								weight = 0.0
+							},
+							{
+								bone = "root"
+								weight = 0.0
+							},
+							{
+								bone = "slide"
+								weight = 1.0
+							},
+							{
+								bone = "slide_catch"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_root"
+								weight = 0.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+				]
+			},
+			{
+				_class = "AnimConstraintList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animconstraintlist.vmdl_prefab"
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = "weapons/usp/v_usp.vanmgrph"
+		base_model_name = ""
+	}
+}

@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/hoverball/hoverball.prefab",
+  "Title": "#tool.name.hoverball",
+  "Description": "#asset.hoverball.description",
+  "__references": [],
+  "__version": 0
+}

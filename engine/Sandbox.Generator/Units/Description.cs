@@ -415,8 +415,13 @@ internal static class Description
 	{
 		if ( string.IsNullOrEmpty( description ) ) return node;
 
-		if ( symbol.GetAttribute( "DescriptionAttribute" ) != null )
+		if ( symbol.GetAttribute( "DescriptionAttribute" ) is { } existing )
 		{
+			// Localized UI descriptions have a phrase key alongside the source documentation.
+			if ( existing.ConstructorArguments.FirstOrDefault() is { Kind: TypedConstantKind.Primitive, Value: string value }
+				&& value.StartsWith( "#", StringComparison.Ordinal ) )
+				return node;
+
 			master.AddError( node.GetLocation(), new DiagnosticDescriptor( "SB2000", "Unneeded [Description]", $"Why are you using [Description] here? We'll automatically add one using the comment above.", "generator", DiagnosticSeverity.Warning, true ) );
 			return node;
 		}

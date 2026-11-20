@@ -1,0 +1,10 @@
+{
+  "Prefab": "entities/pickup/pickup_health.prefab",
+  "Title": "#asset.pickup_health.title",
+  "Description": null,
+  "Category": "Pickup",
+  "IncludeCode": false,
+  "Developer": false,
+  "__references": [],
+  "__version": 0
+}

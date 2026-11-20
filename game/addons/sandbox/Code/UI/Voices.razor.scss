@@ -1,0 +1,62 @@
+@import "/UI/Theme.scss";
+
+$avatar-size: 26px;
+
+Voices
+{
+    position: absolute;
+    right: $deadzone-x;
+    gap: 4px;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: none;
+
+    .item-row
+    {
+        transform-origin: right center;
+        width: 230px;
+        height: 38px;
+        padding: 4px;
+        gap: 10px;
+        align-items: center;
+        flex-shrink: 0;
+        background-color: rgba( black, 0.33 );
+        border-radius: 2px;
+    }
+
+    .avatar-wrap
+    {
+        position: relative;
+        width: $avatar-size;
+        height: $avatar-size;
+        flex-shrink: 0;
+    }
+
+    img
+    {
+        width: $avatar-size;
+        height: $avatar-size;
+        border-radius: 2px;
+    }
+
+    .icon
+    {
+        flex-shrink: 0;
+        font-family: "Material Icons";
+        font-size: 20px;
+        color: white;
+    }
+
+    .name
+    {
+        flex-grow: 1;
+        min-width: 0;
+        font-family: $body-font;
+        font-size: 16px;
+        font-weight: 700;
+        color: white;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+    }
+}

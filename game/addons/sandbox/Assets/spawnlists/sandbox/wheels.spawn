@@ -1,0 +1,534 @@
+{
+  "Title": "Wheels",
+  "Description": "",
+  "Icon": "tire_repair",
+  "RequiredMount": null,
+  "Parent": null,
+  "Order": 0,
+  "HideInSidebar": true,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Tires",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/normal_tire.vmdl",
+      "Title": "Car Tire",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/breakable_tire.vmdl",
+      "Title": "Breakable Tire",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/moped_tire.vmdl",
+      "Title": "Moped Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/trucktire.vmdl",
+      "Title": "Truck Tire",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/trucktire2.vmdl",
+      "Title": "Dual Truck Tire",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/747wheel.vmdl",
+      "Title": "Jumbo Jet Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Car Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/pwm.vmdl",
+      "Title": "PWM Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/pwm_large.vmdl",
+      "Title": "PWM Wheel Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_2.vmdl",
+      "Title": "Sport Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_2l.vmdl",
+      "Title": "Sport Wheel Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/rim_1.vmdl",
+      "Title": "Bladed Rim Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_race.vmdl",
+      "Title": "Turbine Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/drugster_front.vmdl",
+      "Title": "Dragster Front Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/drugster_back.vmdl",
+      "Title": "Dragster Rear Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Race Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_30.vmdl",
+      "Title": "Race Wheel 30",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_35.vmdl",
+      "Title": "Race Wheel 35",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_40.vmdl",
+      "Title": "Race Wheel 40",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_45.vmdl",
+      "Title": "Race Wheel 45",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_50.vmdl",
+      "Title": "Race Wheel 50",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_55.vmdl",
+      "Title": "Race Wheel 55",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_60.vmdl",
+      "Title": "Race Wheel 60",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_65.vmdl",
+      "Title": "Race Wheel 65",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_70.vmdl",
+      "Title": "Race Wheel 70",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_75.vmdl",
+      "Title": "Race Wheel 75",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_80.vmdl",
+      "Title": "Race Wheel 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_30_s.vmdl",
+      "Title": "Race Wheel 30 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_35_s.vmdl",
+      "Title": "Race Wheel 35 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_40_s.vmdl",
+      "Title": "Race Wheel 40 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_45_s.vmdl",
+      "Title": "Race Wheel 45 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_50_s.vmdl",
+      "Title": "Race Wheel 50 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_55_s.vmdl",
+      "Title": "Race Wheel 55 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_60_s.vmdl",
+      "Title": "Race Wheel 60 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_65_s.vmdl",
+      "Title": "Race Wheel 65 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_70_s.vmdl",
+      "Title": "Race Wheel 70 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_75_s.vmdl",
+      "Title": "Race Wheel 75 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/race_wheel_80_s.vmdl",
+      "Title": "Race Wheel 80 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Off-Road Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/off_road_20.vmdl",
+      "Title": "Off-Road Wheel 20",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/off_road_30.vmdl",
+      "Title": "Off-Road Wheel 30",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/off_road_40.vmdl",
+      "Title": "Off-Road Wheel 40",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/off_road_50.vmdl",
+      "Title": "Off-Road Wheel 50",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/off_road_60.vmdl",
+      "Title": "Off-Road Wheel 60",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/off_road_70.vmdl",
+      "Title": "Off-Road Wheel 70",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/off_road_80.vmdl",
+      "Title": "Off-Road Wheel 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/big_wheel.vmdl",
+      "Title": "Big Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/big_wheel_wide.vmdl",
+      "Title": "Big Wheel Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/tractor_small.vmdl",
+      "Title": "Tractor Wheel Small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/tractor.vmdl",
+      "Title": "Tractor Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/monster_truck.vmdl",
+      "Title": "Monster Truck Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Airplane Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/airplanewheel1.vmdl",
+      "Title": "Airplane Wheel 19",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/airplanewheel1medium.vmdl",
+      "Title": "Airplane Wheel 38",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/airplanewheel1big.vmdl",
+      "Title": "Airplane Wheel 56",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/airplanewheel1huge.vmdl",
+      "Title": "Airplane Wheel 75",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/airplanewheel1large.vmdl",
+      "Title": "Airplane Wheel 94",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Rubber Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_rugged_24.vmdl",
+      "Title": "Rugged Wheel 24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_rugged_24w.vmdl",
+      "Title": "Rugged Wheel 24 Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_rugged_48.vmdl",
+      "Title": "Rugged Wheel 48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_rugged_48w.vmdl",
+      "Title": "Rugged Wheel 48 Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_rounded_36s.vmdl",
+      "Title": "Rounded Wheel 36 Slim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_rounded_36.vmdl",
+      "Title": "Rounded Wheel 36",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_rounded_72.vmdl",
+      "Title": "Rounded Wheel 72",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_extruded_48.vmdl",
+      "Title": "Extruded Hub Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_spike_24.vmdl",
+      "Title": "Spiked Wheel 24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_spike_48.vmdl",
+      "Title": "Spiked Wheel 48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_speed_72.vmdl",
+      "Title": "Speed Wheel 72",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Metal Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_smooth_24.vmdl",
+      "Title": "Metal Wheel 24",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_smooth_24f.vmdl",
+      "Title": "Metal Wheel 24 Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_smooth_48.vmdl",
+      "Title": "Metal Wheel 48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_smooth_96.vmdl",
+      "Title": "Metal Wheel 96",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_smooth2.vmdl",
+      "Title": "Spoked Wheel 48",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_smooth_72.vmdl",
+      "Title": "Spoked Wheel 72",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/wheel_smooth_72w.vmdl",
+      "Title": "Spoked Wheel 72 Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/metal_wheel1.vmdl",
+      "Title": "Iron Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/metal_wheel2.vmdl",
+      "Title": "Iron Wheel Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Magnetic Wheels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/magnetic_small.vmdl",
+      "Title": "Magnetic Wheel Small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/magnetic_medium.vmdl",
+      "Title": "Magnetic Wheel Medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/magnetic_large.vmdl",
+      "Title": "Magnetic Wheel Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/magnetic_small_base.vmdl",
+      "Title": "Magnetic Base Small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/magnetic_med_base.vmdl",
+      "Title": "Magnetic Base Medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/wheels/magnetic_large_base.vmdl",
+      "Title": "Magnetic Base Large",
+      "Icon": null
+    }
+  ],
+  "__version": 0
+}

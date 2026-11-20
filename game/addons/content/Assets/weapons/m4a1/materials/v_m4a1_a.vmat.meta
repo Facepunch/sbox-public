@@ -1,0 +1,29 @@
+{
+  "guid": "eb79509e-97e2-4637-b0bb-720feb264954",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V M 4A 1 A",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_m4a1_a",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m4a1/materials/v_m4a1_a.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

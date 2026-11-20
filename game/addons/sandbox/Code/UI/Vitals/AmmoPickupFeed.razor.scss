@@ -1,0 +1,19 @@
+@import "/UI/Theme.scss";
+
+AmmoPickupFeed
+{
+	position: absolute;
+	right: $deadzone-x;
+	bottom: calc( $deadzone-y + 96px );
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 6px;
+	pointer-events: none;
+	transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+Vitals.spawnmenu-open AmmoPickupFeed
+{
+	opacity: 0;
+	transform: translateX( 40px );
+}

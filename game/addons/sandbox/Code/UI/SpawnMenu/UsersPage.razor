@@ -1,0 +1,106 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits UtilityPage
+@namespace Sandbox
+@attribute [Icon( "👥" )]
+@attribute [Title( "#spawnmenu.utility.users" )]
+@attribute [Group( "#spawnmenu.utility.group.world" )]
+@attribute [Order( 1 )]
+
+<root class="page">
+
+    <div class="section-header">#spawnmenu.utility.permissions</div>
+
+    @foreach ( var connection in Connection.All )
+    {
+        var c = connection;
+        <div class="list-entry">
+            <img class="list-entry-avatar" src="avatar:@c.SteamId" />
+            <div class="list-entry-info">
+                <label class="list-entry-name">@c.DisplayName</label>
+                <label class="list-entry-detail">@DescribePermissions( c )</label>
+            </div>
+        </div>
+    }
+
+    <div class="note">#spawnmenu.utility.permissions_note</div>
+
+    <div class="section-header">#spawnmenu.utility.ban_list</div>
+
+    @{
+        var bans = BanSystem.Current?.GetBannedList();
+    }
+
+    @if ( bans is null || bans.Count == 0 )
+    {
+        <div class="note">#spawnmenu.utility.no_bans</div>
+    }
+    else
+    {
+        @foreach ( var (steamId, entry) in bans )
+        {
+            var sid = steamId;
+            var e = entry;
+            <div class="list-entry">
+                <img class="list-entry-avatar" src="avatar:@sid" />
+                <div class="list-entry-info">
+                    <label class="list-entry-name">@e.DisplayName</label>
+                    <label class="list-entry-detail">@e.Reason</label>
+                </div>
+                <div class="list-entry-action pressable" @onclick=@(() => OpenBanOptions( sid, e ))>
+                    <i>more_vert</i>
+                </div>
+            </div>
+        }
+    }
+
+</root>
+
+@code
+{
+    public override bool IsPageVisible() => Permissions.Has( Connection.Local, Permissions.Admin );
+
+    protected override int BuildHash()
+    {
+        var hash = new HashCode();
+        foreach ( var data in PlayerData.All )
+        {
+            hash.Add( data.Network.Owner );
+            foreach ( var permission in data.Permissions )
+                hash.Add( permission );
+        }
+        return hash.ToHashCode();
+    }
+
+    // admins have every permission, so just show that
+    string DescribePermissions( Connection connection )
+    {
+        var declared = Permissions.All;
+        var admin = declared.FirstOrDefault( x => x.Name == Permissions.Admin );
+
+        if ( Permissions.Has( connection, Permissions.Admin ) )
+            return admin?.Title ?? Permissions.Admin;
+
+        var titles = declared.Where( x => Permissions.Has( connection, x.Name ) ).Select( x => x.Title ?? x.Name ).ToList();
+        return titles.Count > 0 ? string.Join( ", ", titles ) : Game.Language.GetPhrase( "spawnmenu.utility.no_permissions" );
+    }
+
+    void OpenBanOptions( SteamId steamId, BanSystem.BanEntry entry )
+    {
+        var menu = new Sandbox.UI.Menu();
+
+        menu.AddOption( "#spawnmenu.utility.unban", "person_add", () =>
+        {
+            BanSystem.Current?.Unban( steamId );
+            StateHasChanged();
+        } );
+
+        menu.AddOption( "#spawnmenu.utility.copy_steam_id", "content_copy", () =>
+        {
+            Clipboard.SetText( steamId.ToString() );
+            Notices.AddNotice( "copy_all", Color.Cyan, Game.Language.GetPhrase( "spawnmenu.utility.copied_steam_id", new() { { "name", entry.DisplayName } } ), 5 );
+        } );
+
+        menu.Open( this, Popup.PositionMode.UnderMouse );
+    }
+}

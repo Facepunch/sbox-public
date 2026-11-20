@@ -22,6 +22,27 @@ namespace CompilingTests;
 public partial class FastPathTest
 {
 	/// <summary>
+	/// A dependency reused on join still references the assembly resident after a fast hotload.
+	/// </summary>
+	[TestMethod]
+	public async Task ReusedArchiveReferencesResidentAssembly()
+	{
+		using var local = new FastPathTestCompiler( "HelloWorld.cs" );
+		await local.BuildAsync( version: 1 );
+		var resident = local.Compiler.MetadataReference;
+		var hotload = await local.BuildAsync( version: 2 );
+		Assert.IsTrue( hotload.ILHotloadSupported );
+		var build = local.Compiler.Output;
+		local.Compiler.NotifyFastHotload( build.Version );
+
+		using var group = new CompileGroup( "server" );
+		var library = group.GetOrCreateCompiler( local.Compiler.Name );
+		library.UseCompiledArchive( build.Archive, build.AssemblyData, local.Compiler );
+		Assert.IsFalse( group.NeedsBuild );
+		Assert.AreSame( resident, await group.FindReferenceAsync( library.AssemblyName, group.GetOrCreateCompiler( "game" ) ) );
+	}
+
+	/// <summary>
 	/// Adding a statement within a method body.
 	/// </summary>
 	[TestMethod]
