@@ -194,41 +194,6 @@ public sealed partial class SceneWorld : IHandle
 	}
 
 	/// <summary>
-	/// This finishes any loads and actually spawns the world sceneobjects
-	/// </summary>
-	internal void UpdateObjectsForRendering( Vector3 eyePos = default, float farPlane = 5000.0f )
-	{
-		if ( InternalSceneMaps is null || InternalSceneMaps.Count == 0 )
-			return;
-
-		foreach ( var map in InternalSceneMaps )
-		{
-			// Maps native's world renderer loaded; one read by Borealis.Source2 has no world group
-			if ( map.WorldGroup is null || !IsFirstMapInWorldGroup( map ) )
-				continue;
-
-			g_pWorldRendererMgr.UpdateObjectsForRendering( map.WorldGroup, eyePos, 1.0f, farPlane );
-		}
-
-		// If we have a 3D skybox, update its objects too
-		foreach ( var world in InternalSkyboxWorlds )
-		{
-			world?.SkyboxWorld.UpdateObjectsForRendering( world.Origin, farPlane );
-		}
-	}
-
-	bool IsFirstMapInWorldGroup( SceneMap map )
-	{
-		foreach ( var other in InternalSceneMaps )
-		{
-			if ( other == map ) return true;
-			if ( other.WorldGroup == map.WorldGroup ) return false;
-		}
-
-		return true;
-	}
-
-	/// <summary>
 	/// Add a scenemap to this world
 	/// </summary>
 	internal void AddSceneMap( SceneMap sceneMap )

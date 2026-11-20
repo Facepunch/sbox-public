@@ -800,7 +800,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// Inside one of our frames (a command list's view), as its child on the device
 		if ( rendering is not null )
 		{
-			camera.ConfigureView( setup );
 			RenderChild( camera, setup, target, null, out _ );
 			return;
 		}
@@ -823,7 +822,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// Inside one of our frames (a command list's view, water's refraction), as its child on the device
 		if ( Graphics.IsActive && rendering is not null )
 		{
-			camera.ConfigureView( setup );
 			return RenderChild( camera, setup, target, depthTarget, out viewData );
 		}
 

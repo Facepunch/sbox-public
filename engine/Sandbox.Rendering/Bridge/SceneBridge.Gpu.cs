@@ -135,7 +135,6 @@ internal sealed partial class SceneBridge
 		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		if ( size.x < 1 || size.y < 1 || NotYetInBorealis( camera, setup ) is not null ) return;
 
-		camera.ConfigureView( setup );
 		var viewport = new Rect( 0, 0, size.x, size.y );
 		gpuView ??= new BorealisGpuView( backend );
 		gpuView.Viewport = viewport;
@@ -455,7 +454,6 @@ internal sealed partial class SceneBridge
 
 		var reflection = CommandList.ReflectionView( eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, planned.Plane, planned.Setup );
 		var target = planned.Target;
-		camera.ConfigureView( reflection );
 		var rendered = RenderOnGpu( camera, reflection, target.ColorTarget, target.DepthTarget, view.ToneMapScalar, out var reflected );
 
 		// The reflection's prepare set the world's 3D skybox up for its view

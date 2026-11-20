@@ -184,8 +184,7 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 		var bounds = obj.Bounds;
 		var center = bounds.Center;
 		var origin = obj.native.IsValid && obj.native.HasLightingOrigin() ? obj.native.GetLightingOrigin() : center;
-		var handshake = obj.native.IsValid ? RenderTools.GetLightProbeVolumeHandshake( obj ) : 0;
-		var chosen = Borealis.LightProbeVolume.Choose( volumes, origin, center, bounds.Extents, (uint)obj.LightGroup, handshake, subWorlds );
+		var chosen = Borealis.LightProbeVolume.Choose( volumes, origin, center, bounds.Extents, (uint)obj.LightGroup, 0, subWorlds );
 		return chosen >= 0 && volumes[chosen].Attributes is Borealis.Backend.BackendParameters parameters ? parameters.Get( ProbeConstantsName ) as byte[] : null;
 	}
 

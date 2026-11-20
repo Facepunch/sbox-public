@@ -146,15 +146,6 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 
 		World.ExcludeEverywhere();
 		DisposeMaps();
-		lock ( lightmapFolders )
-		{
-			if ( MirrorContent.Gpu is { } gpu )
-			{
-				foreach ( var folder in lightmapFolders ) gpu.ReleaseMapLightmaps( folder );
-			}
-
-			lightmapFolders.Clear();
-		}
 
 		if ( MirrorContent.Gpu is { } held )
 		{
@@ -341,30 +332,6 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		}
 	}
 
-	/// <summary>
-	/// The world lightmaps a lightmapped object draws with: those of the map its model is in
-	/// (<c>maps/construct_25/worldnodes/...</c>), read from the map's world file. Null for an object without lightmaps.
-	/// </summary>
-	ShaderParameters LightmapFor( SceneObject sceneObject, Model model )
-	{
-		if ( MirrorContent.Gpu is not { } gpu ) return null;
-		if ( SceneNative.LightmapKey( sceneObject ) == 0 || model?.ResourcePath is not { } path || !path.StartsWith( "maps/", StringComparison.OrdinalIgnoreCase ) ) return null;
-		var end = path.IndexOf( '/', 5 );
-		if ( end <= 5 ) return null;
-
-		// Held while this world draws them, so a map's lightmaps go once no world does
-		var folder = path[..end];
-		lock ( lightmapFolders )
-		{
-			if ( lightmapFolders.Add( folder ) ) gpu.HoldMapLightmaps( folder );
-		}
-
-		return gpu.MapLightmapParameters( folder );
-	}
-
-	// The maps whose lightmaps this world's objects drew with (LightmapFor), released when it goes
-	readonly HashSet<string> lightmapFolders = new( StringComparer.OrdinalIgnoreCase );
-
 	// The file materials and textures this world's sky and fog drew with (WorldMaterial, WorldTexture), held while it lives
 	readonly HashSet<string> heldMaterials = new( StringComparer.OrdinalIgnoreCase );
 	readonly HashSet<string> heldTextures = new( StringComparer.OrdinalIgnoreCase );
@@ -427,7 +394,10 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 
 		if ( volume.Attributes is not null ) return;
 
-		SceneNative.ReadLightProbeVolume( probe, volume );
+		volume.BoxMins = probe.BoxMins;
+		volume.BoxMaxs = probe.BoxMaxs;
+		volume.RenderPriority = probe.RenderPriority;
+		volume.LightGroups = probe.LightGroups;
 		volume.Handshake = probe.Handshake;
 		if ( MirrorContent.Gpu is not { } gpu ) return;
 
@@ -528,9 +498,6 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 				Hold( drawn );
 				mesh.Mesh = drawn;
 				meshChanged = true;
-
-				// Shared world lightmap attributes.
-				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? LightmapFor( sceneObject, drawnModel ) : null;
 			}
 		}
 
@@ -614,8 +581,10 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	/// <summary>An aggregate's model and fragments, or null; <paramref name="waiting"/> while its model is still loading.</summary>
 	AggregateObject AggregateFor( SceneObject sceneObject, out bool waiting )
 	{
-		var model = SceneNative.AggregateModel( sceneObject, out var lightmapped );
 		waiting = false;
+		if ( sceneObject is not SceneAggregateObject source ) return null;
+
+		var model = source.AggregateModel;
 		if ( ModelFor( model )?.Mesh is not { } mesh )
 		{
 			waiting = model is not null && loading.Contains( model );
@@ -625,11 +594,59 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 
 		Hold( mesh );
 
-		return new AggregateObject( mesh, SceneNative.ReadAggregateFragments( sceneObject ) ) { Lightmapped = lightmapped };
+		return new AggregateObject( mesh, FragmentDraws( source, model, mesh ) );
 	}
 
 	/// <summary>
-	/// An aggregate's flags, tint and lightmaps. Its fragments are fixed when it's made.
+	/// An aggregate's fragments as Borealis draws them: fragment i draws its model's mesh's draw call i, in world space, with
+	/// the draw's tint and uv density, its index the base instance. The draw calls come from the model's file, or from its
+	/// mesh's draws for a model without one.
+	/// </summary>
+	static AggregateObject.FragmentDraw[] FragmentDraws( SceneAggregateObject source, Model model, RenderMesh mesh )
+	{
+		var file = model.ResourcePath is { Length: > 0 } path && MirrorContent.Gpu is { } gpu && gpu.ReadModel( path ) is { IsCompletedSuccessfully: true } read ? read.Result : null;
+		var calls = file is { Meshes.Count: > 0 } ? file.Meshes[0].DrawCalls : null;
+
+		var fragments = source.Fragments;
+		var draws = new AggregateObject.FragmentDraw[fragments.Length];
+		for ( int i = 0; i < fragments.Length; i++ )
+		{
+			ref readonly var fragment = ref fragments[i];
+			ref var draw = ref draws[i];
+			draw.Transform = Matrix3x4.From( fragment.Transform );
+			draw.BoundsMin = fragment.BoundsMin;
+			draw.BoundsMax = fragment.BoundsMax;
+			draw.Flags = (FragmentFlags)((int)fragment.Flags & 7);
+			draw.Args.InstanceCount = 1;
+			draw.Args.FirstInstance = (uint)i;
+
+			if ( calls is not null && i < calls.Count )
+			{
+				var call = calls[i];
+				draw.DrawTint = new Vector3( call.Tint.X, call.Tint.Y, call.Tint.Z );
+				draw.UvDensity = call.UvDensity;
+				draw.Args.IndexCount = (uint)call.IndexCount;
+				draw.Args.FirstIndex = (uint)call.StartIndex;
+				draw.Args.BaseVertex = call.BaseVertex;
+				continue;
+			}
+
+			foreach ( var meshDraw in mesh.Draws )
+			{
+				if ( meshDraw.Mesh != 0 || meshDraw.DrawCall != i ) continue;
+				draw.DrawTint = meshDraw.Tint ?? Vector3.One;
+				draw.UvDensity = meshDraw.UvDensity;
+				draw.Args.IndexCount = (uint)meshDraw.IndexCount;
+				draw.Args.FirstIndex = (uint)meshDraw.StartIndex;
+				break;
+			}
+		}
+
+		return draws;
+	}
+
+	/// <summary>
+	/// An aggregate's flags and tint. Its fragments are fixed when it's made.
 	/// </summary>
 	void ApplyAggregate( SceneObject sceneObject, AggregateObject aggregate, SceneObjectChange change )
 	{
@@ -647,11 +664,6 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 			aggregate.IsStatic = flags.IsStatic;
 			aggregate.IsWorld = aggregate.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
 			aggregate.OcclusionCulling = !flags.HasFlag( SceneObjectFlags.NoOcclusionCulling );
-		}
-
-		if ( aggregate.Lightmapped && aggregate.LightmapAttributes is null )
-		{
-			aggregate.LightmapAttributes = LightmapFor( sceneObject, SceneNative.AggregateModel( sceneObject, out _ ) );
 		}
 	}
 
@@ -671,7 +683,6 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		mesh.Decal = flags.HasFlag( SceneObjectFlags.IsDecal );
 		mesh.NeedsLightProbe = flags.HasFlag( SceneObjectFlags.NeedsLightProbe );
 		mesh.LightGroup = (uint)sceneObject.LightGroup;
-		mesh.LightProbeHandshake = sceneObject.ResolvesDraws ? 0 : SceneNative.LightProbeHandshake( sceneObject );
 
 		mesh.LayerMatch = SceneObject.LayerMatchFor( sceneObject.LayerMatchToken );
 		mesh.RenderOrder = mesh.LayerMatch is LayerMatch.StaticOverlay or LayerMatch.ToolOverlay or LayerMatch.ToolScreenOverlay ? sceneObject.RenderOrder : 0;
@@ -882,7 +893,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		lighting.GradientFog = source.GradientFog.ToBorealis();
 
 		// Per-view wind (SetWindParams).
-		SceneNative.ReadWorldWind( source, out var windStrength, out var windDirection );
+		SceneNative.ReadWorldWind( out var windStrength, out var windDirection );
 		lighting.WindStrengthFreq = windStrength;
 		lighting.WindDirection = windDirection;
 

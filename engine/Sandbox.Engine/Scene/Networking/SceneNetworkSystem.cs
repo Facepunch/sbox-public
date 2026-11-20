@@ -602,12 +602,12 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		foreach ( var vpk in vpks )
-			g_pWorldRendererMgr.MountWorldVPK( Path.GetFileNameWithoutExtension( vpk ), Path.ChangeExtension( vpk, ".vpk" ) );
+			NativeEngine.EngineGlue.MountWorldVPK( Path.GetFileNameWithoutExtension( vpk ), Path.ChangeExtension( vpk, ".vpk" ) );
 
 		return new DisposeAction( () =>
 		{
 			foreach ( var vpk in vpks )
-				g_pWorldRendererMgr.UnmountWorldVPK( Path.GetFileNameWithoutExtension( vpk ) );
+				NativeEngine.EngineGlue.UnmountWorldVPK( Path.GetFileNameWithoutExtension( vpk ) );
 		} );
 	}
 
