@@ -503,7 +503,7 @@ public class PipelineLibraryTests : GpuTest
 			using ( var device = Open() )
 			using ( var library = new Borealis.Source2.Shaders.ShaderLibrary( device, ShaderFileTests.Files ) )
 			{
-				var shader = library.Load( "shaders/ui.shader" );
+				var shader = library.Load( "shaders/unlit.shader" );
 				Assert.IsNotNull( library.Variant( shader, "Default", new int[shader.Features.StaticCombos.Length] ).Vertex.Module );
 				Assert.IsTrue( library.ModuleManifest.Recorded >= 2, "its vertex and pixel modules" );
 				device.SavePipelineCache();
@@ -514,7 +514,7 @@ public class PipelineLibraryTests : GpuTest
 			{
 				var recorded = library.ModuleManifest.Loaded;
 				Assert.IsTrue( recorded >= 2 );
-				library.Load( "shaders/ui.shader" );
+				library.Load( "shaders/unlit.shader" );
 				var clock = System.Diagnostics.Stopwatch.StartNew();
 				while ( library.ModuleManifest.Made < recorded && clock.Elapsed < TimeSpan.FromSeconds( 30 ) ) System.Threading.Thread.Sleep( 10 );
 				Assert.AreEqual( recorded, library.ModuleManifest.Made, "made as the file loaded, before any variant" );

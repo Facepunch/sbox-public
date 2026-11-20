@@ -147,6 +147,7 @@ internal class UploadBuildArtifacts
 		"core/shaders/tools_selection_outline.shader",
 		"core/shaders/tools_selection_overlay.shader",
 		"core/shaders/tools_selection_stencil_copy.shader",
+		"core/shaders/tools_shading_complexity.shader",
 		"core/shaders/tools_solid.shader",
 		"core/shaders/tools_sprite.shader",
 		"core/shaders/tools_textured_unlit.shader",

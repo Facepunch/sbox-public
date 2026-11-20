@@ -1,5 +1,4 @@
-// gizmo_line: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// gizmo_line: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // The .shader's geometry stage widens each line into a quad. Here the vertex stage does it: the draw runs four
 // vertices per line (ExpandPrimitives), with the line's two ends as per-instance inputs (the second's semantics 4 up),
 // and each vertex makes one corner of the quad as the geometry stage made it.
