@@ -38,7 +38,7 @@ public class AppSystem
 		}
 
 		// check core count, ram, os?
-		// rendersystemvulkan ends up checking gpu, driver, vram later on
+		// Borealis.Gpu checks the GPU, driver and VRAM when it makes its device
 
 	}
 

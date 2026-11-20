@@ -579,7 +579,7 @@ public sealed class EtwConverterToFirefox : IDisposable
 
 	// we don't want to load symbols for all 150 modules, this would be waste of time
 	// only load modules that actually contain relevant information for use
-	private static readonly HashSet<string> allowedModules = ["kernel32", "ntdll", "hostpolicy", "hostfxr", "gdi", "win32u", "clrjit", "coreclr", "qwindows", "Qt5Core", "Qt5Widgets", "engine2", "tier0", "sbox", "sbox-dev", "meshsystem", "animationsystem", "resourcecompiler", "materialsystem2", "toolframework2", "assetsystem", "hammer", "rendersystemvulkan", "filesystem_stdio"];
+	private static readonly HashSet<string> allowedModules = ["kernel32", "ntdll", "hostpolicy", "hostfxr", "gdi", "win32u", "clrjit", "coreclr", "qwindows", "Qt5Core", "Qt5Widgets", "engine2", "tier0", "sbox", "sbox-dev", "meshsystem", "animationsystem", "resourcecompiler", "materialsystem2", "toolframework2", "assetsystem", "hammer", "rendersystemempty", "filesystem_stdio"];
 
 	/// <summary>
 	/// Loads the modules - and symbols for a given process.
