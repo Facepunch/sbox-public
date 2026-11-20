@@ -2,7 +2,7 @@
 
 Layer0
 {
-	shader "shaders/complex.shader"
+	shader "shaders/standard.shader"
 
 	//---- Detail Texture ----
 	F_DETAIL_TEXTURE 4 // Overlay and Normals

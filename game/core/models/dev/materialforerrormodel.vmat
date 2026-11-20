@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/generic.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"g_vColorTint"		"[0.752941 0.250980 0.000000 0.000000]"
 	"g_vTexCoordOffset"		"[0.000 0.000]"
 	"g_vTexCoordScale"		"[1.000 1.000]"

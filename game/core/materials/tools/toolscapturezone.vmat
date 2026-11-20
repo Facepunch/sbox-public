@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/generic.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_TRANSLUCENT"		"1"
 	"g_vColorTint"		"[1.000000 1.000000 1.000000 0.000000]"
 	"TextureColor"		"materials/tools/new/capturezone_color.png"

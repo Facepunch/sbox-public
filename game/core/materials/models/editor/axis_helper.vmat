@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/generic.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_EDITOR_MATERIAL"		"1"
 	"g_vColorTint"		"[1.000000 1.000000 1.000000 0.000000]"
 	"g_vTexCoordOffset"		"[0.000 0.000]"

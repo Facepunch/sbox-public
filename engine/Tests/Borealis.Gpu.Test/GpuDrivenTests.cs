@@ -1204,11 +1204,11 @@ public class GpuDrivenTests : GpuTest
 	{
 		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true };
 		var tables = backend.GpuDrivenTables;
-		var material = (BackendMaterial)backend.CreateMaterial( "Churning", Color.White );
-		var other = (BackendMaterial)backend.CreateMaterial( "Steady", Color.White );
 		var shader = backend.Shaders.Load( "shaders/complex.shader" );
 		var variant = shader is null ? null : backend.Shaders.Variant( shader, "Forward", default );
-		if ( variant?.Vertex is null || variant.Pixel is null ) Assert.Inconclusive( "complex.shader isn't compiled" );
+		if ( variant?.Vertex is null || variant.Pixel is null ) Assert.Inconclusive( "complex.shader isn't compiled (gone: standard's surface draws its materials)" );
+		var material = (BackendMaterial)backend.CreateMaterial( "Churning", Color.White );
+		var other = (BackendMaterial)backend.CreateMaterial( "Steady", Color.White );
 
 		uint Record( BackendMaterial m, ShaderStage stage, int attributes ) =>
 			tables.Material( new GpuDrivenTables.MaterialRecordKey( m, m.Version, stage, false, attributes ), 64, 0, static ( _, bytes ) => bytes.Clear() );

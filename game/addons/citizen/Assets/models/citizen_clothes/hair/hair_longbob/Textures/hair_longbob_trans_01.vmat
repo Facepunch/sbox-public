@@ -2,7 +2,7 @@
 
 Layer0
 {
-	shader "shaders/complex.shader"
+	shader "shaders/standard.shader"
 
 	//---- Animation ----
 	F_MORPH_SUPPORTED 1

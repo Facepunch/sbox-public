@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_TINT_MASK"		"1"
 	"F_SPECULAR"		"1"
 	"F_ALPHA_TEST"		"1"

@@ -960,8 +960,8 @@ public class SurfaceTests : GpuTest
 		using var backend = new BackendDevice( Device );
 		List<SamplerInfo> Samplers( int filtering )
 		{
-			var foliage = (BackendMaterial)((GpuDevice)backend).CreateMaterial( $"Foliage {filtering}", "shaders/foliage.shader" );
-			if ( foliage.Shader is null ) Assert.Inconclusive( "foliage.shader isn't compiled" );
+			// A shader that's a surface alone is made as the surface: nothing compiled to check
+			if ( ((GpuDevice)backend).CreateMaterial( $"Foliage {filtering}", "shaders/foliage.shader" ) is not BackendMaterial { Shader: not null } foliage ) { Assert.Inconclusive( "foliage.shader isn't compiled" ); return null; }
 			var feature = foliage.Shader.FeatureIndex( "F_TEXTURE_FILTERING" );
 			Assert.IsTrue( feature >= 0, "foliage.shader has no F_TEXTURE_FILTERING" );
 			foliage.Features[feature] = filtering;
@@ -996,8 +996,8 @@ public class SurfaceTests : GpuTest
 		using var backend = new BackendDevice( Device );
 		CullMode Cull( int backfaces )
 		{
-			var complex = (BackendMaterial)((GpuDevice)backend).CreateMaterial( $"Complex {backfaces}", "shaders/complex.shader" );
-			if ( complex.Shader is null ) Assert.Inconclusive( "complex.shader isn't compiled" );
+			// complex is standard's surface alone now: nothing compiled to check
+			if ( ((GpuDevice)backend).CreateMaterial( $"Complex {backfaces}", "shaders/complex.shader" ) is not BackendMaterial { Shader: not null } complex ) { Assert.Inconclusive( "complex.shader isn't compiled" ); return default; }
 			var feature = complex.Shader.FeatureIndex( "F_RENDER_BACKFACES" );
 			Assert.IsTrue( feature >= 0, "complex.shader has no F_RENDER_BACKFACES" );
 			complex.Features[feature] = backfaces;
@@ -1381,7 +1381,7 @@ public class SurfaceTests : GpuTest
 		var shaders = Path.Combine( Core, "shaders" );
 		string Convert( string name, out IReadOnlyList<string> notes )
 		{
-			// static_overlay.shader is gone (its surface is the whole shader): the test keeps a copy
+			// static_overlay.shader, generic.shader and simple.shader are gone (surfaces stand in alone): the test keeps copies
 			var data = Path.Combine( AppContext.BaseDirectory, "Data", name + ".shader" );
 			var result = ShaderConverter.Convert( File.ReadAllText( File.Exists( data ) ? data : Path.Combine( shaders, name + ".shader" ) ), name );
 			notes = result.Notes;
@@ -1525,8 +1525,9 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// standard takes complex, simple and generic materials, each with its shader's packing, and a pipeline specialised for
-	/// a material's features (its [Specialize] fields as constants) draws what the unspecialised one does.
+	/// standard takes complex, simple and generic materials, each with its shader's packing (the engine's own name standard,
+	/// complex's), and a pipeline specialised for a material's features (its [Specialize] fields as constants) draws what the
+	/// unspecialised one does.
 	/// </summary>
 	[TestMethod]
 	public void StandardSurfaceSpecializesForItsMaterials()
@@ -1534,6 +1535,16 @@ public class SurfaceTests : GpuTest
 		var compiled = Compiler().CompileSurface( Path.Combine( Core, "shaders", "standard.slang" ) );
 		Assert.AreEqual( "UseUnlit", string.Join( ", ", compiled.Material.Features.Select( f => f.Name ) ), "only [Specialize] fields are specialised for" );
 		StringAssert.Contains( compiled.Generated, "SurfaceSpecialize( m );" );
+
+		// Materials an older engine compiled for simple or generic keep their packing
+		foreach ( var (shaderName, expected) in new[] { ("shaders/standard.shader", 0), ("shaders/complex.shader", 0), ("shaders/simple.shader", 1), ("shaders/generic.shader", 2) } )
+		{
+			var file = new Borealis.Source2.Materials.MaterialFile { Name = "packing", Shader = shaderName, Ints = new Dictionary<string, int>(), Floats = new Dictionary<string, float>(), Vectors = new Dictionary<string, float[]>(), Textures = new Dictionary<string, string>(), IntAttributes = new Dictionary<string, int>() };
+			using var made = ConvertedMaterial.Create( compiled, file, "packing", _ => null );
+			var bytes = new byte[made.RecordSize];
+			made.WriteRecord( bytes, ( _, _ ) => 0 );
+			Assert.AreEqual( expected, BitConverter.ToInt32( bytes, compiled.Material.Field( "Packing" ).Offset ), shaderName );
+		}
 
 		var previousHost = RenderHost.Current;
 		try
@@ -1555,7 +1566,7 @@ public class SurfaceTests : GpuTest
 				return picture;
 			}
 
-			foreach ( var (path, packing) in new[] { ("materials/default.vmat", 0), ("materials/dev/simple/floor_simple_128.vmat", 1), ("materials/dev/primary_blue.vmat", 2), ("materials/dev/sky_helper.vmat", 2) } )
+			foreach ( var (path, packing) in new[] { ("materials/default.vmat", 0), ("materials/dev/simple/floor_simple_128.vmat", 0), ("materials/dev/primary_blue.vmat", 0), ("materials/dev/sky_helper.vmat", 0) } )
 			{
 				var plain = DrawMaterial( path, false, out _, out var none );
 				var specialized = DrawMaterial( path, true, out var material, out var made );
@@ -1671,7 +1682,9 @@ public class SurfaceTests : GpuTest
 			RenderHost.Current = new BackendRenderHost( backend );
 			if ( ((GpuDevice)backend).LoadMaterial( path ) is not SurfaceMaterial ) Assert.Inconclusive( $"{path} isn't a surface" );
 
+			// standard's materials have no .shader now (complex, simple and generic are its names): nothing behind the surface
 			var material = backend.ShaderMaterial( path );
+			if ( material is null && backend.Shaders.Load( "shaders/standard.shader" ) is null ) Assert.Inconclusive( $"{path}'s shader is a surface alone: no .shader material behind it" );
 			Assert.IsNotNull( material, "the .shader material behind the surface" );
 			Assert.IsNotNull( material.Shader );
 			Assert.IsTrue( material.Textures.Count > 0, $"{path}'s textures" );
@@ -1928,7 +1941,7 @@ public class SurfaceTests : GpuTest
 		if ( Core is null ) Assert.Inconclusive( "No game content" );
 		static ShaderConverter.RenderStates Translate( string name )
 		{
-			// static_overlay.shader is gone (its surface is the whole shader): the test keeps a copy
+			// static_overlay.shader and generic.shader are gone (surfaces stand in alone): the test keeps copies
 			var data = Path.Combine( AppContext.BaseDirectory, "Data", name + ".shader" );
 			var text = File.ReadAllText( File.Exists( data ) ? data : Path.Combine( Core, "shaders", name + ".shader" ) );
 			var combos = System.Text.RegularExpressions.Regex.Matches( text, @"StaticCombo\(\s*(S_\w+)\s*,\s*(F_\w+)" ).DistinctBy( m => m.Groups[1].Value ).ToDictionary( m => m.Groups[1].Value, m => m.Groups[2].Value );

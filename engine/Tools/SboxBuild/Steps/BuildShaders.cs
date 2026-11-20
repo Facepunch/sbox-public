@@ -39,7 +39,6 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 			}
 
 			var result = RunShaderCompiler( shaderCompilerPath, gameDir );
-			if ( result == ExitCode.Success ) CompileGpuDriven( shaderCompilerPath, gameDir );
 			if ( result == ExitCode.Success ) CompileSlang( shaderCompilerPath, gameDir );
 			if ( result == ExitCode.Success && !CheckShaderIncludes.Check( rootDir ) ) result = ExitCode.Failure;
 			return result;
@@ -50,30 +49,6 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 			return ExitCode.Failure;
 		}
 	} );
-
-	/// <summary>
-	/// Shaders Borealis.Gpu draws GPU-driven, whose <c>.gpudriven.shader_c</c> variant is built too
-	/// (docs/reference/borealis-gpu-driven.md). A variant that fails only warns: Borealis draws that shader the classic way.
-	/// </summary>
-	static readonly string[] GpuDrivenShaders =
-	[
-		"core/shaders/complex.shader",
-		"core/shaders/generic.shader",
-		"core/shaders/simple.shader",
-	];
-
-	void CompileGpuDriven( string shaderCompilerPath, string gameDir )
-	{
-		BuildDisplay.Status( "Compile GPU-driven variants" );
-		var paths = string.Join( " ", GpuDrivenShaders.Select( s => $"\"{Path.GetFullPath( Path.Combine( gameDir, s ) )}\"" ) );
-		var arguments = $"{paths} -gpudriven{(forced ? " -f" : "")}";
-		var success = Utility.RunProcess( shaderCompilerPath, arguments, gameDir, onDataReceived: ( sender, e ) =>
-		{
-			if ( e.Data != null && !BuildDisplay.IsActive ) Log.Info( e.Data );
-		} );
-
-		if ( !success ) Log.Warning( "Some GPU-driven shader variants failed to compile; Borealis.Gpu draws those shaders the classic way." );
-	}
 
 	/// <summary>
 	/// Borealis's Slang shaders compiled offline (<c>name.slang_c</c> beside each <c>.slang</c>): every surface and pass module,

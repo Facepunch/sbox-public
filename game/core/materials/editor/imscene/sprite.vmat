@@ -2,7 +2,7 @@
 
 Layer0
 {
-	shader "shaders/generic.shader_c"
+	shader "shaders/standard.shader_c"
 
 	//---- Lighting ----
 	F_UNLIT 1

@@ -107,7 +107,7 @@ public class ShaderFileTests
 		if ( path is null ) Assert.Inconclusive( "No compiled core materials" );
 
 		var material = Borealis.Source2.Materials.MaterialFile.Load( path );
-		Assert.AreEqual( "shaders/complex.shader", material.Shader );
+		Assert.AreEqual( "shaders/standard.shader", material.Shader );
 		Assert.IsTrue( material.Textures.ContainsKey( "g_tColor" ) );
 		Assert.AreEqual( 4, material.Value( "g_vColorTint" ).Length );
 

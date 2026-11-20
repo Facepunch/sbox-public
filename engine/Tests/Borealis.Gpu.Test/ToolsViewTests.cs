@@ -32,6 +32,7 @@ public class ToolsViewTests : GpuTest
 		using var backend = new BackendDevice( Device ) { GpuDriven = gpuDriven, GpuDrivenGeometry = gpuDriven };
 		backend.Surfaces.ConvertShaders = surface;
 		if ( backend.Shaders.Load( "shaders/tools_view.shader" ) is null ) Assert.Inconclusive( "tools_view.slang isn't built" );
+		if ( !surface && backend.Shaders.Load( "shaders/complex.shader" ) is null ) Assert.Inconclusive( "complex.shader is gone (standard's surface draws its materials): nothing for the .shader route" );
 		if ( gpuDriven && !surface && backend.Shaders.GpuDriven( backend.Shaders.Load( "shaders/complex.shader" ) ) is null ) Assert.Inconclusive( "complex has no GPU-driven variant: ShaderCompiler -gpudriven" );
 
 		var previousHost = RenderHost.Current;
