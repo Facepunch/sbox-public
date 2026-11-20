@@ -207,62 +207,6 @@ public class ObjectAttributeTests : GpuTest
 	}
 
 	/// <summary>
-	/// A blendable material (<c>blendable.shader</c>, whose forward mode is <c>VrForward</c>) draws in colour as well as in
-	/// the prepass, through material objects as by reflection.
-	/// </summary>
-	[TestMethod]
-	public void BlendableMaterialsDrawForward()
-	{
-		using var backend = new BackendDevice( Device );
-		backend.Surfaces.ConvertShaders = false;   // blendable.shader itself, not the surface standing in for it
-		var previousHost = RenderHost.Current;
-		RenderHost.Current = new BackendRenderHost( backend );
-		try
-		{
-			using var system = new RenderSystem { ParallelRecording = false };
-			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Blendable test" );
-			var material = backend.LoadMaterial( "materials/dev/simple/simple_blend.vmat" );
-			Assert.AreEqual( "shaders/blendable.shader", ((BackendMaterial)material).File?.Shader, "a blendable material" );
-			var world = new RenderWorld();
-			world.Lighting.SunShadowCascades = 0;
-			world.Add( new MeshObject( BoxMesh( backend, material ), Transform.Zero ) );
-
-			var view = new RenderView { Name = "Blendable test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
-			view.Position = new Vector3( -200, -200, 150 );
-			view.Rotation = Rotation.LookAt( -view.Position );
-
-			byte[] Frame( bool materialObjects )
-			{
-				backend.MaterialObjects = materialObjects;
-				backend.BeginFrame();
-				RenderHost.Current.NextFrame();
-				system.Render( world, view, target );
-				Device.WaitIdle();
-				var (texture, layout) = BackendDevice.Unwrap( target.Color );
-				var pixels = ReadBack( texture, layout );
-				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
-				return pixels;
-			}
-
-			backend.TimeDraws = true;
-			backend.DrawTimes.Reset();
-			var objects = Frame( true );
-			var failed = string.Join( ", ", backend.DrawTimes.Failed.Select( f => $"{f.Key} x{f.Value}" ) );
-			var forward = system.Stats.Draws;
-			var reflection = Frame( false );
-
-			Assert.AreEqual( "", failed, "every draw recorded" );
-			Assert.AreEqual( 1, forward, "the box drew in colour" );
-			Assert.AreEqual( 0, Different( objects, reflection ), "material objects draw what binding by reflection draws" );
-		}
-		finally
-		{
-			Device.WaitIdle();
-			RenderHost.Current = previousHost;
-		}
-	}
-
-	/// <summary>
 	/// A blendable material compiled for shader version 1 (<c>m_shaderVersion</c>, read through <c>Source( ShaderVersion )</c>)
 	/// takes its roughness from its normal map's blue channel. Version 0's layout would read it from the metalness channel
 	/// (black in <c>simple_blend</c>), so its roughness view (<c>ToolsVisMode</c> 12) is lit only with the version filled in.

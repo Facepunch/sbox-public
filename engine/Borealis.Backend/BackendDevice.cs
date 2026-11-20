@@ -1516,15 +1516,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		var tier = Surfaces;
 		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Layout( surface ) is not { } compiled ) return null;
-		if ( !ConvertedMaterial.Accepts( compiled, file ) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
+		// A material with features the surface doesn't do stays on its .shader; once the shader is a surface alone (no
+		// .shader_c) there's nothing else to draw it with, so the surface takes it without them
+		var shader = Shaders.Load( file.Shader );
+		if ( (shader is not null && !ConvertedMaterial.Accepts( compiled, file )) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
 		tier.CountConverted( path );
 		var converted = ConvertedMaterial.Create( compiled, WithFeatureRules( file ), path, MaterialTextureFile );
 
-		// The .shader material, for draws the surface can't make; none once the shader is a surface alone (no .shader_c)
-		if ( Shaders.Load( file.Shader ) is not null ) converted.SetFallback( fallback );
+		// The .shader material, for draws the surface can't make; none for a surface alone
+		if ( shader is not null ) converted.SetFallback( fallback );
 
 		// Its scene attributes (overlay, NoZPrepass, ...) are the .shader material's: that material without textures
-		converted.SetAttributes( () => new BackendMaterial( path, Shaders.Load( file.Shader ), file, null ) );
+		converted.SetAttributes( () => new BackendMaterial( path, shader, file, null ) );
 		return converted;
 	}
 

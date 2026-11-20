@@ -7,6 +7,47 @@
 // the normal map too) and the new one (colour with the noise in its alpha, normal, roughness-metalness-occlusion).
 import sbox.surface;
 
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): fur.shader's texture inputs,
+// the textures made from them and its attributes, read with the material's features
+#if MATERIAL_INPUTS
+#ifndef S_ALPHA_TEST
+#define S_ALPHA_TEST 1
+#endif
+#include "common/vertex.hlsl"
+#include "common/pixel.hlsl"
+#define S_NEW_TEXTURE_PACKING F_NEW_TEXTURE_PACKING
+#if !S_NEW_TEXTURE_PACKING
+CreateInputTexture2D( FurNoise, Linear, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
+CreateInputTexture2D( BaseColor, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
+CreateInputTexture2D( Normal, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
+CreateInputTexture2D( Roughness, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
+CreateInputTexture2D( Metalness, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
+CreateInputTexture2D( AO, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
+Texture2D g_tFurNoise < Channel( RGBA, Box( FurNoise ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+Texture2D g_tBaseColor < Channel( RGBA, Box( BaseColor ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
+Texture2D g_tNormal < Channel( RGBA, Box( Normal ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
+Texture2D g_tRoughness < Channel( RGBA, Box( Roughness ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
+Texture2D g_tMetalness < Channel( RGBA, Box( Metalness ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
+Texture2D g_tAO < Channel( RGBA, Box( AO ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
+#else
+CreateInputTexture2D( BaseColor, Srgb, 8, "None", "_color", "Material, 10/10", Default( 1 ) );
+CreateInputTexture2D( Normal, Linear, 8, "NormalizeNormals", "_normal", "Material, 10/20", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( Roughness, Linear, 8, "None", "_rough", "Material, 10/30", Default( 0.5 ) );
+CreateInputTexture2D( Metalness, Linear, 8, "None", "_metal", "Material, 10/40", Default( 0 ) );
+CreateInputTexture2D( AO, Linear, 8, "None", "_ao", "Material, 10/50", Default( 1 ) );
+CreateInputTexture2D( FurNoise, Linear, 8, "None", "_fur", "Fur, 20/10", Default( 0.5 ) );
+Texture2D g_tBaseColor < Channel( RGB, Box( BaseColor ), Srgb ); Channel( A, PreserveCoverage( FurNoise ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
+Texture2D g_tNormal < Channel( RGB, Box( Normal ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
+Texture2D g_tRMA <
+Channel( R, Box( Roughness ), Linear );
+Channel( G, Box( Metalness ), Linear );
+Channel( B, Box( AO ), Linear );
+OutputFormat( DXT5 );
+SrgbRead( false );
+>;
+#endif
+#endif
+
 // common_samplers.fxc's g_sBilinearWrap, for the wind's noise
 SamplerState FurBilinearWrap < Filter( BILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 

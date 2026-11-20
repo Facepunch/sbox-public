@@ -253,7 +253,7 @@ public sealed class SurfaceShaders : IDisposable
 		["fur"] = "fur.slang",
 		["skin"] = "skin.slang",
 		["eyeball"] = "eyeball_surface.slang",
-		["citizen_eye"] = "citizen_eye_surface.slang",
+		["citizen_eye"] = "citizen_eye.slang",
 		["simple"] = "standard.slang",
 		["bark"] = null,
 		["terrain_preview"] = "terrain_preview.slang",

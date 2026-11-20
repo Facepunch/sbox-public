@@ -29,6 +29,9 @@ public sealed partial class MaterialInputs
 	/// <summary>The textures made from them, in the order declared.</summary>
 	public IReadOnlyList<Texture> Textures { get; init; }
 
+	/// <summary>Every made texture declared, read or not: what the representative texture is looked for in.</summary>
+	public IReadOnlyList<Texture> Declared { get; init; } = [];
+
 	/// <summary>The shader's attributes with a literal value (<c>BoolAttribute( sky, true )</c> as 1); ones that read a variable are left out.</summary>
 	public IReadOnlyList<(string Name, string Kind, float[] Value)> Attributes { get; init; }
 
@@ -67,7 +70,22 @@ public sealed partial class MaterialInputs
 				values[combo.Name] = combo.Feature is not null && values.TryGetValue( combo.Feature, out var f ) ? Math.Clamp( f, combo.Min, combo.Max ) : combo.Min;
 			foreach ( var combo in module.Combos( stage ).Where( c => !c.Static ) ) values.TryAdd( combo.Name, combo.Min );
 
+			// Static combos the lines declare (an include's StaticCombo( S_X, F_X )) follow their features: read again with
+			// them until no new one shows, as vfx's preprocessor sees them from the start
 			var text = Code( module.CompiledLines( stage, values ) );
+			for ( int pass = 0; pass < 4; pass++ )
+			{
+				var added = false;
+				foreach ( Match combo in StaticComboLine().Matches( text ) )
+				{
+					if ( values.ContainsKey( combo.Groups["name"].Value ) ) continue;
+					values[combo.Groups["name"].Value] = values.GetValueOrDefault( combo.Groups["feature"].Value );
+					added = true;
+				}
+
+				if ( !added ) break;
+				text = Code( module.CompiledLines( stage, values ) );
+			}
 
 			foreach ( Match m in InputDeclaration().Matches( text ) )
 			{
@@ -92,7 +110,8 @@ public sealed partial class MaterialInputs
 
 				// Only textures the code reads are made, as vfx keeps only the variables a combo uses: the name once more
 				// than its declaration
-				if ( surface || Regex.Matches( text, $@"\b{Regex.Escape( name )}\b" ).Count > 1 ) used.Add( name );
+				// A surface's are the ones its fields take: g_tColor for Color, or one a field names as its [Source]
+				if ( surface ? SurfaceTakes( module.Text, name ) : Regex.Matches( text, $@"\b{Regex.Escape( name )}\b" ).Count > 1 ) used.Add( name );
 				if ( !seenTextures.Add( name ) ) continue;
 
 				var type = (m.Groups["type"].Value + m.Groups["create"].Value) switch { var t when t.Contains( "Cube", StringComparison.Ordinal ) => "CUBE", var t when t.Contains( "3D", StringComparison.Ordinal ) => "3D", _ => "2D" };
@@ -121,7 +140,7 @@ public sealed partial class MaterialInputs
 			}
 		}
 
-		return new MaterialInputs { Inputs = inputs, Textures = [.. textures.Where( t => used.Contains( t.Name ) )], Attributes = attributes, RepresentativeTexture = representative };
+		return new MaterialInputs { Inputs = inputs, Textures = [.. textures.Where( t => used.Contains( t.Name ) )], Declared = textures, Attributes = attributes, RepresentativeTexture = representative };
 	}
 
 	/// <summary>The lines as one text without comments, so declarations spanning lines read as one.</summary>
@@ -189,6 +208,16 @@ public sealed partial class MaterialInputs
 
 	[GeneratedRegex( @"\bChannel\s*\(\s*(?<channels>\w+)\s*,\s*(?<algorithm>\w+)\s*\((?<inputs>[^()]*)\)\s*,\s*(?<space>\w+)\s*\)" )]
 	private static partial Regex ChannelAnnotation();
+
+	/// <summary>Whether a surface has a field a made texture fills: named as it without vfx's <c>g_t</c>, or naming it as its source.</summary>
+	static bool SurfaceTakes( string surface, string texture )
+	{
+		var stem = texture.StartsWith( "g_t", StringComparison.Ordinal ) ? texture[3..] : texture;
+		return Regex.IsMatch( surface, $@"\bTexture2D\s+{Regex.Escape( stem )}\s*;" ) || Regex.IsMatch( surface, $@"\bSource\(\s*""{Regex.Escape( texture )}""\s*\)" );
+	}
+
+	[GeneratedRegex( @"\bStaticCombo\s*\(\s*(?<name>S_\w+)\s*,\s*(?<feature>F_\w+)" )]
+	private static partial Regex StaticComboLine();
 
 	[GeneratedRegex( @"\b[FSD]_\w+" )]
 	private static partial Regex FeatureName();

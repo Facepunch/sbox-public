@@ -1674,7 +1674,7 @@ public class SurfaceTests : GpuTest
 	/// </summary>
 	[TestMethod]
 	[DataRow( "materials/dev/red.vmat" )]
-	[DataRow( "materials/default/vertex_color.vmat" )]
+	[DataRow( "materials/dev/primary_blue.vmat" )]
 	public void ConvertedMaterialsKeepTheirShaderMaterial( string path )
 	{
 		Compiler();
@@ -1906,7 +1906,9 @@ public class SurfaceTests : GpuTest
 		if ( Core is null ) Assert.Inconclusive( "No game content" );
 		static ShaderConverter.RenderStates Translate( string name )
 		{
-			var text = File.ReadAllText( Path.Combine( Core, "shaders", name + ".shader" ) );
+			// static_overlay.shader is gone (its surface is the whole shader): the test keeps a copy
+			var data = Path.Combine( AppContext.BaseDirectory, "Data", name + ".shader" );
+			var text = File.ReadAllText( File.Exists( data ) ? data : Path.Combine( Core, "shaders", name + ".shader" ) );
 			var combos = System.Text.RegularExpressions.Regex.Matches( text, @"StaticCombo\(\s*(S_\w+)\s*,\s*(F_\w+)" ).DistinctBy( m => m.Groups[1].Value ).ToDictionary( m => m.Groups[1].Value, m => m.Groups[2].Value );
 			var features = System.Text.RegularExpressions.Regex.Matches( text, @"Feature\(\s*(F_\w+)\s*,\s*(\d+)\s*\.\.\s*(\d+)" ).ToDictionary( m => m.Groups[1].Value, m => (int.Parse( m.Groups[2].Value ), int.Parse( m.Groups[3].Value )) );
 			features.TryAdd( "F_RENDER_BACKFACES", (0, 1) );
@@ -2327,15 +2329,15 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// citizen_eye_surface.slang, the citizen's procedural eye as a layered surface with per-vertex values (its axes, worked
+	/// citizen_eye.slang, the citizen's procedural eye as a layered surface with per-vertex values (its axes, worked
 	/// out in world space): it draws the citizen's eye materials as citizen_eye.shader's compiled programs do.
 	/// </summary>
 	[TestMethod]
 	public void CitizenEyeSurfaceDrawsCitizenEyes()
 	{
-		var citizen = ContentFiles.FindGame().Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "citizen_eye_surface.slang" ) ) );
+		var citizen = ContentFiles.FindGame().Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "citizen_eye.slang" ) ) );
 		if ( citizen is null ) Assert.Inconclusive( "The citizen addon isn't here" );
-		var eye = Compiler().CompileSurface( Path.Combine( citizen, "shaders", "citizen_eye_surface.slang" ) );
+		var eye = Compiler().CompileSurface( Path.Combine( citizen, "shaders", "citizen_eye.slang" ) );
 		StringAssert.Contains( eye.Generated, "SurfaceForwardLayered<SurfaceWithVaryingsLayered<CitizenEye>, false>" );
 		StringAssert.Contains( eye.Generated, "SurfaceOutputDisplacedWith<CitizenEye>" );
 

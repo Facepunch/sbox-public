@@ -7,6 +7,26 @@
 // greater-or-equal, which draws the same pixels.
 import sbox.surface;
 
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): foliage.shader's texture inputs,
+// the textures made from them and its attributes, read with the material's features
+#if MATERIAL_INPUTS
+#define S_FOLIAGE_ANIMATION F_FOLIAGE_ANIMATION
+#include "common/vertex.hlsl"
+BoolAttribute( VertexNeedsPropOrigin, true );
+#include "common/utils/Material.CommonInputs.hlsl"
+#include "common/pixel.hlsl"
+#define S_ALPHA_TEST F_ALPHA_TEST
+#define S_TRANSMISSIVE F_TRANSMISSIVE
+#define S_GRAZING_FADE F_GRAZING_FADE
+#if S_ALPHA_TEST
+TextureAttribute( LightSim_Opacity_A, g_tColor );
+#endif
+#if S_TRANSMISSIVE
+CreateInputTexture2D( TextureTransmissiveColor, Srgb, 8, "", "_color", "Material,10/60", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tTransmissiveColor < Channel( RGB, Box( TextureTransmissiveColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); >;
+#endif
+#endif
+
 [Material]
 public struct Foliage : IVertexSurface, ISunLitSurface
 {

@@ -181,7 +181,7 @@ public sealed class MaterialCompile
 		}
 
 		// The representative texture's first input's size, as the material compiler records it: a colour is one texel
-		if ( inputs.RepresentativeTexture is { } representative && inputs.Textures.FirstOrDefault( t => t.Name == representative ) is { Channels: [{ Inputs: [var first, ..] }, ..] }
+		if ( inputs.RepresentativeTexture is { } representative && inputs.Declared.FirstOrDefault( t => t.Name == representative ) is { Channels: [{ Inputs: [var first, ..] }, ..] }
 			&& material.Value( first ) is { Length: > 0 } file
 			&& (file[0] == '[' ? (1, 1) : imageSize?.Invoke( file.Replace( '\\', '/' ) )) is var (width, height) )
 		{

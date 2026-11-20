@@ -5,6 +5,57 @@
 // (Material.OverlayMode). Unlit unless F_LIT. It lights through the final combiner (ICombinerSurface).
 import sbox.surface;
 
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): static_overlay.shader's texture inputs,
+// the textures made from them and its attributes, read with the material's features
+#if MATERIAL_INPUTS
+#define ENABLE_NORMAL_MAPS
+#define S_SPECULAR 0
+#define S_METALNESS_TEXTURE 0
+#define S_SPECULAR_CUBE_MAP 0
+#define S_RENDER_BACKFACES 0
+#define S_DO_NOT_CAST_SHADOWS 1
+#include "vr_shared_standard_vs_code.fxc"
+#define S_LIT F_LIT
+#define S_BLEND_MODE F_BLEND_MODE
+BoolAttribute( SupportsLightmapping, true );
+BoolAttribute( PerVertexLighting, true );
+BoolAttribute( AllowPerDrawCulling, true );
+BoolAttribute( overlay, true );
+#define BLEND_MODE_ALREADY_SET
+#define DEPTH_STATE_ALREADY_SET
+#define S_ALPHA_TEST ( S_BLEND_MODE == 2 )
+#if ( S_LIT == 0 )
+#define S_UNLIT 1
+#endif
+#if ( S_BLEND_MODE == 1 )
+#define S_TRANSLUCENT 1
+#elif ( S_ALPHA_TEST )
+BoolAttribute( NoZPrepass, true );
+#elif( S_BLEND_MODE == 3 )
+#define S_TRANSLUCENT 1
+#elif( S_BLEND_MODE == 4 )
+#define S_TRANSLUCENT 1
+#define S_ADDITIVE_BLEND 1
+#elif( S_BLEND_MODE == 5 )
+#define S_TRANSLUCENT 1
+#elif( S_BLEND_MODE == 6 )
+#define S_TRANSLUCENT 1
+#define S_ADDITIVE_BLEND 1
+#define S_SELF_ILLUM 1
+#endif
+#if ( S_BLEND_MODE == 3 )
+#define COLOR_SAMPLER_DEFINED
+Texture2D g_tColor < Channel( RGB, Box( TextureColor ), Srgb );
+Channel( A, Box( TextureTranslucency ), Linear );
+OutputFormat( BC7 ); SrgbRead( false ); >;
+#endif
+#include "vr_shared_standard_ps_code.fxc"
+#if ( S_BLEND_MODE == 3 )
+#elif ( S_BLEND_MODE == 5 )
+#elif( S_BLEND_MODE == 6 )
+#endif
+#endif
+
 // static_overlay.shader's g_sTrilinearWrap, for occlusion and self-illumination (the rest use g_sAniso)
 SamplerState g_OverlayTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 

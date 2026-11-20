@@ -56,16 +56,10 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 	/// </summary>
 	static readonly string[] GpuDrivenShaders =
 	[
-		"core/shaders/depth_only.shader",
 		"core/shaders/complex.shader",
-		"core/shaders/blendable.shader",
-		"core/shaders/foliage.shader",
-		"core/shaders/bark.shader",
 		"core/shaders/glass.shader",
-		"core/shaders/static_overlay.shader",
 		"core/shaders/generic.shader",
 		"core/shaders/simple.shader",
-		"core/shaders/skin.shader",
 	];
 
 	void CompileGpuDriven( string shaderCompilerPath, string gameDir )

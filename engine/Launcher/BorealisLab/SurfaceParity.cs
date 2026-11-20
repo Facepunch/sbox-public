@@ -180,11 +180,15 @@ internal static class SurfaceParity
 			}
 
 			var foliageShader = FoliageShader();
-			if ( leaf is null || foliageShader.Shader?.Name.Contains( "foliage", StringComparison.OrdinalIgnoreCase ) != true ) return Fail( "foliage.shader or simple_rail_32.vmat isn't compiled" );
+			if ( leaf is null ) return Fail( "simple_rail_32.vmat isn't compiled" );
+
+			// foliage has no .shader now (the surface is the whole shader): nothing to compare its surface with
+			var hasFoliageShader = foliageShader.Shader?.Name.Contains( "foliage", StringComparison.OrdinalIgnoreCase ) == true;
+			if ( !hasFoliageShader ) lines.Add( "foliage: no foliage.shader to compare the surface with" );
 
 			using var foliage = new Foliage { Color = leaf, Normal = normal, Rma = rma, Transmissive = true, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, GrazingFade = true, Animated = true, AlphaTest = true, DisplayName = "Foliage (surface)" };
 			// Without multisampling the alpha test is a hard cut; with 4x it is alpha to coverage, which is what Construct draws
-			foreach ( var samples in new[] { 1, 4 } )
+			foreach ( var samples in hasFoliageShader ? new[] { 1, 4 } : [] )
 			{
 				var suffix = samples > 1 ? $"-{samples}x" : "";
 				var foliageReference = Render( device, foliageShader, alphaTest: true, samples );
@@ -200,6 +204,7 @@ internal static class SurfaceParity
 
 			// Two-sided, as Construct's trees are, with a cutoff of their own: back faces seen through the cut-outs keep their
 			// own normal, as common/pixel.hlsl's shaders do, and the cutoff is the material's
+			if ( hasFoliageShader )
 			{
 				using var twoSided = new Foliage { Color = leaf, Normal = normal, Rma = rma, Transmissive = true, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, GrazingFade = true, Animated = true, AlphaTest = true, RenderBackfaces = true, AlphaTestReference = 0.35f, DisplayName = "Foliage (surface, two-sided)" };
 				var twoSidedReference = Render( device, FoliageShader( twoSided: true, cutoff: 0.35f ), alphaTest: true, 4 );
@@ -214,7 +219,7 @@ internal static class SurfaceParity
 			}
 
 			// -foliage-terms: the same at 4x with one feature off on both sides at a time, to say where a difference comes from
-			if ( Args.Has( "-foliage-terms" ) )
+			if ( hasFoliageShader && Args.Has( "-foliage-terms" ) )
 			{
 				foreach ( var (name, transmissive, grazing, alphaTest, variation, bending) in new[] { ("as before", true, true, true, true, true), ("no normal variation", true, true, true, false, true), ("no translucency", false, true, true, true, true), ("no grazing fade", true, false, true, true, true), ("no alpha test", true, true, false, true, true), ("no wind bending", true, true, true, true, false), ("none of them", false, false, false, false, false) } )
 				{
@@ -242,7 +247,7 @@ internal static class SurfaceParity
 				}
 			}
 			File.WriteAllBytes( Path.Combine( folder, "foliage_surface_ps.spv" ), device.Surfaces.Compile( "foliage.slang" ).Pass( ShaderPasses.Forward + "AlphaTest" ).Pixel.Spirv );
-			var foliageVariant = foliageShader.Variant( device.Shaders, "Forward", "Forward;F", _ => null, _ => null );
+			var foliageVariant = hasFoliageShader ? foliageShader.Variant( device.Shaders, "Forward", "Forward;F", _ => null, _ => null ) : null;
 			if ( foliageVariant?.Pixel?.Bytecode is { } fb && (fb.Spirv ?? fb.Shared?.Spirv) is { } fs ) File.WriteAllBytes( Path.Combine( folder, "foliage_shader_ps.spv" ), fs );
 
 			// blendable.slang against blendable.shader with four layers (F_MULTIBLEND 3), for register counts; their pictures

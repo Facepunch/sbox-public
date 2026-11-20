@@ -4,6 +4,14 @@
 // vertex colour is the surface's Varyings, read from the mesh and interpolated to Evaluate.
 import sbox.surface;
 
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): vertex_color.shader's texture inputs,
+// the textures made from them and its attributes, read with the material's features
+#if MATERIAL_INPUTS
+#define BLEND_MODE_ALREADY_SET
+#include "vr_shared_standard_vs_code.fxc"
+#include "vr_shared_standard_ps_code.fxc"
+#endif
+
 // g_sTrilinearWrap, for occlusion
 SamplerState g_VertexColorTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 
