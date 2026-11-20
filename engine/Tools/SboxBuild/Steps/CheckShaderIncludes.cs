@@ -7,57 +7,20 @@ namespace Facepunch.Steps;
 /// Checks the Slang shaders a player's install has: every <c>.slang</c> and <c>.slangh</c> in the game folder as
 /// <see cref="UploadBuildArtifacts"/> and the Steam depot ship it, each <c>#include</c> and <c>import</c> followed through the
 /// branches a Slang compile can take, must find its file in that same install. Valve's <c>.fxc</c> headers aren't ours to
-/// ship, so a Slang shader that reaches one fails too, unless it's still in <see cref="StillReached"/>: the ones not yet
-/// rewritten as our own headers under <c>core/shaders/sbox</c>.
+/// ship, so a Slang shader that reaches any of them fails too: our own headers under <c>core/shaders/sbox</c> replace them
+/// (<c>SlangHeaders.Replaced</c>).
 /// </summary>
 internal static partial class CheckShaderIncludes
 {
-	/// <summary>
-	/// Valve's headers our Slang shaders still reach, until each is rewritten under core/shaders/sbox. Shrinks to nothing;
-	/// never add to it.
-	/// </summary>
-	static readonly HashSet<string> StillReached = new( StringComparer.OrdinalIgnoreCase )
-	{
-		"core/shaders/ambient_cube.fxc",
-		"core/shaders/baked_lighting_constants.fxc",
-		"core/shaders/common.fxc",
-		"core/shaders/descriptor_set_support.fxc",
-		"core/shaders/ffd.fxc",
-		"core/shaders/instancing.fxc",
-		"core/shaders/irradiance_probe_lighting.fxc",
-		"core/shaders/light_probe_volume.fxc",
-		"core/shaders/morph.fxc",
-		"core/shaders/quad_overdraw_ps.fxc",
-		"core/shaders/sheet_sampling.fxc",
-		"core/shaders/sky.fxc",
-		"core/shaders/system.fxc",
-		"core/shaders/transform_buffer.fxc",
-		"core/shaders/volumetric_fog.fxc",
-		"core/shaders/vr_common.fxc",
-		"core/shaders/vr_common_features.fxc",
-		"core/shaders/vr_common_ps_code.fxc",
-		"core/shaders/vr_common_ps_input.fxc",
-		"core/shaders/vr_common_vs_code.fxc",
-		"core/shaders/vr_common_vs_input.fxc",
-		"core/shaders/vr_detail_texture.fxc",
-		"core/shaders/vr_environment_map.fxc",
-		"core/shaders/vr_lighting.fxc",
-		"core/shaders/vr_shared_standard_ps_input.fxc",
-		"core/shaders/vr_shared_standard_vs_code.fxc",
-		"core/shaders/vr_shared_standard_vs_input.fxc",
-		"core/shaders/vs_decompress.fxc",
-	};
-
 	internal static ExitCode Run() => BuildDisplay.Run( "Check shader includes", () => Check( Directory.GetCurrentDirectory() ) ? ExitCode.Success : ExitCode.Failure );
 
 	/// <summary>Check the repo at <paramref name="repoRoot"/>, logging each problem; true when there are none.</summary>
 	internal static bool Check( string repoRoot )
 	{
 		repoRoot = Path.TrimEndingDirectorySeparator( Path.GetFullPath( repoRoot ) );
-		var problems = Problems( Path.Combine( repoRoot, "game" ), out var checkedCount, out var reached );
+		var problems = Problems( Path.Combine( repoRoot, "game" ), out var checkedCount, out _ );
 		foreach ( var problem in problems ) Log.Error( problem );
-		var left = StillReached.Where( reached.Contains ).Order( StringComparer.Ordinal ).ToList();
-		Log.Info( $"Shader includes: {checkedCount} shipped Slang sources, {problems.Count} problems, {left.Count} of Valve's headers still reached ({string.Join( ", ", left.Select( Path.GetFileName ) )})" );
+		Log.Info( $"Shader includes: {checkedCount} shipped Slang sources, {problems.Count} problems" );
 		return problems.Count == 0;
 	}
 
@@ -83,7 +46,7 @@ internal static partial class CheckShaderIncludes
 
 		foreach ( var file in reached )
 		{
-			if ( file.EndsWith( ".fxc", StringComparison.OrdinalIgnoreCase ) && !StillReached.Contains( file ) && IsValves( Path.Combine( gameRoot, file ) ) )
+			if ( file.EndsWith( ".fxc", StringComparison.OrdinalIgnoreCase ) && IsValves( Path.Combine( gameRoot, file ) ) )
 				problems.Add( $"{file} is Valve's: our Slang shaders must not include it (rewrite what they need under core/shaders/sbox)" );
 		}
 
@@ -228,7 +191,7 @@ internal static partial class CheckShaderIncludes
 			}
 
 			reached.Add( target );
-			if ( !shipped.Contains( target ) && !StillReached.Contains( target ) )
+			if ( !shipped.Contains( target ) )
 				problems.Add( $"{source}: {from}({line + 1}) includes {target}, which a player's install doesn't have" );
 
 			if ( target.EndsWith( ".fxc", StringComparison.OrdinalIgnoreCase ) || target.EndsWith( ".hlsl", StringComparison.OrdinalIgnoreCase ) || target.EndsWith( ".slangh", StringComparison.OrdinalIgnoreCase ) || target.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) || target.EndsWith( ".h", StringComparison.OrdinalIgnoreCase ) )

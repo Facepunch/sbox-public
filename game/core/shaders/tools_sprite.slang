@@ -20,8 +20,8 @@ Feature( F_PER_POINT_SIZE, 0..1 );
 Feature( F_WORLD_SPACE_SIZE, 0..1 ( 0 = "Size In Pixels", 1 = "Size In World Space" ) );
 Feature( F_CULL_LARGER_THAN_BOX, 0..1, "Cull if Larger Than Box" );
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 
 // Functions ----------------------------------------------------------------------------------------------------------------------------------------------

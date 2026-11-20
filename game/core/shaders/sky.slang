@@ -27,10 +27,10 @@ Feature( F_TEXTURE_FORMAT2, 0..6( 0 = "HDR (float16)", 1 = "RGB (8-bit uncompres
 #endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
 #include "sbox/math.slangh"
-#include "sky.fxc"
+#include "sbox/sky.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT
@@ -56,7 +56,7 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_VS )
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 	#define IS_SPRITECARD 1// To avoid compile errors with missing VS_INPUT
-	#include "vr_lighting.fxc"
+	#include "sbox/lighting.slangh"
 
 	// Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 	StaticCombo( S_LIGHTING_ONLY, F_LIGHTING_ONLY, Sys( ALL ) );
@@ -94,8 +94,8 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
-#include "vr_lighting.fxc"
-#include "volumetric_fog.fxc"
+#include "sbox/lighting.slangh"
+#include "sbox/volumetric_fog.slangh"
 #include "common/classes/Fog.hlsl"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
@@ -239,7 +239,7 @@ struct PS_OUTPUT
 };
 
 #if ( D_QUAD_OVERDRAW )
-	#include "quad_overdraw_ps.fxc"
+	#include "sbox/quad_overdraw.slangh"
 #else
 	[shader( "pixel" )] PS_OUTPUT MainPs( PS_INPUT i )
 	{

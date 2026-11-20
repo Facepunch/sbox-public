@@ -20,10 +20,10 @@ Feature( F_WIREFRAME, 0..1 );
 Feature( F_NO_ZTEST, 0..1 );
 Feature( F_NO_CULLING, 0..1 );
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
-#include "vr_common.fxc"
+#include "sbox/shading.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct PS_INPUT
@@ -53,8 +53,8 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "instancing.fxc"
-#include "vr_lighting.fxc"
+#include "sbox/instancing.slangh"
+#include "sbox/lighting.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 DynamicCombo( D_DEPTH_BIAS, 0..1, Sys( ALL ) );
@@ -94,7 +94,7 @@ float g_LineThickness < Default( 1.0 ); Range( 0, 8 ); UiGroup( "Line Thickness"
 float g_DepthBiasAmount < Default( 0.005 ); Range( 0, 1 ); UiGroup( "Depth Bias Amount" ); Attribute( "g_DepthBiasAmount" ); >;
 
 // Adds constants for a dynamic combo, must be last otherwise constants get re-arranged
-#include "ffd.fxc"
+#include "sbox/ffd.slangh"
 
 // Main ---------------------------------------------------------------------------------------------------------------------------------------------------
 float4 SnapToScreenPixels( float4 vPositionPs )

@@ -9,9 +9,9 @@ Mode( Forward );
 
 #include "ui/features.hlsl"
 
-#include "system.fxc"
-#include "common.fxc"
-#include "vr_common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
+#include "sbox/shading.slangh"
 #include "common/Bindless.hlsl"
 
 DynamicCombo( D_WORLDPANEL, 0..1, Sys( ALL ) );
@@ -171,7 +171,7 @@ struct VS_INPUT
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
 #include "sbox/math.slangh"
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 #include "ui/gamma.hlsl"
 
 #define EPSILON 0.000001

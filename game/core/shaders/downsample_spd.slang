@@ -12,7 +12,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
+#include "sbox/system.slangh" // This should always be the first include in COMMON
 
 // Same values as downsample_cs, the blur methods aren't supported here
 enum DownsampleMethod
@@ -32,7 +32,7 @@ enum DownsampleMethod
 //
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-	#include "common.fxc"
+	#include "sbox/view.slangh"
 
 	DynamicCombo( D_DOWNSAMPLE_METHOD, 0..5, Sys( ALL ) );
 

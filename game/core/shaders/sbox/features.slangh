@@ -1,0 +1,6 @@
+// The features every classic scene shader has: no shadow casting, two-sided rendering, morph targets. Ours, in place of the
+// old vr_common_features.fxc in Slang compiles (SlangHeaders): the same features, in the same order.
+
+Feature( F_DO_NOT_CAST_SHADOWS, 0..1, "Rendering" );
+Feature( F_RENDER_BACKFACES, 0..1, "Rendering" );
+Feature( F_MORPH_SUPPORTED, 0..1, "Animation" );

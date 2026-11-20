@@ -22,7 +22,7 @@ BoolAttribute( NeedsLightProbe, true );
 // End of the material editor's lines
 #endif
     // gonna go crazy the amount of shit this stuff adds and fails to compile without
-    #include "vr_common_features.fxc"
+    #include "sbox/features.slangh"
 
     // Opt out of stupid shitCould
     #define CUSTOM_MATERIAL_INPUTS

@@ -21,11 +21,11 @@ Mode( Default );
 	#define FORCE_BILINEAR_PCF_SHADOWS_ONLY
 	#define COMPUTE_SHADER
 	
-	#include "system.fxc" // This should always be the first include in COMMON
-	#include "vr_common.fxc"
+	#include "sbox/system.slangh" // This should always be the first include in COMMON
+	#include "sbox/shading.slangh"
 
-	#include "volumetric_fog.fxc"
-	#include "light_probe_volume.fxc"
+	#include "sbox/volumetric_fog.slangh"
+	#include "sbox/light_probe_volume.slangh"
 	
     #include "common/lightbinner.hlsl"
     #include "common/classes/Depth.hlsl"
@@ -114,8 +114,8 @@ Mode( Default );
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
 	#include "sbox/math.slangh"
-	#include "light_probe_volume.fxc"
-	#include "vr_lighting.fxc"
+	#include "sbox/light_probe_volume.slangh"
+	#include "sbox/lighting.slangh"
 	
 	DynamicCombo( D_PASS, 0..1, Sys( PC || VULKAN ) );
 	DynamicCombo( D_ENABLE_BAKED_FOG_TEXTURE, 0..1, Sys( ALL ) );

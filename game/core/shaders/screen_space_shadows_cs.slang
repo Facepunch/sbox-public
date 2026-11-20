@@ -17,10 +17,10 @@
 
 Mode( Default );
 
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "common.fxc"
+#include "sbox/view.slangh"
 #include "sbox/math.slangh"
 #include "common/classes/Depth.hlsl"
 

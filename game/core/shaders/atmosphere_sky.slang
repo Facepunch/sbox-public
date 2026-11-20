@@ -10,11 +10,11 @@
 Mode( Forward );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "vr_common_features.fxc"
+#include "sbox/features.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc"
-#include "vr_common.fxc"
+#include "sbox/system.slangh"
+#include "sbox/shading.slangh"
 
 static const float kAtmosPi = 3.141592f;
 static const int kAtmosPrimarySteps = 16;
@@ -143,7 +143,7 @@ struct PS_INPUT
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 #define IS_SPRITECARD 1
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 // Main ---------------------------------------------------------------------------------------------------------------------------------------------------
 [shader( "vertex" )] PS_INPUT MainVs( const VS_INPUT i )
@@ -162,8 +162,8 @@ struct PS_INPUT
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "vr_lighting.fxc"
-#include "volumetric_fog.fxc"
+#include "sbox/lighting.slangh"
+#include "sbox/volumetric_fog.slangh"
 #include "common/classes/Fog.hlsl"
 #include "common/Shadow.hlsl"
 

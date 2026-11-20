@@ -52,21 +52,21 @@ BoolAttribute( NeedsLightProbe, true );
 #define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_WRAP
 #define S_SPECULAR 1
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
 
 //=========================================================================================================================
 
 struct VS_INPUT
 {
-	#include "vr_shared_standard_vs_input.fxc"
+	#include "sbox/standard_vertex_input.slangh"
 };
 
 //=========================================================================================================================
 
 struct PS_INPUT
 {
-	#include "vr_shared_standard_ps_input.fxc"
+	#include "sbox/standard_pixel_input.slangh"
 	
 	float2 vOcclusionUV : TEXCOORD15;
 };
@@ -74,7 +74,7 @@ struct PS_INPUT
 //=========================================================================================================================
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "vr_shared_standard_vs_code.fxc"
+#include "sbox/standard_vertex_processing.slangh"
 
 float4x4 g_vEyeOcclusionViewProj < Attribute("EyeOcclusionViewProj"); >;
 
@@ -103,7 +103,7 @@ float4x4 g_vEyeOcclusionViewProj < Attribute("EyeOcclusionViewProj"); >;
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "vr_common_ps_code.fxc"
+#include "sbox/final_combiner.slangh"
 #include "common/classes/Fog.hlsl"
 
 // Disable this warning since our tangent frame is computed with ddx/ddy instructions, and this is somehow tripping this warning when it shouldn't.

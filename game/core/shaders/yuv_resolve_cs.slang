@@ -6,7 +6,7 @@
 
 Mode( Default );
 
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 Texture2D<float>    g_tTextureY       < Attribute( "TextureY" ); >;

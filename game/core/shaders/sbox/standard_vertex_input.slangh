@@ -1,0 +1,10 @@
+// The standard vertex input's members, included inside a shader's VS_INPUT: the classic ones (sbox/vertex_input.slangh) and
+// the lightmap UV. Ours, in place of the old vr_shared_standard_vs_input.fxc in Slang compiles (SlangHeaders).
+
+#include "sbox/vertex_input.slangh"
+
+#if ( D_BAKED_LIGHTING_FROM_LIGHTMAP )
+	float2 vLightmapUV : TEXCOORD3 < Semantic( LightmapUV ); >;
+#endif
+
+#define SHARED_STANDARD_VS_INPUT_DEFINED
