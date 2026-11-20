@@ -72,8 +72,13 @@ public class RelocationTests : GpuTest
 
 		Assert.AreEqual( 1, Device.RelocatedBuffers );
 		Assert.AreNotSame( block, Device.Get( kept ).Memory.Block, "moved out of the draining block" );
+		Assert.AreNotEqual( 0ul, block.Used, "the old buffer is kept until the frame is done: a stale index still reads memory that's there" );
+
+		// The old buffer goes once the frame is done, as anything destroyed does
+		for ( int i = 0; i <= Device.FramesInFlight; i++ ) Device.BeginFrame();
 		Assert.AreEqual( 0ul, block.Used, "which is empty" );
 		Assert.IsFalse( Device.Allocator.AnyDrainingToMove, "and done draining" );
+		Assert.AreEqual( 1, Device.RelocatedBuffers, "and nothing moved again" );
 		Assert.AreEqual( slot, Device.BindlessIndex( kept ), "the bindless slot is kept" );
 		Assert.AreEqual( 1, Device.RelocatedBindings, "the persistent set that binds it is written again" );
 		CollectionAssert.AreEqual( data, Contents( kept ), "with its contents" );
@@ -96,6 +101,27 @@ public class RelocationTests : GpuTest
 		Assert.AreEqual( 1, Device.RelocationsWithoutRoom );
 		Assert.IsFalse( Device.Allocator.AnyDrainingToMove, "the block is left" );
 		Assert.AreSame( block, Device.Get( kept ).Memory.Block );
+
+		Device.Destroy( kept );
+		foreach ( var buffer in rest ) Device.Destroy( buffer );
+		CollectionAssert.AreEqual( Array.Empty<string>(), TakeValidationErrors() );
+	}
+
+	/// <summary>While a load holds moves (<see cref="Device.HoldRelocation"/>) nothing moves; once it lets go, the block drains.</summary>
+	[TestMethod]
+	public void LoadsHoldMoves()
+	{
+		var (kept, block, rest) = SparseBlock();
+		Device.Allocator.Drain( block );
+		Device.HoldRelocation = true;
+		Device.BeginFrame();
+		Assert.AreEqual( 0, Device.Relocations, "held while loading" );
+		Assert.AreSame( block, Device.Get( kept ).Memory.Block );
+
+		Device.HoldRelocation = false;
+		Device.BeginFrame();
+		Assert.AreEqual( 1, Device.RelocatedBuffers );
+		Assert.AreNotSame( block, Device.Get( kept ).Memory.Block );
 
 		Device.Destroy( kept );
 		foreach ( var buffer in rest ) Device.Destroy( buffer );
@@ -184,7 +210,8 @@ public class RelocationTests : GpuTest
 
 		Assert.AreEqual( 1, Device.RelocatedTextures );
 		Assert.AreNotSame( block, Device.Get( kept ).Memory.Block, "moved out of the draining block" );
-		Assert.AreEqual( 0ul, block.Used );
+		for ( int i = 0; i <= Device.FramesInFlight; i++ ) Device.BeginFrame();
+		Assert.AreEqual( 0ul, block.Used, "empty once the frame is done" );
 		Assert.AreEqual( slot, Device.BindlessIndex( kept ), "the bindless slots are kept" );
 		Assert.AreEqual( storageSlot, Device.StorageIndex( kept ) );
 		Assert.AreEqual( viewSlot, Device.BindlessIndex( view ), "and the view's" );

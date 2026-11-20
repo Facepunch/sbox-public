@@ -127,6 +127,7 @@ public sealed partial class BackendDevice
 		{
 			loading = value;
 			if ( streamer is { } textures ) textures.Loading = value;
+			Gpu.HoldRelocation = value;
 		}
 	}
 

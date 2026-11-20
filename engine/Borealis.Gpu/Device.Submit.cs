@@ -708,7 +708,8 @@ public sealed unsafe partial class Device
 				var (queue, value, name, held, ticks, markers) = recentSubmissions[(recentNext + i) % recentSubmissions.Length];
 				if ( name is null && value == 0 ) continue;
 				var completed = seen.GetValueOrDefault( queue );
-				if ( i < recentSubmissions.Length - RecentSubmissionsShown && (value + 4 <= completed || value > completed + 16) && !MarkersPartway( markers ) )
+				// An event's (held -2) last field is its detail, not a marker slot
+				if ( i < recentSubmissions.Length - RecentSubmissionsShown && (value + 4 <= completed || value > completed + 16) && (held == -2 || !MarkersPartway( markers )) )
 				{
 					if ( !skipped ) text.Append( "\n  ..." );
 					skipped = true;

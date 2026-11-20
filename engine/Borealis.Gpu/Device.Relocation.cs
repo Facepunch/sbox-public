@@ -36,6 +36,18 @@ public sealed unsafe partial class Device
 
 	internal void ExitGate() => Interlocked.Decrement( ref gateUsers );
 
+	/// <summary>
+	/// Hold moves (set while a load is going on, <c>BackendDevice.Loading</c>): what loads makes and uploads all the time, and
+	/// a move waits for the GPU; blocks drain once it's over.
+	/// </summary>
+	public bool HoldRelocation
+	{
+		get => Volatile.Read( ref holdRelocation );
+		set => Volatile.Write( ref holdRelocation, value );
+	}
+
+	bool holdRelocation;
+
 	/// <summary>Device buffers moved out of blocks being drained so far, and their bytes.</summary>
 	public long RelocatedBuffers { get; private set; }
 
@@ -105,7 +117,7 @@ public sealed unsafe partial class Device
 	/// </summary>
 	void RelocateDraining()
 	{
-		if ( !Allocator.AnyDrainingToMove || IsLost ) return;
+		if ( !Allocator.AnyDrainingToMove || IsLost || HoldRelocation ) return;
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		if ( !PrepareMoves() ) return;
 
@@ -138,12 +150,22 @@ public sealed unsafe partial class Device
 			// Views made of moved textures are made again over their new images, in their slots
 			if ( movedTextures.Count > 0 ) RemakeViews();
 
-			// The bindings that name what moved point at the new buffers and images; the old ones (the copies' handles hold them
-			// now) go at once, as nothing pending uses them
+			// The bindings that name what moved point at the new buffers and images. The old ones (the copies' handles hold them
+			// now) go as anything destroyed does, once the frame is done: work recorded from here on can't name them, but a stale
+			// bindless index (a view destroyed this frame, still in some record) reads memory that's still there
 			if ( movedBuffers.Count > 0 ) RelocatedBindings += RewriteSets( new BuffersIn( movedBuffers ) );
 			if ( movedTextures.Count > 0 ) RelocatedBindings += RewriteSets( new TexturesIn( movedTextures, movedViews ) );
-			ReleaseCopies( 0, 0 );
-			foreach ( var view in oldViews ) Vk.vkDestroyImageView( Vk.Device, view, null );
+			if ( FreeMovedAtOnce )
+			{
+				ReleaseCopies( 0, 0 );
+				foreach ( var view in oldViews ) Vk.vkDestroyImageView( Vk.Device, view, null );
+			}
+			else
+			{
+				foreach ( var (_, copy) in bufferMoves ) Destroy( copy );
+				foreach ( var (_, copy) in textureMoves ) Destroy( copy );
+				foreach ( var view in oldViews ) DestroyViewLater( view );
+			}
 
 			var slot = (int)((Relocations - 1) & (RelocationHistory - 1));
 			RelocationFrames[slot] = FrameNumber;
@@ -226,16 +248,22 @@ public sealed unsafe partial class Device
 	/// <summary>A copy of a buffer (its info, not its contents yet) in room other blocks have, into <see cref="bufferMoves"/>; false when there's none.</summary>
 	bool CopyFor( BufferHandle buffer )
 	{
-		ref var record = ref Get( buffer );
 		MemoryAllocator.ExistingBlocksOnly = true;
 		try
 		{
+			// Read outside the gate: something may have destroyed it since it was found, which the move then skips
+			if ( !Buffers.IsAlive( buffer.Index, buffer.Generation ) ) return true;
+			var record = Get( buffer );
 			bufferMoves.Add( (buffer, CreateBuffer( new BufferInfo { Size = record.Size, Usage = record.Usage, Memory = record.Location, Name = record.Name } )) );
 			return true;
 		}
 		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorFragmentedPool )
 		{
 			return false;
+		}
+		catch ( ArgumentException )
+		{
+			return true;
 		}
 		finally
 		{
@@ -249,12 +277,19 @@ public sealed unsafe partial class Device
 		MemoryAllocator.ExistingBlocksOnly = true;
 		try
 		{
-			textureMoves.Add( (texture, CreateTexture( Get( texture ).Info )) );
+			// Read outside the gate: something may have destroyed it since it was found
+			if ( !Textures.IsAlive( texture.Index, texture.Generation ) ) return true;
+			var info = Get( texture ).Info;
+			textureMoves.Add( (texture, CreateTexture( info )) );
 			return true;
 		}
 		catch ( GpuException e ) when ( e.Result == (int)VkResult.ErrorFragmentedPool )
 		{
 			return false;
+		}
+		catch ( ArgumentException )
+		{
+			return true;
 		}
 		finally
 		{
@@ -428,6 +463,14 @@ public sealed unsafe partial class Device
 
 	/// <inheritdoc cref="OwnerOf(BufferHandle)"/>
 	static ulong OwnerOf( TextureHandle texture ) => texture.Index | ((ulong)texture.Generation << 32);
+
+	/// <summary>
+	/// Free what moves leave behind at once (<c>BOREALIS_RELOCATE_FREE_AT_ONCE=1</c>), rather than once the frame is done like
+	/// anything destroyed (the default).
+	/// </summary>
+	internal static bool FreeMovedAtOnce { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_RELOCATE_FREE_AT_ONCE" ) == "1";
+
+	void DestroyViewLater( ulong view ) => Defer( () => Vk.vkDestroyImageView( Vk.Device, view, null ) );
 
 	/// <summary>Free a buffer at once: only when no pending work can use it.</summary>
 	void FreeBufferNow( in BufferRecord record )

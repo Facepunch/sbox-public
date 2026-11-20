@@ -14,7 +14,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void AllocationsFillTheFullestBlockAndEmptyBlocksGoBack()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
 		var eighth = allocator.BlockSize / 8;
 		var requirements = new VkMemoryRequirements { size = eighth, alignment = 256, memoryTypeBits = ~0u };
 
@@ -51,7 +51,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigAllocationsShareLargeBlocksAndBlocksAreMadeAhead()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, ShareLargeBlocks = true };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, ShareLargeBlocks = true };
 		var small = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		var big = small with { size = allocator.BlockSize / 2 };
 		var biggest = small with { size = MemoryAllocator.LargeBlockSize / 2 };
@@ -90,7 +90,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigBuffersAreTheirOwnAndMadeAhead()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false };
 		var page = new VkMemoryRequirements { size = 2 * allocator.OwnBufferSize, alignment = 256, memoryTypeBits = ~0u };
 
 		void WaitFor( ulong reserved, string what )
@@ -125,7 +125,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigTargetsGetTheirOwnAllocation()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = true };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = true };
 		var big = new VkMemoryRequirements { size = allocator.BlockSize / 2, alignment = 256, memoryTypeBits = ~0u };
 		var small = big with { size = allocator.BlockSize / 8 };
 
@@ -148,7 +148,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void BigImagesAreTheirOwnAllocation()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = false };
 		var big = new VkMemoryRequirements { size = allocator.BlockSize / 2, alignment = 256, memoryTypeBits = ~0u };
 		var texture = allocator.Allocate( big, MemoryLocation.Device, image: true, content: true );
 		Assert.IsTrue( texture.Block.Dedicated );
@@ -164,7 +164,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void HeapsCountReservedAndUsed()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
 		allocator.UpdateBudgetWithoutDriver();
 		var requirements = new VkMemoryRequirements { size = allocator.BlockSize / 4, alignment = 256, memoryTypeBits = ~0u };
 		var allocation = allocator.Allocate( requirements, MemoryLocation.Device, image: true );
@@ -192,7 +192,7 @@ public class MemoryAllocatorTests : GpuTest
 	public void OverTheBudgetAllocationsGoToSystemMemory()
 	{
 		var warnings = new List<string>();
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, Warn = warnings.Add };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, Warn = warnings.Add };
 		var heapCount = (int)Device.Allocator.MemoryProperties.memoryHeapCount;
 		var nothing = new ulong[heapCount];
 		var everything = new ulong[heapCount];
@@ -228,7 +228,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void SparseContentBlocksDrain()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
 		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		var first = new List<Allocation>();
 		for ( int i = 0; i < 8; i++ ) first.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
@@ -266,7 +266,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void DeviceBufferBlocksDrainOnlyWhenTheirContentsPack()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
 		var sixteenth = new VkMemoryRequirements { size = allocator.BlockSize / 16, alignment = 256, memoryTypeBits = ~0u };
 		var first = new List<Allocation>();
 		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( sixteenth, MemoryLocation.Device, image: false ) );
@@ -323,7 +323,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void MovesOnlyTakeRoomInBlocksThereAre()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
 		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		MemoryAllocator.ExistingBlocksOnly = true;
 		try
@@ -373,7 +373,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void LargeBlocksDrainIntoOneSmallerBlock()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = true };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, ShareLargeBlocks = true };
 		var page = new VkMemoryRequirements { size = MemoryAllocator.LargeBlockSize / 16, alignment = 256, memoryTypeBits = ~0u };
 		var first = new List<Allocation>();
 		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( page, MemoryLocation.Device, image: true, content: true ) );
@@ -417,7 +417,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void SmallBlocksStartSmallAndGrow()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, MakeBlocksAhead = false };
 		var mebibyte = new VkMemoryRequirements { size = 1 << 20, alignment = 256, memoryTypeBits = ~0u };
 		var placed = new List<Allocation>();
 		var sizes = new List<ulong>();
@@ -451,7 +451,7 @@ public class MemoryAllocatorTests : GpuTest
 	[TestMethod]
 	public void DrainsWithNoRoomAreAbandoned()
 	{
-		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { GrowBlocks = false, MakeBlocksAhead = false };
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
 		var eighth = new VkMemoryRequirements { size = allocator.BlockSize / 8, alignment = 256, memoryTypeBits = ~0u };
 		var first = new List<Allocation>();
 		for ( int i = 0; i < 16; i++ ) first.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );

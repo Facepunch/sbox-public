@@ -47,6 +47,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 		/// <summary>The frame a shared block of this kind was last made in.</summary>
 		public ulong LastNewBlock;
+
+		/// <summary>When (<see cref="System.Diagnostics.Stopwatch"/> ticks) a shared block of this kind was last made.</summary>
+		public long LastNewBlockTicks;
 	}
 
 	// Empty blocks kept as spares (shared ones, and big buffers' own allocations), which Trim frees after a while
@@ -766,6 +769,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// <summary>Frames without a new block before blocks are drained: while a map loads, blocks fill and empty by themselves.</summary>
 	public const ulong QuietFrames = 120;
 
+	/// <summary>Seconds without a new block of a kind before its blocks are drained, as well as <see cref="QuietFrames"/>.</summary>
+	public double QuietSeconds { get; set; } = 2;
+
 
 	// Under the lock; allocates nothing
 	void ChooseDraining()
@@ -784,7 +790,8 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			}
 
 			// Per kind: upload memory makes and frees blocks all the time, which says nothing about images or device buffers
-			var quiet = frame - kind.LastNewBlock >= QuietFrames;
+			// In frames and in time: the menu runs at a thousand frames a second, where 120 frames is a blink of a load
+			var quiet = frame - kind.LastNewBlock >= QuietFrames && System.Diagnostics.Stopwatch.GetElapsedTime( kind.LastNewBlockTicks ).TotalSeconds >= QuietSeconds;
 			if ( !quiet || !Movable( key.Type, key.Images, key.Content ) || key.Fallback || kind.Blocks.Count < 2 ) continue;
 
 			MemoryBlock emptiest = null;
@@ -1043,7 +1050,12 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 		// Only shared blocks: allocations of their own (big streamed textures, upload pages) come and go all the time and
 		// leave no holes, and counting them kept blocks from ever draining while textures streamed
-		if ( !block.Dedicated ) KindOf( block ).LastNewBlock = frame;
+		if ( !block.Dedicated )
+		{
+			var kind = KindOf( block );
+			kind.LastNewBlock = frame;
+			kind.LastNewBlockTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+		}
 	}
 
 	/// <summary>Take a block out of the lists before it's freed; under the lock.</summary>
