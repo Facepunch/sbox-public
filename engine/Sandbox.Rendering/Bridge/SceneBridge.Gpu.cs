@@ -201,7 +201,8 @@ internal sealed partial class SceneBridge
 			var output = gpuView.Target?.ColorTarget;
 			frame.SetOutputConstants( gpuView.Viewport, output is null ? gpuView.Viewport.Size : new Vector2( output.Width, output.Height ) );
 		}
-		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
+		// A window shows opaque whatever its background's alpha: some drivers present a window's alpha
+		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( encode ? camera.BackgroundColor.WithAlpha( 1 ) : camera.BackgroundColor, true, false, false );
 
 		// The view's lookup tables, as the scene's blocks have them: film grain reads the blue noise
 		BorealisGpuFrame.SetViewTextures( Graphics.Attributes );
