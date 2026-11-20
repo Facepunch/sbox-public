@@ -352,6 +352,14 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 
 	long driverAllocations;
 
+	/// <summary><see cref="System.Diagnostics.Stopwatch"/> ticks the driver's allocations took, in all and the longest.</summary>
+	public long DriverAllocationTicks => System.Threading.Interlocked.Read( ref driverAllocationTicks );
+
+	/// <inheritdoc cref="DriverAllocationTicks"/>
+	public long LongestDriverAllocation => System.Threading.Interlocked.Read( ref longestDriverAllocation );
+
+	long driverAllocationTicks, longestDriverAllocation;
+
 	// Kinds (type, images, large) with a block being made ahead
 	readonly HashSet<(int Type, bool Images, bool Large, bool Content, bool Fallback)> makingAhead = new();
 	bool disposed;
@@ -717,8 +725,15 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// </summary>
 	public bool Defragment { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_DEFRAGMENT" ) != "0";
 
-	/// <summary>How full a block may be to be drained.</summary>
+	/// <summary>How full a content block may be to be drained.</summary>
 	public const double DrainBelow = 0.5;
+
+	/// <summary>
+	/// How full a block that isn't content may be to be drained: any, as long as the kind's other blocks have room for what
+	/// it holds and a block's worth is free in all. A move costs a copy and one wait for the GPU between frames, not a
+	/// texture's rebuild, and what these blocks hold (cube captures, targets, tables) leaves them part-used, not near empty.
+	/// </summary>
+	public const double MoveBelow = 1.0;
 
 	/// <summary>The size of the one block moves out of a large block being drained may make (<see cref="ChooseDraining"/>).</summary>
 	public const ulong DrainBlockSize = 32ul << 20;
@@ -766,8 +781,13 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			foreach ( var block in kind.Blocks )
 			{
 				if ( block.Used != 0 ) free += block.Size - block.Used;
-				if ( block.Used == 0 || frame < block.DrainFrame || block.Used > block.Size * DrainBelow ) continue;
-				if ( emptiest is null || block.Used < emptiest.Used ) emptiest = block;
+				if ( block.Used == 0 || block.Pinned || frame < block.DrainFrame || block.Used > block.Size * (key.Content ? DrainBelow : MoveBelow) ) continue;
+				if ( emptiest is not null && block.Used >= emptiest.Used ) continue;
+
+				// What the device moves is made again at once, all of it or none: only a block whose contents would pack into the
+				// others' room (making the copies to find out costs the frame a driver call per resource)
+				if ( !key.Content && !PacksElsewhere( kind, block ) ) continue;
+				emptiest = block;
 			}
 
 			// Only when the rest of the kind has room for what it holds (moves never make a block), and the kind has a block's
@@ -786,6 +806,46 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			kind.DrainMade = false;
 			StartDrain( kind, emptiest );
 		}
+	}
+
+	readonly List<ulong> packSizes = new();
+	readonly List<(ulong Offset, ulong Size)> packRanges = new();
+
+	/// <summary>
+	/// Whether what <paramref name="candidate"/> holds would fit in the free room of its kind's other part-used blocks,
+	/// largest first, each at the first range that holds it at a cautious alignment (64 KiB for images of that size or
+	/// more, 4 KiB for smaller ones, 256 bytes for buffers). A guess the copies then prove; under the lock, allocates nothing
+	/// once its scratch has room.
+	/// </summary>
+	bool PacksElsewhere( Kind kind, MemoryBlock candidate )
+	{
+		packSizes.Clear();
+		packRanges.Clear();
+		candidate.CollectSizes( packSizes );
+		foreach ( var block in kind.Blocks )
+		{
+			if ( block != candidate && !block.Draining && block.Used != 0 ) block.CollectFree( packRanges );
+		}
+
+		packSizes.Sort();
+		for ( int i = packSizes.Count - 1; i >= 0; i-- )
+		{
+			var size = packSizes[i];
+			var alignment = !candidate.Images ? 256ul : size >= 65536 ? 65536ul : 4096ul;
+			var placed = false;
+			for ( int r = 0; r < packRanges.Count && !placed; r++ )
+			{
+				var (offset, length) = packRanges[r];
+				var start = (offset + alignment - 1) & ~(alignment - 1);
+				if ( start + size > offset + length ) continue;
+				packRanges[r] = (start + size, offset + length - start - size);
+				placed = true;
+			}
+
+			if ( !placed ) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>
@@ -810,7 +870,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	public bool RelocateBuffers { get; set; } = true;
 
 	/// <inheritdoc cref="RelocateBuffers"/>
-	public bool RelocateImages { get; set; }
+	public bool RelocateImages { get; set; } = true;
 
 	// Under the lock
 	void StartDrain( Kind kind, MemoryBlock block )
@@ -854,6 +914,13 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	internal void CollectOwners( MemoryBlock block, List<ulong> owners )
 	{
 		lock ( allocationLock ) block.CollectOwners( owners );
+	}
+
+	/// <summary>Never drain the block <paramref name="allocation"/> is in: it holds something that can't move.</summary>
+	public void Pin( in Allocation allocation )
+	{
+		if ( allocation.Block is null ) return;
+		lock ( allocationLock ) allocation.Block.Pinned = true;
 	}
 
 	/// <summary>Note what <paramref name="allocation"/> holds, so moving out of a block being drained can find it.</summary>
@@ -934,8 +1001,13 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		};
 
 		ulong memory;
+		var start = System.Diagnostics.Stopwatch.GetTimestamp();
 		using ( Owner is { } owner ? owner.AllocateMemoryZone() : default )
 			vk.vkAllocateMemory( vk.Device, &info, null, &memory ).Check( "vkAllocateMemory" );
+		var ticks = System.Diagnostics.Stopwatch.GetTimestamp() - start;
+		System.Threading.Interlocked.Add( ref driverAllocationTicks, ticks );
+		long longest;
+		while ( ticks > (longest = System.Threading.Interlocked.Read( ref longestDriverAllocation )) && System.Threading.Interlocked.CompareExchange( ref longestDriverAllocation, ticks, longest ) != longest ) { }
 
 		var block = new MemoryBlock( size ) { Memory = memory, TypeIndex = type, Images = image };
 

@@ -46,6 +46,9 @@ internal sealed class MemoryBlock
 	/// <summary>The allocator's frame it began draining in, or after which it may be drained again.</summary>
 	public ulong DrainFrame;
 
+	/// <summary>Never drained: it holds something that can't move (<see cref="MemoryAllocator.Pin"/>).</summary>
+	public bool Pinned;
+
 	// Size classes: sizes under SecondLevels have one class each; above, each power of two splits into SecondLevels
 	const int SecondLevelBits = 5;
 	const int SecondLevels = 1 << SecondLevelBits;
@@ -249,6 +252,24 @@ internal sealed class MemoryBlock
 		for ( int node = 0; node < nodeCount; node++ )
 		{
 			if ( !nodes[node].Free && nodes[node].Size > 0 && nodes[node].Owner != 0 ) owners.Add( nodes[node].Owner );
+		}
+	}
+
+	/// <summary>Add the size of every allocated range to <paramref name="sizes"/>; allocates nothing past the list's room.</summary>
+	public void CollectSizes( List<ulong> sizes )
+	{
+		for ( int node = 0; node < nodeCount; node++ )
+		{
+			if ( !nodes[node].Free && nodes[node].Size > 0 ) sizes.Add( nodes[node].Size );
+		}
+	}
+
+	/// <summary>Add every free range (offset, size) to <paramref name="ranges"/>; allocates nothing past the list's room.</summary>
+	public void CollectFree( List<(ulong Offset, ulong Size)> ranges )
+	{
+		for ( int node = 0; node < nodeCount; node++ )
+		{
+			if ( nodes[node].Free ) ranges.Add( (nodes[node].Offset, nodes[node].Size) );
 		}
 	}
 

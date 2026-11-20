@@ -502,6 +502,7 @@ public sealed unsafe partial class Device
 			Interlocked.Increment( ref submissions );
 			queue.Pending.Clear();
 			Volatile.Write( ref queue.Flushed, value );
+			ApplyLayouts( list );
 			list.LeaveGate();
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
@@ -526,6 +527,7 @@ public sealed unsafe partial class Device
 			Remember( queue, value, list, -1 );
 			queue.Pending.Add( list.Handle );
 			queue.Suspended = list.EndsSuspended ? list : null;
+			ApplyLayouts( list );
 			list.LeaveGate();
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}

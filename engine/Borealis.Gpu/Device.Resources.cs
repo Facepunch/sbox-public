@@ -59,6 +59,12 @@ internal struct TextureRecord
 	public bool External;
 
 	public AttachmentViews Attachments;
+
+	/// <summary>The layouts its image is in, as submitted barriers left them.</summary>
+	public SubresourceLayouts Layouts;
+
+	/// <summary>Never moved: the device's own, whose views are written where nothing tracks them (the bindless defaults).</summary>
+	public bool Pinned;
 }
 
 internal struct ViewRecord
@@ -67,6 +73,9 @@ internal struct ViewRecord
 	public TextureHandle Texture;
 	public int BindlessIndex;
 	public int StorageIndex;
+
+	/// <summary>What it was made with, to make it again over a texture moved in place.</summary>
+	public TextureViewInfo Info;
 }
 
 internal struct SamplerRecord
@@ -520,7 +529,32 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public TextureViewHandle CreateView( TextureHandle texture, in TextureViewInfo info, bool bindless = false )
 	{
-		ref var record = ref Get( texture );
+		var gated = EnterGate();
+		try
+		{
+			ref var record = ref Get( texture );
+			var view = MakeViewOf( record, info, out var storage );
+			var viewRecord = new ViewRecord
+			{
+				View = view,
+				Texture = texture,
+				BindlessIndex = bindless && (record.Info.Usage & TextureUsage.Sampled) != 0 ? Bindless.AddTexture( view, view ) : -1,
+				StorageIndex = bindless && storage ? Bindless.AddStorage( view ) : -1,
+				Info = info,
+			};
+
+			var (index, generation) = Views.Add( viewRecord );
+			return new TextureViewHandle( index, generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
+	}
+
+	/// <summary>A view of <paramref name="record"/>'s image as <paramref name="info"/> asks, and whether it can be a storage view.</summary>
+	ulong MakeViewOf( in TextureRecord record, in TextureViewInfo info, out bool storage )
+	{
 		var format = info.Format == Format.Unknown ? record.Info.Format.Linear().ToVk() : info.Format.ToVk();
 		if ( record.Info.Format.IsDepth() ) format = record.Format;
 
@@ -535,19 +569,8 @@ public sealed unsafe partial class Device
 			usage = Vulkan.Vk.ImageSampled;
 		}
 
-		var view = MakeView( record.Image, ViewType( info.Dimension ), format, aspect, (uint)info.BaseMip, mips, (uint)info.BaseLayer, layers, usage );
-		var storage = (record.Info.Usage & TextureUsage.Storage) != 0 && mips == 1 && usage == 0 && info.Dimension != TextureDimension.TextureCube;
-
-		var viewRecord = new ViewRecord
-		{
-			View = view,
-			Texture = texture,
-			BindlessIndex = bindless && (record.Info.Usage & TextureUsage.Sampled) != 0 ? Bindless.AddTexture( view, view ) : -1,
-			StorageIndex = bindless && storage ? Bindless.AddStorage( view ) : -1,
-		};
-
-		var (index, generation) = Views.Add( viewRecord );
-		return new TextureViewHandle( index, generation );
+		storage = (record.Info.Usage & TextureUsage.Storage) != 0 && mips == 1 && usage == 0 && info.Dimension != TextureDimension.TextureCube;
+		return MakeView( record.Image, ViewType( info.Dimension ), format, aspect, (uint)info.BaseMip, mips, (uint)info.BaseLayer, layers, usage );
 	}
 
 	/// <summary>What a texture was created with.</summary>

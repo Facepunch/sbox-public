@@ -169,6 +169,15 @@ internal sealed unsafe class BindlessTable : IDisposable
 		return slot;
 	}
 
+	/// <summary>Point a texture slot pair at other views: the same texture moved in place. Only while no work that uses the table is pending.</summary>
+	public void SetTexture( int slot, ulong linear, ulong srgb )
+	{
+		var info = new VkDescriptorImageInfo { imageView = linear, imageLayout = VkImageLayout.ReadOnlyOptimal };
+		Write( ShaderAbi.BindlessTextures, (uint)slot, VkDescriptorType.SampledImage, &info, null );
+		info.imageView = srgb;
+		Write( ShaderAbi.BindlessTextures, (uint)slot + 1, VkDescriptorType.SampledImage, &info, null );
+	}
+
 	public void RemoveTexture( int slot )
 	{
 		WriteDefaultTexture( slot );
@@ -190,6 +199,13 @@ internal sealed unsafe class BindlessTable : IDisposable
 		var info = new VkDescriptorImageInfo { imageView = view, imageLayout = VkImageLayout.General };
 		Write( ShaderAbi.BindlessStorageTextures, (uint)slot, VkDescriptorType.StorageImage, &info, null );
 		return slot;
+	}
+
+	/// <summary>Point a storage slot at another view, as <see cref="SetTexture"/>.</summary>
+	public void SetStorage( int slot, ulong view )
+	{
+		var info = new VkDescriptorImageInfo { imageView = view, imageLayout = VkImageLayout.General };
+		Write( ShaderAbi.BindlessStorageTextures, (uint)slot, VkDescriptorType.StorageImage, &info, null );
 	}
 
 	public void RemoveStorage( int slot )

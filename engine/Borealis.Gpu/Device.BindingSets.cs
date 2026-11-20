@@ -204,8 +204,13 @@ public sealed unsafe partial class Device
 		var buffer = CreateBuffer( new BufferInfo { Size = bufferSize, Usage = BufferUsage.Storage, Name = "Bindless default buffer" } );
 		WriteBuffer( buffer, new byte[bufferSize] );
 
-		// What empty slots point at stays where it is
+		// What empty slots point at stays where it is, and so do their blocks
 		Get( buffer ).Pinned = true;
+		Get( texture ).Pinned = true;
+		Get( storage ).Pinned = true;
+		Allocator.Pin( Get( buffer ).Memory );
+		Allocator.Pin( Get( texture ).Memory );
+		Allocator.Pin( Get( storage ).Memory );
 		Bindless.SetDefaults( Get( texture ).View, Get( storage ).StorageView, Get( sampler ).Sampler, Get( buffer ).Buffer, bufferSize );
 	}
 

@@ -15,7 +15,7 @@ public class RelocationTests : GpuTest
 	const long Size = 1 << 20;
 
 	/// <summary>A sparse block of device buffers: one buffer left in it, with room for it in another block.</summary>
-	(BufferHandle Kept, MemoryBlock Block, List<BufferHandle> Others) SparseBlock()
+	(BufferHandle Kept, MemoryBlock Block, List<BufferHandle> Others) SparseBlock( bool makeRoom = true )
 	{
 		var buffers = new List<BufferHandle>();
 		for ( int i = 0; i < 48; i++ ) buffers.Add( Device.CreateBuffer( new BufferInfo { Size = Size, Usage = BufferUsage.Storage, Name = $"Filler {i}" } ) );
@@ -25,7 +25,7 @@ public class RelocationTests : GpuTest
 		Assert.IsFalse( block.Dedicated, "1 MiB buffers share blocks" );
 
 		var rest = new List<BufferHandle>();
-		var roomMade = false;
+		var roomMade = !makeRoom;
 		foreach ( var buffer in buffers )
 		{
 			if ( buffer == kept ) continue;
@@ -84,6 +84,24 @@ public class RelocationTests : GpuTest
 		CollectionAssert.AreEqual( Array.Empty<string>(), TakeValidationErrors() );
 	}
 
+	/// <summary>A block whose contents have no room in the others is left as it is, without waiting for the GPU.</summary>
+	[TestMethod]
+	public void BlocksWithoutRoomAreLeftWithoutWaiting()
+	{
+		var (kept, block, rest) = SparseBlock( makeRoom: false );
+		Device.Allocator.Drain( block );
+		Device.BeginFrame();
+
+		Assert.AreEqual( 0, Device.Relocations, "no wait for the GPU" );
+		Assert.AreEqual( 1, Device.RelocationsWithoutRoom );
+		Assert.IsFalse( Device.Allocator.AnyDrainingToMove, "the block is left" );
+		Assert.AreSame( block, Device.Get( kept ).Memory.Block );
+
+		Device.Destroy( kept );
+		foreach ( var buffer in rest ) Device.Destroy( buffer );
+		CollectionAssert.AreEqual( Array.Empty<string>(), TakeValidationErrors() );
+	}
+
 	/// <summary>A list recording when the frame begins (one carried into it) puts the move off until it's submitted.</summary>
 	[TestMethod]
 	public void MovesWaitForListsBeingRecorded()
@@ -104,6 +122,111 @@ public class RelocationTests : GpuTest
 
 		Device.Destroy( kept );
 		foreach ( var buffer in rest ) Device.Destroy( buffer );
+		CollectionAssert.AreEqual( Array.Empty<string>(), TakeValidationErrors() );
+	}
+
+	/// <summary>A sparse block of non-content images (512x512 targets): one left in it, with room for it in another block.</summary>
+	(TextureHandle Kept, MemoryBlock Block, List<TextureHandle> Others) SparseImageBlock()
+	{
+		var textures = new List<TextureHandle>();
+		for ( int i = 0; i < 48; i++ )
+		{
+			var info = TextureInfo.RenderTarget( 512, 512, Format.RGBA8Unorm, name: $"Target {i}" );
+			info.Usage |= TextureUsage.Storage;
+			textures.Add( Device.CreateTexture( info ) );
+		}
+
+		var kept = textures[^1];
+		var block = Device.Get( kept ).Memory.Block;
+		Assert.IsFalse( block.Dedicated, "1 MiB targets share blocks" );
+
+		var rest = new List<TextureHandle>();
+		var roomMade = false;
+		foreach ( var texture in textures )
+		{
+			if ( texture == kept ) continue;
+			var inBlock = Device.Get( texture ).Memory.Block == block;
+			if ( inBlock || !roomMade )
+			{
+				roomMade |= !inBlock;
+				Device.Destroy( texture );
+			}
+			else rest.Add( texture );
+		}
+
+		for ( int i = 0; i <= Device.FramesInFlight; i++ ) Device.BeginFrame();
+		Assert.AreEqual( Device.Get( kept ).Memory.Size, block.Used, "only the kept target is left in its block" );
+		return (kept, block, rest);
+	}
+
+	/// <summary>
+	/// A target moves in place like a buffer: its texels (copied from and back to the layout submitted barriers left it in),
+	/// its bindless slots, the views made of it (remade in their slots) and the persistent sets that bind them.
+	/// </summary>
+	[TestMethod]
+	public void TexturesMoveInPlaceOutOfDrainingBlocks()
+	{
+		var (kept, block, rest) = SparseImageBlock();
+		var texels = new byte[512 * 512 * 4];
+		for ( int i = 0; i < texels.Length; i++ ) texels[i] = (byte)(i * 7 + 3);
+		Device.WriteTexture( kept, texels );
+		Assert.AreEqual( ImageLayout.ShaderRead, Device.LayoutOf( kept ), "the device follows the layout the upload left" );
+
+		var slot = Device.BindlessIndex( kept );
+		var storageSlot = Device.StorageIndex( kept );
+		var view = Device.CreateView( kept, new TextureViewInfo { Dimension = TextureDimension.Texture2D, MipCount = 1 }, bindless: true );
+		var viewSlot = Device.BindlessIndex( view );
+		var layout = Device.CreateBindingLayout( [new BindingSlot( 0, BindingType.SampledTexture, ShaderStages.Compute ), new BindingSlot( 1, BindingType.SampledTexture, ShaderStages.Compute )] );
+		var set = Device.CreateBindingSet( layout, [Binding.Sampled( 0, kept ), Binding.Sampled( 1, view )] );
+
+		Device.Allocator.Drain( block );
+		Device.BeginFrame();
+
+		Assert.AreEqual( 1, Device.RelocatedTextures );
+		Assert.AreNotSame( block, Device.Get( kept ).Memory.Block, "moved out of the draining block" );
+		Assert.AreEqual( 0ul, block.Used );
+		Assert.AreEqual( slot, Device.BindlessIndex( kept ), "the bindless slots are kept" );
+		Assert.AreEqual( storageSlot, Device.StorageIndex( kept ) );
+		Assert.AreEqual( viewSlot, Device.BindlessIndex( view ), "and the view's" );
+		Assert.AreEqual( 2, Device.RelocatedBindings, "the set's bindings of the texture and its view are written again" );
+		Assert.AreEqual( ImageLayout.ShaderRead, Device.LayoutOf( kept ) );
+		CollectionAssert.AreEqual( texels, ReadBack( kept, ImageLayout.ShaderRead ), "with its texels" );
+
+		Device.Destroy( set );
+		Device.Destroy( view );
+		Device.Destroy( kept );
+		foreach ( var texture in rest ) Device.Destroy( texture );
+		CollectionAssert.AreEqual( Array.Empty<string>(), TakeValidationErrors() );
+	}
+
+	/// <summary>
+	/// The device follows a texture's layout per mip and layer from the barriers of submitted lists, in the order they were
+	/// recorded; a list not yet submitted changes nothing.
+	/// </summary>
+	[TestMethod]
+	public void LayoutsFollowSubmittedBarriers()
+	{
+		var info = new TextureInfo { Width = 64, Height = 64, Mips = 3, Layers = 2, Dimension = TextureDimension.Texture2DArray, Format = Format.RGBA8Unorm, Usage = TextureUsage.Sampled | TextureUsage.CopyDestination, Name = "Layouts" };
+		var texture = Device.CreateTexture( info );
+		Assert.AreEqual( ImageLayout.Undefined, Device.LayoutOf( texture ) );
+
+		var list = Device.BeginCommandList( QueueType.Graphics, "Layouts" );
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.Barrier( new TextureBarrier { Texture = texture, OldLayout = ImageLayout.CopyDestination, NewLayout = ImageLayout.ShaderRead, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.AllCommands, DestinationAccess = MemoryAccess.ShaderRead, BaseMip = 1, MipCount = 1, BaseLayer = 1, LayerCount = 1 } );
+		Assert.AreEqual( ImageLayout.Undefined, Device.LayoutOf( texture ), "not until it's submitted" );
+		Device.Wait( Device.Submit( list ) );
+
+		Assert.AreEqual( ImageLayout.CopyDestination, Device.LayoutOf( texture, 0, 0 ) );
+		Assert.AreEqual( ImageLayout.CopyDestination, Device.LayoutOf( texture, 1, 0 ) );
+		Assert.AreEqual( ImageLayout.ShaderRead, Device.LayoutOf( texture, 1, 1 ) );
+		Assert.AreEqual( ImageLayout.CopyDestination, Device.LayoutOf( texture, 2, 1 ) );
+
+		list = Device.BeginCommandList( QueueType.Graphics, "Whole" );
+		list.Barrier( new TextureBarrier { Texture = texture, OldLayout = ImageLayout.Undefined, NewLayout = ImageLayout.ShaderRead, SourceStage = PipelineStage.AllCommands, SourceAccess = MemoryAccess.None, DestinationStage = PipelineStage.AllCommands, DestinationAccess = MemoryAccess.ShaderRead } );
+		Device.Wait( Device.Submit( list ) );
+		Assert.AreEqual( ImageLayout.ShaderRead, Device.LayoutOf( texture, 1, 0 ), "a whole barrier makes it one layout again" );
+
+		Device.Destroy( texture );
 		CollectionAssert.AreEqual( Array.Empty<string>(), TakeValidationErrors() );
 	}
 }
