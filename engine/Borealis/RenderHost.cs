@@ -81,11 +81,6 @@ public class RenderHost
 	public virtual int OcclusionFreezes => 0;
 
 	/// <summary>
-	/// Time named GPU scopes for a profiler.
-	/// </summary>
-	public virtual bool GpuTimings => false;
-
-	/// <summary>
 	/// Whether a profiler is recording CPU zones (<see cref="BeginZone"/>).
 	/// </summary>
 	public virtual bool ProfilesZones => false;
@@ -111,8 +106,8 @@ public class RenderHost
 	public virtual void PublishFramePlan( FramePlan plan ) { }
 
 	/// <summary>
-	/// A frame of <paramref name="view"/> is being submitted at <paramref name="ticks"/>. Returns a tag for its submission
-	/// to carry to the GPU's timings, or 0.
+	/// A frame of <paramref name="view"/> drawn into a window is being submitted at <paramref name="ticks"/>. Returns a tag
+	/// that names its plan (<see cref="FramePlan.SubmitTag"/>), or 0.
 	/// </summary>
 	public virtual long Submitting( long ticks, RenderView view ) => 0;
 

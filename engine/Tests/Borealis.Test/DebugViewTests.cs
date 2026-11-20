@@ -18,7 +18,13 @@ public class DebugViewTests
 	const string ThumbnailShader = "shaders/debug_shadow_map.shader";
 
 	[TestCleanup]
-	public void ViewsOff() => HeadlessRenderHost.Views = DebugViews.None;
+	public void ViewsOff()
+	{
+		HeadlessRenderHost.Views = DebugViews.None;
+		HeadlessRenderHost.WantsPlans = false;
+		HeadlessRenderHost.LastPlan = null;
+		HeadlessRenderHost.LastReport = null;
+	}
 
 	static RenderMesh Box( int lods )
 	{
@@ -166,5 +172,36 @@ public class DebugViewTests
 			Assert.AreEqual( maps.Count, thumbnails.Count );
 			Assert.IsTrue( thumbnails.All( c => c.Op == GpuOp.DrawFullscreen && c.Texture == target.Color && c.Depth is null ), "into the output, without depth" );
 		}
+	}
+
+	[TestMethod]
+	public void OnlyFramesInAWindowPublishTheirPlanAndReport()
+	{
+		var world = new RenderWorld();
+		world.Add( new MeshObject( Box( 2 ), new Transform( new Vector3( 20, 0, 0 ) ) ) );
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+		HeadlessRenderHost.Views = DebugViews.LodColors;
+		HeadlessRenderHost.WantsPlans = true;
+
+		using ( HeadlessRenderHost.Headless.Capture() )
+		{
+			RenderHost.Current.NextFrame();
+			system.Render( world, LookingDownX(), target );
+		}
+
+		Assert.IsNull( HeadlessRenderHost.LastPlan, "a frame into a target isn't the window's" );
+		Assert.IsNull( HeadlessRenderHost.LastReport );
+
+		using ( HeadlessRenderHost.Headless.Capture() )
+		{
+			RenderHost.Current.NextFrame();
+			system.Render( world, LookingDownX(), target, null, window: true );
+		}
+
+		Assert.IsNotNull( HeadlessRenderHost.LastPlan, "the window's frame describes itself" );
+		Assert.IsTrue( HeadlessRenderHost.LastPlan.Frames.Count > 0 );
+		Assert.IsNotNull( HeadlessRenderHost.LastReport );
+		Assert.AreEqual( 1, HeadlessRenderHost.LastReport.Visible );
 	}
 }

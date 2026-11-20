@@ -69,7 +69,7 @@ internal sealed partial class SceneBridge
 		gpuView.RenderSceneObject = null;
 
 		// The main view outside the tools upscales as the player's settings ask, as native's does
-		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup, upscale: !Application.IsEditor && !camera.ToolsView );
+		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup, upscale: !Application.IsEditor && !camera.ToolsView, inWindow: true );
 
 		// A frame on screen has drawn its world: a game's scene isn't loaded ahead any more (BeginFrame)
 		if ( frame is not null && !GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene ) ) RenderFor( camera.World ).Shown = true;
@@ -252,9 +252,10 @@ internal sealed partial class SceneBridge
 	/// over that frame. Null if it couldn't render. With <paramref name="samples"/> over one the scene is multisampled, as the
 	/// game's anti-aliasing setting asks, and the stages get its resolved colour. With <paramref name="upscale"/> the player's
 	/// upscaler runs (<see cref="BorealisGpuUpscaler"/>): the scene and the stages up to the viewmodel's at the render size, the
-	/// rest at <paramref name="size"/>.
+	/// rest at <paramref name="size"/>. A scene shown in a window (<paramref name="inWindow"/>) gives the dev tools its frame plan
+	/// and the debug views their report.
 	/// </summary>
-	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup, bool upscale = false )
+	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup, bool upscale = false, bool inWindow = false )
 	{
 		// The view's viewport at the display size: the stages inside the scene's frame move it to theirs
 		var display = new Vector2Int( (int)size.x, (int)size.y );
@@ -313,7 +314,7 @@ internal sealed partial class SceneBridge
 
 		using ( SceneTiming.Scope() )
 		using ( new Drawing( this, state ) )
-			state.System.Render( render.World, state.View, state.GpuTarget, stages );
+			state.System.Render( render.World, state.View, state.GpuTarget, stages, inWindow );
 
 		frame.Adopt( state.GpuTarget, state.System.Frame.Constants, state.System.BloomObjects );
 

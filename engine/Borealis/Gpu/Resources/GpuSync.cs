@@ -111,14 +111,3 @@ public enum TextureLayout
 /// A semaphore one context signals when its work is done and another waits on before starting (<see cref="GpuContext.SignalAtEnd"/>).
 /// </summary>
 public readonly record struct GpuSemaphore( IntPtr Handle );
-
-/// <summary>
-/// A window's swap chain, which a frame presents into. Default for none.
-/// </summary>
-public readonly record struct GpuSwapChain( IntPtr Handle )
-{
-	/// <summary>
-	/// Whether this names a swap chain.
-	/// </summary>
-	public bool IsValid => Handle != IntPtr.Zero;
-}

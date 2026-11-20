@@ -1,7 +1,7 @@
 namespace Borealis.Gpu;
 
 /// <summary>
-/// Frame target and optional final copy to a swap chain or texture.
+/// Frame target and optional final copy to a texture.
 /// </summary>
 internal readonly struct RenderOutput
 {
@@ -11,9 +11,11 @@ internal readonly struct RenderOutput
 	public ViewTarget Target { get; init; }
 
 	/// <summary>
-	/// Optional swap-chain destination.
+	/// Whether the frame is shown in a window (the game window's scene): its plan and debug views' report go to the host
+	/// (<see cref="RenderHost.PublishFramePlan"/>, <see cref="RenderHost.PublishDebugViews"/>). Texture and child views'
+	/// frames aren't.
 	/// </summary>
-	public GpuSwapChain SwapChain { get; init; }
+	public bool Window { get; init; }
 
 	/// <summary>
 	/// Optional texture destination for the HDR copy.
@@ -40,11 +42,6 @@ internal readonly struct RenderOutput
 	public bool FlipY { get; init; }
 
 	/// <summary>
-	/// Whether the target is copied into a swap chain or texture at the end.
-	/// </summary>
-	public bool HasCopy => SwapChain.IsValid || Texture is not null;
-
-	/// <summary>
 	/// Full target size in pixels.
 	/// </summary>
 	public Vector2 Size => Target.Size;
@@ -55,19 +52,9 @@ internal readonly struct RenderOutput
 	public int Samples => Target.Samples;
 
 	/// <summary>
-	/// A swap chain frame: drawn into the render system's HDR target, then copied in.
-	/// </summary>
-	public static RenderOutput ForSwapChain( ViewTarget hdr, GpuSwapChain swapChain ) => new() { Target = hdr, SwapChain = swapChain };
-
-	/// <summary>
 	/// A frame into a texture: drawn into an HDR target, then copied in.
 	/// </summary>
 	public static RenderOutput ForTexture( ViewTarget hdr, GpuTexture texture, GpuTexture scratch = null ) => new() { Target = hdr, Texture = texture, Scratch = scratch };
 
 	public static RenderOutput ForTarget( ViewTarget target ) => new() { Target = target };
-
-	/// <summary>
-	/// Native swap-chain multisample type.
-	/// </summary>
-	public static int SwapChainSamples( GpuSwapChain swapChain ) => RenderHost.Current.Device.SwapChainSamples( swapChain );
 }

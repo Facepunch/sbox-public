@@ -202,12 +202,6 @@ public abstract class GpuDevice
 	/// <summary>Where a queued morph is in the atlas once generated: u offset, u range, v offset, v range.</summary>
 	public abstract Vector4 MorphSubrect( int handle );
 
-	/// <summary>Start a frame's submission, naming the swap chain it ends up in for its GPU timing.</summary>
-	public abstract void BeginSubmitting( GpuSwapChain swapChain );
-
-	/// <summary>Tag the next submissions, so a profiler can pair GPU work with the frame that made it; 0 for none.</summary>
-	public abstract void SetSubmitTag( ulong tag );
-
 	/// <summary>A render system has submitted everything it recorded for a frame: send on whatever the device is holding to submit together.</summary>
 	public virtual void EndSubmitting() { }
 
@@ -219,7 +213,4 @@ public abstract class GpuDevice
 
 	/// <summary>Free a buffer from <see cref="CreateConstantBuffer"/>.</summary>
 	public abstract void DestroyConstantBuffer( IntPtr buffer );
-
-	/// <summary>Samples per pixel of a swap chain's colour buffer.</summary>
-	public abstract int SwapChainSamples( GpuSwapChain swapChain );
 }

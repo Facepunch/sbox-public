@@ -861,15 +861,13 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// Submit setup and segments in order. Each compute batch waits for its graphics preparation. Graphics acquires
 	/// declared dependencies before their consumers or untracked work. Each signal has exactly one consumer.
 	/// </summary>
-	public void Submit( GpuSwapChain swapChain )
+	public void Submit()
 	{
 		// Each setup context, then the work its features left for workers (skinning), before anything draws
-		frames[0].System.FrameContext.Submit( swapChain );
-		frames[0].System.EndSetupWork( true );
-		for ( int f = 1; f < frames.Count; f++ )
+		foreach ( var f in frames )
 		{
-			frames[f].System.FrameContext.SubmitNext();
-			frames[f].System.EndSetupWork( true );
+			f.System.FrameContext.Submit();
+			f.System.EndSetupWork( true );
 		}
 
 		for ( int i = 0; i < segmentCount; i++ )
@@ -879,7 +877,7 @@ internal sealed partial class FrameRecorder : IDisposable
 			{
 				var handOff = _computeBatches[segment.HandOff].Context;
 				var handedOff = handOff.SignalAtEnd();
-				handOff.SubmitNext();
+				handOff.Submit();
 				segment.Context.WaitAtBegin( handedOff );
 			}
 			else if ( segment.WaitFor >= 0 )
@@ -890,7 +888,7 @@ internal sealed partial class FrameRecorder : IDisposable
 			// Binary semaphores have one consumer. A later compute submission is already ordered on its own queue.
 			if ( segment.Signal ) segment.Completion = segment.Context.SignalAtEnd();
 
-			segment.Context.SubmitNext();
+			segment.Context.Submit();
 		}
 	}
 

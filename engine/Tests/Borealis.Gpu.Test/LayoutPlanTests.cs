@@ -60,8 +60,8 @@ public class LayoutPlanTests : GpuTest
 				reading.BarrierToPixelShaderRead( color );
 
 				frame.Submit();
-				clearing.SubmitNext();
-				reading.SubmitNext();
+				clearing.Submit();
+				reading.Submit();
 				Device.WaitIdle();
 				return BackendContext.LayoutFixUps - before;
 			}

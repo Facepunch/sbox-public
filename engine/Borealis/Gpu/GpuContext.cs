@@ -26,9 +26,6 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Where a queued morph is in the atlas, once generated.</summary>
 	public static Vector4 MorphSubrect( int handle ) => Device.MorphSubrect( handle );
 
-	/// <summary>Start a frame's submission, naming the swap chain it ends up in.</summary>
-	public static void BeginSubmitting( GpuSwapChain swapChain ) => Device.BeginSubmitting( swapChain );
-
 	/// <summary>The time shaders see this frame.</summary>
 	public static float RenderTime => Device.RenderTime;
 
@@ -107,11 +104,8 @@ internal abstract class GpuContext : IDisposable
 	/// </summary>
 	internal virtual void PlanLayouts( int shape ) { }
 
-	/// <summary>Submit and end recording, naming the swap chain on a frame's first submission.</summary>
-	public abstract void Submit( GpuSwapChain swapChain = default );
-
 	/// <summary>Submit after earlier work and end recording.</summary>
-	public abstract void SubmitNext();
+	public abstract void Submit();
 
 	/// <summary>Stop recording without submitting.</summary>
 	public abstract void End();
@@ -186,8 +180,8 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Draw the 2D sky into the bound target.</summary>
 	public abstract bool DrawSky( SceneLighting lighting, StringToken shaderMode );
 
-	/// <summary>Copy HDR to the output, encoding 8-bit targets as sRGB.</summary>
-	public abstract void CopyToSwapChain( in RenderOutput output, Rect viewport );
+	/// <summary>Copy the resolved HDR frame into a texture output (<see cref="RenderOutput.Texture"/>).</summary>
+	public abstract void CopyToOutput( in RenderOutput output, Rect viewport );
 
 	/// <summary>The final colour target and whether it's written through an sRGB view.</summary>
 	public abstract GpuTexture OutputColor( in RenderOutput output, out bool srgbWrite );

@@ -2913,12 +2913,6 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public override Vector4 MorphSubrect( int handle ) => Morphs.Subrect( handle );
 
 	/// <inheritdoc/>
-	public override void BeginSubmitting( GpuSwapChain swapChain ) { }
-
-	/// <inheritdoc/>
-	public override void SetSubmitTag( ulong tag ) { }
-
-	/// <inheritdoc/>
 	public override float RenderTime => (float)clock.Elapsed.TotalSeconds;
 
 	/// <inheritdoc/>
@@ -2938,9 +2932,6 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			if ( constantBuffers.Remove( buffer, out var handle ) ) Gpu.Destroy( handle );
 		}
 	}
-
-	/// <inheritdoc/>
-	public override int SwapChainSamples( GpuSwapChain swapChain ) => 1;
 
 	//
 	// Semaphores: Borealis's binary semaphores become points on Borealis.Gpu's queue timelines
