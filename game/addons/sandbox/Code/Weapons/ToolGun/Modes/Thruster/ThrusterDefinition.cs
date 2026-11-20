@@ -1,4 +1,4 @@
-﻿
+
 
 [AssetType( Name = "Sandbox Thruster", Extension = "tdef", Category = "Sandbox", Flags = AssetTypeFlags.NoEmbedding | AssetTypeFlags.IncludeThumbnails )]
 public class ThrusterDefinition : GameResource, IDefinitionResource
@@ -14,15 +14,7 @@ public class ThrusterDefinition : GameResource, IDefinitionResource
 
 	public override Bitmap RenderThumbnail( ThumbnailOptions options )
 	{
-		// No prefab - can't make a thumbnail
-		if ( Prefab is null ) return default;
-
-		var bitmap = new Bitmap( options.Width, options.Height );
-		bitmap.Clear( Color.Transparent );
-
-		SceneUtility.RenderGameObjectToBitmap( Prefab.GetScene(), bitmap );
-
-		return bitmap;
+		return ThumbnailCamera.RenderToolModel( Prefab, options.Width, options.Height );
 	}
 
 	protected override Bitmap CreateAssetTypeIcon( int width, int height )

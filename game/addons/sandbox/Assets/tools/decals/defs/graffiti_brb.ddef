@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "8b48e961-c5f0-48a7-a66e-ba5449590368",
+    "Path": "decals/graffiti/graffiti_brb.decal"
+  },
+  "Title": "#asset.decal.brb.title",
+  "__references": [],
+  "__version": 0
+}

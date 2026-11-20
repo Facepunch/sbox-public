@@ -22,8 +22,7 @@
         "SingleAssetSource": "weapons/usp/w_usp.vmdl",
         "Summary": "",
         "Description": "",
-        "Public": true,
-        "ParentPackage": "facepunch.sbox_content"
+        "Public": true
       }
     },
     "HammerAutoPackageReferences": null

@@ -24,8 +24,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/usp/materials/9mm_bullet/9mm_bullet.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/usp/materials/9mm_bullet/9mm_bullet.vmat"
       }
     }
   }

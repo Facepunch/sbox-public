@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "materials/sbox/trimsheets/metal/iron_trim_01.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "materials/sbox/trimsheets/metal/iron_trim_01.vmat"
       }
     },
     "HammerAutoPackageReferences": null

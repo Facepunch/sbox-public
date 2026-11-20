@@ -4,9 +4,12 @@
 @namespace Sandbox
 
 <root>
-    <div class="title-bar">
-        <Label Tokenize=@false Text="@Title" />
-    </div>
+    @if ( !string.IsNullOrWhiteSpace( Title ) )
+    {
+        <div class="title-bar">
+            <Label Tokenize=@false Text="@Title" />
+        </div>
+    }
 
     <div class="settings-body">
         @Body

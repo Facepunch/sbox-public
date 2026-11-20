@@ -83,12 +83,26 @@ public sealed class ThumbnailCamera : Component
 			return false;
 
 		var view = source.WorldTransform.ToLocal( framing.WorldTransform );
-		var fieldOfView = framing.FieldOfView;
-		var fit = framing.FitToBounds;
-		var padding = framing.Padding;
-		var zoom = framing.Zoom;
-		var focus = framing.Focus;
+		Render( prefab, bitmap, view, framing.FieldOfView, framing.FitToBounds, framing.Padding, framing.Zoom, framing.Focus );
+		return true;
+	}
 
+	/// <summary>
+	/// Frame a tool's model in a still scene so physics can't move it out of shot.
+	/// </summary>
+	internal static Bitmap RenderToolModel( PrefabFile prefab, int width, int height )
+	{
+		if ( prefab is null ) return null;
+
+		var bitmap = new Bitmap( width, height );
+		bitmap.Clear( Color.Transparent );
+		var view = new Transform( Vector3.Zero, Rotation.From( 20, 225, 0 ) );
+		Render( prefab, bitmap, view, 25f, true, 0.12f, 1f, Vector2.Zero );
+		return bitmap;
+	}
+
+	private static void Render( PrefabFile prefab, Bitmap bitmap, Transform view, float fieldOfView, bool fit, float padding, float zoom, Vector2 focus )
+	{
 		// An editor scene, so nothing in the prefab thinks it's live gameplay (random loadouts etc.)
 		var scene = Scene.CreateEditorScene();
 
@@ -122,7 +136,6 @@ public sealed class ThumbnailCamera : Component
 		}
 
 		scene.Destroy();
-		return true;
 	}
 
 	/// <summary>

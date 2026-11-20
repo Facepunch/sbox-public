@@ -60,7 +60,8 @@ public partial class ScriptLoadingTests
 		Assert.AreEqual( 1, description.GetMethod( "ReadGeneration" ).InvokeWithReturn<int>( first ) );
 		reloadRoots = [first, second];
 
-		var replacementBase = EmitNativeScriptBase( 2 );
+		// One new field cannot be initialized on the live objects. The other fields and script types must still migrate.
+		var replacementBase = EmitNativeScriptBase( 2, missingInitializer: true );
 		var previousFastHotload = HotloadManager.hotload_fast;
 		try
 		{
@@ -116,20 +117,22 @@ public partial class ScriptLoadingTests
 	}
 
 	/// <summary>
-	/// Incoming native names must be validated before migrating live script references.
-	/// A failed native replacement prevents further script execution until the context is reset.
+	/// A conflicting package still registers and a corrected package rebinds scripts in the same scene.
 	/// </summary>
 	[TestMethod]
-	public void NativeNameCollisionStopsMigrationAndRequiresContextReset()
+	public void NativeNameCollisionRecoversOnNextHotload()
 	{
 		var originalBase = EmitNativeScriptBase( 1 );
 		using var enroller = EnrollNativeScriptBase( originalBase );
-		LoadSource( "native-base.csx", "class NativeDerivedScript : NativeScriptBase {}" );
+		LoadSource( "native-base.csx", "class NativeDerivedScript : NativeScriptBase { public int Saved; public int Version() { return NativeGeneration(); } }" );
 		scene = new Scene();
 		using var scope = scene.Push();
 		var description = Game.TypeLibrary.GetType( "NativeDerivedScript" );
 		var component = scene.CreateObject().Components.Create( description );
 		originalBase.GetField( "NativeValue" ).SetValue( component, 41 );
+		originalBase.GetField( "Other" ).SetValue( component, component );
+		component.GetType().GetField( "Saved" ).SetValue( component, 42 );
+		var componentId = component.Id;
 		reloadRoots = [component];
 
 		var replacementBase = EmitNativeScriptBase( 2, conflicting: true );
@@ -143,20 +146,75 @@ public partial class ScriptLoadingTests
 				Version = replacementBase.Assembly.GetName().Version,
 				Assembly = replacementBase.Assembly
 			} );
-			var error = Assert.ThrowsException<InvalidOperationException>( () => scriptPackageLoader.Tick() );
-			StringAssert.Contains( error.Message, "NativeDerivedScript" );
+			scriptPackageLoader.Tick();
+			Assert.AreSame( replacementBase, Game.TypeLibrary.GetType( "NativeScriptBase" ).TargetType );
+			Assert.AreSame( replacementBase, TypeLibrary.Editor.GetType( "NativeScriptBase" ).TargetType );
+			Assert.AreEqual( 42, Game.Scripting.Run<int>( "return 42;" ) );
+			Assert.AreSame( component, reloadRoots[0] );
+			Assert.AreEqual( 41, originalBase.GetField( "NativeValue" ).GetValue( component ) );
+			Assert.AreSame( component, originalBase.GetField( "Other" ).GetValue( component ) );
+
+			var repairedBase = EmitNativeScriptBase( 3 );
+			scriptPackageLoader.AddAssembly( new LoadedAssembly
+			{
+				Name = repairedBase.Assembly.GetName().Name,
+				Version = repairedBase.Assembly.GetName().Version,
+				Assembly = repairedBase.Assembly
+			} );
+			scriptPackageLoader.Tick();
+			var repaired = (Component)reloadRoots[0];
+			Assert.AreSame( repairedBase, repaired.GetType().BaseType );
+			Assert.AreEqual( componentId, repaired.Id );
+			Assert.AreSame( repaired, repaired.GameObject.Components.Get( repaired.GetType() ) );
+			Assert.AreSame( repaired.GetType(), Game.TypeLibrary.GetType( "NativeDerivedScript" ).TargetType );
+			Assert.AreSame( repaired.GetType(), TypeLibrary.Editor.GetType( "NativeDerivedScript" ).TargetType );
+			Assert.AreEqual( 41, repairedBase.GetField( "NativeValue" ).GetValue( repaired ) );
+			Assert.AreSame( repaired, repairedBase.GetField( "Other" ).GetValue( repaired ) );
+			Assert.AreEqual( 42, repaired.GetType().GetField( "Saved" ).GetValue( repaired ) );
+			Assert.AreEqual( 3, repaired.GetType().GetMethod( "Version" ).Invoke( repaired, null ) );
 		}
 		finally
 		{
 			HotloadManager.hotload_fast = previousFastHotload;
 		}
 
-		Assert.AreSame( component, reloadRoots[0] );
-		Assert.AreSame( originalBase, component.GetType().BaseType );
-		Assert.AreSame( component, component.GameObject.Components.Get( component.GetType() ) );
-		Assert.AreEqual( 41, originalBase.GetField( "NativeValue" ).GetValue( component ) );
-		Assert.ThrowsException<InvalidOperationException>( () => Game.Scripting.Run<int>( "return 42;" ) );
-		Assert.ThrowsException<InvalidOperationException>( () => Game.Scripting.Load( "" ) );
+		Assert.IsFalse( Game.Scripting.RequiresReload );
+	}
+
+	/// <summary>
+	/// A source edit published while a package replacement is queued migrates its live objects on the same tick.
+	/// </summary>
+	[TestMethod]
+	public void SourceEditDuringPendingPackageHotload()
+	{
+		var originalBase = EmitNativeScriptBase( 1 );
+		using var enroller = EnrollNativeScriptBase( originalBase );
+		LoadSource( "edit.csx", "class LiveEdit { public int Saved; }" );
+		reloadRoots = [Game.Scripting.Run<object>( "return new LiveEdit { Saved = 42 };" )];
+
+		var replacement = EmitNativeScriptBase( 2 );
+		var previousFastHotload = HotloadManager.hotload_fast;
+		try
+		{
+			HotloadManager.hotload_fast = false;
+			scriptPackageLoader.AddAssembly( new LoadedAssembly
+			{
+				Name = replacement.Assembly.GetName().Name,
+				Version = replacement.Assembly.GetName().Version,
+				Assembly = replacement.Assembly
+			} );
+			LoadSource( "edit.csx", "class LiveEdit { public int Saved; public int Added = 7; }" );
+			scriptPackageLoader.Tick();
+			var instance = reloadRoots[0];
+			Assert.AreSame( Game.TypeLibrary.GetType( "LiveEdit" ).TargetType, instance.GetType() );
+			Assert.AreEqual( 42, instance.GetType().GetField( "Saved" ).GetValue( instance ) );
+			Assert.AreEqual( 7, instance.GetType().GetField( "Added" ).GetValue( instance ) );
+			Assert.AreSame( replacement, Game.TypeLibrary.GetType( "NativeScriptBase" ).TargetType );
+		}
+		finally
+		{
+			HotloadManager.hotload_fast = previousFastHotload;
+		}
 	}
 
 	/// <summary>
@@ -188,7 +246,7 @@ public partial class ScriptLoadingTests
 	/// Two ordinary CLR assembly generations model a compiled user component base without
 	/// involving script metadata or changing the integration test's own assembly.
 	/// </summary>
-	private static Type EmitNativeScriptBase( int version, bool conflicting = false )
+	private static Type EmitNativeScriptBase( int version, bool conflicting = false, bool missingInitializer = false )
 	{
 		var assembly = AssemblyBuilder.DefineDynamicAssembly( new AssemblyName( "ScriptNativeBaseFixture" )
 		{
@@ -201,10 +259,23 @@ public partial class ScriptLoadingTests
 		}
 		var type = module.DefineType( "NativeScriptBase", TypeAttributes.Public, typeof( Component ) );
 		type.DefineDefaultConstructor( MethodAttributes.Public );
-		// No native initializers: avoid asking the Cecil fallback to read an emitted assembly.
+		// Supply explicit initializers because this emitted assembly has no Cecil image. The retained value
+		// must survive a conflicting package without being reset to the initializer's default of 7.
 		var uninitialized = new CustomAttributeBuilder( typeof( Sandbox.Upgraders.InitializedByAttribute ).GetConstructor( [typeof( string )] ), [null] );
-		type.DefineField( "NativeValue", typeof( int ), FieldAttributes.Public ).SetCustomAttribute( uninitialized );
-		type.DefineField( "Other", typeof( Component ), FieldAttributes.Public ).SetCustomAttribute( uninitialized );
+		var nativeValue = type.DefineField( "NativeValue", typeof( int ), FieldAttributes.Public );
+		var initialize = type.DefineMethod( "InitNativeValue", MethodAttributes.Private, typeof( void ), Type.EmptyTypes );
+		var initializer = initialize.GetILGenerator();
+		initializer.Emit( OpCodes.Ldarg_0 );
+		initializer.Emit( OpCodes.Ldc_I4, 7 );
+		initializer.Emit( OpCodes.Stfld, nativeValue );
+		initializer.Emit( OpCodes.Ret );
+		nativeValue.SetCustomAttribute( new CustomAttributeBuilder( typeof( Sandbox.Upgraders.InitializedByAttribute ).GetConstructor( [typeof( string )] ), [initialize.Name] ) );
+		type.DefineField( "Other", type, FieldAttributes.Public ).SetCustomAttribute( uninitialized );
+		if ( missingInitializer )
+		{
+			var missing = new CustomAttributeBuilder( typeof( Sandbox.Upgraders.InitializedByAttribute ).GetConstructor( [typeof( string )] ), ["MissingInitializer"] );
+			type.DefineField( "NewField", typeof( int ), FieldAttributes.Public ).SetCustomAttribute( missing );
+		}
 		var method = type.DefineMethod( "NativeGeneration", MethodAttributes.Public, typeof( int ), Type.EmptyTypes );
 		var il = method.GetILGenerator();
 		il.Emit( OpCodes.Ldc_I4, version );

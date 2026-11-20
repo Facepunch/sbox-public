@@ -4,6 +4,14 @@
 internal static partial class GamePreferences
 {
 	/// <summary>
+	/// The palette used by this player's Sandbox interface.
+	/// </summary>
+	[ConVar( "sandbox.ui_theme", ConVarFlags.Saved )]
+	public static InterfaceTheme Theme { get; set; } = InterfaceTheme.Light;
+
+	internal static void SetTheme( InterfaceTheme theme ) => ConsoleSystem.SetValue( "sandbox.ui_theme", theme.ToString() );
+
+	/// <summary>
 	/// Enables automatic switching to better weapons on item pickup
 	/// </summary>
 	[ConVar( "sandbox.autoswitch", ConVarFlags.UserInfo | ConVarFlags.Saved )]

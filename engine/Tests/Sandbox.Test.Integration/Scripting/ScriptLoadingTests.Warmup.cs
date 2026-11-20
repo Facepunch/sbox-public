@@ -74,12 +74,12 @@ public partial class ScriptLoadingTests
 		var cancellation = (CancellationTokenSource)cache.GetType().GetField( "warmupCancellation", WarmupFields ).GetValue( cache );
 		var replace = context.ReplaceScriptAssembly;
 		bool migrated = false;
-		context.ReplaceScriptAssembly = ( oldAssembly, newAssembly, registered ) =>
+		context.ReplaceScriptAssembly = ( oldAssembly, newAssembly ) =>
 		{
 			Assert.AreEqual( 1, completed );
 			Assert.IsTrue( warming.IsCompleted );
 			migrated = true;
-			replace( oldAssembly, newAssembly, registered );
+			return replace( oldAssembly, newAssembly );
 		};
 		try
 		{

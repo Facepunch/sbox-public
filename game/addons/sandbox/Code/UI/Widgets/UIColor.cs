@@ -61,7 +61,10 @@ public class UIColor : BaseControl
 
 	void ShowText( Color color )
 	{
-		_hex.Text = color.Hex.ToUpperInvariant();
+		// Keep a valid expression, including its alpha or brightness multiplier, when editing ends.
+		if ( Color.TryParse( _hex.Text, out var entered ) && entered == color ) return;
+
+		_hex.Text = color.ToString( hex: true, rgba: false );
 	}
 
 	void OpenPicker()

@@ -1,6 +1,8 @@
-﻿
 using Sandbox.UI;
 
+/// <summary>
+/// Previews and paints toolgun decals on surfaces.
+/// </summary>
 [Title( "#tool.name.decal" )]
 [Icon( "🖌️" )]
 [ClassName( "decaltool" )]
@@ -16,19 +18,30 @@ public sealed class DecalTool : ToolMode
 	/// </summary>
 	const float ScaleSpeed = 0.032f;
 
+	string _decal = "tools/decals/defs/graffiti_peace.ddef";
+
 	/// <summary>
-	/// Decals that ship with the game. Set on the toolgun prefab, so they load with it and show in the picker.
+	/// The tool decal selected in the picker.
 	/// </summary>
-	[Property, Hide]
-	public List<DecalDefinition> BuiltIn { get; set; }
+	[Property, ResourceSelect( Extension = "ddef", AllowPackages = true ), Title( "#tool.name.decal" )]
+	public string Decal
+	{
+		get => _decal;
+		set => _decal = ToolDecalDefinition.ResolveSelectionPath( value );
+	}
 
-	[Property, ResourceSelect( Extension = "decal", AllowPackages = true ), Title( "#tool.name.decal" )]
-	public string Decal { get; set; }
+	ToolDecalDefinition SelectedDefinition => ToolDecalDefinition.Find( Decal );
 
+	/// <summary>
+	/// Tints the preview and the painted decal.
+	/// </summary>
 	[Property, Title( "#tool.setting.tint" )]
 	public Color Tint { get; set; } = Color.White;
 
-	[Range( MinScale, MaxScale ), Step( 0.1f ), Separator]
+	/// <summary>
+	/// Scales the decal on the painted surface.
+	/// </summary>
+	[Range( 0.1f, 4f ), Step( 0.1f ), Separator]
 	[Property, Title( "#tool.setting.scale" )]
 	public float Scale { get; set; } = 1f;
 
@@ -45,6 +58,9 @@ public sealed class DecalTool : ToolMode
 	[Property, Title( "#tool.setting.decal_random_rotation" )]
 	public bool ApplyRandomRotation { get; set; } = false;
 
+	/// <summary>
+	/// The description shown in the tool picker.
+	/// </summary>
 	public override string Description => "#tool.hint.decaltool.description";
 
 	/// <summary>
@@ -78,19 +94,13 @@ public sealed class DecalTool : ToolMode
 	int _sprayId;
 
 	/// <summary>
-	/// Host-side undo entry for the spray identified by <see cref="_hostSprayId"/>.
+	/// Holds the view still while adjusting the decal with the mouse.
 	/// </summary>
-	UndoSystem.Entry _sprayUndo;
-	int _hostSprayId;
+	public override bool AbsorbMouseInput => _absorbLook;
 
-	public override void OnCameraMove( Player player, ref Angles angles )
-	{
-		base.OnCameraMove( player, ref angles );
-
-		if ( _absorbLook )
-			angles = default;
-	}
-
+	/// <summary>
+	/// Adjusts the decal and handles placement and continuous painting.
+	/// </summary>
 	public override void OnControl()
 	{
 		var reload = Input.Down( "reload" );
@@ -137,7 +147,7 @@ public sealed class DecalTool : ToolMode
 		base.OnUpdate();
 
 		var toolgun = Toolgun;
-		var player = toolgun?.Owner;
+		var player = Player;
 		var active = toolgun.IsValid() && player.IsValid()
 			&& player.GetComponent<PlayerInventory>()?.ActiveWeapon == toolgun;
 
@@ -155,7 +165,7 @@ public sealed class DecalTool : ToolMode
 		{
 			var position = toolgun.GetMuzzleTransform().Position;
 			_paintSound ??= Sound.Play( "weapons/toolgun/sounds/shoot.spray.sound", position );
-			_paintSound?.Position = position;
+			if ( _paintSound != null ) _paintSound.Position = position;
 		}
 		else
 		{
@@ -192,7 +202,7 @@ public sealed class DecalTool : ToolMode
 	void UpdatePreview()
 	{
 		var select = TraceSelect();
-		var def = string.IsNullOrEmpty( Decal ) ? null : ResourceLibrary.Get<DecalDefinition>( Decal );
+		var def = SelectedDefinition?.Decal;
 
 		if ( !select.IsValid() || def == null )
 		{
@@ -215,15 +225,22 @@ public sealed class DecalTool : ToolMode
 		_preview.WorldPosition = pos.Position + pos.Rotation.Forward * 1f;
 		_preview.WorldRotation = Rotation.LookAt( -pos.Rotation.Forward );
 
-		if ( _previewDecal.Decals is not [var current] || current != def )
-			_previewDecal.Decals = [def];
+		if ( _previewDecal.Decals.Count != 1 || _previewDecal.Decals[0] != def )
+			_previewDecal.Decals = new List<DecalDefinition> { def };
 
 		var pulse = 0.5f + 0.5f * MathF.Cos( Time.Now * MathF.Tau / PreviewPulsePeriod );
 		var opacity = MathX.Lerp( PreviewOpacityMin, PreviewOpacityMax, pulse );
 		_previewDecal.ColorTint = Tint.WithAlpha( Tint.a * opacity );
 		_previewDecal.Scale = Scale.Clamp( MinScale, MaxScale );
 		_previewDecal.AttenuationAngle = Attenuation.Clamp( 0f, 1f );
-		_previewDecal.Rotation = ApplyRandomRotation ? new ParticleFloat( 0f, 360f ) : _rotation;
+		if ( ApplyRandomRotation )
+		{
+			_previewDecal.Rotation = new ParticleFloat( 0f, 360f );
+		}
+		else
+		{
+			_previewDecal.Rotation = _rotation;
+		}
 		_previewDecal.SortLayer = uint.MaxValue;
 
 		_preview.Enabled = true;
@@ -259,8 +276,8 @@ public sealed class DecalTool : ToolMode
 		var select = TraceSelect();
 		if ( !select.IsValid() ) return;
 
-		var resource = ResourceLibrary.Get<DecalDefinition>( Decal );
-		if ( resource == null ) return;
+		var resource = SelectedDefinition;
+		if ( resource?.Decal == null ) return;
 
 		SpawnDecal( select, resource, Tint, Scale, Attenuation, GetRotation(), 0 );
 		PlayPlaceSound();
@@ -273,14 +290,14 @@ public sealed class DecalTool : ToolMode
 		var select = TraceSelect();
 		if ( !select.IsValid() ) return;
 
-		var resource = ResourceLibrary.Get<DecalDefinition>( Decal );
-		if ( resource == null ) return;
+		var resource = SelectedDefinition;
+		if ( resource?.Decal == null ) return;
 
 		timeSinceShoot = 0;
 		SpawnDecal( select, resource, Tint, Scale, Attenuation, GetRotation(), _sprayId );
 	}
 
-	uint _layer = 0;
+	uint _layer;
 
 	/// <summary>
 	/// Spawn a decal on the host. A non-zero <paramref name="sprayId"/> groups the decal with
@@ -288,11 +305,11 @@ public sealed class DecalTool : ToolMode
 	/// The settings come with the call, since only the owner has their current values.
 	/// </summary>
 	[Rpc.Host( NetFlags.OwnerOnly )]
-	public void SpawnDecal( SelectionPoint point, DecalDefinition def, Color tint, float scale, float attenuation, float rotation, int sprayId )
+	public void SpawnDecal( SelectionPoint point, ToolDecalDefinition definition, Color tint, float scale, float attenuation, float rotation, int sprayId )
 	{
 		if ( !FireToolAction( sprayId == 0 ? ToolInput.Primary : ToolInput.Secondary ) ) return;
 
-		if ( def == null ) return;
+		if ( definition?.Decal == null ) return;
 
 		var pos = point.WorldTransform();
 
@@ -303,7 +320,7 @@ public sealed class DecalTool : ToolMode
 		go.SetParent( point.GameObject, true );
 
 		var decal = go.AddComponent<Decal>();
-		decal.Decals = [def];
+		decal.Decals = new List<DecalDefinition> { definition.Decal };
 		decal.SortLayer = _layer++;
 		decal.ColorTint = tint;
 		decal.Scale = scale.Clamp( MinScale, MaxScale );
@@ -311,34 +328,10 @@ public sealed class DecalTool : ToolMode
 		decal.Rotation = rotation;
 
 		go.NetworkSpawn();
+		Track( go );
 
-		GetUndoEntry( sprayId ).Add( go );
+		AddUndoObject( go, sprayId == 0 ? "#tool.name.decal" : "#tool.undo.decal_spray", sprayId );
 
 		FirePostToolAction( sprayId == 0 ? ToolInput.Primary : ToolInput.Secondary );
-	}
-
-	/// <summary>
-	/// The spray has no explicit end, the entry is created lazily with its first decal, so it is registered no matter how painting stops. 
-	/// A new spray id, or the entry leaving the history (undone mid-spray, evicted, stack cleared), starts a new entry
-	/// </summary>
-	UndoSystem.Entry GetUndoEntry( int sprayId )
-	{
-		var stack = Player.Undo;
-
-		if ( sprayId == 0 )
-		{
-			var single = stack.Create();
-			single.Name = "#tool.name.decal";
-			return single;
-		}
-
-		if ( sprayId != _hostSprayId || !stack.Contains( _sprayUndo ) )
-		{
-			_hostSprayId = sprayId;
-			_sprayUndo = stack.Create();
-			_sprayUndo.Name = "#tool.undo.decal_spray";
-		}
-
-		return _sprayUndo;
 	}
 }

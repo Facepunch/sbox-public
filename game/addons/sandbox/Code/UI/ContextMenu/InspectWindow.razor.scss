@@ -1,106 +1,104 @@
 @import "/UI/Theme.scss";
 
-// a window of tabbed pages in a corner of the inspect menu
-InspectWindow
+@mixin component-theme
 {
-	@include ui-block;
-	position: absolute;
-	flex-direction: column;
-	align-items: flex-start;
-	pointer-events: all;
-	z-index: 200;
-
-	// saves and effects
-	&.top-left
+	// a window of tabbed pages in a corner of the inspect menu
+	InspectWindow
 	{
-		top: calc( $deadzone-y + 26px ); // under the settings bar of the inspect menu
-		left: $deadzone-x;
-	}
-
-	> .tabs
-	{
-		flex-direction: row;
-		flex-wrap: wrap;
-		align-content: flex-start;
-		flex-shrink: 0;
-		max-width: 724px;
-		gap: 2px;
-	}
-
-	> .tabs > .tab
-	{
-		@include ui-tab-button;
-
-		// the open one, clicking it again collapses the window
-		&.active
-		{
-			pointer-events: all;
-
-			&:hover
-			{
-				background-color: $ui-tab-bg-active;
-				filter: brightness( 1.1 );
-			}
-		}
-	}
-
-	// sized by the page in it, the page keeps its own size while the body rolls open or shut around it
-	> .body
-	{
-		flex-direction: column;
-		flex-shrink: 0;
-		min-height: 0px;
-
-		> *
-		{
-			flex-shrink: 0;
-			margin-top: 8px; // the space under the tabs, part of the page so it rolls with it
-		}
-
-		> .hidden
-		{
-			display: none;
-		}
-	}
-
-	&.rolling > .body
-	{
+		border-radius: 8px;
+		backdrop-filter: blur( $ui-menu-blur );
 		overflow: hidden;
-	}
+		position: absolute;
+		flex-direction: column;
+		align-items: stretch;
+		pointer-events: all;
+		z-index: 200;
 
-	&.collapsed > .body
-	{
-		display: none;
-	}
-
-	// the inspected object and the tool options, tabs go under the page and it rolls up out of them
-	&.bottom-right
-	{
-		right: $deadzone-x;
-		bottom: $deadzone-y;
-		flex-direction: column-reverse;
-		align-items: flex-end;
+		&.top-left
+		{
+			top: calc( $deadzone-y + $context-menu-bar-height );
+			left: $deadzone-x;
+		}
 
 		> .tabs
 		{
-			justify-content: flex-end;
+			@include ui-wrapped-tab-bar;
+			align-content: flex-start;
+			max-width: 724px;
 		}
 
+		&.top-left:not(.collapsed) > .tabs { border-bottom: 1px solid $ui-separator; }
+		&.bottom-right:not(.collapsed) > .tabs { border-top: 1px solid $ui-separator; }
+
+		// sized by the page in it, the page keeps its own size while the body rolls open or shut around it
 		> .body
 		{
-			justify-content: flex-end;
-			align-items: flex-end;
+			flex-direction: column;
+			flex-shrink: 0;
+			min-height: 0px;
 
-			// the whole window is 450px tall at least and half the screen at most,
-			// the page gets that less the tabs (24px), the space above them (8px), padding and border (18px)
 			> *
 			{
-				width: 500px;
-				min-height: 400px;
-				max-height: calc( 50vh - 50px );
-				margin-top: 0px;
-				margin-bottom: 8px;
+				flex-shrink: 0;
+			}
+
+			> .hidden
+			{
+				display: none;
+			}
+		}
+
+		&.rolling > .body
+		{
+			overflow: hidden;
+		}
+
+		&.collapsed > .body
+		{
+			display: none;
+		}
+
+		UISheet .sheet-group > .header, GameObjectInspector .group-header
+		{
+			@include ui-section-band;
+			min-height: 26px;
+			padding: 4px 8px;
+			text-transform: none;
+			.title { font-size: 13px; font-weight: 700; color: $ui-text-strong; text-transform: none; }
+		}
+
+		.sheet-row > .label, .material-row > label { font-size: 13px; }
+		UIButton.button:not(.active), UIDropdown, ResourcePickerButton
+		{
+			border-radius: $ui-menu-radius;
+			@include ui-control-surface;
+		}
+
+		&.bottom-right
+		{
+			right: $deadzone-x;
+			bottom: $deadzone-y;
+			flex-direction: column-reverse;
+
+			> .tabs
+			{
+				justify-content: flex-end;
+			}
+
+			> .body
+			{
+				justify-content: flex-end;
+				align-items: flex-end;
+
+				> *
+				{
+					width: 500px;
+					min-height: min( 400px, 42vh );
+					max-height: calc( 50vh - 49px );
+				}
 			}
 		}
 	}
 }
+
+@import "/UI/Theme/Apply.scss";

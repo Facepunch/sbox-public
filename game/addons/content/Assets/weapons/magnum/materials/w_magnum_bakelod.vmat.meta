@@ -21,8 +21,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/magnum/materials/w_magnum_bakelod.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/magnum/materials/w_magnum_bakelod.vmat"
       }
     }
   }

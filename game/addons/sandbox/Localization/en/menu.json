@@ -110,6 +110,7 @@
     "spawnmenu.effects.no_installed": "No installed effects.",
 
     "spawnmenu.common.no_results": "No results.",
+    "spawnmenu.dupes.empty_local": "No saved dupes yet",
     "spawnmenu.empty.try_another_category": "Try another category or adjust your search.",
     "spawnmenu.empty.mount_unavailable": "This mount may no longer be available.",
 
@@ -211,6 +212,8 @@
     "spawnmenu.utility.camera": "Camera",
     "spawnmenu.utility.weapons": "Weapons",
     "spawnmenu.utility.interface": "Interface",
+    "spawnmenu.utility.theme.switch_light": "Switch to light mode",
+    "spawnmenu.utility.theme.switch_dark": "Switch to dark mode",
     "spawnmenu.utility.view_tilt": "View Tilt",
     "spawnmenu.utility.view_tilt_description": "Sideways camera tilt strength. 0 disables tilt; 1 uses full strength.",
     "spawnmenu.utility.view_bobbing": "View Bobbing",

@@ -3,12 +3,12 @@
 @inherits Panel
 @namespace Sandbox
 @attribute [InspectWindow.Tab]
-@attribute [Icon( "🖥️" )]
+@attribute [Icon( "dashboard" )]
 @attribute [Title( "#spawnmenu.tab.hud" )]
 @attribute [Order( 300 )]
 
 <root>
-    <UISettingsPane Title=@Game.Language.GetPhrase( "spawnmenu.tab.hud" )>
+    <UISettingsPane>
         <Body>
             <UISheet Target="@Settings" PropertyFilter="@UISheet.PropertiesAndButtons" />
         </Body>

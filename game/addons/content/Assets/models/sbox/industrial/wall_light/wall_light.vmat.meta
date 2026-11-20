@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/industrial/wall_light/wall_light.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/industrial/wall_light/wall_light.vmat"
       }
     },
     "HammerAutoPackageReferences": null

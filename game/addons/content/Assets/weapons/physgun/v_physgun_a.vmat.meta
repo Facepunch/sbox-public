@@ -21,8 +21,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/physgun/v_physgun_a.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/physgun/v_physgun_a.vmat"
       }
     }
   }

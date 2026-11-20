@@ -1,6 +1,11 @@
 @import "/UI/Theme.scss";
 
-LocalDupeIcon
+@mixin component-theme
 {
-    @include ui-dupe-card;
+    LocalDupeIcon
+    {
+        @include ui-dupe-card;
+    }
 }
+
+@import "/UI/Theme/Apply.scss";

@@ -1,14 +1,16 @@
-// light palette, the default look of the sandbox UI
-// every palette defines the same set of tokens, Theme.scss picks one
+// Light palette
 
 $ui-blue: #3e83eb;
-$ui-blue-soft: rgba( 62, 131, 235, 0.14 );
+$ui-blue-soft: rgba( $ui-blue, 0.14 );
 $ui-danger: #d04040;
 
 // a row of a menu under the mouse, a stronger blue than the soft one of the lists
-$ui-hover-fill: rgba( 62, 131, 235, 0.35 );
-$ui-hover-border: rgba( 62, 131, 235, 0.68 );
+$ui-hover-fill: rgba( $ui-blue, 0.35 );
+$ui-hover-border: rgba( $ui-blue, 0.68 );
 $ui-hover-text: #56759e;
+$ui-selected-bg: $ui-blue;
+$ui-selected-text: white;
+$ui-title-bg: $ui-blue;
 
 // text inside a section
 $ui-text: #555555;
@@ -33,6 +35,11 @@ $ui-block-border: rgba( 255, 255, 255, 0.38 );
 $ui-section-top: rgba( 255, 255, 255, 0.90 );
 $ui-section-bottom: rgba( 245, 245, 245, 0.80 );
 $ui-section-border: rgba( 0, 0, 0, 0.51 );
+$ui-menu-body: rgba( 222, 229, 235, 0.94 );
+$ui-catalog-surface: rgba( 246, 248, 250, 0.94 );
+$ui-resource-preview-bg: $ui-catalog-surface;
+$ui-catalog-selected-bg: #2967ba;
+$ui-sidebar-heading-text: $ui-catalog-selected-bg;
 
 // solid surfaces that float over everything, dropdown lists and pickers
 $ui-popup-bg: #e8e8e8;
@@ -52,18 +59,13 @@ $ui-button-bottom: rgba( 230, 230, 230, 0.9 );
 $ui-button-border: rgba( 0, 0, 0, 0.33 );
 $ui-row-alt: rgba( 0, 0, 0, 0.05 );
 $ui-row-hover-outline: rgba( 0, 0, 0, 0.15 );
+$ui-field-border: $ui-row-hover-outline;
 $ui-separator: rgba( 0, 0, 0, 0.12 );
-$ui-tree-line: #dbdbdb;
 $ui-scroll-track: #d0d0d0;
-
-// menu tabs
-$ui-tab-bg: #676767;
-$ui-tab-bg-hover: #707070;
-$ui-tab-bg-active: #878787;
-$ui-tab-border: #464646;
 
 // the dark fill behind the picture of a card or a spawn icon
 $ui-tile-bg: rgba( 0, 0, 0, 0.16 );
+$ui-spawn-preview-bg: rgba( 255, 255, 255, 0.66 );
 $ui-tile-title-bg: white;
 $ui-tile-title-text: black;
 $ui-tile-outline: white;
@@ -75,6 +77,7 @@ $ui-card-hover-subtext: rgba( 0, 0, 0, 0.6 );
 
 // slider: the line and its ticks, and the thumb
 $ui-slider-line: #8a8a8a;
+$ui-slider-track: rgba( $ui-slider-line, 0.5 );
 $ui-slider-thumb: #9b9b9b;
 $ui-slider-thumb-border: #6d6d6d;
 $ui-slider-thumb-hover: #b0b0b0;

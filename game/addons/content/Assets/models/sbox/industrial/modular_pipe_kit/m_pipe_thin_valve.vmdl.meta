@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_thin_valve.vmdl",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_thin_valve.vmdl"
       }
     },
     "HammerAutoPackageReferences": null

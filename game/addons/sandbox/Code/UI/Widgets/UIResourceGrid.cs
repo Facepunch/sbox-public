@@ -73,6 +73,7 @@ public class UIResourceGrid : BaseControl
 	// the grid's border and padding top and bottom
 	const float Frame = 2f + 2f;
 	const float BarRoom = 9f;
+	const int Columns = 6;
 
 	// minimum/maximum amount of rows that can be displayed in a resource grid panel
 	const int MinRows = 1;
@@ -92,7 +93,7 @@ public class UIResourceGrid : BaseControl
 		_fittedCount = _cells.Count;
 
 		var toDesign = ScaleFromScreen;
-		var rows = (int)MathF.Ceiling( _cells.Count / 3f );
+		var rows = (_cells.Count + Columns - 1) / Columns;
 		var shownRows = rows.Clamp( MinRows, MaxRows );
 
 		var cell = CellPixels( inner );
@@ -109,7 +110,7 @@ public class UIResourceGrid : BaseControl
 		SetClass( "scrolls", scrolls );
 
 		// whole pixels for the gaps too, the last pixel of slack stays at the right
-		var gap = MathF.Max( 1f, MathF.Floor( (inner - bar - 3f * cell - 1f) / 2f ) );
+		var gap = MathF.Max( 1f, MathF.Floor( (inner - bar - Columns * cell - 1f) / (Columns - 1) ) );
 		Style.ColumnGap = gap * toDesign;
 
 		// an empty grid keeps the short height of its style
@@ -125,7 +126,7 @@ public class UIResourceGrid : BaseControl
 		}
 	}
 
-	static float CellPixels( float room ) => MathF.Floor( (room - 3f) / 3f );
+	static float CellPixels( float room ) => MathF.Floor( (room - Columns) / Columns );
 
 	void UpdateSelection()
 	{

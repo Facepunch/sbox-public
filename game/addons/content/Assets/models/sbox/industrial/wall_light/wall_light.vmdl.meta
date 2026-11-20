@@ -15,7 +15,6 @@
       "IsStandaloneOnly": false,
       "Metadata": {
         "SingleAssetSource": "models/sbox/industrial/wall_light/wall_light.vmdl",
-        "ParentPackage": "facepunch.sbox_content",
         "AssetLicense": "CC0"
       }
     }

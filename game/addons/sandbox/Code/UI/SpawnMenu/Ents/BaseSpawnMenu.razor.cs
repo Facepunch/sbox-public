@@ -13,7 +13,7 @@ public partial class BaseSpawnMenu : Panel
 	bool _addedFooter;
 
 	Panel TreeContainer;
-	readonly TreeView<SpawnMenuOption> Tree = new();
+	readonly TreeView<SpawnMenuOption> Tree = new() { RowHeight = 30, IndentWidth = 12 };
 
 	/// <summary>
 	/// Top level options and headers.
@@ -37,6 +37,7 @@ public partial class BaseSpawnMenu : Panel
 		Tree.GetChildren = o => o.Children;
 		Tree.GetParent = o => o.Parent;
 		Tree.CanExpand = o => o.Enabled && o.HasChildren;
+		Tree.GetHeight = o => o.IsHeader ? 34f + HeadingGap( o ) : o.Parent is null ? Tree.RowHeight : 26f;
 		Tree.OnRow = BindRow;
 		Tree.OnSelect = OnTreeSelect;
 		Tree.OnContextMenu = o => o.OnRightClick?.Invoke();
@@ -79,6 +80,7 @@ public partial class BaseSpawnMenu : Panel
 
 	protected bool _firstViewed;
 	readonly RealTimeSince _created = 0;
+	internal Tab MenuTab { get; set; }
 
 	public override void Tick()
 	{
@@ -86,7 +88,7 @@ public partial class BaseSpawnMenu : Panel
 
 		if ( _firstViewed ) return;
 
-		var prewarm = !HasClass( "hidden" ) && _created > 2f;
+		var prewarm = MenuTab?.Selected == true && _created > 2f;
 		if ( !IsVisible && !prewarm ) return;
 		if ( roots.Count == 0 ) return;
 		if ( !Switcher.IsValid() ) return;
@@ -176,7 +178,7 @@ public partial class BaseSpawnMenu : Panel
 	/// </summary>
 	public SpawnMenuOption AddHeader( string name, string icon = null )
 	{
-		currentHeader = new SpawnMenuOption { Name = name, Icon = icon };
+		currentHeader = new SpawnMenuOption { Name = name, Icon = icon, IsHeader = true };
 		roots.Add( currentHeader );
 
 		if ( knownHeaders.Add( name ) ) Tree.Open( currentHeader );
@@ -279,10 +281,14 @@ public partial class BaseSpawnMenu : Panel
 		SwitchOption( o );
 	}
 
+	float HeadingGap( SpawnMenuOption o ) => o.IsHeader && o != roots.FirstOrDefault() ? 10f : 0f;
+
 	void BindRow( TreeRow row, SpawnMenuOption o )
 	{
 		row.SetClass( "active", activeOption is not null && Tree.Comparer.Equals( o, activeOption ) );
 		row.SetClass( "disabled", !o.Enabled );
+		row.SetClass( "section-heading", o.IsHeader );
+		row.Style.PaddingTop = HeadingGap( o );
 
 		row.IconName = o.Icon;
 		row.Label.Tokenize = o.Tokenize;
@@ -324,6 +330,8 @@ public partial class BaseSpawnMenu : Panel
 
 	public class SpawnMenuOption
 	{
+		internal bool IsHeader { get; init; }
+
 		public string Name { get; set; }
 
 		/// <summary>

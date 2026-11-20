@@ -40,7 +40,7 @@ public class SpawnlistItem : IMixedVirtualGridFullRow
 	[JsonIgnore]
 	public float Height => Kind == SpawnlistItemKind.Title ? TitleHeight : DividerHeight;
 	const float DividerHeight = 42f;
-	const float TitleHeight = 72f;
+	const float TitleHeight = 48f;
 
 	public static string MakeIdent( string type, string path, string source = "local" )
 	{

@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "materials/sbox/trimsheets/plastic/plastic_trim.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "materials/sbox/trimsheets/plastic/plastic_trim.vmat"
       }
     },
     "HammerAutoPackageReferences": null

@@ -208,10 +208,21 @@ internal class NetworkTable : IDisposable
 		if ( !_entries.TryAdd( slot, entry ) )
 			return;
 
-		entry.Init( slot, _wakeParent );
+		var requestedQuery = entry.NeedsQuery;
+		try
+		{
+			entry.Init( slot, _wakeParent );
+			UpdateSlotHash( entry, entry.GetValue() );
+		}
+		catch
+		{
+			// The getter can look up its own slot. Release it if initialization fails so a refresh can retry.
+			entry.NeedsQuery = requestedQuery;
+			if ( _entries.TryGetValue( slot, out var registered ) && registered == entry )
+				_entries.Remove( slot );
 
-		var value = GetValue( slot );
-		UpdateSlotHash( slot, value );
+			throw;
+		}
 
 		entry.IsDirty = true;
 
@@ -488,9 +499,12 @@ internal class NetworkTable : IDisposable
 			catch ( Exception e )
 			{
 				Log.Warning( e, $"Error when getting value {entry.DebugName} - {e.Message}" );
+				continue;
 			}
-
-			bs.Dispose();
+			finally
+			{
+				bs.Dispose();
+			}
 
 			snapshot.AddSerialized( entry.Slot, entry.Serialized );
 

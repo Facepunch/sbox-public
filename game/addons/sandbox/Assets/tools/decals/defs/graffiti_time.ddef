@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "e10eeafa-e734-4f2e-beca-f0609f1e1e0d",
+    "Path": "decals/graffiti/graffiti_time.decal"
+  },
+  "Title": "#asset.decal.time.title",
+  "__references": [],
+  "__version": 0
+}

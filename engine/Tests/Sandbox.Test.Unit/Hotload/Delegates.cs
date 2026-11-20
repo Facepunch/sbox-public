@@ -97,8 +97,7 @@ public class DelegateTest : HotloadFixtureTestBase
 	}
 
 	/// <summary>
-	/// Tests handling the removal of a lambda definition. At the moment this should replace
-	/// the delegate with one that throws an exception explaining that the definition is gone.
+	/// A removed action is skipped so another subscriber to the same event still runs.
 	/// </summary>
 	[TestMethod]
 	public async Task RemovedLambda()
@@ -123,17 +122,47 @@ public class DelegateTest : HotloadFixtureTestBase
 				void IHotloadTestFixture.Test()
 				{
 			-		ActionSimple = CreateAction3( 10 );
+			-		ActionSimple += SurvivingHandler;
 			-
 					Assert.AreEqual( 0, IntField );
 			+
-			+		// TODO: maybe we can emit a valid version of the old method body
-			+		Assert.ThrowsException<NotImplementedException>( ActionSimple );
+			+		ActionSimple();
+			+		Assert.AreEqual( 1, IntField );
 				}
+
+				private void SurvivingHandler() => IntField++;
 			}
 			""",
 			allowErrors: true );
 
 		Assert.AreEqual( 1, result.Warnings.Count() );
+	}
+
+	/// <summary>
+	/// An open delegate takes the receiver as an argument even though the removed lambda has no parameters.
+	/// </summary>
+	[TestMethod]
+	public async Task RemovedOpenInstanceLambda()
+	{
+		await HotloadFixtureAsync(
+			"""
+			using System;
+
+			public class Receiver : IHotloadTestFixture
+			{
+				private int Calls;
+				private Action<Receiver> Callback;
+
+			-	private Action CaptureReceiver() => () => Calls++;
+
+				void IHotloadTestFixture.Test()
+				{
+			-		Callback = CaptureReceiver().Method.CreateDelegate<Action<Receiver>>();
+					Callback( this );
+					Assert.AreEqual( 1, Calls );
+				}
+			}
+			""" );
 	}
 
 	/// <summary>
