@@ -77,6 +77,22 @@ SamplerState TextureFiltering < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
 
 // What follows is Slang (extensions, operators, conversions): vfx's own parser, which reads a recompiled package shader
 // before Slang compiles it, skips it
+// instancing.fxc's GetExtraPerInstanceShaderData took the vertex input before it took the instance's transform index
+#ifdef SBOX_EMBEDDED_EXTRA_DATA_FROM_INPUT
+ExtraShaderData_t GetExtraPerInstanceShaderData( VS_INPUT i )
+{
+	return GetExtraPerInstanceShaderData( i.nInstanceTransformID );
+}
+#endif
+
+// morph.fxc's morphs read the atlas width from a declaration its includer makes (skinning_cs's). An older engine's vertex
+// code had a morph combo, which a package's compiled shader keeps: its morph combos declare the width here
+#ifdef SBOX_EMBEDDED_MORPH_ATLAS_WIDTH
+#if ( D_MORPH )
+uint g_nMorphTextureAtlasWidth < Attribute( "MorphTextureAtlasWidth" ); >;
+#endif
+#endif
+
 #if defined( __SLANG__ )
 
 // A world position's screen position as SV_Position has it in a pixel stage: pixels, depth, 1 / view depth
@@ -182,6 +198,16 @@ extension vector<float, 3>
 {
 	__implicit_conversion( 900 ) __init( float4 v ) { this = v.xyz; }
 }
+
+// common/classes/ScreenSpaceTrace.hlsl's result before the trace gave a screen uv: the hit with its uv in xy, and whether
+// it hit
+#ifdef SCREEN_SPACE_TRACE_HLSL
+extension TraceResult
+{
+	property float3 HitClipSpace { get { return float3( HitUv, 0.0 ); } }
+	property bool ValidHit { get { return Confidence > 0.0; } }
+}
+#endif
 
 #endif // __SLANG__
 

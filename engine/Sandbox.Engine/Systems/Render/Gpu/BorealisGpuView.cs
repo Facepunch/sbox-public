@@ -142,9 +142,12 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	void Graphics.IFrameView.RenderSceneObject( IRenderContext context, SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes )
 		=> RenderSceneObject?.Invoke( obj, transform, color, material, attributes );
 
-	// A target of only depth draws into the frame's colour, as native's layer binding assumes
+	// A target of only depth draws into the frame's colour, as native's layer binding assumes. Drawing into a target of its
+	// own maps depth 0 to 1, as native's viewport for it does (Graphics.RenderTarget sets only its rectangle, which native
+	// takes as the whole range): an outline effect reads the depth it draws there as that
 	void Graphics.IFrameView.BindTarget( IRenderContext context, RenderTarget target )
 	{
+		if ( backend is BorealisGpuRenderBackend gpu ) gpu.DepthRange = (0, 1);
 		if ( target.ColorTarget is null && Target?.ColorTarget is null ) return;
 		if ( target.ColorTarget is not null )
 		{
@@ -162,10 +165,11 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 		else backend.BindRenderTarget( target );
 	}
 
+	// Back on the frame's targets, with the depth range they had before (the frame's, where depth of field places its quad)
 	void Graphics.IFrameView.RestoreTargets( IRenderContext context, float minZ, float maxZ )
 	{
 		BindOwn();
-		backend.SetViewport( Viewport );
+		backend.SetViewport( new RenderViewport( Viewport, minZ, maxZ ) );
 	}
 
 	public void Dispose() => Frustum.Delete();

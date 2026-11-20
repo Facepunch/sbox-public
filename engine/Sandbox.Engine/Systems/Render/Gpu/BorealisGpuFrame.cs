@@ -137,6 +137,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 	byte[] upscaledConstants = [];
 	RenderTarget upscaledTarget;
 
+	// The view's depth range the scene drew in (its constants' ViewportMinZ and ViewportMaxZ), which the stages draw in
+	(float Min, float Max) depthRange = (0, 1);
+
 	/// <summary>
 	/// Take a frame Borealis rendered into <paramref name="target"/> on the backend's device, with the view constants it drew
 	/// with, and the bloom objects it drew (<see cref="RenderSystem.BloomObjects"/>), if any.
@@ -155,6 +158,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 		if ( constants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
+		depthRange = viewConstants.ViewportMaxZ > viewConstants.ViewportMinZ ? (viewConstants.ViewportMinZ, viewConstants.ViewportMaxZ) : (0, 1);
 
 		// Made here, outside any block: materials can't be made while drawing
 		if ( Multisampled ) depthResolve ??= Material.FromShader( "shaders/depthresolve.shader" );
@@ -509,6 +513,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 		var scope = Graphics.Scope.CreateOnView( backend, view );
 		try
 		{
+			// The stages draw in the view's depth range, as native's hook layers take the view's viewport: depth of field's
+			// back layer places its quad at the focus plane and depth tests it against the scene's depth in that range
+			backend.DepthRange = depthRange;
+
 			// A multisampled frame hands over its resolved colour, and its depth resolved to one sample to go with it: what the
 			// stages draw is depth tested against the scene, and what reads the bound depth (depth of field's
 			// RenderValue.DepthTarget, depth grabs) reads it. The view chain is built from every sample
