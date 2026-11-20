@@ -224,10 +224,10 @@ internal sealed partial class BackendContext : GpuContext
 			if ( recording.Active is { } last && last != this && last.recording == recording ) last.FlushClears();
 			CloseScope();
 			device.PassTimer?.End( recording.List, recording.TimerScope );
-			if ( recording.Layouts is not null ) SubmitLayoutFixUps( recording );
 			Span<SyncPoint> waits = stackalloc SyncPoint[1];
 			var waitCount = 0;
 			if ( wait.Handle != IntPtr.Zero ) waits[waitCount++] = device.PointOf( wait );
+			if ( recording.Layouts is not null ) SubmitLayoutFixUps( recording, waits[..waitCount] );
 
 			var point = waitCount == 0 && device.BatchSubmits ? Gpu.SubmitLater( recording.List ) : Gpu.Submit( recording.List, waits[..waitCount] );
 			if ( signal.Handle != IntPtr.Zero ) device.Signalled( signal, point );
@@ -271,9 +271,11 @@ internal sealed partial class BackendContext : GpuContext
 	/// Before a segment's own list: move every texture it used from where the lists submitted before left it to what
 	/// this one needs at its start, then remember where this one leaves it. Called in submission order. A planned list
 	/// (<see cref="PlanLayouts"/>) moved its textures itself from where the plan said they'd be, so it needs no fix-ups
-	/// while the plan holds; where they were is the plan for the next frame of this shape.
+	/// while the plan holds; where they were is the plan for the next frame of this shape. A list that waits for another
+	/// queue (async compute's handoff, or graphics taking compute's results back) has its fix-ups wait too: they move
+	/// textures that work may still be using.
 	/// </summary>
-	void SubmitLayoutFixUps( Session session )
+	void SubmitLayoutFixUps( Session session, ReadOnlySpan<SyncPoint> waits )
 	{
 		if ( planned ) plannedLayouts.Clear();
 
@@ -300,8 +302,8 @@ internal sealed partial class BackendContext : GpuContext
 		if ( fixUps is not null )
 		{
 			device.PassTimer?.End( fixUps, timed );
-			if ( device.BatchSubmits ) Gpu.SubmitLater( fixUps );
-			else Gpu.Submit( fixUps );
+			if ( device.BatchSubmits && waits.IsEmpty ) Gpu.SubmitLater( fixUps );
+			else Gpu.Submit( fixUps, waits );
 		}
 
 		LayoutFixUps += fixUps is null ? 0 : 1;
