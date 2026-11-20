@@ -324,6 +324,59 @@ public class EmbeddedCompatibilityTests
 		Assert.IsTrue( text.Contains( "float4 MarkTonemapExempt(", StringComparison.Ordinal ) && text.Contains( "void GetVoidFactors(", StringComparison.Ordinal ), text );
 	}
 
+	/// <summary>
+	/// HLSL's truncation through the intrinsics and into a scalar (a water shader's <c>min( float4, float2 )</c>, a float
+	/// function returning <c>float4( ... )</c>), while the engine's own calls (<c>max( float3, float )</c>,
+	/// <c>min( float4, float )</c>) keep the built-ins: none is ambiguous, each result its size.
+	/// </summary>
+	[TestMethod]
+	public void TruncationThroughIntrinsicsAndIntoScalarsCompiles()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			Texture2D g_tColor < Attribute( "Color" ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float Grey( float3 c )
+			{
+				float f = dot( c, float3( 0.3, 0.6, 0.1 ) );
+				return float4( f.xxx, 1.0 );
+			}
+			float4 MainPs( PS_INPUT i ) : SV_Target0
+			{
+				float4 c = g_tColor.Sample( g_sBilinearClamp, i.vUv );
+				float2 edge = min( c, g_vViewportSize - i.vUv ) + max( i.vUv, c );
+				float3 lit = min( c, i.vPositionWs ) + max( i.vPositionWs, c );
+				float3 floor3 = max( c.rgb - 0.5f, 0.0f );
+				float4 ceil4 = min( c, 1.0f );
+				return float4( lit * Grey( floor3 ) + float3( edge, 0 ), 1 ) * ceil4;
+			}
+			""";
+		Compiles( pixel, "embedded_intrinsic_truncation" );
+	}
+
+	/// <summary>An older engine's <c>TerrainStruct.Resolution</c>, its units per texel today (Rust Legacy's grass).</summary>
+	[TestMethod]
+	public void AnOlderTerrainResolutionCompiles()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			#include "common/shared.hlsl"
+			struct PixelInput
+			{
+				#include "common/pixelinput.hlsl"
+			};
+			#include "terrain/TerrainCommon.hlsl"
+			float4 MainPs( PixelInput i ) : SV_Target0
+			{
+				float2 uv = i.vPositionWithOffsetWs.xy / ( 512.0 * Terrain::Get().Resolution );
+				return float4( uv, 0, 1 );
+			}
+			""";
+		Compiles( pixel, "embedded_older_terrain" );
+	}
+
 	/// <summary>The samplers the converter leaves to the engine are common_samplers.fxc's.</summary>
 	[TestMethod]
 	public void EngineSamplersAreCommonSamplers()
