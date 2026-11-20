@@ -528,16 +528,19 @@ public sealed unsafe partial class Device
 
 		ulong pipeline;
 		LinkedParts parts = null;
+		var optimised = false;
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		using ( Zone( ZonePipeline ) )
 		{
 			if ( UsesLibraries( info ) )
 			{
 				parts = AcquireParts( info, layout );
+				optimised = LinksOptimisedAtOnce( info );
 				try
 				{
-					pipeline = Link( parts, layout, optimise: false );
+					pipeline = Link( parts, layout, optimised );
 					Interlocked.Increment( ref linksMade );
+					if ( optimised ) Interlocked.Increment( ref optimisedMade );
 				}
 				catch
 				{
@@ -563,6 +566,7 @@ public sealed unsafe partial class Device
 				ref var record = ref Pipelines.Get( handle.Index, handle.Generation );
 				record.Parts = parts;
 				record.Pending = false;
+				record.Optimised = optimised;
 				Volatile.Write( ref record.Pipeline, pipeline );
 			}
 			else
@@ -582,7 +586,7 @@ public sealed unsafe partial class Device
 		}
 
 		Interlocked.Increment( ref deferredMade );
-		if ( alive && parts is not null ) QueueOptimise( handle, parts, layout );
+		if ( alive && parts is not null && !optimised ) QueueOptimise( handle, parts, layout );
 	}
 
 	/// <summary>Stop the builder threads, finishing what they're making; what's still queued isn't made.</summary>

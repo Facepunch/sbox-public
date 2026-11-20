@@ -80,6 +80,9 @@ internal struct ShaderRecord
 
 	/// <summary>Its SPIR-V's hash, with pipeline libraries: parts are keyed and recorded by it.</summary>
 	public UInt128 Hash;
+
+	/// <summary>Whether it discards (OpKill, OpTerminateInvocation, OpDemoteToHelperInvocation), where that's looked for (<see cref="Device.LinksDiscardsOptimised"/>).</summary>
+	public bool Discards;
 }
 
 internal struct LayoutRecord
@@ -768,7 +771,7 @@ public sealed unsafe partial class Device
 			SetName( VkObjectType.ShaderModule, module, name );
 
 			var hash = pipelineLibraries ? SpirvHash( spirv ) : 0;
-			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module, Hash = hash } );
+			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module, Hash = hash, Discards = LinksDiscardsOptimised && Discards( spirv ) } );
 			var handle = new ShaderHandle( index, generation );
 			if ( pipelineLibraries )
 			{
