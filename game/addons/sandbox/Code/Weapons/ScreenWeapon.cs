@@ -12,6 +12,12 @@ public partial class ScreenWeapon : BaseSandboxWeapon
 	private TimeSince _lastScreenUpdate;
 	private TimeSince _sinceTransition = float.MaxValue;
 
+	public ScreenWeapon()
+	{
+		// Not a gun: nothing it does is a bullet.
+		AttackDamageTags = [];
+	}
+
 	/// <summary>
 	/// How long a screen transition lasts after <see cref="StartScreenTransition"/>
 	/// </summary>

@@ -87,7 +87,7 @@
         "Force": 1,
         "Handedness": "Both",
         "HoldBone": "hold_r",
-        "HoldType": "pistol",
+        "HoldType": "throwable",
         "IncrementalReloading": false,
         "Lifetime": 3,
         "MaxDamage": 125,

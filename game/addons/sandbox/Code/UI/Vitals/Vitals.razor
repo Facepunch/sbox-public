@@ -33,7 +33,7 @@
     [Property, Group( "Damage Flash" ), Range( 0, 1 )] public float DamageFlashDuration { get; set; } = 0.15f;
 
     Player Player => Player.FindLocalPlayer();
-    BaseSandboxWeapon Weapon => Player?.GetComponent<PlayerInventory>()?.ActiveWeapon as BaseSandboxWeapon;
+    BaseCombatWeapon Weapon => Player?.GetComponent<PlayerInventory>()?.ActiveWeapon;
 
     // The readouts are painted by the shared HUD layer (see HudLayer, VitalsSection)
     VitalsSection section;
@@ -77,9 +77,9 @@
         };
     }
 
-    static bool HasSecondaryAmmo( BaseSandboxWeapon weapon ) => weapon.UsesSecondaryClip || weapon.SecondaryAmmoType is not null;
+    static bool HasSecondaryAmmo( BaseCombatWeapon weapon ) => weapon.UsesSecondaryClip || weapon.SecondaryAmmoType is not null;
 
-    static int SecondaryAmmo( BaseSandboxWeapon weapon )
+    static int SecondaryAmmo( BaseCombatWeapon weapon )
     {
         if ( weapon.UsesSecondaryClip ) return System.Math.Max( weapon.Clip2, 0 );
         return weapon.SecondaryAmmoType is not null ? weapon.Ammo2 : 0;

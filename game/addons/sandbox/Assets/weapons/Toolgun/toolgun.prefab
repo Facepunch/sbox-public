@@ -82,7 +82,7 @@
         "FirstShellReloadTime": 0,
         "Handedness": "Both",
         "HoldBone": "hold_r",
-        "HoldType": "Pistol",
+        "HoldType": "pistol",
         "IncrementalReloading": false,
         "Npc": {
           "MinRange": 0,

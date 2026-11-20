@@ -32,9 +32,9 @@ public class EntityPage : BaseSpawnMenu
 		AddOption( "\U0001f9e0", "#spawnmenu.entity.all", () => new EntityListCloud { IncludeLocalEntities = true, ExcludedLocalCategoryRoots = new[] { "Weapon", "Npc" }, Query = "-cat:weapon -cat:npc" } );
 
 		var categories = ResourceLibrary.GetAll<ScriptedEntity>()
-			.Where( e => !e.Developer || ServerSettings.ShowDeveloperEntities )
+			.Where( e => !e.IsRemote && e.IsMountAvailable && (!e.Developer || ServerSettings.ShowDeveloperEntities) )
 			.Select( e => SpawnMenuCategory.Root( e.Category ) )
-			.Where( category => !string.Equals( category, "Weapon", StringComparison.OrdinalIgnoreCase ) && !string.Equals( category, "Npc", StringComparison.OrdinalIgnoreCase ) )
+			.Where( category => !IsWeaponOrNpc( category ) )
 			.Distinct()
 			.OrderBy( c => string.Equals( c, "Other", StringComparison.OrdinalIgnoreCase ) )
 			.ThenBy( c => LocalizedText.Resolve( CategoryTitle( c ) ), StringComparer.CurrentCultureIgnoreCase );
@@ -62,5 +62,9 @@ public class EntityPage : BaseSpawnMenu
 		AddCloudCategory( "🧸", "#spawnmenu.entity.toys_and_fun", "toyfun" );
 		AddCloudCategory( "🚚", "#spawnmenu.entity.vehicle", "vehicle" );
 		// AddOption( "⭐", "Favourites", () => new EntityListCloud() { Query = "sort:favourite" } );
+
+		AddMountedSections( MountedPrefabs.ItemTag, entity => !IsWeaponOrNpc( SpawnMenuCategory.Root( entity.Category ) ) );
 	}
+
+	static bool IsWeaponOrNpc( string category ) => string.Equals( category, "Weapon", StringComparison.OrdinalIgnoreCase ) || string.Equals( category, "Npc", StringComparison.OrdinalIgnoreCase );
 }

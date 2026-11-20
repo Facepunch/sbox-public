@@ -100,7 +100,7 @@
         "FirstShellReloadTime": 0,
         "Handedness": "Both",
         "HoldBone": "hold_r",
-        "HoldType": "Rifle",
+        "HoldType": "rifle",
         "IncrementalReloading": false,
         "Npc": {
           "MinRange": 0,

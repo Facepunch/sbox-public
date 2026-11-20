@@ -2,11 +2,6 @@ using Sandbox.Rendering;
 
 public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IPlayerControllable
 {
-	// DisplayName, DisplayIcon, Value, Slot, ViewModel and WorldModel are all inherited from the
-	// engine BaseCombatWeapon / BaseInventoryItem. (DisplayIcon also satisfies IKillIcon.)
-
-	// MuzzleGameObject is inherited from the engine BaseCombatWeapon.
-
 	/// <summary>
 	/// Used for overriding the display icon
 	/// </summary>
@@ -21,9 +16,6 @@ public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IP
 	/// Which parts of the HUD <see cref="WantsHideHud"/> hides. Everything by default.
 	/// </summary>
 	public virtual HudElement HiddenHudElements => HudElement.All;
-
-	// WeaponModel resolution (view model when drawn, else world model, else own hierarchy) comes from
-	// the engine BaseCombatWeapon.
 
 	/// <summary>
 	/// The owner of this carriable
@@ -47,14 +39,8 @@ public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IP
 	public virtual bool IsTargetedAim => false;
 
 	/// <summary>
-	/// What an NPC holding this weapon is shooting at. While set, shots go from the muzzle to the
-	/// target's chest instead of along the barrel, which follows the animation and drifts high.
-	/// </summary>
-	public GameObject NpcAimTarget { get; set; }
-
-	/// <summary>
-	/// Controlled from a seat with targeted aim fires where the camera looks; an NPC fires at its
-	/// <see cref="NpcAimTarget"/>; otherwise the engine's muzzle-based unheld aim applies.
+	/// Controlled from a seat with targeted aim fires where the camera looks; otherwise the engine's
+	/// muzzle-based unheld aim applies.
 	/// </summary>
 	protected override Ray UnheldAimRay
 	{
@@ -64,34 +50,19 @@ public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IP
 			if ( seated.IsValid() && IsTargetedAim && Scene.Camera.IsValid() )
 				return Scene.Camera.Transform.World.ForwardRay;
 
-			if ( NpcAimTarget.IsValid() )
-			{
-				var muzzle = GetMuzzleTransform().Position;
-				return new Ray( muzzle, (GetChestPosition( NpcAimTarget ) - muzzle).Normal );
-			}
-
 			return base.UnheldAimRay;
 		}
 	}
 
 	/// <summary>
-	/// Roughly chest height - most of the way from the feet up to the eyes, so it follows crouching.
-	/// </summary>
-	private static Vector3 GetChestPosition( GameObject target )
-	{
-		var eyes = Sandbox.Npcs.Layers.AnimationLayer.GetEyePosition( target );
-		return Vector3.Lerp( target.WorldPosition, eyes, 0.7f );
-	}
-
-	/// <summary>
 	/// The root GameObject to ignore when tracing from AimRay.
 	/// </summary>
-	public GameObject AimIgnoreRoot => HasOwner ? Owner.GameObject : GameObject;
+	public GameObject AimIgnoreRoot => Holder?.GameObject ?? GameObject;
 
 	/// <summary>
 	/// Who gets credit for this weapon's damage (the engine's <see cref="Sandbox.BaseCombatWeapon.Attacker"/>).
 	/// The owning player if held, the seated player if controlled from a contraption seat, otherwise
-	/// the nearest kill source or the weapon itself.
+	/// the nearest kill source, the engine's holder (an NPC), or the weapon itself.
 	/// </summary>
 	protected override GameObject Attacker
 	{
@@ -102,10 +73,9 @@ public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IP
 			var seatedPlayer = ControlContext.Player;
 			if ( seatedPlayer.IsValid() ) return seatedPlayer.GameObject;
 
-			var killSource = GetComponentInParent<IKillSource>( true );
-			if ( killSource is Component c ) return c.GameObject;
+			if ( GetComponentInParent<IKillSource>( true ) is Component killSource ) return killSource.GameObject;
 
-			return GameObject;
+			return base.Attacker;
 		}
 	}
 
@@ -127,15 +97,10 @@ public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IP
 	/// </summary>
 	protected override void OnAdded( Sandbox.BaseInventoryComponent inventory )
 	{
-		// In an inventory - not a world pickup any more.
 		IsDropped = false;
 
 		base.OnAdded( inventory );
 	}
-
-	//
-	// Seat / contraption inputs - a mounted weapon fires from the driver's configured bindings.
-	//
 
 	/// <summary>
 	/// The input that fires the primary attack when this weapon is controlled via a seat.
@@ -154,15 +119,6 @@ public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IP
 	{
 		var isLinked = GameObject.Root.GetComponentsInChildren<ManualLink>( true ).Any();
 		return !isLinked && !ShootInput.IsEnabled && !SecondaryInput.IsEnabled;
-	}
-
-	/// <summary>Stays put away while the owner sits with their weapons holstered (see <see cref="PlayerInventory.IsSeatHolstered"/>).</summary>
-	protected override bool OnCanSwitchTo()
-	{
-		if ( Inventory is PlayerInventory { IsSeatHolstered: true } )
-			return false;
-
-		return base.OnCanSwitchTo();
 	}
 
 	/// <summary>A seated player can only control this while not holding a weapon of their own.</summary>
@@ -338,35 +294,6 @@ public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IP
 		}
 
 		return true;
-	}
-
-	protected override void OnHolstered()
-	{
-		base.OnHolstered();
-
-		_ = EnableIfDroppedAsync();
-	}
-
-	/// <summary>
-	/// The engine disables a holstered weapon on every peer. Dropping the held weapon holsters it first and then enables
-	/// it again on the host, but clients only ever see the end state ("enabled", the same as before), so their copy of a
-	/// dropped weapon stayed disabled and invisible
-	/// </summary>
-	private async Task EnableIfDroppedAsync()
-	{
-		for ( var waited = 0f; waited < 1f; waited += 0.05f )
-		{
-			await GameTask.DelaySeconds( 0.05f );
-
-			if ( !this.IsValid() )
-				return;
-
-			if ( !Inventory.IsValid() )
-			{
-				GameObject.Enabled = true;
-				return;
-			}
-		}
 	}
 
 	/// <summary>

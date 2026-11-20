@@ -1,6 +1,6 @@
 /// <summary>
 /// Implement on any component that can appear as an attacker in the kill feed.
-/// Examples: Player, Npc, explosive barrel, turret, whatever the fuck.
+/// Examples: Player, BaseNpc, explosive barrel, turret, whatever the fuck.
 /// </summary>
 public interface IKillSource
 {

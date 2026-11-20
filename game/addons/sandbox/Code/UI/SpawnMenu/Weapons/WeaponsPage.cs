@@ -7,5 +7,7 @@ public class WeaponsPage : BaseSpawnMenu
 		AddOption( "🗡️", "#spawnmenu.weapon.melee", () => new EntityListCloud { LocalCategory = "Weapon/Melee", Query = "+weapon +melee" } );
 		AddOption( "🛠️", "#spawnmenu.weapon.utility", () => new EntityListCloud { LocalCategory = "Weapon/Utility", Query = "+weapon +utility" } );
 		AddOption( "🔫", "#spawnmenu.weapon.weapons", () => new EntityListCloud { LocalCategory = "Weapon", IncludeLocalSubcategories = false, Query = "+weapon +ranged" } );
+
+		AddMountedSections( MountedPrefabs.WeaponTag, entity => SpawnMenuCategory.Matches( entity.Category, "Weapon" ) );
 	}
 }

@@ -91,7 +91,7 @@
         "FirstShellReloadTime": 0,
         "Handedness": "Right",
         "HoldBone": "hold_r",
-        "HoldType": "Pistol",
+        "HoldType": "pistol",
         "IncrementalReloading": false,
         "IronSightsFireScale": 0.2,
         "Npc": {

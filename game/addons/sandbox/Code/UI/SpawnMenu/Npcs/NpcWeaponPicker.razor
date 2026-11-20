@@ -10,9 +10,9 @@
 
 @code
 {
-    List<UIDropdown.Item> Items => Sandbox.Npcs.CombatNpc.CombatNpc.PickableWeapons
-        .OrderBy( entity => LocalizedText.Resolve( entity.Title ), StringComparer.CurrentCultureIgnoreCase )
-        .Select( entity => new UIDropdown.Item( entity.Title, entity.Prefab.ResourcePath ) )
+    List<UIDropdown.Item> Items => NpcWeapons.LoadPickableWeapons()
+        .OrderBy( weapon => LocalizedText.Resolve( weapon.Title ), StringComparer.CurrentCultureIgnoreCase )
+        .Select( weapon => new UIDropdown.Item( weapon.Title, weapon.PrefabPath ) )
         .Prepend( new UIDropdown.Item( "#spawnmenu.npc.weapon_default", "" ) )
         .ToList();
 

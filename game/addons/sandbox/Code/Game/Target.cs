@@ -20,7 +20,7 @@ public readonly struct Target
 	public T Get<T>() where T : class => IsValid ? GameObject.GetComponentInParent<T>( true ) : null;
 
 	public bool IsPlayer => Get<Player>() is not null;
-	public bool IsNpc => Get<Npc>() is not null;
+	public bool IsNpc => Get<BaseNpc>() is not null;
 
 	public static implicit operator Target( GameObject gameObject ) => new( gameObject );
 	public static implicit operator GameObject( Target target ) => target.GameObject;

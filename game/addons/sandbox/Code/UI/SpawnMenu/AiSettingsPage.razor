@@ -32,14 +32,14 @@
         public bool AiEnabled
         {
             get => NpcConVars.Enabled;
-            set => GameManager.SetConVar( "sandbox.ai.enabled", value );
+            set => GameManager.SetConVar( "npc_enabled", value );
         }
 
         [Property, Title( "#spawnmenu.utility.no_target" ), Description( "#spawnmenu.utility.no_target_description" ), Order( 1 )]
         public bool NoTarget
         {
             get => NpcConVars.NoTarget;
-            set => GameManager.SetConVar( "sandbox.ai.notarget", value );
+            set => GameManager.SetConVar( "npc_notarget", value );
         }
     }
 }

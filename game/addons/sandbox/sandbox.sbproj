@@ -10,7 +10,9 @@
   "PublishUsedAssetsOnly": true,
   "PackageReferences": [],
   "EditorReferences": null,
-  "Mounts": [],
+  "Mounts": [
+    "hl2"
+  ],
   "IsStandaloneOnly": false,
   "AI": {
     "EnableMcpCommunication": true

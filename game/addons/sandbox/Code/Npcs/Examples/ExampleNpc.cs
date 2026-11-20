@@ -7,15 +7,16 @@ namespace Sandbox.Npcs.Examples;
 /// goes to investigate any gunshot or disturbance it hears nearby.
 ///
 /// Everything an NPC needs is here:
-///   1. A <see cref="Npc.Faction"/> -- who it is, so others know how to treat it.
+///   1. A <see cref="BaseNpc.Faction"/> -- who it is, so others know how to treat it.
 ///   2. Relationships -- who it fights / fears / likes (see <see cref="SetupRelationships"/>).
-///   3. A <see cref="GetSchedule"/> -- what it wants to do right now.
+///   3. A <see cref="SelectSchedule"/> -- what it wants to do right now.
 ///
 /// To put one in the world, make a prefab with this component plus a NavMeshAgent, a
-/// SkinnedModelRenderer (wire it to the Renderer field), and a Collider. The four AI layers
-/// (Senses, Navigation, Animation, Speech) are added for you automatically.
+/// SkinnedModelRenderer (wire it to the Renderer field), and a Collider. The Animation layer
+/// is added for you; add the Senses and Navigation layers it uses (and Speech if it talks)
+/// yourself, plus a <see cref="CitizenNpcAnimator"/> if the model uses the citizen animgraph.
 /// </summary>
-public sealed class ExampleNpc : Npc
+public sealed class ExampleNpc : BaseNpc
 {
 	// This NPC is a peaceful citizen. It declares no hostilities, so it fights nobody;
 	// enemies/monsters, which are hostile to citizens, will still come after it.
@@ -23,24 +24,23 @@ public sealed class ExampleNpc : Npc
 
 	protected override void SetupRelationships()
 	{
-		// It's wary of danger -- it flees anything hostile-flavoured on sight.
-		Fears( Factions.Enemy, Factions.Monster );
+		// It's wary of danger -- enemies and monsters show up in Senses.VisibleThreats.
+		SetRelationship( Factions.Enemy, Disposition.Fearful );
+		SetRelationship( Factions.Monster, Disposition.Fearful );
 	}
 
 	// Called whenever the NPC needs to decide what to do. Return the schedule it should run;
 	// list the most important options first. A higher-priority schedule automatically
 	// interrupts a lower one when something changes (e.g. hearing a gunshot mid-wander).
-	public override ScheduleBase GetSchedule()
+	protected override BaseSchedule SelectSchedule()
 	{
-		// Heard a gunshot, death, or other disturbance? Go take a look.
-		if ( Senses.Disturbance is { } disturbance )
+		if ( Senses?.Disturbance is { } disturbance )
 		{
 			var investigate = GetSchedule<InvestigateSchedule>();
-			investigate.Target = disturbance.Position;
+			investigate.TargetPosition = disturbance.Position;
 			return investigate;
 		}
 
-		// Nothing going on -- just wander around.
 		return GetSchedule<WanderSchedule>();
 	}
 }

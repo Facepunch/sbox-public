@@ -284,5 +284,10 @@
     "spawnmenu.common.load": "Load",
     "spawnmenu.common.items": "items",
 
-    "spawnmenu.mounts.error": "Error getting mount."
+    "spawnmenu.mounts.error": "Error getting mount.",
+    "spawnmenu.mount.not_mounted": "{game} isn't mounted",
+    "spawnmenu.mount.session": "Mount it to spawn what it has, for this session.",
+    "spawnmenu.mount.button": "Mount {game}",
+    "spawnmenu.mount.mounting": "Mounting {game}...",
+    "spawnmenu.mount.failed": "{game} couldn't be mounted"
 }

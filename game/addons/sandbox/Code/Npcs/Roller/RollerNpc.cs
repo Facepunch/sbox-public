@@ -1,12 +1,13 @@
 using Sandbox.Npcs.Layers;
 using Sandbox.Npcs.Roller.Schedules;
+using Sandbox.Npcs.Schedules;
 
 namespace Sandbox.Npcs.Roller;
 
 /// <summary>
 /// A physics-driven NPC that chases players, leaps at them, and bounces off dealing damage on contact.
 /// </summary>
-public sealed class RollerNpc : Npc, Component.ICollisionListener
+public sealed class RollerNpc : BaseNpc, Component.ICollisionListener
 {
 	/// <summary>
 	/// Continuous force applied per-frame while rolling toward a target.
@@ -187,30 +188,28 @@ public sealed class RollerNpc : Npc, Component.ICollisionListener
 		UpdateRollSound();
 	}
 
-	// Hunts players, ignores everything else.
 	public override string Faction => Factions.Monster;
 
-	protected override void SetupRelationships() => Hates( Factions.Player );
-
-	public override ScheduleBase GetSchedule()
+	protected override void SetupRelationships()
 	{
-		var target = Senses.GetNearestVisible();
+		SetRelationship( Factions.Player, Disposition.Hostile );
+	}
+
+	protected override BaseSchedule SelectSchedule()
+	{
+		var target = Senses.FindBestTarget();
 		if ( target.IsValid() )
 			return GetSchedule<RollerChaseSchedule>();
 
 		return GetSchedule<RollerIdleSchedule>();
 	}
 
-	protected override void Die( in DamageInfo damage )
+	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
-		// Broadcast the death so nearby NPCs notice (base Die does this; we override it).
-		EmitStimulus( StimulusKind.Death, radius: 1024f, lifetime: 2f );
-
-		GameManager.Current?.OnNpcDeath( this, damage );
+		// Broadcast the death so nearby NPCs notice (base OnDeath does this; we override it).
+		EmitStimulus( StimulusKinds.Death, radius: 1024f, lifetime: 2f );
 
 		// TODO: explosion effect / sound
-
-		GameObject.Destroy();
 	}
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
@@ -222,7 +221,6 @@ public sealed class RollerNpc : Npc, Component.ICollisionListener
 		var root = collision.Other.GameObject?.Root;
 		if ( !root.IsValid() ) return;
 
-		// Only react to damageable targets (players, NPCs) — not terrain/props
 		if ( !root.Components.TryGet( out IDamageable damageable ) )
 			return;
 
@@ -237,7 +235,6 @@ public sealed class RollerNpc : Npc, Component.ICollisionListener
 
 		BroadcastContactEffect( collision.Contact.Point );
 
-		// Bounce up and awayfrom the player rather than a pure reflection
 		var away = (WorldPosition - root.WorldPosition).WithZ( 0 );
 		if ( away.LengthSquared < 0.01f )
 			away = WorldRotation.Backward.WithZ( 0 );
@@ -281,7 +278,7 @@ public sealed class RollerNpc : Npc, Component.ICollisionListener
 	{
 		if ( !Eye.IsValid() ) return;
 
-		var target = Senses.GetNearestVisible();
+		var target = Senses.FindBestTarget();
 		if ( !target.IsValid() ) return;
 
 		var dir = (target.WorldPosition - Eye.WorldPosition).Normal;

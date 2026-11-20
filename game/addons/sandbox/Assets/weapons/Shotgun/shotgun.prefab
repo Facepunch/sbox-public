@@ -98,7 +98,7 @@
         "FirstShellReloadTime": 0,
         "Handedness": "Both",
         "HoldBone": "hold_r",
-        "HoldType": "Shotgun",
+        "HoldType": "shotgun",
         "IncrementalReloading": true,
         "IronSightsFireScale": 0.2,
         "Npc": {

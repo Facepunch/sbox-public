@@ -8,6 +8,8 @@ public class NpcsPage : BaseSpawnMenu
 		AddOption( "📦", "#spawnmenu.entity.all", () => new EntityListCloud { LocalCategory = "Npc", Query = "+npc" } );
 		AddOption( "🧍", "#spawnmenu.npc.humanoid", () => new EntityListCloud { LocalCategory = "Npc/Humanoid", Query = "+npc +humanoid" } );
 		AddOption( "🤖", "#spawnmenu.npc.other", () => new EntityListCloud { LocalCategory = "Npc/Other", Query = "+npc -humanoid" } );
+
+		AddMountedSections( MountedPrefabs.NpcTag, entity => SpawnMenuCategory.Matches( entity.Category, "Npc" ) );
 	}
 
 	protected override void OnMenuHeader( Panel header )

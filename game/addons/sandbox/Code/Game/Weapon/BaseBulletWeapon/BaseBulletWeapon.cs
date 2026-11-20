@@ -78,7 +78,7 @@ public partial class BaseBulletWeapon : BaseSandboxWeapon
 		if ( !owner.IsValid() ) return;
 
 		_timeSinceNoise = 0;
-		Scene.GetSystem<NpcStimulusSystem>()?.Broadcast( StimulusKind.Gunshot, owner.WorldPosition, owner.GameObject, radius: 3000f, lifetime: 1.5f );
+		Scene.GetSystem<NpcSystem>()?.EmitStimulus( StimulusKinds.Gunshot, owner.WorldPosition, owner.GameObject, radius: 3000f, lifetime: 1.5f );
 	}
 
 	void PushRagdoll( GameObject hitObject, Vector3 hitPosition, Vector3 origin )

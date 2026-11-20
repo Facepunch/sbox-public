@@ -82,7 +82,6 @@ public sealed class ThumbnailCamera : Component
 		if ( !framing.IsValid() )
 			return false;
 
-		// Where the camera sits relative to the prefab root
 		var view = source.WorldTransform.ToLocal( framing.WorldTransform );
 		var fieldOfView = framing.FieldOfView;
 		var fit = framing.FitToBounds;
@@ -124,6 +123,222 @@ public sealed class ThumbnailCamera : Component
 
 		scene.Destroy();
 		return true;
+	}
+
+	/// <summary>
+	/// The angle <paramref name="prefab"/>'s thumbnail camera looks from, relative to the prefab. Null without one.
+	/// </summary>
+	public static Rotation? ViewOf( PrefabFile prefab )
+	{
+		var source = prefab?.GetScene();
+		var framing = source?.GetComponentsInChildren<ThumbnailCamera>( true ).OrderBy( x => Depth( x.GameObject ) ).FirstOrDefault();
+		return framing.IsValid() ? source.WorldTransform.ToLocal( framing.WorldTransform ).Rotation : null;
+	}
+
+	/// <summary>
+	/// Render <paramref name="model"/> to fill <paramref name="bitmap"/> under the same studio lighting, posed in
+	/// <paramref name="sequence"/>, or its idle if it doesn't have that. Framed by what actually rendered rather than
+	/// its bounds, which for mounted models can be far from the posed shape. Weapons are seen from
+	/// <paramref name="weaponView"/>, relative to the way they point; everything else from the front three-quarters.
+	/// </summary>
+	public static void RenderModel( Model model, string sequence, Rotation? weaponView, Bitmap bitmap )
+	{
+		const float fieldOfView = 20f;
+		const float fill = 0.88f;
+
+		var tan = MathF.Tan( fieldOfView * 0.5f * MathF.PI / 180f );
+		var scene = Scene.CreateEditorScene();
+		Sandbox.Animation.Graph graph = null;
+
+		try
+		{
+			using var _ = scene.Push();
+			var renderer = new GameObject( true, "model" ).Components.Create<SkinnedModelRenderer>();
+			renderer.Model = model;
+			// Editor scenes otherwise leave a graph unevaluated and show the bind pose.
+			renderer.PlayAnimationsInEditorScene = true;
+
+			var skeleton = model.AnimationSkeleton();
+			if ( skeleton.IsValid() && PoseClip( model, sequence ) is { } clip )
+			{
+				var builder = Sandbox.Animation.Graph.Builder;
+				builder.Skeleton = skeleton.Name;
+				var pose = builder.Pose( clip, new Sandbox.Animation.GraphBuilder.PoseSettings() );
+				// A masked sequence, such as a Counter-Strike player's Idle_Upper_AK, is a layer: lay it over the idle.
+				var mask = (model.GetData<ModelSequenceData[]>() ?? []).FirstOrDefault( x => x.Name.Equals( sequence, StringComparison.OrdinalIgnoreCase ) )?.BoneMask;
+				if ( !string.IsNullOrEmpty( mask ) && PoseClip( model, null ) is { } idle )
+				{
+					var layers = builder.Layers( builder.Pose( idle, new Sandbox.Animation.GraphBuilder.PoseSettings() ) );
+					layers.AddLayer( pose, new() { BlendMode = Sandbox.Animation.GraphBuilder.LayerBlendMode.Overlay, BoneMask = builder.BoneMask( mask ) } );
+					pose = layers;
+				}
+				graph = builder.Create( pose, "thumbnail" );
+				renderer.Animation.Graph = graph;
+				renderer.UseAnimGraph = true;
+			}
+
+			scene.GameTick( 0.1f );
+			scene.GameTick( 0.1f );
+
+			var bounds = renderer.Bounds;
+
+			var rotation = weaponView is { } view ? WeaponFrame( model, bounds ) * view : Rotation.From( 12, 215, 0 );
+
+			var camera = new GameObject( true, "camera" ).Components.Create<CameraComponent>();
+			camera.WorldRotation = rotation;
+			camera.FieldOfView = fieldOfView;
+			camera.ZNear = 1f;
+			camera.ZFar = 100000f;
+			camera.BackgroundColor = Color.Transparent;
+
+			// Start far enough back that nothing is cropped, then frame what rendered
+			camera.WorldPosition = bounds.Center - rotation.Forward * bounds.Size.Length * 0.65f / tan;
+
+			AddLights( rotation, bounds );
+
+			for ( var pass = 0; pass < 3; pass++ )
+			{
+				bitmap.Clear( Color.Transparent );
+				camera.RenderToBitmap( bitmap );
+
+				if ( pass == 2 || DrawnRect( bitmap ) is not { } drawn )
+					break;
+
+				var depth = Vector3.Dot( bounds.Center - camera.WorldPosition, rotation.Forward );
+				var unitsPerPixel = 2f * depth * tan / bitmap.Height;
+				var offset = drawn.Center - new Vector2( bitmap.Width, bitmap.Height ) * 0.5f;
+				var scale = MathF.Max( drawn.Width / bitmap.Width, drawn.Height / bitmap.Height ) / fill;
+
+				camera.WorldPosition += rotation.Right * offset.x * unitsPerPixel - rotation.Up * offset.y * unitsPerPixel;
+				camera.WorldPosition += rotation.Forward * depth * (1f - scale);
+			}
+		}
+		finally
+		{
+			// The graph outlives the scene otherwise: one per mounted icon.
+			scene.Destroy();
+			graph?.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Which way a mounted weapon model points. They lie in whatever orientation the hand bone wants. The barrel points
+	/// the way its muzzle does, or failing that along its longest side away from the grip; the thinner of the other two
+	/// sides is its width, and the grip hangs below the barrel.
+	/// </summary>
+	private static Rotation WeaponFrame( Model model, BBox bounds )
+	{
+		var size = bounds.Size;
+		var centre = bounds.Center;
+		var muzzles = model.Attachments.All
+			.Where( x => x.Name.Contains( "muzzle", StringComparison.OrdinalIgnoreCase ) )
+			.Select( x => x.WorldTransform )
+			.ToArray();
+
+		// Some muzzle attachments sit off to the side of the model, or off it entirely: only trust one out toward the end it points at
+		bool PointsOut( Transform muzzle )
+		{
+			var axis = MainAxis( muzzle.Rotation.Forward );
+			var reach = (muzzle.Position - centre)[axis] * MathF.Sign( muzzle.Rotation.Forward[axis] );
+			return bounds.Grow( 1f ).Contains( muzzle.Position ) && reach >= size[axis] * 0.25f;
+		}
+
+		int forward;
+		float ahead;
+		var barrel = muzzles.Where( PointsOut ).Select( x => x.Rotation.Forward ).FirstOrDefault();
+
+		if ( barrel != Vector3.Zero )
+		{
+			forward = MainAxis( barrel );
+			ahead = barrel[forward];
+		}
+		else
+		{
+			forward = MainAxis( size );
+
+			// It's held by its hand bone, or its origin without one
+			var hand = model.Bones.AllBones.FirstOrDefault( x => x.Name.EndsWith( "R_Hand", StringComparison.OrdinalIgnoreCase ) );
+			var grip = hand is null ? Vector3.Zero : model.GetBoneTransform( hand.Index ).Position;
+			ahead = centre[forward] - grip[forward];
+
+			// Held near its middle, like a grenade: no telling
+			if ( MathF.Abs( ahead ) < 1f )
+				ahead = 0f;
+		}
+
+		// Two guns side by side are wider than they are long: the width is the thinnest side once the gap between their muzzles is taken out
+		var up = Enumerable.Range( 0, 3 )
+			.Where( axis => axis != forward )
+			.OrderBy( axis => size[axis] - (muzzles.Length == 0 ? 0f : muzzles.Max( x => x.Position[axis] ) - muzzles.Min( x => x.Position[axis] )) )
+			.Last();
+
+		// Standing on end, like a grenade or a knife, there's no grip under a barrel to go by
+		var front = Vector3.Zero;
+		front[forward] = ahead < 0f ? -1 : 1;
+		var top = Vector3.Zero;
+		top[up] = forward == 2 ? 1 : UpSign( bounds, up );
+
+		return Rotation.LookAt( front, top );
+	}
+
+	/// <summary>
+	/// Which way is up along <paramref name="axis"/> of a gun's bounds: +Z for one standing upright, else away from the side
+	/// reaching further from the origin, its barrel line, where a gun lying on its side hangs its grip.
+	/// </summary>
+	private static float UpSign( BBox bounds, int axis ) => axis == 2 || bounds.Center[axis] < bounds.Size[axis] * 0.05f ? 1 : -1;
+
+	/// <summary>
+	/// The model axis closest to <paramref name="direction"/>.
+	/// </summary>
+	private static int MainAxis( Vector3 direction )
+	{
+		var axis = MathF.Abs( direction.y ).CompareTo( MathF.Abs( direction.x ) ) > 0 ? 1 : 0;
+		return MathF.Abs( direction.z ).CompareTo( MathF.Abs( direction[axis] ) ) > 0 ? 2 : axis;
+	}
+
+	/// <summary>
+	/// The clip called <paramref name="sequence"/>, or the model's idle activity if there isn't one.
+	/// </summary>
+	private static Sandbox.Animation.Clip PoseClip( Model model, string sequence )
+	{
+		var clips = model.AnimationClips();
+		if ( clips.TryGetValue( sequence, out var clip ) )
+			return clip;
+
+		var idle = (model.GetData<ModelSequenceData[]>() ?? [])
+			.Where( x => x.Activity.Equals( "ACT_IDLE", StringComparison.OrdinalIgnoreCase ) )
+			.OrderByDescending( x => x.ActivityWeight );
+
+		foreach ( var candidate in idle )
+			if ( clips.TryGetValue( candidate.Name, out clip ) )
+				return clip;
+
+		return null;
+	}
+
+	/// <summary>
+	/// The part of the image something was drawn in, null if nothing was.
+	/// </summary>
+	private static Rect? DrawnRect( Bitmap bitmap )
+	{
+		var pixels = bitmap.GetPixels();
+		int left = bitmap.Width, top = bitmap.Height, right = -1, bottom = -1;
+
+		for ( var y = 0; y < bitmap.Height; y++ )
+		{
+			for ( var x = 0; x < bitmap.Width; x++ )
+			{
+				if ( pixels[y * bitmap.Width + x].a < 0.25f )
+					continue;
+
+				left = Math.Min( left, x );
+				right = Math.Max( right, x );
+				top = Math.Min( top, y );
+				bottom = Math.Max( bottom, y );
+			}
+		}
+
+		return right < 0 ? null : new Rect( left, top, right - left + 1, bottom - top + 1 );
 	}
 
 	/// <summary>

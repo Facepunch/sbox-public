@@ -152,7 +152,7 @@
         "FirstShellReloadTime": 0,
         "Handedness": "Both",
         "HoldBone": "hold_r",
-        "HoldType": "RPG",
+        "HoldType": "shoulder",
         "IncrementalReloading": false,
         "IsTrackedAim": true,
         "Npc": {
