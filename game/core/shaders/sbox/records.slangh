@@ -63,6 +63,27 @@ struct InstanceRecord
 	uint Draw;
 };
 
+/// A draw's lighting, in the lighting table at its draw record's Flags >> 8 (in 16 bytes): the bytes of BakedLightingConstantBuffer_t, then of PerBatchLightProbeVolumeConstantBuffer_t, as vfx packs those constant buffers (GpuDrivenTables.Lighting copies them; a missing one is zeros). The constant buffers own this layout, which the native GPU-driven wrapper reads at their packoffsets: RecordTests checks it against their reflection.
+struct LightingRecord
+{
+	/// g_vLightmapUvScale.
+	float4 LightmapUvScale;
+	/// g_nLightmapTextureIndices (int4).
+	uint LightmapTextureIndices[4];
+	/// g_nLightmapTextureIndices2 (int4).
+	uint SecondLightmapTextureIndices[4];
+	/// MatLightProbeVolumeWorldToLocal (float4x3), as three registers.
+	float4 ProbeVolumeWorldToLocal[3];
+	/// LightProbeVolumeLayer0TextureMin.
+	float4 ProbeVolumeLayer0TextureMin;
+	/// LightProbeVolumeLayer0TextureMax.
+	float4 ProbeVolumeLayer0TextureMax;
+	/// LightProbeVolumeColor.
+	float4 ProbeVolumeColor;
+	/// LightProbeVolumeTextureIndices (int4).
+	uint ProbeVolumeTextureIndices[4];
+};
+
 /// A view of a GPU cull (borealis_gpu_driven_cull_cs, borealis_resident_cull_cs), at the start of its region.
 struct CullViewRecord
 {

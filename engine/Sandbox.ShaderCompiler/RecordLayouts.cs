@@ -126,6 +126,17 @@ internal static unsafe partial class RecordReflection
 			}
 
 			if ( fields.Count == 0 ) throw new ShaderCompileException( path, $"The record {type} has no fields" );
+
+			// An array's elements are its name and index in C#: none may be another field's name
+			var names = fields.Select( f => f.Name ).ToHashSet();
+			foreach ( var array in fields.Where( f => f.ArrayLength > 0 ) )
+			{
+				for ( int e = 0; e < array.ArrayLength; e++ )
+				{
+					if ( names.Contains( $"{array.Name}{e}" ) ) throw new ShaderCompileException( path, $"{type}.{array.Name}{e}: element {e} of {array.Name} has that name in C#; rename the field" );
+				}
+			}
+
 			records.Add( RecordLayout.Create( type, fields, Comment( text, match.Index ) ) );
 		}
 

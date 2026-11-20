@@ -55,9 +55,9 @@ void SurfaceFetchBakedLighting( uint draw )
 {
 	uint baked = ( BorealisGpuDrivenDraw( draw ).w >> 8 ) * 16;
 	ByteAddressBuffer lighting = g_bindless_VertexBuffers[g_nBorealisLighting];
-	g_vLightmapUvScale = asfloat( lighting.Load4( baked ) );
-	g_nLightmapTextureIndices = asint( lighting.Load4( baked + 16 ) );
-	g_nLightmapTextureIndices2 = asint( lighting.Load4( baked + 32 ) );
+	g_vLightmapUvScale = asfloat( lighting.Load4( baked + LightingRecord_LightmapUvScale ) );
+	g_nLightmapTextureIndices = asint( lighting.Load4( baked + LightingRecord_LightmapTextureIndices ) );
+	g_nLightmapTextureIndices2 = asint( lighting.Load4( baked + LightingRecord_SecondLightmapTextureIndices ) );
 }
 #else
 uint SurfaceDrawRecord() { return DrawMaterialOffset(); }
@@ -317,18 +317,19 @@ SurfaceStageDepthOutput SurfaceStageDepth<S : IVertexStageSurface>( SurfaceStage
 
 #ifdef SURFACE_GPU_DRIVEN
 /// The draw's lightmap and light probe volume constants (statics under SURFACE_GPU_DRIVEN, baked_lighting_constants.fxc
-/// and light_probe_volume.fxc) from its lighting record: BakedLightingConstantBuffer_t (48 bytes), then
-/// PerBatchLightProbeVolumeConstantBuffer_t, as packed; a draw's record is its flags' top 24 bits, in 16 bytes.
+/// and light_probe_volume.fxc) from its lighting record (LightingRecord: the two constant buffers as packed); a draw's
+/// record is its flags' top 24 bits, in 16 bytes.
 void SurfaceFetchLighting( uint draw )
 {
 	SurfaceFetchBakedLighting( draw );
-	uint offset = ( BorealisGpuDrivenDraw( draw ).w >> 8 ) * 16 + 48;
+	uint offset = ( BorealisGpuDrivenDraw( draw ).w >> 8 ) * 16;
 	ByteAddressBuffer lighting = g_bindless_VertexBuffers[g_nBorealisLighting];
-	MatLightProbeVolumeWorldToLocal = transpose( float3x4( asfloat( lighting.Load4( offset ) ), asfloat( lighting.Load4( offset + 16 ) ), asfloat( lighting.Load4( offset + 32 ) ) ) );
-	LightProbeVolumeLayer0TextureMin = asfloat( lighting.Load4( offset + 48 ) );
-	LightProbeVolumeLayer0TextureMax = asfloat( lighting.Load4( offset + 64 ) );
-	LightProbeVolumeColor = asfloat( lighting.Load4( offset + 80 ) );
-	LightProbeVolumeTextureIndices = asint( lighting.Load4( offset + 96 ) );
+	uint matrix = offset + LightingRecord_ProbeVolumeWorldToLocal;
+	MatLightProbeVolumeWorldToLocal = transpose( float3x4( asfloat( lighting.Load4( matrix ) ), asfloat( lighting.Load4( matrix + LightingRecord_ProbeVolumeWorldToLocalStride ) ), asfloat( lighting.Load4( matrix + 2 * LightingRecord_ProbeVolumeWorldToLocalStride ) ) ) );
+	LightProbeVolumeLayer0TextureMin = asfloat( lighting.Load4( offset + LightingRecord_ProbeVolumeLayer0TextureMin ) );
+	LightProbeVolumeLayer0TextureMax = asfloat( lighting.Load4( offset + LightingRecord_ProbeVolumeLayer0TextureMax ) );
+	LightProbeVolumeColor = asfloat( lighting.Load4( offset + LightingRecord_ProbeVolumeColor ) );
+	LightProbeVolumeTextureIndices = asint( lighting.Load4( offset + LightingRecord_ProbeVolumeTextureIndices ) );
 }
 #endif
 

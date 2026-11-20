@@ -86,6 +86,59 @@ public class RecordTests
 	}
 
 	/// <summary>
+	/// The lighting record is two constant buffers' bytes as vfx packs them (GpuDrivenTables.Lighting copies them, the native
+	/// GPU-driven wrapper reads them at their packoffsets): its fields are where complex.shader's reflection puts their members,
+	/// the probe volume's buffer after the baked lighting's.
+	/// </summary>
+	[TestMethod]
+	public void LightingRecordIsItsConstantBuffers()
+	{
+		var path = Path.Combine( Shaders, "complex.shader_c" );
+		if ( !File.Exists( path ) ) Assert.Inconclusive( "complex.shader isn't compiled" );
+		var shader = Borealis.Source2.Shaders.ShaderFile.Load( path );
+		var buffers = shader.Programs.Where( p => p is not null ).SelectMany( p => p.ConstantBuffers ).ToArray();
+		var record = Compiler().ReflectRecords().Record( "LightingRecord" );
+
+		(string Buffer, int At, (string Member, string Field)[] Members)[] parts =
+		[
+			("BakedLightingConstantBuffer_t", 0, [("g_vLightmapUvScale", "LightmapUvScale"), ("g_nLightmapTextureIndices", "LightmapTextureIndices"), ("g_nLightmapTextureIndices2", "SecondLightmapTextureIndices")]),
+			("PerBatchLightProbeVolumeConstantBuffer_t", record.Field( "ProbeVolumeWorldToLocal" ).Offset, [("MatLightProbeVolumeWorldToLocal", "ProbeVolumeWorldToLocal"), ("LightProbeVolumeLayer0TextureMin", "ProbeVolumeLayer0TextureMin"),
+				("LightProbeVolumeLayer0TextureMax", "ProbeVolumeLayer0TextureMax"), ("LightProbeVolumeColor", "ProbeVolumeColor"), ("LightProbeVolumeTextureIndices", "ProbeVolumeTextureIndices")]),
+		];
+
+		var problems = new List<string>();
+		var end = 0;
+		foreach ( var (name, at, members) in parts )
+		{
+			var buffer = buffers.FirstOrDefault( b => b.Name == name && b.Members is { Length: > 0 } );
+			if ( buffer is null )
+			{
+				problems.Add( $"complex.shader has no {name}" );
+				continue;
+			}
+
+			if ( at != end ) problems.Add( $"{name} starts at {at}, after {end} bytes" );
+			end = at + buffer.Size;
+			foreach ( var (member, fieldName) in members )
+			{
+				var reflected = buffer.Members.FirstOrDefault( m => m.Name == member );
+				var field = record.Field( fieldName );
+				if ( reflected.Name is null ) problems.Add( $"{name}.{member} isn't in its reflection" );
+				else if ( at + reflected.Offset != field.Offset ) problems.Add( $"{name}.{member} is at {at + reflected.Offset}, LightingRecord.{fieldName} at {field.Offset}" );
+				else if ( Math.Max( reflected.Rows, 1 ) * Math.Max( reflected.Columns, 1 ) * 4 * Math.Max( reflected.ArraySize, 1 ) > field.Size ) problems.Add( $"{name}.{member} is larger than LightingRecord.{fieldName}" );
+			}
+
+			foreach ( var reflected in buffer.Members )
+			{
+				if ( !members.Any( m => m.Member == reflected.Name ) ) problems.Add( $"{name}.{reflected.Name} has no field in LightingRecord" );
+			}
+		}
+
+		if ( end != record.Size ) problems.Add( $"the buffers are {end} bytes, LightingRecord {record.Size}" );
+		Assert.AreEqual( 0, problems.Count, string.Join( "\n", problems ) );
+	}
+
+	/// <summary>
 	/// A deliberate mismatch is caught: definitions changed without regenerating (a field inserted, two swapped, one
 	/// retyped) no longer match the structs this build has, the device refuses content whose definitions or offsets
 	/// aren't the build's, and fields the C# side can't write are refused.
@@ -136,6 +189,7 @@ public class RecordTests
 			// What the C# side can't write
 			Assert.ThrowsException<ShaderCompileException>( () => Changed( "\tuint LodTexels;", "\tbool LodTexels;" ) );
 			Assert.ThrowsException<ShaderCompileException>( () => Changed( "\tuint LodTexels;", "\tuint2 LodTexels;" ) );
+			Assert.ThrowsException<ShaderCompileException>( () => Changed( "\tuint SecondLightmapTextureIndices[4];", "\tuint LightmapTextureIndices2;" ) );
 		}
 		finally
 		{

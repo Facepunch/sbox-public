@@ -206,7 +206,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// A lighting record: <c>BakedLightingConstantBuffer_t</c> (48 bytes), then <c>PerBatchLightProbeVolumeConstantBuffer_t</c>
 	/// (112), as the attributes a draw reads hold them, which GPU-driven variants read per draw instead of binding.
 	/// </summary>
-	public const int LightingStride = 160;
+	public const int LightingStride = LightingRecord.Size;
 
 	// Found without a lock, as draw records are; added to under lightingLock
 	readonly System.Collections.Concurrent.ConcurrentDictionary<byte[], uint> lightingRecords = new( LightingComparer.Instance );
@@ -239,8 +239,8 @@ internal sealed class GpuDrivenTables : IDisposable
 		if ( baked is null && probe is null ) return 0;
 		Span<byte> record = stackalloc byte[LightingStride];
 		record.Clear();
-		baked?.AsSpan( 0, Math.Min( baked.Length, 48 ) ).CopyTo( record );
-		probe?.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record[48..] );
+		baked?.AsSpan( 0, Math.Min( baked.Length, LightingRecord.ProbeVolumeWorldToLocalOffset ) ).CopyTo( record );
+		probe?.AsSpan( 0, Math.Min( probe.Length, LightingRecord.Size - LightingRecord.ProbeVolumeWorldToLocalOffset ) ).CopyTo( record[LightingRecord.ProbeVolumeWorldToLocalOffset..] );
 		var known = lightingRecords.GetAlternateLookup<ReadOnlySpan<byte>>();
 		if ( known.TryGetValue( record, out var found ) ) return found;
 		lock ( lightingLock )

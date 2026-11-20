@@ -10,7 +10,7 @@ namespace Borealis.Backend;
 /// <summary>The record definitions these structs were generated from: the hash of sbox/records.slangh.</summary>
 internal static class RecordDefinitionsHash
 {
-	public const string Value = "63EA6B924B8FF0BC";
+	public const string Value = "F61FA1DA25CA8BEE";
 }
 
 /// <summary>A GPU-driven draw: what a fragment draws with, made once (GpuDrivenTables.Draw).</summary>
@@ -138,6 +138,100 @@ internal partial struct InstanceRecord
 	public const int DrawOffset = 4;
 	/// <summary>Its draw record's index.</summary>
 	public uint Draw;
+}
+
+/// <summary>A draw's lighting, in the lighting table at its draw record's Flags &gt;&gt; 8 (in 16 bytes): the bytes of BakedLightingConstantBuffer_t, then of PerBatchLightProbeVolumeConstantBuffer_t, as vfx packs those constant buffers (GpuDrivenTables.Lighting copies them; a missing one is zeros). The constant buffers own this layout, which the native GPU-driven wrapper reads at their packoffsets: RecordTests checks it against their reflection.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct LightingRecord
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 160;
+
+	/// <summary>Byte offset of <see cref="LightmapUvScale"/> in the record.</summary>
+	public const int LightmapUvScaleOffset = 0;
+	/// <summary>g_vLightmapUvScale.</summary>
+	public System.Numerics.Vector4 LightmapUvScale;
+
+	/// <summary>Byte offset of <see cref="LightmapTextureIndices"/> in the record.</summary>
+	public const int LightmapTextureIndicesOffset = 16;
+	/// <summary>Bytes from one element of <see cref="LightmapTextureIndices"/> to the next.</summary>
+	public const int LightmapTextureIndicesStride = 4;
+	/// <summary>Elements of <see cref="LightmapTextureIndices"/>.</summary>
+	public const int LightmapTextureIndicesLength = 4;
+	/// <summary>Element 0 of <see cref="LightmapTextureIndices"/>.</summary>
+	public uint LightmapTextureIndices0;
+	/// <summary>Element 1 of <see cref="LightmapTextureIndices"/>.</summary>
+	public uint LightmapTextureIndices1;
+	/// <summary>Element 2 of <see cref="LightmapTextureIndices"/>.</summary>
+	public uint LightmapTextureIndices2;
+	/// <summary>Element 3 of <see cref="LightmapTextureIndices"/>.</summary>
+	public uint LightmapTextureIndices3;
+	/// <summary>g_nLightmapTextureIndices (int4).</summary>
+	[UnscopedRef] public Span<uint> LightmapTextureIndices => MemoryMarshal.CreateSpan( ref LightmapTextureIndices0, 4 );
+
+	/// <summary>Byte offset of <see cref="SecondLightmapTextureIndices"/> in the record.</summary>
+	public const int SecondLightmapTextureIndicesOffset = 32;
+	/// <summary>Bytes from one element of <see cref="SecondLightmapTextureIndices"/> to the next.</summary>
+	public const int SecondLightmapTextureIndicesStride = 4;
+	/// <summary>Elements of <see cref="SecondLightmapTextureIndices"/>.</summary>
+	public const int SecondLightmapTextureIndicesLength = 4;
+	/// <summary>Element 0 of <see cref="SecondLightmapTextureIndices"/>.</summary>
+	public uint SecondLightmapTextureIndices0;
+	/// <summary>Element 1 of <see cref="SecondLightmapTextureIndices"/>.</summary>
+	public uint SecondLightmapTextureIndices1;
+	/// <summary>Element 2 of <see cref="SecondLightmapTextureIndices"/>.</summary>
+	public uint SecondLightmapTextureIndices2;
+	/// <summary>Element 3 of <see cref="SecondLightmapTextureIndices"/>.</summary>
+	public uint SecondLightmapTextureIndices3;
+	/// <summary>g_nLightmapTextureIndices2 (int4).</summary>
+	[UnscopedRef] public Span<uint> SecondLightmapTextureIndices => MemoryMarshal.CreateSpan( ref SecondLightmapTextureIndices0, 4 );
+
+	/// <summary>Byte offset of <see cref="ProbeVolumeWorldToLocal"/> in the record.</summary>
+	public const int ProbeVolumeWorldToLocalOffset = 48;
+	/// <summary>Bytes from one element of <see cref="ProbeVolumeWorldToLocal"/> to the next.</summary>
+	public const int ProbeVolumeWorldToLocalStride = 16;
+	/// <summary>Elements of <see cref="ProbeVolumeWorldToLocal"/>.</summary>
+	public const int ProbeVolumeWorldToLocalLength = 3;
+	/// <summary>Element 0 of <see cref="ProbeVolumeWorldToLocal"/>.</summary>
+	public System.Numerics.Vector4 ProbeVolumeWorldToLocal0;
+	/// <summary>Element 1 of <see cref="ProbeVolumeWorldToLocal"/>.</summary>
+	public System.Numerics.Vector4 ProbeVolumeWorldToLocal1;
+	/// <summary>Element 2 of <see cref="ProbeVolumeWorldToLocal"/>.</summary>
+	public System.Numerics.Vector4 ProbeVolumeWorldToLocal2;
+	/// <summary>MatLightProbeVolumeWorldToLocal (float4x3), as three registers.</summary>
+	[UnscopedRef] public Span<System.Numerics.Vector4> ProbeVolumeWorldToLocal => MemoryMarshal.CreateSpan( ref ProbeVolumeWorldToLocal0, 3 );
+
+	/// <summary>Byte offset of <see cref="ProbeVolumeLayer0TextureMin"/> in the record.</summary>
+	public const int ProbeVolumeLayer0TextureMinOffset = 96;
+	/// <summary>LightProbeVolumeLayer0TextureMin.</summary>
+	public System.Numerics.Vector4 ProbeVolumeLayer0TextureMin;
+
+	/// <summary>Byte offset of <see cref="ProbeVolumeLayer0TextureMax"/> in the record.</summary>
+	public const int ProbeVolumeLayer0TextureMaxOffset = 112;
+	/// <summary>LightProbeVolumeLayer0TextureMax.</summary>
+	public System.Numerics.Vector4 ProbeVolumeLayer0TextureMax;
+
+	/// <summary>Byte offset of <see cref="ProbeVolumeColor"/> in the record.</summary>
+	public const int ProbeVolumeColorOffset = 128;
+	/// <summary>LightProbeVolumeColor.</summary>
+	public System.Numerics.Vector4 ProbeVolumeColor;
+
+	/// <summary>Byte offset of <see cref="ProbeVolumeTextureIndices"/> in the record.</summary>
+	public const int ProbeVolumeTextureIndicesOffset = 144;
+	/// <summary>Bytes from one element of <see cref="ProbeVolumeTextureIndices"/> to the next.</summary>
+	public const int ProbeVolumeTextureIndicesStride = 4;
+	/// <summary>Elements of <see cref="ProbeVolumeTextureIndices"/>.</summary>
+	public const int ProbeVolumeTextureIndicesLength = 4;
+	/// <summary>Element 0 of <see cref="ProbeVolumeTextureIndices"/>.</summary>
+	public uint ProbeVolumeTextureIndices0;
+	/// <summary>Element 1 of <see cref="ProbeVolumeTextureIndices"/>.</summary>
+	public uint ProbeVolumeTextureIndices1;
+	/// <summary>Element 2 of <see cref="ProbeVolumeTextureIndices"/>.</summary>
+	public uint ProbeVolumeTextureIndices2;
+	/// <summary>Element 3 of <see cref="ProbeVolumeTextureIndices"/>.</summary>
+	public uint ProbeVolumeTextureIndices3;
+	/// <summary>LightProbeVolumeTextureIndices (int4).</summary>
+	[UnscopedRef] public Span<uint> ProbeVolumeTextureIndices => MemoryMarshal.CreateSpan( ref ProbeVolumeTextureIndices0, 4 );
 }
 
 /// <summary>A view of a GPU cull (borealis_gpu_driven_cull_cs, borealis_resident_cull_cs), at the start of its region.</summary>
