@@ -34,6 +34,14 @@ Mode( Default );
 Feature( F_ASPECT_FILL_FROM_CENTER, 0..1, "Aspect Fill" );
 Feature( F_TRANSLUCENT, 0..1, "Translucent" );
 
+// The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+// The material's parameters as the material editor shows them, with the feature states that use them
+float2 g_vImageAspectRatio < Default2( 16, 9 ); Range2( 1, 1, 16, 16 ); UiGroup( "Aspect Fill" ); ActiveIf( F_ASPECT_FILL_FROM_CENTER != 0 ); >;
+// End of the material editor's lines
+#endif
+
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // !!! DO NOT INCLUDE ANY OTHER FILES IN THIS SHADER !!!
 #include "system.fxc"

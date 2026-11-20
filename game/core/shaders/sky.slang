@@ -19,6 +19,13 @@ Mode( ToolsShadingComplexity, S_MODE_TOOLS_SHADING_COMPLEXITY );
 Feature( F_LIGHTING_ONLY, 0..1, "Rendering" );
 Feature( F_TEXTURE_FORMAT2, 0..6( 0 = "HDR (float16)", 1 = "RGB (8-bit uncompressed)", 2 = "YCoCg (dxt compressed)", 3 = "Dxt1 (LDR)", 4 = "RGBM (dxt compressed)", 5 = "RGBM (8-bit uncompressed)", 6 = "BC6H (HDR compressed - recommended)" ), "Format" );   // the .shader's enum misses its closing bracket, which vfx forgives
 
+// The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+// The material's parameters as the material editor shows them, with the feature states that use them
+// End of the material editor's lines
+#endif
+
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "system.fxc" // This should always be the first include in COMMON
 #include "vr_common.fxc"

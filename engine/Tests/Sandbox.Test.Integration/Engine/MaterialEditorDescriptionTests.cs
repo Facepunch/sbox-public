@@ -32,6 +32,9 @@ public class MaterialEditorDescriptionTests
 	[DataRow( "core/shaders/eyeball" )]
 	[DataRow( "core/shaders/terrain" )]
 	[DataRow( "core/shaders/water" )]
+	[DataRow( "core/shaders/sky" )]
+	[DataRow( "core/shaders/unlit" )]
+	[DataRow( "core/shaders/line" )]
 	[DataRow( "addons/citizen/Assets/shaders/citizen_eye" )]
 	public void ModulesDescribeTheirMaterialsAsTheirShaders( string shaderPath )
 	{
