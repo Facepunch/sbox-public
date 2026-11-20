@@ -1,0 +1,62 @@
+// Environment maps (reflection cubemaps) from the binned envmap buffer: each entry's bindless cube, its box and transform for
+// parallax correction, tint and feathering. Ours, in place of the old vr_environment_map.fxc in Slang compiles
+// (SlangHeaders): the same names and results. BinnedEnvMapBuffer is the includer's (common/lightbinner.hlsl). Shares the old
+// header's include guard.
+#ifndef VR_ENVIRONMENT_MAP_FXC
+#define VR_ENVIRONMENT_MAP_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "system.fxc"
+#include "sbox/math.slangh"
+#include "common_samplers.fxc"
+#include "common/Bindless.hlsl"
+
+/// A cube's mip count.
+float EnvMapNumLevels( TextureCube tEnvMap )
+{
+	int2 size;
+	int levels;
+	tEnvMap.GetDimensions( 0, size.x, size.y, levels );
+	return levels;
+}
+
+float EnvMapNumLevels( uint nEnvMap ) { return EnvMapNumLevels( Bindless::GetTextureCube( nEnvMap ) ); }
+
+/// A cube sampled at a roughness level: 0..1 across its mips.
+float4 SampleEnvMapLevel( float3 vReflectionDirWs, float flLevel, TextureCube tEnvMap )
+{
+	return tEnvMap.SampleLevel( g_sTrilinearWrap, vReflectionDirWs, flLevel * EnvMapNumLevels( tEnvMap ) );
+}
+
+float4 SampleEnvMapLevel( float3 vReflectionDirWs, float flLevel, uint nEnvMap ) { return SampleEnvMapLevel( vReflectionDirWs, flLevel, Bindless::GetTextureCube( nEnvMap ) ); }
+
+float4 EnvMapNormalizationSH( uint nEnvMap ) { return BinnedEnvMapBuffer[nEnvMap].NormalizationSH; }
+float4x3 EnvMapWorldToLocal( uint nEnvMap ) { return BinnedEnvMapBuffer[nEnvMap].WorldToLocal; }
+float3 EnvMapBoxMins( uint nEnvMap ) { return BinnedEnvMapBuffer[nEnvMap].BoxMins.xyz; }
+float3 EnvMapBoxMaxs( uint nEnvMap ) { return BinnedEnvMapBuffer[nEnvMap].BoxMaxs.xyz; }
+float3 EnvMapColor( uint nEnvMap ) { return BinnedEnvMapBuffer[nEnvMap].Color.xyz; }
+float EnvMapFeathering( uint nEnvMap ) { return BinnedEnvMapBuffer[nEnvMap].Color.w; }
+
+/// Envmap `nEnvMap` (an index into the binned buffer) sampled at a roughness level and tinted.
+float3 SampleEnvironmentMapLevel( float3 vReflectionDirWs, float flLevel, uint nEnvMap )
+{
+	return SampleEnvMapLevel( vReflectionDirWs, flLevel, BinnedEnvMapBuffer[nEnvMap].GetCubemapIndex() ).rgb * EnvMapColor( nEnvMap );
+}
+
+// For a wave-uniform envmap (inside ClusterForEach):
+//   SampleEnvironmentMapLevel( dir, level, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) )
+// The cube is looked up on its own: Slang's uniformity check misreports a dynamic_uniform argument to a call that also takes
+// non-uniform ones.
+
+/// The cube of a wave-uniform envmap index, uniform too (loaded at a uniform index).
+TextureCube EnvMapTexture( dynamic_uniform UniformIndex nEnvMap )
+{
+	return Bindless::GetTextureCube( asDynamicUniform( UniformIndex( BinnedEnvMapBuffer[nEnvMap.index].GetCubemapIndex() ) ) );
+}
+
+float3 SampleEnvironmentMapLevel( float3 vReflectionDirWs, float flLevel, uint nEnvMap, TextureCube tEnvMap )
+{
+	return SampleEnvMapLevel( vReflectionDirWs, flLevel, tEnvMap ).rgb * EnvMapColor( nEnvMap );
+}
+
+#endif // VR_ENVIRONMENT_MAP_FXC

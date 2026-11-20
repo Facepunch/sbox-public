@@ -30,6 +30,8 @@ public static partial class SlangHeaders
 		["light_probe_volume.fxc"] = "sbox/light_probe_volume.slangh",
 		["irradiance_probe_lighting.fxc"] = "sbox/irradiance_probe.slangh",
 		["quad_overdraw_ps.fxc"] = "sbox/quad_overdraw.slangh",
+		["vr_environment_map.fxc"] = "sbox/environment_map.slangh",
+		["vr_detail_texture.fxc"] = "sbox/detail_texture.slangh",
 	};
 
 	[GeneratedRegex( @"^([ \t]*#[ \t]*include[ \t]*"")([^""]+)("")", RegexOptions.Multiline )]

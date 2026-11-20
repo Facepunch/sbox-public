@@ -27,8 +27,6 @@ internal static partial class CheckShaderIncludes
 		"core/shaders/vr_common_ps_input.fxc",
 		"core/shaders/vr_common_vs_code.fxc",
 		"core/shaders/vr_common_vs_input.fxc",
-		"core/shaders/vr_detail_texture.fxc",
-		"core/shaders/vr_environment_map.fxc",
 		"core/shaders/vr_lighting.fxc",
 		"core/shaders/vr_shared_standard_ps_input.fxc",
 		"core/shaders/vr_shared_standard_vs_code.fxc",
