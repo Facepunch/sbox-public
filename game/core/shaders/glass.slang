@@ -14,6 +14,19 @@ import sbox.surface;
 // What the material compiler makes of a .vmat's images (SlangMaterialCompiler): glass.shader's texture inputs,
 // the textures made from them and its attributes, read with the material's features
 #if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "common/features.hlsl"
+Feature( F_GLASS_QUALITY, 0..2( 0 ="Default Glass ( Refractive, Tinted )", 1 = "Simple Glass ( Faster To Render )", 2 = "Layered Glass ( Multi-Layer Compositing )" ), "Glass");
+Feature( F_OVERLAY_LAYER, 0..1, "Glass");
+// The material's parameters as the material editor shows them, with the feature states that use them
+float3 g_flTintColor < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material,10/90" ); >;
+float g_flBlurAmount < Default( 0 ); Range( 0, 1 ); UiGroup( "Glass,10/10" ); ActiveIf( F_GLASS_QUALITY != 1 ); >;
+float g_flRefractionStrength < Default( 1.005 ); Range( 1, 1.1 ); UiGroup( "Glass,10/20" ); >;
+float AlbedoAbsorption < Default( 0 ); Range( 0, 1 ); UiGroup( "Glass,10/30" ); ActiveIf( F_GLASS_QUALITY != 1 ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+float3 g_flTintColorB < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "MaterialB,10/90" ); ActiveIf( F_OVERLAY_LAYER != 0 ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
 #define BLEND_MODE_ALREADY_SET 1
 #include "common/vertex.hlsl"
 #define GLASS_REFRACTIVE 0

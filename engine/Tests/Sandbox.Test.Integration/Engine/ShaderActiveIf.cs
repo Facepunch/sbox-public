@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using NativeEngine;
 using System.Collections.Generic;
 using Sandbox.Diagnostics;
@@ -8,39 +9,39 @@ namespace EngineTests;
 [TestClass]
 public class ShaderActiveIfTest
 {
+	/// <summary>
+	/// The material editor shows a texture input only in the feature states that use it. A shader with a compiled .shader_c
+	/// answers through its CVfx; one only a Slang module describes (skin's .shader is gone) through the module's
+	/// MATERIAL_INPUTS block, as the editor reads it (MaterialEditorDescription).
+	/// </summary>
 	[TestMethod]
 	[DataRow( "complex", "F_USE_BENT_NORMALS", "TextureBentNormal" )]
 	[DataRow( "complex", "F_TRANSMISSIVE_BACKFACE_NDOTL", "TextureTransmissiveColor" )]
+	[DataRow( "skin", "F_USE_BENT_NORMALS", "TextureBentNormal" )]
+	[DataRow( "skin", "F_AGE_TEXTURE", "TextureAgeColor" )]
+	[DataRow( "skin", "F_AGE_TEXTURE", "TextureAgeNormal" )]
 	public void EditorUsesMaterialFeatureValues( string name, string feature, string input )
 	{
+		var shaders = System.IO.Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), "core", "shaders" );
 		var shader = new Shader();
 		try
 		{
-			Assert.IsTrue( shader.LoadCompiledForRecompile( System.IO.Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), $"core/shaders/{name}.shader" ) ) );
-			Assert.IsFalse( shader.native.IsUiVariableActive( input, feature, 0 ), "Inactive texture input was visible." );
-			Assert.IsTrue( shader.native.IsUiVariableActive( input, feature, 1 ), "Active texture input was hidden." );
-			Assert.IsTrue( shader.native.IsUiVariableActive( "TextureColor", feature, 0 ), "Unconditional texture disappeared." );
-			Assert.IsFalse( shader.native.IsUiVariableActive( input, feature, 0 ), "Toggling the feature did not hide the input again." );
-		}
-		finally { shader.Destroy(); }
-	}
+			Func<string, string, int, bool> active;
+			if ( shader.LoadCompiledForRecompile( System.IO.Path.Combine( shaders, $"{name}.shader" ) ) )
+			{
+				active = ( variable, f, value ) => shader.native.IsUiVariableActive( variable, f, value );
+			}
+			else
+			{
+				var module = Sandbox.ShaderCompiler.PassModule.Read( System.IO.Path.Combine( shaders, $"{name}.slang" ), [shaders] );
+				active = ( variable, f, value ) => Sandbox.ShaderCompiler.MaterialEditorDescription.Describe( module, new Dictionary<string, int> { [f] = value } )
+					.Split( '\n' ).Any( l => l.StartsWith( $"variable\t{variable}\t", StringComparison.Ordinal ) );
+			}
 
-	/// <summary>
-	/// Shaders whose surface stands in alone (skin.shader is gone) have no compiled shader for the native material editor to
-	/// read: it can't list their inputs by feature. Their feature-gated inputs (skin's bent normal and age textures) are
-	/// declared with their ActiveIf in the surface's MATERIAL_INPUTS block, which only the material compiler reads.
-	/// </summary>
-	[TestMethod]
-	[DataRow( "skin" )]
-	public void SurfacesAloneHaveNoCompiledShaderForTheEditor( string name )
-	{
-		var shader = new Shader();
-		try
-		{
-			var core = System.IO.Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), "core", "shaders" );
-			Assert.IsFalse( System.IO.File.Exists( System.IO.Path.Combine( core, $"{name}.shader" ) ) );
-			Assert.IsTrue( System.IO.File.Exists( System.IO.Path.Combine( core, $"{name}.slang" ) ) );
-			Assert.IsFalse( shader.LoadCompiledForRecompile( System.IO.Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), $"core/shaders/{name}.shader" ) ) );
+			Assert.IsFalse( active( input, feature, 0 ), "Inactive texture input was visible." );
+			Assert.IsTrue( active( input, feature, 1 ), "Active texture input was hidden." );
+			Assert.IsTrue( active( "TextureColor", feature, 0 ), "Unconditional texture disappeared." );
+			Assert.IsFalse( active( input, feature, 0 ), "Toggling the feature did not hide the input again." );
 		}
 		finally { shader.Destroy(); }
 	}

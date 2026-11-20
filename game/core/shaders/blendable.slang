@@ -8,6 +8,24 @@ import sbox.surface;
 // What the material compiler makes of a .vmat's images (SlangMaterialCompiler): blendable.shader's texture inputs,
 // the textures made from them and its attributes, read with the material's features
 #if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "common/features.hlsl"
+Feature( F_MULTIBLEND, 0..3 ( 0="1 Layers", 1="2 Layers", 2="3 Layers", 3="4 Layers" ), "Number Of Blendable Layers" );
+Feature( F_USE_TINT_MASKS_IN_VERTEX_PAINT, 0..1, "Use Tint Masks In Vertex Paint" );
+// The material's parameters as the material editor shows them, with the feature states that use them
+float3 g_flTintColorA < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material A,10/80" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+float3 g_flTintColorB < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material B,10/80" ); ActiveIf( F_MULTIBLEND != 0 ); >;
+float g_flBlendSoftnessB < Default( 0.5 ); Range( 0.1, 1 ); UiGroup( "Material B,10/90" ); ActiveIf( F_MULTIBLEND != 0 ); >;
+float2 g_vTexCoordScale2 < Default2( 1, 1 ); Range2( 0, 0, 10, 10 ); UiGroup( "Material B,10/100" ); ActiveIf( F_MULTIBLEND != 0 ); >;
+float3 g_flTintColorC < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material C,10/80" ); ActiveIf( F_MULTIBLEND >= 2 ); >;
+float g_flBlendSoftnessC < Default( 0.5 ); Range( 0.1, 1 ); UiGroup( "Material C,10/90" ); ActiveIf( F_MULTIBLEND >= 2 ); >;
+float2 g_vTexCoordScale3 < Default2( 1, 1 ); Range2( 0, 0, 10, 10 ); UiGroup( "Material C,10/100" ); ActiveIf( F_MULTIBLEND >= 2 ); >;
+float3 g_flTintColorD < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material D,10/80" ); ActiveIf( F_MULTIBLEND == 3 ); >;
+float g_flBlendSoftnessD < Default( 0.5 ); Range( 0.1, 1 ); UiGroup( "Material D,10/90" ); ActiveIf( F_MULTIBLEND == 3 ); >;
+float2 g_vTexCoordScale4 < Default2( 1, 1 ); Range2( 0, 0, 10, 10 ); UiGroup( "Material D,10/100" ); ActiveIf( F_MULTIBLEND == 3 ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
 #define S_MULTIBLEND F_MULTIBLEND
 #include "common/vertex.hlsl"
 BoolAttribute( VertexPaintUI2Layer, F_MULTIBLEND == 1 );

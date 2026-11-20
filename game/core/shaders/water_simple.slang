@@ -3,6 +3,24 @@ import sbox.surface;
 
 // What the material compiler makes of a .vmat's images (SlangMaterialCompiler): the common inputs' textures
 #if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "common/features.hlsl"
+// The material's parameters as the material editor shows them, with the feature states that use them
+float3 g_flTintColor < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material,10/90" ); >;
+float RefractionNormalScale < Default( 0.5 ); Range( 0.01, 1 ); UiGroup( "Refraction" ); >;
+float Translucency < Default( 1 ); Range( 0, 1 ); UiGroup( "Refraction" ); >;
+float Refraction < Default( 1 ); Range( 0, 1 ); UiGroup( "Water" ); >;
+float BigWaveSize < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Wave" ); >;
+float BigWaveScale < Default( 100 ); Range( 0, 256 ); UiGroup( "Wave" ); >;
+float BigWaveTime < Default( 1 ); Range( 0, 10 ); UiGroup( "Wave" ); >;
+float NormalScale < Default( 0.5 ); Range( 0, 2 ); UiGroup( "Tweaks" ); >;
+float g_fRoughness < Default( 0.02 ); Range( 0.01, 1 ); UiGroup( "Tweaks" ); >;
+float g_fMetalness < Default( 0.85 ); Range( 0.01, 1 ); UiGroup( "Tweaks" ); >;
+float g_fAmbientOcclusion < Default( 0.5 ); Range( 0.01, 1 ); UiGroup( "Tweaks" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+BoolAttribute( NeedsLightProbe, true );
+BoolAttribute( CanBatchWithDynamicShaderConstants, true );
+// End of the material editor's lines
 #include "common/utils/Material.CommonInputs.hlsl"
 #endif
 

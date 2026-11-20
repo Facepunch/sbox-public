@@ -11,6 +11,16 @@
 
 Mode( Forward );
 Mode( Depth, S_MODE_DEPTH );
+
+// The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "vr_common_features.fxc"
+// The material's parameters as the material editor shows them, with the feature states that use them
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
+#endif
     // gonna go crazy the amount of shit this stuff adds and fails to compile without
     #include "vr_common_features.fxc"
 

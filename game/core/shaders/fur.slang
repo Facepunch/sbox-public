@@ -10,6 +10,29 @@ import sbox.surface;
 // What the material compiler makes of a .vmat's images (SlangMaterialCompiler): fur.shader's texture inputs,
 // the textures made from them and its attributes, read with the material's features
 #if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+Feature( F_NEW_TEXTURE_PACKING, 0..1 );
+FeatureUpgrade( F_NEW_TEXTURE_PACKING, 1 );
+#include "common/features.hlsl"
+// The material's parameters as the material editor shows them, with the feature states that use them
+float g_flWindFreq < Default( 0.36 ); Range( 0, 100 ); UiGroup( "Wind Displacement, 80/10" ); >;
+float g_flWindNoise < Default( 0.36 ); Range( 0, 10 ); UiGroup( "Wind Displacement, 80/10" ); >;
+float g_flWind < Default( 0.36 ); Range( 0, 100 ); UiGroup( "Wind Displacement, 80/30" ); >;
+bool g_bSrgbToLinearColorSpace < Default( 0 ); UiGroup( "Vertex Colors, 70/10" ); >;
+float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); >;
+float g_flAntiAliasedEdgeStrength < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); >;
+float g_flAOAmount < Default( 0 ); Range( 0, 1 ); UiGroup( "Material, 10/51" ); >;
+float g_flNoiseAOAmount < Default( 0 ); Range( 0, 1 ); UiGroup( "Material, 10/52" ); >;
+float g_flNoiseTiling < Default( 1 ); Range( 0, 64 ); UiGroup( "Fur, 20/20" ); >;
+float g_flNoiseAlbedoMultiply < Default( 0 ); Range( 0, 1 ); UiGroup( "Fur, 20/21" ); >;
+float g_flMinClipFudge < Default( 0.01 ); Range( 0, 1 ); UiGroup( "Fur, 20/22" ); >;
+float3 g_vRimColour < UiType( Color ); Default3( 0.25, 0.25, 0.25 ); UiGroup( "Rim Lighting, 30/10" ); >;
+float g_flRimPower < Default( 0.84 ); Range( 0, 10 ); UiGroup( "Rim Lighting, 30/20" ); >;
+float g_flRimFudge < Default( 0.01 ); Range( 0.01, 1 ); UiGroup( "Rim Lighting, 30/30" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+bool g_bUseGeometryNormals < Default( 1 ); UiGroup( "Rim Lighting, 30/40" ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
 #ifndef S_ALPHA_TEST
 #define S_ALPHA_TEST 1
 #endif

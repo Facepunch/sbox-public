@@ -11,6 +11,43 @@ import sbox.surface;
 // What the material compiler makes of a .vmat's images (SlangMaterialCompiler): skin.shader's texture inputs,
 // the textures made from them and its attributes, read with the material's features
 #if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+Feature( F_DO_NOT_CAST_SHADOWS, 0..1, "Shadows" );
+Feature( F_ALPHA_TEST, 0..1, "Translucent" );
+Feature( F_TRANSLUCENT, 0..1( 0 = "Opaque", 1 = "Translucent" ), "Translucent" );
+Feature( F_TINT_MASK, 0..1, "Per-Instance Tint Mask" );
+Feature( F_USE_PER_VERTEX_CURVATURE, 0..1, "Skin" );
+Feature( F_USE_BENT_NORMALS, 0..1, "Skin" );
+Feature( F_USE_FACE_OCCLUSION_TEXTURE, 0..1, "Skin" );
+Feature( F_SSS_MASK, 0..1, "Skin" );
+Feature( F_AGE_TEXTURE, 0..1, "Skin" );
+FeatureRule( Allow1( F_ALPHA_TEST, F_TRANSLUCENT, F_TINT_MASK, F_SSS_MASK ), "Translucent, Alpha Test, Tint Mask, and Sss Mask are not compatible" );
+Feature( F_WRINKLE, 0..1, "Animation" );
+// The material's parameters as the material editor shows them, with the feature states that use them
+float3 g_vColorTint < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Color" ); >;
+float g_flModelTintAmount < Default( 1 ); Range( 0, 1 ); UiGroup( "Color" ); >;
+float3 g_vTransmissionColor < UiType( Color ); Default3( 0.75, 0.23, 0.012 ); UiGroup( "Transmission" ); >;
+float g_flAmbientOcclusionDirectDiffuse < Default( 1 ); Range( 0, 1 ); UiGroup( "Ambient Occlusion/20" ); >;
+float g_flAmbientOcclusionDirectSpecular < Default( 1 ); Range( 0, 1 ); UiGroup( "Ambient Occlusion/30" ); >;
+float g_flTransmissionFalloff < Default( 0.8 ); Range( 0, 4 ); UiGroup( "Transmission" ); >;
+float g_flSecondSpecularLobeRatio < Default( 0.15 ); Range( 0, 1 ); UiGroup( "Specular" ); >;
+float g_flSecondSpecularLobeGlossiness < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Specular" ); >;
+float g_flCurvatureScale < Default( 1 ); Range( 0, 3 ); UiGroup( "Curvature" ); >;
+float g_flRoughnessScale < Default( 1 ); Range( 0, 3 ); UiGroup( "Roughness,23/9" ); >;
+float g_flDiffuseNormalBlur < Default( 0.5 ); Range( 0, 4 ); UiGroup( "Normal/30" ); >;
+float g_flMouthInteriorBrightnessScale < Default( 1 ); Range( 0, 1 ); UiGroup( "Face Occlusion" ); >;
+float g_flSkinAge < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Tinting/2" ); >;
+float3 g_vAmbientNormalSoftness < UiType( Color ); Default3( 1, 0.3, 0 ); UiGroup( "Lookup Textures" ); >;
+bool g_bOverrideTinting < Default( 0 ); UiGroup( "Tinting/0" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
+float g_flAntiAliasedEdgeStrength < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
+float g_flOpacityScale < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); ActiveIf( F_TRANSLUCENT != 0 ); >;
+float g_flSkinTint < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Tinting/1" ); ActiveIf( F_TINT_MASK != 0 ); >;
+float g_flOcclusionWidth < Default( 3 ); Range( 0.1, 5 ); UiGroup( "Face Occlusion/20" ); ActiveIf( F_USE_FACE_OCCLUSION_TEXTURE != 0 ); >;
+float g_flOcclusionStrength < Default( 0.75 ); Range( 0, 1 ); UiGroup( "Face Occlusion/30" ); ActiveIf( F_USE_FACE_OCCLUSION_TEXTURE != 0 ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
 #define DISABLE_STATIC_LIGHTING 1
 #define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_PREINTEGRATED
 #define S_TRANSMISSIVE 1
@@ -98,12 +135,12 @@ TextureAttribute( LightSim_Opacity_A, g_tColor );
 CreateInputTexture2D( TextureOcclusion, Linear, 8, "", "_color", "Face Occlusion/10", Default3( 1.0, 1.0, 1.0 ) );
 Texture2D g_tOcclusion < Channel( RGB, Box( TextureOcclusion ), Linear ); OutputFormat( DXT1 ); SrgbRead( false ); >;
 #endif
-Texture2D g_tSquishColor < Channel( RGB, Box( TextureSquishColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); >;
-Texture2D g_tStretchColor < Channel( RGB, Box( TextureStretchColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); >;
-Texture2D g_tSquishNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureSquishNormal, TextureRoughness ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
-Texture2D g_tStretchNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureStretchNormal, TextureRoughness ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
-Texture2D g_tSquishAmbientOcclusion < Channel( R, Box3( TextureSquishAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
-Texture2D g_tStretchAmbientOcclusion < Channel( R, Box3( TextureStretchAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+Texture2D g_tSquishColor < Channel( RGB, Box( TextureSquishColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); ActiveIf( F_WRINKLE != 0 ); >;
+Texture2D g_tStretchColor < Channel( RGB, Box( TextureStretchColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); ActiveIf( F_WRINKLE != 0 ); >;
+Texture2D g_tSquishNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureSquishNormal, TextureRoughness ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); ActiveIf( F_WRINKLE != 0 ); >;
+Texture2D g_tStretchNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureStretchNormal, TextureRoughness ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); ActiveIf( F_WRINKLE != 0 ); >;
+Texture2D g_tSquishAmbientOcclusion < Channel( R, Box3( TextureSquishAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); ActiveIf( F_WRINKLE != 0 ); >;
+Texture2D g_tStretchAmbientOcclusion < Channel( R, Box3( TextureStretchAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); ActiveIf( F_WRINKLE != 0 ); >;
 TextureAttribute( LightSim_DiffuseAlbedoTexture, g_tColor );
 TextureAttribute( RepresentativeTexture, g_tColor );
 BoolAttribute( SupportsMappingDimensions, true );

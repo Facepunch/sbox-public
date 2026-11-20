@@ -1,6 +1,17 @@
 // terrain_preview: a surface, the whole shader for Borealis.Gpu (docs/reference/borealis-slang-materials.md).
 import sbox.surface;
 
+// The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "common/features.hlsl"
+// The material's parameters as the material editor shows them, with the feature states that use them
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+BoolAttribute( NeedsLightProbe, true );
+BoolAttribute( CanBatchWithDynamicShaderConstants, true );
+// End of the material editor's lines
+#endif
+
 Texture2D g_tBCR < Attribute( "BCR" ); SrgbRead( false ); >;
 Texture2D g_tNHO < Attribute( "NHO" ); SrgbRead( false ); >;
 float g_flUVScale < Attribute( "UVScale" ); Default( 1.0 ); >;

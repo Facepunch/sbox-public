@@ -8,6 +8,34 @@ Mode( Depth, S_MODE_DEPTH );
 #include "common/features.hlsl"
 Feature( F_CAUSTICS, 0..1, "Caustics" );
 
+// The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "common/features.hlsl"
+// The material's parameters as the material editor shows them, with the feature states that use them
+float CausticsBrightness < Default( 1 ); Range( 0, 16 ); UiGroup( "Caustics,40/20" ); >;
+float CausticsContrast < Default( 1 ); Range( 0, 8 ); UiGroup( "Caustics,40/30" ); >;
+float CausticsIntensity < Default( 1 ); Range( 0, 8 ); UiGroup( "Caustics,40/15" ); >;
+float CausticsScale < Default( 1 ); Range( 0.01, 16 ); UiGroup( "Caustics,40/35" ); >;
+float DetailSpeed < Default( 0.607 ); Range( 0, 10 ); UiGroup( "Detail,20/30" ); >;
+float WaterFogAttenuationDistance < Default( 128 ); Range( 1, 4096 ); UiGroup( "Through-Surface Fog,35/50" ); >;
+float3 WaterFogColor < UiType( Color ); Default3( 0.01, 0.171, 0.262 ); UiGroup( "Through-Surface Fog,35/10" ); >;
+float WaterFogDepthCurve < Default( 0.5 ); Range( 0.1, 4 ); UiGroup( "Through-Surface Fog,35/30" ); >;
+float2 WaterFogDepthRange < Default2( 0, 128 ); Range2( 0, 0, 4096, 4096 ); UiGroup( "Through-Surface Fog,35/20" ); >;
+bool WaterFogDistance < Default( 0 ); UiGroup( "Through-Surface Fog,35/40" ); >;
+float DetailScale < Default( 376.988 ); Range( 1, 4096 ); UiGroup( "Detail,20/20" ); >;
+float DetailStrength < Default( 0.156 ); Range( 0, 4 ); UiGroup( "Detail,20/40" ); >;
+float3 SurfaceColor < UiType( Color ); Default3( 0.01, 0.171, 0.262 ); UiGroup( "Surface,10/10" ); >;
+float Opacity < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Surface,10/20" ); >;
+float g_fRoughness < Default( 0 ); Range( 0, 1 ); UiGroup( "Surface,10/30" ); >;
+float3 UndersideColor < UiType( Color ); Default3( 0.01, 0.171, 0.262 ); UiGroup( "Underside,50/10" ); >;
+float UndersideOpacity < Default( 0 ); Range( 0, 1 ); UiGroup( "Underside,50/20" ); >;
+float RefractionStrength < Default( 1 ); Range( 0, 10 ); UiGroup( "Refraction,30/10" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+BoolAttribute( NeedsLightProbe, false );
+// End of the material editor's lines
+#endif
+
 #define S_SPECULAR 1
 #include "common/shared.hlsl"
 float3 Origin < Attribute( "Origin" ); >;
