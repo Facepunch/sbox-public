@@ -80,6 +80,9 @@ public sealed class AutoExposure : IDisposable
 		public float Min, Max;
 		public bool IgnoreNext;
 
+		// The samples a pixel of its last count stands for: native's query counts every sample of a multisampled target
+		public int Samples;
+
 		public readonly bool Valid => State is not (State.Initial or State.FirstQueryInFlight) && Pixels >= 0;
 	}
 
@@ -160,13 +163,26 @@ public sealed class AutoExposure : IDisposable
 	/// the middle 90% of the viewport (<paramref name="x"/>, <paramref name="y"/>, <paramref name="width"/>, <paramref name="height"/>, in pixels) of <paramref name="color"/>, in
 	/// <paramref name="context"/>'s list, into an occlusion query. <paramref name="context"/> has a colour target of the
 	/// frame's size bound, which isn't drawn to. False when every bucket is still waiting for its count.
-	/// <paramref name="multisampled"/>: <paramref name="color"/> is a multisampled frame's resolved colour, metered as
-	/// native meters the multisampled colour itself (its query reads only red there), so both expose the same.
+	/// <paramref name="samples"/>: the frame's multisampling. Above one, <paramref name="color"/> is its resolved colour,
+	/// metered as native meters the multisampled colour itself: its query reads only red there, and counts every sample of
+	/// its multisampled target, so each pixel counts <paramref name="samples"/> times, as a multisampled view's do on native
+	/// against a single-sampled one's.
+	/// <paramref name="bucket"/>: the bucket <see cref="Reserve"/> picked for this count, or -1 to pick one now.
 	/// </summary>
-	public bool Draw( GraphicsContext context, ShaderFile shader, TextureHandle color, int x, int y, int width, int height, bool multisampled = false )
+	public bool Draw( GraphicsContext context, ShaderFile shader, TextureHandle color, int x, int y, int width, int height, int samples = 1, int bucket = -1 )
 	{
-		var bucket = NextBucket();
+		if ( bucket >= 0 )
+		{
+			// Only the reservation still held: one given back since (Reserve again) has nothing to count into
+			if ( bucket != reserved ) return false;
+			reserved = -1;
+		}
+		else bucket = NextBucket();
+
 		if ( bucket < 0 ) return false;
+
+		var multisampled = samples > 1;
+		buckets[bucket].Samples = Math.Max( samples, 1 );
 
 		var info = gpu.InfoOf( color );
 		int aw = (int)(width * 0.9f), ah = (int)(height * 0.9f);
@@ -220,6 +236,8 @@ public sealed class AutoExposure : IDisposable
 		if ( scale <= 0.0f ) scale = (current.Min + current.Max) * 0.5f;
 		currentScale = targetScale = shaderScale = scale;
 		movingAverageValid = 0;
+		if ( reserved >= 0 ) buckets[reserved] = reservedWas;
+		reserved = -1;
 		for ( int i = 0; i < Buckets; i++ )
 		{
 			buckets[i].Pixels = -1;
@@ -293,14 +311,42 @@ public sealed class AutoExposure : IDisposable
 			if ( !bucket.Queried || bucket.State is not (State.FirstQueryInFlight or State.QueryInFlight) ) continue;
 			if ( queryFrame <= bucket.FrameQueued + 2 || !queries.TryRead( i, out var pixels ) ) continue;
 
-			if ( !bucket.IgnoreNext ) bucket.Pixels = (int)pixels;
+			if ( !bucket.IgnoreNext ) bucket.Pixels = (int)(pixels * (ulong)Math.Max( bucket.Samples, 1 ));
 			bucket.IgnoreNext = false;
 			bucket.State = State.QueryDone;
 		}
 	}
 
+	// The bucket Reserve picked for a count not drawn yet, and how it was before
+	int reserved = -1;
+	Bucket reservedWas;
+
+	/// <summary>
+	/// Pick the bucket a frame's own count will draw into (<see cref="Draw"/>), now: where native picks it
+	/// (<c>GenerateRendererData</c>, as its pipeline adds the frame's <c>AutoExposure</c> layer), before anything drawn on
+	/// the way that counts too picks its own. -1 when every bucket is still waiting for its count. A reservation not drawn
+	/// by the next one goes back as it was.
+	/// </summary>
+	public int Reserve()
+	{
+		if ( reserved >= 0 ) buckets[reserved] = reservedWas;
+		reserved = PickBucket();
+		if ( reserved < 0 ) return -1;
+
+		reservedWas = buckets[reserved];
+		Queue( reserved );
+		return reserved;
+	}
+
 	/// <summary>The bucket to count this frame (<c>GenerateRendererData</c>): one never counted, else the oldest counted; -1 for none.</summary>
 	int NextBucket()
+	{
+		var index = PickBucket();
+		if ( index >= 0 ) Queue( index );
+		return index;
+	}
+
+	int PickBucket()
 	{
 		var index = -1;
 		for ( int i = 0; i < Buckets && index < 0; i++ )
@@ -316,13 +362,15 @@ public sealed class AutoExposure : IDisposable
 			}
 		}
 
-		if ( index < 0 ) return -1;
+		return index;
+	}
 
+	void Queue( int index )
+	{
 		ref var bucket = ref buckets[index];
 		bucket.State = bucket.State == State.Initial ? State.FirstQueryInFlight : State.QueryInFlight;
 		bucket.FrameQueued = queryFrame;
 		bucket.Queried = true;
-		return index;
 	}
 
 	float FindLocationOfPercentBrightPixels( float percentBrightPixels, float percentTargetToSnapTo = -1.0f )

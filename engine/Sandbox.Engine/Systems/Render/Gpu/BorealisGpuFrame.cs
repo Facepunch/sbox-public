@@ -546,9 +546,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// <summary>
 	/// Count <paramref name="exposure"/>'s luminance bucket for this frame over its colour, in the block from
 	/// <see cref="Begin()"/> before tonemapping, as a camera's stages do on Source 2. The exposure it moves to
-	/// (<see cref="AutoExposure.FrameUpdate"/>, before the scene) is the next frames' <c>ToneMapScalar</c>.
+	/// (<see cref="AutoExposure.FrameUpdate"/>, before the scene) is the next frames' <c>ToneMapScalar</c>. <paramref name="bucket"/>:
+	/// the one <see cref="AutoExposure.Reserve"/> picked as the frame began, as native picks it when its pipeline adds the layer.
 	/// </summary>
-	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, SceneColor, new Rect( 0, 0, SceneColor.Width, SceneColor.Height ), target is { Samples: > 1 } );
+	public void CountExposure( AutoExposure exposure, int bucket = -1 ) => backend.CountExposure( exposure, SceneColor, new Rect( 0, 0, SceneColor.Width, SceneColor.Height ), Math.Max( target?.Samples ?? 1, 1 ), bucket );
 
 	/// <summary>
 	/// In the block from <see cref="Begin(BorealisGpuView)"/>, once an upscaler has written <paramref name="color"/> and
