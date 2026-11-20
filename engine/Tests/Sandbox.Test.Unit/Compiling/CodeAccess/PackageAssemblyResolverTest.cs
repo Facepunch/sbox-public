@@ -73,6 +73,75 @@ public class PackageAssemblyResolverTest
 		Assert.AreEqual( new System.Version( 2, 0, 0, 0 ), newest.Name.Version );
 	}
 
+	/// <summary>
+	/// A live callback keeps its captured value when two package builds use the same version,
+	/// including when fast hotload has updated the bytes sent to clients in the meantime.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void FullHotloadUsesTheImageThatCreatedTheCallback( bool fastHotloadFirst )
+	{
+		const string name = "package.resolver.callbackimages";
+		const string source = """
+			public static class Menu
+			{
+				public static System.Action SelectionChanged;
+				public static string Selected;
+				public static void Subscribe<T>( string tab )
+				{
+					void SaveSelection() => Selected = tab;
+					SelectionChanged += SaveSelection;
+				}
+			}
+			""";
+
+		using var oldLoader = new PackageLoader( "OutgoingImageTest", GetType().Assembly ) { ToolsMode = true };
+		using var oldPackages = oldLoader.CreateEnroller( "outgoing" );
+		using var originalStream = new MemoryStream( Compile( name, source ) );
+		Assert.IsTrue( oldPackages.LoadAssemblyFromStream( name, originalStream ) );
+		var original = oldPackages.GetLoadedAssemblies().Single();
+		var originalMenu = original.Assembly.GetType( "Menu" );
+		originalMenu.GetMethod( "Subscribe" ).MakeGenericMethod( typeof( int ) ).Invoke( null, ["props"] );
+
+		if ( fastHotloadFirst )
+		{
+			using var platform = new ILHotload( "ImageTest" );
+			if ( !platform.IsSupported || System.Diagnostics.Debugger.IsAttached )
+			{
+				Assert.Inconclusive( "The IL fast-hotload path is unavailable in this run." );
+			}
+
+			var fastSource = "[assembly: Sandbox.SupportsILHotload( \"0.0.0.0\" )]\n" + source;
+			var reference = MetadataReference.CreateFromFile( typeof( SupportsILHotloadAttribute ).Assembly.Location );
+			using var fastStream = new MemoryStream( Compile( name, fastSource, reference ) );
+			Assert.IsTrue( oldPackages.LoadAssemblyFromStream( name, fastStream ) );
+			Assert.IsTrue( original.FastHotload );
+			using var oldImage = PackageManager.AssemblyResolver.OpenAssemblyImage( original.Assembly );
+			Assert.AreEqual( original.Assembly.ManifestModule.ModuleVersionId, oldImage.MainModule.Mvid );
+			Assert.AreNotEqual( original.ModifiedAssembly.ManifestModule.ModuleVersionId, oldImage.MainModule.Mvid );
+		}
+
+		// An added member moves the compiler's number for Subscribe. Both sides need their own method bodies to match it.
+		var replacementSource = source.Replace( "public static void Subscribe", "public static void ExtraMember() { } public static void Subscribe" );
+		using var newLoader = new PackageLoader( "IncomingImageTest", GetType().Assembly ) { ToolsMode = true };
+		using var newPackages = newLoader.CreateEnroller( "incoming" );
+		using var newStream = new MemoryStream( Compile( name, replacementSource ) );
+		Assert.IsTrue( newPackages.LoadAssemblyFromStream( name, newStream ) );
+		var replacement = newPackages.GetLoadedAssemblies().Single().Assembly;
+		Assert.AreEqual( original.Assembly.FullName, replacement.FullName );
+		Assert.AreNotEqual( original.Assembly.ManifestModule.ModuleVersionId, replacement.ManifestModule.ModuleVersionId );
+
+		// Walk only the fixture's statics in the managed test process.
+		var hotload = new Hotload { AssemblyResolver = PackageManager.AssemblyResolver };
+		hotload.ReplacingAssembly( original.Assembly, replacement );
+		var result = hotload.UpdateReferences();
+		Assert.IsTrue( result.Success, string.Join( "\n", result.Errors ) );
+		var menu = replacement.GetType( "Menu" );
+		((System.Action)menu.GetField( "SelectionChanged" ).GetValue( null ))();
+		Assert.AreEqual( "props", menu.GetField( "Selected" ).GetValue( null ) );
+	}
+
 	[TestMethod]
 	public void PackageCallback_ResolvesOnceThenUsesCache()
 	{

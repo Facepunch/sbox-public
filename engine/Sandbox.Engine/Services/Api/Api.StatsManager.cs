@@ -278,7 +278,7 @@ internal static partial class Api
 			public string Context { get; set; }
 
 			/// <summary>
-			/// The current session (or null if #local)
+			/// The current activity session, if one is active.
 			/// </summary>
 			public string Session { get; set; }
 

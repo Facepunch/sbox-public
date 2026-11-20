@@ -18,7 +18,7 @@ public static partial class AssetSystem
 	}
 
 	/// <summary>
-	/// Install a cloud package. Will return the primary asset on completion (if it has one)
+	/// Returns the primary asset from a registered project or installs the published package into the cloud directory.
 	/// </summary>
 	/// <param name="package"></param>
 	/// <param name="skipIfInstalled">Skip downloading the remote package if any version of this package is already installed.</param>
@@ -31,6 +31,17 @@ public static partial class AssetSystem
 
 		if ( package == null )
 			return null;
+
+		if ( Project.FindByIdent( package.FullIdent ) is { } project )
+		{
+			token.ThrowIfCancellationRequested();
+			var path = project.Package.PrimaryAsset;
+			if ( string.IsNullOrWhiteSpace( path ) || project.AssetsFileSystem?.FileExists( path ) != true )
+				return null;
+
+			var fullPath = project.AssetsFileSystem.GetFullPath( path );
+			return FindByPath( fullPath ) ?? RegisterFile( fullPath );
+		}
 
 		if ( package.Revision == null )
 			return null;
@@ -121,7 +132,7 @@ public static partial class AssetSystem
 	{
 		if ( assets.Count() < 1 ) return;
 
-		string newIdent = toPackage?.GetIdent( false, true );
+		string newIdent = toPackage?.GetVersionedIdent();
 		string projectPath = Project.Current.GetAssetsPath().Replace( '\\', '/' );
 
 		foreach ( var asset in assets )

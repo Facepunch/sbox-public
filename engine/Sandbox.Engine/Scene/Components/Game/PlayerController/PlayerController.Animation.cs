@@ -1,11 +1,29 @@
 ﻿using Sandbox.Audio;
+using Sandbox.Citizen;
 
 namespace Sandbox;
 
-public sealed partial class PlayerController : Component
+public sealed partial class PlayerController : Component, BaseCombatWeapon.IEvents, BaseCombatWeapon.IHolder
 {
 	SkinnedModelRenderer _renderer;
 	bool _jumpAnimationPending;
+
+	// The gestures waiting for a weapon's next animation update, and the weapon they belong to.
+	BaseCombatWeapon _gestureWeapon;
+	[Flags]
+	private enum PendingGestures
+	{
+		None = 0,
+		Attack = 1,
+		Reload = 2,
+		Deploy = 4,
+		ReloadCancel = 8
+	}
+
+	PendingGestures _pendingGestures;
+
+	// The weapon whose last update left a gesture parameter on.
+	BaseCombatWeapon _playingGestureWeapon;
 
 	[Property, FeatureEnabled( "Animator", Icon = "sports_martial_arts", Description = "Automatically derive animations from Velocity/Inputs" )]
 	public bool UseAnimatorControls { get; set; } = true;
@@ -111,6 +129,223 @@ public sealed partial class PlayerController : Component
 		}
 
 		_jumpAnimationPending = false;
+	}
+
+	/// <summary>
+	/// Pose the body for a weapon this player holds and play its pending deploy, attack and reload gestures.
+	/// The weapon calls this every frame while it's deployed, whether or not <see cref="UseAnimatorControls"/> is on.
+	/// </summary>
+	internal void UpdateWeaponAnimation( BaseCombatWeapon weapon, SkinnedModelRenderer renderer )
+	{
+		var pending = _gestureWeapon == weapon;
+
+		if ( renderer.Animation.Graph is not null )
+		{
+			// Not running yet: the gestures wait for it.
+			if ( !renderer.Animation.IsValid )
+				return;
+
+			var parameters = renderer.Animation.Parameters;
+			parameters.TrySet( "b_attack", pending && (_pendingGestures & PendingGestures.Attack) != 0 );
+			parameters.TrySet( "b_reload", pending && (_pendingGestures & PendingGestures.Reload) != 0 );
+			parameters.TrySet( "b_deploy", pending && (_pendingGestures & PendingGestures.Deploy) != 0 );
+			parameters.TrySet( "b_reload_cancel", pending && (_pendingGestures & PendingGestures.ReloadCancel) != 0 );
+			_playingGestureWeapon = pending && _pendingGestures != PendingGestures.None ? weapon : null;
+		}
+
+		if ( pending )
+			ClearWeaponGestures();
+
+		UpdateWeaponHold( weapon, renderer );
+	}
+
+	/// <summary>
+	/// Pose the body for a held weapon: its <see cref="BaseCombatWeapon.HoldType"/> when the graph has that option,
+	/// else the closest option to it or to its <see cref="BaseCombatWeapon.HoldFallback"/>, else the name as it is.
+	/// </summary>
+	void UpdateWeaponHold( BaseCombatWeapon weapon, SkinnedModelRenderer renderer )
+	{
+		var holdType = weapon.HoldType;
+		var fallback = weapon.HoldFallback;
+
+		// A weapon without a hold leaves the parameter to the game.
+		if ( string.IsNullOrEmpty( holdType ) && string.IsNullOrEmpty( fallback ) )
+			return;
+
+		if ( renderer.Animation.Graph is { } graph )
+		{
+			var parameters = renderer.Animation.Parameters;
+			parameters.TrySet( "holdtype", CitizenHoldTypes.Resolve( holdType, fallback, graph, HasHoldOption ) );
+			parameters.TrySet( "holdtype_handedness", (int)weapon.Handedness );
+			return;
+		}
+
+#pragma warning disable CS0618
+		renderer.Set( "holdtype", CitizenHoldTypes.Resolve( holdType, fallback, renderer, HasLegacyHoldOption ) );
+		renderer.Set( "holdtype_handedness", (int)weapon.Handedness );
+#pragma warning restore CS0618
+	}
+
+	// Setting an id the graph doesn't list still succeeds, so check its described options. A graph that describes none could have any.
+	static bool HasHoldOption( Sandbox.Animation.Graph graph, string name )
+	{
+		foreach ( var parameter in graph.Parameters )
+		{
+			if ( !string.Equals( parameter.Name, "holdtype", StringComparison.OrdinalIgnoreCase ) )
+				continue;
+
+			if ( parameter.Options.Count == 0 )
+				return true;
+
+			foreach ( var option in parameter.Options )
+			{
+				if ( string.Equals( option, name, StringComparison.OrdinalIgnoreCase ) )
+					return true;
+			}
+
+			return false;
+		}
+
+		return true;
+	}
+
+	// Until the model has spawned its graph could have any option.
+	static bool HasLegacyHoldOption( SkinnedModelRenderer renderer, string name )
+	{
+#pragma warning disable CS0618
+		if ( renderer.SceneModel?.AnimationGraph is not { IsValid: true } graph )
+			return true;
+
+		return graph.TryGetEnumOptionIndex( "holdtype", name, out _ );
+#pragma warning restore CS0618
+	}
+
+	void ClearWeaponGestures()
+	{
+		_gestureWeapon = null;
+		_pendingGestures = PendingGestures.None;
+	}
+
+	void BaseCombatWeapon.IEvents.OnWeaponEvent( BaseCombatWeapon weapon, string name )
+	{
+		// Events reach every ancestor, so a weapon held by something we carry isn't ours.
+		if ( !weapon.IsValid() || !ReferenceEquals( weapon.Holder, this ) )
+			return;
+
+		// An earlier listener may have switched weapons while this event was on its way, so go by what the weapon
+		// is now: one that was put away only holsters, one in hand does everything else.
+		var inHand = weapon.GameObject.Active;
+
+		if ( IsEvent( name, WeaponEvents.Holster ) )
+		{
+			if ( !inHand )
+				ReleaseWeapon( weapon );
+
+			return;
+		}
+
+		if ( !inHand )
+			return;
+
+		if ( IsEvent( name, WeaponEvents.Deploy ) )
+		{
+			ClearWeaponGestures();
+			_gestureWeapon = weapon;
+			_pendingGestures = PendingGestures.Deploy;
+			return;
+		}
+
+		var attack = IsEvent( name, WeaponEvents.Attack );
+		var reload = IsEvent( name, WeaponEvents.Reload );
+		var reloadCancel = IsEvent( name, WeaponEvents.ReloadCancel );
+		if ( !attack && !reload && !reloadCancel )
+			return;
+
+		if ( attack && Application.IsDedicatedServer )
+			return;
+
+		if ( _gestureWeapon != weapon )
+		{
+			ClearWeaponGestures();
+			_gestureWeapon = weapon;
+		}
+
+		if ( attack )
+		{
+			_pendingGestures |= PendingGestures.Attack;
+			SetLegacyTrigger( "b_attack" );
+		}
+		else if ( reload )
+		{
+			_pendingGestures |= PendingGestures.Reload;
+			SetLegacyTrigger( "b_reload" );
+		}
+		else
+		{
+			_pendingGestures = (_pendingGestures & ~PendingGestures.Reload) | PendingGestures.ReloadCancel;
+		}
+	}
+
+	/// <summary>
+	/// A weapon was put away: drop its pending gestures, switch off any still playing and let go of its hold.
+	/// </summary>
+	void ReleaseWeapon( BaseCombatWeapon weapon )
+	{
+		if ( _gestureWeapon == weapon )
+			ClearWeaponGestures();
+
+		// Only this weapon's own gestures are switched off, another weapon's are its to finish.
+		var gesturesOn = _playingGestureWeapon == weapon;
+		if ( gesturesOn )
+			_playingGestureWeapon = null;
+
+		if ( !Renderer.IsValid() )
+			return;
+
+		var hasHold = !string.IsNullOrEmpty( weapon.HoldType ) || !string.IsNullOrEmpty( weapon.HoldFallback );
+
+		if ( Renderer.Animation.Graph is not null )
+		{
+			var parameters = Renderer.Animation.Parameters;
+
+			if ( hasHold )
+				parameters.TrySet( "holdtype", "none" );
+
+			if ( gesturesOn )
+			{
+				parameters.TrySet( "b_attack", false );
+				parameters.TrySet( "b_reload", false );
+				parameters.TrySet( "b_deploy", false );
+				parameters.TrySet( "b_reload_cancel", false );
+			}
+
+			return;
+		}
+
+#pragma warning disable CS0618
+		if ( hasHold )
+			Renderer.Set( "holdtype", "none" );
+#pragma warning restore CS0618
+	}
+
+	Ray BaseCombatWeapon.IHolder.CalculateAimRay( BaseCombatWeapon weapon )
+	{
+		// In third person aim where the camera looks, not where the head points.
+		if ( ThirdPerson && Scene.Camera.IsValid() )
+			return Scene.Camera.WorldTransform.ForwardRay;
+
+		return EyeTransform.ForwardRay;
+	}
+
+	static bool IsEvent( string name, string expected ) => string.Equals( name, expected, StringComparison.OrdinalIgnoreCase );
+
+	// AnimGraph1 bodies take the one-shots as they happen instead of through the pending flags.
+	void SetLegacyTrigger( string parameter )
+	{
+#pragma warning disable CS0618
+		if ( Renderer is { Animation.Graph: null } renderer )
+			renderer.Set( parameter, true );
+#pragma warning restore CS0618
 	}
 
 	bool IsFirstPersonViewer => UseCameraControls && Scene.Camera.IsValid() && !IsProxy

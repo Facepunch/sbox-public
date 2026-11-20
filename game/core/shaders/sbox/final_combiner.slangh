@@ -1,0 +1,372 @@
+// The classic pixel shader frame: the final combiner's input with its defaults (PS_InitFinalCombiner, or PS_CommonProcessing
+// from a standard PS_INPUT), the lit pass's render states, and the final combiner itself, which lights the input
+// (sbox/lighting.slangh), applies ambient occlusion, fog and the tools visualizations, and writes the colour or the depth
+// pass's G-buffer. Ours, in place of the old vr_common_ps_code.fxc in Slang compiles (SlangHeaders): the same names, material
+// parameters (in the same order) and results. Shares the old header's include guard.
+#ifndef VR_COMMON_PS_CODE_FXC
+#define VR_COMMON_PS_CODE_FXC
+
+// What the old header included, in its order, which code that includes it may rely on
+#include "sbox/math.slangh"
+#include "sbox/encoding.slangh"
+#include "common/classes/Fog.hlsl"
+#include "sbox/lighting.slangh"
+#include "sbox/volumetric_fog.slangh"
+
+#if ( S_UNLIT )
+	BoolAttribute( unlit, true );
+#else
+	// Whether the material binds the baked light probe; a lit shader can opt out by defining this false first
+	#ifndef NEEDS_LIGHT_PROBE
+		#define NEEDS_LIGHT_PROBE true
+	#endif
+	BoolAttribute( NeedsLightProbe, NEEDS_LIGHT_PROBE );
+#endif
+
+bool g_bFogEnabled < Default( 1.0f ); UiType( CheckBox ); UiGroup( "Fog,300" ); >;
+
+// Stencil: pixels with stencil bit 1 are skipped; a pass op of Replace writes bit 2 (dynamic objects)
+#if !defined( STENCIL_ALREADY_SET )
+	RenderState( StencilEnable, true );
+	RenderState( StencilPassOp, KEEP );
+	RenderState( StencilFunc, NOT_EQUAL );
+	RenderState( StencilRef, 3 );
+	RenderState( StencilReadMask, 1 );
+	RenderState( StencilWriteMask, 254 );
+
+	#if defined( MATERIAL_CONTROLLED_BACKFACES )
+		RenderState( BackStencilPassOp, KEEP );
+		RenderState( BackStencilFunc, F_RENDER_BACKFACES ? NOT_EQUAL : ALWAYS );
+	#elif ( S_RENDER_BACKFACES )
+		RenderState( BackStencilPassOp, KEEP );
+		RenderState( BackStencilFunc, NOT_EQUAL );
+	#endif
+#endif
+
+// Reversed depth, written
+#if !defined( DEPTH_STATE_ALREADY_SET )
+	#define DEPTH_STATE_ALREADY_SET
+	RenderState( DepthEnable, true );
+	RenderState( DepthWriteEnable, true );
+	RenderState( DepthFunc, GREATER_EQUAL );
+#endif
+
+// Two-sided materials draw back faces
+#if !defined( CULL_MODE_ALREADY_SET )
+	#if defined( MATERIAL_CONTROLLED_BACKFACES )
+		RenderState( CullMode, F_RENDER_BACKFACES ? NONE : DEFAULT );
+	#elif ( S_RENDER_BACKFACES )
+		RenderState( CullMode, NONE );
+	#endif
+#endif
+
+/// The final combiner's input with every field at its default: white, non-metal, flat, rough 0, opaque, no AO. A caller that
+/// doesn't use PS_CommonProcessing sets the positions and tangent frame itself, or lighting is wrong.
+FinalCombinerInput_t PS_InitFinalCombiner()
+{
+	FinalCombinerInput_t o;
+
+	o.vDiffuseColor = float3( 1.0, 1.0, 1.0 );
+	o.vSpecularColor = float3( 0.0, 0.0, 0.0 );
+	o.flOpacity = 1.0;
+	o.vNormalTs = float3( 0.0, 0.0, 1.0 );
+	o.vRoughness = float2( 0.0, 0.0 );
+	o.vEmissive = float3( 0.0, 0.0, 0.0 );
+	o.vTangentUWs = float3( 1.0, 0.0, 0.0 );
+	o.vTangentVWs = float3( 0.0, 1.0, 0.0 );
+	o.flAmbientOcclusion = 1.0;
+	o.flFresnelExponent = 5.0;
+	o.flRetroReflectivity = 0.0;
+
+	o.vAmbientOcclusionColorBleed = float3( 1.0, 1.0, 1.0 );
+	o.flAmbientOcclusionDirectDiffuse = 0.0;
+	o.flAmbientOcclusionDirectSpecular = 1.0;
+
+	o.flTwoLobeSpecularRatio = 0.0;
+
+	o.vSSSNormalWs = float3( 0.0, 0.0, 0.0 );
+	o.flSSSCurvature = 0.0;
+	o.vSSSWrapColor = float3( 1.0, 1.0, 1.0 );
+	o.vSSSWrapParameters = SUBSURFACE_SCATTERING_DEFAULT_WRAP_PARAMETERS;
+	o.flSSSMask = 1.0;
+
+	o.vTransmissiveMask = float3( 0.0, 0.0, 0.0 );
+	o.vTransmissiveFalloff = float3( 0.0, 0.0, 0.0 );
+
+	o.vPositionSs = float4( 0.0, 0.0, 0.0, 0.0 );
+	o.vPositionWs = float3( 0.0, 0.0, 0.0 );
+	o.vPositionWithOffsetWs = float3( 0.0, 0.0, 0.0 );
+	o.bUseBentNormalsForIndirect = false;
+	o.vBentNormalWs = float3( 1.0, 1.0, 1.0 );
+	o.vBentDiffuseNormalWs = float3( 1.0, 1.0, 1.0 );
+	o.vAnisotropy = float2( 0.0, 0.0 );
+	o.vPerPixelTangentUWs = float3( 0.0, 0.0, 0.0 );
+	o.vPerPixelTangentVWs = float3( 0.0, 0.0, 0.0 );
+	o.flWrinkle = 0.0;
+
+	o.vLightmapUV = float2( 0.0f, 0.0f );
+
+	// Tools vis
+	o.vTextureCoords.xy = float2( 0, 0 );
+
+	return o;
+}
+
+#ifdef COMMON_PS_INPUT_DEFINED
+
+/// The input from a standard PS_INPUT: vertex colour as diffuse and opacity, the normal (flipped on back faces of two-sided
+/// materials), positions, lightmap UV, curvature (per vertex, or from the normal's change over position) and wrinkle.
+FinalCombinerInput_t PS_CommonProcessing( const PS_INPUT i )
+{
+	FinalCombinerInput_t o = PS_InitFinalCombiner();
+
+	o.vDiffuseColor = i.vVertexColor.rgb;
+	o.flOpacity = i.vVertexColor.a;
+
+	float3 vNormalWs = i.vNormalWs.xyz;
+#if defined( MATERIAL_CONTROLLED_BACKFACES )
+	if ( F_RENDER_BACKFACES != 0 )
+#endif
+#if defined( MATERIAL_CONTROLLED_BACKFACES ) || S_RENDER_BACKFACES
+	{
+		vNormalWs *= ( i.face ? 1.0 : -1.0 );
+	}
+#endif
+	o.vNormalWs = normalize( vNormalWs );
+
+#if ( S_USE_PER_VERTEX_CURVATURE )
+	o.flSSSCurvature = i.flSSSCurvature;
+#else
+	o.flSSSCurvature = length( fwidth( i.vNormalWs.xyz ) ) / length( fwidth( i.vPositionWithOffsetWs.xyz ) );
+#endif
+
+	o.vPositionWithOffsetWs = i.vPositionWithOffsetWs;
+	o.vPositionWs = i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz;
+	o.vPositionSs = i.vPositionSs;
+
+	o.vLightmapUV = i.vLightmapUV.xy;
+
+#if ( S_WRINKLE )
+	o.flWrinkle = clamp( i.vNormalWs.w, -1.0, 1.0 );
+#endif
+
+	// Tools vis reads the colour texture's UVs, when there is one
+#ifdef g_tColor
+	o.vTextureCoords.xy = i.vTextureCoords.xy;
+#else
+	o.vTextureCoords.xy = float2( 0, 0 );
+#endif
+
+	return o;
+}
+
+#if ( PS_INPUT_HAS_TANGENT_BASIS )
+
+/// A tangent-space normal (from a normal map) into the input's world normal, by the interpolated tangent frame (renormalized,
+/// since interpolation leaves it non-orthogonal). Tangent space here has +Y down, so Y is flipped.
+void PS_CommonTransformNormal( const PS_INPUT i, inout FinalCombinerInput_t f, float3 vNormalTs )
+{
+	float3 vNormalWs = f.vNormalWs;
+	float3 vTangentUWs = normalize( i.vTangentUWs.xyz );
+	float3 vTangentVWs = normalize( i.vTangentVWs.xyz );
+
+	vNormalTs.y = -vNormalTs.y;
+
+	f.vTangentUWs = vTangentUWs;
+	f.vTangentVWs = vTangentVWs;
+	f.vNormalTs = vNormalTs;
+	f.vNormalWs = Vec3TsToWsNormalized( vNormalTs, vNormalWs, vTangentUWs, vTangentVWs );
+}
+
+#endif
+
+#endif // COMMON_PS_INPUT_DEFINED
+
+struct PS_OUTPUT
+{
+	float4 vColor : SV_Target0;
+};
+
+/// Diffuse AO: the least of the material's, the baked (as its square root) and the screen-space AO, brightened for light
+/// albedos by the multi-bounce fit of Jimenez et al. 2016, "Practical Realtime Strategies for Accurate Indirect Occlusion".
+float3 CalculateDiffuseAmbientOcclusion( FinalCombinerInput_t f, LightingTerms_t lightingTerms )
+{
+	float flAO = min( f.flAmbientOcclusion, sqrt( lightingTerms.flBakedAmbientOcclusion ) );
+	flAO = min( lightingTerms.flDynamicAmbientOcclusion, flAO );
+
+	float3 vAlbedo = f.vDiffuseColor;
+	float3 a = 2.0404 * vAlbedo - 0.3324;
+	float3 b = -4.7951 * vAlbedo + 0.6417;
+	float3 c = 2.7552 * vAlbedo + 0.6903;
+	return max( float3( flAO.xxx ), ( ( flAO * a + b ) * flAO + c ) * flAO );
+}
+
+/// Specular AO from the least of the material's, baked and screen-space AO, by the view against the (bent, when used) normal.
+float3 CalculateSpecularAmbientOcclusion( FinalCombinerInput_t f, LightingTerms_t lightingTerms )
+{
+	float flAO = min( f.flAmbientOcclusion, lightingTerms.flBakedAmbientOcclusion );
+	flAO = min( lightingTerms.flDynamicAmbientOcclusion, flAO );
+
+	if ( f.bUseBentNormalsForIndirect )
+		return PowerSpecularOcclusion( f.vPositionWs, f.vBentNormalWs, flAO ).xxx;
+	else
+		return PowerSpecularOcclusion( f.vPositionWs, f.vNormalWs, flAO ).xxx;
+}
+
+/// Metalness workflow: diffuse is the albedo less what's metal, specular goes from 4% to the albedo with metalness.
+FinalCombinerInput_t CalculateDiffuseAndSpecularFromAlbedoAndMetalness( FinalCombinerInput_t f, float3 vAlbedo, float flMetalness )
+{
+	f.vAlbedo = vAlbedo;
+	f.vDiffuseColor = vAlbedo * ( 1.0f - flMetalness );
+	f.vSpecularColor = lerp( float3( 0.04f, 0.04f, 0.04f ), vAlbedo, flMetalness );
+	return f;
+}
+
+/// Lights the input and returns its colour (opacity in alpha): diffuse and indirect diffuse times the diffuse colour, plus
+/// specular, transmission and emissive, with diffuse and specular AO applied. Leaves the terms in lightingTerms for
+/// PS_FinalCombinerDoPostProcessing. The depth pass gets 0.
+PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerms_t lightingTerms )
+{
+	PS_OUTPUT o;
+
+	// The depth pass writes the G-buffer (in post processing) or only alpha to coverage: lighting's cluster walks are wave
+	// ops, which the compiler keeps even with their result dead
+	if ( DepthNormals::WantsDepthNormals() )
+	{
+		o.vColor = 0;
+		return o;
+	}
+
+#if ( !S_UNLIT )
+	#if ( S_ANISOTROPIC_GLOSS )
+		// Which tangent the highlight stretches along (x: 1 for U), how much (y), and the per-pixel tangent frame
+		float2 vRatio = f.vRoughness.xy / f.vRoughness.yx;
+		f.vAnisotropy.x = step( vRatio.y, vRatio.x );
+		f.vAnisotropy.y = 1.0 - min( vRatio.x, vRatio.y );
+		f.vPerPixelTangentUWs = normalize( cross( f.vTangentVWs, f.vNormalWs ) );
+		f.vPerPixelTangentVWs = normalize( cross( f.vNormalWs, f.vTangentUWs ) );
+	#endif
+
+	// Rougher where the geometry curves, against specular aliasing
+	f.vRoughness = AdjustRoughnessByGeometricNormal( f.vRoughness, f.vNormalWs );
+
+	// The cluster index once for both. Emissive rides in transmission, only added at the end, so it isn't live through the
+	// light loops; tools vis shows them apart, so adds it below instead
+	uint nClusterIndex = Cluster::Index( f.vPositionSs );
+	ComputeDirectLighting( lightingTerms, f, nClusterIndex, ToolsVis::WantsToolsVis() ? float3( 0.0, 0.0, 0.0 ) : f.vEmissive );
+	CalculateIndirectLighting( lightingTerms, f, nClusterIndex );
+
+	float3 vDiffuseAO = CalculateDiffuseAmbientOcclusion( f, lightingTerms );
+	lightingTerms.vIndirectDiffuse *= vDiffuseAO;
+	lightingTerms.vDiffuse *= lerp( float3( 1.0, 1.0, 1.0 ), vDiffuseAO, f.flAmbientOcclusionDirectDiffuse );
+
+	float3 vSpecularAO = CalculateSpecularAmbientOcclusion( f, lightingTerms );
+	lightingTerms.vIndirectSpecular *= vSpecularAO;
+	lightingTerms.vSpecular *= lerp( float3( 1.0, 1.0, 1.0 ), vSpecularAO, f.flAmbientOcclusionDirectSpecular );
+
+	#if defined( S_SPECULAR ) && ( S_SPECULAR == 0 )
+		lightingTerms.vSpecular = float3( 0.0, 0.0, 0.0 );
+		lightingTerms.vIndirectSpecular = float3( 0.0, 0.0, 0.0 );
+	#endif
+#endif
+
+	o.vColor.a = f.flOpacity;
+	o.vColor.rgb = ( lightingTerms.vDiffuse + lightingTerms.vIndirectDiffuse ) * f.vDiffuseColor;
+
+#if ( S_UNLIT )
+	o.vColor.rgb += f.vEmissive;
+#else
+	if ( ToolsVis::WantsToolsVis() )
+		o.vColor.rgb += f.vEmissive;
+#endif
+
+	o.vColor.rgb += lightingTerms.vSpecular;
+	o.vColor.rgb += lightingTerms.vIndirectSpecular;
+
+	// Transmission has the material's mask in it already
+	o.vColor.rgb += lightingTerms.vTransmissive;
+
+	return o;
+}
+
+/// After lighting: the depth pass's G-buffer output, fog (or, additive, fog's transmittance on alpha), the tools
+/// visualizations and wireframe colour.
+PS_OUTPUT PS_FinalCombinerDoPostProcessing( FinalCombinerInput_t f, LightingTerms_t lightingTerms, PS_OUTPUT o )
+{
+	float3 vPositionWs = f.vPositionWs;
+	float4 vPositionSs = f.vPositionSs;
+
+	if ( DepthNormals::WantsDepthNormals() )
+	{
+		o.vColor = DepthNormals::Output( f.vNormalWs, f.vRoughness.x, f.flOpacity );
+		return o;
+	}
+
+	if ( g_bFogEnabled )
+	{
+	#if ( S_ADDITIVE_BLEND )
+		o.vColor.a *= Fog::Transmittance( vPositionWs, vPositionSs.xy );
+	#else
+		o.vColor.rgb = Fog::Apply( vPositionWs, vPositionSs.xy, o.vColor.rgb );
+	#endif
+	}
+
+	[branch]
+	if ( ToolsVis::WantsToolsVis() )
+	{
+		float3 vAlbedo = f.vAlbedo;
+
+		ToolsVis vis = ToolsVis::Init( o.vColor, lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vIndirectDiffuse, lightingTerms.vIndirectSpecular, lightingTerms.vTransmissive );
+
+		vis.HandleFlatOverlayColor( vAlbedo, o.vColor );
+		vis.HandleFullbright( o.vColor, vAlbedo, f.vPositionWs, f.vNormalWs );
+		vis.HandleDiffuseLighting( o.vColor );
+		vis.HandleSpecularLighting( o.vColor );
+		vis.HandleTransmissiveLighting( o.vColor );
+		vis.HandleLightingComplexity( o.vColor, f.vPositionWs, f.vPositionSs, f.vNormalWs );
+
+		vis.HandleAlbedo( o.vColor, vAlbedo );
+		vis.HandleReflectivity( o.vColor, vAlbedo );
+		vis.HandleRoughness( o.vColor, f.vRoughness );
+		vis.HandleDiffuseAmbientOcclusion( o.vColor, CalculateDiffuseAmbientOcclusion( f, lightingTerms ) );
+		vis.HandleSpecularAmbientOcclusion( o.vColor, CalculateSpecularAmbientOcclusion( f, lightingTerms ) );
+		vis.HandleShaderIDColor( o.vColor );
+		vis.HandleCubemapReflections( o.vColor, f.vPositionWs, f.vPositionSs, f.vNormalWs );
+
+		vis.HandleNormalTs( o.vColor, f.vNormalTs );
+		vis.HandleNormalWs( o.vColor, f.vNormalWs );
+		vis.HandleTangentUWs( o.vColor, f.vTangentUWs );
+		vis.HandleTangentVWs( o.vColor, f.vTangentVWs );
+
+		if ( f.bUseBentNormalsForIndirect )
+			vis.HandleBentNormalWs( o.vColor, f.vBentNormalWs );
+
+		vis.HandleGeometricRoughness( o.vColor, f.vNormalWs );
+		vis.HandleCurvature( o.vColor, f.flSSSCurvature );
+	#if defined( COLOR_SAMPLER_DEFINED )
+		vis.ShowUVs( o.vColor, vAlbedo, g_tColor, f.vTextureCoords.xy );
+		vis.ShowMipUtilization( o.vColor, vAlbedo, g_tColor, f.vTextureCoords.xy );
+	#endif
+
+		vis.HandleWrinkle( o.vColor, f.flWrinkle );
+		vis.HandleTiledRenderingColors( o.vColor, vAlbedo, f.vPositionSs );
+
+		// No bloom in tools vis
+		o.vColor.rgb = saturate( o.vColor.rgb );
+	}
+
+	if ( g_bWireframeMode )
+		o.vColor = g_vWireframeColor;
+
+	return o;
+}
+
+/// Lighting and post processing in one, for callers that don't read the lighting terms.
+PS_OUTPUT PS_FinalCombiner( FinalCombinerInput_t f )
+{
+	LightingTerms_t lightingTerms = InitLightingTerms();
+	PS_OUTPUT o = PS_FinalCombinerDoLighting( f, lightingTerms );
+	return PS_FinalCombinerDoPostProcessing( f, lightingTerms, o );
+}
+
+#endif // VR_COMMON_PS_CODE_FXC

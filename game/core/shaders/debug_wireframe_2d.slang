@@ -1,5 +1,4 @@
-// debug_wireframe_2d.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
+// debug_wireframe_2d: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -8,16 +7,17 @@
 // HEADER: Description = "Simple, no frills screenspace wireframe with per-vertex colors";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
 
+Mode( Default );
+
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT
@@ -44,9 +44,9 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "vr_common.fxc"
+#include "sbox/shading.slangh"
 #define IS_SPRITECARD 1 // So GetViewSubviewAndAdjustInstanceId() doesn't cause compile error
-#include "vr_lighting.fxc"
+#include "sbox/lighting.slangh"
 
 // Constants ----------------------------------------------------------------------------------------------------------------------------------------------
 

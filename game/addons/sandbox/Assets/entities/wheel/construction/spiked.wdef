@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/spiked.prefab",
+  "Title": "#asset.wheel.spiked.title",
+  "Description": "#asset.wheel.spiked.description",
+  "__references": [],
+  "__version": 0
+}

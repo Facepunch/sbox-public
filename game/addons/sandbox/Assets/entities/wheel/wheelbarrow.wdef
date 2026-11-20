@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/wheelbarrow.prefab",
+  "Title": "#asset.wheelbarrow.title",
+  "Description": "#asset.wheelbarrow.description",
+  "__references": [],
+  "__version": 0
+}

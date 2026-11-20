@@ -1,0 +1,67 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+
+@if (Player.IsValid() && !Player.IsLocalPlayer && Hud.IsVisible( HudElement.Nameplates ))
+{
+	<root>
+
+		<div class="card">
+
+			<div class="avatar-wrap">
+				@if ( IsVoicePlaying )
+				{
+					<div class="speaking-glow" style="opacity: @GetGlowOpacity(); transform: scale( @GetGlowScale() )"></div>
+				}
+				<div class="avatar" style="background-image: url( avatar:@Player.Network.Owner?.SteamId )"></div>
+			</div>
+
+			<label class="name">@Player.Network.Owner?.DisplayName</label>
+		</div>
+
+	</root>
+}
+
+@code
+{
+	[Property] public Player Player;
+
+    Sandbox.Voice voiceComponent;
+    private float _smoothedAmplitude;
+
+    protected override void OnEnabled()
+    {
+        base.OnEnabled();
+        voiceComponent = GameObject.Root.Components.GetInDescendantsOrSelf<Voice>();
+    }
+
+    public bool IsVoicePlaying
+    {
+        get
+        {
+            if (voiceComponent is null) return false;
+            return voiceComponent.LastPlayed < 0.5f;
+        }
+    }
+
+    private float GetSmoothed()
+    {
+        if ( voiceComponent is null ) return 0f;
+        _smoothedAmplitude = _smoothedAmplitude.LerpTo( voiceComponent.Amplitude, Time.Delta * 10f );
+        return _smoothedAmplitude;
+    }
+
+    private string GetGlowOpacity()
+    {
+        var s = GetSmoothed();
+        return Math.Clamp( s * 4f, 0.2f, 0.9f ).ToString( "0.##" );
+    }
+
+    private string GetGlowScale()
+    {
+        var s = GetSmoothed();
+        return Math.Clamp( 1f + s * 0.6f, 1f, 1.6f ).ToString( "0.##" );
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Network.Owner, IsVoicePlaying, Hud.IsVisible( HudElement.Nameplates ), Time.Now);
+}

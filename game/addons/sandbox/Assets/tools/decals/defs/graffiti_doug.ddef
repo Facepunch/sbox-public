@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "23912674-b026-4399-905a-0fc3e1cfe293",
+    "Path": "decals/graffiti/graffiti_doug.decal"
+  },
+  "Title": "#asset.decal.doug.title",
+  "__references": [],
+  "__version": 0
+}

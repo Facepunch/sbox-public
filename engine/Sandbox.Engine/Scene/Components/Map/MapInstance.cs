@@ -265,7 +265,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			{
 				// can just load these directly
 			}
-			else if ( Package.TryParseIdent( mapName, out var parts ) )
+			else if ( Package.TryParseIdentParts( mapName, out var parts ) )
 			{
 				// If this looks like a package ident, then download it
 
@@ -286,7 +286,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 				context?.Title = $"Loading Map - {package.Title}";
 
-				var fs = await package.MountAsync();
+				// Fetch selected the source. Retain that same package to release its requirement on teardown.
+				var fs = await package.MountResolvedAsync();
 
 				if ( fs is null )
 					return false;

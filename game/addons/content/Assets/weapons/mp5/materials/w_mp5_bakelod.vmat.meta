@@ -1,0 +1,28 @@
+{
+  "guid": "7014bad4-70fc-414f-98cd-d1b9400e3853",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Mp 5 Bakelod",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_mp5_bakelod",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/mp5/materials/w_mp5_bakelod.vmat"
+      }
+    }
+  }
+}

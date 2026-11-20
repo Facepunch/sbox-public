@@ -1,5 +1,4 @@
-// cs_volumetric_fog: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// cs_volumetric_fog: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -22,11 +21,11 @@ Mode( Default );
 	#define FORCE_BILINEAR_PCF_SHADOWS_ONLY
 	#define COMPUTE_SHADER
 	
-	#include "system.fxc" // This should always be the first include in COMMON
-	#include "vr_common.fxc"
+	#include "sbox/system.slangh" // This should always be the first include in COMMON
+	#include "sbox/shading.slangh"
 
-	#include "volumetric_fog.fxc"
-	#include "light_probe_volume.fxc"
+	#include "sbox/volumetric_fog.slangh"
+	#include "sbox/light_probe_volume.slangh"
 	
     #include "common/lightbinner.hlsl"
     #include "common/classes/Depth.hlsl"
@@ -114,9 +113,9 @@ Mode( Default );
 #if ( PROGRAM == VFX_PROGRAM_CS )
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
-	#include "math_general.fxc"
-	#include "light_probe_volume.fxc"
-	#include "vr_lighting.fxc"
+	#include "sbox/math.slangh"
+	#include "sbox/light_probe_volume.slangh"
+	#include "sbox/lighting.slangh"
 	
 	DynamicCombo( D_PASS, 0..1, Sys( PC || VULKAN ) );
 	DynamicCombo( D_ENABLE_BAKED_FOG_TEXTURE, 0..1, Sys( ALL ) );

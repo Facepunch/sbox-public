@@ -1,0 +1,31 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "3f0934e9-8e6d-42cf-9f1b-348623ae1a2f",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Usp",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_usp",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/usp/materials/w_usp.vmat"
+      }
+    }
+  }
+}

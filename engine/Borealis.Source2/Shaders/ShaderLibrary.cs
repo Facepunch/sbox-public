@@ -163,10 +163,15 @@ public sealed class ShaderLibrary : IDisposable
 		var full = Files.Find( key );
 		var bare = !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
 		if ( full is null && bare ) full = Files.Find( $"shaders/{key}.shader" );
+
+		// A compiled file with no .shader in any root where a Slang module or surface stands in its place is a leftover (a
+		// package's copy of an engine shader the module replaced, or a stale local one): the module's, as native's
+		// ShaderIsSlangModuleOnly decides
+		if ( full is not null && Modules is not null && Leftover( bare ? $"shaders/{key}.shader" : key ) ) full = null;
 		if ( full is not null )
 		{
 			// A standalone module describes its shader itself: the compiled file beside it is only Source 2's renderer's
-			if ( Modules?.DescribeStandalone( full ) is { } standalone ) return (standalone, true);
+			if ( !CompiledFirst && Modules?.DescribeStandalone( full ) is { } standalone ) return (standalone, true);
 			return (LoadOrUpgrade( full ), true);
 		}
 
@@ -179,6 +184,23 @@ public sealed class ShaderLibrary : IDisposable
 		}
 
 		return (null, false);
+	}
+
+	/// <summary>Whether no root has <paramref name="shader"/>'s source and one has a Slang file in its place.</summary>
+	bool Leftover( string shader )
+	{
+		var relative = shader.Replace( '\\', '/' ).TrimStart( '/' );
+		if ( relative.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ) ) relative = relative[..^2];
+		if ( !relative.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) return false;
+		var slang = relative[..^".shader".Length] + ".slang";
+		var module = false;
+		foreach ( var root in Files.Roots )
+		{
+			if ( File.Exists( Path.Combine( root, relative ) ) ) return false;
+			module |= File.Exists( Path.Combine( root, slang ) ) || File.Exists( Path.Combine( root, slang + "_c" ) );
+		}
+
+		return module;
 	}
 
 	/// <summary>
@@ -549,7 +571,7 @@ public sealed class ShaderLibrary : IDisposable
 
 		// A shader with a module draws from it; one whose module doesn't compile draws from its programs, and so does one
 		// whose module is compiling in the background (one with no programs to draw from draws nothing meanwhile)
-		if ( !gpuDriven && Modules is { } modules && modules.Has( shader ) && modules.Compile( shader, drawMode, features, dynamicCombos, attributes ) is { } compiled )
+		if ( !gpuDriven && Modules is { } modules && (!CompiledFirst || shader.ModuleOnly) && modules.Has( shader ) && modules.Compile( shader, drawMode, features, dynamicCombos, attributes ) is { } compiled )
 		{
 			if ( !ReferenceEquals( compiled, ModuleProgram.Pending ) ) return ModuleVariant( shader, drawMode, compiled );
 			pending = true;
@@ -683,7 +705,7 @@ public sealed class ShaderLibrary : IDisposable
 			return fallback is null ? null : PixelState( fallback, mode, [], out pending );
 		}
 
-		if ( Modules is { } modules && modules.Has( shader ) )
+		if ( Modules is { } modules && (!CompiledFirst || shader.ModuleOnly) && modules.Has( shader ) )
 		{
 			if ( modules.PixelRenderStates( shader, drawMode, features ) is { } states ) return ShaderPipelineState.Resolve( null, states, null );
 			return Variant( shader, mode, features )?.State;
@@ -715,6 +737,12 @@ public sealed class ShaderLibrary : IDisposable
 	/// null draws every shader from its compiled programs.
 	/// </summary>
 	public IShaderModules Modules { get; set; }
+
+	/// <summary>
+	/// Draw every shader that has compiled programs from them, not from its module (comparisons against the compiled route):
+	/// a shader only a module describes still draws from it, having nothing else.
+	/// </summary>
+	public bool CompiledFirst { get; set; }
 
 	/// <summary>
 	/// Whether a shader with a geometry stage gives variants from its programs (their vertex and pixel stages, without it),

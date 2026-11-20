@@ -1,5 +1,4 @@
-// gizmo_sprite: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// gizmo_sprite: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // The .shader's geometry stage makes a quad of each point. Here the vertex stage does it: the draw runs four vertices
 // per point (ExpandPrimitives), with the point as per-instance inputs, and each vertex makes one corner.
 
@@ -10,9 +9,9 @@
 
 Mode( Forward );
 
-#include "system.fxc"
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 struct VS_INPUT
 {

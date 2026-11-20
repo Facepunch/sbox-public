@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/hoverball/hoverball-legacy.prefab",
+  "Title": "#asset.legacy.title",
+  "Description": "#asset.legacy.description",
+  "__references": [],
+  "__version": 0
+}

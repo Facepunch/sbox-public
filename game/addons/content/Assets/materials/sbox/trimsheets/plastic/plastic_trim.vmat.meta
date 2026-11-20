@@ -1,0 +1,27 @@
+{
+  "guid": "c005de0a-aa8f-424b-896d-cbe00bf4c7fb",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Plastic Trim",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "plastic_trim",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/trimsheets/plastic/plastic_trim.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

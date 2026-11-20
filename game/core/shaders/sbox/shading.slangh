@@ -1,0 +1,264 @@
+// The classic shader frame's common part: the final combiner's input (FinalCombinerInput_t, which sbox/final_combiner.slangh
+// fills and sbox/lighting.slangh lights), the view environment's fog names, the tangent basis and UV2 defaults, the
+// subsurface scattering modes, and small helpers (luminance, specular occlusion, alpha to coverage, quaternions). Ours, in
+// place of the old vr_common.fxc in Slang compiles (SlangHeaders): the same names and results. Shares the old header's
+// include guard.
+#ifndef VR_COMMON_FXC
+#define VR_COMMON_FXC
+
+// The transform buffer's vertex format is set before instancing is included
+#if defined( INSTANCING_FXC )
+	#error "Missed setting format before instancing.fxc is included"
+#endif
+
+// What the old header included, in its order, which code that includes it may rely on
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
+
+// The view environment's fog, wind and volumetric fog constants (PerViewConstantBufferVR_t's block), and names for their parts
+#include "common/ViewEnvironment.hlsl"
+
+#define g_flCubeFogOffset g_vCubeFog_Offset_Scale_Bias_Exponent.x
+#define g_flCubeFogScale g_vCubeFog_Offset_Scale_Bias_Exponent.y
+#define g_flCubeFogBias g_vCubeFog_Offset_Scale_Bias_Exponent.z
+#define g_flCubeFogExponent g_vCubeFog_Offset_Scale_Bias_Exponent.w
+
+#define g_flCubeFogHeightOffset g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.x
+#define g_flCubeFogHeightScale g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.y
+#define g_flCubeFogHeightExponent g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.z
+#define g_flCubeMapSizeLog2 g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip.w
+
+#define g_bVolumetricFogEnabled g_bFogTypeEnabled.x
+#define g_bGradientFogEnabled g_bFogTypeEnabled.y
+#define g_bCubemapFogEnabled g_bFogTypeEnabled.z
+#define g_bSphericalVignetteEnabled g_bFogTypeEnabled.w
+#define g_bAmbientOcclusionProxiesEnabled g_bOtherFxEnabled.x
+
+#define g_flVolFogNearClipPlane g_vVolFog_VolumeScale_Shift_Near_Range.z
+#define g_flVolFogClipPlaneRange g_vVolFog_VolumeScale_Shift_Near_Range.w
+
+// Vertex and pixel inputs carry a tangent frame unless a shader says otherwise first
+#ifndef VS_INPUT_HAS_TANGENT_BASIS
+	#define VS_INPUT_HAS_TANGENT_BASIS 1
+#endif
+#ifndef PS_INPUT_HAS_TANGENT_BASIS
+	#define PS_INPUT_HAS_TANGENT_BASIS 1
+#endif
+
+// S_SUBSURFACE_SCATTERING's modes, and the wrap parameters WrapNdotL takes by default (no wrap)
+#define SUBSURFACE_SCATTERING_PREINTEGRATED 1
+#define SUBSURFACE_SCATTERING_WRAP 2
+#define SUBSURFACE_SCATTERING_DEFAULT_WRAP_PARAMETERS float4( 0.0, 1.0, 1.0, 1.0 )
+
+#define DEPTH_MASK_NONE float4( 0.0, 0.0, 0.0, 0.0 )
+#define DEPTH_MASK_TRANSMISSIVE float4( 0.0, 0.0, 0.0, 1.0 )
+
+// A texture's UVs from a texcoord whose zw is the second UV set: by the material's choice (S_UV2_CONTROLS), fixed (S_UV2),
+// or the first set only
+#if ( S_UV2_CONTROLS )
+	#define GetUVDefault1( bUseUv2, vTexCoord ) ( ( bUseUv2 ) ? ( vTexCoord ).zw : ( vTexCoord ).xy )
+	#define GetUVDefault2( bUseUv2, vTexCoord ) ( ( bUseUv2 ) ? ( vTexCoord ).zw : ( vTexCoord ).xy )
+#elif ( S_UV2 )
+	#define GetUVDefault1( bUseUv2, vTexCoord ) ( vTexCoord ).xy
+	#define GetUVDefault2( bUseUv2, vTexCoord ) ( vTexCoord ).zw
+#else
+	#define GetUVDefault1( bUseUv2, vTexCoord ) ( vTexCoord ).xy
+	#define GetUVDefault2( bUseUv2, vTexCoord ) ( vTexCoord ).xy
+#endif
+
+/// What the final combiner lights: the material at the pixel. PS_InitFinalCombiner gives defaults; a shader sets what its
+/// material has, then calls the combiner. The positions and tangent frame are needed for correct lighting: PS_CommonProcessing
+/// sets them from a standard PS_INPUT, otherwise the shader does.
+struct FinalCombinerInput_t
+{
+	// The material
+	float3 vDiffuseColor;
+	float3 vSpecularColor;
+	float flOpacity;
+	float2 vRoughness;
+	float3 vEmissive;
+	float3 vNormalWs;
+	float flAmbientOcclusion;
+	float flFresnelExponent;
+	float flRetroReflectivity;
+
+	// S_AMBIENT_OCCLUSION_COLOR_BLEED
+	float3 vAmbientOcclusionColorBleed;
+	float flAmbientOcclusionDirectDiffuse;
+	float flAmbientOcclusionDirectSpecular;
+
+	// S_TWO_LOBE_SPECULAR
+	float flTwoLobeSpecularRatio;
+
+	// S_SUBSURFACE_SCATTERING
+	float3 vSSSNormalWs;
+	float flSSSCurvature;
+	float3 vSSSWrapColor;
+	float4 vSSSWrapParameters;
+	float flSSSMask;
+
+	// S_TRANSMISSIVE
+	float3 vTransmissiveMask;
+	float3 vTransmissiveFalloff;
+
+	// Bent normals, for indirect light only, when bUseBentNormalsForIndirect
+	bool bUseBentNormalsForIndirect;
+	float3 vBentNormalWs;
+	float3 vBentDiffuseNormalWs;
+
+	// The surface: positions, and the tangent frame (baked and anisotropic lighting)
+	float3 vPositionWs;
+	float3 vPositionWithOffsetWs;
+	float3 vNormalTs;
+	float3 vTangentUWs;
+	float3 vTangentVWs;
+
+	// Set by the combiner itself
+	float2 vAnisotropy;
+	float3 vPerPixelTangentUWs;
+	float3 vPerPixelTangentVWs;
+	float flWrinkle;
+
+	float4 vPositionSs;
+
+	// When LightmappedLight::UsesLightmaps()
+	float2 vLightmapUV;
+
+	// Tools vis
+	float2 vTextureCoords;
+	float3 vAlbedo;
+};
+
+/// For comparing two versions side by side: whether a pixel is right of flRatio of the viewport's width.
+bool IsRightSplit( float flScreenSpaceXPos, float flRatio )
+{
+	return ( flScreenSpaceXPos > g_vViewportSize.x * flRatio );
+}
+
+/// A cheap hash of v to 0..1.
+float MyRand( float2 v )
+{
+	return frac( sin( dot( v, float2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+}
+
+/// A hemi-octahedral normal (two 0..1 channels) back to a unit vector. The bias is 1 + 1/255, so 8-bit (128, 128) is exactly +Z.
+float3 DecodeHemiOctahedronNormal( float2 vHemiOct )
+{
+	float2 vDiamond = float2( vHemiOct.x + vHemiOct.y - 1.00392163, vHemiOct.x - vHemiOct.y );
+	float3 v = float3( vDiamond, 1.0 - abs( vDiamond.x ) - abs( vDiamond.y ) );
+	return normalize( v );
+}
+
+/// The mip a texture of vTextureSize would sample at these coordinates.
+float CalculateMipLevel( float2 vTextureCoordinates, float2 vTextureSize )
+{
+	float2 dx = ddx( vTextureCoordinates * vTextureSize.x );
+	float2 dy = ddy( vTextureCoordinates * vTextureSize.y );
+	float d = max( dot( dx, dx ), dot( dy, dy ) );
+	return 0.5 * log2( d );
+}
+
+/// Rec. 709 luminance of linear RGB.
+float RelativeLuminance( float3 vRGB )
+{
+	return dot( vRGB, float3( 0.2126, 0.7152, 0.0722 ) );
+}
+
+#ifdef S_POWER_SPECULAR_AMBIENT_OCCLUSION
+/// Specular occlusion from AO, by how squarely the surface faces the (middle) eye: Jimenez and von der Pahlen, "Next-Generation
+/// Character Rendering".
+float PowerSpecularOcclusion( float3 vPositionWs, float3 vNormalWs, float flAmbientOcclusion )
+{
+	float3 vToEyeWs = normalize( g_vMiddleEyePositionWs.xyz - vPositionWs );
+	float flFacing = ClampToPositive( dot( vToEyeWs, vNormalWs ) );
+	flFacing = saturate( flFacing * flFacing - 0.3 );
+	return lerp( pow( flAmbientOcclusion, 8.0 ), 1.0, flFacing );
+}
+#else
+/// Specular occlusion: the AO as it is.
+float PowerSpecularOcclusion( float3 vPositionWs, float3 vNormalWs, float flAmbientOcclusion )
+{
+	return flAmbientOcclusion;
+}
+#endif
+
+/// Alpha as alpha-to-coverage: raised by 0.25 per mip of vAlphaTextureSize (mips average alpha toward the mean, after Golus and
+/// Castano), then sharpened to a pixel-wide edge by its screen derivative, by flAntiAliasedEdgeStrength. Not saturated before
+/// the derivative: callers scale opacity to move the cutoff and rely on the scale cancelling out. On a single-sample target
+/// (no coverage to spend, and alpha-to-one stays on) the pixel is clipped at the reference instead.
+float AdjustOpacityForAlphaToCoverage( float flOpacity, float flAlphaTestReference, float flAntiAliasedEdgeStrength, float2 vTextureCoords, float2 vAlphaTextureSize )
+{
+	float2 vTexels = vTextureCoords * vAlphaTextureSize;
+	float2 dx = ddx( vTexels );
+	float2 dy = ddy( vTexels );
+	float flMip = max( 0.0, 0.5 * log2( max( dot( dx, dx ), dot( dy, dy ) ) ) );
+
+	float flCompensated = flOpacity * ( 1.0 + flMip * 0.25 );
+	float flEdge = saturate( 0.5 + ( flCompensated - flAlphaTestReference ) / max( fwidth( flCompensated ), 0.000001 ) );
+
+	if ( g_nMSAASampleCount == 1 )
+		clip( flCompensated - flAlphaTestReference );
+
+	return lerp( saturate( flCompensated ), flEdge, flAntiAliasedEdgeStrength );
+}
+
+/// Deprecated: without the texture's size there's no mip to compensate for. Clips on single-sample targets as above.
+float AdjustOpacityForAlphaToCoverage( float flOpacity, float flAlphaTestReference, float flAntiAliasedEdgeStrength, float2 vTextureCoords )
+{
+	return AdjustOpacityForAlphaToCoverage( flOpacity, flAlphaTestReference, flAntiAliasedEdgeStrength, vTextureCoords, float2( 1.0, 1.0 ) );
+}
+
+/// A transform's scale per axis: its columns' lengths.
+float3 ComputeMatrixScale( float3x4 m )
+{
+	float3 vScale;
+	vScale.x = sqrt( m[0][0] * m[0][0] + m[1][0] * m[1][0] + m[2][0] * m[2][0] );
+	vScale.y = sqrt( m[0][1] * m[0][1] + m[1][1] * m[1][1] + m[2][1] * m[2][1] );
+	vScale.z = sqrt( m[0][2] * m[0][2] + m[1][2] * m[1][2] + m[2][2] * m[2][2] );
+	return vScale;
+}
+
+/// q1 q2 (xyz vector, w scalar).
+float4 QuaternionMultiplication( float4 q1, float4 q2 )
+{
+	return float4( q2.xyz * q1.w + q1.xyz * q2.w + cross( q1.xyz, q2.xyz ), q1.w * q2.w - dot( q1.xyz, q2.xyz ) );
+}
+
+/// v rotated by the unit quaternion q: q v q*.
+float3 QuaternionRotation( float3 v, float4 q )
+{
+	float4 qConjugate = q * float4( -1, -1, -1, 1 );
+	return QuaternionMultiplication( q, QuaternionMultiplication( float4( v, 0 ), qConjugate ) ).xyz;
+}
+
+/// The inverse transpose of a transform's 3x3 part (for normals), by cofactors over the determinant.
+float3x3 ComputeInverseTranspose( float3x4 m )
+{
+	float flDet = m[0][0] * ( m[1][1] * m[2][2] - m[2][1] * m[1][2] ) -
+		m[0][1] * ( m[1][0] * m[2][2] - m[1][2] * m[2][0] ) +
+		m[0][2] * ( m[1][0] * m[2][1] - m[1][1] * m[2][0] );
+
+	float3x3 r;
+	r[0][0] = ( m[1][1] * m[2][2] - m[2][1] * m[1][2] ) / flDet;
+	r[0][1] = ( m[1][2] * m[2][0] - m[1][0] * m[2][2] ) / flDet;
+	r[0][2] = ( m[1][0] * m[2][1] - m[2][0] * m[1][1] ) / flDet;
+	r[1][0] = ( m[0][2] * m[2][1] - m[0][1] * m[2][2] ) / flDet;
+	r[1][1] = ( m[0][0] * m[2][2] - m[0][2] * m[2][0] ) / flDet;
+	r[1][2] = ( m[2][0] * m[0][1] - m[0][0] * m[2][1] ) / flDet;
+	r[2][0] = ( m[0][1] * m[1][2] - m[0][2] * m[1][1] ) / flDet;
+	r[2][1] = ( m[1][0] * m[0][2] - m[0][0] * m[1][2] ) / flDet;
+	r[2][2] = ( m[0][0] * m[1][1] - m[1][0] * m[0][1] ) / flDet;
+	return r;
+}
+
+/// A pixel position to -0.5..0.5 screen-space units, flipped (at half zoom).
+float2 PsToSs( float4 vPositionSs )
+{
+	const float flZoom = 0.5f;
+	float2 vPositionPs = flZoom * vPositionSs.xy - float2( 0.5f, 0.5f );
+	vPositionPs *= -1.0;
+	return vPositionPs;
+}
+
+#endif // VR_COMMON_FXC

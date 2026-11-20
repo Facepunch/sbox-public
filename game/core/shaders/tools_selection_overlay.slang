@@ -1,5 +1,4 @@
-// tools_selection_overlay: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// tools_selection_overlay: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -16,10 +15,10 @@ Mode( Default );
 Feature( F_NO_CULLING, 0..1 );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT
@@ -51,7 +50,7 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 

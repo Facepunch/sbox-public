@@ -83,6 +83,12 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public GpuTexture GpuOutput;
 
 		/// <summary>
+		/// The child view's float target of the size before <see cref="GpuTarget"/>'s, kept: one camera's views drawn at two sizes
+		/// in turn (the window's and a 128 px cube face's) made a new target, the driver's allocation, at every turn.
+		/// </summary>
+		public ViewTarget GpuOtherTarget;
+
+		/// <summary>
 		/// A top-level view's own attributes (its planar reflection), and what Borealis reads them as.
 		/// </summary>
 		public RenderAttributes GpuViewAttributes;
@@ -104,6 +110,8 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			GpuUpscaler = null;
 			GpuTarget?.Dispose();
 			GpuTarget = null;
+			GpuOtherTarget?.Dispose();
+			GpuOtherTarget = null;
 			GpuOutput?.Dispose();
 			GpuOutput = null;
 		}
@@ -410,10 +418,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	bool warming;
 
 	/// <summary>
-	/// Whether the game is loading: its scene's loading tasks, the loading screen, connecting, or the game instance's load. Its scene's
-	/// camera draws over the loading screen then (<c>Game.Render</c>), which doesn't count as showing the scene.
+	/// Whether the game is loading (<see cref="BorealisGpuRenderBackend.GameLoading"/>). Its scene's camera draws over the
+	/// loading screen then (<c>Game.Render</c>), which doesn't count as showing the scene.
 	/// </summary>
-	static bool GameLoading( Scene scene ) => (scene?.IsLoading ?? false) || LoadingScreen.IsVisible || Networking.IsConnecting || (IGameInstance.Current?.IsLoading ?? false);
+	static bool GameLoading( Scene scene ) => BorealisGpuRenderBackend.GameLoading( scene );
 
 	WorldRender RenderFor( SceneWorld world )
 	{

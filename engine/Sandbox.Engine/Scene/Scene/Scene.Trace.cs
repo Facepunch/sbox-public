@@ -145,6 +145,9 @@ public partial class Scene : GameObject
 	public IEnumerable<GameObject> FindInPhysics( Sphere sphere )
 		=> PhysicsWorld.FindInPhysics( sphere );
 
+	internal void FindInPhysics( Sphere sphere, HashSet<GameObject> results )
+		=> PhysicsWorld._world.FindInPhysics( sphere, results );
+
 	/// <summary>
 	/// Find game objects in a box using physics.
 	/// </summary>

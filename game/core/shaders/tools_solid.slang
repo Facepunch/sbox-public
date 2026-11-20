@@ -1,5 +1,4 @@
-// tools_solid: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// tools_solid: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -26,10 +25,10 @@ Feature( F_NO_ZTEST, 0..1 );
 Feature( F_NO_CULLING, 0..1 );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT
@@ -71,9 +70,9 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "instancing.fxc"
-#include "vr_common.fxc"
-#include "vr_lighting.fxc"
+#include "sbox/instancing.slangh"
+#include "sbox/shading.slangh"
+#include "sbox/lighting.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 DynamicCombo( D_DEPTH_BIAS, 0..1, Sys( ALL ) );
@@ -170,7 +169,7 @@ float4 SnapToScreenPixels( float4 vPositionPs )
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "encoded_normals.fxc"
+#include "sbox/encoding.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 DynamicCombo( D_NO_ZTEST, 0..1, Sys( ALL ) );

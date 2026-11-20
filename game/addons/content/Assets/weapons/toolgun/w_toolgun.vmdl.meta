@@ -1,0 +1,26 @@
+{
+  "guid": "0078006f-005f-0074-6f00-6f006c006700",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Toolgun",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "wtoolgun",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/toolgun/w_toolgun.vmdl",
+        "AssetLicense": ""
+      }
+    }
+  }
+}

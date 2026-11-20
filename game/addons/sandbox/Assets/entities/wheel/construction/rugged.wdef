@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/rugged.prefab",
+  "Title": "#asset.wheel.rugged.title",
+  "Description": "#asset.wheel.rugged.description",
+  "__references": [],
+  "__version": 0
+}

@@ -1,0 +1,32 @@
+@import 'resource-picker.scss';
+
+@mixin component-theme
+{
+	ResourcePickerButton
+	{
+		@include resource-picker-control;
+	}
+
+	UISheet .sheet-row:not(.bare) ResourcePickerButton
+	{
+		height: 34px;
+		padding: 4px 10px;
+		gap: 9px;
+		border-radius: 7px;
+		border-color: $ui-field-border;
+
+		.preview { width: 22px; height: 22px; border-radius: 4px; }
+		.subtitle { display: none; }
+
+		&::after
+		{
+			content: "chevron_right";
+			font-family: $ui-icon;
+			font-size: 16px;
+			color: $ui-text-label;
+			pointer-events: none;
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

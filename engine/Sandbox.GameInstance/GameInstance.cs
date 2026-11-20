@@ -191,7 +191,7 @@ internal class GameInstance : IGameInstance
 			}
 		}
 
-		Application.GameIdent = Package is null ? Ident : $"{_package.Org.Ident}.{_package.Ident}";
+		Application.GameIdent = Package?.FullIdent ?? Ident;
 		Application.GamePackage = _package;
 		Application.ExceptionCount = default;
 
@@ -253,7 +253,6 @@ internal class GameInstance : IGameInstance
 			Package = _package,
 			ContextTag = "gamemenu",
 			CancellationToken = token,
-			AllowLocalPackages = !_package.IsRemote,
 			Loading = loadingScreen
 		};
 
@@ -391,7 +390,7 @@ internal class GameInstance : IGameInstance
 
 		_packageAssembly = null;
 
-		if ( Package.TryParseIdent( Package.FullIdent, out var ident ) )
+		if ( Package.TryParseIdentParts( Package.FullIdent, out var ident ) )
 		{
 			var loaded = enroller.FindAssembly( Package, $"package.{ident.org}.{ident.package}" );
 			if ( loaded is not null )
@@ -414,7 +413,7 @@ internal class GameInstance : IGameInstance
 		var package = await Package.FetchAsync( map, false );
 
 		if ( package is { IsRemote: true } )
-			await PackageManager.PrefetchAsync( package, true, false, token );
+			await PackageManager.PrefetchAsync( package, true, token );
 
 		return package;
 	}

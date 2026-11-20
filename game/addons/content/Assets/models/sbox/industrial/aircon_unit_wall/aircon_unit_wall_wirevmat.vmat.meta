@@ -1,0 +1,27 @@
+{
+  "guid": "13aae630-00fc-0000-0000-000000000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Aircon Unit Wall Wirevmat",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "airconunitwallwirevmat",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/aircon_unit_wall/aircon_unit_wall_wirevmat.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

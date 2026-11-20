@@ -1,0 +1,278 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes = 
+						[
+							"LOD0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 12.673413
+						meshes = 
+						[
+							"LOD1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 65.646912
+						meshes = 
+						[
+							"LOD2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 225.491119
+						meshes = 
+						[
+							"LOD3",
+						]
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "security_light.vmat"
+								to = "models/sbox/street/security_light/security_light.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -5.065541, -0.000739, 3.138037 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.378304, 1.729786, 5.680904 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.038868, -0.005018, 0.190565 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 10.500963, 1.756003, 0.389524 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 5.059633, -0.01001, 3.146144 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.400859, 1.67682, 5.66469 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.85
+						point0 = [ -5.247576, 0.0, 5.948329 ]
+						point1 = [ -4.846535, 0.0, 5.948329 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.58
+						point0 = [ -4.870821, 0.003895, 6.022664 ]
+						point1 = [ -3.710061, 0.0, 6.014606 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -5.065541, -0.000739, 3.138037 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.378304, 1.729786, 5.680904 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 0.038868, -0.005018, 0.190565 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 10.500963, 1.756003, 0.389524 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 5.047569, -0.01001, 3.146144 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.400859, 1.67682, 5.66469 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.85
+						point0 = [ 4.844325, 0.0, 5.948329 ]
+						point1 = [ 5.245248, 0.0, 5.948329 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.58
+						point0 = [ 3.766267, -0.006877, 5.985901 ]
+						point1 = [ 5.411786, -0.0012, 5.991601 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.58
+						point0 = [ -5.353177, 0.003895, 6.022664 ]
+						point1 = [ -3.710061, 0.0, 6.014606 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/sbox/street/security_light/security_light_mount.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"security_light_mount_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD1"
+						filename = "models/sbox/street/security_light/security_light_mount.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"security_light_mount_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD2"
+						filename = "models/sbox/street/security_light/security_light_mount.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"security_light_mount_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD3"
+						filename = "models/sbox/street/security_light/security_light_mount.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"security_light_mount_lod3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 0.8
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

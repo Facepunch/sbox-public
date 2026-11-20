@@ -1,0 +1,170 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "industrial_wall_light.vmat"
+								to = "models/sbox/industrial/wall_light/wall_light.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "models/sbox/industrial/wall_light/wall_light.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsHullFromRender"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						faceMergeAngle = 20.0
+						maxHullVertices = 32
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "lod0"
+						filename = "models/sbox/industrial/wall_light/wall_light.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"industrial_wall_light_mount_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod1"
+						filename = "models/sbox/industrial/wall_light/wall_light.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"industrial_wall_light_mount_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod2"
+						filename = "models/sbox/industrial/wall_light/wall_light.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"industrial_wall_light_mount_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod3"
+						filename = "models/sbox/industrial/wall_light/wall_light.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"industrial_wall_light_mount_lod3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes = 
+						[
+							"lod0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 8.851965
+						meshes = 
+						[
+							"lod1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 22.988531
+						meshes = 
+						[
+							"lod2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 100.085876
+						meshes = 
+						[
+							"lod3",
+						]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

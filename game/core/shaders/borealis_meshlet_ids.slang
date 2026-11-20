@@ -11,9 +11,9 @@
 Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
+#include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct PS_INPUT
@@ -79,8 +79,8 @@ static const uint None = 0xffffffffu;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_TS )
-#include "common.fxc"
-#include "transform_buffer.fxc"
+#include "sbox/view.slangh"
+#include "sbox/transform.slangh"
 #include "borealis_gpu_driven.fxc"
 #include "borealis_meshlet.fxc"
 
@@ -222,7 +222,7 @@ groupshared uint gs_RoundCount;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_MS )
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 #include "borealis_gpu_driven.fxc"
 
 // The meshlet builder's limits this stage takes (64x124 and smaller; BackendDevice.MeshletTasks)

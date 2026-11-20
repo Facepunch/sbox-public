@@ -1,0 +1,28 @@
+{
+  "guid": "53fecb15-6bef-4e85-b381-5fbab5a42f4b",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V M 4A 1 Handguard",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_m4a1_handguard",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m4a1/materials/v_m4a1_handguard.vmat"
+      }
+    }
+  }
+}

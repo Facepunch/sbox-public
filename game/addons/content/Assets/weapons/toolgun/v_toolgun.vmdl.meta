@@ -1,0 +1,27 @@
+{
+  "guid": "0f26ebe8-00fc-0000-be00-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "ViewModel Tool Gun",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "v_toolgun",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/toolgun/v_toolgun.vmdl",
+        "AssetLicense": ""
+      }
+    }
+  }
+}

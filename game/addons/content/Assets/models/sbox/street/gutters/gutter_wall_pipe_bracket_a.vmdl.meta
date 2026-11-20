@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "gutter_wall_pipe_bracket_a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "gutter_wall_pipe_bracket_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_wall_pipe_bracket_a.vmdl"
+      }
+    }
+  },
+  "guid": "af2f0e1d-38c9-442b-9bbd-85c2e442ead4"
+}

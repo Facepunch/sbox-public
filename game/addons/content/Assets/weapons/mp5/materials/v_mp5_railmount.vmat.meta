@@ -1,0 +1,28 @@
+{
+  "guid": "b0a5534b-9530-48a4-b116-93cbf8c71ede",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Mp 5 Railmount",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_mp5_railmount",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/mp5/materials/v_mp5_railmount.vmat"
+      }
+    }
+  }
+}

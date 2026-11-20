@@ -1,0 +1,238 @@
+@import "/UI/Theme.scss";
+
+$text: rgb(224, 224, 215);
+
+$inset-bg: rgba( 0, 0, 0, 0.24 );
+
+$inset-border: rgba( 255, 255, 255, 0.25 );
+
+$text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.5);
+
+@keyframes chat-line-in
+{
+	from
+	{
+		transform: translateX( -800px );
+	}
+
+	to
+	{
+		transform: translateX( 0px );
+	}
+}
+
+@keyframes chat-box-in
+{
+	from
+	{
+		opacity: 0;
+		transform: translateX( -700px );
+	}
+
+	to
+	{
+		opacity: 1;
+		transform: translateX( 0px );
+	}
+}
+
+@keyframes chat-box-out
+{
+	from
+	{
+		opacity: 1;
+		transform: translateX( 0px );
+	}
+
+	to
+	{
+		opacity: 0;
+		transform: translateX( -700px );
+	}
+}
+
+@mixin component-theme
+{
+	ChatBox
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		font-family: $body-font;
+		font-size: 16px;
+		font-weight: 600;
+		color: $text;
+		pointer-events: none;
+
+		// --- messages while the box is closed -------------------------------------------------
+
+		.recent
+		{
+			position: absolute;
+			left: 0;
+			width: 760px;
+			flex-direction: column;
+			justify-content: flex-end;
+		}
+
+		.recent-list
+		{
+			flex-direction: column;
+		}
+
+		.recent-list ChatLine
+		{
+			padding: 2px 0 2px $deadzone-x;
+			background-image: linear-gradient( to right, rgba( 0, 0, 0, 0.2 ), rgba( 0, 0, 0, 0 ) );
+			animation: chat-line-in 0.08s ease-in-out;
+
+			&:first-child
+			{
+				padding-top: 6px;
+			}
+
+			&:last-child
+			{
+				padding-bottom: 6px;
+			}
+		}
+
+		// --- the box ----------------------------------------------------------------------------
+
+		.box
+		{
+			position: absolute;
+			left: $deadzone-x;
+			width: 650px;
+			height: 350px;
+			padding: 10px;
+			flex-direction: column;
+			gap: 10px;
+			background-image: linear-gradient( to bottom, rgba(115, 115, 115, 0.7), rgba(109, 109, 109, 0.7) );
+			border: 1px solid $inset-border;
+			opacity: 0;
+			pointer-events: none;
+			transform: translateX( -700px );
+		}
+
+		.history
+		{
+			@include ui-scroll;
+
+			scrollbar-color: #c8c8c8 $inset-bg;
+			flex-grow: 1;
+			flex-direction: column;
+			overflow-y: scroll;
+			padding: 8px 0;
+			background-color: $inset-bg;
+			border: 1px solid $inset-border;
+		}
+
+		.history ChatLine
+		{
+			padding: 2px 12px;
+			flex-shrink: 0;
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.08 );
+			}
+		}
+
+		.input-row
+		{
+			flex-shrink: 0;
+			min-height: 34px;
+			gap: 10px;
+		}
+
+		.entry
+		{
+			flex-grow: 1;
+			padding: 7px 12px;
+			align-items: center;
+			background-color: $inset-bg;
+			border: 1px solid $inset-border;
+			color: $text;
+			text-shadow: $text-shadow;
+		}
+
+		&.open
+		{
+			.box
+			{
+				opacity: 1;
+				pointer-events: all;
+				transform: translateX( 0px );
+				animation: chat-box-in 0.1s ease-in-out;
+			}
+
+			// hidden without display: none, that would restart the slide in of the lines each time the box closes
+			.recent
+			{
+				opacity: 0;
+			}
+		}
+
+		&.closing .box
+		{
+			animation: chat-box-out 0.1s ease-in-out;
+		}
+
+		// --- one line of chat -------------------------------------------------------------------
+
+		ChatLine
+		{
+			flex-direction: row;
+			align-items: flex-start;
+			gap: 7px;
+			pointer-events: none;
+			text-shadow: $text-shadow;
+
+			.avatar
+			{
+				width: 20px;
+				height: 20px;
+				flex-shrink: 0;
+				border-radius: 2px;
+				background-size: cover;
+			}
+
+			.name
+			{
+				flex-shrink: 0;
+				font-weight: 700;
+				color: #fff570;
+				line-height: 16px;
+			}
+
+			.text
+			{
+				flex-grow: 1;
+				flex-shrink: 1;
+				font-weight: 600;
+				color: $text;
+				line-height: 16px;
+			}
+
+			&.system
+			{
+				gap: 4px;
+
+				.text
+				{
+					flex-grow: 0;
+				}
+			}
+		}
+
+		.history ChatLine
+		{
+			pointer-events: all;
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

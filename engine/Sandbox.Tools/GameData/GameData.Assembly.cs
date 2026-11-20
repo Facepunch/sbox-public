@@ -138,11 +138,6 @@ public static partial class GameData
 
 	static async Task<Package> GetAssemblyPackage( Assembly assembly )
 	{
-		//
-		// Assemblies are named package.org.ident - they do not have a good way to tell if they're local?
-		// So I suppose for now we don't care about the difference
-		//
-
 		var name = assembly.GetName().Name;
 
 		//
@@ -154,11 +149,6 @@ public static partial class GameData
 		}
 
 		var ident = name[8..];
-
-		if ( !Package.TryParseIdent( ident, out _ ) )
-		{
-			return await Package.Fetch( $"{ident}#local", true ); // :|
-		}
 
 		return await Package.Fetch( ident, true );
 	}

@@ -1,0 +1,99 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@implements IUtilityTab
+@attribute [Icon("tune")]
+@attribute [Title("#spawnmenu.tab.utilities")]
+@attribute [Order(0)]
+
+<root class="tab">
+
+    @{
+        var pages = GetVisiblePages();
+        var selected = pages.FirstOrDefault( page => Equals( page.Key, SelectedKey ) ) ?? pages.FirstOrDefault();
+    }
+    <UIGroupedList Groups=@GetGroups(pages) Selected=@selected?.Key OnSelect=@OnSelectPage />
+
+    <UISettingsPane Title=@( selected is null ? "" : LocalizedText.Resolve( selected.Title ) ) Revision=@(selected?.Key.GetHashCode() ?? 0)>
+        <Body>
+            @if ( selected is not null )
+            {
+                <PageHost @key=@selected.Key class="utility-page" CreatePage=@selected.Create />
+            }
+        </Body>
+    </UISettingsPane>
+
+</root>
+
+@code
+{
+    // either a page type, or a server settings page for one group
+    record PageEntry( string Group, string Title, int Order, string SortName, object Key, Func<UtilityPage> Create );
+
+    object SelectedKey = typeof( UtilitiesPage );
+
+    void OnSelectPage( object key ) => SelectedKey = key;
+
+    sealed class PageHost : Panel
+    {
+        /// <summary>
+        /// Creates the selected utility page when its host is mounted.
+        /// </summary>
+        [Parameter] public Func<UtilityPage> CreatePage { get; set; }
+
+        protected override void OnParametersSet()
+        {
+            if ( ChildrenCount == 0 && CreatePage is not null )
+                AddChild( CreatePage() );
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( SelectedKey, Game.Language.SelectedCode, ServerSettings.CanEdit );
+
+    List<UIGroupedList.ListGroup> GetGroups( List<PageEntry> pages )
+    {
+        return pages.GroupBy( x => x.Group )
+            .OrderBy( group => group.Min( page => page.Order ) )
+            .ThenBy( group => LocalizedText.Resolve( group.Key ), StringComparer.CurrentCultureIgnoreCase )
+            .ThenBy( group => group.Key, StringComparer.Ordinal )
+            .Select( group => new UIGroupedList.ListGroup( group.Key, group
+                .OrderBy( x => x.Order )
+                .ThenBy( x => LocalizedText.Resolve( x.Title ), StringComparer.CurrentCultureIgnoreCase )
+                .ThenBy( x => x.SortName, StringComparer.Ordinal )
+                .Select( x => new UIGroupedList.ListItem( x.Title, x.Key ) )
+                .ToList() ) )
+            .ToList();
+    }
+
+    List<PageEntry> GetVisiblePages()
+    {
+        var pages = new List<PageEntry>();
+
+        foreach ( var type in Game.TypeLibrary.GetTypes<UtilityPage>() )
+        {
+            if ( type.IsAbstract ) continue;
+            var instance = type.Create<UtilityPage>();
+            if ( instance is null ) continue;
+
+            var visible = instance.IsPageVisible();
+            instance.Delete();
+
+            if ( visible ) pages.Add( new PageEntry( type.Group, type.Title, type.Order, type.FullName, type.TargetType, () => type.Create<UtilityPage>() ) );
+        }
+
+        // one page per server settings group
+        if ( ServerSettings.CanEdit )
+        {
+            var order = 10;
+            foreach ( var group in ServerSettings.Groups )
+            {
+                var settingsGroup = group;
+                pages.Add( new PageEntry( "#spawnmenu.utility.group.server", ServerSettings.GroupTitle( group ), order++, group, $"server-settings:{group}", () => new ServerSettingsPage { Group = settingsGroup } ) );
+            }
+        }
+
+        return pages;
+    }
+
+}

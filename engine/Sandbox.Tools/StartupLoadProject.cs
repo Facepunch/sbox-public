@@ -423,7 +423,7 @@ static class StartupLoadProject
 		foreach ( var ident in packagesToDownload )
 		{
 			// normalise into org.ident, without version, so we can easily check below
-			if ( Package.TryParseIdent( ident, out var p ) )
+			if ( Package.TryParseIdentParts( ident, out var p ) )
 				required.Add( Package.FormatIdent( p.org, p.package ) );
 		}
 

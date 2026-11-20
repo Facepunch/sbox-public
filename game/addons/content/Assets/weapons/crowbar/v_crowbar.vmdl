@@ -1,0 +1,520 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "crowbar.vmat"
+								to = "weapons/crowbar/materials/v_crowbar.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "weapons/crowbar/v_crowbar.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"crowbar",
+								"v_crowbar",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "AnimConstraintList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animconstraintlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_ikdata.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "WeightListList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_weightlistlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "AnimationList"
+				children = 
+				[
+					{
+						_class = "AnimBindPose"
+						name = "bindPose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						frame_count = 1
+						frame_rate = 30
+					},
+					{
+						_class = "AnimFile"
+						name = "bindPose_delta"
+						children = 
+						[
+							{
+								_class = "AnimSubtract"
+								anim_name = "bindPose_delta"
+								frame = 0
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/v_crowbar.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_adjustmentlayers.vmdl_prefab"
+					},
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_shared.vmdl_prefab"
+					},
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_punching.vmdl_prefab"
+					},
+					{
+						_class = "AnimFile"
+						name = "IdlePose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = true
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@IdlePose.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Deploy"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Deploy.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 40.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFileReverse"
+						name = "Holster"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Deploy.fbx"
+						start_frame = 0
+						end_frame = 24
+						framerate = 60.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Attack_01"
+						note = "Animated at 60 fps"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Attack_01.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 69.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Attack_02"
+						note = "Animated at 60 fps"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Attack_02.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 69.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Attack_03"
+						note = "Animated at 60 fps"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Attack_03.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 69.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Attack_Hit_01"
+						note = "Animated at 60 fps"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Attack_Hit_01.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 69.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Attack_Hit_02"
+						note = "Animated at 60 fps"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Attack_Hit_02.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 69.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Attack_Hit_03"
+						note = "Animated at 60 fps"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Attack_Hit_03.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 69.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Sprint"
+						note = "Animated at 60 fps, set to 72 here to slightly better match default footsteps pace\n"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = true
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Sprint.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Sprint_delta"
+						note = "Animated at 60 fps, set to 72 here to slightly better match default footsteps pace\n"
+						children = 
+						[
+							{
+								_class = "AnimSubtract"
+								anim_name = "Sprint_Pose"
+								frame = 0
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = true
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Sprint.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 72.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Sprint_Pose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Sprint_Pose.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Sprint_Pose_delta"
+						children = 
+						[
+							{
+								_class = "AnimSubtract"
+								anim_name = "IdlePose"
+								frame = 0
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/crowbar/animations/v_crowbar@Sprint_Pose.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 72.0
+						take = 0
+						reverse = false
+					},
+				]
+				default_root_bone_name = ""
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "BoneMarkup"
+						target_bone = ""
+						ignore_Translation = false
+						ignore_rotation = false
+						do_not_discard = false
+					},
+				]
+				bone_cull_type = "None"
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = "weapons/crowbar/v_crowbar.vanmgrph"
+		base_model_name = ""
+	}
+}

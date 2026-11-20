@@ -168,6 +168,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// </summary>
 	internal static int UnseenRenders;
 
+	/// <summary>
+	/// Whether the game's scene is loading as the engine shows it: its loading tasks, the loading screen, or connecting.
+	/// <c>Game.Render</c> draws the scene as usual otherwise. Not the game instance's own flag: nothing clears that when a
+	/// game started without a scene load adds its map (a <c>MapInstance</c>), so its frames, on screen, kept loading budgets
+	/// and native's envmap order, and its world was never counted as shown.
+	/// </summary>
+	internal static bool GameLoading( Scene scene ) => (scene?.IsLoading ?? false) || LoadingScreen.IsVisible || Networking.IsConnecting;
+
 	/// <summary>The most frames it waits for an unseen render once the models are made (a scene with no camera has none).</summary>
 	internal static int UnseenRenderWaitFrames { get; set; } = 8;
 
@@ -211,6 +219,25 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
+	/// <summary>
+	/// Before a scene's load finishes in the game window on Borealis.Gpu, wait for the next frame's first tasks
+	/// (<see cref="NextFrameStart"/>), so it finishes before the game ticks in that frame. Its waits (for content, the
+	/// navmesh) end in whichever frame's tasks run next, often the last ones, after the frame's render: the game's first tick
+	/// and render then took a frame of their own after the loading screen (220-290 ms after a load on Flatgrass and
+	/// Construct), where native's load finished in a frame's first tasks and had them in the frame it finished in.
+	/// </summary>
+	internal static Task BeforeLoadFinishes() => (RenderBackend.Default as BorealisGpuRenderBackend)?.services is { AsyncModels: true } ? NextFrameStart() : Task.CompletedTask;
+
+	/// <summary>
+	/// Resume in the next frame's first tasks, before the game ticks in it (<c>EngineLoop.FrameStart</c>), wherever in the
+	/// frame this is awaited.
+	/// </summary>
+	internal static async Task NextFrameStart()
+	{
+		var frame = Application.FrameCount;
+		while ( Application.FrameCount == frame ) await Task.Yield();
+	}
+
 	/// <summary>Validation errors the device has reported.</summary>
 	public int ValidationErrors => gpu.ValidationErrors;
 
@@ -235,7 +262,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		BiasMips();
 
 		// Behind a loading screen nobody watches the frames: what a map loads is made and streamed with bigger budgets
-		services.Loading = LoadingScreen.IsVisible || (Sandbox.Engine.GlobalContext.Game?.ActiveScene?.IsLoading ?? false) || (IGameInstance.Current?.IsLoading ?? false);
+		services.Loading = GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene );
 		services.BeginFrame();
 		TimeFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
@@ -1622,11 +1649,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( material is null ) return null;
 		if ( materialFiles.TryGetValue( material, out var known ) )
 		{
-			// Code set more on it since: its own copy of the file takes the new values
-			if ( known.Version != material.SetInCodeVersion && known.File is not null && material.SetInCode is { } changed )
+			// Code set more on it since: its own copy of the file takes the new values and features
+			if ( known.Version != material.SetInCodeVersion && known.File is not null )
 			{
-				var (values, textures) = LowerSetInCode( changed );
-				services.SetOnMaterial( known.File, values, textures );
+				if ( material.SetInCode is { } changed )
+				{
+					var (values, textures) = LowerSetInCode( changed );
+					services.SetOnMaterial( known.File, values, textures );
+				}
+
+				services.SetFeaturesOnMaterial( known.File, material.FeaturesSetInCode );
 				known.Version = material.SetInCodeVersion;
 			}
 
@@ -1634,8 +1666,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 
 		// A copy's path is its original's file (FilePath); as the .shader draws it, also where a surface stands in for its shader in
-		// the scene. One with values set in code is a file of its own with them over the file's; one made in code from a shader
-		// is that shader's defaults with them over
+		// the scene. One with values or features set in code is a file of its own with them over the file's; one made in code from
+		// a shader is that shader's defaults with them over
 		var path = material.FilePath;
 		BackendMaterial file = null;
 		if ( material.MadeFromShader is { } shader )
@@ -1649,13 +1681,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 				var (values, textures) = LowerSetInCode( set );
 				services.SetOnMaterial( file, values, textures );
 			}
+
+			services.SetFeaturesOnMaterial( file, material.FeaturesSetInCode );
 		}
 		else if ( !string.IsNullOrEmpty( path ) && files.Find( path ) is not null )
 		{
-			if ( material.SetInCode is { Count: > 0 } set )
+			if ( material.SetInCode is { Count: > 0 } || material.FeaturesSetInCode is { Count: > 0 } )
 			{
-				var (values, textures) = LowerSetInCode( set );
+				var (values, textures) = LowerSetInCode( material.SetInCode ?? new Dictionary<string, object>() );
 				file = services.LoadMaterial( path, values, textures, $"{path} (set in code)" ) as BackendMaterial;
+				services.SetFeaturesOnMaterial( file, material.FeaturesSetInCode );
 			}
 			else file = services.ShaderMaterial( path );
 		}

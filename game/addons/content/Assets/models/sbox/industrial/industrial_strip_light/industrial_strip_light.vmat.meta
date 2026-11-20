@@ -1,0 +1,27 @@
+{
+  "guid": "05c885da-ee57-4769-b97e-f3e1b367ae65",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Industrial Strip Light",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "industrialstriplight",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/industrial_strip_light/industrial_strip_light.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

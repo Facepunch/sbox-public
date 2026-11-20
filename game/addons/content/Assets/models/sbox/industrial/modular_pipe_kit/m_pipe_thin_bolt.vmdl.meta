@@ -1,0 +1,27 @@
+{
+  "guid": "95b04c3d-816d-41ba-85ff-b725404284f5",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Thin Bolt",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipethinbolt",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_thin_bolt.vmdl"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

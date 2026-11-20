@@ -64,6 +64,11 @@ namespace Sandbox
 			if ( Swaps.Count == 0 )
 				return HotloadResult.NoActionSingleton;
 
+			using var metadata = new Utility.DisposeAction( () =>
+			{
+				RecoveredDependencies = null;
+				CloseAssemblyImages();
+			} );
 			CurrentResult = new HotloadResult();
 
 			TypeTimings.Clear();
@@ -73,6 +78,7 @@ namespace Sandbox
 			timer.Start();
 
 			SimplifySwaps();
+			PrepareRetainedDependencies();
 
 			// Remove cached static fields for assemblies that aren't watched any more
 			foreach ( var cachedAsm in StaticFieldCache.Keys.ToArray() )
@@ -91,10 +97,12 @@ namespace Sandbox
 			}
 
 			var defaultUpgrader = GetUpgrader<DefaultUpgrader>();
+			var walkStarted = false;
 
 			try
 			{
 				RootUpgraderGroup.HotloadStart();
+				walkStarted = true;
 
 				var staticFieldStartTime = timer.Elapsed;
 				var watchedAssemblies = _watchedAssemblies.Keys
@@ -144,32 +152,31 @@ namespace Sandbox
 				AnonymousTypes.Clear();
 				RootUpgraderGroup.ClearCache();
 
-				// update the watched assemblies if we swapped those
-
-				foreach ( var swap in Swaps )
-				{
-					if ( swap.Key is null ) continue;
-					if ( !_watchedAssemblies.TryGetValue( swap.Key, out var filter ) ) continue;
-
-					UnwatchAssembly( swap.Key );
-
-					if ( swap.Value is null ) continue;
-
-					WatchAssembly( swap.Value, filter );
-				}
-
-				foreach ( var asm in New )
-				{
-					WatchAssembly( asm );
-				}
-
-				Swaps.Clear();
-				New.Clear();
+				// If a start hook failed, no references moved. Keep the old roots and retry the swap.
+				if ( walkStarted ) AdvanceWatchedAssemblies();
 			}
 
 			CurrentResult.ProcessingTime = timer.Elapsed.TotalMilliseconds;
 
 			return CurrentResult;
+		}
+
+		private void AdvanceWatchedAssemblies()
+		{
+			foreach ( var (outgoing, incoming) in Swaps )
+			{
+				if ( !_watchedAssemblies.TryGetValue( outgoing, out var filter ) ) continue;
+				UnwatchAssembly( outgoing );
+				if ( incoming is not null ) WatchAssembly( incoming, filter );
+			}
+
+			foreach ( var assembly in New )
+			{
+				WatchAssembly( assembly );
+			}
+
+			Swaps.Clear();
+			New.Clear();
 		}
 
 		private void ScheduleInstanceTask( IInstanceProcessor handler, object oldInstance, object newInstance )
@@ -521,11 +528,60 @@ namespace Sandbox
 		}
 
 		/// <summary>
+		/// Keeps the last usable script types alive during a swap when rebuilding their assembly failed.
+		/// </summary>
+		public Assembly RetainedAssembly { get; set; }
+
+		// A retained script still derives from the original package types. Remember exactly where those
+		// assemblies went so their instance fields can migrate when the script eventually rebuilds.
+		private readonly ConditionalWeakTable<Assembly, ConditionalWeakTable<Assembly, Assembly>> RetainedDependencies = new();
+		private ConditionalWeakTable<Assembly, Assembly> RecoveredDependencies;
+
+		private void PrepareRetainedDependencies()
+		{
+			ConditionalWeakTable<Assembly, Assembly> dependencies = null;
+			if ( RetainedAssembly is { } script && !Swaps.ContainsKey( script ) )
+			{
+				dependencies = RetainedDependencies.GetOrCreateValue( script );
+
+				// Old instances can hold indirect package types too. Weak keys let unused generations collect.
+				foreach ( var (outgoing, replacement) in Swaps )
+				{
+					dependencies.TryAdd( outgoing, replacement );
+				}
+			}
+			else
+			{
+				foreach ( var outgoing in Swaps.Keys )
+				{
+					if ( !RetainedDependencies.TryGetValue( outgoing, out dependencies ) ) continue;
+					// The old package already migrated its statics. Only map its types and instances this time.
+					RecoveredDependencies = dependencies;
+					break;
+				}
+			}
+
+			if ( dependencies is null ) return;
+			foreach ( var (original, previous) in dependencies )
+			{
+				if ( Swaps.TryGetValue( previous, out var latest ) ) dependencies.AddOrUpdate( original, latest );
+			}
+		}
+
+		private bool TryGetTypeReplacement( Assembly assembly, out Assembly replacement )
+		{
+			return Swaps.TryGetValue( assembly, out replacement ) || (RecoveredDependencies is not null && RecoveredDependencies.TryGetValue( assembly, out replacement ));
+		}
+
+		/// <summary>
 		/// Make sure a candidate type substitution isn't at all defined in a swapped-out assembly.
 		/// This can go wrong if assembly B references assembly A, but only assembly A was swapped.
 		/// </summary>
 		private bool ValidateNewType( Type newType )
 		{
+			// The retained script generation may still use an outgoing base, including when a queued edit points to it.
+			if ( newType.Assembly == RetainedAssembly && !Swaps.ContainsKey( newType.Assembly ) ) return true;
+
 			foreach ( var interfaceType in newType.GetInterfaces() )
 			{
 				if ( Swaps.ContainsKey( interfaceType.Assembly ) )
@@ -647,7 +703,7 @@ namespace Sandbox
 				}
 				else
 				{
-					newType = Swaps.TryGetValue( typeAssembly, out var swapAssembly )
+					newType = TryGetTypeReplacement( typeAssembly, out var swapAssembly )
 						? GetSubstituteType( swapAssembly, oldType ) : oldType;
 				}
 			}
@@ -755,7 +811,7 @@ namespace Sandbox
 				return type.GetGenericArguments().Any( IsSwappedType );
 			}
 
-			return Swaps.ContainsKey( type.Assembly );
+			return TryGetTypeReplacement( type.Assembly, out _ );
 		}
 
 		private bool AreEqualTypes( Type a, Type b )

@@ -1,0 +1,47 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+    // the settings of the picked effect, or what the page is for when none is picked
+    EffectsProperties
+    {
+        flex-direction: column;
+        flex-grow: 1;
+        min-width: 0px;
+
+        .empty-state
+        {
+            flex-grow: 1;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            text-align: center;
+
+            IconPanel
+            {
+                font-size: 40px;
+                color: $ui-blue;
+            }
+
+            .title
+            {
+                margin-top: 6px;
+                font-size: 14px;
+                font-weight: 700;
+                color: $ui-text-strong;
+            }
+
+            .hint
+            {
+                max-width: 400px;
+                margin-top: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                color: $ui-text-muted;
+            }
+        }
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

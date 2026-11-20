@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 
 namespace Sandbox;
 
@@ -12,6 +13,8 @@ public sealed partial class ScriptSystem
 {
 	private readonly HashSet<TypeLibrary> _libraries = new();
 	private Assembly _assembly;
+	// Registration can throw before the hotloader sees the new assembly. Keep its actual outgoing generation.
+	private Assembly _watchedAssembly;
 	private bool _publishingAssembly;
 	[SkipHotload] private static readonly ConditionalWeakTable<Breen.ScriptDocument, CompilationUnitSyntax> DeclarationTrees = new();
 
@@ -105,12 +108,30 @@ public sealed partial class ScriptSystem
 		}
 	}
 
+	private void UnregisterAssembly()
+	{
+		if ( _assembly is null ) return;
+
+		foreach ( var library in _libraries )
+		{
+			library.RemoveAssembly( _assembly );
+		}
+		if ( _watchedAssembly is not null )
+		{
+			_context.ReplaceScriptAssembly( _watchedAssembly, null );
+			_watchedAssembly = null;
+		}
+		_assembly = null;
+	}
+
 	/// <summary>
 	/// Replaces the real CLR assembly through ordinary hotload before executing startup code.
 	/// TypeLibrary discovers members and attributes through its existing assembly registration path.
 	/// </summary>
 	private void ReplaceAssembly( Assembly previous, Assembly incoming )
 	{
+		// A fresh module can replace an assembly left by an interrupted publication.
+		previous ??= _assembly;
 		foreach ( var library in _libraries )
 		{
 			if ( previous is not null )
@@ -131,17 +152,10 @@ public sealed partial class ScriptSystem
 				library.AddAssembly( incoming, true );
 			}
 
-			// The callback only asks for a strict swap: a failed migration fails the publication.
-			_context.ReplaceScriptAssembly( previous, incoming, () => { } );
-		}
-		catch
-		{
-			foreach ( var library in _libraries )
-			{
-				library.RemoveAssembly( incoming );
-			}
-
-			throw;
+			var migrationError = _context.ReplaceScriptAssembly( _watchedAssembly, incoming );
+			_watchedAssembly = incoming;
+			// Recovery must replace the queued generation even if migration stopped before walking its references.
+			if ( migrationError is not null ) ExceptionDispatchInfo.Throw( migrationError );
 		}
 		finally
 		{

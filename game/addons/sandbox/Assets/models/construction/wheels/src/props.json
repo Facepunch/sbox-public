@@ -1,0 +1,1557 @@
+{
+ "747wheel": {
+  "diameter": 113.15,
+  "fill": 0.864,
+  "mass": 30.0,
+  "shape": {
+   "kind": "render_hull"
+  },
+  "surface": "rubber"
+ },
+ "airplanewheel1": {
+  "diameter": 18.8,
+  "fill": 0.908,
+  "mass": 10.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -4.7334,
+    -0.0,
+    -0.0
+   ],
+   "point1": [
+    3.9779,
+    -0.0,
+    -0.0
+   ],
+   "radius": 9.4
+  },
+  "surface": "rubber"
+ },
+ "airplanewheel1big": {
+  "diameter": 56.4,
+  "fill": 0.908,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -14.2002,
+    -0.0,
+    -0.0
+   ],
+   "point1": [
+    11.9336,
+    -0.0,
+    -0.0
+   ],
+   "radius": 28.2
+  },
+  "surface": "rubber"
+ },
+ "airplanewheel1huge": {
+  "diameter": 75.2,
+  "fill": 0.908,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -18.9336,
+    -0.0,
+    -0.0
+   ],
+   "point1": [
+    15.9114,
+    -0.0,
+    -0.0
+   ],
+   "radius": 37.6
+  },
+  "surface": "rubber"
+ },
+ "airplanewheel1large": {
+  "diameter": 94.0,
+  "fill": 0.908,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -23.667,
+    -0.0,
+    -0.0
+   ],
+   "point1": [
+    19.8893,
+    -0.0,
+    -0.0
+   ],
+   "radius": 47.0
+  },
+  "surface": "rubber"
+ },
+ "airplanewheel1medium": {
+  "diameter": 37.6,
+  "fill": 0.908,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -9.4668,
+    -0.0,
+    -0.0
+   ],
+   "point1": [
+    7.9557,
+    -0.0,
+    -0.0
+   ],
+   "radius": 18.8
+  },
+  "surface": "rubber"
+ },
+ "big_wheel": {
+  "diameter": 51.96,
+  "fill": 0.901,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -12.8546,
+    0.0283,
+    -0.0
+   ],
+   "point1": [
+    12.8686,
+    0.0283,
+    -0.0
+   ],
+   "radius": 25.9824
+  },
+  "surface": "rubber"
+ },
+ "big_wheel_wide": {
+  "diameter": 51.96,
+  "fill": 0.901,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -16.711,
+    0.0283,
+    -0.0
+   ],
+   "point1": [
+    16.7292,
+    0.0283,
+    -0.0
+   ],
+   "radius": 25.9824
+  },
+  "surface": "rubber"
+ },
+ "breakable_tire": {
+  "diameter": 33.42,
+  "fill": 0.981,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0051,
+    -0.0067,
+    0.1864
+   ],
+   "point1": [
+    -0.0051,
+    -0.0067,
+    10.7656
+   ],
+   "radius": 16.7076
+  },
+  "surface": "rubber"
+ },
+ "drugster_back": {
+  "diameter": 49.1,
+  "fill": 0.991,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    0.0866
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    47.0931
+   ],
+   "radius": 24.5518
+  },
+  "surface": "rubber"
+ },
+ "drugster_front": {
+  "diameter": 33.7,
+  "fill": 0.993,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    0.1086
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    17.1
+   ],
+   "radius": 16.8509
+  },
+  "surface": "rubber"
+ },
+ "magnetic_large": {
+  "diameter": 60.0,
+  "fill": 0.99,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0002,
+    0.0,
+    0.0692
+   ],
+   "point1": [
+    -0.0002,
+    0.0,
+    15.1194
+   ],
+   "radius": 30.0
+  },
+  "surface": "rubber"
+ },
+ "magnetic_large_base": {
+  "diameter": 24.79,
+  "fill": 0.968,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0027,
+    0.0429,
+    -0.01
+   ],
+   "point1": [
+    0.0027,
+    0.0429,
+    15.7929
+   ],
+   "radius": 12.3931
+  },
+  "surface": "metal"
+ },
+ "magnetic_med_base": {
+  "diameter": 15.39,
+  "fill": 0.968,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0017,
+    0.0266,
+    -0.0058
+   ],
+   "point1": [
+    0.0017,
+    0.0266,
+    9.0761
+   ],
+   "radius": 7.6951
+  },
+  "surface": "metal"
+ },
+ "magnetic_medium": {
+  "diameter": 33.5,
+  "fill": 0.99,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0001,
+    0.0,
+    0.0385
+   ],
+   "point1": [
+    -0.0001,
+    0.0,
+    8.4032
+   ],
+   "radius": 16.75
+  },
+  "surface": "rubber"
+ },
+ "magnetic_small": {
+  "diameter": 17.8,
+  "fill": 0.99,
+  "mass": 10.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0001,
+    0.0,
+    0.0204
+   ],
+   "point1": [
+    -0.0001,
+    0.0,
+    4.4658
+   ],
+   "radius": 8.9016
+  },
+  "surface": "rubber"
+ },
+ "magnetic_small_base": {
+  "diameter": 7.36,
+  "fill": 0.968,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0008,
+    0.0127,
+    -0.0031
+   ],
+   "point1": [
+    0.0008,
+    0.0127,
+    4.8383
+   ],
+   "radius": 3.6805
+  },
+  "surface": "metal"
+ },
+ "metal_wheel1": {
+  "diameter": 39.14,
+  "fill": 0.994,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0001,
+    0.0017,
+    0.1522
+   ],
+   "point1": [
+    -0.0001,
+    0.0017,
+    6.8865
+   ],
+   "radius": 19.5696
+  },
+  "surface": "metal"
+ },
+ "metal_wheel2": {
+  "diameter": 70.45,
+  "fill": 0.997,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0001,
+    0.0017,
+    0.1522
+   ],
+   "point1": [
+    -0.0001,
+    0.0017,
+    6.8865
+   ],
+   "radius": 35.2252
+  },
+  "surface": "metal"
+ },
+ "monster_truck": {
+  "diameter": 125.1,
+  "fill": 0.932,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0065,
+    0.0002,
+    0.1288
+   ],
+   "point1": [
+    -0.0065,
+    0.0002,
+    70.7261
+   ],
+   "radius": 62.5495
+  },
+  "surface": "rubber"
+ },
+ "moped_tire": {
+  "diameter": 37.87,
+  "fill": 0.985,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0008,
+    0.0065,
+    3.2542
+   ],
+   "point1": [
+    -0.0008,
+    0.0065,
+    7.7189
+   ],
+   "radius": 18.9333
+  },
+  "surface": "rubber"
+ },
+ "normal_tire": {
+  "diameter": 33.55,
+  "fill": 0.961,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0024,
+    0.0046,
+    0.0125
+   ],
+   "point1": [
+    0.0024,
+    0.0046,
+    12.0909
+   ],
+   "radius": 16.7751
+  },
+  "surface": "rubber"
+ },
+ "off_road_20": {
+  "diameter": 23.52,
+  "fill": 0.968,
+  "mass": 10.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -4.2616,
+    0.0,
+    -0.0
+   ],
+   "point1": [
+    4.2616,
+    0.0,
+    -0.0
+   ],
+   "radius": 11.7601
+  },
+  "surface": "rubber"
+ },
+ "off_road_30": {
+  "diameter": 34.9,
+  "fill": 0.968,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -6.3231,
+    0.0,
+    -0.0
+   ],
+   "point1": [
+    6.3231,
+    0.0,
+    -0.0
+   ],
+   "radius": 17.449
+  },
+  "surface": "rubber"
+ },
+ "off_road_40": {
+  "diameter": 45.73,
+  "fill": 0.968,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -8.285,
+    0.0,
+    -0.0
+   ],
+   "point1": [
+    8.285,
+    0.0,
+    -0.0
+   ],
+   "radius": 22.8629
+  },
+  "surface": "rubber"
+ },
+ "off_road_50": {
+  "diameter": 59.11,
+  "fill": 0.968,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -10.7095,
+    0.0,
+    -0.0
+   ],
+   "point1": [
+    10.7095,
+    0.0,
+    -0.0
+   ],
+   "radius": 29.5535
+  },
+  "surface": "rubber"
+ },
+ "off_road_60": {
+  "diameter": 69.97,
+  "fill": 0.968,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -12.6781,
+    0.0,
+    -0.0
+   ],
+   "point1": [
+    12.6781,
+    0.0,
+    -0.0
+   ],
+   "radius": 34.9862
+  },
+  "surface": "rubber"
+ },
+ "off_road_70": {
+  "diameter": 80.8,
+  "fill": 0.968,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -14.6407,
+    -0.0,
+    -0.0
+   ],
+   "point1": [
+    14.6407,
+    -0.0,
+    -0.0
+   ],
+   "radius": 40.402
+  },
+  "surface": "rubber"
+ },
+ "off_road_80": {
+  "diameter": 89.4,
+  "fill": 0.968,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -16.1988,
+    0.0,
+    -0.0
+   ],
+   "point1": [
+    16.1988,
+    0.0,
+    -0.0
+   ],
+   "radius": 44.7018
+  },
+  "surface": "rubber"
+ },
+ "pwm": {
+  "diameter": 27.0,
+  "fill": 0.904,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -0.0,
+    -5.6329
+   ],
+   "point1": [
+    0.0,
+    -0.0,
+    5.8709
+   ],
+   "radius": 13.5
+  },
+  "surface": "rubber"
+ },
+ "pwm_large": {
+  "diameter": 33.75,
+  "fill": 0.904,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -0.0,
+    -7.0411
+   ],
+   "point1": [
+    0.0,
+    -0.0,
+    7.3386
+   ],
+   "radius": 16.875
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_30": {
+  "diameter": 29.43,
+  "fill": 0.944,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -7.3424,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    7.3424,
+    -0.0
+   ],
+   "radius": 14.7146
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_30_s": {
+  "diameter": 29.24,
+  "fill": 0.925,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -5.9267,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    5.9267,
+    -0.0
+   ],
+   "radius": 14.6213
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_35": {
+  "diameter": 34.55,
+  "fill": 0.944,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -8.6211,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    8.6211,
+    -0.0
+   ],
+   "radius": 17.2772
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_35_s": {
+  "diameter": 34.62,
+  "fill": 0.925,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -7.0161,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    7.0161,
+    -0.0
+   ],
+   "radius": 17.3091
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_40": {
+  "diameter": 39.23,
+  "fill": 0.944,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -9.7888,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    9.7888,
+    -0.0
+   ],
+   "radius": 19.6174
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_40_s": {
+  "diameter": 39.31,
+  "fill": 0.925,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -7.9665,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    7.9665,
+    -0.0
+   ],
+   "radius": 19.6536
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_45": {
+  "diameter": 44.17,
+  "fill": 0.944,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -11.02,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    11.02,
+    -0.0
+   ],
+   "radius": 22.0847
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_45_s": {
+  "diameter": 43.87,
+  "fill": 0.925,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -8.8914,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    8.8914,
+    -0.0
+   ],
+   "radius": 21.9354
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_50": {
+  "diameter": 48.87,
+  "fill": 0.944,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -12.1928,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    12.1928,
+    -0.0
+   ],
+   "radius": 24.4351
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_50_s": {
+  "diameter": 48.96,
+  "fill": 0.925,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -9.9236,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    9.9236,
+    -0.0
+   ],
+   "radius": 24.4821
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_55": {
+  "diameter": 54.07,
+  "fill": 0.944,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -13.4904,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    13.4904,
+    -0.0
+   ],
+   "radius": 27.0356
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_55_s": {
+  "diameter": 54.18,
+  "fill": 0.925,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -10.9798,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    10.9798,
+    -0.0
+   ],
+   "radius": 27.0876
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_60": {
+  "diameter": 58.78,
+  "fill": 0.944,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -14.6651,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    14.6651,
+    -0.0
+   ],
+   "radius": 29.3898
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_60_s": {
+  "diameter": 58.4,
+  "fill": 0.925,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -11.8368,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    11.8368,
+    -0.0
+   ],
+   "radius": 29.202
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_65": {
+  "diameter": 63.94,
+  "fill": 0.944,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -15.953,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    15.953,
+    -0.0
+   ],
+   "radius": 31.9709
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_65_s": {
+  "diameter": 63.49,
+  "fill": 0.925,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -12.8675,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    12.8675,
+    -0.0
+   ],
+   "radius": 31.7447
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_70": {
+  "diameter": 68.96,
+  "fill": 0.944,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -17.2057,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    17.2057,
+    -0.0
+   ],
+   "radius": 34.4813
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_70_s": {
+  "diameter": 68.45,
+  "fill": 0.925,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -13.8719,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    13.8719,
+    -0.0
+   ],
+   "radius": 34.2226
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_75": {
+  "diameter": 73.63,
+  "fill": 0.944,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -18.371,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    18.371,
+    -0.0
+   ],
+   "radius": 36.8166
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_75_s": {
+  "diameter": 73.74,
+  "fill": 0.925,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -14.9455,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    14.9455,
+    -0.0
+   ],
+   "radius": 36.8714
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_80": {
+  "diameter": 77.91,
+  "fill": 0.944,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -19.4374,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    19.4374,
+    -0.0
+   ],
+   "radius": 38.9538
+  },
+  "surface": "rubber"
+ },
+ "race_wheel_80_s": {
+  "diameter": 78.02,
+  "fill": 0.925,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    -15.8131,
+    -0.0
+   ],
+   "point1": [
+    0.0,
+    15.8131,
+    -0.0
+   ],
+   "radius": 39.0118
+  },
+  "surface": "rubber"
+ },
+ "rim_1": {
+  "diameter": 48.0,
+  "fill": 0.995,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -6.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    6.0
+   ],
+   "radius": 24.0
+  },
+  "surface": "rubber"
+ },
+ "tractor": {
+  "diameter": 103.8,
+  "fill": 0.954,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -18.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    18.0
+   ],
+   "radius": 51.9
+  },
+  "surface": "rubber"
+ },
+ "tractor_small": {
+  "diameter": 51.9,
+  "fill": 0.954,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -9.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    9.0
+   ],
+   "radius": 25.95
+  },
+  "surface": "rubber"
+ },
+ "trucktire": {
+  "diameter": 49.23,
+  "fill": 0.96,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0002,
+    -0.0,
+    0.0117
+   ],
+   "point1": [
+    0.0002,
+    -0.0,
+    15.1681
+   ],
+   "radius": 24.6167
+  },
+  "surface": "rubber"
+ },
+ "trucktire2": {
+  "diameter": 49.23,
+  "fill": 0.965,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0002,
+    -0.0,
+    0.0126
+   ],
+   "point1": [
+    0.0002,
+    -0.0,
+    32.8914
+   ],
+   "radius": 24.6167
+  },
+  "surface": "rubber"
+ },
+ "wheel_2": {
+  "diameter": 27.0,
+  "fill": 0.97,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0,
+    -0.0,
+    -5.4053
+   ],
+   "point1": [
+    -0.0,
+    -0.0,
+    5.0892
+   ],
+   "radius": 13.5
+  },
+  "surface": "rubber"
+ },
+ "wheel_2l": {
+  "diameter": 33.75,
+  "fill": 0.97,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0,
+    -0.0,
+    -6.7566
+   ],
+   "point1": [
+    -0.0,
+    -0.0,
+    6.3615
+   ],
+   "radius": 16.875
+  },
+  "surface": "rubber"
+ },
+ "wheel_extruded_48": {
+  "diameter": 52.11,
+  "fill": 0.742,
+  "mass": 15.0,
+  "surface": "rubber"
+ },
+ "wheel_race": {
+  "diameter": 44.0,
+  "fill": 0.974,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -6.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    6.0
+   ],
+   "radius": 22.0
+  },
+  "surface": "rubber"
+ },
+ "wheel_rounded_36": {
+  "diameter": 47.12,
+  "fill": 0.926,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -12.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    12.0
+   ],
+   "radius": 23.562
+  },
+  "surface": "rubber"
+ },
+ "wheel_rounded_36s": {
+  "diameter": 47.12,
+  "fill": 0.926,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -6.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    6.0
+   ],
+   "radius": 23.562
+  },
+  "surface": "rubber"
+ },
+ "wheel_rounded_72": {
+  "diameter": 94.25,
+  "fill": 0.926,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -24.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    24.0
+   ],
+   "radius": 47.124
+  },
+  "surface": "rubber"
+ },
+ "wheel_rugged_24": {
+  "diameter": 31.0,
+  "fill": 0.995,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -3.5
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    3.5
+   ],
+   "radius": 15.5
+  },
+  "surface": "rubber"
+ },
+ "wheel_rugged_24w": {
+  "diameter": 31.0,
+  "fill": 0.995,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -7.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    7.0
+   ],
+   "radius": 15.5
+  },
+  "surface": "rubber"
+ },
+ "wheel_rugged_48": {
+  "diameter": 62.0,
+  "fill": 0.995,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -7.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    7.0
+   ],
+   "radius": 31.0
+  },
+  "surface": "rubber"
+ },
+ "wheel_rugged_48w": {
+  "diameter": 62.0,
+  "fill": 0.995,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -14.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    14.0
+   ],
+   "radius": 31.0
+  },
+  "surface": "rubber"
+ },
+ "wheel_smooth2": {
+  "diameter": 48.0,
+  "fill": 0.997,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -4.5
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    4.5
+   ],
+   "radius": 24.0
+  },
+  "surface": "metal"
+ },
+ "wheel_smooth_24": {
+  "diameter": 24.08,
+  "fill": 0.989,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -3.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    3.0
+   ],
+   "radius": 12.0381
+  },
+  "surface": "metal"
+ },
+ "wheel_smooth_24f": {
+  "diameter": 24.08,
+  "fill": 0.989,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -6.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    6.0
+   ],
+   "radius": 12.0381
+  },
+  "surface": "metal"
+ },
+ "wheel_smooth_48": {
+  "diameter": 48.15,
+  "fill": 0.989,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -6.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    6.0
+   ],
+   "radius": 24.0762
+  },
+  "surface": "metal"
+ },
+ "wheel_smooth_72": {
+  "diameter": 72.0,
+  "fill": 0.997,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -4.5
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    4.5
+   ],
+   "radius": 36.0
+  },
+  "surface": "metal"
+ },
+ "wheel_smooth_72w": {
+  "diameter": 72.0,
+  "fill": 0.997,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -9.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    9.0
+   ],
+   "radius": 36.0
+  },
+  "surface": "metal"
+ },
+ "wheel_smooth_96": {
+  "diameter": 96.3,
+  "fill": 0.989,
+  "mass": 50.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -6.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    6.0
+   ],
+   "radius": 48.1523
+  },
+  "surface": "metal"
+ },
+ "wheel_speed_72": {
+  "diameter": 73.44,
+  "fill": 0.973,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    0.0,
+    0.0,
+    -6.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    6.0
+   ],
+   "radius": 36.72
+  },
+  "surface": "rubber"
+ },
+ "wheel_spike_24": {
+  "diameter": 31.0,
+  "fill": 0.896,
+  "mass": 15.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0,
+    0.0,
+    -6.5
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    6.5
+   ],
+   "radius": 14.5
+  },
+  "surface": "rubber"
+ },
+ "wheel_spike_48": {
+  "diameter": 62.0,
+  "fill": 0.896,
+  "mass": 30.0,
+  "shape": {
+   "kind": "cylinder",
+   "point0": [
+    -0.0,
+    0.0,
+    -13.0
+   ],
+   "point1": [
+    0.0,
+    0.0,
+    13.0
+   ],
+   "radius": 29.0
+  },
+  "surface": "rubber"
+ }
+}

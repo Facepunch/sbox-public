@@ -145,7 +145,7 @@ public partial class BaseCombatWeapon
 		return true;
 	}
 
-	/// <inheritdoc cref="FirePrimary"/>
+	/// <inheritdoc cref="FirePrimary()"/>
 	public bool FireSecondary()
 	{
 		if ( !CanSecondaryAttack() ) return false;
@@ -155,17 +155,43 @@ public partial class BaseCombatWeapon
 		return true;
 	}
 
+	GameObject _attackAttacker;
+
+	/// <summary>
+	/// Pull the primary trigger with an explicit attacker, such as a seat's controller. The default
+	/// <see cref="Attacker"/> uses this for the call; delayed attacks must capture it before returning.
+	/// Null uses the usual holder or weapon attribution. Does not change ownership or equip the weapon.
+	/// Intended for host-driven controls; the host still attributes owning-client shot claims itself.
+	/// </summary>
+	public bool FirePrimary( GameObject attacker )
+	{
+		var previous = _attackAttacker;
+		_attackAttacker = attacker;
+		try { return FirePrimary(); }
+		finally { _attackAttacker = previous; }
+	}
+
+	/// <summary>Pull the secondary trigger with an explicit attacker. See <see cref="FirePrimary(GameObject)"/>.</summary>
+	public bool FireSecondary( GameObject attacker )
+	{
+		var previous = _attackAttacker;
+		_attackAttacker = attacker;
+		try { return FireSecondary(); }
+		finally { _attackAttacker = previous; }
+	}
+
 	/// <summary>
 	/// Fire the primary attack. The default fires <see cref="Ballistics"/> - spends a round, shoots
 	/// the volley from <see cref="AimRay"/> with <see cref="CurrentSpread"/>, and plays the effects
 	/// on every peer. Override for melee, projectiles and tools. Runs once, on whoever controls the
 	/// weapon - the owning client for a held weapon (its hits reach the host as claims, see
 	/// <see cref="ShootBullet(SceneTraceResult,float,float,TagSet,bool)"/>), or the host for
-	/// seat/NPC/world weapons (damage applies directly).
+	/// seat/NPC/world weapons (damage applies directly). Its hits carry the weapon's
+	/// <see cref="AttackDamageTags"/>.
 	/// </summary>
 	public virtual void PrimaryAttack()
 	{
-		// Unheld weapons (seats, NPCs, world) have no ammo pool to spend from.
+		// Unheld weapons (seats, world) have no ammo pool to spend from.
 		if ( IsHeld && !TakePrimaryAmmo() )
 			return;
 

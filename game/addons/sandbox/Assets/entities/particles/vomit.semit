@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/particles/fx_vomit.prefab",
+  "Title": "#asset.vomit.title",
+  "Description": "#asset.vomit.description",
+  "__references": [],
+  "__version": 0
+}

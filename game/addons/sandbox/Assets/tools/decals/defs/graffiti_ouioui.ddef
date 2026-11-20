@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "813407e7-4085-46ac-aa58-983068b285a1",
+    "Path": "decals/graffiti/graffiti_ouioui.decal"
+  },
+  "Title": "#asset.decal.ouioui.title",
+  "__references": [],
+  "__version": 0
+}

@@ -25,6 +25,7 @@ internal class Program
 		AddBuildContentCommand( rootCommand );
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
+		AddCheckShaderIncludesCommand( rootCommand );
 		AddShaderStatsCommand( rootCommand );
 		AddBorealisRenderTestsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
@@ -182,6 +183,13 @@ internal class Program
 		rootCommand.Add( cmd );
 	}
 
+	private static void AddCheckShaderIncludesCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "check-shader-includes", "Check that every shipped Slang shader's includes are in a player's install, and that none reaches Valve's headers" );
+		cmd.SetHandler( () => Environment.ExitCode = (int)CheckShaderIncludes.Run() );
+		rootCommand.Add( cmd );
+	}
+
 	private static void AddBorealisRenderTestsCommand( RootCommand rootCommand )
 	{
 		var cmd = new Command( "borealis-render-tests", "Render Borealis's lab presets with BorealisLab on Lavapipe and check them against Borealis's approved images in engine/Tests/GoldenTruth/Borealis" );
@@ -248,14 +256,26 @@ internal class Program
 
 	private static void AddSyncPublicRepoCommand( RootCommand rootCommand )
 	{
-		var cmd = new Command( "sync-public-repo", "Sync master branch to the public repository" );
+		var cmd = new Command( "sync-public-repo", "Sync master branch to the public repository, or a Steam branch's commit to its public branch" );
 		var dryRunOption = new Option<bool>( "--dry-run",
 			getDefaultValue: () => false );
+		var branchOption = new Option<string>( "--branch", getDefaultValue: () => SyncPublicRepo.MasterBranch,
+			description: "Public branch to update. Another than master syncs --source to it, without tags" );
+		var sourceOption = new Option<string>( "--source",
+			description: "Commit or ref to sync to --branch (default HEAD); only a dry run may name one that isn't checked out" );
+		var artifactsCommitOption = new Option<string>( "--artifacts-commit",
+			description: "Commit the build outputs were built from, when not the source (a PR's merge commit); its native inputs must match" );
+		var keepFilteredOption = new Option<bool>( "--keep-filtered", getDefaultValue: () => false,
+			description: "On a dry run, keep the filtered repository for inspection" );
 		cmd.AddOption( dryRunOption );
-		cmd.SetHandler( ( bool dryRun ) =>
+		cmd.AddOption( branchOption );
+		cmd.AddOption( sourceOption );
+		cmd.AddOption( artifactsCommitOption );
+		cmd.AddOption( keepFilteredOption );
+		cmd.SetHandler( ( bool dryRun, string branch, string source, string artifactsCommit, bool keepFiltered ) =>
 		{
-			Environment.ExitCode = (int)new SyncPublicRepo( dryRun ).Run();
-		}, dryRunOption );
+			Environment.ExitCode = (int)new SyncPublicRepo( dryRun, branch, source, artifactsCommit, keepFiltered ).Run();
+		}, dryRunOption, branchOption, sourceOption, artifactsCommitOption, keepFilteredOption );
 		rootCommand.Add( cmd );
 	}
 

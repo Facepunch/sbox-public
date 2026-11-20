@@ -1,0 +1,28 @@
+{
+  "guid": "89247125-c7f4-4b60-abd3-f8db2f7df8de",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W M 4A 1 Bakelod",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_m4a1_bakelod",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m4a1/materials/w_m4a1_bakelod.vmat"
+      }
+    }
+  }
+}

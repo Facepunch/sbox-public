@@ -29,47 +29,59 @@ internal static unsafe class MeshletBuilder
 			max = Math.Max( max, indices[k] );
 		}
 
+		// Scratch from the shared pools (a map's thousands of ranges made hundreds of MiB of garbage a load); only the
+		// result's arrays are new
 		var vertexCount = (int)(max - min + 1);
-		var positions = new V3[vertexCount];
-		for ( int v = 0; v < vertexCount; v++ ) positions[v] = position( baseVertex + (int)min + v );
-
-		var local = new uint[count];
-		for ( int k = 0; k < count; k++ ) local[k] = indices[k] - min;
-
 		var bound = (int)MeshOptimizer.BuildMeshletsBound( (nuint)count, (nuint)config.MaxVertices, (nuint)config.MaxTriangles );
-		var meshlets = new MeshOptimizer.Meshlet[bound];
-		var meshletVertices = new uint[count];
-		var meshletTriangles = new byte[count];
-		int built;
-		fixed ( MeshOptimizer.Meshlet* m = meshlets )
-		fixed ( uint* mv = meshletVertices )
-		fixed ( byte* mt = meshletTriangles )
-		fixed ( uint* ix = local )
-		fixed ( V3* p = positions )
-			built = (int)MeshOptimizer.BuildMeshlets( m, mv, mt, ix, (nuint)count, (float*)p, (nuint)vertexCount, 12, (nuint)config.MaxVertices, (nuint)config.MaxTriangles, 0 );
-
-		// Each meshlet's triangles, corners in their order, and the box of its vertices
-		var ordered = new uint[count];
-		var records = new MeshletRecord[built];
-		var next = 0;
-		for ( int i = 0; i < built; i++ )
+		var positions = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+		var local = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+		var meshlets = System.Buffers.ArrayPool<MeshOptimizer.Meshlet>.Shared.Rent( bound );
+		var meshletVertices = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+		var meshletTriangles = System.Buffers.ArrayPool<byte>.Shared.Rent( count );
+		try
 		{
-			ref readonly var meshlet = ref meshlets[i];
-			var lo = new V3( float.MaxValue );
-			var hi = new V3( float.MinValue );
-			for ( int k = 0; k < meshlet.VertexCount; k++ )
+			for ( int v = 0; v < vertexCount; v++ ) positions[v] = position( baseVertex + (int)min + v );
+			for ( int k = 0; k < count; k++ ) local[k] = indices[k] - min;
+
+			int built;
+			fixed ( MeshOptimizer.Meshlet* m = meshlets )
+			fixed ( uint* mv = meshletVertices )
+			fixed ( byte* mt = meshletTriangles )
+			fixed ( uint* ix = local )
+			fixed ( V3* p = positions )
+				built = (int)MeshOptimizer.BuildMeshlets( m, mv, mt, ix, (nuint)count, (float*)p, (nuint)vertexCount, 12, (nuint)config.MaxVertices, (nuint)config.MaxTriangles, 0 );
+
+			// Each meshlet's triangles, corners in their order, and the box of its vertices
+			var ordered = new uint[count];
+			var records = new MeshletRecord[built];
+			var next = 0;
+			for ( int i = 0; i < built; i++ )
 			{
-				var p = positions[meshletVertices[meshlet.VertexOffset + k]];
-				lo = V3.Min( lo, p );
-				hi = V3.Max( hi, p );
+				ref readonly var meshlet = ref meshlets[i];
+				var lo = new V3( float.MaxValue );
+				var hi = new V3( float.MinValue );
+				for ( int k = 0; k < meshlet.VertexCount; k++ )
+				{
+					var p = positions[meshletVertices[meshlet.VertexOffset + k]];
+					lo = V3.Min( lo, p );
+					hi = V3.Max( hi, p );
+				}
+
+				for ( int k = 0; k < meshlet.TriangleCount * 3; k++ ) ordered[next * 3 + k] = meshletVertices[meshlet.VertexOffset + meshletTriangles[meshlet.TriangleOffset + k]] + min;
+				records[i] = new MeshletRecord { Center = (lo + hi) * 0.5f, Extents = (hi - lo) * 0.5f, FirstTriangle = (uint)next, TriangleCount = meshlet.TriangleCount };
+				next += (int)meshlet.TriangleCount;
 			}
 
-			for ( int k = 0; k < meshlet.TriangleCount * 3; k++ ) ordered[next * 3 + k] = meshletVertices[meshlet.VertexOffset + meshletTriangles[meshlet.TriangleOffset + k]] + min;
-			records[i] = new MeshletRecord { Center = (lo + hi) * 0.5f, Extents = (hi - lo) * 0.5f, FirstTriangle = (uint)next, TriangleCount = meshlet.TriangleCount };
-			next += (int)meshlet.TriangleCount;
+			// Every triangle in exactly one meshlet, or the range keeps its order and draws whole
+			return next * 3 == count && count == indices.Length ? new MeshletSet { Indices = ordered, Meshlets = records } : null;
 		}
-
-		// Every triangle in exactly one meshlet, or the range keeps its order and draws whole
-		return next * 3 == count && count == indices.Length ? new MeshletSet { Indices = ordered, Meshlets = records } : null;
+		finally
+		{
+			System.Buffers.ArrayPool<V3>.Shared.Return( positions );
+			System.Buffers.ArrayPool<uint>.Shared.Return( local );
+			System.Buffers.ArrayPool<MeshOptimizer.Meshlet>.Shared.Return( meshlets );
+			System.Buffers.ArrayPool<uint>.Shared.Return( meshletVertices );
+			System.Buffers.ArrayPool<byte>.Shared.Return( meshletTriangles );
+		}
 	}
 }

@@ -1,0 +1,11 @@
+{
+  "Title": "#asset.thickbeam.title",
+  "Description": "#asset.thickbeam.description",
+  "Material": "entities/trails/line_thickbeam.vmat",
+  "WorldSpace": true,
+  "UnitsPerTexture": 32,
+  "Opaque": false,
+  "BlendMode": "Lighten",
+  "__references": [],
+  "__version": 0
+}

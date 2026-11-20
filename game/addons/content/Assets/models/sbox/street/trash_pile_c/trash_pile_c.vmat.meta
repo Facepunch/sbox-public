@@ -1,0 +1,27 @@
+{
+  "guid": "020800ea-0000-0000-80e7-ee10fc000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Trash Pile C",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "trashpilec",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/trash_pile_c/trash_pile_c.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

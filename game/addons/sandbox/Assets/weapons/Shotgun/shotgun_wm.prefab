@@ -1,0 +1,226 @@
+{
+  "RootObject": {
+    "__guid": "a1b2c3d4-4444-4aaa-b444-444444444444",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "shotgun_wm",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 0,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.BaseWeaponModel",
+        "__guid": "a1b2c3d4-4445-4aaa-b445-444444444445",
+        "__enabled": true,
+        "Flags": 0,
+        "DeploySound": null,
+        "EjectBrass": {
+          "_type": "gameobject",
+          "prefab": "prefabs/effects/default_brasseject.prefab"
+        },
+        "MuzzleEffect": {
+          "_type": "gameobject",
+          "prefab": "prefabs/effects/default_muzzleflash.prefab"
+        },
+        "MuzzleGameObject": {
+          "_type": "gameobject",
+          "go": "ed6466c4-e28c-4e9b-8446-ffa3f096176d"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Renderer": {
+          "_type": "component",
+          "component_id": "5d4a8b0d-2d3a-4cc4-b43d-081f56c3ee65",
+          "go": "0645b412-29e7-4af0-ab22-6dbf084daa4d",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "ShellEjectGameObject": {
+          "_type": "gameobject",
+          "go": "8e571825-7366-47b8-a226-d8c9ae8b083f"
+        },
+        "TracerEffect": {
+          "_type": "gameobject",
+          "prefab": "prefabs/effects/default_tracer.prefab"
+        }
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "0645b412-29e7-4af0-ab22-6dbf084daa4d",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "model",
+        "Position": "4.92797899,-0.054270342,-5.33736801",
+        "Rotation": "4.68262484E-10,9.3598948E-12,-0.0199845731,0.999800265",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "5d4a8b0d-2d3a-4cc4-b43d-081f56c3ee65",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 3,
+            "BoneMergeTarget": null,
+            "CreateAttachments": true,
+            "CreateBoneObjects": true,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "61720e4e-3ae8-469c-a637-9e556baad541",
+              "Path": "weapons/shotgun/w_spaghellim4.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": [
+          {
+            "__guid": "4f949ccb-cd38-4eff-a75f-e06754d3ddc1",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "hold_R",
+            "Position": "-1.45741999,0,5.46431684",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "8e571825-7366-47b8-a226-d8c9ae8b083f",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "eject",
+                "Position": "3.91284108,-0.647760987,3.41028309",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              }
+            ]
+          },
+          {
+            "__guid": "ed6466c4-e28c-4e9b-8446-ffa3f096176d",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "muzzle",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "88302757-22b9-44b5-9561-6acad55a74a7",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "eject",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          }
+        ]
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}
