@@ -330,7 +330,9 @@ internal static class SurfaceParity
 	/// <summary>
 	/// <c>-convert-materials complex:materials/a.vmat,materials/b.vmat</c>: each <c>.vmat</c> drawn as its <c>.shader</c> and
 	/// through the surface standing in for that shader (<c>shaders/standard.slang</c>), each on a device of its own, into
-	/// <c>materials/</c> in the results folder. <c>-convert-content</c> adds a package folder the materials are in.
+	/// <c>materials/</c> in the results folder. <c>-convert-content</c> adds a package folder the materials are in;
+	/// <c>-convert-ground materials/c.vmat</c> draws the ground with that material, under the sun alone and seen from above,
+	/// so a translucent material's shadows show.
 	/// </summary>
 	static void ConvertMaterials( Borealis.Gpu.Device gpu, string spec, string folder, List<string> lines )
 	{
@@ -365,7 +367,8 @@ internal static class SurfaceParity
 			converted = material is SurfaceMaterial;
 
 			// Alpha-tested materials' draws flagged as a compiled model's are, so depth passes keep the pixel shader that clips
-			return Render( device, material, alphaTest: material.IsAlphaTest );
+			var ground = Args.String( "-convert-ground" ) is { } groundPath ? ((Borealis.GpuDevice)device).LoadMaterial( groundPath ) : null;
+			return Render( device, material, alphaTest: material.IsAlphaTest, ground: ground );
 		}
 
 		foreach ( var path in spec.Split( ':', 2 )[1].Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
@@ -373,6 +376,7 @@ internal static class SurfaceParity
 			var name = Path.GetFileNameWithoutExtension( path );
 			var a = Draw( path, false, out _ );
 			var b = Draw( path, true, out var converted );
+			Save( a, Path.Combine( output, name + "-shader.png" ) );
 			if ( !converted )
 			{
 				lines.Add( $"material {path}: not converted (a feature {shader}.slang doesn't do)" );
@@ -380,7 +384,6 @@ internal static class SurfaceParity
 			}
 
 			var (mean, max, over, diff) = Compare( a, b );
-			Save( a, Path.Combine( output, name + "-shader.png" ) );
 			Save( b, Path.Combine( output, name + "-surface.png" ) );
 			Save( diff, Path.Combine( output, name + "-diff.png" ) );
 			lines.Add( $"material {path}: surface against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8" );
@@ -528,26 +531,28 @@ internal static class SurfaceParity
 	/// <summary>
 	/// A ground, a sphere and a box with <paramref name="material"/>, under a sun and a point light; their draws flagged
 	/// alpha-tested when asked, as a compiled model's are, so depth passes keep the pixel shader that clips. Without
-	/// <paramref name="sun"/> the sun is black, so the point light alone lights the scene.
+	/// <paramref name="sun"/> the sun is black, so the point light alone lights the scene. A <paramref name="ground"/> material
+	/// draws the ground instead, lit by a low sun alone and seen from above, so the shadows on it show.
 	/// </summary>
-	internal static Color32[] Render( BackendDevice device, GpuMaterial material, bool alphaTest = false, int samples = 1, bool sun = true )
+	internal static Color32[] Render( BackendDevice device, GpuMaterial material, bool alphaTest = false, int samples = 1, bool sun = true, GpuMaterial ground = null )
 	{
 		RenderMesh Flag( RenderMesh mesh ) => alphaTest ? new RenderMesh( mesh.Geometry, mesh.Bounds, [[mesh.DrawsForLod( 0 )[0] with { AlphaTest = true }]] ) : mesh;
 
 		var world = new RenderWorld();
-		world.Lighting.SunDirection = new Vector3( -0.45f, 0.55f, -0.7f ).Normal;
+		world.Lighting.SunDirection = (ground is null ? new Vector3( -0.45f, 0.55f, -0.7f ) : new Vector3( -0.45f, 0.55f, -0.3f )).Normal;
 		world.Lighting.SunColor = sun ? new Color( 1.3f, 1.2f, 1.05f ) : new Color( 0, 0, 0 );
 		world.Lighting.AmbientColor = new Color( 0.15f, 0.17f, 0.2f, 1 );
 		world.Lighting.SunShadowCascades = 2;
 
-		world.Add( new MeshObject( Flag( Box( device, new Vector3( 600, 600, 8 ), material, "Ground", uvScale: 1 / 100f ) ), new Transform( new Vector3( 0, 0, -4 ) ) ) );
+		var groundMesh = Box( device, new Vector3( 600, 600, 8 ), ground ?? material, "Ground", uvScale: 1 / 100f );
+		world.Add( new MeshObject( ground is null ? Flag( groundMesh ) : groundMesh, new Transform( new Vector3( 0, 0, -4 ) ) ) );
 		world.Add( new MeshObject( Flag( Sphere( device, 60, material, "Sphere" ) ), new Transform( new Vector3( 0, -70, 60 ) ) ) );
 		world.Add( new MeshObject( Flag( Box( device, new Vector3( 70, 70, 70 ), material, "Box" ) ), new Transform( new Vector3( 20, 90, 35 ), Rotation.FromYaw( 30 ) ) ) );
-		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 120, 0, 90 ) ) ) { Color = new Color( 3, 1.5f, 0.8f ), Radius = 260, CastShadows = false } );
+		if ( ground is null ) world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 120, 0, 90 ) ) ) { Color = new Color( 3, 1.5f, 0.8f ), Radius = 260, CastShadows = false } );
 
 		// A fixed shader time, so time-animated shaders (water, sky) draw the same frame on both sides
 		var view = new RenderView { Name = "Surface parity", Time = 12.5f, FieldOfView = 60, ZNear = 4, ZFar = 3000, ClearColor = new Color( 0.1f, 0.12f, 0.16f ), Viewport = new Rect( 0, 0, Width, Height ) };
-		view.Position = new Vector3( -330, 80, 200 );
+		view.Position = ground is null ? new Vector3( -330, 80, 200 ) : new Vector3( -120, 0, 520 );
 		view.Rotation = Rotation.LookAt( new Vector3( 0, 0, 30 ) - view.Position );
 
 		using var system = new RenderSystem { ParallelRecording = false };

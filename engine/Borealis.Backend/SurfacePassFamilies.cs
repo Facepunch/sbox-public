@@ -25,6 +25,12 @@ internal enum SurfacePassFamilies
 
 	/// <summary>Depth prepass and shadows of alpha-tested materials (<c>DepthAlphaTest</c>).</summary>
 	DepthAlphaTest = 16,
+
+	/// <summary>
+	/// Depth and shadows of translucent materials, or ones that write no depth, where the shader casts a shadow of its own
+	/// (<c>DepthTranslucent</c>, <c>IShadowSurface</c>).
+	/// </summary>
+	DepthTranslucent = 32,
 }
 
 /// <summary>What a material is drawn on, as a model's draw call says (<see cref="SurfacePassNotes.Of"/>).</summary>
@@ -56,7 +62,7 @@ internal enum SurfaceDrawKinds
 /// </summary>
 internal static class SurfacePassNotes
 {
-	const int Families = 5, Kinds = 4;
+	const int Families = 6, Kinds = 4;
 
 	/// <summary>Every pair.</summary>
 	public const uint All = (1u << (Families * Kinds)) - 1;
@@ -64,12 +70,13 @@ internal static class SurfacePassNotes
 	/// <summary>
 	/// The pairs a material with <paramref name="state"/> drawn as <paramref name="kinds"/> has, its families as
 	/// BackendContext.DrawSurface and SurfaceBucket pick them: translucent colour when it draws in the translucent layer,
-	/// else alpha-tested or opaque colour; a depth pass when it writes depth outside the translucent layer.
+	/// else alpha-tested or opaque colour; a depth pass when it writes depth outside the translucent layer, else the dithered
+	/// one a shader that casts a shadow of its own has.
 	/// </summary>
 	public static uint Of( SurfaceRenderState state, SurfaceDrawKinds kinds )
 	{
 		var colour = state.DrawsTranslucent ? SurfacePassFamilies.ForwardTranslucent : state.AlphaTest ? SurfacePassFamilies.ForwardAlphaTest : SurfacePassFamilies.Forward;
-		var depth = !state.DepthWrite || state.Translucent ? SurfacePassFamilies.None : state.AlphaTest ? SurfacePassFamilies.DepthAlphaTest : SurfacePassFamilies.Depth;
+		var depth = !state.DepthWrite || state.Translucent ? SurfacePassFamilies.DepthTranslucent : state.AlphaTest ? SurfacePassFamilies.DepthAlphaTest : SurfacePassFamilies.Depth;
 		return Pairs( colour | depth, kinds );
 	}
 
@@ -118,6 +125,9 @@ internal static class SurfacePassNotes
 
 	static SurfaceProgram.PassObjects Pass( SurfaceProgram program, SurfacePassFamilies family, SurfaceDrawKinds kind, bool gpuDriven )
 	{
+		if ( family == SurfacePassFamilies.DepthTranslucent ) return kind == SurfaceDrawKinds.Skinned ? program.Pass( BackendContext.DepthTranslucentPass + ShaderPasses.Skinned )
+			: (kind == SurfaceDrawKinds.StaticLightmapped ? program.Pass( BackendContext.DepthTranslucentPass + ShaderPasses.Lightmapped ) : null) ?? program.Pass( BackendContext.DepthTranslucentPass );
+
 		var noColor = family is SurfacePassFamilies.Depth or SurfacePassFamilies.DepthAlphaTest;
 		var alphaTest = family is SurfacePassFamilies.ForwardAlphaTest or SurfacePassFamilies.DepthAlphaTest;
 		var lightmapped = kind == SurfaceDrawKinds.StaticLightmapped;

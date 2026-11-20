@@ -16,6 +16,9 @@ internal sealed partial class BackendContext
 	const string ForwardAlphaTestPass = ShaderPasses.Forward + "AlphaTest";
 	const string ForwardTranslucentPass = ShaderPasses.Forward + "Translucent";
 
+	/// <summary>The depth and shadow pass of a surface with a shadow of its own (<c>IShadowSurface</c>): depth dithered by its opacity.</summary>
+	internal const string DepthTranslucentPass = ShaderPasses.Depth + "Translucent";
+
 	static readonly StringToken LightmapCombo = new( "D_BAKED_LIGHTING_FROM_LIGHTMAP" );
 
 	/// <summary><c>kMaterialOffsetPerPixel</c> in sbox/material.slang.</summary>
@@ -38,6 +41,8 @@ internal sealed partial class BackendContext
 		(ShaderPasses.Depth, ShaderPasses.Lightmapped ) => ShaderPasses.Depth + ShaderPasses.Lightmapped,
 		(ShaderPasses.DepthAlphaTest, ShaderPasses.Skinned ) => ShaderPasses.DepthAlphaTest + ShaderPasses.Skinned,
 		(ShaderPasses.DepthAlphaTest, ShaderPasses.Lightmapped ) => ShaderPasses.DepthAlphaTest + ShaderPasses.Lightmapped,
+		(DepthTranslucentPass, ShaderPasses.Skinned ) => DepthTranslucentPass + ShaderPasses.Skinned,
+		(DepthTranslucentPass, ShaderPasses.Lightmapped ) => DepthTranslucentPass + ShaderPasses.Lightmapped,
 		(ShaderPasses.Forward, ShaderPasses.Skinned ) => ShaderPasses.Forward + ShaderPasses.Skinned,
 		(ShaderPasses.Forward, ShaderPasses.Lightmapped ) => ShaderPasses.Forward + ShaderPasses.Lightmapped,
 		(ForwardAlphaTestPass, ShaderPasses.Skinned ) => ForwardAlphaTestPass + ShaderPasses.Skinned,
@@ -61,10 +66,18 @@ internal sealed partial class BackendContext
 		string name;
 		if ( noColor )
 		{
-			// A surface that writes no depth, or draws in the translucent layer, has no depth or shadow passes of its own (a
-			// converted one's are its .shader's: glass's dithered shadow)
-			if ( !state.DepthWrite || state.Translucent ) return false;
-			name = state.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
+			// A surface that writes no depth, or draws in the translucent layer, has depth and shadow passes only where it
+			// casts a shadow of its own (IShadowSurface: glass's, dithered by its opacity); a converted one's are otherwise its
+			// .shader's
+			if ( !state.DepthWrite || state.Translucent )
+			{
+				if ( program.Pass( DepthTranslucentPass ) is null ) return false;
+				name = DepthTranslucentPass;
+			}
+			else
+			{
+				name = state.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
+			}
 		}
 		else if ( shaderMode.Value != ForwardMode.Value )
 		{

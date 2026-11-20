@@ -535,6 +535,14 @@ float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, S surfa
 	return SurfaceShade( i, s, opacityTexture, AlphaTest );
 }
 
+/// The depth and shadow passes of a surface with a shadow of its own (IShadowSurface): no colour, the depth dithered by its
+/// ShadowOpacity, as vr_lighting.fxc's OpaqueFadeDepth dithers a .shader's depth mode (glass.shader's).
+float4 SurfaceDepthDithered<S : IShadowSurface>( PixelInput i, S surface )
+{
+	OpaqueFadeDepth( surface.ShadowOpacity( MakeSurfaceInput( i ) ), i.vPositionSs.xy );
+	return 1.0;
+}
+
 /// Forward for a sun-lit surface (ISunLitSurface): its Light once, for the sun, outside the light loop, added to the
 /// emission before shading; as foliage.shader lights its translucency. Depth passes skip it.
 float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
