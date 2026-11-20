@@ -34,7 +34,7 @@ public class RecordTests
 	public void GeneratedFilesAreCurrent()
 	{
 		var definitions = Compiler().ReflectRecords();
-		Assert.IsTrue( definitions.Records.Count >= 7, $"{definitions.Records.Count} records" );
+		Assert.IsTrue( definitions.Records.Count >= 18, $"{definitions.Records.Count} records" );
 		const string stale = "is stale: run ShaderCompiler -records in the game folder (build-shaders does)";
 		Assert.AreEqual( Normal( RecordWriter.CSharp( definitions, "Borealis.Backend" ) ), Normal( File.ReadAllText( Path.Combine( Engine, RecordWriter.CSharpFile ) ) ), $"{RecordWriter.CSharpFile} {stale}" );
 		Assert.AreEqual( Normal( RecordWriter.Hlsl( definitions ) ), Normal( File.ReadAllText( Path.Combine( Shaders, RecordWriter.HlslFile ) ) ), $"{RecordWriter.HlslFile} {stale}" );
@@ -67,6 +67,19 @@ public class RecordTests
 		Assert.AreEqual( 32, definitions.Record( "DrawRecord" ).Size );
 		Assert.AreEqual( GpuDrivenTables.DrawStride, DrawRecord.Size );
 		Assert.AreEqual( GpuDrivenTables.InstanceStride, InstanceRecord.Size );
+
+		// Records that share a table share its stride: fragments, resident mesh headers and meshes, a mesh's draw list's words
+		Assert.AreEqual( GpuDrivenTables.FragmentStride, FragmentRecord.Size );
+		Assert.AreEqual( GpuDrivenTables.FragmentStride, ResidentMeshHeader.Size );
+		Assert.AreEqual( GpuDrivenTables.FragmentStride, ResidentMeshRecord.Size );
+		Assert.AreEqual( Borealis.Backend.Lods.LodStore.RecordBytes, LodRecord.Size );
+		Assert.AreEqual( Borealis.Backend.Meshlets.MeshletStore.RunBytes, MeshletRun.Size );
+
+		// A record inside a record: the LOD record's levels, after its header
+		var lod = definitions.Record( "LodRecord" );
+		Assert.AreEqual( "LodLevel", lod.Field( "Level" ).Struct );
+		Assert.AreEqual( 32, lod.Field( "Level" ).Offset );
+		Assert.AreEqual( 128, lod.Size );
 	}
 
 	/// <summary>

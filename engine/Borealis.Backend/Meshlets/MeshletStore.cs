@@ -34,7 +34,7 @@ internal sealed class MeshletStore : IDisposable
 	public const int MaxRunMeshlets = 4096;
 
 	/// <summary>Bytes of a run in the run table: page slot, first, count, first's index among every meshlet.</summary>
-	public const int RunBytes = 16;
+	public const int RunBytes = MeshletRun.Size;
 
 	/// <summary>
 	/// Bytes of a meshlet's local record, after a page's <see cref="PageRecords"/> records when <see cref="LocalData"/> is on:
@@ -678,14 +678,14 @@ internal sealed class MeshletStore : IDisposable
 	{
 		var at = draw * (long)RunBytes;
 		if ( at + RunBytes > runBytes ) GrowRuns( at + RunBytes );
-		var words = MemoryMarshal.Cast<byte, uint>( gpu.Map( runs ).Slice( (int)at, RunBytes ) );
+		ref var run = ref MemoryMarshal.AsRef<MeshletRun>( gpu.Map( runs ).Slice( (int)at, RunBytes ) );
 
 		// The count last: a cull reading in between sees no meshlets rather than a wrong page
-		words[0] = entry.PageSlot;
-		words[1] = entry.First;
-		words[3] = entry.Global;
+		run.Page = entry.PageSlot;
+		run.First = entry.First;
+		run.Global = entry.Global;
 		Thread.MemoryBarrier();
-		Volatile.Write( ref words[2], entry.Count );
+		Volatile.Write( ref run.Count, entry.Count );
 	}
 
 	/// <summary>Every meshlet's index is below this: what a view's meshlet bits must hold.</summary>

@@ -30,7 +30,7 @@ internal sealed class LodStore : IDisposable
 	/// Bytes of a LOD record, per draw record in the LOD table: the level count, a word unused, each level's error (a fraction
 	/// of the fragment's bounds' half diagonal), then 16 bytes per level: first index, index count, draw record and a word unused.
 	/// </summary>
-	public const int RecordBytes = 128;
+	public const int RecordBytes = LodRecord.Size;
 
 	/// <summary>Bytes before the levels kept per view: counters of level changes (changes, reversals, coarser, finer).</summary>
 	public const int StateHeaderBytes = 64;
@@ -431,15 +431,15 @@ internal sealed class LodStore : IDisposable
 	{
 		var (geometry, vertex, pixel, flags, baseVertex) = tables.DrawFields( draw );
 		var record = new uint[RecordBytes / 4];
+		ref var lod = ref MemoryMarshal.AsRef<LodRecord>( MemoryMarshal.AsBytes( record.AsSpan() ) );
 		var placed = entry.Placed;
-		record[0] = (uint)placed.Length;
+		lod.Levels = (uint)placed.Length;
+		var errors = lod.Errors;
+		var levels = lod.Level;
 		for ( int k = 0; k < placed.Length; k++ )
 		{
-			record[2 + k] = BitConverter.SingleToUInt32Bits( entry.Chain.Errors[k] );
-			var at = 8 + k * 4;
-			record[at] = placed[k].First;
-			record[at + 1] = placed[k].Count;
-			record[at + 2] = tables.Draw( geometry, vertex, pixel, flags, placed[k].First, placed[k].Count, baseVertex, entry.Range.PageSlot );
+			errors[k] = entry.Chain.Errors[k];
+			levels[k] = new LodLevel { FirstIndex = placed[k].First, IndexCount = placed[k].Count, Draw = tables.Draw( geometry, vertex, pixel, flags, placed[k].First, placed[k].Count, baseVertex, entry.Range.PageSlot ) };
 		}
 
 		return record;

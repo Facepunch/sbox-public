@@ -668,7 +668,7 @@ internal sealed partial class BackendContext
 	readonly List<(int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)> cullRuns = new();
 
 	const int CullViewBytes = CullViewRecord.Size;
-	const int CullBatchBytes = 32;
+	const int CullBatchBytes = BatchRecord.Size;
 
 	/// <summary>
 	/// Draw the buckets with every fragment of each batch's aggregate culled on the GPU (<c>borealis_gpu_driven_cull_cs</c>):
@@ -709,8 +709,8 @@ internal sealed partial class BackendContext
 		// has a compacted slot per chunk of its meshlets
 		var slotCount = totalFragments * (meshlets ? 1 + 2 * (int)MeshletChunks : listing ? 2 : 1);
 		var runsOffset = CullViewBytes + batchCount * CullBatchBytes;
-		var listedOffset = (runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0) + 15) & ~15;
-		var transformSlotsOffset = listedOffset + (listing ? 16 + totalFragments * 32 : 0);
+		var listedOffset = (runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * MultiDraw.Size : 0) + 15) & ~15;
+		var transformSlotsOffset = listedOffset + (listing ? ListedArguments.Size + totalFragments * ListedFragment.Size : 0);
 		var filter = cull.Filter != ResidentFilter.None && !listing;
 		var movedOffset = transformSlotsOffset + ((instanceFragments * 4 + 15) & ~15);
 		var instanceOffset = movedOffset + (filter ? (totalFragments * 4 + 15) & ~15 : 0);
@@ -721,7 +721,7 @@ internal sealed partial class BackendContext
 		// A prepass culled in two phases: the Hi-Z tail after the rest
 		var hiz = !meshTasks && HiZFor( cull, visibility, totalFragments ) && ids;
 		var hizTail = (frameBytes + 15) & ~15;
-		if ( hiz ) frameBytes = hizTail + HiZTailBytes( (batchCount + gpuDrivenBucketCount) * 8, totalFragments );
+		if ( hiz ) frameBytes = hizTail + HiZTailBytes( (batchCount + gpuDrivenBucketCount) * MultiDraw.Size, totalFragments );
 		var (frameBuffer, frameSlot, frameOffset) = tables.Allocate( frameBytes );
 		var data = Gpu.Map( frameBuffer ).Slice( (int)frameOffset, frameBytes );
 		var firstInstance = (uint)((frameOffset + instanceOffset) / GpuDrivenTables.InstanceStride);
@@ -731,13 +731,10 @@ internal sealed partial class BackendContext
 		{
 			// The compaction's dispatch: a group per listed fragment, counted up by the culling (the meshlet passes: a group
 			// per chunk of each), and where its entries start past the arguments
-			var arguments = MemoryMarshal.Cast<byte, uint>( data.Slice( listedOffset, 16 ) );
-			arguments[0] = 0;
-			arguments[1] = 1;
-			arguments[2] = 1;
-			arguments[3] = 0;
+			MemoryMarshal.Write( data.Slice( listedOffset, ListedArguments.Size ), new ListedArguments { GroupsX = 0, GroupsY = 1, GroupsZ = 1, Entries = 0 } );
 		}
 		var batchRecords = MemoryMarshal.Cast<byte, uint>( data.Slice( CullViewBytes, batchCount * CullBatchBytes ) );
+		var cullBatches = MemoryMarshal.Cast<uint, BatchRecord>( batchRecords );
 		var transformSlots = MemoryMarshal.Cast<byte, uint>( data.Slice( transformSlotsOffset, instanceFragments * 4 ) );
 		var slotsWritten = 0;
 		var movedWords = MemoryMarshal.Cast<byte, uint>( data.Slice( movedOffset, filter ? totalFragments * 4 : 0 ) );
@@ -775,7 +772,7 @@ internal sealed partial class BackendContext
 					movedWritten = moved.Length;
 					for ( int i = 0; i < plan.MovedAt.Length; i++ )
 					{
-						if ( plan.MovedAt[i] >= 0 ) batchRecords[i * (CullBatchBytes / 4) + 5] = movedBase + (uint)plan.MovedAt[i] * 4;
+						if ( plan.MovedAt[i] >= 0 ) cullBatches[i].Moved = movedBase + (uint)plan.MovedAt[i] * 4;
 					}
 				}
 
@@ -880,7 +877,7 @@ internal sealed partial class BackendContext
 						runStart = written;
 					}
 
-					var at = record * (CullBatchBytes / 4);
+					ref var cullBatch = ref cullBatches[record];
 					uint visibilityFirst, vertexBase, kind;
 					int fragmentCount;
 					if ( batch.Instances )
@@ -890,8 +887,8 @@ internal sealed partial class BackendContext
 						if ( positions && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
 						var (vertexMaterial, pixelMaterial) = Records( tables, bucket, material, geometry.UncompressedTangentFrame, vertexAttributes, pixelAttributes );
 						fragmentCount = batch.Count;
-						batchRecords[at] = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex, pooled.IndexPageSlot );
-						batchRecords[at + 2] = (uint)(frameOffset + transformSlotsOffset + slotsWritten * 4);
+						cullBatch.First = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex, pooled.IndexPageSlot );
+						cullBatch.Transform = (uint)(frameOffset + transformSlotsOffset + slotsWritten * 4);
 						for ( int k = 0; k < fragmentCount; k++ ) transformSlots[slotsWritten++] = (uint)transforms.InstanceSlot( batch.FirstInstance + k );
 
 						var stride = (uint)pooled.VertexCount;
@@ -911,12 +908,12 @@ internal sealed partial class BackendContext
 						var keys = meshes.VisibilityKeys[batch.Lod];
 						var tinted = meshes.Tinted && (uint)batch.FirstArg < (uint)keys.Length;
 						var slotOffset = tinted ? meshes.TintOffsets[batch.Lod] + batch.FirstArg : 0;
-						batchRecords[at] = tables.FragmentsOf( tinted ? keys[batch.FirstArg] : meshes, 0, 0, 0, 0, fragmentCount + 1, (Meshes: meshes, Offset: slotOffset), static ( s, bytes ) => WriteResidentMeshes( s.Meshes, s.Offset, bytes ), releasable: true );
-						batchRecords[at + 2] = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex, pooled.IndexPageSlot );
+						cullBatch.First = tables.FragmentsOf( tinted ? keys[batch.FirstArg] : meshes, 0, 0, 0, 0, fragmentCount + 1, (Meshes: meshes, Offset: slotOffset), static ( s, bytes ) => WriteResidentMeshes( s.Meshes, s.Offset, bytes ), releasable: true );
+						cullBatch.Transform = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex, pooled.IndexPageSlot );
 
 						// Meshes that differ in their lighting: a draw record each, listed in the fragment table (bit 31)
 						if ( batch.MeshLighting is { } meshLighting && meshLighting.Length == fragmentCount && (uint)batch.FirstArg < (uint)keys.Length )
-							batchRecords[at + 2] = MeshLightingDraws( tables, keys[batch.FirstArg], meshLighting, bucket.Attributes, pooled, vertexMaterial, pixelMaterial, flags & 0xff, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex ) | MeshDrawList;
+							cullBatch.Transform = MeshLightingDraws( tables, keys[batch.FirstArg], meshLighting, bucket.Attributes, pooled, vertexMaterial, pixelMaterial, flags & 0xff, pooled.FirstIndex + (uint)batch.Draw.StartIndex, (uint)batch.Draw.IndexCount, geometry.BaseVertex ) | MeshDrawList;
 
 						var stride = (uint)pooled.VertexCount;
 						(visibilityFirst, vertexBase) = visibility is not null && stride < 1u << 24 && (long)stride * fragmentCount < int.MaxValue && (uint)batch.FirstArg < (uint)keys.Length
@@ -980,18 +977,18 @@ internal sealed partial class BackendContext
 							};
 						}
 
-						batchRecords[at] = kept.FragmentRecords;
-						batchRecords[at + 2] = (uint)transforms.InstanceSlot( batch.FirstInstance );
+						cullBatch.First = kept.FragmentRecords;
+						cullBatch.Transform = (uint)transforms.InstanceSlot( batch.FirstInstance );
 						(visibilityFirst, vertexBase) = (kept.VisibilityFirst, kept.VertexBase);
 						kind = 0;
 					}
 
-					batchRecords[at + 1] = (uint)fragmentCount;
-					batchRecords[at + 3] = compact ? (uint)cullRuns.Count : (uint)written;
-					batchRecords[at + 4] = vertexBase != GpuDrivenTables.NoVisibility ? visibilityFirst : GpuDrivenTables.NoVisibility;
-					batchRecords[at + 5] = filter ? WriteMoved( batch, fragmentCount, movedWords, movedBase, ref movedWritten ) : 0;
-					batchRecords[at + 6] = (bucket.Ids || bucket.ShadowMeshlets ? 1u : 0u) | (bucketLists ? 2u : 0u) | kind;
-					batchRecords[at + 7] = vertexBase;
+					cullBatch.Count = (uint)fragmentCount;
+					cullBatch.Run = compact ? (uint)cullRuns.Count : (uint)written;
+					cullBatch.FirstVisibility = vertexBase != GpuDrivenTables.NoVisibility ? visibilityFirst : GpuDrivenTables.NoVisibility;
+					cullBatch.Moved = filter ? WriteMoved( batch, fragmentCount, movedWords, movedBase, ref movedWritten ) : 0;
+					cullBatch.Flags = (bucket.Ids || bucket.ShadowMeshlets ? 1u : 0u) | (bucketLists ? 2u : 0u) | kind;
+					cullBatch.FirstVertexBit = vertexBase;
 					record++;
 					written += fragmentCount;
 					drawn[index] = true;
@@ -1008,7 +1005,7 @@ internal sealed partial class BackendContext
 					cullRuns.Add( (b, default, IndexFormat.UInt32, compactWritten, TaskRunCount( bucket.Fragments )) );
 					cullRuns.Add( (b, default, IndexFormat.UInt32, 1, TaskTail) );
 					compactWritten += bucket.Fragments;
-					for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)taskRun | TaskRunBit;
+					for ( int i = record - bucket.Batches.Count; i < record; i++ ) cullBatches[i].Moved = (uint)taskRun | TaskRunBit;
 				}
 
 				// Compacted triangles: one more multi-draw for the bucket, from the compacted index buffer
@@ -1025,7 +1022,7 @@ internal sealed partial class BackendContext
 						cullRuns.Add( (b, compacted16, IndexFormat.UInt16, compactWritten, compactSlots) );
 						compactWritten += compactSlots;
 					}
-					for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)compactRun;
+					for ( int i = record - bucket.Batches.Count; i < record; i++ ) cullBatches[i].Moved = (uint)compactRun;
 				}
 
 				if ( checks is not null && b == prefixBuckets - 1 ) (prefixRecords, prefixWritten, prefixCompact, prefixRuns) = (record, written, compactWritten - totalFragments, cullRuns.Count);
@@ -1046,15 +1043,11 @@ internal sealed partial class BackendContext
 		SetObjectAttributes( null );
 
 		// Each multi-draw's first slot, and its count from 0, which the culling counts up; a task run's tail 1 and 1
-		var runs = MemoryMarshal.Cast<byte, uint>( data.Slice( runsOffset, compact ? cullRuns.Count * 8 : 0 ) );
-		for ( int i = 0; i < runs.Length / 2; i++ )
-		{
-			runs[i * 2] = (uint)cullRuns[i].First;
-			runs[i * 2 + 1] = cullRuns[i].Count == TaskTail ? 1u : 0u;
-		}
+		var runs = MemoryMarshal.Cast<byte, MultiDraw>( data.Slice( runsOffset, compact ? cullRuns.Count * MultiDraw.Size : 0 ) );
+		for ( int i = 0; i < runs.Length; i++ ) runs[i] = new MultiDraw { FirstSlot = (uint)cullRuns[i].First, Count = cullRuns[i].Count == TaskTail ? 1u : 0u };
 
 		// The view record, with the Hi-Z tail's candidates where the prepass is culled in two phases
-		var hizOffsets = hiz ? WriteHiZTail( data, hizTail, runs ) : default;
+		var hizOffsets = hiz ? WriteHiZTail( data, hizTail, MemoryMarshal.Cast<MultiDraw, uint>( runs ) ) : default;
 		WriteCullView( cull, data, hiz ? HiZBitsSlot( visibility ) : uint.MaxValue, hiz ? (uint)(frameOffset + hizOffsets.Candidates) : 0 );
 
 		// The view's mask and stamps were cleared before the frame's segments (BeginGpuDrivenView)
@@ -1215,7 +1208,7 @@ internal sealed partial class BackendContext
 
 			if ( Census ) censusCompacted = run.First >= totalFragments;
 			surfaceDepthFromIds = lists;
-			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, compact ? frameOffset + runsOffset + i * 8 + 4 : -1 );
+			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, compact ? frameOffset + runsOffset + i * MultiDraw.Size + MultiDraw.CountOffset : -1 );
 			censusCompacted = false;
 			surfaceDepthFromIds = false;
 		}
@@ -1718,20 +1711,19 @@ internal sealed partial class BackendContext
 	{
 		if ( moved.IsEmpty ) return (null, null);
 
-		var count = records.Length / (CullBatchBytes / 4);
-		var movedAt = new int[count];
+		var batches = MemoryMarshal.Cast<uint, BatchRecord>( records.AsSpan() );
+		var movedAt = new int[batches.Length];
 		var kept = new List<uint>();
-		for ( int i = 0; i < count; i++ )
+		for ( int i = 0; i < batches.Length; i++ )
 		{
-			var at = i * (CullBatchBytes / 4);
-			var offset = records[at + 5];
+			var offset = batches[i].Moved;
 			movedAt[i] = -1;
 			if ( offset == GpuDrivenTables.NoVisibility ) continue;
 
 			movedAt[i] = kept.Count;
 			var first = (int)((offset - movedBase) / 4);
-			for ( int e = 0; e < records[at + 1]; e++ ) kept.Add( moved[first + e] );
-			records[at + 5] = GpuDrivenTables.NoVisibility;
+			for ( int e = 0; e < batches[i].Count; e++ ) kept.Add( moved[first + e] );
+			batches[i].Moved = GpuDrivenTables.NoVisibility;
 		}
 
 		return (kept.ToArray(), movedAt);
@@ -1831,7 +1823,7 @@ internal sealed partial class BackendContext
 
 		// Where its commands and counts are, for the figure's counts once the frame is done
 		var runs = new List<(int First, long CountOffset, int Max)>();
-		for ( int i = 0; i < cullRuns.Count; i++ ) runs.Add( (cullRuns[i].First, frameOffset + runsOffset + i * 8 + 4, cullRuns[i].Count) );
+		for ( int i = 0; i < cullRuns.Count; i++ ) runs.Add( (cullRuns[i].First, frameOffset + runsOffset + i * MultiDraw.Size + MultiDraw.CountOffset, cullRuns[i].Count) );
 		figure.Passes.Add( (frameBuffer, frameOffset + commandOffset, runs, listedOffset >= 0 ? frameOffset + listedOffset : -1, -1) );
 		// The ids of the view with the most fragments (the main view's, not the 3D skybox's)
 		var fragments = 0;
@@ -1885,7 +1877,7 @@ internal sealed partial class BackendContext
 				}
 
 				r.List.SetIndexBuffer( run.Page, run.Format, 0 );
-				r.List.DrawIndexedIndirectCount( frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, frameBuffer, frameOffset + runsOffset + i * 8 + 4, run.Count, GpuDrivenTables.CommandStride );
+				r.List.DrawIndexedIndirectCount( frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, frameBuffer, frameOffset + runsOffset + i * MultiDraw.Size + MultiDraw.CountOffset, run.Count, GpuDrivenTables.CommandStride );
 			}
 
 			r.List.EndRendering();
@@ -2008,7 +2000,7 @@ internal sealed partial class BackendContext
 					ClipW = new System.Numerics.Vector4( m.M14, m.M24, m.M34, m.M44 ),
 					Viewport = new System.Numerics.Vector2( cull.ViewportSize.x, cull.ViewportSize.y ),
 					Samples = (uint)samples,
-					RunAt = (uint)(frameOffset + runsOffset + i * 8),
+					RunAt = (uint)(frameOffset + runsOffset + i * MultiDraw.Size + MultiDraw.FirstSlotOffset),
 					FirstInstance = firstInstance,
 					RunTable = (uint)device.MeshletStore.RunSlotCovering( device.GpuDrivenTables.DrawRecords ),
 					Commands = (uint)(frameOffset + commandOffset),
@@ -2017,7 +2009,7 @@ internal sealed partial class BackendContext
 					KeptCapacity = visibility.KeptCapacity,
 					CullMode = (uint)((bucket.Variant ?? idsShaderVariant).State.Cull),
 				} );
-				r.List.DrawMeshTasksIndirect( frameBuffer, frameOffset + runsOffset + i * 8 + 4 );
+				r.List.DrawMeshTasksIndirect( frameBuffer, frameOffset + runsOffset + i * MultiDraw.Size + MultiDraw.CountOffset );
 				gpuDrivenRuns++;
 				continue;
 			}
@@ -2058,9 +2050,9 @@ internal sealed partial class BackendContext
 			}
 
 			r.List.SetIndexBuffer( run.Page, run.Format, 0 );
-			r.List.DrawIndexedIndirectCount( frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, frameBuffer, frameOffset + runsOffset + i * 8 + 4, run.Count, GpuDrivenTables.CommandStride );
+			r.List.DrawIndexedIndirectCount( frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, frameBuffer, frameOffset + runsOffset + i * MultiDraw.Size + MultiDraw.CountOffset, run.Count, GpuDrivenTables.CommandStride );
 			gpuDrivenRuns++;
-			if ( Census ) CensusMultiDraw( bucket, DrawCensus.Path.BucketIds, censusBefore, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, frameOffset + runsOffset + i * 8 + 4 );
+			if ( Census ) CensusMultiDraw( bucket, DrawCensus.Path.BucketIds, censusBefore, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, frameOffset + runsOffset + i * MultiDraw.Size + MultiDraw.CountOffset );
 		}
 
 		r.List.EndRendering();
@@ -2144,7 +2136,7 @@ internal sealed partial class BackendContext
 
 	static void WriteFragments( GpuDrivenTables tables, AggregateObject aggregate, PooledGeometry pooled, uint vertexMaterial, uint pixelMaterial, uint flags, Span<byte> bytes )
 	{
-		var records = MemoryMarshal.Cast<byte, uint>( bytes );
+		var records = MemoryMarshal.Cast<byte, FragmentRecord>( bytes );
 		var fragments = aggregate.Fragments;
 		var centers = aggregate.Centers;
 		var extents = aggregate.Extents;
@@ -2152,15 +2144,13 @@ internal sealed partial class BackendContext
 		{
 			var arg = fragments[i].Args;
 			var firstIndex = pooled.FirstIndex + arg.FirstIndex;
-			var at = i * (GpuDrivenTables.FragmentStride / 4);
-			records[at] = BitConverter.SingleToUInt32Bits( centers[i].x );
-			records[at + 1] = BitConverter.SingleToUInt32Bits( centers[i].y );
-			records[at + 2] = BitConverter.SingleToUInt32Bits( centers[i].z );
-			records[at + 3] = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
-			records[at + 4] = BitConverter.SingleToUInt32Bits( extents[i].x );
-			records[at + 5] = BitConverter.SingleToUInt32Bits( extents[i].y );
-			records[at + 6] = BitConverter.SingleToUInt32Bits( extents[i].z );
-			records[at + 7] = arg.FirstInstance | ((fragments[i].Flags & FragmentFlags.DoNotCastShadows) != 0 ? 0x80000000u : 0u);
+			records[i] = new FragmentRecord
+			{
+				Center = centers[i],
+				Draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot ),
+				Extents = extents[i],
+				Instance = arg.FirstInstance | ((fragments[i].Flags & FragmentFlags.DoNotCastShadows) != 0 ? 0x80000000u : 0u),
+			};
 		}
 	}
 
@@ -2171,22 +2161,16 @@ internal sealed partial class BackendContext
 	/// </summary>
 	static void WriteResidentMeshes( ResidentMeshes meshes, int slotOffset, Span<byte> bytes )
 	{
-		var records = MemoryMarshal.Cast<byte, uint>( bytes );
+		ref var header = ref MemoryMarshal.AsRef<ResidentMeshHeader>( bytes[..ResidentMeshHeader.Size] );
 		var switches = meshes.SwitchDistances;
-		records[0] = (uint)meshes.LodCount | (uint)switches.Length << 8;
-		for ( int i = 1; i < 8; i++ ) records[i] = i < switches.Length ? BitConverter.SingleToUInt32Bits( switches[i] ) : 0;
+		header.Lods = (uint)meshes.LodCount | (uint)switches.Length << 8;
+		var distances = header.SwitchDistances;
+		for ( int i = 0; i < distances.Length; i++ ) distances[i] = i + 1 < switches.Length ? switches[i + 1] : 0;
 
+		var records = MemoryMarshal.Cast<byte, ResidentMeshRecord>( bytes[ResidentMeshHeader.Size..] );
 		for ( int i = 0; i < meshes.Count; i++ )
 		{
-			var at = (i + 1) * (GpuDrivenTables.FragmentStride / 4);
-			records[at] = BitConverter.SingleToUInt32Bits( meshes.Centers[i].x );
-			records[at + 1] = BitConverter.SingleToUInt32Bits( meshes.Centers[i].y );
-			records[at + 2] = BitConverter.SingleToUInt32Bits( meshes.Centers[i].z );
-			records[at + 3] = BitConverter.SingleToUInt32Bits( meshes.LodScales[i] );
-			records[at + 4] = BitConverter.SingleToUInt32Bits( meshes.Extents[i].x );
-			records[at + 5] = BitConverter.SingleToUInt32Bits( meshes.Extents[i].y );
-			records[at + 6] = BitConverter.SingleToUInt32Bits( meshes.Extents[i].z );
-			records[at + 7] = (uint)(meshes.Slots[i] + slotOffset);
+			records[i] = new ResidentMeshRecord { Center = meshes.Centers[i], LodScale = meshes.LodScales[i], Extents = meshes.Extents[i], Transform = (uint)(meshes.Slots[i] + slotOffset) };
 		}
 	}
 

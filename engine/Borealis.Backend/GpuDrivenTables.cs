@@ -662,7 +662,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	public const int FragmentStride = 32;
+	public const int FragmentStride = FragmentRecord.Size;
 
 	readonly ConditionalWeakTable<object, System.Collections.Concurrent.ConcurrentDictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), uint>> ownerFragments = new();
 

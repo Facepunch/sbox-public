@@ -14,6 +14,8 @@ public enum RecordFieldKind
 	Int,
 	/// <summary>32-bit unsigned integers.</summary>
 	UInt,
+	/// <summary>Another record, defined before it (<see cref="RecordField.Struct"/>).</summary>
+	Record,
 }
 
 /// <summary>
@@ -22,6 +24,9 @@ public enum RecordFieldKind
 /// </summary>
 public sealed record RecordField( string Name, RecordFieldKind Kind, int Components, int ArrayLength, int Offset, string Summary )
 {
+	/// <summary>The record a <see cref="RecordFieldKind.Record"/> field holds (its <see cref="Components"/> are its words); null for others.</summary>
+	public string Struct { get; init; }
+
 	/// <summary>Bytes of one element: four per component.</summary>
 	public int Stride => Components * 4;
 
@@ -83,7 +88,8 @@ internal static unsafe partial class RecordReflection
 {
 	/// <summary>
 	/// Each struct declared in <paramref name="text"/>, in order, with the <c>///</c> comments before it and its fields.
-	/// Fields are <c>float</c>, <c>int</c>, <c>uint</c>, <c>float2</c> to <c>float4</c>, or fixed arrays of those.
+	/// Fields are <c>float</c>, <c>int</c>, <c>uint</c>, <c>float2</c> to <c>float4</c>, a record declared before, or fixed
+	/// arrays of those.
 	/// </summary>
 	public static List<RecordLayout> Read( IntPtr reflection, string text, string path )
 	{
@@ -113,8 +119,10 @@ internal static unsafe partial class RecordReflection
 					if ( arrayLength <= 0 ) throw new ShaderCompileException( path, $"{type}.{name}: a record's arrays have a fixed length" );
 				}
 
-				var (kind, components) = Classify( fieldType ) ?? throw new ShaderCompileException( path, $"{type}.{name}: record fields are float, int, uint, float2 to float4, or fixed arrays of those" );
-				fields.Add( new RecordField( name, kind, components, arrayLength, 0, comments.GetValueOrDefault( name ) ) );
+				var inner = SlangApi.TypeGetKind( fieldType ) == SlangApi.TypeKindStruct ? records.Find( r => r.Name == SlangApi.String( SlangApi.TypeGetName( fieldType ) ) ) : null;
+				var (kind, components) = inner is not null ? (RecordFieldKind.Record, inner.Size / 4)
+					: Classify( fieldType ) ?? throw new ShaderCompileException( path, $"{type}.{name}: record fields are float, int, uint, float2 to float4, a record declared before, or fixed arrays of those" );
+				fields.Add( new RecordField( name, kind, components, arrayLength, 0, comments.GetValueOrDefault( name ) ) { Struct = inner?.Name } );
 			}
 
 			if ( fields.Count == 0 ) throw new ShaderCompileException( path, $"The record {type} has no fields" );

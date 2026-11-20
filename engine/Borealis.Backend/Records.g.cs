@@ -11,7 +11,7 @@ namespace Borealis.Backend;
 /// <summary>The record definitions these structs were generated from: the hash of sbox/records.slangh.</summary>
 internal static class RecordDefinitionsHash
 {
-	public const string Value = "620B61D3B1A6E989";
+	public const string Value = "90E7373D86295817";
 }
 
 /// <summary>A GPU-driven draw: what a fragment draws with, made once (GpuDrivenTables.Draw).</summary>
@@ -157,6 +157,472 @@ internal partial struct CullViewRecord
 	public const int LodUnitsOffset = 156;
 	/// <summary>The generated levels' error units: pixels per unit at distance 1, or texels per unit, over the limit.</summary>
 	public float LodUnits;
+}
+
+/// <summary>A fragment in the fragment table: a piece of an aggregate the GPU culls on its own (BackendContext.WriteFragments).</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct FragmentRecord
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 32;
+
+	/// <summary>Byte offset of <see cref="Center"/> in the record.</summary>
+	public const int CenterOffset = 0;
+	/// <summary>Bounds centre.</summary>
+	public Vector3 Center;
+
+	/// <summary>Byte offset of <see cref="Draw"/> in the record.</summary>
+	public const int DrawOffset = 12;
+	/// <summary>Its draw record.</summary>
+	public uint Draw;
+
+	/// <summary>Byte offset of <see cref="Extents"/> in the record.</summary>
+	public const int ExtentsOffset = 16;
+	/// <summary>Bounds extents.</summary>
+	public Vector3 Extents;
+
+	/// <summary>Byte offset of <see cref="Instance"/> in the record.</summary>
+	public const int InstanceOffset = 28;
+	/// <summary>Its transform slot after its batch's first; bit 31: it casts no shadow.</summary>
+	public uint Instance;
+}
+
+/// <summary>A resident mesh batch's group header in the fragment table, before its meshes' records (BackendContext.WriteResidentMeshes).</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct ResidentMeshHeader
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 32;
+
+	/// <summary>Byte offset of <see cref="Lods"/> in the record.</summary>
+	public const int LodsOffset = 0;
+	/// <summary>The model's LOD count; bits 8-15: how many switch distances it has.</summary>
+	public uint Lods;
+
+	/// <summary>Byte offset of <see cref="SwitchDistances"/> in the record.</summary>
+	public const int SwitchDistancesOffset = 4;
+	/// <summary>Bytes from one element of <see cref="SwitchDistances"/> to the next.</summary>
+	public const int SwitchDistancesStride = 4;
+	/// <summary>Elements of <see cref="SwitchDistances"/>.</summary>
+	public const int SwitchDistancesLength = 7;
+	/// <summary>Element 0 of <see cref="SwitchDistances"/>.</summary>
+	public float SwitchDistances0;
+	/// <summary>Element 1 of <see cref="SwitchDistances"/>.</summary>
+	public float SwitchDistances1;
+	/// <summary>Element 2 of <see cref="SwitchDistances"/>.</summary>
+	public float SwitchDistances2;
+	/// <summary>Element 3 of <see cref="SwitchDistances"/>.</summary>
+	public float SwitchDistances3;
+	/// <summary>Element 4 of <see cref="SwitchDistances"/>.</summary>
+	public float SwitchDistances4;
+	/// <summary>Element 5 of <see cref="SwitchDistances"/>.</summary>
+	public float SwitchDistances5;
+	/// <summary>Element 6 of <see cref="SwitchDistances"/>.</summary>
+	public float SwitchDistances6;
+	/// <summary>LOD switch distances 1 to 7.</summary>
+	[UnscopedRef] public Span<float> SwitchDistances => MemoryMarshal.CreateSpan( ref SwitchDistances0, 7 );
+}
+
+/// <summary>A resident mesh in the fragment table, after its group's header.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct ResidentMeshRecord
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 32;
+
+	/// <summary>Byte offset of <see cref="Center"/> in the record.</summary>
+	public const int CenterOffset = 0;
+	/// <summary>Bounds centre.</summary>
+	public Vector3 Center;
+
+	/// <summary>Byte offset of <see cref="LodScale"/> in the record.</summary>
+	public const int LodScaleOffset = 12;
+	/// <summary>Its LOD scale (the largest scale), or -1 - LOD for a fixed LOD.</summary>
+	public float LodScale;
+
+	/// <summary>Byte offset of <see cref="Extents"/> in the record.</summary>
+	public const int ExtentsOffset = 16;
+	/// <summary>Bounds extents.</summary>
+	public Vector3 Extents;
+
+	/// <summary>Byte offset of <see cref="Transform"/> in the record.</summary>
+	public const int TransformOffset = 28;
+	/// <summary>Its transform slot.</summary>
+	public uint Transform;
+}
+
+/// <summary>A batch a GPU cull culls, after its view record: fragments, a mesh draw's instances or resident meshes.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct BatchRecord
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 32;
+
+	/// <summary>Byte offset of <see cref="First"/> in the record.</summary>
+	public const int FirstOffset = 0;
+	/// <summary>Its first fragment record; a mesh draw's instances: their draw record; resident meshes: their group's header.</summary>
+	public uint First;
+
+	/// <summary>Byte offset of <see cref="Count"/> in the record.</summary>
+	public const int CountOffset = 4;
+	/// <summary>Its fragments, instances or meshes.</summary>
+	public uint Count;
+
+	/// <summary>Byte offset of <see cref="Transform"/> in the record.</summary>
+	public const int TransformOffset = 8;
+	/// <summary>The first fragment's transform slot; instances: the frame region's byte offset of their transform slots; resident meshes: their draw record (bit 31: a list of a draw record per mesh in the fragment table instead).</summary>
+	public uint Transform;
+
+	/// <summary>Byte offset of <see cref="Run"/> in the record.</summary>
+	public const int RunOffset = 12;
+	/// <summary>Its first command slot, or compacting, its multi-draw.</summary>
+	public uint Run;
+
+	/// <summary>Byte offset of <see cref="FirstVisibility"/> in the record.</summary>
+	public const int FirstVisibilityOffset = 16;
+	/// <summary>Its first visibility fragment, or none.</summary>
+	public uint FirstVisibility;
+
+	/// <summary>Byte offset of <see cref="Moved"/> in the record.</summary>
+	public const int MovedOffset = 20;
+	/// <summary>A resident filter's moved words' byte offset; or its multi-draw of compacted triangles; or with bit 31, its meshlet task run.</summary>
+	public uint Moved;
+
+	/// <summary>Byte offset of <see cref="Flags"/> in the record.</summary>
+	public const int FlagsOffset = 24;
+	/// <summary>1: the prepass draws its ids; 2: forward draws its triangles that own a sample; 4: a mesh draw's instances; 8: resident meshes, bits 4-7 their LOD; bits 8 and up: the vertex stride between its instances' vertex bits.</summary>
+	public uint Flags;
+
+	/// <summary>Byte offset of <see cref="FirstVertexBit"/> in the record.</summary>
+	public const int FirstVertexBitOffset = 28;
+	/// <summary>Its first vertex bit, or none.</summary>
+	public uint FirstVertexBit;
+}
+
+/// <summary>A multi-draw of a cull's region: its first command slot and how many the cull filled.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct MultiDraw
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 8;
+
+	/// <summary>Byte offset of <see cref="FirstSlot"/> in the record.</summary>
+	public const int FirstSlotOffset = 0;
+	/// <summary>Its first command slot.</summary>
+	public uint FirstSlot;
+
+	/// <summary>Byte offset of <see cref="Count"/> in the record.</summary>
+	public const int CountOffset = 4;
+	/// <summary>Commands written, counted up by the cull.</summary>
+	public uint Count;
+}
+
+/// <summary>The dispatch arguments before a cull's listed fragments, which forward's compaction or the meshlet pass runs a group each.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct ListedArguments
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 16;
+
+	/// <summary>Byte offset of <see cref="GroupsX"/> in the record.</summary>
+	public const int GroupsXOffset = 0;
+	/// <summary>Groups: the listed fragments.</summary>
+	public uint GroupsX;
+
+	/// <summary>Byte offset of <see cref="GroupsY"/> in the record.</summary>
+	public const int GroupsYOffset = 4;
+	/// <summary>1.</summary>
+	public uint GroupsY;
+
+	/// <summary>Byte offset of <see cref="GroupsZ"/> in the record.</summary>
+	public const int GroupsZOffset = 8;
+	/// <summary>1.</summary>
+	public uint GroupsZ;
+
+	/// <summary>Byte offset of <see cref="Entries"/> in the record.</summary>
+	public const int EntriesOffset = 12;
+	/// <summary>Bytes from the end of the arguments to the first listed fragment (a Hi-Z prepass's second phase lists after its first's).</summary>
+	public uint Entries;
+}
+
+/// <summary>A fragment a cull listed for forward's compaction or the meshlet pass.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct ListedFragment
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 32;
+
+	/// <summary>Byte offset of <see cref="Transform"/> in the record.</summary>
+	public const int TransformOffset = 0;
+	/// <summary>Its transform slot.</summary>
+	public uint Transform;
+
+	/// <summary>Byte offset of <see cref="Draw"/> in the record.</summary>
+	public const int DrawOffset = 4;
+	/// <summary>Its draw record.</summary>
+	public uint Draw;
+
+	/// <summary>Byte offset of <see cref="VertexBase"/> in the record.</summary>
+	public const int VertexBaseOffset = 8;
+	/// <summary>Its first vertex bit (compaction: plus the draw's base vertex), or none.</summary>
+	public uint VertexBase;
+
+	/// <summary>Byte offset of <see cref="Run"/> in the record.</summary>
+	public const int RunOffset = 12;
+	/// <summary>Its bucket's multi-draw.</summary>
+	public uint Run;
+
+	/// <summary>Byte offset of <see cref="CompactRun"/> in the record.</summary>
+	public const int CompactRunOffset = 16;
+	/// <summary>Its bucket's multi-draws of compacted triangles.</summary>
+	public uint CompactRun;
+
+	/// <summary>Byte offset of <see cref="Reserved0"/> in the record.</summary>
+	public const int Reserved0Offset = 20;
+	/// <summary>Unused, zero.</summary>
+	public uint Reserved0;
+
+	/// <summary>Byte offset of <see cref="Reserved1"/> in the record.</summary>
+	public const int Reserved1Offset = 24;
+	/// <summary>Unused, zero.</summary>
+	public uint Reserved1;
+
+	/// <summary>Byte offset of <see cref="Fragment"/> in the record.</summary>
+	public const int FragmentOffset = 28;
+	/// <summary>Its visibility fragment, or none.</summary>
+	public uint Fragment;
+}
+
+/// <summary>A draw record's meshlets, in the meshlet run table at the draw record's index (MeshletStore).</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct MeshletRun
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 16;
+
+	/// <summary>Byte offset of <see cref="Page"/> in the record.</summary>
+	public const int PageOffset = 0;
+	/// <summary>The bindless slot of its meshlets' page.</summary>
+	public uint Page;
+
+	/// <summary>Byte offset of <see cref="First"/> in the record.</summary>
+	public const int FirstOffset = 4;
+	/// <summary>Its first meshlet in the page.</summary>
+	public uint First;
+
+	/// <summary>Byte offset of <see cref="Count"/> in the record.</summary>
+	public const int CountOffset = 8;
+	/// <summary>Its meshlets: written last, so a cull reading in between sees none.</summary>
+	public uint Count;
+
+	/// <summary>Byte offset of <see cref="Global"/> in the record.</summary>
+	public const int GlobalOffset = 12;
+	/// <summary>Its first meshlet's index among every meshlet (a view's meshlet bits).</summary>
+	public uint Global;
+}
+
+/// <summary>One generated level of a draw record (LodStore).</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct LodLevel
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 16;
+
+	/// <summary>Byte offset of <see cref="FirstIndex"/> in the record.</summary>
+	public const int FirstIndexOffset = 0;
+	/// <summary>Its first index.</summary>
+	public uint FirstIndex;
+
+	/// <summary>Byte offset of <see cref="IndexCount"/> in the record.</summary>
+	public const int IndexCountOffset = 4;
+	/// <summary>Its index count.</summary>
+	public uint IndexCount;
+
+	/// <summary>Byte offset of <see cref="Draw"/> in the record.</summary>
+	public const int DrawOffset = 8;
+	/// <summary>Its draw record.</summary>
+	public uint Draw;
+
+	/// <summary>Byte offset of <see cref="Reserved"/> in the record.</summary>
+	public const int ReservedOffset = 12;
+	/// <summary>Unused.</summary>
+	public uint Reserved;
+}
+
+/// <summary>A draw record's generated levels, in the LOD table at the draw record's index (LodStore).</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct LodRecord
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 128;
+
+	/// <summary>Byte offset of <see cref="Levels"/> in the record.</summary>
+	public const int LevelsOffset = 0;
+	/// <summary>How many levels it has (at most 6).</summary>
+	public uint Levels;
+
+	/// <summary>Byte offset of <see cref="Reserved"/> in the record.</summary>
+	public const int ReservedOffset = 4;
+	/// <summary>Unused.</summary>
+	public uint Reserved;
+
+	/// <summary>Byte offset of <see cref="Errors"/> in the record.</summary>
+	public const int ErrorsOffset = 8;
+	/// <summary>Bytes from one element of <see cref="Errors"/> to the next.</summary>
+	public const int ErrorsStride = 4;
+	/// <summary>Elements of <see cref="Errors"/>.</summary>
+	public const int ErrorsLength = 6;
+	/// <summary>Element 0 of <see cref="Errors"/>.</summary>
+	public float Errors0;
+	/// <summary>Element 1 of <see cref="Errors"/>.</summary>
+	public float Errors1;
+	/// <summary>Element 2 of <see cref="Errors"/>.</summary>
+	public float Errors2;
+	/// <summary>Element 3 of <see cref="Errors"/>.</summary>
+	public float Errors3;
+	/// <summary>Element 4 of <see cref="Errors"/>.</summary>
+	public float Errors4;
+	/// <summary>Element 5 of <see cref="Errors"/>.</summary>
+	public float Errors5;
+	/// <summary>Each level's error: a fraction of the fragment's bounds' half diagonal.</summary>
+	[UnscopedRef] public Span<float> Errors => MemoryMarshal.CreateSpan( ref Errors0, 6 );
+
+	/// <summary>Byte offset of <see cref="Level"/> in the record.</summary>
+	public const int LevelOffset = 32;
+	/// <summary>Bytes from one element of <see cref="Level"/> to the next.</summary>
+	public const int LevelStride = 16;
+	/// <summary>Elements of <see cref="Level"/>.</summary>
+	public const int LevelLength = 6;
+	/// <summary>Element 0 of <see cref="Level"/>.</summary>
+	public LodLevel Level0;
+	/// <summary>Element 1 of <see cref="Level"/>.</summary>
+	public LodLevel Level1;
+	/// <summary>Element 2 of <see cref="Level"/>.</summary>
+	public LodLevel Level2;
+	/// <summary>Element 3 of <see cref="Level"/>.</summary>
+	public LodLevel Level3;
+	/// <summary>Element 4 of <see cref="Level"/>.</summary>
+	public LodLevel Level4;
+	/// <summary>Element 5 of <see cref="Level"/>.</summary>
+	public LodLevel Level5;
+	/// <summary>Each level.</summary>
+	[UnscopedRef] public Span<LodLevel> Level => MemoryMarshal.CreateSpan( ref Level0, 6 );
+}
+
+/// <summary>The second phase's candidates in a region's Hi-Z tail: the dispatch arguments over them, their count and the occluded count, then a HiZCandidate each.</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct HiZCandidates
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 32;
+
+	/// <summary>Byte offset of <see cref="GroupsX"/> in the record.</summary>
+	public const int GroupsXOffset = 0;
+	/// <summary>Groups: a group per 256 candidates.</summary>
+	public uint GroupsX;
+
+	/// <summary>Byte offset of <see cref="GroupsY"/> in the record.</summary>
+	public const int GroupsYOffset = 4;
+	/// <summary>1.</summary>
+	public uint GroupsY;
+
+	/// <summary>Byte offset of <see cref="GroupsZ"/> in the record.</summary>
+	public const int GroupsZOffset = 8;
+	/// <summary>1.</summary>
+	public uint GroupsZ;
+
+	/// <summary>Byte offset of <see cref="Count"/> in the record.</summary>
+	public const int CountOffset = 12;
+	/// <summary>Candidates written.</summary>
+	public uint Count;
+
+	/// <summary>Byte offset of <see cref="Occluded"/> in the record.</summary>
+	public const int OccludedOffset = 16;
+	/// <summary>Candidates the second phase found occluded.</summary>
+	public uint Occluded;
+
+	/// <summary>Byte offset of <see cref="Reserved0"/> in the record.</summary>
+	public const int Reserved0Offset = 20;
+	/// <summary>Unused.</summary>
+	public uint Reserved0;
+
+	/// <summary>Byte offset of <see cref="Reserved1"/> in the record.</summary>
+	public const int Reserved1Offset = 24;
+	/// <summary>Unused.</summary>
+	public uint Reserved1;
+
+	/// <summary>Byte offset of <see cref="Reserved2"/> in the record.</summary>
+	public const int Reserved2Offset = 28;
+	/// <summary>Unused.</summary>
+	public uint Reserved2;
+}
+
+/// <summary>A fragment two-phase Hi-Z occlusion left for its second phase (borealis_hiz_cs).</summary>
+[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+internal partial struct HiZCandidate
+{
+	/// <summary>Bytes of one record.</summary>
+	public const int Size = 64;
+
+	/// <summary>Byte offset of <see cref="Center"/> in the record.</summary>
+	public const int CenterOffset = 0;
+	/// <summary>Bounds centre.</summary>
+	public Vector3 Center;
+
+	/// <summary>Byte offset of <see cref="Transform"/> in the record.</summary>
+	public const int TransformOffset = 12;
+	/// <summary>Its transform slot.</summary>
+	public uint Transform;
+
+	/// <summary>Byte offset of <see cref="Extents"/> in the record.</summary>
+	public const int ExtentsOffset = 16;
+	/// <summary>Bounds extents.</summary>
+	public Vector3 Extents;
+
+	/// <summary>Byte offset of <see cref="Draw"/> in the record.</summary>
+	public const int DrawOffset = 28;
+	/// <summary>Its draw record (its level's).</summary>
+	public uint Draw;
+
+	/// <summary>Byte offset of <see cref="FirstIndex"/> in the record.</summary>
+	public const int FirstIndexOffset = 32;
+	/// <summary>The draw's first index.</summary>
+	public uint FirstIndex;
+
+	/// <summary>Byte offset of <see cref="IndexCount"/> in the record.</summary>
+	public const int IndexCountOffset = 36;
+	/// <summary>The draw's index count.</summary>
+	public uint IndexCount;
+
+	/// <summary>Byte offset of <see cref="BaseVertex"/> in the record.</summary>
+	public const int BaseVertexOffset = 40;
+	/// <summary>The draw's base vertex.</summary>
+	public uint BaseVertex;
+
+	/// <summary>Byte offset of <see cref="VertexBase"/> in the record.</summary>
+	public const int VertexBaseOffset = 44;
+	/// <summary>Its first vertex bit.</summary>
+	public uint VertexBase;
+
+	/// <summary>Byte offset of <see cref="Fragment"/> in the record.</summary>
+	public const int FragmentOffset = 48;
+	/// <summary>Its visibility fragment.</summary>
+	public uint Fragment;
+
+	/// <summary>Byte offset of <see cref="Run"/> in the record.</summary>
+	public const int RunOffset = 52;
+	/// <summary>Its bucket's multi-draw.</summary>
+	public uint Run;
+
+	/// <summary>Byte offset of <see cref="CompactRun"/> in the record.</summary>
+	public const int CompactRunOffset = 56;
+	/// <summary>Its bucket's multi-draws of compacted triangles (the gpu-driven cull), or its batch's sixth word (the resident cull).</summary>
+	public uint CompactRun;
+
+	/// <summary>Byte offset of <see cref="Meshlets"/> in the record.</summary>
+	public const int MeshletsOffset = 60;
+	/// <summary>1: the first phase would have listed it for the meshlet pass.</summary>
+	public uint Meshlets;
 }
 
 /// <summary>One plan's batches in the resident cull, in the frame's region: a thread per entry (an element of one of its batch records) loops over its views. Items are in order of FirstEntry, each starting on a multiple of 64 threads.</summary>

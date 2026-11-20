@@ -70,6 +70,194 @@ struct CullViewRecord
 	float LodUnits;
 };
 
+/// A fragment in the fragment table: a piece of an aggregate the GPU culls on its own (BackendContext.WriteFragments).
+struct FragmentRecord
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Its draw record.
+	uint Draw;
+	/// Bounds extents.
+	float3 Extents;
+	/// Its transform slot after its batch's first; bit 31: it casts no shadow.
+	uint Instance;
+};
+
+/// A resident mesh batch's group header in the fragment table, before its meshes' records (BackendContext.WriteResidentMeshes).
+struct ResidentMeshHeader
+{
+	/// The model's LOD count; bits 8-15: how many switch distances it has.
+	uint Lods;
+	/// LOD switch distances 1 to 7.
+	float SwitchDistances[7];
+};
+
+/// A resident mesh in the fragment table, after its group's header.
+struct ResidentMeshRecord
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Its LOD scale (the largest scale), or -1 - LOD for a fixed LOD.
+	float LodScale;
+	/// Bounds extents.
+	float3 Extents;
+	/// Its transform slot.
+	uint Transform;
+};
+
+/// A batch a GPU cull culls, after its view record: fragments, a mesh draw's instances or resident meshes.
+struct BatchRecord
+{
+	/// Its first fragment record; a mesh draw's instances: their draw record; resident meshes: their group's header.
+	uint First;
+	/// Its fragments, instances or meshes.
+	uint Count;
+	/// The first fragment's transform slot; instances: the frame region's byte offset of their transform slots; resident meshes: their draw record (bit 31: a list of a draw record per mesh in the fragment table instead).
+	uint Transform;
+	/// Its first command slot, or compacting, its multi-draw.
+	uint Run;
+	/// Its first visibility fragment, or none.
+	uint FirstVisibility;
+	/// A resident filter's moved words' byte offset; or its multi-draw of compacted triangles; or with bit 31, its meshlet task run.
+	uint Moved;
+	/// 1: the prepass draws its ids; 2: forward draws its triangles that own a sample; 4: a mesh draw's instances; 8: resident meshes, bits 4-7 their LOD; bits 8 and up: the vertex stride between its instances' vertex bits.
+	uint Flags;
+	/// Its first vertex bit, or none.
+	uint FirstVertexBit;
+};
+
+/// A multi-draw of a cull's region: its first command slot and how many the cull filled.
+struct MultiDraw
+{
+	/// Its first command slot.
+	uint FirstSlot;
+	/// Commands written, counted up by the cull.
+	uint Count;
+};
+
+/// The dispatch arguments before a cull's listed fragments, which forward's compaction or the meshlet pass runs a group each.
+struct ListedArguments
+{
+	/// Groups: the listed fragments.
+	uint GroupsX;
+	/// 1.
+	uint GroupsY;
+	/// 1.
+	uint GroupsZ;
+	/// Bytes from the end of the arguments to the first listed fragment (a Hi-Z prepass's second phase lists after its first's).
+	uint Entries;
+};
+
+/// A fragment a cull listed for forward's compaction or the meshlet pass.
+struct ListedFragment
+{
+	/// Its transform slot.
+	uint Transform;
+	/// Its draw record.
+	uint Draw;
+	/// Its first vertex bit (compaction: plus the draw's base vertex), or none.
+	uint VertexBase;
+	/// Its bucket's multi-draw.
+	uint Run;
+	/// Its bucket's multi-draws of compacted triangles.
+	uint CompactRun;
+	/// Unused, zero.
+	uint Reserved0;
+	/// Unused, zero.
+	uint Reserved1;
+	/// Its visibility fragment, or none.
+	uint Fragment;
+};
+
+/// A draw record's meshlets, in the meshlet run table at the draw record's index (MeshletStore).
+struct MeshletRun
+{
+	/// The bindless slot of its meshlets' page.
+	uint Page;
+	/// Its first meshlet in the page.
+	uint First;
+	/// Its meshlets: written last, so a cull reading in between sees none.
+	uint Count;
+	/// Its first meshlet's index among every meshlet (a view's meshlet bits).
+	uint Global;
+};
+
+/// One generated level of a draw record (LodStore).
+struct LodLevel
+{
+	/// Its first index.
+	uint FirstIndex;
+	/// Its index count.
+	uint IndexCount;
+	/// Its draw record.
+	uint Draw;
+	/// Unused.
+	uint Reserved;
+};
+
+/// A draw record's generated levels, in the LOD table at the draw record's index (LodStore).
+struct LodRecord
+{
+	/// How many levels it has (at most 6).
+	uint Levels;
+	/// Unused.
+	uint Reserved;
+	/// Each level's error: a fraction of the fragment's bounds' half diagonal.
+	float Errors[6];
+	/// Each level.
+	LodLevel Level[6];
+};
+
+/// The second phase's candidates in a region's Hi-Z tail: the dispatch arguments over them, their count and the occluded count, then a HiZCandidate each.
+struct HiZCandidates
+{
+	/// Groups: a group per 256 candidates.
+	uint GroupsX;
+	/// 1.
+	uint GroupsY;
+	/// 1.
+	uint GroupsZ;
+	/// Candidates written.
+	uint Count;
+	/// Candidates the second phase found occluded.
+	uint Occluded;
+	/// Unused.
+	uint Reserved0;
+	/// Unused.
+	uint Reserved1;
+	/// Unused.
+	uint Reserved2;
+};
+
+/// A fragment two-phase Hi-Z occlusion left for its second phase (borealis_hiz_cs).
+struct HiZCandidate
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Its transform slot.
+	uint Transform;
+	/// Bounds extents.
+	float3 Extents;
+	/// Its draw record (its level's).
+	uint Draw;
+	/// The draw's first index.
+	uint FirstIndex;
+	/// The draw's index count.
+	uint IndexCount;
+	/// The draw's base vertex.
+	uint BaseVertex;
+	/// Its first vertex bit.
+	uint VertexBase;
+	/// Its visibility fragment.
+	uint Fragment;
+	/// Its bucket's multi-draw.
+	uint Run;
+	/// Its bucket's multi-draws of compacted triangles (the gpu-driven cull), or its batch's sixth word (the resident cull).
+	uint CompactRun;
+	/// 1: the first phase would have listed it for the meshlet pass.
+	uint Meshlets;
+};
+
 //
 // The resident cull (borealis_resident_cull_cs, BackendContext.ResidentCull.cs)
 //

@@ -216,22 +216,22 @@ bool Occluded( float3 vCenter, float3 vExtents )
 uint TakeSlot( uint nRun )
 {
 	uint nIndex;
-	g_Frame.InterlockedAdd( g_nHiZRuns + nRun * 8 + 4, 1, nIndex );
-	return g_Frame.Load( g_nHiZRuns + nRun * 8 ) + nIndex;
+	g_Frame.InterlockedAdd( g_nHiZRuns + nRun * MultiDraw_Size + MultiDraw_Count, 1, nIndex );
+	return g_Frame.Load( g_nHiZRuns + nRun * MultiDraw_Size + MultiDraw_FirstSlot ) + nIndex;
 }
 
-// A candidate (64 bytes): centre and transform slot; extents and draw record; first index, index count, base vertex and
+// A candidate (HiZCandidate): centre and transform slot; extents and draw record; first index, index count, base vertex and
 // the vertices' first bit; visibility fragment, multi-draw, compacted multi-draw and flags (1: the meshlet pass culls it)
 void Cull( uint nCandidate )
 {
-	if ( nCandidate >= g_Frame.Load( g_nHiZCandidates + 12 ) )
+	if ( nCandidate >= g_Frame.Load( g_nHiZCandidates + HiZCandidates_Count ) )
 		return;
 
-	uint nAt = g_nHiZCandidates + 32 + nCandidate * 64;
-	uint4 c0 = g_Frame.Load4( nAt );
-	uint4 c1 = g_Frame.Load4( nAt + 16 );
-	uint4 c2 = g_Frame.Load4( nAt + 32 );
-	uint4 c3 = g_Frame.Load4( nAt + 48 );
+	uint nAt = g_nHiZCandidates + HiZCandidates_Size + nCandidate * HiZCandidate_Size;
+	uint4 c0 = uint4( g_Frame.Load3( nAt + HiZCandidate_Center ), g_Frame.Load( nAt + HiZCandidate_Transform ) );
+	uint4 c1 = uint4( g_Frame.Load3( nAt + HiZCandidate_Extents ), g_Frame.Load( nAt + HiZCandidate_Draw ) );
+	uint4 c2 = uint4( g_Frame.Load( nAt + HiZCandidate_FirstIndex ), g_Frame.Load( nAt + HiZCandidate_IndexCount ), g_Frame.Load( nAt + HiZCandidate_BaseVertex ), g_Frame.Load( nAt + HiZCandidate_VertexBase ) );
+	uint4 c3 = uint4( g_Frame.Load( nAt + HiZCandidate_Fragment ), g_Frame.Load( nAt + HiZCandidate_Run ), g_Frame.Load( nAt + HiZCandidate_CompactRun ), g_Frame.Load( nAt + HiZCandidate_Meshlets ) );
 	uint nFragment = c3.x;
 
 	// Occluded: stamped all the same, so forward lists it and its compaction finds nothing (and, where the view's prepass
@@ -242,20 +242,26 @@ void Cull( uint nCandidate )
 		if ( ( g_nHiZFlags & 2 ) != 0 )
 			g_MeshletStamps.Store4( nFragment * 16, uint4( g_nHiZFrame, None, 0, 0 ) );
 		uint nOccluded;
-		g_Frame.InterlockedAdd( g_nHiZCandidates + 16, 1, nOccluded );
+		g_Frame.InterlockedAdd( g_nHiZCandidates + HiZCandidates_Occluded, 1, nOccluded );
 		return;
 	}
 
 	if ( ( c3.w & 1 ) != 0 )
 	{
 		// Listed for the second meshlet pass after the first phase's entries: its arguments' fourth word is where they start
-		uint nFirst = g_Frame.Load( g_nHiZListed );
+		uint nFirst = g_Frame.Load( g_nHiZListed + ListedArguments_GroupsX );
 		uint nIndex;
-		g_Frame.InterlockedAdd( g_nHiZListed2, 1, nIndex );
-		g_Frame.Store( g_nHiZListed2 + 12, ( g_nHiZListed + 16 + nFirst * 32 ) - ( g_nHiZListed2 + 16 ) );
-		uint nEntry = g_nHiZListed + 16 + ( nFirst + nIndex ) * 32;
-		g_Frame.Store4( nEntry, uint4( c0.w, c1.w, c2.w, c3.y ) );
-		g_Frame.Store4( nEntry + 16, uint4( c3.z, 0, 0, nFragment ) );
+		g_Frame.InterlockedAdd( g_nHiZListed2 + ListedArguments_GroupsX, 1, nIndex );
+		g_Frame.Store( g_nHiZListed2 + ListedArguments_Entries, ( g_nHiZListed + ListedArguments_Size + nFirst * ListedFragment_Size ) - ( g_nHiZListed2 + ListedArguments_Size ) );
+		uint nEntry = g_nHiZListed + ListedArguments_Size + ( nFirst + nIndex ) * ListedFragment_Size;
+		g_Frame.Store( nEntry + ListedFragment_Transform, c0.w );
+		g_Frame.Store( nEntry + ListedFragment_Draw, c1.w );
+		g_Frame.Store( nEntry + ListedFragment_VertexBase, c2.w );
+		g_Frame.Store( nEntry + ListedFragment_Run, c3.y );
+		g_Frame.Store( nEntry + ListedFragment_CompactRun, c3.z );
+		g_Frame.Store( nEntry + ListedFragment_Reserved0, 0 );
+		g_Frame.Store( nEntry + ListedFragment_Reserved1, 0 );
+		g_Frame.Store( nEntry + ListedFragment_Fragment, nFragment );
 		return;
 	}
 

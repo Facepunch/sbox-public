@@ -97,6 +97,14 @@ uint MeshLod( uint4 vHeader0, uint4 vHeader1, float3 vCenter, float flScale, flo
 	return min( nLod, nLods - 1 );
 }
 
+// A resident mesh group's header (ResidentMeshHeader) as MeshLod reads it: its LOD word and switch distances 1 to 3, then 4 to 7
+void LoadMeshHeader( ByteAddressBuffer records, uint nAt, out uint4 vHeader0, out uint4 vHeader1 )
+{
+	uint nSwitches = nAt + ResidentMeshHeader_SwitchDistances;
+	vHeader0 = uint4( records.Load( nAt + ResidentMeshHeader_Lods ), records.Load( nSwitches ), records.Load( nSwitches + 4 ), records.Load( nSwitches + 8 ) );
+	vHeader1 = uint4( records.Load( nSwitches + 12 ), records.Load( nSwitches + 16 ), records.Load( nSwitches + 20 ), records.Load( nSwitches + 24 ) );
+}
+
 // A resident filter's test (GpuContext.ResidentFilter): whether a view keeps a caster by its moved word (its frame, bit 31
 // restless; None for a static one) against the stamps the far cascade's cache was drawn at, as SettledCasters.SettledBy does.
 // 1: static and settled ones (the cache), 2: settled ones that aren't static (a baked sun's cache), 3: the rest that aren't
@@ -242,22 +250,30 @@ bool HiZDeferred( uint4 vViewFlags, uint4 vVisibility, float3 vCenter, float3 vE
 
 	bool bMeshlets = false;
 	if ( ( vVisibility.z & 12 ) == 0 && g_nCullMeshletRuns != None && ( vVisibility.y & TaskRun ) == 0 )
-		bMeshlets = g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+		bMeshlets = g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * MeshletRun_Size + MeshletRun_Count ) - 1 < 4096u;
 	uint nCompactRun = vVisibility.y;
 
 	uint nAt;
-	g_Frame.InterlockedAdd( vViewFlags.w + 12, 1, nAt );
+	g_Frame.InterlockedAdd( vViewFlags.w + HiZCandidates_Count, 1, nAt );
 	if ( ( nAt & 255 ) == 0 )
 	{
 		uint nGroups;
-		g_Frame.InterlockedAdd( vViewFlags.w, 1, nGroups );
+		g_Frame.InterlockedAdd( vViewFlags.w + HiZCandidates_GroupsX, 1, nGroups );
 	}
 
-	uint nEntry = vViewFlags.w + 32 + nAt * 64;
-	g_Frame.Store4( nEntry, uint4( asuint( vCenter ), nTransform ) );
-	g_Frame.Store4( nEntry + 16, uint4( asuint( vExtents ), nDrawRecord ) );
-	g_Frame.Store4( nEntry + 32, uint4( vDraw.xyz, nVertexBase ) );
-	g_Frame.Store4( nEntry + 48, uint4( nFragment, nRun, nCompactRun, bMeshlets ? 1u : 0u ) );
+	uint nEntry = vViewFlags.w + HiZCandidates_Size + nAt * HiZCandidate_Size;
+	g_Frame.Store3( nEntry + HiZCandidate_Center, asuint( vCenter ) );
+	g_Frame.Store( nEntry + HiZCandidate_Transform, nTransform );
+	g_Frame.Store3( nEntry + HiZCandidate_Extents, asuint( vExtents ) );
+	g_Frame.Store( nEntry + HiZCandidate_Draw, nDrawRecord );
+	g_Frame.Store( nEntry + HiZCandidate_FirstIndex, vDraw.x );
+	g_Frame.Store( nEntry + HiZCandidate_IndexCount, vDraw.y );
+	g_Frame.Store( nEntry + HiZCandidate_BaseVertex, vDraw.z );
+	g_Frame.Store( nEntry + HiZCandidate_VertexBase, nVertexBase );
+	g_Frame.Store( nEntry + HiZCandidate_Fragment, nFragment );
+	g_Frame.Store( nEntry + HiZCandidate_Run, nRun );
+	g_Frame.Store( nEntry + HiZCandidate_CompactRun, nCompactRun );
+	g_Frame.Store( nEntry + HiZCandidate_Meshlets, bMeshlets ? 1u : 0u );
 	return true;
 }
 
@@ -265,8 +281,8 @@ bool HiZDeferred( uint4 vViewFlags, uint4 vVisibility, float3 vCenter, float3 vE
 uint TakeSlot( uint nRun )
 {
 	uint nIndex;
-	g_Frame.InterlockedAdd( g_nCullRuns + nRun * 8 + 4, 1, nIndex );
-	return g_Frame.Load( g_nCullRuns + nRun * 8 ) + nIndex;
+	g_Frame.InterlockedAdd( g_nCullRuns + nRun * MultiDraw_Size + MultiDraw_Count, 1, nIndex );
+	return g_Frame.Load( g_nCullRuns + nRun * MultiDraw_Size + MultiDraw_FirstSlot ) + nIndex;
 }
 
 [numthreads( 64, 1, 1 )]
@@ -305,8 +321,9 @@ uint TakeSlot( uint nRun )
 	// flags' top 24 bits apart. Resident meshes have their group's header record first, then a record each, and their
 	// draw record third (bit 31: a list of a draw record per mesh in the fragment table instead, for meshes lit
 	// differently); each has its own vertex bits too
-	uint4 vBatch = g_Frame.Load4( g_nCullInput + CullViewRecord_Size + nBatch * 32 );
-	uint4 vVisibility = g_Frame.Load4( g_nCullInput + CullViewRecord_Size + nBatch * 32 + 16 );
+	uint nBatchAt = g_nCullInput + CullViewRecord_Size + nBatch * BatchRecord_Size;
+	uint4 vBatch = uint4( g_Frame.Load( nBatchAt + BatchRecord_First ), g_Frame.Load( nBatchAt + BatchRecord_Count ), g_Frame.Load( nBatchAt + BatchRecord_Transform ), g_Frame.Load( nBatchAt + BatchRecord_Run ) );
+	uint4 vVisibility = uint4( g_Frame.Load( nBatchAt + BatchRecord_FirstVisibility ), g_Frame.Load( nBatchAt + BatchRecord_Moved ), g_Frame.Load( nBatchAt + BatchRecord_Flags ), g_Frame.Load( nBatchAt + BatchRecord_FirstVertexBit ) );
 	bool bInstances = ( vVisibility.z & 4 ) != 0;
 	bool bMeshes = ( vVisibility.z & 8 ) != 0;
 	uint nBatchLod = ( vVisibility.z >> 4 ) & 15;
@@ -319,8 +336,7 @@ uint TakeSlot( uint nRun )
 	uint4 vHeader1 = 0;
 	if ( bMeshes )
 	{
-		vHeader0 = fragments.Load4( vBatch.x * 32 );
-		vHeader1 = fragments.Load4( vBatch.x * 32 + 16 );
+		LoadMeshHeader( fragments, vBatch.x * ResidentMeshHeader_Size, vHeader0, vHeader1 );
 	}
 
 	for ( uint nBase = 0; nBase < vBatch.y; nBase += 64 )
@@ -343,10 +359,9 @@ uint TakeSlot( uint nRun )
 			{
 				// Resident mesh record: centre and LOD scale, extents and transform slot. Culled as the CPU culls meshes, then
 				// kept only where its LOD is the batch's
-				uint4 a = fragments.Load4( ( vBatch.x + 1 + i ) * 32 );
-				uint4 b = fragments.Load4( ( vBatch.x + 1 + i ) * 32 + 16 );
-				float3 vCenter = asfloat( a.xyz );
-				float3 vExtents = asfloat( b.xyz );
+				uint nMeshAt = ( vBatch.x + 1 + i ) * ResidentMeshRecord_Size;
+				float3 vCenter = asfloat( fragments.Load3( nMeshAt + ResidentMeshRecord_Center ) );
+				float3 vExtents = asfloat( fragments.Load3( nMeshAt + ResidentMeshRecord_Extents ) );
 				vBoxCenter = vCenter;
 				vBoxExtents = vExtents;
 
@@ -362,21 +377,21 @@ uint TakeSlot( uint nRun )
 				if ( bMeshSize && vCamera.w < 0 && flRadiusSquared < -vCamera.w )
 					bVisible = false;
 
-				bVisible = bVisible && MeshLod( vHeader0, vHeader1, vCenter, asfloat( a.w ), vLodCamera, flLodWidth, bLodTexels ) == nBatchLod;
-				nTransform = b.w;
-				nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * 32 + i * 4 ) : vBatch.z;
+				bVisible = bVisible && MeshLod( vHeader0, vHeader1, vCenter, asfloat( fragments.Load( nMeshAt + ResidentMeshRecord_LodScale ) ), vLodCamera, flLodWidth, bLodTexels ) == nBatchLod;
+				nTransform = fragments.Load( nMeshAt + ResidentMeshRecord_Transform );
+				nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * FragmentRecord_Size + i * 4 ) : vBatch.z;
 			}
 			else
 			{
 				// Fragment record: centre and draw record, extents and fragment index (bit 31: casts no shadow)
-				uint4 a = fragments.Load4( ( vBatch.x + i ) * 32 );
-				uint4 b = fragments.Load4( ( vBatch.x + i ) * 32 + 16 );
-				float3 vCenter = asfloat( a.xyz );
-				float3 vExtents = asfloat( b.xyz );
+				uint nFragmentAt = ( vBatch.x + i ) * FragmentRecord_Size;
+				float3 vCenter = asfloat( fragments.Load3( nFragmentAt + FragmentRecord_Center ) );
+				float3 vExtents = asfloat( fragments.Load3( nFragmentAt + FragmentRecord_Extents ) );
+				uint nInstance = fragments.Load( nFragmentAt + FragmentRecord_Instance );
 				vBoxCenter = vCenter;
 				vBoxExtents = vExtents;
 
-				bVisible = !( bShadow && ( b.w & 0x80000000u ) != 0 );
+				bVisible = !( bShadow && ( nInstance & 0x80000000u ) != 0 );
 				[unroll]
 				for ( uint p = 0; p < 6; p++ )
 					bVisible = bVisible && Inside( vPlanes[p], vCenter, vExtents );
@@ -391,19 +406,20 @@ uint TakeSlot( uint nRun )
 				if ( vCamera.w < 0 && flRadiusSquared < -vCamera.w )
 					bVisible = false;
 
-				nTransform = vBatch.z + ( b.w & 0x7fffffffu );
-				nDrawRecord = a.w;
+				nTransform = vBatch.z + ( nInstance & 0x7fffffffu );
+				nDrawRecord = fragments.Load( nFragmentAt + FragmentRecord_Draw );
 
 				// Its generated level in this view (LodMode and LodUnits): that level's draw record from here on
 				if ( bVisible && g_nCullLodTable != None && nDrawRecord < g_nCullLodCount )
 				{
 					ByteAddressBuffer lods = g_bindless_VertexBuffers[ g_nCullLodTable ];
-					uint4 h0 = lods.Load4( nDrawRecord * 128 );
-					uint4 h1 = lods.Load4( nDrawRecord * 128 + 16 );
-					uint nLevels = min( h0.x, 6u );
-					uint nLevel = PickLod( vLod.z, asfloat( vLod.w ), vLodCamera.xyz, vCenter, vExtents, nLevels, asfloat( uint4( h0.zw, h1.xy ) ), asfloat( h1.zw ), vVisibility.x != None ? vVisibility.x + i : None );
+					uint nLodAt = nDrawRecord * LodRecord_Size;
+					uint nLevels = min( lods.Load( nLodAt + LodRecord_Levels ), 6u );
+					float4 vErrors = asfloat( lods.Load4( nLodAt + LodRecord_Errors ) );
+					float2 vMore = asfloat( lods.Load2( nLodAt + LodRecord_Errors + 4 * LodRecord_ErrorsStride ) );
+					uint nLevel = PickLod( vLod.z, asfloat( vLod.w ), vLodCamera.xyz, vCenter, vExtents, nLevels, vErrors, vMore, vVisibility.x != None ? vVisibility.x + i : None );
 					if ( nLevel > 0 )
-						nDrawRecord = lods.Load( nDrawRecord * 128 + 32 + ( nLevel - 1 ) * 16 + 8 );
+						nDrawRecord = lods.Load( nLodAt + LodRecord_Level + ( nLevel - 1 ) * LodRecord_LevelStride + LodLevel_Draw );
 				}
 			}
 
@@ -429,13 +445,13 @@ uint TakeSlot( uint nRun )
 				{
 					uint nAt;
 					g_Frame.InterlockedAdd( g_nCullListed, 1, nAt );
-					uint nEntry = g_nCullListed + 16 + nAt * 32;
-					g_Frame.Store( nEntry, nTransform );
-					g_Frame.Store( nEntry + 4, nDrawRecord );
-					g_Frame.Store( nEntry + 8, nVertexBase + vDraw.z );
-					g_Frame.Store( nEntry + 12, vBatch.w );
-					g_Frame.Store( nEntry + 16, vVisibility.y );
-					g_Frame.Store( nEntry + 28, nFragment );
+					uint nEntry = g_nCullListed + ListedArguments_Size + nAt * ListedFragment_Size;
+					g_Frame.Store( nEntry + ListedFragment_Transform, nTransform );
+					g_Frame.Store( nEntry + ListedFragment_Draw, nDrawRecord );
+					g_Frame.Store( nEntry + ListedFragment_VertexBase, nVertexBase + vDraw.z );
+					g_Frame.Store( nEntry + ListedFragment_Run, vBatch.w );
+					g_Frame.Store( nEntry + ListedFragment_CompactRun, vVisibility.y );
+					g_Frame.Store( nEntry + ListedFragment_Fragment, nFragment );
 					bListed = true;
 				}
 
@@ -444,7 +460,7 @@ uint TakeSlot( uint nRun )
 				// mesh shaders (its sixth word's top bit), takes a slot of the bucket's task run, a task group of
 				// borealis_meshlet_ids each
 				// (A depth prepass lists only aggregates' fragments: static meshes' draws have meshlets for shadow views.)
-				bool bMeshlets = !bListed && ( vVisibility.z & 1 ) != 0 && ( bShadow || ( vVisibility.z & 12 ) == 0 ) && g_nCullMeshletRuns != None && g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * 16 + 8 ) - 1 < 4096u;
+				bool bMeshlets = !bListed && ( vVisibility.z & 1 ) != 0 && ( bShadow || ( vVisibility.z & 12 ) == 0 ) && g_nCullMeshletRuns != None && g_bindless_VertexBuffers[ g_nCullMeshletRuns ].Load( nDrawRecord * MeshletRun_Size + MeshletRun_Count ) - 1 < 4096u;
 				if ( bMeshlets && ( vVisibility.y & TaskRun ) != 0 )
 				{
 					uint nSlot = TakeSlot( vVisibility.y & ~TaskRun );
@@ -460,15 +476,15 @@ uint TakeSlot( uint nRun )
 				{
 					uint nAt;
 					g_Frame.InterlockedAdd( g_nCullListed, 1, nAt );
-					uint nEntry = g_nCullListed + 16 + nAt * 32;
-					g_Frame.Store( nEntry, nTransform );
-					g_Frame.Store( nEntry + 4, nDrawRecord );
-					g_Frame.Store( nEntry + 8, nFragment != None ? nVertexBase : None );
-					g_Frame.Store( nEntry + 12, vBatch.w );
-					g_Frame.Store( nEntry + 16, vVisibility.y );
-					g_Frame.Store( nEntry + 20, 0 );
-					g_Frame.Store( nEntry + 24, 0 );
-					g_Frame.Store( nEntry + 28, nFragment );
+					uint nEntry = g_nCullListed + ListedArguments_Size + nAt * ListedFragment_Size;
+					g_Frame.Store( nEntry + ListedFragment_Transform, nTransform );
+					g_Frame.Store( nEntry + ListedFragment_Draw, nDrawRecord );
+					g_Frame.Store( nEntry + ListedFragment_VertexBase, nFragment != None ? nVertexBase : None );
+					g_Frame.Store( nEntry + ListedFragment_Run, vBatch.w );
+					g_Frame.Store( nEntry + ListedFragment_CompactRun, vVisibility.y );
+					g_Frame.Store( nEntry + ListedFragment_Reserved0, 0 );
+					g_Frame.Store( nEntry + ListedFragment_Reserved1, 0 );
+					g_Frame.Store( nEntry + ListedFragment_Fragment, nFragment );
 					if ( nFragment != None )
 						g_Stamps.Store( nFragment * 4, g_nCullFrame );
 					bListed = true;

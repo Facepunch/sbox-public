@@ -132,7 +132,8 @@ public static class RecordWriter
 				if ( offset != at ) problems.Add( $"{record.Name}.{name} is at {at}, {type.Name}.{name} at {offset}" );
 				var bytes = Marshal.SizeOf( member.FieldType );
 				if ( bytes != field.Stride ) problems.Add( $"{record.Name}.{name} is {field.Stride} bytes, {type.Name}.{name} {bytes}" );
-				if ( Kind( member.FieldType ) is { } kind && kind != field.Kind ) problems.Add( $"{record.Name}.{name} is {field.Kind}, {type.Name}.{name} {kind}" );
+				if ( field.Struct is not null && member.FieldType.Name != field.Struct ) problems.Add( $"{record.Name}.{name} is a {field.Struct}, {type.Name}.{name} a {member.FieldType.Name}" );
+				else if ( Kind( member.FieldType ) is { } kind && kind != field.Kind ) problems.Add( $"{record.Name}.{name} is {field.Kind}, {type.Name}.{name} {kind}" );
 			}
 		}
 
@@ -181,6 +182,7 @@ public static class RecordWriter
 
 	static string CSharpType( RecordField field ) => (field.Kind, field.Components) switch
 	{
+		(RecordFieldKind.Record, _ ) => field.Struct,
 		(RecordFieldKind.Float, 1 ) => "float",
 		(RecordFieldKind.Float, 2 ) => "Vector2",
 		(RecordFieldKind.Float, 3 ) => "Vector3",
