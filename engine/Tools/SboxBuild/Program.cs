@@ -25,6 +25,7 @@ internal class Program
 		AddBuildContentCommand( rootCommand );
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
+		AddCheckShaderIncludesCommand( rootCommand );
 		AddShaderStatsCommand( rootCommand );
 		AddBorealisRenderTestsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
@@ -179,6 +180,13 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new BuildShaders( forced, seed ).Run();
 		}, forcedOption, seedOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddCheckShaderIncludesCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "check-shader-includes", "Check that every shipped Slang shader's includes are in a player's install, and that none reaches Valve's headers" );
+		cmd.SetHandler( () => Environment.ExitCode = (int)CheckShaderIncludes.Run() );
 		rootCommand.Add( cmd );
 	}
 
