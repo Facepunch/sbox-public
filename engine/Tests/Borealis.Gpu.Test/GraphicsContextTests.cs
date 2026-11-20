@@ -264,6 +264,32 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// A draw that samples the target it draws into (a game's feedback effect) reads the target as it was before the draw,
+	/// as native draws it: multiplied by itself, the covered half is the square of what was there, the other half untouched,
+	/// and the draw's attributes name the target again after it.
+	/// </summary>
+	[TestMethod]
+	public void ADrawSamplesItsOwnTargetAsItWas()
+	{
+		var list = Device.BeginCommandList( QueueType.Graphics, "Feedback" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var main = context.CreateTarget( Size, Size, Format.RGBA8Unorm, name: "Main" );
+		context.SetTarget( main );
+		context.Clear( new Vector4( 0.5f, 0.25f, 1, 1 ) );
+
+		var feedback = Composite( main, 0, 0 );
+		feedback.SetCombo( "D_BLENDMODE", 1 );
+		Assert.IsTrue( context.DrawQuad( library.Load( "shaders/ui_filter.shader" ), feedback, new Vector4( 0, 0, Size / 2, Size ), 0xFFFFFFFF ) );
+		Assert.AreEqual( main, (TextureHandle)feedback.Get( "Texture" ) );
+
+		var pixels = Finish( context, main );
+		var squared = Pixel( pixels, Size, 8, 8 );
+		Assert.IsTrue( Math.Abs( squared.R - 64 ) <= 2 && Math.Abs( squared.G - 16 ) <= 2 && squared.B >= 253, $"the covered half gave {squared}" );
+		Near( (128, 64, 255, 255), Pixel( pixels, Size, 48, 8 ), "the other half" );
+		context.Release();
+	}
+
+	/// <summary>
 	/// <c>D_BLENDMODE</c> picks the pipeline's blend state from the shader's render state: multiply (1) scales what's
 	/// there by the source, lighten (2) adds to it.
 	/// </summary>

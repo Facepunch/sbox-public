@@ -232,7 +232,7 @@ public sealed class GraphicsContext
 		if ( !ModeOf( shader, out var mode ) || !HasTarget( shader ) ) return false;
 		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
-		return drawer.DrawIndexedInstanced( List, shader, attributes, TargetFormat, depth, TargetSamples, indices, indexCount, instances, Viewport, mode );
+		return Drawn( attributes, drawer.DrawIndexedInstanced( List, shader, attributes, TargetFormat, depth, TargetSamples, indices, indexCount, instances, Viewport, mode ) );
 	}
 
 	/// <summary>
@@ -271,7 +271,7 @@ public sealed class GraphicsContext
 
 		// CPU vertices draw with the identity transform unless the draw sets its own, as native's do
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
-		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, upload.Buffer, upload.Offset, layout, count, topology, Viewport, mode );
+		return Drawn( attributes, drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, upload.Buffer, upload.Offset, layout, count, topology, Viewport, mode ) );
 	}
 
 	/// <summary>
@@ -285,7 +285,7 @@ public sealed class GraphicsContext
 		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
-		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, offset, layout, count, topology, Viewport, mode );
+		return Drawn( attributes, drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, offset, layout, count, topology, Viewport, mode ) );
 	}
 
 	/// <summary>
@@ -300,7 +300,7 @@ public sealed class GraphicsContext
 		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
-		return drawer.DrawIndexed( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, layout, indices, firstIndex, indexCount, baseVertex, instances, Viewport, mode );
+		return Drawn( attributes, drawer.DrawIndexed( List, shader, attributes, TargetFormat, depth, TargetSamples, vertices, layout, indices, firstIndex, indexCount, baseVertex, instances, Viewport, mode ) );
 	}
 
 	/// <summary>
@@ -314,7 +314,7 @@ public sealed class GraphicsContext
 		var depth = BeginScope( shader, attributes, mode );
 		Draws++;
 		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
-		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, draw, Viewport, mode );
+		return Drawn( attributes, drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, draw, Viewport, mode ) );
 	}
 
 	/// <summary>Said once, the first time a draw is skipped for having no target (<see cref="HasTarget"/>).</summary>
@@ -457,6 +457,46 @@ public sealed class GraphicsContext
 
 	// A multisampled target's colour resolved for CopyTarget
 	TextureHandle resolvedTarget;
+
+	// The target's colour as it was before a draw that samples it (BeginScope), and the attributes it stands in for there
+	TextureHandle targetCopy;
+	readonly List<string> sampledTargets = new();
+
+	/// <summary>The target copied (resolved, if it's multisampled) into a texture of its size and format kept for it, readable.</summary>
+	TextureHandle TargetCopy()
+	{
+		EndScope();
+		var info = gpu.InfoOf( Target );
+		if ( !targetCopy.IsValid || gpu.InfoOf( targetCopy ) is var kept && (kept.Width != info.Width || kept.Height != info.Height || kept.Format != info.Format) )
+		{
+			if ( targetCopy.IsValid )
+			{
+				owned.Remove( targetCopy );
+				layouts.Remove( targetCopy );
+				gpu.Destroy( targetCopy );
+			}
+
+			targetCopy = gpu.CreateTexture( TextureInfo.RenderTarget( info.Width, info.Height, info.Format, name: "Sampled target" ) );
+			layouts[targetCopy] = ImageLayout.Undefined;
+			owned.Add( targetCopy );
+		}
+
+		Transition( Target, ImageLayout.CopySource );
+		TransitionForWrite( targetCopy, ImageLayout.CopyDestination );
+		if ( info.Samples > 1 ) List.ResolveTexture( Target, targetCopy );
+		else List.CopyTexture( Target, targetCopy, 0, 1 );
+		Transition( targetCopy, ImageLayout.ShaderRead );
+		return targetCopy;
+	}
+
+	/// <summary>After a draw: the attributes a copy of the target stood in for (<see cref="TargetCopy"/>) are the target again.</summary>
+	bool Drawn( ShaderAttributes attributes, bool drawn )
+	{
+		if ( sampledTargets.Count == 0 ) return drawn;
+		foreach ( var name in sampledTargets ) attributes.Set( name, Target );
+		sampledTargets.Clear();
+		return drawn;
+	}
 
 	/// <summary>
 	/// Run a compute shader outside any rendering scope. Textures it's given whole are put in
@@ -970,6 +1010,7 @@ public sealed class GraphicsContext
 	Format BeginScope( ShaderFile shader, ShaderAttributes attributes, string mode )
 	{
 		if ( !Target.IsValid && !Depth.IsValid ) throw new InvalidOperationException( "No target is bound." );
+		sampledTargets.Clear();
 
 		var variant = Depth.IsValid ? drawer.Variant( shader, attributes, mode ) : null;
 		var depth = variant?.State is { } state && (state.DepthTest || state.DepthWrite) ? (state.DepthWrite ? DepthUse.Write : DepthUse.ReadOnly) : DepthUse.None;
@@ -985,11 +1026,26 @@ public sealed class GraphicsContext
 			if ( texture == Target || texture == Depth )
 			{
 				if ( !Reads( variant ?? drawer.Variant( shader, attributes, mode ), name ) ) continue;
-				if ( texture == Target || depth != DepthUse.None ) throw new InvalidOperationException( $"{name} samples a target being drawn to." );
+
+				// A draw that samples the colour it draws into (a feedback effect: RUN IT AGAIN's menu, its last frame) reads it
+				// as it was before the draw: a copy stands in for it while it draws
+				if ( texture == Target )
+				{
+					sampledTargets.Add( name );
+					continue;
+				}
+
+				if ( depth != DepthUse.None ) throw new InvalidOperationException( $"{name} samples a target being drawn to." );
 			}
 
 			EndScope();
 			Transition( texture, ImageLayout.ShaderRead );
+		}
+
+		if ( sampledTargets.Count > 0 )
+		{
+			var copy = TargetCopy();
+			foreach ( var name in sampledTargets ) attributes.Set( name, copy );
 		}
 
 		if ( rendering && scopeDepth == depth ) return depth == DepthUse.None ? Format.Unknown : gpu.InfoOf( Depth ).Format;
