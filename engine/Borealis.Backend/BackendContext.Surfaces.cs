@@ -22,15 +22,15 @@ internal sealed partial class BackendContext
 	static readonly StringToken LightmapCombo = new( "D_BAKED_LIGHTING_FROM_LIGHTMAP" );
 
 	/// <summary><c>kMaterialOffsetPerPixel</c> in sbox/material.slang.</summary>
-	const uint MaterialOffsetPerPixelId = 2;
+	internal const uint MaterialOffsetPerPixelId = 2;
 
 	/// <summary><c>kSurfaceOpaqueFade</c> in sbox/surface_passes.slangh: the draw is of a fading object (<c>D_OPAQUE_FADE</c>).</summary>
-	const uint OpaqueFadeId = 3;
+	internal const uint OpaqueFadeId = 3;
 
 	static readonly StringToken OpaqueFadeCombo = new( "D_OPAQUE_FADE" );
 
 	/// <summary><c>kSurfaceSkybox</c> in sbox/surface_passes.slangh: the draw is in the 3D skybox's view (<c>D_SKYBOX</c>).</summary>
-	const uint SkyboxId = 4;
+	internal const uint SkyboxId = 4;
 
 	static readonly StringToken SkyboxCombo = new( "D_SKYBOX" );
 
@@ -533,7 +533,7 @@ internal sealed partial class BackendContext
 		}
 	}
 
-	static SpirvImageDimension Dimension( TextureShape shape ) => shape switch
+	internal static SpirvImageDimension Dimension( TextureShape shape ) => shape switch
 	{
 		TextureShape.Cube => SpirvImageDimension.Cube,
 		TextureShape.CubeArray => SpirvImageDimension.CubeArray,
@@ -584,13 +584,13 @@ internal sealed partial class BackendContext
 		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
 	}
 
-	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GlobalConstants, SurfaceGlobalsLayout> GlobalLayouts = new();
+	internal static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GlobalConstants, SurfaceGlobalsLayout> GlobalLayouts = new();
 
 	/// <summary>
 	/// A stage's <c>$Globals</c> laid out once: every member's annotated default, and the members an attribute sets (an
 	/// <c>Attribute</c> annotation, as vfx binds them; the rest are a material's values, which a surface's record holds).
 	/// </summary>
-	sealed class SurfaceGlobalsLayout
+	internal sealed class SurfaceGlobalsLayout
 	{
 		public readonly byte[] Defaults;
 		public readonly int[] Bound;

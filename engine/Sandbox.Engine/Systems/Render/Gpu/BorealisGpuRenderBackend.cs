@@ -1632,6 +1632,87 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		return shader;
 	}
 
+	/// <summary>
+	/// What a draw with <paramref name="material"/> draws with: its shader (prepared as <see cref="Prepare"/> does), or, for a
+	/// material whose shader has no compiled <c>.shader</c> (one a surface alone stands for: standard, and complex for it;
+	/// skin, glass), the surface material its scene draws use, with what code set on it. Throws as <see cref="Require"/> when
+	/// it has neither.
+	/// </summary>
+	(ShaderFile Shader, SurfaceMaterial Surface) PrepareDraw( Material material )
+	{
+		if ( ShaderOf( material ) is null && SurfaceOf( material ) is { } surface ) return (null, surface);
+		return (Prepare( material ), null);
+	}
+
+	// A material's surface material, the version of what code set on it that it has, and whether it's the material's own copy
+	sealed class SurfaceBacking
+	{
+		public Borealis.GpuMaterial Material;
+		public int Version;
+		public bool Own;
+	}
+
+	readonly ConditionalWeakTable<Material, SurfaceBacking> surfaceMaterials = new();
+
+	/// <summary>
+	/// The surface a material's draws use where its shader is a surface alone: its compiled file's as the scene loads it, a
+	/// copy of its own once code set values or textures on it (<see cref="Material.SetInCode"/>), or for one made in code from
+	/// a shader (<see cref="Material.MadeFromShader"/>) the surface with its defaults and those. Null when it isn't one.
+	/// </summary>
+	SurfaceMaterial SurfaceOf( Material material )
+	{
+		if ( material is null ) return null;
+		if ( surfaceMaterials.TryGetValue( material, out var known ) )
+		{
+			if ( known.Version == material.SetInCodeVersion ) return known.Material as SurfaceMaterial;
+
+			// Code set more on it since: its own copy takes the new values, made now if it was the shared one
+			if ( !known.Own && known.Material is SurfaceMaterial && material.FilePath is { Length: > 0 } shared )
+			{
+				known.Material = services.LoadMaterial( shared, (IReadOnlyDictionary<string, float[]>)null, $"{shared} (set in code)" );
+				known.Own = true;
+			}
+
+			if ( known.Own && known.Material is ConvertedMaterial copied && material.SetInCode is { } changed ) SetOnSurface( copied, changed );
+			known.Version = material.SetInCodeVersion;
+			return known.Material as SurfaceMaterial;
+		}
+
+		Borealis.GpuMaterial made = null;
+		var own = false;
+		var path = material.FilePath;
+		var set = material.SetInCode is { Count: > 0 } s ? s : null;
+		if ( material.MadeFromShader is { } shader )
+		{
+			made = ((Borealis.GpuDevice)services).CreateMaterial( material.Name ?? path ?? shader, ShaderPath( shader ) );
+			own = true;
+		}
+		else if ( !string.IsNullOrEmpty( path ) && files.Find( path ) is not null )
+		{
+			own = set is not null;
+			made = own ? services.LoadMaterial( path, (IReadOnlyDictionary<string, float[]>)null, $"{path} (set in code)" ) : services.LoadMaterial( path );
+		}
+
+		if ( own && made is ConvertedMaterial copy && set is not null ) SetOnSurface( copy, set );
+		surfaceMaterials.AddOrUpdate( material, new SurfaceBacking { Material = made, Version = material.SetInCodeVersion, Own = own } );
+		return made as SurfaceMaterial;
+	}
+
+	/// <summary>Values and textures set on a material in code, on its own surface copy, by the shader variables they name.</summary>
+	void SetOnSurface( ConvertedMaterial surface, IReadOnlyDictionary<string, object> set )
+	{
+		Span<float> value = stackalloc float[4];
+		foreach ( var (name, given) in set )
+		{
+			if ( given is Vector4 v )
+			{
+				(value[0], value[1], value[2], value[3]) = (v.x, v.y, v.z, v.w);
+				surface.Set( name, value );
+			}
+			else if ( given is Texture { IsValid: true } texture ) surface.Set( name, BorealisViewOf( texture ) );
+		}
+	}
+
 	/// <summary>Draw with materials' compiled values (the default); off draws their shaders' defaults, for comparisons.</summary>
 	internal static bool MaterialValues { get; set; } = true;
 
@@ -1797,14 +1878,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var layout = LayoutOf( vertexType );
 		if ( layout.Stride > vertexSize ) throw new ArgumentException( $"{vertexType} vertex layout is larger than the vertex type" );
 
-		var shader = Prepare( material );
+		var (shader, surface) = PrepareDraw( material );
 		var bytes = new ReadOnlySpan<byte>( (void*)vertices, vertexSize * vertexCount );
 		// CPU vertices hold plain normals and tangents, as a native view tells its draws (UncompressedTangentFrame)
 		var lowered = Lower( attributes );
 		if ( lowered.Get( UncompressedTangentFrame ) is null ) lowered.Set( UncompressedTangentFrame, 1.0f );
 		if ( indices == IntPtr.Zero )
 		{
-			context.DrawVertices( shader, lowered, bytes, layout, vertexCount, Topology( primitiveType ) );
+			if ( surface is not null ) context.DrawSurfaceVertices( surface, lowered, bytes, layout, vertexCount, Topology( primitiveType ) );
+			else context.DrawVertices( shader, lowered, bytes, layout, vertexCount, Topology( primitiveType ) );
 			return;
 		}
 
@@ -1814,7 +1896,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var indexBytes = new ReadOnlySpan<byte>( (void*)indices, indexCount * sizeof( ushort ) );
 		var indexUpload = list.AllocateUpload( indexBytes.Length, 16 );
 		indexBytes.CopyTo( indexUpload.Data );
-		context.Draw( shader, lowered, new GeometryDraw
+		var geometry = new GeometryDraw
 		{
 			Vertices = vertexUpload.Buffer,
 			VertexOffset = vertexUpload.Offset,
@@ -1824,7 +1906,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			IndexFormat = IndexFormat.UInt16,
 			Topology = Topology( primitiveType ),
 			Count = indexCount,
-		} );
+		};
+		if ( surface is not null ) context.DrawSurface( surface, lowered, geometry );
+		else context.Draw( shader, lowered, geometry );
 	}
 
 	public override bool SetRenderState( Material material, RenderAttributes attributes, Type vertexType )
@@ -1832,7 +1916,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ = Recording;
 		pendingLayout = vertexType is null ? null : LayoutOf( vertexType );
 		pendingMaterial = material;
-		pendingShader = Prepare( material );
+		pendingShader = PrepareDraw( material ).Shader;
 		pendingAttributes = attributes;
 		return true;
 	}

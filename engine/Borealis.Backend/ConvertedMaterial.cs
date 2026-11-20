@@ -17,6 +17,55 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 
 	ConvertedMaterial( string shader, Sandbox.ShaderCompiler.MaterialLayout layout ) : base( shader, layout.Size, MaterialClassWriter.Hash( layout ), layout.States() )
 	{
+		this.layout = layout;
+	}
+
+	readonly Sandbox.ShaderCompiler.MaterialLayout layout;
+
+	/// <summary>
+	/// Set the fields a shader variable fills (<c>g_vColorTint</c>: a field whose <c>[Source]</c> it is, or named for it with
+	/// vfx's prefixes), as code setting it on the material does. False when the surface has no such field.
+	/// </summary>
+	public bool Set( string variable, ReadOnlySpan<float> value )
+	{
+		var found = false;
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.Kind == MaterialFieldKind.Texture2D || !Fills( field, variable ) ) continue;
+			found = true;
+			for ( int i = 0; i < field.Components && i < value.Length; i++ )
+			{
+				if ( field.Kind == MaterialFieldKind.Float ) SetFloat( field.Offset + i * 4, value[i] );
+				else SetInt( field.Offset + i * 4, field.Kind == MaterialFieldKind.Bool ? (value[i] != 0 ? 1 : 0) : (int)MathF.Round( value[i] ) );
+			}
+		}
+
+		return found;
+	}
+
+	/// <summary>Set the texture fields a shader variable (<c>g_tColor</c>) fills, as <see cref="Set(string, ReadOnlySpan{float})"/> does values.</summary>
+	public bool Set( string variable, GpuTexture texture )
+	{
+		var found = false;
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.Kind != MaterialFieldKind.Texture2D || !Fills( field, variable ) ) continue;
+			found = true;
+			SetTexture( field.Offset, texture, field.Srgb );
+		}
+
+		return found;
+	}
+
+	static bool Fills( MaterialField field, string variable )
+	{
+		if ( field.Source is { } source ) return string.Equals( source, variable, StringComparison.OrdinalIgnoreCase );
+		foreach ( var prefix in Prefixes )
+		{
+			if ( variable.Length == prefix.Length + field.Name.Length && variable.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) && variable.EndsWith( field.Name, StringComparison.OrdinalIgnoreCase ) ) return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>The compiled material it was made from: the textures it names by shader variable, read or not.</summary>

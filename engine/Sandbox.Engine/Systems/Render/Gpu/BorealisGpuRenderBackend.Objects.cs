@@ -57,7 +57,7 @@ internal sealed partial class BorealisGpuRenderBackend
 			idValues[d] = skinned ? (uint)Math.Max( obj.SkinSlots.Length > draws[d].Mesh ? obj.SkinSlots[draws[d].Mesh] : 0, 0 ) : rigidSlot;
 
 		var unrolled = UnrolledOf( model );
-		var overrideShader = material is null ? null : Prepare( material );
+		var (overrideShader, overrideSurface) = material is null ? default : PrepareDraw( material );
 		var own = objectAttributes?.Managed ?? objectAttributes?.ShadowSet?.Managed;
 		var previousMaterial = drawer.Material;
 
@@ -68,16 +68,25 @@ internal sealed partial class BorealisGpuRenderBackend
 				var draw = draws[d];
 				if ( draw.IndexCount < 3 ) continue;
 
-				// The override's shader with its file's values, else the draw's own material
-				ShaderFile shader;
+				// The override's shader with its file's values, else the draw's own material; a surface where the material is one
+				ShaderFile shader = null;
+				SurfaceMaterial surface = null;
 				if ( overrideShader is not null )
 				{
 					shader = overrideShader;
+				}
+				else if ( overrideSurface is not null )
+				{
+					surface = overrideSurface;
 				}
 				else if ( (obj.MaterialOverride ?? draw.Material) is BackendMaterial drawMaterial && drawMaterial.Shader is not null )
 				{
 					shader = drawMaterial.Shader;
 					drawer.Material = drawMaterial;
+				}
+				else if ( (obj.MaterialOverride ?? draw.Material) is SurfaceMaterial drawSurface )
+				{
+					surface = drawSurface;
 				}
 				else continue;
 
@@ -91,7 +100,8 @@ internal sealed partial class BorealisGpuRenderBackend
 				if ( obj.IsSkinned ) lowered.SetCombo( "D_CS_VERTEX_ANIMATION", vertexCache ? 1 : 0 );
 
 				drawer.InstanceIds = (ids.Buffer, ids.Offset + d * sizeof( uint ));
-				context.DrawBuffer( shader, lowered, geometry.Vertices, 0, geometry.Layout, geometry.Count, PrimitiveTopology.TriangleList );
+				if ( surface is not null ) context.DrawSurface( surface, lowered, new GeometryDraw { Vertices = geometry.Vertices, Layout = geometry.Layout, Count = geometry.Count, Topology = PrimitiveTopology.TriangleList } );
+				else context.DrawBuffer( shader, lowered, geometry.Vertices, 0, geometry.Layout, geometry.Count, PrimitiveTopology.TriangleList );
 			}
 		}
 		finally

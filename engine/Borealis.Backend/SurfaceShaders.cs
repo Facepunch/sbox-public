@@ -1052,6 +1052,30 @@ internal sealed class SurfaceProgram : IDisposable
 		}
 	}
 
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, SurfaceRenderState State, PrimitiveTopology Topology, bool Ids, bool OpaqueFade, ToolsPass Tools), PipelineHandle> immediatePipelines = new();
+
+	/// <summary>
+	/// A pipeline for the engine's own drawing (<see cref="ShaderDrawer.DrawSurface"/>: <c>Graphics.Draw</c>, models drawn in
+	/// code, custom objects) of a pass with vertices laid out as <paramref name="layout"/> drawn as <paramref name="topology"/>,
+	/// made at once. Instance ids are stream 1, per instance where the draw has them (<paramref name="ids"/>), else read from
+	/// the start of the default stream as a classic draw's are; the default stream is 2. In a tools pass the colour pass draws
+	/// with the engine's pixel stage, as scene draws do.
+	/// </summary>
+	public PipelineHandle ImmediatePipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, PrimitiveTopology topology, bool ids, bool opaqueFade, ToolsPass tools )
+	{
+		if ( color == Format.Unknown ) tools = ToolsPass.None;
+		var key = (pass, layout, color, depth, samples, constantsKey, state, topology, ids, opaqueFade, tools);
+		lock ( pipelines )
+		{
+			if ( immediatePipelines.TryGetValue( key, out var made ) ) return made;
+			var info = Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, false, opaqueFade, false, false ) with { SkipUntilReady = false, Topology = topology };
+			if ( !ids ) info.VertexBuffers[1] = new VertexBufferLayout( 0, VertexStepRate.Instance );
+			if ( tools != ToolsPass.None ) ToolsViewStage.Apply( device.Shaders, ref info, tools, ToolsViews.ShaderColor( Compiled.Name ) );
+			using ( Zones.PipelineCreate.Start() ) made = device.Gpu.CreateGraphicsPipeline( info );
+			return immediatePipelines[key] = made;
+		}
+	}
+
 	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, bool Normals, ToolsPass Tools), PipelineHandle> toolsPipelines = new();
 
 	PipelineHandle ToolsPipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, ulong constantsKey, SurfaceRenderState state, bool opaqueFade, bool depthEqual, bool normals, ToolsPass tools )
@@ -1388,8 +1412,10 @@ internal sealed class SurfaceProgram : IDisposable
 		{
 			foreach ( var pipeline in pipelines.Values ) device.Gpu.Destroy( pipeline );
 			foreach ( var pipeline in toolsPipelines.Values ) device.Gpu.Destroy( pipeline );
+			foreach ( var pipeline in immediatePipelines.Values ) device.Gpu.Destroy( pipeline );
 			pipelines.Clear();
 			toolsPipelines.Clear();
+			immediatePipelines.Clear();
 		}
 	}
 }
