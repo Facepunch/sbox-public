@@ -149,7 +149,7 @@ struct PS_OUTPUT
 	}
 
 	#if ( D_SRGB_TRANSFER == 1 )
-		vColorOutput = float4( SrgbLinearToGamma( vColorOutput.rgb ), 0.0 );
+		vColorOutput = float4( SrgbLinearToGamma( vColorOutput.rgb ), 1.0 );
 	#elif ( D_SRGB_TRANSFER == 2 )
 		clip( vColorOutput.a > 0.0 ? 1.0 : -1.0 );
 		vColorOutput.rgb = SrgbGammaToLinear( vColorOutput.rgb );
