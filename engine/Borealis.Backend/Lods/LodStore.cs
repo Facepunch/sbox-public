@@ -342,74 +342,89 @@ internal sealed class LodStore : IDisposable
 			var started = Stopwatch.GetTimestamp();
 			var s = entry.Source;
 			var count = (int)entry.Range.IndexCount;
-			var indices = new uint[count];
-			uint min = uint.MaxValue, max = 0;
-			for ( int k = 0; k < count; k++ )
-			{
-				var index = s.Indices[s.IndexBase + k];
-				indices[k] = index;
-				min = Math.Min( min, index );
-				max = Math.Max( max, index );
-			}
+			LodChain chain;
 
-			var positions = new V3[max - min + 1];
-			for ( int v = 0; v < positions.Length; v++ )
+			// The range's indices and, from the lowest index it uses, its vertices' positions, texture coordinates (2D float
+			// sets, which count in the error), colours and blend weights (four bytes each, which count too) and normals, in
+			// pooled scratch (a map's ranges made hundreds of MiB of garbage a load): with the config, the cache's key
+			var indexArray = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+			V3[] positionArray = null, normalArray = null;
+			var sets = new List<System.Numerics.Vector2[]>( 4 );
+			var colors = new List<System.Numerics.Vector4[]>( 4 );
+			try
 			{
-				var p = s.Vertices.Read( s.Position, s.VertexBase + (int)min + v );
-				positions[v] = new V3( p.X, p.Y, p.Z );
-			}
-
-			// Its texture coordinates (2D float sets), which count in the error
-			var sets = new List<System.Numerics.Vector2[]>();
-			foreach ( var field in s.Vertices.Fields )
-			{
-				if ( sets.Count == 4 || !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) || field.PerInstance ) continue;
-				if ( field.Format is not (ColorFormat.R32G32_FLOAT or ColorFormat.R16G16_FLOAT or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT or ColorFormat.R16G16B16A16_FLOAT or ColorFormat.R16G16_UNORM) ) continue;
-				var set = new System.Numerics.Vector2[positions.Length];
-				for ( int v = 0; v < set.Length; v++ ) set[v] = Coordinate( s.Vertices, field, s.VertexBase + (int)min + v );
-				sets.Add( set );
-			}
-
-			// Its vertex colours and blend weights (four bytes each), which count in the error too
-			var colors = new List<System.Numerics.Vector4[]>();
-			foreach ( var field in s.Vertices.Fields )
-			{
-				if ( colors.Count == 4 || field.PerInstance || field.Format != ColorFormat.R8G8B8A8_UNORM ) continue;
-				if ( !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) && !string.Equals( field.Semantic, "COLOR", StringComparison.OrdinalIgnoreCase ) ) continue;
-				var set = new System.Numerics.Vector4[positions.Length];
-				for ( int v = 0; v < set.Length; v++ )
+				var indices = indexArray.AsSpan( 0, count );
+				uint min = uint.MaxValue, max = 0;
+				for ( int k = 0; k < count; k++ )
 				{
-					var c = s.Vertices.Read( field, s.VertexBase + (int)min + v );
-					set[v] = new System.Numerics.Vector4( c.X, c.Y, c.Z, c.W );
+					var index = s.Indices[s.IndexBase + k];
+					indices[k] = index;
+					min = Math.Min( min, index );
+					max = Math.Max( max, index );
 				}
 
-				colors.Add( set );
-			}
+				var vertexCount = count == 0 ? 0 : (int)(max - min + 1);
+				positionArray = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+				for ( int v = 0; v < vertexCount; v++ )
+				{
+					var p = s.Vertices.Read( s.Position, s.VertexBase + (int)min + v );
+					positionArray[v] = new V3( p.X, p.Y, p.Z );
+				}
 
-			// Its normals, where the format is one read here (a compressed tangent frame's octahedral normal, or floats)
-			V3[] normals = null;
-			if ( s.Vertices.Find( "NORMAL" ) is { } normalField && normalField.Format is ColorFormat.R10G10B10A2_UNORM or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT )
-			{
-				normals = new V3[positions.Length];
-				for ( int v = 0; v < normals.Length; v++ ) normals[v] = Normal( s.Vertices, normalField, s.VertexBase + (int)min + v );
-			}
+				foreach ( var field in s.Vertices.Fields )
+				{
+					if ( sets.Count == 4 || !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) || field.PerInstance ) continue;
+					if ( field.Format is not (ColorFormat.R32G32_FLOAT or ColorFormat.R16G16_FLOAT or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT or ColorFormat.R16G16B16A16_FLOAT or ColorFormat.R16G16_UNORM) ) continue;
+					var set = System.Buffers.ArrayPool<System.Numerics.Vector2>.Shared.Rent( vertexCount );
+					sets.Add( set );
+					for ( int v = 0; v < vertexCount; v++ ) set[v] = Coordinate( s.Vertices, field, s.VertexBase + (int)min + v );
+				}
 
-			FieldsSeen.AddOrUpdate( string.Join( " ", s.Vertices.Fields.Select( f => f.ToString() ) ), 1, ( _, n ) => n + 1 );
-			var key = CacheFolder is null ? null : Key( indices, positions, sets, normals, colors );
-			var empty = false;
-			var cached = key is null ? null : ReadCached( key, out empty );
-			LodChain chain;
-			if ( cached is not null || empty )
-			{
-				chain = cached;
-				Interlocked.Increment( ref CacheHits );
+				foreach ( var field in s.Vertices.Fields )
+				{
+					if ( colors.Count == 4 || field.PerInstance || field.Format != ColorFormat.R8G8B8A8_UNORM ) continue;
+					if ( !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) && !string.Equals( field.Semantic, "COLOR", StringComparison.OrdinalIgnoreCase ) ) continue;
+					var set = System.Buffers.ArrayPool<System.Numerics.Vector4>.Shared.Rent( vertexCount );
+					colors.Add( set );
+					for ( int v = 0; v < vertexCount; v++ )
+					{
+						var c = s.Vertices.Read( field, s.VertexBase + (int)min + v );
+						set[v] = new System.Numerics.Vector4( c.X, c.Y, c.Z, c.W );
+					}
+				}
+
+				// Its normals, where the format is one read here (a compressed tangent frame's octahedral normal, or floats)
+				if ( s.Vertices.Find( "NORMAL" ) is { } normalField && normalField.Format is ColorFormat.R10G10B10A2_UNORM or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT )
+				{
+					normalArray = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+					for ( int v = 0; v < vertexCount; v++ ) normalArray[v] = Normal( s.Vertices, normalField, s.VertexBase + (int)min + v );
+				}
+
+				FieldsSeen.AddOrUpdate( string.Join( " ", s.Vertices.Fields.Select( f => f.ToString() ) ), 1, ( _, n ) => n + 1 );
+				var key = CacheFolder is null ? null : Key( indices, positionArray.AsSpan( 0, vertexCount ), sets, normalArray, colors, vertexCount );
+				var empty = false;
+				var cached = key is null ? null : ReadCached( key, out empty );
+				if ( cached is not null || empty )
+				{
+					chain = cached;
+					Interlocked.Increment( ref CacheHits );
+				}
+				else
+				{
+					var (positions, normals, offset) = (positionArray, normalArray, s.VertexBase + (int)min);
+					var readers = sets.Select( set => (Func<int, System.Numerics.Vector2>)(v => set[v - offset]) ).ToArray();
+					var colorReaders = colors.Select( set => (Func<int, System.Numerics.Vector4>)(v => set[v - offset]) ).ToArray();
+					chain = LodBuilder.Build( indices, v => positions[v - offset], s.VertexBase, Config, readers, normals is null ? null : v => normals[v - offset], colorReaders );
+					if ( key is not null ) WriteCached( key, chain );
+				}
 			}
-			else
+			finally
 			{
-				var readers = sets.Select( set => (Func<int, System.Numerics.Vector2>)(v => set[v - s.VertexBase - (int)min]) ).ToArray();
-				var colorReaders = colors.Select( set => (Func<int, System.Numerics.Vector4>)(v => set[v - s.VertexBase - (int)min]) ).ToArray();
-				chain = LodBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config, readers, normals is null ? null : v => normals[v - s.VertexBase - (int)min], colorReaders );
-				if ( key is not null ) WriteCached( key, chain );
+				System.Buffers.ArrayPool<uint>.Shared.Return( indexArray );
+				if ( positionArray is not null ) System.Buffers.ArrayPool<V3>.Shared.Return( positionArray );
+				if ( normalArray is not null ) System.Buffers.ArrayPool<V3>.Shared.Return( normalArray );
+				foreach ( var set in sets ) System.Buffers.ArrayPool<System.Numerics.Vector2>.Shared.Return( set );
+				foreach ( var set in colors ) System.Buffers.ArrayPool<System.Numerics.Vector4>.Shared.Return( set );
 			}
 
 			Interlocked.Add( ref BuildTicks, Stopwatch.GetTimestamp() - started );
@@ -723,16 +738,17 @@ internal sealed class LodStore : IDisposable
 		return normal.LengthSquared() > 0 ? V3.Normalize( normal ) : V3.UnitZ;
 	}
 
-	string Key( uint[] indices, V3[] positions, List<System.Numerics.Vector2[]> sets, V3[] normals, List<System.Numerics.Vector4[]> colors )
+	// Each set holds vertexCount values at its start (pooled arrays are longer)
+	string Key( ReadOnlySpan<uint> indices, ReadOnlySpan<V3> positions, List<System.Numerics.Vector2[]> sets, V3[] normals, List<System.Numerics.Vector4[]> colors, int vertexCount )
 	{
 		using var hash = System.Security.Cryptography.IncrementalHash.CreateHash( System.Security.Cryptography.HashAlgorithmName.SHA256 );
 		Span<int> head = [(int)CacheVersion, Config.MaxLevels, BitConverter.SingleToInt32Bits( Config.Ratio ), BitConverter.SingleToInt32Bits( Config.KeepRatio ), Config.MinTriangles, Config.MinRangeTriangles, BitConverter.SingleToInt32Bits( Config.NormalWeight ), BitConverter.SingleToInt32Bits( Config.ColorWeight ), indices.Length, positions.Length];
 		hash.AppendData( MemoryMarshal.AsBytes( head ) );
-		hash.AppendData( MemoryMarshal.AsBytes( indices.AsSpan() ) );
-		hash.AppendData( MemoryMarshal.AsBytes( positions.AsSpan() ) );
-		foreach ( var set in sets ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan() ) );
-		if ( normals is not null ) hash.AppendData( MemoryMarshal.AsBytes( normals.AsSpan() ) );
-		foreach ( var set in colors ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan() ) );
+		hash.AppendData( MemoryMarshal.AsBytes( indices ) );
+		hash.AppendData( MemoryMarshal.AsBytes( positions ) );
+		foreach ( var set in sets ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan( 0, vertexCount ) ) );
+		if ( normals is not null ) hash.AppendData( MemoryMarshal.AsBytes( normals.AsSpan( 0, vertexCount ) ) );
+		foreach ( var set in colors ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan( 0, vertexCount ) ) );
 		return Convert.ToHexString( hash.GetHashAndReset() );
 	}
 
@@ -746,34 +762,43 @@ internal sealed class LodStore : IDisposable
 		{
 			var path = CachePath( key );
 			if ( !System.IO.File.Exists( path ) ) return null;
-			var bytes = System.IO.File.ReadAllBytes( path );
-			if ( bytes.Length < 12 ) return null;
-			var head = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( 0, 12 ) );
-			if ( head[0] != CacheMagic || head[1] != CacheVersion || head[2] > MaxLevels ) return null;
-			var levels = (int)head[2];
-			if ( levels == 0 )
+			// Read into pooled scratch: only the chain's own arrays are new
+			var buffer = PooledFile.Read( path, out var length );
+			try
 			{
-				empty = bytes.Length == 12;
-				return null;
+				var bytes = buffer.AsSpan( 0, length );
+				if ( bytes.Length < 12 ) return null;
+				var head = MemoryMarshal.Cast<byte, uint>( bytes.Slice( 0, 12 ) );
+				if ( head[0] != CacheMagic || head[1] != CacheVersion || head[2] > MaxLevels ) return null;
+				var levels = (int)head[2];
+				if ( levels == 0 )
+				{
+					empty = bytes.Length == 12;
+					return null;
+				}
+
+				var table = 12 + levels * 8;
+				if ( bytes.Length < table ) return null;
+				var counts = MemoryMarshal.Cast<byte, uint>( bytes.Slice( 12, levels * 4 ) );
+				var errors = MemoryMarshal.Cast<byte, float>( bytes.Slice( 12 + levels * 4, levels * 4 ) ).ToArray();
+				long total = 0;
+				foreach ( var count in counts ) total += count;
+				if ( bytes.Length != table + total * 4 ) return null;
+
+				var chain = new uint[levels][];
+				var at = table;
+				for ( int k = 0; k < levels; k++ )
+				{
+					chain[k] = MemoryMarshal.Cast<byte, uint>( bytes.Slice( at, (int)counts[k] * 4 ) ).ToArray();
+					at += (int)counts[k] * 4;
+				}
+
+				return new LodChain { Levels = chain, Errors = errors };
 			}
-
-			var table = 12 + levels * 8;
-			if ( bytes.Length < table ) return null;
-			var counts = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( 12, levels * 4 ) );
-			var errors = MemoryMarshal.Cast<byte, float>( bytes.AsSpan( 12 + levels * 4, levels * 4 ) ).ToArray();
-			long total = 0;
-			foreach ( var count in counts ) total += count;
-			if ( bytes.Length != table + total * 4 ) return null;
-
-			var chain = new uint[levels][];
-			var at = table;
-			for ( int k = 0; k < levels; k++ )
+			finally
 			{
-				chain[k] = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( at, (int)counts[k] * 4 ) ).ToArray();
-				at += (int)counts[k] * 4;
+				PooledFile.Return( buffer );
 			}
-
-			return new LodChain { Levels = chain, Errors = errors };
 		}
 		catch ( System.IO.IOException )
 		{
