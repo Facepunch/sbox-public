@@ -114,13 +114,38 @@ public class NavMeshLink : Component, Component.ExecuteInEditor
 	internal int queued;
 
 	/// <summary>
-	/// True for a drop or jump the navmesh generated. The navmesh owns it: it is not saved with the scene and may be destroyed or recreated at any time.
+	/// True for a drop, jump or ladder the navmesh generated. The navmesh owns it: it is not saved with the scene and may be destroyed or recreated at any time.
 	/// Its type, positions, radius, direction and area are fixed and changes to them are ignored. <see cref="Occupancy"/> and the enter and exit callbacks may be used.
 	/// </summary>
 	public bool IsGenerated { get; internal set; }
 
 	// What the navmesh reported for a generated link
 	internal Nav.NavLink generated;
+	internal Vector3 generatedClimbDirection = Vector3.Up;
+	internal float generatedClimbExitLift;
+	internal const float MinimumClimbUp = 0.25f;
+
+	/// <summary>
+	/// World-space axis for ladder and climb traversal. Authored links use their object's up axis;
+	/// generated ladders retain the trigger's axis. The NPC steps onto this line, climbs it, then steps off.
+	/// </summary>
+	[Hide]
+	public Vector3 ClimbDirection
+	{
+		get
+		{
+			var direction = IsGenerated ? generatedClimbDirection : WorldRotation.Up;
+			// Near-horizontal axes magnify a small height difference into an arbitrarily distant climb.
+			return MathF.Abs( direction.z ) >= MinimumClimbUp ? direction : Vector3.Up;
+		}
+	}
+
+	/// <summary>
+	/// Extra height above the upper landing needed to cross a generated ladder's top rung or roof rim.
+	/// Traversal climbs to this height, crosses over the landing, then steps down onto it.
+	/// </summary>
+	[Hide]
+	public float ClimbExitLift => generatedClimbExitLift;
 
 	/// <summary>
 	/// Emitted when an agent enters the link.

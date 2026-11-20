@@ -67,6 +67,13 @@ public sealed partial class NavMesh
 			}
 		}
 
+		foreach ( var entry in ladders.Values )
+		{
+			foreach ( var link in entry.Links )
+			{
+				if ( link.IsValid() && link.WorldPosition.WithZ( 0 ).DistanceSquared( cameraPosition.WithZ( 0 ) ) < debugTileDrawDistance * debugTileDrawDistance ) DebugCollectLink( link );
+			}
+		}
 		DebugFlushGeoemtry();
 	}
 
@@ -119,25 +126,36 @@ public sealed partial class NavMesh
 	private void DebugCollectTileLinks( Vector2Int tilePosition )
 	{
 		if ( !generatedLinks.TryGetValue( (tilePosition.x, tilePosition.y), out var components ) ) return;
-		foreach ( var component in components )
-		{
-			var color = (component.Type?.Color ?? debugTileBorderColor).WithAlpha( 1 );
-			if ( !debugLinkLines.TryGetValue( color, out var lines ) )
-			{
-				debugLinkLines[color] = lines = new();
-			}
+		foreach ( var component in components ) DebugCollectLink( component );
+	}
 
-			Vector3 start = (Vector3)component.generated.Start + debugDrawGroundOffset, end = (Vector3)component.generated.End + debugDrawGroundOffset;
-			var previous = start;
-			for ( int i = 1; i <= 4; i++ )
-			{
-				float t = i / 4f;
-				var point = Vector3.Lerp( start, end, t ) + Vector3.Up * (MathF.Sin( t * MathF.PI ) * MathF.Abs( start.z - end.z ) * 0.5f);
-				lines.Add( new Line( previous, point ) );
-				previous = point;
-			}
-			if ( !component.generated.Bidirectional ) lines.Add( new Line( end, end + Vector3.Up * 8f ) );
+	private void DebugCollectLink( NavMeshLink component )
+	{
+		var color = (component.Type?.Color ?? debugTileBorderColor).WithAlpha( 1 );
+		if ( !debugLinkLines.TryGetValue( color, out var lines ) )
+		{
+			debugLinkLines[color] = lines = new();
 		}
+
+		Vector3 start = (Vector3)component.generated.Start + debugDrawGroundOffset, end = (Vector3)component.generated.End + debugDrawGroundOffset;
+		if ( component.Type is not null && component.Type == Sandbox.Engine.Resources.NavMeshLinkType.Ladder )
+		{
+			var landing = end + Vector3.Up * component.ClimbExitLift;
+			var top = start + component.ClimbDirection * ((landing.z - start.z) / component.ClimbDirection.z);
+			lines.Add( new Line( start, top ) );
+			lines.Add( new Line( top, landing ) );
+			lines.Add( new Line( landing, end ) );
+			return;
+		}
+		var previous = start;
+		for ( int i = 1; i <= 4; i++ )
+		{
+			float t = i / 4f;
+			var point = Vector3.Lerp( start, end, t ) + Vector3.Up * (MathF.Sin( t * MathF.PI ) * MathF.Abs( start.z - end.z ) * 0.5f);
+			lines.Add( new Line( previous, point ) );
+			previous = point;
+		}
+		if ( !component.generated.Bidirectional ) lines.Add( new Line( end, end + Vector3.Up * 8f ) );
 	}
 
 	private void DebugCollectTileNavmeshGeometry( Vector2Int tilePosition )

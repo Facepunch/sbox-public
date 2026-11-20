@@ -1379,9 +1379,11 @@ public class NpcClimbTests
 	const float Tick = 0.02f;
 
 	[TestMethod]
-	[DataRow( "ladder" )]
-	[DataRow( "climb" )]
-	public async Task AClimbFollowsTheLinkLine( string name )
+	[DataRow( "ladder", 0f )]
+	[DataRow( "climb", 0f )]
+	[DataRow( "ladder", 89f )]
+	[DataRow( "climb", 89f )]
+	public async Task AClimbFollowsTheLinkLine( string name, float pitch )
 	{
 		var type = NavigationTestScene.ShippedLinkType( name );
 
@@ -1392,8 +1394,9 @@ public class NpcClimbTests
 
 		var foot = new Vector3( 100, 0, 0 );
 		var link = scene.CreateObject().Components.Create<NavMeshLink>( false );
-		link.LocalStartPosition = foot;
-		link.LocalEndPosition = new Vector3( 50, 0, 200 );
+		link.WorldRotation = Rotation.FromPitch( pitch );
+		link.WorldStartPosition = foot;
+		link.WorldEndPosition = new Vector3( 50, 0, 200 );
 		link.Type = type;
 		link.Enabled = true;
 		Assert.IsTrue( await scene.NavMesh.Generate( scene.PhysicsWorld ) );

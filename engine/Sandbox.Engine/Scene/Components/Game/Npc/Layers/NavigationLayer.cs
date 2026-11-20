@@ -119,6 +119,8 @@ public class NavigationLayer : MovementLayer
 	private LinkTraversalState? _traversal;
 	private float _traversalTime;
 	private Vector3 _climbFoot;
+	private Vector3 _climbDirection;
+	private float _climbExitLift;
 	private Vector3 _dropDeparture;
 	private Vector3 _dropLift;
 	private float _dropLiftTime;
@@ -215,6 +217,8 @@ public class NavigationLayer : MovementLayer
 		_traversal = new LinkTraversalState { Type = type ?? linkType, Link = link, Start = start, End = end };
 		_traversalTime = 0;
 		_climbFoot = GetClimbFoot( data );
+		_climbDirection = link.IsValid() ? link.ClimbDirection : Vector3.Up;
+		_climbExitLift = link.IsValid() ? link.ClimbExitLift : 0;
 		_traversalLastPosition = WorldPosition;
 
 		if ( type is null && linkType is not null )
@@ -292,8 +296,8 @@ public class NavigationLayer : MovementLayer
 
 			case Crossing.Ladder:
 			case Crossing.Climb:
-				var (on, off, climbSpeed, stepSpeed) = GetClimbPath( t );
-				return t.Start.Distance( on ) / stepSpeed + on.Distance( off ) / climbSpeed + off.Distance( t.End ) / stepSpeed;
+				var (entry, on, off, exit, climbSpeed, stepSpeed) = GetClimbPath( t );
+				return (t.Start.Distance( entry ) + entry.Distance( on ) + off.Distance( exit ) + exit.Distance( t.End )) / stepSpeed + on.Distance( off ) / climbSpeed;
 
 			default:
 				return t.Start.Distance( t.End ) / MathF.Max( Agent.MaxSpeed, 1 );
@@ -313,11 +317,16 @@ public class NavigationLayer : MovementLayer
 		return placed.WithZ( 0 ).Distance( snapped.WithZ( 0 ) ) <= link.ConnectionRadius ? placed : snapped;
 	}
 
-	// A step onto the link's line at the foot, vertical along it, and a step off at the far end.
-	private (Vector3 On, Vector3 Off, float ClimbSpeed, float StepSpeed) GetClimbPath( in LinkTraversalState t )
+	// A step onto the link's axis at the starting height, along it, and a step off at the far end.
+	private (Vector3 Entry, Vector3 On, Vector3 Off, Vector3 Exit, float ClimbSpeed, float StepSpeed) GetClimbPath( in LinkTraversalState t )
 	{
 		var climbSpeed = MathF.Max( KindOf( t.Type ) == Crossing.Ladder ? LadderSpeed : ClimbSpeed, 1 );
-		return (_climbFoot.WithZ( t.Start.z ), _climbFoot.WithZ( t.End.z ), climbSpeed, MathF.Max( WalkSpeed, 1 ));
+		bool ascending = t.End.z > t.Start.z;
+		var entry = t.Start + Vector3.Up * (ascending ? 0 : _climbExitLift);
+		var exit = t.End + Vector3.Up * (ascending ? _climbExitLift : 0);
+		var on = _climbFoot + _climbDirection * ((entry.z - _climbFoot.z) / _climbDirection.z);
+		var off = _climbFoot + _climbDirection * ((exit.z - _climbFoot.z) / _climbDirection.z);
+		return (entry, on, off, exit, climbSpeed, MathF.Max( WalkSpeed, 1 ));
 	}
 
 	private Vector3 SampleTraversal( in LinkTraversalState t, float time )
@@ -351,17 +360,27 @@ public class NavigationLayer : MovementLayer
 			case Crossing.Ladder:
 			case Crossing.Climb:
 				{
-					var (on, off, climbSpeed, stepSpeed) = GetClimbPath( t );
-					var onTime = t.Start.Distance( on ) / stepSpeed;
+					var (entry, on, off, exit, climbSpeed, stepSpeed) = GetClimbPath( t );
+					var entryTime = t.Start.Distance( entry ) / stepSpeed;
+					if ( time < entryTime )
+						return Vector3.Lerp( t.Start, entry, time / entryTime );
+					time -= entryTime;
+
+					var onTime = entry.Distance( on ) / stepSpeed;
 					if ( time < onTime )
-						return Vector3.Lerp( t.Start, on, time / onTime );
+						return Vector3.Lerp( entry, on, time / onTime );
 
 					var climbTime = on.Distance( off ) / climbSpeed;
 					if ( time < onTime + climbTime )
 						return Vector3.Lerp( on, off, (time - onTime) / climbTime );
 
-					var offTime = off.Distance( t.End ) / stepSpeed;
-					return offTime > 0 ? Vector3.Lerp( off, t.End, (time - onTime - climbTime) / offTime ) : t.End;
+					time -= onTime + climbTime;
+					var offTime = off.Distance( exit ) / stepSpeed;
+					if ( time < offTime )
+						return Vector3.Lerp( off, exit, time / offTime );
+
+					var exitTime = exit.Distance( t.End ) / stepSpeed;
+					return exitTime > 0 ? Vector3.Lerp( exit, t.End, (time - offTime) / exitTime ) : t.End;
 				}
 
 			default:
@@ -470,10 +489,13 @@ public class NavigationLayer : MovementLayer
 
 	private Vector3 GetTraversalFacing( in LinkTraversalState t )
 	{
-		// A climber faces what it climbs: from the foot toward the upper end
+		// Face from the climb line toward the upper landing, rather than along a tilted ladder's axis.
 		var climbing = KindOf( t.Type ) is Crossing.Ladder or Crossing.Climb;
 		var upper = t.Start.z < t.End.z ? t.End : t.Start;
-		return climbing ? (upper - _climbFoot).WithZ( 0 ) : (t.End - t.Start).WithZ( 0 );
+		if ( !climbing ) return (t.End - t.Start).WithZ( 0 );
+		var onAxis = _climbFoot + _climbDirection * ((upper.z - _climbFoot.z) / _climbDirection.z);
+		var facing = (upper - onAxis).WithZ( 0 );
+		return facing.IsNearlyZero() ? (upper - _climbFoot).WithZ( 0 ) : facing;
 	}
 
 	public override void MoveTo( Vector3 target, float stopDistance = 10f, float? speed = null, GameObject faceTarget = null )

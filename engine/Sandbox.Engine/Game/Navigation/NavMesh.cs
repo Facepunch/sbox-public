@@ -169,7 +169,7 @@ public sealed partial class NavMesh : IDisposable
 	public float AgentMaxSlope { get; set; } = 40.0f;
 
 	/// <summary>
-	/// Generate links for drops off ledges and jumps across gaps: <see cref="NavMeshLink"/> components of type <see cref="NavMeshLinkType.Drop"/> and <see cref="NavMeshLinkType.Jump"/> that are not saved with the scene.
+	/// Generate links for drops, jumps and box triggers tagged "ladder". These <see cref="NavMeshLink"/> components are not saved with the scene.
 	/// </summary>
 	[Header( "Generated Links" )]
 	public bool GenerateLinks { get; set; } = false;
@@ -228,6 +228,7 @@ public sealed partial class NavMesh : IDisposable
 		bakedTiles = null;
 		TakeOverLinks( bakedLinks ?? new() );
 		Publish();
+		if ( scene is not null ) UpdateLadderLinks( scene.PhysicsWorld );
 	}
 
 	// The first mesh brings the crowd, and with it the agents that waited for one
@@ -439,6 +440,12 @@ public sealed partial class NavMesh : IDisposable
 		if ( navmeshBodyType == PhysicsBodyType.Dynamic ) return false; // never include dynamic bodies
 		if ( navmeshBodyType == PhysicsBodyType.Static && !IncludeStaticBodies ) return false;
 		if ( navmeshBodyType == PhysicsBodyType.Keyframed && !IncludeKeyframedBodies ) return false;
+
+		// Grounded characters use keyframed bodies, but are still actors rather than level geometry.
+		// Check the body's owner: child colliders sharing that body are actors too, but a separate
+		// body parented under a character can still be level geometry, such as a carried platform.
+		if ( body.GameObject is { } go && (go.GetComponent<Npcs.BaseNpc>( true ) is not null || go.GetComponent<PlayerController>( true ) is not null) )
+			return false;
 
 		// Excluded by tags
 		if ( ExcludedBodies is not null && !ExcludedBodies.IsEmpty && body.Shapes.Any( shape => shape.Tags.HasAny( ExcludedBodies ) ) )
