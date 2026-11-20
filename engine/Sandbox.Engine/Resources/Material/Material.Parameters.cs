@@ -115,7 +115,7 @@ public partial class Material
 	/// </summary>
 	internal IReadOnlyDictionary<string, object> SetInCode { get; private set; }
 
-	/// <summary>Moves on with every <see cref="SetInCode"/> change.</summary>
+	/// <summary>Moves on with every <see cref="SetInCode"/> and <see cref="FeaturesSetInCode"/> change.</summary>
 	internal int SetInCodeVersion { get; private set; }
 
 	void RememberSet( string param, object value )
@@ -126,12 +126,27 @@ public partial class Material
 		var values = SetInCode is null ? new Dictionary<string, object>( StringComparer.OrdinalIgnoreCase ) : new Dictionary<string, object>( SetInCode, StringComparer.OrdinalIgnoreCase );
 		values[param] = value;
 		SetInCode = values;
+		NoteSetInCode();
+	}
+
+	/// <summary>Moves <see cref="SetInCodeVersion"/> on and tells <see cref="SetInCodeChanged"/>.</summary>
+	void NoteSetInCode()
+	{
 		SetInCodeVersion++;
 		SetInCodeChanged?.Invoke( this );
 	}
 
-	/// <summary>Told when code sets a value on a material (<see cref="SetInCode"/>): a device's copy of it follows.</summary>
+	/// <summary>
+	/// Told when code sets a value or a feature on a material (<see cref="SetInCode"/>, <see cref="FeaturesSetInCode"/>): a
+	/// device's copy of it follows.
+	/// </summary>
 	internal static Action<Material> SetInCodeChanged;
+
+	/// <summary>
+	/// Whether code made or changed this material (<see cref="MadeFromShader"/>, <see cref="SetInCode"/>,
+	/// <see cref="FeaturesSetInCode"/>): a device can't draw it from its file alone.
+	/// </summary>
+	internal bool ChangedInCode => MadeFromShader is not null || SetInCode is { Count: > 0 } || FeaturesSetInCode is { Count: > 0 };
 
 	/// <summary>
 	/// Overrides/Sets an color within the material as a color value within the material
