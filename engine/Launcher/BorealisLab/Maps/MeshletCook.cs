@@ -70,6 +70,11 @@ internal static class MeshletCook
 		}
 
 		var cut = MeshletBuilder.Cut( config );
+
+		// Levels as a load makes them with the default config (-no-cooked-lods leaves them out)
+		var lodConfig = Borealis.Backend.Lods.LodConfig.Default;
+		CookedLodConfig? lods = Args.Has( "-no-cooked-lods" ) ? null : Borealis.Backend.Lods.LodStore.Cooked( lodConfig );
+		var levelCut = lods is null ? null : Borealis.Backend.Lods.LodStore.Cut( lodConfig );
 		foreach ( var vpk in Directory.GetFiles( Path.Combine( folder, "maps" ), "*.vpk", SearchOption.AllDirectories ) )
 		{
 			var timer = Stopwatch.StartNew();
@@ -87,7 +92,7 @@ internal static class MeshletCook
 					Interlocked.Increment( ref meshes );
 					try
 					{
-						if ( MeshletCooker.CookMesh( data, config.MaxVertices, config.MaxTriangles, cut ) is { } made )
+						if ( MeshletCooker.CookMesh( data, config.MaxVertices, config.MaxTriangles, cut, lods, levelCut ) is { } made )
 						{
 							data = made;
 							Interlocked.Increment( ref cooked );
@@ -122,7 +127,9 @@ internal static class MeshletCook
 		}
 
 		var config = MeshletConfig.Parse( Args.String( "-meshlets" ) );
-		int ranges = 0, cooked = 0, bad = 0, rebuiltSame = 0;
+		int ranges = 0, cooked = 0, bad = 0, rebuiltSame = 0, withLevels = 0, levelsSame = 0, levelCount = 0;
+		var lodConfig = Borealis.Backend.Lods.LodConfig.Default;
+		var levelCut = Borealis.Backend.Lods.LodStore.Cut( lodConfig );
 		foreach ( var vpk in Directory.GetFiles( Path.Combine( folder, "maps" ), "*.vpk", SearchOption.AllDirectories ) )
 		{
 			using var package = VpkFile.Open( vpk );
@@ -170,16 +177,47 @@ internal static class MeshletCook
 							good &= vertices.Count <= config.MaxVertices && meshlet.Center == (lo + hi) * 0.5f && meshlet.Extents == (hi - lo) * 0.5f;
 						}
 
-						if ( !good ) bad++;
 						if ( MeshletBuilder.Build( indices, At, baseVertex, config ) is { } rebuilt && rebuilt.Indices.AsSpan().SequenceEqual( indices )
 							&& System.Runtime.InteropServices.MemoryMarshal.AsBytes( rebuilt.Meshlets.AsSpan() ).SequenceEqual( records.Span ) ) rebuiltSame++;
+
+						// Its levels: each one's meshlets a run over it, and the chain what a load makes of the range (the same
+						// whatever order it's stored in), each level's triangles the same once in one order
+						if ( ib.Meshlets.Lods is { } lods && ib.Meshlets.FindLevels( start, draw.IndexCount, vb, baseVertex ) is { } levels )
+						{
+							withLevels++;
+							levelCount += levels.Errors.Count;
+							for ( int k = 0; k < levels.Buffers.Count; k++ )
+							{
+								var level = levels.Buffers[k];
+								var levelIndices = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( level.Data ).ToArray();
+								if ( level.Meshlets is { } own && MeshletSet.FromCooked( levelIndices, own.Find( 0, levelIndices.Length, vb, baseVertex ).Span, config ) is null ) good = false;
+							}
+
+							var made = lods == Borealis.Backend.Lods.LodStore.Cooked( lodConfig ) ? levelCut( indices, vb, position, baseVertex ) : null;
+							if ( made is var (madeLevels, madeErrors) && madeLevels.Length == levels.Buffers.Count
+								&& madeErrors.AsSpan().SequenceEqual( levels.Errors.ToArray() )
+								&& Enumerable.Range( 0, madeLevels.Length ).All( k => Sorted( madeLevels[k] ).SequenceEqual( Sorted( System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( levels.Buffers[k].Data ).ToArray() ) ) ) ) levelsSame++;
+							else if ( Args.Has( "-check-verbose" ) && made is var (ml, me) )
+								Console.WriteLine( $"{path} {start}+{draw.IndexCount}: made {ml.Length} levels [{string.Join( ", ", me.Select( e => e.ToString( "R" ) ) )}] {string.Join( "/", ml.Select( l => l.Length ) )}, cooked {levels.Buffers.Count} [{string.Join( ", ", levels.Errors.Select( e => e.ToString( "R" ) ) )}] {string.Join( "/", levels.Buffers.Select( b => b.Count ) )}" );
+						}
+
+						if ( !good ) bad++;
 					}
 				}
 			}
 		}
 
-		Console.WriteLine( $"{folder}: {ranges} aggregate draws, {cooked} cooked, {bad} bad, {rebuiltSame} that a build at load from the stored order cuts the same" );
+		Console.WriteLine( $"{folder}: {ranges} aggregate draws, {cooked} cooked, {bad} bad, {rebuiltSame} that a build at load from the stored order cuts the same; {withLevels} with levels ({levelCount} levels), {levelsSame} whose levels are what a load makes" );
 		return bad == 0 ? 0 : 1;
+	}
+
+	/// <summary>A level's triangles in one order (each triangle's corners as they are), to compare levels stored in meshlet order.</summary>
+	static (uint, uint, uint)[] Sorted( uint[] indices )
+	{
+		var triangles = new (uint, uint, uint)[indices.Length / 3];
+		for ( int t = 0; t < triangles.Length; t++ ) triangles[t] = (indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]);
+		Array.Sort( triangles );
+		return triangles;
 	}
 
 	/// <summary>
