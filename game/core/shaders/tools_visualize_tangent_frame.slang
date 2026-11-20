@@ -31,9 +31,9 @@ struct PS_INPUT
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "instancing.fxc"
-#include "vs_decompress.fxc"
-#include "morph.fxc"
+#include "sbox/instancing.slangh"
+#include "sbox/vertex_decompress.slangh"
+#include "sbox/morph.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 StaticCombo( S_MODE_FORWARD, 0..1, Sys( ALL ) );

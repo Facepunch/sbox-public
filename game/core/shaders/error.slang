@@ -61,7 +61,7 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // !!! DO NOT INCLUDE ANY OTHER FILES IN THIS SHADER !!!
-#include "instancing.fxc" // I really don't want to do this, but we have to until we can transform instanced objects differently when the shader breaks
+#include "sbox/instancing.slangh" // I really don't want to do this, but we have to until we can transform instanced objects differently when the shader breaks
 
 // !!! DO NOT INCLUDE ANY OTHER FILES IN THIS SHADER !!!
 

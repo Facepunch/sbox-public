@@ -201,6 +201,7 @@ public sealed partial class PassModule
 	(string Path, string Text)? Include( string from, string name )
 	{
 		name = name.Replace( '\\', '/' );
+		if ( SlangHeaders.Replaced.TryGetValue( name, out var ours ) ) name = ours;
 		var here = System.IO.Path.GetDirectoryName( from );
 
 		// Found within the last check interval: its text as read then, without looking at the disk again

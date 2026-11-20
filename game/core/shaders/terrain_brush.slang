@@ -36,7 +36,7 @@ struct PixelInput
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-	#include "instancing.fxc"
+	#include "sbox/instancing.slangh"
 
 	[shader( "vertex" )] PixelInput MainVs( VertexInput i )
 	{

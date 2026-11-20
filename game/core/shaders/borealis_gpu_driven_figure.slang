@@ -37,7 +37,7 @@ struct PS_INPUT
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 #include "borealis_gpu_driven.fxc"
 
 [shader( "vertex" )] PS_INPUT MainVs( uint nVertex : SV_VulkanVertexID, uint nInstance : SV_VulkanInstanceID )

@@ -17,6 +17,11 @@ public static partial class SlangHeaders
 		["math_general.fxc"] = "sbox/math.slangh",
 		["encoded_normals.fxc"] = "sbox/encoding.slangh",
 		["octohedral_encoding.fxc"] = "sbox/encoding.slangh",
+		["transform_buffer.fxc"] = "sbox/transform.slangh",
+		["instancing.fxc"] = "sbox/instancing.slangh",
+		["vs_decompress.fxc"] = "sbox/vertex_decompress.slangh",
+		["morph.fxc"] = "sbox/morph.slangh",
+		["ffd.fxc"] = "sbox/ffd.slangh",
 	};
 
 	[GeneratedRegex( @"^([ \t]*#[ \t]*include[ \t]*"")([^""]+)("")", RegexOptions.Multiline )]

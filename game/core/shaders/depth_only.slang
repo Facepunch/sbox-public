@@ -41,7 +41,7 @@ struct PS_INPUT
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 
 // GPU-driven: positions pulled by vertex index, the transform from the instance record; a skinned draw from the vertex
 // cache pulls its vertex's place there instead. Not alpha-tested or translucent (those read the material's texture: they

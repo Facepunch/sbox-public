@@ -53,7 +53,7 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 #include "vr_lighting.fxc"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
@@ -94,7 +94,7 @@ float g_LineThickness < Default( 1.0 ); Range( 0, 8 ); UiGroup( "Line Thickness"
 float g_DepthBiasAmount < Default( 0.005 ); Range( 0, 1 ); UiGroup( "Depth Bias Amount" ); Attribute( "g_DepthBiasAmount" ); >;
 
 // Adds constants for a dynamic combo, must be last otherwise constants get re-arranged
-#include "ffd.fxc"
+#include "sbox/ffd.slangh"
 
 // Main ---------------------------------------------------------------------------------------------------------------------------------------------------
 float4 SnapToScreenPixels( float4 vPositionPs )

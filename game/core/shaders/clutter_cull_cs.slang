@@ -8,7 +8,7 @@ Mode( Default );
 
 #include "system.fxc"
 #include "common.fxc"
-#include "transform_buffer.fxc" // TransformBufferData_t
+#include "sbox/transform.slangh" // TransformBufferData_t
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
 StructuredBuffer<TransformBufferData_t> AllInstances < Attribute( "AllInstances" ); >;

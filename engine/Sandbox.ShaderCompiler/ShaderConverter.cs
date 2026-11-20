@@ -321,6 +321,7 @@ public static partial class ShaderConverter
 		{
 			var path = m.Groups[1].Value;
 			if ( EngineIncludes.Contains( path ) ) continue;
+			if ( SlangHeaders.Replaced.TryGetValue( path, out var ours ) ) path = ours;
 			if ( include?.Invoke( path ) is not { } text )
 			{
 				notes.Add( $"vertex shader includes {path}, not found" );

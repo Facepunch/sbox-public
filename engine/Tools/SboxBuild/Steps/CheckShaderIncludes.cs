@@ -22,16 +22,12 @@ internal static partial class CheckShaderIncludes
 		"core/shaders/baked_lighting_constants.fxc",
 		"core/shaders/common.fxc",
 		"core/shaders/descriptor_set_support.fxc",
-		"core/shaders/ffd.fxc",
-		"core/shaders/instancing.fxc",
 		"core/shaders/irradiance_probe_lighting.fxc",
 		"core/shaders/light_probe_volume.fxc",
-		"core/shaders/morph.fxc",
 		"core/shaders/quad_overdraw_ps.fxc",
 		"core/shaders/sheet_sampling.fxc",
 		"core/shaders/sky.fxc",
 		"core/shaders/system.fxc",
-		"core/shaders/transform_buffer.fxc",
 		"core/shaders/volumetric_fog.fxc",
 		"core/shaders/vr_common.fxc",
 		"core/shaders/vr_common_features.fxc",
@@ -45,7 +41,6 @@ internal static partial class CheckShaderIncludes
 		"core/shaders/vr_shared_standard_ps_input.fxc",
 		"core/shaders/vr_shared_standard_vs_code.fxc",
 		"core/shaders/vr_shared_standard_vs_input.fxc",
-		"core/shaders/vs_decompress.fxc",
 	};
 
 	internal static ExitCode Run() => BuildDisplay.Run( "Check shader includes", () => Check( Directory.GetCurrentDirectory() ) ? ExitCode.Success : ExitCode.Failure );

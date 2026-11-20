@@ -1,0 +1,42 @@
+// An instance's transform and per-instance data from the transform buffer (sbox/transform.slangh). Ours, in place of the
+// old instancing.fxc in Slang compiles (SlangHeaders): the same names, combo and results. Shares its include guard.
+#ifndef INSTANCING_FXC
+#define INSTANCING_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "system.fxc"
+#include "common.fxc"
+#include "sbox/transform.slangh"
+
+// Skinned and morphed vertices come from the animated vertex cache (sbox/transform.slangh)
+DynamicCombo( D_CS_VERTEX_ANIMATION, 0..1, Sys( PC ) );
+
+struct ExtraShaderData_t
+{
+	float4 vTint;
+	uint nVertexCacheOffset;
+	uint nBlendWeightCount;
+};
+
+/// The object transform of an instance, or for a skinned one the bone `nBlendIndex` (past its translucency and morph
+/// entries). Compute shaders index the buffer directly.
+float3x4 GetTransformMatrix( uint nTransformIndexID, uint nBlendIndex = 0 )
+{
+#if ( PROGRAM != VFX_PROGRAM_CS )
+	if ( g_TransformData[nTransformIndexID].m_nBlendWeightCount > 0 ) nTransformIndexID += nBlendIndex + 2;
+#endif
+	return g_TransformData[nTransformIndexID].transform;
+}
+
+/// An instance's tint (rgb from its packed colour, alpha from its alpha) and animated vertex cache placement.
+ExtraShaderData_t GetExtraPerInstanceShaderData( uint nTransformIndexID )
+{
+	TransformBufferData_t entry = g_TransformData[nTransformIndexID];
+	ExtraShaderData_t data;
+	data.vTint = float4( ( ( entry.m_vTintRGB888 >> 16 ) & 0xff ) / 255.0f, ( ( entry.m_vTintRGB888 >> 8 ) & 0xff ) / 255.0f, ( entry.m_vTintRGB888 & 0xff ) / 255.0f, entry.m_fAlpha );
+	data.nVertexCacheOffset = entry.m_nVertexCacheOffset;
+	data.nBlendWeightCount = entry.m_nBlendWeightCount;
+	return data;
+}
+
+#endif // INSTANCING_FXC

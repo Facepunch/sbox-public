@@ -171,7 +171,7 @@ struct VS_INPUT
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
 #include "sbox/math.slangh"
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 #include "ui/gamma.hlsl"
 
 #define EPSILON 0.000001

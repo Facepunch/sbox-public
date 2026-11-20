@@ -40,8 +40,8 @@ struct PS_INPUT
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "instancing.fxc"
-#include "vs_decompress.fxc"
+#include "sbox/instancing.slangh"
+#include "sbox/vertex_decompress.slangh"
 
 [shader( "vertex" )] PS_INPUT MainVs( const VS_INPUT i )
 {

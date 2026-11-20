@@ -60,7 +60,7 @@ struct PS_INPUT
 };
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 #include "vr_lighting.fxc"
 
 // Four vertices per line, as a strip: the geometry stage's order (end 0 and 1 on one side, then on the other)
@@ -70,7 +70,7 @@ float g_LineThickness < Attribute("LineThickness"); Default( 1.0 ); >;
 float g_DepthBiasAmount < Default( 0.0 ); >;
 
 // Adds constants for a dynamic combo, must be last otherwise constants get re-arranged
-#include "ffd.fxc"
+#include "sbox/ffd.slangh"
 
 // The vertex stage's work for one end: world position, normal and linear colour
 void LineEnd( float3x4 matObjectToWorld, float3 vPositionOs, float3 vNormalOs, float4 vColor, out float3 vPositionWs, out float3 vNormalWs, out float4 vLinearColor )

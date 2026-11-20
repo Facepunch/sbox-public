@@ -1,0 +1,54 @@
+// Morph targets from the composite morph atlas: each vertex's position delta in the left half, its normal delta and wrinkle
+// in the right half, in a subrect the instance's morph entry in the transform buffer gives. Ours, in place of the old
+// morph.fxc in Slang compiles (SlangHeaders): the same names and results. The includer declares the atlas width
+// (g_nMorphTextureAtlasWidth). Shares the old header's include guard.
+#ifndef VR_MORPH_FXC
+#define VR_MORPH_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "system.fxc"
+#include "common.fxc"
+#include "sbox/math.slangh"
+#include "sbox/transform.slangh"
+
+Texture2D g_tCompositeMorphTextureAtlas < Attribute( "CompositeMorphTextureAtlas" ); SrgbRead( false ); Filter( MIN_MAG_MIP_POINT ); AddressU( CLAMP ); AddressV( CLAMP ); >;
+float4 g_vInvCMTDims < Source( InvTextureDim ); SourceArg( g_tCompositeMorphTextureAtlas ); >;
+
+struct MorphSubrectData_t
+{
+	float flUOffset;
+	float flURange;
+	float flVOffset;
+	float flVRange;
+};
+
+#define MORPH_TEXTURE_ATLAS_WIDTH g_nMorphTextureAtlasWidth
+
+/// An instance's atlas subrect, kept in the spare elements of its morph entry (the one after its first).
+MorphSubrectData_t CalculateMorphSubrectData( uint nTransformIndexID )
+{
+	float3x4 m = g_TransformData[nTransformIndexID + 1].transform;
+	MorphSubrectData_t data;
+	data.flUOffset = m[0][2];
+	data.flURange = m[0][3];
+	data.flVOffset = m[1][3];
+	data.flVRange = m[2][3];
+	return data;
+}
+
+/// Applies vertex `nVertexId`'s morph: moves the position, bends the normal and sets the wrinkle (D_MORPH only).
+void Morph( inout float3 vPositionOs, inout float3 vNormalOs, inout float flWrinkle, uint nVertexId, MorphSubrectData_t morphSubrect )
+{
+#if ( D_MORPH )
+	uint columns = uint( morphSubrect.flURange );
+	uint3 texel = uint3( ( nVertexId % columns ) + uint( morphSubrect.flUOffset ), ( nVertexId / columns ) + uint( morphSubrect.flVOffset ), 0 );
+	float4 positionDelta = g_tCompositeMorphTextureAtlas.Load( texel );
+	texel.x += uint( MORPH_TEXTURE_ATLAS_WIDTH ) / uint( 2 );
+	float4 normalDeltaAndWrinkle = g_tCompositeMorphTextureAtlas.Load( texel );
+	vPositionOs += positionDelta.xyz;
+	vNormalOs = normalize( vNormalOs + normalDeltaAndWrinkle.xyz );
+	flWrinkle = normalDeltaAndWrinkle.w;
+#endif
+}
+
+#endif // VR_MORPH_FXC

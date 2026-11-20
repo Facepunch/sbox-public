@@ -17,7 +17,7 @@ Mode( Default );
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "common.fxc"
 #include "borealis_records.fxc"
-#include "transform_buffer.fxc"
+#include "sbox/transform.slangh"
 #include "borealis_meshlet.fxc"
 
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
