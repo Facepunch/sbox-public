@@ -16,8 +16,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	// these systems into systems that are configurable per camera and from addon code.
 	// For example, volumetricFog should hold the render state. The addon code should hold
 	// the volumes. Tonemapping should hold the render state for this camera only.
-	internal ToneMapping ToneMapping = Graphics.IsAvailable ? new ToneMapping() : null;
-	internal VolumetricFog VolumetricFogImpl = null;
 	private readonly Lazy<Cmaa2Renderer> _cmaa2Renderer = new( () => new Cmaa2Renderer(), isThreadSafe: true );
 
 	/// <summary>
@@ -226,13 +224,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			{
 				_frustum.Delete();
 				_frustum = default;
-			}
-
-			if ( VolumetricFogImpl != null )
-			{
-				// We may have a view queued to render with this
-				EngineLoop.DisposeAtFrameEnd( VolumetricFogImpl );
-				VolumetricFogImpl = null;
 			}
 
 			if ( _cmaa2Renderer.IsValueCreated )
@@ -905,32 +896,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		return result;
 	}
 
-	internal void GatherVolumetricFog( RenderAttributes attributes )
-	{
-		if ( !VolumetricFog.Enabled )
-		{
-			if ( VolumetricFogImpl != null )
-			{
-				MainThread.QueueDispose( VolumetricFogImpl );
-				VolumetricFogImpl = null;
-			}
-
-			return;
-		}
-
-		if ( VolumetricFogImpl == null )
-		{
-			VolumetricFogImpl = new();
-		}
-
-		VolumetricFogImpl.Update( VolumetricFog );
-		attributes.SetPointer( "IVolumetricFog", VolumetricFogImpl.native );
-	}
-	internal void GatherTonemapper( RenderAttributes attributes )
-	{
-		attributes.SetPointer( "ITonemapSystem", Tonemap.Enabled ? ToneMapping.GetNative() : IntPtr.Zero );
-	}
-
 	/// <summary>
 	/// The view a camera renders into its swap chain: keyed to the camera, as native keys a view's history (<c>ViewUniqueId</c>).
 	/// </summary>
@@ -951,11 +916,11 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal void RenderToTexture( Texture texture, Vector2? size, in ViewSetup config ) => ChildRenderer.RenderToTexture( this, texture, size, config );
 
 	/// <summary>
-	/// Submit a view into colour and optional depth textures, as a child of <paramref name="parent"/> when it's valid,
-	/// and copy its resolved projection and viewport for whatever samples it.
+	/// Submit a view into colour and optional depth textures, as a child of the frame being drawn when there is one, and copy
+	/// its resolved projection and viewport for whatever samples it.
 	/// </summary>
-	internal bool RenderToTexture( Texture target, Texture depthTarget, ISceneView parent, in ViewSetup config, string name, out ViewData viewData )
-		=> ChildRenderer.RenderToTexture( this, target, depthTarget, parent, config, name, out viewData );
+	internal bool RenderToTexture( Texture target, Texture depthTarget, in ViewSetup config, string name, out ViewData viewData )
+		=> ChildRenderer.RenderToTexture( this, target, depthTarget, config, name, out viewData );
 
 	/// <summary>
 	/// What renders a view into a texture: this frame's renderer, which renders one asked for inside a frame of its own as a

@@ -1,5 +1,3 @@
-using System.Threading;
-
 namespace Sandbox.Rendering;
 
 /// <summary>
@@ -34,7 +32,8 @@ internal enum OcclusionEarlyCull
 }
 
 /// <summary>
-/// Debugging for both renderers' GPU occlusion culling.
+/// Debugging switches for Borealis's GPU occlusion culling. Its debug view (boxes over the view, with counts) draws only where
+/// the host makes an output for it (<c>RenderHost.CreateOcclusionDebug</c>); the engine makes none on Borealis.Gpu yet.
 /// </summary>
 internal static class OcclusionDebug
 {
@@ -67,47 +66,4 @@ internal static class OcclusionDebug
 	internal static int EarlyMode { get; set; } = 1;
 
 	public static OcclusionEarlyCull EarlyCull => (OcclusionEarlyCull)EarlyMode;
-
-	static readonly Lock publishLock = new();
-	static OcclusionDebugTarget shown;
-	static OcclusionDebugTarget showing;
-	static ulong showingFrame;
-
-	/// <summary>
-	/// Offers a view's resolved debug image to the overlay. With several views culling, the biggest in a frame is shown.
-	/// </summary>
-	internal static void Publish( OcclusionDebugTarget target )
-	{
-		lock ( publishLock )
-		{
-			var frame = Application.FrameCount;
-			if ( frame != showingFrame )
-			{
-				shown = showing;
-				showing = null;
-				showingFrame = frame;
-			}
-
-			if ( showing is null || Area( target ) > Area( showing ) )
-				showing = target;
-		}
-
-		static float Area( OcclusionDebugTarget target ) => target.Viewport.Width * target.Viewport.Height;
-	}
-
-	/// <summary>
-	/// The last complete frame's shown view, or null if nothing has culled lately.
-	/// </summary>
-	internal static OcclusionDebugTarget Current
-	{
-		get
-		{
-			lock ( publishLock )
-			{
-				var frame = Application.FrameCount;
-				if ( showingFrame + 1 < frame ) return null;
-				return showingFrame < frame ? showing : shown;
-			}
-		}
-	}
 }

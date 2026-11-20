@@ -47,6 +47,7 @@
 
     protected override void OnUpdate()
     {
+        Panel?.FindRootPanel()?.SetClass( "sandbox-light", GamePreferences.Theme == InterfaceTheme.Light );
         UpdateSpawnMenuState();
         ScanForNewModes();
 

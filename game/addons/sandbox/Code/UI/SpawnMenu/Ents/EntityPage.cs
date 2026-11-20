@@ -2,16 +2,21 @@
 /// <summary>
 /// This component has a kill icon that can be used in the killfeed, or somewhere else.
 /// </summary>
-[Title( "#spawnmenu.tab.entity" ), Order( 2000 ), Icon( "🧠" )]
+[Title( "#spawnmenu.tab.entity" ), Order( 2000 ), Icon( "category" )]
 public class EntityPage : BaseSpawnMenu
 {
-	static Dictionary<string, string> CategoryIcons = new()
+	static string CategoryIcon( string category ) => category?.ToLowerInvariant() switch
 	{
-		{ "Chair", "🪑" },
-		{ "Pickup", "🧰" },
-		{ "Weapon", "🔫" },
-		{ "Vehicle", "🚕" },
-		{ "World", "🌍" },
+		"chair" => "chair",
+		"pickup" => "inventory_2",
+		"vehicle" => "directions_car",
+		"world" => "public",
+		"animal" => "pets",
+		"audio" => "volume_up",
+		"effect" => "auto_awesome",
+		"showcase" => "star_outline",
+		"test toys" or "toyfun" => "toys",
+		_ => "category"
 	};
 
 	/// <summary>
@@ -29,12 +34,12 @@ public class EntityPage : BaseSpawnMenu
 
 	protected override void Rebuild()
 	{
-		AddOption( "\U0001f9e0", "#spawnmenu.entity.all", () => new EntityListCloud { IncludeLocalEntities = true, ExcludedLocalCategoryRoots = new[] { "Weapon", "Npc" }, Query = "-cat:weapon -cat:npc" } );
+		AddOption( "apps", "#spawnmenu.entity.all", () => new EntityListCloud { IncludeLocalEntities = true, ExcludedLocalCategoryRoots = new[] { "Weapon", "Npc" }, Query = "-cat:weapon -cat:npc" } );
 
 		var categories = ResourceLibrary.GetAll<ScriptedEntity>()
-			.Where( e => !e.Developer || ServerSettings.ShowDeveloperEntities )
+			.Where( e => !e.IsRemote && e.IsMountAvailable && (!e.Developer || ServerSettings.ShowDeveloperEntities) )
 			.Select( e => SpawnMenuCategory.Root( e.Category ) )
-			.Where( category => !string.Equals( category, "Weapon", StringComparison.OrdinalIgnoreCase ) && !string.Equals( category, "Npc", StringComparison.OrdinalIgnoreCase ) )
+			.Where( category => !IsWeaponOrNpc( category ) )
 			.Distinct()
 			.OrderBy( c => string.Equals( c, "Other", StringComparison.OrdinalIgnoreCase ) )
 			.ThenBy( c => LocalizedText.Resolve( CategoryTitle( c ) ), StringComparer.CurrentCultureIgnoreCase );
@@ -42,25 +47,26 @@ public class EntityPage : BaseSpawnMenu
 		var addedCategories = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var category in categories )
 		{
-			var cat = category; // capture for lambda
-			var icon = CategoryIcons.GetValueOrDefault( cat, "📦" );
-			addedCategories.Add( cat );
-			AddOption( icon, CategoryTitle( cat ), () => new EntityListCloud { LocalCategory = cat, Query = $"cat:{cat.ToLowerInvariant()}" } );
+			addedCategories.Add( category );
+			AddOption( CategoryIcon( category ), CategoryTitle( category ), () => new EntityListCloud { LocalCategory = category, Query = $"cat:{category.ToLowerInvariant()}" } );
 		}
 
-		void AddCloudCategory( string icon, string name, string category )
+		void AddCloudCategory( string name, string category )
 		{
 			if ( !addedCategories.Add( category ) ) return;
-			AddOption( icon, name, () => new EntityListCloud { Query = $"cat:{category}" } );
+			AddOption( CategoryIcon( category ), name, () => new EntityListCloud { Query = $"cat:{category}" } );
 		}
 
-		AddCloudCategory( "🐵", "#spawnmenu.entity.animals", "animal" );
-		AddCloudCategory( "🥁", "#spawnmenu.entity.audio", "audio" );
-		AddCloudCategory( "✨", "#spawnmenu.entity.effect", "effect" );
-		AddCloudCategory( "🎈", "#spawnmenu.entity.other", "other" );
-		AddCloudCategory( "💪", "#spawnmenu.entity.showcase", "showcase" );
-		AddCloudCategory( "🧸", "#spawnmenu.entity.toys_and_fun", "toyfun" );
-		AddCloudCategory( "🚚", "#spawnmenu.entity.vehicle", "vehicle" );
-		// AddOption( "⭐", "Favourites", () => new EntityListCloud() { Query = "sort:favourite" } );
+		AddCloudCategory( "#spawnmenu.entity.animals", "animal" );
+		AddCloudCategory( "#spawnmenu.entity.audio", "audio" );
+		AddCloudCategory( "#spawnmenu.entity.effect", "effect" );
+		AddCloudCategory( "#spawnmenu.entity.other", "other" );
+		AddCloudCategory( "#spawnmenu.entity.showcase", "showcase" );
+		AddCloudCategory( "#spawnmenu.entity.toys_and_fun", "toyfun" );
+		AddCloudCategory( "#spawnmenu.entity.vehicle", "vehicle" );
+
+		AddMountedSections( MountedPrefabs.ItemTag, entity => !IsWeaponOrNpc( SpawnMenuCategory.Root( entity.Category ) ) );
 	}
+
+	static bool IsWeaponOrNpc( string category ) => string.Equals( category, "Weapon", StringComparison.OrdinalIgnoreCase ) || string.Equals( category, "Npc", StringComparison.OrdinalIgnoreCase );
 }

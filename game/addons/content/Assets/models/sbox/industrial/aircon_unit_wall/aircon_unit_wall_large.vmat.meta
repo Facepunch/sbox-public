@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/industrial/aircon_unit_wall/aircon_unit_wall_large.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/industrial/aircon_unit_wall/aircon_unit_wall_large.vmat"
       }
     },
     "HammerAutoPackageReferences": null

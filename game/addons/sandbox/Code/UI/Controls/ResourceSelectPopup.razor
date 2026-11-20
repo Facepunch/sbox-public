@@ -182,7 +182,7 @@
 
     void OpenSizeMenu()
     {
-        SpawnMenuIconSizeExtensions.OpenMenu( this, size =>
+        SpawnMenuIconSizeExtensions.OpenMenu( this, ListView ? null : IconSize, size =>
         {
             IconSize = size;
             ListView = false;

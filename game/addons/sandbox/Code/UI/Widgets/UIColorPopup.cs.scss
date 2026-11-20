@@ -1,188 +1,193 @@
 @import "/UI/Theme.scss";
 
-// Reskinned color picker from engine
-UIColorPopup.popup-panel
+@mixin component-theme
 {
-	width: 320px;
-	padding: 0;
-	overflow: hidden;
-	background-color: $ui-popup-bg-light;
-	border: 1px solid $ui-control-border;
-	border-radius: 0;
-	box-shadow: 0px 2px 6px rgba( 0, 0, 0, 0.25 );
-	transition: none;
-	font-family: "Inter";
-	color: $ui-text;
-	z-index: 10001; // above fullscreen editors and resource pickers (Popup.scss)
-
-	&:outro
+	// Reskinned color picker from engine
+	UIColorPopup.popup-panel
 	{
-		margin-top: 0px;
-		opacity: 0;
-		transition: opacity 0.1s ease-in;
-	}
+		width: 320px;
+		padding: 0;
+		overflow: hidden;
+		background-color: $ui-popup-bg-light;
+		border: 1px solid $ui-control-border;
+		border-radius: 0;
+		box-shadow: 0px 2px 6px rgba( 0, 0, 0, 0.25 );
+		transition: none;
+		font-family: $body-font;
+		color: $ui-text;
+		z-index: 10001; // above fullscreen editors and resource pickers (Popup.scss)
 
-	.colorpickercontrol
-	{
-		width: 100%;
-		padding: 10px;
-		gap: 10px;
-		background-color: transparent;
-
-		// we don't offer layouts, the numbers or the text field
-		> .header, > .numbers, > .text-row
+		&:outro
 		{
-			display: none;
+			margin-top: 0px;
+			opacity: 0;
+			transition: opacity 0.1s ease-in;
 		}
 
-		> .body
+		.colorpickercontrol
 		{
+			width: 100%;
+			padding: 10px;
 			gap: 10px;
-		}
+			background-color: transparent;
 
-		// square ends on the strips and the swatches
-		.colorstrip, .colorstrip > .fill, .colorswatch
-		{
-			border-radius: 0px;
-		}
-
-		.slider-row
-		{
-			flex-direction: row;
-			align-items: center;
-			gap: 10px;
-
-			> .label
+			// we don't offer layouts, the numbers or the text field
+			> .header, > .numbers, > .text-row
 			{
-				width: 80px;
-				flex-shrink: 0;
-				font-size: $ui-settings-font;
-				font-weight: 500;
-				color: $ui-text-label;
+				display: none;
 			}
 
-			// the number, plain like the sliders in the tool settings
-			> .entry
+			> .body
 			{
-				width: 44px;
-				flex-shrink: 0;
-				margin-left: auto;
+				gap: 10px;
+			}
 
-				.textentry
+			// square ends on the strips and the swatches
+			.colorstrip, .colorstrip > .fill, .colorswatch
+			{
+				border-radius: 0px;
+			}
+
+			.slider-row
+			{
+				flex-direction: row;
+				align-items: center;
+				gap: 10px;
+
+				> .label
 				{
-					@include ui-number-entry;
+					width: 80px;
+					flex-shrink: 0;
+					font-size: $ui-settings-font;
+					font-weight: 500;
+					color: $ui-text-label;
+				}
+
+				// the number, plain like the sliders in the tool settings
+				> .entry
+				{
+					width: 44px;
+					flex-shrink: 0;
+					margin-left: auto;
+
+					.textentry
+					{
+						@include ui-number-entry;
+					}
 				}
 			}
-		}
 
-		.slidercontrol
-		{
-			flex-grow: 0;
-			flex-shrink: 0;
-			width: 150px;
-			flex-basis: 150px;
-			min-width: 150px;
-			height: 22px;
-			gap: 0px;
-
-			> .inner
+			.slidercontrol
 			{
-				min-height: 22px;
-				justify-content: flex-start;
+				flex-grow: 0;
+				flex-shrink: 0;
+				width: 150px;
+				flex-basis: 150px;
+				min-width: 150px;
+				height: 22px;
+				gap: 0px;
 
-				> .track
+				> .inner
 				{
-					position: relative;
-					height: 1px;
-					margin: 17px 5px 0px 5px;
-					align-items: flex-start;
-					border-radius: 0px;
-					background-color: $ui-slider-line;
+					min-height: 22px;
+					justify-content: flex-start;
 
-					> .track-active
+					> .track
 					{
-						background-color: transparent; 
-					}
-
-					> .tick
-					{
-						top: 2px;
-						bottom: auto;
-						width: 1px;
-						height: 3px;
-						background-color: $ui-slider-line;
-						transform: none;
-					}
-
-					> .thumb
-					{
-						@include ui-slider-thumb;
-						position: absolute;
-						top: -15px;
+						position: relative;
+						height: 1px;
+						margin: 17px 5px 0px 5px;
+						align-items: flex-start;
 						border-radius: 0px;
-						box-shadow: none;
-						transform: translateX( -50% );
+						background-color: $ui-slider-line;
+
+						> .track-active
+						{
+							background-color: transparent;
+						}
+
+						> .tick
+						{
+							top: 2px;
+							bottom: auto;
+							width: 1px;
+							height: 3px;
+							background-color: $ui-slider-line;
+							transform: none;
+						}
+
+						> .thumb
+						{
+							@include ui-slider-thumb;
+							position: absolute;
+							top: -15px;
+							border-radius: 0px;
+							box-shadow: none;
+							transform: translateX( -50% );
+						}
 					}
 				}
-			}
 
-			&:hover > .inner > .track > .thumb
-			{
-				background-color: $ui-slider-thumb-hover;
-				box-shadow: none;
-				transform: translateX( -50% ) translateY( -1px );
-			}
-
-			&:active > .inner > .track > .thumb
-			{
-				background-color: $ui-slider-thumb-pressed;
-				box-shadow: none;
-				transform: translateX( -50% ) translateY( 1px );
-			}
-		}
-
-		> .section
-		{
-			gap: 6px;
-
-			> .title
-			{
-				font-size: 12px;
-				font-weight: 800;
-				letter-spacing: 0px;
-				color: $ui-text-muted;
-				opacity: 1;
-			}
-
-			> .swatches
-			{
-				gap: 3px;
-
-				> .colorswatch
+				&:hover > .inner > .track > .thumb
 				{
-					width: 24px;
-					height: 16px;
-					border: 0px;
-					border-radius: 0px;
+					background-color: $ui-slider-thumb-hover;
+					box-shadow: none;
+					transform: translateX( -50% ) translateY( -1px );
 				}
 
-				> .add
+				&:active > .inner > .track > .thumb
 				{
-					width: 24px;
-					height: 16px;
-					border: 0px;
-					border-radius: 0px;
-					background-color: $ui-popup-hover;
+					background-color: $ui-slider-thumb-pressed;
+					box-shadow: none;
+					transform: translateX( -50% ) translateY( 1px );
+				}
+			}
+
+			> .section
+			{
+				gap: 6px;
+
+				> .title
+				{
+					font-size: 12px;
+					font-weight: 800;
+					letter-spacing: 0px;
 					color: $ui-text-muted;
 					opacity: 1;
-					padding: 0px;
-					font-size: 14px;
-					line-height: 16px;
-					text-align: center;
-					align-items: center;
-					justify-content: center;
+				}
+
+				> .swatches
+				{
+					gap: 3px;
+
+					> .colorswatch
+					{
+						width: 24px;
+						height: 16px;
+						border: 0px;
+						border-radius: 0px;
+					}
+
+					> .add
+					{
+						width: 24px;
+						height: 16px;
+						border: 0px;
+						border-radius: 0px;
+						background-color: $ui-popup-hover;
+						color: $ui-text-muted;
+						opacity: 1;
+						padding: 0px;
+						font-size: 14px;
+						line-height: 16px;
+						text-align: center;
+						align-items: center;
+						justify-content: center;
+					}
 				}
 			}
 		}
 	}
 }
+
+@import "/UI/Theme/Apply.scss";

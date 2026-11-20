@@ -2,12 +2,5 @@
 
 HudSettingsTab
 {
-    width: 420px;
-    height: 474px;
-    flex-direction: column;
-
-    UISettingsPane .settings-body
-    {
-        padding-right: 18px;
-    }
+    @include ui-inspect-settings-tab;
 }

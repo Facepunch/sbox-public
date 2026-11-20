@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/street/ash_bin/ash_bin_dirty.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/street/ash_bin/ash_bin_dirty.vmat"
       }
     },
     "HammerAutoPackageReferences": null

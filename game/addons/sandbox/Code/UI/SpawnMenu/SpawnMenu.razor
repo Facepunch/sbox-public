@@ -8,164 +8,89 @@
 @attribute [Order( -100 )]
 
 <root>
-
     <div class="container">
-
-        <div class="spawnmenuleft">
-
-            <div class="tabs">
-
-                @foreach (var t in tabs)
-                {
-                    var type = Game.TypeLibrary.GetType(t.GetType());
-
-                    var c = activeTab == t ? "active" : "";
-
-                    <div class="@c" @onclick=@(() => SwitchTab(t))>
-                        <span>@type.Icon</span>
-                        <span>@type.Title</span>
-                    </div>
-                }
-
-            </div>
-
-            <div class="body" @ref="TabContainer">
-            </div>
-
-        </div>
-
-        <div class="spawnmenuright">
-
-            <div class="tabs">
-
-                @foreach (var t in utilityTabs)
-                {
-                    var type = Game.TypeLibrary.GetType(t.GetType());
-
-                    var c = activeUtilityTab == t ? "active" : "";
-
-                    <div class="@c" @onclick=@(() => SwitchUtilityTab(t))>
-                        <span>@type.Icon</span>
-                        <span>@type.Title</span>
-                    </div>
-                }
-
-            </div>
-
-            <div class="body" @ref="UtilityContainer">
-            </div>
-
-        </div>
-
+        <TabPanel class="spawnmenuleft" @ref="SpawnTabs" />
+        <TabPanel class="spawnmenuright" @ref="UtilityTabs" />
     </div>
-
 </root>
 
 @code
 {
-    Panel activeTab;
-    Panel TabContainer = default;
+    TabPanel SpawnTabs;
+    TabPanel UtilityTabs;
+    Button ThemeToggle;
 
-    Panel activeUtilityTab;
-    Panel UtilityContainer = default;
+    protected override int BuildHash() => (int)GamePreferences.Theme;
 
-    List<Panel> tabs = new List<Panel>();
-    List<Panel> utilityTabs = new List<Panel>();
-
-    public void BuildTabs()
+    protected override void OnAfterTreeRender( bool firstTime )
     {
-        foreach (var p in Game.TypeLibrary.GetTypes<ISpawnMenuTab>().OrderBy(x => x.Order).ThenBy( x => LocalizedText.Resolve( x.Title ), StringComparer.CurrentCultureIgnoreCase ))
-        {
-            if (p.IsAbstract) continue;
-            if (p.TargetType == typeof(BaseSpawnMenu)) continue;
+        BuildTabs();
+        BuildUtilityTabs();
 
-            var panel = p.Create<Panel>();
-            TabContainer.AddChild(panel);
+        if ( !ThemeToggle.IsValid() )
+            ThemeToggle = UtilityTabs.TabBar.AddChild( new Button( null, ToggleTheme ) );
 
-            tabs.Add(panel);
-        }
-
-        SwitchTab( RestoreTab( tabs, "spawnmenu.tab" ) );
+        ThemeToggle.AddClass( "theme-toggle" );
+        var isDark = GamePreferences.Theme == InterfaceTheme.Dark;
+        ThemeToggle.Icon = isDark ? "light_mode" : "dark_mode";
+        ThemeToggle.Tooltip = isDark ? "#spawnmenu.utility.theme.switch_light" : "#spawnmenu.utility.theme.switch_dark";
     }
 
-    public void BuildUtilityTabs()
+    static void ToggleTheme() => GamePreferences.SetTheme( GamePreferences.Theme == InterfaceTheme.Dark ? InterfaceTheme.Light : InterfaceTheme.Dark );
+
+    /// <summary>
+    /// Builds the spawn tabs registered by the game and addons.
+    /// </summary>
+    public void BuildTabs() => PopulateTabs<ISpawnMenuTab>( SpawnTabs, "spawnmenu.tab" );
+
+    /// <summary>
+    /// Builds the tool and utility tabs registered by the game and addons.
+    /// </summary>
+    public void BuildUtilityTabs() => PopulateTabs<IUtilityTab>( UtilityTabs, "spawnmenu.utilitytab" );
+
+    static void PopulateTabs<T>( TabPanel tabs, string cookieKey )
     {
-        foreach (var p in Game.TypeLibrary.GetTypes<IUtilityTab>().OrderBy(x => x.Order).ThenBy( x => LocalizedText.Resolve( x.Title ), StringComparer.CurrentCultureIgnoreCase ))
+        if ( !tabs.IsValid() || tabs.Body.ChildrenCount > 0 ) return;
+
+        var bar = tabs.TabBar;
+        bar.AutoHideText = false;
+
+        var pageTypes = Game.TypeLibrary.GetTypes<T>()
+            .Where( type => !type.IsAbstract && type.TargetType != typeof( BaseSpawnMenu ) )
+            .OrderBy( type => type.Order )
+            .ThenBy( type => LocalizedText.Resolve( type.Title ), StringComparer.CurrentCultureIgnoreCase );
+
+        foreach ( var type in pageTypes )
         {
-            if (p.IsAbstract) continue;
+            var page = type.Create<Panel>();
+            var tab = tabs.AddTab( type.Title, page, type.Icon );
+            tab.Tooltip = null;
+            tab.UserData = page;
 
-            var panel = p.Create<Panel>();
-            UtilityContainer.AddChild(panel);
-
-            utilityTabs.Add(panel);
+            if ( page is BaseSpawnMenu spawnPage )
+                spawnPage.MenuTab = tab;
         }
 
-        SwitchUtilityTab( RestoreTab( utilityTabs, "spawnmenu.utilitytab" ) );
+        var savedPage = Game.Cookies.Get<string>( cookieKey, null );
+        var selected = bar.Tabs.FirstOrDefault( tab => tab.UserData.GetType().Name == savedPage ) ?? bar.SelectedTab;
+        if ( selected is null ) return;
+
+        void SaveSelection( Tab tab ) => Game.Cookies.Set( cookieKey, tab?.UserData?.GetType().Name );
+
+        bar.SelectTab( selected );
+        SaveSelection( selected );
+        bar.SelectionChanged += SaveSelection;
     }
 
-    Panel RestoreTab( List<Panel> panels, string cookieKey )
-    {
-        var saved = Game.Cookies.Get<string>( cookieKey, null );
-        if ( !string.IsNullOrEmpty( saved ) )
-        {
-            var match = panels.FirstOrDefault( p => p.GetType().Name == saved );
-            if ( match is not null ) return match;
-        }
-        return panels.FirstOrDefault();
-    }
-
-    protected override void OnAfterTreeRender(bool firstTime)
-    {
-        if (firstTime && TabContainer.IsValid())
-        {
-            BuildTabs();
-        }
-
-        if (firstTime && UtilityContainer.IsValid())
-        {
-            BuildUtilityTabs();
-        }
-    }
-
+    /// <summary>
+    /// Opens a stored spawnlist in the props tab.
+    /// </summary>
     public void OpenSpawnlist( Storage.Entry entry )
     {
-        var page = tabs.OfType<PropsPage>().FirstOrDefault();
-        if ( page is null ) return;
+        var tab = SpawnTabs?.TabBar.Tabs.FirstOrDefault( tab => tab.UserData is PropsPage );
+        if ( tab?.UserData is not PropsPage page ) return;
 
-        SwitchTab( page );
+        SpawnTabs.TabBar.SelectTab( tab );
         page.SelectSpawnlist( entry );
-    }
-
-    void SwitchTab(Panel tab)
-    {
-        activeTab = tab;
-        Game.Cookies.Set( "spawnmenu.tab", tab?.GetType().Name );
-        StateHasChanged();
-
-        foreach (var t in tabs)
-        {
-            t.SetClass("active", t == tab);
-            t.SetClass("hidden", t != tab);
-        }
-    }
-
-    void SwitchUtilityTab(Panel tab)
-    {
-        activeUtilityTab = tab;
-        Game.Cookies.Set( "spawnmenu.utilitytab", tab?.GetType().Name );
-        StateHasChanged();
-
-        foreach (var t in utilityTabs)
-        {
-            t.SetClass("active", t == tab);
-            t.SetClass("hidden", t != tab);
-        }
-    }
-
-    // When clicking anywhere in the spawn menu, blur any focused text inputs
-    // so we can close the menu by pressing the spawnmenu key.
-    void OnMenuClicked()
-    {
-        Sandbox.UI.InputFocus.Clear();
     }
 }

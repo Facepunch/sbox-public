@@ -1,4 +1,4 @@
-using Borealis;
+﻿using Borealis;
 using Borealis.Backend;
 using Borealis.Gpu;
 using Borealis.Source2;
@@ -448,6 +448,64 @@ public class TextureStreamingTests : GpuTest
 		Assert.AreEqual( stream.TailTop, stream.ResidentTop );
 		Assert.AreNotEqual( version, material.Version, "its materials re-key" );
 		Assert.IsTrue( backend.Streamer.Moved >= 1 );
+		Device.WaitIdle();
+	}
+	/// <summary>
+	/// A big whole texture read ahead (<see cref="BackendDevice.LoadTextureAsync"/>, as a map's lightmaps are) has its mips
+	/// staged in an upload buffer by the worker that read it, so the frame that makes it only records copies; the texture
+	/// holds the file's mips. Before, the frame copied them into upload memory, and a mip over an upload page took an upload
+	/// allocation of its own (Construct's lightmaps: 96 ms of a frame).
+	/// </summary>
+	[TestMethod]
+	public void BigTextureReadAheadIsMadeFromStagedMips()
+	{
+		var root = ContentFiles.FindGame().Roots.FirstOrDefault();
+		if ( root is null ) Assert.Inconclusive( "No game content" );
+
+		string path = null;
+		TextureFile file = null;
+		foreach ( var candidate in Directory.EnumerateFiles( Path.Combine( root, "materials" ), "*.vtex_c", SearchOption.AllDirectories ).Order( StringComparer.Ordinal ) )
+		{
+			if ( new FileInfo( candidate ).Length < 1 << 20 ) continue;
+			var read = TextureFile.Load( candidate );
+			if ( read.Dimension == TextureDimension.Texture3D || read.Format == Format.Unknown || read.TopMip != 0 || TextureStreamer.Bytes( read, 0 ) < 1 << 20 ) continue;
+			path = Path.GetRelativePath( root, candidate ).Replace( '\\', '/' )[..^2];
+			file = read;
+			break;
+		}
+
+		if ( path is null ) Assert.Inconclusive( "No texture of 1 MiB or more (not a volume) in the core content" );
+
+		var stageAhead = BackendDevice.StageAheadBytes;
+		BackendDevice.StageAheadBytes = 1 << 20;
+		try
+		{
+			using var backend = new BackendDevice( Device );
+			GpuTexture texture = null;
+			for ( int i = 0; i < 500 && texture is null; i++ )
+			{
+				// A frame each try: what it makes is within each frame's budget
+				backend.BeginFrame();
+				texture = backend.LoadTextureAsync( path, out var pending );
+				if ( texture is null && !pending ) break;
+				if ( texture is null ) Thread.Sleep( 10 );
+			}
+
+			Assert.IsNotNull( texture, path );
+			Assert.AreEqual( 1, backend.StagedTextures, $"{path} is made from staged mips" );
+
+			Device.Wait( Device.Submit( Device.BeginCommandList( QueueType.Graphics, "After the staged copies" ) ) );
+			var (handle, layout) = BackendDevice.Unwrap( texture );
+			var pixels = ReadBack( handle, layout );
+			var expected = file.Mip( 0 )[..(file.MipBytes( 0 ) / file.Slices)];
+			CollectionAssert.AreEqual( expected.ToArray(), pixels[..expected.Length], $"{path}: mip 0 as the file has it" );
+		}
+		finally
+		{
+			BackendDevice.StageAheadBytes = stageAhead;
+		}
+
+		Assert.AreEqual( 0, TakeValidationErrors().Length, "validation errors" );
 		Device.WaitIdle();
 	}
 }

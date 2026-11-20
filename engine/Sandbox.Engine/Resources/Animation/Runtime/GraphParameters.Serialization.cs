@@ -70,7 +70,7 @@ public sealed partial class GraphParameters
 			Reset();
 	}
 
-	/// <summary>Removes a saved value and restores the live parameter's authored default.</summary>
+	/// <summary>Removes a saved value, restores the live parameter's authored default, and cancels its pending trigger.</summary>
 	public void Clear( string name )
 	{
 		if ( TryGetController( name, out var controller ) )

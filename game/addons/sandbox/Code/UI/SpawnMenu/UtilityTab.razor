@@ -3,16 +3,25 @@
 @inherits Panel
 @namespace Sandbox
 @implements IUtilityTab
-@attribute [Icon("🌍")]
+@attribute [Icon("tune")]
 @attribute [Title("#spawnmenu.tab.utilities")]
 @attribute [Order(0)]
 
 <root class="tab">
 
-    <UIGroupedList Groups=@GetGroups() Selected=@SelectedPage?.Key OnSelect=@OnSelectPage />
+    @{
+        var pages = GetVisiblePages();
+        var selected = pages.FirstOrDefault( page => Equals( page.Key, SelectedKey ) ) ?? pages.FirstOrDefault();
+    }
+    <UIGroupedList Groups=@GetGroups(pages) Selected=@selected?.Key OnSelect=@OnSelectPage />
 
-    <UISettingsPane Title=@( SelectedPage is null ? "" : LocalizedText.Resolve( SelectedPage.Title ) )>
-        <Body><div class="utility-page" @ref="PageContainer"></div></Body>
+    <UISettingsPane Title=@( selected is null ? "" : LocalizedText.Resolve( selected.Title ) ) Revision=@(selected?.Key.GetHashCode() ?? 0)>
+        <Body>
+            @if ( selected is not null )
+            {
+                <PageHost @key=@selected.Key class="utility-page" CreatePage=@selected.Create />
+            }
+        </Body>
     </UISettingsPane>
 
 </root>
@@ -22,15 +31,32 @@
     // either a page type, or a server settings page for one group
     record PageEntry( string Group, string Title, int Order, string SortName, object Key, Func<UtilityPage> Create );
 
-    PageEntry SelectedPage { get; set; }
-    Panel PageContainer { get; set; }
-    UtilityPage ActivePage;
+    object SelectedKey = typeof( UtilitiesPage );
 
-    protected override int BuildHash() => HashCode.Combine( SelectedPage?.Key, Game.Language.SelectedCode );
+    void OnSelectPage( object key ) => SelectedKey = key;
 
-    List<UIGroupedList.ListGroup> GetGroups()
+    sealed class PageHost : Panel
     {
-        return GetPageGroups()
+        /// <summary>
+        /// Creates the selected utility page when its host is mounted.
+        /// </summary>
+        [Parameter] public Func<UtilityPage> CreatePage { get; set; }
+
+        protected override void OnParametersSet()
+        {
+            if ( ChildrenCount == 0 && CreatePage is not null )
+                AddChild( CreatePage() );
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( SelectedKey, Game.Language.SelectedCode, ServerSettings.CanEdit );
+
+    List<UIGroupedList.ListGroup> GetGroups( List<PageEntry> pages )
+    {
+        return pages.GroupBy( x => x.Group )
+            .OrderBy( group => group.Min( page => page.Order ) )
+            .ThenBy( group => LocalizedText.Resolve( group.Key ), StringComparer.CurrentCultureIgnoreCase )
+            .ThenBy( group => group.Key, StringComparer.Ordinal )
             .Select( group => new UIGroupedList.ListGroup( group.Key, group
                 .OrderBy( x => x.Order )
                 .ThenBy( x => LocalizedText.Resolve( x.Title ), StringComparer.CurrentCultureIgnoreCase )
@@ -38,15 +64,6 @@
                 .Select( x => new UIGroupedList.ListItem( x.Title, x.Key ) )
                 .ToList() ) )
             .ToList();
-    }
-
-    IEnumerable<IGrouping<string, PageEntry>> GetPageGroups()
-    {
-        return GetVisiblePages()
-            .GroupBy( x => x.Group )
-            .OrderBy( group => group.Min( page => page.Order ) )
-            .ThenBy( group => LocalizedText.Resolve( group.Key ), StringComparer.CurrentCultureIgnoreCase )
-            .ThenBy( group => group.Key, StringComparer.Ordinal );
     }
 
     List<PageEntry> GetVisiblePages()
@@ -79,17 +96,4 @@
         return pages;
     }
 
-    void OnSelectPage( object value )
-    {
-        var page = GetVisiblePages().FirstOrDefault( x => Equals( x.Key, value ) );
-        if ( page is null ) return;
-
-        SelectedPage = page;
-
-        ActivePage?.Delete();
-        ActivePage = page.Create();
-        PageContainer.AddChild( ActivePage );
-
-        StateHasChanged();
-    }
 }

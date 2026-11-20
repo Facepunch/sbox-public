@@ -21,8 +21,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/magnum/materials/v_magnum_speedloader.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/magnum/materials/v_magnum_speedloader.vmat"
       }
     }
   }

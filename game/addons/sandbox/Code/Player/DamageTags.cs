@@ -3,6 +3,8 @@
 public static class DamageTags
 {
 	public const string Headshot = "head";
+	public const string Bullet = "bullet";
+	public const string Melee = "melee";
 	public const string Crush = "crush";
 	public const string Impact = "impact";
 	public const string Explosion = "explosion";

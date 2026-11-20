@@ -440,6 +440,11 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return;
 		if ( go is null ) return;
+		if ( !system.HasBroadcastRecipients() )
+		{
+			MarkDirty();
+			return;
+		}
 
 		if ( go == GameObject )
 		{
@@ -488,6 +493,11 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		if ( system is null ) return;
 
 		if ( component is null ) return;
+		if ( !system.HasBroadcastRecipients() )
+		{
+			MarkDirty();
+			return;
+		}
 
 		// Destroying a component takes it out of the directory straight away, but it stays valid until its callback batch ends.
 		if ( !component.IsValid() || component.Scene.Directory.FindComponentByGuid( component.Id ) != component )
@@ -523,6 +533,12 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 	{
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return;
+		if ( !system.HasBroadcastRecipients() )
+		{
+			// Registration still happens in Network.Refresh. A later join captures the current hierarchy and table.
+			MarkDirty();
+			return;
+		}
 
 		var msg = GetRefreshMessage();
 		system.Broadcast( msg );

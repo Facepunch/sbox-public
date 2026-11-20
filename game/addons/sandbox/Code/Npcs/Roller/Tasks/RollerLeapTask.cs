@@ -1,4 +1,5 @@
 using Sandbox.Npcs.Roller;
+using Sandbox.Npcs.Tasks;
 
 namespace Sandbox.Npcs.Roller.Tasks;
 
@@ -6,7 +7,7 @@ namespace Sandbox.Npcs.Roller.Tasks;
 /// Leaps at the current target with a clean impulse (velocity zeroed first),
 /// then waits for cooldown before handing back to the roll task.
 /// </summary>
-public sealed class RollerLeapTask : TaskBase
+public sealed class RollerLeapTask : BaseTask
 {
 	private const float LeapCooldown = 1.2f;
 
@@ -20,7 +21,7 @@ public sealed class RollerLeapTask : TaskBase
 		var rb = rollermine.Rigidbody;
 		if ( !rb.IsValid() ) return;
 
-		var target = Npc.Senses.GetNearestVisible();
+		var target = Npc.Senses.FindBestTarget();
 		if ( !target.IsValid() ) return;
 
 		var dir = (target.WorldPosition - Npc.WorldPosition).Normal;
@@ -37,8 +38,8 @@ public sealed class RollerLeapTask : TaskBase
 		_cooldown = LeapCooldown;
 	}
 
-	protected override TaskStatus OnUpdate()
+	protected override TaskResult OnUpdate()
 	{
-		return _cooldown ? TaskStatus.Success : TaskStatus.Running;
+		return _cooldown ? TaskResult.Success : TaskResult.Running;
 	}
 }

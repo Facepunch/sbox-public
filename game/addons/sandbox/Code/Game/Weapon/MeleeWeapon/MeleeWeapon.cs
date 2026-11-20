@@ -36,6 +36,9 @@ public class MeleeWeapon : BaseSandboxWeapon
 	{
 		// Melee doesn't use ammo (the engine default is on, which would leave us dry-firing an empty clip).
 		UsesAmmo = false;
+
+		// A swing is not a bullet.
+		AttackDamageTags = [DamageTags.Melee];
 	}
 
 	public bool CanAttack() => NextPrimaryFire <= 0;

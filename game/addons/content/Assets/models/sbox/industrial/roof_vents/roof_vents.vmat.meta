@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/industrial/roof_vents/roof_vents.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/industrial/roof_vents/roof_vents.vmat"
       }
     },
     "HammerAutoPackageReferences": null

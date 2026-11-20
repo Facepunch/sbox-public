@@ -19,7 +19,7 @@ namespace Sandbox.Upgraders
 		{
 			if ( oldInstance is Assembly oldAsm )
 			{
-				newInstance = Swaps.TryGetValue( oldAsm, out var swapAsm ) ? swapAsm : oldAsm;
+				newInstance = TryGetTypeReplacement( oldAsm, out var swapAsm ) ? swapAsm : oldAsm;
 				return true;
 			}
 

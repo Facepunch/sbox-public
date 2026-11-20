@@ -37,7 +37,7 @@ public sealed partial class ScriptSystem
 		var generator = new CodeGenerator
 		{
 			AssemblyName = "Sandbox.Game.Scripts",
-			ValidateCompilation = false,
+			ForScriptRuntime = true,
 			Defines = [],
 			GlobalUsings = ["System", "System.Collections.Generic", "System.Linq", "System.Threading.Tasks", "Sandbox"]
 		};

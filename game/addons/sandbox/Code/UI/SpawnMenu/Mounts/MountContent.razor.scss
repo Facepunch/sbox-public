@@ -1,31 +1,13 @@
 @import "/UI/Theme.scss";
 
-MountContent
+@mixin component-theme
 {
-	
+	MountContent .mount-count
+	{
+		min-width: 0px;
+		color: $ui-text-label;
+		@include ui-ellipsis;
+	}
 }
 
-MountContent .mount-title
-{
-	@include ui-display-heading;
-	flex-shrink: 0;
-	min-width: 0px;
-	margin-top: 8px;
-	text-transform: capitalize;
-}
-
-MountContent > .body
-{
-	flex-grow: 1;
-	position: absolute;
-	width: 100%;
-	height: 100%;
-	top: 0px;
-}
-
-.spawnicon
-{
-	width: 100%;
-	height: 100%;
-	cursor: pointer;
-}
+@import "/UI/Theme/Apply.scss";

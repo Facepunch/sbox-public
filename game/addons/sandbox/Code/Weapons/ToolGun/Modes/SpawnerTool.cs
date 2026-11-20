@@ -111,6 +111,7 @@ public sealed class SpawnerTool : ToolMode
 		{
 			PropSpawner => "prop",
 			EntitySpawner => "entity",
+			MountPrefabSpawner => "mountprefab",
 			MountSpawner => "mount",
 			DuplicatorSpawner => "dupe",
 			_ => null

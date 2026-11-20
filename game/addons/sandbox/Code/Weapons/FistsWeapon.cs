@@ -6,7 +6,7 @@ public sealed class FistsWeapon : MeleeWeapon
 	public FistsWeapon()
 	{
 		DisplayName = "Fists";
-		HoldType = "melee_punch";
+		HoldType = WeaponHolds.Fists;
 		Handedness = WeaponHandedness.Both;
 		Range = 64f;
 		Damage = 12f;

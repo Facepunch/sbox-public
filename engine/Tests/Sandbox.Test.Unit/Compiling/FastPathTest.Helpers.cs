@@ -37,6 +37,8 @@ internal class FastPathTestCompiler : IDisposable
 	public InMemoryCompiler InMemoryCompiler { get; }
 	public BuildResult? LastResult { get; private set; }
 
+	public Compiler Compiler => InMemoryCompiler.Compiler;
+
 	/// <summary>
 	/// Loads each compiled assembly. Defaults to the default load context.
 	/// </summary>

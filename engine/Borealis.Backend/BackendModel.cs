@@ -449,37 +449,48 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	(BufferHandle Buffer, long Offset, int Slot) UploadPositions( Device gpu, MeshVertexBuffer source, string name, GpuDrivenTables tables )
 	{
 		if ( source.Find( "POSITION" ) is not { } field || source.Count == 0 ) return (default, 0, -1);
-		var data = new byte[source.Count * PositionStride];
-		if ( field.Format == ColorFormat.R32G32B32_FLOAT && source.Stride >= field.Offset + PositionStride )
+
+		// Written into pooled scratch, copied to the GPU from there
+		var length = source.Count * PositionStride;
+		var scratch = System.Buffers.ArrayPool<byte>.Shared.Rent( length );
+		try
 		{
-			// Float3 positions (nearly every model): copied as they are, without decoding each vertex
-			var from = source.Data.AsSpan();
-			for ( int v = 0; v < source.Count; v++ ) from.Slice( v * source.Stride + field.Offset, PositionStride ).CopyTo( data.AsSpan( v * PositionStride ) );
-		}
-		else
-		{
-			var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( data.AsSpan() );
-			for ( int v = 0; v < source.Count; v++ )
+			var data = scratch.AsSpan( 0, length );
+			if ( field.Format == ColorFormat.R32G32B32_FLOAT && source.Stride >= field.Offset + PositionStride )
 			{
-				var p = source.Read( field, v );
-				floats[v * 3] = p.X;
-				floats[v * 3 + 1] = p.Y;
-				floats[v * 3 + 2] = p.Z;
+				// Float3 positions (nearly every model): copied as they are, without decoding each vertex
+				var from = source.Data.AsSpan();
+				for ( int v = 0; v < source.Count; v++ ) from.Slice( v * source.Stride + field.Offset, PositionStride ).CopyTo( data[(v * PositionStride)..] );
 			}
-		}
+			else
+			{
+				var floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( data );
+				for ( int v = 0; v < source.Count; v++ )
+				{
+					var p = source.Read( field, v );
+					floats[v * 3] = p.X;
+					floats[v * 3 + 1] = p.Y;
+					floats[v * 3 + 2] = p.Z;
+				}
+			}
 
-		System.Threading.Interlocked.Add( ref device.PositionStreamBytes, data.Length );
-		if ( tables is not null )
+			System.Threading.Interlocked.Add( ref device.PositionStreamBytes, length );
+			if ( tables is not null )
+			{
+				var placed = tables.AddVertexStream( data );
+				pageRanges.Add( (placed.Slot, length) );
+				return placed;
+			}
+
+			var buffer = gpu.CreateBuffer( new BufferInfo { Size = length, Usage = BufferUsage.Vertex, Name = name } );
+			gpu.WriteBuffer( buffer, data );
+			buffers.Add( buffer );
+			return (buffer, 0, -1);
+		}
+		finally
 		{
-			var placed = tables.AddVertexStream( data );
-			pageRanges.Add( (placed.Slot, data.Length) );
-			return placed;
+			System.Buffers.ArrayPool<byte>.Shared.Return( scratch );
 		}
-
-		var buffer = gpu.CreateBuffer( new BufferInfo { Size = data.Length, Usage = BufferUsage.Vertex, Name = name } );
-		gpu.WriteBuffer( buffer, data );
-		buffers.Add( buffer );
-		return (buffer, 0, -1);
 	}
 
 	DrawGeometry IBackendGeometry.For( int mesh, int drawCall ) => draws[mesh][drawCall];

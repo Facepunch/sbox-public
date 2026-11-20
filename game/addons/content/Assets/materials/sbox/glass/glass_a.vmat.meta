@@ -23,8 +23,7 @@
         "Summary": "",
         "Description": "",
         "Public": true,
-        "AssetLicense": "CC0",
-        "ParentPackage": "facepunch.sbox_content"
+        "AssetLicense": "CC0"
       }
     },
     "HammerAutoPackageReferences": null

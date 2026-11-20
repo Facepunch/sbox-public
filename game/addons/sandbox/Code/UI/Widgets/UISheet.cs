@@ -123,11 +123,15 @@ public class UISheetGroup : Panel
 		{
 			_header = Add.Panel( "header" );
 
-			if ( _toggle is not null )
-				_header.AddChild( new UICheckbox { Property = _toggle } );
-
 			var label = _header.Add.Label( "", "title" );
 			label.Text = title ?? "";
+
+			if ( _toggle is not null )
+			{
+				_header.AddClass( "toggle-header" );
+				var toggleControl = _header.AddChild( new UICheckbox { Property = _toggle } );
+				label.AddEventListener( "onclick", toggleControl.Toggle );
+			}
 
 			foreach ( var method in headerButtons )
 			{
@@ -174,7 +178,7 @@ public class UISheetGroup : Panel
 }
 
 /// <summary>
-/// One property, its name on the left and its control on the right, wide controls like the resource grid go under the name instead.
+/// One property with its name on the left and its control on the right. Wide controls like resource grids go under the name.
 /// A button has no name and takes the row, and the buttons that follow with [SameLine] share it.
 /// </summary>
 public class UISheetRow : Panel
@@ -211,19 +215,18 @@ public class UISheetRow : Panel
 		SetClass( "buttons", isButton );
 		SetClass( "bare", !hasName );
 
-		// a checkbox goes in front of its name, every other control after it
-		if ( isToggle )
-			_holder = Add.Panel( "control" );
-
 		if ( hasName )
 		{
 			// only the name shows the description, not the control next to it
 			var label = AddChild( new UIHintLabel { Hint = property.Description } );
 			label.AddClass( "label" );
 			label.Text = property.DisplayName;
+
+			if ( control is UICheckbox toggle )
+				label.AddEventListener( "onclick", toggle.Toggle );
 		}
 
-		_holder ??= Add.Panel( "control" );
+		_holder = Add.Panel( "control" );
 		if ( control is not null )
 			_holder.AddChild( control );
 	}
@@ -322,7 +325,7 @@ public class UISheetRow : Panel
 
 		var isNumber = type == typeof( float ) || type == typeof( double ) || type == typeof( int );
 		if ( isNumber && property.HasAttribute<RangeAttribute>() )
-			return new UISlider { Property = property };
+			return new UISlider( inset: true ) { Property = property };
 
 		var control = BaseControl.CreateFor( property );
 

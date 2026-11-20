@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "materials/sbox/trimsheets/wood/plywood_trim_painted.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "materials/sbox/trimsheets/wood/plywood_trim_painted.vmat"
       }
     },
     "HammerAutoPackageReferences": null

@@ -19,7 +19,7 @@ public sealed partial class ScriptSystem
 	/// </summary>
 	private void CheckSourceAccess()
 	{
-		CheckAccess();
+		CheckContextAccess();
 		if ( _context.ReceivesNetworkScripts )
 		{
 			throw new InvalidOperationException( "Script sources are controlled by the host." );
@@ -95,7 +95,7 @@ public sealed partial class ScriptSystem
 	/// </summary>
 	internal FileLoadResult LoadNetworkFiles()
 	{
-		CheckAccess();
+		CheckContextAccess();
 		if ( !ReceivesNetworkFiles || _networkTable is null )
 		{
 			throw new InvalidOperationException( "Script networking has not been initialized as a client." );

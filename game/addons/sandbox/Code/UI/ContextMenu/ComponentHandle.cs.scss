@@ -1,61 +1,66 @@
 @import "/UI/Theme.scss";
 
-ComponentHandle
+@mixin component-theme
 {
-	@include ui-button-face;
-	width: 38px;
-	height: 38px;
-	border-radius: 2px;
-	position: absolute;
-	justify-content: center;
-	align-items: center;
-	cursor: pointer;
-	transform: scale( 1 ) translateX( -50% ) translateY( -50% );
-	z-index: 100;
-
-	.icon
+	ComponentHandle
 	{
-		font-family: "Material Icons";
-		color: $ui-blue;
-		font-size: 23px;
-		pointer-events: none;
-	}
-
-	&:hover
-	{
-		opacity: 1;
-		background-color: $ui-blue-soft;
-	}
-
-	&:active
-	{
-		border-color: $ui-blue;
-		background-color: $ui-blue-soft;
-		opacity: 1;
-		transform: scale( 0.95 ) translateX( -50% ) translateY( -50% );
-	}
-
-	&.behind
-	{
-		display: none;
-	}
-
-	&.active
-	{
-		@include ui-selected;
-		background-image: none;
-		border-color: $ui-blue;
-		opacity: 1;
+		@include ui-button-face;
+		width: 38px;
+		height: 38px;
+		border-radius: 2px;
+		position: absolute;
+		justify-content: center;
+		align-items: center;
+		cursor: pointer;
+		transform: scale( 1 ) translateX( -50% ) translateY( -50% );
+		z-index: 100;
 
 		.icon
 		{
-			color: #fff;
+			font-family: $ui-icon;
+			color: $ui-blue;
+			font-size: 23px;
+			pointer-events: none;
+		}
+
+		&:hover
+		{
+			opacity: 1;
+			background-color: $ui-blue-soft;
+		}
+
+		&:active
+		{
+			border-color: $ui-blue;
+			background-color: $ui-blue-soft;
+			opacity: 1;
+			transform: scale( 0.95 ) translateX( -50% ) translateY( -50% );
+		}
+
+		&.behind
+		{
+			display: none;
+		}
+
+		&.active
+		{
+			@include ui-selected;
+			background-image: none;
+			border-color: $ui-blue;
+			opacity: 1;
+
+			.icon
+			{
+				color: #fff;
+			}
+		}
+
+		&:outro
+		{
+			transform: scale( 0 ) translateX( -50% ) translateY( -50% );
+			transition: transform 0.2s ease-out;
 		}
 	}
-
-	&:outro
-	{
-		transform: scale( 0 ) translateX( -50% ) translateY( -50% );
-		transition: transform 0.2s ease-out;
-	}
 }
+
+@import "/UI/Theme/Apply.scss";

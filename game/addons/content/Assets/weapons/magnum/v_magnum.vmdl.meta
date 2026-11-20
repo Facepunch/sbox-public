@@ -16,8 +16,7 @@
       "IsStandaloneOnly": false,
       "Metadata": {
         "SingleAssetSource": "weapons/magnum/v_magnum.vmdl",
-        "AssetLicense": "",
-        "ParentPackage": "facepunch.sbox_content"
+        "AssetLicense": ""
       }
     }
   }

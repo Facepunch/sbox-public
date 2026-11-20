@@ -1,7 +1,12 @@
 @import "/UI/Theme.scss";
 
-panel.tooltip
+@mixin component-theme
 {
-	@include ui-hint;
-	margin: 0px;
+	panel.tooltip
+	{
+		@include ui-hint;
+		margin: 0px;
+	}
 }
+
+@import "/UI/Theme/Apply.scss";

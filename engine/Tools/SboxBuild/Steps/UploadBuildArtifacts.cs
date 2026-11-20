@@ -194,7 +194,6 @@ internal class UploadBuildArtifacts
 		"bin/win64/materialsystem2.dll",
 		"bin/win64/meshsystem.dll",
 		"bin/win64/modeldoc_utils.dll",
-		"bin/win64/openxr_loader.dll",
 		"bin/win64/rendersystemempty.dll",
 		"bin/win64/resourcecompiler.dll",
 		"bin/win64/schemasystem.dll",

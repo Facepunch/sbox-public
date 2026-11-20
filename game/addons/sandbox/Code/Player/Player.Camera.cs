@@ -16,7 +16,7 @@ public sealed partial class Player : ICameraModifier
 	private float _smoothedDistance;
 	private Angles _seatedAngles;
 	private Vector3 _lastSeatWorldPos;
-	private List<BaseSandboxWeapon> _seatedWeapons;
+	private List<BaseCombatWeapon> _seatedWeapons;
 
 	private float roll;
 
@@ -187,14 +187,14 @@ public sealed partial class Player : ICameraModifier
 		var builder = new LinkedGameObjectBuilder();
 		builder.AddConnected( seatGo );
 
-		_seatedWeapons ??= new List<BaseSandboxWeapon>();
+		_seatedWeapons ??= new List<BaseCombatWeapon>();
 		_seatedWeapons.Clear();
 
 		foreach ( var obj in builder.Objects )
 		{
-			foreach ( var weapon in obj.GetComponentsInChildren<BaseSandboxWeapon>() )
+			foreach ( var weapon in obj.GetComponentsInChildren<BaseCombatWeapon>() )
 			{
-				if ( !weapon.HasOwner )
+				if ( !weapon.Owner.IsValid() )
 					_seatedWeapons.Add( weapon );
 			}
 		}
@@ -207,7 +207,7 @@ public sealed partial class Player : ICameraModifier
 		foreach ( var weapon in _seatedWeapons )
 		{
 			if ( !weapon.IsValid() ) continue;
-			if ( weapon is IPlayerControllable controllable && !controllable.CanControl( this ) ) continue;
+			if ( weapon.GetComponent<IPlayerControllable>() is { } controllable && !controllable.CanControl( this ) ) continue;
 
 			// The engine projects the weapon's aim point onto the screen (targeted aim resolves to a
 			// camera ray, which projects to centre).

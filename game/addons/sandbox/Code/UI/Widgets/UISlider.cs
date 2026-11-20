@@ -8,7 +8,6 @@ namespace Sandbox;
 /// </summary>
 public class UISlider : BaseControl
 {
-	const float ThumbWidth = 10f;
 	const int MaxStepTicks = 24;
 	const int DefaultDivisions = 10;
 	static readonly float[] NiceMultiples = { 1f, 2f, 5f };
@@ -17,6 +16,7 @@ public class UISlider : BaseControl
 	readonly NumberEntry _entry;
 	readonly Panel _track;
 	readonly Panel _thumb;
+	readonly Panel _progress;
 	readonly List<Panel> _ticks = new();
 
 	float _min = 0f;
@@ -26,10 +26,19 @@ public class UISlider : BaseControl
 
 	public override bool SupportsMultiEdit => true;
 
-	public UISlider()
+	/// <summary>
+	/// Creates a slider with a numeric entry.
+	/// </summary>
+	public UISlider() : this( false )
 	{
+	}
+
+	internal UISlider( bool inset )
+	{
+		SetClass( "inset", inset );
 		_track = Add.Panel( "track" );
 		_track.Add.Panel( "line" );
+		if ( inset ) _progress = _track.Add.Panel( "progress" );
 		_thumb = _track.Add.Panel( "thumb" );
 
 		_entryHolder = Add.Panel( "entry" );
@@ -191,6 +200,8 @@ public class UISlider : BaseControl
 
 	void RebuildTicks()
 	{
+		if ( _progress is not null ) return;
+
 		foreach ( var tick in _ticks ) tick.Delete( true );
 		_ticks.Clear();
 
@@ -251,7 +262,8 @@ public class UISlider : BaseControl
 		var position = _max > _min ? MathX.LerpInverse( value, _min, _max, true ) : 0f;
 
 		_thumb.Style.Left = Length.Percent( position * 100f );
-		_thumb.Style.MarginLeft = -ThumbWidth * 0.5f;
+		if ( _progress is not null )
+			_progress.Style.Width = _thumb.Style.Left;
 
 		if ( !_entry.HasFocus )
 			_entry.Text = Format( value );

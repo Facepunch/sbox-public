@@ -9,19 +9,23 @@ $hud-accent: #4d90fc;
 $color-accent: #0094ff;
 $color-text: #fafaff;
 
-$title-font: "Inter";
 $body-font: "Inter";
-$subtitle-font: "Inter";
+$title-font: $body-font;
+$subtitle-font: $body-font;
+$ui-icon: "Material Icons";
+$ui-icon-outlined: "Material Icons Outlined";
 
 $ui-mono: "Inconsolata";
 
 // text size in the tool settings and the controls in them
 $ui-settings-font: 12px;
+$spawn-menu-content-inset: 16px;
+$context-menu-bar-height: 40px;
 
 // space above every section header except the first one in a sheet or page
 $ui-section-gap: 20px;
 
-// the color palette, swap for "/UI/Theme/Light.scss" to get the light look
+// Components use the dark palette by default. Theme/Apply.scss adds their light variant.
 @import "/UI/Theme/Dark.scss";
 
 // base gray block, all UI stuff is built on top of them
@@ -62,6 +66,21 @@ $ui-section-gap: 20px;
 			}
 		}
 	}
+}
+
+@mixin ui-scroll-column
+{
+	@include ui-scroll;
+	flex-direction: column;
+	overflow-y: scroll;
+	scrollbar-gutter: stable;
+}
+
+@mixin ui-ellipsis
+{
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 // for search boxes
@@ -162,22 +181,21 @@ $ui-section-gap: 20px;
 
 	label
 	{
-		font-family: "Inter";
+		font-family: $body-font;
 		font-size: 12px;
 		font-weight: 500;
 		max-width: 28vw;
 	}
 }
 
-// white text on the blue fill, for the picked item of a list, dropdown or segmented control
-@mixin ui-selected
+@mixin ui-selected( $background: $ui-selected-bg )
 {
-	color: white;
-	background-color: $ui-blue;
+	color: $ui-selected-text;
+	background-color: $background;
 }
 
 // rows you can pick, a soft blue under the mouse and the blue fill on the active one
-@mixin ui-selectable
+@mixin ui-selectable( $selected-background: $ui-selected-bg )
 {
 	cursor: pointer;
 	border-radius: 2px;
@@ -195,7 +213,7 @@ $ui-section-gap: 20px;
 
 	&.active
 	{
-		@include ui-selected;
+		@include ui-selected( $selected-background );
 	}
 }
 
@@ -208,7 +226,6 @@ $ui-section-gap: 20px;
 	}
 }
 
-// blue bar with a white title, on top of lists and settings panels
 @mixin ui-title-bar
 {
 	flex-direction: row;
@@ -216,7 +233,7 @@ $ui-section-gap: 20px;
 	flex-shrink: 0;
 	height: 23px;
 	padding: 0 10px;
-	background-color: $ui-blue;
+	background-color: $ui-title-bg;
 	color: white;
 	font-size: 12px;
 	font-weight: 800;
@@ -232,9 +249,7 @@ $ui-section-gap: 20px;
 	font-weight: 700;
 	color: $ui-heading-on-gray;
 	text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.4);
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
+	@include ui-ellipsis;
 }
 
 // grey uppercase text of group and section names
@@ -261,76 +276,6 @@ $ui-section-gap: 20px;
 	padding-bottom: 3px;
 	border-bottom: 1px solid $ui-separator;
 	@include ui-heading-text;
-}
-
-// (unselected) menu tabs (buttons for spawnlist/entities/NPCs/etc..)
-@mixin ui-tab
-{
-	flex-direction: row;
-	align-items: center;
-	justify-content: center;
-	gap: 4px;
-	height: 24px;
-	padding: 0 10px;
-	flex-shrink: 0;
-	border-radius: 2px 2px 0px 0px;
-	font-size: 13px;
-	font-weight: 600;
-	color: $ui-text-on-gray;
-	background-color: $ui-tab-bg;
-	border-top: 1px solid $ui-tab-border;
-	border-right: 1px solid $ui-tab-border;
-	cursor: pointer;
-	white-space: nowrap;
-
-	&:first-child
-	{
-		border-left: 1px solid $ui-tab-border;
-	}
-
-	&:hover
-	{
-		color: white;
-		background-color: $ui-tab-bg-hover;
-		sound-in: ui.hover;
-	}
-
-	&:active
-	{
-		sound-in: ui.select;
-	}
-
-	&.active
-	{
-		@include ui-tab-active;
-	}
-}
-
-// selected menu tab
-@mixin ui-tab-active
-{
-	height: 25px;
-	padding-top: 1px;
-	color: white;
-	background-color: $ui-tab-bg-active;
-	border: 1px solid $ui-block-border;
-	border-bottom: 0px;
-	pointer-events: none;
-}
-
-// a tab drawn as a button of its own instead of joining the block under it, like the tabs of the inspect menu windows
-@mixin ui-tab-button
-{
-	@include ui-tab;
-	border: 1px solid $ui-tab-border;
-	border-radius: 2px;
-
-	&.active
-	{
-		height: 24px;
-		padding-top: 0px;
-		border: 1px solid $ui-block-border;
-	}
 }
 
 // the description strip that slides down from the top of a card on hover for UICardDescription
@@ -397,7 +342,7 @@ $ui-section-gap: 20px;
 	overflow: hidden;
 	border: 1px solid transparent;
 	border-radius: 2px;
-	background-color: $ui-tile-bg;
+	background-color: $ui-spawn-preview-bg;
 	background-position: center;
 	background-size: cover;
 	background-repeat: no-repeat;
@@ -423,6 +368,13 @@ $ui-section-gap: 20px;
 @mixin ui-dupe-card
 {
 	@include ui-card;
+	border-radius: 7px;
+
+	.description
+	{
+		background-color: $ui-popup-bg;
+		color: $ui-text;
+	}
 
 	.footer
 	{
@@ -435,7 +387,7 @@ $ui-section-gap: 20px;
 		flex-direction: row;
 		align-items: center;
 		gap: 6px;
-		background-color: rgba( 0, 0, 0, 0.4 );
+		background-color: $ui-popup-bg;
 		transition: background-color 0.1s ease;
 
 		.avatar
@@ -453,12 +405,10 @@ $ui-section-gap: 20px;
 			flex-grow: 1;
 			flex-shrink: 1;
 			min-width: 0px;
-			color: white;
+			color: $ui-text-strong;
 			font-size: 12px;
 			font-weight: 700;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
+			@include ui-ellipsis;
 			transition: color 0.1s ease;
 		}
 	}
@@ -501,9 +451,7 @@ $ui-section-gap: 20px;
 	font-size: 11px;
 	font-weight: 500;
 	text-align: center;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	@include ui-ellipsis;
 }
 
 // handle for the slider
@@ -527,7 +475,7 @@ $ui-section-gap: 20px;
 	background-color: transparent;
 	border: 1px solid transparent;
 	border-radius: 0;
-	font-family: "Inter";
+	font-family: $body-font;
 	font-size: $ui-settings-font;
 	font-weight: 500;
 	color: $ui-text-label;
@@ -544,19 +492,8 @@ $ui-section-gap: 20px;
 {
 	width: 100%;
 	flex-shrink: 0;
-	padding: 6px;
+	padding-top: 8px;
 	border-top: 1px solid $ui-separator;
-}
-
-// a column panel down the side of a page, like the categories of the spawn menu or the tool list
-@mixin ui-sidebar
-{
-	@include ui-section;
-	@include ui-scroll;
-	flex-direction: column;
-	flex-shrink: 0;
-	min-height: 0px;
-	overflow: hidden;
 }
 
 // smaller secondary text under a title, inside a section
@@ -581,9 +518,7 @@ $ui-section-gap: 20px;
 	font-size: $ui-settings-font;
 	font-weight: 500;
 	color: $ui-text-label;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
+	@include ui-ellipsis;
 }
 
 // tables: a title bar header, rows with a line under them and every other one shaded
@@ -614,5 +549,6 @@ $ui-section-gap: 20px;
 	}
 }
 
+@import "/UI/Theme/MenuControls.scss";
 @import "/UI/Menu.scss";
 @import "/UI/Hud.scss";

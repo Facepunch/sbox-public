@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "materials/sbox/wall/wall_brick_b_trim_noalpha.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "materials/sbox/wall/wall_brick_b_trim_noalpha.vmat"
       }
     },
     "HammerAutoPackageReferences": null

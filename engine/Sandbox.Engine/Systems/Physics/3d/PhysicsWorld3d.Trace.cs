@@ -103,9 +103,16 @@ partial class PhysicsWorld3d
 
 	public override IEnumerable<GameObject> FindInPhysics( Sphere sphere )
 	{
+		var gameObjects = new HashSet<GameObject>();
+		FindInPhysics( sphere, gameObjects );
+		return gameObjects;
+	}
+
+	internal override void FindInPhysics( Sphere sphere, HashSet<GameObject> gameObjects )
+	{
 		var results = ThreadQueryResult;
 		native.Query( results, sphere.Center, sphere.Radius, 0x07 );
-		return FilterQueryResults( results );
+		FilterQueryResults( results, gameObjects );
 	}
 
 	public override IEnumerable<GameObject> FindInPhysics( BBox box )
@@ -180,6 +187,12 @@ partial class PhysicsWorld3d
 	static HashSet<GameObject> FilterQueryResults( CQueryResult results )
 	{
 		var gameObjects = new HashSet<GameObject>();
+		FilterQueryResults( results, gameObjects );
+		return gameObjects;
+	}
+
+	static void FilterQueryResults( CQueryResult results, HashSet<GameObject> gameObjects )
+	{
 		int count = results.Count();
 
 		for ( int i = 0; i < count; ++i )
@@ -198,7 +211,5 @@ partial class PhysicsWorld3d
 
 			gameObjects.Add( gameObject );
 		}
-
-		return gameObjects;
 	}
 }

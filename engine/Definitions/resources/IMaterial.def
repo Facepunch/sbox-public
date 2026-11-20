@@ -14,11 +14,6 @@ native class IMaterial2 as NativeEngine.IMaterial
 	IMaterialMode GetMode( StringToken token );
 	IMaterialMode GetMode();
 
-	inline IMaterialMode GetMode( ISceneLayer layer )
-	{
-		return self->GetMode( layer->GetShaderMode() );
-	}
-
 	CRenderAttributes GetRenderAttributes();
 
 	void RecreateAllStaticConstantAndCommandBuffers();

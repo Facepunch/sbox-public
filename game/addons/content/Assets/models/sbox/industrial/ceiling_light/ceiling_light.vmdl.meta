@@ -19,7 +19,6 @@
         "Summary": "",
         "Description": "",
         "Public": true,
-        "ParentPackage": "facepunch.sbox_content",
         "AssetLicense": "CC0"
       }
     }

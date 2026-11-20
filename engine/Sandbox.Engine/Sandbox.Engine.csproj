@@ -39,7 +39,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Facepunch.ActionGraphs" Version="1.9.27" />
-		<PackageReference Include="Facepunch.Breen" Version="1.0.0-rc.46" />
+		<PackageReference Include="Facepunch.Breen" Version="1.0.0-rc.48" />
 		<PackageReference Include="Fleck" Version="1.2.0" />
 		<PackageReference Include="LiteDB" Version="5.0.21" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
@@ -96,11 +96,6 @@
 			<DesignTime>True</DesignTime>
 			<AutoGen>True</AutoGen>
 		</Compile>
-        <Compile Update="Platform\VR\VRSystem.Generated.cs">
-            <DesignTime>True</DesignTime>
-            <AutoGen>True</AutoGen>
-            <DependentUpon>VRSystem.Generated.tt</DependentUpon>
-        </Compile>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -108,10 +103,6 @@
 			<LastGenOutput>BaseStyles.Generated.cs</LastGenOutput>
 			<Generator>TextTemplatingFileGenerator</Generator>
 		</None>
-        <None Update="Platform\VR\VRSystem.Generated.tt">
-            <Generator>TextTemplatingFileGenerator</Generator>
-            <LastGenOutput>VRSystem.Generated.cs</LastGenOutput>
-        </None>
 	</ItemGroup>
 
 	<ItemGroup>

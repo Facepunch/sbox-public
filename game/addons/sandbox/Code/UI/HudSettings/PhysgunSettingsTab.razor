@@ -3,12 +3,12 @@
 @inherits Panel
 @namespace Sandbox
 @attribute [InspectWindow.Tab]
-@attribute [Icon( "🔫" )]
+@attribute [Icon( "open_with" )]
 @attribute [Title( "#spawnmenu.tab.physgun" )]
 @attribute [Order( 400 )]
 
 <root>
-    <UISettingsPane Title=@Game.Language.GetPhrase( "spawnmenu.tab.physgun" )>
+    <UISettingsPane>
         <Body>
             <UISheet Target="@Settings" PropertyFilter="@UISheet.PropertiesAndButtons" />
         </Body>

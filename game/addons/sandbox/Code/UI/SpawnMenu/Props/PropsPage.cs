@@ -2,7 +2,7 @@
 /// <summary>
 /// This component has a kill icon that can be used in the killfeed, or somewhere else.
 /// </summary>
-[Title( "#spawnmenu.tab.spawnlists" ), Order( 0 ), Icon( "📦" )]
+[Title( "#spawnmenu.tab.spawnlists" ), Order( 0 ), Icon( "view_list" )]
 public class PropsPage : SpawnlistsPage
 {
 	protected override void AddProceduralSpawnlists()

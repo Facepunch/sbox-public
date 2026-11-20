@@ -21,8 +21,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/shared/first_person/materials/v_first_person_arms_human_shadow.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/shared/first_person/materials/v_first_person_arms_human_shadow.vmat"
       }
     }
   }

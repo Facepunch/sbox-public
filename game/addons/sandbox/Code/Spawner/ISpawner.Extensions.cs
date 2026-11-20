@@ -14,6 +14,7 @@ public static class ISpawnerExtensions
 				"builder" => new BuilderSpawner( path ),
 				"mount" => new MountSpawner( path, metadata ),
 				"entity" or "sent" => new EntitySpawner( path ),
+				"mountprefab" => new MountPrefabSpawner( path ),
 				"dupe" => new DuplicatorSpawner( path, source ),
 				_ => null
 			};

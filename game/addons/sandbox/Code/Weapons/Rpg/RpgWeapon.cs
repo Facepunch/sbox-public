@@ -3,6 +3,12 @@
 [Title( "Ashford R-7" )]
 public sealed class RpgWeapon : BaseSandboxWeapon
 {
+	public RpgWeapon()
+	{
+		// Not a gun: the rocket it launches does the damage.
+		AttackDamageTags = [];
+	}
+
 	[Property] public GameObject ProjectilePrefab { get; set; }
 	[Property] public float ProjectileSpeed { get; set; } = 1024f;
 

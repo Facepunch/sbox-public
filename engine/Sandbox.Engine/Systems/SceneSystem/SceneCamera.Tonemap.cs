@@ -11,19 +11,11 @@ public partial class SceneCamera
 internal class TonemapSystem
 {
 	private readonly SceneCamera Camera;
-	private ITonemapSystem System;
 	private SceneTonemapParameters_t Parameters = new SceneTonemapParameters_t();
 
 	internal TonemapSystem( SceneCamera camera )
 	{
 		Camera = camera;
-		System = Camera.ToneMapping?.GetNative() ?? default;
-
-		if ( System.IsValid )
-		{
-			SceneTonemapParameters_t defaultParams = new SceneTonemapParameters_t();
-			System.SetTonemapParameters( ref defaultParams );
-		}
 	}
 
 	internal void SetTonemapParameters( SceneTonemapParameters_t parameters )
@@ -143,10 +135,6 @@ internal class TonemapSystem
 
 	private void Update()
 	{
-		if ( System.IsValid )
-		{
-			System.SetTonemapParameters( ref Parameters );
-		}
 	}
 
 	// The camera's auto exposure on a Borealis.Gpu device, made when its frames are drawn there

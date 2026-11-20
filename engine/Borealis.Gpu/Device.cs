@@ -829,6 +829,9 @@ public sealed unsafe partial class Device : IDisposable
 		if ( disposed ) return;
 		disposed = true;
 
+		// Upload pages being made ahead finish first: they allocate on this device
+		while ( Volatile.Read( ref makingUploadPages ) != 0 ) Thread.Sleep( 1 );
+
 		// Bounded: a GPU that stopped mustn't hold the process at exit
 		try { WaitFlushed(); }
 		catch ( GpuException ) { }

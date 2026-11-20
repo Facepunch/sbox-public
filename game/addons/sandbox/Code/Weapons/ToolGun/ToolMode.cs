@@ -93,6 +93,32 @@
 
 	private readonly List<ToolActionEntry> _actions = new();
 	private readonly List<GameObject> _createdObjects = new();
+	private UndoSystem.Entry _groupedUndo;
+	private int _undoGroup;
+
+	/// <summary>
+	/// Adds a spawned object to the player's undo history. Use the same nonzero group for objects
+	/// created by one continuous action, such as a spray of decals.
+	/// </summary>
+	protected void AddUndoObject( GameObject go, string name, int group = 0 )
+	{
+		var stack = Player.Undo;
+		var entry = _groupedUndo;
+
+		if ( group == 0 || group != _undoGroup || !stack.Contains( entry ) )
+		{
+			entry = stack.Create();
+			entry.Name = name;
+
+			if ( group != 0 )
+			{
+				_groupedUndo = entry;
+				_undoGroup = group;
+			}
+		}
+
+		entry.Add( go );
+	}
 
 	/// <summary>
 	/// Register a tool action that will be dispatched automatically by the base <see cref="OnControl"/>.

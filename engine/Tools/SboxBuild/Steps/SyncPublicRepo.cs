@@ -30,20 +30,40 @@ internal record ArtifactManifest
 }
 
 /// <summary>
-/// Syncs the master branch and tags to the public repository by filtering specific paths
+/// Syncs the master branch and tags to the public repository by filtering specific paths. With a
+/// <paramref name="publicBranch"/> other than master (a Steam branch's, from a [steam:name] PR), it syncs
+/// <paramref name="source"/> to that branch instead, without tags; the filter is deterministic, so the
+/// branch's history shares public master's commits wherever it contains master's.
 /// </summary>
-internal class SyncPublicRepo( bool dryRun = false )
+/// <param name="dryRun">Filter and validate, but upload nothing and push nothing.</param>
+/// <param name="publicBranch">The public branch to update.</param>
+/// <param name="source">The commit to sync (a branch's only): the one checked out, whose build outputs these are.</param>
+/// <param name="artifactsCommit">The commit the build outputs were built from when it isn't the source (a PR's merge
+/// commit): refused unless its native inputs match the source's.</param>
+/// <param name="keepFiltered">Keep the filtered repository on a dry run, for inspection.</param>
+internal class SyncPublicRepo( bool dryRun = false, string publicBranch = SyncPublicRepo.MasterBranch, string source = null, string artifactsCommit = null, bool keepFiltered = false )
 {
 	private const string PUBLIC_REPO = "Facepunch/sbox-public";
-	private const string PUBLIC_BRANCH = "master";
+	internal const string MasterBranch = "master";
 	private const string SHALLOW_EXCLUDE_TAG = "public-history-root";
 	private const int MAX_PARALLEL_UPLOADS = 32;
 	private const int PREVIOUS_MANIFEST_SEARCH = 20;
+
+	private bool IsMaster => string.Equals( publicBranch, MasterBranch, StringComparison.Ordinal );
+
+	/// <summary>A Steam branch's name, as steam_branch.yml takes it from a [steam:name] tag.</summary>
+	private static readonly System.Text.RegularExpressions.Regex BranchName = new( "^[a-z0-9][a-z0-9_-]*$" );
 
 	internal ExitCode Run()
 	{
 		try
 		{
+			if ( !IsMaster && !BranchName.IsMatch( publicBranch ?? "" ) )
+			{
+				Log.Error( $"Not a public branch name: '{publicBranch}' (lowercase letters, digits, _ and -)" );
+				return ExitCode.Failure;
+			}
+
 			var success = SyncToPublicRepository();
 			if ( !success )
 			{
@@ -71,7 +91,9 @@ internal class SyncPublicRepo( bool dryRun = false )
 	{
 		"**/*.pdb",
 
-		// Private legacy shader sources, matching depot.game.content.vdf and UploadBuildArtifacts.
+		// Private legacy shader sources, matching depot.game.content.vdf and UploadBuildArtifacts. Entries stay after
+		// their file is deleted: the filter rewrites all history, so dropping one changes every public commit since the
+		// file existed, and a branch synced beside master (a Steam branch) would no longer share master's commits.
 		"game/core/shaders/ambient_cube.fxc",
 		"game/core/shaders/baked_lighting_constants.fxc",
 		"game/core/shaders/bump_strength.fxc",
@@ -129,6 +151,7 @@ internal class SyncPublicRepo( bool dryRun = false )
 		"game/core/shaders/tools_wireframe.shader",
 		"game/core/shaders/ui.shader",
 		"game/core/shaders/unlit.shader",
+		"game/core/shaders/visualize_quad_overdraw.shader"
 	};
 
 	private static readonly Dictionary<string, string> RepoFilterPathRenames = new()
@@ -191,10 +214,38 @@ internal class SyncPublicRepo( bool dryRun = false )
 
 		var repositoryRoot = Path.GetFullPath( "." );
 
+		// A branch's source: a commit, the one checked out unless a dry run names another (the build outputs are the checkout's)
+		string sourceCommit = null;
+		if ( !IsMaster )
+		{
+			sourceCommit = ResolveCommit( source ?? "HEAD" );
+			var head = ResolveCommit( "HEAD" );
+			if ( sourceCommit is null || head is null )
+			{
+				return false;
+			}
+
+			if ( sourceCommit != head && !dryRun )
+			{
+				Log.Error( $"The source {source} ({sourceCommit}) isn't the checked out commit ({head}), whose build outputs would be uploaded" );
+				return false;
+			}
+
+			// The outputs were built from another commit (a PR's merge commit): its native binaries are this commit's
+			// only if their inputs are the same
+			if ( !string.IsNullOrEmpty( artifactsCommit ) && !NativeSourcesMatch( artifactsCommit, sourceCommit ) )
+			{
+				Log.Error( $"The build outputs come from {artifactsCommit}, whose native inputs differ from {sourceCommit}'s: merge {MasterBranch} into the branch so they match" );
+				return false;
+			}
+
+			Log.Info( $"Syncing {sourceCommit} to public branch {publicBranch}" );
+		}
+
 		// The build output doesn't come from the clone, so hash it while the clone is made
 		var buildArtifactsTask = Task.Run( () => HashBuildArtifacts( repositoryRoot ) );
 
-		var filteredRepoPath = CreateShallowClone( repositoryRoot );
+		var filteredRepoPath = IsMaster ? CreateShallowClone( repositoryRoot ) : CreateBranchClone( repositoryRoot, sourceCommit );
 		if ( string.IsNullOrEmpty( filteredRepoPath ) )
 		{
 			buildArtifactsTask.Wait();
@@ -252,6 +303,8 @@ internal class SyncPublicRepo( bool dryRun = false )
 				return false;
 			}
 
+			LogFilteredHistory( relativeFilteredPath );
+
 			var publicCommitHash = dryRun
 				? "000000"
 				: PushToPublicRepository( relativeFilteredPath );
@@ -277,7 +330,7 @@ internal class SyncPublicRepo( bool dryRun = false )
 			// Also upload a copy of the manifest indexed by the private commit hash.
 			// This lets CI running in the private repo resolve artifacts directly from
 			// its own git history without needing to know the public commit hash.
-			var privateCommitHash = GetPrivateCommitHash();
+			var privateCommitHash = sourceCommit ?? GetPrivateCommitHash();
 			if ( !string.IsNullOrEmpty( privateCommitHash ) &&
 				!string.Equals( privateCommitHash, publicCommitHash, StringComparison.OrdinalIgnoreCase ) )
 			{
@@ -294,15 +347,22 @@ internal class SyncPublicRepo( bool dryRun = false )
 		}
 		finally
 		{
-			try
+			if ( dryRun && keepFiltered )
 			{
-				Thread.Sleep( 500 ); // Give any pending file handles a moment to close
-				Log.Info( "Cleaning up temporary filtered repository..." );
-				DeleteDirectory( filteredRepoPath );
+				Log.Info( $"Dry run: kept the filtered repository at {filteredRepoPath}" );
 			}
-			catch ( Exception ex )
+			else
 			{
-				Log.Warning( $"Failed to clean up temporary directory: {ex.Message}" );
+				try
+				{
+					Thread.Sleep( 500 ); // Give any pending file handles a moment to close
+					Log.Info( "Cleaning up temporary filtered repository..." );
+					DeleteDirectory( filteredRepoPath );
+				}
+				catch ( Exception ex )
+				{
+					Log.Warning( $"Failed to clean up temporary directory: {ex.Message}" );
+				}
 			}
 		}
 	}
@@ -324,6 +384,88 @@ internal class SyncPublicRepo( bool dryRun = false )
 
 		Log.Error( "Failed to create clone" );
 		return null;
+	}
+
+	/// <summary>
+	/// A branch's clone: <paramref name="commit"/> alone, as the local branch named for the public one, with the history
+	/// master's clone has (back to <see cref="SHALLOW_EXCLUDE_TAG"/>) and no tags. Other local branches and tags stay out,
+	/// so the filter sees only this history.
+	/// </summary>
+	private string CreateBranchClone( string repositoryRoot, string commit )
+	{
+		var localFilePath = new Uri( repositoryRoot ).AbsoluteUri;
+		var filteredRepoPath = Path.Combine( Path.GetTempPath(), $"sbox-filtered-{Guid.NewGuid()}" );
+
+		Log.Info( $"Creating clone of {commit} for filtering..." );
+
+		// --update-shallow: without it, a fresh repository rejects the shallow history it's sent
+		var environment = new Dictionary<string, string> { ["GIT_LFS_SKIP_SMUDGE"] = "1" };
+		if ( Utility.RunProcess( "git", $"init --quiet \"{filteredRepoPath}\"" ) &&
+			Utility.RunProcess( "git", "config core.longpaths true", filteredRepoPath ) &&
+			Utility.RunProcess( "git", $"fetch --no-tags --update-shallow --shallow-exclude {SHALLOW_EXCLUDE_TAG} \"{localFilePath}\" +{commit}:refs/heads/{publicBranch}", filteredRepoPath ) &&
+			Utility.RunProcess( "git", $"checkout --quiet {publicBranch}", filteredRepoPath, environmentVariables: environment ) )
+		{
+			return filteredRepoPath;
+		}
+
+		Log.Error( "Failed to create clone" );
+		try
+		{
+			DeleteDirectory( filteredRepoPath );
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( $"Failed to clean up the clone: {ex.Message}" );
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Whether the native binaries built from <paramref name="built"/> are <paramref name="commit"/>'s: the native
+	/// sources and interop definitions are the same in both. Not the build tooling, which <see cref="Utility.NativeInputsMatch"/>
+	/// counts too, since a branch is behind master's tooling more often than not.
+	/// </summary>
+	private static bool NativeSourcesMatch( string built, string commit )
+	{
+		var changed = new List<string>();
+		var success = Utility.RunProcess( "git", $"diff --name-only --no-renames --no-ext-diff {built} {commit} -- src/ engine/Definitions/ engine/Tools/InteropGen/ engine/manifest.def", onDataReceived: ( _, e ) =>
+		{
+			if ( !string.IsNullOrWhiteSpace( e.Data ) )
+				changed.Add( e.Data.Trim() );
+		} );
+
+		foreach ( var file in changed.Take( 20 ) )
+			Log.Info( $"  native input differs: {file}" );
+
+		return success && changed.Count == 0;
+	}
+
+	/// <summary>The full hash of <paramref name="revision"/> in this repository; null when it doesn't resolve.</summary>
+	private static string ResolveCommit( string revision )
+	{
+		string hash = null;
+		Utility.RunProcess( "git", $"rev-parse --verify --quiet \"{revision}^{{commit}}\"", onDataReceived: ( _, e ) =>
+		{
+			if ( !string.IsNullOrWhiteSpace( e.Data ) )
+				hash ??= e.Data.Trim().ToLowerInvariant();
+		} );
+
+		if ( hash is null )
+		{
+			Log.Error( $"Couldn't resolve {revision} to a commit" );
+		}
+
+		return hash;
+	}
+
+	/// <summary>How many commits the filtered history has, and its head.</summary>
+	private static void LogFilteredHistory( string relativeRepoPath )
+	{
+		string count = null, head = null;
+		Utility.RunProcess( "git", "rev-list --count HEAD", relativeRepoPath, onDataReceived: ( _, e ) => count ??= string.IsNullOrWhiteSpace( e.Data ) ? null : e.Data.Trim() );
+		Utility.RunProcess( "git", "rev-parse HEAD", relativeRepoPath, onDataReceived: ( _, e ) => head ??= string.IsNullOrWhiteSpace( e.Data ) ? null : e.Data.Trim() );
+		Log.Info( $"Filtered history: {count} commit(s), head {head}" );
 	}
 
 	/// <summary>
@@ -647,7 +789,7 @@ internal class SyncPublicRepo( bool dryRun = false )
 
 	private string PushToPublicRepository( string relativeRepoPath )
 	{
-		Log.Info( "Pushing filtered branch and tags to public..." );
+		Log.Info( IsMaster ? "Pushing filtered branch and tags to public..." : $"Pushing filtered branch to public {publicBranch}..." );
 
 		var token = Environment.GetEnvironmentVariable( "SYNC_GITHUB_TOKEN" );
 		if ( string.IsNullOrEmpty( token ) )
@@ -668,8 +810,10 @@ internal class SyncPublicRepo( bool dryRun = false )
 		}
 
 		// git-filter-repo has already rewritten tag targets to their public commits.
-		// Push both lightweight and annotated tags atomically with the branch.
-		if ( !Utility.RunProcess( "git", $"push --atomic public {PUBLIC_BRANCH} --tags", relativeRepoPath ) )
+		// Push both lightweight and annotated tags atomically with the branch. Another branch pushes no tags: they're
+		// master's, and Setup finds a commit's artifacts by its hash. Never forced: its filtered history only grows.
+		var push = IsMaster ? $"push --atomic public {MasterBranch} --tags" : $"push public HEAD:refs/heads/{publicBranch}";
+		if ( !Utility.RunProcess( "git", push, relativeRepoPath ) )
 		{
 			Log.Error( "Failed to push to public repository" );
 			return null;

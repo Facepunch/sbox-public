@@ -1,11 +1,16 @@
 @import "/UI/Theme.scss";
 
-DupesFooter
+@mixin component-theme
 {
-    @include ui-footer-bar;
+    DupesFooter
+    {
+        @include ui-footer-bar;
+    }
+
+    DupesFooter UIButton
+    {
+        width: 100%;
+    }
 }
 
-DupesFooter UIButton
-{
-    width: 100%;
-}
+@import "/UI/Theme/Apply.scss";

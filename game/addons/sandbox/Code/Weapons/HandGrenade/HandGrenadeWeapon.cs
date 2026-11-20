@@ -10,6 +10,12 @@ public enum ThrowType
 /// </summary>
 public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 {
+	public HandGrenadeWeapon()
+	{
+		// Not a gun: the grenade it throws does the damage.
+		AttackDamageTags = [];
+	}
+
 	[Property] public GameObject Prefab { get; set; }
 	[Property] public float ThrowPower { get; set; } = 1200f;
 

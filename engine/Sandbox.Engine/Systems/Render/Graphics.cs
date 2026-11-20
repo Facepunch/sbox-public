@@ -403,14 +403,9 @@ public static partial class Graphics
 		Assert.NotNull( targetAttributes );
 		Assert.IsValid( obj );
 
+		// A standalone block has no view to light from
 		if ( _state.view is { } view )
-		{
 			view.SetupLighting( obj, targetAttributes );
-			return;
-		}
-
-		// A standalone block has no layer to light from
-		NativeEngine.CSceneSystem.SetupPerObjectLighting( targetAttributes.Get(), obj, default );
 	}
 
 	/// <summary>

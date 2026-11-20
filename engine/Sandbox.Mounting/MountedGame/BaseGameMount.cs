@@ -10,6 +10,11 @@ namespace Sandbox.Mounting;
 /// <summary>
 /// The base class for all mounts. Your mount should implement the abstract methods from this class.
 /// </summary>
+/// <remarks>
+/// Console variables and commands declared in the mount's assembly exist while at least one of its mounts is
+/// mounted. Their names are shared with the engine and every game, and one that is taken is not registered, so
+/// give them a prefix of your own, such as the mount's ident.
+/// </remarks>
 public abstract class BaseGameMount
 {
 	/// <summary>
@@ -163,6 +168,8 @@ public abstract class BaseGameMount
 			if ( entry.Parent is null )
 				RootFolder.AddResource( entry );
 		}
+
+		_host?.MountStateChanged?.Invoke( this );
 	}
 
 	/// <summary>
@@ -196,6 +203,8 @@ public abstract class BaseGameMount
 		}
 
 		RootFolder = null;
+
+		_host?.MountStateChanged?.Invoke( this );
 	}
 
 	/// <summary>

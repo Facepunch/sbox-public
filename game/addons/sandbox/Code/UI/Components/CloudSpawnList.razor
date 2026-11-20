@@ -37,7 +37,7 @@
         }
         else
         {
-            <MixedVirtualGrid @ref=Grid Items=@Entries ItemSize=@IconSize.ItemSize() class=@IconSize.CssClass()>
+            <MixedVirtualGrid @ref=Grid Items=@Entries ItemSize=@IconSize.ItemSize() class="@IconSize.CssClass() labeled-grid">
                 <Item Context="item">
                     @if ( item is Entry entry )
                     {
@@ -46,7 +46,7 @@
                     else if ( item is CommunitySection )
                     {
                         <div class="community-section">
-                            <label>#spawnmenu.section.community_items</label>
+                            <label class="section-title">#spawnmenu.section.community_items</label>
                         </div>
                     }
                 </Item>
@@ -66,7 +66,7 @@
     sealed record CommunitySection : IMixedVirtualGridFullRow
     {
         public bool IsFullRow => true;
-        public float Height => 72f;
+        public float Height => 48f;
     }
 
     protected string Filter
