@@ -50,8 +50,6 @@ public sealed partial class SceneSpriteSystem : GameObjectSystem<SceneSpriteSyst
 
 	public override void Dispose()
 	{
-		foreach ( var group in _textBatches.Values ) group.Batch?.Destroy();
-		_textBatches.Clear();
 		if ( _sharedSprites != null )
 		{
 			ArrayPool<SpriteBatchSceneObject.SpriteData>.Shared.Return( _sharedSprites );
@@ -265,7 +263,6 @@ public sealed partial class SceneSpriteSystem : GameObjectSystem<SceneSpriteSyst
 
 		UpdateSpriteRenderers();
 		UpdateParticleSprites();
-		UpdateTextRenderers();
 
 		LitBounds = null;
 		foreach ( var rg in RenderGroups )
