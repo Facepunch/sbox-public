@@ -8,7 +8,8 @@ namespace Sandbox.BorealisLab.Maps;
 /// <c>borealislab -real -lod-shimmer</c>: whether generated LODs change level while the camera keeps still or moves slowly.
 /// Counts the culls' level changes (<see cref="BackendDevice.CountLodChanges"/>) over sequences of frames: still, a slow
 /// dolly toward the point the view looks at, a slow orbit around it, and a sway back and forth by a small fraction of the
-/// distance. A reversal is a fragment changing back against its last change: what shimmer would be.
+/// distance, there and where the dolly ended (where fragments it changed sit at a threshold). A reversal is a fragment changing
+/// back against its last change: what shimmer would be.
 /// </summary>
 internal static class LodShimmer
 {
@@ -33,6 +34,11 @@ internal static class LodShimmer
 			Sequence( "dolly in, 10% of the distance", t => view with { Position = view.Position + toward * distance * 0.1f * t } );
 			Sequence( "orbit, 1/32 turn", t => Orbit( view, t / 32 ) );
 			Sequence( "sway, 0.5% of the distance, 4 times", t => view with { Position = view.Position + toward * distance * 0.005f * MathF.Sin( t * 4 * MathF.Tau ) } );
+
+			// Where the dolly ended, fragments it changed sit at a threshold: a sway there is what would flip them
+			var dollied = view with { Position = view.Position + toward * distance * 0.1f };
+			for ( int i = 0; i < Settle * 2; i++ ) render( dollied );
+			Sequence( "sway at the dolly's end, 0.5% of the distance, 4 times", t => dollied with { Position = dollied.Position + toward * distance * 0.005f * MathF.Sin( t * 4 * MathF.Tau ) } );
 			Sequence( "still again", _ => view );
 		}
 		finally
