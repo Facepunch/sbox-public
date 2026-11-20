@@ -161,6 +161,71 @@ public class EmbeddedCompatibilityTests
 	}
 
 	/// <summary>
+	/// An older engine's screen-space trace gave the hit's uv as <c>HitClipSpace</c> and whether it hit as <c>ValidHit</c> (a
+	/// water shader's reflections); today's gives <c>HitUv</c> and a confidence.
+	/// </summary>
+	[TestMethod]
+	public void AnOlderScreenSpaceTraceCompiles()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			#include "math_general.fxc"
+			#include "common/classes/ScreenSpaceTrace.hlsl"
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float4 MainPs( PS_INPUT i ) : SV_Target0
+			{
+				TraceResult trace = ScreenSpace::Trace( i.vPositionWs, normalize( i.vPositionWs ), 64 );
+				float2 uv = saturate( trace.HitClipSpace.xy * g_vFrameBufferCopyInvSizeAndUvScale.zw );
+				return float4( uv, 0, trace.ValidHit ? 1 : 0 );
+			}
+			""";
+		Compiles( pixel, "embedded_older_trace" );
+	}
+
+	/// <summary>
+	/// An older engine's <c>GetExtraPerInstanceShaderData</c> took the vertex input; today's takes the instance's transform
+	/// index (a barrier shader's tint).
+	/// </summary>
+	[TestMethod]
+	public void ExtraDataFromTheVertexInputCompiles()
+	{
+		const string vertex = """
+			#include "system.fxc"
+			#include "common.fxc"
+			#include "common/shared.hlsl"
+			struct VertexInput
+			{
+				#include "common/vertexinput.hlsl"
+			};
+			struct PixelInput
+			{
+				#include "common/pixelinput.hlsl"
+				float4 vTintColor : TEXCOORD9;
+			};
+			#include "common/vertex.hlsl"
+			PixelInput MainVs( VertexInput v )
+			{
+				PixelInput i = ProcessVertex( v );
+				ExtraShaderData_t extraShaderData = GetExtraPerInstanceShaderData( v );
+				i.vTintColor = extraShaderData.vTint;
+				return FinalizeVertex( i );
+			}
+			""";
+		var (compiler, shaders) = Compiler();
+		var text = PassConverter.FromEmbedded( new Dictionary<string, string> { ["VFX_PROGRAM_VS"] = vertex, ["VFX_PROGRAM_PS"] = "#include \"system.fxc\"\nfloat4 MainPs() : SV_Target0 { return 1; }\n" }, [("F_TEXTURE_FILTERING", 0, 4)], "embedded_extra_data" );
+		var module = PassModule.FromText( Path.Combine( Path.GetTempPath(), "embedded_extra_data.slang" ), text, [shaders] );
+		try
+		{
+			Assert.IsTrue( compiler.CompilePass( module, StageKind.Vertex, new Dictionary<string, int>() ).Stage.Spirv.Length > 0 );
+		}
+		catch ( ShaderCompileException e )
+		{
+			Assert.Fail( e.Errors );
+		}
+	}
+
+	/// <summary>
 	/// vfx's <c>#define MainPs Disabled</c> for a mode with no pixel stage (a depth pass without alpha test): the stage isn't
 	/// there with those values, and is with the others.
 	/// </summary>
