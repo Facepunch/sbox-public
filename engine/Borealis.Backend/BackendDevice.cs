@@ -497,6 +497,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Content = content ?? ContentFiles.FindGame();
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
+		Shaders.Modules = Passes;
 		SlangPasses = SlangPassesByDefault;
 		CompileGpuDrivenWithShaderCompiler();
 		Defaults = new ShaderDefaults( gpu );
@@ -687,13 +688,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Whether shaders that have a pass module beside them (post-processing, UI, tools, compute, the engine's fullscreen
-	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. Set it before
-	/// drawing: variants already made keep their stages.
+	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. A shader only its
+	/// module describes (no <c>.shader_c</c>) draws from it either way. Set it before drawing: variants already made keep
+	/// their stages.
 	/// </summary>
 	public bool SlangPasses
 	{
-		get => Shaders.Modules is not null;
-		set => Shaders.Modules = value ? Passes : null;
+		get => !Shaders.CompiledFirst;
+		set => Shaders.CompiledFirst = !value;
 	}
 
 	/// <summary>
