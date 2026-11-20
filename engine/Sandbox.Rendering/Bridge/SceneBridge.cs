@@ -259,6 +259,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// What every view's custom objects and stages draw with on Borealis.Gpu
 		BorealisGpuCustomDraw.Shutdown();
 		BorealisGpuFrame.ReleaseViewTextures();
+
+		// The shadow caches every view shares, which keep the last views, lights and worlds that drew them
+		Borealis.Shadows.ShadowMapper.ResetCache();
 	}
 
 	/// <summary>
