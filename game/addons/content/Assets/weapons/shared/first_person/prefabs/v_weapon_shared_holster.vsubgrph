@@ -1,0 +1,479 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 415727156
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -416.0, 64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 415727156
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Input"
+							m_outputID = 
+							{
+								m_id = 1380572856
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "Holster animation"
+							m_outputID = 
+							{
+								m_id = 1322552931
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 483690576
+				}
+				value = 
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Holster SM"
+					m_vecPosition = [ 32.0, 64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 483690576
+					}
+					m_sNote = ""
+					m_states = 
+					[
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 886138795
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+									]
+									m_blendDuration = 0.25
+									m_destState = 
+									{
+										m_id = 611100202
+									}
+									m_bReset = true
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.386667, 0.0 ]
+										m_vControlPoint2 = [ 0.28, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Not holstering"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 415727156
+								}
+								m_outputID = 
+								{
+									m_id = 1380572856
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 214979877
+							}
+							m_position = [ -80.0, 32.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 1109690972
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+									]
+									m_blendDuration = 0.01
+									m_destState = 
+									{
+										m_id = 214979877
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.315436, 0.0 ]
+										m_vControlPoint2 = [ 0.234899, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 886138795
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+									]
+									m_blendDuration = 0.15
+									m_destState = 
+									{
+										m_id = 214979877
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.315436, 0.0 ]
+										m_vControlPoint2 = [ 0.234899, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CFinishedCondition"
+											m_comparisonOp = 0
+											m_option = "FinishedConditionOption_OnFinished"
+											m_bIsFinished = true
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 1170626427
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Holstering"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1957825911
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 611100202
+							}
+							m_position = [ 144.0, 32.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = true
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 886138795
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 214979877
+									}
+									m_bReset = true
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = 
+							[
+								{
+									m_id = 2137321999
+								},
+							]
+							m_tagBehaviors = [ 0 ]
+							m_name = "Holster finished"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1957825911
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1170626427
+							}
+							m_position = [ 144.0, 208.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = true
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1082245436
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ 272.0, 64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1082245436
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Output"
+							m_outputID = 
+							{
+								m_id = 1179467776
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 483690576
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1332483354
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Holster"
+					m_vecPosition = [ 32.0, -256.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1332483354
+					}
+					m_sNote = ""
+					m_commentText = "This is here on its own after specific other groups so that it can very easily and automatically override them, no need to account for behaviours, etc. — putting your weapon away takes priority over (and stomps) a lot of things.\n\nFires \'holster_finished\' Event Tag to let game code know the animation is over. Tag ID: 2137321999"
+					m_size = [ 384.0, 256.0 ]
+					m_color = [ 38, 42, 47, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1877526351
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Last update"
+					m_vecPosition = [ -416.0, -80.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1877526351
+					}
+					m_sNote = ""
+					m_commentText = "2025-10-10"
+					m_size = [ 160.0, 80.0 ]
+					m_color = [ 255, 69, 0, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1957825911
+				}
+				value = 
+				{
+					_class = "CSpeedScaleAnimNode"
+					m_sName = "speed_deploy"
+					m_vecPosition = [ -192.0, 128.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1957825911
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 415727156
+						}
+						m_outputID = 
+						{
+							m_id = 1322552931
+						}
+					}
+					m_param = 
+					{
+						m_id = 1078608653
+					}
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

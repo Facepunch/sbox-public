@@ -51,7 +51,7 @@ static class NativeAssetProcessor
 			if ( package is null ) continue;
 			if ( package == asset.Package ) continue;
 
-			packageReferences.Add( package.GetIdent( false, true ) );
+			packageReferences.Add( package.GetVersionedIdent() );
 		}
 
 		if ( !packageReferences.Any() && asset.Publishing.ProjectConfig.EditorReferences is null )

@@ -1,0 +1,13 @@
+{
+  "guid": "1d06d139-fd6d-40a5-a88c-5c526cec34eb",
+  "loop": true,
+  "start": 4.383,
+  "end": 0,
+  "forceMono": false,
+  "trimSilence": false,
+  "normalize": false,
+  "gain": 0,
+  "rate": 0,
+  "compress": true,
+  "bitrate": 192
+}

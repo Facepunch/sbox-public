@@ -1,0 +1,61 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    @if ( _mounting )
+    {
+        <SpawnMenuEmptyState Icon="hourglass_top" Title=@Phrase( "spawnmenu.mount.mounting" ) />
+    }
+    else
+    {
+        <SpawnMenuEmptyState Icon="sports_esports" Title=@Phrase( _failed ? "spawnmenu.mount.failed" : "spawnmenu.mount.not_mounted" ) Subtitle="#spawnmenu.mount.session" />
+        <UIButton Icon="add_circle" Text=@Phrase( "spawnmenu.mount.button" ) @onclick=@MountGame />
+    }
+</root>
+
+@code
+{
+    /// <summary>
+    /// The installed game this mounts, by its mount ident.
+    /// </summary>
+    public string Ident { get; set; }
+
+    /// <summary>
+    /// Called once the game is mounted, to list what it brought.
+    /// </summary>
+    public Action Mounted { get; set; }
+
+    bool _mounting;
+    bool _failed;
+
+    string Title => Sandbox.Mounting.Directory.Get( Ident )?.Title ?? Ident;
+
+    string Phrase( string token ) => Game.Language.GetPhrase( token, new() { { "game", Title } } );
+
+    /// <summary>
+    /// Mount for this session. Mounting can take a couple of seconds, the panel says so meanwhile.
+    /// </summary>
+    async void MountGame()
+    {
+        if ( _mounting ) return;
+
+        _mounting = true;
+        _failed = false;
+        StateHasChanged();
+
+        // a frame for the panel to show it's working before the mount takes the main thread
+        await GameTask.DelayRealtime( 50 );
+
+        var mount = await Sandbox.Mounting.Directory.Mount( Ident );
+
+        _mounting = false;
+        _failed = mount?.IsMounted != true;
+        StateHasChanged();
+
+        if ( !_failed ) Mounted?.Invoke();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Ident, _mounting, _failed );
+}

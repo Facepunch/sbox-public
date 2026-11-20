@@ -1,0 +1,27 @@
+{
+  "guid": "ac073700-02cd-0000-281e-3788fd7f0000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wall Brick b Trim NoAlpha",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "wall_brick_b_trim_noalpha",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/wall/wall_brick_b_trim_noalpha.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

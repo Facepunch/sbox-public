@@ -1,5 +1,4 @@
-// copytexture: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// copytexture: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -15,9 +14,9 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT
@@ -150,7 +149,7 @@ struct PS_OUTPUT
 	}
 
 	#if ( D_SRGB_TRANSFER == 1 )
-		vColorOutput = float4( SrgbLinearToGamma( vColorOutput.rgb ), 0.0 );
+		vColorOutput = float4( SrgbLinearToGamma( vColorOutput.rgb ), 1.0 );
 	#elif ( D_SRGB_TRANSFER == 2 )
 		clip( vColorOutput.a > 0.0 ? 1.0 : -1.0 );
 		vColorOutput.rgb = SrgbGammaToLinear( vColorOutput.rgb );

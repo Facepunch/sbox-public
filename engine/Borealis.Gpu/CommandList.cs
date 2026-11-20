@@ -1179,32 +1179,41 @@ public sealed unsafe class CommandList
 		}
 		else
 		{
-			// The biggest each their own allocation, so pages freed as fewer are needed leave no holes in shared blocks
-			var pageSize = pageClass >= 0 ? PageSizes[pageClass] : (size + 0xFFFF) & ~0xFFFFL;
-			BufferHandle buffer;
-			Memory.MemoryAllocator.OwnAllocation = pageSize >= PageSize;
-			try
-			{
-				buffer = device.CreateBuffer( new BufferInfo
-				{
-					Size = pageSize,
-					Usage = BufferUsage.Uniform | BufferUsage.Storage | BufferUsage.Vertex | BufferUsage.Index | BufferUsage.Indirect,
-					Memory = MemoryLocation.Upload,
-					Name = "Upload page",
-				} );
-			}
-			finally
-			{
-				Memory.MemoryAllocator.OwnAllocation = false;
-			}
-
-			ref var record = ref device.Get( buffer );
-			fresh = new UploadPage { Buffer = buffer, VkBuffer = record.Buffer, Mapped = record.Memory.Mapped, Size = pageSize, Class = pageClass };
-			Interlocked.Add( ref device.UploadPageBytes, pageSize );
+			fresh = CreatePage( device, pageClass >= 0 ? PageSizes[pageClass] : (size + 0xFFFF) & ~0xFFFFL, pageClass );
+			if ( pageClass == PageSizes.Length - 1 ) Interlocked.Increment( ref device.UploadPageMisses );
 		}
 
 		pages.Add( fresh );
 		page = fresh;
+	}
+
+	/// <summary>
+	/// A new upload page of <paramref name="pageSize"/> bytes (of <see cref="PageSizes"/> class <paramref name="pageClass"/>,
+	/// or -1 for one big request), on any thread. The biggest are each their own allocation, so pages freed as fewer are
+	/// needed leave no holes in shared blocks.
+	/// </summary>
+	internal static UploadPage CreatePage( Device device, long pageSize, int pageClass )
+	{
+		BufferHandle buffer;
+		Memory.MemoryAllocator.OwnAllocation = pageSize >= PageSize;
+		try
+		{
+			buffer = device.CreateBuffer( new BufferInfo
+			{
+				Size = pageSize,
+				Usage = BufferUsage.Uniform | BufferUsage.Storage | BufferUsage.Vertex | BufferUsage.Index | BufferUsage.Indirect,
+				Memory = MemoryLocation.Upload,
+				Name = "Upload page",
+			} );
+		}
+		finally
+		{
+			Memory.MemoryAllocator.OwnAllocation = false;
+		}
+
+		ref var record = ref device.Get( buffer );
+		Interlocked.Add( ref device.UploadPageBytes, pageSize );
+		return new UploadPage { Buffer = buffer, VkBuffer = record.Buffer, Mapped = record.Memory.Mapped, Size = pageSize, Class = pageClass };
 	}
 
 	/// <summary>

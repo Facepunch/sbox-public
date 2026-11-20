@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Python Close Cylinder",
+      "Type": "vsnd",
+      "Org": "rust",
+      "Ident": "pythonclosecylinder",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/sounds/python-close-cylinder.wav"
+      }
+    }
+  },
+  "guid": "20267e3d-4fc6-4e2d-b2ae-2990d2f37e67"
+}

@@ -24,7 +24,7 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override bool OcclusionCulling => ManagedSceneRendering.Occlusion;
 
-	public override FragmentOcclusion FragmentOcclusion => (FragmentOcclusion)RenderPipeline.OcclusionAggregates;
+	public override FragmentOcclusion FragmentOcclusion => (FragmentOcclusion)ManagedSceneRendering.OcclusionAggregates;
 
 	public override Borealis.OcclusionDebugView OcclusionDebugView => (Borealis.OcclusionDebugView)OcclusionDebug.View;
 

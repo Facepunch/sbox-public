@@ -1,0 +1,314 @@
+{
+  "RootObject": {
+    "__guid": "628ec5b7-a64d-490e-a218-1cdfc17b67df",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "physgun_wm",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 0,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "PhygunWorldmodel",
+        "__guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "__enabled": true,
+        "Flags": 0,
+        "GlowEffect": {
+          "_type": "component",
+          "component_id": "2137ee9f-b86d-4a59-9ee7-7cf8cfb8fa1d",
+          "go": "978d3b0c-a5e3-40df-98f6-0d7422643bde",
+          "component_type": "ParticleEffect"
+        },
+        "GlowLight": {
+          "_type": "component",
+          "component_id": "ae72664f-fbc1-4486-9ac1-640063658a9a",
+          "go": "b19c76d9-cfd2-4ded-bebc-295aa6a821c4",
+          "component_type": "PointLight"
+        },
+        "GravTint": "1,0.8,0,1",
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PhysTint": "0,0.68333,1,1"
+      },
+      {
+        "__type": "Sandbox.BaseWeaponModel",
+        "__guid": "765ebd37-c91f-4058-8815-f4b7df6f24b0",
+        "__enabled": true,
+        "Flags": 0,
+        "DeploySound": null,
+        "EjectBrass": null,
+        "MuzzleEffect": {
+          "_type": "gameobject",
+          "go": "e4312b65-c2f9-4ab7-bdb5-2e6bc4b67507"
+        },
+        "MuzzleGameObject": {
+          "_type": "gameobject",
+          "go": "e4312b65-c2f9-4ab7-bdb5-2e6bc4b67507"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Renderer": {
+          "_type": "component",
+          "component_id": "5d4a8b0d-2d3a-4cc4-b43d-081f56c3ee65",
+          "go": "0645b412-29e7-4af0-ab22-6dbf084daa4d",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "ShellEjectGameObject": {
+          "_type": "gameobject",
+          "go": "1d5347e0-820c-4015-96dc-4efd0679eca3"
+        },
+        "TracerEffect": null
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "0645b412-29e7-4af0-ab22-6dbf084daa4d",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "w_physgun",
+        "Position": "4.04115534,-0.41742152,-6.38978481",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "5d4a8b0d-2d3a-4cc4-b43d-081f56c3ee65",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": null,
+            "CreateAttachments": true,
+            "CreateBoneObjects": true,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "4d939235-5c36-40c0-bfbe-ff0495d5a8a8",
+              "Path": "weapons/physgun/w_physgun.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": [
+          {
+            "__guid": "e4312b65-c2f9-4ab7-bdb5-2e6bc4b67507",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "muzzle",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "fabe23f5-e124-4a06-a96b-e9b6d7ea598a",
+                "__version": 2,
+                "__Prefab": {
+                  "Id": "9ae80f7b-f980-48f9-80a7-d10a4a34927a",
+                  "Path": "weapons/physgun/effects/wm-glow.prefab"
+                },
+                "__PrefabInstancePatch": {
+                  "AddedObjects": [],
+                  "RemovedObjects": [],
+                  "PropertyOverrides": [
+                    {
+                      "Target": {
+                        "Type": "GameObject",
+                        "IdValue": "e5cf5f34-17b5-4e70-b8db-d7f54a8ad61d"
+                      },
+                      "Property": "Position",
+                      "Value": "2.55024004,0,0"
+                    }
+                  ],
+                  "MovedObjects": []
+                },
+                "__PrefabIdToInstanceId": {
+                  "e5cf5f34-17b5-4e70-b8db-d7f54a8ad61d": "fabe23f5-e124-4a06-a96b-e9b6d7ea598a",
+                  "3c06d747-a92f-49b3-9749-0902446440a0": "b19c76d9-cfd2-4ded-bebc-295aa6a821c4",
+                  "14848a05-e916-4b3f-abdf-34cf6ff912c9": "978d3b0c-a5e3-40df-98f6-0d7422643bde",
+                  "1eade6ef-bca3-4844-967d-98d7e79c224e": "ae72664f-fbc1-4486-9ac1-640063658a9a",
+                  "41ef4816-f57a-420c-bc59-2411a9f5251a": "2137ee9f-b86d-4a59-9ee7-7cf8cfb8fa1d",
+                  "feb67b66-6937-4970-b707-655e5b1eb784": "8719f679-5e74-4b73-bebc-5466540b8acb",
+                  "aa79498c-82a3-4823-9f26-a5eda7dac889": "e68cb065-f4a6-49f3-8a66-cfe6d802ec5a"
+                }
+              }
+            ]
+          },
+          {
+            "__guid": "1d5347e0-820c-4015-96dc-4efd0679eca3",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "eject",
+            "Position": "-0.843271017,0,5.183321",
+            "Rotation": "0,-0.707106829,0,0.707106829",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "8d74fc05-f7a5-4d25-b3cd-74aaae956572",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "hold_R",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "6c53b6bd-5b01-4573-8658-47ced12735d2",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "stylus_L",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "ca9977c5-b882-4141-984e-dd7d156b4221",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "stylus_C",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "09a548c7-0c3d-484b-b9f4-e6f03480910e",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "stylus_R",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          }
+        ]
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

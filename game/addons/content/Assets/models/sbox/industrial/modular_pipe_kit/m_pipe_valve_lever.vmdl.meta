@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Valve Lever",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipevalvelever",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_valve_lever.vmdl"
+      }
+    }
+  },
+  "guid": "4a5defda-8478-444d-8137-bf2d900a0f36"
+}

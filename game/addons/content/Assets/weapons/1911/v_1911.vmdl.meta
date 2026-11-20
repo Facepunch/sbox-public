@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "ViewModel 1911",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "v_1911",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/1911/v_1911.vmdl"
+      }
+    }
+  },
+  "guid": "614bc746-3915-4b50-8dcb-0d0b1b6dd46b"
+}

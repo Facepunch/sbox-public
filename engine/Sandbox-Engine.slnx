@@ -82,8 +82,6 @@
     <Project Path="Tests/Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
   </Folder>
   <Folder Name="/Tests/Fixtures/">
-    <Project Path="Tests/Fixtures/HotloadTestAssembly/Sandbox.Test.AfterHotload.csproj" />
-    <Project Path="Tests/Fixtures/HotloadTestAssembly/Sandbox.Test.BeforeHotload.csproj" />
     <Project Path="Tests/Fixtures/Sandbox.Test.Generate/Sandbox.Test.Generate.csproj" />
   </Folder>
 </Solution>

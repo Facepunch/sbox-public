@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Plastic Trim Dirty Blend",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "plastic_trim_dirty_blend",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/trimsheets/plastic/plastic_trim_dirty_blend.vmat"
+      }
+    }
+  },
+  "guid": "020800ee-0000-0000-40e8-f611fc000000"
+}

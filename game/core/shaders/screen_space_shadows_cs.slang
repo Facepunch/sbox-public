@@ -17,11 +17,11 @@
 
 Mode( Default );
 
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 #include "common/classes/Depth.hlsl"
 
 // Compile-time configuration for the Bend header (see bend_sss_gpu.h for meaning).

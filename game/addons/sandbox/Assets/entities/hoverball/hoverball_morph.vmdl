@@ -1,0 +1,409 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "entities/hoverball/materials/hoverball.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				note = "FYI: I disabled the \'expensive tangents\' here to save half a megabyte. The bone-based version can be considered to be the more expensive version by virtue of being skinned, but since it\'s not using morphs, it remains around the same size as this one despite having \'expensive tangents\' on. So it makes more sense, IMO, for this performant version to NOT have them, and for the other version to have them. -MaxL"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								disabled = true
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "entities/hoverball/hoverball_morph.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 90.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "root"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hoverball",
+								"hoverball_coils",
+								"hoverball_pins",
+								"hoverball_LOD0",
+								"hoverball_coils_LOD0",
+								"hoverball_pins_LOD0",
+								"hoverball_LOD0_Combined_Neutral",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD1"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								disabled = true
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "entities/hoverball/hoverball_morph.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 90.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "root"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hoverball",
+								"hoverball_coils",
+								"hoverball_pins",
+								"hoverball_LOD1",
+								"hoverball_coils_LOD1",
+								"hoverball_pins_LOD1",
+								"hoverball_LOD1_Combined_Neutral",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD2"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								disabled = true
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "entities/hoverball/hoverball_morph.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 90.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "root"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hoverball",
+								"hoverball_coils",
+								"hoverball_pins",
+								"hoverball_LOD2",
+								"hoverball_coils_LOD2",
+								"hoverball_pins_LOD2",
+								"hoverball_LOD2_Combined_Neutral",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD3"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								disabled = true
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "entities/hoverball/hoverball_morph.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 90.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "root"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hoverball",
+								"hoverball_coils",
+								"hoverball_pins",
+								"hoverball_LOD3",
+								"hoverball_coils_LOD3",
+								"hoverball_pins_LOD3",
+								"hoverball_LOD3_Combined_Neutral",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD4"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								disabled = true
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "entities/hoverball/hoverball_morph.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 90.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "root"
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"hoverball",
+								"hoverball_coils",
+								"hoverball_pins",
+								"hoverball_LOD4",
+								"hoverball_coils_LOD4",
+								"hoverball_pins_LOD4",
+								"hoverball_LOD4_Combined_Neutral",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeSphere"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 8.25
+						center = [ 0.0, 0.0, 0.0 ]
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes = 
+						[
+							"LOD0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 7.0
+						meshes = 
+						[
+							"LOD1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 17.0
+						meshes = 
+						[
+							"LOD2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 36.0
+						meshes = 
+						[
+							"LOD3",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 70.0
+						meshes = 
+						[
+							"LOD4",
+						]
+					},
+				]
+			},
+			{
+				_class = "AnimationList"
+				children = 
+				[
+					{
+						_class = "AnimFile"
+						name = "bindPose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "entities/hoverball/hoverball_morph.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+				]
+				default_root_bone_name = ""
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "pin_0"
+						parent_bone = ""
+						relative_origin = [ 6.694674, -0.000003, 4.499694 ]
+						relative_angles = [ -33.500011, -0.000059, -0.000034 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "pin_1"
+						parent_bone = ""
+						relative_origin = [ -0.000001, 6.674973, 4.524637 ]
+						relative_angles = [ -33.499989, 90.000061, 4.999968 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "pin_2"
+						parent_bone = ""
+						relative_origin = [ -6.673329, -0.038384, 4.525635 ]
+						relative_angles = [ -33.499973, 179.999969, 4.999999 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "pin_3"
+						parent_bone = ""
+						relative_origin = [ -0.018841, -6.692467, 4.481754 ]
+						relative_angles = [ -33.499977, -89.999985, 4.999947 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "pin_4"
+						parent_bone = ""
+						relative_origin = [ 6.694677, -0.000002, -4.499692 ]
+						relative_angles = [ 33.500008, -0.000065, 0.000006 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "pin_5"
+						parent_bone = ""
+						relative_origin = [ -0.000001, 6.674971, -4.524637 ]
+						relative_angles = [ 33.499989, 90.000061, -4.999949 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "pin_6"
+						parent_bone = ""
+						relative_origin = [ -6.673326, -0.038385, -4.525634 ]
+						relative_angles = [ 33.499996, -179.999985, -5.000011 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "pin_7"
+						parent_bone = ""
+						relative_origin = [ -0.01884, -6.692464, -4.481753 ]
+						relative_angles = [ 33.500011, -89.999969, -4.999966 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+			{
+				_class = "BoneMarkupList"
+				bone_cull_type = "None"
+			},
+			{
+				_class = "Skeleton"
+				children = 
+				[
+					{
+						_class = "Bone"
+						name = "root"
+						note = "Needs to be there for morphs to work. Rotated -90 to match other version.\n"
+						origin = [ 0.0, 0.0, 0.0 ]
+						angles = [ 0.0, -90.0, 0.0 ]
+						do_not_discard = true
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

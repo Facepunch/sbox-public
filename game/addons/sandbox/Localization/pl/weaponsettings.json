@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Odrzut",
+    "weapon.setting.primary.description": "Steruje główną akcją broni.",
+    "weapon.setting.secondary.description": "Steruje dodatkową akcją broni.",
+    "weapon.setting.recoil_force": "Siła odrzutu",
+    "weapon.setting.recoil_force.description": "Fizyczny odrzut podczas strzału z broni, której nikt nie trzyma.",
+    "weapon.setting.extend": "Zwiększ odległość chwytu",
+    "weapon.setting.extend.description": "Odsuwa chwycony obiekt.",
+    "weapon.setting.retract": "Zmniejsz odległość chwytu",
+    "weapon.setting.retract.description": "Przyciąga chwycony obiekt bliżej.",
+    "weapon.setting.camera_aim": "Celowanie kamerą",
+    "weapon.setting.camera_aim.description": "Celuje w kierunku kamery siedzącego gracza.",
+    "weapon.setting.guide_rockets": "Naprowadzanie rakiet",
+    "weapon.setting.guide_rockets.description": "Naprowadza wystrzelone rakiety na celownik gracza."
+}

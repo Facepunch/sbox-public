@@ -1,5 +1,4 @@
-// ui: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// ui: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -17,7 +16,7 @@ Mode( Default );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // !!! DO NOT INCLUDE ANY OTHER FILES IN THIS SHADER !!!
-#include "system.fxc"
+#include "sbox/system.slangh"
 // !!! DO NOT INCLUDE ANY OTHER FILES IN THIS SHADER !!!
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -43,10 +42,10 @@ struct PS_INPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-	#include "math_general.fxc"
-	#include "vr_common.fxc"
+	#include "sbox/math.slangh"
+	#include "sbox/shading.slangh"
 	#define IS_SPRITECARD 1 // So GetViewSubviewAndAdjustInstanceId() doesn't cause compile error
-	#include "vr_lighting.fxc"
+	#include "sbox/lighting.slangh"
 
 	// Constants ----------------------------------------------------------------------------------------------------------------------------------------------
 	float4 g_vViewport < Source( Viewport ); >;

@@ -1,0 +1,24 @@
+// A draw's lightmap constants: the lightmap uv scale and offset and the bindless indices of its lightmap textures. Ours, in
+// place of the old baked_lighting_constants.fxc in Slang compiles (SlangHeaders): the same constant buffer and names.
+// Shares the old header's include guard.
+#ifndef BAKED_LIGHTING_CONSTANTS_FXC
+#define BAKED_LIGHTING_CONSTANTS_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "sbox/system.slangh"
+
+#ifdef SURFACE_GPU_DRIVEN
+// A GPU-driven surface pass loads them per draw from its lighting record (sbox/surface_passes.slangh)
+static float4 g_vLightmapUvScale;
+static int4 g_nLightmapTextureIndices;
+static int4 g_nLightmapTextureIndices2;
+#else
+cbuffer BakedLightingConstantBuffer_t
+{
+	float4 g_vLightmapUvScale;
+	int4 g_nLightmapTextureIndices;
+	int4 g_nLightmapTextureIndices2;   // a second set, unused
+};
+#endif
+
+#endif // BAKED_LIGHTING_CONSTANTS_FXC

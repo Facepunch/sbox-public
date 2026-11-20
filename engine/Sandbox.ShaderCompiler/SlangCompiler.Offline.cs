@@ -59,9 +59,9 @@ public sealed partial class SlangCompiler
 		var offline = new SlangCompiler( slangDirectory, searchPaths ) { CacheFolder = CacheFolder, UseOffline = false };
 		offline.saved = collector;
 		var jobs = new List<Task>();
+		var module = pass ? PassModule.Read( source, searchPaths ) : null;
 		if ( pass )
 		{
-			var module = PassModule.Read( source, searchPaths );
 			foreach ( var stage in Enum.GetValues<StageKind>() )
 			{
 				if ( !module.Has( stage ) ) continue;
@@ -81,7 +81,7 @@ public sealed partial class SlangCompiler
 		await Task.WhenAll( jobs ).ConfigureAwait( false );
 		if ( entries.IsEmpty ) return OfflineResult.Failed;
 
-		SlangOutput.Write( output, identity, text, failed == 0, read.Keys, entries );
+		SlangOutput.Write( output, identity, text, failed == 0, read.Keys, entries, module?.Declarations() );
 		return failed > 0 ? OfflineResult.Failed : OfflineResult.Compiled;
 
 		async Task Report<T>( Task<T> job, string what )

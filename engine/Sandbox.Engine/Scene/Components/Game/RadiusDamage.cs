@@ -1,6 +1,4 @@
-﻿using System.Buffers;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 /// <summary>
 /// Applies damage in a radius, with physics force, and optional occlusion
@@ -95,19 +93,70 @@ public sealed class RadiusDamage : Component
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() ) return;
 
+		var workspace = ObjectPool<DamageWorkspace>.Get();
+		try
+		{
+			ApplyDamage( scene, sphere, damage, physicsForce, ignore, occlusion, workspace );
+		}
+		finally
+		{
+			workspace.Clear();
+			ObjectPool<DamageWorkspace>.Return( workspace );
+		}
+	}
+
+	private sealed class DamageWorkspace
+	{
+		public readonly HashSet<GameObject> ObjectsInArea = new();
+		public readonly HashSet<Rigidbody> Rigidbodies = new();
+		public readonly HashSet<Component.IDamageable> Damageables = new();
+		public readonly Dictionary<GameObject, int> RootToIndex = new();
+		public readonly List<GameObject> RootList = new();
+		public readonly List<Rigidbody> ObjectRigidbodies = new();
+		public readonly List<Component.IDamageable> ObjectDamageables = new();
+		public bool[] PassedLos = Array.Empty<bool>();
+		public Vector3[] TraceHitPositions = Array.Empty<Vector3>();
+
+		public void Clear()
+		{
+			ObjectsInArea.Clear();
+			Rigidbodies.Clear();
+			Damageables.Clear();
+			RootToIndex.Clear();
+			RootList.Clear();
+			ObjectRigidbodies.Clear();
+			ObjectDamageables.Clear();
+		}
+
+		public void EnsureTraceCapacity( int count )
+		{
+			if ( count <= PassedLos.Length ) return;
+			var capacity = Math.Max( count, PassedLos.Length * 2 );
+			PassedLos = new bool[capacity];
+			TraceHitPositions = new Vector3[capacity];
+		}
+	}
+
+	private static void ApplyDamage( Scene scene, Sphere sphere, DamageInfo damage, float physicsForce, GameObject ignore, bool occlusion, DamageWorkspace workspace )
+	{
 		var point = sphere.Center;
 		var damageAmount = damage.Damage;
-		var objectsInArea = scene.FindInPhysics( sphere );
-		var estimatedCount = (objectsInArea as ICollection<GameObject>)?.Count ?? 16;
+		var objectsInArea = workspace.ObjectsInArea;
+		scene.FindInPhysics( sphere, objectsInArea );
 
-		var rigidbodies = new HashSet<Rigidbody>( estimatedCount );
-		var damageables = new HashSet<Component.IDamageable>( estimatedCount );
-		var rootToIndex = occlusion ? new Dictionary<GameObject, int>( estimatedCount ) : null;
-		var rootList = occlusion ? new List<GameObject>( estimatedCount ) : null;
+		var rigidbodies = workspace.Rigidbodies;
+		var damageables = workspace.Damageables;
+		var rootToIndex = workspace.RootToIndex;
+		var rootList = workspace.RootList;
+		var objectRigidbodies = workspace.ObjectRigidbodies;
+		var objectDamageables = workspace.ObjectDamageables;
 
 		foreach ( var go in objectsInArea )
 		{
-			foreach ( var rb in go.GetComponents<Rigidbody>() )
+			// Reuse the query storage across candidates. Chained blasts visit the same dense area repeatedly.
+			objectRigidbodies.Clear();
+			go.Components.GetAll( objectRigidbodies, FindMode.InSelf | FindMode.Enabled );
+			foreach ( var rb in objectRigidbodies )
 			{
 				if ( rb.IsProxy || !rb.MotionEnabled ) continue;
 				if ( !rigidbodies.Add( rb ) ) continue;
@@ -120,7 +169,9 @@ public sealed class RadiusDamage : Component
 				}
 			}
 
-			foreach ( var d in go.GetComponentsInParent<Component.IDamageable>() )
+			objectDamageables.Clear();
+			go.Components.GetAll( objectDamageables, FindMode.InSelf | FindMode.InAncestors | FindMode.Enabled );
+			foreach ( var d in objectDamageables )
 			{
 				if ( !damageables.Add( d ) ) continue;
 
@@ -136,8 +187,9 @@ public sealed class RadiusDamage : Component
 		if ( rigidbodies.Count == 0 && damageables.Count == 0 ) return;
 
 		var traceCount = occlusion ? rootList.Count : 0;
-		var passedLos = occlusion ? ArrayPool<bool>.Shared.Rent( traceCount ) : null;
-		var traceHitPositions = occlusion ? ArrayPool<Vector3>.Shared.Rent( traceCount ) : null;
+		workspace.EnsureTraceCapacity( traceCount );
+		var passedLos = workspace.PassedLos;
+		var traceHitPositions = workspace.TraceHitPositions;
 
 		if ( occlusion && traceCount > 0 )
 		{
@@ -199,9 +251,6 @@ public sealed class RadiusDamage : Component
 			damage.Position = occlusion ? traceHitPositions[rootIdx] : target.WorldPosition;
 			damageable.OnDamage( damage );
 		}
-
-		if ( passedLos is not null ) ArrayPool<bool>.Shared.Return( passedLos );
-		if ( traceHitPositions is not null ) ArrayPool<Vector3>.Shared.Return( traceHitPositions );
 
 		damage.Damage = damageAmount;
 	}

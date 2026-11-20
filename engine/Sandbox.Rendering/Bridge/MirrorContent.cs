@@ -84,7 +84,7 @@ internal static class MirrorContent
 		RenderMesh mesh;
 		if ( gpu.AsyncModels )
 		{
-			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( SaveOffThread( m ) ) );
+			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( m.SaveToVmdl ) );
 			mesh = gpu.MakeModel( read, ulong.MaxValue, drawFastPath: true, out pending );
 			if ( pending ) return null;
 			runtimeReads.Remove( model );
@@ -95,18 +95,6 @@ internal static class MirrorContent
 		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
 		if ( mesh is not null ) gpu.TrackModel( mesh );
 		return mesh;
-	}
-
-	/// <summary>
-	/// What saves a run-time model for a worker to read: its buffers read back on the worker, or here when Source 2's device
-	/// is a real one (the editor), whose read-backs run its frame's queues and belong on the main thread.
-	/// </summary>
-	static Func<byte[]> SaveOffThread( Model model )
-	{
-		if ( !Graphics.HasSource2Device ) return model.SaveToVmdl;
-
-		var bytes = model.SaveToVmdl();
-		return () => bytes;
 	}
 
 	/// <summary>Whether a model loading asynchronously (<see cref="Mesh(Model, out bool)"/>) has been read, so asking again can make it.</summary>
@@ -127,19 +115,19 @@ internal static class MirrorContent
 
 	/// <summary>
 	/// A material as its compiled file (a copy's being its original's), or as its shader for one made in code
-	/// (<see cref="Sandbox.Material.MadeFromShader"/>), with what code set on it over that
-	/// (<see cref="Sandbox.Material.SetInCode"/>: a screen's render target a game sets on its copy of the screen material),
-	/// which follows later sets (<see cref="Follow"/>).
+	/// (<see cref="Sandbox.Material.MadeFromShader"/>, which needn't have a name), with what code set on it over that: its
+	/// values and textures (<see cref="Sandbox.Material.SetInCode"/>: a screen's render target a game sets on its copy of the
+	/// screen material) and features (<see cref="Sandbox.Material.FeaturesSetInCode"/>: foliage made in code that alpha
+	/// tests), which follows later sets (<see cref="Follow"/>).
 	/// </summary>
 	public static GpuMaterial Material( Material material )
 	{
-		if ( Gpu is not { } gpu ) return null;
+		if ( Gpu is not { } gpu || material is null ) return null;
 
-		var path = material?.FilePath;
-		if ( string.IsNullOrEmpty( path ) ) return null;
+		var path = material.FilePath;
 		var shader = material.MadeFromShader;
-		var set = material.SetInCode;
-		if ( shader is null && set is not { Count: > 0 } ) return gpu.LoadMaterial( path );
+		if ( string.IsNullOrEmpty( path ) && shader is null ) return null;
+		if ( !material.ChangedInCode ) return gpu.LoadMaterial( path );
 
 		var made = setMaterials.GetOrCreateValue( material );
 		lock ( made )
@@ -147,17 +135,18 @@ internal static class MirrorContent
 			if ( made.Material is null )
 			{
 				Sandbox.Material.SetInCodeChanged ??= Follow;
-				var (values, textures) = Lower( set );
+				var (values, textures) = Lower( material.SetInCode );
 
-				// Made in code from a shader: the shader's defaults, then what's set
+				// Made in code from a shader: the shader's defaults, its textures native's (their defaults, or the error texture),
+				// then what's set
 				if ( shader is not null )
 				{
-					// Through the base: BackendDevice's own CreateMaterial( string, Color ) wins overload resolution for a string
-					// (Color converts from one), which made a white complex material
-					made.Material = ((Borealis.GpuDevice)gpu).CreateMaterial( path, ShaderPath( shader ) );
+					made.Material = gpu.CreateRawMaterial( string.IsNullOrEmpty( path ) ? material.Name ?? shader : path, ShaderPath( shader ) );
 					gpu.SetOnMaterial( made.Material, values, textures );
 				}
 				else made.Material = gpu.LoadMaterial( path, values, textures, $"{path} (set in code)" );
+
+				gpu.SetFeaturesOnMaterial( made.Material, material.FeaturesSetInCode );
 
 				made.Version = material.SetInCodeVersion;
 			}
@@ -175,16 +164,17 @@ internal static class MirrorContent
 		return shader.Contains( '/' ) ? shader : $"shaders/{shader}";
 	}
 
-	/// <summary>A material whose values set in code changed: its copy here takes them, if it has one.</summary>
+	/// <summary>A material whose values or features set in code changed: its copy here takes them, if it has one.</summary>
 	static void Follow( Sandbox.Material material )
 	{
-		if ( Gpu is not { } gpu || !setMaterials.TryGetValue( material, out var made ) || material.SetInCode is not { } set ) return;
+		if ( Gpu is not { } gpu || !setMaterials.TryGetValue( material, out var made ) ) return;
 
 		lock ( made )
 		{
 			if ( made.Material is null || made.Version == material.SetInCodeVersion ) return;
-			var (values, textures) = Lower( set );
+			var (values, textures) = Lower( material.SetInCode );
 			gpu.SetOnMaterial( made.Material, values, textures );
+			gpu.SetFeaturesOnMaterial( made.Material, material.FeaturesSetInCode );
 			made.Version = material.SetInCodeVersion;
 		}
 	}

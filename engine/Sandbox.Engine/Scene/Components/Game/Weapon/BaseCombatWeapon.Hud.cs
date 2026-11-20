@@ -17,8 +17,8 @@ public partial class BaseCombatWeapon
 
 	protected override void OnUpdate()
 	{
-		// Owner walks the hierarchy - resolve it once for the frame.
-		var owner = Owner;
+		// The holder walks the hierarchy - resolve it once for the frame. Only a player's body and HUD are driven from here.
+		var owner = Holder as PlayerController;
 
 		if ( owner?.Renderer is { } body && body.IsValid() )
 			UpdateBodyAnimations( body );

@@ -1,4 +1,5 @@
-﻿native enum RenderPrimitiveType_t as NativeEngine.RenderPrimitiveType
+﻿native struct RenderViewport_t is NativeEngine.RenderViewport
+native enum RenderPrimitiveType_t as NativeEngine.RenderPrimitiveType
 native enum RenderTextureDimension_t as NativeEngine.RenderTextureDimension
 native enum RenderShaderType_t as NativeEngine.RenderShaderType
 native enum RenderColorSpace_t as NativeEngine.RenderColorSpace
@@ -94,29 +95,10 @@ native class IRenderContext as NativeEngine.IRenderContext
 		self->ClearUnorderedAccessViewUint( hTexture, 0, clearValueUINT );
 	}
 
-	inline void BindRenderTargets( ITexture colorTexture, ITexture depthTexture, ISceneLayer layer )
-	{
-		const RenderTargetDesc_t &layerDesc = layer->GetRenderTargetDesc();
-
-		// We can have a layer that only renders to color but if we only bind depth assume we want to blit to main framebuffer
-		if( colorTexture == RENDER_TEXTURE_HANDLE_INVALID )
-			colorTexture = layerDesc.m_pColorTargets[0];
-
-		// Custom targets bind in the layer's color space, same as RestoreRenderTargets
-		RenderTargetDesc_t rtDesc( colorTexture, depthTexture, layerDesc.m_allowSrgbWrite[0] );
-
-		self->BindRenderTargets( rtDesc );
-	}
-
 	// A target owned by a standalone renderer, without a scene layer.
 	inline void BindRenderTargets( ITexture colorTexture )
 	{
 		self->BindRenderTargets( RenderTargetDesc_t( colorTexture, RENDER_TEXTURE_HANDLE_INVALID, RENDER_LINEAR ) );
-	}
-
-	inline void RestoreRenderTargets( ISceneLayer layer )
-	{
-		self->BindRenderTargets( layer->GetRenderTargetDesc() );
 	}
 
 	inline void SetViewport( Rect_t rect )

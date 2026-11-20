@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/m4a1/m4a1.prefab",
+  "Title": "AR-4",
+  "Description": "#asset.m4a1.description",
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

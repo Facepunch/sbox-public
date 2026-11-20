@@ -1,0 +1,27 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/vertex_tint.shader"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material ----
+	DetailIntensity "0.425"
+	DetailScale "0.850"
+	MetalnessScale "1.000"
+	RoughnessScale "1.000"
+	TextureAmbientOcclusion "materials/default/default_ao.tga"
+	TextureColor "materials/construction/steel/metal_rough_basecolor.png"
+	TextureMetalness "[0.898000 0.898000 0.898000 0.000000]"
+	TextureNormal "materials/construction/steel/metal_rough_normal.png"
+	TextureNormalDetail "materials/construction/robotics/robotics_hs_detail.png"
+	TextureRoughness "materials/construction/steel/metal_rough_roughness.png"
+	TextureTintMask "materials/default/default.tga"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "metal"
+	}
+}

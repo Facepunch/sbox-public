@@ -1,7 +1,0 @@
-﻿
-
-managed static class Sandbox.SceneSystem
-{
-	void OnBeforeRender( CSceneObject obj, ManagedRenderSetup_t setup );
-	void OnAfterRender( CSceneObject obj, ManagedRenderSetup_t setup );
-}

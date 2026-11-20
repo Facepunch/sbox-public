@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Airduct a joint b 16",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "airduct_a_joint_b_16",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": "*",
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_a_joint_b_16.vmdl"
+      }
+    }
+  },
+  "guid": "e7cbd21d-a074-4186-ac8e-44a92e3147d7"
+}

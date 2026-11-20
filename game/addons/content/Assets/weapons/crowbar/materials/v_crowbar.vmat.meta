@@ -1,0 +1,28 @@
+{
+  "guid": "703e7aca-a98b-455d-9fc9-5f9df47a51a7",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Crowbar",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_crowbar",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/crowbar/materials/v_crowbar.vmat"
+      }
+    }
+  }
+}

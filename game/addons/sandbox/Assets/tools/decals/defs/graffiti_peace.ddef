@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "49394409-6fe6-46dc-b5cf-281dc547581d",
+    "Path": "decals/graffiti/graffiti_peace.decal"
+  },
+  "Title": "#asset.decal.peace.title",
+  "__references": [],
+  "__version": 0
+}

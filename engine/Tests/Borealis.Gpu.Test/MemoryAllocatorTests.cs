@@ -84,8 +84,10 @@ public class MemoryAllocatorTests : GpuTest
 	/// <summary>
 	/// A buffer over a quarter of a small block (a map's vertex and index pages, a view's visibility buffers, a growing table)
 	/// is its own allocation, so one still used after its map has gone doesn't hold a large block (three 128 MiB blocks
-	/// held 26 MiB after three maps); once a size is taken twice the next is made ahead on a worker, and one freed of each
-	/// size is kept as a spare until <see cref="MemoryAllocator.SpareFrames"/> frames pass.
+	/// held 26 MiB after three maps); once a size has been taken before, spares of it are made ahead on a worker: one
+	/// while takes find one ready, <see cref="MemoryAllocator.PagesAheadInBurst"/> after one had to wait for the driver (a
+	/// load takes them in bursts). One freed of each size is kept as a spare, and spares go after
+	/// <see cref="MemoryAllocator.SpareFrames"/> frames.
 	/// </summary>
 	[TestMethod]
 	public void BigBuffersAreTheirOwnAndMadeAhead()
@@ -104,15 +106,16 @@ public class MemoryAllocatorTests : GpuTest
 		Assert.IsTrue( first.Block.Dedicated, "a big buffer is its own allocation" );
 		Assert.AreEqual( page.size, allocator.Reserved, "nothing is made ahead for a size taken once" );
 
+		var burst = (ulong)MemoryAllocator.PagesAheadInBurst;
 		var second = allocator.Allocate( page, MemoryLocation.Device, image: false, content: true );
-		WaitFor( 3 * page.size, "the second of a size makes the next ahead" );
+		WaitFor( (2 + burst) * page.size, "the second of a size, the driver's, makes a burst of spares ahead" );
 		var third = allocator.Allocate( page, MemoryLocation.Device, image: false, content: true );
 		Assert.AreNotSame( second.Block, third.Block );
-		WaitFor( 4 * page.size, "the third takes the spare, and another is made" );
+		WaitFor( (2 + burst) * page.size, "the third takes a spare, and the ones left are enough" );
 
-		// Freed: one spare page is kept, then trimmed
+		// Freed: the spares left stay, the freed pages go (one of a size is kept only without another), then all are trimmed
 		foreach ( var allocation in (Allocation[])[first, second, third] ) allocator.Free( allocation );
-		Assert.AreEqual( page.size, allocator.Reserved, "one spare is kept" );
+		Assert.AreEqual( (burst - 1) * page.size, allocator.Reserved, "the spares made ahead are kept" );
 		allocator.Trim( MemoryAllocator.SpareFrames + 1 );
 		Assert.AreEqual( 0ul, allocator.Reserved, "and freed after a while" );
 	}

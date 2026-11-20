@@ -9,8 +9,8 @@ Mode( Default );
     #define CLUSTERED_LIGHT_CULLING_CS
     #define MINIMAL_MATERIAL
 
-    #include "system.fxc"
-    #include "vr_common.fxc"
+    #include "sbox/system.slangh"
+    #include "sbox/shading.slangh"
     #include "common/classes/_classes.hlsl"
     #include "common/classes/Decals.hlsl"
 

@@ -254,12 +254,12 @@ public static class Application
 
 		if ( GamePackage is { } game )
 		{
-			Log.Info( $"Game: {game.GetIdent( false, true )} ({game.Revision?.Created})" );
+			Log.Info( $"Game: {game.GetVersionedIdent()} ({game.Revision?.Created})" );
 		}
 
 		if ( MapPackage is { } map )
 		{
-			Log.Info( $"Map: {map.GetIdent( false, true )} ({map.Revision?.Created})" );
+			Log.Info( $"Map: {map.GetVersionedIdent()} ({map.Revision?.Created})" );
 		}
 	}
 }

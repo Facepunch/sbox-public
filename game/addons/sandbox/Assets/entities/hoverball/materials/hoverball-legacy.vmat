@@ -1,0 +1,13 @@
+
+Layer0
+{
+	shader "shaders/complex.shader_c"
+
+	TextureColor "entities/hoverball/materials/hover_golf_ball_color.png"
+	TextureAmbientOcclusion "materials/default/default_ao.tga"
+	TextureNormal "entities/hoverball/materials/hover_golf_ball_normal.png"
+	TextureRoughness "entities/hoverball/materials/hover_golf_ball_rough.png"
+	F_SELF_ILLUM 1
+	TextureSelfIllumMask "entities/hoverball/materials/hover_golf_ball_selfillum.png"
+
+}

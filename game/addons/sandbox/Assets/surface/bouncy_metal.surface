@@ -1,0 +1,60 @@
+{
+  "BaseSurface": "surfaces/metal.surface",
+  "AudioSurface": "Metal",
+  "Description": null,
+  "Friction": 0.5,
+  "Elasticity": 0.8,
+  "Density": 500,
+  "RollingResistance": 0.1,
+  "BounceThreshold": 7,
+  "FluidLinearDrag": 0.1,
+  "FluidAngularDrag": 0.1,
+  "Dampening": 0,
+  "ImpactEffects": {
+    "Regular": null,
+    "Bullet": null,
+    "BulletDecal": null,
+    "SoftParticles": null,
+    "SoftDecal": null,
+    "HardParticles": null,
+    "HardDecal": null
+  },
+  "ScrapeEffects": {
+    "RoughnessFactor": 0,
+    "RoughThreshold": 0,
+    "SmoothParticles": null,
+    "RoughParticles": null,
+    "SmoothDecal": null,
+    "RoughDecal": null
+  },
+  "Sounds": {
+    "FootLeft": null,
+    "FootRight": null,
+    "FootLaunch": null,
+    "FootLand": null,
+    "Bullet": null,
+    "ImpactHard": null,
+    "ImpactSoft": null,
+    "ScrapeRough": null,
+    "ScrapeSmooth": null
+  },
+  "PrefabCollection": {
+    "BulletImpact": null,
+    "BluntImpact": null
+  },
+  "SoundCollection": {
+    "FootLeft": null,
+    "FootRight": null,
+    "FootLaunch": null,
+    "FootLand": null,
+    "Bullet": null,
+    "ImpactHard": "sounds/impacts/melee/impact-melee-metal.sound",
+    "ImpactSoft": "sounds/footsteps/footstep-metal.sound",
+    "ScrapeRough": null,
+    "ScrapeSmooth": null,
+    "Break": null
+  },
+  "Tags": null,
+  "__references": [],
+  "__version": 0
+}

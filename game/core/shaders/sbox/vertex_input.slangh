@@ -1,0 +1,32 @@
+// The classic vertex input's members, included inside a shader's VS_INPUT: position, UVs, the (optionally compressed) normal
+// and tangent frame, curvature, the animated vertex cache's indices and the instance's transform and bone. Ours, in place of
+// the old vr_common_vs_input.fxc in Slang compiles (SlangHeaders): the same members, semantics and vertex semantics.
+
+float3 vPositionOs : POSITION < Semantic( PosXyz ); >;
+float2 vTexCoord : TEXCOORD0 < Semantic( LowPrecisionUv ); >;
+float4 vNormalOs : NORMAL < Semantic( OptionallyCompressedTangentFrame ); >;
+
+#if ( S_UV2 )
+	float2 vTexCoord2 : TEXCOORD1 < Semantic( LowPrecisionUv1 ); >;
+#endif
+
+#if ( VS_INPUT_HAS_TANGENT_BASIS )
+	float4 vTangentUOs_flTangentVSign : TANGENT < Semantic( TangentU_SignV ); >;
+#endif
+
+#if ( S_USE_PER_VERTEX_CURVATURE )
+	float flSSSCurvature : TEXCOORD2 < Semantic( Curvature ); >;
+#endif
+
+// Compute skinning: the animated vertex cache
+#if ( D_CS_VERTEX_ANIMATION )
+	float4 vBlendWeight : BLENDWEIGHT < Semantic( BlendWeight ); >;
+	float nVertexIndex : TEXCOORD14 < Semantic( MorphIndex ); >;
+	float nVertexCacheIndex : TEXCOORD15 < Semantic( MorphIndex ); >;
+#endif
+
+// The instance's transform, and the bone of a rigid object (skinning_cs reads four from the mesh itself)
+uint nInstanceTransformID : TEXCOORD13 < Semantic( InstanceTransformUv ); >;
+uint nBoneIndex : BLENDINDICES < Semantic( BlendIndices ); >;
+
+#define COMMON_VS_INPUT_DEFINED

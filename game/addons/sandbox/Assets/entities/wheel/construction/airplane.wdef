@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/airplane.prefab",
+  "Title": "#asset.wheel.airplane.title",
+  "Description": "#asset.wheel.airplane.description",
+  "__references": [],
+  "__version": 0
+}

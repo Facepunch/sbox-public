@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Roof Vent 4",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "roof_vent_4",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/roof_vents/roof_vent_4.vmdl"
+      }
+    }
+  },
+  "guid": "eb3e9902-06f5-497e-ab88-565ca2b34671"
+}

@@ -1,0 +1,20 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Dirt Pile 01 Decal",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "dirtpile_01_decal",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/dirt_pile/dirt_pile_01_decal.vmat"
+      }
+    }
+  },
+  "guid": "131aebf8-00fc-0000-ec00-000000000000"
+}

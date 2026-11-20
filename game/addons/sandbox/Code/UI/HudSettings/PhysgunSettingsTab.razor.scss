@@ -1,0 +1,6 @@
+@import "/UI/Theme.scss";
+
+PhysgunSettingsTab
+{
+    @include ui-inspect-settings-tab;
+}

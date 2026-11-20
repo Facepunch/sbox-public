@@ -1,0 +1,113 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+@if (so == null)
+    return;
+
+<root>
+	
+    <div class="left-panel">
+
+        <h1>#freecam.title</h1>
+
+        <div class="row">
+            <h2>#freecam.timescale</h2>
+            <SliderControl Property="@so.GetProperty( nameof(Timescale) )"></SliderControl>
+        </div>
+
+        <div class="row">
+            <h2>#freecam.smoothing</h2>
+            <SliderControl Property="@so.GetProperty(nameof(CameraSmoothing))"></SliderControl>
+        </div>
+
+        <h1>#freecam.depth_of_field</h1>
+
+        <div class="row">
+            <h2>#freecam.blur</h2>
+            <SliderControl Property="@so.GetProperty(nameof(DofBlur))"></SliderControl>
+        </div>
+
+        <div class="row">
+            <h2>#freecam.focal_distance</h2>
+            <SliderControl Property="@so.GetProperty(nameof(DofFocalDistance))"></SliderControl>
+        </div>
+
+        <div class="row">
+            <h2>#freecam.focal_range</h2>
+            <SliderControl Property="@so.GetProperty(nameof(DofFocalRange))"></SliderControl>
+        </div>
+
+    </div>
+
+    
+
+</root>
+
+@code
+{
+    SerializedObject so;
+
+    [Range(0.0f, 2.0f), Step( 0.1f )]
+    public float Timescale
+    {
+        get => field;
+        set 
+        {
+            field = value;
+
+            if (!Networking.IsHost)
+                return;
+
+            Scene.TimeScale = value;
+        }
+    }
+
+    [Range(0.0f, 1.0f), Step(0.1f)]
+    public float CameraSmoothing { get; set; } = 0.7f;
+
+
+    [Range(0.0f, 1.0f), Step(0.01f)]
+    public float DofBlur { get; set; } = 0.0f;
+
+    [Range(0.0f, 1000.0f), Step(1f)]
+    public float DofFocalDistance { get; set; } = 300.0f;
+
+    [Range(0.0f, 1000.0f), Step(1f)]
+    public float DofFocalRange { get; set; } = 500.0f;
+
+    protected override void OnStart()
+    {
+        so = TypeLibrary.GetSerializedObject(this);
+
+        base.OnStart();
+    }
+
+    protected override void OnEnabled()
+    {
+        base.OnEnabled();
+
+        Timescale = Timescale;
+    }
+
+    public void Update( bool isActive )
+    {
+        SetClass("active", isActive);
+
+        var volume = GetOrAddComponent<PostProcessVolume>();
+        volume.SceneVolume = new Volumes.SceneVolume { Type = Volumes.SceneVolume.VolumeTypes.Infinite };
+        volume.Priority = 1000;
+
+        UpdateDepthOfField();
+    }
+
+    void UpdateDepthOfField()
+    {
+        var dof = GetOrAddComponent<DepthOfField>();
+        dof.Enabled = DofBlur > 0.01f;
+        dof.BlurSize = DofBlur * 50.0f;
+        dof.FocalDistance = DofFocalDistance;
+        dof.FocusRange = DofFocalRange;
+    }
+}

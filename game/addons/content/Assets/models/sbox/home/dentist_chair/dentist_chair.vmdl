@@ -1,0 +1,825 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "barber_chair.vmat"
+								to = "models/sbox/home/dentist_chair/dentist_chair.vmat"
+							},
+							{
+								from = "barber_parts.vmat"
+								to = "models/sbox/home/dentist_chair/dentist_chair_parts.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "models/sbox/home/dentist_chair/dentist_chair.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = "dentist_chair_base"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 3.149287
+						point0 = [ 0.0, -0.149147, 0.0 ]
+						point1 = [ 0.131693, -0.149147, 15.165905 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = "dentist_chair_base"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 16.223583
+						point0 = [ 0.007674, 0.0, 0.073866 ]
+						point1 = [ 0.0193, 0.0, 1.412628 ]
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "dentist_chair_phys01"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "default"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "SingleHull"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"dentist_phys_01",
+							]
+						}
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "dentist_chair_phys02"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "default"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "SingleHull"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"dentist_phys_02",
+							]
+						}
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "dentist_chair_phys03"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "default"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "SingleHull"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"dentist_phys_03",
+							]
+						}
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.416924, -12.018848, 35.831821 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 4.264715, 18.809504, 2.733879 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.419825, 11.892891, 35.831821 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 4.264715, 18.809504, 2.733879 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 10.676089, 0.193785, 10.786449 ]
+						angles = [ 0.000001, 89.999992, -4.537562 ]
+						dimensions = [ 17.855774, 1.747973, 17.061443 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 17.009106, -0.24679, 3.222047 ]
+						angles = [ -0.0, 90.0, 89.917297 ]
+						dimensions = [ 17.855774, 1.51267, 13.689899 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 27.708586, 0.113028, 6.275633 ]
+						angles = [ -0.0, -90.0, 134.876999 ]
+						dimensions = [ 16.92577, 2.148457, 7.944341 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "default"
+						collision_tags = "solid"
+						radius = 1.485974
+						point0 = [ -0.005622, -0.037559, 15.138305 ]
+						point1 = [ 0.039861, -0.037559, 19.847858 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 3.43856, 11.791695, 27.518219 ]
+						angles = [ 0.0, -90.0, 0.0 ]
+						dimensions = [ 0.679957, 1.492661, 16.318825 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 3.557144, -11.954214, 27.518219 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 0.679957, 1.492661, 16.318825 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -8.150549, -11.558643, 32.895699 ]
+						angles = [ 0.0, -90.0, -56.426399 ]
+						dimensions = [ 0.679957, 1.492661, 6.549676 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -11.805739, 11.822671, 31.146233 ]
+						angles = [ 0.0, -90.0, -81.5233 ]
+						dimensions = [ 0.465756, 1.492661, 3.906466 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -14.591922, -9.996908, 30.671305 ]
+						angles = [ 0.000013, -4.292221, -81.523315 ]
+						dimensions = [ 0.465756, 2.002419, 1.717082 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -12.878166, -11.679377, 30.508972 ]
+						angles = [ -6.725882, 92.437225, -91.013985 ]
+						dimensions = [ 0.465756, 2.294661, 3.756772 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -14.606883, 9.191316, 30.508972 ]
+						angles = [ 9.985732, 179.814957, -91.067535 ]
+						dimensions = [ 0.465756, 2.294661, 3.756772 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -14.310049, 11.367968, 30.671305 ]
+						angles = [ 0.000017, -37.194336, -81.523308 ]
+						dimensions = [ 0.465756, 2.002419, 1.717082 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "dentist_chair_top"
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -8.271617, 11.874325, 32.895699 ]
+						angles = [ -0.000003, -88.923737, -56.42638 ]
+						dimensions = [ 0.679957, 1.492661, 6.549676 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_base_lod0"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_base"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"barber_chair_base_lod0",
+								"dentist_chair_lod0",
+								"dentist_phys_01",
+								"dentist_phys_02",
+								"dentist_phys_03",
+								"dentist_chair_lod3",
+								"dentist_chair_base_lod3",
+								"dentist_chair_base_lod2",
+								"dentist_chair_lod2",
+								"dentist_chair_base_lod0_002",
+								"dentist_chair_lod0_001",
+								"dentist_chair_base_lod1",
+								"dentist_chair_lod1",
+								"dentist_chair_gib_05",
+								"dentist_chair_gib_04",
+								"dentist_chair_gib_06",
+								"dentist_chair_gib_07",
+								"dentist_chair_gib_08",
+								"dentist_chair_gib_03",
+								"dentist_chair_gib_09",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_lod0"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_top"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"barber_chair_base_lod0",
+								"dentist_phys_01",
+								"dentist_phys_02",
+								"dentist_phys_03",
+								"dentist_chair_base_lod0",
+								"dentist_chair_base_lod1",
+								"dentist_chair_lod2",
+								"dentist_chair_lod1",
+								"dentist_chair_base_lod2",
+								"dentist_chair_base_lod3",
+								"dentist_chair_lod3",
+								"dentist_chair_gib_03",
+								"dentist_chair_gib_05",
+								"dentist_chair_gib_04",
+								"dentist_chair_gib_08",
+								"dentist_chair_gib_07",
+								"dentist_chair_gib_06",
+								"dentist_chair_gib_09",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_base_lod1"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_base"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"barber_chair_base_lod0",
+								"dentist_chair_lod0",
+								"dentist_phys_01",
+								"dentist_phys_02",
+								"dentist_phys_03",
+								"dentist_chair_lod3",
+								"dentist_chair_base_lod3",
+								"dentist_chair_base_lod2",
+								"dentist_chair_lod2",
+								"dentist_chair_base_lod0_002",
+								"dentist_chair_lod0_001",
+								"dentist_chair_lod1",
+								"dentist_chair_base_lod0",
+								"dentist_chair_gib_08",
+								"dentist_chair_gib_07",
+								"dentist_chair_gib_06",
+								"dentist_chair_gib_04",
+								"dentist_chair_gib_05",
+								"dentist_chair_gib_03",
+								"dentist_chair_gib_09",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_base_lod2"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_base"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"barber_chair_base_lod0",
+								"dentist_chair_lod0",
+								"dentist_phys_01",
+								"dentist_phys_02",
+								"dentist_phys_03",
+								"dentist_chair_lod3",
+								"dentist_chair_base_lod3",
+								"dentist_chair_base_lod0_002",
+								"dentist_chair_lod0_001",
+								"dentist_chair_lod1",
+								"dentist_chair_base_lod0",
+								"dentist_chair_base_lod1",
+								"dentist_chair_gib_07",
+								"dentist_chair_gib_06",
+								"dentist_chair_gib_04",
+								"dentist_chair_gib_05",
+								"dentist_chair_gib_03",
+								"dentist_chair_gib_08",
+								"dentist_chair_gib_09",
+								"dentist_chair_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_base_lod3"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_base"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"barber_chair_base_lod0",
+								"dentist_chair_lod0",
+								"dentist_phys_01",
+								"dentist_phys_02",
+								"dentist_phys_03",
+								"dentist_chair_lod3",
+								"dentist_chair_base_lod2",
+								"dentist_chair_base_lod0_002",
+								"dentist_chair_lod0_001",
+								"dentist_chair_lod1",
+								"dentist_chair_base_lod0",
+								"dentist_chair_base_lod1",
+								"dentist_chair_lod2",
+								"dentist_chair_gib_08",
+								"dentist_chair_gib_07",
+								"dentist_chair_gib_06",
+								"dentist_chair_gib_04",
+								"dentist_chair_gib_05",
+								"dentist_chair_gib_03",
+								"dentist_chair_gib_09",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_lod1"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_top"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"barber_chair_base_lod0",
+								"dentist_phys_01",
+								"dentist_phys_02",
+								"dentist_phys_03",
+								"dentist_chair_base_lod0",
+								"dentist_chair_lod0",
+								"dentist_chair_base_lod1",
+								"dentist_chair_lod2",
+								"dentist_chair_base_lod2",
+								"dentist_chair_base_lod3",
+								"dentist_chair_lod3",
+								"dentist_chair_gib_08",
+								"dentist_chair_gib_07",
+								"dentist_chair_gib_06",
+								"dentist_chair_gib_04",
+								"dentist_chair_gib_05",
+								"dentist_chair_gib_03",
+								"dentist_chair_gib_09",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_lod2"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_top"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"barber_chair_base_lod0",
+								"dentist_phys_01",
+								"dentist_phys_02",
+								"dentist_phys_03",
+								"dentist_chair_base_lod0",
+								"dentist_chair_lod0",
+								"dentist_chair_base_lod1",
+								"dentist_chair_base_lod2",
+								"dentist_chair_base_lod3",
+								"dentist_chair_lod3",
+								"dentist_chair_lod1",
+								"dentist_chair_gib_08",
+								"dentist_chair_gib_07",
+								"dentist_chair_gib_06",
+								"dentist_chair_gib_04",
+								"dentist_chair_gib_05",
+								"dentist_chair_gib_03",
+								"dentist_chair_gib_09",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_lod3"
+						filename = "models/sbox/home/dentist_chair/dentist_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_top"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"barber_chair_base_lod0",
+								"dentist_phys_01",
+								"dentist_phys_02",
+								"dentist_phys_03",
+								"dentist_chair_base_lod0",
+								"dentist_chair_lod0",
+								"dentist_chair_base_lod1",
+								"dentist_chair_base_lod2",
+								"dentist_chair_base_lod3",
+								"dentist_chair_lod1",
+								"dentist_chair_lod2",
+								"dentist_chair_gib_08",
+								"dentist_chair_gib_07",
+								"dentist_chair_gib_06",
+								"dentist_chair_gib_05",
+								"dentist_chair_gib_03",
+								"dentist_chair_gib_04",
+								"dentist_chair_gib_09",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "Bone"
+						name = "dentist_chair"
+						children =
+						[
+							{
+								_class = "Bone"
+								name = "dentist_chair_top"
+								origin = [ 0.0, 0.0, 0.0 ]
+								angles = [ 0.0, 0.0, 0.0 ]
+								do_not_discard = true
+							},
+							{
+								_class = "Bone"
+								name = "dentist_chair_base"
+								origin = [ 0.0, 0.0, 0.0 ]
+								angles = [ 0.0, 0.0, 0.0 ]
+								do_not_discard = true
+							},
+						]
+						origin = [ 0.0, 0.0, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						do_not_discard = true
+					},
+				]
+			},
+			{
+				_class = "PhysicsJointList"
+				children =
+				[
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "dentist_chair_base"
+						child_body = "dentist_chair_top"
+						anchor_origin = [ 0.0, 0.0, 17.252247 ]
+						anchor_angles = [ 0.0, 0.0, 0.0 ]
+						collision_enabled = false
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.0
+						enable_limit = false
+						min_angle = 0.0
+						max_angle = 0.0
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes =
+						[
+							"dentist_chair_base_lod0",
+							"dentist_chair_lod0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 63.832504
+						meshes =
+						[
+							"dentist_chair_base_lod1",
+							"dentist_chair_lod1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 206.422699
+						meshes =
+						[
+							"dentist_chair_base_lod2",
+							"dentist_chair_lod2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 287.789948
+						meshes =
+						[
+							"dentist_chair_base_lod3",
+							"dentist_chair_lod3",
+						]
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children =
+				[
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/dentist_chair/gibs/dentist_chair_gib01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/dentist_chair/gibs/dentist_chair_gib02.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/dentist_chair/gibs/dentist_chair_gib03.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/dentist_chair/gibs/dentist_chair_gib04.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/dentist_chair/gibs/dentist_chair_gib05.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/dentist_chair/gibs/dentist_chair_gib07.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/dentist_chair/gibs/dentist_chair_gib06.vmdl"
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children =
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys =
+						{
+							bakelighting = true
+							health = 100.0
+							min_impact_damage_speed = 500.0
+							impact_damage = 50.0
+							flammable = false
+							explosive = false
+							explosive_damage = -1.0
+							explosive_radius = -1.0
+							explosive_force = -1.0
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "dentist_chair_top"
+						mass_override = 20.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "dentist_chair_base"
+						mass_override = 30.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

@@ -1,0 +1,263 @@
+{
+  "RootObject": {
+    "__guid": "cadc6dd8-e117-4098-ac21-0d10b26c85b9",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "beam-success",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "TemporaryEffect",
+        "__guid": "559ffcd4-fe15-49ec-994b-3125a1a07391",
+        "__enabled": true,
+        "Flags": 0,
+        "BecomeOrphan": false,
+        "DestroyAfterSeconds": 0.5,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "WaitForChildEffects": true
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "8fcd12dd-e14c-4dfb-bf0b-fd3549bf9334",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Tracer",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "particles",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.BeamEffect",
+            "__guid": "a3e4f97f-68a1-455a-9305-69724d2ab058",
+            "__enabled": true,
+            "Flags": 0,
+            "Additive": true,
+            "Alpha": 1,
+            "BeamColor": {
+              "Type": "Range",
+              "Evaluation": "Life",
+              "ConstantA": "0.46047,0.66729,1,0.05",
+              "ConstantB": "0.60558,0.55349,1,1"
+            },
+            "BeamLifetime": {
+              "Type": "Range",
+              "Evaluation": "Seed",
+              "Constants": "0.100000001,0.200000003,0,0"
+            },
+            "BeamsPerSecond": 0,
+            "Brightness": 3,
+            "DepthFeather": 7.33,
+            "FilterMode": "Anisotropic",
+            "FollowPoints": true,
+            "InitialBurst": 3,
+            "Lighting": false,
+            "Looped": false,
+            "Material": "weapons/toolgun/effects/beam-success.vmat",
+            "MaxBeams": 3,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Opaque": false,
+            "Scale": {
+              "Type": "Range",
+              "Evaluation": "Seed",
+              "Constants": "0.100000001,0.5,0,0"
+            },
+            "Shadows": false,
+            "TargetGameObject": null,
+            "TargetPosition": "0,0,100",
+            "TargetRandom": "0,0,0",
+            "Texture": {
+              "$compiler": "texture",
+              "$source": "imagefile",
+              "data": {
+                "FilePath": "textures/beams/lightning-thin-chunk.png",
+                "MaxSize": 4096,
+                "ConvertHeightToNormals": false,
+                "NormalScale": 1,
+                "Rotate": 0,
+                "FlipVertical": false,
+                "FlipHorizontal": false,
+                "Padding": {
+                  "Size": "0,0",
+                  "EdgeSize": "0,0"
+                },
+                "Sharpen": 0,
+                "InvertColor": false,
+                "Blur": 0,
+                "Brightness": 1,
+                "Contrast": 1,
+                "Saturation": 1,
+                "Hue": 0,
+                "Colorize": false,
+                "TargetColor": "0,1,0,1",
+                "CacheToDisk": true
+              },
+              "compiled": "textures/generated/imagefile/6d613dba06d3e517.vtex"
+            },
+            "TextureOffset": 1,
+            "TextureScale": {
+              "Type": "Range",
+              "Evaluation": "Seed",
+              "Constants": "4,4,0,0"
+            },
+            "TextureScroll": 0,
+            "TextureScrollSpeed": 0,
+            "TravelBetweenPoints": true,
+            "TravelLerp": {
+              "Type": "Curve",
+              "Evaluation": "Life",
+              "CurveA": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "in": -3.1415927,
+                  "out": 3.1415927,
+                  "mode": "Mirrored"
+                },
+                {
+                  "x": 1,
+                  "y": 1,
+                  "in": 0,
+                  "out": 0,
+                  "mode": "Mirrored"
+                }
+              ],
+              "CurveB": [
+                {
+                  "x": 0.5,
+                  "y": 0.5,
+                  "in": 0,
+                  "out": 0,
+                  "mode": "Mirrored"
+                }
+              ]
+            }
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "038cc440-288b-410d-bb14-97ef5336d0dc",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Sound",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SoundPointComponent",
+            "__guid": "c9e0f7b4-855c-45f7-a3fb-04b563356bce",
+            "__enabled": true,
+            "Flags": 0,
+            "Distance": 512,
+            "DistanceAttenuation": false,
+            "DistanceAttenuationOverride": false,
+            "Falloff": [
+              {
+                "x": 0,
+                "y": 1,
+                "in": 3.1415927,
+                "out": -3.1415927,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "Force2d": false,
+            "MaxRepeatTime": 1,
+            "MinRepeatTime": 1,
+            "OcclusionEnabled": false,
+            "OcclusionOverride": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Pitch": 1,
+            "PlayOnStart": true,
+            "Repeat": false,
+            "ReverbEnabled": false,
+            "ReverbOverride": false,
+            "SoundEvent": "weapons/toolgun/sounds/shoot.sound",
+            "SoundOverride": false,
+            "StopOnNew": false,
+            "TargetMixer": {
+              "Name": "unknown",
+              "Id": "00000000-0000-0000-0000-000000000000"
+            },
+            "Volume": 1
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

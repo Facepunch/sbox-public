@@ -385,8 +385,9 @@ internal static class MapRealRun
 				Console.WriteLine( map.Backend.LodReport );
 				lines.Add( line );
 
-				// -lod-shimmer: generated levels' changes with the camera still, moving slowly and swaying (LodShimmer)
-				if ( Args.Has( "-lod-shimmer" ) && variant.GpuDriven )
+				// -lod-shimmer: generated levels' changes with the camera still, moving slowly and swaying (LodShimmer): the culls'
+				// in a GPU-driven variant, the views' own in a classic one
+				if ( Args.Has( "-lod-shimmer" ) )
 				{
 					var shimmer = LodShimmer.Run( map.Backend, view, Args.Int( "-lod-shimmer-frames", 300 ), v => RenderFrame( v ) );
 					Console.WriteLine( shimmer );

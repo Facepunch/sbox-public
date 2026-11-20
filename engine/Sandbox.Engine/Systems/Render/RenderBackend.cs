@@ -6,20 +6,21 @@ namespace Sandbox;
 /// <summary>
 /// The device under <see cref="Graphics"/>: what its statics, <see cref="Rendering.CommandList"/>, compute shaders and
 /// GPU buffers record with. Each render block (<see cref="Graphics.Scope"/>) draws on one; outside a block, buffer
-/// uploads and readbacks go to <see cref="Default"/>. <see cref="Source2RenderBackend"/> records into Source 2's render
-/// context. Callers validate their arguments before they get here, so a backend only lowers the call.
+/// uploads and readbacks go to <see cref="Default"/>: Borealis.Gpu's (<c>BorealisGpuRenderBackend</c>), or none
+/// (<see cref="HeadlessRenderBackend"/>). Callers validate their arguments before they get here, so a backend only lowers the call.
 /// </summary>
 internal abstract class RenderBackend
 {
 	/// <summary>
-	/// The process's device: Source 2's, or a Borealis.Gpu device's with <c>-borealisgpu</c> (<see cref="Graphics.Initialize"/>).
+	/// The process's device: a Borealis.Gpu device's with <c>-borealisgpu</c> (<see cref="Graphics.Initialize"/>), else none
+	/// (<see cref="HeadlessRenderBackend"/>).
 	/// </summary>
-	public static RenderBackend Default { get; private set; } = Source2RenderBackend.Instance;
+	public static RenderBackend Default { get; private set; } = HeadlessRenderBackend.Instance;
 
 	/// <summary>
-	/// Make <paramref name="backend"/> the process's device, before anything renders; null goes back to Source 2's.
+	/// Make <paramref name="backend"/> the process's device, before anything renders; null goes back to none.
 	/// </summary>
-	internal static void SetDefault( RenderBackend backend ) => Default = backend ?? Source2RenderBackend.Instance;
+	internal static void SetDefault( RenderBackend backend ) => Default = backend ?? HeadlessRenderBackend.Instance;
 
 	//
 	// Blocks and resources
@@ -27,12 +28,12 @@ internal abstract class RenderBackend
 
 	/// <summary>
 	/// Start a render block with no view on this device (<see cref="Graphics.Scope.CreateOn"/>): the
-	/// attributes it starts with. Source 2's blocks are made by the scope itself.
+	/// attributes it starts with.
 	/// </summary>
-	public virtual RenderAttributes BeginBlock() => throw new NotSupportedException( $"{GetType().Name} has no standalone blocks." );
+	public abstract RenderAttributes BeginBlock();
 
 	/// <summary>Submit what the block recorded.</summary>
-	public virtual void EndBlock() => throw new NotSupportedException( $"{GetType().Name} has no standalone blocks." );
+	public abstract void EndBlock();
 
 	/// <summary>A texture's bindless index on this device: its linear view; the sRGB view is the next.</summary>
 	public abstract int TextureIndex( Texture texture );
@@ -41,8 +42,7 @@ internal abstract class RenderBackend
 	public abstract int SamplerIndex( SamplerState state );
 
 	/// <summary>
-	/// What uploads are counted against: copies made under one key are visible to later draws under it. Source 2's is the
-	/// block's render context (none outside a block).
+	/// What uploads are counted against: copies made under one key are visible to later draws under it.
 	/// </summary>
 	public abstract IntPtr UploadContext { get; }
 
@@ -54,18 +54,16 @@ internal abstract class RenderBackend
 	/// <paramref name="format"/> at <paramref name="destination"/>, rows <paramref name="stride"/> bytes apart (0 packs
 	/// them). Waits for the GPU. False when it can't.
 	/// </summary>
-	public virtual bool ReadPixels( Texture texture, NativeRect source, int slice, int mip, NativeRect destination, IntPtr data, ImageFormat format, int stride )
-		=> g_pRenderDevice.ReadTexturePixels( texture.native, ref source, slice, mip, ref destination, data, format, stride );
+	public abstract bool ReadPixels( Texture texture, NativeRect source, int slice, int mip, NativeRect destination, IntPtr data, ImageFormat format, int stride );
 
 	/// <summary>
-	/// Read bytes of a buffer only this device holds (<see cref="Graphics.HasSource2Device"/>) from a byte offset, once the
-	/// GPU has written them. Waits for the GPU.
+	/// Read bytes of a buffer from a byte offset, once the GPU has written them. Waits for the GPU.
 	/// </summary>
 	public virtual void ReadBuffer( GpuBuffer buffer, Span<byte> data, int offset ) => throw new NotSupportedException( $"{GetType().Name} can't read buffers back." );
 
 	/// <summary>
 	/// The first <paramref name="most"/> bytes of a compiled resource (<c>_c</c> appended unless it's there) as this
-	/// device finds its content, or null: one that reads no files itself (Source 2's) finds none.
+	/// device finds its content, or null.
 	/// </summary>
 	public virtual byte[] ReadCompiledPrefix( string path, long most ) => null;
 
@@ -88,12 +86,12 @@ internal abstract class RenderBackend
 	/// <summary>
 	/// A shader was compiled while running (<see cref="Shader.CompileAsync(string, string, System.Threading.CancellationToken)"/>,
 	/// a hotloaded <c>.shader</c>): take its compiled file under the path its materials name, replacing what this device had
-	/// for it. Source 2 loads it through vfx itself.
+	/// for it.
 	/// </summary>
 	public virtual void ShaderCompiled( string path, byte[] compiled ) { }
 
-	/// <summary>Whether any device needs <see cref="ShaderCompiled"/>: one that isn't Source 2's.</summary>
-	internal static bool TakesCompiledShaders => Default is not Source2RenderBackend || others.Count > 0;
+	/// <summary>Whether any device needs <see cref="ShaderCompiled"/>: a Borealis.Gpu one.</summary>
+	internal static bool TakesCompiledShaders => Default is BorealisGpuRenderBackend || others.Count > 0;
 
 	/// <summary>Give a shader compiled while running to every device (<see cref="ShaderCompiled"/>).</summary>
 	internal static void ShaderCompiledEverywhere( string path, byte[] compiled )
@@ -109,8 +107,8 @@ internal abstract class RenderBackend
 	}
 
 	/// <summary>
-	/// An engine texture's pixels changed on Source 2's device: take the same bytes into this device's copy, if it has one.
-	/// False when it can't, and the copy is released instead (made again from Source 2's pixels when next used).
+	/// An engine texture's pixels changed (<c>Texture.Update</c>): take the same bytes into this device's copy, if it has one.
+	/// False when it can't, and the copy is released instead (made again from the texture when next used).
 	/// </summary>
 	public virtual bool Update( Texture texture, ReadOnlySpan<byte> data, int x, int y, int z, int width, int height, int depth ) => false;
 

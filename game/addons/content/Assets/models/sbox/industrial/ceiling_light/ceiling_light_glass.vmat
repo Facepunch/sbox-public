@@ -1,0 +1,25 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/glass.shader"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Glass ----
+	AlbedoAbsorption "0.000"
+	g_flBlurAmount "10.000"
+	g_flRefractionStrength "1.000"
+
+	//---- Material ----
+	g_flTintColor "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusion "models/sbox/industrial/ceiling_light/ceiling_light_glass_ao.png"
+	TextureBlendMask "materials/default/default_blend.tga"
+	TextureColor "models/sbox/industrial/ceiling_light/ceiling_light_glass_color.png"
+	TextureMetalness "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormal "models/sbox/industrial/ceiling_light/ceiling_light_glass_normal.png"
+	TextureRoughness "[0.001000 0.001000 0.001000 0.000000]"
+	TextureTintMask "materials/default/default.tga"
+	TextureTranslucency "[0.886000 0.886000 0.886000 0.000000]"
+}

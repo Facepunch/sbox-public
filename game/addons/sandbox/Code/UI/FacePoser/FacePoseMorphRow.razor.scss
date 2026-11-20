@@ -1,0 +1,49 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+    FacePoseMorphRow
+    {
+        flex-direction: row;
+        align-items: center;
+        padding: 2px 6px;
+        min-height: 24px;
+        border-radius: 2px;
+
+        &:hover
+        {
+            background-color: $ui-blue-soft;
+        }
+    }
+
+    FacePoseMorphRow .label
+    {
+        width: 121px;
+        flex-shrink: 0;
+        font-size: $ui-settings-font;
+        color: $ui-text-muted;
+        @include ui-ellipsis;
+
+        &.active
+        {
+            color: $ui-text;
+        }
+    }
+
+    FacePoseMorphRow .sliders
+    {
+        flex-direction: row;
+        flex-grow: 1;
+        min-width: 0px;
+        gap: 12px;
+    }
+
+    FacePoseMorphRow UISlider
+    {
+        flex-grow: 1;
+        flex-basis: 0px;
+        min-width: 0px;
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

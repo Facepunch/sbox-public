@@ -1,0 +1,521 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "HitboxSetList"
+				children = 
+				[
+					{
+						_class = "HitboxSet"
+						name = "default"
+						children = 
+						[
+							{
+								_class = "Folder"
+								name = "HitboxRight"
+								children = 
+								[
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "arm_upper_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 4.0
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 24.0, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "arm_lower_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 3.9
+										point0 = [ 3.6, 0.0, 0.0 ]
+										point1 = [ 7.2, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "arm_lower_R_twist1"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 3.84
+										point0 = [ 1.4, 0.0, 0.0 ]
+										point1 = [ 3.75, -0.25, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "arm_lower_R_twist2"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 2.55
+										point0 = [ 0.0, 0.0, 0.25 ]
+										point1 = [ 4.8, 0.0, 0.15 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "hand_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.69
+										point0 = [ 0.0, -1.2, 0.2 ]
+										point1 = [ 0.0, 1.2, 0.2 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_index_meta_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.2
+										point0 = [ 0.0, 0.4, -0.3 ]
+										point1 = [ 5.56, 0.0, -0.2 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_middle_meta_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.1
+										point0 = [ 0.0, 0.0, -0.75 ]
+										point1 = [ 6.0, 0.0, -0.45 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_ring_meta_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.1
+										point0 = [ 0.0, 0.0, -0.25 ]
+										point1 = [ 6.0, 0.0, -0.5 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_pinky_meta_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.1
+										point0 = [ 0.0, -0.8, -0.4 ]
+										point1 = [ 6.0, 0.0, -0.25 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_thumb_0_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.75
+										point0 = [ 0.5, -0.5, -0.75 ]
+										point1 = [ 2.8, -0.2, -0.75 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_thumb_1_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.0
+										point0 = [ 0.0, 0.125, -0.25 ]
+										point1 = [ 2.4, 0.125, -0.25 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_thumb_2_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.8
+										point0 = [ 0.0, 0.0, -0.25 ]
+										point1 = [ 1.8, 0.0, -0.425 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_index_0_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.0
+										point0 = [ 0.0, 0.125, -0.25 ]
+										point1 = [ 3.1, 0.125, -0.125 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_index_1_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.9
+										point0 = [ 0.0, 0.0, 0.125 ]
+										point1 = [ 2.2, 0.0, 0.05 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_index_2_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.65
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 1.7, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_middle_0_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.0
+										point0 = [ 0.0, 0.0, -0.5 ]
+										point1 = [ 4.1, 0.0, -0.125 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_middle_1_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.9
+										point0 = [ 0.25, 0.0, 0.0 ]
+										point1 = [ 2.2, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_middle_2_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.7
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 1.7, 0.0, -0.125 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_ring_0_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.95
+										point0 = [ 0.0, 0.25, -0.35 ]
+										point1 = [ 3.1, 0.065, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_ring_1_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.85
+										point0 = [ 0.25, 0.0, -0.1 ]
+										point1 = [ 2.2, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_ring_2_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.7
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 1.6, 0.0, -0.05 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_pinky_0_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.9
+										point0 = [ 0.0, -0.15, -0.25 ]
+										point1 = [ 2.85, -0.065, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_pinky_1_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.75
+										point0 = [ 0.25, -0.125, 0.125 ]
+										point1 = [ 1.8, -0.075, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_pinky_2_R"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.6
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 1.55, 0.0, 0.0 ]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "HitboxLeft"
+								children = 
+								[
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "arm_upper_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 4.0
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 24.0, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "arm_lower_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 3.9
+										point0 = [ 3.6, 0.0, 0.0 ]
+										point1 = [ 7.2, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "arm_lower_L_twist1"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 3.84
+										point0 = [ 1.4, 0.0, 0.0 ]
+										point1 = [ 3.75, -0.25, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "arm_lower_L_twist2"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 2.55
+										point0 = [ 0.0, 0.0, -0.25 ]
+										point1 = [ 4.8, 0.0, -0.15 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "hand_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.69
+										point0 = [ 0.0, -1.2, -0.2 ]
+										point1 = [ 0.0, 1.2, -0.2 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_index_meta_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.2
+										point0 = [ 0.0, 0.4, 0.3 ]
+										point1 = [ 5.56, 0.0, 0.2 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_middle_meta_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.1
+										point0 = [ 0.0, 0.0, 0.75 ]
+										point1 = [ 6.0, 0.0, 0.45 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_ring_meta_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.1
+										point0 = [ 0.0, 0.0, 0.25 ]
+										point1 = [ 6.0, 0.0, 0.5 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_pinky_meta_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.1
+										point0 = [ 0.0, -0.8, 0.4 ]
+										point1 = [ 6.0, 0.0, 0.25 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_thumb_0_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.75
+										point0 = [ 0.5, -0.5, 0.75 ]
+										point1 = [ 2.8, -0.2, 0.75 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_thumb_1_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.0
+										point0 = [ 0.0, 0.125, 0.25 ]
+										point1 = [ 2.4, 0.125, 0.25 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_thumb_2_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.8
+										point0 = [ 0.0, 0.0, 0.25 ]
+										point1 = [ 1.8, 0.0, 0.425 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_index_0_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.0
+										point0 = [ 0.0, 0.125, 0.25 ]
+										point1 = [ 3.1, 0.125, 0.125 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_index_1_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.9
+										point0 = [ 0.0, 0.0, -0.125 ]
+										point1 = [ 2.2, 0.0, -0.05 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_index_2_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.65
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 1.7, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_middle_0_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 1.0
+										point0 = [ 0.0, 0.0, 0.5 ]
+										point1 = [ 4.1, 0.0, 0.125 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_middle_1_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.9
+										point0 = [ 0.25, 0.0, 0.0 ]
+										point1 = [ 2.2, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_middle_2_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.7
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 1.7, 0.0, 0.125 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_ring_0_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.95
+										point0 = [ 0.0, 0.25, 0.35 ]
+										point1 = [ 3.1, 0.065, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_ring_1_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.85
+										point0 = [ 0.25, 0.0, 0.1 ]
+										point1 = [ 2.2, 0.0, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_ring_2_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.7
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 1.6, 0.0, 0.05 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_pinky_0_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.9
+										point0 = [ 0.0, -0.15, 0.25 ]
+										point1 = [ 2.85, -0.065, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_pinky_1_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.75
+										point0 = [ 0.25, -0.125, -0.125 ]
+										point1 = [ 1.8, -0.075, 0.0 ]
+									},
+									{
+										_class = "HitboxCapsule"
+										parent_bone = "finger_pinky_2_L"
+										surface_property = ""
+										translation_only = false
+										tags = ""
+										radius = 0.6
+										point0 = [ 0.0, 0.0, 0.0 ]
+										point1 = [ 1.55, 0.0, 0.0 ]
+									},
+								]
+							},
+						]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

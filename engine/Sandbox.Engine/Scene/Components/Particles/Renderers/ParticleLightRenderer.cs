@@ -41,13 +41,39 @@ public sealed class ParticleLightRenderer : ParticleController
 
 
 	internal int currentLightCount;
+	int tagsVersion;
+
+	protected override void OnEnabled()
+	{
+		// we dont get OnTagsChanged when disabled so increment here for safety
+		Interlocked.Increment( ref tagsVersion );
+		base.OnEnabled();
+	}
+
+	protected override void OnTagsChanged()
+	{
+		base.OnTagsChanged();
+		Interlocked.Increment( ref tagsVersion );
+	}
+
+	internal void UpdateTags( ScenePointLight light, ref int? appliedVersion )
+	{
+		// Don't mark tags applied until the light exists.
+		if ( !light.IsValid() ) return;
+
+		var version = Volatile.Read( ref tagsVersion );
+		if ( appliedVersion == version ) return;
+
+		light.Tags.SetFrom( GameObject.Tags );
+		appliedVersion = version;
+	}
 
 	protected override void OnParticleCreated( Particle p )
 	{
 		if ( ParticleRandom.Shared.Float( 0, 1 ) > Ratio )
 			return;
 
-		if ( currentLightCount > MaximumLights )
+		if ( currentLightCount >= MaximumLights )
 			return;
 
 		currentLightCount++;
@@ -61,6 +87,14 @@ class ParticleLight : Particle.BaseListener
 {
 	public ParticleLightRenderer Renderer;
 	ScenePointLight so;
+	bool hasState;
+	bool lastShadows;
+	Transform lastTransform;
+	Color lastColor;
+	Color lastTint;
+	float lastRadius;
+	float lastAttenuation;
+	int? appliedTagsVersion;
 
 	public ParticleLight( ParticleLightRenderer particleLightRenderer )
 	{
@@ -70,7 +104,9 @@ class ParticleLight : Particle.BaseListener
 	public override void OnEnabled( Particle p )
 	{
 		so = new ScenePointLight( Renderer.Scene.SceneWorld, p.Position, 100, Color.Red );
-		so.Tags.SetFrom( Renderer.GameObject.Tags );
+		appliedTagsVersion = null;
+		Renderer.UpdateTags( so, ref appliedTagsVersion );
+		hasState = false;
 	}
 
 	public override void OnDisabled( Particle p )
@@ -87,24 +123,31 @@ class ParticleLight : Particle.BaseListener
 		if ( !so.IsValid() ) return;
 
 		float brightness = Renderer.Brightness.Evaluate( p, 2346 );
-		so.Tags.SetFrom( Renderer.GameObject.Tags );
+		Renderer.UpdateTags( so, ref appliedTagsVersion );
 		Color color = Renderer.LightColor.Evaluate( p, 6342 );
 		color = color.WithAlpha( 1 ) * color.a * brightness;
 
-		so.ShadowsEnabled = Renderer.CastShadows;
-		so.Transform = new Transform( p.Position, p.Angles );
+		var shadows = Renderer.CastShadows;
+		var transform = new Transform( p.Position, p.Angles );
+		var lightColor = Renderer.UseParticleColor ? p.Color.WithAlpha( 1 ) * p.Alpha * p.Color.a * color : color;
+		var radius = Renderer.Scale.Evaluate( p, 43 ) * p.Size.x;
+		var attenuation = Renderer.Attenuation.Evaluate( p, 4323 );
+		var tint = p.Color.WithAlphaMultiplied( p.Alpha );
 
-		if ( !Renderer.UseParticleColor )
-		{
-			so.LightColor = color;
-		}
-		else
-		{
-			so.LightColor = p.Color.WithAlpha( 1 ) * p.Alpha * p.Color.a * color;
-		}
+		// Avoid native calls and renderer invalidations for unchanged properties, but still evaluate every value so frame-random settings keep their sequence.
+		if ( !hasState || lastShadows != shadows ) so.ShadowsEnabled = shadows;
+		if ( !hasState || lastTransform != transform ) so.Transform = transform;
+		if ( !hasState || lastColor != lightColor ) so.LightColor = lightColor;
+		if ( !hasState || lastRadius != radius ) so.Radius = radius;
+		if ( !hasState || lastAttenuation != attenuation ) so.LinearAttenuation = attenuation;
+		if ( !hasState || lastTint != tint ) so.ColorTint = tint;
 
-		so.Radius = Renderer.Scale.Evaluate( p, 43 ) * p.Size.x;
-		so.LinearAttenuation = Renderer.Attenuation.Evaluate( p, 4323 );
-		so.ColorTint = p.Color.WithAlphaMultiplied( p.Alpha );
+		lastShadows = shadows;
+		lastTransform = transform;
+		lastColor = lightColor;
+		lastRadius = radius;
+		lastAttenuation = attenuation;
+		lastTint = tint;
+		hasState = true;
 	}
 }

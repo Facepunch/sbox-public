@@ -316,7 +316,6 @@ internal static class Bootstrap
 				ReflectionUtility.RunAllStaticConstructors( "Sandbox.System" );
 				ReflectionUtility.RunAllStaticConstructors( "Sandbox.Engine" );
 				Rendering.SceneRenderer.WarmUp();
-				Rendering.RenderPipeline.WarmUp();
 			}
 			GameWindow.Current?.UpdateStartupProgress( 0.29f, "Loading the menu" );
 

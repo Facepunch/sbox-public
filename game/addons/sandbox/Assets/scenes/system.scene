@@ -1,0 +1,832 @@
+{
+  "__guid": "2c6c7f19-bf01-4c03-9bc4-764e44c4862c",
+  "GameObjects": [
+    {
+      "__guid": "0ee9aa09-f14a-45a7-ba72-cb7f5eb668b6",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "Hud",
+      "Position": "-92.4604034,-88.5966873,125.781502",
+      "Rotation": "0,0,0,1",
+      "Scale": "1,1,1",
+      "Tags": "",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "Sandbox.ScreenPanel",
+          "__guid": "42a0b84e-b84b-4e0f-9cae-4fa995ba60a2",
+          "__enabled": true,
+          "Flags": 0,
+          "AutoScreenScale": true,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Opacity": 1,
+          "Scale": 1,
+          "ScaleStrategy": "FollowDesktopScaling",
+          "TargetCamera": null,
+          "Timing": "AfterPostProcess",
+          "ZIndex": 100
+        },
+        {
+          "__type": "Sandbox.HudLayer",
+          "__guid": "14b7901f-78bd-4bdf-a260-847ffb944905",
+          "__enabled": true,
+          "Flags": 0,
+          "DigitExponent": 0.9191489,
+          "GlowRadius": 11.029787,
+          "GlowStrength": 0.69787234,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "ScanlineIntensity": 0.32340425,
+          "ScanlinePeriod": 3.7021275,
+          "ScanlineSoftness": 0.04255319,
+          "ScanlineThickness": 0.5489362,
+          "TextExponent": 0.15931919,
+          "Tint": "0.91628,0.64182,0.23014,1"
+        }
+      ],
+      "Children": [
+        {
+          "__guid": "b8908627-9bb6-45c0-a569-f7b2f4178cdd",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Inventory",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.Inventory",
+              "__guid": "914de9bf-f622-410e-9e7d-d4f931dbaf6c",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "SelectionTimeout": 1.5,
+              "SwitchSound": {
+                "Id": "b59ccf73-7d2a-4e75-889d-5d457befd977",
+                "Path": "sounds/ui/ui.weapon.switch.sound"
+              }
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "17c8a43e-aac4-4dc4-9c48-94ef2f67e6e8",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "World Overlay",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.SignalsOverlay",
+              "__guid": "438db9ac-d3b1-44cb-a852-d92929e9cf1f",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "3a12d847-d64c-4b33-9e65-2d3e0e30b2cd",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "SpawnMenu",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.SpawnMenuHost",
+              "__guid": "a943a50a-1002-4369-94c6-466a91b25a1e",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "5bda3404-e99b-4150-a69f-a50f3972ea7f",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Scoreboard",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.UI.Scoreboard",
+              "__guid": "32e5d35e-d6ea-492c-836f-f90910c7621a",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "a96fed1d-73cb-4a49-8d89-917352eb64b8",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Notices",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.UI.Notices",
+              "__guid": "733df95c-3c8c-470f-b405-fec409305782",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "5c1f0e7a-3b24-4d8e-9a61-7e2d4b8f0c93",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Chat",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.ChatBox",
+              "__guid": "a84d2e19-6f03-4c5b-8d7a-1b9e3f60c2d4",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "ec4456d1-df73-4613-aa9a-9dff58bd05bf",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "CloudLoadRing",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.CloudLoadRing",
+              "__guid": "94c1625b-7253-417c-9aeb-593e185ed089",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "305ce650-6442-44cf-b1b5-aa441f73705b",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Vitals",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.Vitals",
+              "__guid": "ec513cb5-7e44-4efc-b71a-f1353f4a8443",
+              "__enabled": true,
+              "Flags": 0,
+              "DamageFlashColor": "1.5,0.3975,0.03,1",
+              "DamageFlashDuration": 0.15,
+              "LowAmmoFraction": 0.3,
+              "LowHealthFraction": 0.2,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "WarningColor": "0.90233,0.25565,0,1",
+              "WarningPulseAmount": 0.23829788,
+              "WarningPulseRate": 0.5106383
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "897024e9-d858-446b-8f90-c35c8f5421b9",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Drag Handler",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.DragHandler",
+              "__guid": "912c2e25-f998-4041-a59d-a48f20749936",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "78115e94-766a-4ae8-afc2-3b6de76dcf8f",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Ownables",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.OwnerLabel",
+              "__guid": "db75cc70-434d-4579-979c-551366af1b76",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "e3f5abac-7509-4728-851f-3a54863d8229",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Kill Feed",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.Feed",
+              "__guid": "04d274d7-eb38-4009-b6e2-48960303da13",
+              "__enabled": true,
+              "Flags": 0,
+              "DeathIcon": {
+                "$compiler": "texture",
+                "$source": "svgsource",
+                "data": {
+                  "Size": "256,256",
+                  "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m1087.5 998.44c28.5 0 51.609 23.062 51.609 51.562v75c0 7.7812-6.2812 14.062-14.109 14.062h-1050c-7.7812 0-14.109-6.2812-14.109-14.062v-75c0-28.5 23.109-51.562 51.609-51.562zm-932.86-28.125v-32.812c0-28.5 23.109-51.562 51.609-51.562h787.5c28.5 0 51.609 23.062 51.609 51.562v32.812zm93.75-112.5v-632.81c0-7.7812 6.2812-14.062 14.109-14.062h80.391c50.719-89.531 146.86-150 257.11-150 110.26 0 206.39 60.469 257.11 150h80.391c7.7812 0 14.109 6.2812 14.109 14.062v632.81h-75v-557.81c0-7.7812-6.2812-14.062-14.109-14.062h-53.719c-29.391-87.141-111.75-150-208.78-150s-179.39 62.812-208.78 150h-53.719c-7.7812 0-14.109 6.2812-14.109 14.062v557.81zm103.22 0v-543.74h49.969c6.2812 0 11.859-4.1719 13.5-10.219 22.781-80.625 97.031-139.78 184.97-139.78 87.891 0 162.14 59.156 184.97 139.78 1.6406 6.0469 7.2188 10.219 13.5 10.219h49.969v543.74zm417.14-84.375h-337.5c-7.7812 0-14.109 6.2812-14.109 14.062s6.2812 14.062 14.109 14.062h337.5c7.7812 0 14.109-6.2812 14.109-14.062s-6.2812-14.062-14.109-14.062zm-337.5-84.375h337.5c7.7812 0 14.109-6.2812 14.109-14.062s-6.2812-14.062-14.109-14.062h-337.5c-7.7812 0-14.109 6.2812-14.109 14.062s6.2812 14.062 14.109 14.062zm351.61-276.56c0-7.7812-6.2812-14.062-14.109-14.062h-337.5c-7.7812 0-14.109 6.2812-14.109 14.062v131.26c0 7.7812 6.2812 14.062 14.109 14.062h337.5c7.7812 0 14.109-6.2812 14.109-14.062zm-28.219 14.062v103.12h-309.28v-103.12z\"/>\n</svg>\n",
+                  "Colorize": true,
+                  "TargetColor": "1,1,1,1",
+                  "Scale": 1,
+                  "Offset": "0,0",
+                  "Rotate": 0,
+                  "FlipVertical": false,
+                  "FlipHorizontal": false
+                },
+                "compiled": "textures/generated/svgsource/446f82161774c1e.vtex"
+              },
+              "ExplosionIcon": {
+                "$compiler": "texture",
+                "$source": "svgsource",
+                "data": {
+                  "Size": "256,256",
+                  "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m896.39 558-218.39 96-78-418.78-110.39 386.39-304.82-262.82 210 414-274.78-8.3906 226.78 200.39h147.61l-93.609-82.781 114 3.6094-87.562-171.61 127.18 109.22 45.609-160.82 32.391 174 91.219-39.609-38.391 88.828 114-3.6094-93.609 82.781h148.78l225.61-200.39-274.78 8.3906z\"/>\n</svg>\n",
+                  "Colorize": true,
+                  "TargetColor": "1,1,1,1",
+                  "Scale": 1.2139535,
+                  "Offset": "0,0",
+                  "Rotate": 0,
+                  "FlipVertical": false,
+                  "FlipHorizontal": false
+                },
+                "compiled": "textures/generated/svgsource/518a1f211cbd3e6b.vtex"
+              },
+              "FallIcon": {
+                "$compiler": "texture",
+                "$source": "svgsource",
+                "data": {
+                  "Size": "256,256",
+                  "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m457.16 780.35-95.547 22.426c-11.945 4.8008-11.398 21.867 0.83984 25.973l90.961 19.172-31.254 68.746c-7.2266 11.465 4.5195 25.414 17.078 20.199l107.71-54.227 105.46 50.414c11.613 5.625 23.961-6.1875 18.828-18l-31.801-64.625 96.652-22.84c11.68-2.9336 14.387-18.199 4.4414-24.934l-76.16-10.68-104.09 40.188c-32.492 12.652-69.852 0.57422-88.547-28.895z\" fill-rule=\"evenodd\"/>\n <path d=\"m413.01 306.03c36.32 36.027 36.508 94.559 0.54688 130.88-35.906 36.172-94.574 36.387-130.76 0.39844-36.32-35.961-36.586-94.492-0.61328-130.67 35.965-36.383 94.508-36.516 130.83-0.60938z\" fill-rule=\"evenodd\"/>\n <path d=\"m647.08 261.99c-17.375 0.28125-32.453 11.801-37.375 28.48l-45.414 122.61-115.61 43.68c-0.625 0.28125-1.2383 0.54688-1.8672 0.83984l-84.375 36.785c-4.0391 1.8125-7.7852 4.3203-11.039 7.3086l-116.39 107.61c-8.1211 7.5078-12.773 18.066-12.773 29.172v100.68c-2.0781 54.867 81.309 54.867 79.227 0v-83.453l68.188-62.973 124.99 195.87c11.945 18.613 35.359 26.254 55.906 18.199l225.4-87.012 130.41 60.055c55.121 32.508 101.64-52.625 44.492-81.441l-149.36-70.48c-12.027-6.5352-26.188-7.5078-38.945-2.625l-66.945 25.895 43.535-90.332h157.62c65.148 3.3867 65.148-96.188 0-92.773l-186.84-0.007813c-17.773 0.078125-33.945 10.215-41.734 26.188l-66.188 137.27-76.027-119.16 84.574-32.094c11.398-4.293 20.215-13.652 23.828-25.32l51.105-141.17c8.3867-25.895-11.188-52.281-38.402-51.801z\"/>\n</svg>\n",
+                  "Colorize": true,
+                  "TargetColor": "1,1,1,1",
+                  "Scale": 1.5116279,
+                  "Offset": "0,0",
+                  "Rotate": 0,
+                  "FlipVertical": false,
+                  "FlipHorizontal": false
+                },
+                "compiled": "textures/generated/svgsource/d9151d4f46d3f9f2.vtex"
+              },
+              "HeadshotIcon": {
+                "$compiler": "texture",
+                "$source": "svgsource",
+                "data": {
+                  "Size": "256,256",
+                  "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m684.38 338.53c1.1094 1.5625 2.1875 3.1797 3.2344 4.8516 23.402 35.73 40.332 75.305 50.016 116.91 1.1523 4.8633 4.168 9.0781 8.3945 11.742 4.2227 2.668 9.3281 3.5703 14.211 2.5195 4.8867-1.0508 9.1641-3.9766 11.918-8.1445 21.727-33.492 54.141-75.117 89.062-91.219 9.2109-4.2422 7.7109-18-1.4297-22.359-58.805-27.984-43.641-87.539-13.781-140.09 9-15.844-10.125-32.602-24.516-21.445l-129.66 100.45c-6.9375 5.4023-11.562 13.238-12.945 21.922-1.3867 8.6836 0.57813 17.566 5.4922 24.859z\"/>\n <path d=\"m100.1 765.23h55.195l35.648 142.64c3.6289 14.539 13.164 26.902 26.309 34.105 13.141 7.1992 28.695 8.5859 42.902 3.8164l127.01-62.203c6.5742-3.2617 14.371-2.8516 20.566 1.082 6.1953 3.9336 9.8828 10.82 9.7266 18.156-0.15234 7.3359-4.1328 14.055-10.488 17.723l-42.188 22.641c-4.2266 2.2578-7.5195 5.9414-9.293 10.391-1.7773 4.4531-1.9219 9.3906-0.41016 13.938l33.562 101.41c2.4883 8.1172 8.7031 14.559 16.727 17.34 8.0234 2.7773 16.891 1.5625 23.867-3.2773l197.48-136.92c11.059-7.668 18.914-19.129 22.074-32.211 3.1562-13.082 1.3984-26.867-4.9414-38.734l-25.758-47.789c-6.9414-13.023-10.156-27.711-9.293-42.441 0.86328-14.734 5.7734-28.941 14.191-41.066 30.586-44.227 73.734-125.32 72.188-229.69 0 0 0-68.273-49.219-143.91-32.094-49.52-81.25-85.531-138.14-101.2-69.141-18.984-173.93-25.781-272.09 55.664 0 0-120.77 97.102-97.078 281.79l-63.281 117.19c-4.7383 8.7188-4.5312 19.285 0.54297 27.812 5.0703 8.5234 14.262 13.746 24.184 13.742z\"/>\n <path d=\"m946.91 311.96c2.1445 13.211-6.8242 25.66-20.035 27.805-13.215 2.1445-25.66-6.8281-27.805-20.039-2.1445-13.211 6.8242-25.66 20.035-27.805 13.215-2.1445 25.66 6.8281 27.805 20.039z\"/>\n <path d=\"m911.84 116.93-18.633 15.375c-4.2695 3.5312-6.9648 8.6094-7.4922 14.125-0.52734 5.5156 1.1562 11.016 4.6797 15.289 3.5312 4.2773 8.6133 6.9766 14.137 7.5039 5.5195 0.52734 11.023-1.1602 15.301-4.6914l18.75-15.375c5.7617-4.7578 8.5469-12.223 7.3086-19.59-1.2383-7.3672-6.3125-13.516-13.312-16.125-7-2.6133-14.859-1.293-20.621 3.4648z\"/>\n <path d=\"m859.8 718.92c9.1406-4.3594 10.641-18.141 1.4297-22.383-34.945-16.078-67.359-57.727-89.062-91.195-2.7305-4.2188-7.0156-7.1953-11.926-8.2773-4.9102-1.082-10.047-0.18359-14.297 2.4961-4.2539 2.6836-7.2773 6.9336-8.418 11.828-9.6875 41.602-26.617 81.172-50.016 116.91-1.0625 1.5625-2.1406 3.1797-3.2344 4.8516-4.9336 7.3125-6.8906 16.234-5.4805 24.941 1.4102 8.707 6.0859 16.551 13.074 21.934l129.66 100.45c14.391 11.18 33.516-5.5781 24.516-21.445-29.883-52.594-45.047-112.12 13.758-140.11z\"/>\n <path d=\"m947.2 755.79c0 13.383-10.852 24.234-24.234 24.234s-24.234-10.852-24.234-24.234c0-13.383 10.852-24.234 24.234-24.234s24.234 10.852 24.234 24.234z\"/>\n <path d=\"m893.2 939.38 18.633 15.375c5.7891 4.4766 13.5 5.6055 20.332 2.9727 6.8281-2.6328 11.789-8.6445 13.074-15.852 1.2891-7.207-1.2852-14.559-6.7812-19.395l-18.75-15.375c-4.2773-3.5312-9.7812-5.2188-15.301-4.6914-5.5234 0.52734-10.605 3.2266-14.137 7.5039-3.5195 4.293-5.1875 9.8125-4.6406 15.336 0.55078 5.5273 3.2734 10.609 7.5703 14.125z\"/>\n <path d=\"m1022.2 551.04c24.109 0.13281 47.902-5.4883 69.398-16.406 11.797-5.832 22.426-13.777 31.359-23.438 3.2266-3.6172 5.0078-8.293 5.0078-13.137s-1.7812-9.5195-5.0078-13.137c-8.9102-9.6602-19.512-17.605-31.289-23.438-21.516-10.93-45.336-16.555-69.469-16.406h-68.508c-5.4609 0-9.8906 4.4297-9.8906 9.8906v86.086c0 5.4609 4.4297 9.8906 9.8906 9.8906z\"/>\n <path d=\"m876.75 551.04h26.719c5.4609 0 9.8906-4.4297 9.8906-9.8906v-86.086c0-5.4609-4.4297-9.8906-9.8906-9.8906h-26.719c-2.5898 0-5.0742 1.0312-6.9023 2.8633-1.8281 1.8359-2.8555 4.3203-2.8477 6.9102v86.32c0 5.3867 4.3633 9.7617 9.75 9.7734z\"/>\n</svg>\n",
+                  "Colorize": true,
+                  "TargetColor": "1,1,1,1",
+                  "Scale": 1,
+                  "Offset": "0,0",
+                  "Rotate": 0,
+                  "FlipVertical": false,
+                  "FlipHorizontal": true
+                },
+                "compiled": "textures/generated/svgsource/2ef92c96449c07ac.vtex"
+              },
+              "NpcIcon": {
+                "$compiler": "texture",
+                "$source": "svgsource",
+                "data": {
+                  "Size": "256,256",
+                  "Source": "<svg width=\"800px\" height=\"800px\" viewBox=\"-2.4 -2.4 20.80 20.80\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n\n<g id=\"SVGRepo_bgCarrier\" stroke-width=\"0\"/>\n\n<g id=\"SVGRepo_tracerCarrier\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n\n<g id=\"SVGRepo_iconCarrier\"> <path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M9 0V2H13L16 8.5L13 15H3L0 8.5L3 2H7V0H9ZM4.59794 11.7384L8 12.2618L11.4021 11.7384L11.0979 9.76163L8 10.2382L4.90206 9.76163L4.59794 11.7384ZM7 6.75C7 7.44036 6.44036 8 5.75 8C5.05964 8 4.5 7.44036 4.5 6.75C4.5 6.05964 5.05964 5.5 5.75 5.5C6.44036 5.5 7 6.05964 7 6.75ZM10.25 8C10.9404 8 11.5 7.44036 11.5 6.75C11.5 6.05964 10.9404 5.5 10.25 5.5C9.55964 5.5 9 6.05964 9 6.75C9 7.44036 9.55964 8 10.25 8Z\" fill=\"#ffffff\"/> </g>\n\n</svg>",
+                  "Colorize": false,
+                  "TargetColor": "1,1,1,1",
+                  "Scale": 1,
+                  "Offset": "0,0",
+                  "Rotate": 0,
+                  "FlipVertical": false,
+                  "FlipHorizontal": false
+                },
+                "compiled": "textures/generated/svgsource/73e6609cff0780f0.vtex"
+              },
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "SuicideIcon": {
+                "$compiler": "texture",
+                "$source": "svgsource",
+                "data": {
+                  "Size": "256,256",
+                  "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m1077.6 772.77c-41.773-60.211-46.93-123.39-15.73-193.39 14.055-31.715 23.078-61.242 26.559-87.801 22.949-173.66-81.613-351.84-248.57-423.66-79.035-33.906-161.68-38.164-239.55-37.906h-0.12891c-121.58 0-187.2 11.992-260.18 47.316-101.6 49.25-179.6 141.05-214.15 252.18-29.781 95.539-23.461 194.82 16.637 265.47 13.152 23.336 13.668 52.086 14.184 77.355l0.12891 7.7344c0.77344 37.52-18.695 67.559-35.84 93.988-17.406 26.945-22.82 55.824-15.988 82.516 6.1875 24.238 22.305 44.48 45.254 56.859 14.57 7.9922 37.133 11.602 60.727 10.055 2.1914-0.25781 4.3828-0.25781 6.5742-0.25781 51.957 0 89.863 43.449 101.08 88.316 6.1875 24.625 12.121 48.992 17.148 73.875 4.6406 22.434 16.375 35.582 39.582 43.965 149.3 54.148 300.27 54.148 448.8 0 23.594-8.6367 35.582-22.434 40.227-46.285 4.8984-24.367 10.445-50.668 18.051-76.969 16.371-56.086 51.699-82.129 111.01-82.129h2.0625c29.395 0 51.059-3.2227 67.434-18.438 40.734-37.773 46.277-87.41 14.691-132.79zm-596.81-48.219c-8.5078 40.098-29.395 63.305-65.625 73.359-49.379 13.41-83.289 11.086-113.46-7.9922-21.66-13.668-34.938-41.516-34.809-72.715 0.12891-29.914 12.375-55.441 32.875-68.59 16.633-6.4453 116.04-4.6406 144.02 4.8984 33.262 11.344 44.992 33.906 37 71.039zm197.52 279.52c-12.895 10.574-26.043 5.2852-34.812-0.90234-14.184-10.184-28.621-15.344-43.578-15.344s-30.297 5.1562-46.414 15.473c-10.312 6.7031-19.984 8.5117-26.43 4.8984-6.5742-3.4805-10.574-12.895-11.219-25.27 0.51562-1.6758 0.90234-3.6094 1.418-5.6719 1.9336-7.9922 4.2539-17.922 8.3789-26.172 17.148-34.422 33.52-63.949 49.895-90.379 5.543-8.8945 15.988-11.863 24.496-11.863 9.668 0 18.051 4.125 22.047 10.961 21.145 35.199 39.582 71.941 58.273 109.59 5.293 10.699 9.2891 25.527-2.0547 34.68zm245.87-248.96c-9.4102 24.109-29.137 38.938-60.211 45.383-33.137 6.832-67.172 2.0625-100.82-14.57-30.555-15.086-51.441-64.465-41.387-97.984 4.5117-15.344 14.441-26.043 27.977-30.168 27.203-8.3828 82.387-17.535 94.117-18.438h2.0625c0.38672 0.12891 0.64453 0 0.90234 0 30.816 0 56.859 12.508 71.812 34.168 15.219 22.176 17.281 51.957 5.5508 81.609z\"/>\n</svg>\n",
+                  "Colorize": true,
+                  "TargetColor": "1,1,1,1",
+                  "Scale": 1,
+                  "Offset": "0,0",
+                  "Rotate": 0,
+                  "FlipVertical": false,
+                  "FlipHorizontal": false
+                },
+                "compiled": "textures/generated/svgsource/83c263c6e0f8ced2.vtex"
+              }
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "22522db6-d19d-4b96-9cbb-22d76110f335",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Tool Info",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.ToolInfoPanel",
+              "__guid": "1e8c196e-8b93-410c-8701-639ff286baa8",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "678e19c0-2371-460b-9816-d6a6c0e31953",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Builder Radial Menu",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.BuilderRadialMenu",
+              "__guid": "a8abd52e-1de9-4c98-8858-0410aa6e46bf",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "0794a1ac-7ea2-44c9-8eb5-57cbbb795a0c",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "PressableHud",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.PressableHud",
+              "__guid": "3eda3db6-6667-4d2b-a26d-c070b30c2181",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        },
+        {
+          "__guid": "2afbe68d-fede-401c-9340-c442199842d7",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "Voices",
+          "Position": "0,0,0",
+          "Rotation": "0,0,0,1",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Facepunch.UI.Voices",
+              "__guid": "2480b1ea-7599-4943-9208-086e85b62baa",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
+            }
+          ],
+          "Children": []
+        }
+      ]
+    },
+    {
+      "__guid": "62b02f30-4fda-4941-9dc6-54f262f5bbfb",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "Camera",
+      "Position": "-267.451996,-379.653015,297.790314",
+      "Rotation": "-0.144858196,0.286023915,0.427963108,0.845017076",
+      "Scale": "1,1,1",
+      "Tags": "",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "Sandbox.CameraComponent",
+          "__guid": "5610e518-1725-4e23-b288-657db1b2e3ae",
+          "__enabled": true,
+          "Flags": 0,
+          "BackgroundColor": "0.33333,0.46275,0.52157,1",
+          "ClearFlags": "All",
+          "EnablePostProcessing": true,
+          "FieldOfView": 60,
+          "FovAxis": "Horizontal",
+          "IsMainCamera": true,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Orthographic": false,
+          "OrthographicHeight": 1204,
+          "PostProcessAnchor": null,
+          "Priority": 1,
+          "RenderExcludeTags": "",
+          "RenderTags": "",
+          "RenderTexture": null,
+          "TargetEye": "None",
+          "Viewport": "0,0,1,1",
+          "ZFar": 100000,
+          "ZNear": 1
+        },
+        {
+          "__type": "Sandbox.Tonemapping",
+          "__guid": "4b7c2e91-6a3f-4d58-9e12-7f0c8a1d3b65",
+          "__enabled": true,
+          "Flags": 0,
+          "__version": 3,
+          "AutoExposureEnabled": true,
+          "ExposureCompensation": 0,
+          "ExposureMethod": "RGB",
+          "MaximumExposure": 3,
+          "MinimumExposure": 1,
+          "Mode": "AgX",
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Rate": 1
+        },
+        {
+          "__type": "DefaultTonemapping",
+          "__guid": "c2e5a7d0-18b4-4f9e-a3c6-5d2b9e0f7a14",
+          "__enabled": true,
+          "Flags": 0,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
+        },
+        {
+          "__type": "Sandbox.Bloom",
+          "__guid": "9cf19b34-2b2b-4328-b1e4-cb0a69c18988",
+          "__enabled": true,
+          "Flags": 0,
+          "__version": 1,
+          "Mode": "Screen",
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Strength": 0.5,
+          "Threshold": 1.85,
+          "Tint": "1,1,1,1"
+        },
+        {
+          "__type": "Sandbox.Vignette",
+          "__guid": "93d41975-e8b1-4f98-a867-82c456cc5eb6",
+          "__enabled": true,
+          "Flags": 0,
+          "Center": "0.5,0.5",
+          "Color": "0,0,0,1",
+          "Intensity": 0.4,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Roundness": 0.4183267,
+          "Smoothness": 0.7687296
+        },
+        {
+          "__type": "Sandbox.AmbientOcclusion",
+          "__guid": "3d41823e-92f0-471a-b80b-c1ec3da0704c",
+          "__enabled": true,
+          "Flags": 0,
+          "__version": 1,
+          "FalloffRange": 1,
+          "Intensity": 1,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Radius": 128,
+          "ThinCompensation": 5
+        },
+        {
+          "__type": "Sandbox.Highlight",
+          "__guid": "10ef5b9d-4593-41fc-9be6-11997e71e7d8",
+          "__enabled": true,
+          "Flags": 0,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
+        },
+        {
+          "__type": "Sandbox.ScreenSpaceReflections",
+          "__guid": "bcb99eb5-8b38-4d97-b54c-547da06c3032",
+          "__enabled": true,
+          "Flags": 0,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
+        }
+      ],
+      "Children": []
+    }
+  ],
+  "SceneProperties": {
+    "NetworkInterpolation": true,
+    "PhysicsMode": "Physics3D",
+    "TimeScale": 1,
+    "WantsSystemScene": true,
+    "Metadata": {},
+    "NavMesh": {
+      "Enabled": false,
+      "IncludeStaticBodies": true,
+      "IncludeKeyframedBodies": true,
+      "EditorAutoUpdate": true,
+      "AgentHeight": 64,
+      "AgentRadius": 16,
+      "AgentStepSize": 18,
+      "AgentMaxSlope": 40,
+      "ExcludedBodies": "",
+      "IncludedBodies": "",
+      "DeferGeneration": false,
+      "CustomBounds": false
+    },
+    "GameObjectSystems": {
+      "Sandbox.Clutter.ClutterGridSystem": {
+        "Storage": {
+          "$blob": "64db792e-5935-8fbc-8cfa-050cd49fa7fd",
+          "$refs": []
+        }
+      },
+      "Sandbox.SelectionSetsSystem": {
+        "Data": {
+          "SelectionSets": []
+        }
+      }
+    }
+  },
+  "ResourceVersion": 3,
+  "Title": null,
+  "Description": null,
+  "__references": [],
+  "__version": 3
+}

@@ -1,0 +1,28 @@
+{
+  "guid": "664e7367-9df2-46ee-b081-1ef6edb86085",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Concrete Rough a",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "concreterough",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/wall/concrete_rough_a.vmat",
+        "AssetLicense": "CC0"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

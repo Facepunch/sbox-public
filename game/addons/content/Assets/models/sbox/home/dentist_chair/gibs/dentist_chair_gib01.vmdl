@@ -1,0 +1,112 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "barber_chair.vmat"
+								to = "models/sbox/home/dentist_chair/dentist_chair.vmat"
+							},
+							{
+								from = "barber_parts.vmat"
+								to = "models/sbox/home/dentist_chair/dentist_chair_parts.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "models/sbox/home/dentist_chair/dentist_chair.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 16.580799
+						point0 = [ 0.0, 0.0, 0.0 ]
+						point1 = [ -0.006714, 0.0, 0.918718 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 3.040626
+						point0 = [ 0.021043, 0.0, 0.647386 ]
+						point1 = [ -0.083417, 0.0, 14.94096 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 0.986239
+						point0 = [ -11.033817, -10.024139, 8.594681 ]
+						point1 = [ -10.736567, 7.361057, 8.076363 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "dentist_chair_base_lod0"
+						filename = "models/sbox/home/dentist_chair/dentist_chair_gibs.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "dentist_chair_base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"dentist_chair_gib01",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 30.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

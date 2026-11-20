@@ -1,0 +1,915 @@
+{
+  "Title": "Airplane Props",
+  "Description": "",
+  "Icon": "collections_bookmark",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "881eeef9-7802-4ab2-b0a8-7a4335c15b87",
+    "Path": "spawnlists/garrysmod/garrys_mod/builder.spawn"
+  },
+  "Order": 14,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Jets",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody3.mdl",
+      "Title": "jetbody3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody3_s2.mdl",
+      "Title": "jetbody3_s2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody3_s3.mdl",
+      "Title": "jetbody3_s3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody3_s4.mdl",
+      "Title": "jetbody3_s4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody3_s5.mdl",
+      "Title": "jetbody3_s5",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Jet Bodies",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody1.mdl",
+      "Title": "jetbody1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody1medium.mdl",
+      "Title": "jetbody1medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody1big.mdl",
+      "Title": "jetbody1big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody1huge.mdl",
+      "Title": "jetbody1huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2.mdl",
+      "Title": "jetbody2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2medium.mdl",
+      "Title": "jetbody2medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2big.mdl",
+      "Title": "jetbody2big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2huge.mdl",
+      "Title": "jetbody2huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2large.mdl",
+      "Title": "jetbody2large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2cockpit.mdl",
+      "Title": "jetbody2cockpit",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2cockpitmedium.mdl",
+      "Title": "jetbody2cockpitmedium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2cockpitbig.mdl",
+      "Title": "jetbody2cockpitbig",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2cockpithuge.mdl",
+      "Title": "jetbody2cockpithuge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2cockpitlarge.mdl",
+      "Title": "jetbody2cockpitlarge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2fuselage.mdl",
+      "Title": "jetbody2fuselage",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2fuselagemedium.mdl",
+      "Title": "jetbody2fuselagemedium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2fuselagebig.mdl",
+      "Title": "jetbody2fuselagebig",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2fuselagehuge.mdl",
+      "Title": "jetbody2fuselagehuge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2fuselagelarge.mdl",
+      "Title": "jetbody2fuselagelarge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2tailpiece.mdl",
+      "Title": "jetbody2tailpiece",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2tailpiecemedium.mdl",
+      "Title": "jetbody2tailpiecemedium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2tailpiecebig.mdl",
+      "Title": "jetbody2tailpiecebig",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2tailpiecehuge.mdl",
+      "Title": "jetbody2tailpiecehuge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2tailpiecelarge.mdl",
+      "Title": "jetbody2tailpiecelarge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2wingrootb.mdl",
+      "Title": "jetbody2wingrootb",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2wingrootbmedium.mdl",
+      "Title": "jetbody2wingrootbmedium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2wingrootbbig.mdl",
+      "Title": "jetbody2wingrootbbig",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2wingrootbhuge.mdl",
+      "Title": "jetbody2wingrootbhuge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetbody2wingrootblarge.mdl",
+      "Title": "jetbody2wingrootblarge",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Jet Wings",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jettailpiece1.mdl",
+      "Title": "jettailpiece1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jettailpiece1medium.mdl",
+      "Title": "jettailpiece1medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jettailpiece1big.mdl",
+      "Title": "jettailpiece1big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jettailpiece1huge.mdl",
+      "Title": "jettailpiece1huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jettailpiece1large.mdl",
+      "Title": "jettailpiece1large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/wingtip1.mdl",
+      "Title": "wingtip1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/wingpiece1.mdl",
+      "Title": "wingpiece1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/wingpiece2.mdl",
+      "Title": "wingpiece2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/wingpiece3.mdl",
+      "Title": "wingpiece3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetwing2.mdl",
+      "Title": "jetwing2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetwing2medium.mdl",
+      "Title": "jetwing2medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetwing2big.mdl",
+      "Title": "jetwing2big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetwing2huge.mdl",
+      "Title": "jetwing2huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetwing2large.mdl",
+      "Title": "jetwing2large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetwing2sizable.mdl",
+      "Title": "jetwing2sizable",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Engines",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/afterburner1.mdl",
+      "Title": "afterburner1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/afterburner1medium.mdl",
+      "Title": "afterburner1medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/afterburner1big.mdl",
+      "Title": "afterburner1big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/afterburner1huge.mdl",
+      "Title": "afterburner1huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/afterburner1large.mdl",
+      "Title": "afterburner1large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/helicopterrotor.mdl",
+      "Title": "helicopterrotor",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/helicopterrotormedium.mdl",
+      "Title": "helicopterrotormedium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/helicopterrotorbig.mdl",
+      "Title": "helicopterrotorbig",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/helicopterrotorhuge.mdl",
+      "Title": "helicopterrotorhuge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/helicopterrotorlarge.mdl",
+      "Title": "helicopterrotorlarge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/propeller2x_small.mdl",
+      "Title": "propeller2x_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/propeller3x_small.mdl",
+      "Title": "propeller3x_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetengine.mdl",
+      "Title": "jetengine",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginemedium.mdl",
+      "Title": "jetenginemedium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginebig.mdl",
+      "Title": "jetenginebig",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginehuge.mdl",
+      "Title": "jetenginehuge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginelarge.mdl",
+      "Title": "jetenginelarge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginepropeller.mdl",
+      "Title": "jetenginepropeller",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginepropellermedium.mdl",
+      "Title": "jetenginepropellermedium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginepropellerbig.mdl",
+      "Title": "jetenginepropellerbig",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginepropellerhuge.mdl",
+      "Title": "jetenginepropellerhuge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/jetenginepropellerlarge.mdl",
+      "Title": "jetenginepropellerlarge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/pistontype1.mdl",
+      "Title": "pistontype1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/pistontype1medium.mdl",
+      "Title": "pistontype1medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/pistontype1big.mdl",
+      "Title": "pistontype1big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/pistontype1huge.mdl",
+      "Title": "pistontype1huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/pistontype1large.mdl",
+      "Title": "pistontype1large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/propeller1.mdl",
+      "Title": "propeller1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/propeller1medium.mdl",
+      "Title": "propeller1medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/propeller1big.mdl",
+      "Title": "propeller1big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/propeller1huge.mdl",
+      "Title": "propeller1huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/propeller1large.mdl",
+      "Title": "propeller1large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/paddle_small.mdl",
+      "Title": "paddle_small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/paddle_small2.mdl",
+      "Title": "paddle_small2",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Cylinders",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx1.mdl",
+      "Title": "cylinderx1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx1medium.mdl",
+      "Title": "cylinderx1medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx1big.mdl",
+      "Title": "cylinderx1big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx1huge.mdl",
+      "Title": "cylinderx1huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx1large.mdl",
+      "Title": "cylinderx1large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx2.mdl",
+      "Title": "cylinderx2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx2medium.mdl",
+      "Title": "cylinderx2medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx2big.mdl",
+      "Title": "cylinderx2big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx2huge.mdl",
+      "Title": "cylinderx2huge",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/cylinderx2large.mdl",
+      "Title": "cylinderx2large",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Hollow Cylinders",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/deg360single.mdl",
+      "Title": "deg360single",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/deg180single.mdl",
+      "Title": "deg180single",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/deg90single.mdl",
+      "Title": "deg90single",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/deg45single.mdl",
+      "Title": "deg45single",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/deg360.mdl",
+      "Title": "deg360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/deg180.mdl",
+      "Title": "deg180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/deg90.mdl",
+      "Title": "deg90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/deg45.mdl",
+      "Title": "deg45",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Interior Panels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel1x1.mdl",
+      "Title": "panel1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel1x2.mdl",
+      "Title": "panel1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel1x3.mdl",
+      "Title": "panel1x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel1x4.mdl",
+      "Title": "panel1x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel2x2.mdl",
+      "Title": "panel2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel2x3.mdl",
+      "Title": "panel2x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel2x4.mdl",
+      "Title": "panel2x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel3x4.mdl",
+      "Title": "panel3x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel4x4.mdl",
+      "Title": "panel4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/box2s.mdl",
+      "Title": "box2s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/box3s.mdl",
+      "Title": "box3s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/boxtri.mdl",
+      "Title": "boxtri",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/box4s.mdl",
+      "Title": "box4s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/box4shollow.mdl",
+      "Title": "box4shollow",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/box5s.mdl",
+      "Title": "box5s",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/boxfull.mdl",
+      "Title": "boxfull",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/box4shollowx2.mdl",
+      "Title": "box4shollowx2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel360.mdl",
+      "Title": "panel360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel180.mdl",
+      "Title": "panel180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel90.mdl",
+      "Title": "panel90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/panel45.mdl",
+      "Title": "panel45",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Misc Interior",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/polex1.mdl",
+      "Title": "polex1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/polex2.mdl",
+      "Title": "polex2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/polex3.mdl",
+      "Title": "polex3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/polex4.mdl",
+      "Title": "polex4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/quad1.mdl",
+      "Title": "quad1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/quad2.mdl",
+      "Title": "quad2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/quad3.mdl",
+      "Title": "quad3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/rhombus1.mdl",
+      "Title": "rhombus1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/rhombus2.mdl",
+      "Title": "rhombus2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/rhombus3.mdl",
+      "Title": "rhombus3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/triangle1x1.mdl",
+      "Title": "triangle1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/triangle1x2.mdl",
+      "Title": "triangle1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/triangle2x2.mdl",
+      "Title": "triangle2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/triangle2x4.mdl",
+      "Title": "triangle2x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/triangle4x4.mdl",
+      "Title": "triangle4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/triangle4x6.mdl",
+      "Title": "triangle4x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/trianglelong4.mdl",
+      "Title": "trianglelong4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/trianglelong1.mdl",
+      "Title": "trianglelong1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/trianglelong2.mdl",
+      "Title": "trianglelong2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/trianglelong3.mdl",
+      "Title": "trianglelong3",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

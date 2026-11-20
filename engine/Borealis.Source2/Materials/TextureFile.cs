@@ -409,4 +409,67 @@ public sealed class TextureFile
 		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.ShaderRead ) );
 		return texture;
 	}
+
+	/// <summary>Bytes <see cref="Stage"/> writes: every mip read, each slice from a 16-byte boundary.</summary>
+	public long StagedBytes
+	{
+		get
+		{
+			long at = 0;
+			for ( int mip = TopMip; mip < Mips; mip++ )
+			{
+				var size = MipBytes( mip ) / Slices;
+				for ( int slice = 0; slice < Slices; slice++ ) at = Staged( at ) + size;
+			}
+
+			return at;
+		}
+	}
+
+	static long Staged( long at ) => (at + 15) & ~15L;
+
+	/// <summary>
+	/// Copy every mip read and slice into <paramref name="staging"/>, an upload buffer of at least <see cref="StagedBytes"/>,
+	/// for <see cref="CopyStaged"/> to copy into <see cref="CreateEmpty"/>'s texture later. Any thread: what reads a big
+	/// texture ahead stages it too, so the frame that makes it only records copies.
+	/// </summary>
+	public void Stage( Device gpu, BufferHandle staging )
+	{
+		long at = 0;
+		for ( int mip = TopMip; mip < Mips; mip++ )
+		{
+			var data = Mip( mip );
+			var size = data.Length / Slices;
+			for ( int slice = 0; slice < Slices; slice++ )
+			{
+				at = Staged( at );
+				gpu.WriteBuffer( staging, data.Slice( slice * size, size ), at );
+				at += size;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Record copies of what <see cref="Stage"/> wrote into every mip and slice of <paramref name="texture"/>, as
+	/// <see cref="Create(Device, string, CommandList)"/> writes them: readable (<see cref="ImageLayout.ShaderRead"/>) once the
+	/// list has run.
+	/// </summary>
+	public void CopyStaged( CommandList list, BufferHandle staging, TextureHandle texture )
+	{
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		long at = 0;
+		for ( int mip = TopMip; mip < Mips; mip++ )
+		{
+			var size = MipBytes( mip ) / Slices;
+			int width = Math.Max( Width >> mip, 1 ), height = Math.Max( Height >> mip, 1 );
+			for ( int slice = 0; slice < Slices; slice++ )
+			{
+				at = Staged( at );
+				list.CopyBufferToTexture( staging, at, texture, mip - TopMip, slice, width, height );
+				at += size;
+			}
+		}
+
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.ShaderRead ) );
+	}
 }

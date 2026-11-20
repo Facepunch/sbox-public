@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "กด {input:SpawnMenu} ค้างเพื่อเปิดเมนูสร้าง",
+    "hint.openinspectmenu": "กด {input:InspectMenu} ค้างเพื่อเปิดเมนูตรวจสอบ",
+    "hint.openpausemenu": "กด ESC เพื่อเปิดเมนูหยุดชั่วคราวและตรวจสอบการควบคุมของคุณ"
+}

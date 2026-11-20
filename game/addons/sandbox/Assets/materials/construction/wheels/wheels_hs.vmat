@@ -1,0 +1,27 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/vertex_tint.shader"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material ----
+	DetailIntensity "0.750"
+	DetailScale "5.000"
+	MetalnessScale "1.000"
+	RoughnessScale "0.800"
+	TextureAmbientOcclusion "materials/construction/wheels/wheels_hs_ambientocclusion.png"
+	TextureColor "materials/construction/wheels/wheels_hs_basecolor.png"
+	TextureMetalness "materials/construction/wheels/wheels_hs_metallic.png"
+	TextureNormal "materials/construction/wheels/wheels_hs_normal.png"
+	TextureNormalDetail "materials/construction/robotics/robotics_hs_detail.png"
+	TextureRoughness "materials/construction/wheels/wheels_hs_roughness.png"
+	TextureTintMask "materials/construction/wheels/wheels_hs_tint.png"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "rubber"
+	}
+}

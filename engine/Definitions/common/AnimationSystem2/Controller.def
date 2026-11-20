@@ -57,4 +57,5 @@ native class CAnimGraph2Controller as NativeEngine.AnimationGraph2Controller
 	bool GetCurrentRecordedUpdateInfo( out int updateType, out float deltaTime, out int startEvent, out float startPercentage, out int endEvent, out float endPercentage );
 	bool GetRecordedUpdateInfo( int updateIndex, out int updateType, out float deltaTime, out int startEvent, out float startPercentage, out int endEvent, out float endPercentage );
 	Transform GetRecordedCharacterTransformS2();
+	bool TriggerParamBool( StringToken name );
 }

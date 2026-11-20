@@ -618,7 +618,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 		Textures = textures ?? new( StringComparer.OrdinalIgnoreCase );
 		Streamed();
 
-		Features = FeatureValues( shader, file );
+		Features = FeatureValues( shader, file, featuresSetInCode );
 
 		SpecializationAttributes = shader is null ? [] : new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute }
 			.SelectMany( t => shader[t]?.Variables ?? [] )
@@ -745,11 +745,59 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 
 	int needsStencil = -1;
 
-	/// <summary>A material's feature values (<c>F_*</c>) by the shader's feature index, from its file.</summary>
-	internal static int[] FeatureValues( ShaderFile shader, MaterialFile file )
+	/// <summary>
+	/// Set feature values (<c>F_*</c>) in code over the compiled material's, as <c>Material.SetFeature</c> does: the
+	/// material's variants are made again with them, as native reloads its static combos. Call between frames.
+	/// </summary>
+	public void SetFeatures( IReadOnlyDictionary<string, int> features )
+	{
+		lock ( variantsGate )
+		{
+			if ( SameFeatures( featuresSetInCode, features ) ) return;
+			featuresSetInCode = features is { Count: > 0 } ? new Dictionary<string, int>( features, StringComparer.OrdinalIgnoreCase ) : null;
+			var next = FeatureValues( Shader, File, featuresSetInCode );
+			if ( Features is { } current && current.AsSpan().SequenceEqual( next ) ) return;
+
+			Volatile.Write( ref variants, new() );
+			Volatile.Write( ref gpuDrivenVariants, new() );
+			Features = next;
+			needsLightProbe = 0;
+			Volatile.Write( ref needsStencil, -1 );
+			loads++;
+		}
+
+		Interlocked.Increment( ref layoutVersion );
+		Interlocked.Increment( ref version );
+	}
+
+	// Feature values set in code (SetFeatures), over the file's
+	Dictionary<string, int> featuresSetInCode;
+
+	static bool SameFeatures( Dictionary<string, int> current, IReadOnlyDictionary<string, int> features )
+	{
+		if ( (current?.Count ?? 0) != (features?.Count ?? 0) ) return false;
+		foreach ( var (name, value) in features ?? new Dictionary<string, int>() )
+		{
+			if ( current is null || !current.TryGetValue( name, out var known ) || known != value ) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// A material's feature values (<c>F_*</c>) by the shader's feature index, from its file, with those set in code
+	/// (<paramref name="setInCode"/>) over them.
+	/// </summary>
+	internal static int[] FeatureValues( ShaderFile shader, MaterialFile file, IReadOnlyDictionary<string, int> setInCode = null )
 	{
 		var features = new int[shader?.Features?.StaticCombos.Length ?? 0];
 		foreach ( var (parameter, value) in file?.Ints ?? new Dictionary<string, int>() )
+		{
+			var index = shader?.FeatureIndex( parameter ) ?? -1;
+			if ( index >= 0 ) features[index] = value;
+		}
+
+		foreach ( var (parameter, value) in setInCode ?? new Dictionary<string, int>() )
 		{
 			var index = shader?.FeatureIndex( parameter ) ?? -1;
 			if ( index >= 0 ) features[index] = value;

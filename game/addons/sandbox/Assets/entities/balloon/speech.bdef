@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/balloon/speech.prefab",
+  "Title": "#asset.speech.title",
+  "Description": "#asset.speech.description",
+  "__references": [],
+  "__version": 0
+}

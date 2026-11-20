@@ -84,32 +84,17 @@ public partial class Package
 	protected void ClearMetaCache() => metaCache = null;
 
 	/// <summary>
-	/// Get the full ident with your choice of fidelity
+	/// Get the package identifier with its published revision when available.
 	/// </summary>
-	internal string GetIdent( bool withLocal, bool withVersion )
+	internal string GetVersionedIdent()
 	{
-		if ( !withLocal && !withVersion )
-		{
-			return $"{Org.Ident}.{Ident}";
-		}
-
-		if ( !withVersion )
-		{
-			return $"{Org.Ident}.{Ident}{(IsRemote ? "" : "#local")}";
-		}
-
-		if ( Revision is null || Revision.VersionId == default )
-		{
-			return $"{Org.Ident}.{Ident}";
-		}
-
-		return $"{Org.Ident}.{Ident}#{Revision.VersionId}";
+		return Revision is { VersionId: not 0 } revision ? $"{FullIdent}#{revision.VersionId}" : FullIdent;
 	}
 
 	/// <summary>
 	/// Compiler name to use when building this package's code. Will be of the form "<c>org.ident</c>".
 	/// </summary>
-	internal string CompilerName => GetIdent( false, false );
+	internal string CompilerName => FullIdent;
 
 	/// <summary>
 	/// Assembly name to use when building this package's code. Will be of the form "<c>package.org.ident</c>".

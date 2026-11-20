@@ -1,0 +1,263 @@
+@import "/UI/Popup.scss";
+
+@import "/UI/Theme.scss";
+
+@keyframes sound-preview-spin
+{
+    from { transform: rotate( 0deg ); }
+    to { transform: rotate( 360deg ); }
+}
+
+@mixin component-theme
+{
+    ResourceSelectPopup.popup .inner
+    {
+        @include ui-block;
+        width: 1000px;
+        height: 820px;
+        max-width: 90vw;
+        max-height: 90vh;
+        gap: 8px;
+        font-family: $body-font;
+        font-size: $ui-settings-font;
+        color: $ui-text;
+
+        // the title bar and the grid, one white section like the windows of UIModal
+        .list
+        {
+            @include ui-section;
+            flex-direction: column;
+            flex-grow: 1;
+            min-height: 0px;
+            padding: 1px;
+        }
+
+        .popup-header
+        {
+            @include ui-title-bar;
+            margin: 0;
+            height: auto;
+            min-height: 44px;
+            padding: 0 10px;
+            gap: 8px;
+
+            h2
+            {
+                flex-grow: 1;
+                font-family: $body-font;
+                font-size: $ui-settings-font;
+                font-weight: 800;
+                height: auto;
+                color: white;
+            }
+
+            .search
+            {
+                @include ui-text-entry;
+                flex-grow: 0;
+                width: 205px;
+                min-width: 205px;
+                text-transform: none;
+            }
+
+            .sort-dropdown
+            {
+                flex-grow: 0;
+                width: 170px;
+                text-transform: none;
+            }
+        }
+    }
+
+    ResourceSelectPopup.popup .inner .grid
+    {
+        @include ui-scroll;
+        width: 100%;
+        flex-grow: 1;
+        min-height: 0px;
+        padding: 10px;
+        gap: 10px;
+    }
+
+    ResourceSelectPopup.popup .inner .grid .item
+    {
+        width: 100%;
+        height: 100%;
+        padding: 10px;
+        gap: 0px;
+        position: relative;
+        flex-direction: column;
+        color: $ui-text-strong;
+        font-size: $ui-settings-font;
+        background-color: $ui-row-alt;
+        border: 1px solid $ui-separator;
+        border-radius: 2px;
+        cursor: pointer;
+        pointer-events: all;
+
+        .icon
+        {
+            width: 100%;
+            flex-grow: 1;
+            min-height: 0px;
+            margin-bottom: 10px;
+            background-color: $ui-tile-bg;
+            background-position: center;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .sound-icon
+        {
+            justify-content: center;
+            align-items: center;
+
+            i
+            {
+                font-family: $ui-icon;
+                font-size: 48px;
+                color: $ui-text-strong;
+                opacity: 0.6;
+            }
+        }
+
+        &.active .sound-icon i
+        {
+            opacity: 1;
+        }
+
+        .details
+        {
+            flex-direction: column;
+            flex-shrink: 0;
+            min-width: 0px;
+        }
+
+        .preview-status
+        {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            background-color: $ui-row-alt;
+            color: $ui-blue;
+
+            IconPanel { font-size: 18px; }
+            &.loading IconPanel { animation: sound-preview-spin 1s linear infinite; }
+            &.playing { color: #76d795; }
+            &.failed { color: #efbb65; }
+        }
+
+        .title
+        {
+            font-weight: 700;
+            line-height: 15px;
+            font-size: $ui-settings-font;
+            flex-shrink: 0;
+            @include ui-ellipsis;
+        }
+
+        .desc
+        {
+            font-size: 11px;
+            flex-shrink: 0;
+            line-height: 15px;
+            color: $ui-text-muted;
+            @include ui-ellipsis;
+        }
+
+        &:hover
+        {
+            background-color: $ui-popup-hover;
+            border-color: $ui-control-border;
+            sound-in: ui.hover;
+        }
+
+        &.active
+        {
+            background-color: $ui-hover-fill;
+            border-color: $ui-blue;
+        }
+    }
+
+    // Auditioning a sound should not layer the normal selection click over its preview.
+    ResourceSelectPopup.popup:not(.sound-selection) .inner .grid .item:active
+    {
+        sound-in: ui.select;
+    }
+
+    ResourceSelectPopup.popup .inner .grid.list-view
+    {
+        gap: 3px;
+
+        .item
+        {
+            flex-direction: row;
+            align-items: center;
+            padding: 6px 10px;
+            gap: 10px;
+
+            .icon
+            {
+                width: 32px;
+                height: 32px;
+                flex-grow: 0;
+                flex-shrink: 0;
+                margin-bottom: 0px;
+            }
+
+            .sound-icon i { font-size: 22px; }
+            .details { flex-grow: 1; flex-shrink: 1; }
+            .preview-status { position: relative; top: 0px; right: 0px; }
+        }
+    }
+
+    // icon only, the title is in the tooltip
+    ResourceSelectPopup.popup .inner .grid.size-small .item
+    {
+        padding: 6px;
+
+        .icon
+        {
+            margin-bottom: 0px;
+        }
+
+        .title, .desc
+        {
+            display: none;
+        }
+    }
+
+    ResourceSelectPopup.popup .inner .popup-footer
+    {
+        flex-direction: row;
+        justify-content: flex-end;
+        flex-shrink: 0;
+        gap: 8px;
+
+        UIButton
+        {
+            width: 146px;
+            pointer-events: all;
+        }
+    }
+
+    // the loader is made for the gray menu, here it sits on the white list
+    ResourceSelectPopup.popup .inner .list UILoadingState
+    {
+        flex-grow: 1;
+        color: $ui-text-muted;
+
+        .spinner
+        {
+            color: $ui-text-disabled-hover;
+        }
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

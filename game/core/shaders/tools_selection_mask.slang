@@ -73,7 +73,7 @@ struct PixelInput
 #endif // VS
 
 #if ( PROGRAM == VFX_PROGRAM_PS )
-#include "common.fxc"
+#include "sbox/view.slangh"
 
 RenderState( DepthEnable, false );
 RenderState( DepthWriteEnable, false );

@@ -1,0 +1,151 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits BaseControl
+@attribute [CustomEditor(typeof(string), WithAllAttributes = [typeof(ResourceSelectAttribute)])]
+
+
+
+<root>
+    <ResourcePickerButton Thumb=@ThumbUrl Badge=@(Extension ?? "?") Title=@DisplayTitle Empty=@(Title == null && !UnknownType) Subtitle=@TypeName />
+</root>
+
+@code
+{
+
+    string Title;
+    string ThumbUrl;
+    TypeDescription ResourceType;
+    AssetTypeAttribute ResourceAttribute;
+    ResourceSelectAttribute SelectAttribute;
+
+    /// <summary>
+    /// The extension being picked, from the asset type or straight from the attribute for types without one (materials).
+    /// </summary>
+    string Extension => ResourceAttribute?.Extension ?? SelectAttribute?.Extension;
+
+    bool UnknownType => ResourceType == null && Extension == null;
+    string DisplayTitle => UnknownType ? "#ui.resource.unknown_type" : Title ?? "#ui.resource.none_selected";
+
+    string TypeName => ResourceAttribute != null ? LocalizedText.ResourceTypeName( ResourceAttribute ) : LocalizedText.ResourceTypeName( Extension, null );
+
+    /// <summary>
+    /// Refreshes the resource type metadata and current selection.
+    /// </summary>
+    public override void Rebuild()
+    {
+        base.Rebuild();
+
+        if (Property.TryGetAttribute<ResourceSelectAttribute>(out var resTypeAttr))
+        {
+            SelectAttribute = resTypeAttr;
+            ResourceType = AssetTypeAttribute.FindTypeByExtension(resTypeAttr.Extension);
+            ResourceAttribute = ResourceType?.GetAttribute<AssetTypeAttribute>();
+        }
+
+        OnValueChanged();
+    }
+
+    /// <summary>
+    /// Updates the preview and display title when the selected resource path changes.
+    /// </summary>
+    public void OnValueChanged()
+    {
+        var path = Property.As.String;
+        _shownValue = path;
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            Title = null;
+            ThumbUrl = null;
+            return;
+        }
+
+        ThumbUrl = $"thumb:{path}";
+
+        // a workshop pick is stored as the package ident
+        if ( IsPackageIdent( path ) )
+        {
+            ShowPackage( path );
+            return;
+        }
+
+        var resource = ResourceLibrary.Get<GameResource>(path);
+        if ( resource == null )
+        {
+            // materials and other native resources aren't in the library, the file name is the best we have
+            Title = ResourceAttribute == null ? System.IO.Path.GetFileNameWithoutExtension( path ) : "#ui.resource.unknown";
+            return;
+        }
+
+        Title = resource.ResourceName;
+
+        if (resource is IDefinitionResource defRes )
+        {
+            Title = defRes.Title;
+        }
+
+    }
+
+    static bool IsPackageIdent( string path ) => !path.Contains( '/' ) && Package.TryParseIdentParts( path, out _ );
+
+    void ShowPackage( string ident )
+    {
+        if ( Package.TryGetCached( ident, out var package, false ) )
+        {
+            Title = package.Title;
+            ThumbUrl = package.Thumb;
+            return;
+        }
+
+        Title = ident;
+        ThumbUrl = null;
+        _ = FetchPackage( ident );
+    }
+
+    async Task FetchPackage( string ident )
+    {
+        var package = await Package.FetchAsync( ident, true );
+        if ( package is null || !IsValid || Property?.As.String != ident ) return;
+
+        Title = package.Title;
+        ThumbUrl = package.Thumb;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Title, ThumbUrl );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // the value can change from outside, like a tool copying a material into its setting
+        if ( Property is not null && Property.As.String != _shownValue )
+            OnValueChanged();
+    }
+
+    string _shownValue;
+
+    void SelectFile( string filePath )
+    {
+        Property.As.String = filePath;
+        OnValueChanged();
+    }
+
+    protected override void OnClick(MousePanelEvent e)
+    {
+        base.OnClick(e);
+
+        var allowPackages = false;
+
+        // TODO: this doesn't seem to work in queries?
+		// if (Property.TryGetAttribute<ResourceSelectAttribute>(out var attr))
+		//     allowPackages = attr.AllowPackages;
+
+        // popup pickers are for types we can't list locally, they need the workshop
+        if ( SelectAttribute?.Popup == true )
+            allowPackages = SelectAttribute.AllowPackages;
+
+        ResourceSelectPopup.Open( this, Extension, Property.As.String, SelectFile, allowPackages );
+    }
+}

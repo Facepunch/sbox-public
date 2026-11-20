@@ -1,0 +1,28 @@
+{
+  "guid": "46d3236a-34a6-49fc-8792-c514ce8df4ed",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "12G Shell",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "12g_shell",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/shotgun/materials/12g_shell.vmat"
+      }
+    }
+  }
+}

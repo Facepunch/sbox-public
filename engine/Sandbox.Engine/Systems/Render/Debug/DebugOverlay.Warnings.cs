@@ -124,10 +124,8 @@ internal static partial class DebugOverlay
 			if ( SystemInfo.GpuIntegrated )
 				return null;
 
-			// Use the driver's heap usage, not the engine's incomplete allocation tally: Source 2's, or without its device the
-			// drawing device's (the empty one reports none)
+			// Use the driver's heap usage, not the engine's incomplete allocation tally: the drawing device's
 			ulong budget = Graphics.VideoMemoryBudget, usage = Graphics.VideoMemoryUsed;
-			if ( Graphics.HasSource2Device ) g_pRenderDevice.GetVideoMemoryInfo( out budget, out usage, out _ );
 			if ( budget == 0 )
 				return null;
 

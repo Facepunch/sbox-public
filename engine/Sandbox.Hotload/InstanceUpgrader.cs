@@ -96,6 +96,8 @@ namespace Sandbox
 			/// </summary>
 			protected IReadOnlyDictionary<Assembly, Assembly> Swaps => Hotload.Swaps;
 
+			internal bool TryGetTypeReplacement( Assembly assembly, out Assembly replacement ) => Hotload.TryGetTypeReplacement( assembly, out replacement );
+
 			protected TUpgrader GetUpgrader<TUpgrader>()
 				where TUpgrader : IInstanceUpgrader
 			{

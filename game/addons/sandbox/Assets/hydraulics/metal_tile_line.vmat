@@ -1,0 +1,21 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/line.shader"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material ----
+	TextureAmbientOcclusion "materials/default/default_ao.tga"
+	TextureColor "hydraulics/metal_tile_01_color.png"
+	TextureMetalness "[1.000000 1.000000 1.000000 0.000000]"
+	TextureNormal "hydraulics/metal_tile_01_normal.png"
+	TextureRoughness "hydraulics/metal_tile_01_rough.png"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "metal"
+	}
+}

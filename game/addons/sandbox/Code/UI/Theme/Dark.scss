@@ -1,0 +1,75 @@
+// Dark palette
+
+$ui-blue: #6891e0;
+$ui-hover-border: #91b4ff;
+$ui-blue-soft: rgba( $ui-hover-border, 0.14 );
+$ui-danger: #e05555;
+
+$ui-hover-fill: rgba( $ui-hover-border, 0.22 );
+$ui-hover-text: #d5e4ff;
+$ui-selected-bg: #2d5da1;
+$ui-selected-text: #a1e2ff;
+
+$ui-text: #dbe1df;
+$ui-text-strong: #f1f5f2;
+$ui-text-muted: #acb6b2;
+$ui-text-label: #c2cac7;
+$ui-text-placeholder: #8c9897;
+$ui-text-disabled: #707b7b;
+$ui-text-disabled-hover: $ui-text-placeholder;
+
+$ui-text-on-gray: $ui-text-muted;
+$ui-heading-on-gray: $ui-text-strong;
+$ui-subtext-on-gray: $ui-text-label;
+$ui-line-on-gray: #384042;
+
+$ui-block-top: #191e20;
+$ui-block-bottom: $ui-block-top;
+$ui-block-border: $ui-line-on-gray;
+$ui-section-top: #212729;
+$ui-section-bottom: $ui-section-top;
+$ui-section-border: $ui-line-on-gray;
+$ui-menu-body: rgba( $ui-block-top, 0.93 );
+$ui-catalog-surface: rgba( $ui-section-top, 0.93 );
+$ui-resource-preview-bg: #51595c;
+$ui-catalog-selected-bg: $ui-selected-bg;
+$ui-sidebar-heading-text: $ui-hover-border;
+
+$ui-popup-bg: $ui-section-top;
+$ui-popup-bg-light: #2a3032;
+$ui-popup-hover: $ui-line-on-gray;
+$ui-well: $ui-block-top;
+$ui-title-bg: #333b3e;
+
+$ui-control-border: #465053;
+$ui-control-bg: $ui-popup-bg-light;
+$ui-control-border-hover: #667275;
+$ui-input-bg: $ui-block-top;
+$ui-input-border: $ui-control-border;
+$ui-check-bg: $ui-well;
+$ui-button-top: $ui-control-bg;
+$ui-button-bottom: $ui-button-top;
+$ui-button-border: $ui-control-border;
+$ui-row-alt: rgba( 255, 255, 255, 0.025 );
+$ui-row-hover-outline: $ui-hover-border;
+$ui-field-border: $ui-control-border;
+$ui-separator: $ui-line-on-gray;
+$ui-scroll-track: $ui-block-top;
+
+$ui-tile-bg: $ui-control-bg;
+// Tiles sit over the body fill. A light tint brings them up to the sidebar shade.
+$ui-spawn-preview-bg: rgba( 255, 255, 255, 0.037 );
+$ui-tile-title-bg: $ui-section-top;
+$ui-tile-title-text: $ui-text-strong;
+$ui-tile-outline: $ui-hover-border;
+
+$ui-card-hover-bg: $ui-control-bg;
+$ui-card-hover-text: $ui-text-strong;
+$ui-card-hover-subtext: $ui-text-muted;
+
+$ui-slider-line: #556064;
+$ui-slider-track: #738084;
+$ui-slider-thumb: #909b9e;
+$ui-slider-thumb-border: $ui-section-border;
+$ui-slider-thumb-hover: $ui-hover-border;
+$ui-slider-thumb-pressed: $ui-blue;

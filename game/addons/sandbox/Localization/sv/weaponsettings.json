@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Rekyl",
+    "weapon.setting.primary.description": "Styr vapnets primära handling.",
+    "weapon.setting.secondary.description": "Styr vapnets sekundära handling.",
+    "weapon.setting.recoil_force": "Rekylkraft",
+    "weapon.setting.recoil_force.description": "Fysisk rekyl när ett vapen som ingen håller i avfyras.",
+    "weapon.setting.extend": "Öka greppavstånd",
+    "weapon.setting.extend.description": "Flyttar det gripna objektet längre bort.",
+    "weapon.setting.retract": "Minska greppavstånd",
+    "weapon.setting.retract.description": "Flyttar det gripna objektet närmare.",
+    "weapon.setting.camera_aim": "Sikta med kamera",
+    "weapon.setting.camera_aim.description": "Siktar i den sittande spelarens kamerariktning.",
+    "weapon.setting.guide_rockets": "Styr raketer",
+    "weapon.setting.guide_rockets.description": "Styr avfyrade raketer mot spelarens hårkors."
+}

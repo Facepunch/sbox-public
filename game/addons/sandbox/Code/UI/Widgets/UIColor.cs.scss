@@ -1,0 +1,108 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	UIColor
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-grow: 1;
+		height: 24px;
+		gap: 2px;
+		pointer-events: all;
+
+		.swatch
+		{
+			width: 47px;
+			height: 24px;
+			flex-shrink: 0;
+			padding: 1px;
+			border: 1px solid $ui-control-border;
+			cursor: pointer;
+
+			.fill
+			{
+				width: 100%;
+				height: 100%;
+			}
+
+			&:hover
+			{
+				border-color: $ui-control-border-hover;
+			}
+		}
+
+		.textentry
+		{
+			width: 67px;
+			height: 24px;
+			min-height: 24px;
+			flex-shrink: 0;
+			padding: 0 4px;
+			justify-content: center;
+			background-color: transparent;
+			border: 1px solid $ui-control-border;
+			border-radius: 0;
+			font-family: $body-font;
+			font-size: $ui-settings-font;
+			font-weight: 500;
+			color: $ui-text;
+
+			.content-label
+			{
+				flex-grow: 1;
+				text-align: center;
+				color: $ui-text;
+			}
+
+			@include ui-focus-ring;
+
+			&.invalid .content-label
+			{
+				color: $ui-danger;
+			}
+		}
+	}
+
+	UISheet UIColor
+	{
+		height: 34px;
+		min-width: 0;
+		padding: 3px;
+		gap: 3px;
+		background-color: $ui-control-bg;
+		border: 1px solid $ui-field-border;
+		border-radius: 7px;
+
+		.swatch, .textentry
+		{
+			width: 50%;
+			min-width: 0;
+			flex-shrink: 1;
+			height: 24px;
+		}
+
+		.swatch
+		{
+			padding: 0;
+			overflow: hidden;
+			border-radius: 4px;
+			background-image: url( /UI/color_checker.svg );
+			background-size: 10px 10px;
+			background-repeat: repeat;
+		}
+
+		.textentry
+		{
+			padding: 0 7px;
+			border: 0;
+			border-left: 1px solid $ui-separator;
+			justify-content: flex-start;
+
+			.content-label { text-align: left; }
+			&:focus { border-color: $ui-blue; }
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

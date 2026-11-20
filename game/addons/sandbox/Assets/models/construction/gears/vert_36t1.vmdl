@@ -1,0 +1,208 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "steel.vmat"
+								to = "materials/construction/steel/steel.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/construction/steel/steel.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/construction/gears/src/vert_36t1.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"vert_36t1_LOD0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD1"
+						filename = "models/construction/gears/src/vert_36t1.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"vert_36t1_LOD1",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 200.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD1",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 100.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "vert_36t1_phys"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/construction/gears/src/vert_36t1_phys.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerMesh"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"vert_36t1_phys_00",
+								"vert_36t1_phys_01",
+								"vert_36t1_phys_02",
+								"vert_36t1_phys_03",
+								"vert_36t1_phys_04",
+								"vert_36t1_phys_05",
+								"vert_36t1_phys_06",
+								"vert_36t1_phys_07",
+								"vert_36t1_phys_08",
+								"vert_36t1_phys_09",
+								"vert_36t1_phys_10",
+								"vert_36t1_phys_11",
+								"vert_36t1_phys_12",
+								"vert_36t1_phys_13",
+								"vert_36t1_phys_14",
+								"vert_36t1_phys_15",
+								"vert_36t1_phys_16",
+								"vert_36t1_phys_17",
+								"vert_36t1_phys_18",
+								"vert_36t1_phys_19",
+								"vert_36t1_phys_20",
+								"vert_36t1_phys_21",
+								"vert_36t1_phys_22",
+								"vert_36t1_phys_23",
+								"vert_36t1_phys_24",
+								"vert_36t1_phys_25",
+								"vert_36t1_phys_26",
+								"vert_36t1_phys_27",
+								"vert_36t1_phys_28",
+								"vert_36t1_phys_29",
+								"vert_36t1_phys_30",
+								"vert_36t1_phys_31",
+								"vert_36t1_phys_32",
+								"vert_36t1_phys_33",
+								"vert_36t1_phys_34",
+								"vert_36t1_phys_35",
+								"vert_36t1_phys_36",
+							]
+						}
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

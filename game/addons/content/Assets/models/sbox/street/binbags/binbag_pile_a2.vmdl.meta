@@ -1,0 +1,28 @@
+{
+  "guid": "e2f6259b-e2d3-4b19-87bc-4e7117f9c8b9",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Binbag Pile a2",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "binbag_pile_a2",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/binbags/binbag_pile_a2.vmdl",
+        "AssetLicense": "CC0"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

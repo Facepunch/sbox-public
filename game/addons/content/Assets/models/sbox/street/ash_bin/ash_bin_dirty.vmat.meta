@@ -1,0 +1,27 @@
+{
+  "guid": "dc97c735-f631-4b99-a6e0-18922b42a1bd",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Ash Bin Dirty",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "ashbindirty",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/ash_bin/ash_bin_dirty.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

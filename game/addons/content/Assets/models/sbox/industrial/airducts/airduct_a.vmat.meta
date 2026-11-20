@@ -1,0 +1,27 @@
+{
+  "guid": "020800ea-0000-0000-b0e4-be10fc000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Airduct A",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "airducta",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_a.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

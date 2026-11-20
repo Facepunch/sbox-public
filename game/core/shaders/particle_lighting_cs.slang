@@ -10,15 +10,15 @@ Mode( Default );
 #define FORCE_BILINEAR_PCF_SHADOWS_ONLY
 #define COMPUTE_SHADER
 
-#include "system.fxc"
-#include "vr_common.fxc"
-#include "light_probe_volume.fxc"
+#include "sbox/system.slangh"
+#include "sbox/shading.slangh"
+#include "sbox/light_probe_volume.slangh"
 #include "common/lightbinner.hlsl"
 #include "common/DDGI/DDGI.hlsl"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "math_general.fxc"
-#include "vr_lighting.fxc"
+#include "sbox/math.slangh"
+#include "sbox/lighting.slangh"
 
 DynamicCombo( D_PASS, 0..1, Sys( ALL ) );
 

@@ -1,0 +1,28 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Security Light",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "security_light",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/security_light/security_light.vmdl",
+        "Summary": "",
+        "Description": "",
+        "Public": true
+      }
+    }
+  },
+  "guid": "24105614-e222-49f4-9088-ef8500a58336"
+}

@@ -72,6 +72,10 @@ internal static class PresetRun
 		using var device = new BackendDevice( gpu );
 		GoldenTruthRun.Adapter = gpu.Adapter.Name;
 
+		// Render tests check shading, not LOD: a golden truth run draws every model whole, without generated levels, whose
+		// subpixel silhouettes and interpolated shading the simplifier and the level pick would otherwise move
+		if ( GoldenTruthRun.Enabled ) device.GeneratedLods = false;
+
 		// A capture is the same frame on any machine, however fast: no draw is skipped for a pipeline workers are still making,
 		// and casters never move into the sun's cached far cascade, which they do after seconds of wall-clock time (a frame
 		// takes half a second on Lavapipe), as in the GPU tests

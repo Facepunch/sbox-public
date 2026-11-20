@@ -1,0 +1,14 @@
+{
+  "Title": "#asset.electricbeam.title",
+  "Description": "#asset.electricbeam.description",
+  "Material": {
+    "Id": "b9096779-0a88-4b61-bc30-cdc538ac58e3",
+    "Path": "entities/trails/line_electricbeam.vmat"
+  },
+  "WorldSpace": true,
+  "UnitsPerTexture": 32,
+  "Opaque": false,
+  "BlendMode": "Lighten",
+  "__references": [],
+  "__version": 0
+}

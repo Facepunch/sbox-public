@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "แรงถีบกลับ",
+    "weapon.setting.primary.description": "ควบคุมการทำงานหลักของอาวุธ",
+    "weapon.setting.secondary.description": "ควบคุมการทำงานรองของอาวุธ",
+    "weapon.setting.recoil_force": "แรงถีบกลับ",
+    "weapon.setting.recoil_force.description": "แรงถีบกลับทางฟิสิกส์เมื่ออาวุธที่ไม่มีผู้ถือยิง",
+    "weapon.setting.extend": "เพิ่มระยะจับ",
+    "weapon.setting.extend.description": "เลื่อนวัตถุที่จับให้ออกห่าง",
+    "weapon.setting.retract": "ลดระยะจับ",
+    "weapon.setting.retract.description": "เลื่อนวัตถุที่จับเข้ามาใกล้",
+    "weapon.setting.camera_aim": "เล็งตามกล้อง",
+    "weapon.setting.camera_aim.description": "เล็งตามทิศทางกล้องของผู้เล่นที่นั่งอยู่",
+    "weapon.setting.guide_rockets": "นำวิถีจรวด",
+    "weapon.setting.guide_rockets.description": "นำวิถีจรวดที่ยิงไปยังจุดเล็งของผู้เล่น"
+}

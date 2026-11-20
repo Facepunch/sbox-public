@@ -1,0 +1,28 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Concrete Floor Tile Blend 02",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "floor_tile_blend_02",
+      "Tags": "concrete floor tile blend 02",
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "ResourcePaths": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/floor/floor_tile_blend_02.vmat",
+        "Summary": "",
+        "Description": "",
+        "Public": true,
+        "ReplaceTags": "concrete floor tile blend 02"
+      }
+    }
+  },
+  "guid": "020800f0-0000-0000-80e7-ee10fc000000"
+}

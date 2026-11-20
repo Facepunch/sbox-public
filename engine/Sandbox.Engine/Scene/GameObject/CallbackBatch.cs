@@ -122,6 +122,27 @@ class CallbackBatch : System.IDisposable
 	}
 
 	/// <summary>
+	/// Step out of the batch that is running, until <see cref="Reattach"/>. What happens in between batches and
+	/// executes on its own, exactly as it does at the top level. For building something self-contained from inside
+	/// another operation, such as a resource loaded on demand part way through a deserialize, which has to be
+	/// complete when it is handed back.
+	/// </summary>
+	public static CallbackBatch Detach()
+	{
+		var running = Current;
+		Current = null;
+		return running;
+	}
+
+	/// <summary>
+	/// Hand back the batch that <see cref="Detach"/> stepped out of.
+	/// </summary>
+	public static void Reattach( CallbackBatch running )
+	{
+		Current = running;
+	}
+
+	/// <summary>
 	/// Adds a direct-dispatch callback, avoiding a delegate allocation.
 	/// </summary>
 	internal static void Add( CommonCallback order, Component target, string name )

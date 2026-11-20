@@ -1,0 +1,210 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "roof_vents.vmat"
+								to = "models/sbox/industrial/roof_vents/roof_vents.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "models/sbox/industrial/roof_vents/roof_vents.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 2.274122
+						point0 = [ 0.0, 0.0, 0.0 ]
+						point1 = [ -0.110156, -0.192796, 12.436022 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 2.274122
+						point0 = [ 0.0, 0.0, 9.777255 ]
+						point1 = [ -0.110156, 0.090987, 18.17141 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						radius = 4.691835
+						point0 = [ -0.084715, -0.033634, 17.960018 ]
+						point1 = [ -0.104751, 0.105289, 20.058537 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "lod0"
+						filename = "models/sbox/industrial/roof_vents/roof_vents.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"Cylinder_006",
+								"Cylinder_009",
+								"Cylinder_013",
+								"Cylinder_014",
+								"Cylinder_017",
+								"roof_vent_2_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod1"
+						filename = "models/sbox/industrial/roof_vents/roof_vents.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"Cylinder_006",
+								"Cylinder_009",
+								"Cylinder_013",
+								"Cylinder_014",
+								"Cylinder_017",
+								"roof_vent_2_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod2"
+						filename = "models/sbox/industrial/roof_vents/roof_vents.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"Cylinder_006",
+								"Cylinder_009",
+								"Cylinder_013",
+								"Cylinder_014",
+								"Cylinder_017",
+								"roof_vent_2_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod3"
+						filename = "models/sbox/industrial/roof_vents/roof_vents.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"Cylinder_006",
+								"Cylinder_009",
+								"Cylinder_013",
+								"Cylinder_014",
+								"Cylinder_017",
+								"roof_vent_2_lod0_003",
+								"roof_vent_2_lod3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes = 
+						[
+							"lod0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 7.216879
+						meshes = 
+						[
+							"lod1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 43.490948
+						meshes = 
+						[
+							"lod2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 150.97699
+						meshes = 
+						[
+							"lod3",
+						]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

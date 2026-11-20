@@ -59,19 +59,14 @@ class LibraryDetail : Widget
 		if ( Package is null )
 			return;
 
-		if ( !Sandbox.Package.TryParseIdent( Package.FullIdent, out var ident ) )
+		if ( !Sandbox.Package.TryParseIdentParts( Package.FullIdent, out var ident ) )
 			return;
 
-		Installed = LibrarySystem.All.FirstOrDefault( x => x.Project.Package.Ident == Package.Ident && x.Project.Package.Org == Package.Org );
+		Package = await Package.FetchAsync( Package.FullIdent, false ) ?? Package;
+		if ( !this.IsValid() ) return;
 
-		// do we have this package installed? what is the version?
-		var isLocalPackage = ident.org == "local";
-		if ( !isLocalPackage )
-		{
-			Package = await Package.FetchAsync( $"{ident.org}.{ident.package}", false ) ?? Package;
-			if ( !this.IsValid() ) return;
-		}
-
+		Installed = LibrarySystem.All.FirstOrDefault( x => string.Equals( x.Project.Config.FullIdent, Package.FullIdent, StringComparison.OrdinalIgnoreCase ) );
+		var isLocalPackage = !Package.IsRemote && Installed?.IsPackageInstall != true;
 		var membership = EditorUtility.Account.Memberships.FirstOrDefault( x => x.Ident == ident.org );
 
 		{
@@ -103,7 +98,7 @@ class LibraryDetail : Widget
 			headerDetails.Add( new Label( $"<h2>{Package.Title}</h2>" ) );
 
 			// org icon and title
-			var orgText = (Package.Org.Ident == "local") ? "Local Package" : $"From <strong>{Package.Org.Title}</strong>";
+			var orgText = isLocalPackage ? "Local Package" : $"From <strong>{Package.Org.Title}</strong>";
 			headerDetails.Add( new Label( orgText ) );
 		}
 
@@ -115,18 +110,18 @@ class LibraryDetail : Widget
 			VersionList = new ComboBox( this );
 			controlRow1.Add( VersionList );
 
-			ActionButton = new Button( "Install", "get_app", this ) { Pressed = () => _ = OnActionPressed() };
+			ActionButton = new Button( "Install", "get_app", this ) { Enabled = false, Pressed = () => _ = OnActionPressed() };
 			ActionButton.FixedWidth = 100;
 			controlRow1.Add( ActionButton );
 
 			// If it's a local package, include the Properties & Publish buttons here since the other controls get hidden
-			if ( membership is not null || isLocalPackage )
+			if ( Installed is not null && (membership is not null || isLocalPackage) )
 			{
 				PropertiesButton = new Button( "Open Properties", "tune" )
 				{
 					Pressed = () =>
 					{
-						var project = LibrarySystem.All.FirstOrDefault( x => x.Project.Package.Ident == Package.Ident && x.Project.Package.Org == Package.Org )?.Project;
+						var project = Installed?.Project;
 						if ( project is null ) return;
 						ProjectSettingsWindow.OpenForProject( project );
 					}
@@ -185,7 +180,7 @@ class LibraryDetail : Widget
 
 		Layout.AddStretchCell();
 
-		if ( ident.org == "local" )
+		if ( isLocalPackage )
 		{
 			VersionList.Visible = false;
 			ActionButton.Visible = false;
@@ -195,7 +190,7 @@ class LibraryDetail : Widget
 		var versions = await Package.FetchVersions( $"{ident.org}.{ident.package}" );
 		if ( !this.IsValid() ) return;
 
-		if ( versions is not null )
+		if ( versions is { Count: > 0 } )
 		{
 			if ( Installed is not null )
 			{
@@ -251,7 +246,7 @@ class LibraryDetail : Widget
 	{
 		VersionList.Clear();
 		int index = 0;
-		var installed = LibrarySystem.All.FirstOrDefault( x => x.Project.Package.Ident == Package.Ident && x.Project.Package.Org == Package.Org );
+		var installed = Installed;
 		foreach ( var v in versions )
 		{
 			var version = v;
@@ -282,7 +277,7 @@ class LibraryDetail : Widget
 		SelectedRevision = revision;
 
 		// Is this fucker installed?
-		var installed = LibrarySystem.All.FirstOrDefault( x => x.Project.Package.Ident == Package.Ident && x.Project.Package.Org == Package.Org );
+		var installed = Installed;
 		if ( installed is not null )
 		{
 			// is this the installed version?

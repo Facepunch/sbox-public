@@ -27,9 +27,29 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// The game the platform menu opens on before anything's been picked - Sandbox
+	/// Games registered in the shared project list, including projects from addon paths.
 	/// </summary>
-	public static Task<Package> FetchDefaultGameAsync() => Package.FetchAsync( "facepunch.sandbox", false );
+	public static Package[] FindInstalledGames() => FindInstalledProjects( "game" );
+
+	/// <summary>
+	/// Map packages available to the chooser from registered local projects.
+	/// </summary>
+	public static Package[] FindInstalledMaps() => FindInstalledProjects( "map" );
+
+	static Package[] FindInstalledProjects( string type ) => Project.All
+		.Where( x => x.Config.Type == type && !x.Broken )
+		.OrderBy( x => x.Config.Title, StringComparer.OrdinalIgnoreCase )
+		.Select( x => x.Package ).ToArray();
+
+	/// <summary>
+	/// The game the platform menu opens on before anything's been picked - the installed Sandbox addon.
+	/// </summary>
+	public static Package GetDefaultGame() => Project.FindByIdent( DefaultGameIdent ) is { Broken: false, Config.Type: "game" } project ? project.Package : null;
+
+	/// <summary>
+	/// The package the platform menu opens at startup.
+	/// </summary>
+	public const string DefaultGameIdent = "facepunch.sandbox";
 
 	/// <summary>
 	/// The game published as this Workshop item, to play. Null if there isn't one.

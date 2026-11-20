@@ -1,0 +1,171 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						filename = "vehicles/buggy/buggy_rigged.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"buggy_body",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						filename = "vehicles/buggy/buggy_rigged.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"buggy_front",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						filename = "vehicles/buggy/buggy_rigged.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"buggy_rear",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "beer_keg_a.vmat"
+								to = "models/props/beer_keg/beer_keg_a.vmat"
+							},
+							{
+								from = "car_seat.vmat"
+								to = "models/sbox_props/car_seat/car_seat.vmat"
+							},
+							{
+								from = "tyre.vmat"
+								to = "models/sbox/vehicles/wheels/car_tyre/tyre.vmat"
+							},
+							{
+								from = "02 - default.vmat"
+								to = "vehicles/buggy/buggy.vmat"
+							},
+							{
+								from = "tractor_tyre.vmat"
+								to = "models/sbox/vehicles/wheels/tractor_wheel/tractor_wheel.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 1000.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "buggy"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "vehicles/buggy/buggy.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "SingleHull"
+						optimization_algorithm = "QEM"
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"front_left_wheel",
+								"front_left_axil",
+								"front_right_wheel",
+								"steering_wheel",
+								"rear_left_wheel",
+								"rear_right_wheel",
+								"front_right_axil",
+								"buggy_front",
+								"buggy_rear",
+							]
+						}
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = ""
+		skeleton_name = ""
+		base_model_name = ""
+	}
+}

@@ -1,0 +1,112 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "IKChain"
+						name = "right_arm_IK"
+						note = "A default bone MUST be set here, but it will depend on each viewmodel\'s setup, so I\'m picking one that exists. That way, compilation won\'t fail. YOU MUST SET A DIFFERENT TARGET BONE IN YOUR ANIMGRAPH NODES."
+						children = 
+						[
+							{
+								_class = "IKChainJoint"
+								name = "arm_upper_R"
+								children = 
+								[
+									{
+										_class = "IKChainJoint"
+										name = "arm_lower_R"
+										children = 
+										[
+											{
+												_class = "IKChainJoint"
+												name = "hand_R"
+												bone = "hand_R"
+											},
+										]
+										bone = "arm_lower_R"
+									},
+								]
+								bone = "arm_upper_R"
+							},
+						]
+						m_bDoBonesOrientAlongPositiveX = true
+						"m_DefaultSolverSettings.m_nNumIterations" = 6
+						"m_DefaultSolverSettings.m_SolverType " = "IKSOLVER_TwoBone"
+						"m_DefaultTargetSettings.m_Bone" = 
+						{
+							m_Name = "hand_R"
+						}
+						"m_DefaultTargetSettings.m_TargetSource" = "Bone"
+						"m_Data.m_DefaultTargetSettings.m_AnimgraphParameterNamePosition" = 
+						{
+							m_id = 4294967295
+						}
+						"m_Data.m_EndEffectorFixedOffsetAttachment" = 
+						{
+							m_Name = ""
+						}
+						"m_Data.m_bParentJointRequiresAlignment" = true
+					},
+					{
+						_class = "IKChain"
+						name = "left_arm_IK"
+						note = "A default bone MUST be set here, but it will depend on each viewmodel\'s setup, so I\'m picking one that exists. That way, compilation won\'t fail. YOU MUST SET A DIFFERENT TARGET BONE IN YOUR ANIMGRAPH NODES."
+						children = 
+						[
+							{
+								_class = "IKChainJoint"
+								name = "arm_upper_L1"
+								children = 
+								[
+									{
+										_class = "IKChainJoint"
+										name = "arm_lower_L1"
+										children = 
+										[
+											{
+												_class = "IKChainJoint"
+												name = "hand_L1"
+												bone = "hand_L"
+											},
+										]
+										bone = "arm_lower_L"
+									},
+								]
+								bone = "arm_upper_L"
+							},
+						]
+						m_bDoBonesOrientAlongPositiveX = true
+						"m_DefaultSolverSettings.m_nNumIterations" = 6
+						"m_DefaultSolverSettings.m_SolverType " = "IKSOLVER_TwoBone"
+						"m_DefaultTargetSettings.m_Bone" = 
+						{
+							m_Name = "hand_L"
+						}
+						"m_DefaultTargetSettings.m_TargetSource" = "Bone"
+						"m_Data.m_DefaultTargetSettings.m_AnimgraphParameterNamePosition" = 
+						{
+							m_id = 4294967295
+						}
+						"m_Data.m_EndEffectorFixedOffsetAttachment" = 
+						{
+							m_Name = ""
+						}
+						"m_Data.m_bParentJointRequiresAlignment" = true
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

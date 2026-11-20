@@ -238,7 +238,7 @@
             if ( gamesCounted < 1 ) return installedGames;
 
             gamesCounted = 0;
-            installedGames = PlatformMenu.YourGames.Games?.Count( x => MenuUtility.IsInstalled( x.Id ) ) ?? 0;
+            installedGames = PlatformMenu.LocalGames.Count + (PlatformMenu.YourGames.Games?.Count( x => MenuUtility.IsInstalled( x.Id ) ) ?? 0);
             return installedGames;
         }
     }

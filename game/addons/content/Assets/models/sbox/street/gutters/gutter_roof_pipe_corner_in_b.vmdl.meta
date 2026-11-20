@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "gutter_roof_pipe_corner_in_b",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "gutter_roof_pipe_corner_in_b",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_roof_pipe_corner_in_b.vmdl"
+      }
+    }
+  },
+  "guid": "f9fabea9-2da2-484f-8d8b-b1fa0b21b52b"
+}

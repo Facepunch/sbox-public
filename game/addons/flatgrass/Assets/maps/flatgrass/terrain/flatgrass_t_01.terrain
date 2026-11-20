@@ -1,0 +1,35 @@
+{
+  "Maps": {
+    "$blob": "ed4b92b7-d9c4-89e0-9b2b-f3cd90cfd352"
+  },
+  "Resolution": 2048,
+  "TerrainSize": 79872,
+  "TerrainHeight": 10000,
+  "Materials": [
+    {
+      "Id": "fb08a600-7ffd-0000-7360-2d88fd7f0000",
+      "Path": "materials/sbox/terrain/grass/terrain_grass_a.tmat"
+    },
+    {
+      "Id": "e9609be2-ddf9-4e82-a8af-1f20b35e21a9",
+      "Path": "materials/sbox/terrain/grass/mossy_grass_01.tmat"
+    }
+  ],
+  "MaterialSettings": {
+    "HeightBlendEnabled": true,
+    "HeightBlendSharpness": 0.87,
+    "Sampler": {
+      "Filter": "Anisotropic",
+      "AddressModeU": "Wrap",
+      "AddressModeV": "Wrap",
+      "AddressModeW": "Wrap",
+      "MipLodBias": 0,
+      "MaxAnisotropy": 8,
+      "BorderColor": "0,0,0,0",
+      "Index": 2
+    }
+  },
+  "ResourceVersion": 3,
+  "__references": [],
+  "__version": 3
+}

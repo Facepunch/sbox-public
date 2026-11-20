@@ -1,0 +1,124 @@
+$ui-menu-blur: 6px;
+$ui-menu-radius: 5px;
+$ui-menu-control-height: 30px;
+$ui-menu-tab-height: 32px;
+
+@mixin ui-control-surface
+{
+	background-image: none;
+	background-color: $ui-control-bg;
+}
+
+@mixin ui-menu-segments
+{
+	border-radius: $ui-menu-radius;
+	overflow: hidden;
+
+	.segment
+	{
+		color: $ui-text-label;
+		font-weight: 600;
+		text-transform: none;
+
+		&.active { @include ui-selected( $ui-catalog-selected-bg ); }
+	}
+}
+
+@mixin ui-header-button
+{
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	height: $ui-menu-tab-height;
+	border: 1px solid transparent;
+	border-radius: $ui-menu-radius;
+	color: $ui-text-label;
+	cursor: pointer;
+
+	&:hover { background-color: $ui-blue-soft; color: $ui-text-strong; sound-in: ui.hover; }
+	&:active { sound-in: ui.select; }
+	&:focus { border-color: $ui-hover-border; }
+}
+
+@mixin ui-tab-button
+{
+	@include ui-header-button;
+	flex-direction: row;
+	padding: 0 8px;
+	gap: 6px;
+	font-size: 13px;
+	font-weight: 600;
+	white-space: nowrap;
+
+	&.selected { @include ui-selected( $ui-catalog-selected-bg ); }
+
+	> .tab-icon
+	{
+		width: auto;
+		height: auto;
+		font-family: $ui-icon-outlined;
+		font-size: 16px;
+		font-weight: 400;
+		pointer-events: none;
+	}
+}
+
+@mixin ui-wrapped-tab-bar
+{
+	flex-direction: row;
+	flex-wrap: wrap;
+	flex-shrink: 0;
+	gap: 4px;
+	padding: 8px;
+	background-color: $ui-catalog-surface;
+
+	> .tab { @include ui-tab-button; }
+}
+
+@mixin ui-sidebar
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	min-height: 0px;
+	overflow: hidden;
+	padding: 8px;
+	color: $ui-text;
+	background-color: $ui-catalog-surface;
+	border-right: 1px solid $ui-separator;
+}
+
+@mixin ui-sidebar-row
+{
+	@include ui-selectable;
+	border-radius: $ui-menu-radius;
+	color: $ui-text;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+@mixin ui-sidebar-heading
+{
+	color: $ui-sidebar-heading-text;
+	font-size: 13px;
+	font-weight: 600;
+	white-space: normal;
+}
+
+@mixin ui-section-band
+{
+	background-color: rgba( $ui-text-strong, 0.06 );
+	border-bottom: 1px solid $ui-separator;
+	border-radius: 0;
+	color: $ui-text-strong;
+	font-size: 13px;
+	font-weight: 700;
+}
+
+@mixin ui-inspect-settings-tab
+{
+	width: 420px;
+	height: 474px;
+	flex-direction: column;
+
+	UISettingsPane .settings-body { padding-right: 18px; }
+}

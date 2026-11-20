@@ -96,7 +96,7 @@ internal partial class NetworkSystem
 			MaxPlayers = Networking.MaxPlayers,
 			MapName = Networking.MapName,
 			EngineVersion = 234,
-			GamePackage = Application.GamePackage?.GetIdent( false, true ) ?? Application.GameIdent ?? "",
+			GamePackage = Application.GamePackage?.GetVersionedIdent() ?? Application.GameIdent ?? "",
 			GameWorkshopId = gameWorkshopId,
 			GameWorkshopVersion = gameWorkshopId != 0 ? Workshop.GetInstalledVersion( gameWorkshopId ) : 0,
 			Map = Application.Map,

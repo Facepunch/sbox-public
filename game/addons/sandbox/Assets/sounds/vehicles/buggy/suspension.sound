@@ -1,0 +1,66 @@
+{
+  "UI": false,
+  "Volume": "0.699999988",
+  "Pitch": "0.899999976 1.20000005",
+  "Decibels": 70,
+  "SelectionMode": "Random",
+  "Sounds": [
+    {
+      "Id": "c52b2f5d-9298-4062-99d9-78389b50e681",
+      "Path": "sounds/vehicles/buggy/suspension_1.vsnd"
+    },
+    {
+      "Id": "ba860e84-ed24-48d8-ac54-966b0ec1370c",
+      "Path": "sounds/vehicles/buggy/suspension_2.vsnd"
+    },
+    {
+      "Id": "b4dc96ec-8aff-4967-a64d-3633bff04ccd",
+      "Path": "sounds/vehicles/buggy/suspension_3.vsnd"
+    }
+  ],
+  "OcclusionEnabled": true,
+  "Occlusion": true,
+  "ReverbEnabled": true,
+  "Reflections": true,
+  "AirAbsorption": true,
+  "Transmission": true,
+  "OcclusionRadius": 64,
+  "DistanceAttenuation": true,
+  "Distance": 5000,
+  "Falloff": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 3.1415927,
+      "out": -3.1415927,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.1109375,
+      "y": 0.42532486,
+      "in": 3.4901452,
+      "out": -3.4901452,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.3046875,
+      "y": 0.10261375,
+      "in": 0.04153157,
+      "out": -0.04153157,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": -0,
+      "out": -0,
+      "mode": "Mirrored"
+    }
+  ],
+  "DefaultMixer": {
+    "Name": "unknown",
+    "Id": "00000000-0000-0000-0000-000000000000"
+  },
+  "__references": [],
+  "__version": 1
+}

@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Recoil",
+    "weapon.setting.primary.description": "Controls the weapon's primary action.",
+    "weapon.setting.secondary.description": "Controls the weapon's secondary action.",
+    "weapon.setting.recoil_force": "Recoil Force",
+    "weapon.setting.recoil_force.description": "Physical recoil applied when an unheld weapon fires.",
+    "weapon.setting.extend": "Extend Grab Distance",
+    "weapon.setting.extend.description": "Moves the grabbed object farther away.",
+    "weapon.setting.retract": "Retract Grab Distance",
+    "weapon.setting.retract.description": "Moves the grabbed object closer.",
+    "weapon.setting.camera_aim": "Aim with Camera",
+    "weapon.setting.camera_aim.description": "Aim toward the seated player's camera direction.",
+    "weapon.setting.guide_rockets": "Guide Rockets",
+    "weapon.setting.guide_rockets.description": "Guide fired rockets toward the player's crosshair."
+}

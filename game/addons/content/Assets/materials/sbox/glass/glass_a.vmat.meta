@@ -1,0 +1,31 @@
+{
+  "guid": "b99ee45e-35d9-47cd-aa68-27339ecc7378",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Glass A",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "glass_a",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/glass/glass_a.vmat",
+        "Summary": "",
+        "Description": "",
+        "Public": true,
+        "AssetLicense": "CC0"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

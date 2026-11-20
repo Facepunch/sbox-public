@@ -1,0 +1,26 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/glass.shader"
+
+	//---- Glass ----
+	F_GLASS_QUALITY 1 // Simple Glass ( Faster To Render )
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Glass ----
+	g_flRefractionStrength "1.005"
+
+	//---- Material ----
+	g_flTintColor "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusion "[1.000000 1.000000 1.000000 0.000000]"
+	TextureBlendMask "materials/default/default_blend.tga"
+	TextureColor "models/sbox/street/cctv/cctv_glass_color.png"
+	TextureMetalness "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormal "[0.501961 0.501961 1.000000 0.000000]"
+	TextureRoughness "models/sbox/street/cctv/cctv_glass_rough.png"
+	TextureTintMask "materials/default/default.tga"
+	TextureTranslucency "models/sbox/street/cctv/cctv_glass_rough.png"
+}

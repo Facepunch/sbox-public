@@ -1,5 +1,4 @@
-// downsample_depth.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
+// downsample_depth: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -8,16 +7,17 @@
 // HEADER: Description = "Downsample/resolve depth buffer";
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Default();
 
 #include "sbox/pass.slangh"
 
+Mode( Default );
+
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT

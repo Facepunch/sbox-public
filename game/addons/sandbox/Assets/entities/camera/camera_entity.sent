@@ -1,0 +1,13 @@
+{
+  "Prefab": {
+    "Id": "908ea15e-e242-4d62-b7df-00c9849476c1",
+    "Path": "entities/camera/camera_entity.prefab"
+  },
+  "Title": "#entity.name.camera",
+  "Description": "#entity.description.camera",
+  "Category": "World",
+  "IncludeCode": false,
+  "Developer": false,
+  "__references": [],
+  "__version": 0
+}
