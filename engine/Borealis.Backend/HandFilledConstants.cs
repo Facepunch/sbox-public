@@ -17,12 +17,13 @@ internal static class HandFilledConstants
 
 	public static readonly Entry[] All =
 	[
-		new( typeof( BackendContext.GpuDrivenConstants ), "BorealisGpuDriven_t", "g_nBorealis", ["shaders/borealis_gpu_driven_ids.shader"] ),
+		new( typeof( BackendContext.GpuDrivenConstants ), "BorealisGpuDriven_t", "g_nBorealis", ["shaders/borealis_gpu_driven_ids.shader", "shaders/borealis_ids_normals_cs.shader"] ),
 		new( typeof( BackendContext.GpuDrivenCullConstants ), "BorealisGpuDrivenCull_t", "g_nCull", ["shaders/borealis_gpu_driven_cull_cs.shader", "shaders/borealis_gpu_driven_compact_cs.shader"] ),
 		new( typeof( BackendContext.GpuDrivenMarkConstants ), "BorealisGpuDrivenMark_t", "g_nMark", ["shaders/borealis_gpu_driven_mark_cs.shader"] ),
 		new( typeof( ResidentCullConstants ), "BorealisResidentCull_t", "g_nResident", ["shaders/borealis_resident_cull_cs.shader"] ),
 		new( typeof( BackendContext.MeshletCullConstants ), "BorealisMeshletCull_t", "g_nMeshlet", ["shaders/borealis_meshlet_cull_cs.shader"] ),
 		new( typeof( BackendContext.HiZConstants ), "BorealisHiZ_t", "g_nHiZ", ["shaders/borealis_hiz_cs.shader"] ),
+		new( typeof( BackendContext.IdsNormalsConstants ), "BorealisIdsNormals_t", "g_nIds", ["shaders/borealis_ids_normals_cs.shader"] ),
 	];
 
 	/// <summary>

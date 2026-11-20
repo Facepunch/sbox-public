@@ -100,7 +100,12 @@ internal sealed partial class BackendContext
 	{
 		/// <summary>The ids target's size and samples, and the vertex bits in use.</summary>
 		public uint Width, Height, Samples, Bits;
-		public uint Pad0, Pad1, Pad2, Pad3;
+
+		/// <summary>
+		/// With normals from the ids (whose target keeps earlier calls' ids): the call's frame chunk slot, first instance record
+		/// and how many, so only its own ids are marked; 0 instances marks every id.
+		/// </summary>
+		public uint CallSlot, CallFirst, CallInstances, Pad3;
 	}
 
 	/// <summary>A bucket: what one multi-draw shares, and the batches in it.</summary>
@@ -1184,6 +1189,8 @@ internal sealed partial class BackendContext
 
 		// The prepass's id buckets first, into the ids and depth, then the triangles they show are marked. Culled in two
 		// phases: the fragments forward saw last frame, the Hi-Z from their depth, then the rest that pass it
+		idsCall = default;
+		if ( ids ) AddIdsCall( visibility, frameSlot, firstInstance, (fragmentOffset - instanceOffset) / GpuDrivenTables.InstanceStride, vertexBases );
 		if ( ids && region.HiZ )
 		{
 			DrawIds( cull, visibility, shaders, frameBuffer, frameOffset, commandOffset, runsOffset, firstInstance, depth, samples, depthBias, slopeScaledDepthBias, resolver, mark: false );
@@ -1796,6 +1803,17 @@ internal sealed partial class BackendContext
 
 		visibility.HiZWrote = false;
 
+		// Normals from the ids: cleared once a frame instead of by each call, so they end holding every call's, readable as a
+		// call's mark leaves them; and the table of the calls that draw them
+		if ( device.IdsNormals && visibility.Ids.IsValid && visibility.IdsCalls.IsValid )
+		{
+			r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+			r.List.ClearTexture( visibility.Ids );
+			r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ColorTargetOutput | PipelineStage.ComputeShader, MemoryAccess.ColorTargetRead | MemoryAccess.ColorTargetWrite | MemoryAccess.ShaderRead ) );
+			r.List.FillBuffer( visibility.IdsCalls, 0 );
+			visibility.IdsCallCount = 0;
+		}
+
 		// This frame's compacted buffer's cursor, past itself: the forward pass's calls take their triangles' ranges from it
 		r.List.FillBuffer( visibility.Compacted[frame % visibility.Compacted.Length], BackendDevice.VisibilityView.CompactedCursorIndices, 0, 4 );
 		if ( visibility.PrepassCompacted.IsValid )
@@ -1808,8 +1826,27 @@ internal sealed partial class BackendContext
 			// The kept triangles' cursor, which task shaders count up (borealis_meshlet_ids)
 			if ( visibility.MeshletKept ) r.List.FillBuffer( visibility.MeshletStamps, 0, BackendDevice.MeshletKeptAt, 4 );
 		}
-		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader | (device.Gpu.Capabilities.MeshShaders ? PipelineStage.TaskShader : 0), MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader | PipelineStage.Transfer | (device.Gpu.Capabilities.MeshShaders ? PipelineStage.TaskShader : 0), MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite | MemoryAccess.TransferWrite );
 	}
+
+	/// <summary>
+	/// With <see cref="BackendDevice.IdsNormals"/>, a call that draws ids puts its region in the view's table
+	/// (<see cref="BackendDevice.VisibilityView.IdsCalls"/>): the frame chunk's bindless slot, its first instance record and
+	/// how many, and its fragment words' base, which an id's instance record finds its vertex base by. Outside a rendering
+	/// scope; the resolve reads the table after a barrier of its own.
+	/// </summary>
+	void AddIdsCall( BackendDevice.VisibilityView visibility, int frameSlot, uint firstInstance, int instances, uint vertexBases )
+	{
+		if ( !device.IdsNormals || !visibility.IdsCalls.IsValid ) return;
+		idsCall = ((uint)frameSlot, firstInstance, (uint)instances);
+		var k = System.Threading.Interlocked.Increment( ref visibility.IdsCallCount ) - 1;
+		if ( k >= BackendDevice.VisibilityView.MaxIdsCalls ) return;
+		Span<uint> entry = [(uint)frameSlot, firstInstance, (uint)instances, vertexBases];
+		recording.List.UpdateBuffer<uint>( visibility.IdsCalls, entry, k * (long)BackendDevice.VisibilityView.IdsCallBytes );
+	}
+
+	/// <summary>The call <see cref="AddIdsCall"/> last put in the table, whose ids its mark marks (none: every id).</summary>
+	(uint Slot, uint First, uint Instances) idsCall;
 
 	static readonly StringToken FigureConstantsName = new( "BorealisGpuDrivenFigure_t" );
 	static readonly ConditionalWeakTable<ShaderVariant, object[]> FigureLayouts = new();
@@ -1956,11 +1993,14 @@ internal sealed partial class BackendContext
 		var idsScope = timer?.Begin( r.List, "GPU-driven ids", PassTimer.ScopeKind.Own ) ?? -1;
 		r.List.Marker( "GPU-driven ids" );
 		// After any earlier ids pass of the view this frame (another call's): its writes and the mark's reads come first
-		// (A second phase draws on over the first's ids, which its rendering scope kept in place)
-		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, clearIds ? ImageLayout.Undefined : ImageLayout.ColorTarget, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput | PipelineStage.ComputeShader, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite | MemoryAccess.ColorTargetRead ) );
+		// (A second phase draws on over the first's ids, which its rendering scope kept in place.) With normals from the ids
+		// every call draws on over the ids the view's clear and earlier calls left, readable after their marks
+		var loadIds = !clearIds || device.IdsNormals;
+		var idsBefore = !clearIds ? ImageLayout.ColorTarget : device.IdsNormals ? ImageLayout.ShaderRead : ImageLayout.Undefined;
+		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Ids, idsBefore, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput | PipelineStage.ComputeShader, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite | MemoryAccess.ColorTargetRead ) );
 		r.List.Barrier( Borealis.Gpu.TextureBarrier.Transition( visibility.Scratch, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
 		r.List.BeginRendering(
-			[new ColorTarget { Texture = visibility.Scratch, Load = LoadOp.DontCare, Store = StoreOp.DontCare }, new ColorTarget { Texture = visibility.Ids, Load = clearIds ? LoadOp.Clear : LoadOp.Load, Store = StoreOp.Store, ClearColor = default }],
+			[new ColorTarget { Texture = visibility.Scratch, Load = LoadOp.DontCare, Store = StoreOp.DontCare }, new ColorTarget { Texture = visibility.Ids, Load = loadIds ? LoadOp.Load : LoadOp.Clear, Store = StoreOp.Store, ClearColor = default }],
 			new DepthTarget { Texture = depthTexture.Handle, Layer = bound.DepthSlice, Load = LoadOp.Load, Store = StoreOp.Store } );
 		var rect = bound.Viewport;
 		var (width, height) = r.List.RenderSize;
@@ -2082,6 +2122,9 @@ internal sealed partial class BackendContext
 			Height = (uint)visibility.Height,
 			Samples = (uint)visibility.Samples,
 			Bits = (uint)Math.Min( frameBits > 0 ? GpuDrivenTables.FrameVisibilityBitBase + frameBits : device.GpuDrivenTables.VisibilityBits, uint.MaxValue ),
+			CallSlot = idsCall.Slot,
+			CallFirst = idsCall.First,
+			CallInstances = idsCall.Instances,
 		} );
 		cullAttributes.Clear();
 		cullAttributes.Set( "BorealisIds", visibility.Ids );
