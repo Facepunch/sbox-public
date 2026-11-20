@@ -409,6 +409,15 @@ internal class SyncPublicRepo( bool dryRun = false, string publicBranch = SyncPu
 		}
 
 		Log.Error( "Failed to create clone" );
+		try
+		{
+			DeleteDirectory( filteredRepoPath );
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( $"Failed to clean up the clone: {ex.Message}" );
+		}
+
 		return null;
 	}
 
