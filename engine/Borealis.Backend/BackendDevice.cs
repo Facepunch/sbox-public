@@ -1520,8 +1520,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		tier.CountConverted( path );
 		var converted = ConvertedMaterial.Create( compiled, WithFeatureRules( file ), path, MaterialTextureFile );
 
-		// The .shader material, for draws the surface can't make
-		converted.SetFallback( fallback );
+		// The .shader material, for draws the surface can't make; none once the shader is a surface alone (no .shader_c)
+		if ( Shaders.Load( file.Shader ) is not null ) converted.SetFallback( fallback );
 
 		// Its scene attributes (overlay, NoZPrepass, ...) are the .shader material's: that material without textures
 		converted.SetAttributes( () => new BackendMaterial( path, Shaders.Load( file.Shader ), file, null ) );
@@ -1562,15 +1562,34 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		return Classic();
 	}
 
-	/// <summary>A material that's a shader with its defaults.</summary>
+	/// <summary>
+	/// A material that's a shader with its defaults: the surface standing in for it, with its defaults, when the shader
+	/// is a surface alone (no compiled <c>.shader_c</c>: <c>shaders/terrain_preview.shader</c>).
+	/// </summary>
 	public override GpuMaterial MaterialFromShader( string shaderPath )
 	{
 		lock ( sharedMaterials )
 		{
 			if ( sharedMaterials.TryGetValue( shaderPath, out var material ) ) return material;
-			return sharedMaterials[shaderPath] = Track( new BackendMaterial( shaderPath, Shaders.Load( shaderPath ), null, null ) );
+			var shader = Shaders.Load( shaderPath );
+#pragma warning disable CA2000 // Kept: the shared materials own it
+			if ( shader is null && Surfaces.HasConversions && Converted( shaderPath, EmptyMaterial( shaderPath ), () => null ) is { } converted ) return sharedMaterials[shaderPath] = converted;
+#pragma warning restore CA2000
+			return sharedMaterials[shaderPath] = Track( new BackendMaterial( shaderPath, shader, null, null ) );
 		}
 	}
+
+	/// <summary>A material file of a shader that sets nothing: the shader's (the surface's) defaults.</summary>
+	static MaterialFile EmptyMaterial( string shader ) => new()
+	{
+		Name = shader,
+		Shader = shader,
+		Ints = new Dictionary<string, int>(),
+		Floats = new Dictionary<string, float>(),
+		Vectors = new Dictionary<string, float[]>(),
+		Textures = new Dictionary<string, string>(),
+		IntAttributes = new Dictionary<string, int>(),
+	};
 
 	/// <inheritdoc/>
 	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => Track( new BackendMaterial( name, Shaders.Load( shaderPath ), null, null ) );

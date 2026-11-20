@@ -116,6 +116,49 @@ public class MaterialCompileTests
 		StringAssert.Contains( compiled.Data, "m_pValue = resource:\"materials/x.vtex\"" );
 	}
 
+	/// <summary>
+	/// A surface's inputs are its MATERIAL_INPUTS block's (water_simple's, the common inputs): the made textures its fields
+	/// take, the attributes evaluated with the material's features, and the representative texture's size (a colour's is
+	/// one texel; an image's from its file).
+	/// </summary>
+	[TestMethod]
+	public void SurfaceInputsComeFromItsMaterialInputsBlock()
+	{
+		var material = VmatSource.Parse( "Layer0 { shader \"shaders/water_simple.shader\" F_RENDER_BACKFACES 1 TextureColor \"[1.000000 1.000000 1.000000 0.000000]\" TextureNormal \"textures/water/water_normal.jpg\" }" );
+		var inputs = MaterialInputs.Read( Module( "water_simple" ), material.Features );
+		CollectionAssert.AreEquivalent( new[] { "g_tColor", "g_tNormal", "g_tRma" }, inputs.Textures.Select( t => t.Name ).ToArray() );
+		Assert.AreEqual( "g_tColor", inputs.RepresentativeTexture );
+		Assert.AreEqual( 1f, inputs.Attributes.Single( a => a.Name == "renderbackfaces" ).Value[0], "F_RENDER_BACKFACES ? true : false" );
+		Assert.AreEqual( 0f, inputs.Attributes.Single( a => a.Name == "DoNotCastShadows" ).Value[0] );
+
+		var compiled = MaterialCompile.Compile( material, "materials/water/x.vmat", "shaders/water_simple.shader", inputs, _ => false, _ => (512, 256) );
+		StringAssert.Contains( compiled.Data, "{ m_name = \"RepresentativeTextureWidth\" m_nValue = 1 }" );
+		StringAssert.Contains( compiled.Data, "{ m_name = \"renderbackfaces\" m_nValue = 1 }" );
+		Assert.AreEqual( 3, compiled.Generated.Count );
+	}
+
+	/// <summary>Image sizes from the start of PNG, TGA, PSD and JPEG files.</summary>
+	[TestMethod]
+	public void ImageSizesRead()
+	{
+		byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R', 0, 0, 1, 44, 0, 0, 0, 200];
+		Assert.AreEqual( (300, 200), MaterialCompile.ImageSize( png ) );
+
+		var tga = new byte[18];
+		tga[2] = 2;
+		(tga[12], tga[13], tga[14], tga[15]) = (0, 2, 128, 0);
+		Assert.AreEqual( (512, 128), MaterialCompile.ImageSize( tga ) );
+
+		var psd = new byte[26];
+		"8BPS"u8.CopyTo( psd );
+		(psd[16], psd[17], psd[20], psd[21]) = (1, 0, 2, 0);
+		Assert.AreEqual( (512, 256), MaterialCompile.ImageSize( psd ), "height first" );
+
+		byte[] jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0, 4, 0, 0, 0xFF, 0xC0, 0, 17, 8, 0, 64, 0, 96, 3, 0, 0, 0];
+		Assert.AreEqual( (96, 64), MaterialCompile.ImageSize( jpeg ) );
+		Assert.IsNull( MaterialCompile.ImageSize( [1, 2, 3] ) );
+	}
+
 	/// <summary>The new-shader templates are standalone modules whose stages compile.</summary>
 	[TestMethod]
 	public void ShaderTemplatesCompile()

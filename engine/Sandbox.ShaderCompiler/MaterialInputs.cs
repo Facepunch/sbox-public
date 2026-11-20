@@ -33,6 +33,12 @@ public sealed partial class MaterialInputs
 	public IReadOnlyList<(string Name, string Kind, float[] Value)> Attributes { get; init; }
 
 	/// <summary>
+	/// The made texture whose first input's size the material records (<c>TextureAttribute( RepresentativeTexture, g_tColor )</c>):
+	/// what tools map a face's uvs by. Null for none.
+	/// </summary>
+	public string RepresentativeTexture { get; init; }
+
+	/// <summary>
 	/// The material inputs of <paramref name="module"/> for a material with these feature values (<c>F_TEXTURED</c> = 1;
 	/// a feature it doesn't set is its lowest value).
 	/// </summary>
@@ -43,12 +49,19 @@ public sealed partial class MaterialInputs
 		var attributes = new List<(string, string, float[])>();
 		var seenTextures = new HashSet<string>( StringComparer.Ordinal );
 		var used = new HashSet<string>( StringComparer.Ordinal );
+		string representative = null;
 
-		foreach ( var stage in new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute } )
+		// A surface has no entry points or features of its own: its inputs are in its MATERIAL_INPUTS block (the textures
+		// its fields take, by name), read with the material's features as the pixel stage would see them
+		var surface = SurfaceStruct().IsMatch( module.Text );
+		StageKind[] stages = surface ? [StageKind.Pixel] : [StageKind.Vertex, StageKind.Pixel, StageKind.Compute];
+
+		foreach ( var stage in stages )
 		{
-			if ( !module.Has( stage ) ) continue;
+			if ( !surface && !module.Has( stage ) ) continue;
 
-			var values = new Dictionary<string, int>( StringComparer.Ordinal );
+			var values = new Dictionary<string, int>( StringComparer.Ordinal ) { ["MATERIAL_INPUTS"] = 1 };
+			foreach ( var (name, value) in features ) values[name] = value;
 			foreach ( var feature in module.Features ) values[feature.Name] = Math.Clamp( features.TryGetValue( feature.Name, out var v ) ? v : feature.Min, feature.Min, feature.Max );
 			foreach ( var combo in module.Combos( stage ).Where( c => c.Static ) )
 				values[combo.Name] = combo.Feature is not null && values.TryGetValue( combo.Feature, out var f ) ? Math.Clamp( f, combo.Min, combo.Max ) : combo.Min;
@@ -79,7 +92,7 @@ public sealed partial class MaterialInputs
 
 				// Only textures the code reads are made, as vfx keeps only the variables a combo uses: the name once more
 				// than its declaration
-				if ( Regex.Matches( text, $@"\b{Regex.Escape( name )}\b" ).Count > 1 ) used.Add( name );
+				if ( surface || Regex.Matches( text, $@"\b{Regex.Escape( name )}\b" ).Count > 1 ) used.Add( name );
 				if ( !seenTextures.Add( name ) ) continue;
 
 				var type = (m.Groups["type"].Value + m.Groups["create"].Value) switch { var t when t.Contains( "Cube", StringComparison.Ordinal ) => "CUBE", var t when t.Contains( "3D", StringComparison.Ordinal ) => "3D", _ => "2D" };
@@ -90,19 +103,25 @@ public sealed partial class MaterialInputs
 			foreach ( Match m in AttributeDeclaration().Matches( text ) )
 			{
 				var name = m.Groups["name"].Value;
-				if ( attributes.Exists( a => a.Item1 == name ) ) continue;
 				var value = m.Groups["value"].Value.Trim();
-				float[] parsed = value.ToLowerInvariant() switch
+				if ( m.Groups["kind"].Value == "Texture" && name == "RepresentativeTexture" ) representative ??= value;
+				if ( attributes.Exists( a => a.Item1 == name ) ) continue;
+				// A literal, or an expression of the features (F_RENDER_BACKFACES ? true : false); one that reads a variable isn't kept
+				// A feature or combo the material doesn't set is 0, as vfx reads it, not a name
+				var known = new Dictionary<string, int>( values, StringComparer.Ordinal );
+				foreach ( Match feature in FeatureName().Matches( value ) ) known.TryAdd( feature.Value, 0 );
+				var evaluated = PassPreprocessor.Evaluate( value, known ) ?? value;
+				float[] parsed = evaluated.ToLowerInvariant() switch
 				{
 					"true" => [1],
 					"false" => [0],
-					_ => float.TryParse( value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number ) ? [number] : null,
+					_ => float.TryParse( evaluated, NumberStyles.Float, CultureInfo.InvariantCulture, out var number ) ? [number] : null,
 				};
 				if ( parsed is not null ) attributes.Add( (name, m.Groups["kind"].Value, parsed) );
 			}
 		}
 
-		return new MaterialInputs { Inputs = inputs, Textures = [.. textures.Where( t => used.Contains( t.Name ) )], Attributes = attributes };
+		return new MaterialInputs { Inputs = inputs, Textures = [.. textures.Where( t => used.Contains( t.Name ) )], Attributes = attributes, RepresentativeTexture = representative };
 	}
 
 	/// <summary>The lines as one text without comments, so declarations spanning lines read as one.</summary>
@@ -170,6 +189,12 @@ public sealed partial class MaterialInputs
 
 	[GeneratedRegex( @"\bChannel\s*\(\s*(?<channels>\w+)\s*,\s*(?<algorithm>\w+)\s*\((?<inputs>[^()]*)\)\s*,\s*(?<space>\w+)\s*\)" )]
 	private static partial Regex ChannelAnnotation();
+
+	[GeneratedRegex( @"\b[FSD]_\w+" )]
+	private static partial Regex FeatureName();
+
+	[GeneratedRegex( @"\[\s*Material\b" )]
+	private static partial Regex SurfaceStruct();
 
 	[GeneratedRegex( @"\b(?:Attribute|Source)\s*\(" )]
 	private static partial Regex BoundByEngine();

@@ -581,7 +581,7 @@ public class SurfaceTests : GpuTest
 			var shaders = Path.Combine( Core, "shaders" );
 			var compiler = new SlangCompiler( bin, [shaders] );
 			string Include( string path ) => File.Exists( Path.Combine( shaders, path ) ) ? File.ReadAllText( Path.Combine( shaders, path ) ) : null;
-			foreach ( var (relative, name) in new[] { (Path.Combine( AppContext.BaseDirectory, "Data", "material.shader" ), "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
+			foreach ( var (relative, name) in new[] { (Path.Combine( AppContext.BaseDirectory, "Data", "material.shader" ), "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), (Path.Combine( AppContext.BaseDirectory, "Data", "water_simple.shader" ), "water_simple") } )
 			{
 				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name, Include );
 				Assert.IsNotNull( result.Source, name );
@@ -1591,6 +1591,40 @@ public class SurfaceTests : GpuTest
 			Device.WaitIdle();
 			RenderHost.Current = previousHost;
 		}
+	}
+
+	/// <summary>
+	/// A water_simple material loads as its surface (water_simple has no .shader: the surface is the whole shader), its
+	/// fields from the material's values whatever vfx prefix they carry (<c>g_fRoughness</c> for <c>Roughness</c>).
+	/// </summary>
+	[TestMethod]
+	public void SurfaceAloneLoadsItsMaterialsValues()
+	{
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Surfaces.Error = errors.Add;
+		if ( ((GpuDevice)backend).LoadMaterial( "materials/water/water_canal.vmat" ) is not SurfaceMaterial material )
+		{
+			Assert.Inconclusive( "water_canal.vmat isn't compiled, or isn't a surface" );
+			return;
+		}
+
+		StringAssert.EndsWith( material.Shader, "water_simple.slang" );
+		var compiled = backend.Surfaces.Layout( material.Shader );
+		var record = new byte[material.RecordSize];
+		material.WriteRecord( record, ( _, _ ) => 0 );
+		float Value( string field ) => BitConverter.ToSingle( record, compiled.Material.Field( field ).Offset );
+		Assert.AreEqual( 0.014f, Value( "Roughness" ), 1e-4f, "g_fRoughness" );
+		Assert.AreEqual( 0.764f, Value( "Metalness" ), 1e-4f, "g_fMetalness" );
+		Assert.AreEqual( 1f, Value( "AmbientOcclusion" ), 1e-4f, "g_fAmbientOcclusion" );
+		Assert.AreEqual( 0.13f, Value( "NormalScale" ), 1e-4f, "NormalScale" );
+		Assert.IsNull( material.Fallback, "no .shader to fall back to" );
+
+		// Material.FromShader of a surface alone is the surface with its defaults (the terrain material preview's)
+		var preview = backend.MaterialFromShader( "shaders/terrain_preview.shader" ) as SurfaceMaterial;
+		Assert.IsNotNull( preview, "terrain_preview from its shader" );
+		StringAssert.EndsWith( preview.Shader, "terrain_preview.slang" );
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 	}
 
 	/// <summary>

@@ -13,7 +13,7 @@ namespace Borealis.Backend;
 /// </summary>
 internal sealed class ConvertedMaterial : SurfaceMaterial
 {
-	static readonly string[] Prefixes = ["g_t", "g_fl", "g_v", "g_n", "g_b", ""];
+	static readonly string[] Prefixes = ["g_t", "g_fl", "g_f", "g_v", "g_n", "g_b", ""];
 
 	ConvertedMaterial( string shader, Sandbox.ShaderCompiler.MaterialLayout layout ) : base( shader, layout.Size, MaterialClassWriter.Hash( layout ), layout.States() )
 	{

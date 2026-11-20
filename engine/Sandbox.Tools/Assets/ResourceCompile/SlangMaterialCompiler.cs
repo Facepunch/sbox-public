@@ -35,7 +35,7 @@ internal class SlangMaterialCompiler : ResourceCompiler
 
 		var module = Module( modulePath, roots );
 		var inputs = MaterialInputs.Read( module, material.Features );
-		var compiled = MaterialCompile.Compile( material, relative, shader, inputs, file => roots.Exists( r => File.Exists( Path.Combine( r, file ) ) ) );
+		var compiled = MaterialCompile.Compile( material, relative, shader, inputs, file => roots.Exists( r => File.Exists( Path.Combine( r, file ) ) ), file => ImageSize( file, roots ) );
 
 		foreach ( var prerequisite in compiled.Prerequisites ) Context.AddCompiledReference( prerequisite );
 		if ( Context.Describing ) return Task.FromResult( true );
@@ -76,6 +76,21 @@ internal class SlangMaterialCompiler : ResourceCompiler
 
 		if ( EngineFileSystem.Root?.GetFullPath( "/core" ) is { } core && !roots.Exists( r => SameFolder( r, core ) ) ) roots.Add( core );
 		return roots;
+	}
+
+	/// <summary>A relative image's width and height, from the first root that has it; null when none has it or it isn't read.</summary>
+	static (int Width, int Height)? ImageSize( string file, List<string> roots )
+	{
+		var path = roots.Select( r => Path.Combine( r, file ) ).FirstOrDefault( File.Exists );
+		if ( path is null ) return null;
+		try
+		{
+			return MaterialCompile.ImageSize( File.ReadAllBytes( path ) );
+		}
+		catch ( IOException )
+		{
+			return null;
+		}
 	}
 
 	static bool SameFolder( string a, string b ) => Path.GetFullPath( a ).TrimEnd( '/', '\\' ).Equals( Path.GetFullPath( b ).TrimEnd( '/', '\\' ), StringComparison.OrdinalIgnoreCase );
