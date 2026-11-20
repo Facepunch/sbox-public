@@ -822,7 +822,7 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>Core pass modules converted from a .shader whose .shader_c the core keeps, cheapest to compile first.</summary>
-	static readonly string[] ConvertedModules = ["cs_compress_dxt5", "downsample_depth", "debug_show_texture"];
+	static readonly string[] ConvertedModules = ["cs_compress_dxt5", "downsample_depth", "debug_show_texture", "terrain", "eyeball", "water"];
 
 	/// <summary>
 	/// Pass modules compiled in the background: a converted module's variant asked for while its stages compile is its
