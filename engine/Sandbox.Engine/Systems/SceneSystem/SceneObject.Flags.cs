@@ -100,6 +100,7 @@ public partial class SceneObject
 		if ( !ResolvesDraws || model is null )
 		{
 			_flags = null;
+			NativeTranslucencyFromMaterials( model );
 			return;
 		}
 
@@ -117,6 +118,7 @@ public partial class SceneObject
 		if ( !ResolvesDraws || model is null )
 		{
 			_flags = null;
+			NativeTranslucencyFromMaterials( model );
 			return;
 		}
 
@@ -136,8 +138,24 @@ public partial class SceneObject
 	/// </summary>
 	void TranslucencyToNative()
 	{
-		if ( Graphics.HasSource2Device || _flags is not { } flags || native.IsNull ) return;
+		if ( _flags is not { } flags || native.IsNull ) return;
 		if ( ((native.GetFlags() ^ flags) & TranslucencyFlags) != 0 ) native.ChangeFlags( flags & TranslucencyFlags, TranslucencyFlags );
+	}
+
+	/// <summary>
+	/// An object whose draws native's stand for (<see cref="ResolvesDraws"/> false: a map's model) keeps native's flags, but
+	/// without Source 2's device those carry its meshes' compiled translucency: the translucency flags are worked out from the
+	/// model's materials (<see cref="ModelDraws.Translucency"/>), as a device does at load, on both. A map's door with glass
+	/// panes in it is opaque and translucent, as on native.
+	/// </summary>
+	void NativeTranslucencyFromMaterials( Model model )
+	{
+		if ( model is null || model.native.IsNull || native.IsNull ) return;
+
+		var current = CurrentFlags;
+		var computed = ComputeTranslucency( ModelDraws.For( model ).Translucency, current );
+		_flags = (current & ~TranslucencyFlags) | (computed & TranslucencyFlags & ~InternalFlags);
+		TranslucencyToNative();
 	}
 
 	/// <summary>
@@ -238,15 +256,6 @@ public partial class SceneObject
 
 		// The standard pipeline's updater, installed only with a Vulkan device: a translucent override list entry makes the
 		// object translucent
-		if ( Graphics.HasSource2Device && _overrideList is not null )
-		{
-			foreach ( var entry in _overrideList )
-			{
-				if ( entry.Material is null || !entry.Material.native.GetBoolAttributeOrDefault( TranslucentName, false ) ) continue;
-				flags |= ObjectFlags.IsTranslucent;
-				flags &= ~ObjectFlags.IsOpaque;
-			}
-		}
 
 		return flags;
 	}

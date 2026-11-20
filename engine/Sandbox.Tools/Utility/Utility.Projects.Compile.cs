@@ -141,11 +141,11 @@ public static partial class EditorUtility
 			if ( string.IsNullOrWhiteSpace( parentPackage ) )
 				return;
 
-			if ( !Package.TryParseIdent( parentPackage, out var parentParts ) )
+			if ( !Package.TryParseIdentParts( parentPackage, out var parentParts ) )
 				return;
 
 			var currentAp = Project.Current is not null
-				? PackageManager.Find( Project.Current.Config.FullIdent, true, false )
+				? PackageManager.Find( Project.Current.Config.FullIdent )
 				: null;
 
 			if ( currentAp is null )
@@ -183,8 +183,8 @@ public static partial class EditorUtility
 			libraries = libraries.Where( x => x.HasCodePath() );
 
 			var identMap = libraries
-				.DistinctBy( x => x.Package.GetIdent( false, false ) )
-				.ToDictionary( x => x.Package.GetIdent( false, false ), x => x,
+				.DistinctBy( x => x.Package.FullIdent )
+				.ToDictionary( x => x.Package.FullIdent, x => x,
 					StringComparer.OrdinalIgnoreCase );
 
 			IReadOnlyList<Project> FindReferences( Project project )

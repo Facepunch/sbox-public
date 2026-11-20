@@ -47,10 +47,6 @@ internal struct PackageLoadOptions
 	public CancellationToken CancellationToken { get; set; }
 
 	/// <summary>
-	/// </summary>
-	public bool AllowLocalPackages { get; set; } = true;
-
-	/// <summary>
 	/// If true we will only download the code files (.bin) and not the assets.
 	/// </summary>
 	public bool SkipAssetDownload { get; set; }

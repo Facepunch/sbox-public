@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/colt1911/colt1911.prefab",
+  "Title": "Heritage .45",
+  "Description": "#asset.colt1911.description",
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

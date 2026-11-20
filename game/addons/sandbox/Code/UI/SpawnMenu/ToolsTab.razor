@@ -1,0 +1,109 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@implements IUtilityTab
+@attribute [Icon( "🔧" )]
+@attribute [Title( "#spawnmenu.tab.tools" )]
+@attribute [Order( -100 )]
+
+<root class="tab">
+
+    <UIGroupedList Groups=@GetGroups() Selected=@(CurrentMode?.GetType()) OnSelect=@OnSelectTool />
+
+    <UISettingsPane Title=@GetTitle() Revision=@BuildHash()>
+        <Body>
+        @if ( PostProcessManager?.GetSelectedComponents().Count > 0 )
+        {
+            @foreach ( var component in PostProcessManager.GetSelectedComponents() )
+            {
+                <UISheet Target="@component" PropertyFilter="@UISheet.PropertiesAndButtons"></UISheet>
+            }
+        }
+        else if ( CurrentMode is { } mode )
+        {
+            @if ( HasSettings( mode ) )
+            {
+                <ToolPresetBar Mode=@mode />
+                <UISheet PropertyFilter="@UISheet.PropertiesAndButtons" Target="@mode"></UISheet>
+            }
+            else
+            {
+                <div class="note">#spawnmenu.tools.no_settings</div>
+            }
+        }
+        else
+        {
+            <div class="note">#spawnmenu.tools.none_selected_hint</div>
+        }
+        </Body>
+    </UISettingsPane>
+
+</root>
+
+@code
+{
+    ToolMode CurrentMode => Player.FindLocalPlayer()?.GetWeapon<Toolgun>()?.GetCurrentMode();
+    PostProcessManager PostProcessManager => Game.ActiveScene.GetSystem<PostProcessManager>();
+
+    protected override int BuildHash() => HashCode.Combine( CurrentMode, PostProcessManager?.SelectedPath, PostProcessManager?.GetSelectedComponents().Count, Game.Language.SelectedCode );
+
+    /// <summary>
+    /// Whether the sheet would have a single row for this tool.
+    /// </summary>
+    public static bool HasSettings( ToolMode mode ) => Game.TypeLibrary.GetSerializedObject( mode ).Any( UISheet.PropertiesAndButtons );
+
+    /// <summary>
+    /// Every tool under its group, both sorted by what the player reads.
+    /// </summary>
+    List<UIGroupedList.ListGroup> GetGroups()
+    {
+        return Game.TypeLibrary.GetTypes<ToolMode>()
+			.Where(x => !x.IsAbstract && !x.HasAttribute<HiddenToolMode>() )
+            .GroupBy( x => x.Group )
+            .OrderBy( x => LocalizedText.Resolve( x.Key ), StringComparer.CurrentCultureIgnoreCase )
+            .Select( group => new UIGroupedList.ListGroup( group.Key, group
+                .OrderBy( x => LocalizedText.Resolve( x.Title ), StringComparer.CurrentCultureIgnoreCase )
+                .Select( x => new UIGroupedList.ListItem( x.Title, x.TargetType ) )
+                .ToList() ) )
+            .ToList();
+    }
+
+    string GetTitle()
+    {
+        if ( PostProcessManager?.SelectedPath is { } path && PostProcessManager.GetSelectedComponents().Count > 0 )
+        {
+            var effect = ResourceLibrary.Get<PostProcessResource>( path );
+            if ( effect is not null ) return LocalizedText.Resolve( effect.Title );
+        }
+
+        return CurrentMode?.Name ?? Game.Language.GetPhrase( "spawnmenu.tools.none_selected" );
+    }
+
+    void OnSelectTool( object value )
+    {
+        var type = Game.TypeLibrary.GetTypes<ToolMode>().FirstOrDefault( x => x.TargetType == (value as Type) );
+        if ( type is not null ) SwitchMode( type );
+    }
+
+    void SwitchMode(TypeDescription t)
+    {
+        var localPlayer = Player.FindLocalPlayer();
+        if ( localPlayer == null ) return;
+
+        PostProcessManager?.Deselect();
+
+        var inventory = localPlayer.GetComponent<PlayerInventory>();
+        if ( !inventory.IsValid() ) return;
+
+        inventory.SetToolMode( t.ClassName );
+    }
+
+    protected override void OnVisibilityChanged()
+    {
+        if ( !IsVisible )
+        {
+            CurrentMode?.SaveCookies();
+        }
+    }
+}

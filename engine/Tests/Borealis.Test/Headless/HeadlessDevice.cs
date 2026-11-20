@@ -51,7 +51,6 @@ internal sealed class HeadlessDevice : GpuDevice
 
 	readonly ConcurrentDictionary<string, GpuTexture> loadedTextures = new( StringComparer.OrdinalIgnoreCase );
 	readonly ConcurrentDictionary<string, GpuMaterial> loadedMaterials = new( StringComparer.OrdinalIgnoreCase );
-	readonly ConcurrentDictionary<IntPtr, GpuTexture> swapChains = new();
 	readonly ConcurrentDictionary<IntPtr, Semaphore> semaphores = new();
 	long nextHandle;
 	int vertexCache;
@@ -125,22 +124,11 @@ internal sealed class HeadlessDevice : GpuDevice
 
 	public override Vector4 MorphSubrect( int handle ) => default;
 
-	public override void BeginSubmitting( GpuSwapChain swapChain ) { }
-
-	public override void SetSubmitTag( ulong tag ) { }
-
 	public override float RenderTime => 0;
 
 	public override IntPtr CreateConstantBuffer( int size ) => (IntPtr)Interlocked.Increment( ref nextHandle );
 
 	public override void DestroyConstantBuffer( IntPtr buffer ) { }
-
-	public override int SwapChainSamples( GpuSwapChain swapChain ) => 1;
-
-	/// <summary>
-	/// A swap chain's colour buffer.
-	/// </summary>
-	public GpuTexture SwapChainColor( GpuSwapChain swapChain ) => swapChains.GetOrAdd( swapChain.Handle, static h => Placeholder( $"swap chain {h}", TextureFormat.BGRA8888 ) );
 
 	internal GpuSemaphore Signal( HeadlessContext context )
 	{

@@ -16,9 +16,9 @@ public class BorealisGpuVideoTest
 	[TestMethod]
 	public void PlanesConvertIntoThePlayersTexture()
 	{
+		TestGraphics.Require();
+
 		using var player = new VideoPlayer();
-		if ( RenderBackend.Default is Source2RenderBackend )
-			Assert.IsFalse( player.WantsPlanes(), "Source 2's device converts its own frames" );
 
 		var messages = new System.Collections.Concurrent.ConcurrentQueue<string>();
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true, message: m => messages.Enqueue( $"{m.Severity} {m.Text}" ) );

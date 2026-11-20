@@ -1,0 +1,507 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "Bone"
+						name = "Base"
+						children =
+						[
+							{
+								_class = "Bone"
+								name = "Handle"
+								origin = [ 0.0, 0.0, 14.207125 ]
+								angles = [ 0.0, 0.0, 0.0 ]
+								do_not_discard = true
+							},
+						]
+						origin = [ 0.0, 0.0, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						do_not_discard = true
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes =
+						[
+							"Base",
+							"Handle",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 20.0
+						meshes =
+						[
+							"Base_LOD1",
+							"Handle_LOD1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 50.0
+						meshes =
+						[
+							"Base_LOD2",
+							"Handle_LOD2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 90.0
+						meshes =
+						[
+							"Base_LOD3",
+							"Handle_LOD3",
+						]
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "bucket_plastic_a_01.vmat"
+								to = "models/sbox/home/plastic_bucket/plastic_bucket_a_01.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+					{
+						_class = "MaterialGroup"
+						name = "var02"
+						remaps =
+						[
+							{
+								from = "models/sbox/home/plastic_bucket/plastic_bucket_a_01.vmat"
+								to = "models/sbox/home/plastic_bucket/plastic_bucket_a_02.vmat"
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "PhysicsJointList"
+				children =
+				[
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "Base"
+						child_body = "Handle"
+						anchor_origin = [ -0.0, -0.0, 14.201274 ]
+						anchor_angles = [ -90.0, 180.0, -90.0 ]
+						collision_enabled = false
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.0
+						enable_limit = true
+						min_angle = -115.0
+						max_angle = 115.0
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "Base"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "Base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"plastic_bucket_a_001",
+								"plastic_bucket_a",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Base_LOD1"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "Base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Bucket_Plastic_A_01_LOD1_001",
+								"Bucket_Plastic_A_01_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Base_LOD2"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "Base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"plastic_bucket_a_LOD2_001",
+								"plastic_bucket_a_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Base_LOD3"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "Base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"plastic_bucket_a_LOD3_001",
+								"plastic_bucket_a_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Handle"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "Handle"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"plastic_bucket_a_handle_001",
+								"plastic_bucket_a_handle",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Handle_LOD1"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "Handle"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Bucket_Plastic_A_01_Handle_LOD1_001",
+								"Bucket_Plastic_A_01_Handle_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Handle_LOD2"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "Handle"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"plastic_bucket_a_Handle_LOD2_001",
+								"plastic_bucket_a_Handle_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Handle_LOD3"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "Handle"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"plastic_bucket_a_Handle_LOD3_001",
+								"plastic_bucket_a_Handle_LOD3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children =
+				[
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.240953 ]
+						fadetime = 40.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/plastic_bucket/gibs/plastic_bucket_a_gib_01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.289284 ]
+						fadetime = 40.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/plastic_bucket/gibs/plastic_bucket_a_gib_02.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.288876 ]
+						fadetime = 40.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/plastic_bucket/gibs/plastic_bucket_a_gib_03.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 14.98292 ]
+						fadetime = 40.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/plastic_bucket/gibs/plastic_bucket_a_gib_04.vmdl"
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children =
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys =
+						{
+							bakelighting = true
+							health = 10.0
+							flammable = false
+							explosive = false
+							explosive_damage = -1.0
+							explosive_radius = -1.0
+							explosive_force = -1.0
+							min_impact_damage_speed = 600.0
+							impact_damage = 5.0
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "Base"
+						mass_override = 0.8
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "Handle"
+						mass_override = 0.1
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "plastic_bucket_a_phy"
+						parent_bone = "Base"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/home/plastic_bucket/plastic_bucket_a.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerElement"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Bucket_Plastic_A_01_phy_001",
+								"Bucket_Plastic_A_01_phy",
+							]
+						}
+					},
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "Handle"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.4
+						point0 = [ -0.024263, 7.211924, 0.277072 ]
+						point1 = [ 0.051067, 6.900328, 3.364009 ]
+					},
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "Handle"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.4
+						point0 = [ -0.024263, 6.897768, 3.363996 ]
+						point1 = [ 0.051067, 4.810508, 6.300683 ]
+					},
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "Handle"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.4
+						point0 = [ -0.024263, 4.794291, 6.30067 ]
+						point1 = [ 0.051067, 2.174331, 7.803166 ]
+					},
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "Handle"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.4
+						point0 = [ -0.024263, -4.794291, 6.300669 ]
+						point1 = [ 0.051067, -2.174331, 7.803167 ]
+					},
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "Handle"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.4
+						point0 = [ -0.024263, -6.897768, 3.363997 ]
+						point1 = [ 0.051067, -4.810508, 6.300684 ]
+					},
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "Handle"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.4
+						point0 = [ -0.024263, -7.211924, 0.277072 ]
+						point1 = [ 0.051067, -6.900328, 3.364008 ]
+					},
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "Handle"
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.4
+						point0 = [ -0.024263, -1.775662, 7.830475 ]
+						point1 = [ 0.051067, 1.718471, 7.830486 ]
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = "prop_physics"
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

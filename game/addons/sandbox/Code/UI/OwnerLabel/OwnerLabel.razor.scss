@@ -1,0 +1,33 @@
+@import "/UI/Theme.scss";
+
+OwnerLabel
+{
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: $deadzone-y;
+	flex-direction: column;
+	align-items: center;
+	pointer-events: none;
+
+	.box
+	{
+		@include ui-section;
+		padding: 5px 15px;
+		opacity: 0;
+		transition: opacity 0.2s ease;
+	}
+
+	&.visible .box
+	{
+		opacity: 1;
+	}
+
+	label
+	{
+		font-family: $body-font;
+		font-size: 12px;
+		font-weight: 500;
+		white-space: nowrap;
+	}
+}

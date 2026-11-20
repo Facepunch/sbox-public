@@ -1,0 +1,495 @@
+{
+  "Title": "Builder",
+  "Description": "",
+  "Icon": "build",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "a4bcdcf9-3ab1-4b92-9ac5-3cb900be512a",
+    "Path": "spawnlists/garrysmod/garrys_mod.spawn"
+  },
+  "Order": 6,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Chess",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/black_dama.mdl",
+      "Title": "black_dama",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/black_pawn.mdl",
+      "Title": "black_pawn",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/black_bishop.mdl",
+      "Title": "black_bishop",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/black_king.mdl",
+      "Title": "black_king",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/black_queen.mdl",
+      "Title": "black_queen",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/black_knight.mdl",
+      "Title": "black_knight",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/black_rook.mdl",
+      "Title": "black_rook",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/board.mdl",
+      "Title": "board",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/white_dama.mdl",
+      "Title": "white_dama",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/white_pawn.mdl",
+      "Title": "white_pawn",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/white_bishop.mdl",
+      "Title": "white_bishop",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/white_king.mdl",
+      "Title": "white_king",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/white_queen.mdl",
+      "Title": "white_queen",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/white_knight.mdl",
+      "Title": "white_knight",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/games/chess/white_rook.mdl",
+      "Title": "white_rook",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "City Props",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/huge/evildisc_corp.mdl",
+      "Title": "evildisc_corp",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/huge/tower.mdl",
+      "Title": "tower",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/huge/road_short.mdl",
+      "Title": "road_short",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/huge/road_medium.mdl",
+      "Title": "road_medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/huge/road_long.mdl",
+      "Title": "road_long",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/huge/road_curve.mdl",
+      "Title": "road_curve",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/small_ramp.mdl",
+      "Title": "small_ramp",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/big_ramp.mdl",
+      "Title": "big_ramp",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/t_light_head.mdl",
+      "Title": "t_light_head",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/t_light_single_a.mdl",
+      "Title": "t_light_single_a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/t_light_single_b.mdl",
+      "Title": "t_light_single_b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/t_light_x.mdl",
+      "Title": "t_light_x",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Explosives",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/rocket1.mdl",
+      "Title": "rocket1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/flakshell_big.mdl",
+      "Title": "flakshell_big",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/ww2bomb.mdl",
+      "Title": "ww2bomb",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/mk-82.mdl",
+      "Title": "mk-82",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/box_amraam.mdl",
+      "Title": "box_amraam",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/amraam.mdl",
+      "Title": "amraam",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/box_torpedo.mdl",
+      "Title": "box_torpedo",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/torpedo.mdl",
+      "Title": "torpedo",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/cannon.mdl",
+      "Title": "cannon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/cannonball.mdl",
+      "Title": "cannonball",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/smallcannonball.mdl",
+      "Title": "smallcannonball",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/cannonball_solid.mdl",
+      "Title": "cannonball_solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/ball.mdl",
+      "Title": "ball",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/oildrum001_explosive.mdl",
+      "Title": "oildrum001_explosive",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/potato_launcher_explosive.mdl",
+      "Title": "potato_launcher_explosive",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/smallcannon.mdl",
+      "Title": "smallcannon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/smallcannonclip.mdl",
+      "Title": "smallcannonclip",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/potato_launcher.mdl",
+      "Title": "potato_launcher",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/potato_launcher_cap.mdl",
+      "Title": "potato_launcher_cap",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/potato_launcher_chamber.mdl",
+      "Title": "potato_launcher_chamber",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/potato.mdl",
+      "Title": "potato",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Misc",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/carseat.mdl",
+      "Title": "carseat",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/carseat2.mdl",
+      "Title": "carseat2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/carseat3.mdl",
+      "Title": "carseat3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/modernchair.mdl",
+      "Title": "modernchair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/wheelaxis.mdl",
+      "Title": "wheelaxis",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/hoverboard.mdl",
+      "Title": "hoverboard",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/podremake.mdl",
+      "Title": "podremake",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/facepunch_logo.mdl",
+      "Title": "facepunch_logo",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/sp_screen.mdl",
+      "Title": "sp_screen",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/rt_screen.mdl",
+      "Title": "rt_screen",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/fender.mdl",
+      "Title": "fender",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/playfield.mdl",
+      "Title": "playfield",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/soccerball.mdl",
+      "Title": "soccerball",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/concrete_pipe01.mdl",
+      "Title": "concrete_pipe01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/concrete_barrier00.mdl",
+      "Title": "concrete_barrier00",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/concrete_barrier01.mdl",
+      "Title": "concrete_barrier01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/bunker01.mdl",
+      "Title": "bunker01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/button1.mdl",
+      "Title": "button1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/button2.mdl",
+      "Title": "button2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/button3.mdl",
+      "Title": "button3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/xqm/hydcontrolbox.mdl",
+      "Title": "hydcontrolbox",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mechanics/various/211.mdl",
+      "Title": "211",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/noesis/donut.mdl",
+      "Title": "donut",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/misc/egg.mdl",
+      "Title": "egg",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx2/garbage_metalcan001a.mdl",
+      "Title": "garbage_metalcan001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/empty_barrel.mdl",
+      "Title": "empty_barrel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/oildrum001.mdl",
+      "Title": "oildrum001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/facepunch_barrel.mdl",
+      "Title": "facepunch_barrel",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

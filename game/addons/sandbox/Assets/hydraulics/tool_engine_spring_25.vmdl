@@ -1,0 +1,529 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes = 
+						[
+							"Spring_LOD0",
+							"BottomEndCap_LOD0",
+							"TopEndCap_LOD0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 5.0
+						meshes = 
+						[
+							"Spring_LOD1",
+							"BottomEndCap_LOD1",
+							"TopEndCap_LOD1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 15.0
+						meshes = 
+						[
+							"Spring_LOD2",
+							"BottomEndCap_LOD2",
+							"TopEndCap_LOD2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 30.0
+						meshes = 
+						[
+							"Spring_LOD3",
+							"BottomEndCap_LOD3",
+							"TopEndCap_LOD3",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 90.0
+						meshes = 
+						[
+							"Spring_LOD4",
+							"BottomEndCap_LOD4",
+							"TopEndCap_LOD4",
+						]
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "materials/generic/rubber_a.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				note = "Core spring is 25 units long, endcaps are 2 units tall"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "Spring_LOD0"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "BottomEndCap_LOD0"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_bottom_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "TopEndCap_LOD0"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_top_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Spring_LOD1"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "BottomEndCap_LOD1"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_bottom_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "TopEndCap_LOD1"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_top_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Spring_LOD2"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "BottomEndCap_LOD2"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_bottom_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "TopEndCap_LOD2"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_top_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Spring_LOD3"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_lod3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "BottomEndCap_LOD3"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_bottom_lod3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "TopEndCap_LOD3"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_top_lod3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "Spring_LOD4"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_lod4",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "BottomEndCap_LOD4"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_bottom_lod4",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "TopEndCap_LOD4"
+						filename = "hydraulics/tool_engine_spring_25.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"spring_endcap_top_lod4",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						disabled = true
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "AnimationList"
+				children = 
+				[
+					{
+						_class = "AnimBindPose"
+						name = "bindPose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						frame_count = 1
+						frame_rate = 30
+					},
+					{
+						_class = "AnimFile"
+						name = "anim_test"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "hydraulics/tool_engine_spring_25.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 10.0
+						take = 0
+						reverse = false
+					},
+				]
+				default_root_bone_name = ""
+			},
+			{
+				_class = "BodyGroupList"
+				children = 
+				[
+					{
+						_class = "BodyGroup"
+						name = "spring"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"Spring_LOD0",
+									"Spring_LOD1",
+									"Spring_LOD2",
+									"Spring_LOD3",
+									"Spring_LOD4",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "bottom_endcap"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"BottomEndCap_LOD0",
+									"BottomEndCap_LOD1",
+									"BottomEndCap_LOD2",
+									"BottomEndCap_LOD3",
+									"BottomEndCap_LOD4",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "top_endcap"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"TopEndCap_LOD0",
+									"TopEndCap_LOD1",
+									"TopEndCap_LOD2",
+									"TopEndCap_LOD3",
+									"TopEndCap_LOD4",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

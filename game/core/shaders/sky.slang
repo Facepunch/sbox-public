@@ -22,7 +22,7 @@ Feature( F_TEXTURE_FORMAT2, 0..6( 0 = "HDR (float16)", 1 = "RGB (8-bit uncompres
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #include "system.fxc" // This should always be the first include in COMMON
 #include "vr_common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "sky.fxc"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

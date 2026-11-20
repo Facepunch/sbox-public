@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/balloon.prefab",
+  "Title": "#asset.wheel.balloon.title",
+  "Description": "#asset.wheel.balloon.description",
+  "__references": [],
+  "__version": 0
+}

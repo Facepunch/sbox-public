@@ -1,0 +1,923 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "12g_shell.vmat"
+								to = "weapons/shotgun/materials/12g_shell.vmat"
+							},
+							{
+								from = "v_spaghellim4_a.vmat"
+								to = "weapons/shotgun/materials/v_spaghellim4_a.vmat"
+							},
+							{
+								from = "v_spaghellim4_b.vmat"
+								to = "weapons/shotgun/materials/v_spaghellim4_b.vmat"
+							},
+							{
+								from = "v_spaghellim4_c.vmat"
+								to = "weapons/shotgun/materials/v_spaghellim4_c.vmat"
+							},
+							{
+								from = "v_spaghellim4_shellholder.vmat"
+								to = "weapons/shotgun/materials/v_spaghellim4_shellholder.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "SpaghelliM4"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "weapons/shotgun/v_spaghellim4.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"v_benellim4",
+								"v_benellim4_stock",
+								"v_benellim4_bolt",
+								"v_spaghellim4",
+								"v_spaghellim4_bolt",
+								"v_spaghellim4_stock",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "SpaghelliM4_Shellholder"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "weapons/shotgun/v_spaghellim4.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"v_benellim4_shellholder",
+								"v_benellim4_shellholder_shells",
+								"v_spaghellim4_shellholder_shells",
+								"v_spaghellim4_shellholder",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "shells_animated"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "weapons/shotgun/v_spaghellim4.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"v_spaghellim4_shell01",
+								"v_spaghellim4_shell02",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "BodyGroupList"
+				children = 
+				[
+					{
+						_class = "BodyGroup"
+						name = "SpaghelliM4"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"SpaghelliM4",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "Shellholder"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"SpaghelliM4_Shellholder",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "shells_animated"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"shells_animated",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+				]
+			},
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_ikdata.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_bonemarkuplist.vmdl_prefab"
+					},
+				]
+				bone_cull_type = "None"
+			},
+			{
+				_class = "WeightListList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_weightlistlist.vmdl_prefab"
+					},
+					{
+						_class = "WeightList"
+						name = "Shotgun_Shells_Only"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "finger_thumb_0_R"
+								weight = 0.231518
+							},
+							{
+								bone = "shell01"
+								weight = 1.0
+							},
+							{
+								bone = "shell02"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+				]
+			},
+			{
+				_class = "AnimationList"
+				children = 
+				[
+					{
+						_class = "AnimBindPose"
+						name = "bindPose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						frame_count = 1
+						frame_rate = 30
+					},
+					{
+						_class = "AnimFile"
+						name = "bindPose_delta"
+						children = 
+						[
+							{
+								_class = "AnimSubtract"
+								anim_name = "bindPose_delta"
+								frame = 0
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = true
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shotgun/v_spaghellim4.fbx"
+						start_frame = -1
+						end_frame = 0
+						framerate = -1.0
+						take = 0
+						reverse = false
+						anim_hold_list = 
+						[
+							{
+								frame = 0
+								frame_count = 30
+							},
+						]
+					},
+					{
+						_class = "AnimFile"
+						name = "IdlePose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = true
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shotgun/animations/v_spaghellim4@IdlePose.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "Folder"
+						name = "Actions"
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Fire_01"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Fire_01.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 40.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Fire_01_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Fire_01_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Fire_01.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 40.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Deploy_Slide"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Deploy_Slide.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Ironsights_Pose_Normal"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Ironsights_Pose_Normal.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Ironsights_Pose_Normal_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "IdlePose"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Ironsights_Pose_Normal.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "LowerWeapon_Pose"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@LowerWeapon_Pose.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "LowerWeapon_Pose_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "IdlePose"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@LowerWeapon_Pose.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Reload"
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Reload_FirstShell"
+								children = 
+								[
+									{
+										_class = "AnimEvent"
+										event_class = "AE_CL_BODYGROUP_SET_VALUE"
+										event_frame = 2
+										event_keys = 
+										{
+											bodygroup = "shells_animated"
+											value = 1
+										}
+									},
+									{
+										_class = "AnimEvent"
+										event_class = "AE_CL_BODYGROUP_SET_VALUE"
+										event_frame = 58
+										event_keys = 
+										{
+											bodygroup = "shells_animated"
+											value = 0
+										}
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Reload_FirstShell.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 36.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Reload_Entry"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Reload_Entry.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 36.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Reload_Entry_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Reload_Entry"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Reload_Entry.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 36.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Reload_Shell"
+								children = 
+								[
+									{
+										_class = "AnimEvent"
+										event_class = "AE_CL_BODYGROUP_SET_VALUE"
+										event_frame = 1
+										event_keys = 
+										{
+											bodygroup = "shells_animated"
+											value = 1
+										}
+									},
+									{
+										_class = "AnimEvent"
+										event_class = "AE_CL_BODYGROUP_SET_VALUE"
+										event_frame = 24
+										event_keys = 
+										{
+											bodygroup = "shells_animated"
+											value = 0
+										}
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Reload_Shell.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Reload_Shell_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Reload_Shell_delta"
+										frame = 0
+									},
+									{
+										_class = "AnimEvent"
+										event_class = "AE_CL_BODYGROUP_SET_VALUE"
+										event_frame = 1
+										event_keys = 
+										{
+											bodygroup = "shells_animated"
+											value = 1
+										}
+									},
+									{
+										_class = "AnimEvent"
+										event_class = "AE_CL_BODYGROUP_SET_VALUE"
+										event_frame = 24
+										event_keys = 
+										{
+											bodygroup = "shells_animated"
+											value = 0
+										}
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Reload_Shell.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Reload_Exit"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Reload_Exit.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 33.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Reload_Exit_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Reload_Entry"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Reload_Exit.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 33.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Movement"
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Sprint_Pose_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "IdlePose"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Sprint_Pose.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Sprint_Pose"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shotgun/animations/v_spaghellim4@Sprint_Pose.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_shared.vmdl_prefab"
+					},
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_adjustmentlayers.vmdl_prefab"
+					},
+				]
+				default_root_bone_name = ""
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = "weapon_root"
+						relative_origin = [ 66.725792, -0.064128, 0.467482 ]
+						relative_angles = [ -0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "eject"
+						parent_bone = "weapon_root"
+						relative_origin = [ 15.0, -0.5, 0.5 ]
+						relative_angles = [ -10.0, -90.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+			{
+				_class = "AnimConstraintList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animconstraintlist.vmdl_prefab"
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = "weapons/shotgun/v_spaghellim4.vanmgrph"
+		base_model_name = ""
+	}
+}

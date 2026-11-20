@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "scaffolding_joint_a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "scaffolding_joint_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/construction/scaffolding/scaffolding_joint_a.vmdl"
+      }
+    }
+  },
+  "guid": "7cc0c242-42a4-4e23-9f03-764a09123469"
+}

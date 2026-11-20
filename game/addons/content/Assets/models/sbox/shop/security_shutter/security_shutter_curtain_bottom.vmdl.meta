@@ -1,0 +1,24 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Security Shutter Curtain Bottom",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "security_shutter_curtain_bottom",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter_curtain_bottom.vmdl",
+        "ParentPackage": "facepunch.sbox_content",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "bd02f9a6-28c6-4135-867a-bc1ccd97ea02"
+}

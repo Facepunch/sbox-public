@@ -1,0 +1,6 @@
+@import 'resource-picker.scss';
+
+ResourcePickerButton
+{
+	@include resource-picker-control;
+}

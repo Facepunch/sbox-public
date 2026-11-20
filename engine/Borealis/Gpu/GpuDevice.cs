@@ -190,6 +190,15 @@ public abstract class GpuDevice
 	/// </summary>
 	internal virtual bool WritesForwardNormals => false;
 
+	/// <summary>
+	/// The error a generated level may have, in pixels at an object's nearest point, as views pick the levels of meshes they
+	/// draw themselves (<see cref="GpuMesh.LevelsFor"/>); 0 when the device makes none.
+	/// </summary>
+	internal virtual float LevelPixels => 0;
+
+	/// <summary>Counts generated levels published (<see cref="GpuMesh.LevelsFor"/>): a mesh waiting for some asks again once it moves.</summary>
+	internal virtual int LevelsVersion => 0;
+
 	/// <summary>Whether the device has an async compute queue.</summary>
 	public abstract bool SupportsAsyncCompute { get; }
 
@@ -202,12 +211,6 @@ public abstract class GpuDevice
 	/// <summary>Where a queued morph is in the atlas once generated: u offset, u range, v offset, v range.</summary>
 	public abstract Vector4 MorphSubrect( int handle );
 
-	/// <summary>Start a frame's submission, naming the swap chain it ends up in for its GPU timing.</summary>
-	public abstract void BeginSubmitting( GpuSwapChain swapChain );
-
-	/// <summary>Tag the next submissions, so a profiler can pair GPU work with the frame that made it; 0 for none.</summary>
-	public abstract void SetSubmitTag( ulong tag );
-
 	/// <summary>A render system has submitted everything it recorded for a frame: send on whatever the device is holding to submit together.</summary>
 	public virtual void EndSubmitting() { }
 
@@ -219,7 +222,4 @@ public abstract class GpuDevice
 
 	/// <summary>Free a buffer from <see cref="CreateConstantBuffer"/>.</summary>
 	public abstract void DestroyConstantBuffer( IntPtr buffer );
-
-	/// <summary>Samples per pixel of a swap chain's colour buffer.</summary>
-	public abstract int SwapChainSamples( GpuSwapChain swapChain );
 }

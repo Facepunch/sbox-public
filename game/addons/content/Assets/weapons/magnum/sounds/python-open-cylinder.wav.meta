@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Python Open Cylinder",
+      "Type": "vsnd",
+      "Org": "rust",
+      "Ident": "pythonopencylinder",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/sounds/python-open-cylinder.wav"
+      }
+    }
+  },
+  "guid": "22ca7f97-21a4-4858-9d48-5e5d4afc03bb"
+}

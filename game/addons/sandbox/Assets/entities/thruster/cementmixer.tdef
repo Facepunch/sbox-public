@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/thruster/cementmixer.prefab",
+  "Title": "#asset.cementmixer.title",
+  "Description": "",
+  "__references": [],
+  "__version": 0
+}

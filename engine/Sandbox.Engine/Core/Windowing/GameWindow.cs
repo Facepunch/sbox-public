@@ -226,6 +226,12 @@ internal sealed partial class GameWindow : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	/// Let go of the engine texture the window's frames are drawn into (with <c>-borealisgpu</c>), at shutdown once no frame
+	/// will be drawn, before the engine's leak check: the window itself goes later. A frame drawn after makes it again.
+	/// </summary>
+	public void ReleaseFrameTarget() => borealis?.ReleaseTarget();
+
 	public void Dispose()
 	{
 		ThreadSafe.AssertIsMainThread();

@@ -1,0 +1,28 @@
+{
+  "guid": "3b03dee9-a091-40b5-a451-8e24880712c4",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Industrial Wall Light",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "industrialwalllight",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/wall_light/wall_light.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

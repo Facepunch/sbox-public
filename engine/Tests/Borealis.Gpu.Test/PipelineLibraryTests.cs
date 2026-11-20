@@ -325,6 +325,54 @@ public class PipelineLibraryTests : GpuTest
 		AssertSame( fast, whole, "the mesh pipeline made whole" );
 	}
 
+	/// <summary>
+	/// A pixel shader that discards two pixels of each quad and takes derivatives after draws without them from its first
+	/// link, as its optimised link does, with the discard as OpDemoteToHelperInvocation and as OpKill. AMD's driver draws them
+	/// in a fast link (<c>Device.LinksDiscardsOptimised</c> links such pipelines optimised at once there).
+	/// </summary>
+	[TestMethod]
+	[DataRow( "discard.ps.spv" )]
+	[DataRow( "discardkill.ps.spv" )]
+	public void DiscardingPixelShadersDiscardFromTheFirstLink( string pixelShader )
+	{
+		RequireLibraries();
+		var info = NoDepth( Triangle( Shader( "triangle.vs.spv" ), Shader( pixelShader ) ) );
+
+		// The first link stays: no optimised link replaces it
+		Device.OptimisesLinks = false;
+		var first = Device.CreateGraphicsPipeline( info );
+		var drawn = DrawTriangle( Device, first, false );
+		Device.OptimisesLinks = true;
+		var linked = Device.CreateGraphicsPipeline( info );
+		Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
+		Assert.IsTrue( Device.IsOptimised( linked ) );
+		var optimised = DrawTriangle( Device, linked, false );
+		if ( Device.LinksDiscardsOptimised ) Assert.IsTrue( Device.IsOptimised( first ), "linked optimised at once" );
+
+		static (int Kept, int Discarded) Count( byte[] pixels )
+		{
+			int kept = 0, discarded = 0;
+			for ( int y = 0; y < Height; y++ )
+			{
+				for ( int x = 0; x < Width; x++ )
+				{
+					if ( pixels[(y * Width + x) * 4 + 3] == 0 ) continue;
+					if ( ((x ^ y) & 1) != 0 ) discarded++;
+					else kept++;
+				}
+			}
+
+			return (kept, discarded);
+		}
+
+		var (optimisedKept, optimisedDiscarded) = Count( optimised );
+		var (firstKept, firstDiscarded) = Count( drawn );
+		Assert.IsTrue( optimisedKept > 1000, $"the optimised link drew {optimisedKept} pixels" );
+		Assert.AreEqual( 0, optimisedDiscarded, "the optimised link drew no discarded pixel" );
+		Assert.AreEqual( optimisedKept, firstKept, "the first link drew the same pixels" );
+		Assert.AreEqual( 0, firstDiscarded, "the first link drew no discarded pixel" );
+	}
+
 	static GraphicsPipelineInfo NoDepth( GraphicsPipelineInfo info )
 	{
 		info.DepthFormat = Format.Unknown;
@@ -594,6 +642,54 @@ public class PipelineLibraryTests : GpuTest
 				var pipeline = device.CreateComputePipeline( new ComputePipelineInfo { Shader = shader, Entry = "MainCs" } );
 				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "creating it took the one made ahead" );
 				device.Destroy( pipeline );
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, recursive: true );
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
+	}
+
+	/// <summary>
+	/// The SPIR-V kept beside the manifest is made into modules on a loader thread, which queues their parts after making
+	/// each: a module of the same SPIR-V made meanwhile finds it made and queues nothing, so waiting for pending pipelines
+	/// waits for the loader too.
+	/// </summary>
+	[TestMethod]
+	public void WaitingForPendingPipelinesWaitsForTheKeptSpirvsParts()
+	{
+		RequireLibraries();
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-kept-spirv-wait-{Environment.ProcessId}-{Guid.NewGuid():n}" );
+		var errors = new List<string>();
+		using var loaderMade = new System.Threading.ManualResetEventSlim();
+		Device Open( bool holdLoader ) => Device.Create( new DeviceOptions
+		{
+			Presentation = false,
+			Validation = true,
+			PipelineCacheFolder = folder,
+			PipelinePartManifest = true,
+			Message = m => { if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( $"{m.Id}: {m.Text}" ); },
+			// The loader made the module and hasn't queued its parts yet
+			QueueingRecordedParts = holdLoader ? _ => { loaderMade.Set(); System.Threading.Thread.Sleep( 500 ); } : null,
+		} );
+
+		try
+		{
+			using ( var device = Open( false ) )
+			{
+				device.Destroy( device.CreateComputePipeline( new ComputePipelineInfo { Shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" ), Entry = "MainCs" } ) );
+			}
+
+			using ( var device = Open( true ) )
+			{
+				Assert.IsTrue( loaderMade.Wait( TimeSpan.FromSeconds( 30 ) ), "the loader made a module of the kept SPIR-V" );
+				var shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" );
+				Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "the part the loader queued was made" );
+				device.Destroy( device.CreateComputePipeline( new ComputePipelineInfo { Shader = shader, Entry = "MainCs" } ) );
+				Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "creating it took the one made ahead" );
 			}
 		}
 		finally

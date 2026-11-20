@@ -1,0 +1,8 @@
+@import "/UI/Theme.scss";
+
+SpawnlistFooter
+{
+    @include ui-footer-bar;
+    flex-direction: column;
+    gap: 4px;
+}

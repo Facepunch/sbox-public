@@ -1,0 +1,62 @@
+@import 'resource-picker.scss';
+
+ClientInputControl
+{
+	@include resource-picker-base;
+
+	&.no-binding
+	{
+		background-color: $ui-control-bg;
+		border-color: $ui-control-border;
+
+		&:hover
+		{
+			background-color: $ui-blue-soft;
+			border-color: $ui-control-border-hover;
+		}
+	}
+
+	&.capturing
+	{
+		background-color: $ui-blue-soft;
+		border-color: $ui-control-border-hover;
+
+		.bind-label { color: $ui-text-muted; }
+	}
+
+	.preview
+	{
+		width: 24px;
+		height: 24px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+
+		.hint
+		{
+			width: 100%;
+			height: 100%;
+			background-size: contain;
+			background-repeat: no-repeat;
+			background-position: center center;
+
+			&.hidden { display: none; }
+		}
+
+		.fallback
+		{
+			font-size: 14px;
+			color: $ui-text-muted;
+
+			&.hidden { display: none; }
+		}
+	}
+
+	.bind-label
+	{
+		flex-grow: 1;
+		font-size: $ui-settings-font;
+		font-weight: 500;
+		color: $ui-text;
+	}
+}

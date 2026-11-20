@@ -1,0 +1,28 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/glass.shader"
+
+	//---- Rendering ----
+	F_DO_NOT_CAST_SHADOWS 1
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Glass ----
+	AlbedoAbsorption "0.000"
+	g_flBlurAmount "0.053"
+	g_flRefractionStrength "1.005"
+
+	//---- Material ----
+	g_flTintColor "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusion "[1.000000 1.000000 1.000000 0.000000]"
+	TextureBlendMask "materials/default/default_blend.tga"
+	TextureColor "models/sbox/street/cctv_globe/cctv_globe_glass_color.png"
+	TextureMetalness "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormal "models/sbox/street/cctv_globe/cctv_globe_glass_normal.png"
+	TextureRoughness "models/sbox/street/cctv_globe/cctv_globe_glass_rough.png"
+	TextureTintMask "materials/default/default.tga"
+	TextureTranslucency "[1.000000 1.000000 1.000000 0.000000]"
+}

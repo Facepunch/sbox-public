@@ -40,6 +40,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 	// Every block on the frame binds them: looked up once, again only if one was let go
 	static readonly Texture[] viewTextures = new Texture[ViewTextureFiles.Length];
 
+	/// <summary>Let go of the view's lookup tables, at shutdown (before the engine's leak check).</summary>
+	internal static void ReleaseViewTextures() => Array.Clear( viewTextures );
+
 	internal static void SetViewTextures( RenderAttributes attributes )
 	{
 		for ( int i = 0; i < ViewTextureFiles.Length; i++ )
@@ -114,6 +117,15 @@ internal sealed class BorealisGpuFrame : IDisposable
 	BackendTexture bloomObjects;
 
 	/// <summary>
+	/// The overlays' depth the scene drew for a temporal upscaler's reactive mask (<see cref="RenderSystem.ReactiveDepth"/>), or
+	/// null when it drew none.
+	/// </summary>
+	public Texture ReactiveDepth { get; private set; }
+
+	// The Borealis texture behind ReactiveDepth this frame
+	BackendTexture reactiveDepth;
+
+	/// <summary>
 	/// The view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads): the min and max of the frame's
 	/// depth, mipped, built by <see cref="Begin()"/> (and from the upscaled depth by <see cref="Upscaled"/>). Null for a frame
 	/// with no depth.
@@ -137,11 +149,15 @@ internal sealed class BorealisGpuFrame : IDisposable
 	byte[] upscaledConstants = [];
 	RenderTarget upscaledTarget;
 
+	// The view's depth range the scene drew in (its constants' ViewportMinZ and ViewportMaxZ), which the stages draw in
+	(float Min, float Max) depthRange = (0, 1);
+
 	/// <summary>
 	/// Take a frame Borealis rendered into <paramref name="target"/> on the backend's device, with the view constants it drew
-	/// with, and the bloom objects it drew (<see cref="RenderSystem.BloomObjects"/>), if any.
+	/// with, the bloom objects it drew (<see cref="RenderSystem.BloomObjects"/>) and the overlays' reactive depth
+	/// (<see cref="RenderSystem.ReactiveDepth"/>), if any.
 	/// </summary>
-	public void Adopt( ViewTarget target, in GpuViewConstants viewConstants, GpuTexture bloom = null )
+	public void Adopt( ViewTarget target, in GpuViewConstants viewConstants, GpuTexture bloom = null, GpuTexture reactive = null )
 	{
 		this.target = target;
 		var color = target.Resolved ?? target.Color;
@@ -153,8 +169,13 @@ internal sealed class BorealisGpuFrame : IDisposable
 		bloomObjects = bloom as BackendTexture;
 		BloomObjects = bloomObjects is null ? null : FrameTexture( null, bloomObjects, new Vector2Int( bloomObjects.Width, bloomObjects.Height ), ImageFormat.RGBA1010102, depth: false );
 
+		if ( reactiveDepth is not null && !ReferenceEquals( reactiveDepth, reactive ) && reactiveDepth.IsValid ) backend.ForgetBorrowed( reactiveDepth.Handle );
+		reactiveDepth = reactive as BackendTexture;
+		ReactiveDepth = reactiveDepth is null ? null : FrameTexture( null, reactiveDepth, new Vector2Int( reactiveDepth.Width, reactiveDepth.Height ), ImageFormat.D32, depth: true );
+
 		if ( constants.Length != System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>() ) constants = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<GpuViewConstants>()];
 		System.Runtime.InteropServices.MemoryMarshal.Write( constants, in viewConstants );
+		depthRange = viewConstants.ViewportMaxZ > viewConstants.ViewportMinZ ? (viewConstants.ViewportMinZ, viewConstants.ViewportMaxZ) : (0, 1);
 
 		// Made here, outside any block: materials can't be made while drawing
 		if ( Multisampled ) depthResolve ??= Material.FromShader( "shaders/depthresolve.shader" );
@@ -184,9 +205,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		{
 			resolvedDepth?.Dispose();
 			resolveScratch?.Dispose();
-			resolvedDepth = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithDepthFormat(), "Borealis.Gpu frame resolved depth" );
+			resolvedDepth = Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithDepthFormat().Create( "Borealis.Gpu frame resolved depth" );
 			// The resolve writes depth alone; the engine's drawing always has a colour target
-			resolveScratch = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithFormat( ImageFormat.RGBA8888 ), "Borealis.Gpu depth resolve scratch" );
+			resolveScratch = Texture.CreateRenderTarget().WithSize( Depth.Width, Depth.Height ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu depth resolve scratch" );
 			resolveTarget = RenderTarget.From( resolveScratch, resolvedDepth );
 		}
 
@@ -265,7 +286,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 			existing?.Dispose();
 			var builder = Texture.CreateRenderTarget().WithSize( size.x, size.y );
 			builder = depth ? builder.WithDepthFormat() : builder.WithFormat( format );
-			existing = Texture.CreateOnBorealisGpu( builder, depth ? "Borealis.Gpu frame depth" : "Borealis.Gpu frame colour" );
+			existing = builder.Create( depth ? "Borealis.Gpu frame depth" : "Borealis.Gpu frame colour" );
 		}
 
 		backend.Borrow( existing, handle, layout );
@@ -450,7 +471,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( !depthAlone.TryGetValue( gpu, out var kept ) )
 		{
 			if ( depthAlone.Count > 8 ) DropDisposedDepthTextures();
-			var texture = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( gpu.Width, gpu.Height ).WithDepthFormat(), "Borealis.Gpu depth drawn alone" );
+			var texture = Texture.CreateRenderTarget().WithSize( gpu.Width, gpu.Height ).WithDepthFormat().Create( "Borealis.Gpu depth drawn alone" );
 			depthAlone[gpu] = kept = (texture, RenderTarget.FromDepth( texture ));
 		}
 
@@ -509,6 +530,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 		var scope = Graphics.Scope.CreateOnView( backend, view );
 		try
 		{
+			// The stages draw in the view's depth range, as native's hook layers take the view's viewport: depth of field's
+			// back layer places its quad at the focus plane and depth tests it against the scene's depth in that range
+			backend.DepthRange = depthRange;
+
 			// A multisampled frame hands over its resolved colour, and its depth resolved to one sample to go with it: what the
 			// stages draw is depth tested against the scene, and what reads the bound depth (depth of field's
 			// RenderValue.DepthTarget, depth grabs) reads it. The view chain is built from every sample
@@ -594,7 +619,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( existing is not null && existing.Width == width && existing.Height == height ) return existing;
 		existing?.Dispose();
 		var mips = System.Numerics.BitOperations.Log2( (uint)Math.Min( width, height ) ) + 1;
-		return Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( width, height ).WithFormat( ImageFormat.RG3232F ).WithMips( mips ).WithUAVBinding(), "Borealis.Gpu frame depth chain" );
+		return Texture.CreateRenderTarget().WithSize( width, height ).WithFormat( ImageFormat.RG3232F ).WithMips( mips ).WithUAVBinding().Create( "Borealis.Gpu frame depth chain" );
 	}
 
 	/// <summary>Give the frame's targets back to Borealis, in the layouts the drawing left them in.</summary>
@@ -604,6 +629,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		BackendDevice.SetLayout( target.Resolved ?? target.Color, backend.LayoutOf( SceneColor ) );
 		if ( target.Depth is not null ) BackendDevice.SetLayout( target.Depth, backend.LayoutOf( SceneDepth ) );
 		if ( bloomObjects is not null ) BackendDevice.SetLayout( bloomObjects, backend.LayoutOf( BloomObjects ) );
+		if ( reactiveDepth is not null ) BackendDevice.SetLayout( reactiveDepth, backend.LayoutOf( ReactiveDepth ) );
 	}
 
 	/// <summary>
@@ -623,6 +649,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 		if ( bloomObjects is not null ) backend.ForgetBorrowed( bloomObjects.Handle );
 		bloomObjects = null;
 		BloomObjects = null;
+		if ( reactiveDepth is not null ) backend.ForgetBorrowed( reactiveDepth.Handle );
+		reactiveDepth = null;
+		ReactiveDepth = null;
 		target = null;
 	}
 

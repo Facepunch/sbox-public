@@ -72,6 +72,7 @@ internal struct SamplerRecord
 	public int Index;
 	public SamplerInfo Info;
 	public float Anisotropy;
+	public float MipBias;
 }
 
 internal struct ShaderRecord
@@ -80,6 +81,9 @@ internal struct ShaderRecord
 
 	/// <summary>Its SPIR-V's hash, with pipeline libraries: parts are keyed and recorded by it.</summary>
 	public UInt128 Hash;
+
+	/// <summary>Whether it discards (OpKill, OpTerminateInvocation, OpDemoteToHelperInvocation), where that's looked for (<see cref="Device.LinksDiscardsOptimised"/>).</summary>
+	public bool Discards;
 }
 
 internal struct LayoutRecord
@@ -642,12 +646,12 @@ public sealed unsafe partial class Device
 
 	/// <summary>
 	/// Create a sampler and add it to the bindless sampler table (<see cref="SamplerIndex"/>). Its anisotropy is at most the
-	/// device's and <see cref="AnisotropyLimit"/>.
+	/// device's and <see cref="AnisotropyLimit"/>; an anisotropic one also takes <see cref="GlobalMipBias"/>.
 	/// </summary>
 	public SamplerHandle CreateSampler( in SamplerInfo info )
 	{
-		var sampler = MakeSampler( info, out var anisotropy );
-		var (index, generation) = Samplers.Add( new SamplerRecord { Sampler = sampler, Index = Bindless.AddSampler( sampler ), Info = info, Anisotropy = anisotropy } );
+		var sampler = MakeSampler( info, out var anisotropy, out var mipBias );
+		var (index, generation) = Samplers.Add( new SamplerRecord { Sampler = sampler, Index = Bindless.AddSampler( sampler ), Info = info, Anisotropy = anisotropy, MipBias = mipBias } );
 		var handle = new SamplerHandle( index, generation );
 		if ( info.MaxAnisotropy > 1 )
 		{
@@ -660,7 +664,10 @@ public sealed unsafe partial class Device
 	/// <summary>The anisotropy a sampler filters with, after the device's limit and <see cref="AnisotropyLimit"/>.</summary>
 	internal float SamplerAnisotropy( SamplerHandle sampler ) => Get( sampler ).Anisotropy;
 
-	// Samplers made anisotropic, remade when the limit changes
+	/// <summary>The mip bias a sampler samples with: its own, and <see cref="GlobalMipBias"/> where that applies.</summary>
+	internal float SamplerMipBias( SamplerHandle sampler ) => Get( sampler ).MipBias;
+
+	// Samplers made anisotropic, remade when the limit or the global mip bias changes
 	readonly HashSet<SamplerHandle> anisotropicSamplers = new();
 
 	/// <summary>
@@ -679,22 +686,55 @@ public sealed unsafe partial class Device
 		limit = Math.Max( limit, 1 );
 		if ( limit == AnisotropyLimit ) return;
 		AnisotropyLimit = limit;
+		RemakeAnisotropicSamplers( biasedOnly: false );
+	}
 
+	/// <summary>
+	/// A mip bias added to each anisotropic sampler's own, as native's render device adds its global texture mip bias: not
+	/// to comparison samplers, nor those made with <see cref="SamplerInfo.FixedMipBias"/>. 0 until it's set. The temporal
+	/// upscalers set it while they run (<c>log2( scale ) - 1</c>), so textures keep the display size's detail. Change it with
+	/// <see cref="SetGlobalMipBias"/>.
+	/// </summary>
+	public float GlobalMipBias { get; private set; }
+
+	/// <summary>
+	/// Set <see cref="GlobalMipBias"/>. The samplers it applies to are remade in place, as <see cref="SetAnisotropyLimit"/>
+	/// remakes them: their handles and bindless slots stay, and the persistent sets that bind them are rewritten. Waits for
+	/// the GPU to go idle when it changes, so call it between frames, with nothing recording.
+	/// </summary>
+	public void SetGlobalMipBias( float bias )
+	{
+		if ( !float.IsFinite( bias ) ) bias = 0;
+		if ( bias == GlobalMipBias ) return;
+		GlobalMipBias = bias;
+		RemakeAnisotropicSamplers( biasedOnly: true );
+	}
+
+	// Anisotropic samplers only, as native's: those are the material textures'. Vulkan adds a sampler's bias to explicit-LOD
+	// reads too, and those (probes, environment maps, blur chains) sample through linear or point samplers.
+	static bool TakesGlobalMipBias( in SamplerInfo info ) => info.MaxAnisotropy > 1 && info.Compare == CompareFunction.Never && !info.FixedMipBias;
+
+	// Every anisotropic sampler remade in place, or only those the global mip bias reaches
+	void RemakeAnisotropicSamplers( bool biasedOnly )
+	{
 		SamplerHandle[] remake;
 		lock ( anisotropicSamplers ) remake = [.. anisotropicSamplers];
 		if ( remake.Length == 0 ) return;
 
-		WaitIdle();
 		var old = new List<ulong>( remake.Length );
-		var remade = new HashSet<SamplerHandle>( remake );
+		var remade = new HashSet<SamplerHandle>( remake.Length );
 		foreach ( var handle in remake )
 		{
 			ref var record = ref Get( handle );
+			if ( biasedOnly && !TakesGlobalMipBias( record.Info ) ) continue;
+			if ( remade.Count == 0 ) WaitIdle();
+			remade.Add( handle );
 			old.Add( record.Sampler );
-			record.Sampler = MakeSampler( record.Info, out record.Anisotropy );
+			record.Sampler = MakeSampler( record.Info, out record.Anisotropy, out record.MipBias );
 			Bindless.SetSampler( record.Index, record.Sampler );
 		}
 
+		if ( remade.Count == 0 ) return;
 		lock ( setSamplers )
 		{
 			foreach ( var (set, bindings) in setSamplers )
@@ -714,14 +754,19 @@ public sealed unsafe partial class Device
 		foreach ( var sampler in old ) Vk.vkDestroySampler( Vk.Device, sampler, null );
 	}
 
-	/// <summary>Sampler bindings of persistent sets <see cref="SetAnisotropyLimit"/> has rewritten, for the tests.</summary>
+	/// <summary>
+	/// Sampler bindings of persistent sets <see cref="SetAnisotropyLimit"/> and <see cref="SetGlobalMipBias"/> have rewritten,
+	/// for the tests.
+	/// </summary>
 	internal int SamplerBindingsRewritten { get; private set; }
 
-	ulong MakeSampler( in SamplerInfo info, out float anisotropy )
+	ulong MakeSampler( in SamplerInfo info, out float anisotropy, out float mipBias )
 	{
 		static int Address( AddressMode mode ) => mode switch { AddressMode.Mirror => 1, AddressMode.Clamp => 2, AddressMode.Border => 3, _ => 0 };
 
 		anisotropy = Math.Max( Math.Min( Math.Min( info.MaxAnisotropy, Capabilities.MaxAnisotropy ), AnisotropyLimit ), 1 );
+		mipBias = info.MipBias + (TakesGlobalMipBias( info ) ? GlobalMipBias : 0);
+		mipBias = Math.Clamp( mipBias, -Limits.maxSamplerLodBias, Limits.maxSamplerLodBias );
 		var create = new VkSamplerCreateInfo
 		{
 			sType = VkStructureType.SamplerCreateInfo,
@@ -731,7 +776,7 @@ public sealed unsafe partial class Device
 			addressModeU = Address( info.AddressU ),
 			addressModeV = Address( info.AddressV ),
 			addressModeW = Address( info.AddressW ),
-			mipLodBias = info.MipBias,
+			mipLodBias = mipBias,
 			anisotropyEnable = anisotropy > 1 ? 1u : 0u,
 			maxAnisotropy = anisotropy,
 			compareEnable = info.Compare != CompareFunction.Never ? 1u : 0u,
@@ -768,7 +813,7 @@ public sealed unsafe partial class Device
 			SetName( VkObjectType.ShaderModule, module, name );
 
 			var hash = pipelineLibraries ? SpirvHash( spirv ) : 0;
-			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module, Hash = hash } );
+			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module, Hash = hash, Discards = LinksDiscardsOptimised && Discards( spirv ) } );
 			var handle = new ShaderHandle( index, generation );
 			if ( pipelineLibraries )
 			{

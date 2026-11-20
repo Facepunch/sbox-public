@@ -1,0 +1,27 @@
+{
+  "guid": "ca6bc610-af64-4d33-a62e-4b821b01266e",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Security Shutter Indoor",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "security_shutter_indoor",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter_indoor.vmat",
+        "ParentPackage": "facepunch.sbox_content",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

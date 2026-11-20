@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Recul",
+    "weapon.setting.primary.description": "Controlează acțiunea principală a armei.",
+    "weapon.setting.secondary.description": "Controlează acțiunea secundară a armei.",
+    "weapon.setting.recoil_force": "Forța reculului",
+    "weapon.setting.recoil_force.description": "Recul fizic aplicat când trage o armă care nu este ținută în mână.",
+    "weapon.setting.extend": "Mărește distanța de prindere",
+    "weapon.setting.extend.description": "Îndepărtează obiectul prins.",
+    "weapon.setting.retract": "Micșorează distanța de prindere",
+    "weapon.setting.retract.description": "Apropie obiectul prins.",
+    "weapon.setting.camera_aim": "Țintire cu camera",
+    "weapon.setting.camera_aim.description": "Țintește în direcția camerei jucătorului așezat.",
+    "weapon.setting.guide_rockets": "Ghidează rachetele",
+    "weapon.setting.guide_rockets.description": "Ghidează rachetele lansate spre reticulul jucătorului."
+}

@@ -1,0 +1,81 @@
+// light palette, the default look of the sandbox UI
+// every palette defines the same set of tokens, Theme.scss picks one
+
+$ui-blue: #3e83eb;
+$ui-blue-soft: rgba( 62, 131, 235, 0.14 );
+$ui-danger: #d04040;
+
+// a row of a menu under the mouse, a stronger blue than the soft one of the lists
+$ui-hover-fill: rgba( 62, 131, 235, 0.35 );
+$ui-hover-border: rgba( 62, 131, 235, 0.68 );
+$ui-hover-text: #56759e;
+
+// text inside a section
+$ui-text: #555555;
+$ui-text-strong: #444444;
+$ui-text-muted: #777777;
+$ui-text-label: #666666;
+$ui-text-placeholder: #a8a8a8;
+$ui-text-disabled: #afafaf;
+$ui-text-disabled-hover: #8a8a8a;
+
+// text drawn straight on the gray block of the menu
+$ui-text-on-gray: rgba( 255, 255, 255, 0.55 );
+$ui-heading-on-gray: rgba( 255, 255, 255, 0.85 );
+$ui-line-on-gray: rgba( 255, 255, 255, 0.24 );
+$ui-subtext-on-gray: rgba( 255, 255, 255, 0.75 );
+
+// the gray block and the white section on it
+$ui-block-top: rgba( 140, 140, 140, 0.66 );
+// the bottom of the block fades into the accent blue ($color-accent blended over the gray)
+$ui-block-bottom: rgba( 78, 137, 180, 0.66 );
+$ui-block-border: rgba( 255, 255, 255, 0.38 );
+$ui-section-top: rgba( 255, 255, 255, 0.90 );
+$ui-section-bottom: rgba( 245, 245, 245, 0.80 );
+$ui-section-border: rgba( 0, 0, 0, 0.51 );
+
+// solid surfaces that float over everything, dropdown lists and pickers
+$ui-popup-bg: #e8e8e8;
+$ui-popup-bg-light: #f8f8f8;
+$ui-popup-hover: #d6d6d6;
+$ui-well: #d9d9d9;
+
+// controls inside a section
+$ui-control-border: #989898;
+$ui-control-bg: #f3f3f3;
+$ui-control-border-hover: #6f6f6f;
+$ui-input-bg: rgba( 255, 255, 255, 0.96 );
+$ui-input-border: rgba( 0, 0, 0, 0.51 );
+$ui-check-bg: rgba( 255, 255, 255, 0.55 );
+$ui-button-top: rgba( 248, 248, 248, 0.9 );
+$ui-button-bottom: rgba( 230, 230, 230, 0.9 );
+$ui-button-border: rgba( 0, 0, 0, 0.33 );
+$ui-row-alt: rgba( 0, 0, 0, 0.05 );
+$ui-row-hover-outline: rgba( 0, 0, 0, 0.15 );
+$ui-separator: rgba( 0, 0, 0, 0.12 );
+$ui-tree-line: #dbdbdb;
+$ui-scroll-track: #d0d0d0;
+
+// menu tabs
+$ui-tab-bg: #676767;
+$ui-tab-bg-hover: #707070;
+$ui-tab-bg-active: #878787;
+$ui-tab-border: #464646;
+
+// the dark fill behind the picture of a card or a spawn icon
+$ui-tile-bg: rgba( 0, 0, 0, 0.16 );
+$ui-tile-title-bg: white;
+$ui-tile-title-text: black;
+$ui-tile-outline: white;
+
+// the strip of a card under the mouse
+$ui-card-hover-bg: #e6e6e6;
+$ui-card-hover-text: #3a3a3a;
+$ui-card-hover-subtext: rgba( 0, 0, 0, 0.6 );
+
+// slider: the line and its ticks, and the thumb
+$ui-slider-line: #8a8a8a;
+$ui-slider-thumb: #9b9b9b;
+$ui-slider-thumb-border: #6d6d6d;
+$ui-slider-thumb-hover: #b0b0b0;
+$ui-slider-thumb-pressed: #7d7d7d;

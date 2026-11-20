@@ -252,22 +252,26 @@ public sealed unsafe partial class Device
 	{
 		var layout = PipelineLayout( info.Sets );
 		if ( info.MeshShader.IsValid && !Capabilities.MeshShaders ) throw new InvalidOperationException( $"{info.Name}: the device has no mesh shaders" );
-		if ( info.SkipUntilReady && SkipDrawsUntilReady && !(UsesLibraries( info ) && PartsReady( info, layout )) ) return Defer( info, layout );
+		// One linked optimised at once is made on the builders too: that link takes as long as making the parts
+		if ( info.SkipUntilReady && SkipDrawsUntilReady && !(UsesLibraries( info ) && PartsReady( info, layout ) && !LinksOptimisedAtOnce( info )) ) return Defer( info, layout );
 
 		ulong pipeline;
 		LinkedParts parts = null;
+		var optimised = false;
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		using ( Zone( ZonePipeline ) )
 		{
 			if ( UsesLibraries( info ) )
 			{
 				parts = AcquireParts( info, layout );
+				optimised = LinksOptimisedAtOnce( info );
 				try
 				{
 					var linkStarted = System.Diagnostics.Stopwatch.GetTimestamp();
-					pipeline = Link( parts, layout, optimise: false );
+					pipeline = Link( parts, layout, optimised );
 					Interlocked.Add( ref linkTicks, System.Diagnostics.Stopwatch.GetTimestamp() - linkStarted );
 					Interlocked.Increment( ref linksMade );
+					if ( optimised ) Interlocked.Increment( ref optimisedMade );
 				}
 				catch
 				{
@@ -292,10 +296,11 @@ public sealed unsafe partial class Device
 			BindPoint = Vulkan.Vk.BindPointGraphics,
 			RenderState = RenderStateBits.Pack( info ),
 			Parts = parts,
+			Optimised = optimised,
 		} );
 
 		var handle = new PipelineHandle( index, generation );
-		if ( parts is not null ) QueueOptimise( handle, parts, layout );
+		if ( parts is not null && !optimised ) QueueOptimise( handle, parts, layout );
 		return handle;
 	}
 
@@ -836,12 +841,43 @@ public sealed unsafe partial class Device
 	// Optimised links, made on background threads and swapped in
 	//
 
-	/// <summary>Whether fast links are replaced by optimised ones; <c>BOREALIS_OPTIMISED_LINKS=0</c> keeps the fast ones, to compare.</summary>
-	static readonly bool optimiseLinks = Environment.GetEnvironmentVariable( "BOREALIS_OPTIMISED_LINKS" ) != "0";
+	/// <summary>
+	/// Whether pipelines whose pixel shader discards are linked optimised from the start rather than fast linked first: AMD's
+	/// driver (26.10.1 on the 7900 XTX) draws the pixels such a shader discards when a pipeline is linked from libraries
+	/// without link-time optimisation, with the discard as OpDemoteToHelperInvocation, and as OpKill with derivatives taken
+	/// after it (a fading object's dither drew solid until its optimised link was in). On with AMD's drivers. A pipeline that
+	/// skips its draws until ready is linked so on the builder threads, never where it's asked for.
+	/// </summary>
+	internal bool LinksDiscardsOptimised { get; set; }
+
+	/// <summary>Whether a pipeline is linked optimised at once instead of fast linked first (<see cref="LinksDiscardsOptimised"/>).</summary>
+	bool LinksOptimisedAtOnce( in GraphicsPipelineInfo info ) => LinksDiscardsOptimised && info.FragmentShader.IsValid && Shaders.Get( info.FragmentShader.Index, info.FragmentShader.Generation ).Discards;
+
+	/// <summary>Whether SPIR-V has an instruction that discards: OpKill, OpTerminateInvocation or OpDemoteToHelperInvocation.</summary>
+	internal static bool Discards( ReadOnlySpan<byte> spirv )
+	{
+		var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( spirv );
+		for ( int i = 5; i < words.Length; )
+		{
+			var count = (int)(words[i] >> 16);
+			if ( (words[i] & 0xFFFF) is 252 or 4416 or 5380 ) return true;
+			i += Math.Max( count, 1 );
+		}
+
+		return false;
+	}
+
+	static readonly bool optimiseLinksByDefault = Environment.GetEnvironmentVariable( "BOREALIS_OPTIMISED_LINKS" ) != "0";
+
+	/// <summary>
+	/// Whether fast links are replaced by optimised ones; <c>BOREALIS_OPTIMISED_LINKS=0</c> keeps the fast ones, to compare,
+	/// and tests turn it off to check what a pipeline draws before its optimised link is in.
+	/// </summary>
+	internal bool OptimisesLinks { get; set; } = optimiseLinksByDefault;
 
 	void QueueOptimise( PipelineHandle handle, LinkedParts parts, ulong layout )
 	{
-		if ( !optimiseLinks ) return;
+		if ( !OptimisesLinks ) return;
 		lock ( partLock ) Use( parts );
 		lock ( optimiseQueue )
 		{

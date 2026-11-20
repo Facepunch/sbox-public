@@ -419,15 +419,7 @@ internal static class SurfaceParity
 
 		using var system = new RenderSystem { ParallelRecording = false };
 		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface parity model" );
-		for ( int frame = 0; frame < Frames; frame++ )
-		{
-			device.BeginFrame();
-			RenderHost.Current.NextFrame();
-			system.Render( world, view, target );
-
-			// The pictures compared are whole frames of optimised pipelines: none skipped while workers make it, none fast-linked
-			if ( frame == 0 ) WaitForPipelines( device );
-		}
+		RenderFrames( device, () => system.Render( world, view, target ) );
 
 		return ModelParity.ReadBack( device, target, Width, Height );
 	}
@@ -519,13 +511,40 @@ internal static class SurfaceParity
 		return 1;
 	}
 
-	/// <summary>Frames rendered before the one compared (<c>-frames</c>, default 8: shadows and exposure settle).</summary>
+	/// <summary>Frames rendered up to the one compared, at least (<c>-frames</c>, default 8: shadows and exposure settle; see <see cref="RenderFrames"/>).</summary>
 	static int Frames => Math.Max( Args.Int( "-frames", 8 ), 1 );
 
 	internal static void WaitForPipelines( BackendDevice device )
 	{
 		device.Gpu.WaitForPendingPipelines( TimeSpan.FromSeconds( 120 ) );
 		device.Gpu.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 120 ) );
+	}
+
+	/// <summary>Frames past <see cref="Frames"/> a picture may take before every draw in it has its pipeline.</summary>
+	const int MaxExtraFrames = 32;
+
+	/// <summary>
+	/// Render frames with <paramref name="render"/> until the one compared: at least <see cref="Frames"/>, and on until a frame
+	/// skipped no draw. The pictures compared are whole frames of optimised pipelines, none skipped while workers make it and
+	/// none fast-linked, so the pipelines each frame asked for are waited for after it: later frames ask for more than the
+	/// first (GPU-driven buckets start their visibility prepass in the second, with ids variants of their own), and a
+	/// driver without them in its cache can take longer than the frames left to make them. Throws when draws are still
+	/// skipped <see cref="MaxExtraFrames"/> frames on.
+	/// </summary>
+	internal static void RenderFrames( BackendDevice device, Action render )
+	{
+		for ( int frame = 0; ; frame++ )
+		{
+			var skipped = device.Gpu.DeferredPipelines.SkippedDraws;
+			device.BeginFrame();
+			RenderHost.Current.NextFrame();
+			render();
+			WaitForPipelines( device );
+
+			var whole = device.Gpu.DeferredPipelines.SkippedDraws == skipped;
+			if ( frame + 1 >= Frames && whole ) return;
+			if ( frame + 1 >= Frames + MaxExtraFrames ) throw new InvalidOperationException( $"Surface parity: draws were still skipped for want of their pipelines after {frame + 1} frames" );
+		}
 	}
 
 	/// <summary>
@@ -557,15 +576,7 @@ internal static class SurfaceParity
 
 		using var system = new RenderSystem { ParallelRecording = false };
 		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface parity" );
-		for ( int frame = 0; frame < Frames; frame++ )
-		{
-			device.BeginFrame();
-			RenderHost.Current.NextFrame();
-			system.Render( world, view, target );
-
-			// The pictures compared are whole frames of optimised pipelines: none skipped while workers make it, none fast-linked
-			if ( frame == 0 ) WaitForPipelines( device );
-		}
+		RenderFrames( device, () => system.Render( world, view, target ) );
 
 		return ModelParity.ReadBack( device, target, Width, Height );
 	}

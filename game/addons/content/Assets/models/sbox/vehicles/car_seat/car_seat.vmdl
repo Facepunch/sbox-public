@@ -1,0 +1,334 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "models/sbox/vehicles/car_seat/car_seat.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "lod0"
+						filename = "models/sbox/vehicles/car_seat/car_seat.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"back_low",
+								"base_seat_low",
+								"bolster_low",
+								"bolts_low",
+								"buckle_low",
+								"frame_low",
+								"handle_low",
+								"headrest_low",
+								"legs_low",
+								"lower_mounts_low",
+								"side_parts_low",
+								"car_seat_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod1"
+						filename = "models/sbox/vehicles/car_seat/car_seat.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"back_low",
+								"base_seat_low",
+								"bolster_low",
+								"bolts_low",
+								"buckle_low",
+								"frame_low",
+								"handle_low",
+								"headrest_low",
+								"legs_low",
+								"lower_mounts_low",
+								"side_parts_low",
+								"car_seat_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod2"
+						filename = "models/sbox/vehicles/car_seat/car_seat.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"back_low",
+								"base_seat_low",
+								"bolster_low",
+								"bolts_low",
+								"buckle_low",
+								"frame_low",
+								"handle_low",
+								"headrest_low",
+								"legs_low",
+								"lower_mounts_low",
+								"side_parts_low",
+								"car_seat_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod3"
+						filename = "models/sbox/vehicles/car_seat/car_seat.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"back_low",
+								"base_seat_low",
+								"bolster_low",
+								"bolts_low",
+								"buckle_low",
+								"frame_low",
+								"handle_low",
+								"headrest_low",
+								"legs_low",
+								"lower_mounts_low",
+								"side_parts_low",
+								"car_seat_lod3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "car_seat"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/vehicles/car_seat/car_seat.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerElement"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = false
+							exception_list =
+							[
+								"car_seat_lod0",
+								"car_seat_lod3",
+								"car_seat_lod2",
+								"car_seat_lod1",
+							]
+						}
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 10.183144, -8.232485, 0.394904 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.257008, 2.492225, 0.79101 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 10.183144, 7.646683, 0.271945 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.257008, 2.269531, 0.545092 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -14.343212, 7.687273, 0.271945 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 2.902805, 2.35071, 0.545092 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -14.343212, -8.186705, 0.271945 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 2.902805, 2.327926, 0.545092 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -12.106453, -8.186705, 1.662271 ]
+						angles = [ -48.659115, -0.0, 0.0 ]
+						dimensions = [ 4.167635, 2.327926, 0.545092 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -12.106453, 7.702267, 1.662272 ]
+						angles = [ -48.659115, -0.0, 0.0 ]
+						dimensions = [ 4.167635, 2.327926, 0.545092 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 7.712259, 7.702268, 1.827988 ]
+						angles = [ 53.079082, 0.0, 0.0 ]
+						dimensions = [ 4.167635, 2.327926, 0.545092 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 7.712258, -8.070358, 1.827988 ]
+						angles = [ 53.079082, 0.0, 0.0 ]
+						dimensions = [ 4.167635, 2.327926, 0.545092 ]
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes =
+						[
+							"lod0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 11.879208
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes =
+						[
+							"lod1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 34.874981
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes =
+						[
+							"lod2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 103.688141
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes =
+						[
+							"lod3",
+						]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

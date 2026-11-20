@@ -1,0 +1,29 @@
+{
+  "guid": "bb0e17fc-419e-4f68-9640-ed8bb23987d9",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Recoillessrifle Bakelod",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_recoillessrifle_bakelod",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/rpg/materials/w_recoillessrifle_bakelod.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

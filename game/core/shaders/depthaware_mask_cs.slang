@@ -21,7 +21,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
     #include "common.fxc"
-    #include "math_general.fxc"
+    #include "sbox/math.slangh"
 
     #include "common/classes/Depth.hlsl"
     #include "common/classes/Motion.hlsl"

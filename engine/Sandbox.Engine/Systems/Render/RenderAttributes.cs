@@ -42,8 +42,8 @@ public partial class RenderAttributes
 		manuallyAllocated = true;
 		attributes = CRenderAttributes.Create();
 
-		// A backend that lowers attributes itself (Borealis.Gpu) draws and dispatches with a managed copy of what's set
-		if ( RenderBackend.Default is not Source2RenderBackend ) KeepManagedCopy();
+		// Borealis.Gpu lowers attributes itself: it draws and dispatches with a managed copy of what's set
+		KeepManagedCopy();
 	}
 
 	internal RenderAttributes( CRenderAttributes attr )
@@ -320,7 +320,7 @@ public partial class RenderAttributes
 		ThrowIfConstantBufferTooLarge( actualSize );
 		Shadow?.SetBytes( k, MemoryMarshal.AsBytes( value ) );
 		fixed ( T* ptr = value )
-			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, (int)actualSize );
+			RenderTools.SetDynamicConstantBufferData( attributes, k, default, (IntPtr)ptr, (int)actualSize );
 	}
 
 	/// <summary>
@@ -336,7 +336,7 @@ public partial class RenderAttributes
 		int actualSize = Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
 		ThrowIfConstantBufferTooLarge( actualSize );
-		RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)(&value), actualSize );
+		RenderTools.SetDynamicConstantBufferData( attributes, k, default, (IntPtr)(&value), actualSize );
 	}
 
 

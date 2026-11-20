@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Dirt Pile Straight 04",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "dirtpile_strt_04",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/dirt_pile/dirt_pile_strt_04.vmdl"
+      }
+    }
+  },
+  "guid": "5407ae92-3933-40a8-b364-c196a76f2e37"
+}

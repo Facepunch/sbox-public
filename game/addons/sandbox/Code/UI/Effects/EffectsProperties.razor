@@ -1,0 +1,87 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <UISettingsPane Title=@GetTitle() Revision=@BuildHash()>
+        <Body>
+        @if ( _selected.IsValid() )
+        {
+            @if ( _properties.Count > 0 )
+            {
+                <UISheet Target=@_properties PropertyFilter=@UISheet.PropertiesAndButtons />
+            }
+            else
+            {
+                <div class="note">#spawnmenu.effects.no_properties</div>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <IconPanel Text="auto_fix_high" />
+                <label class="title">#spawnmenu.effects.empty_title</label>
+                <label class="hint">#spawnmenu.effects.select_effect</label>
+            </div>
+        }
+        </Body>
+    </UISettingsPane>
+</root>
+
+@code
+{
+    PostProcessManager _manager;
+    PostProcessResource _selected;
+    List<SerializedProperty> _properties = new();
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        _manager ??= Game.ActiveScene.GetSystem<PostProcessManager>();
+
+        var selectedPath = _manager?.SelectedPath;
+        var resource = selectedPath != null
+            ? ResourceLibrary.Get<PostProcessResource>( selectedPath )
+            : null;
+
+        if ( resource != _selected )
+        {
+            _selected = resource;
+            RebuildProperties();
+            StateHasChanged();
+        }
+    }
+
+    string GetTitle() => _selected.IsValid() ? LocalizedText.Resolve( _selected.Title ) : Game.Language.GetPhrase( "spawnmenu.mode.effects" );
+
+    // the settings of every component of the effect in one sheet, changes go through the game manager
+    void RebuildProperties()
+    {
+        var props = new List<SerializedProperty>();
+
+        if ( _selected.IsValid() )
+        {
+            foreach ( var component in _manager?.GetSelectedComponents() ?? [] )
+            {
+                var so = TypeLibrary.GetSerializedObject( component );
+                so.OnPropertyChanged = OnPropertyChanged;
+                props.AddRange( so.Where( UISheet.PropertiesAndButtons ) );
+            }
+        }
+
+        _properties = props;
+    }
+
+    void OnPropertyChanged( SerializedProperty prop )
+    {
+        foreach ( var target in prop.Parent.Targets )
+        {
+            if ( target is Component component )
+                GameManager.ChangeProperty( component, prop.Name, prop.GetValue<object>() );
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( _selected, _properties.Count, Game.Language.SelectedCode );
+}

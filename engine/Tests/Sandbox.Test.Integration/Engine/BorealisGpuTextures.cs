@@ -47,7 +47,6 @@ public class BorealisGpuTexturesTest
 
 		Assert.AreEqual( new Color32( 255, 0, 0, 255 ), after[16 * size + 16], "the update landed in the copy" );
 		Assert.AreEqual( new Color32( 5, 7, 0, 255 ), after[7 * size + 5], "outside the update, the copy is as it was" );
-		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
 		Assert.AreEqual( 0, borealis.ValidationErrors );
 	}
 
@@ -69,7 +68,6 @@ public class BorealisGpuTexturesTest
 		var pixels = borealis.ReadPixels( texture );
 		Assert.AreEqual( new Color32( 0, 255, 0, 255 ), pixels[5 * size + 5], "the update is in the copy" );
 		Assert.AreEqual( new Color32( 12, 1, 0, 255 ), pixels[1 * size + 12], "outside it, the pixels the texture was made with" );
-		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
 		Assert.AreEqual( 0, borealis.ValidationErrors );
 	}
 
@@ -291,7 +289,6 @@ public class BorealisGpuTexturesTest
 		CollectionAssert.AreEqual( new byte[] { 0, 5, 4, 255 }, At( 1, 1 ), "the rectangle's first pixel, as BGRA" );
 		CollectionAssert.AreEqual( new byte[] { 0, 6, 6, 255 }, At( 3, 2 ), "its last" );
 		CollectionAssert.AreEqual( new byte[4], At( 0, 0 ), "outside the rectangle, untouched" );
-		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
 		Assert.AreEqual( 0, borealis.ValidationErrors );
 	}
 
@@ -326,7 +323,6 @@ public class BorealisGpuTexturesTest
 			RenderBackend.SetDefault( previous );
 		}
 
-		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
 		Assert.AreEqual( 0, borealis.ValidationErrors );
 	}
 
@@ -347,7 +343,6 @@ public class BorealisGpuTexturesTest
 		var expected = (Borealis.Backend.BackendTexture)borealis.Services.MaterialTexture( material.ResourcePath, "g_tSkyTexture" );
 		Assert.IsNotNull( expected );
 		Assert.AreEqual( expected.Handle, borealis.TextureOf( texture ) );
-		Assert.AreEqual( 0, borealis.CopiedFromSource2, "nothing was read back from Source 2" );
 	}
 
 	/// <summary>
@@ -360,10 +355,8 @@ public class BorealisGpuTexturesTest
 		RequireVulkan();
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
-		var hadDevice = Graphics.HasSource2Device;
 		var previous = RenderBackend.Default;
 		RenderBackend.SetDefault( borealis );
-		Graphics.HasSource2Device = false;
 		try
 		{
 			var buffer = new GpuBuffer<uint>( 4 );
@@ -382,7 +375,6 @@ public class BorealisGpuTexturesTest
 		}
 		finally
 		{
-			Graphics.HasSource2Device = hadDevice;
 			RenderBackend.SetDefault( previous );
 		}
 
@@ -396,6 +388,8 @@ public class BorealisGpuTexturesTest
 	[TestMethod]
 	public void NextFrameStartsTheServicesFrame()
 	{
+		RequireVulkan();
+
 		// A device of its own: no Source 2 renderer needed
 		using var borealis = BorealisGpuRenderBackend.Create();
 
@@ -412,6 +406,8 @@ public class BorealisGpuTexturesTest
 	[TestMethod]
 	public void VolumesAreThreeDimensional()
 	{
+		RequireVulkan();
+
 		// A device of its own: the volumes are made from their descriptions, whatever Source 2's device is
 		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 

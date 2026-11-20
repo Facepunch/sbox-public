@@ -1,0 +1,8 @@
+{
+  "Prefab": "entities/sents/dynamite.prefab",
+  "Title": "#entity.name.dynamite",
+  "Description": "#asset.dynamite.description",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

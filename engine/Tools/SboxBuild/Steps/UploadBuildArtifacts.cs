@@ -225,7 +225,6 @@ internal class UploadBuildArtifacts
 	{
 		"game/addons/citizen/Assets/",
 		"game/addons/content/Assets/",
-		"game/mount/"
 	};
 
 	internal ExitCode Run()
@@ -303,7 +302,7 @@ internal class UploadBuildArtifacts
 	/// include/exclude globs (see <see cref="IncludeGlobs"/> / <see cref="ExcludeGlobs"/>)
 	/// to the <c>game/</c> folder.
 	/// </summary>
-	private static List<(string EntryPath, string AbsolutePath)> CollectRunnableFiles( string repoRoot )
+	internal static List<(string EntryPath, string AbsolutePath)> CollectRunnableFiles( string repoRoot )
 	{
 		var gameRoot = Path.Combine( repoRoot, "game" );
 		if ( !Directory.Exists( gameRoot ) )

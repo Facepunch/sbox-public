@@ -1,0 +1,29 @@
+@import "/UI/Theme.scss";
+
+AmmoPickupRow
+{
+	align-items: center;
+	gap: 10px;
+	padding: 8px 14px;
+	background-color: $hud-element-bg;
+	border-radius: $hud-radius-sm;
+	font-family: $subtitle-font;
+	color: $color-text;
+	font-size: 16px;
+	font-weight: 600;
+	opacity: 1;
+	transform: translateX( 0px );
+	animation: ammo-pickup-in 0.25s ease-out 1;
+	transition: opacity 0.2s ease, transform 0.2s ease;
+
+	.amount { color: $color-accent; font-weight: 700; }
+	.icon { width: 22px; height: 22px; background-tint: $color-accent; }
+
+	&:outro { animation: none; opacity: 0; transform: translateX( 12px ); }
+}
+
+@keyframes ammo-pickup-in
+{
+	0% { opacity: 0; transform: translateX( 100% ) translateX( $deadzone-x ); }
+	100% { opacity: 1; transform: translateX( 0px ); }
+}

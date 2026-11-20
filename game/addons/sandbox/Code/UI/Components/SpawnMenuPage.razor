@@ -1,0 +1,21 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    @if ( Left != null )
+    {
+        <div class="left">@Left</div>
+    }
+
+    <div class="body">@Body</div>
+</root>
+
+@code
+{
+
+    [Parameter] public RenderFragment Left { get; set; }
+    [Parameter] public RenderFragment Body { get; set; }
+
+}

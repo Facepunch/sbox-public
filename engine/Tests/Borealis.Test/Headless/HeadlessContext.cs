@@ -110,14 +110,7 @@ internal sealed class HeadlessContext : GpuContext
 		Record( Command( GpuOp.WriteViewSet ) with { Parameters = snapshot } );
 	}
 
-	public override void Submit( GpuSwapChain swapChain = default )
-	{
-		if ( !recording ) return;
-		device.BeginSubmitting( swapChain );
-		SubmitNext();
-	}
-
-	public override void SubmitNext()
+	public override void Submit()
 	{
 		if ( !recording ) return;
 
@@ -284,12 +277,12 @@ internal sealed class HeadlessContext : GpuContext
 		return true;
 	}
 
-	public override void CopyToSwapChain( in RenderOutput output, Rect viewport )
+	public override void CopyToOutput( in RenderOutput output, Rect viewport )
 	{
-		if ( !output.HasCopy ) return;
+		if ( output.Texture is not { } texture ) return;
 
 		Invalidate();
-		var destination = output.Texture is { } texture ? output.Scratch ?? texture : device.SwapChainColor( output.SwapChain );
+		var destination = output.Scratch ?? texture;
 		Record( Command( GpuOp.CopyToOutput ) with { Texture = destination, Source = output.Target.Resolved } );
 	}
 
@@ -299,12 +292,6 @@ internal sealed class HeadlessContext : GpuContext
 		{
 			srgbWrite = !texture.Format.IsFloat();
 			return output.Scratch ?? texture;
-		}
-
-		if ( output.SwapChain.IsValid )
-		{
-			srgbWrite = true;
-			return device.SwapChainColor( output.SwapChain );
 		}
 
 		srgbWrite = output.Target.SrgbWrite;

@@ -1,0 +1,28 @@
+{
+  "guid": "9ed601f9-5f88-4d75-bb21-bd58b41bc42c",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Trash Pile A",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "trashpilea",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/trash_pile_a/trash_pile_a.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

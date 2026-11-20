@@ -3,7 +3,7 @@ namespace Sandbox.Rendering;
 /// <summary>
 /// A frame's plan as the managed scene renderer made it - which layers ran, why the rest didn't, what each made and read,
 /// and how recording split across threads - for the frame plan on the dev tools's Rendering tab (<c>DebugOverlay.ScenePlan</c>).
-/// The renderer publishes one for each frame it draws into a swap chain while something wants it (<see cref="Wanted"/>).
+/// The renderer publishes one for each frame it draws into a window while something wants it (<see cref="Wanted"/>).
 /// </summary>
 internal sealed class ManagedFramePlan
 {
@@ -32,7 +32,7 @@ internal sealed class ManagedFramePlan
 	/// </summary>
 	public static bool Due => Wanted && RealTime.Now - publishedAt >= Interval;
 
-	// The tag, handover time, engine frame and camera of the frames recently drawn into a swap chain, oldest overwritten
+	// The tag, handover time, engine frame and camera of the frames recently drawn into a window, oldest overwritten
 	// first, while a plan is wanted. Tags start at 1, so 0 is no tag
 	static readonly (long Tag, long Ticks, ulong Frame, object Camera)[] handedOver = new (long, long, ulong, object)[64];
 	static int handedOverNext;
@@ -52,7 +52,7 @@ internal sealed class ManagedFramePlan
 	public static long SubmitDelayTicks( object camera ) => camera is not null && submitDelays.TryGetValue( camera, out var delay ) ? delay.Value : 0;
 
 	/// <summary>
-	/// The renderer handed the frame of <paramref name="camera"/> (its view), drawn into a swap chain, over for submitting
+	/// The renderer handed the frame of <paramref name="camera"/> (its view), drawn into a window, over for submitting
 	/// at <paramref name="ticks"/>. Returns the tag to submit it with (<c>IRenderDevice::SetSubmitTag</c>), which comes
 	/// back on its GPU frame's host submits, or 0 when nothing wants plans.
 	/// </summary>

@@ -41,6 +41,7 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 			var result = RunShaderCompiler( shaderCompilerPath, gameDir );
 			if ( result == ExitCode.Success ) CompileGpuDriven( shaderCompilerPath, gameDir );
 			if ( result == ExitCode.Success ) CompileSlang( shaderCompilerPath, gameDir );
+			if ( result == ExitCode.Success && !CheckShaderIncludes.Check( rootDir ) ) result = ExitCode.Failure;
 			return result;
 		}
 		catch ( Exception ex )

@@ -282,11 +282,7 @@ public class AppSystem
 		TextRendering.Shutdown();
 		NativeResourceCache.ClearCache();
 
-		// Renderpipeline may hold onto native resources, clear them out
-		RenderPipeline.Shutdown();
-		ShadowMapperCallbacks.Shutdown();
-
-		// So may Borealis, on a Borealis.Gpu device
+		// Borealis holds GPU resources on its Borealis.Gpu device
 		Rendering.SceneRenderer.Shutdown();
 
 		// Destroy all cached render targets immediately — must happen before
@@ -309,6 +305,9 @@ public class AppSystem
 		// will run during shutdown so these would otherwise leak.
 		EngineLoop.DrainFrameEndDisposables();
 		MainThread.RunQueues();
+
+		// No more frames: the game window's frame target goes now, not after the leak check with the window
+		gameWindow?.ReleaseFrameTarget();
 
 		// Run GC and finalizers to clear any resources held by managed
 		GC.Collect();

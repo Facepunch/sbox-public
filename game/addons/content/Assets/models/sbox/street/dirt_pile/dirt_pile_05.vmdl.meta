@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Dirt Pile 05",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "dirtpile_05",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/dirt_pile/dirt_pile_05.vmdl"
+      }
+    }
+  },
+  "guid": "c4d31f8c-ce62-4ac6-8e1d-deeb63ef1281"
+}

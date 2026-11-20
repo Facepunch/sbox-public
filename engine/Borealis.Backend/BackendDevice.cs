@@ -495,6 +495,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Gpu = gpu;
 		SurfacePassBindings = !HasSwitch( "-no-pass-bindings" );
 		Content = content ?? ContentFiles.FindGame();
+		CheckRecords( Content );
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
 		Shaders.Modules = Passes;
@@ -515,6 +516,26 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			GpuDrivenGeometry = true;
 			GpuDriven = true;
 		}
+	}
+
+	/// <summary>
+	/// Throw when the core shaders' record definitions (<c>sbox/records.slangh</c>) or the offsets made from them
+	/// (<c>borealis_records.fxc</c>) aren't what this build's record structs (Records.g.cs) were generated from: the
+	/// backend would write records its shaders read at other offsets, which reads garbage on the GPU or loses the device.
+	/// Nothing where the content has no definitions.
+	/// </summary>
+	internal static void CheckRecords( ContentFiles content )
+	{
+		var core = content.Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", Sandbox.ShaderCompiler.RecordDefinitions.File ) ) );
+		if ( core is null ) return;
+
+		var shaders = Path.Combine( core, "shaders" );
+		var definitions = Sandbox.ShaderCompiler.RecordDefinitions.HashOf( File.ReadAllText( Path.Combine( shaders, Sandbox.ShaderCompiler.RecordDefinitions.File ) ) );
+		var header = Path.Combine( shaders, Sandbox.ShaderCompiler.RecordWriter.HlslFile );
+		string problem = null;
+		if ( definitions != RecordDefinitionsHash.Value ) problem = $"{Sandbox.ShaderCompiler.RecordDefinitions.File} (hash {definitions}) isn't what this build's record structs were generated from ({RecordDefinitionsHash.Value})";
+		else if ( !File.Exists( header ) || !File.ReadAllText( header ).Contains( $"Definitions hash {definitions}.", StringComparison.Ordinal ) ) problem = $"{Sandbox.ShaderCompiler.RecordWriter.HlslFile} wasn't generated from {Sandbox.ShaderCompiler.RecordDefinitions.File}";
+		if ( problem is not null ) throw new InvalidOperationException( $"Borealis records: {problem}. Run ShaderCompiler -records in the game folder (build-shaders does), then build managed." );
 	}
 
 	/// <summary>
@@ -612,7 +633,22 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool GeneratedLods { get; set; } = !HasSwitch( "-no-lodgen" );
 
-	/// <summary>Room index pages keep for generated levels, as a fraction of their meshes' indices.</summary>
+	/// <summary>
+	/// Whether resident meshes of models without LODs of their own get generated levels too, as aggregate fragments do (on);
+	/// <c>-no-mesh-lodgen</c> leaves them whole, for comparisons.
+	/// </summary>
+	public bool MeshLods { get; set; } = !HasSwitch( "-no-mesh-lodgen" );
+
+	/// <inheritdoc/>
+	internal override float LevelPixels => MeshLods && LodStore is not null ? LodPixels : 0;
+
+	/// <inheritdoc/>
+	internal override int LevelsVersion => lodStore?.PublishVersion ?? 0;
+
+	/// <summary>
+	/// Room index pages keep for generated levels, as a fraction of the indices of the draws that may get them (draws of
+	/// enough triangles in models without LODs of their own).
+	/// </summary>
 	public static float LodLevelRoom { get; set; } = 0.75f;
 
 	/// <summary>The error a generated level may have, in pixels at the fragment's nearest point (texels in a texel-sized cascade); <c>-lodgen-pixels</c>.</summary>
@@ -679,7 +715,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			if ( lodStore is not { } s ) return GeneratedLods ? "generated LODs: none (meshopt not found or no GPU-driven geometry)" : "generated LODs: off";
 			var (room, used) = gpuDrivenTables.LevelBytes;
-			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB of {room / 1048576.0:0.0} MB of room, tables {s.Bytes / 1048576.0:0.0} MB; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
+			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB ({room / 1048576.0:0.0} MB still kept for levels), tables {s.Bytes / 1048576.0:0.0} MB; {gpuDrivenTables.DescribeIndexPages()}; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
 		}
 	}
 
@@ -724,7 +760,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		Shaders.GpuDrivenCache = Path.Combine( game, ".source2", "borealisgpudriven" );
 		// The variant's form, the wrapper it appends and the vfx_vulkan that rewrites it: a stale variant from an older
 		// rewriter, whose record offsets may not be the ones the backend writes, can read a bindless index out of range
-		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "borealis_gpu_driven.fxc" ) ) ), 0, 8 );
+		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "borealis_gpu_driven.fxc" ) ) ), 0, 8 ) + RecordDefinitionsHash.Value[..8];
 		var vfx = new FileInfo( Path.Combine( AppContext.BaseDirectory, "..", EngineFolders.Native, EngineFolders.Library( "vfx_vulkan" ) ) );
 		var rewriter = vfx.Exists ? $".{vfx.Length:x}.{vfx.LastWriteTimeUtc.Ticks:x}" : "";
 		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}{rewriter}";
@@ -2937,12 +2973,6 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public override Vector4 MorphSubrect( int handle ) => Morphs.Subrect( handle );
 
 	/// <inheritdoc/>
-	public override void BeginSubmitting( GpuSwapChain swapChain ) { }
-
-	/// <inheritdoc/>
-	public override void SetSubmitTag( ulong tag ) { }
-
-	/// <inheritdoc/>
 	public override float RenderTime => (float)clock.Elapsed.TotalSeconds;
 
 	/// <inheritdoc/>
@@ -2962,9 +2992,6 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			if ( constantBuffers.Remove( buffer, out var handle ) ) Gpu.Destroy( handle );
 		}
 	}
-
-	/// <inheritdoc/>
-	public override int SwapChainSamples( GpuSwapChain swapChain ) => 1;
 
 	//
 	// Semaphores: Borealis's binary semaphores become points on Borealis.Gpu's queue timelines

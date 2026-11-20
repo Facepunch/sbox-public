@@ -244,7 +244,7 @@ internal sealed partial class MeshRenderFeature
 			skinningFrame = null;
 		}
 
-		if ( submit ) skinningContext.SubmitNext();
+		if ( submit ) skinningContext.Submit();
 		else skinningContext.End();
 	}
 

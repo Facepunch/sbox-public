@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "{input:SpawnMenu}を長押ししてスポーンメニューを開く",
+    "hint.openinspectmenu": "{input:InspectMenu}を長押しして検査メニューを開く",
+    "hint.openpausemenu": "ESCを押してポーズメニューを開き、コントロールを確認してください"
+}

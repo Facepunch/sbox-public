@@ -171,6 +171,7 @@ public sealed unsafe partial class Device
 		if ( !pipelineLibraries || !options.PipelinePartManifest || options.PipelineCacheFolder is not { } folder ) return;
 		partManifest = new PipelinePartManifest( System.IO.Path.Combine( folder, "pipeline-parts.txt" ) );
 		spirvFolder = System.IO.Path.Combine( folder, "spirv" );
+		queueingRecordedParts = options.QueueingRecordedParts;
 
 		// Vertex input and output parts need no shader: made now, before any draw
 		foreach ( var entry in partManifest.TakeUnshaded() ) QueueRecorded( entry, default );
@@ -185,6 +186,7 @@ public sealed unsafe partial class Device
 	// SPIR-V of shaders the manifest has parts of, by hash (spirv/<hash>.spv beside it), and the modules made from it
 	string spirvFolder;
 	Task spirvLoad;
+	Action<UInt128> queueingRecordedParts;
 	readonly HashSet<UInt128> spirvKept = new();
 
 	string SpirvPath( UInt128 hash ) => System.IO.Path.Combine( spirvFolder, $"{hash:x32}.spv" );
@@ -288,7 +290,9 @@ public sealed unsafe partial class Device
 	/// <summary>The manifest's parts made from a shader with this SPIR-V, queued for the builder threads with this module.</summary>
 	void QueueRecordedParts( ShaderHandle shader, UInt128 hash )
 	{
-		if ( partManifest?.Take( hash ) is not { } entries ) return;
+		if ( partManifest is null ) return;
+		queueingRecordedParts?.Invoke( hash );
+		if ( partManifest.Take( hash ) is not { } entries ) return;
 		foreach ( var entry in entries ) QueueRecorded( entry, shader );
 	}
 
@@ -413,10 +417,28 @@ public sealed unsafe partial class Device
 		return sets;
 	}
 
-	/// <summary>Wait until nothing is queued or being made on the builder threads, or the timeout passes. For tests and measuring.</summary>
+	/// <summary>
+	/// Wait until the modules made from the part manifest's kept SPIR-V have queued their parts and nothing is queued or
+	/// being made on the builder threads, or the timeout passes. For tests and measuring.
+	/// </summary>
 	public bool WaitForPendingPipelines( TimeSpan timeout )
 	{
 		var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+
+		// The loader queues a module's parts after making it, on its own thread: a module made meanwhile with the same SPIR-V
+		// finds it made and queues nothing, so until the loader is done the queues can be empty with parts still to come
+		if ( spirvLoad is { } load )
+		{
+			try
+			{
+				if ( !load.Wait( (int)Math.Clamp( deadline - Environment.TickCount64, 0, int.MaxValue ) ) ) return false;
+			}
+			catch ( AggregateException )
+			{
+				// Reported where the loader's work is used
+			}
+		}
+
 		lock ( buildQueue )
 		{
 			while ( urgentQueue.Count + buildQueue.Count + prepareQueue.Count + speculativeQueue.Count + building > 0 )
@@ -506,16 +528,19 @@ public sealed unsafe partial class Device
 
 		ulong pipeline;
 		LinkedParts parts = null;
+		var optimised = false;
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		using ( Zone( ZonePipeline ) )
 		{
 			if ( UsesLibraries( info ) )
 			{
 				parts = AcquireParts( info, layout );
+				optimised = LinksOptimisedAtOnce( info );
 				try
 				{
-					pipeline = Link( parts, layout, optimise: false );
+					pipeline = Link( parts, layout, optimised );
 					Interlocked.Increment( ref linksMade );
+					if ( optimised ) Interlocked.Increment( ref optimisedMade );
 				}
 				catch
 				{
@@ -541,6 +566,7 @@ public sealed unsafe partial class Device
 				ref var record = ref Pipelines.Get( handle.Index, handle.Generation );
 				record.Parts = parts;
 				record.Pending = false;
+				record.Optimised = optimised;
 				Volatile.Write( ref record.Pipeline, pipeline );
 			}
 			else
@@ -560,7 +586,7 @@ public sealed unsafe partial class Device
 		}
 
 		Interlocked.Increment( ref deferredMade );
-		if ( alive && parts is not null ) QueueOptimise( handle, parts, layout );
+		if ( alive && parts is not null && !optimised ) QueueOptimise( handle, parts, layout );
 	}
 
 	/// <summary>Stop the builder threads, finishing what they're making; what's still queued isn't made.</summary>

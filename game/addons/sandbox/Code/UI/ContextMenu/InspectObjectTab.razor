@@ -1,0 +1,149 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@attribute [InspectWindow.Tab( InspectWindow.Corner.BottomRight )]
+@attribute [Icon( "📦" )]
+@attribute [Title( "#spawnmenu.inspect.prop_inspector" )]
+@attribute [Order( 100 )]
+
+<root>
+
+	@if ( ShowTabBar )
+	{
+		<div class="tab-bar">
+			@foreach ( var entry in _editors.Where( e => e.WasVisible ) )
+			{
+				var e = entry;
+				<div class="tab @( _active == e ? "active" : "" )" @onclick="@(() => SetActive( e ))">
+					@e.Editor.Title
+				</div>
+			}
+		</div>
+	}
+
+	@if ( _editors?.Any( e => e.WasVisible ) == false )
+	{
+		<div class="empty-state">#spawnmenu.inspect.nothing_to_edit</div>
+	}
+
+	<div class="window-stack" @ref=_windowStack></div>
+
+</root>
+
+@code
+{
+    Panel _windowStack = default;
+
+    record EditorEntry( IInspectorEditor Editor )
+    {
+        public bool WasVisible { get; set; }
+    }
+    List<EditorEntry> _editors;
+    EditorEntry _active;
+
+    Inspector Inspector => Ancestors.OfType<ContextMenuHost>().FirstOrDefault()?.Inspector;
+
+    IReadOnlyCollection<GameObject> Selected => Inspector?.Selected ?? [];
+
+    // a single editor of a single object is already named by the tab of this page
+    bool ShowTabBar => _editors?.Count( e => e.WasVisible ) > 1 || Selected.Count > 1;
+
+    void InitEditors()
+    {
+        if ( _editors != null || _windowStack == null ) return;
+        _editors = new();
+
+        var types = TypeLibrary.GetTypesWithAttribute<InspectorEditorAttribute>()
+            .OrderByDescending( x => x.Type.GetAttribute<OrderAttribute>()?.Value ?? 0 )
+            .ThenBy( t => t.Attribute.Type is null ? 1 : 0 )
+            .ToList();
+
+        foreach ( var (typeDesc, attr) in types )
+        {
+            var editor = typeDesc.Create<IInspectorEditor>();
+            if ( editor is not Panel editorPanel ) continue;
+
+            editorPanel.AddClass( "window" );
+            editorPanel.SetClass( "hidden", true );
+            _windowStack.AddChild( editorPanel );
+
+            _editors.Add( new EditorEntry( editor ) );
+        }
+        StateHasChanged();
+    }
+
+    void AttachEditors()
+    {
+        if ( _windowStack == null ) return;
+
+        foreach ( var entry in _editors ?? [] )
+        {
+            if ( entry.Editor is Panel editorPanel )
+                _windowStack.AddChild( editorPanel );
+        }
+    }
+
+    void SetActive( EditorEntry entry )
+    {
+        _active = entry;
+        ApplyVisibility();
+        StateHasChanged();
+    }
+
+    void ApplyVisibility()
+    {
+        foreach ( var e in _editors )
+            (e.Editor as Panel)?.SetClass( "hidden", !( e.WasVisible && e == _active ) );
+    }
+
+    HashSet<GameObject> _lastSelected = new();
+
+    void UpdateEditors()
+    {
+        if ( _editors == null ) return;
+
+        bool changed = false;
+
+        foreach ( var entry in _editors )
+        {
+            bool visible = entry.Editor.TrySetTarget( Selected.ToList() );
+            if ( visible != entry.WasVisible ) changed = true;
+            entry.WasVisible = visible;
+        }
+
+        if ( !_lastSelected.SetEquals( Selected ) )
+        {
+            changed = true;
+            _lastSelected = Selected.ToHashSet();
+        }
+
+        if ( changed )
+        {
+            var visible = _editors.Where( e => e.WasVisible ).ToList();
+            if ( _active == null || !_active.WasVisible )
+                _active = visible.LastOrDefault();
+
+            ApplyVisibility();
+            StateHasChanged();
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Selected.Count, _active, _editors?.Count( e => e.WasVisible ) );
+
+    public override void Tick()
+    {
+        InitEditors();
+        UpdateEditors();
+    }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( _editors == null ) return;
+
+        AttachEditors();
+        ApplyVisibility();
+    }
+}

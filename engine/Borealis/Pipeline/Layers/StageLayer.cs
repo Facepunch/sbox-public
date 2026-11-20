@@ -89,7 +89,7 @@ internal sealed class OutputLayer : RenderLayer
 	{
 		frame.BindFrame( rc );
 		rc.Resolve( frame.Output );
-		rc.CopyToSwapChain( frame.Output, frame.View.Viewport );
+		rc.CopyToOutput( frame.Output, frame.View.Viewport );
 	}
 }
 

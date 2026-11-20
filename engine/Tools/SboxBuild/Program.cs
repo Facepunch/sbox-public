@@ -25,6 +25,7 @@ internal class Program
 		AddBuildContentCommand( rootCommand );
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
+		AddCheckShaderIncludesCommand( rootCommand );
 		AddShaderStatsCommand( rootCommand );
 		AddBorealisRenderTestsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
@@ -47,9 +48,6 @@ internal class Program
 		AddPublishBuildCommand( rootCommand );
 		AddSummaryCommand( rootCommand );
 		AddShaderSpecializationExperimentCommand( rootCommand );
-		var complexSpecialization = new Command( "test-complex-specialization", "Compare full complex.shader macro/specialized compiles and rendered bent-normal output (requires built engine/tests)" );
-		complexSpecialization.SetHandler( () => Environment.ExitCode = (int)new TestComplexSpecialization().Run() );
-		rootCommand.Add( complexSpecialization );
 		AddNotifySlackCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
@@ -182,6 +180,13 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new BuildShaders( forced, seed ).Run();
 		}, forcedOption, seedOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddCheckShaderIncludesCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "check-shader-includes", "Check that every shipped Slang shader's includes are in a player's install, and that none reaches Valve's headers" );
+		cmd.SetHandler( () => Environment.ExitCode = (int)CheckShaderIncludes.Run() );
 		rootCommand.Add( cmd );
 	}
 

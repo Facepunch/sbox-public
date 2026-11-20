@@ -1,0 +1,58 @@
+@import "/UI/Theme.scss";
+
+UIDropdownList.popup-panel
+{
+	flex-direction: column;
+	margin-top: -1px;
+	padding: 0;
+	overflow: hidden;
+	background-color: $ui-popup-bg;
+	border: 1px solid $ui-control-border;
+	border-radius: 0;
+	box-shadow: none;
+	transition: none;
+	font-family: "Inter";
+	z-index: 10001; // above the modal popups (Popup.scss)
+
+	.option
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		height: 24px;
+		padding: 0 7px;
+		font-size: $ui-settings-font;
+		font-weight: 500;
+		color: $ui-text;
+		cursor: pointer;
+
+		&.alt
+		{
+			background-color: $ui-popup-hover;
+		}
+
+		&:hover
+		{
+			background-color: rgba( $ui-blue, 0.3 );
+			sound-in: ui.hover;
+		}
+
+		&.active
+		{
+			@include ui-selected;
+		}
+	}
+}
+
+UIDropdownList.popup-panel.big .option
+{
+	height: 26px;
+	font-size: 12px;
+}
+
+UIDropdownList.popup-panel:outro
+{
+	margin-top: -1px;
+	opacity: 0;
+	transition: opacity 0.1s ease-in;
+}

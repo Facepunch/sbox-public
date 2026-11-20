@@ -86,11 +86,6 @@ public sealed partial class RenderSystem : IDisposable
 	internal TransformBuffer Transforms => transforms;
 
 	/// <summary>
-	/// Swap chain used only for GPU timing of texture renders. Must be named by the first submission.
-	/// </summary>
-	internal GpuSwapChain TimingSwapChain { get; set; }
-
-	/// <summary>
 	/// Statistics from the last render.
 	/// </summary>
 	public RenderStats Stats { get; private set; }
@@ -162,14 +157,6 @@ public sealed partial class RenderSystem : IDisposable
 	internal const float MainWorldMinZ = 0.02f;
 
 	/// <summary>
-	/// Render a view of a world into a swap chain, and submit it. The caller presents.
-	/// </summary>
-	internal void Render( RenderWorld world, RenderView view, GpuSwapChain swapChain, Vector2 targetSize, IRenderStages stages = null )
-	{
-		Render( world, view, RenderOutput.ForSwapChain( SwapChainTarget( swapChain, targetSize ), swapChain ), stages );
-	}
-
-	/// <summary>
 	/// The depth format its views draw into: 32-bit float (reverse-Z), with an 8-bit stencil once something it drew needed
 	/// one (<see cref="GpuMaterial.NeedsStencil"/>), or always on a device that can't tell (<see cref="GpuDevice.KnowsStencilUse"/>).
 	/// A view whose prepared draws need a stencil gets it before it records (<see cref="GiveStencil"/>) and keeps it, so
@@ -205,24 +192,6 @@ public sealed partial class RenderSystem : IDisposable
 
 		target.GiveStencil();
 	}
-
-	/// <summary>
-	/// HDR intermediate matching swap-chain size and MSAA, with depth of <see cref="DepthFormat"/> (<c>intermediate_color_stereo_rt</c>).
-	/// </summary>
-	ViewTarget SwapChainTarget( GpuSwapChain swapChain, Vector2 size )
-	{
-		var pixels = new Vector2Int( (int)size.x, (int)size.y );
-		var samples = RenderOutput.SwapChainSamples( swapChain );
-		if ( swapChainTarget is { } existing && existing.Size == pixels && existing.Samples == samples )
-			return existing;
-
-		// The device retains resources used by in-flight frames.
-		swapChainTarget?.Dispose();
-		swapChainTarget = ViewTarget.Create( pixels, samples, TextureFormat.RGBA16161616F, DepthFormat, "Borealis swap chain" );
-		return swapChainTarget;
-	}
-
-	ViewTarget swapChainTarget;
 
 	/// <summary>
 	/// Blend in an HDR intermediate, then copy to the texture for final stages (<c>CCameraRenderer::RenderToLayer</c>).
@@ -306,14 +275,16 @@ public sealed partial class RenderSystem : IDisposable
 	}
 
 	/// <summary>
-	/// Render into a target, drawing <paramref name="stages"/> at native's stage points.
+	/// Render into a target, drawing <paramref name="stages"/> at native's stage points. A frame shown in a window
+	/// (<paramref name="window"/>) gives the host its plan and debug views' report (<see cref="RenderOutput.Window"/>).
 	/// </summary>
-	internal void Render( RenderWorld world, RenderView view, ViewTarget target, IRenderStages stages )
+	internal void Render( RenderWorld world, RenderView view, ViewTarget target, IRenderStages stages, bool window = false )
 	{
 		ArgumentNullException.ThrowIfNull( target );
 		if ( target.Color is null ) throw new ObjectDisposedException( nameof( ViewTarget ) );
 
-		Render( world, view, view.FlipX || view.FlipY ? FlippedOutput( target, view ) : RenderOutput.ForTarget( target ), stages );
+		var output = view.FlipX || view.FlipY ? FlippedOutput( target, view ) : RenderOutput.ForTarget( target );
+		Render( world, view, output with { Window = window }, stages );
 	}
 
 	void Render( RenderWorld world, RenderView view, in RenderOutput output, IRenderStages stages = null )
@@ -345,6 +316,7 @@ public sealed partial class RenderSystem : IDisposable
 		view.Update();
 		frame.Begin( world, view, output, stages );
 		BloomObjects = null;
+		ReactiveDepth = null;
 
 		var allocStart = GC.GetAllocatedBytesForCurrentThread();
 		var start = Stopwatch.GetTimestamp();
@@ -386,8 +358,8 @@ public sealed partial class RenderSystem : IDisposable
 		var host = RenderHost.Current;
 		recorder.Plan( frame, ParallelRecording, host.AsyncCompute );
 
-		// The dev tools's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
-		var plan = host.WantsFramePlan && output.SwapChain.IsValid ? recorder.Snapshot( view.Name ) : null;
+		// The dev tools's frame plan: frames drawn into a window show their plan, published with its times
+		var plan = host.WantsFramePlan && output.Window ? recorder.Snapshot( view.Name ) : null;
 		recorder.Measuring = plan is not null;
 		if ( plan is not null )
 		{
@@ -435,19 +407,10 @@ public sealed partial class RenderSystem : IDisposable
 			using var _ = Zones.Submit.Start();
 			var handedOver = Stopwatch.GetTimestamp();
 
-			// The submission carries a tag through the render thread to the GPU's timings, so the dev tools can pair a
-			// GPU frame with the plan of the frame that made it
-			var tag = output.SwapChain.IsValid ? host.Submitting( handedOver, view ) : 0;
+			// When the window's frame was handed over, so the dev tools can place its plan on their timeline
+			var tag = output.Window ? host.Submitting( handedOver, view ) : 0;
 			if ( plan is not null ) { plan.SubmitTicks = handedOver; plan.SubmitTag = tag; plan.View = view; }
-			RenderHost.Current.Device.SetSubmitTag( (ulong)tag );
-			try
-			{
-				recorder.Submit( output.SwapChain.IsValid ? output.SwapChain : TimingSwapChain );
-			}
-			finally
-			{
-				RenderHost.Current.Device.SetSubmitTag( 0 );
-			}
+			recorder.Submit();
 			submitted = true;
 			shadows.Submitted();
 			skybox?.shadows.Submitted();
@@ -508,7 +471,7 @@ public sealed partial class RenderSystem : IDisposable
 		host.Rendered( stats );
 
 		// Copied, so the frames this system renders into textures don't change what the host shows
-		if ( frame.DebugViews != DebugViews.None && output.SwapChain.IsValid )
+		if ( frame.DebugViews != DebugViews.None && output.Window )
 		{
 			DebugReport.CopyTo( publishedReport );
 			host.PublishDebugViews( publishedReport );
@@ -657,6 +620,12 @@ public sealed partial class RenderSystem : IDisposable
 	/// none: what a camera's bloom effect after the frame adds. Valid until this system renders again.
 	/// </summary>
 	internal GpuTexture BloomObjects { get; set; }
+
+	/// <summary>
+	/// The overlays' depth the last frame drew for a temporal upscaler's reactive mask (<see cref="ReactiveDepthLayer"/>), the
+	/// size of its output, or null when it drew none. Valid until this system renders again.
+	/// </summary>
+	internal GpuTexture ReactiveDepth { get; set; }
 
 	/// <summary>
 	/// Milliseconds since the last lap, starting the next.
@@ -868,8 +837,6 @@ public sealed partial class RenderSystem : IDisposable
 		skybox = null;
 		shadows.Dispose();
 		fog.Dispose();
-		swapChainTarget?.Dispose();
-		swapChainTarget = null;
 		textureTarget?.Dispose();
 		textureScratch?.Dispose();
 		textureTarget = null;

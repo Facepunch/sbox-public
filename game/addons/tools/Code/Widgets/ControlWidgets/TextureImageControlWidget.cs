@@ -77,7 +77,7 @@ public class TextureImageControlWidget : ControlWidget
 		{
 			var textRect = rect.Shrink( 0, 3 );
 
-			bool isPackage = !resource.Contains( ".vmap" ) && Package.TryParseIdent( resource, out _ );
+			bool isPackage = !resource.Contains( ".vmap" ) && Package.TryParseIdentParts( resource, out _ );
 			if ( !isPackage )
 			{
 				Paint.SetBrush( Theme.Red.Darken( 0.8f ) );

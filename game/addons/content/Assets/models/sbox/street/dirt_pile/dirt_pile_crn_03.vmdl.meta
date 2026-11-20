@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Dirt Pile Corner 03",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "dirtpile_crn_03",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/dirt_pile/dirt_pile_crn_03.vmdl"
+      }
+    }
+  },
+  "guid": "5721615e-6d8b-4698-a62f-4e2fe850761c"
+}

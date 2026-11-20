@@ -28,7 +28,7 @@ Feature( F_NO_CULLING, 0..1 );
 #include "system.fxc" // This should always be the first include in COMMON
 #include "vr_common.fxc"
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct VS_INPUT
@@ -169,7 +169,7 @@ float4 SnapToScreenPixels( float4 vPositionPs )
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "encoded_normals.fxc"
+#include "sbox/encoding.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 DynamicCombo( D_NO_ZTEST, 0..1, Sys( ALL ) );

@@ -1,0 +1,28 @@
+{
+  "guid": "59d7756a-5a01-4250-b75c-a1e242715a3d",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Dirt Pile 01B",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "dirtpile01b",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/dirt_pile/dirt_pile_01b.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

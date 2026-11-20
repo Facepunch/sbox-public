@@ -1,0 +1,27 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wiring Junction Small",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "wiring_junction_small",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/wiring/wiring_junction_small.vmdl",
+        "Summary": "",
+        "Description": "",
+        "Public": true,
+        "ParentPackage": "facepunch.sbox_content",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "4c25fc70-d95d-4712-8649-c38a9b072f92"
+}

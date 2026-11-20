@@ -1,0 +1,29 @@
+{
+  "guid": "28d1f11d-38a6-4e91-9557-7b6000a572d9",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Spaghellim 4 C",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_spaghellim4_c",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/shotgun/materials/v_spaghellim4_c.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "guid": "a1994be6-7293-407d-865c-184546d76671",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Ranged Sight",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_ranged_sight",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m700/materials/v_ranged_sight.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

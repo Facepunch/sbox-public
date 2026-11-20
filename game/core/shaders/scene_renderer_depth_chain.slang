@@ -42,7 +42,7 @@ struct VS_OUTPUT
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_PS )
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "common/classes/Depth.hlsl"
 
 RenderState( DepthEnable, false );

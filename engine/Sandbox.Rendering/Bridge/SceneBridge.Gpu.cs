@@ -67,9 +67,10 @@ internal sealed partial class SceneBridge
 		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
 		gpuView.SetCamera( camera, viewport.Size );
 		gpuView.RenderSceneObject = null;
+		gpuView.LightingWorld = null;
 
 		// The main view outside the tools upscales as the player's settings ask, as native's does
-		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup, upscale: !Application.IsEditor && !camera.ToolsView );
+		var frame = camera.UIOnly || NotYetInBorealis( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup, upscale: !Application.IsEditor && !camera.ToolsView, inWindow: true );
 
 		// A frame on screen has drawn its world: a game's scene isn't loaded ahead any more (BeginFrame)
 		if ( frame is not null && !GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene ) ) RenderFor( camera.World ).Shown = true;
@@ -119,6 +120,7 @@ internal sealed partial class SceneBridge
 		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
 		gpuView.SetCamera( camera, viewport.Size );
 		gpuView.RenderSceneObject = null;
+		gpuView.LightingWorld = null;
 		RenderScene( backend, camera, size, samples, setup, upscale: !Application.IsEditor && !camera.ToolsView )?.Release();
 	}
 
@@ -165,8 +167,7 @@ internal sealed partial class SceneBridge
 	/// <summary>
 	/// A camera's output in the block being recorded, its target bound: the frame copied in (or the background, without one),
 	/// then the stages that draw over the finished frame. <paramref name="encode"/> is for an 8-bit target, bound through a
-	/// linear view: the copy and the UI write gamma-encoded output into it, as native's UI hook layers do over an sRGB swap
-	/// chain (ui_gamma_blend).
+	/// linear view: the copy and the UI write gamma-encoded output into it, so the UI blends in gamma space like a browser.
 	/// </summary>
 	void DrawOutput( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
 	{
@@ -252,15 +253,17 @@ internal sealed partial class SceneBridge
 	/// over that frame. Null if it couldn't render. With <paramref name="samples"/> over one the scene is multisampled, as the
 	/// game's anti-aliasing setting asks, and the stages get its resolved colour. With <paramref name="upscale"/> the player's
 	/// upscaler runs (<see cref="BorealisGpuUpscaler"/>): the scene and the stages up to the viewmodel's at the render size, the
-	/// rest at <paramref name="size"/>.
+	/// rest at <paramref name="size"/>. A scene shown in a window (<paramref name="inWindow"/>) gives the dev tools its frame plan
+	/// and the debug views their report.
 	/// </summary>
-	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup, bool upscale = false )
+	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup, bool upscale = false, bool inWindow = false )
 	{
 		// The view's viewport at the display size: the stages inside the scene's frame move it to theirs
 		var display = new Vector2Int( (int)size.x, (int)size.y );
 		var displayViewport = gpuView.Viewport;
 		var upscaler = upscale ? StateFor( camera, setup.ViewHash ).GpuUpscaler ??= new BorealisGpuUpscaler( backend ) : null;
-		var upscaling = upscaler?.Begin( display, allowed: true ) ?? false;
+		var upscaling = upscaler?.Begin( display, allowed: true, debugReactiveMask: gpuView.ToolsVisMode == (int)SceneCameraDebugMode.ReactiveMask ) ?? false;
+		upscaler?.Track( camera.Position, camera.Rotation, camera.World );
 		if ( upscaling )
 		{
 			size = upscaler.RenderSize;
@@ -273,11 +276,17 @@ internal sealed partial class SceneBridge
 		using ( PrepareTiming.Scope() )
 			(render, state) = Prepare( camera, setup, size );
 
-		// A temporal upscaler's sub-pixel offset this frame, which the view's projection takes; none otherwise
+		// A temporal upscaler's sub-pixel offset this frame, which the view's projection takes, and its reactive mask's
+		// overlays drawn depth only; neither otherwise
 		state.View.Jitter = upscaling ? upscaler.ClipJitter : Vector2.Zero;
+		state.View.ReactiveDepth = upscaling && upscaler.IsTemporal;
 
 		// Graphics.Render in its stages (a highlight's outline) draws the camera's mirrored objects again
 		gpuView.RenderSceneObject = state.Drawer.RenderOnGpu;
+
+		// Graphics.SetupLighting in its stages lights from the probe volumes its view shows
+		gpuView.LightingWorld = render.World;
+		gpuView.LightingSubWorlds = state.View.SubWorlds;
 
 		// Auto exposure is the port on this device: its frame update here, where native's runs, its scale this frame's
 		var exposure = camera.Tonemap?.GpuExposure( backend );
@@ -313,9 +322,9 @@ internal sealed partial class SceneBridge
 
 		using ( SceneTiming.Scope() )
 		using ( new Drawing( this, state ) )
-			state.System.Render( render.World, state.View, state.GpuTarget, stages );
+			state.System.Render( render.World, state.View, state.GpuTarget, stages, inWindow );
 
-		frame.Adopt( state.GpuTarget, state.System.Frame.Constants, state.System.BloomObjects );
+		frame.Adopt( state.GpuTarget, state.System.Frame.Constants, state.System.BloomObjects, state.System.ReactiveDepth );
 
 		gpuView.LayerType = SceneLayerType.Translucent;
 		if ( upscaling ) gpuView.Viewport = state.View.Viewport;
@@ -332,6 +341,9 @@ internal sealed partial class SceneBridge
 			RunStage( camera, Stage.BeforePostProcess );
 			if ( exposure is not null && exposureBucket >= 0 ) frame.CountExposure( exposure, exposureBucket );
 			RunStage( camera, Stage.Tonemapping );
+
+			// Native's debug view of the reactive mask, over the frame
+			if ( upscaling && gpuView.ToolsVisMode == (int)SceneCameraDebugMode.ReactiveMask ) upscaler.DrawReactiveMask( displayViewport );
 		}
 
 		frame.End();

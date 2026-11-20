@@ -17,6 +17,7 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "common.fxc"
+#include "borealis_records.fxc"
 
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
 #define BINDLESS_VERTEX_BUFFERS_DECLARED
@@ -73,8 +74,8 @@ uint LoadIndex( ByteAddressBuffer page, uint nIndex, bool b32 )
 
 void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nIndexCount, uint nFirstIndex, uint nBaseVertex )
 {
-	g_Frame.Store( g_nCullInstances + nSlot * 8, nTransform );
-	g_Frame.Store( g_nCullInstances + nSlot * 8 + 4, nDraw );
+	g_Frame.Store( g_nCullInstances + nSlot * InstanceRecord_Size + InstanceRecord_Transform, nTransform );
+	g_Frame.Store( g_nCullInstances + nSlot * InstanceRecord_Size + InstanceRecord_Draw, nDraw );
 
 	uint nCommand = g_nCullCommands + nSlot * 20;
 	g_Frame.Store( nCommand, nIndexCount );
@@ -87,8 +88,8 @@ void WriteDraw( uint nSlot, uint nTransform, uint nDraw, uint nIndexCount, uint 
 uint TakeSlot( uint nRun )
 {
 	uint nIndex;
-	g_Frame.InterlockedAdd( g_nCullRuns + nRun * 8 + 4, 1, nIndex );
-	return g_Frame.Load( g_nCullRuns + nRun * 8 ) + nIndex;
+	g_Frame.InterlockedAdd( g_nCullRuns + nRun * MultiDraw_Size + MultiDraw_Count, 1, nIndex );
+	return g_Frame.Load( g_nCullRuns + nRun * MultiDraw_Size + MultiDraw_FirstSlot ) + nIndex;
 }
 
 groupshared uint gs_Owned;
@@ -116,19 +117,19 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 [numthreads( 256, 1, 1 )]
 [shader( "compute" )] void MainCs( uint3 vGroupId : SV_GroupID, uint nThread : SV_GroupIndex )
 {
-	uint nEntry = g_nCullListed + 16 + vGroupId.x * 32;
-	uint nTransform = g_Frame.Load( nEntry );
-	uint nDrawRecord = g_Frame.Load( nEntry + 4 );
-	uint nVertexBase = g_Frame.Load( nEntry + 8 );
-	uint nRun = g_Frame.Load( nEntry + 12 );
-	uint nCompactRun = g_Frame.Load( nEntry + 16 );
+	uint nEntry = g_nCullListed + ListedArguments_Size + vGroupId.x * ListedFragment_Size;
+	uint nTransform = g_Frame.Load( nEntry + ListedFragment_Transform );
+	uint nDrawRecord = g_Frame.Load( nEntry + ListedFragment_Draw );
+	uint nVertexBase = g_Frame.Load( nEntry + ListedFragment_VertexBase );
+	uint nRun = g_Frame.Load( nEntry + ListedFragment_Run );
+	uint nCompactRun = g_Frame.Load( nEntry + ListedFragment_CompactRun );
 
 	ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nCullDraws ];
-	uint4 vDrawHead = draws.Load4( nDrawRecord * 32 );
-	uint4 vDraw = draws.Load4( nDrawRecord * 32 + 16 );
+	uint nDrawAt = nDrawRecord * DrawRecord_Size;
+	uint4 vDraw = uint4( draws.Load( nDrawAt + DrawRecord_FirstIndex ), draws.Load( nDrawAt + DrawRecord_IndexCount ), draws.Load( nDrawAt + DrawRecord_BaseVertex ), draws.Load( nDrawAt + DrawRecord_IndexPage ) );
 	uint nTriangles = vDraw.y / 3;
 	ByteAddressBuffer page = g_bindless_VertexBuffers[ NonUniformResourceIndex( vDraw.w ) ];
-	bool b32 = ( vDrawHead.w & 2 ) != 0;
+	bool b32 = ( draws.Load( nDrawAt + DrawRecord_Flags ) & 2 ) != 0;
 
 	if ( nThread == 0 )
 	{
@@ -146,7 +147,7 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 	uint nListed = None;
 	if ( g_nCullMeshletRuns != None )
 	{
-		uint nFragment = g_Frame.Load( nEntry + 28 );
+		uint nFragment = g_Frame.Load( nEntry + ListedFragment_Fragment );
 		uint4 vStamp = nFragment != None ? g_MeshletStamps.Load4( nFragment * 16 ) : 0;
 		if ( nFragment != None && vStamp.x == g_nCullFrame )
 		{
@@ -193,7 +194,7 @@ uint TriangleIndex( ByteAddressBuffer page, uint nFirst, bool b32, bool bPrepass
 
 	if ( nThread == 0 && g_nCullVisibility != 0 )
 	{
-		uint nVisible = g_Frame.Load( nEntry + 28 );
+		uint nVisible = g_Frame.Load( nEntry + ListedFragment_Fragment );
 		if ( nVisible != None )
 			g_HiZVisible.InterlockedOr( ( nVisible >> 5 ) * 4, 1u << ( nVisible & 31 ) );
 	}

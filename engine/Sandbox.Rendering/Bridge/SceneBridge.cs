@@ -255,6 +255,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		foreach ( var (_, render) in renders )
 			render.Dispose();
 		renders.Clear();
+
+		// What every view's custom objects and stages draw with on Borealis.Gpu
+		BorealisGpuCustomDraw.Shutdown();
+		BorealisGpuFrame.ReleaseViewTextures();
 	}
 
 	/// <summary>
@@ -768,15 +772,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			return;
 		}
 
-		// A game window on Borealis.Gpu has no Source 2 swap chain: the camera draws into the window's frame
+		// A game window on Borealis.Gpu: the camera draws into the window's frame. Nothing draws into a Source 2 swap chain
 		if ( swapChain.self == default && BorealisGpuWindow.Drawing is { } window )
-		{
 			RenderInto( window, camera, size, setup );
-			return;
-		}
-
-		// Anything else presents on Source 2's device
-		SceneRenderer.Native.Render( camera, swapChain, size, setup );
 	}
 
 	/// <summary>

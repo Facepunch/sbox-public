@@ -13,8 +13,9 @@ public class JobDispatcherTest
 	static bool Parallel => JobDispatcher.Workers.Count > 0 && JobDispatcher.MaxDegreeOfParallelism > 1;
 
 	/// <summary>
-	/// A caller whose synchronization context hears of its waits (the main thread's) waits for the workers through it, and
-	/// allocates nothing doing so: waiting on a monitor there made the runtime allocate the handles' array every time.
+	/// A caller whose synchronization context hears of its waits (the main thread's) joins without it: the context hears of no
+	/// wait (it would run queued work mid-batch) and nothing is allocated (the runtime allocates a handle array for each wait
+	/// it forwards to a context).
 	/// </summary>
 	[TestMethod]
 	[TestCategory( Allocations.Category )]
@@ -28,16 +29,20 @@ public class JobDispatcherTest
 		SynchronizationContext.SetSynchronizationContext( context );
 		try
 		{
-			// Each item takes a while, so the caller runs out of its own and waits for a worker's
-			var items = JobDispatcher.Workers.Count + 1;
-			Allocations.AssertSettles( "a join that waits", () => JobDispatcher.For( items, 0, static ( _, _ ) => Thread.Sleep( 2 ), itemsPerBatch: 1 ) );
-			Assert.IsTrue( context.Waits > 0, "the caller waited through its context" );
+			// Items a worker takes are slow and the caller's are quick, so the caller always runs out of its own and waits for a
+			// worker's, however late the workers wake (there are enough items for the caller to still be busy when they do)
+			callerThread = Environment.CurrentManagedThreadId;
+			var items = JobDispatcher.Workers.Count * 4 + 1;
+			Allocations.AssertSettles( "a join that waits", () => JobDispatcher.For( items, 0, static ( _, _ ) => Thread.Sleep( Environment.CurrentManagedThreadId == callerThread ? 1 : 20 ), itemsPerBatch: 1 ) );
+			Assert.AreEqual( 0, context.Waits, "the caller's context heard of a wait while joining" );
 		}
 		finally
 		{
 			SynchronizationContext.SetSynchronizationContext( previous );
 		}
 	}
+
+	static int callerThread;
 
 	sealed class WaitNotifiedContext : SynchronizationContext
 	{

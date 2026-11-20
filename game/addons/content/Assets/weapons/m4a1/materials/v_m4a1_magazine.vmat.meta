@@ -1,0 +1,29 @@
+{
+  "guid": "9d27e61d-ae59-4fd4-8bee-5b03616c2b31",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V M 4A 1 Magazine",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_m4a1_magazine",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/m4a1/materials/v_m4a1_magazine.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    }
+  }
+}

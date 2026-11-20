@@ -127,6 +127,12 @@ public sealed class DeviceOptions
 
 	/// <summary>Validation and driver messages. Called on any thread. Errors are also counted in <see cref="Device.ValidationErrors"/>.</summary>
 	public Action<DeviceMessage> Message { get; init; }
+
+	/// <summary>
+	/// Called with a module's SPIR-V hash on the thread that made it, before it queues the part manifest's parts for it. For
+	/// tests: holding the loader of the manifest's kept SPIR-V here opens the window between making a module and queuing.
+	/// </summary>
+	internal Action<UInt128> QueueingRecordedParts { get; init; }
 }
 
 /// <summary>

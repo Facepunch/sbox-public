@@ -224,7 +224,6 @@ public class SceneObjectDrawTests
 	[TestMethod]
 	public void TranslucencyComesFromTheMaterialsWithoutADevice()
 	{
-		if ( Graphics.HasSource2Device ) Assert.Inconclusive( "Source 2's device works the translucency out itself" );
 
 		static Mesh Quad( Material material )
 		{
@@ -258,6 +257,51 @@ public class SceneObjectDrawTests
 
 			var solid = new SceneObject( world, Model.Builder.AddMesh( Quad( white ) ).Create() );
 			Assert.IsTrue( solid.Flags.IsOpaque && !solid.Flags.IsTranslucent, $"an opaque mesh: {solid.CurrentFlags}" );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	/// <summary>
+	/// A map's model (whose draws native's stand for) keeps native's flags, which without Source 2's device carry the meshes'
+	/// compiled translucency: they're worked out from the materials too. Construct's darkroom doors, glass panes in a frame,
+	/// drew no glass.
+	/// </summary>
+	[TestMethod]
+	public void MapModelsTranslucencyComesFromTheMaterialsWithoutADevice()
+	{
+
+		static Mesh Quad( Material material )
+		{
+			var mesh = new Mesh( material );
+			var vertices = new System.Collections.Generic.List<Vertex>
+			{
+				new( new Vector3( 0, -32, -32 ), Vector3.Backward, Vector3.Up, new Vector4( 0, 0, 0, 0 ) ),
+				new( new Vector3( 0, 32, -32 ), Vector3.Backward, Vector3.Up, new Vector4( 1, 0, 0, 0 ) ),
+				new( new Vector3( 0, 0, 32 ), Vector3.Backward, Vector3.Up, new Vector4( 0.5f, 1, 0, 0 ) ),
+			};
+			mesh.CreateVertexBuffer( vertices.Count, vertices );
+			mesh.CreateIndexBuffer( 3, new System.Collections.Generic.List<int> { 0, 2, 1 } );
+			mesh.Bounds = new BBox( new Vector3( -1, -32, -32 ), new Vector3( 1, 32, 32 ) );
+			return mesh;
+		}
+
+		var world = new SceneWorld();
+		try
+		{
+			var white = Material.Load( "materials/default/white.vmat" );
+			var glass = Material.Load( "models/citizen_human/heads/citizen_human_femalehead01/eyelashes_01_opacity.vmat" );
+
+			var door = new SceneModel( world, Model.Builder.WithName( "maps/test/entities/door.vmdl" ).AddMesh( Quad( white ) ).AddMesh( Quad( glass ) ).Create(), Transform.Zero );
+			Assert.IsFalse( door.ResolvesDraws, $"a map's model: {door.Model.ResourcePath}" );
+			Assert.IsTrue( door.Flags.IsOpaque && door.Flags.IsTranslucent, $"opaque and translucent meshes: {door.CurrentFlags}" );
+			Assert.AreEqual( "", door.CompareFlags(), "native's twin" );
+
+			var pane = new SceneModel( world, Model.Builder.WithName( "maps/test/entities/pane.vmdl" ).AddMesh( Quad( glass ) ).Create(), Transform.Zero );
+			Assert.IsTrue( !pane.Flags.IsOpaque && pane.Flags.IsTranslucent, $"a translucent mesh: {pane.CurrentFlags}" );
+			Assert.AreEqual( "", pane.CompareFlags(), "native's twin" );
 		}
 		finally
 		{

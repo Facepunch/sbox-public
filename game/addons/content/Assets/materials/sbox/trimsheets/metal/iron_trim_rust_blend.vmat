@@ -1,0 +1,46 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	//---- Number Of Blendable Layers ----
+	F_MULTIBLEND 1 // 2 Layers
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/sbox/trimsheets/basic/trim_sheet_ao.png"
+	TextureBlendMaskA "materials/sbox/concrete/hotspot/old_construction_wall/old_construction_wall_01b_blend.png"
+	TextureColorA "materials/sbox/trimsheets/metal/iron_trim_01_color.tga"
+	TextureMetalnessA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureNormalA "materials/sbox/trimsheets/metal/iron_trim_01_normal.tga"
+	TextureRoughnessA "materials/sbox/trimsheets/metal/iron_trim_01_rough.tga"
+	TextureTintMaskA "[0.000000 0.000000 0.000000 0.000000]"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "0.100"
+	g_flTintColorB "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale2 "[1.000 1.000]"
+	TextureAmbientOcclusionB "materials/sbox/trimsheets/basic/trim_sheet_ao.png"
+	TextureBlendMaskB "materials/sbox/ceiling/ceiling_plaster_02_blend.png"
+	TextureColorB "materials/sbox/trimsheets/metal/iron_trim_rust_01_color.tga"
+	TextureMetalnessB "materials/sbox/trimsheets/metal/iron_trim_rust_01_metal.tga"
+	TextureNormalB "materials/sbox/trimsheets/metal/iron_trim_rust_01_normal.tga"
+	TextureRoughnessB "materials/sbox/trimsheets/metal/iron_trim_rust_01_rough.tga"
+	TextureTintMaskB "[0.000000 0.000000 0.000000 0.000000]"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "metal"
+		WorldMappingWidth "64"
+		WorldMappingHeight "64"
+	}
+
+	ToolAttributes
+	{
+		SubrectDefinition "materials/sbox/trimsheets/trim_sheet_master_01a.rect"
+	}
+}

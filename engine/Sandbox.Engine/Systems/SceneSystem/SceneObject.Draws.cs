@@ -111,7 +111,7 @@ public partial class SceneObject
 				}
 
 				native.GetMeshInfo( m, out _, out _, out _, out _, out var meshTranslucency, out _, out _ );
-				var type = Graphics.HasSource2Device ? (TranslucencyType)meshTranslucency : MeshTranslucency( draws, first );
+				var type = MeshTranslucency( draws, first );
 				if ( (int)translucency == -1 ) translucency = type;
 				else if ( type == TranslucencyType.Partial || (type != translucency) ) translucency = TranslucencyType.Partial;
 			}

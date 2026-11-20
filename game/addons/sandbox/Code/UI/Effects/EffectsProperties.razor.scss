@@ -1,0 +1,43 @@
+@import "/UI/Theme.scss";
+
+// the settings of the picked effect, or what the page is for when none is picked
+EffectsProperties
+{
+    flex-direction: column;
+    flex-grow: 1;
+    min-width: 0px;
+
+    .empty-state
+    {
+        flex-grow: 1;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding-bottom: 40px;
+        text-align: center;
+
+        IconPanel
+        {
+            font-size: 64px;
+            color: $ui-blue;
+        }
+
+        .title
+        {
+            margin-top: 6px;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: $ui-blue;
+        }
+
+        .hint
+        {
+            max-width: 400px;
+            margin-top: 14px;
+            font-size: 12px;
+            font-weight: 500;
+            color: $ui-text;
+        }
+    }
+}

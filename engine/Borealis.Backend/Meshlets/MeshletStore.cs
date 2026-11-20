@@ -34,13 +34,13 @@ internal sealed class MeshletStore : IDisposable
 	public const int MaxRunMeshlets = 4096;
 
 	/// <summary>Bytes of a run in the run table: page slot, first, count, first's index among every meshlet.</summary>
-	public const int RunBytes = 16;
+	public const int RunBytes = MeshletRun.Size;
 
 	/// <summary>
 	/// Bytes of a meshlet's local record, after a page's <see cref="PageRecords"/> records when <see cref="LocalData"/> is on:
 	/// its data page's bindless slot, where its triangles and its vertices start there (bytes), and its vertex count.
 	/// </summary>
-	public const int LocalRecordBytes = 16;
+	public const int LocalRecordBytes = MeshletLocalRecord.Size;
 
 	/// <summary>Bytes of a data page, which holds ranges' local triangles and vertices (a range's in one page).</summary>
 	public const int DataPageBytes = 32 << 20;
@@ -661,31 +661,34 @@ internal sealed class MeshletStore : IDisposable
 
 		dataUsed += triangleBytes + vertexBytes;
 
-		var records = new uint[set.Meshlets.Length * 4];
+		var records = new MeshletLocalRecord[set.Meshlets.Length];
 		for ( int m = 0; m < set.Meshlets.Length; m++ )
 		{
-			records[m * 4] = (uint)dataSlot;
-			records[m * 4 + 1] = (uint)(trianglesAt + set.Meshlets[m].FirstTriangle * 4L);
-			records[m * 4 + 2] = (uint)(verticesAt + local.FirstVertex[m] * (wide ? 4L : 2L));
-			records[m * 4 + 3] = (uint)local.VertexCount[m];
+			records[m] = new MeshletLocalRecord
+			{
+				Data = (uint)dataSlot,
+				Triangles = (uint)(trianglesAt + set.Meshlets[m].FirstTriangle * 4L),
+				Vertices = (uint)(verticesAt + local.FirstVertex[m] * (wide ? 4L : 2L)),
+				VertexCount = (uint)local.VertexCount[m],
+			};
 		}
 
-		list.UpdateBuffer<uint>( page, records, PageRecords * (long)MeshletSet.RecordBytes + pageUsed * (long)LocalRecordBytes );
-		return triangleBytes + vertexBytes + records.Length * 4L;
+		list.UpdateBuffer<MeshletLocalRecord>( page, records, PageRecords * (long)MeshletSet.RecordBytes + pageUsed * (long)LocalRecordBytes );
+		return triangleBytes + vertexBytes + records.Length * (long)LocalRecordBytes;
 	}
 
 	void WriteRun( uint draw, Entry entry )
 	{
 		var at = draw * (long)RunBytes;
 		if ( at + RunBytes > runBytes ) GrowRuns( at + RunBytes );
-		var words = MemoryMarshal.Cast<byte, uint>( gpu.Map( runs ).Slice( (int)at, RunBytes ) );
+		ref var run = ref MemoryMarshal.AsRef<MeshletRun>( gpu.Map( runs ).Slice( (int)at, RunBytes ) );
 
 		// The count last: a cull reading in between sees no meshlets rather than a wrong page
-		words[0] = entry.PageSlot;
-		words[1] = entry.First;
-		words[3] = entry.Global;
+		run.Page = entry.PageSlot;
+		run.First = entry.First;
+		run.Global = entry.Global;
 		Thread.MemoryBarrier();
-		Volatile.Write( ref words[2], entry.Count );
+		Volatile.Write( ref run.Count, entry.Count );
 	}
 
 	/// <summary>Every meshlet's index is below this: what a view's meshlet bits must hold.</summary>

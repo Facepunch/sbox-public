@@ -1,0 +1,28 @@
+{
+  "guid": "0b5454e8-25da-443b-a2b1-0e96af7254ab",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "big_button",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "big_button",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/big_button/big_button.vmdl",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

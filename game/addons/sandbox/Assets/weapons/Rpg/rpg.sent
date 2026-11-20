@@ -1,0 +1,10 @@
+{
+  "Prefab": "weapons/rpg/rpg.prefab",
+  "Title": "Ashford R-7",
+  "Description": null,
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "Developer": false,
+  "__references": [],
+  "__version": 0
+}

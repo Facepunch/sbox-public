@@ -1,0 +1,25 @@
+{
+  "guid": "fee15e8b-7d17-494b-93e2-0f945fdcd7a3",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Tool Engine Spring 1M",
+      "Type": "model",
+      "Org": "local",
+      "Ident": "toolenginespring1m",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "facepunch.rubbera#313530"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "hydraulics/tool_engine_spring_1m.vmdl",
+        "ParentPackage": "facepunch.sandbox"
+      }
+    }
+  }
+}

@@ -739,7 +739,10 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( second.Has( StageKind.Pixel, values ), "the kept entry" );
 			Assert.AreEqual( before, PassModule.Preprocesses, "read, not preprocessed" );
 
+			// Edited within the file system's clock tick: the same time, a different length
+			var written = File.GetLastWriteTimeUtc( include );
 			File.WriteAllText( include, "RenderState( DepthBias, 16 );\n// longer\n" );
+			File.SetLastWriteTimeUtc( include, written );
 			CollectionAssert.AreEqual( new[] { ("DepthBias", "16") }, Run().RenderStates( values ).ToArray(), "an edited include preprocesses again" );
 		}
 		finally
@@ -771,7 +774,11 @@ public class SurfaceTests : GpuTest
 			CollectionAssert.AreEqual( new[] { ("DepthBias", "4") }, module.RenderStates( values ).ToArray() );
 			CollectionAssert.AreEqual( new[] { ("DepthBias", "4") }, module.RenderStates( values ).ToArray(), "kept" );
 
+			// Edited within the file system's clock tick (a write takes the clock's last tick as its time): the same time, a
+			// different length
+			var written = File.GetLastWriteTimeUtc( include );
 			File.WriteAllText( include, "RenderState( DepthBias, 16 );\n// longer\n" );
+			File.SetLastWriteTimeUtc( include, written );
 			CollectionAssert.AreEqual( new[] { ("DepthBias", "16") }, module.RenderStates( values ).ToArray(), "the edited include is read again" );
 		}
 		finally

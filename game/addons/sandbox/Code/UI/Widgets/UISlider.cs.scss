@@ -1,0 +1,89 @@
+@import "/UI/Theme.scss";
+
+UISlider
+{
+	flex-direction: row;
+	align-items: flex-start;
+	flex-grow: 1;
+	height: 22px;
+	gap: 10px;
+	cursor: pointer;
+	pointer-events: all;
+
+	.track
+	{
+		position: relative;
+		flex-grow: 1;
+		max-width: 150px;
+		height: 22px;
+		margin: 0 5px;
+
+		.line
+		{
+			position: absolute;
+			left: 0px;
+			right: 0px;
+			top: 17px;
+			height: 1px;
+			background-color: $ui-slider-line;
+		}
+
+		// detached from the line by a pixel
+		.tick
+		{
+			position: absolute;
+			top: 19px;
+			width: 1px;
+			height: 3px;
+			background-color: $ui-slider-line;
+		}
+
+		.thumb
+		{
+			@include ui-slider-thumb;
+			position: absolute;
+			top: 2px;
+		}
+
+		&:hover .thumb
+		{
+			background-color: $ui-slider-thumb-hover;
+			transform: translateY( -1px );
+		}
+	}
+
+	&.dragging .track .thumb
+	{
+		background-color: $ui-slider-thumb-pressed;
+		transform: translateY( 1px );
+	}
+
+	&.gradient .track .line
+	{
+		top: 7px;
+		height: 9px;
+		border-radius: 3px;
+		border: 1px solid rgba( 0, 0, 0, 0.4 );
+	}
+
+	.entry
+	{
+		flex-shrink: 0;
+		width: 44px;
+		height: 22px;
+		margin-left: auto;
+
+		.textentry
+		{
+			@include ui-number-entry;
+			cursor: text;
+
+			.content-label
+			{
+				flex-grow: 1;
+				text-align: center;
+				color: $ui-text-label;
+			}
+		}
+	}
+}

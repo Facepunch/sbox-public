@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Parking Bollard",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "parking_bollard",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/parking_bollard/parking_bollard.vmdl"
+      }
+    }
+  },
+  "guid": "020800c4-0000-0000-e0e7-0e0ffc000000"
+}

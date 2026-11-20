@@ -1,0 +1,28 @@
+{
+  "guid": "6874698f-5604-4eab-83d6-9d33f3f08c06",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Big Button",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "bigbutton",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/big_button/big_button.vmat",
+        "ParentPackage": "facepunch.sbox_content"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}
