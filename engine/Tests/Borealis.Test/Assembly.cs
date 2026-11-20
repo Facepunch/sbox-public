@@ -40,6 +40,13 @@ internal sealed class HeadlessRenderHost : Borealis.RenderHost
 	public override Borealis.DebugViews DebugViews => Views;
 
 	/// <summary>
+	/// Volumetric fog, for the test of the setting, which is [DoNotParallelize] and turns it back on after.
+	/// </summary>
+	public static bool VolumetricFogOn { get; set; } = true;
+
+	public override bool VolumetricFog => VolumetricFogOn;
+
+	/// <summary>
 	/// Whether frames drawn into a window describe themselves (<see cref="WantsFramePlan"/>), for the tests of it, which are
 	/// [DoNotParallelize] and turn it off after.
 	/// </summary>
