@@ -436,8 +436,7 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 			c.Set( "Binds", $"{matChanges:N0}", tooltip: $"Material changes, {f.ShadowMaterialChanges:N0} in shadows\n{f.FullMaterialSets:N0} full sets, {f.SimilarMaterialSets:N0} similar" );
 
 			var tested = f.ObjectsTested;
-			var occlusion = RenderPipeline.OcclusionCulling ? $"\n{f.ObjectsCulledByOcclusion:N0} hidden instances (occlusion, read back late)" : "";
-			c.Set( "Objects", $"{f.ObjectsRendered:N0}", tooltip: $"Drawn, of {tested:N0} tested\n{f.ObjectsCulledByVis:N0} vis culled, {f.ObjectsCulledByScreenSize:N0} too small, {f.ObjectsCulledByFade:N0} faded out{occlusion}" );
+			c.Set( "Objects", $"{f.ObjectsRendered:N0}", tooltip: $"Drawn, of {tested:N0} tested\n{f.ObjectsCulledByVis:N0} vis culled, {f.ObjectsCulledByScreenSize:N0} too small, {f.ObjectsCulledByFade:N0} faded out" );
 			c.Set( "Lights", $"{f.ShadowedLightsInView + f.UnshadowedLightsInView:N0}", tooltip: $"{f.ShadowedLightsInView:N0} shadowed, {f.UnshadowedLightsInView:N0} unshadowed" );
 			c.Set( "Shadow views", $"{f.ShadowMaps:N0}", tooltip: "Shadow maps rendered" );
 		}

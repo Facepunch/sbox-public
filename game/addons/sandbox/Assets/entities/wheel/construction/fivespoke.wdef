@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/fivespoke.prefab",
+  "Title": "#asset.wheel.fivespoke.title",
+  "Description": "#asset.wheel.fivespoke.description",
+  "__references": [],
+  "__version": 0
+}

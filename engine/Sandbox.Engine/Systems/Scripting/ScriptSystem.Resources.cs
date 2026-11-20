@@ -5,12 +5,12 @@ public sealed partial class ScriptSystem
 	/// <summary>
 	/// Publishes a resource scan or watcher notification together, preserving files outside that notification.
 	/// File-local compile errors are logged and excluded before retrying the remaining candidate. A rejected
-	/// replacement retains its last accepted source. Publication and migration failures are never retried.
+	/// replacement retains its last accepted source. An interrupted publication leaves recovery to the next tick or edit.
 	/// Promoted hosts do not start server-only sources from package scans or file watchers.
 	/// </summary>
 	internal void LoadResourceFiles( IReadOnlyDictionary<string, string> sources, IReadOnlyCollection<string> removed = null )
 	{
-		CheckAccess();
+		CheckContextAccess();
 		if ( _context.ReceivesNetworkScripts )
 		{
 			return;

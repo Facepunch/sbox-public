@@ -147,6 +147,7 @@ internal class UploadBuildArtifacts
 		"core/shaders/tools_selection_outline.shader",
 		"core/shaders/tools_selection_overlay.shader",
 		"core/shaders/tools_selection_stencil_copy.shader",
+		"core/shaders/tools_shading_complexity.shader",
 		"core/shaders/tools_solid.shader",
 		"core/shaders/tools_sprite.shader",
 		"core/shaders/tools_textured_unlit.shader",
@@ -193,7 +194,6 @@ internal class UploadBuildArtifacts
 		"bin/win64/materialsystem2.dll",
 		"bin/win64/meshsystem.dll",
 		"bin/win64/modeldoc_utils.dll",
-		"bin/win64/openxr_loader.dll",
 		"bin/win64/rendersystemempty.dll",
 		"bin/win64/resourcecompiler.dll",
 		"bin/win64/schemasystem.dll",
@@ -224,7 +224,6 @@ internal class UploadBuildArtifacts
 	{
 		"game/addons/citizen/Assets/",
 		"game/addons/content/Assets/",
-		"game/mount/"
 	};
 
 	internal ExitCode Run()
@@ -302,7 +301,7 @@ internal class UploadBuildArtifacts
 	/// include/exclude globs (see <see cref="IncludeGlobs"/> / <see cref="ExcludeGlobs"/>)
 	/// to the <c>game/</c> folder.
 	/// </summary>
-	private static List<(string EntryPath, string AbsolutePath)> CollectRunnableFiles( string repoRoot )
+	internal static List<(string EntryPath, string AbsolutePath)> CollectRunnableFiles( string repoRoot )
 	{
 		var gameRoot = Path.Combine( repoRoot, "game" );
 		if ( !Directory.Exists( gameRoot ) )

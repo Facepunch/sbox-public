@@ -1,0 +1,53 @@
+// A mesh's compressed tangent frame unpacked: the normal octahedral in xy (10 bits each), the tangent's diamond angle in z
+// (10 bits) and the bitangent sign in w (2 bits, 0 or 3), or the frame as it is when the mesh isn't compressed. Ours, in
+// place of the old vs_decompress.fxc in Slang compiles (SlangHeaders): the same names and results. Shares its include guard.
+#ifndef VS_DECOMPRESS_FXC
+#define VS_DECOMPRESS_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "sbox/system.slangh"
+#include "sbox/view.slangh"
+#include "sbox/encoding.slangh"
+
+#ifdef SURFACE_GPU_DRIVEN
+// A GPU-driven surface pass sets it per draw, from its draw record's flags (sbox/surface_passes.slangh)
+static bool g_bUncompressedTangentFrame = false;
+#else
+bool g_bUncompressedTangentFrame < Attribute( "UncompressedTangentFrame" ); >;
+#endif
+
+// From the packed values scaled back to their integer ranges (0..1023 and 0..3)
+void _DecompressNormal( float4 packed, out float3 normal )
+{
+	normal = OctohedralDecode( ( packed.xy / 1023.0 ) * 2.0 - 1.0 );
+}
+
+void _DecompressNormalTangent( float4 packed, out float3 normal, out float4 tangentAndSign )
+{
+	_DecompressNormal( packed, normal );
+	tangentAndSign.xyz = DecodeTangentDiamond( normal, packed.z / 1023.0 );
+	tangentAndSign.w = packed.w > 1.0 ? 1.0 : -1.0;
+}
+
+// The normal is precise: morphs and tree sway move the position along it, and the depth and shading passes must agree to
+// the bit or the depth test flickers.
+void DecompressNormal( float4 vInputNormalOs, out precise float3 o_vNormalOs )
+{
+	if ( g_bUncompressedTangentFrame ) o_vNormalOs = vInputNormalOs.xyz;
+	else _DecompressNormal( vInputNormalOs * float4( 1023.0, 1023.0, 1023.0, 3.0 ), o_vNormalOs );
+}
+
+void DecompressNormalTangent( float4 vInputNormalOs, float4 vInputTangentOs, out precise float3 o_vNormalOs, out precise float4 o_vTangentUOs_flTangentVSign )
+{
+	if ( g_bUncompressedTangentFrame )
+	{
+		o_vNormalOs = vInputNormalOs.xyz;
+		o_vTangentUOs_flTangentVSign = vInputTangentOs;
+	}
+	else
+	{
+		_DecompressNormalTangent( vInputNormalOs * float4( 1023.0, 1023.0, 1023.0, 3.0 ), o_vNormalOs, o_vTangentUOs_flTangentVSign );
+	}
+}
+
+#endif // VS_DECOMPRESS_FXC

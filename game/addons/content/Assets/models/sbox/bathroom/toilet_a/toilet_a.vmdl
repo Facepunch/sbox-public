@@ -1,0 +1,716 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "models/sbox/bathroom/toilet_a/toilet_a.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_toplid_LOD0"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "toplid"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"seat_toplid_001",
+								"seat_toplid",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_toplid_LOD1"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "toplid"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"seat_toplid_LOD1_001",
+								"seat_toplid_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_toplid_LOD2"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "toplid"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"seat_hinge_LOD1_002",
+								"seat_lid_LOD1_002",
+								"seat_toplid_LOD1_002",
+								"seat_toplid_LOD2_001",
+								"seat_toplid_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_toplid_LOD3"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "toplid"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"seat_toplid_LOD3_001",
+								"seat_toplid_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_seat_LOD0"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "seat"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"seat_lid_001",
+								"seat_lid",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_seat_LOD1"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "seat"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"seat_lid_LOD1_001",
+								"seat_hinge_LOD1_002",
+								"seat_lid_LOD1_002",
+								"seat_toplid_LOD1_002",
+								"seat_lid_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_seat_LOD2"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "seat"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"seat_hinge_LOD1_002",
+								"seat_lid_LOD1_002",
+								"seat_toplid_LOD1_002",
+								"seat_lid_LOD2_001",
+								"seat_lid_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_seat_LOD3"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "seat"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"seat_lid_LOD3_001",
+								"seat_lid_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_base_LOD0"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"base_002",
+								"nut_cap_002",
+								"base_001",
+								"nut_cap_001",
+								"seat_hinge_001",
+								"handle_001",
+								"tank_lid_001",
+								"tank_001",
+								"base",
+								"fill_valve_float",
+								"fill_valve",
+								"fill_valve_spring",
+								"flapper",
+								"handle_bar",
+								"handle",
+								"nut_cap",
+								"overflow_pipe",
+								"seat_hinge",
+								"tank_bolts",
+								"tank_lid",
+								"tank",
+								"tube",
+								"wire",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_base_LOD1"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"base_002",
+								"nut_cap_002",
+								"base_LOD1_001",
+								"base_LOD1_002",
+								"nut_cap_LOD1_002",
+								"nut_cap_LOD1_001",
+								"seat_hinge_LOD1_001",
+								"handle_LOD1_001",
+								"tank_LOD1_001",
+								"tank_lid_LOD1_001",
+								"base_LOD1",
+								"fill_valve_LOD1",
+								"fill_valve_float_LOD1",
+								"fill_valve_spring_LOD1",
+								"flapper_LOD1",
+								"handle_bar_LOD1",
+								"handle_LOD1",
+								"nut_cap_LOD1",
+								"overflow_pipe_LOD1",
+								"seat_hinge_LOD1",
+								"tank_LOD1",
+								"tank_bolts_LOD1",
+								"tank_lid_LOD1",
+								"tube_LOD1",
+								"wire_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_base_LOD2"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"base_LOD2_001",
+								"nut_cap_LOD2_001",
+								"base_LOD2_002",
+								"seat_hinge_LOD2_001",
+								"handle_LOD2_001",
+								"tank_LOD2_001",
+								"tank_lid_LOD2_001",
+								"base_LOD2",
+								"fill_valve_float_LOD2",
+								"fill_valve_LOD2",
+								"fill_valve_spring_LOD2",
+								"flapper_LOD2",
+								"handle_bar_LOD2",
+								"handle_LOD2",
+								"nut_cap_LOD2",
+								"overflow_pipe_LOD2",
+								"seat_hinge_LOD2",
+								"tank_bolts_LOD2",
+								"tank_lid_LOD2",
+								"tube_LOD2",
+								"tank_LOD2",
+								"wire_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "toilet_a_base_LOD3"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = "base"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"base_LOD2_002",
+								"base_LOD3_002",
+								"nut_cap_LOD3_001",
+								"seat_hinge_LOD3_001",
+								"base_LOD3_001",
+								"handle_LOD3_001",
+								"tank_lid_LOD3_001",
+								"tank_LOD3_001",
+								"base_LOD3",
+								"fill_valve_float_LOD3",
+								"fill_valve_LOD3",
+								"fill_valve_spring_LOD3",
+								"flapper_LOD3",
+								"handle_bar_LOD3",
+								"handle_LOD3",
+								"nut_cap_LOD3",
+								"overflow_pipe_LOD3",
+								"seat_hinge_LOD3",
+								"tank_lid_LOD3",
+								"tank_LOD3",
+								"tube_LOD3",
+								"wire_LOD3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsHullFile"
+						name = "toilet_a_toplid_phys"
+						parent_bone = "toplid"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						recenter_on_parent_bone = true
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.35
+						maxHullVertices = 0
+						import_mode = "HullPerElement"
+						optimization_algorithm = "IVR"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"tank_lid_phys_002",
+								"seat_toplid_phys_001",
+								"seat_toplid_phys",
+							]
+						}
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "toilet_a_seat_phys"
+						parent_bone = "seat"
+						surface_prop = "plastic.sheet"
+						collision_tags = "solid"
+						recenter_on_parent_bone = true
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerElement"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"tank_lid_phys_002",
+								"seat_lid_phys_001",
+								"seat_lid_phys",
+							]
+						}
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "toilet_a_base_phys"
+						parent_bone = "base"
+						surface_prop = "ceramic"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 5.0
+						maxHullVertices = 17
+						import_mode = "HullPerElement"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"base_phys_001",
+								"base_phys_002",
+								"base_phys",
+							]
+						}
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "toilet_a_tank_phys"
+						parent_bone = "base"
+						surface_prop = "ceramic"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 19
+						import_mode = "HullPerMesh"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"tank_phys_001",
+								"tank_phys",
+							]
+						}
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "toilet_a_tanklid_phys"
+						parent_bone = "base"
+						surface_prop = "ceramic"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/bathroom/toilet_a/toilet_a.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "HullPerElement"
+						optimization_algorithm = "QEM"
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"tank_lid_phys_001",
+								"tank_lid_phys_002",
+								"tank_lid_phys",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						meshes =
+						[
+							"toilet_a_hinge_LOD0",
+							"toilet_a_seat_LOD0",
+							"toilet_a_toplid_LOD0",
+							"toilet_a_base_LOD0",
+							"toilet_a_tank_LOD0",
+							"toilet_a_handle_LOD0",
+							"toilet_a_tanklid_LOD0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 5.0
+						meshes =
+						[
+							"toilet_a_hinge_LOD1",
+							"toilet_a_seat_LOD1",
+							"toilet_a_toplid_LOD1",
+							"toilet_a_base_LOD1",
+							"toilet_a_tank_LOD1",
+							"toilet_a_handle_LOD1",
+							"toilet_a_tanklid_LOD1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 30.0
+						meshes =
+						[
+							"toilet_a_hinge_LOD2",
+							"toilet_a_seat_LOD2",
+							"toilet_a_toplid_LOD2",
+							"toilet_a_base_LOD2",
+							"toilet_a_tank_LOD2",
+							"toilet_a_handle_LOD2",
+							"toilet_a_tanklid_LOD2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 50.0
+						meshes =
+						[
+							"toilet_a_hinge_LOD3",
+							"toilet_a_seat_LOD3",
+							"toilet_a_toplid_LOD3",
+							"toilet_a_base_LOD3",
+							"toilet_a_tank_LOD3",
+							"toilet_a_handle_LOD3",
+							"toilet_a_tanklid_LOD3",
+						]
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children =
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys =
+						{
+							bakelighting = true
+							health = -1.0
+							min_impact_damage_speed = -1.0
+							impact_damage = -1.0
+							parent_bodygroup_name = ""
+							parent_bodygroup_value = 0
+							flammable = false
+							explosive = false
+							explosive_damage = -1.0
+							explosive_radius = -1.0
+							explosive_force = -1.0
+						}
+					},
+				]
+			},
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "Bone"
+						name = "base"
+						children =
+						[
+							{
+								_class = "Bone"
+								name = "seat"
+								origin = [ -7.940938, 0.0, 21.106426 ]
+								angles = [ 0.0, 0.0, 0.0 ]
+								do_not_discard = true
+							},
+							{
+								_class = "Bone"
+								name = "toplid"
+								origin = [ -7.94094, 0.0, 21.1064 ]
+								angles = [ 0.0, 0.0, 0.0 ]
+								do_not_discard = true
+							},
+						]
+						origin = [ 0.0, 0.0, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						do_not_discard = true
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "base"
+						mass_override = 30.0
+						inertia_scale = 0.5
+						linear_damping = 0.0
+						angular_damping = 5.0
+						use_mass_center_override = true
+						mass_center_override = [ 3.958132, 0.0, 13.070602 ]
+						gravity_scale = 1.0
+					},
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "seat"
+						mass_override = 2.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = "toplid"
+						mass_override = 2.0
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsJointList"
+				children =
+				[
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "base"
+						child_body = "seat"
+						anchor_origin = [ -7.94094, 0.0, 21.1064 ]
+						anchor_angles = [ 0.0, 0.0, 90.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.0
+						enable_limit = false
+						min_angle = 90.0
+						max_angle = 180.0
+					},
+					{
+						_class = "PhysicsJointRevolute"
+						parent_body = "base"
+						child_body = "toplid"
+						anchor_origin = [ -7.94094, 0.0, 21.1064 ]
+						anchor_angles = [ 0.0, 0.0, 90.0 ]
+						collision_enabled = true
+						linear_strength = 0.0
+						angular_strength = 0.0
+						friction = 0.0
+						enable_limit = false
+						min_angle = 90.0
+						max_angle = 180.0
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = "prop_physics"
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

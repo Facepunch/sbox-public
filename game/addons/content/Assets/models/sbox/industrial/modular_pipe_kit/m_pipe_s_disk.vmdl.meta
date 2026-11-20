@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe S Disk",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipesdisk",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_s_disk.vmdl"
+      }
+    }
+  },
+  "guid": "9d8ce56f-6fdd-4708-b5e4-02287cc98b79"
+}

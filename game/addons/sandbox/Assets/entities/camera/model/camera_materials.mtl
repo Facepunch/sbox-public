@@ -1,0 +1,3 @@
+newmtl camera_entity
+Kd 1 1 1
+map_Kd camera_color.png

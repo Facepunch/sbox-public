@@ -316,6 +316,7 @@ public sealed partial class RenderSystem : IDisposable
 		view.Update();
 		frame.Begin( world, view, output, stages );
 		BloomObjects = null;
+		ReactiveDepth = null;
 
 		var allocStart = GC.GetAllocatedBytesForCurrentThread();
 		var start = Stopwatch.GetTimestamp();
@@ -621,6 +622,12 @@ public sealed partial class RenderSystem : IDisposable
 	internal GpuTexture BloomObjects { get; set; }
 
 	/// <summary>
+	/// The overlays' depth the last frame drew for a temporal upscaler's reactive mask (<see cref="ReactiveDepthLayer"/>), the
+	/// size of its output, or null when it drew none. Valid until this system renders again.
+	/// </summary>
+	internal GpuTexture ReactiveDepth { get; set; }
+
+	/// <summary>
 	/// Milliseconds since the last lap, starting the next.
 	/// </summary>
 	double Lap()
@@ -696,17 +703,21 @@ public sealed partial class RenderSystem : IDisposable
 		return false;
 	}
 
-	GpuTexture frameBufferCopy;
+	GpuTexture frameBufferCopy, otherFrameBufferCopy;
 
 	/// <summary>
 	/// Persistent mipmapped RGBA16F copy (<c>FindOrCreateFrameBufferScratchTexture</c>).
-	/// Created on the main thread; the depth-aware mask reads the previous frame's second mip.
+	/// Created on the main thread; the depth-aware mask reads the previous frame's second mip. The last two sizes are kept:
+	/// a view whose renderer also draws views of another size (a camera's and its 128 px cube faces) made a new 10 MiB copy,
+	/// the driver's allocation, at every turn, 190 in Construct's load and the seconds after it.
 	/// </summary>
 	internal GpuTexture FrameBufferCopy( Rect viewport )
 	{
 		var width = (int)viewport.Width;
 		var height = (int)viewport.Height;
 		if ( frameBufferCopy is { } existing && existing.Width == width && existing.Height == height ) return existing;
+		(frameBufferCopy, otherFrameBufferCopy) = (otherFrameBufferCopy, frameBufferCopy);
+		if ( frameBufferCopy is { } other && other.Width == width && other.Height == height ) return other;
 
 		// The device retains resources used by in-flight frames.
 		frameBufferCopy?.Dispose();
@@ -838,7 +849,8 @@ public sealed partial class RenderSystem : IDisposable
 		flipColor = flipResolved = null;
 		flipTarget = null;
 		frameBufferCopy?.Dispose();
-		frameBufferCopy = null;
+		otherFrameBufferCopy?.Dispose();
+		frameBufferCopy = otherFrameBufferCopy = null;
 		transforms.Dispose();
 		environment.Dispose();
 		Occlusion.Dispose();

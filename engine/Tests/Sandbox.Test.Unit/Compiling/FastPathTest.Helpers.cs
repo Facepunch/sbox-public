@@ -34,20 +34,24 @@ internal class FastPathTestCompiler : IDisposable
 	public IReadOnlyList<string> SourceNames { get; }
 
 	public ILHotload Hotload { get; }
-	public CompileGroup Group { get; }
-	public Compiler Compiler { get; }
-	public BaseFileSystem FileSystem { get; }
+	public InMemoryCompiler InMemoryCompiler { get; }
 	public BuildResult? LastResult { get; private set; }
+
+	public Compiler Compiler => InMemoryCompiler.Compiler;
 
 	/// <summary>
 	/// Loads each compiled assembly. Defaults to the default load context.
 	/// </summary>
-	public Func<byte[], Assembly> LoadAssembly { get; init; } = Assembly.Load;
+	public Func<byte[], Assembly> LoadAssembly
+	{
+		get => InMemoryCompiler.LoadAssembly;
+		init => InMemoryCompiler.LoadAssembly = value;
+	}
 
 	public Compiler.Configuration Config
 	{
-		get => Compiler.GetConfiguration();
-		set => Compiler.SetConfiguration( value );
+		get => InMemoryCompiler.Config;
+		set => InMemoryCompiler.Config = value;
 	}
 
 	public FastPathTestCompiler( params IEnumerable<string> sourceNames )
@@ -55,21 +59,12 @@ internal class FastPathTestCompiler : IDisposable
 		SourceNames = [.. sourceNames.Select( Path.GetFileNameWithoutExtension )!];
 
 		Hotload = new ILHotload( "Test" );
-		Group = new CompileGroup( "Test" ) { AllowFastHotload = true };
-		Compiler = new Compiler( Group, SourceNames[0] );
-		Config = new Compiler.Configuration { Whitelist = false };
-		FileSystem = new MemoryFileSystem();
-
-		Compiler.AddSourceLocation( FileSystem );
-
-		Compiler.AddReference( "Sandbox.Test.Unit" );
+		InMemoryCompiler = new InMemoryCompiler( SourceNames[0] );
 	}
 
 	public async Task<BuildResult> BuildAsync( int version = 1, bool expectNotSupported = false )
 	{
-		var compileSuccessCallback = false;
-
-		Group.OnCompileSuccess = () => compileSuccessCallback = true;
+		var sources = new Dictionary<string, string>();
 
 		foreach ( string sourceName in SourceNames )
 		{
@@ -81,32 +76,15 @@ internal class FastPathTestCompiler : IDisposable
 
 				if ( !srcFile.Exists ) continue;
 
-				await using var dstStream = FileSystem.OpenWrite( $"{sourceName}.cs" );
-				await using var srcStream = srcFile.OpenRead();
-
-				await srcStream.CopyToAsync( dstStream );
+				sources[$"{sourceName}.cs"] = await File.ReadAllTextAsync( srcFile.FullName );
 
 				break;
 			}
 		}
 
-		Compiler.MarkForRecompile();
+		InMemoryCompiler.WriteSources( sources );
 
-		Assert.IsTrue( Compiler.NeedsBuild );
-		Assert.IsFalse( compileSuccessCallback );
-
-		await Group.BuildAsync();
-
-		Assert.IsTrue( compileSuccessCallback );
-		Assert.IsFalse( Compiler.NeedsBuild );
-
-		Assert.IsNotNull( Group.BuildResult );
-		Assert.IsTrue( Group.BuildResult.Success, Group.BuildResult.BuildDiagnosticsString() );
-		Assert.AreEqual( Group.BuildResult.Output.Count(), 1 );
-
-		var output = Group.BuildResult.Output.First();
-
-		var asm = LoadAssembly( output.AssemblyData );
+		var asm = (await InMemoryCompiler.BuildAsync()).Assembly;
 
 		var supported = ILHotload.TryFindChangedMethods( LastResult?.Assembly, LastResult?.MethodBodyAssembly, asm,
 			out var changes, out var unexpected, out var hasAttribute );
@@ -169,8 +147,7 @@ internal class FastPathTestCompiler : IDisposable
 
 	public void Dispose()
 	{
-		Compiler.Dispose();
-		Group.Dispose();
+		InMemoryCompiler.Dispose();
 	}
 }
 

@@ -1,0 +1,143 @@
+@using Sandbox.UI
+@using System.Text.Json.Nodes
+@namespace Sandbox
+@inherits Panel
+
+<root>
+    <div class="preset-controls">
+        <UIDropdown Items=@Items Value=@SelectedId ValueChanged=@PickPreset Tokenize=@false Tooltip="#ui.tool_presets.choose" />
+        <UIButton Icon="add" Tooltip="#ui.tool_presets.add" @onclick=@AddPreset />
+        <UIButton Icon="edit" Tooltip="#ui.tool_presets.edit" @onclick=@EditPresets />
+        <UIButton Icon="restart_alt" Tooltip="#ui.tool_presets.reset" @onclick=@ResetToDefaults />
+    </div>
+    @if ( !string.IsNullOrEmpty( Error ) )
+    {
+        <label class="preset-error">@Error</label>
+    }
+</root>
+
+@code
+{
+    [Parameter] public ToolMode Mode { get; set; }
+    ToolMode BoundMode;
+    string Key;
+    List<ToolPreset> Presets = new();
+    Guid SelectedId;
+    bool Modified;
+    string Error;
+    int Revision;
+    RealTimeSince LastCheck;
+
+    List<UIDropdown.Item> Items => new[] { new UIDropdown.Item( Game.Language.GetPhrase( "ui.tool_presets.current" ), Guid.Empty ) }
+        .Concat( Presets.Select( p => new UIDropdown.Item( p.Name + (p.Id == SelectedId && Modified ? " *" : ""), p.Id ) ) ).ToList();
+
+    protected override void OnParametersSet()
+    {
+        if ( BoundMode == Mode ) return;
+        BoundMode = Mode;
+        SelectedId = Guid.Empty;
+        Modified = false;
+        Key = Mode.IsValid() ? ToolPresetStore.Key( Mode ) : null;
+        Reload();
+    }
+
+    void Reload()
+    {
+        Revision = ToolPresetStore.Revision;
+        Error = null;
+        try { Presets = Key is null ? new() : ToolPresetStore.Load( Key ); }
+        catch ( Exception e ) { Presets = new(); Error = ToolPresetStore.ErrorText( e ); }
+        if ( !Presets.Any( p => p.Id == SelectedId ) ) SelectedId = Guid.Empty;
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+        if ( Revision != ToolPresetStore.Revision ) Reload();
+        if ( LastCheck < 0.25f || !Mode.IsValid() ) return;
+        LastCheck = 0;
+        var preset = Presets.FirstOrDefault( p => p.Id == SelectedId );
+        bool modified = preset is not null && !JsonNode.DeepEquals( preset.Values, ToolPresetSettings.Capture( Mode ) );
+        if ( modified == Modified ) return;
+        Modified = modified;
+        StateHasChanged();
+    }
+
+    void PickPreset( object value )
+    {
+        if ( !Mode.IsValid() || value is not Guid id ) return;
+        if ( id == Guid.Empty ) { SelectedId = id; Modified = false; StateHasChanged(); return; }
+        var preset = Presets.FirstOrDefault( p => p.Id == id );
+        if ( preset is null ) return;
+        try
+        {
+            ToolPresetSettings.Apply( Mode, preset.Values );
+            Mode.SaveCookies();
+            SelectedId = id;
+            Modified = false;
+            Error = null;
+        }
+        catch ( Exception e ) { Error = ToolPresetStore.ErrorText( e ); }
+        StateHasChanged();
+    }
+
+    void AddPreset()
+    {
+        if ( !Mode.IsValid() ) return;
+        var key = Key;
+        var mode = Mode;
+        JsonObject values;
+        try { values = ToolPresetSettings.Capture( mode ); }
+        catch ( Exception e ) { Error = ToolPresetStore.ErrorText( e ); StateHasChanged(); return; }
+
+        string name = "";
+        UIModal modal = null;
+        Label error = null;
+        void Save()
+        {
+            try
+            {
+                var preset = ToolPresetStore.Save( key, Guid.Empty, name, values );
+                if ( IsValid && Mode == mode ) { SelectedId = preset.Id; Modified = false; Reload(); }
+                modal.Close();
+            }
+            catch ( Exception e ) { if ( error.IsValid() ) error.Text = ToolPresetStore.ErrorText( e ); }
+        }
+        var properties = new List<SerializedProperty>
+        {
+            Game.TypeLibrary.CreateProperty( "Name", () => name, v => name = v,
+                new Attribute[] { new PropertyAttribute(), new HideLabelAttribute(), new PlaceholderAttribute( "#ui.tool_presets.name_placeholder" ) } ),
+            new UIActionProperty( "#ui.tool_presets.save", "save", Save, 1, separator: true ) { Enabled = () => !string.IsNullOrWhiteSpace( name ) },
+            new UIActionProperty( "#spawnmenu.common.cancel", null, () => modal.Close(), 2, sameLine: true )
+        };
+        modal = UIModal.Show( this, "#ui.tool_presets.add", properties );
+        if ( modal is null ) return;
+        modal.AddClass( "prompt tool-preset-prompt" );
+        error = modal.Body.AddChild<Label>( "preset-error" );
+        modal.OnSubmit = Save;
+    }
+
+    /// <summary>
+    /// Every setting back to what the tool starts with. That's no preset, so the dropdown goes back to Current.
+    /// </summary>
+    void ResetToDefaults()
+    {
+        if ( !Mode.IsValid() ) return;
+        try
+        {
+            ToolPresetSettings.Apply( Mode, ToolPresetSettings.Defaults( Mode ) );
+            Mode.SaveCookies();
+            SelectedId = Guid.Empty;
+            Modified = false;
+            Error = null;
+        }
+        catch ( Exception e ) { Error = ToolPresetStore.ErrorText( e ); }
+        StateHasChanged();
+    }
+
+    void EditPresets()
+    {
+        if ( Mode.IsValid() ) ToolPresetEditor.Open( this, Mode, SelectedId );
+    }
+}

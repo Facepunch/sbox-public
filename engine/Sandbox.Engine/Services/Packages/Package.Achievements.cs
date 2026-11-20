@@ -19,7 +19,7 @@ public partial class Package
 		if ( achievements is not null )
 			return achievements;
 
-		achievements = new AchievementCollection( GetIdent( false, false ) );
+		achievements = new AchievementCollection( FullIdent );
 
 		try
 		{

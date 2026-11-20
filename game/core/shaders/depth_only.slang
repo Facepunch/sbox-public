@@ -3,7 +3,7 @@
 // module: Borealis.Gpu draws it from here alone, GPU-driven too; depth_only.shader is only Source 2's renderer's now.
 // See docs/reference/borealis-standalone-modules.md.
 #include "sbox/pass.slangh"
-#include "vr_common.fxc"
+#include "sbox/shading.slangh"
 
 Mode( Depth );
 
@@ -41,7 +41,7 @@ struct PS_INPUT
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
-#include "instancing.fxc"
+#include "sbox/instancing.slangh"
 
 // GPU-driven: positions pulled by vertex index, the transform from the instance record; a skinned draw from the vertex
 // cache pulls its vertex's place there instead. Not alpha-tested or translucent (those read the material's texture: they

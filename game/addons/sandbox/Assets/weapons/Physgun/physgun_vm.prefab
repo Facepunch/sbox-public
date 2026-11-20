@@ -1,0 +1,2890 @@
+{
+  "RootObject": {
+    "__guid": "2219aede-59f1-4835-a968-0199851a8455",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "physgun_vm",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 0,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "ViewModel",
+        "__guid": "0d8179ee-f780-4aab-bed2-a1f42cc41e79",
+        "__enabled": true,
+        "Flags": 0,
+        "ADSInertiaScale": 0.3,
+        "AnimationSpeed": 1,
+        "DeploySound": {
+          "Id": "cd40d880-a62f-4e55-93b7-5caad138cd31",
+          "Path": "weapons/common/foley/foley_deploy_weapon_01.sound"
+        },
+        "EjectBrass": null,
+        "IncrementalAnimationSpeed": 3,
+        "IncrementalReloadFinishSounds": [],
+        "IncrementalReloadSoundEvents": [],
+        "IncrementalReloadStartSounds": [],
+        "InertiaScale": "2,2",
+        "IsIncremental": false,
+        "IsThrowable": false,
+        "LookInertia": false,
+        "LookInertiaAmount": 1,
+        "LookInertiaDamping": 0.35,
+        "LookInertiaFrequency": 3,
+        "LookInertiaPivotDistance": 10,
+        "MaxInertia": 15,
+        "MuzzleEffect": null,
+        "MuzzleGameObject": {
+          "_type": "gameobject",
+          "go": "3cc4707a-7e77-4e49-8ec7-97e86df43579"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "ReloadSoundEvents": [],
+        "Renderer": {
+          "_type": "component",
+          "component_id": "0d315a8a-856e-49cb-b5d6-a16482eaf1be",
+          "go": "2658361a-cbbf-4054-9dfc-7eafdd48f589",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "ShellEjectGameObject": {
+          "_type": "gameobject",
+          "go": "dcc37bca-a959-4b1d-87ee-15eaa48af28d"
+        },
+        "ThrowableType": "HEGrenade",
+        "TracerEffect": null
+      },
+      {
+        "__type": "PhygunViewmodel",
+        "__guid": "7f7931c8-e48f-457c-8b86-b6ceeb130411",
+        "__enabled": true,
+        "Flags": 0,
+        "BeamActive": true,
+        "BottleMaterial": {
+          "Id": "58900106-0e72-4e58-8248-7610d8aca9ba",
+          "Path": "weapons/physgun/v_physgun_d.vmat"
+        },
+        "GlowEffect": {
+          "_type": "component",
+          "component_id": "641c4ad5-7b84-41d6-95b8-81517a04d182",
+          "go": "45f9462f-1700-4260-9337-37001fe7d38b",
+          "component_type": "ParticleEffect"
+        },
+        "GravGlowScale": 0.6199187,
+        "GravTint": "1,0.54902,0,0.6",
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PhysTint": "0.16047,0.91953,1.5,0.3",
+        "SparksEffect": {
+          "_type": "component",
+          "component_id": "0f532897-1e26-4406-9671-c20a889d105b",
+          "go": "7a2f543f-a785-4710-aba5-e6b92202956b",
+          "component_type": "ParticleEffect"
+        },
+        "TipSprites": [
+          {
+            "_type": "component",
+            "component_id": "db0ed248-5ae8-4cd5-8c02-24a2ab4d7a14",
+            "go": "f3089444-246a-47ab-bfa5-037ac9f9bb81",
+            "component_type": "SpriteRenderer"
+          },
+          {
+            "_type": "component",
+            "component_id": "82c091c0-882c-47eb-86d5-b2195ef661b5",
+            "go": "ee8f88b0-2dec-4db8-aa2d-a9493699a10f",
+            "component_type": "SpriteRenderer"
+          },
+          {
+            "_type": "component",
+            "component_id": "99de8adb-17b6-469f-9af5-d57a5bbde68f",
+            "go": "02128166-e28b-471d-aac1-f77a9acd475a",
+            "component_type": "SpriteRenderer"
+          }
+        ],
+        "TubeFxMaterial": {
+          "Id": "a01345a8-c0d1-4bd9-80f2-28788f46e2fd",
+          "Path": "weapons/physgun/v_physgun_tube.vmat"
+        }
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "2658361a-cbbf-4054-9dfc-7eafdd48f589",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Viewmodel",
+        "Position": "0,0,-0.0157837905",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "0d315a8a-856e-49cb-b5d6-a16482eaf1be",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": null,
+            "CreateAttachments": true,
+            "CreateBoneObjects": true,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "1e85ece9-59ab-4fa6-ad46-0b448bd401c6",
+              "Path": "weapons/physgun/v_physgun.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": false,
+              "OverlayLayer": true,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "Off",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": [
+          {
+            "__guid": "2b08fc1c-7f6d-4e0e-8507-239ea30773da",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "weapon_root",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "5035151a-6f7e-42a7-837a-b78052737e8c",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "weapon_root_children",
+                "Position": "0,0,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": [
+                  {
+                    "__guid": "9a663929-849c-4211-ac00-8ff888e2e92c",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "silencer",
+                    "Position": "6.013762,-3.51690602E-07,1.79553604",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  },
+                  {
+                    "__guid": "de94ac08-e89d-458d-8d56-983e11904ebe",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "slide",
+                    "Position": "1.32287002,1.71025803E-07,1.63053298",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  },
+                  {
+                    "__guid": "51201b4f-1aba-4189-a5ed-d59c273967ff",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "slide_catch",
+                    "Position": "2.35629392,0.54724282,0.852361381",
+                    "Rotation": "2.84217094E-14,1.50995703E-07,1,-1.50995803E-07",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  },
+                  {
+                    "__guid": "990fb074-12b0-40a3-8246-de2cc7d970a6",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "hammer",
+                    "Position": "-0.921256304,3.57945709E-07,0.976375282",
+                    "Rotation": "0.42261821,7.40506678E-08,0.906307817,7.25615124E-08",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  },
+                  {
+                    "__guid": "10e9f27d-0d82-4888-aa86-7dc8fbb3c4f0",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "safety",
+                    "Position": "-0.94487977,0.547243476,0.90354228",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  },
+                  {
+                    "__guid": "6ca94540-5546-455c-99cd-ae733402eb79",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "magazine",
+                    "Position": "-0.0716471672,-1.18752297E-07,-0.824638784",
+                    "Rotation": "2.97190201E-08,0.798635423,2.97190201E-08,0.601815224",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  },
+                  {
+                    "__guid": "f6678870-c7ea-4b08-b092-30008dfa6963",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "trigger",
+                    "Position": "1.95297897,-1.178662E-07,0.652396917",
+                    "Rotation": "2.10733901E-08,0.707106411,-2.10733901E-08,0.707107186",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  },
+                  {
+                    "__guid": "60fd9dc5-7de1-4ec3-aa9e-80ffbca1d285",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "weapon_IK_hand_L",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": [
+                      {
+                        "__guid": "03f17e88-ca20-4ee3-8631-cff8743b806f",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "hand_L_to_weapon_ikrule",
+                        "Position": "0,0,0",
+                        "Rotation": "0,0,0,1",
+                        "Scale": "1,1,1",
+                        "Tags": "",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [],
+                        "Children": []
+                      }
+                    ]
+                  },
+                  {
+                    "__guid": "be8966e7-3c04-41cc-bc4d-bfbe4b8f4641",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "weapon_IK_hand_R",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": [
+                      {
+                        "__guid": "05179fe6-cc32-401d-8a57-4351fb5cc754",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "hand_R_to_weapon_ikrule",
+                        "Position": "0,0,0",
+                        "Rotation": "0,0,0,1",
+                        "Scale": "1,1,1",
+                        "Tags": "",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [],
+                        "Children": []
+                      }
+                    ]
+                  },
+                  {
+                    "__guid": "49eb564a-8112-42ad-9a97-56b48442f220",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "MuzzleTransform",
+                    "Position": "17.6389408,-0.124723703,1.695858",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": [
+                      {
+                        "__guid": "45f9462f-1700-4260-9337-37001fe7d38b",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "GlowEffectParticles",
+                        "Position": "-0.245958328,0,-0.776882648",
+                        "Rotation": "0,0,0,1",
+                        "Scale": "1,1,1",
+                        "Tags": "particles",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [
+                          {
+                            "__type": "Sandbox.ParticleEffect",
+                            "__guid": "641c4ad5-7b84-41d6-95b8-81517a04d182",
+                            "__enabled": true,
+                            "Flags": 0,
+                            "__version": 3,
+                            "Alpha": 1,
+                            "ApplyAlpha": true,
+                            "ApplyColor": true,
+                            "ApplyRotation": true,
+                            "ApplyShape": true,
+                            "Bounce": 1,
+                            "Brightness": 0.31999955,
+                            "Bumpiness": 0,
+                            "Collision": false,
+                            "CollisionIgnore": null,
+                            "CollisionPrefab": null,
+                            "CollisionPrefabAlign": false,
+                            "CollisionPrefabChance": 1,
+                            "CollisionPrefabRotation": 0,
+                            "CollisionRadius": 1,
+                            "ConstantMovement": {
+                              "X": 0,
+                              "Y": 0,
+                              "Z": 0
+                            },
+                            "Damping": 0,
+                            "DieOnCollisionChance": 0,
+                            "FollowerPrefab": null,
+                            "FollowerPrefabChance": 1,
+                            "FollowerPrefabKill": true,
+                            "Force": false,
+                            "ForceDirection": "0,0,-800",
+                            "ForceScale": 1,
+                            "ForceSpace": "World",
+                            "Friction": 1,
+                            "Gradient": {
+                              "Type": "Gradient",
+                              "Evaluation": "Life",
+                              "GradientA": {
+                                "blend": "Linear",
+                                "color": [
+                                  {
+                                    "t": 0,
+                                    "c": "1,1,1,1"
+                                  },
+                                  {
+                                    "t": 0.5,
+                                    "c": "1,1,1,1"
+                                  },
+                                  {
+                                    "t": 1,
+                                    "c": "1,1,1,1"
+                                  }
+                                ],
+                                "alpha": [
+                                  {
+                                    "t": 0,
+                                    "a": 0.75
+                                  },
+                                  {
+                                    "t": 0.5,
+                                    "a": 0.5
+                                  },
+                                  {
+                                    "t": 1,
+                                    "a": 0.75
+                                  }
+                                ]
+                              },
+                              "GradientB": {
+                                "blend": "Linear",
+                                "color": [
+                                  {
+                                    "t": 0.5,
+                                    "c": "1,1,1,1"
+                                  }
+                                ],
+                                "alpha": []
+                              }
+                            },
+                            "InitialPitch": 0,
+                            "InitialRoll": 0,
+                            "InitialScale": 1,
+                            "InitialVelocity": {
+                              "X": 0,
+                              "Y": 0,
+                              "Z": 0
+                            },
+                            "InitialYaw": 0,
+                            "Lifetime": {
+                              "Type": "Range",
+                              "Evaluation": "Seed",
+                              "Constants": "0.5,1,0,0"
+                            },
+                            "LocalSpace": 1,
+                            "MaxParticles": 6,
+                            "OnComponentDestroy": null,
+                            "OnComponentDisabled": null,
+                            "OnComponentEnabled": null,
+                            "OnComponentFixedUpdate": null,
+                            "OnComponentStart": null,
+                            "OnComponentUpdate": null,
+                            "OnParticleCreated": null,
+                            "OnParticleDestroyed": null,
+                            "OrbitalForce": {
+                              "X": 0,
+                              "Y": 0,
+                              "Z": 0
+                            },
+                            "OrbitalPull": 0,
+                            "PerParticleTimeScale": 1,
+                            "Pitch": 5.3099995,
+                            "PreWarm": 1,
+                            "PushStrength": 0,
+                            "Roll": {
+                              "Type": "CurveRange",
+                              "Evaluation": "Life",
+                              "CurveA": {
+                                "rangey": "0,40",
+                                "frames": [
+                                  {
+                                    "x": 0,
+                                    "y": 1,
+                                    "in": 0,
+                                    "out": 0,
+                                    "mode": "Mirrored"
+                                  },
+                                  {
+                                    "x": 1,
+                                    "y": 0,
+                                    "in": 0,
+                                    "out": 0,
+                                    "mode": "Mirrored"
+                                  }
+                                ]
+                              },
+                              "CurveB": {
+                                "rangey": "0,40",
+                                "frames": [
+                                  {
+                                    "x": 0,
+                                    "y": 0,
+                                    "in": 0,
+                                    "out": 0,
+                                    "mode": "Mirrored"
+                                  },
+                                  {
+                                    "x": 1,
+                                    "y": 0.641129,
+                                    "in": 0,
+                                    "out": 0,
+                                    "mode": "Mirrored"
+                                  }
+                                ]
+                              }
+                            },
+                            "Scale": {
+                              "Type": "Curve",
+                              "Evaluation": "Life",
+                              "CurveA": {
+                                "rangey": "30,32",
+                                "frames": [
+                                  {
+                                    "x": 0,
+                                    "y": 0.3888893,
+                                    "in": 0,
+                                    "out": 0,
+                                    "mode": "Mirrored"
+                                  },
+                                  {
+                                    "x": 0,
+                                    "y": 0,
+                                    "in": 0,
+                                    "out": 0,
+                                    "mode": "Mirrored"
+                                  },
+                                  {
+                                    "x": 0.5,
+                                    "y": 1,
+                                    "in": 0,
+                                    "out": 0,
+                                    "mode": "Mirrored"
+                                  },
+                                  {
+                                    "x": 1,
+                                    "y": 0,
+                                    "in": 0,
+                                    "out": 0,
+                                    "mode": "Mirrored"
+                                  }
+                                ]
+                              },
+                              "CurveB": {
+                                "rangex": "0,0",
+                                "rangey": "0,0"
+                              }
+                            },
+                            "SequenceFitToLifetime": false,
+                            "SequenceId": 0,
+                            "SequenceSpeed": 1,
+                            "SequenceTime": 1,
+                            "SheetSequence": false,
+                            "SnapToFrame": false,
+                            "StartDelay": 0,
+                            "StartVelocity": {
+                              "Type": "Range",
+                              "Evaluation": "Seed",
+                              "Constants": "0,0,0,0"
+                            },
+                            "Stretch": 0.36000177,
+                            "TimeScale": 1,
+                            "Timing": "GameTime",
+                            "Tint": "0.16047,0.91953,1.5,0.3",
+                            "UsePrefabFeature": false,
+                            "Yaw": {
+                              "Type": "Range",
+                              "Evaluation": "Life",
+                              "Constants": "0,36000,0,0"
+                            }
+                          },
+                          {
+                            "__type": "Sandbox.ParticleSpriteRenderer",
+                            "__guid": "6f17b592-6456-4735-b627-0b8492b22432",
+                            "__enabled": true,
+                            "Flags": 0,
+                            "__version": 2,
+                            "Additive": true,
+                            "Alignment": "LookAtCamera",
+                            "BlurAmount": 0.5,
+                            "BlurOpacity": 0.91,
+                            "BlurSpacing": 0.73,
+                            "CameraFadeFar": 0,
+                            "CameraFadeNear": 0,
+                            "DepthFeather": 10.3,
+                            "FaceVelocity": false,
+                            "FogStrength": 1,
+                            "LeadingTrail": true,
+                            "Lighting": false,
+                            "MotionBlur": false,
+                            "NormalTexture": null,
+                            "OnComponentDestroy": null,
+                            "OnComponentDisabled": null,
+                            "OnComponentEnabled": null,
+                            "OnComponentFixedUpdate": null,
+                            "OnComponentStart": null,
+                            "OnComponentUpdate": null,
+                            "Opaque": false,
+                            "PlaybackSpeed": 1,
+                            "Refraction": false,
+                            "RefractionStrength": 8,
+                            "RenderOptions": {
+                              "GameLayer": false,
+                              "OverlayLayer": true,
+                              "BloomLayer": true,
+                              "AfterUILayer": false
+                            },
+                            "RotationOffset": 0,
+                            "Scale": 1.228,
+                            "Shadows": false,
+                            "SortMode": "Unsorted",
+                            "Sprite": {
+                              "$compiler": "embed",
+                              "$source": null,
+                              "data": {
+                                "Animations": [
+                                  {
+                                    "Name": "Default",
+                                    "FrameRate": 15,
+                                    "Origin": "0.5,0.5",
+                                    "LoopMode": "Loop",
+                                    "LoopStart": -1,
+                                    "LoopEnd": -1,
+                                    "Frames": [
+                                      {
+                                        "Texture": {
+                                          "Id": "668d8ec0-75d5-43d8-8797-388d2aa89f24",
+                                          "Path": "textures/particles/flares/light_glow_03.vtex"
+                                        },
+                                        "BroadcastMessages": []
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "__references": null
+                              },
+                              "compiled": null
+                            },
+                            "StartingAnimationName": "Default",
+                            "TextureFilter": "Bilinear"
+                          },
+                          {
+                            "__type": "Sandbox.ParticleSphereEmitter",
+                            "__guid": "08fb1360-405a-4ed3-ade2-bac1e8860163",
+                            "__enabled": true,
+                            "Flags": 0,
+                            "Burst": 0,
+                            "Delay": 0,
+                            "DestroyOnEnd": false,
+                            "DistanceBias": "1,1,1",
+                            "Duration": 5,
+                            "Loop": true,
+                            "OnComponentDestroy": null,
+                            "OnComponentDisabled": null,
+                            "OnComponentEnabled": null,
+                            "OnComponentFixedUpdate": null,
+                            "OnComponentStart": null,
+                            "OnComponentUpdate": null,
+                            "OnEdge": false,
+                            "OneSidedAxes": "None",
+                            "Radius": 2,
+                            "Rate": 100,
+                            "RateOverDistance": 0,
+                            "Velocity": 0
+                          }
+                        ],
+                        "Children": []
+                      },
+                      {
+                        "__guid": "7a2f543f-a785-4710-aba5-e6b92202956b",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "TurnOnSparks",
+                        "Position": "2.148911,-1.10028997E-09,1.56319402E-13",
+                        "Rotation": "0,0,0,1",
+                        "Scale": "1,1,1",
+                        "Tags": "particles",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [
+                          {
+                            "__type": "Sandbox.ParticleEffect",
+                            "__guid": "0f532897-1e26-4406-9671-c20a889d105b",
+                            "__enabled": true,
+                            "Flags": 0,
+                            "__version": 3,
+                            "Alpha": {
+                              "Type": "Curve",
+                              "Evaluation": "Life",
+                              "CurveA": [
+                                {
+                                  "x": 0,
+                                  "y": 1,
+                                  "in": 0,
+                                  "out": 0,
+                                  "mode": "Mirrored"
+                                },
+                                {
+                                  "x": 1,
+                                  "y": 0,
+                                  "in": 0,
+                                  "out": 0,
+                                  "mode": "Mirrored"
+                                }
+                              ],
+                              "CurveB": [
+                                {
+                                  "x": 0.5,
+                                  "y": 0.5,
+                                  "in": 0,
+                                  "out": 0,
+                                  "mode": "Mirrored"
+                                }
+                              ]
+                            },
+                            "ApplyAlpha": false,
+                            "ApplyColor": true,
+                            "ApplyRotation": false,
+                            "ApplyShape": true,
+                            "Bounce": 1,
+                            "Brightness": 5,
+                            "Bumpiness": 0,
+                            "Collision": false,
+                            "CollisionIgnore": null,
+                            "CollisionPrefab": null,
+                            "CollisionPrefabAlign": false,
+                            "CollisionPrefabChance": 1,
+                            "CollisionPrefabRotation": 0,
+                            "CollisionRadius": 1,
+                            "ConstantMovement": {
+                              "X": 0,
+                              "Y": 0,
+                              "Z": 0
+                            },
+                            "Damping": 1.5,
+                            "DieOnCollisionChance": 0,
+                            "FollowerPrefab": null,
+                            "FollowerPrefabChance": 1,
+                            "FollowerPrefabKill": true,
+                            "Force": true,
+                            "ForceDirection": "0,0,-100",
+                            "ForceScale": 1,
+                            "ForceSpace": "World",
+                            "Friction": 1,
+                            "Gradient": "1,1,1,1",
+                            "InitialPitch": 0,
+                            "InitialRoll": 0,
+                            "InitialScale": 1,
+                            "InitialVelocity": {
+                              "X": 0,
+                              "Y": 0,
+                              "Z": 0
+                            },
+                            "InitialYaw": 0,
+                            "Lifetime": {
+                              "Type": "Range",
+                              "Evaluation": "Seed",
+                              "Constants": "0.100000001,0.5,0,0"
+                            },
+                            "LocalSpace": {
+                              "Type": "Curve",
+                              "Evaluation": "Life",
+                              "CurveA": [
+                                {
+                                  "x": 0,
+                                  "y": 1,
+                                  "in": -0.17000021,
+                                  "out": 0.17000021,
+                                  "mode": "Mirrored"
+                                },
+                                {
+                                  "x": 1,
+                                  "y": 0,
+                                  "in": 0,
+                                  "out": 0,
+                                  "mode": "Mirrored"
+                                }
+                              ],
+                              "CurveB": [
+                                {
+                                  "x": 0.5,
+                                  "y": 0.5,
+                                  "in": 0,
+                                  "out": 0,
+                                  "mode": "Mirrored"
+                                }
+                              ]
+                            },
+                            "MaxParticles": 40,
+                            "OnComponentDestroy": null,
+                            "OnComponentDisabled": null,
+                            "OnComponentEnabled": null,
+                            "OnComponentFixedUpdate": null,
+                            "OnComponentStart": null,
+                            "OnComponentUpdate": null,
+                            "OnParticleCreated": null,
+                            "OnParticleDestroyed": null,
+                            "OrbitalForce": {
+                              "X": 0,
+                              "Y": 0,
+                              "Z": 0
+                            },
+                            "OrbitalPull": 0,
+                            "PerParticleTimeScale": 1,
+                            "Pitch": 0,
+                            "PreWarm": 0,
+                            "PushStrength": 0,
+                            "Roll": 0,
+                            "Scale": {
+                              "Type": "CurveRange",
+                              "Evaluation": "Life",
+                              "CurveA": [
+                                {
+                                  "x": 0,
+                                  "y": 0,
+                                  "in": -9.333329,
+                                  "out": 9.333329,
+                                  "mode": "Mirrored"
+                                },
+                                {
+                                  "x": 0.018264854,
+                                  "y": 0.54032254,
+                                  "in": 0.35339665,
+                                  "out": -0.35339665,
+                                  "mode": "Mirrored"
+                                },
+                                {
+                                  "x": 1,
+                                  "y": 0,
+                                  "in": 0.45454556,
+                                  "out": -0.45454556,
+                                  "mode": "Mirrored"
+                                }
+                              ],
+                              "CurveB": [
+                                {
+                                  "x": 0,
+                                  "y": 0.14919353,
+                                  "in": 0,
+                                  "out": 0,
+                                  "mode": "Mirrored"
+                                },
+                                {
+                                  "x": 0.9495913,
+                                  "y": 0,
+                                  "in": 0,
+                                  "out": 0,
+                                  "mode": "Mirrored"
+                                }
+                              ]
+                            },
+                            "SequenceFitToLifetime": false,
+                            "SequenceId": 0,
+                            "SequenceSpeed": 1,
+                            "SequenceTime": 1,
+                            "SheetSequence": false,
+                            "SnapToFrame": false,
+                            "StartDelay": 0,
+                            "StartVelocity": {
+                              "Type": "Range",
+                              "Evaluation": "Seed",
+                              "Constants": "0,0,0,0"
+                            },
+                            "Stretch": 0,
+                            "TimeScale": 1,
+                            "Timing": "GameTime",
+                            "Tint": "0.29629,0.94875,0.99535,1",
+                            "UsePrefabFeature": false,
+                            "Yaw": {
+                              "Type": "Range",
+                              "Evaluation": "Seed",
+                              "Constants": "0,360,0,0"
+                            }
+                          },
+                          {
+                            "__type": "Sandbox.ParticleSpriteRenderer",
+                            "__guid": "4f5607ae-9395-4a5c-81db-cd229bff43d8",
+                            "__enabled": true,
+                            "Flags": 0,
+                            "__version": 2,
+                            "Additive": true,
+                            "Alignment": "LookAtCamera",
+                            "BlurAmount": 0.5,
+                            "BlurOpacity": 0.91,
+                            "BlurSpacing": 0.73,
+                            "CameraFadeFar": 0,
+                            "CameraFadeNear": 0,
+                            "DepthFeather": 0,
+                            "FaceVelocity": false,
+                            "FogStrength": 1,
+                            "LeadingTrail": true,
+                            "Lighting": false,
+                            "MotionBlur": true,
+                            "NormalTexture": null,
+                            "OnComponentDestroy": null,
+                            "OnComponentDisabled": null,
+                            "OnComponentEnabled": null,
+                            "OnComponentFixedUpdate": null,
+                            "OnComponentStart": null,
+                            "OnComponentUpdate": null,
+                            "Opaque": false,
+                            "PlaybackSpeed": 1,
+                            "Refraction": false,
+                            "RefractionStrength": 8,
+                            "RenderOptions": {
+                              "GameLayer": false,
+                              "OverlayLayer": true,
+                              "BloomLayer": false,
+                              "AfterUILayer": false
+                            },
+                            "RotationOffset": 0,
+                            "Scale": 1,
+                            "Shadows": false,
+                            "SortMode": "Unsorted",
+                            "Sprite": {
+                              "$compiler": "embed",
+                              "$source": null,
+                              "data": {
+                                "Animations": [
+                                  {
+                                    "Name": "Default",
+                                    "FrameRate": 15,
+                                    "Origin": "0.5,0.5",
+                                    "LoopMode": "Loop",
+                                    "LoopStart": -1,
+                                    "LoopEnd": -1,
+                                    "Frames": [
+                                      {
+                                        "Texture": {
+                                          "Id": "35e7103a-860f-4a6d-820c-0d0e8926e31a",
+                                          "Path": "textures/lightcookies/lightcookies_09.vtex"
+                                        },
+                                        "BroadcastMessages": []
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "__references": null
+                              },
+                              "compiled": null
+                            },
+                            "StartingAnimationName": "Default",
+                            "TextureFilter": "Bilinear"
+                          }
+                        ],
+                        "Children": []
+                      }
+                    ]
+                  },
+                  {
+                    "__guid": "747ce13c-d944-4d4f-8403-0a4950b6ef45",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "stylus_R",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": [
+                      {
+                        "__guid": "f3089444-246a-47ab-bfa5-037ac9f9bb81",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "Sprite (1)",
+                        "Position": "6.14176512,2.82323694,-1.788139E-06",
+                        "Rotation": "0.707106709,1.49011612E-08,2.23517418E-08,0.70710665",
+                        "Scale": "3.40000105,3.40000105,3.40000105",
+                        "Tags": "",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [
+                          {
+                            "__type": "Sandbox.SpriteRenderer",
+                            "__guid": "db0ed248-5ae8-4cd5-8c02-24a2ab4d7a14",
+                            "__enabled": true,
+                            "Flags": 0,
+                            "__version": 2,
+                            "Additive": true,
+                            "AlphaCutoff": 0.5,
+                            "Billboard": "Always",
+                            "CameraFadeFar": 0,
+                            "CameraFadeNear": 0,
+                            "Color": "0.16047,0.91953,1.5,0.44098",
+                            "DepthFeather": 3,
+                            "FlipHorizontal": false,
+                            "FlipVertical": false,
+                            "FogStrength": 1,
+                            "IsSorted": false,
+                            "Lighting": false,
+                            "NormalTexture": null,
+                            "OnAnimationEnd": null,
+                            "OnAnimationStart": null,
+                            "OnBroadcastMessage": null,
+                            "OnComponentDestroy": null,
+                            "OnComponentDisabled": null,
+                            "OnComponentEnabled": null,
+                            "OnComponentFixedUpdate": null,
+                            "OnComponentStart": null,
+                            "OnComponentUpdate": null,
+                            "Opaque": false,
+                            "OverlayColor": "1,1,1,0",
+                            "PlaybackSpeed": 1,
+                            "Refraction": false,
+                            "RefractionStrength": 8,
+                            "RenderOptions": {
+                              "GameLayer": false,
+                              "OverlayLayer": true,
+                              "BloomLayer": false,
+                              "AfterUILayer": false
+                            },
+                            "Shadows": false,
+                            "Size": "3.54457855,3.54457855",
+                            "Sprite": {
+                              "$compiler": "embed",
+                              "$source": null,
+                              "data": {
+                                "Animations": [
+                                  {
+                                    "Name": "Default",
+                                    "FrameRate": 15,
+                                    "Origin": "0.5,0.5",
+                                    "LoopMode": "Loop",
+                                    "LoopStart": -1,
+                                    "LoopEnd": -1,
+                                    "Frames": [
+                                      {
+                                        "Texture": {
+                                          "Id": "1e342e2a-8da3-4701-9c21-9a196b8b0fb0",
+                                          "Path": "textures/particles/flares/particle_flare_7b.vtex"
+                                        },
+                                        "BroadcastMessages": []
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "__references": null
+                              },
+                              "compiled": null
+                            },
+                            "StartingAnimationName": "Default",
+                            "TextureFilter": "Bilinear"
+                          }
+                        ],
+                        "Children": []
+                      }
+                    ]
+                  },
+                  {
+                    "__guid": "d90af1e3-d184-408a-9d51-721868b4bdbc",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "stylus_L",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": [
+                      {
+                        "__guid": "ee8f88b0-2dec-4db8-aa2d-a9493699a10f",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "Sprite (2)",
+                        "Position": "6.14176512,2.82323694,-1.788139E-06",
+                        "Rotation": "-0.0908640921,3.7252903E-09,2.04890966E-08,0.99586314",
+                        "Scale": "3.40000105,3.40000105,3.40000105",
+                        "Tags": "",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [
+                          {
+                            "__type": "Sandbox.SpriteRenderer",
+                            "__guid": "82c091c0-882c-47eb-86d5-b2195ef661b5",
+                            "__enabled": true,
+                            "Flags": 0,
+                            "__version": 2,
+                            "Additive": true,
+                            "AlphaCutoff": 0.5,
+                            "Billboard": "Always",
+                            "CameraFadeFar": 0,
+                            "CameraFadeNear": 0,
+                            "Color": "0.16047,0.91953,1.5,0.40556",
+                            "DepthFeather": 3,
+                            "FlipHorizontal": false,
+                            "FlipVertical": false,
+                            "FogStrength": 1,
+                            "IsSorted": false,
+                            "Lighting": false,
+                            "NormalTexture": null,
+                            "OnAnimationEnd": null,
+                            "OnAnimationStart": null,
+                            "OnBroadcastMessage": null,
+                            "OnComponentDestroy": null,
+                            "OnComponentDisabled": null,
+                            "OnComponentEnabled": null,
+                            "OnComponentFixedUpdate": null,
+                            "OnComponentStart": null,
+                            "OnComponentUpdate": null,
+                            "Opaque": false,
+                            "OverlayColor": "1,1,1,0",
+                            "PlaybackSpeed": 1,
+                            "Refraction": false,
+                            "RefractionStrength": 8,
+                            "RenderOptions": {
+                              "GameLayer": false,
+                              "OverlayLayer": true,
+                              "BloomLayer": false,
+                              "AfterUILayer": false
+                            },
+                            "Shadows": false,
+                            "Size": "3.61823678,3.61823678",
+                            "Sprite": {
+                              "$compiler": "embed",
+                              "$source": null,
+                              "data": {
+                                "Animations": [
+                                  {
+                                    "Name": "Default",
+                                    "FrameRate": 15,
+                                    "Origin": "0.5,0.5",
+                                    "LoopMode": "Loop",
+                                    "LoopStart": -1,
+                                    "LoopEnd": -1,
+                                    "Frames": [
+                                      {
+                                        "Texture": {
+                                          "Id": "1e342e2a-8da3-4701-9c21-9a196b8b0fb0",
+                                          "Path": "textures/particles/flares/particle_flare_7b.vtex"
+                                        },
+                                        "BroadcastMessages": []
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "__references": null
+                              },
+                              "compiled": null
+                            },
+                            "StartingAnimationName": "Default",
+                            "TextureFilter": "Bilinear"
+                          }
+                        ],
+                        "Children": []
+                      }
+                    ]
+                  },
+                  {
+                    "__guid": "f59ef42d-be40-4512-bd8f-e53ec3a13f5a",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "stylus_C",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": [
+                      {
+                        "__guid": "02128166-e28b-471d-aac1-f77a9acd475a",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "Sprite (3)",
+                        "Position": "6.14176512,2.82323694,-1.788139E-06",
+                        "Rotation": "0.382683396,-2.23517418E-08,-7.4505806E-09,0.923879385",
+                        "Scale": "3.40000105,3.40000105,3.40000105",
+                        "Tags": "",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [
+                          {
+                            "__type": "Sandbox.SpriteRenderer",
+                            "__guid": "99de8adb-17b6-469f-9af5-d57a5bbde68f",
+                            "__enabled": true,
+                            "Flags": 0,
+                            "__version": 2,
+                            "Additive": true,
+                            "AlphaCutoff": 0.5,
+                            "Billboard": "Always",
+                            "CameraFadeFar": 0,
+                            "CameraFadeNear": 0,
+                            "Color": "0.16047,0.91953,1.5,0.51805",
+                            "DepthFeather": 3,
+                            "FlipHorizontal": false,
+                            "FlipVertical": false,
+                            "FogStrength": 1,
+                            "IsSorted": false,
+                            "Lighting": false,
+                            "NormalTexture": null,
+                            "OnAnimationEnd": null,
+                            "OnAnimationStart": null,
+                            "OnBroadcastMessage": null,
+                            "OnComponentDestroy": null,
+                            "OnComponentDisabled": null,
+                            "OnComponentEnabled": null,
+                            "OnComponentFixedUpdate": null,
+                            "OnComponentStart": null,
+                            "OnComponentUpdate": null,
+                            "Opaque": false,
+                            "OverlayColor": "1,1,1,0",
+                            "PlaybackSpeed": 1,
+                            "Refraction": false,
+                            "RefractionStrength": 8,
+                            "RenderOptions": {
+                              "GameLayer": false,
+                              "OverlayLayer": true,
+                              "BloomLayer": false,
+                              "AfterUILayer": false
+                            },
+                            "Shadows": false,
+                            "Size": "3.48882246,3.48882246",
+                            "Sprite": {
+                              "$compiler": "embed",
+                              "$source": null,
+                              "data": {
+                                "Animations": [
+                                  {
+                                    "Name": "Default",
+                                    "FrameRate": 15,
+                                    "Origin": "0.5,0.5",
+                                    "LoopMode": "Loop",
+                                    "LoopStart": -1,
+                                    "LoopEnd": -1,
+                                    "Frames": [
+                                      {
+                                        "Texture": {
+                                          "Id": "1e342e2a-8da3-4701-9c21-9a196b8b0fb0",
+                                          "Path": "textures/particles/flares/particle_flare_7b.vtex"
+                                        },
+                                        "BroadcastMessages": []
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "__references": null
+                              },
+                              "compiled": null
+                            },
+                            "StartingAnimationName": "Default",
+                            "TextureFilter": "Bilinear"
+                          }
+                        ],
+                        "Children": []
+                      }
+                    ]
+                  },
+                  {
+                    "__guid": "64d53d8e-5786-43a6-8cf9-64163ff6f62b",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "button",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  },
+                  {
+                    "__guid": "e7a54abf-d440-4e72-a474-00c43f2c1f47",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "brake",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": []
+                  }
+                ]
+              },
+              {
+                "__guid": "3cc4707a-7e77-4e49-8ec7-97e86df43579",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "muzzle",
+                "Position": "6.013762,-3.93699992E-07,1.79553401",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              },
+              {
+                "__guid": "dcc37bca-a959-4b1d-87ee-15eaa48af28d",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "eject",
+                "Position": "2.38468003,-0.147552103,1.94194496",
+                "Rotation": "-3.55271304E-15,-0.70710659,-3.55271304E-15,0.707106829",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": []
+              },
+              {
+                "__guid": "72bdbb7d-3b3e-483d-b59d-ab57f6b1f546",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "ScreenLight",
+                "Position": "3.56902909,0.0102370698,4.77139521",
+                "Rotation": "-1.01644002E-20,6.22564806E-21,-1,1.94707198E-07",
+                "Scale": "1,1,1",
+                "Tags": "light_point,light,light_spot",
+                "Enabled": false,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [
+                  {
+                    "__type": "Sandbox.SpotLight",
+                    "__guid": "decd05fa-bc8b-42b2-8c85-48e53942dfb5",
+                    "__enabled": true,
+                    "Flags": 0,
+                    "Attenuation": 10,
+                    "BakeLightIndex": -1,
+                    "ConeInner": 24.760765,
+                    "ConeOuter": 67.82297,
+                    "Contribution": "Diffuse, Specular, Transmissive",
+                    "Cookie": null,
+                    "FogMode": "Enabled",
+                    "FogStrength": 1,
+                    "LightColor": "2.77674,2.73283,2.11808,1",
+                    "MixedShadows": false,
+                    "OnComponentDestroy": null,
+                    "OnComponentDisabled": null,
+                    "OnComponentEnabled": null,
+                    "OnComponentFixedUpdate": null,
+                    "OnComponentStart": null,
+                    "OnComponentUpdate": null,
+                    "Radius": 500,
+                    "ShadowBias": 0.0005,
+                    "ShadowHardness": 0,
+                    "Shadows": false
+                  }
+                ],
+                "Children": []
+              }
+            ]
+          },
+          {
+            "__guid": "73a313e3-7864-4332-a6f5-33ba83bcc326",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "root",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": [
+              {
+                "__guid": "e5d42bb4-71fa-49a6-8f20-cb874fe21b2d",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "clavicle_R",
+                "Position": "0,0,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": [
+                  {
+                    "__guid": "8c05d6c9-348f-46d4-a842-6a6083d7e9e1",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "arm_upper_R",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": [
+                      {
+                        "__guid": "6be3120a-6949-438c-843e-3724dd2391b6",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "arm_lower_R",
+                        "Position": "0,0,0",
+                        "Rotation": "0,0,0,1",
+                        "Scale": "1,1,1",
+                        "Tags": "",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [],
+                        "Children": [
+                          {
+                            "__guid": "b15eeaea-84df-44a3-8c58-92f434b2c1fc",
+                            "__version": 2,
+                            "Flags": 0,
+                            "Name": "hand_R",
+                            "Position": "0,0,0",
+                            "Rotation": "0,0,0,1",
+                            "Scale": "1,1,1",
+                            "Tags": "",
+                            "Enabled": true,
+                            "NetworkMode": 2,
+                            "NetworkFlags": 0,
+                            "NetworkOrphaned": 0,
+                            "NetworkTransmit": true,
+                            "OwnerTransfer": 1,
+                            "Components": [],
+                            "Children": [
+                              {
+                                "__guid": "ff06c781-6cdd-4300-925a-4c539d0ac2ea",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_index_meta_R",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "f972c7ec-5421-42cf-bb21-caeca45f2601",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_index_0_R",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "1c3dffff-9e5e-46fe-b447-d82a2a895abd",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_index_1_R",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": [
+                                          {
+                                            "__guid": "95b5e688-c49a-4bb3-af89-88c64ec1bf1f",
+                                            "__version": 2,
+                                            "Flags": 0,
+                                            "Name": "finger_index_2_R",
+                                            "Position": "0,0,0",
+                                            "Rotation": "0,0,0,1",
+                                            "Scale": "1,1,1",
+                                            "Tags": "",
+                                            "Enabled": true,
+                                            "NetworkMode": 2,
+                                            "NetworkFlags": 0,
+                                            "NetworkOrphaned": 0,
+                                            "NetworkTransmit": true,
+                                            "OwnerTransfer": 1,
+                                            "Components": [],
+                                            "Children": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "27ded062-f6ed-4fa4-8d6b-d3eaa8b7d649",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "hold_R",
+                                "Position": "2.13186502,-0.128934905,-2.895818",
+                                "Rotation": "-0.329890311,0.614592314,0.4724828,0.538710117",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": []
+                              },
+                              {
+                                "__guid": "ce56abec-7e47-4ca6-b0e8-5122f2cd4cf9",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_middle_meta_R",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "2601e480-c41b-4327-a898-f2241df11a58",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_middle_0_R",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "12e92182-66c0-476a-824e-59e3c1d8eefc",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_middle_1_R",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": [
+                                          {
+                                            "__guid": "eda847de-cd5a-4146-b2e5-0db5d72ab359",
+                                            "__version": 2,
+                                            "Flags": 0,
+                                            "Name": "finger_middle_2_R",
+                                            "Position": "0,0,0",
+                                            "Rotation": "0,0,0,1",
+                                            "Scale": "1,1,1",
+                                            "Tags": "",
+                                            "Enabled": true,
+                                            "NetworkMode": 2,
+                                            "NetworkFlags": 0,
+                                            "NetworkOrphaned": 0,
+                                            "NetworkTransmit": true,
+                                            "OwnerTransfer": 1,
+                                            "Components": [],
+                                            "Children": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "d7296994-0c1f-4629-8103-ffb1d7f5e04e",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_ring_meta_R",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "044fbc34-ac4b-4f94-8fa5-59a4ad7622dc",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_ring_0_R",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "b65dfcd4-2f34-4182-a2d9-ce2a71ae2f77",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_ring_1_R",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": [
+                                          {
+                                            "__guid": "61787eff-8868-42bd-a3dd-4aab394e62ff",
+                                            "__version": 2,
+                                            "Flags": 0,
+                                            "Name": "finger_ring_2_R",
+                                            "Position": "0,0,0",
+                                            "Rotation": "0,0,0,1",
+                                            "Scale": "1,1,1",
+                                            "Tags": "",
+                                            "Enabled": true,
+                                            "NetworkMode": 2,
+                                            "NetworkFlags": 0,
+                                            "NetworkOrphaned": 0,
+                                            "NetworkTransmit": true,
+                                            "OwnerTransfer": 1,
+                                            "Components": [],
+                                            "Children": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "2d5785fd-cc7e-46c1-9325-d5f56347363b",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_pinky_meta_R",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "11e69c20-24ea-4ba2-9563-1dfdbf3c3543",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_pinky_0_R",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "df26a3d0-fdae-4502-a8ab-5b00711ffef6",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_pinky_1_R",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": [
+                                          {
+                                            "__guid": "3c87f31c-0dfb-4f4a-b882-fe88e2f58902",
+                                            "__version": 2,
+                                            "Flags": 0,
+                                            "Name": "finger_pinky_2_R",
+                                            "Position": "0,0,0",
+                                            "Rotation": "0,0,0,1",
+                                            "Scale": "1,1,1",
+                                            "Tags": "",
+                                            "Enabled": true,
+                                            "NetworkMode": 2,
+                                            "NetworkFlags": 0,
+                                            "NetworkOrphaned": 0,
+                                            "NetworkTransmit": true,
+                                            "OwnerTransfer": 1,
+                                            "Components": [],
+                                            "Children": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "d274238d-2975-4121-9279-11184652371e",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "hand_L_to_R_ikrule",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": []
+                              },
+                              {
+                                "__guid": "c2674cb0-4e2b-400a-bcf6-3186fce8bd10",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_thumb_0_R",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "ff8fe430-31d4-4fde-838d-97e8192d6a30",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_thumb_1_R",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "eb8e208f-fa3f-4a07-b412-c73af0a0a9fb",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_thumb_2_R",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": []
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "__guid": "bc29b1dd-e6e2-419d-a5f0-5aae517943cf",
+                            "__version": 2,
+                            "Flags": 0,
+                            "Name": "arm_lower_R_twistctrl0",
+                            "Position": "0,0,0",
+                            "Rotation": "0,0,0,1",
+                            "Scale": "1,1,1",
+                            "Tags": "",
+                            "Enabled": true,
+                            "NetworkMode": 2,
+                            "NetworkFlags": 0,
+                            "NetworkOrphaned": 0,
+                            "NetworkTransmit": true,
+                            "OwnerTransfer": 1,
+                            "Components": [],
+                            "Children": [
+                              {
+                                "__guid": "8c4320b4-ff4a-4b41-8411-a3373b63678e",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "arm_lower_R_twist0",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": []
+                              },
+                              {
+                                "__guid": "9af80d3a-d4b3-4563-88ed-3d1a7adfa0a4",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "arm_lower_R_twistctrl1",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "cf3fffa4-b55b-40fe-9ed6-4384b26621d6",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "arm_lower_R_twistctrl2",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "ce3d1c62-dd2e-45d5-ad8a-9417cee1d385",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "arm_lower_R_twist2",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": []
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "__guid": "f83f43e0-369f-4481-b3ca-0d8d23f3e84e",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "arm_lower_R_twist1",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": []
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "__guid": "3748a0f4-4af8-4c81-b642-93582c16456e",
+                "__version": 2,
+                "Flags": 0,
+                "Name": "clavicle_L",
+                "Position": "0,0,0",
+                "Rotation": "0,0,0,1",
+                "Scale": "1,1,1",
+                "Tags": "",
+                "Enabled": true,
+                "NetworkMode": 2,
+                "NetworkFlags": 0,
+                "NetworkOrphaned": 0,
+                "NetworkTransmit": true,
+                "OwnerTransfer": 1,
+                "Components": [],
+                "Children": [
+                  {
+                    "__guid": "6e12bf0f-3d17-4e50-9d6b-af821fa8cc11",
+                    "__version": 2,
+                    "Flags": 0,
+                    "Name": "arm_upper_L",
+                    "Position": "0,0,0",
+                    "Rotation": "0,0,0,1",
+                    "Scale": "1,1,1",
+                    "Tags": "",
+                    "Enabled": true,
+                    "NetworkMode": 2,
+                    "NetworkFlags": 0,
+                    "NetworkOrphaned": 0,
+                    "NetworkTransmit": true,
+                    "OwnerTransfer": 1,
+                    "Components": [],
+                    "Children": [
+                      {
+                        "__guid": "c305066d-b280-4d7c-ab0f-8897f0dd5e22",
+                        "__version": 2,
+                        "Flags": 0,
+                        "Name": "arm_lower_L",
+                        "Position": "0,0,0",
+                        "Rotation": "0,0,0,1",
+                        "Scale": "1,1,1",
+                        "Tags": "",
+                        "Enabled": true,
+                        "NetworkMode": 2,
+                        "NetworkFlags": 0,
+                        "NetworkOrphaned": 0,
+                        "NetworkTransmit": true,
+                        "OwnerTransfer": 1,
+                        "Components": [],
+                        "Children": [
+                          {
+                            "__guid": "daa986de-8262-435e-a3e5-052f542e563d",
+                            "__version": 2,
+                            "Flags": 0,
+                            "Name": "hand_L",
+                            "Position": "0,0,0",
+                            "Rotation": "0,0,0,1",
+                            "Scale": "1,1,1",
+                            "Tags": "",
+                            "Enabled": true,
+                            "NetworkMode": 2,
+                            "NetworkFlags": 0,
+                            "NetworkOrphaned": 0,
+                            "NetworkTransmit": true,
+                            "OwnerTransfer": 1,
+                            "Components": [],
+                            "Children": [
+                              {
+                                "__guid": "1c350605-6e29-4a2a-b98e-e65443a79436",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_index_meta_L",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "d2dad6ac-051d-4fe3-828e-a0a4a552b97f",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_index_0_L",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "41884f4f-57ea-4723-bebd-8fd84fda8079",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_index_1_L",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": [
+                                          {
+                                            "__guid": "22074a94-5590-4b91-8a1e-0f2c0fc46440",
+                                            "__version": 2,
+                                            "Flags": 0,
+                                            "Name": "finger_index_2_L",
+                                            "Position": "0,0,0",
+                                            "Rotation": "0,0,0,1",
+                                            "Scale": "1,1,1",
+                                            "Tags": "",
+                                            "Enabled": true,
+                                            "NetworkMode": 2,
+                                            "NetworkFlags": 0,
+                                            "NetworkOrphaned": 0,
+                                            "NetworkTransmit": true,
+                                            "OwnerTransfer": 1,
+                                            "Components": [],
+                                            "Children": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "90de93da-0291-447a-a6e8-70abc3e4471e",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_middle_meta_L",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "42ff1394-8f1b-4e74-8e4d-105798d5d7e4",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_middle_0_L",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "a142d12a-b16e-4590-997e-270fe028278a",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_middle_1_L",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": [
+                                          {
+                                            "__guid": "86f509fe-6dbc-4383-935c-8d889c698415",
+                                            "__version": 2,
+                                            "Flags": 0,
+                                            "Name": "finger_middle_2_L",
+                                            "Position": "0,0,0",
+                                            "Rotation": "0,0,0,1",
+                                            "Scale": "1,1,1",
+                                            "Tags": "",
+                                            "Enabled": true,
+                                            "NetworkMode": 2,
+                                            "NetworkFlags": 0,
+                                            "NetworkOrphaned": 0,
+                                            "NetworkTransmit": true,
+                                            "OwnerTransfer": 1,
+                                            "Components": [],
+                                            "Children": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "66075d6c-cc49-4242-85d8-d98a592ed889",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_ring_meta_L",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "904daf13-80ee-4977-a3e6-a35aee9b5be8",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_ring_0_L",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "ce7bd88f-6c53-4ea4-b921-77cf9c9d3364",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_ring_1_L",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": [
+                                          {
+                                            "__guid": "98841bda-22c7-41a5-9f97-07dddcdbad8e",
+                                            "__version": 2,
+                                            "Flags": 0,
+                                            "Name": "finger_ring_2_L",
+                                            "Position": "0,0,0",
+                                            "Rotation": "0,0,0,1",
+                                            "Scale": "1,1,1",
+                                            "Tags": "",
+                                            "Enabled": true,
+                                            "NetworkMode": 2,
+                                            "NetworkFlags": 0,
+                                            "NetworkOrphaned": 0,
+                                            "NetworkTransmit": true,
+                                            "OwnerTransfer": 1,
+                                            "Components": [],
+                                            "Children": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "41c95132-a924-464b-b535-6773faae9f6e",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_pinky_meta_L",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "4298fc89-a465-4e6e-8c0d-b2ae891e7b34",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_pinky_0_L",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "93bf8b9c-b183-4028-881e-4e1bbb08aea5",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_pinky_1_L",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": [
+                                          {
+                                            "__guid": "a14b34b8-f1e1-4a3d-aea7-e2744205a2e8",
+                                            "__version": 2,
+                                            "Flags": 0,
+                                            "Name": "finger_pinky_2_L",
+                                            "Position": "0,0,0",
+                                            "Rotation": "0,0,0,1",
+                                            "Scale": "1,1,1",
+                                            "Tags": "",
+                                            "Enabled": true,
+                                            "NetworkMode": 2,
+                                            "NetworkFlags": 0,
+                                            "NetworkOrphaned": 0,
+                                            "NetworkTransmit": true,
+                                            "OwnerTransfer": 1,
+                                            "Components": [],
+                                            "Children": []
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "7a7f9829-8c2c-432b-959f-91b748d524bc",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "hold_L",
+                                "Position": "2.13078499,-0.129643396,2.89655089",
+                                "Rotation": "0.329880804,-0.614737511,0.472467989,0.538563311",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": []
+                              },
+                              {
+                                "__guid": "ab05946f-671c-41d6-a8bb-de16c2dbbec6",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "hand_R_to_L_ikrule",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": []
+                              },
+                              {
+                                "__guid": "9aa6401c-3965-493e-9ce3-3864efd757a2",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "finger_thumb_0_L",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "b66caa4a-38e2-4a2b-9233-11f094a580c6",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "finger_thumb_1_L",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "52c72b47-5d25-4852-b281-9a8fc52933d8",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "finger_thumb_2_L",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": []
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "__guid": "69e13af8-8725-455e-b7b1-979bb2c2113d",
+                            "__version": 2,
+                            "Flags": 0,
+                            "Name": "arm_lower_L_twistctrl0",
+                            "Position": "0,0,0",
+                            "Rotation": "0,0,0,1",
+                            "Scale": "1,1,1",
+                            "Tags": "",
+                            "Enabled": true,
+                            "NetworkMode": 2,
+                            "NetworkFlags": 0,
+                            "NetworkOrphaned": 0,
+                            "NetworkTransmit": true,
+                            "OwnerTransfer": 1,
+                            "Components": [],
+                            "Children": [
+                              {
+                                "__guid": "6238673b-fc69-4fe6-963e-9d31e647b022",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "arm_lower_L_twistctrl1",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": [
+                                  {
+                                    "__guid": "25ecc6b5-856c-4418-a95b-982e1e2fbad0",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "arm_lower_L_twistctrl2",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": [
+                                      {
+                                        "__guid": "5d69ee01-2322-4c9f-8743-d1fdc0d6f81d",
+                                        "__version": 2,
+                                        "Flags": 0,
+                                        "Name": "arm_lower_L_twist2",
+                                        "Position": "0,0,0",
+                                        "Rotation": "0,0,0,1",
+                                        "Scale": "1,1,1",
+                                        "Tags": "",
+                                        "Enabled": true,
+                                        "NetworkMode": 2,
+                                        "NetworkFlags": 0,
+                                        "NetworkOrphaned": 0,
+                                        "NetworkTransmit": true,
+                                        "OwnerTransfer": 1,
+                                        "Components": [],
+                                        "Children": []
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "__guid": "d37068cb-eded-42d2-a171-c010a15d6e69",
+                                    "__version": 2,
+                                    "Flags": 0,
+                                    "Name": "arm_lower_L_twist1",
+                                    "Position": "0,0,0",
+                                    "Rotation": "0,0,0,1",
+                                    "Scale": "1,1,1",
+                                    "Tags": "",
+                                    "Enabled": true,
+                                    "NetworkMode": 2,
+                                    "NetworkFlags": 0,
+                                    "NetworkOrphaned": 0,
+                                    "NetworkTransmit": true,
+                                    "OwnerTransfer": 1,
+                                    "Components": [],
+                                    "Children": []
+                                  }
+                                ]
+                              },
+                              {
+                                "__guid": "f68cf372-fd9d-4d43-9fc2-0efc4d0cce73",
+                                "__version": 2,
+                                "Flags": 0,
+                                "Name": "arm_lower_L_twist0",
+                                "Position": "0,0,0",
+                                "Rotation": "0,0,0,1",
+                                "Scale": "1,1,1",
+                                "Tags": "",
+                                "Enabled": true,
+                                "NetworkMode": 2,
+                                "NetworkFlags": 0,
+                                "NetworkOrphaned": 0,
+                                "NetworkTransmit": true,
+                                "OwnerTransfer": 1,
+                                "Components": [],
+                                "Children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "__guid": "794f33d8-5761-4bc8-a849-384011bbf11b",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "camera",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "2c2fb3e4-1fb2-4724-a085-3a2981a5a1a9",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "muzzle",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "df8fbf6f-20cd-4d94-97e4-8e29b2fa4ba6",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "eject",
+            "Position": "8.71266747,-5.82062578,5.53331518",
+            "Rotation": "4.4408921E-15,8.42937169E-08,-0.707106709,0.707106888",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "af8595c8-fbcc-4067-a70f-9ebaa730d9f3",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "stylus_L",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "fb708062-0baa-4b17-b93c-876fff1cdfc2",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "stylus_C",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          },
+          {
+            "__guid": "b2ecc907-a5de-4ed3-a387-e88fea8bad18",
+            "__version": 2,
+            "Flags": 0,
+            "Name": "stylus_R",
+            "Position": "0,0,0",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkFlags": 0,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [],
+            "Children": []
+          }
+        ]
+      },
+      {
+        "__guid": "135bdff1-b95a-4fae-9b51-4dd9fe80a401",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Hands",
+        "Position": "0,0,1",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "ec5efdb4-bab7-4af2-85f7-4ab6c79eddb0",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 21,
+            "BoneMergeTarget": {
+              "_type": "component",
+              "component_id": "0d315a8a-856e-49cb-b5d6-a16482eaf1be",
+              "go": "2658361a-cbbf-4054-9dfc-7eafdd48f589",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "1824a7ca-7a2d-4261-90e2-926dbeb87a72",
+              "Path": "weapons/shared/first_person/v_first_person_arms_human.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": false,
+              "OverlayLayer": true,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "Off",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

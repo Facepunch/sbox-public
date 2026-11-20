@@ -1,0 +1,27 @@
+{
+  "guid": "1076ee68-00fc-0000-fa00-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Plywood Trim Painted",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "plywood_trim_painted",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/trimsheets/wood/plywood_trim_painted.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

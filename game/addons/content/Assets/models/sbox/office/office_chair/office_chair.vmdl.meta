@@ -19,8 +19,7 @@
         "Description": "standard office chair",
         "Public": true,
         "ReplaceTags": "office chair furniture interior breakable",
-        "AssetLicense": "CC0",
-        "ParentPackage": "facepunch.sbox_content"
+        "AssetLicense": "CC0"
       }
     }
   },

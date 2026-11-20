@@ -79,9 +79,9 @@ public static class CreateAsset
 			entries.Add( new Entry { Name = "Model", IconImage = AssetType.FromType( typeof( Model ) )?.Icon64, Default = "default.vmdl", Category = "Rendering", Pinned = true } );
 			entries.Add( new Entry { Name = "Map", Icon = "hardware", Default = "default.vmap", Category = "World" } );
 
-			entries.Add( new Entry { Name = "Standard Material Shader", Icon = "brush", Default = "material.shader", Category = "Shader" } );
-			entries.Add( new Entry { Name = "Unlit Shader", Icon = "brush", Default = "unlit.shader", Category = "Shader" } );
-			entries.Add( new Entry { Name = "Compute Shader", Icon = "brush", Default = "compute.shader", Category = "Shader" } );
+			entries.Add( new Entry { Name = "Standard Material Shader", Icon = "brush", Default = "material.slang", Category = "Shader" } );
+			entries.Add( new Entry { Name = "Unlit Shader", Icon = "brush", Default = "unlit.slang", Category = "Shader" } );
+			entries.Add( new Entry { Name = "Compute Shader", Icon = "brush", Default = "compute.slang", Category = "Shader" } );
 			entries.Add( new Entry { Name = "Shader Graph", Icon = "account_tree", Default = "default.shdrgrph", Category = "Shader" } );
 			entries.Add( new Entry { Name = "Shader Graph Function", Icon = "account_tree", Default = "subgraph.shdrfunc", Category = "Shader" } );
 

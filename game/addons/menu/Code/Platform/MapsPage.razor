@@ -13,7 +13,7 @@
 
 @*
     Picking a map, on the front - a grid of them in a panel (the platform-panel mixin) with a search over it, and where
-    they're from down a rail out on the art (the platform-side mixin): the Workshop, the ones you're subscribed to there,
+    they're from down a rail out on the art (the platform-side mixin): the Workshop, subscriptions and local map projects together,
     and each mounted game with maps of its own. The Workshop's order is picked from the bar's tools. One of the front's pages (FrontPages.PickMap), or with OnPicked on
     the pause menu, to change the map.
 *@
@@ -50,34 +50,32 @@
         <div class="body">
             @* The maps, in a well of their own inside the panel *@
             <div class="maps">
-            @if ( Mount is not null ? Mounted.Length == 0 : found.Count == 0 && !loading )
+            @{ var maps = ShownMaps; }
+            @if ( maps.Count == 0 && !loading )
             {
                 <div class="empty"><i>search_off</i><label>No maps found</label></div>
             }
-            else if ( Mount is null && found.Count == 0 )
+            else if ( maps.Count == 0 )
             {
                 <div class="empty"><Spinner /></div>
             }
-            else if ( Mount is not null )
+            else
             {
-                <VirtualGrid @ref="Grid" @key=@source class="grid" Items=@Mounted ItemSize=@CellSize>
+                <VirtualGrid @ref="Grid" @key=@source class="grid" Items=@maps ItemSize=@CellSize OnLastCell=@( () => { _ = More(); } )>
                     <Item Context="item">
-                        @if ( item is ResourceLoader scene )
+                        @if ( item is Package local )
+                        {
+                            <MapTile class="@(IsSelected( local.FullIdent ) ? "selected" : "")" Title=@local.Title Thumb=@local.ThumbWide
+                                     OnSelect=@( () => Pick( local.FullIdent ) ) />
+                        }
+                        else if ( item is ResourceLoader scene )
                         {
                             <MapTile class="@(scene.Path == Selected ? "selected" : "")" Title=@MapName( scene ) Thumbnail=@((scene as IThumbnailProvider)?.Thumbnail)
                                      OnSelect=@( () => Pick( scene.Path ) ) />
                         }
-                    </Item>
-                </VirtualGrid>
-            }
-            else
-            {
-                @* Only the tiles in view are made - the next page's asked for as the end comes into view *@
-                <VirtualGrid @ref="Grid" @key=@source class="grid" Items=@found ItemSize=@CellSize OnLastCell=@( () => { _ = More(); } )>
-                    <Item Context="item">
-                        @if ( item is WorkshopItemDetails map )
+                        else if ( item is WorkshopItemDetails map )
                         {
-                            <MapTile class="@(IsSelected( map ) ? "selected" : "")" Title=@map.Title Thumb=@map.Thumb
+                            <MapTile class="@(IsSelected( MenuUtility.LaunchMapOf( map ) ) ? "selected" : "")" Title=@map.Title Thumb=@map.Thumb
                                      Tooltip=@(map.OwnerName is { } owner ? $"By {owner}" : null) OnSelect=@( () => Pick( MenuUtility.LaunchMapOf( map ) ) )
                                      OnView=@( () => PlatformRoot.Instance?.ShowGame( MenuUtility.LaunchMapOf( map ) ) ) />
                         }
@@ -111,10 +109,12 @@
     const string Workshop = "workshop";
     const string Subscribed = "subscribed";
 
+    readonly Package[] localMaps = MenuUtility.FindInstalledMaps();
+
     record Source( string Key, string Title, string Icon );
 
     /// <summary>
-    /// The Workshop, then each mounted game that has maps
+    /// Sources with maps available to pick.
     /// </summary>
     static IEnumerable<Source> Sources => MountDirectory.GetAll()
         .Where( x => x.Mounted && MountMaps( x.Ident ).Any() )
@@ -149,26 +149,26 @@
     /// </summary>
     static readonly Vector2 CellSize = new( 240, 135 );
 
-    string source = Workshop;
+    string source;
     Storage.SortOrder sort = Storage.SortOrder.RankedByVote;
     string search = "";
 
     /// <summary>
-    /// The mounted game whose maps are shown - null on the Workshop
+    /// The maps shown for the selected source, filtered by the search box.
     /// </summary>
-    string Mount => source is Workshop or Subscribed ? null : source;
-
-    ResourceLoader[] Mounted => MountMaps( Mount )
-        .Where( x => string.IsNullOrEmpty( search ) || MapName( x ).Contains( search, StringComparison.OrdinalIgnoreCase ) )
-        .OrderBy( x => MapName( x ) )
-        .ToArray();
+    IReadOnlyList<object> ShownMaps => source switch
+    {
+        null or Workshop or Subscribed => found,
+        _ => MountMaps( source ).Where( x => MapName( x ).Contains( search, StringComparison.OrdinalIgnoreCase ) )
+            .OrderBy( MapName ).ToArray(),
+    };
 
     /// <summary>
     /// A mounted map's name, without its file's extension (gm_construct, not gm_construct.bsp)
     /// </summary>
     static string MapName( ResourceLoader scene ) => System.IO.Path.GetFileNameWithoutExtension( scene.Name );
 
-    List<WorkshopItemDetails> found = new();
+    List<object> found = new();
     WorkshopItemSearch pages;
     bool loading;
 
@@ -177,7 +177,7 @@
     string typed;
     RealTimeSince sinceTyped;
 
-    bool IsSelected( WorkshopItemDetails map ) => !string.IsNullOrEmpty( Selected ) && string.Equals( MenuUtility.LaunchMapOf( map ), Selected.Split( '#' )[0], StringComparison.OrdinalIgnoreCase );
+    bool IsSelected( string ident ) => !string.IsNullOrEmpty( Selected ) && string.Equals( ident, Selected.Split( '#' )[0], StringComparison.OrdinalIgnoreCase );
 
     /// <summary>
     /// One of the front's pages - picking in place of the map its setup has
@@ -192,18 +192,20 @@
     {
         base.OnParametersSet();
 
-        if ( pages is null ) ShowSelected();
+        if ( source is null ) ShowSelected();
     }
 
     /// <summary>
-    /// On the mounted game the map picked is from, if it's from one
+    /// Open on the source of the selected map.
     /// </summary>
     void ShowSelected()
     {
-        if ( MountUtility.TryParse( Selected, out string ident ) && MountDirectory.Get( ident ) is { IsMounted: true } )
-            source = ident;
-
-        if ( pages is null ) Find();
+        if ( localMaps.Any( map => IsSelected( map.FullIdent ) ) )
+            Show( Subscribed );
+        else if ( MountUtility.TryParse( Selected, out string ident ) && MountDirectory.Get( ident ) is { IsMounted: true } )
+            Show( ident );
+        else
+            Show( Workshop );
     }
 
     void Show( string key )
@@ -227,13 +229,15 @@
     /// </summary>
     void Find()
     {
-        pages = MenuUtility.SearchWorkshopMaps( search, sort, source == Subscribed );
-        found = new();
+        pages = source is Workshop or Subscribed ? MenuUtility.SearchWorkshopMaps( search, sort, source == Subscribed ) : null;
+        found = source == Subscribed
+            ? [.. localMaps.Where( map => map.Title.Contains( search, StringComparison.OrdinalIgnoreCase ) )]
+            : [];
         loading = false;
 
         if ( Grid.IsValid() ) Grid.ScrollOffset = Vector2.Zero;
 
-        if ( Mount is null ) _ = More();
+        if ( pages is not null ) _ = More();
     }
 
     async Task More()
@@ -242,13 +246,20 @@
         loading = true;
 
         var maps = await asking.NextAsync();
-
-        // Asked again in the meantime
         if ( asking != pages ) return;
 
-        // Just the ones a game can be loaded with
-        var shown = found.Select( x => x.Id ).ToHashSet();
-        found.AddRange( maps.Where( x => MenuUtility.LaunchMapOf( x ) is not null && shown.Add( x.Id ) ) );
+        var shown = found.OfType<WorkshopItemDetails>().Select( x => x.Id ).ToHashSet();
+        var installed = found.OfType<Package>().Select( x => x.FullIdent ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+        foreach ( var map in maps )
+        {
+            var ident = MenuUtility.LaunchMapOf( map );
+            if ( string.IsNullOrEmpty( ident ) || !shown.Add( map.Id ) ) continue;
+            if ( installed.Count > 0 && Package.TryParseIdentParts( ident, out var parsed )
+                && installed.Contains( Package.FormatIdent( parsed.org, parsed.package ) ) ) continue;
+
+            found.Add( map );
+        }
+
         loading = false;
 
         StateHasChanged();
@@ -281,7 +292,7 @@
         base.Tick();
 
         // Searched for once the typing stops for a moment - a mounted game's straight away
-        if ( typed is not null && (Mount is not null || sinceTyped > 0.4f) )
+        if ( typed is not null && (pages is null || sinceTyped > 0.4f) )
         {
             var changed = typed != search;
             search = typed;

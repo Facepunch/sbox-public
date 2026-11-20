@@ -1,0 +1,28 @@
+{
+  "guid": "146d1a71-6dfc-428b-80ee-77b723d0cbb6",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Toolgun Screen",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_toolgun_screen",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/toolgun/materials/v_toolgun_screen.vmat"
+      }
+    }
+  }
+}

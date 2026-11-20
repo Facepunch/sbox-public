@@ -66,7 +66,6 @@ internal static class DevToolsMenus
 		("debug_hitbox", "Hitboxes"),
 		("mat_wireframe", "Wireframe"),
 		("r_showsceneobjectbounds", "Scene object bounds"),
-		("r.shadows.debug", "Shadow budget"),
 		("ui_visualize_batches", "UI batches"),
 	];
 
@@ -88,15 +87,8 @@ internal static class DevToolsMenus
 
 		// Occlusion culling's switches, which the Rendering tab used to carry. Each click steps to the next value
 		menu.AddChild( new Label( "Occlusion", "menu-section" ) );
-		if ( ManagedSceneRendering.Enabled )
-		{
-			Cycle( menu, "Culling", "r_managed_occlusion", () => ManagedSceneRendering.Occlusion ? 1 : 0, OnOff );
-		}
-		else
-		{
-			Cycle( menu, "Culling", "r_occlusion_culling", () => RenderPipeline.OcclusionCulling ? 1 : 0, OnOff );
-			Cycle( menu, "Aggregates", "r_occlusion_aggregates", () => RenderPipeline.AggregateMode, AggregateModes );
-		}
+		Cycle( menu, "Culling", "r_managed_occlusion", () => ManagedSceneRendering.Occlusion ? 1 : 0, OnOff );
+		Cycle( menu, "Aggregates", "r_occlusion_aggregates", () => ManagedSceneRendering.AggregateMode, AggregateModes );
 
 		Cycle( menu, "Debug boxes", "r_occlusion_debug", () => OcclusionDebug.DebugMode, DebugModes );
 		Cycle( menu, "Freeze", "r_occlusion_freeze", () => OcclusionDebug.Freeze ? 1 : 0, OnOff );

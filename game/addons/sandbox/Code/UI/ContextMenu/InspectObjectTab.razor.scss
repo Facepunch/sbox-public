@@ -1,0 +1,91 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+    // the editors of what is selected, with tabs of their own when there is more than one
+    InspectObjectTab
+    {
+        flex-direction: column;
+
+        > .tab-bar
+        {
+            @include ui-wrapped-tab-bar;
+            border-bottom: 1px solid $ui-separator;
+        }
+
+        > .empty-state
+        {
+            background-color: $ui-menu-body;
+            flex-grow: 1;
+            justify-content: center;
+            padding: 10px 8px;
+            color: $ui-text-muted;
+        }
+
+        > .window-stack
+        {
+            flex-direction: column;
+            flex-grow: 1;
+            min-height: 0px;
+        }
+    }
+
+    InspectObjectTab .window-stack .window
+    {
+        background-color: $ui-menu-body;
+        flex-grow: 1;
+        width: 100%;
+        min-height: 0px;
+
+        &.hidden
+        {
+            display: none;
+        }
+    }
+
+    InspectObjectTab .window-stack .window > .body
+    {
+        @include ui-scroll-column;
+        flex-grow: 1;
+        min-height: 0px;
+        padding: 12px $spawn-menu-content-inset;
+        gap: 2px;
+
+        > *
+        {
+            flex-shrink: 0;
+        }
+    }
+
+    InspectObjectTab .window-stack .window > .footer
+    {
+        flex-direction: row;
+        gap: 6px;
+        padding: 8px $spawn-menu-content-inset;
+        border-top: 1px solid $ui-separator;
+        flex-shrink: 0;
+
+        UIButton
+        {
+            flex-grow: 1;
+        }
+    }
+
+    InspectObjectTab .window UISlider
+    {
+        min-width: 0px;
+
+        .track
+        {
+            max-width: 100%;
+            min-width: 0px;
+        }
+
+        .entry
+        {
+            margin-left: 0px;
+        }
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

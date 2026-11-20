@@ -3,10 +3,9 @@ using NativeEngine;
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// One way of rendering a scene camera's view: native's scene system (<see cref="NativeSceneRenderer"/>) or Borealis
-/// (Sandbox.Rendering's bridge, registered at startup). Every path that renders a scene ends in one of
-/// <see cref="SceneCamera"/>'s entry points, which forward here, so the process's renderer takes them all.
-/// See docs/reference/borealis-render-paths.md.
+/// How a scene camera's view is rendered: Borealis (Sandbox.Rendering's bridge, registered at startup), or nothing in a
+/// process without a Borealis.Gpu device. Every path that renders a scene ends in one of <see cref="SceneCamera"/>'s entry
+/// points, which forward here, so the process's renderer takes them all. See docs/reference/borealis-render-paths.md.
 /// </summary>
 internal interface ISceneRenderer
 {
@@ -21,10 +20,10 @@ internal interface ISceneRenderer
 	void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup );
 
 	/// <summary>
-	/// Render the camera into colour and optional depth textures, as a child of <paramref name="parent"/> when it's valid,
+	/// Render the camera into colour and optional depth textures, as a child of the frame being drawn when there is one,
 	/// and copy its resolved projection and viewport for whatever samples it.
 	/// </summary>
-	bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData );
+	bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData );
 
 	/// <summary>
 	/// Render the camera into a bitmap, blocking until it's read back.
@@ -71,8 +70,8 @@ internal interface ISceneRenderer
 	bool HoldsCaptures => false;
 
 	/// <summary>
-	/// Capture the envmap probes <paramref name="scene"/> needs this frame (<see cref="Scene.RenderEnvmaps"/>). Native's:
-	/// the first dirty one, every frame, seen or not.
+	/// Capture the envmap probes <paramref name="scene"/> needs this frame (<see cref="Scene.RenderEnvmaps"/>): the
+	/// first dirty one, every frame, seen or not.
 	/// </summary>
 	void RenderEnvmaps( Scene scene )
 	{
@@ -89,14 +88,14 @@ internal interface ISceneRenderer
 
 /// <summary>
 /// Which <see cref="ISceneRenderer"/> renders scenes: Borealis in a process drawing on Borealis.Gpu (<c>-borealisgpu</c>),
-/// native's scene system in any other. Tools that need native's ask for <see cref="Native"/> by name.
+/// <see cref="None"/> in any other (a server, a headless test, a content worker), which renders nothing.
 /// </summary>
 internal static class SceneRenderer
 {
 	/// <summary>
-	/// Native's scene system: the Source 2 camera renderer and its pipeline.
+	/// What renders in a process without a Borealis.Gpu device: nothing.
 	/// </summary>
-	public static ISceneRenderer Native { get; } = new NativeSceneRenderer();
+	public static ISceneRenderer None { get; } = new NoSceneRenderer();
 
 	/// <summary>
 	/// Borealis, through the GameObject bridge, on Borealis.Gpu. Set by Sandbox.Rendering when the app system installs it.
@@ -104,37 +103,28 @@ internal static class SceneRenderer
 	public static ISceneRenderer Borealis { get; set; }
 
 	/// <summary>
-	/// What renders this frame: Borealis on a Borealis.Gpu device when it's installed, native otherwise.
+	/// What renders this frame: Borealis on a Borealis.Gpu device when it's installed, <see cref="None"/> otherwise.
 	/// </summary>
-	public static ISceneRenderer Current { get; private set; } = Native;
+	public static ISceneRenderer Current { get; private set; } = None;
 
 	/// <summary>
-	/// Pick the renderer, at the top of the frame's output. A process drawing on Borealis.Gpu renders through Borealis: Source 2's
-	/// renderer has no device to draw on there.
+	/// Pick the renderer, at the top of the frame's output.
 	/// </summary>
 	internal static void BeginFrame()
 	{
-		Current = ManagedSceneRendering.Enabled && Borealis is not null ? Borealis : Native;
+		Current = ManagedSceneRendering.Enabled && Borealis is not null ? Borealis : None;
 		Current.BeginFrame();
 	}
 
 	/// <summary>
 	/// Called when a camera is disposed.
 	/// </summary>
-	internal static void Forget( SceneCamera camera )
-	{
-		Native.Forget( camera );
-		Borealis?.Forget( camera );
-	}
+	internal static void Forget( SceneCamera camera ) => Borealis?.Forget( camera );
 
 	/// <summary>
 	/// Called when a scene world is deleted.
 	/// </summary>
-	internal static void Forget( SceneWorld world )
-	{
-		Native.Forget( world );
-		Borealis?.Forget( world );
-	}
+	internal static void Forget( SceneWorld world ) => Borealis?.Forget( world );
 
 	/// <summary>
 	/// Called at startup, before anything renders. Picks the renderer for what renders before the first frame's output
@@ -153,6 +143,29 @@ internal static class SceneRenderer
 	{
 		Borealis?.Shutdown();
 		Borealis = null;
-		Current = Native;
+		Current = None;
+	}
+
+	/// <summary>
+	/// A process with no device to draw on: every render is skipped.
+	/// </summary>
+	sealed class NoSceneRenderer : ISceneRenderer
+	{
+		public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup ) { }
+		public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup ) { }
+
+		public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData )
+		{
+			viewData = default;
+			return false;
+		}
+
+		public void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup ) { }
+		public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null ) { }
+		public void Forget( SceneCamera camera ) { }
+		public void Forget( SceneWorld world ) { }
+		public void Shutdown() { }
+		public void WarmUp() { }
+		public void RenderEnvmaps( Scene scene ) { }
 	}
 }

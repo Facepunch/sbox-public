@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Отдача",
+    "weapon.setting.primary.description": "Управляет основным действием оружия.",
+    "weapon.setting.secondary.description": "Управляет дополнительным действием оружия.",
+    "weapon.setting.recoil_force": "Сила отдачи",
+    "weapon.setting.recoil_force.description": "Физическая отдача при выстреле из оружия, которое никто не держит.",
+    "weapon.setting.extend": "Увеличить расстояние захвата",
+    "weapon.setting.extend.description": "Отодвигает захваченный объект.",
+    "weapon.setting.retract": "Уменьшить расстояние захвата",
+    "weapon.setting.retract.description": "Приближает захваченный объект.",
+    "weapon.setting.camera_aim": "Прицеливание камерой",
+    "weapon.setting.camera_aim.description": "Направляет оружие по направлению камеры сидящего игрока.",
+    "weapon.setting.guide_rockets": "Наведение ракет",
+    "weapon.setting.guide_rockets.description": "Направляет выпущенные ракеты к прицелу игрока."
+}

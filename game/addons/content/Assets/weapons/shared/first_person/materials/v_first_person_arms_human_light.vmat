@@ -1,0 +1,53 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/skin.shader"
+
+	//---- Skin ----
+	F_USE_BENT_NORMALS 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "1.000"
+	g_flAmbientOcclusionDirectSpecular "1.000"
+	TextureAmbientOcclusion "weapons/shared/first_person/materials/v_first_person_arms_human_ao.png"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "weapons/shared/first_person/materials/v_first_person_arms_human_color.png"
+
+	//---- Curvature ----
+	g_flCurvatureScale "0.300"
+
+	//---- Face Occlusion ----
+	g_flMouthInteriorBrightnessScale "0.000"
+	TextureInsideMouth "materials/default/default_black_mask.tga"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Lookup Textures ----
+	g_vAmbientNormalSoftness "[1.000000 0.301961 0.000000 0.000000]"
+	TextureDiffuseFalloff "materials/default/default_skin_diffusewarp.tga"
+
+	//---- Normal ----
+	g_flDiffuseNormalBlur "1.653"
+	TextureBentNormal "weapons/shared/first_person/materials/v_first_person_arms_human_bentnormal.png"
+	TextureNormal "weapons/shared/first_person/materials/v_first_person_arms_human_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScale "1.000"
+	TextureRoughness "weapons/shared/first_person/materials/v_first_person_arms_human_rough.png"
+
+	//---- Specular ----
+	g_flSecondSpecularLobeRatio "0.538"
+
+	//---- Tinting ----
+	TextureTintLookup "weapons/shared/first_person/materials/v_first_person_arms_human_color.png"
+
+	//---- Transmission ----
+	g_flTransmissionFalloff "0.375"
+	g_vTransmissionColor "[0.749020 0.231373 0.011765 0.000000]"
+	TextureTransmissiveMask "weapons/shared/first_person/materials/v_first_person_arms_human_trans.png"
+}

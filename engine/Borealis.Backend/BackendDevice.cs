@@ -498,6 +498,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		CheckRecords( Content );
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
+		Shaders.Modules = Passes;
 		SlangPasses = SlangPassesByDefault;
 		CompileGpuDrivenWithShaderCompiler();
 		Defaults = new ShaderDefaults( gpu );
@@ -647,6 +648,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool GeneratedLods { get; set; } = !HasSwitch( "-no-lodgen" );
 
 	/// <summary>
+	/// Whether resident meshes of models without LODs of their own get generated levels too, as aggregate fragments do (on);
+	/// <c>-no-mesh-lodgen</c> leaves them whole, for comparisons.
+	/// </summary>
+	public bool MeshLods { get; set; } = !HasSwitch( "-no-mesh-lodgen" );
+
+	/// <inheritdoc/>
+	internal override float LevelPixels => MeshLods && LodStore is not null ? LodPixels : 0;
+
+	/// <inheritdoc/>
+	internal override int LevelsVersion => lodStore?.PublishVersion ?? 0;
+
+	/// <summary>
 	/// Room index pages keep for generated levels, as a fraction of the indices of the draws that may get them (draws of
 	/// enough triangles in models without LODs of their own).
 	/// </summary>
@@ -725,13 +738,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Whether shaders that have a pass module beside them (post-processing, UI, tools, compute, the engine's fullscreen
-	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. Set it before
-	/// drawing: variants already made keep their stages.
+	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. A shader only its
+	/// module describes (no <c>.shader_c</c>) draws from it either way. Set it before drawing: variants already made keep
+	/// their stages.
 	/// </summary>
 	public bool SlangPasses
 	{
-		get => Shaders.Modules is not null;
-		set => Shaders.Modules = value ? Passes : null;
+		get => !Shaders.CompiledFirst;
+		set => Shaders.CompiledFirst = !value;
 	}
 
 	/// <summary>
@@ -963,28 +977,45 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		return made;
 	}
 
-	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file
+	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file,
+	// copied from the mips its read staged (StageAheadBytes) when uploads are deferred into a list
 	TextureHandle CreateTexture( TextureFile texture, string path )
 	{
 		if ( !imagesAhead.TryRemove( path, out var ahead ) ) return texture.Create( Gpu, path );
 		if ( ahead.File != texture )
 		{
-			Gpu.Destroy( ahead.Image );
+			DestroyAhead( ahead );
 			return texture.Create( Gpu, path );
 		}
 
 		try
 		{
-			for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+			if ( ahead.Staged.IsValid && Gpu.DeferredList is { } list )
+			{
+				texture.CopyStaged( list, ahead.Staged, ahead.Image );
+				StagedTextures++;
+			}
+			else
+			{
+				for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+			}
 		}
 		catch
 		{
 			Gpu.Destroy( ahead.Image );
 			throw;
 		}
+		finally
+		{
+			// Once the GPU is done with the copies
+			if ( ahead.Staged.IsValid ) Gpu.Destroy( ahead.Staged );
+		}
 
 		return ahead.Image;
 	}
+
+	/// <summary>Textures made from mips staged on the worker that read them (<see cref="StageAheadBytes"/>), for tests.</summary>
+	internal int StagedTextures { get; private set; }
 
 	/// <inheritdoc/>
 	public override GpuTexture Black => black;

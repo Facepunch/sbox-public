@@ -1,0 +1,45 @@
+{
+  "UI": false,
+  "Volume": "1",
+  "Pitch": "1 1.10000002",
+  "Decibels": 70,
+  "SelectionMode": "Random",
+  "Sounds": [
+    "weapons/usp/sounds/glock_shoot_01.vsnd"
+  ],
+  "Occlusion": true,
+  "AirAbsorption": true,
+  "Transmission": true,
+  "OcclusionRadius": 64,
+  "DistanceAttenuation": true,
+  "Distance": 4096,
+  "Falloff": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 3.1415927,
+      "out": -3.1415927,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.1196319,
+      "y": 0.3272253,
+      "in": 1.4164246,
+      "out": -1.4164246,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": 0.08000011,
+      "out": -0.08000011,
+      "mode": "Mirrored"
+    }
+  ],
+  "DefaultMixer": {
+    "Name": "weapons",
+    "Id": "df5c2c7c-870d-4db2-8df0-9d5be1f943f2"
+  },
+  "__references": [],
+  "__version": 1
+}

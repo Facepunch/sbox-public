@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Ash Bin Base a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "ash_bin_base_a",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/ash_bin/ash_bin_base_a.vmdl"
+      }
+    }
+  },
+  "guid": "197aec73-d08b-41a0-8abd-9acb3930d355"
+}

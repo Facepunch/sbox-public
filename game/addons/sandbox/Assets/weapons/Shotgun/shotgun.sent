@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/shotgun/shotgun.prefab",
+  "Title": "Spaghelli M4",
+  "Description": "#asset.shotgun.description",
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

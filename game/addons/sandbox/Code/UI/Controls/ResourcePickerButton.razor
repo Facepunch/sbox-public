@@ -1,0 +1,47 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <div class="preview">
+        @if ( !string.IsNullOrEmpty( Thumb ) )
+        {
+            <div class="thumb" style="background-image: url( @Thumb )"></div>
+        }
+        else
+        {
+            <div class="ext-badge">@Badge?.ToUpperInvariant().Truncate( 3 )</div>
+        }
+    </div>
+
+    <div class="content">
+        <div class="title @(Empty ? "empty" : "")">@Title</div>
+        @if ( Subtitle != null )
+        {
+            <div class="subtitle">@Subtitle</div>
+        }
+    </div>
+</root>
+
+@code
+{
+    /// <summary>
+    /// Image url of the picked resource. The badge shows when it's empty.
+    /// </summary>
+    [Parameter] public string Thumb { get; set; }
+
+    /// <summary>
+    /// Shown instead of the image, cut to three letters so it fits.
+    /// </summary>
+    [Parameter] public string Badge { get; set; } = "?";
+
+    [Parameter] public string Title { get; set; }
+
+    /// <summary>
+    /// Greys the title out, for "none selected" and the like.
+    /// </summary>
+    [Parameter] public bool Empty { get; set; }
+
+    [Parameter] public string Subtitle { get; set; }
+}

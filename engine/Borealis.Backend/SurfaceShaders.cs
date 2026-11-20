@@ -466,6 +466,12 @@ public sealed class SurfaceShaders : IDisposable
 	}
 
 	/// <summary>
+	/// Core shaders <see cref="Warm"/> leaves out: the surface parity test's rock, which only the lab and tests draw (they compile it
+	/// where they first draw it, as any other surface). A game never draws it.
+	/// </summary>
+	static readonly HashSet<string> NotWarmed = new( StringComparer.OrdinalIgnoreCase ) { "surface_test_rock" };
+
+	/// <summary>
 	/// Start compiling, in the background, every surface the core shaders' materials are drawn with by default
 	/// (<see cref="ConvertShaders"/>), so a map's first draws find them ready or nearly so. Does nothing when the surfaces are
 	/// compiled where first drawn instead.
@@ -475,7 +481,7 @@ public sealed class SurfaceShaders : IDisposable
 		if ( !ConvertShaders || !CompileInBackground ) return;
 		foreach ( var (key, surface) in DefaultSurfaces )
 		{
-			if ( NotConvertedByDefault.Contains( key ) || DefaultSurface( key, surface ) is not { } found ) continue;
+			if ( NotConvertedByDefault.Contains( key ) || NotWarmed.Contains( key ) || DefaultSurface( key, surface ) is not { } found ) continue;
 			var path = Key( found );
 			lock ( programs )
 			{

@@ -85,13 +85,16 @@ class ShaderPolicyFilter:
         self._modern_commits = set()
         for line in history:
             commit, *parents = line.split()
-            # The published history is linear. Cross-policy merges require tree
-            # reconciliation, not just filtering deltas; reject merges up front.
+            # Master's published history is linear; a Steam branch's has merges. A merge
+            # within one policy filters its delta like any commit, but one crossing the
+            # boundary needs tree reconciliation, not just filtering deltas: reject it.
             if len(parents) > 1:
-                raise RuntimeError(
-                    f"Shader policy filtering does not support merge commits ({commit.decode()}); "
-                    "policy-crossing merges require explicit tree reconciliation."
-                )
+                modern = [p in self._modern_commits for p in parents]
+                if any(modern) and not all(modern):
+                    raise RuntimeError(
+                        f"Shader policy filtering does not support merges across the policy boundary ({commit.decode()}); "
+                        "policy-crossing merges require explicit tree reconciliation."
+                    )
             if commit == self._boundary or any(p in self._modern_commits for p in parents):
                 self._modern_commits.add(commit)
 

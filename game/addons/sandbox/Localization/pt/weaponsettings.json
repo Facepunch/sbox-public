@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Recuo",
+    "weapon.setting.primary.description": "Controla a ação principal da arma.",
+    "weapon.setting.secondary.description": "Controla a ação secundária da arma.",
+    "weapon.setting.recoil_force": "Força do recuo",
+    "weapon.setting.recoil_force.description": "Recuo físico aplicado quando dispara uma arma que ninguém segura.",
+    "weapon.setting.extend": "Aumentar distância de preensão",
+    "weapon.setting.extend.description": "Afasta o objeto agarrado.",
+    "weapon.setting.retract": "Reduzir distância de preensão",
+    "weapon.setting.retract.description": "Aproxima o objeto agarrado.",
+    "weapon.setting.camera_aim": "Apontar com a câmara",
+    "weapon.setting.camera_aim.description": "Aponta na direção da câmara do jogador sentado.",
+    "weapon.setting.guide_rockets": "Guiar foguetes",
+    "weapon.setting.guide_rockets.description": "Guia os foguetes disparados em direção à mira do jogador."
+}

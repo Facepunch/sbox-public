@@ -8,7 +8,7 @@
 #define SBOX_PASS_SLANGH
 
 // The program numbers the #if blocks test, and the declarations' macros, as vfx gives every shader
-#include "system.fxc"
+#include "sbox/system.slangh"
 
 // system.fxc makes render states and attributes string globals for vfx's parser to read; here they're nothing, so a state
 // set twice in different #if branches doesn't declare its global twice

@@ -55,6 +55,20 @@ public class ScriptResolverRefSafetyTests
 		protected Span<int> Buffer => default;
 	}
 
+	/// <summary>
+	/// A base with no parameterless constructor, as GameObjectSystem is.
+	/// </summary>
+	[Expose]
+	public class NamedBase
+	{
+		public string Name { get; }
+
+		public NamedBase( string name ) { Name = name; }
+		protected NamedBase( string name, int number ) { Name = name + number; }
+		protected NamedBase( in int borrowed ) { Name = borrowed.ToString(); }
+		private NamedBase() { Name = "private"; }
+	}
+
 	static readonly Lazy<TypeLibrary> Library = new( () =>
 	{
 		var library = new TypeLibrary();
@@ -122,5 +136,21 @@ public class ScriptResolverRefSafetyTests
 		Assert.IsTrue( declared.OfType<ConstructorInfo>().Any() );
 		CollectionAssert.AreEquivalent( new[] { "Read", "ReadIn", "WriteRef", "Wrap" }, declared.OfType<MethodInfo>().Select( method => method.Name ).ToArray() );
 		Assert.IsFalse( declared.OfType<PropertyInfo>().Any() );
+	}
+
+	/// <summary>
+	/// A derived script can name any accessible base constructor with base( ... ), so parameterised
+	/// public and protected constructors are offered, while private ones are not.
+	/// </summary>
+	[TestMethod]
+	public void ParameterisedBaseConstructorsAreExposed()
+	{
+		var members = new List<MemberInfo>();
+		new TypeLibraryScriptResolver( Library.Value ).GetBaseMembers( typeof( NamedBase ), members );
+		var signatures = members.OfType<ConstructorInfo>()
+			.Select( constructor => string.Join( ",", constructor.GetParameters().Select( parameter => parameter.ParameterType.Name ) ) )
+			.OrderBy( signature => signature ).ToArray();
+
+		CollectionAssert.AreEqual( new[] { "Int32&", "String", "String,Int32" }, signatures, string.Join( " / ", signatures ) );
 	}
 }

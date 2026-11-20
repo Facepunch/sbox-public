@@ -1,0 +1,9 @@
+{
+  "Prefab": "weapons/grenade/grenade.prefab",
+  "Title": "#asset.grenade.title",
+  "Description": null,
+  "Category": "Weapon",
+  "IncludeCode": false,
+  "__references": [],
+  "__version": 0
+}

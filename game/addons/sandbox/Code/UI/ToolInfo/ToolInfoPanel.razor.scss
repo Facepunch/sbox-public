@@ -1,0 +1,183 @@
+@import "/UI/Theme.scss";
+
+$bg: rgb( 38, 38, 38, 0.5 );
+$bg-clear: rgba( 38, 38, 38, 0 );
+$grid-size: 60px;
+
+ToolInfoPanel
+{
+	position: absolute;
+	left: 0;
+	top: 30px;
+	width: 840px;
+	flex-direction: column;
+	gap: 2px;
+	font-family: $body-font;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+
+	&.visible
+	{
+		opacity: 1;
+	}
+
+	&.driving
+	{
+		.header, .hints
+		{
+			background-image: linear-gradient( to right, rgba( 0, 0, 0, 0.4 ), rgba( 0, 0, 0, 0 ) );
+		}
+	}
+
+	.header
+	{
+		position: relative;
+		flex-direction: column;
+		padding: 17px 52px 20px;
+		background-image: linear-gradient( to right, $bg, $bg-clear );
+	}
+
+	.accent
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 280px;
+		background-image: linear-gradient( to right, rgba( $hud-accent, 0.6 ), rgba( $hud-accent, 0 ) );
+	}
+
+	.grid-mask
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		overflow: hidden;
+		opacity: 0.15;
+		mask-image: linear-gradient( to right, black, transparent );
+		mask-size: 100% 100%;
+		mask-repeat: no-repeat;
+		mask-mode: alpha;
+	}
+
+	.grid
+	{
+		position: absolute;
+		left: -$grid-size;
+		top: -$grid-size;
+		right: 0;
+		bottom: 0;
+		background-image: url( /UI/tool_grid.png );
+		background-size: $grid-size $grid-size;
+		background-repeat: repeat;
+		animation: tool-grid-scroll 3s linear infinite;
+	}
+
+	.title
+	{
+		font-size: 48px;
+		font-weight: 800;
+		line-height: 48px;
+		color: linear-gradient( to bottom, white, rgb( 230, 230, 230 ) );
+	}
+
+	.description
+	{
+		max-width: 736px;
+		margin-top: 2px;
+		font-size: 16px;
+		font-weight: 600;
+		line-height: 18px;
+		color: rgba( white, 0.75 );
+	}
+
+	.hints
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 50px;
+		padding: 6px 52px;
+		background-image: linear-gradient( to right, $bg, $bg-clear );
+
+		align-self: flex-start;
+		min-width: 100%;
+	}
+
+	.hint
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 14px;
+	}
+
+	.status
+	{
+		flex-direction: column;
+		gap: 1px;
+		padding: 6px 52px;
+		background-image: linear-gradient( to right, $bg, $bg-clear );
+		align-self: flex-start;
+		min-width: 100%;
+		color: rgba( white, 0.92 );
+	}
+
+	.readouts
+	{
+		flex-direction: row;
+		gap: 32px;
+	}
+
+	.readout
+	{
+		font-size: 16px;
+		font-weight: 600;
+	}
+
+	.status-hint
+	{
+		font-size: 16px;
+		font-weight: 600;
+		color: rgba( white, 0.75 );
+	}
+
+	.key
+	{
+		height: 32px;
+		min-width: 32px;
+	}
+
+	.plus
+	{
+		margin-left: -6px;
+		margin-right: -6px;
+		font-size: 15px;
+		font-weight: 700;
+		color: rgba( white, 0.92 );
+	}
+
+	.text
+	{
+		font-size: 15px;
+		font-weight: 700;
+		white-space: nowrap;
+		text-transform: uppercase;
+		color: rgba( white, 0.92 );
+	}
+}
+
+@keyframes tool-grid-scroll
+{
+	from
+	{
+		transform: translate( 0px, 0px );
+	}
+
+	to
+	{
+		transform: translate( 25px, 25px );
+	}
+}

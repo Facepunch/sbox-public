@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "security_shutter_curtain_left",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "security_shutter_curtain_left",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter_curtain_left.vmdl"
+      }
+    }
+  },
+  "guid": "6cd1e4c2-6090-4f93-8bc1-d7f3f939d0ba"
+}

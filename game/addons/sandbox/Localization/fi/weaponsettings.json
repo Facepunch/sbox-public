@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Rekyyli",
+    "weapon.setting.primary.description": "Ohjaa aseen ensisijaista toimintoa.",
+    "weapon.setting.secondary.description": "Ohjaa aseen toissijaista toimintoa.",
+    "weapon.setting.recoil_force": "Rekyylivoima",
+    "weapon.setting.recoil_force.description": "Fyysinen rekyyli, kun aseella ammutaan ilman että sitä pidetään kädessä.",
+    "weapon.setting.extend": "Kasvata tartuntaetäisyyttä",
+    "weapon.setting.extend.description": "Siirtää tartuttua objektia kauemmas.",
+    "weapon.setting.retract": "Pienennä tartuntaetäisyyttä",
+    "weapon.setting.retract.description": "Siirtää tartuttua objektia lähemmäs.",
+    "weapon.setting.camera_aim": "Tähtää kameralla",
+    "weapon.setting.camera_aim.description": "Tähtää istuvan pelaajan kameran suuntaan.",
+    "weapon.setting.guide_rockets": "Ohjaa raketteja",
+    "weapon.setting.guide_rockets.description": "Ohjaa ammutut raketit pelaajan tähtäintä kohti."
+}

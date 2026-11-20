@@ -476,7 +476,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 	}
 
-	internal void OnParentChangedInternal( GameObject oldParent, GameObject newParent )
+	internal virtual void OnParentChangedInternal( GameObject oldParent, GameObject newParent )
 	{
 		OnParentChanged( oldParent, newParent );
 	}

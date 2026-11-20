@@ -1,0 +1,27 @@
+{
+  "guid": "0061005c-0069-0072-6400-750063007400",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Airduct Rusty A",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "airductrustya",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_rusty_a.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

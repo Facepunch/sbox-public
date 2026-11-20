@@ -93,6 +93,9 @@ public partial class Scene : GameObject
 				LoadingScreen.Subtitle = "Loading Finished..";
 			}
 
+			// Finish where the game ticks next, so its first tick and render are in the frame the loading screen goes in
+			if ( this is not PrefabScene ) await BorealisGpuRenderBackend.BeforeLoadFinishes();
+
 			if ( !IsValid ) return;
 
 			using ( Push() )
@@ -106,15 +109,9 @@ public partial class Scene : GameObject
 				// Run pending startups
 				RunPendingStarts();
 
-				// Pipelines the load made go to disk: Source 2's, or without its device the drawing device's
-				if ( WantsSystemScene && this is not PrefabScene && !Application.IsUnitTest )
-				{
-					if ( Graphics.HasSource2Device ) g_pRenderDevice.FlushPipelineCache();
-					else if ( RenderBackend.Default is BorealisGpuRenderBackend borealis ) borealis.FlushPipelineCache();
-
-					// The previous scene's GPU memory was just freed, hand the empty blocks back (Source 2's device)
-					if ( Graphics.HasSource2Device ) g_pRenderDevice.RequestGPUMemoryCompaction();
-				}
+				// Pipelines the load made go to disk: the drawing device's
+				if ( WantsSystemScene && this is not PrefabScene && !Application.IsUnitTest && RenderBackend.Default is BorealisGpuRenderBackend borealis )
+					borealis.FlushPipelineCache();
 
 				// Tell networking we've finished loading, lets players join
 				var sceneInformation = Components.Get<SceneInformation>();

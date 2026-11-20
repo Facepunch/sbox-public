@@ -224,7 +224,6 @@ public class SceneObjectDrawTests
 	[TestMethod]
 	public void TranslucencyComesFromTheMaterialsWithoutADevice()
 	{
-		if ( Graphics.HasSource2Device ) Assert.Inconclusive( "Source 2's device works the translucency out itself" );
 
 		static Mesh Quad( Material material )
 		{
@@ -273,7 +272,6 @@ public class SceneObjectDrawTests
 	[TestMethod]
 	public void MapModelsTranslucencyComesFromTheMaterialsWithoutADevice()
 	{
-		if ( Graphics.HasSource2Device ) Assert.Inconclusive( "Source 2's device works the translucency out itself" );
 
 		static Mesh Quad( Material material )
 		{

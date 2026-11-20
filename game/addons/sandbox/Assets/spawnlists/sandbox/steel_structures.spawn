@@ -1,0 +1,810 @@
+{
+  "Title": "Steel Structures",
+  "Description": "",
+  "Icon": "construction",
+  "RequiredMount": null,
+  "Parent": null,
+  "Order": 0,
+  "HideInSidebar": true,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Beams",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/box_beam_4.vmdl",
+      "Title": "Box Beam 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/box_beam_8.vmdl",
+      "Title": "Box Beam 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/box_beam_12.vmdl",
+      "Title": "Box Beam 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/box_beam_16.vmdl",
+      "Title": "Box Beam 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/box_beam_24.vmdl",
+      "Title": "Box Beam 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/box_beam_32.vmdl",
+      "Title": "Box Beam 32u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/box_beam_48.vmdl",
+      "Title": "Box Beam 48u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/crossbeam_4.vmdl",
+      "Title": "Cross Beam 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/crossbeam_8.vmdl",
+      "Title": "Cross Beam 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/crossbeam_12.vmdl",
+      "Title": "Cross Beam 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/crossbeam_16.vmdl",
+      "Title": "Cross Beam 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam_4.vmdl",
+      "Title": "I Beam 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam_16.vmdl",
+      "Title": "I Beam 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam_32.vmdl",
+      "Title": "I Beam 32u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam_48.vmdl",
+      "Title": "I Beam 48u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam_64.vmdl",
+      "Title": "I Beam 64u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam_96.vmdl",
+      "Title": "I Beam 96u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam_16_2d.vmdl",
+      "Title": "I Beam Cross 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam_16_3d.vmdl",
+      "Title": "I Beam 3-Way Cross 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam2_8.vmdl",
+      "Title": "Heavy I Beam 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam2_16.vmdl",
+      "Title": "Heavy I Beam 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam2_32.vmdl",
+      "Title": "Heavy I Beam 32u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam2_48.vmdl",
+      "Title": "Heavy I Beam 48u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam2_60.vmdl",
+      "Title": "Heavy I Beam 60u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/i_beam2_96.vmdl",
+      "Title": "Heavy I Beam 96u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/l_beam_4.vmdl",
+      "Title": "L Beam 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/l_beam__16.vmdl",
+      "Title": "L Beam 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/l_beam__24.vmdl",
+      "Title": "L Beam 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/l_beam__32.vmdl",
+      "Title": "L Beam 32u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/l_beam__48.vmdl",
+      "Title": "L Beam 48u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/u_beam_8.vmdl",
+      "Title": "U Beam 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/u_beam_12.vmdl",
+      "Title": "U Beam 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/u_beam_16.vmdl",
+      "Title": "U Beam 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/u_beam_24.vmdl",
+      "Title": "U Beam 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/u_beam_32.vmdl",
+      "Title": "U Beam 32u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/u_beam_48.vmdl",
+      "Title": "U Beam 48u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Corner Beams",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam45_3.vmdl",
+      "Title": "Plated Beam 45° 3u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam45_4.vmdl",
+      "Title": "Plated Beam 45° 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam45_8.vmdl",
+      "Title": "Plated Beam 45° 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam45_12.vmdl",
+      "Title": "Plated Beam 45° 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam45_16.vmdl",
+      "Title": "Plated Beam 45° 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam_4.vmdl",
+      "Title": "Plated Beam 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam_8.vmdl",
+      "Title": "Plated Beam 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam_12.vmdl",
+      "Title": "Plated Beam 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_beam_24.vmdl",
+      "Title": "Plated Beam 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Supports",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/step_beam_16.vmdl",
+      "Title": "Ladder Beam 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/step_beam_32.vmdl",
+      "Title": "Ladder Beam 32u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/step_beam_48.vmdl",
+      "Title": "Ladder Beam 48u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/step_beam_64.vmdl",
+      "Title": "Ladder Beam 64u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/step_beam_96.vmdl",
+      "Title": "Ladder Beam 96u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/steel_support_24_4.vmdl",
+      "Title": "Support Frame 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/truss_48.vmdl",
+      "Title": "Truss 48u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/truss_96.vmdl",
+      "Title": "Truss 96u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/truss_144.vmdl",
+      "Title": "Truss 144u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Misc",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/plank_4.vmdl",
+      "Title": "Plank 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/plank_8.vmdl",
+      "Title": "Plank 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/plank_16.vmdl",
+      "Title": "Plank 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/plank_24.vmdl",
+      "Title": "Plank 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/plank_48.vmdl",
+      "Title": "Plank 48u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_90_4.vmdl",
+      "Title": "Sheet Metal Corner 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_box_4.vmdl",
+      "Title": "Sheet Metal Box 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_box90_4.vmdl",
+      "Title": "Sheet Metal Box 90 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_h90_4.vmdl",
+      "Title": "Sheet Metal H 90 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_h_4.vmdl",
+      "Title": "Sheet Metal H 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_plus_4.vmdl",
+      "Title": "Sheet Metal Plus 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_plusb_4.vmdl",
+      "Title": "Sheet Metal Plus B 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_t_4.vmdl",
+      "Title": "Sheet Metal T 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_u_4.vmdl",
+      "Title": "Sheet Metal U 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/sheetmetal_y_8.vmdl",
+      "Title": "Sheet Metal Y 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: Straight",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_2_2.vmdl",
+      "Title": "Straight Frame 2-Disc 2u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_2_4.vmdl",
+      "Title": "Straight Frame 2-Disc 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_2_6.vmdl",
+      "Title": "Straight Frame 2-Disc 6u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_2_8.vmdl",
+      "Title": "Straight Frame 2-Disc 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_2_12.vmdl",
+      "Title": "Straight Frame 2-Disc 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_2_16.vmdl",
+      "Title": "Straight Frame 2-Disc 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_2_20.vmdl",
+      "Title": "Straight Frame 2-Disc 20u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_2_24.vmdl",
+      "Title": "Straight Frame 2-Disc 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_3_4.vmdl",
+      "Title": "Straight Frame 3-Disc 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_3_6.vmdl",
+      "Title": "Straight Frame 3-Disc 6u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_3_8.vmdl",
+      "Title": "Straight Frame 3-Disc 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_3_12.vmdl",
+      "Title": "Straight Frame 3-Disc 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_3_16.vmdl",
+      "Title": "Straight Frame 3-Disc 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_3_20.vmdl",
+      "Title": "Straight Frame 3-Disc 20u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_3_24.vmdl",
+      "Title": "Straight Frame 3-Disc 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_4_6.vmdl",
+      "Title": "Straight Frame 4-Disc 6u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_4_12.vmdl",
+      "Title": "Straight Frame 4-Disc 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_5_8.vmdl",
+      "Title": "Straight Frame 5-Disc 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_5_16.vmdl",
+      "Title": "Straight Frame 5-Disc 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_5_24.vmdl",
+      "Title": "Straight Frame 5-Disc 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_a_6_20.vmdl",
+      "Title": "Straight Frame 6-Disc 20u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: 90 Deg Bends",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_c_3_4.vmdl",
+      "Title": "Bent Frame 90° 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_c_3_6.vmdl",
+      "Title": "Bent Frame 90° 6u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_c_3_8.vmdl",
+      "Title": "Bent Frame 90° 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_c_3_12.vmdl",
+      "Title": "Bent Frame 90° 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_c_3_16.vmdl",
+      "Title": "Bent Frame 90° 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_c_3_20.vmdl",
+      "Title": "Bent Frame 90° 20u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_c_3_24.vmdl",
+      "Title": "Bent Frame 90° 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: 45 Deg Bends",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_d_3_4.vmdl",
+      "Title": "Bent Frame 45° 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_d_3_6.vmdl",
+      "Title": "Bent Frame 45° 6u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_d_3_8.vmdl",
+      "Title": "Bent Frame 45° 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_d_3_12.vmdl",
+      "Title": "Bent Frame 45° 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_d_3_16.vmdl",
+      "Title": "Bent Frame 45° 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_d_3_20.vmdl",
+      "Title": "Bent Frame 45° 20u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_d_3_24.vmdl",
+      "Title": "Bent Frame 45° 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: 90 Deg Long Bends",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_e_3_6.vmdl",
+      "Title": "Long Bent Frame 90° 6u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_e_3_8.vmdl",
+      "Title": "Long Bent Frame 90° 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_e_3_20.vmdl",
+      "Title": "Long Bent Frame 90° 20u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_e_3_24.vmdl",
+      "Title": "Long Bent Frame 90° 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: Single Axles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_b_2_2.vmdl",
+      "Title": "Single Axle 2u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_b_2_4.vmdl",
+      "Title": "Single Axle 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_b_2_6.vmdl",
+      "Title": "Single Axle 6u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_b_2_8.vmdl",
+      "Title": "Single Axle 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_b_2_12.vmdl",
+      "Title": "Single Axle 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_b_2_16.vmdl",
+      "Title": "Single Axle 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_b_2_20.vmdl",
+      "Title": "Single Axle 20u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_b_2_24.vmdl",
+      "Title": "Single Axle 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicle Frames: Double Axles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_f_6_4.vmdl",
+      "Title": "Double Axle 4u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_f_6_6.vmdl",
+      "Title": "Double Axle 6u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_f_6_8.vmdl",
+      "Title": "Double Axle 8u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_f_6_12.vmdl",
+      "Title": "Double Axle 12u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_f_6_16.vmdl",
+      "Title": "Double Axle 16u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_f_6_24.vmdl",
+      "Title": "Double Axle 24u",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/construction/steel-structures/type_f_6_20.vmdl",
+      "Title": "Double Axle 20u",
+      "Icon": null
+    }
+  ],
+  "__version": 0
+}

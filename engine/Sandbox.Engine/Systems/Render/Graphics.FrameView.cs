@@ -5,10 +5,9 @@ namespace Sandbox;
 public static partial class Graphics
 {
 	/// <summary>
-	/// The frame a render block draws into: a native scene view and layer (<see cref="NativeFrameView"/>), or a frame Borealis
-	/// draws on Borealis.Gpu. <see cref="Graphics"/>, command lists, post processing and UI ask it what they'd otherwise ask a
-	/// native view or layer, so neither renderer has to look like the other. A
-	/// standalone block (<see cref="Scope.Create"/>) has none.
+	/// The frame a render block draws into: a frame Borealis draws on Borealis.Gpu (<c>BorealisGpuView</c>).
+	/// <see cref="Graphics"/>, command lists, post processing and UI ask it what the camera's view is. A standalone block
+	/// (<see cref="Scope.Create"/>) has none.
 	/// </summary>
 	internal interface IFrameView
 	{
@@ -80,103 +79,18 @@ public static partial class Graphics
 		/// Draw a scene object with a transform, colour, material override and attributes into what's bound
 		/// (<see cref="Graphics.Render(SceneObject, Transform?, Color?, Material)"/>).
 		/// </summary>
-		void RenderSceneObject( IRenderContext context, SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes );
+		void RenderSceneObject( SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes );
 
 		/// <summary>
 		/// Bind a render target's colour and depth in place of the frame's (<see cref="Graphics.RenderTarget"/>).
 		/// </summary>
-		void BindTarget( IRenderContext context, RenderTarget target );
+		void BindTarget( RenderTarget target );
 
 		/// <summary>
 		/// Go back to the frame's own targets and viewport, with the depth range the frame had before a render target was
 		/// bound.
 		/// </summary>
-		void RestoreTargets( IRenderContext context, float minZ, float maxZ );
-	}
-
-	/// <summary>
-	/// A native scene view and the layer being drawn - a hook layer (<c>CManagedRenderLayer</c>) or a scene object's
-	/// draw inside one. Pooled: a scope takes one and returns it.
-	/// </summary>
-	internal sealed class NativeFrameView : IFrameView
-	{
-		/// <summary>
-		/// The native view and layer.
-		/// </summary>
-		public ISceneView View { get; private set; }
-		public ISceneLayer Layer { get; private set; }
-
-		/// <summary>
-		/// One from the pool, for a view and layer.
-		/// </summary>
-		public static NativeFrameView Get( ISceneView view, ISceneLayer layer )
-		{
-			var frame = ObjectPool<NativeFrameView>.Get();
-			frame.View = view;
-			frame.Layer = layer;
-			return frame;
-		}
-
-		/// <summary>
-		/// Back to the pool.
-		/// </summary>
-		public void Return()
-		{
-			View = default;
-			Layer = default;
-			ObjectPool<NativeFrameView>.Return( this );
-		}
-
-		public CFrustum Frustum => View.GetFrustum();
-		public bool PostProcessEnabled => View.GetPostProcessEnabled();
-		public int ToolsVisMode => View.GetToolsVisMode();
-		public bool IsChildView => View.GetParent().IsValid;
-		public int CubeFace => View.GetRenderTargetArrayIndex();
-		public bool IsCapture => Rendering.CaptureFrames.IsCapture( CubeFace, IsChildView, View.GetRenderAttributesPtr().GetBoolValue( "IsReflection", false ) );
-
-		public ITexture GetColorTarget( out bool owned )
-		{
-			owned = true;
-			return Layer.GetColorTarget();
-		}
-
-		public ITexture GetDepthTarget( out bool owned )
-		{
-			owned = true;
-			return Layer.GetDepthTarget();
-		}
-
-		public Texture DepthTexture => null;
-
-		public IMaterialMode ModeFor( Material material ) => material.native.GetMode( Layer );
-
-		// The layer gives the mode
-		public StringToken DrawShaderMode => default;
-
-		public void SetupLighting( SceneObject obj, RenderAttributes attributes )
-		{
-			CSceneSystem.SetupPerObjectLighting( attributes.Get(), obj, Layer );
-		}
-
-		public void RenderSceneObject( IRenderContext context, SceneObject obj, Transform transform, Color color, Material material, RenderAttributes attributes )
-		{
-			RenderTools.DrawSceneObject( context, Layer, obj, transform, color, material?.native ?? default, attributes.Get() );
-		}
-
-		public void BindTarget( IRenderContext context, RenderTarget target )
-		{
-			context.BindRenderTargets( target.ColorTarget?.native ?? default, target.DepthTarget?.native ?? default, Layer );
-		}
-
-		public void RestoreTargets( IRenderContext context, float minZ, float maxZ )
-		{
-			// alex: if we don't restore min/max Z values properly when setting back to
-			// the default render target, we get a lot of weird depth issues.
-			// This mainly only applies to things like worldpanels when we render filtered
-			// elements, but could probably happen in other places too?
-			context.SetViewport( new RenderViewport( Layer.m_viewport.Rect, minZ, maxZ ) );
-			context.RestoreRenderTargets( Layer );
-		}
+		void RestoreTargets( float minZ, float maxZ );
 	}
 
 	/// <summary>
@@ -188,16 +102,6 @@ public static partial class Graphics
 	/// The frame, for what only a view can answer - which a standalone render block has none of.
 	/// </summary>
 	static IFrameView View => _state.view ?? throw new InvalidOperationException( "A standalone render block has no view." );
-
-	/// <summary>
-	/// The native layer being drawn, or null outside a native view - for native calls that take one.
-	/// </summary>
-	internal static ISceneLayer SceneLayer => _state.view is NativeFrameView native ? native.Layer : default;
-
-	/// <summary>
-	/// The native view being drawn, or null outside one - for native calls that take one, such as a child view's parent.
-	/// </summary>
-	internal static ISceneView SceneView => _state.view is NativeFrameView native ? native.View : default;
 
 	/// <summary>
 	/// A material's mode for what's being drawn: the frame's, or its default in a standalone render block.

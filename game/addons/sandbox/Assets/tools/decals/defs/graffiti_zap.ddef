@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "b64ccf1d-d5de-4e34-8813-9aad9afeb601",
+    "Path": "decals/graffiti/graffiti_zap.decal"
+  },
+  "Title": "#asset.decal.zap.title",
+  "__references": [],
+  "__version": 0
+}

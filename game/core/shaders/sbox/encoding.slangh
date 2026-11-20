@@ -1,0 +1,157 @@
+// Normal and tangent encodings: the G-buffer's two-channel normals, octahedral normals and the packed vertex tangent frames
+// the mesh compressor writes. Ours, in place of encoded_normals.fxc and octohedral_encoding.fxc in Slang compiles
+// (SlangHeaders): the same names and the same bits. Each part shares its old header's include guard, so text that has both
+// gets one set of definitions.
+#ifndef SBOX_ENCODING_SLANGH
+#define SBOX_ENCODING_SLANGH
+
+#include "sbox/math.slangh"
+
+#ifndef ENCODED_NORMALS_FXC
+#define ENCODED_NORMALS_FXC
+
+/// A unit normal in two 0..1 channels: the spheremap transform, exact but for n = (0, 0, -1).
+float2 EncodeNormal2D( float3 n )
+{
+	float scale = sqrt( n.z * 8.0f + 8.0f );
+	return n.xy / scale + float2( 0.5f, 0.5f );
+}
+
+float3 DecodeNormal2D( float2 encoded )
+{
+	float2 p = encoded * 4.0f - float2( 2.0f, 2.0f );
+	float lengthSquared = dot( p, p );
+	float3 n;
+	n.xy = p * sqrt( 1.0f - lengthSquared / 4.0f );
+	n.z = 1.0f - lengthSquared / 2.0f;
+	return n;
+}
+
+/// A unit normal in three 0..1 channels.
+float3 EncodeNormal( float3 n ) { return 0.5 * n + 0.5; }
+
+/// `v` (-1..1) as an 8-bit unorm texel would hold it.
+float3 Quantize255( float3 v )
+{
+	v = round( saturate( v * 0.5 + 0.5 ) * 255.0 );
+	return 2.0 * ( v / 255.0 ) - 1.0;
+}
+
+/// The 8-bit texel whose direction is nearest a unit normal, by searching along it: for precomputation, far too slow per pixel.
+float3 EncodeNormalSlow( float3 n )
+{
+	float3 axis = abs( n );
+	float3 cube = n / max( axis.x, max( axis.y, axis.z ) );
+	float3 best = cube;
+	float bestError = 100000.0;
+	[loop]
+	for ( float step = 1.5; step <= 127.5; step++ )
+	{
+		float3 quantized = Quantize255( cube * ( step / 127.5 ) );
+		float3 difference = normalize( quantized ) - n;
+		float error = dot( difference, difference );
+		if ( error < bestError )
+		{
+			bestError = error;
+			best = quantized;
+		}
+	}
+
+	return PackToColor( best );
+}
+
+#endif // ENCODED_NORMALS_FXC
+
+#ifndef __OCTOHEDRAL_ENCODING_FXC__
+#define __OCTOHEDRAL_ENCODING_FXC__
+
+// Octahedral normals (Cigolle et al., "A Survey of Efficient Representations for Independent Unit Vectors", JCGT 2014)
+
+/// The lower hemisphere's fold of an octahedral coordinate.
+float2 OctohedralWrap( float2 v ) { return ( 1.0 - abs( v.yx ) ) * ( v.xy >= 0.0 ? 1.0 : -1.0 ); }
+
+/// A unit normal as a point in the -1..1 square.
+float2 OctohedralEncode( float3 n )
+{
+	n /= ( abs( n.x ) + abs( n.y ) + abs( n.z ) );
+	return n.z >= 0.0 ? n.xy : OctohedralWrap( n.xy );
+}
+
+float3 OctohedralDecode( float2 f )
+{
+	float3 n = float3( f.x, f.y, 1.0 - abs( f.x ) - abs( f.y ) );
+	float fold = saturate( -n.z );
+	n.xy += n.xy >= 0.0 ? -fold : fold;
+	return normalize( n );
+}
+
+// Diamond tangents: the tangent's angle in the plane MakeOrthonormalBasis spans around the normal, as one 0..1 value
+
+/// A 2D direction as a position along the unit diamond's perimeter, 0..1.
+float EncodeDiamond( float2 p )
+{
+	float x = p.x / ( abs( p.x ) + abs( p.y ) );
+	float side = p.y >= 0.0 ? 1.0 : -1.0;
+	return -side * 0.25f * x + 0.5f + side * 0.25f;
+}
+
+float2 DecodeDiamond( float p )
+{
+	float side = sign( p - 0.5f );
+	float2 v;
+	v.x = -side * 4.f * p + 1.f + side * 2.f;
+	v.y = side * ( 1.f - abs( v.x ) );
+	return normalize( v );
+}
+
+float EncodeTangentDiamond( float3 normal, float3 tangent )
+{
+	float3 t1, t2;
+	MakeOrthonormalBasis( normal, t1, t2 );
+	return EncodeDiamond( float2( dot( tangent, t1 ), dot( tangent, t2 ) ) );
+}
+
+float3 DecodeTangentDiamond( float3 normal, float diamond )
+{
+	float3 t1, t2;
+	MakeOrthonormalBasis( normal, t1, t2 );
+	float2 p = DecodeDiamond( diamond );
+	return p.x * t1 + p.y * t2;
+}
+
+// A tangent frame in 32 bits, low to high: the bitangent's sign (1 bit), the tangent's angle around the normal from
+// MakeOrthonormalBasis's first vector (11 bits), the octahedral normal's x then y (10 bits each)
+static const uint kFrameAngleBits = 11;
+static const uint kFrameOctahedralBits = 10;
+
+void DecodeNormalTangentRotation_10_10_11( uint encoded, out float3 normal, out float4 tangentAndSign )
+{
+	const uint octahedralMax = ( 1u << kFrameOctahedralBits ) - 1;
+	const uint angleMax = ( 1u << kFrameAngleBits ) - 1;
+	uint y = ( encoded >> ( 1 + kFrameAngleBits + kFrameOctahedralBits ) ) & octahedralMax;
+	uint x = ( encoded >> ( 1 + kFrameAngleBits ) ) & octahedralMax;
+	uint angle = ( encoded >> 1 ) & angleMax;
+
+	normal = OctohedralDecode( float2( ( x / ( octahedralMax * 1.f ) ) * 2.0 - 1.0, ( y / ( octahedralMax * 1.f ) ) * 2.0 - 1.0 ) );
+	float3 b0, b1;
+	MakeOrthonormalBasis( normal, b0, b1 );
+
+	float s, c;
+	sincos( ( angle / ( angleMax * 1.f ) ) * M_2PI, s, c );
+	tangentAndSign.xyz = b0 * c + cross( normal, b0 ) * s;
+	tangentAndSign.w = ( encoded & 1 ) == 0 ? -1.f : 1.f;
+}
+
+/// A normal alone in DecodeNormalTangentRotation_10_10_11's layout: angle 0, positive sign.
+uint EncodeNormal_10_10_11( float3 n )
+{
+	const uint octahedralMax = ( 1u << kFrameOctahedralBits ) - 1;
+	float2 f = OctohedralEncode( n );
+	uint x = (uint)round( ( f.x * .5f + .5f ) * octahedralMax );
+	uint y = (uint)round( ( f.y * .5f + .5f ) * octahedralMax );
+	return 1u | ( x << ( 1 + kFrameAngleBits ) ) | ( y << ( 1 + kFrameAngleBits + kFrameOctahedralBits ) );
+}
+
+#endif // __OCTOHEDRAL_ENCODING_FXC__
+
+#endif // SBOX_ENCODING_SLANGH

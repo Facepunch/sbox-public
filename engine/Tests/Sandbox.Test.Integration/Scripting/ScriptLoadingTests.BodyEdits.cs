@@ -43,10 +43,10 @@ public partial class ScriptLoadingTests
 		var sources = new Dictionary<string, string> { ["body-edit.csx"] = source };
 		int replacements = 0;
 		var replace = context.ReplaceScriptAssembly;
-		context.ReplaceScriptAssembly = ( previous, incoming, register ) =>
+		context.ReplaceScriptAssembly = ( previous, incoming ) =>
 		{
 			replacements++;
-			replace( previous, incoming, register );
+			return replace( previous, incoming );
 		};
 		try
 		{

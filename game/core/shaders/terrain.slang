@@ -10,7 +10,7 @@
 
 #include "sbox/pass.slangh"
     // gonna go crazy the amount of shit this stuff adds and fails to compile without
-    #include "vr_common_features.fxc"
+    #include "sbox/features.slangh"
 
 // MODES: Forward();
 // MODES: Depth( S_MODE_DEPTH );

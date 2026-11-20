@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/smooth.prefab",
+  "Title": "#asset.wheel.smooth.title",
+  "Description": "#asset.wheel.smooth.description",
+  "__references": [],
+  "__version": 0
+}

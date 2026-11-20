@@ -1,5 +1,4 @@
-// tools_visualize_tangent_frame: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// tools_visualize_tangent_frame: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // The .shader's geometry stage draws each triangle corner's normal (or tangent and bitangent) as lines. Here the draw
 // runs two vertices per line for each vertex of the draw (ExpandPrimitives, the vertex as per-instance inputs): the same
 // lines, each drawn once where the geometry stage drew it once per triangle using the vertex.
@@ -14,10 +13,10 @@ Mode( ToolsUtil, S_MODE_FORWARD );
 Feature( F_SHOW_TANGENTS, 0..1, "General" );
 Feature( F_SHOW_BENT_NORMALS, 0..1, "General" );
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "vr_common.fxc"
-#include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/shading.slangh"
+#include "sbox/view.slangh"
+#include "sbox/math.slangh"
 
 #define SUPPORTS_COMPRESSED_NORMAL_AND_TANGENT 1
 
@@ -32,9 +31,9 @@ struct PS_INPUT
 
 #if ( PROGRAM == VFX_PROGRAM_VS )
 // Includes -----------------------------------------------------------------------------------------------------------------------------------------------
-#include "instancing.fxc"
-#include "vs_decompress.fxc"
-#include "morph.fxc"
+#include "sbox/instancing.slangh"
+#include "sbox/vertex_decompress.slangh"
+#include "sbox/morph.slangh"
 
 // Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 StaticCombo( S_MODE_FORWARD, 0..1, Sys( ALL ) );

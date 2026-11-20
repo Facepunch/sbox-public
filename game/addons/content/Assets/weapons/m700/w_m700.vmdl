@@ -1,0 +1,942 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"M700_LOD0",
+							"M700_magazine_LOD0",
+							"M700_top_rail_LOD0",
+							"M700_iron_sights_LOD0",
+							"sight_ranged_LOD0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 2.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"M700_LOD1",
+							"M700_magazine_LOD1",
+							"M700_top_rail_LOD1",
+							"M700_iron_sights_LOD1",
+							"sight_ranged_LOD1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 6.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"M700_LOD2",
+							"M700_magazine_LOD2",
+							"M700_top_rail_LOD2",
+							"M700_iron_sights_LOD2",
+							"sight_ranged_LOD2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 12.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"M700_LOD3",
+							"M700_magazine_LOD3",
+							"M700_top_rail_LOD3",
+							"M700_iron_sights_LOD3",
+							"sight_ranged_LOD3",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 32.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						meshes = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 50.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.5999
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						meshes = [  ]
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "w_m700.vmat"
+								to = "weapons/m700/materials/w_m700.vmat"
+							},
+							{
+								from = "v_ranged_sight.vmat"
+								to = "weapons/m700/materials/v_ranged_sight.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/default.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "Folder"
+						name = "LOD0"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M700_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_LOD0",
+										"w_m700_bolt_LOD0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_magazine_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_magazine_LOD0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_top_rail_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_rail_LOD0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_iron_sights_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_irons_LOD0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "sight_ranged_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/m700/attachments/w_sight_ranged.fbx"
+								import_translation = [ -2.85, 0.0, 18.780001 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = false
+									exception_list = 
+									[
+										"w_sight_ranged_LOD3",
+										"w_sight_ranged_LOD2",
+										"w_sight_ranged_LOD1",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "LOD1"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M700_LOD1"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_bolt_LOD1",
+										"w_m700_LOD1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_magazine_LOD1"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_magazine_LOD1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_top_rail_LOD1"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_rail_LOD1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_iron_sights_LOD1"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_irons_LOD1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "sight_ranged_LOD1"
+								filename = "weapons/m700/attachments/w_sight_ranged.fbx"
+								import_translation = [ -2.85, 0.0, 18.780001 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = false
+									exception_list = 
+									[
+										"w_sight_ranged_LOD0",
+										"w_sight_ranged_LOD3",
+										"w_sight_ranged_LOD2",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "LOD2"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M700_LOD2"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_LOD2",
+										"w_m700_bolt_LOD2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_magazine_LOD2"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_magazine_LOD2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_top_rail_LOD2"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_rail_LOD2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_iron_sights_LOD2"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_irons_LOD2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "sight_ranged_LOD2"
+								filename = "weapons/m700/attachments/w_sight_ranged.fbx"
+								import_translation = [ -2.85, 0.0, 18.780001 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = false
+									exception_list = 
+									[
+										"w_sight_ranged_LOD0",
+										"w_sight_ranged_LOD3",
+										"w_sight_ranged_LOD1",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "LOD3"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "M700_LOD3"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_bolt_LOD003",
+										"w_m700_LOD003",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_magazine_LOD3"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_magazine_LOD003",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_top_rail_LOD3"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_rail_LOD003",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "M700_iron_sights_LOD3"
+								filename = "weapons/m700/w_m700.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_m700_irons_LOD003",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "sight_ranged_LOD3"
+								filename = "weapons/m700/attachments/w_sight_ranged.fbx"
+								import_translation = [ -2.85, 0.0, 18.780001 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = false
+									exception_list = 
+									[
+										"w_sight_ranged_LOD0",
+										"w_sight_ranged_LOD2",
+										"w_sight_ranged_LOD1",
+									]
+								}
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "BodyGroupList"
+				children = 
+				[
+					{
+						_class = "BodyGroup"
+						name = "M700"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M700_LOD0",
+									"M700_LOD1",
+									"M700_LOD2",
+									"M700_LOD3",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "magazine"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M700_magazine_LOD0",
+									"M700_magazine_LOD1",
+									"M700_magazine_LOD2",
+									"M700_magazine_LOD3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "top_rail"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"sight_ranged_LOD0",
+									"sight_ranged_LOD1",
+									"sight_ranged_LOD2",
+									"sight_ranged_LOD3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "top_rail_mount"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M700_top_rail_LOD0",
+									"M700_top_rail_LOD1",
+									"M700_top_rail_LOD2",
+									"M700_top_rail_LOD3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"M700_iron_sights_LOD0",
+									"M700_iron_sights_LOD1",
+									"M700_iron_sights_LOD2",
+									"M700_iron_sights_LOD3",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+				]
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = ""
+						relative_origin = [ 51.137589, 0.0, 16.544943 ]
+						relative_angles = [ -0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "eject"
+						parent_bone = ""
+						relative_origin = [ -3.226179, 0.0, 16.666857 ]
+						relative_angles = [ -25.0, -90.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 3.8
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 2.981225
+						point0 = [ 10.878819, 0.0, 22.0 ]
+						point1 = [ -17.740957, 0.0, 22.0 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.961031
+						point0 = [ -2.3, 0.0, 27.664499 ]
+						point1 = [ -2.3, 0.0, 24.211271 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.937456
+						point0 = [ -2.3, -4.437828, 22.0 ]
+						point1 = [ -2.3, 4.851322, 22.0 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 1.689572
+						point0 = [ 51.3549, 0.0, 16.549999 ]
+						point1 = [ -13.960407, 0.0, 16.549999 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -2.832085, 0.011789, 18.441349 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 13.969275, 2.123607, 1.301931 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						radius = 2.490216
+						point0 = [ 31.292, 0.0, 14.8 ]
+						point1 = [ -13.880299, 0.0, 14.8 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -5.131729, 0.010387, 14.136975 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.748726, 4.785052, 4.835765 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -17.795208, -0.032374, 12.384102 ]
+						angles = [ -19.0, 0.0, 0.0 ]
+						dimensions = [ 8.554003, 3.936776, 4.256119 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -22.480913, 0.023034, 9.768152 ]
+						angles = [ -77.0, 0.0, 0.0 ]
+						dimensions = [ 8.999548, 3.765719, 6.491914 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -37.148911, 0.023034, 7.31671 ]
+						angles = [ -107.0, 0.0, 0.0 ]
+						dimensions = [ 6.992116, 3.765719, 20.823307 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -35.57423, 0.023034, 11.098317 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 22.0877, 3.765719, 7.590981 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -47.380913, 0.023034, 7.935775 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 2.79509, 3.765719, 13.916059 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -3.839328, 0.024326, 8.963292 ]
+						angles = [ -2.0, 0.0, 0.0 ]
+						dimensions = [ 8.095831, 2.191933, 3.950401 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -3.020024, -0.011153, 11.535357 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 11.01423, 2.796494, 2.155607 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -11.477129, 0.005088, 10.366394 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 5.609227, 1.333954, 4.493551 ]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

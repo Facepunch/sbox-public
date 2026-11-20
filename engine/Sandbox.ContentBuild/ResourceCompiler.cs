@@ -7,7 +7,9 @@ namespace Sandbox.ContentBuild;
 /// The engine's compilers for a build: a long-lived contentworker process, running every job at once on threads of its
 /// own. A worker is the resource compiler with the asset system and the editor's managed compilers, so a source compiles
 /// the same however its compilers are written. A job's build report makes the compiler skip associate compiles and
-/// report what it read.
+/// report what it read. Workers have no render device (Source 2's empty render system): native compiles and the texture
+/// generators work on the CPU, and a compiled texture a generator copies is read back on the CPU from its file. A project's
+/// compiler that renders draws nothing in a worker: only the editor's own compiles draw, on its Borealis.Gpu device.
 /// </summary>
 /// <param name="executable">contentworker.</param>
 /// <param name="types">The engine's native compilers (assettypes.txt).</param>
@@ -21,14 +23,6 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	/// Jobs a build runs at once by default: one per core and 2 GB of memory.
 	/// </summary>
 	public static int DefaultMaxJobs => (int)Math.Clamp( GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (2L << 30), 1, Environment.ProcessorCount );
-
-	/// <summary>
-	/// Workers get a render device. Without one, as on a build machine with no GPU, they have the empty render system:
-	/// native compiles, the built-in texture generators and reads of other textures' sizes and formats work the same. A
-	/// generator that makes no image of its own (copying a compiled .vtex) fails, saying it needs a device; a project's
-	/// compiler that renders isn't supported without one.
-	/// </summary>
-	public bool RenderDevice { get; init; }
 
 	/// <summary>
 	/// Runs each job in this process, which has the same compilers loaded (the editor), rather than in a worker: mode,
@@ -268,8 +262,6 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 			"-searchpaths", key,
 		};
 
-		// A GPU, or a CPU device when that's all there is. The pipeline cache would be one file every worker writes.
-		if ( RenderDevice ) args.AddRange( ["-vulkan", "-vulkan_allow_cpu", "-vulkan_disable_pipeline_cache"] );
 		if ( compilers is not null ) args.AddRange( ["-compilers", compilers] );
 
 		CompilerWorker worker;

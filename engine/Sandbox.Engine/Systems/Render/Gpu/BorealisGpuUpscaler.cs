@@ -35,6 +35,9 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	// FSR1 works in 16x16 tiles, 64 threads each
 	const int Fsr1TileSize = 16;
 
+	// reactive_mask_generate's default: any depth nearer than the far plane in the overlays' own depth
+	const float NativeReactiveThreshold = 0.001f;
+
 	/// <summary>
 	/// The mode the settings ask for and its render scale, as native's <c>GetActiveUpscalerMode</c> and
 	/// <c>GetUpscalerViewportScale</c> work them out: off (and the old stretch setting) with a render scale under 1 stretches.
@@ -68,6 +71,12 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		return (mode, scale);
 	}
 
+	/// <summary>
+	/// The texture mip bias a temporal upscaler samples with at <paramref name="scale"/> (native's <c>GetMipBias</c>): mips
+	/// picked as at the display size, and one finer, since the upscaler gathers detail over frames.
+	/// </summary>
+	internal static float MipBias( float scale ) => scale >= 1.0f || scale <= 0.0f ? 0.0f : MathF.Log2( scale ) - 1.0f;
+
 	/// <summary>A quality preset's render scale, shared by FSR3 and DLSS (native's <c>QualityPresetToScale</c>).</summary>
 	internal static float QualityScale( int quality ) => quality switch
 	{
@@ -92,6 +101,9 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	/// <summary>The size it's upscaled to.</summary>
 	public Vector2Int DisplaySize { get; private set; }
 
+	/// <summary>Whether a temporal upscaler (FSR3, DLSS) runs this frame: the frame is jittered and draws a reactive mask.</summary>
+	public bool IsTemporal => temporal is not null && Active is Mode.Fsr3 or Mode.Dlss;
+
 	/// <summary>Whether the scene renders single-sampled: every mode but the stretch, as native turns MSAA off for them.</summary>
 	public bool SingleSampled => Active is Mode.Fsr1 or Mode.Fsr3 or Mode.Dlss;
 
@@ -100,14 +112,20 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	public Vector2 ClipJitter => RenderSize.x < 1 ? default : new Vector2( 2.0f * Jitter.x / RenderSize.x, -2.0f * Jitter.y / RenderSize.y );
 
 	TemporalUpscaler temporal;
+	CutDetector cuts;
+	bool debugReactiveMask;
 	int jitterIndex;
 	double lastDispatch = -1;
 	bool resetHistory;
-	static bool warnedDlss;
+	static bool warnedDlss, warnedFsr3;
+
+	// What an upscaler couldn't be made for, not tried again until the settings or size change: native makes its upscaler
+	// once a change too, and DLSS's library sets itself up each time it's asked
+	(TemporalUpscalerKind Kind, Vector2Int Render, Vector2Int Display)? failed;
 
 	Texture output, intermediate, depth, motionVectors, reactiveMask, temporalDepth;
 	RenderTarget depthTarget, motionTarget, reactiveTarget, temporalDepthTarget;
-	Material motionMaterial, reactiveMaterial;
+	Material motionMaterial, reactiveMaterial, reactiveDebugMaterial;
 	ComputeShader easu, rcas;
 	RenderAttributes easuAttributes, rcasAttributes, depthAttributes, reactiveAttributes;
 
@@ -116,8 +134,9 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	/// and jitter, the upscaler made (again) when the settings or size changed. <paramref name="allowed"/> is native's main
 	/// view outside the tools: false renders at the display size. Returns whether the frame upscales.
 	/// </summary>
-	public bool Begin( Vector2Int display, bool allowed )
+	public bool Begin( Vector2Int display, bool allowed, bool debugReactiveMask = false )
 	{
+		this.debugReactiveMask = debugReactiveMask;
 		var (mode, scale) = allowed ? Settings() : (Mode.Off, 1.0f);
 		DisplaySize = display;
 		var render = new Vector2Int( Math.Max( 1, (int)(scale * display.x) ), Math.Max( 1, (int)(scale * display.y) ) );
@@ -128,6 +147,11 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			{
 				warnedDlss = true;
 				Log.Warning( "DLSS (r_upscaling 4) is unavailable on this system (requires an NVIDIA GPU) - falling back to no upscaling." );
+			}
+			else if ( mode == Mode.Fsr3 && !warnedFsr3 )
+			{
+				warnedFsr3 = true;
+				Log.Warning( "FSR3 (r_upscaling 3) couldn't start on this system - falling back to no upscaling." );
 			}
 
 			mode = Mode.Off;
@@ -147,6 +171,9 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		RenderSize = render;
 		if ( temporal is not null )
 		{
+			// Native's global mip bias, while a temporal upscaler runs: it lapses once none asks
+			backend.RequestMipBias( MipBias( scale ) );
+
 			var (x, y) = temporal.Jitter( jitterIndex );
 			jitterIndex = (jitterIndex + 1) % temporal.JitterPhaseCount;
 			Jitter = new Vector2( x, y );
@@ -156,10 +183,52 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	/// The camera this frame, after <see cref="Begin"/>: a cut from last frame (<see cref="CutDetector"/>) resets the temporal
+	/// upscaler's history, so it doesn't blend the frames before the cut into the ones after.
+	/// </summary>
+	public void Track( Vector3 position, Rotation rotation, object world )
+	{
+		var cut = cuts.Cut( position, rotation, world, Application.FrameCount );
+		if ( cut && IsTemporal ) resetHistory = true;
+	}
+
+	/// <summary>
+	/// Tells a camera cut from a camera's pose frame to frame: a jump of more than <see cref="TeleportDistance"/> or a turn of
+	/// more than <see cref="TeleportAngle"/> degrees in one frame (a teleport, a respawn), another world (a map or scene
+	/// change), or frames it didn't render in between (a switch to another camera and back, a loading screen). The first
+	/// frame is a cut. A camera rendered twice in a frame isn't.
+	/// </summary>
+	internal struct CutDetector
+	{
+		/// <summary>The most a camera moves in a frame without cutting: 256 inches, about 6.5 metres.</summary>
+		public const float TeleportDistance = 256.0f;
+
+		/// <summary>The most a camera turns in a frame without cutting, in degrees.</summary>
+		public const float TeleportAngle = 45.0f;
+
+		Vector3 position;
+		Rotation rotation;
+		object world;
+		ulong frame;
+		bool seen;
+
+		/// <summary>Whether <paramref name="frame"/>'s pose cuts from the last one seen, which it then becomes.</summary>
+		public bool Cut( Vector3 position, Rotation rotation, object world, ulong frame )
+		{
+			var cut = !seen || frame > this.frame + 1 || !ReferenceEquals( world, this.world )
+				|| position.Distance( this.position ) > TeleportDistance || rotation.Distance( this.rotation ) > TeleportAngle;
+			(this.position, this.rotation, this.world, this.frame, seen) = (position, rotation, world, frame, true);
+			return cut;
+		}
+	}
+
 	bool EnsureTemporal( Mode mode, Vector2Int render, Vector2Int display )
 	{
 		var kind = mode == Mode.Dlss ? TemporalUpscalerKind.Dlss : TemporalUpscalerKind.Fsr3;
 		if ( temporal is not null && temporal.Kind == kind && temporal.RenderSize == (render.x, render.y) && temporal.DisplaySize == (display.x, display.y) ) return true;
+
+		if ( failed == (kind, render, display) ) return false;
 
 		DropTemporal();
 		TemporalUpscaler.Message ??= ( severity, text ) =>
@@ -168,7 +237,18 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			else Log.Info( $"Borealis.Gpu: {text}" );
 		};
 
-		temporal = TemporalUpscaler.Create( backend.Device, kind, (render.x, render.y), (display.x, display.y) );
+		try
+		{
+			temporal = TemporalUpscaler.Create( backend.Device, kind, (render.x, render.y), (display.x, display.y) );
+		}
+		catch ( Exception e )
+		{
+			// Whatever the library or its loading throws, the frame renders without it
+			Log.Warning( $"Borealis.Gpu: {kind} couldn't be made: {e.Message}" );
+			temporal = null;
+		}
+
+		failed = temporal is null ? (kind, render, display) : null;
 		jitterIndex = 0;
 		lastDispatch = -1;
 		resetHistory = true;
@@ -215,7 +295,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			if ( temporalDepth is null || temporalDepth.Width != RenderSize.x || temporalDepth.Height != RenderSize.y )
 			{
 				temporalDepth?.Dispose();
-				temporalDepth = Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( RenderSize.x, RenderSize.y ).WithFormat( ImageFormat.D32 ), "Borealis.Gpu upscaler depth" );
+				temporalDepth = Texture.CreateRenderTarget().WithSize( RenderSize.x, RenderSize.y ).WithFormat( ImageFormat.D32 ).Create( "Borealis.Gpu upscaler depth" );
 			}
 
 			if ( temporalDepthTarget is null || temporalDepthTarget.ColorTarget != motionVectors || temporalDepthTarget.DepthTarget != temporalDepth )
@@ -239,6 +319,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			motionMaterial ??= Material.FromShader( "shaders/motion_vectors.shader" );
 			reactiveMaterial ??= Material.FromShader( "shaders/reactive_mask_generate.shader" );
 			reactiveAttributes ??= RenderAttributes.CreateManaged();
+			if ( debugReactiveMask ) reactiveDebugMaterial ??= Material.FromShader( "shaders/reactive_mask_debug.shader" );
 		}
 	}
 
@@ -246,14 +327,14 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	{
 		if ( existing is not null && existing.Width == size.x && existing.Height == size.y ) return existing;
 		existing?.Dispose();
-		return Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( format ).WithUAVBinding(), name );
+		return Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( format ).WithUAVBinding().Create( name );
 	}
 
 	static Texture DepthTarget( Texture existing, Vector2Int size, string name )
 	{
 		if ( existing is not null && existing.Width == size.x && existing.Height == size.y ) return existing;
 		existing?.Dispose();
-		return Texture.CreateOnBorealisGpu( Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithDepthFormat(), name );
+		return Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithDepthFormat().Create( name );
 	}
 
 	/// <summary>
@@ -290,8 +371,11 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			Graphics.Clear( Color.Transparent, true, false, false );
 			Graphics.Blit( motionMaterial );
 
-			reactiveAttributes.Set( ReactiveDepth, sceneDepth );
-			reactiveAttributes.Set( ReactiveDepthThreshold, 1.0f - Borealis.GameOverlayLayer.DepthRange - 0.0001f );
+			// The overlays drawn again depth only, translucent ones too, as native's mask has them; without any, the frame's depth
+			// in the overlays' range (custom objects' only)
+			var overlays = frame.ReactiveDepth;
+			reactiveAttributes.Set( ReactiveDepth, overlays ?? sceneDepth );
+			reactiveAttributes.Set( ReactiveDepthThreshold, overlays is not null ? NativeReactiveThreshold : 1.0f - Borealis.GameOverlayLayer.DepthRange - 0.0001f );
 			Graphics.RenderTarget = reactiveTarget;
 			Graphics.Viewport = renderViewport;
 			Graphics.Clear( Color.Transparent, true, false, false );
@@ -332,6 +416,23 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		view.Viewport = displayViewport;
 		frame.Upscaled( output, depth, upscaledConstants, view );
 	}
+
+	/// <summary>
+	/// The reactive mask as a red overlay over the upscaled colour, in the frame's block after the stages
+	/// (<see cref="SceneCameraDebugMode.ReactiveMask"/>), as native's <c>ReactiveMaskDebugLayer</c> draws it over its final
+	/// colour: read a pixel at a time, so the render-size mask covers the top left of the display.
+	/// </summary>
+	public void DrawReactiveMask( Rect displayViewport )
+	{
+		if ( !IsTemporal || reactiveMask is null || reactiveDebugMaterial is null || depthTarget is null ) return;
+		reactiveAttributes.Set( ReactiveMaskName, reactiveMask );
+		Graphics.RenderTarget = depthTarget;
+		Graphics.Viewport = displayViewport;
+		Graphics.Blit( reactiveDebugMaterial, reactiveAttributes );
+		Graphics.RenderTarget = null;
+	}
+
+	static readonly StringToken ReactiveMaskName = "ReactiveMask";
 
 	static Material depthResolve;
 	static Material DepthResolve => depthResolve ??= Material.FromShader( "shaders/depthresolve.shader" );

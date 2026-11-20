@@ -1,0 +1,138 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	SpawnMenuPage
+	{
+		flex-direction: row;
+		width: 100%;
+		height: 100%;
+	}
+
+	SpawnMenuPage > .left
+	{
+		@include ui-sidebar;
+		height: 100%;
+		width: 25%;
+		min-width: 176px;
+		max-width: 240px;
+	}
+
+	SpawnMenuPage > .body
+	{
+		position: relative;
+		flex-grow: 1;
+		min-width: 0px;
+		background-color: $ui-menu-body;
+		color: $ui-text;
+	}
+
+	SpawnMenuPage .tree
+	{
+		flex-grow: 1;
+		min-height: 0px;
+
+		.treeview
+		{
+			flex-grow: 1;
+			@include ui-scroll;
+		}
+	}
+
+	SpawnMenuPage .treeview .tree-row
+	{
+		@include ui-sidebar-row;
+		padding-right: 8px;
+
+		.tree-icon
+		{
+			width: 18px;
+			margin: 0 0 0 8px;
+			font-family: $ui-icon-outlined;
+			font-size: 17px;
+			text-align: center;
+			opacity: 0.8;
+		}
+
+		.tree-label
+		{
+			margin-left: 8px;
+			text-overflow: ellipsis;
+		}
+
+		.tree-expander
+		{
+			order: 2;
+			flex-shrink: 0;
+		}
+
+		&:not(.has-children) .tree-expander { display: none; }
+
+		&.has-children:not(.section-heading) .tree-label
+		{
+			flex-grow: 0;
+			min-width: 0;
+		}
+
+		&.selected
+		{
+			background-color: transparent;
+		}
+
+		&.section-heading
+		{
+			@include ui-sidebar-heading;
+			.tree-label { min-width: 0; white-space: normal; text-overflow: clip; }
+			&:hover { background-color: transparent; color: $ui-text-strong; }
+		}
+
+		&.active
+		{
+			@include ui-selected( $ui-catalog-selected-bg );
+			font-weight: 600;
+			.tree-icon { opacity: 1; }
+		}
+
+		&.disabled
+		{
+			opacity: 0.45;
+			pointer-events: none;
+		}
+
+		// every pooled row carries a skeleton once it's been a loading row, only loading rows show it
+		SpawnlistSkeleton
+		{
+			display: none;
+		}
+
+		&.loading
+		{
+			opacity: 1;
+
+			.tree-content
+			{
+				flex-grow: 1;
+				align-self: stretch;
+			}
+
+			SpawnlistSkeleton
+			{
+				display: flex;
+			}
+		}
+	}
+
+	SpawnMenuPage .menu-header,
+	SpawnMenuPage .menu-footer
+	{
+		flex-shrink: 0;
+	}
+
+	SpawnMenuPage UILoadingState
+	{
+		color: $ui-text-strong;
+		.spinner { color: $ui-text-muted; }
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

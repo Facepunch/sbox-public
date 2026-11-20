@@ -15,7 +15,7 @@ public partial class Package
 	/// Are this package's files installed from its Steam Workshop item, rather than downloaded from the backend?
 	/// Only maps, games and addons - clothing has a workshop item too, but its files are on the backend.
 	/// </summary>
-	public bool InstallsFromWorkshop => WorkshopId != 0
+	public bool InstallsFromWorkshop => IsRemote && WorkshopId != 0
 		&& (string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase )
 			|| string.Equals( TypeName, "game", StringComparison.OrdinalIgnoreCase )
 			|| string.Equals( TypeName, "addon", StringComparison.OrdinalIgnoreCase ));

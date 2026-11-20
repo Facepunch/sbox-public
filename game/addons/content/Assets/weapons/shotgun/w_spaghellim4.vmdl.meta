@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Spaghelli M4",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "w_spaghellim4",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/shotgun/w_spaghellim4.vmdl"
+      }
+    }
+  },
+  "guid": "f1b8972c-e858-4be9-8b29-8311d47d2dcf"
+}

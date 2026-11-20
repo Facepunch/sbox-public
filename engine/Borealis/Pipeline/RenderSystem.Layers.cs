@@ -76,6 +76,9 @@ public sealed partial class RenderSystem
 			new StageLayer( RenderStage.AfterViewmodel ),
 			new GameOverlayTranslucentLayer(),
 
+			// The overlays' depth for a temporal upscaler's reactive mask, when the view asks.
+			new ReactiveDepthLayer(),
+
 			// HDR effects, output copy, then screen overlays and UI.
 			new StageLayer( RenderStage.EarlyUI ),
 			new StageLayer( RenderStage.BeforePostProcess ),

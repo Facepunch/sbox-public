@@ -197,6 +197,15 @@ public abstract class GpuDevice
 	/// </summary>
 	internal virtual bool ResolvesIdsNormals => false;
 
+	/// <summary>
+	/// The error a generated level may have, in pixels at an object's nearest point, as views pick the levels of meshes they
+	/// draw themselves (<see cref="GpuMesh.LevelsFor"/>); 0 when the device makes none.
+	/// </summary>
+	internal virtual float LevelPixels => 0;
+
+	/// <summary>Counts generated levels published (<see cref="GpuMesh.LevelsFor"/>): a mesh waiting for some asks again once it moves.</summary>
+	internal virtual int LevelsVersion => 0;
+
 	/// <summary>Whether the device has an async compute queue.</summary>
 	public abstract bool SupportsAsyncCompute { get; }
 

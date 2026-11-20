@@ -421,7 +421,7 @@ public class SurfaceTests : GpuTest
 			var second = compiler.CompileSurface( module );
 			Assert.IsFalse( first.FromCache );
 			Assert.IsTrue( second.FromCache );
-			Assert.IsTrue( first.Dependencies.Any( d => d.EndsWith( "vr_lighting.fxc", StringComparison.OrdinalIgnoreCase ) ), "the core includes are dependencies" );
+			Assert.IsTrue( first.Dependencies.Any( d => d.EndsWith( "lighting.slangh", StringComparison.OrdinalIgnoreCase ) ), "the core includes are dependencies" );
 			CollectionAssert.AreEquivalent( first.Passes.Keys.ToArray(), second.Passes.Keys.ToArray() );
 			foreach ( var (name, pass) in first.Passes )
 			{
@@ -581,7 +581,7 @@ public class SurfaceTests : GpuTest
 			var shaders = Path.Combine( Core, "shaders" );
 			var compiler = new SlangCompiler( bin, [shaders] );
 			string Include( string path ) => File.Exists( Path.Combine( shaders, path ) ) ? File.ReadAllText( Path.Combine( shaders, path ) ) : null;
-			foreach ( var (relative, name) in new[] { ("templates/material.shader", "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
+			foreach ( var (relative, name) in new[] { (Path.Combine( AppContext.BaseDirectory, "Data", "material.shader" ), "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
 			{
 				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name, Include );
 				Assert.IsNotNull( result.Source, name );
@@ -739,7 +739,10 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( second.Has( StageKind.Pixel, values ), "the kept entry" );
 			Assert.AreEqual( before, PassModule.Preprocesses, "read, not preprocessed" );
 
+			// Edited within the file system's clock tick: the same time, a different length
+			var written = File.GetLastWriteTimeUtc( include );
 			File.WriteAllText( include, "RenderState( DepthBias, 16 );\n// longer\n" );
+			File.SetLastWriteTimeUtc( include, written );
 			CollectionAssert.AreEqual( new[] { ("DepthBias", "16") }, Run().RenderStates( values ).ToArray(), "an edited include preprocesses again" );
 		}
 		finally
@@ -771,7 +774,11 @@ public class SurfaceTests : GpuTest
 			CollectionAssert.AreEqual( new[] { ("DepthBias", "4") }, module.RenderStates( values ).ToArray() );
 			CollectionAssert.AreEqual( new[] { ("DepthBias", "4") }, module.RenderStates( values ).ToArray(), "kept" );
 
+			// Edited within the file system's clock tick (a write takes the clock's last tick as its time): the same time, a
+			// different length
+			var written = File.GetLastWriteTimeUtc( include );
 			File.WriteAllText( include, "RenderState( DepthBias, 16 );\n// longer\n" );
+			File.SetLastWriteTimeUtc( include, written );
 			CollectionAssert.AreEqual( new[] { ("DepthBias", "16") }, module.RenderStates( values ).ToArray(), "the edited include is read again" );
 		}
 		finally
@@ -814,12 +821,19 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>Core pass modules converted from a .shader whose .shader_c the core keeps, cheapest to compile first.</summary>
+	static readonly string[] ConvertedModules = ["cs_compress_dxt5", "downsample_depth", "debug_show_texture", "terrain", "eyeball", "water"];
+
 	/// <summary>
 	/// Pass modules compiled in the background: a converted module's variant asked for while its stages compile is its
 	/// shader's compiled programs' and the drawer doesn't keep it; once they're done it's the module's, kept. A standalone
 	/// module has no programs to fall back to, and a skipped compute dispatch would leave its outputs unwritten: its variant
 	/// is waited for (with its offline compile, as shipped, nothing compiles in game at all).
 	/// </summary>
+	/// <remarks>
+	/// The converted module is the first of <see cref="ConvertedModules"/> that still is one: the engine's .shader files are
+	/// being deleted and their modules made standalone, and a branch that took the one named here failed this test.
+	/// </remarks>
 	[TestMethod]
 	[TestCategory( "Slow" )]
 	public void PassModulesCompileInTheBackground()
@@ -842,10 +856,12 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( drawer.Variant( standalone, new ShaderAttributes() ) is { FromModule: true }, "a standalone module's variant is waited for" );
 			Assert.AreEqual( 0, backend.Passes.PendingAsks );
 
-			// Converted (no Mode lines; cs_compress_dxt5 is one Source 2 alone draws, so its .shader_c is there)
-			var shader = backend.Shaders.Load( "shaders/cs_compress_dxt5.shader" );
-			if ( shader is null ) Assert.Inconclusive( "cs_compress_dxt5 isn't compiled" );
-			Assert.IsFalse( shader.ModuleOnly );
+			// Converted: the first of these still a module without Mode lines beside its .shader_c
+			var name = ConvertedModules.FirstOrDefault( n => backend.Shaders.Files.Find( $"shaders/{n}.shader" ) is { } compiled && Path.ChangeExtension( compiled, ".slang" ) is var slang
+				&& File.Exists( slang ) && !PassModule.Read( slang, [Path.GetDirectoryName( slang )] ).Standalone );
+			Assert.IsNotNull( name, $"none of {string.Join( ", ", ConvertedModules )} is a converted pass module any more (a .slang without Mode lines beside its .shader_c): name one that is in ConvertedModules" );
+			var shader = backend.Shaders.Load( $"shaders/{name}.shader" );
+			Assert.IsTrue( shader is { ModuleOnly: false }, $"{name} loads from its .shader_c" );
 
 			var clock = System.Diagnostics.Stopwatch.StartNew();
 			var first = drawer.Variant( shader, new ShaderAttributes() );
@@ -908,7 +924,7 @@ public class SurfaceTests : GpuTest
 				if ( p.Pixel is not null ) CollectionAssert.AreEqual( p.Pixel.Spirv, read.Pass( name ).Pixel.Spirv, name );
 			}
 
-			Assert.IsTrue( read.Dependencies.Any( d => d.EndsWith( "vr_lighting.fxc", StringComparison.OrdinalIgnoreCase ) ), "the files it read, found again" );
+			Assert.IsTrue( read.Dependencies.Any( d => d.EndsWith( "lighting.slangh", StringComparison.OrdinalIgnoreCase ) ), "the files it read, found again" );
 			var values = pass.Combos( StageKind.Pixel ).ToDictionary( c => c.Name, c => c.Min );
 			Assert.IsTrue( game.CompilePass( pass, StageKind.Pixel, values ).Offline, "the pass stage came from its offline compile" );
 			Assert.AreEqual( 0, compiling.Count, string.Join( "; ", compiling ) );

@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Trash Pile c Cigs 2",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "trash_pile_c_cigs_02",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/trash_pile_c/trash_pile_c_cigs_02.vmdl"
+      }
+    }
+  },
+  "guid": "c8985817-5fb5-4888-a82f-9fb7a173a30e"
+}
