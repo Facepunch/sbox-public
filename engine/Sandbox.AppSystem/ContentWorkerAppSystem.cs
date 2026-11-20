@@ -44,11 +44,7 @@ public sealed class ContentWorkerAppSystem : ToolAppSystem
 	{
 		base.Init();
 
-		// Without -vulkan it has the empty render system, as a console app, and nothing reads a texture's pixels back. One
-		// asked for a device (to copy compiled textures) has to have it.
-		if ( Environment.GetCommandLineArgs().Contains( "-vulkan" ) && !Graphics.IsAvailable )
-			throw new InvalidOperationException( "A content worker was asked for a render device (-vulkan), and none could be created: no GPU or Vulkan driver" );
-
+		// The empty render system, as a console app: compiles draw on nothing, and textures read back on the CPU (HeadlessRenderBackend)
 		Editor.ContentCompilerHost.InitializeInterop();
 		_appSystem.AddSystem( "assetsystem", "AssetSystem001" );
 	}
