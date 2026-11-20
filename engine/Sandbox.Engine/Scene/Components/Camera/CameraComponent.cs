@@ -912,7 +912,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			InitializeRendering();
 		}
 
-		return sceneCamera.RenderToTexture( target, depthTarget, Graphics.SceneView, config, RenderToTextureName(), out viewData );
+		return sceneCamera.RenderToTexture( target, depthTarget, default, config, RenderToTextureName(), out viewData );
 	}
 
 	// The view's name for RenderToTexture, made again only when the object's name changes

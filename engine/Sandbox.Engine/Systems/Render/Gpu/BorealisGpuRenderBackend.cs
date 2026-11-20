@@ -27,8 +27,8 @@ namespace Sandbox;
 /// </summary>
 /// <remarks>
 /// Engine resources get a backing on this device the first time it uses them. Render targets are made empty with the
-/// texture's size, format and mips; other textures are copied from Source 2's pixels (mip 0); buffers made while
-/// recording for this device start empty, and others start with what Source 2's copy holds. A backing lives until its
+/// texture's size, format and mips; other textures come from their compiled files or the pixels they were made with;
+/// buffers made while recording for this device start empty, and others start with what the device they were made for holds. A backing lives until its
 /// resource is disposed, or until this backend is.
 /// </remarks>
 internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposable
@@ -369,7 +369,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// Where the game's or the menu's mounted files have a compiled file on disk: a game package's models, materials,
 	/// textures and shaders, which are named by their hash in the download cache.
 	/// </summary>
-	static string MountedFile( string path )
+	internal static string MountedFile( string path )
 	{
 		foreach ( var context in (Sandbox.Engine.GlobalContext[])[Sandbox.Engine.GlobalContext.Game, Sandbox.Engine.GlobalContext.Menu] )
 		{
@@ -779,14 +779,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>The layout an engine texture's backing is in, as the recording left it.</summary>
 	internal ImageLayout LayoutOf( Texture texture ) => textures.TryGetValue( texture, out var backing ) ? context.LayoutOf( backing.Handle ) : ImageLayout.Undefined;
 
-	/// <summary>How many textures were copied from Source 2's pixels, having nothing of their own to start from.</summary>
-	public int CopiedFromSource2 { get; private set; }
-
 	/// <summary>
 	/// A texture's backing. A render target is made to match, cleared as Source 2 clears a new one. Anything else comes
-	/// from its compiled file through Borealis.Source2, or from the pixels it was made with, as RGBA8; failing both (a
-	/// texture changed since, or made before this device), from mip 0 of Source 2's copy. A material's texture with no
-	/// path of its own (a sky's cubemap) is the material's, as Borealis's draws read it.
+	/// from its compiled file through Borealis.Source2, or from the pixels it was made with, as RGBA8; failing both, one
+	/// transparent pixel. A material's texture with no path of its own (a sky's cubemap) is the material's, as Borealis's draws read it.
 	/// </summary>
 	internal TextureHandle TextureOf( Texture texture )
 	{
@@ -954,21 +950,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			handle = gpu.CreateTexture( info );
 			Upload( handle, info, raw.Data, ImageLayout.Undefined );
 		}
-		else if ( (texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) || (!Graphics.HasSource2Device && texture.InitialPixels is null && texture.InitialColor is not null)) && texture.Depth <= 1 && DataFormatOf( texture.ImageFormat ) is var storage && storage != GpuFormat.Unknown )
+		else if ( (texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) || (texture.InitialPixels is null && texture.InitialColor is not null)) && texture.Depth <= 1 && DataFormatOf( texture.ImageFormat ) is var storage && storage != GpuFormat.Unknown )
 		{
-			// Made empty, for compute to fill (a terrain's baked normals) or made at run time with no pixels and no Source 2 device to copy from: its own format,
+			// Made empty, for compute to fill (a terrain's baked normals) or made at run time with no pixels: its own format,
 			// storage when made for compute, cleared as a new target is, to the colour it was made or last cleared with
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, storage, Math.Max( texture.Mips, 1 ), $"Engine storage {texture.Width}x{texture.Height}" );
 			if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 			Track( handle, ImageLayout.Undefined );
 			ClearNow( handle, texture.InitialColor ?? Color.Transparent );
-		}
-		else if ( TryCopyFromSource2( texture ) is { } copy )
-		{
-			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" );
-			handle = gpu.CreateTexture( info );
-			Upload( handle, info, copy, ImageLayout.Undefined );
 		}
 		else
 		{
@@ -1166,29 +1156,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ => GpuFormat.Unknown,
 	};
 
-	/// <summary>Mip 0 of Source 2's copy as RGBA8, or null when Source 2 can't read it back.</summary>
-	unsafe byte[] TryCopyFromSource2( Texture texture )
-	{
-		// Source 2's empty render system has no pixels to read: its read would hand back zeros as if they were the texture's
-		if ( !Graphics.HasSource2Device ) return null;
-
-		try
-		{
-			var pixels = new byte[texture.Width * texture.Height * 4];
-			var rect = new NativeRect( 0, 0, texture.Width, texture.Height );
-			fixed ( byte* data = pixels ) Source2RenderBackend.Instance.ReadPixels( texture, rect, 0, 0, rect, (IntPtr)data, ImageFormat.RGBA8888, 0 );
-			CopiedFromSource2++;
-			return pixels;
-		}
-		catch ( Exception )
-		{
-			// A readback Source 2 can't do
-			return null;
-		}
-	}
-
 	/// <summary>
-	/// A texture with nothing to make it from (pixels Source 2 can't read back): one transparent pixel, kept
+	/// A texture with nothing to make it from: one transparent pixel, kept
 	/// as its backing so it isn't made again each time it's asked for, and said once.
 	/// </summary>
 	TextureHandle Unreadable( Texture texture )
@@ -1421,7 +1390,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	};
 
 	/// <summary>
-	/// A buffer's backing. One made while recording for another device starts with what Source 2's copy holds.
+	/// A buffer's backing. One made while recording for another device starts with what that device's copy holds.
 	/// </summary>
 	internal BufferHandle BufferOf( GpuBuffer buffer )
 	{
@@ -2231,7 +2200,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>The engine form of a backing's format, for converting what's read back, or null.</summary>
-	static ImageFormat? ImageFormatOf( GpuFormat format ) => format.Linear() switch
+	internal static ImageFormat? ImageFormatOf( GpuFormat format ) => format.Linear() switch
 	{
 		GpuFormat.RGBA8Unorm => ImageFormat.RGBA8888,
 		GpuFormat.BGRA8Unorm => ImageFormat.BGRA8888,

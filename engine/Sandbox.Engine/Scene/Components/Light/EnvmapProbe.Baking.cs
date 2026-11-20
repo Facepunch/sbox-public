@@ -24,13 +24,11 @@ public partial class EnvmapProbe
 
 		var cubemapSize = (int)Resolution;
 
-		// Captured and read back where the scene draws (Borealis.Gpu): Source 2's copy, where its device is kept (the editor),
-		// is a placeholder
 		using var tex = Texture.CreateCube( cubemapSize, cubemapSize )
 							.WithUAVBinding()
 							.WithMips( 7 )
 							.WithFormat( ImageFormat.RGBA16161616F )
-							.Build( onBorealisGpu: true );
+							.Finish();
 
 		if ( ct.IsCancellationRequested )
 			return;

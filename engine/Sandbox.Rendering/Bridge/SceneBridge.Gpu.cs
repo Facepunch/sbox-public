@@ -167,8 +167,7 @@ internal sealed partial class SceneBridge
 	/// <summary>
 	/// A camera's output in the block being recorded, its target bound: the frame copied in (or the background, without one),
 	/// then the stages that draw over the finished frame. <paramref name="encode"/> is for an 8-bit target, bound through a
-	/// linear view: the copy and the UI write gamma-encoded output into it, as native's UI hook layers do over an sRGB swap
-	/// chain (ui_gamma_blend).
+	/// linear view: the copy and the UI write gamma-encoded output into it, so the UI blends in gamma space like a browser.
 	/// </summary>
 	void DrawOutput( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
 	{

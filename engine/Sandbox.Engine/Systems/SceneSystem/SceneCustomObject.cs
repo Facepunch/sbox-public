@@ -82,17 +82,3 @@ public class SceneCustomObject : SceneObject
 		if ( obj is Borealis.CustomObject custom ) WriteCustom( custom, change );
 	}
 }
-
-internal static class SceneCustomObjectRender
-{
-	internal static void RenderObject( ManagedRenderSetup_t setup, SceneCustomObject obj )
-	{
-		if ( obj is null )
-			return;
-
-		using ( new Graphics.Scope( in setup ) )
-		{
-			obj.RenderInternal();
-		}
-	}
-}

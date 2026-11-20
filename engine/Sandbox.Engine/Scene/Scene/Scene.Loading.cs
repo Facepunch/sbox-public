@@ -106,15 +106,9 @@ public partial class Scene : GameObject
 				// Run pending startups
 				RunPendingStarts();
 
-				// Pipelines the load made go to disk: Source 2's, or without its device the drawing device's
-				if ( WantsSystemScene && this is not PrefabScene && !Application.IsUnitTest )
-				{
-					if ( Graphics.HasSource2Device ) g_pRenderDevice.FlushPipelineCache();
-					else if ( RenderBackend.Default is BorealisGpuRenderBackend borealis ) borealis.FlushPipelineCache();
-
-					// The previous scene's GPU memory was just freed, hand the empty blocks back (Source 2's device)
-					if ( Graphics.HasSource2Device ) g_pRenderDevice.RequestGPUMemoryCompaction();
-				}
+				// Pipelines the load made go to disk: the drawing device's
+				if ( WantsSystemScene && this is not PrefabScene && !Application.IsUnitTest && RenderBackend.Default is BorealisGpuRenderBackend borealis )
+					borealis.FlushPipelineCache();
 
 				// Tell networking we've finished loading, lets players join
 				var sceneInformation = Components.Get<SceneInformation>();

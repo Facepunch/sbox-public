@@ -4,15 +4,6 @@ namespace Sandbox;
 
 public static partial class Graphics
 {
-	static ComputeShader _mipMapGeneratorShader;
-
-	/// <summary>
-	/// <c>downsample_cs</c>, which the gaussian and GGX methods dispatch once per mip.
-	/// </summary>
-	internal static ComputeShader MipMapGenerator => _mipMapGeneratorShader;
-	static ComputeShader _spdShader;
-	static readonly StringToken[] _spdMips = Enumerable.Range( 0, 7 ).Select( i => new StringToken( $"Mip{i}" ) ).ToArray();
-
 	/// <summary>
 	/// Which method to use when downsampling a texture. The gaussian and GGX methods take a dispatch per mip, the others one per six.
 	/// </summary>
@@ -49,55 +40,6 @@ public static partial class Graphics
 		Default = 0,
 		None = -1
 	};
-
-	/// <summary>
-	/// Generate the mips of a UAV texture after <paramref name="initialMip"/> with downsample_spd: one dispatch per 6 mips
-	/// instead of one per mip. Box, Max, Min and MinMax only.
-	/// With <paramref name="fuseDepth"/> the first mip isn't read from <paramref name="texture"/> but resolved into it from depth
-	/// (<paramref name="depth"/>, or what's bound as <c>SourceDepth</c> when null) as the first dispatch reads it: a RG32F min/max
-	/// chain, MinMax only, needing at least two mips.
-	/// </summary>
-	internal static void DownsampleSpd( IRenderContext context, Texture texture, DownsampleMethod method, int initialMip = 0, bool fuseDepth = false, Texture depth = null, bool multisampled = false )
-	{
-		var mode = _spdShader.ComputeMaterial.native.GetMode();
-		var attributes = RenderAttributes.Pool.Get();
-		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", (int)method );
-		attributes.SetCombo( "D_FUSED_DEPTH", false );
-		if ( fuseDepth )
-		{
-			attributes.SetCombo( "D_MSAA", multisampled );
-			if ( depth is not null ) attributes.Set( "SourceDepth", depth );
-		}
-
-		// Down to the smaller side's 1 texel mip
-		var lastMip = Math.Min( texture.Mips - 1, System.Numerics.BitOperations.Log2( (uint)Math.Min( texture.Width, texture.Height ) ) );
-		for ( int source = initialMip; source < lastMip; )
-		{
-			int width = texture.Width >> source;
-			int height = texture.Height >> source;
-			int mipCount = Math.Min( lastMip - source, 6 );
-
-			// Mips past the count are never written, bind the last one so every slot is valid
-			for ( int i = fuseDepth ? 1 : 0; i <= 6; i++ )
-				attributes.Set( _spdMips[i], texture, source + Math.Min( i, mipCount ) );
-
-			if ( fuseDepth )
-				attributes.Set( "Mip0Out", texture, source );
-			attributes.SetCombo( "D_FUSED_DEPTH", fuseDepth );
-
-			attributes.Set( "SourceSize", new Vector2Int( width, height ) );
-			attributes.Set( "MipCount", mipCount );
-
-			RenderTools.Compute( context, attributes.Get(), mode, (width + 63) / 64 * 256, (height + 63) / 64, 1 );
-
-			ComputeUavBarrier( context, texture );
-
-			source += mipCount;
-			fuseDepth = false;
-		}
-
-		RenderAttributes.Pool.Return( attributes );
-	}
 
 	/// <summary>
 	/// Generate the mip maps for this texture. Obviously the texture needs to support mip maps.

@@ -54,9 +54,6 @@ internal static partial class DebugOverlay
 		if ( Diagnostics.DevTools.IsCollecting( "memory" ) ) DebugOverlay.Allocations.Sample();
 		else DebugOverlay.Allocations.Disabled();
 
-		if ( ShadowMapper.DebugEnabled )
-			ShadowMapper.Draw( ref pos, painter );
-
 		// The panel the dev tools' UI inspector has picked
 		if ( Diagnostics.DevTools.IsShowing( "ui" ) ) Diagnostics.DevToolsUiTab.DrawHighlight( painter );
 

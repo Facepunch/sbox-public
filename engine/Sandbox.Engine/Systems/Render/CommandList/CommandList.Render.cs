@@ -114,7 +114,7 @@ public sealed unsafe partial class CommandList
 	internal static ViewData RenderReflection( CameraComponent camera, Plane plane, RenderTarget rt, ReflectionSetup setup )
 	{
 		var viewport = Graphics.Viewport;
-		return RenderReflection( camera.SceneCamera, Graphics.SceneView, Graphics.CameraTransform, Graphics.FieldOfView, viewport.Width / viewport.Height,
+		return RenderReflection( camera.SceneCamera, default, Graphics.CameraTransform, Graphics.FieldOfView, viewport.Width / viewport.Height,
 			camera.ZNear, camera.ZFar, plane, rt, setup, $"{camera.GameObject.Name}.Reflection" );
 	}
 

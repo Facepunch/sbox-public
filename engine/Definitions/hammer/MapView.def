@@ -126,7 +126,6 @@ native struct HitInfo_t is NativeHammer.HitInfo_t
 
 managed static class Editor.MapEditor.MapViewRender
 {
-	void OnPreRender( CMapView mapView, ISceneView sceneView );
 	bool TraceManagedGizmos( CMapView mapView, Vector2 vecPoint2D, ref asref NativeHammer.HitInfo_t hitInfo );
 
 	// Draw the view's frame on Borealis.Gpu (unless -hammer-native): request is a ToolSceneManagedRender_t
