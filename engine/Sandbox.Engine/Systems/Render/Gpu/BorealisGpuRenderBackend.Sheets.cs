@@ -60,6 +60,20 @@ internal sealed partial class BorealisGpuRenderBackend
 		}
 	}
 
+	/// <summary>The sheet cache and what's in it go (no more frames): its texture is this backend's own.</summary>
+	void ReleaseSheets()
+	{
+		lock ( sheetLock )
+		{
+			services.SheetCache = null;
+			sheetCache?.Dispose();
+			sheetCache = null;
+			sheetData.Clear();
+			sheetWrites.Clear();
+			sheetRow = 0;
+		}
+	}
+
 	/// <summary>
 	/// Write the sheets asked for since the last block into the sheet cache, and make it what this device's views read
 	/// sheets from once it exists. On the main thread, before a block starts recording.
