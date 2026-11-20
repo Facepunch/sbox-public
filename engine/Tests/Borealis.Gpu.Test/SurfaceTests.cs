@@ -821,12 +821,19 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>Core pass modules converted from a .shader whose .shader_c the core keeps, cheapest to compile first.</summary>
+	static readonly string[] ConvertedModules = ["cs_compress_dxt5", "downsample_depth", "debug_show_texture"];
+
 	/// <summary>
 	/// Pass modules compiled in the background: a converted module's variant asked for while its stages compile is its
 	/// shader's compiled programs' and the drawer doesn't keep it; once they're done it's the module's, kept. A standalone
 	/// module has no programs to fall back to, and a skipped compute dispatch would leave its outputs unwritten: its variant
 	/// is waited for (with its offline compile, as shipped, nothing compiles in game at all).
 	/// </summary>
+	/// <remarks>
+	/// The converted module is the first of <see cref="ConvertedModules"/> that still is one: the engine's .shader files are
+	/// being deleted and their modules made standalone, and a branch that took the one named here failed this test.
+	/// </remarks>
 	[TestMethod]
 	[TestCategory( "Slow" )]
 	public void PassModulesCompileInTheBackground()
@@ -849,10 +856,12 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( drawer.Variant( standalone, new ShaderAttributes() ) is { FromModule: true }, "a standalone module's variant is waited for" );
 			Assert.AreEqual( 0, backend.Passes.PendingAsks );
 
-			// Converted (no Mode lines; cs_compress_dxt5 is one Source 2 alone draws, so its .shader_c is there)
-			var shader = backend.Shaders.Load( "shaders/cs_compress_dxt5.shader" );
-			if ( shader is null ) Assert.Inconclusive( "cs_compress_dxt5 isn't compiled" );
-			Assert.IsFalse( shader.ModuleOnly );
+			// Converted: the first of these still a module without Mode lines beside its .shader_c
+			var name = ConvertedModules.FirstOrDefault( n => backend.Shaders.Files.Find( $"shaders/{n}.shader" ) is { } compiled && Path.ChangeExtension( compiled, ".slang" ) is var slang
+				&& File.Exists( slang ) && !PassModule.Read( slang, [Path.GetDirectoryName( slang )] ).Standalone );
+			Assert.IsNotNull( name, $"none of {string.Join( ", ", ConvertedModules )} is a converted pass module any more (a .slang without Mode lines beside its .shader_c): name one that is in ConvertedModules" );
+			var shader = backend.Shaders.Load( $"shaders/{name}.shader" );
+			Assert.IsTrue( shader is { ModuleOnly: false }, $"{name} loads from its .shader_c" );
 
 			var clock = System.Diagnostics.Stopwatch.StartNew();
 			var first = drawer.Variant( shader, new ShaderAttributes() );
