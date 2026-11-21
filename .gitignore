@@ -88,11 +88,14 @@ engine/TestResults/
 /game/bin/**/*.xml
 /game/bin/**/*.json
 /game/bin/win64/logs
+/game/bin/managed/skills
 /game/config/**/*.json
 /game/config/**/*.json.backup
 /game/core/cfg/*.vcfg
 /game/core/cfg/video.txt
 /game/core/cfg/video_tools.txt
+/game/core/cfg/user_keys_*.json
+/game/core/cfg/machine_convars.json
 /game/data
 /game/download
 /game/download_test
