@@ -836,6 +836,7 @@ public sealed partial class RenderSystem : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		RenderHost.Current?.Device?.ReleaseView( mainPass );
 		Transients.Dispose();
 		skybox?.Dispose();
 		skybox = null;

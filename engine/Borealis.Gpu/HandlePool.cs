@@ -92,6 +92,24 @@ internal sealed class HandlePool<T> where T : struct
 		}
 	}
 
+	/// <summary>One past the highest index handed out, for walking every record with <see cref="At"/>.</summary>
+	public uint Limit
+	{
+		get { lock ( free ) return next; }
+	}
+
+	/// <summary>
+	/// The record at <paramref name="index"/> (below <see cref="Limit"/>) and its current generation: a removed record is
+	/// default. Allocates nothing.
+	/// </summary>
+	public ref T At( uint index, out uint generation )
+	{
+		var page = (int)(index >> PageBits);
+		var slot = (int)(index & (PageSize - 1));
+		generation = generations[page][slot];
+		return ref pages[page][slot];
+	}
+
 	/// <summary>Every live record, for shutdown.</summary>
 	public List<T> All()
 	{

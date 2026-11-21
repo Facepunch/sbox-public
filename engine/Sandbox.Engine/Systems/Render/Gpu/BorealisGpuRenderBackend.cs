@@ -505,6 +505,20 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	int blockTimer = -1;
 
+	/// <summary>
+	/// After the last frame: drop what the last block and draw were given, which would hold their textures and material
+	/// past their owners, and the sheet cache. Blocks remake the set as they start, and sheets are written again when asked for.
+	/// </summary>
+	internal void ReleaseFrameState()
+	{
+		pendingAttributes = null;
+		pendingMaterial = null;
+		pendingShader = null;
+		blockAttributes = null;
+		reusedBlockAttributes = null;
+		ReleaseSheets();
+	}
+
 	// The block's attributes, which a draw's own are layered over, as Source 2's contexts layer them
 	RenderAttributes blockAttributes, reusedBlockAttributes;
 
