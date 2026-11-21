@@ -165,6 +165,12 @@ public sealed class SurfaceShaders : IDisposable
 		lock ( programs ) conversions[ShaderKey( shader )] = file;
 	}
 
+	/// <summary>
+	/// Whether <paramref name="shader"/> is a core shader with a surface of its own (standard, complex for it, skin), whether or
+	/// not <see cref="ConvertShaders"/> is on.
+	/// </summary>
+	internal static bool IsCoreSurface( string shader ) => !string.IsNullOrEmpty( shader ) && DefaultSurfaces.ContainsKey( ShaderKey( shader ) );
+
 	/// <summary>The surface standing in for <paramref name="shader"/>, or null.</summary>
 	internal string ConversionFor( string shader )
 	{

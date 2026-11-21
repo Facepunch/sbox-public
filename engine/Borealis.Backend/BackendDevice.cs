@@ -1868,13 +1868,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// <paramref name="file"/> with its shader, or the error material's file and shader when its shader won't load (no
 	/// compiled file, as S&amp;Business's bucket water names a shader its package doesn't ship, or one that can't be read here),
-	/// as native's material system draws such a material with the error shader. One that names no shader, or the error
-	/// material itself, stays as it is.
+	/// as native's material system draws such a material with the error shader. One that names no shader, the error
+	/// material itself, or one of a core shader that's a surface alone (standard, skin: here only with surfaces switched off,
+	/// for comparisons) stays as it is.
 	/// </summary>
 	MaterialFile WithShader( string path, MaterialFile file, out ShaderFile shader )
 	{
 		shader = Shaders.Load( file.Shader );
-		if ( shader is not null || string.IsNullOrEmpty( file.Shader ) || MissingMaterial( path ) is not { } error ) return file;
+		if ( shader is not null || string.IsNullOrEmpty( file.Shader ) || SurfaceShaders.IsCoreSurface( file.Shader ) || MissingMaterial( path ) is not { } error ) return file;
 		if ( Shaders.Load( error.Shader ) is not { } errorShader ) return file;
 		shader = errorShader;
 		return error;
