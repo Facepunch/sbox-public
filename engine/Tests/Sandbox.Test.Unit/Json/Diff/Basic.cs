@@ -726,4 +726,31 @@ public class BasicTest
 
 		JsonTestUtils.RunRoundTripTest( sourceJson, targetJson, "Complex Nested Structures", definitions );
 	}
+
+	/// <summary>
+	/// A target built from .NET values (as a GameObject's transform is) diffs against a parsed source by value: equal
+	/// strings, including ones that need escaping, aren't overrides; a different string or a different kind is.
+	/// </summary>
+	[TestMethod]
+	public void ValuesFromDotNetCompareByValue()
+	{
+		var definitions = new HashSet<Json.TrackedObjectDefinition>
+		{
+			Json.TrackedObjectDefinition.CreatePresenceBasedDefinition( type: "Root", requiredFields: ["id"], allowedAsRoot: true ),
+		};
+
+		var source = JsonNode.Parse( """{ "id": 1, "same": "1,2,3", "escaped": "a\"é+<b", "changed": "1,2,3", "kind": "5" }""" ).AsObject();
+		var target = new JsonObject
+		{
+			["id"] = 1,
+			["same"] = JsonValue.Create( "1,2,3" ),
+			["escaped"] = JsonValue.Create( "a\"é+<b" ),
+			["changed"] = JsonValue.Create( "1,2,4" ),
+			["kind"] = JsonValue.Create( 5 ),
+		};
+
+		var patch = Json.CalculateDifferences( source, target, definitions );
+
+		CollectionAssert.AreEquivalent( new[] { "changed", "kind" }, patch.PropertyOverrides.Select( x => x.Property ).ToArray() );
+	}
 }
