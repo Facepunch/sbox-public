@@ -100,6 +100,9 @@ public partial class Terrain
 			UpdateHoleState( region );
 		}
 
+		// The maps were written in place, so the setters didn't see it
+		Storage.MapsChanged();
+
 		// Notify listeners that terrain was modified
 		OnTerrainModified?.Invoke( flags, region );
 	}
@@ -123,6 +126,8 @@ public partial class Terrain
 		Assert.NotNull( Storage );
 
 		region = ClampToResolution( region );
+
+		Storage.MapsChanged();
 
 		SyncGPUTexture();
 		UpdateCollision( flags, region );
