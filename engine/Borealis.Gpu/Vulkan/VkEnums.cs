@@ -115,6 +115,7 @@ internal enum VkStructureType
 	DeviceFaultCountsExt = 1000341001,
 	DeviceFaultInfoExt = 1000341002,
 	MutableDescriptorTypeCreateInfoExt = 1000351002,
+	PhysicalDevicePresentModeFifoLatestReadyFeaturesExt = 1000361000,
 	LayerSettingsCreateInfoExt = 1000496000,
 }
 
@@ -218,6 +219,7 @@ internal enum VkPresentMode
 	Mailbox = 1,
 	Fifo = 2,
 	FifoRelaxed = 3,
+	FifoLatestReady = 1000361000,
 }
 
 /// <summary>Flag values, grouped by the flags type they belong to.</summary>

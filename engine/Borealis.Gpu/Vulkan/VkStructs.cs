@@ -1448,6 +1448,14 @@ internal unsafe struct VkPhysicalDeviceFaultFeaturesEXT
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint presentModeFifoLatestReady;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkDeviceFaultCountsEXT
 {
 	public VkStructureType sType;

@@ -660,6 +660,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	public void Forget( SwapChain swapChain ) => acquiredIn.Remove( swapChain );
 
 	/// <summary>
+	/// How a game window presents with vsync off: <see cref="PresentMode.Immediate"/>, or what the environment variable
+	/// <c>BOREALIS_NOVSYNC_MODE</c> asks for (<c>mailbox</c>, <c>latest</c> for <see cref="PresentMode.FifoLatestReady"/>, <c>fifo</c>),
+	/// for comparing present modes in device-loss repros.
+	/// </summary>
+	internal static PresentMode NoVSyncMode { get; } = System.Environment.GetEnvironmentVariable( "BOREALIS_NOVSYNC_MODE" )?.ToLowerInvariant() switch
+	{
+		"mailbox" => PresentMode.Mailbox,
+		"fifo" => PresentMode.Fifo,
+		"latest" => PresentMode.FifoLatestReady,
+		_ => PresentMode.Immediate,
+	};
+
+	/// <summary>
 	/// A swap chain on a window, presenting with vsync or as soon as it can.
 	/// </summary>
 	public SwapChain CreateSwapChain( SurfaceSource surface, int width, int height, bool vsync ) => gpu.CreateSwapChain( new SwapChainInfo
@@ -667,7 +680,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		Surface = surface,
 		Width = width,
 		Height = height,
-		PresentMode = vsync ? PresentMode.Fifo : PresentMode.Immediate,
+		PresentMode = vsync ? PresentMode.Fifo : NoVSyncMode,
 		Linear = true,
 	} );
 

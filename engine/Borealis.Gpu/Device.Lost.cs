@@ -54,6 +54,9 @@ public sealed partial class Device
 		message?.Invoke( new DeviceMessage( MessageSeverity.Error, "Borealis.Gpu.DeviceLost", $"Device lost: {reason}" ) );
 	}
 
+	/// <summary>A warning in the device's messages.</summary>
+	internal void Warn( string id, string text ) => message?.Invoke( new DeviceMessage( MessageSeverity.Warning, id, text ) );
+
 	/// <summary>Throw for a failed Vulkan call, taking the device as lost first when that's why it failed.</summary>
 	internal void Check( VkResult result, string call )
 	{
