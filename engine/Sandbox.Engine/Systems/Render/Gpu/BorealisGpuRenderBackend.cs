@@ -248,12 +248,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// Each engine frame is a device frame: starting one waits for the frame before last, then recycles what it used. Called
 	/// before anything records in an engine frame: a block, an acquire, a scene render (which can come before either).
 	/// </summary>
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings FrameStartTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu frame start" );
+
 	internal void FollowFrame()
 	{
 		// Never inside a Borealis frame's recording (a block it lends): its lists would be left in the frame before
 		// A lost device is said and handled whatever was recording when it went
 		BorealisGpuDeviceLost.Check( gpu );
 		if ( !followsFrames || frame == Application.FrameCount || lendNext is not null ) return;
+		using var timing = FrameStartTiming.Scope();
 		frame = Application.FrameCount;
 		SubmitUploads();
 		FreeModelGeometry();

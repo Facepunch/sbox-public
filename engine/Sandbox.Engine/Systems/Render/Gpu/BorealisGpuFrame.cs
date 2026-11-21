@@ -24,6 +24,9 @@ internal sealed class BorealisGpuFrame : IDisposable
 	static readonly StringToken CubemapFogTextureName = new( "CubemapFogTexture" );
 	static readonly StringToken BloomInputName = new( "QuarterResEffectsBloomInputTexture" );
 
+	// What a stage or custom object draws inside the frame, apart from lending the frame to it and taking it back
+	static readonly Sandbox.Diagnostics.PerformanceStats.Timings InFrameDrawTiming = Sandbox.Diagnostics.PerformanceStats.Timings.Get( "Borealis.Gpu in-frame draw" );
+
 	/// <summary>
 	/// The view's lookup tables, as Borealis binds them for its own draws (<c>ViewEnvironment</c>, native's
 	/// renderingpipeline_standard.cpp): what draws on the frame read too. Without the BRDF lookup a forward shader drawn
@@ -435,7 +438,8 @@ internal sealed class BorealisGpuFrame : IDisposable
 
 			SetViewTextures( attributes );
 			attributes.Set( BloomInputName, Texture.Black );
-			draw();
+			using ( InFrameDrawTiming.Scope() )
+				draw();
 		}
 		finally
 		{
