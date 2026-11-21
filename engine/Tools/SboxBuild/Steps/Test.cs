@@ -77,6 +77,20 @@ internal partial class Test( bool noBuild = true, string filter = null )
 			string engineDir = Path.Combine( rootDir, "engine" );
 			string gameDir = Path.Combine( rootDir, "game" );
 
+			// Shards of one project share its bin folder: building from each parallel `dotnet test` races a
+			// sibling's running testhost for the same files, so build each project once up front instead.
+			if ( !noBuild )
+			{
+				foreach ( var name in Projects.Select( x => x.Name ).Distinct() )
+				{
+					if ( !Utility.RunDotnetCommand( engineDir, $"build {Path.Combine( "Tests", name, $"{name}.csproj" )} -c Release" ) )
+					{
+						Log.Error( $"Building {name} failed!" );
+						return ExitCode.Failure;
+					}
+				}
+			}
+
 			Log.Info( $"Running {Projects.Length} test processes at the same time..." );
 
 			var tasks = Projects
@@ -129,13 +143,12 @@ internal partial class Test( bool noBuild = true, string filter = null )
 	{
 		var csproj = Path.Combine( "Tests", project.Name, $"{project.Name}.csproj" );
 
-		// --no-build: BuildManaged already compiled all projects in Sandbox-Engine.slnx (including test projects).
-		var noBuildFlag = noBuild ? " --no-build" : string.Empty;
+		// Always --no-build: Run() built every project already, or the caller passed --no-build.
 		var filters = new[] { filter, project.ShardFilter }.Where( x => !string.IsNullOrEmpty( x ) ).Select( x => $"({x})" ).ToArray();
 		var filterFlag = filters.Length == 0 ? string.Empty : $" --filter \"{string.Join( "&", filters )}\"";
 		// Run settings after the --, overriding the assembly's [Parallelize]
 		var isolatedFlag = project.Isolated ? " -- MSTest.Parallelize.Workers=1" : string.Empty;
-		var testArgs = $"test {csproj} --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release{noBuildFlag}{filterFlag}{isolatedFlag}";
+		var testArgs = $"test {csproj} --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release --no-build{filterFlag}{isolatedFlag}";
 
 		var output = new List<string>();
 		var failedTests = new List<string>();
