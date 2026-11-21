@@ -324,6 +324,28 @@ public class ContentBuilderTests
 	}
 
 	[TestMethod]
+	public void OutputPublishedOrRemovedMidBuildIsSeenByLaterChecks()
+	{
+		using var fx = new Fixture();
+		fx.Write( "b.vmat", "reads a.vtex" );
+		Assert.IsTrue( fx.Build().Success );
+		StringAssert.Contains( fx.Read( "b.vmat_c" ), "missing" );
+
+		// a.vtex_c isn't in the inventory's listing: it's published by a.vtex during this build, before b is checked
+		fx.Write( "a.vtex", "red" );
+		AssertJobs( fx.Build(), "a.vtex", "b.vmat" );
+		StringAssert.Contains( fx.Read( "b.vmat_c" ), "red" );
+		AssertJobs( fx.Build() );
+
+		// a.vtex_c is listed, then removed with its source before b is checked
+		File.Delete( Path.Combine( fx.Root, "a.vtex" ) );
+		var report = fx.Build();
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		AssertJobs( report, "b.vmat" );
+		StringAssert.Contains( fx.Read( "b.vmat_c" ), "missing" );
+	}
+
+	[TestMethod]
 	[DataRow( JobMode.Describe )]
 	[DataRow( JobMode.Adopt )]
 	[DataRow( JobMode.Compile )]
