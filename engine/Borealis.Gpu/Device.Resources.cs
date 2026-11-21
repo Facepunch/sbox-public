@@ -18,6 +18,9 @@ internal struct BufferRecord
 
 	/// <summary>Its slot in the bindless raw buffer array plus one, or 0 when it isn't there.</summary>
 	public int BindlessSlot;
+
+	/// <summary>Never moved (<see cref="Device.RelocateDraining"/>): the device's own, whose Vulkan buffer is written where nothing tracks it.</summary>
+	public bool Pinned;
 }
 
 /// <summary>
@@ -56,6 +59,12 @@ internal struct TextureRecord
 	public bool External;
 
 	public AttachmentViews Attachments;
+
+	/// <summary>The layouts its image is in, as submitted barriers left them.</summary>
+	public SubresourceLayouts Layouts;
+
+	/// <summary>Never moved: the device's own, whose views are written where nothing tracks them (the bindless defaults).</summary>
+	public bool Pinned;
 }
 
 internal struct ViewRecord
@@ -64,6 +73,9 @@ internal struct ViewRecord
 	public TextureHandle Texture;
 	public int BindlessIndex;
 	public int StorageIndex;
+
+	/// <summary>What it was made with, to make it again over a texture moved in place.</summary>
+	public TextureViewInfo Info;
 }
 
 internal struct SamplerRecord
@@ -248,7 +260,9 @@ public sealed unsafe partial class Device
 
 			SetName( VkObjectType.Buffer, buffer, info.Name );
 			var (index, generation) = Buffers.Add( new BufferRecord { Buffer = buffer, Memory = memory, Size = info.Size, Usage = info.Usage, Location = info.Memory, Name = info.Name } );
-			return new BufferHandle( index, generation );
+			var handle = new BufferHandle( index, generation );
+			Allocator.SetOwner( memory, OwnerOf( handle ) );
+			return handle;
 		}
 	}
 
@@ -384,7 +398,9 @@ public sealed unsafe partial class Device
 		if ( (desc.Usage & TextureUsage.Sampled) != 0 ) record.BindlessIndex = Bindless.AddTexture( record.View, record.SrgbView );
 
 		var (index, generation) = Textures.Add( record );
-		return new TextureHandle( index, generation );
+		var handle = new TextureHandle( index, generation );
+		Allocator.SetOwner( memory, OwnerOf( handle ) );
+		return handle;
 	}
 
 	/// <summary>
@@ -517,7 +533,32 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public TextureViewHandle CreateView( TextureHandle texture, in TextureViewInfo info, bool bindless = false )
 	{
-		ref var record = ref Get( texture );
+		var gated = EnterGate();
+		try
+		{
+			ref var record = ref Get( texture );
+			var view = MakeViewOf( record, info, out var storage );
+			var viewRecord = new ViewRecord
+			{
+				View = view,
+				Texture = texture,
+				BindlessIndex = bindless && (record.Info.Usage & TextureUsage.Sampled) != 0 ? Bindless.AddTexture( view, view ) : -1,
+				StorageIndex = bindless && storage ? Bindless.AddStorage( view ) : -1,
+				Info = info,
+			};
+
+			var (index, generation) = Views.Add( viewRecord );
+			return new TextureViewHandle( index, generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
+	}
+
+	/// <summary>A view of <paramref name="record"/>'s image as <paramref name="info"/> asks, and whether it can be a storage view.</summary>
+	ulong MakeViewOf( in TextureRecord record, in TextureViewInfo info, out bool storage )
+	{
 		var format = info.Format == Format.Unknown ? record.Info.Format.Linear().ToVk() : info.Format.ToVk();
 		if ( record.Info.Format.IsDepth() ) format = record.Format;
 
@@ -532,19 +573,8 @@ public sealed unsafe partial class Device
 			usage = Vulkan.Vk.ImageSampled;
 		}
 
-		var view = MakeView( record.Image, ViewType( info.Dimension ), format, aspect, (uint)info.BaseMip, mips, (uint)info.BaseLayer, layers, usage );
-		var storage = (record.Info.Usage & TextureUsage.Storage) != 0 && mips == 1 && usage == 0 && info.Dimension != TextureDimension.TextureCube;
-
-		var viewRecord = new ViewRecord
-		{
-			View = view,
-			Texture = texture,
-			BindlessIndex = bindless && (record.Info.Usage & TextureUsage.Sampled) != 0 ? Bindless.AddTexture( view, view ) : -1,
-			StorageIndex = bindless && storage ? Bindless.AddStorage( view ) : -1,
-		};
-
-		var (index, generation) = Views.Add( viewRecord );
-		return new TextureViewHandle( index, generation );
+		storage = (record.Info.Usage & TextureUsage.Storage) != 0 && mips == 1 && usage == 0 && info.Dimension != TextureDimension.TextureCube;
+		return MakeView( record.Image, ViewType( info.Dimension ), format, aspect, (uint)info.BaseMip, mips, (uint)info.BaseLayer, layers, usage );
 	}
 
 	/// <summary>What a texture was created with.</summary>
@@ -576,7 +606,7 @@ public sealed unsafe partial class Device
 	public long MemorySizeOf( TextureHandle texture ) => (long)Get( texture ).Memory.Size;
 
 	/// <summary>Whether the allocator is emptying any block (<see cref="InDrainingBlock"/>), so a look for what to move is worth it.</summary>
-	public bool Defragmenting => Allocator.AnyDraining;
+	public bool Defragmenting => Allocator.AnyDrainingContent;
 
 	/// <summary>
 	/// A copy of a 2D or cube texture (every mip and layer) in new memory, which the allocator places in room its other blocks
@@ -735,23 +765,14 @@ public sealed unsafe partial class Device
 		}
 
 		if ( remade.Count == 0 ) return;
-		lock ( setSamplers )
-		{
-			foreach ( var (set, bindings) in setSamplers )
-			{
-				var rewrite = new List<Binding>( bindings.Count );
-				foreach ( var binding in bindings )
-				{
-					if ( remade.Contains( binding.Sampler ) ) rewrite.Add( binding );
-				}
-
-				if ( rewrite.Count == 0 ) continue;
-				WriteDescriptors( set, System.Runtime.InteropServices.CollectionsMarshal.AsSpan( rewrite ) );
-				SamplerBindingsRewritten += rewrite.Count;
-			}
-		}
+		SamplerBindingsRewritten += RewriteSets( new SamplersIn( remade ) );
 
 		foreach ( var sampler in old ) Vk.vkDestroySampler( Vk.Device, sampler, null );
+	}
+
+	readonly struct SamplersIn( HashSet<SamplerHandle> samplers ) : IBindingFilter
+	{
+		public bool Names( in Binding binding ) => binding.Type == BindingType.Sampler && samplers.Contains( binding.Sampler );
 	}
 
 	/// <summary>
@@ -1201,7 +1222,17 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a buffer once the GPU is done with it.</summary>
 	public void Destroy( BufferHandle buffer )
 	{
-		var record = Buffers.Remove( buffer.Index, buffer.Generation );
+		BufferRecord record;
+		var gated = EnterGate();
+		try
+		{
+			record = Buffers.Remove( buffer.Index, buffer.Generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
+
 		Defer( () =>
 		{
 			if ( record.BindlessSlot > 0 ) Bindless.RemoveBuffer( record.BindlessSlot - 1 );
@@ -1213,7 +1244,17 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a texture, its views and its bindless entries once the GPU is done with it.</summary>
 	public void Destroy( TextureHandle texture )
 	{
-		var record = Textures.Remove( texture.Index, texture.Generation );
+		TextureRecord record;
+		var gated = EnterGate();
+		try
+		{
+			record = Textures.Remove( texture.Index, texture.Generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
+
 		if ( record.External ) throw new InvalidOperationException( "Swap chain images belong to their swap chain" );
 
 		Defer( () => FreeTexture( record ) );
@@ -1234,7 +1275,17 @@ public sealed unsafe partial class Device
 	/// <summary>Destroy a view once the GPU is done with it.</summary>
 	public void Destroy( TextureViewHandle view )
 	{
-		var record = Views.Remove( view.Index, view.Generation );
+		ViewRecord record;
+		var gated = EnterGate();
+		try
+		{
+			record = Views.Remove( view.Index, view.Generation );
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
+		}
+
 		Defer( () =>
 		{
 			if ( record.BindlessIndex >= 0 ) Bindless.RemoveTexture( record.BindlessIndex );

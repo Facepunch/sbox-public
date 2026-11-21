@@ -757,6 +757,61 @@ internal sealed class ResidentCullState
 		}
 	}
 
+	/// <summary>
+	/// A view that won't draw again (its owner disposed it): forget its calls and assignments now rather than when frames
+	/// age them out, which at shutdown or with the view's renderer gone never happens.
+	/// </summary>
+	public void ForgetView( object view )
+	{
+		lock ( calls )
+		{
+			// Removing while enumerating is allowed for Dictionary
+			foreach ( var key in calls.Keys )
+			{
+				if ( ReferenceEquals( key.View, view ) ) calls.Remove( key );
+			}
+		}
+
+		lock ( assigned )
+		{
+			foreach ( var key in assigned.Keys )
+			{
+				if ( ReferenceEquals( key.View, view ) ) assigned.Remove( key );
+			}
+
+			foreach ( var assignment in pool )
+			{
+				if ( !ReferenceEquals( assignment.View, view ) ) continue;
+				assignment.View = null;
+				assignment.Plan = null;
+			}
+		}
+	}
+
+	/// <summary>How many views it keeps calls or assignments of, for tests.</summary>
+	internal int HeldViews
+	{
+		get
+		{
+			var views = new HashSet<object>( ReferenceEqualityComparer.Instance );
+			lock ( calls )
+			{
+				foreach ( var key in calls.Keys ) views.Add( key.View );
+			}
+
+			lock ( assigned )
+			{
+				foreach ( var key in assigned.Keys ) views.Add( key.View );
+				foreach ( var assignment in pool )
+				{
+					if ( assignment.View is not null ) views.Add( assignment.View );
+				}
+			}
+
+			return views.Count;
+		}
+	}
+
 	/// <summary>Destroy every plan's records (the device is going).</summary>
 	public void Dispose( Device gpu )
 	{

@@ -308,6 +308,7 @@ public class AppSystem
 
 		// No more frames: the game window's frame target goes now, not after the leak check with the window
 		gameWindow?.ReleaseFrameTarget();
+		Graphics.ReleaseFrameState();
 
 		// Run GC and finalizers to clear any resources held by managed
 		GC.Collect();
