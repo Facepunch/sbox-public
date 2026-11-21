@@ -124,4 +124,45 @@ public class EnvironmentTests
 		Assert.AreEqual( 0, vr.GradientFogEnabled );
 		Assert.AreEqual( new Vector4( float.PositiveInfinity, float.NegativeInfinity, 0, 0 ), vr.GradientFogCullingParams );
 	}
+
+	/// <summary>
+	/// The host's volumetric fog setting (<c>r_enable_volume_fog</c>): off, a scene with fog volumes runs none of the fog's
+	/// passes, and turned back on, the same render system runs them again.
+	/// </summary>
+	[TestMethod]
+	public void VolumetricFogSettingRemovesItsPasses()
+	{
+		var world = new RenderWorld();
+		world.FogVolumes.Add( new FogVolume { Bounds = new BBox( new Vector3( -4000 ), new Vector3( 4000 ) ), Strength = 0.15f, Exponent = 1 } );
+		world.Lighting.VolumetricFog.Enabled = true;
+		world.Lighting.VolumetricFog.Scattering = 1;
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+
+		int FogDispatches()
+		{
+			using var frame = HeadlessRenderHost.Headless.Capture();
+			RenderHost.Current.NextFrame();
+			system.Render( world, TestScenes.LookingDownX(), target );
+			return frame.Commands.Count( c => c.Op == Headless.GpuOp.Dispatch && c.In( "VolumetricFog" ) );
+		}
+
+		try
+		{
+			Assert.IsTrue( FogDispatches() > 0, "on, the fog's passes run" );
+			Assert.IsTrue( system.Fog.Active );
+
+			HeadlessRenderHost.VolumetricFogOn = false;
+			Assert.AreEqual( 0, FogDispatches(), "off, none of them run" );
+			Assert.IsFalse( system.Fog.Active, "and views bind no fog volume" );
+			Assert.AreSame( VolumetricFog.OpaqueBlack, system.Fog.FogVolumeTexture );
+
+			HeadlessRenderHost.VolumetricFogOn = true;
+			Assert.IsTrue( FogDispatches() > 0, "back on, they run again" );
+		}
+		finally
+		{
+			HeadlessRenderHost.VolumetricFogOn = true;
+		}
+	}
 }

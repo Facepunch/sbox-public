@@ -32,12 +32,19 @@ public class FrameLogTests
 		return world;
 	}
 
-	static FrameCapture Render( RenderSystem system, RenderWorld world, ViewTarget target )
+	static FrameCapture Render( RenderSystem system, RenderWorld world, ViewTarget target, IRenderStages stages = null )
 	{
 		using var frame = Device.Capture();
 		RenderHost.Current.NextFrame();
-		system.Render( world, LookingDownX(), target );
+		system.Render( world, LookingDownX(), target, stages );
 		return frame;
+	}
+
+	/// <summary>A camera with an effect that runs early on the async compute queue, as ambient occlusion does.</summary>
+	sealed class EarlyComputeStages : IRenderStages
+	{
+		public void Render( RenderStage stage, in StageTarget target ) { }
+		public bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => stage == RenderStage.AfterDepthPrepass && queue == StageQueue.AsyncCompute;
 	}
 
 	/// <summary>
@@ -137,9 +144,10 @@ public class FrameLogTests
 	}
 
 	/// <summary>
-	/// With an async compute queue, the depth chain runs on it: graphics makes depth readable by compute and signals, the
-	/// compute queue waits for that, and a later graphics submission waits for the compute queue before the frame ends.
-	/// Without one, the same work stays on graphics and nothing waits on anything.
+	/// With an async compute queue, a camera's early compute effect runs on it: graphics makes depth readable by compute and
+	/// signals, the compute queue waits for that, and a later graphics submission waits for the compute queue before the
+	/// frame ends. The depth chain stays on graphics either way. Without one, the same work stays on graphics and nothing
+	/// waits on anything.
 	/// </summary>
 	[TestMethod]
 	[DataRow( true )]
@@ -152,9 +160,10 @@ public class FrameLogTests
 		using var system = new RenderSystem();
 		using var _ = Device.WithAsyncCompute( asyncCompute );
 
-		var submissions = Render( system, world, target ).Submissions;
+		var submissions = Render( system, world, target, new EarlyComputeStages() ).Submissions;
 		var hiZ = submissions.Single( s => s.Commands.Any( c => c.Op == GpuOp.Dispatch && c.In( "Hi-Z Depth Downsample" ) ) );
 		var compute = submissions.Where( s => s.AsyncCompute ).ToList();
+		Assert.IsFalse( hiZ.AsyncCompute, "the depth chain runs on graphics" );
 
 		if ( !asyncCompute )
 		{
@@ -164,7 +173,7 @@ public class FrameLogTests
 			return;
 		}
 
-		Assert.IsTrue( hiZ.AsyncCompute, "the depth chain runs on the compute queue" );
+		Assert.AreNotEqual( 0, compute.Count, "the early effect runs on the compute queue" );
 		foreach ( var batch in compute )
 		{
 			var index = IndexOf( submissions, batch );

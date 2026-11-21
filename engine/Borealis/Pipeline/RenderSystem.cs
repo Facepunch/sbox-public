@@ -343,7 +343,7 @@ public sealed partial class RenderSystem : IDisposable
 		lap = prepared;
 
 		// Update fog settings, history and resources.
-		fog.BeginFrame( world.Lighting.VolumetricFog, world.FogVolumes.Count > 0 && !view.Reflection );
+		fog.BeginFrame( world.Lighting.VolumetricFog, world.FogVolumes.Count > 0 && !view.Reflection, RenderHost.Current.VolumetricFog );
 
 		// Acquire the mask before setup writes its index to sun constants.
 		_ = Layers;

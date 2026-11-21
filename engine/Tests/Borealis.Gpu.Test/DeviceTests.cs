@@ -386,6 +386,31 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// Barriers on the async compute queue that name graphics stages and accesses (a texture sampled by pixel and compute
+	/// shaders, a buffer read as indices) keep only what that queue has, which validation accepts.
+	/// </summary>
+	[TestMethod]
+	public void ComputeQueueBarriersKeepItsStages()
+	{
+		if ( !Device.Capabilities.AsyncCompute ) Assert.Inconclusive( "No async compute queue" );
+
+		var texture = Device.CreateTexture( TextureInfo.RenderTarget( 16, 16, Format.RGBA8Unorm, name: "Moved" ) with { Usage = TextureUsage.ColorTarget | TextureUsage.Sampled | TextureUsage.Storage } );
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage | BufferUsage.Index, Name = "Read as indices" } );
+
+		var list = Device.BeginCommandList( QueueType.Compute, "Graphics stages" );
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.General, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite,
+			PipelineStage.VertexShader | PipelineStage.FragmentShader | PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite ) );
+		list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.VertexInput | PipelineStage.ComputeShader, SourceAccess = MemoryAccess.IndexRead | MemoryAccess.ShaderWrite, DestinationStage = PipelineStage.ComputeShader, DestinationAccess = MemoryAccess.ShaderRead } );
+		list.Barrier( PipelineStage.AllGraphics, MemoryAccess.ColorTargetWrite, PipelineStage.EarlyFragmentTests | PipelineStage.LateFragmentTests, MemoryAccess.DepthTargetRead );
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.General, ImageLayout.ShaderRead, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite,
+			PipelineStage.FragmentShader | PipelineStage.ComputeShader, MemoryAccess.ShaderRead ) );
+		Device.Wait( Device.Submit( list ) );
+
+		Device.Destroy( texture );
+		Device.Destroy( buffer );
+	}
+
+	/// <summary>
 	/// Writes in a deferred-uploads scope go with the next submission instead of waiting each, and work submitted after the
 	/// scope reads them.
 	/// </summary>

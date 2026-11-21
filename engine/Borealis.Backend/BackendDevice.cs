@@ -2915,8 +2915,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		return (scratch, ids);
 	}
 
-	/// <summary>Async compute isn't wired yet: contexts all record on the graphics queue.</summary>
-	public override bool SupportsAsyncCompute => false;
+	/// <summary>
+	/// Whether frames may put their compute layers (the depth chain, contact shadows, ambient occlusion) on the device's async
+	/// compute queue beside graphics work (on by default): <see cref="SupportsAsyncCompute"/> where the device has one.
+	/// </summary>
+	public bool AsyncCompute { get; set; } = true;
+
+	/// <summary>
+	/// A compute-only queue family on the device, and <see cref="AsyncCompute"/> on. Its contexts record on that queue; the
+	/// semaphores between the two queues are timeline points (<see cref="Signalled"/>, <see cref="PointOf"/>).
+	/// </summary>
+	public override bool SupportsAsyncCompute => AsyncCompute && Gpu.Capabilities.AsyncCompute;
 
 	/// <inheritdoc/>
 	public override bool SupportsDrawIndirectCount => Gpu.Capabilities.DrawIndirectCount;
@@ -3235,7 +3244,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 }
 
 /// <summary>
-/// A <see cref="RenderHost"/> rendering through a <see cref="BackendDevice"/>, with async compute off: it has one queue.
+/// A <see cref="RenderHost"/> rendering through a <see cref="BackendDevice"/>, with async compute where the device has it
+/// (<see cref="BackendDevice.SupportsAsyncCompute"/>).
 /// </summary>
 public class BackendRenderHost( BackendDevice device ) : RenderHost
 {
@@ -3243,7 +3253,7 @@ public class BackendRenderHost( BackendDevice device ) : RenderHost
 	public override GpuDevice Device => device;
 
 	/// <inheritdoc/>
-	public override bool AsyncCompute => false;
+	public override bool AsyncCompute => device.SupportsAsyncCompute;
 
 	/// <summary>
 	/// The debug views drawn into the frame (none by default): the labs' <c>-debug-views</c>.
