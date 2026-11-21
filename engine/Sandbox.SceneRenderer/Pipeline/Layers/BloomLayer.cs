@@ -36,6 +36,8 @@ internal sealed class BloomLayer : MeshLayer
 
 	public override bool IsShared => false;
 
+	public override bool RecordsOffMainThread( RenderFrame frame ) => frame.System.CanRecordOffMainThread( frame.MainPass, this );
+
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.DepthPrepass && frame.RunCount( this ) > 0;
 
 	public override FrameResources Writes => FrameResources.BloomObjects;
@@ -115,6 +117,8 @@ internal sealed class QuarterDepthDownsampleLayer : RenderLayer
 	public override bool IsNeeded( RenderFrame frame ) => bloom.IsNeeded( frame );
 
 	public override FrameResources Writes => FrameResources.QuarterDepth;
+
+	public override bool RecordsOffMainThread( RenderFrame frame ) => true;
 
 	/// <summary>
 	/// Clear and downsample depth using the bloom viewport's constants.

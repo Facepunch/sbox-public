@@ -41,6 +41,8 @@ internal sealed class DepthChainLayer : RenderLayer
 		frameContext.Attributes.Set( DepthChainPrevFrameName, chain );
 	}
 
+	public override bool RecordsOffMainThread( RenderFrame frame ) => true;
+
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
 	{
 		var viewport = frame.View.Viewport;
