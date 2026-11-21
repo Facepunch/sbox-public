@@ -1,8 +1,6 @@
 
 #include "scenesystem/sceneanimatableobject.h"
 
-native struct SceneDeformationVolumeData_t is Sandbox.SceneDeformationVolumeData;
-
 delegate SboxAnimationEventCallback;
 delegate SboxAnimTagEventCallback;
 delegate SboxAnimGraphChangedCallback;
@@ -11,18 +9,6 @@ delegate SboxAnimGraph2ControllerCreatedCallback;
 [Handle:Sandbox.SceneModel]
 native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSceneObject
 {
-	inline void SetDeformationVolumes( int count, void* volumes )
-	{
-		self->SetDeformationVolumes( count, static_cast<const SceneDeformationVolumeData_t *>( volumes ) );
-	}
-
-	inline void SetDeformationAnchors( int count, void* anchors )
-	{
-		self->SetDeformationAnchors( count, static_cast<const Vector4D *>( anchors ) );
-	}
-
-	[nogc]
-	void SetWorldSpaceRenderBoneTransform( int nBoneIndex, Transform pRenderWorldTransform );
 	[nogc]
 	Transform GetWorldSpaceRenderBoneTransform( int nBoneIndex );
 	Transform GetWorldSpaceRenderBoneTransform( string boneName );
@@ -55,69 +41,17 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	int GetClosestBoneIndex( Vector3 vWorldPoint );
 
 	// s&box: a CModelAnimationInstance animates this object's SceneModel. It stops animating itself (now and when its model
-	// changes) and keeps the pose it's given, for Source 2's views
+	// changes) and keeps its bind pose
 	inline void SetExternalAnimation()
 	{
 		self->m_bExternalAnimation = true;
 		self->m_bManaged = false;
 	}
 
-	// The pose to draw with: matrix3x4_t world-space render bones by model bone, as many as it has
-	[nogc]
-	inline void SetWorldSpaceRenderBoneMatrices( int nNumBones, void* pBones )
-	{
-		const matrix3x4_t *pSrc = static_cast<const matrix3x4_t *>( pBones );
-		const int nCopy = MIN( nNumBones, self->m_worldSpaceRenderBones.Count() );
-		self->m_worldSpaceRenderBonesPrevious.CopyArray( self->m_worldSpaceRenderBones.Base(), self->m_worldSpaceRenderBones.Count() );
-		for ( int i = 0; i < nCopy; ++i )
-			self->m_worldSpaceRenderBones[ i ] = pSrc[ i ];
-	}
-
-	// The flex controllers' weights to morph with, by the model's flex controller index, as many as it has
-	[nogc]
-	inline void SetFlexControllerWeights( void* pWeights, int nCount )
-	{
-		const int nCopy = MIN( nCount, self->m_flexControllerWeights.Count() );
-		if ( pWeights && nCopy > 0 )
-			V_memcpy( self->m_flexControllerWeights.Base(), pWeights, nCopy * sizeof( float ) );
-	}
-
-	void Update( float dt );
-	void MergeFrom( CSceneAnimatableObject other );
-	void SetBindPose();
-	void CalculateWorldSpaceBones();
-	void FinishUpdate();
-
-	void ResetGraphParameters();
-
 	[nogc]
 	Transform GetParentSpaceBone( int index );
 	[nogc]
 	void GetParentSpaceBones( int nNumBones, void* pOut );
-	void SetParentSpaceBone( int index, Transform tx );
-
-	void InitAnimation();
-	void SetAnimGraphChangedCallback( SboxAnimGraphChangedCallback callback );
-	void SetAnimGraph( string graphName );
-
-	void SetAnimGraph( HAnimationGraph hGraph );
-	HAnimationGraph GetAnimGraph();
-
-	void SetAnimGraph2( HAnimGraph2 hGraph );
-	void SetAnimGraph2ControllerCreatedCallback( SboxAnimGraph2ControllerCreatedCallback callback );
-	NativeEngine.AnimationGraph2Controller GetAnimGraph2Controller();
-	float GetAnimGraph2UpdateTimeMs();
-	void SetLowDetailAnimation( bool bLowDetail );
-	bool IsLowDetailAnimation();
-
-	void SBox_SetFlexOverride( StringToken name, float flWeight, float flFadeTime );
-	void SBox_SetFlexOverride( int flexId, float flWeight, float flFadeTime );
-	float SBox_GetFlexOverride( int flexId );
-	float SBox_GetFlexOverride( StringToken name );
-	void SBox_ClearFlexOverride( float flFadeTime );
-	void SBox_ClearFlexOverride( StringToken name, float flFadeTime );
-	void SBox_ClearFlexOverride( int flexId, float flFadeTime );
-
 	// The flex controllers' weights as the object morphs with them (animation, then overrides), one float each by the
 	// model's flex controller index, into pOut up to nMax; returns how many it has
 	[nogc]
@@ -130,60 +64,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 		return nCount;
 	}
 
-	void DirectPlayback_PlaySequence( string pSequenceName );
-	void DirectPlayback_PlaySequence( string pSequenceName, Vector3 vTargetPos, float flFacingHeading, float flInterpTime );
-	void DirectPlayback_CancelSequence();
-	float DirectPlayback_GetSequenceCycle();
-	stable string DirectPlayback_GetSequence();
-	void DirectPlayback_SetSequenceStartTime( float flStartTime );
-	float DirectPlayback_GetSequenceDuration();
-
 	bool SBox_GetAttachment( StringToken name, bool worldspace, cref out Transform tx );
-
-	void SetShouldUseAnimGraph( bool bEnabled );
-	bool GetShouldUseAnimGraph();
-
-	stable string GetSequence();
-	void SetSequence( string pSequenceName );
-
-	float GetSequenceDuration();
-
-	float GetSequenceCycle();
-	void SetSequenceCycle( float flCycle );
-
-	void SetSequenceLooping( bool bLooping );
-	bool IsSequenceFinished();
-	void SetSequenceBlending( bool bBlending );
-
-	float GetPlaybackRate();
-	void SetPlaybackRate( float flPlaybackRate );
-
-	//
-	// Anim Events
-	//
-	int PendingAnimationEvents();
-	void RunAnimationEvents( SboxAnimationEventCallback callback );
-	void DispatchTagEvents( SboxAnimTagEventCallback callback );
-
-	//
-	// Bone Overrides
-	//
-	[nogc]
-	void ClearPhysicsBones();
-	[nogc]
-	void SetPhysicsBone( ushort bone, Transform transform );
-
-	Transform GetRootMotion();
-
-	float m_flDeltaTime;
-
-	inline bool HasPhysicsBones()
-	{
-		return self->m_PhysicsBoneTransform.Count() > 0;
-	}
-
-	IAnimParameterInstance GetAnimParameter( string name );
-	IAnimParameterInstance GetAnimParameter( int index );
 
 	BBox m_worldBounds;
 	BBox m_localBounds;

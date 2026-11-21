@@ -2474,7 +2474,8 @@ public class GpuDrivenTests : GpuTest
 	/// draws' indices in meshlet order, the records and levels in the mesh) and one whose meshlets and levels are made at load,
 	/// as aggregates side by side: the cooked one's ranges are taken as they are and the other's made, every range publishes,
 	/// and the frame is the one drawn without meshlets and the one drawn with nothing taken cooked; with the compute pass and
-	/// with task and mesh shaders, without generated LODs and with them.
+	/// with task and mesh shaders, without generated LODs and with them. With meshlets the frames resolve normals from the ids,
+	/// and the ranges taken cooked get the first-corner tables the built ones do.
 	/// </summary>
 	[TestMethod]
 	[DataRow( false, false )]
@@ -2491,7 +2492,7 @@ public class GpuDrivenTests : GpuTest
 		byte[] Frame( bool meshlets, bool cookedTaken, out Borealis.Backend.Meshlets.MeshletStore store, out Borealis.Backend.Lods.LodStore lodStore )
 		{
 			lodStore = null;
-			using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, Meshlets = meshlets, MeshletTasks = meshTasks, GeneratedLods = lods };
+			using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDriven = true, GpuDrivenVisibility = true, Meshlets = meshlets, MeshletTasks = meshTasks, GeneratedLods = lods, IdsNormals = meshlets };
 			foreach ( var shader in (string[])["shaders/complex.shader", "shaders/depth_only.shader"] )
 			{
 				if ( backend.Shaders.GpuDriven( backend.Shaders.Load( shader ) ) is null ) Assert.Inconclusive( $"{shader} has no GPU-driven variant: ShaderCompiler -gpudriven" );
@@ -2602,6 +2603,8 @@ public class GpuDrivenTests : GpuTest
 		Assert.AreEqual( meshletStore.Requested, meshletStore.Published, "every range asked for published" );
 		Assert.AreEqual( 0, meshletStore.CookedMisses, "and none of the cooked model's built at load" );
 		Assert.AreEqual( 0, madeStore.CookedHits, "with cooked meshlets left out, none is taken" );
+		Assert.IsTrue( meshletStore.CornerTableBytes > 0, "first-corner tables were uploaded" );
+		Assert.AreEqual( madeStore.CornerTableBytes, meshletStore.CornerTableBytes, "as many for ranges taken cooked as for the same ranges built" );
 		if ( lods )
 		{
 			Assert.IsNotNull( lodStore, "generated LODs were on" );

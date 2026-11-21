@@ -20,10 +20,12 @@ Mode( Default );
 
 DynamicCombo( D_MSAA, 0..1, Sys( ALL ) );
 
+// The vertex bit + 1, then (with normals from the ids) the instance record; a target of one word reads 0 for the second.
+// Unknown format: Slang would type it Rg32ui, which an R32_UINT view (the default ids target) leaves undefined
 #if D_MSAA
-	Texture2DMS<uint> g_tIds < Attribute( "BorealisIds" ); >;
+	[format( "unknown" )] Texture2DMS<uint2> g_tIds < Attribute( "BorealisIds" ); >;
 #else
-	Texture2D<uint> g_tIds < Attribute( "BorealisIds" ); >;
+	[format( "unknown" )] Texture2D<uint2> g_tIds < Attribute( "BorealisIds" ); >;
 #endif
 
 RWByteAddressBuffer g_Mask < Attribute( "BorealisCullMask" ); >;
@@ -34,9 +36,9 @@ cbuffer BorealisGpuDrivenMark_t
 	uint g_nMarkHeight;
 	uint g_nMarkSamples;
 	uint g_nMarkBits;	// vertex bits in use
-	uint g_nMarkPad0;
-	uint g_nMarkPad1;
-	uint g_nMarkPad2;
+	uint g_nMarkCallSlot;		// with normals from the ids, whose target keeps earlier calls' ids: the call's frame chunk
+	uint g_nMarkCallFirst;		// its first instance record
+	uint g_nMarkCallInstances;	// and how many; only its own ids are marked (earlier calls marked theirs). 0: every id
 	uint g_nMarkPad3;
 };
 
@@ -77,10 +79,17 @@ void MarkBits( bool bMark, uint nBit )
 	for ( uint s = 0; s < nSamples; s++ )
 	{
 		#if D_MSAA
-			uint v = g_tIds.Load( vPixel, s );
+			uint2 vId = g_tIds.Load( vPixel, s );
 		#else
-			uint v = g_tIds.Load( int3( vPixel, 0 ) );
+			uint2 vId = g_tIds.Load( int3( vPixel, 0 ) );
 		#endif
+
+		// Another call's id, which its own mark marked. An id with no record (all ones), or none written (0: a variant from
+		// before the second word, which leaves it as cleared or undefined), is marked whoever drew it
+		uint v = vId.x;
+		bool bRecord = vId.y != 0 && vId.y != 0xffffffffu;
+		if ( g_nMarkCallInstances != 0 && bRecord && ( ( vId.y >> 22 ) != g_nMarkCallSlot || ( vId.y & 0x3fffff ) - g_nMarkCallFirst >= g_nMarkCallInstances ) )
+			v = 0;
 
 		ids[s] = v;
 		bool bSeen = v == 0;
