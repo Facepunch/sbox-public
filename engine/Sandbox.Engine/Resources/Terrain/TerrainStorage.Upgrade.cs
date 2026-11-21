@@ -140,8 +140,12 @@ public partial class TerrainStorage
 		obj["Maps"] = new JsonObject { ["$blob"] = guid.ToString() };
 	}
 
-	static Span<ushort> ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
+	internal static Span<ushort> ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
 	{
+		// Size and data both come from the file, the copy below goes straight into native pixels
+		if ( originalSize < 2 || newSize < 1 || original.Length != (long)originalSize * originalSize )
+			throw new System.IO.InvalidDataException( $"Heightmap has {original.Length} samples, expected {originalSize}x{originalSize}" );
+
 		using var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
 		MemoryMarshal.AsBytes( original ).CopyTo( bitmap.GetPixelSpan() );
 
