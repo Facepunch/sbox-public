@@ -28,6 +28,7 @@ public record GalleryPageInfo( string Title, string Icon, Func<Panel> Create, st
 		new( "Colour", "palette", () => new ColorControlsPage(), "Controls/Input" ),
 		new( "Canvas Panel", "pan_tool", () => new CanvasPanelPage(), "Controls/Display" ),
 		new( "Graph Panel", "show_chart", () => new GraphPanelPage(), "Controls/Display" ),
+		new( "Node Graph", "hub", () => new NodeGraphPage(), "Controls/Display" ),
 		new( "Curve Editor", "timeline", () => new CurveEditorPage(), "Controls/Input" ),
 		new( "Grouping", "table_rows", () => new LayoutControlsPage(), "Controls/Layout" ),
 		new( "Toolbar", "view_week", () => new ToolbarPage(), "Controls/Layout" ),
