@@ -4,6 +4,7 @@
 	{
 		public void ApplyScale( float scale )
 		{
+			OnStyleScaled();
 			Length.Scale( ref _fontsize, scale, true );
 			Length.Scale( ref _textstrokewidth, scale, true );
 			Length.Scale( ref _lineheight, scale, true );

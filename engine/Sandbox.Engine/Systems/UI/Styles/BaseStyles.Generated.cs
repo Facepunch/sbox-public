@@ -18,6 +18,7 @@ public abstract partial class BaseStyles
 		get => _content;
 		set
 		{
+			OnPropertySet( "content" );
 			if ( _content == value ) return;
 			_content = value;
 			Dirty();
@@ -34,6 +35,7 @@ public abstract partial class BaseStyles
 		get => _width;
 		set
 		{
+			OnPropertySet( "width" );
 			if ( _width == value ) return;
 			_width = value;
 			Dirty();
@@ -50,6 +52,7 @@ public abstract partial class BaseStyles
 		get => _minwidth;
 		set
 		{
+			OnPropertySet( "min-width" );
 			if ( _minwidth == value ) return;
 			_minwidth = value;
 			Dirty();
@@ -66,6 +69,7 @@ public abstract partial class BaseStyles
 		get => _maxwidth;
 		set
 		{
+			OnPropertySet( "max-width" );
 			if ( _maxwidth == value ) return;
 			_maxwidth = value;
 			Dirty();
@@ -82,6 +86,7 @@ public abstract partial class BaseStyles
 		get => _height;
 		set
 		{
+			OnPropertySet( "height" );
 			if ( _height == value ) return;
 			_height = value;
 			Dirty();
@@ -98,6 +103,7 @@ public abstract partial class BaseStyles
 		get => _minheight;
 		set
 		{
+			OnPropertySet( "min-height" );
 			if ( _minheight == value ) return;
 			_minheight = value;
 			Dirty();
@@ -114,6 +120,7 @@ public abstract partial class BaseStyles
 		get => _maxheight;
 		set
 		{
+			OnPropertySet( "max-height" );
 			if ( _maxheight == value ) return;
 			_maxheight = value;
 			Dirty();
@@ -130,6 +137,7 @@ public abstract partial class BaseStyles
 		get => _left;
 		set
 		{
+			OnPropertySet( "left" );
 			if ( _left == value ) return;
 			_left = value;
 			Dirty();
@@ -146,6 +154,7 @@ public abstract partial class BaseStyles
 		get => _top;
 		set
 		{
+			OnPropertySet( "top" );
 			if ( _top == value ) return;
 			_top = value;
 			Dirty();
@@ -162,6 +171,7 @@ public abstract partial class BaseStyles
 		get => _right;
 		set
 		{
+			OnPropertySet( "right" );
 			if ( _right == value ) return;
 			_right = value;
 			Dirty();
@@ -178,6 +188,7 @@ public abstract partial class BaseStyles
 		get => _bottom;
 		set
 		{
+			OnPropertySet( "bottom" );
 			if ( _bottom == value ) return;
 			_bottom = value;
 			Dirty();
@@ -194,6 +205,7 @@ public abstract partial class BaseStyles
 		get => _opacity;
 		set
 		{
+			OnPropertySet( "opacity" );
 			if ( _opacity == value ) return;
 			_opacity = value;
 			Dirty();
@@ -210,6 +222,7 @@ public abstract partial class BaseStyles
 		get => _backgroundcolor;
 		set
 		{
+			OnPropertySet( "background-color" );
 			if ( _backgroundcolor == value ) return;
 			_backgroundcolor = value;
 			Dirty();
@@ -226,6 +239,7 @@ public abstract partial class BaseStyles
 		get => _paddingleft;
 		set
 		{
+			OnPropertySet( "padding-left" );
 			if ( _paddingleft == value ) return;
 			_paddingleft = value;
 			Dirty();
@@ -242,6 +256,7 @@ public abstract partial class BaseStyles
 		get => _paddingtop;
 		set
 		{
+			OnPropertySet( "padding-top" );
 			if ( _paddingtop == value ) return;
 			_paddingtop = value;
 			Dirty();
@@ -258,6 +273,7 @@ public abstract partial class BaseStyles
 		get => _paddingright;
 		set
 		{
+			OnPropertySet( "padding-right" );
 			if ( _paddingright == value ) return;
 			_paddingright = value;
 			Dirty();
@@ -274,6 +290,7 @@ public abstract partial class BaseStyles
 		get => _paddingbottom;
 		set
 		{
+			OnPropertySet( "padding-bottom" );
 			if ( _paddingbottom == value ) return;
 			_paddingbottom = value;
 			Dirty();
@@ -290,6 +307,7 @@ public abstract partial class BaseStyles
 		get => _marginleft;
 		set
 		{
+			OnPropertySet( "margin-left" );
 			if ( _marginleft == value ) return;
 			_marginleft = value;
 			Dirty();
@@ -306,6 +324,7 @@ public abstract partial class BaseStyles
 		get => _margintop;
 		set
 		{
+			OnPropertySet( "margin-top" );
 			if ( _margintop == value ) return;
 			_margintop = value;
 			Dirty();
@@ -322,6 +341,7 @@ public abstract partial class BaseStyles
 		get => _marginright;
 		set
 		{
+			OnPropertySet( "margin-right" );
 			if ( _marginright == value ) return;
 			_marginright = value;
 			Dirty();
@@ -338,6 +358,7 @@ public abstract partial class BaseStyles
 		get => _marginbottom;
 		set
 		{
+			OnPropertySet( "margin-bottom" );
 			if ( _marginbottom == value ) return;
 			_marginbottom = value;
 			Dirty();
@@ -354,6 +375,7 @@ public abstract partial class BaseStyles
 		get => _bordertopleftradius;
 		set
 		{
+			OnPropertySet( "border-top-left-radius" );
 			if ( _bordertopleftradius == value ) return;
 			_bordertopleftradius = value;
 			Dirty();
@@ -370,6 +392,7 @@ public abstract partial class BaseStyles
 		get => _bordertoprightradius;
 		set
 		{
+			OnPropertySet( "border-top-right-radius" );
 			if ( _bordertoprightradius == value ) return;
 			_bordertoprightradius = value;
 			Dirty();
@@ -386,6 +409,7 @@ public abstract partial class BaseStyles
 		get => _borderbottomrightradius;
 		set
 		{
+			OnPropertySet( "border-bottom-right-radius" );
 			if ( _borderbottomrightradius == value ) return;
 			_borderbottomrightradius = value;
 			Dirty();
@@ -402,6 +426,7 @@ public abstract partial class BaseStyles
 		get => _borderbottomleftradius;
 		set
 		{
+			OnPropertySet( "border-bottom-left-radius" );
 			if ( _borderbottomleftradius == value ) return;
 			_borderbottomleftradius = value;
 			Dirty();
@@ -418,6 +443,7 @@ public abstract partial class BaseStyles
 		get => _bordertopleftradiusv;
 		set
 		{
+			OnPropertySet( "border-top-left-radius-v" );
 			if ( _bordertopleftradiusv == value ) return;
 			_bordertopleftradiusv = value;
 			Dirty();
@@ -434,6 +460,7 @@ public abstract partial class BaseStyles
 		get => _bordertoprightradiusv;
 		set
 		{
+			OnPropertySet( "border-top-right-radius-v" );
 			if ( _bordertoprightradiusv == value ) return;
 			_bordertoprightradiusv = value;
 			Dirty();
@@ -450,6 +477,7 @@ public abstract partial class BaseStyles
 		get => _borderbottomrightradiusv;
 		set
 		{
+			OnPropertySet( "border-bottom-right-radius-v" );
 			if ( _borderbottomrightradiusv == value ) return;
 			_borderbottomrightradiusv = value;
 			Dirty();
@@ -466,6 +494,7 @@ public abstract partial class BaseStyles
 		get => _borderbottomleftradiusv;
 		set
 		{
+			OnPropertySet( "border-bottom-left-radius-v" );
 			if ( _borderbottomleftradiusv == value ) return;
 			_borderbottomleftradiusv = value;
 			Dirty();
@@ -482,6 +511,7 @@ public abstract partial class BaseStyles
 		get => _borderleftwidth;
 		set
 		{
+			OnPropertySet( "border-left-width" );
 			if ( _borderleftwidth == value ) return;
 			_borderleftwidth = value;
 			Dirty();
@@ -498,6 +528,7 @@ public abstract partial class BaseStyles
 		get => _bordertopwidth;
 		set
 		{
+			OnPropertySet( "border-top-width" );
 			if ( _bordertopwidth == value ) return;
 			_bordertopwidth = value;
 			Dirty();
@@ -514,6 +545,7 @@ public abstract partial class BaseStyles
 		get => _borderrightwidth;
 		set
 		{
+			OnPropertySet( "border-right-width" );
 			if ( _borderrightwidth == value ) return;
 			_borderrightwidth = value;
 			Dirty();
@@ -530,6 +562,7 @@ public abstract partial class BaseStyles
 		get => _borderbottomwidth;
 		set
 		{
+			OnPropertySet( "border-bottom-width" );
 			if ( _borderbottomwidth == value ) return;
 			_borderbottomwidth = value;
 			Dirty();
@@ -546,6 +579,7 @@ public abstract partial class BaseStyles
 		get => _borderstyle;
 		set
 		{
+			OnPropertySet( "border-style" );
 			if ( _borderstyle == value ) return;
 			_borderstyle = value;
 			Dirty();
@@ -562,6 +596,7 @@ public abstract partial class BaseStyles
 		get => _borderleftcolor;
 		set
 		{
+			OnPropertySet( "border-left-color" );
 			if ( _borderleftcolor == value ) return;
 			_borderleftcolor = value;
 			Dirty();
@@ -578,6 +613,7 @@ public abstract partial class BaseStyles
 		get => _bordertopcolor;
 		set
 		{
+			OnPropertySet( "border-top-color" );
 			if ( _bordertopcolor == value ) return;
 			_bordertopcolor = value;
 			Dirty();
@@ -594,6 +630,7 @@ public abstract partial class BaseStyles
 		get => _borderrightcolor;
 		set
 		{
+			OnPropertySet( "border-right-color" );
 			if ( _borderrightcolor == value ) return;
 			_borderrightcolor = value;
 			Dirty();
@@ -610,6 +647,7 @@ public abstract partial class BaseStyles
 		get => _borderbottomcolor;
 		set
 		{
+			OnPropertySet( "border-bottom-color" );
 			if ( _borderbottomcolor == value ) return;
 			_borderbottomcolor = value;
 			Dirty();
@@ -626,6 +664,7 @@ public abstract partial class BaseStyles
 		get => _fontsize;
 		set
 		{
+			OnPropertySet( "font-size" );
 			if ( _fontsize == value ) return;
 			_fontsize = value;
 			Dirty();
@@ -642,6 +681,7 @@ public abstract partial class BaseStyles
 		get => _fontcolor;
 		set
 		{
+			OnPropertySet( "font-color" );
 			if ( _fontcolor == value ) return;
 			_fontcolor = value;
 			Dirty();
@@ -658,6 +698,7 @@ public abstract partial class BaseStyles
 		get => _fontweight;
 		set
 		{
+			OnPropertySet( "font-weight" );
 			if ( _fontweight == value ) return;
 			_fontweight = value;
 			Dirty();
@@ -674,6 +715,7 @@ public abstract partial class BaseStyles
 		get => _fontfamily;
 		set
 		{
+			OnPropertySet( "font-family" );
 			if ( _fontfamily == value ) return;
 			_fontfamily = value;
 			Dirty();
@@ -690,6 +732,7 @@ public abstract partial class BaseStyles
 		get => _caretcolor;
 		set
 		{
+			OnPropertySet( "caret-color" );
 			if ( _caretcolor == value ) return;
 			_caretcolor = value;
 			Dirty();
@@ -706,6 +749,7 @@ public abstract partial class BaseStyles
 		get => _cursor;
 		set
 		{
+			OnPropertySet( "cursor" );
 			if ( _cursor == value ) return;
 			_cursor = value;
 			Dirty();
@@ -722,6 +766,7 @@ public abstract partial class BaseStyles
 		get => _pointerevents;
 		set
 		{
+			OnPropertySet( "pointer-events" );
 			if ( _pointerevents == value ) return;
 			_pointerevents = value;
 			Dirty();
@@ -738,6 +783,7 @@ public abstract partial class BaseStyles
 		get => _mixblendmode;
 		set
 		{
+			OnPropertySet( "mix-blend-mode" );
 			if ( _mixblendmode == value ) return;
 			_mixblendmode = value;
 			Dirty();
@@ -754,6 +800,7 @@ public abstract partial class BaseStyles
 		get => _position;
 		set
 		{
+			OnPropertySet( "position" );
 			if ( _position == value ) return;
 			_position = value;
 			Dirty();
@@ -770,6 +817,7 @@ public abstract partial class BaseStyles
 		get => _overflowx;
 		set
 		{
+			OnPropertySet( "overflow-x" );
 			if ( _overflowx == value ) return;
 			_overflowx = value;
 			Dirty();
@@ -786,6 +834,7 @@ public abstract partial class BaseStyles
 		get => _overflowy;
 		set
 		{
+			OnPropertySet( "overflow-y" );
 			if ( _overflowy == value ) return;
 			_overflowy = value;
 			Dirty();
@@ -802,6 +851,7 @@ public abstract partial class BaseStyles
 		get => _flexdirection;
 		set
 		{
+			OnPropertySet( "flex-direction" );
 			if ( _flexdirection == value ) return;
 			_flexdirection = value;
 			Dirty();
@@ -818,6 +868,7 @@ public abstract partial class BaseStyles
 		get => _justifycontent;
 		set
 		{
+			OnPropertySet( "justify-content" );
 			if ( _justifycontent == value ) return;
 			_justifycontent = value;
 			Dirty();
@@ -834,6 +885,7 @@ public abstract partial class BaseStyles
 		get => _justifyitems;
 		set
 		{
+			OnPropertySet( "justify-items" );
 			if ( _justifyitems == value ) return;
 			_justifyitems = value;
 			Dirty();
@@ -850,6 +902,7 @@ public abstract partial class BaseStyles
 		get => _justifyself;
 		set
 		{
+			OnPropertySet( "justify-self" );
 			if ( _justifyself == value ) return;
 			_justifyself = value;
 			Dirty();
@@ -866,6 +919,7 @@ public abstract partial class BaseStyles
 		get => _display;
 		set
 		{
+			OnPropertySet( "display" );
 			if ( _display == value ) return;
 			_display = value;
 			Dirty();
@@ -882,6 +936,7 @@ public abstract partial class BaseStyles
 		get => _gridtemplatecolumns;
 		set
 		{
+			OnPropertySet( "grid-template-columns" );
 			if ( _gridtemplatecolumns == value ) return;
 			_gridtemplatecolumns = value;
 			Dirty();
@@ -898,6 +953,7 @@ public abstract partial class BaseStyles
 		get => _gridtemplaterows;
 		set
 		{
+			OnPropertySet( "grid-template-rows" );
 			if ( _gridtemplaterows == value ) return;
 			_gridtemplaterows = value;
 			Dirty();
@@ -914,6 +970,7 @@ public abstract partial class BaseStyles
 		get => _gridautocolumns;
 		set
 		{
+			OnPropertySet( "grid-auto-columns" );
 			if ( _gridautocolumns == value ) return;
 			_gridautocolumns = value;
 			Dirty();
@@ -930,6 +987,7 @@ public abstract partial class BaseStyles
 		get => _gridautorows;
 		set
 		{
+			OnPropertySet( "grid-auto-rows" );
 			if ( _gridautorows == value ) return;
 			_gridautorows = value;
 			Dirty();
@@ -946,6 +1004,7 @@ public abstract partial class BaseStyles
 		get => _gridautoflow;
 		set
 		{
+			OnPropertySet( "grid-auto-flow" );
 			if ( _gridautoflow == value ) return;
 			_gridautoflow = value;
 			Dirty();
@@ -962,6 +1021,7 @@ public abstract partial class BaseStyles
 		get => _gridcolumnstart;
 		set
 		{
+			OnPropertySet( "grid-column-start" );
 			if ( _gridcolumnstart == value ) return;
 			_gridcolumnstart = value;
 			Dirty();
@@ -978,6 +1038,7 @@ public abstract partial class BaseStyles
 		get => _gridcolumnend;
 		set
 		{
+			OnPropertySet( "grid-column-end" );
 			if ( _gridcolumnend == value ) return;
 			_gridcolumnend = value;
 			Dirty();
@@ -994,6 +1055,7 @@ public abstract partial class BaseStyles
 		get => _gridrowstart;
 		set
 		{
+			OnPropertySet( "grid-row-start" );
 			if ( _gridrowstart == value ) return;
 			_gridrowstart = value;
 			Dirty();
@@ -1010,6 +1072,7 @@ public abstract partial class BaseStyles
 		get => _gridrowend;
 		set
 		{
+			OnPropertySet( "grid-row-end" );
 			if ( _gridrowend == value ) return;
 			_gridrowend = value;
 			Dirty();
@@ -1026,6 +1089,7 @@ public abstract partial class BaseStyles
 		get => _flexwrap;
 		set
 		{
+			OnPropertySet( "flex-wrap" );
 			if ( _flexwrap == value ) return;
 			_flexwrap = value;
 			Dirty();
@@ -1042,6 +1106,7 @@ public abstract partial class BaseStyles
 		get => _aligncontent;
 		set
 		{
+			OnPropertySet( "align-content" );
 			if ( _aligncontent == value ) return;
 			_aligncontent = value;
 			Dirty();
@@ -1058,6 +1123,7 @@ public abstract partial class BaseStyles
 		get => _alignself;
 		set
 		{
+			OnPropertySet( "align-self" );
 			if ( _alignself == value ) return;
 			_alignself = value;
 			Dirty();
@@ -1074,6 +1140,7 @@ public abstract partial class BaseStyles
 		get => _alignitems;
 		set
 		{
+			OnPropertySet( "align-items" );
 			if ( _alignitems == value ) return;
 			_alignitems = value;
 			Dirty();
@@ -1090,6 +1157,7 @@ public abstract partial class BaseStyles
 		get => _flexbasis;
 		set
 		{
+			OnPropertySet( "flex-basis" );
 			if ( _flexbasis == value ) return;
 			_flexbasis = value;
 			Dirty();
@@ -1106,6 +1174,7 @@ public abstract partial class BaseStyles
 		get => _flexgrow;
 		set
 		{
+			OnPropertySet( "flex-grow" );
 			if ( _flexgrow == value ) return;
 			_flexgrow = value;
 			Dirty();
@@ -1122,6 +1191,7 @@ public abstract partial class BaseStyles
 		get => _flexshrink;
 		set
 		{
+			OnPropertySet( "flex-shrink" );
 			if ( _flexshrink == value ) return;
 			_flexshrink = value;
 			Dirty();
@@ -1138,6 +1208,7 @@ public abstract partial class BaseStyles
 		get => _rowgap;
 		set
 		{
+			OnPropertySet( "row-gap" );
 			if ( _rowgap == value ) return;
 			_rowgap = value;
 			Dirty();
@@ -1154,6 +1225,7 @@ public abstract partial class BaseStyles
 		get => _columngap;
 		set
 		{
+			OnPropertySet( "column-gap" );
 			if ( _columngap == value ) return;
 			_columngap = value;
 			Dirty();
@@ -1170,6 +1242,7 @@ public abstract partial class BaseStyles
 		get => _aspectratio;
 		set
 		{
+			OnPropertySet( "aspect-ratio" );
 			if ( _aspectratio == value ) return;
 			_aspectratio = value;
 			Dirty();
@@ -1186,6 +1259,7 @@ public abstract partial class BaseStyles
 		get => _textalign;
 		set
 		{
+			OnPropertySet( "text-align" );
 			if ( _textalign == value ) return;
 			_textalign = value;
 			Dirty();
@@ -1202,6 +1276,7 @@ public abstract partial class BaseStyles
 		get => _textoverflow;
 		set
 		{
+			OnPropertySet( "text-overflow" );
 			if ( _textoverflow == value ) return;
 			_textoverflow = value;
 			Dirty();
@@ -1218,6 +1293,7 @@ public abstract partial class BaseStyles
 		get => _textfilter;
 		set
 		{
+			OnPropertySet( "text-filter" );
 			if ( _textfilter == value ) return;
 			_textfilter = value;
 			Dirty();
@@ -1234,6 +1310,7 @@ public abstract partial class BaseStyles
 		get => _wordbreak;
 		set
 		{
+			OnPropertySet( "word-break" );
 			if ( _wordbreak == value ) return;
 			_wordbreak = value;
 			Dirty();
@@ -1250,6 +1327,7 @@ public abstract partial class BaseStyles
 		get => _textdecorationline;
 		set
 		{
+			OnPropertySet( "text-decoration-line" );
 			if ( _textdecorationline == value ) return;
 			_textdecorationline = value;
 			Dirty();
@@ -1266,6 +1344,7 @@ public abstract partial class BaseStyles
 		get => _textdecorationcolor;
 		set
 		{
+			OnPropertySet( "text-decoration-color" );
 			if ( _textdecorationcolor == value ) return;
 			_textdecorationcolor = value;
 			Dirty();
@@ -1282,6 +1361,7 @@ public abstract partial class BaseStyles
 		get => _textdecorationthickness;
 		set
 		{
+			OnPropertySet( "text-decoration-thickness" );
 			if ( _textdecorationthickness == value ) return;
 			_textdecorationthickness = value;
 			Dirty();
@@ -1298,6 +1378,7 @@ public abstract partial class BaseStyles
 		get => _textdecorationskipink;
 		set
 		{
+			OnPropertySet( "text-decoration-skip-ink" );
 			if ( _textdecorationskipink == value ) return;
 			_textdecorationskipink = value;
 			Dirty();
@@ -1314,6 +1395,7 @@ public abstract partial class BaseStyles
 		get => _textdecorationstyle;
 		set
 		{
+			OnPropertySet( "text-decoration-style" );
 			if ( _textdecorationstyle == value ) return;
 			_textdecorationstyle = value;
 			Dirty();
@@ -1330,6 +1412,7 @@ public abstract partial class BaseStyles
 		get => _textunderlineoffset;
 		set
 		{
+			OnPropertySet( "text-underline-offset" );
 			if ( _textunderlineoffset == value ) return;
 			_textunderlineoffset = value;
 			Dirty();
@@ -1346,6 +1429,7 @@ public abstract partial class BaseStyles
 		get => _textoverlineoffset;
 		set
 		{
+			OnPropertySet( "text-overline-offset" );
 			if ( _textoverlineoffset == value ) return;
 			_textoverlineoffset = value;
 			Dirty();
@@ -1362,6 +1446,7 @@ public abstract partial class BaseStyles
 		get => _textlinethroughoffset;
 		set
 		{
+			OnPropertySet( "text-line-through-offset" );
 			if ( _textlinethroughoffset == value ) return;
 			_textlinethroughoffset = value;
 			Dirty();
@@ -1378,6 +1463,7 @@ public abstract partial class BaseStyles
 		get => _fontstyle;
 		set
 		{
+			OnPropertySet( "font-style" );
 			if ( _fontstyle == value ) return;
 			_fontstyle = value;
 			Dirty();
@@ -1394,6 +1480,7 @@ public abstract partial class BaseStyles
 		get => _fontvariantnumeric;
 		set
 		{
+			OnPropertySet( "font-variant-numeric" );
 			if ( _fontvariantnumeric == value ) return;
 			_fontvariantnumeric = value;
 			Dirty();
@@ -1410,6 +1497,7 @@ public abstract partial class BaseStyles
 		get => _transform;
 		set
 		{
+			OnPropertySet( "transform" );
 			if ( _transform == value ) return;
 			_transform = value;
 			Dirty();
@@ -1426,6 +1514,7 @@ public abstract partial class BaseStyles
 		get => _texttransform;
 		set
 		{
+			OnPropertySet( "text-transform" );
 			if ( _texttransform == value ) return;
 			_texttransform = value;
 			Dirty();
@@ -1442,6 +1531,7 @@ public abstract partial class BaseStyles
 		get => _transformoriginx;
 		set
 		{
+			OnPropertySet( "transform-origin-x" );
 			if ( _transformoriginx == value ) return;
 			_transformoriginx = value;
 			Dirty();
@@ -1458,6 +1548,7 @@ public abstract partial class BaseStyles
 		get => _transformoriginy;
 		set
 		{
+			OnPropertySet( "transform-origin-y" );
 			if ( _transformoriginy == value ) return;
 			_transformoriginy = value;
 			Dirty();
@@ -1474,6 +1565,7 @@ public abstract partial class BaseStyles
 		get => _letterspacing;
 		set
 		{
+			OnPropertySet( "letter-spacing" );
 			if ( _letterspacing == value ) return;
 			_letterspacing = value;
 			Dirty();
@@ -1490,6 +1582,7 @@ public abstract partial class BaseStyles
 		get => _lineheight;
 		set
 		{
+			OnPropertySet( "line-height" );
 			if ( _lineheight == value ) return;
 			_lineheight = value;
 			Dirty();
@@ -1506,6 +1599,7 @@ public abstract partial class BaseStyles
 		get => _wordspacing;
 		set
 		{
+			OnPropertySet( "word-spacing" );
 			if ( _wordspacing == value ) return;
 			_wordspacing = value;
 			Dirty();
@@ -1522,6 +1616,7 @@ public abstract partial class BaseStyles
 		get => _whitespace;
 		set
 		{
+			OnPropertySet( "white-space" );
 			if ( _whitespace == value ) return;
 			_whitespace = value;
 			Dirty();
@@ -1538,6 +1633,7 @@ public abstract partial class BaseStyles
 		get => _zindex;
 		set
 		{
+			OnPropertySet( "z-index" );
 			if ( _zindex == value ) return;
 			_zindex = value;
 			Dirty();
@@ -1554,6 +1650,7 @@ public abstract partial class BaseStyles
 		get => _order;
 		set
 		{
+			OnPropertySet( "order" );
 			if ( _order == value ) return;
 			_order = value;
 			Dirty();
@@ -1570,6 +1667,7 @@ public abstract partial class BaseStyles
 		get => _soundin;
 		set
 		{
+			OnPropertySet( "sound-in" );
 			if ( _soundin == value ) return;
 			_soundin = value;
 			Dirty();
@@ -1586,6 +1684,7 @@ public abstract partial class BaseStyles
 		get => _soundout;
 		set
 		{
+			OnPropertySet( "sound-out" );
 			if ( _soundout == value ) return;
 			_soundout = value;
 			Dirty();
@@ -1602,6 +1701,7 @@ public abstract partial class BaseStyles
 		get => _backdropfilterblur;
 		set
 		{
+			OnPropertySet( "backdrop-filter-blur" );
 			if ( _backdropfilterblur == value ) return;
 			_backdropfilterblur = value;
 			Dirty();
@@ -1618,6 +1718,7 @@ public abstract partial class BaseStyles
 		get => _backdropfilterbrightness;
 		set
 		{
+			OnPropertySet( "backdrop-filter-brightness" );
 			if ( _backdropfilterbrightness == value ) return;
 			_backdropfilterbrightness = value;
 			Dirty();
@@ -1634,6 +1735,7 @@ public abstract partial class BaseStyles
 		get => _backdropfiltercontrast;
 		set
 		{
+			OnPropertySet( "backdrop-filter-contrast" );
 			if ( _backdropfiltercontrast == value ) return;
 			_backdropfiltercontrast = value;
 			Dirty();
@@ -1650,6 +1752,7 @@ public abstract partial class BaseStyles
 		get => _backdropfiltersaturate;
 		set
 		{
+			OnPropertySet( "backdrop-filter-saturate" );
 			if ( _backdropfiltersaturate == value ) return;
 			_backdropfiltersaturate = value;
 			Dirty();
@@ -1666,6 +1769,7 @@ public abstract partial class BaseStyles
 		get => _backdropfiltersepia;
 		set
 		{
+			OnPropertySet( "backdrop-filter-sepia" );
 			if ( _backdropfiltersepia == value ) return;
 			_backdropfiltersepia = value;
 			Dirty();
@@ -1682,6 +1786,7 @@ public abstract partial class BaseStyles
 		get => _backdropfilterinvert;
 		set
 		{
+			OnPropertySet( "backdrop-filter-invert" );
 			if ( _backdropfilterinvert == value ) return;
 			_backdropfilterinvert = value;
 			Dirty();
@@ -1698,6 +1803,7 @@ public abstract partial class BaseStyles
 		get => _backdropfilterhuerotate;
 		set
 		{
+			OnPropertySet( "backdrop-filter-hue-rotate" );
 			if ( _backdropfilterhuerotate == value ) return;
 			_backdropfilterhuerotate = value;
 			Dirty();
@@ -1714,6 +1820,7 @@ public abstract partial class BaseStyles
 		get => _filterblur;
 		set
 		{
+			OnPropertySet( "filter-blur" );
 			if ( _filterblur == value ) return;
 			_filterblur = value;
 			Dirty();
@@ -1730,6 +1837,7 @@ public abstract partial class BaseStyles
 		get => _filtersaturate;
 		set
 		{
+			OnPropertySet( "filter-saturate" );
 			if ( _filtersaturate == value ) return;
 			_filtersaturate = value;
 			Dirty();
@@ -1746,6 +1854,7 @@ public abstract partial class BaseStyles
 		get => _filtersepia;
 		set
 		{
+			OnPropertySet( "filter-sepia" );
 			if ( _filtersepia == value ) return;
 			_filtersepia = value;
 			Dirty();
@@ -1762,6 +1871,7 @@ public abstract partial class BaseStyles
 		get => _filterbrightness;
 		set
 		{
+			OnPropertySet( "filter-brightness" );
 			if ( _filterbrightness == value ) return;
 			_filterbrightness = value;
 			Dirty();
@@ -1778,6 +1888,7 @@ public abstract partial class BaseStyles
 		get => _filterhuerotate;
 		set
 		{
+			OnPropertySet( "filter-hue-rotate" );
 			if ( _filterhuerotate == value ) return;
 			_filterhuerotate = value;
 			Dirty();
@@ -1794,6 +1905,7 @@ public abstract partial class BaseStyles
 		get => _filterinvert;
 		set
 		{
+			OnPropertySet( "filter-invert" );
 			if ( _filterinvert == value ) return;
 			_filterinvert = value;
 			Dirty();
@@ -1810,6 +1922,7 @@ public abstract partial class BaseStyles
 		get => _filtercontrast;
 		set
 		{
+			OnPropertySet( "filter-contrast" );
 			if ( _filtercontrast == value ) return;
 			_filtercontrast = value;
 			Dirty();
@@ -1826,6 +1939,7 @@ public abstract partial class BaseStyles
 		get => _filtertint;
 		set
 		{
+			OnPropertySet( "filter-tint" );
 			if ( _filtertint == value ) return;
 			_filtertint = value;
 			Dirty();
@@ -1842,6 +1956,7 @@ public abstract partial class BaseStyles
 		get => _filterborderwidth;
 		set
 		{
+			OnPropertySet( "filter-border-width" );
 			if ( _filterborderwidth == value ) return;
 			_filterborderwidth = value;
 			Dirty();
@@ -1858,6 +1973,7 @@ public abstract partial class BaseStyles
 		get => _filterbordercolor;
 		set
 		{
+			OnPropertySet( "filter-border-color" );
 			if ( _filterbordercolor == value ) return;
 			_filterbordercolor = value;
 			Dirty();
@@ -1874,6 +1990,7 @@ public abstract partial class BaseStyles
 		get => _maskmode;
 		set
 		{
+			OnPropertySet( "mask-mode" );
 			if ( _maskmode == value ) return;
 			_maskmode = value;
 			Dirty();
@@ -1890,6 +2007,7 @@ public abstract partial class BaseStyles
 		get => _maskrepeat;
 		set
 		{
+			OnPropertySet( "mask-repeat" );
 			if ( _maskrepeat == value ) return;
 			_maskrepeat = value;
 			Dirty();
@@ -1906,6 +2024,7 @@ public abstract partial class BaseStyles
 		get => _masksizex;
 		set
 		{
+			OnPropertySet( "mask-size-x" );
 			if ( _masksizex == value ) return;
 			_masksizex = value;
 			Dirty();
@@ -1922,6 +2041,7 @@ public abstract partial class BaseStyles
 		get => _masksizey;
 		set
 		{
+			OnPropertySet( "mask-size-y" );
 			if ( _masksizey == value ) return;
 			_masksizey = value;
 			Dirty();
@@ -1938,6 +2058,7 @@ public abstract partial class BaseStyles
 		get => _maskpositionx;
 		set
 		{
+			OnPropertySet( "mask-position-x" );
 			if ( _maskpositionx == value ) return;
 			_maskpositionx = value;
 			Dirty();
@@ -1954,6 +2075,7 @@ public abstract partial class BaseStyles
 		get => _maskpositiony;
 		set
 		{
+			OnPropertySet( "mask-position-y" );
 			if ( _maskpositiony == value ) return;
 			_maskpositiony = value;
 			Dirty();
@@ -1970,6 +2092,7 @@ public abstract partial class BaseStyles
 		get => _maskangle;
 		set
 		{
+			OnPropertySet( "mask-angle" );
 			if ( _maskangle == value ) return;
 			_maskangle = value;
 			Dirty();
@@ -1986,6 +2109,7 @@ public abstract partial class BaseStyles
 		get => _maskscope;
 		set
 		{
+			OnPropertySet( "mask-scope" );
 			if ( _maskscope == value ) return;
 			_maskscope = value;
 			Dirty();
@@ -2002,6 +2126,7 @@ public abstract partial class BaseStyles
 		get => _backgroundsizex;
 		set
 		{
+			OnPropertySet( "background-size-x" );
 			if ( _backgroundsizex == value ) return;
 			_backgroundsizex = value;
 			Dirty();
@@ -2018,6 +2143,7 @@ public abstract partial class BaseStyles
 		get => _backgroundsizey;
 		set
 		{
+			OnPropertySet( "background-size-y" );
 			if ( _backgroundsizey == value ) return;
 			_backgroundsizey = value;
 			Dirty();
@@ -2034,6 +2160,7 @@ public abstract partial class BaseStyles
 		get => _backgroundpositionx;
 		set
 		{
+			OnPropertySet( "background-position-x" );
 			if ( _backgroundpositionx == value ) return;
 			_backgroundpositionx = value;
 			Dirty();
@@ -2050,6 +2177,7 @@ public abstract partial class BaseStyles
 		get => _backgroundpositiony;
 		set
 		{
+			OnPropertySet( "background-position-y" );
 			if ( _backgroundpositiony == value ) return;
 			_backgroundpositiony = value;
 			Dirty();
@@ -2066,6 +2194,7 @@ public abstract partial class BaseStyles
 		get => _backgroundrepeat;
 		set
 		{
+			OnPropertySet( "background-repeat" );
 			if ( _backgroundrepeat == value ) return;
 			_backgroundrepeat = value;
 			Dirty();
@@ -2082,6 +2211,7 @@ public abstract partial class BaseStyles
 		get => _backgroundclip;
 		set
 		{
+			OnPropertySet( "background-clip" );
 			if ( _backgroundclip == value ) return;
 			_backgroundclip = value;
 			Dirty();
@@ -2098,6 +2228,7 @@ public abstract partial class BaseStyles
 		get => _borderimagewidthleft;
 		set
 		{
+			OnPropertySet( "border-image-width-left" );
 			if ( _borderimagewidthleft == value ) return;
 			_borderimagewidthleft = value;
 			Dirty();
@@ -2114,6 +2245,7 @@ public abstract partial class BaseStyles
 		get => _borderimagewidthright;
 		set
 		{
+			OnPropertySet( "border-image-width-right" );
 			if ( _borderimagewidthright == value ) return;
 			_borderimagewidthright = value;
 			Dirty();
@@ -2130,6 +2262,7 @@ public abstract partial class BaseStyles
 		get => _borderimagewidthtop;
 		set
 		{
+			OnPropertySet( "border-image-width-top" );
 			if ( _borderimagewidthtop == value ) return;
 			_borderimagewidthtop = value;
 			Dirty();
@@ -2146,6 +2279,7 @@ public abstract partial class BaseStyles
 		get => _borderimagewidthbottom;
 		set
 		{
+			OnPropertySet( "border-image-width-bottom" );
 			if ( _borderimagewidthbottom == value ) return;
 			_borderimagewidthbottom = value;
 			Dirty();
@@ -2162,6 +2296,7 @@ public abstract partial class BaseStyles
 		get => _borderimagefill;
 		set
 		{
+			OnPropertySet( "border-image-fill" );
 			if ( _borderimagefill == value ) return;
 			_borderimagefill = value;
 			Dirty();
@@ -2178,6 +2313,7 @@ public abstract partial class BaseStyles
 		get => _borderimagerepeat;
 		set
 		{
+			OnPropertySet( "border-image-repeat" );
 			if ( _borderimagerepeat == value ) return;
 			_borderimagerepeat = value;
 			Dirty();
@@ -2194,6 +2330,7 @@ public abstract partial class BaseStyles
 		get => _borderimagetint;
 		set
 		{
+			OnPropertySet( "border-image-tint" );
 			if ( _borderimagetint == value ) return;
 			_borderimagetint = value;
 			Dirty();
@@ -2210,6 +2347,7 @@ public abstract partial class BaseStyles
 		get => _backgroundblendmode;
 		set
 		{
+			OnPropertySet( "background-blend-mode" );
 			if ( _backgroundblendmode == value ) return;
 			_backgroundblendmode = value;
 			Dirty();
@@ -2226,6 +2364,7 @@ public abstract partial class BaseStyles
 		get => _backgroundtint;
 		set
 		{
+			OnPropertySet( "background-tint" );
 			if ( _backgroundtint == value ) return;
 			_backgroundtint = value;
 			Dirty();
@@ -2242,6 +2381,7 @@ public abstract partial class BaseStyles
 		get => _backgroundangle;
 		set
 		{
+			OnPropertySet( "background-angle" );
 			if ( _backgroundangle == value ) return;
 			_backgroundangle = value;
 			Dirty();
@@ -2258,6 +2398,7 @@ public abstract partial class BaseStyles
 		get => _textbackgroundangle;
 		set
 		{
+			OnPropertySet( "text-background-angle" );
 			if ( _textbackgroundangle == value ) return;
 			_textbackgroundangle = value;
 			Dirty();
@@ -2274,6 +2415,7 @@ public abstract partial class BaseStyles
 		get => _perspectiveoriginx;
 		set
 		{
+			OnPropertySet( "perspective-origin-x" );
 			if ( _perspectiveoriginx == value ) return;
 			_perspectiveoriginx = value;
 			Dirty();
@@ -2290,6 +2432,7 @@ public abstract partial class BaseStyles
 		get => _perspectiveoriginy;
 		set
 		{
+			OnPropertySet( "perspective-origin-y" );
 			if ( _perspectiveoriginy == value ) return;
 			_perspectiveoriginy = value;
 			Dirty();
@@ -2306,6 +2449,7 @@ public abstract partial class BaseStyles
 		get => _textstrokecolor;
 		set
 		{
+			OnPropertySet( "text-stroke-color" );
 			if ( _textstrokecolor == value ) return;
 			_textstrokecolor = value;
 			Dirty();
@@ -2322,6 +2466,7 @@ public abstract partial class BaseStyles
 		get => _textstrokewidth;
 		set
 		{
+			OnPropertySet( "text-stroke-width" );
 			if ( _textstrokewidth == value ) return;
 			_textstrokewidth = value;
 			Dirty();
@@ -2338,6 +2483,7 @@ public abstract partial class BaseStyles
 		get => _imagerendering;
 		set
 		{
+			OnPropertySet( "image-rendering" );
 			if ( _imagerendering == value ) return;
 			_imagerendering = value;
 			Dirty();
@@ -2354,6 +2500,7 @@ public abstract partial class BaseStyles
 		get => _animationdelay;
 		set
 		{
+			OnPropertySet( "animation-delay" );
 			if ( _animationdelay == value ) return;
 			_animationdelay = value;
 			Dirty();
@@ -2370,6 +2517,7 @@ public abstract partial class BaseStyles
 		get => _animationdirection;
 		set
 		{
+			OnPropertySet( "animation-direction" );
 			if ( _animationdirection == value ) return;
 			_animationdirection = value;
 			Dirty();
@@ -2386,6 +2534,7 @@ public abstract partial class BaseStyles
 		get => _animationduration;
 		set
 		{
+			OnPropertySet( "animation-duration" );
 			if ( _animationduration == value ) return;
 			_animationduration = value;
 			Dirty();
@@ -2402,6 +2551,7 @@ public abstract partial class BaseStyles
 		get => _animationfillmode;
 		set
 		{
+			OnPropertySet( "animation-fill-mode" );
 			if ( _animationfillmode == value ) return;
 			_animationfillmode = value;
 			Dirty();
@@ -2418,6 +2568,7 @@ public abstract partial class BaseStyles
 		get => _animationiterationcount;
 		set
 		{
+			OnPropertySet( "animation-iteration-count" );
 			if ( _animationiterationcount == value ) return;
 			_animationiterationcount = value;
 			Dirty();
@@ -2434,6 +2585,7 @@ public abstract partial class BaseStyles
 		get => _animationname;
 		set
 		{
+			OnPropertySet( "animation-name" );
 			if ( _animationname == value ) return;
 			_animationname = value;
 			Dirty();
@@ -2450,6 +2602,7 @@ public abstract partial class BaseStyles
 		get => _animationplaystate;
 		set
 		{
+			OnPropertySet( "animation-play-state" );
 			if ( _animationplaystate == value ) return;
 			_animationplaystate = value;
 			Dirty();
@@ -2466,6 +2619,7 @@ public abstract partial class BaseStyles
 		get => _animationtimingfunction;
 		set
 		{
+			OnPropertySet( "animation-timing-function" );
 			if ( _animationtimingfunction == value ) return;
 			_animationtimingfunction = value;
 			Dirty();
@@ -2482,6 +2636,7 @@ public abstract partial class BaseStyles
 		get => _fontsmooth;
 		set
 		{
+			OnPropertySet( "font-smooth" );
 			if ( _fontsmooth == value ) return;
 			_fontsmooth = value;
 			Dirty();
@@ -2498,6 +2653,7 @@ public abstract partial class BaseStyles
 		get => _objectfit;
 		set
 		{
+			OnPropertySet( "object-fit" );
 			if ( _objectfit == value ) return;
 			_objectfit = value;
 			Dirty();
@@ -2514,6 +2670,7 @@ public abstract partial class BaseStyles
 		get => _outlinewidth;
 		set
 		{
+			OnPropertySet( "outline-width" );
 			if ( _outlinewidth == value ) return;
 			_outlinewidth = value;
 			Dirty();
@@ -2530,6 +2687,7 @@ public abstract partial class BaseStyles
 		get => _outlinecolor;
 		set
 		{
+			OnPropertySet( "outline-color" );
 			if ( _outlinecolor == value ) return;
 			_outlinecolor = value;
 			Dirty();
@@ -2546,6 +2704,7 @@ public abstract partial class BaseStyles
 		get => _outlineoffset;
 		set
 		{
+			OnPropertySet( "outline-offset" );
 			if ( _outlineoffset == value ) return;
 			_outlineoffset = value;
 			Dirty();
@@ -2562,6 +2721,7 @@ public abstract partial class BaseStyles
 		get => _isolation;
 		set
 		{
+			OnPropertySet( "isolation" );
 			if ( _isolation == value ) return;
 			_isolation = value;
 			Dirty();
@@ -2578,6 +2738,7 @@ public abstract partial class BaseStyles
 		get => _scrollbarwidth;
 		set
 		{
+			OnPropertySet( "scrollbar-width" );
 			if ( _scrollbarwidth == value ) return;
 			_scrollbarwidth = value;
 			Dirty();
@@ -2594,6 +2755,7 @@ public abstract partial class BaseStyles
 		get => _overscrollbehaviorx;
 		set
 		{
+			OnPropertySet( "overscroll-behavior-x" );
 			if ( _overscrollbehaviorx == value ) return;
 			_overscrollbehaviorx = value;
 			Dirty();
@@ -2610,6 +2772,7 @@ public abstract partial class BaseStyles
 		get => _overscrollbehaviory;
 		set
 		{
+			OnPropertySet( "overscroll-behavior-y" );
 			if ( _overscrollbehaviory == value ) return;
 			_overscrollbehaviory = value;
 			Dirty();
@@ -2626,6 +2789,7 @@ public abstract partial class BaseStyles
 		get => _scrollbargutter;
 		set
 		{
+			OnPropertySet( "scrollbar-gutter" );
 			if ( _scrollbargutter == value ) return;
 			_scrollbargutter = value;
 			Dirty();
@@ -2642,6 +2806,7 @@ public abstract partial class BaseStyles
 		get => _scrollbarthumbcolor;
 		set
 		{
+			OnPropertySet( "scrollbar-thumb-color" );
 			if ( _scrollbarthumbcolor == value ) return;
 			_scrollbarthumbcolor = value;
 			Dirty();
@@ -2658,6 +2823,7 @@ public abstract partial class BaseStyles
 		get => _scrollbartrackcolor;
 		set
 		{
+			OnPropertySet( "scrollbar-track-color" );
 			if ( _scrollbartrackcolor == value ) return;
 			_scrollbartrackcolor = value;
 			Dirty();
@@ -3008,6 +3174,349 @@ public abstract partial class BaseStyles
 		_scrollbargutter = a._scrollbargutter;
 		_scrollbarthumbcolor = a._scrollbarthumbcolor;
 		_scrollbartrackcolor = a._scrollbartrackcolor;
+	}
+
+	/// <summary>
+	/// Remove an attribute's values unless a later style write replaced them.
+	/// </summary>
+	private void RestoreMatchingValuesGenerated( BaseStyles before, BaseStyles after, System.Collections.Generic.HashSet<string> written )
+	{
+		RestoreMatchingProperty( ref _content, before._content, after._content, "content", before, after, written );
+		RestoreMatchingProperty( ref _width, before._width, after._width, "width", before, after, written );
+		RestoreMatchingProperty( ref _minwidth, before._minwidth, after._minwidth, "min-width", before, after, written );
+		RestoreMatchingProperty( ref _maxwidth, before._maxwidth, after._maxwidth, "max-width", before, after, written );
+		RestoreMatchingProperty( ref _height, before._height, after._height, "height", before, after, written );
+		RestoreMatchingProperty( ref _minheight, before._minheight, after._minheight, "min-height", before, after, written );
+		RestoreMatchingProperty( ref _maxheight, before._maxheight, after._maxheight, "max-height", before, after, written );
+		RestoreMatchingProperty( ref _left, before._left, after._left, "left", before, after, written );
+		RestoreMatchingProperty( ref _top, before._top, after._top, "top", before, after, written );
+		RestoreMatchingProperty( ref _right, before._right, after._right, "right", before, after, written );
+		RestoreMatchingProperty( ref _bottom, before._bottom, after._bottom, "bottom", before, after, written );
+		RestoreMatchingProperty( ref _opacity, before._opacity, after._opacity, "opacity", before, after, written );
+		RestoreMatchingProperty( ref _backgroundcolor, before._backgroundcolor, after._backgroundcolor, "background-color", before, after, written );
+		RestoreMatchingProperty( ref _paddingleft, before._paddingleft, after._paddingleft, "padding-left", before, after, written );
+		RestoreMatchingProperty( ref _paddingtop, before._paddingtop, after._paddingtop, "padding-top", before, after, written );
+		RestoreMatchingProperty( ref _paddingright, before._paddingright, after._paddingright, "padding-right", before, after, written );
+		RestoreMatchingProperty( ref _paddingbottom, before._paddingbottom, after._paddingbottom, "padding-bottom", before, after, written );
+		RestoreMatchingProperty( ref _marginleft, before._marginleft, after._marginleft, "margin-left", before, after, written );
+		RestoreMatchingProperty( ref _margintop, before._margintop, after._margintop, "margin-top", before, after, written );
+		RestoreMatchingProperty( ref _marginright, before._marginright, after._marginright, "margin-right", before, after, written );
+		RestoreMatchingProperty( ref _marginbottom, before._marginbottom, after._marginbottom, "margin-bottom", before, after, written );
+		RestoreMatchingProperty( ref _bordertopleftradius, before._bordertopleftradius, after._bordertopleftradius, "border-top-left-radius", before, after, written );
+		RestoreMatchingProperty( ref _bordertoprightradius, before._bordertoprightradius, after._bordertoprightradius, "border-top-right-radius", before, after, written );
+		RestoreMatchingProperty( ref _borderbottomrightradius, before._borderbottomrightradius, after._borderbottomrightradius, "border-bottom-right-radius", before, after, written );
+		RestoreMatchingProperty( ref _borderbottomleftradius, before._borderbottomleftradius, after._borderbottomleftradius, "border-bottom-left-radius", before, after, written );
+		RestoreMatchingProperty( ref _bordertopleftradiusv, before._bordertopleftradiusv, after._bordertopleftradiusv, "border-top-left-radius-v", before, after, written );
+		RestoreMatchingProperty( ref _bordertoprightradiusv, before._bordertoprightradiusv, after._bordertoprightradiusv, "border-top-right-radius-v", before, after, written );
+		RestoreMatchingProperty( ref _borderbottomrightradiusv, before._borderbottomrightradiusv, after._borderbottomrightradiusv, "border-bottom-right-radius-v", before, after, written );
+		RestoreMatchingProperty( ref _borderbottomleftradiusv, before._borderbottomleftradiusv, after._borderbottomleftradiusv, "border-bottom-left-radius-v", before, after, written );
+		RestoreMatchingProperty( ref _borderleftwidth, before._borderleftwidth, after._borderleftwidth, "border-left-width", before, after, written );
+		RestoreMatchingProperty( ref _bordertopwidth, before._bordertopwidth, after._bordertopwidth, "border-top-width", before, after, written );
+		RestoreMatchingProperty( ref _borderrightwidth, before._borderrightwidth, after._borderrightwidth, "border-right-width", before, after, written );
+		RestoreMatchingProperty( ref _borderbottomwidth, before._borderbottomwidth, after._borderbottomwidth, "border-bottom-width", before, after, written );
+		RestoreMatchingProperty( ref _borderstyle, before._borderstyle, after._borderstyle, "border-style", before, after, written );
+		RestoreMatchingProperty( ref _borderleftcolor, before._borderleftcolor, after._borderleftcolor, "border-left-color", before, after, written );
+		RestoreMatchingProperty( ref _bordertopcolor, before._bordertopcolor, after._bordertopcolor, "border-top-color", before, after, written );
+		RestoreMatchingProperty( ref _borderrightcolor, before._borderrightcolor, after._borderrightcolor, "border-right-color", before, after, written );
+		RestoreMatchingProperty( ref _borderbottomcolor, before._borderbottomcolor, after._borderbottomcolor, "border-bottom-color", before, after, written );
+		RestoreMatchingProperty( ref _fontsize, before._fontsize, after._fontsize, "font-size", before, after, written );
+		RestoreMatchingProperty( ref _fontcolor, before._fontcolor, after._fontcolor, "font-color", before, after, written );
+		RestoreMatchingProperty( ref _fontweight, before._fontweight, after._fontweight, "font-weight", before, after, written );
+		RestoreMatchingProperty( ref _fontfamily, before._fontfamily, after._fontfamily, "font-family", before, after, written );
+		RestoreMatchingProperty( ref _caretcolor, before._caretcolor, after._caretcolor, "caret-color", before, after, written );
+		RestoreMatchingProperty( ref _cursor, before._cursor, after._cursor, "cursor", before, after, written );
+		RestoreMatchingProperty( ref _pointerevents, before._pointerevents, after._pointerevents, "pointer-events", before, after, written );
+		RestoreMatchingProperty( ref _mixblendmode, before._mixblendmode, after._mixblendmode, "mix-blend-mode", before, after, written );
+		RestoreMatchingProperty( ref _position, before._position, after._position, "position", before, after, written );
+		RestoreMatchingProperty( ref _overflowx, before._overflowx, after._overflowx, "overflow-x", before, after, written );
+		RestoreMatchingProperty( ref _overflowy, before._overflowy, after._overflowy, "overflow-y", before, after, written );
+		RestoreMatchingProperty( ref _flexdirection, before._flexdirection, after._flexdirection, "flex-direction", before, after, written );
+		RestoreMatchingProperty( ref _justifycontent, before._justifycontent, after._justifycontent, "justify-content", before, after, written );
+		RestoreMatchingProperty( ref _justifyitems, before._justifyitems, after._justifyitems, "justify-items", before, after, written );
+		RestoreMatchingProperty( ref _justifyself, before._justifyself, after._justifyself, "justify-self", before, after, written );
+		RestoreMatchingProperty( ref _display, before._display, after._display, "display", before, after, written );
+		RestoreMatchingProperty( ref _gridtemplatecolumns, before._gridtemplatecolumns, after._gridtemplatecolumns, "grid-template-columns", before, after, written );
+		RestoreMatchingProperty( ref _gridtemplaterows, before._gridtemplaterows, after._gridtemplaterows, "grid-template-rows", before, after, written );
+		RestoreMatchingProperty( ref _gridautocolumns, before._gridautocolumns, after._gridautocolumns, "grid-auto-columns", before, after, written );
+		RestoreMatchingProperty( ref _gridautorows, before._gridautorows, after._gridautorows, "grid-auto-rows", before, after, written );
+		RestoreMatchingProperty( ref _gridautoflow, before._gridautoflow, after._gridautoflow, "grid-auto-flow", before, after, written );
+		RestoreMatchingProperty( ref _gridcolumnstart, before._gridcolumnstart, after._gridcolumnstart, "grid-column-start", before, after, written );
+		RestoreMatchingProperty( ref _gridcolumnend, before._gridcolumnend, after._gridcolumnend, "grid-column-end", before, after, written );
+		RestoreMatchingProperty( ref _gridrowstart, before._gridrowstart, after._gridrowstart, "grid-row-start", before, after, written );
+		RestoreMatchingProperty( ref _gridrowend, before._gridrowend, after._gridrowend, "grid-row-end", before, after, written );
+		RestoreMatchingProperty( ref _flexwrap, before._flexwrap, after._flexwrap, "flex-wrap", before, after, written );
+		RestoreMatchingProperty( ref _aligncontent, before._aligncontent, after._aligncontent, "align-content", before, after, written );
+		RestoreMatchingProperty( ref _alignself, before._alignself, after._alignself, "align-self", before, after, written );
+		RestoreMatchingProperty( ref _alignitems, before._alignitems, after._alignitems, "align-items", before, after, written );
+		RestoreMatchingProperty( ref _flexbasis, before._flexbasis, after._flexbasis, "flex-basis", before, after, written );
+		RestoreMatchingProperty( ref _flexgrow, before._flexgrow, after._flexgrow, "flex-grow", before, after, written );
+		RestoreMatchingProperty( ref _flexshrink, before._flexshrink, after._flexshrink, "flex-shrink", before, after, written );
+		RestoreMatchingProperty( ref _rowgap, before._rowgap, after._rowgap, "row-gap", before, after, written );
+		RestoreMatchingProperty( ref _columngap, before._columngap, after._columngap, "column-gap", before, after, written );
+		RestoreMatchingProperty( ref _aspectratio, before._aspectratio, after._aspectratio, "aspect-ratio", before, after, written );
+		RestoreMatchingProperty( ref _textalign, before._textalign, after._textalign, "text-align", before, after, written );
+		RestoreMatchingProperty( ref _textoverflow, before._textoverflow, after._textoverflow, "text-overflow", before, after, written );
+		RestoreMatchingProperty( ref _textfilter, before._textfilter, after._textfilter, "text-filter", before, after, written );
+		RestoreMatchingProperty( ref _wordbreak, before._wordbreak, after._wordbreak, "word-break", before, after, written );
+		RestoreMatchingProperty( ref _textdecorationline, before._textdecorationline, after._textdecorationline, "text-decoration-line", before, after, written );
+		RestoreMatchingProperty( ref _textdecorationcolor, before._textdecorationcolor, after._textdecorationcolor, "text-decoration-color", before, after, written );
+		RestoreMatchingProperty( ref _textdecorationthickness, before._textdecorationthickness, after._textdecorationthickness, "text-decoration-thickness", before, after, written );
+		RestoreMatchingProperty( ref _textdecorationskipink, before._textdecorationskipink, after._textdecorationskipink, "text-decoration-skip-ink", before, after, written );
+		RestoreMatchingProperty( ref _textdecorationstyle, before._textdecorationstyle, after._textdecorationstyle, "text-decoration-style", before, after, written );
+		RestoreMatchingProperty( ref _textunderlineoffset, before._textunderlineoffset, after._textunderlineoffset, "text-underline-offset", before, after, written );
+		RestoreMatchingProperty( ref _textoverlineoffset, before._textoverlineoffset, after._textoverlineoffset, "text-overline-offset", before, after, written );
+		RestoreMatchingProperty( ref _textlinethroughoffset, before._textlinethroughoffset, after._textlinethroughoffset, "text-line-through-offset", before, after, written );
+		RestoreMatchingProperty( ref _fontstyle, before._fontstyle, after._fontstyle, "font-style", before, after, written );
+		RestoreMatchingProperty( ref _fontvariantnumeric, before._fontvariantnumeric, after._fontvariantnumeric, "font-variant-numeric", before, after, written );
+		RestoreMatchingProperty( ref _transform, before._transform, after._transform, "transform", before, after, written );
+		RestoreMatchingProperty( ref _texttransform, before._texttransform, after._texttransform, "text-transform", before, after, written );
+		RestoreMatchingProperty( ref _transformoriginx, before._transformoriginx, after._transformoriginx, "transform-origin-x", before, after, written );
+		RestoreMatchingProperty( ref _transformoriginy, before._transformoriginy, after._transformoriginy, "transform-origin-y", before, after, written );
+		RestoreMatchingProperty( ref _letterspacing, before._letterspacing, after._letterspacing, "letter-spacing", before, after, written );
+		RestoreMatchingProperty( ref _lineheight, before._lineheight, after._lineheight, "line-height", before, after, written );
+		RestoreMatchingProperty( ref _wordspacing, before._wordspacing, after._wordspacing, "word-spacing", before, after, written );
+		RestoreMatchingProperty( ref _whitespace, before._whitespace, after._whitespace, "white-space", before, after, written );
+		RestoreMatchingProperty( ref _zindex, before._zindex, after._zindex, "z-index", before, after, written );
+		RestoreMatchingProperty( ref _order, before._order, after._order, "order", before, after, written );
+		RestoreMatchingProperty( ref _soundin, before._soundin, after._soundin, "sound-in", before, after, written );
+		RestoreMatchingProperty( ref _soundout, before._soundout, after._soundout, "sound-out", before, after, written );
+		RestoreMatchingProperty( ref _backdropfilterblur, before._backdropfilterblur, after._backdropfilterblur, "backdrop-filter-blur", before, after, written );
+		RestoreMatchingProperty( ref _backdropfilterbrightness, before._backdropfilterbrightness, after._backdropfilterbrightness, "backdrop-filter-brightness", before, after, written );
+		RestoreMatchingProperty( ref _backdropfiltercontrast, before._backdropfiltercontrast, after._backdropfiltercontrast, "backdrop-filter-contrast", before, after, written );
+		RestoreMatchingProperty( ref _backdropfiltersaturate, before._backdropfiltersaturate, after._backdropfiltersaturate, "backdrop-filter-saturate", before, after, written );
+		RestoreMatchingProperty( ref _backdropfiltersepia, before._backdropfiltersepia, after._backdropfiltersepia, "backdrop-filter-sepia", before, after, written );
+		RestoreMatchingProperty( ref _backdropfilterinvert, before._backdropfilterinvert, after._backdropfilterinvert, "backdrop-filter-invert", before, after, written );
+		RestoreMatchingProperty( ref _backdropfilterhuerotate, before._backdropfilterhuerotate, after._backdropfilterhuerotate, "backdrop-filter-hue-rotate", before, after, written );
+		RestoreMatchingProperty( ref _filterblur, before._filterblur, after._filterblur, "filter-blur", before, after, written );
+		RestoreMatchingProperty( ref _filtersaturate, before._filtersaturate, after._filtersaturate, "filter-saturate", before, after, written );
+		RestoreMatchingProperty( ref _filtersepia, before._filtersepia, after._filtersepia, "filter-sepia", before, after, written );
+		RestoreMatchingProperty( ref _filterbrightness, before._filterbrightness, after._filterbrightness, "filter-brightness", before, after, written );
+		RestoreMatchingProperty( ref _filterhuerotate, before._filterhuerotate, after._filterhuerotate, "filter-hue-rotate", before, after, written );
+		RestoreMatchingProperty( ref _filterinvert, before._filterinvert, after._filterinvert, "filter-invert", before, after, written );
+		RestoreMatchingProperty( ref _filtercontrast, before._filtercontrast, after._filtercontrast, "filter-contrast", before, after, written );
+		RestoreMatchingProperty( ref _filtertint, before._filtertint, after._filtertint, "filter-tint", before, after, written );
+		RestoreMatchingProperty( ref _filterborderwidth, before._filterborderwidth, after._filterborderwidth, "filter-border-width", before, after, written );
+		RestoreMatchingProperty( ref _filterbordercolor, before._filterbordercolor, after._filterbordercolor, "filter-border-color", before, after, written );
+		RestoreMatchingProperty( ref _maskmode, before._maskmode, after._maskmode, "mask-mode", before, after, written );
+		RestoreMatchingProperty( ref _maskrepeat, before._maskrepeat, after._maskrepeat, "mask-repeat", before, after, written );
+		RestoreMatchingProperty( ref _masksizex, before._masksizex, after._masksizex, "mask-size-x", before, after, written );
+		RestoreMatchingProperty( ref _masksizey, before._masksizey, after._masksizey, "mask-size-y", before, after, written );
+		RestoreMatchingProperty( ref _maskpositionx, before._maskpositionx, after._maskpositionx, "mask-position-x", before, after, written );
+		RestoreMatchingProperty( ref _maskpositiony, before._maskpositiony, after._maskpositiony, "mask-position-y", before, after, written );
+		RestoreMatchingProperty( ref _maskangle, before._maskangle, after._maskangle, "mask-angle", before, after, written );
+		RestoreMatchingProperty( ref _maskscope, before._maskscope, after._maskscope, "mask-scope", before, after, written );
+		RestoreMatchingProperty( ref _backgroundsizex, before._backgroundsizex, after._backgroundsizex, "background-size-x", before, after, written );
+		RestoreMatchingProperty( ref _backgroundsizey, before._backgroundsizey, after._backgroundsizey, "background-size-y", before, after, written );
+		RestoreMatchingProperty( ref _backgroundpositionx, before._backgroundpositionx, after._backgroundpositionx, "background-position-x", before, after, written );
+		RestoreMatchingProperty( ref _backgroundpositiony, before._backgroundpositiony, after._backgroundpositiony, "background-position-y", before, after, written );
+		RestoreMatchingProperty( ref _backgroundrepeat, before._backgroundrepeat, after._backgroundrepeat, "background-repeat", before, after, written );
+		RestoreMatchingProperty( ref _backgroundclip, before._backgroundclip, after._backgroundclip, "background-clip", before, after, written );
+		RestoreMatchingProperty( ref _borderimagewidthleft, before._borderimagewidthleft, after._borderimagewidthleft, "border-image-width-left", before, after, written );
+		RestoreMatchingProperty( ref _borderimagewidthright, before._borderimagewidthright, after._borderimagewidthright, "border-image-width-right", before, after, written );
+		RestoreMatchingProperty( ref _borderimagewidthtop, before._borderimagewidthtop, after._borderimagewidthtop, "border-image-width-top", before, after, written );
+		RestoreMatchingProperty( ref _borderimagewidthbottom, before._borderimagewidthbottom, after._borderimagewidthbottom, "border-image-width-bottom", before, after, written );
+		RestoreMatchingProperty( ref _borderimagefill, before._borderimagefill, after._borderimagefill, "border-image-fill", before, after, written );
+		RestoreMatchingProperty( ref _borderimagerepeat, before._borderimagerepeat, after._borderimagerepeat, "border-image-repeat", before, after, written );
+		RestoreMatchingProperty( ref _borderimagetint, before._borderimagetint, after._borderimagetint, "border-image-tint", before, after, written );
+		RestoreMatchingProperty( ref _backgroundblendmode, before._backgroundblendmode, after._backgroundblendmode, "background-blend-mode", before, after, written );
+		RestoreMatchingProperty( ref _backgroundtint, before._backgroundtint, after._backgroundtint, "background-tint", before, after, written );
+		RestoreMatchingProperty( ref _backgroundangle, before._backgroundangle, after._backgroundangle, "background-angle", before, after, written );
+		RestoreMatchingProperty( ref _textbackgroundangle, before._textbackgroundangle, after._textbackgroundangle, "text-background-angle", before, after, written );
+		RestoreMatchingProperty( ref _perspectiveoriginx, before._perspectiveoriginx, after._perspectiveoriginx, "perspective-origin-x", before, after, written );
+		RestoreMatchingProperty( ref _perspectiveoriginy, before._perspectiveoriginy, after._perspectiveoriginy, "perspective-origin-y", before, after, written );
+		RestoreMatchingProperty( ref _textstrokecolor, before._textstrokecolor, after._textstrokecolor, "text-stroke-color", before, after, written );
+		RestoreMatchingProperty( ref _textstrokewidth, before._textstrokewidth, after._textstrokewidth, "text-stroke-width", before, after, written );
+		RestoreMatchingProperty( ref _imagerendering, before._imagerendering, after._imagerendering, "image-rendering", before, after, written );
+		RestoreMatchingProperty( ref _animationdelay, before._animationdelay, after._animationdelay, "animation-delay", before, after, written );
+		RestoreMatchingProperty( ref _animationdirection, before._animationdirection, after._animationdirection, "animation-direction", before, after, written );
+		RestoreMatchingProperty( ref _animationduration, before._animationduration, after._animationduration, "animation-duration", before, after, written );
+		RestoreMatchingProperty( ref _animationfillmode, before._animationfillmode, after._animationfillmode, "animation-fill-mode", before, after, written );
+		RestoreMatchingProperty( ref _animationiterationcount, before._animationiterationcount, after._animationiterationcount, "animation-iteration-count", before, after, written );
+		RestoreMatchingProperty( ref _animationname, before._animationname, after._animationname, "animation-name", before, after, written );
+		RestoreMatchingProperty( ref _animationplaystate, before._animationplaystate, after._animationplaystate, "animation-play-state", before, after, written );
+		RestoreMatchingProperty( ref _animationtimingfunction, before._animationtimingfunction, after._animationtimingfunction, "animation-timing-function", before, after, written );
+		RestoreMatchingProperty( ref _fontsmooth, before._fontsmooth, after._fontsmooth, "font-smooth", before, after, written );
+		RestoreMatchingProperty( ref _objectfit, before._objectfit, after._objectfit, "object-fit", before, after, written );
+		RestoreMatchingProperty( ref _outlinewidth, before._outlinewidth, after._outlinewidth, "outline-width", before, after, written );
+		RestoreMatchingProperty( ref _outlinecolor, before._outlinecolor, after._outlinecolor, "outline-color", before, after, written );
+		RestoreMatchingProperty( ref _outlineoffset, before._outlineoffset, after._outlineoffset, "outline-offset", before, after, written );
+		RestoreMatchingProperty( ref _isolation, before._isolation, after._isolation, "isolation", before, after, written );
+		RestoreMatchingProperty( ref _scrollbarwidth, before._scrollbarwidth, after._scrollbarwidth, "scrollbar-width", before, after, written );
+		RestoreMatchingProperty( ref _overscrollbehaviorx, before._overscrollbehaviorx, after._overscrollbehaviorx, "overscroll-behavior-x", before, after, written );
+		RestoreMatchingProperty( ref _overscrollbehaviory, before._overscrollbehaviory, after._overscrollbehaviory, "overscroll-behavior-y", before, after, written );
+		RestoreMatchingProperty( ref _scrollbargutter, before._scrollbargutter, after._scrollbargutter, "scrollbar-gutter", before, after, written );
+		RestoreMatchingProperty( ref _scrollbarthumbcolor, before._scrollbarthumbcolor, after._scrollbarthumbcolor, "scrollbar-thumb-color", before, after, written );
+		RestoreMatchingProperty( ref _scrollbartrackcolor, before._scrollbartrackcolor, after._scrollbartrackcolor, "scrollbar-track-color", before, after, written );
+	}
+
+	private void TrackAddedPropertiesGenerated( BaseStyles source )
+	{
+		if ( source._content != null ) OnPropertySet( "content" );
+		if ( source._width != null ) OnPropertySet( "width" );
+		if ( source._minwidth != null ) OnPropertySet( "min-width" );
+		if ( source._maxwidth != null ) OnPropertySet( "max-width" );
+		if ( source._height != null ) OnPropertySet( "height" );
+		if ( source._minheight != null ) OnPropertySet( "min-height" );
+		if ( source._maxheight != null ) OnPropertySet( "max-height" );
+		if ( source._left != null ) OnPropertySet( "left" );
+		if ( source._top != null ) OnPropertySet( "top" );
+		if ( source._right != null ) OnPropertySet( "right" );
+		if ( source._bottom != null ) OnPropertySet( "bottom" );
+		if ( source._opacity != null ) OnPropertySet( "opacity" );
+		if ( source._backgroundcolor != null ) OnPropertySet( "background-color" );
+		if ( source._paddingleft != null ) OnPropertySet( "padding-left" );
+		if ( source._paddingtop != null ) OnPropertySet( "padding-top" );
+		if ( source._paddingright != null ) OnPropertySet( "padding-right" );
+		if ( source._paddingbottom != null ) OnPropertySet( "padding-bottom" );
+		if ( source._marginleft != null ) OnPropertySet( "margin-left" );
+		if ( source._margintop != null ) OnPropertySet( "margin-top" );
+		if ( source._marginright != null ) OnPropertySet( "margin-right" );
+		if ( source._marginbottom != null ) OnPropertySet( "margin-bottom" );
+		if ( source._bordertopleftradius != null ) OnPropertySet( "border-top-left-radius" );
+		if ( source._bordertoprightradius != null ) OnPropertySet( "border-top-right-radius" );
+		if ( source._borderbottomrightradius != null ) OnPropertySet( "border-bottom-right-radius" );
+		if ( source._borderbottomleftradius != null ) OnPropertySet( "border-bottom-left-radius" );
+		if ( source._bordertopleftradiusv != null ) OnPropertySet( "border-top-left-radius-v" );
+		if ( source._bordertoprightradiusv != null ) OnPropertySet( "border-top-right-radius-v" );
+		if ( source._borderbottomrightradiusv != null ) OnPropertySet( "border-bottom-right-radius-v" );
+		if ( source._borderbottomleftradiusv != null ) OnPropertySet( "border-bottom-left-radius-v" );
+		if ( source._borderleftwidth != null ) OnPropertySet( "border-left-width" );
+		if ( source._bordertopwidth != null ) OnPropertySet( "border-top-width" );
+		if ( source._borderrightwidth != null ) OnPropertySet( "border-right-width" );
+		if ( source._borderbottomwidth != null ) OnPropertySet( "border-bottom-width" );
+		if ( source._borderstyle != null ) OnPropertySet( "border-style" );
+		if ( source._borderleftcolor != null ) OnPropertySet( "border-left-color" );
+		if ( source._bordertopcolor != null ) OnPropertySet( "border-top-color" );
+		if ( source._borderrightcolor != null ) OnPropertySet( "border-right-color" );
+		if ( source._borderbottomcolor != null ) OnPropertySet( "border-bottom-color" );
+		if ( source._fontsize != null ) OnPropertySet( "font-size" );
+		if ( source._fontcolor != null ) OnPropertySet( "font-color" );
+		if ( source._fontweight != null ) OnPropertySet( "font-weight" );
+		if ( source._fontfamily != null ) OnPropertySet( "font-family" );
+		if ( source._caretcolor != null ) OnPropertySet( "caret-color" );
+		if ( source._cursor != null ) OnPropertySet( "cursor" );
+		if ( source._pointerevents != null ) OnPropertySet( "pointer-events" );
+		if ( source._mixblendmode != null ) OnPropertySet( "mix-blend-mode" );
+		if ( source._position != null ) OnPropertySet( "position" );
+		if ( source._overflowx != null ) OnPropertySet( "overflow-x" );
+		if ( source._overflowy != null ) OnPropertySet( "overflow-y" );
+		if ( source._flexdirection != null ) OnPropertySet( "flex-direction" );
+		if ( source._justifycontent != null ) OnPropertySet( "justify-content" );
+		if ( source._justifyitems != null ) OnPropertySet( "justify-items" );
+		if ( source._justifyself != null ) OnPropertySet( "justify-self" );
+		if ( source._display != null ) OnPropertySet( "display" );
+		if ( source._gridtemplatecolumns != null ) OnPropertySet( "grid-template-columns" );
+		if ( source._gridtemplaterows != null ) OnPropertySet( "grid-template-rows" );
+		if ( source._gridautocolumns != null ) OnPropertySet( "grid-auto-columns" );
+		if ( source._gridautorows != null ) OnPropertySet( "grid-auto-rows" );
+		if ( source._gridautoflow != null ) OnPropertySet( "grid-auto-flow" );
+		if ( source._gridcolumnstart != null ) OnPropertySet( "grid-column-start" );
+		if ( source._gridcolumnend != null ) OnPropertySet( "grid-column-end" );
+		if ( source._gridrowstart != null ) OnPropertySet( "grid-row-start" );
+		if ( source._gridrowend != null ) OnPropertySet( "grid-row-end" );
+		if ( source._flexwrap != null ) OnPropertySet( "flex-wrap" );
+		if ( source._aligncontent != null ) OnPropertySet( "align-content" );
+		if ( source._alignself != null ) OnPropertySet( "align-self" );
+		if ( source._alignitems != null ) OnPropertySet( "align-items" );
+		if ( source._flexbasis != null ) OnPropertySet( "flex-basis" );
+		if ( source._flexgrow != null ) OnPropertySet( "flex-grow" );
+		if ( source._flexshrink != null ) OnPropertySet( "flex-shrink" );
+		if ( source._rowgap != null ) OnPropertySet( "row-gap" );
+		if ( source._columngap != null ) OnPropertySet( "column-gap" );
+		if ( source._aspectratio != null ) OnPropertySet( "aspect-ratio" );
+		if ( source._textalign != null ) OnPropertySet( "text-align" );
+		if ( source._textoverflow != null ) OnPropertySet( "text-overflow" );
+		if ( source._textfilter != null ) OnPropertySet( "text-filter" );
+		if ( source._wordbreak != null ) OnPropertySet( "word-break" );
+		if ( source._textdecorationline != null ) OnPropertySet( "text-decoration-line" );
+		if ( source._textdecorationcolor != null ) OnPropertySet( "text-decoration-color" );
+		if ( source._textdecorationthickness != null ) OnPropertySet( "text-decoration-thickness" );
+		if ( source._textdecorationskipink != null ) OnPropertySet( "text-decoration-skip-ink" );
+		if ( source._textdecorationstyle != null ) OnPropertySet( "text-decoration-style" );
+		if ( source._textunderlineoffset != null ) OnPropertySet( "text-underline-offset" );
+		if ( source._textoverlineoffset != null ) OnPropertySet( "text-overline-offset" );
+		if ( source._textlinethroughoffset != null ) OnPropertySet( "text-line-through-offset" );
+		if ( source._fontstyle != null ) OnPropertySet( "font-style" );
+		if ( source._fontvariantnumeric != null ) OnPropertySet( "font-variant-numeric" );
+		if ( source._transform != null ) OnPropertySet( "transform" );
+		if ( source._texttransform != null ) OnPropertySet( "text-transform" );
+		if ( source._transformoriginx != null ) OnPropertySet( "transform-origin-x" );
+		if ( source._transformoriginy != null ) OnPropertySet( "transform-origin-y" );
+		if ( source._letterspacing != null ) OnPropertySet( "letter-spacing" );
+		if ( source._lineheight != null ) OnPropertySet( "line-height" );
+		if ( source._wordspacing != null ) OnPropertySet( "word-spacing" );
+		if ( source._whitespace != null ) OnPropertySet( "white-space" );
+		if ( source._zindex != null ) OnPropertySet( "z-index" );
+		if ( source._order != null ) OnPropertySet( "order" );
+		if ( source._soundin != null ) OnPropertySet( "sound-in" );
+		if ( source._soundout != null ) OnPropertySet( "sound-out" );
+		if ( source._backdropfilterblur != null ) OnPropertySet( "backdrop-filter-blur" );
+		if ( source._backdropfilterbrightness != null ) OnPropertySet( "backdrop-filter-brightness" );
+		if ( source._backdropfiltercontrast != null ) OnPropertySet( "backdrop-filter-contrast" );
+		if ( source._backdropfiltersaturate != null ) OnPropertySet( "backdrop-filter-saturate" );
+		if ( source._backdropfiltersepia != null ) OnPropertySet( "backdrop-filter-sepia" );
+		if ( source._backdropfilterinvert != null ) OnPropertySet( "backdrop-filter-invert" );
+		if ( source._backdropfilterhuerotate != null ) OnPropertySet( "backdrop-filter-hue-rotate" );
+		if ( source._filterblur != null ) OnPropertySet( "filter-blur" );
+		if ( source._filtersaturate != null ) OnPropertySet( "filter-saturate" );
+		if ( source._filtersepia != null ) OnPropertySet( "filter-sepia" );
+		if ( source._filterbrightness != null ) OnPropertySet( "filter-brightness" );
+		if ( source._filterhuerotate != null ) OnPropertySet( "filter-hue-rotate" );
+		if ( source._filterinvert != null ) OnPropertySet( "filter-invert" );
+		if ( source._filtercontrast != null ) OnPropertySet( "filter-contrast" );
+		if ( source._filtertint != null ) OnPropertySet( "filter-tint" );
+		if ( source._filterborderwidth != null ) OnPropertySet( "filter-border-width" );
+		if ( source._filterbordercolor != null ) OnPropertySet( "filter-border-color" );
+		if ( source._maskmode != null ) OnPropertySet( "mask-mode" );
+		if ( source._maskrepeat != null ) OnPropertySet( "mask-repeat" );
+		if ( source._masksizex != null ) OnPropertySet( "mask-size-x" );
+		if ( source._masksizey != null ) OnPropertySet( "mask-size-y" );
+		if ( source._maskpositionx != null ) OnPropertySet( "mask-position-x" );
+		if ( source._maskpositiony != null ) OnPropertySet( "mask-position-y" );
+		if ( source._maskangle != null ) OnPropertySet( "mask-angle" );
+		if ( source._maskscope != null ) OnPropertySet( "mask-scope" );
+		if ( source._backgroundsizex != null ) OnPropertySet( "background-size-x" );
+		if ( source._backgroundsizey != null ) OnPropertySet( "background-size-y" );
+		if ( source._backgroundpositionx != null ) OnPropertySet( "background-position-x" );
+		if ( source._backgroundpositiony != null ) OnPropertySet( "background-position-y" );
+		if ( source._backgroundrepeat != null ) OnPropertySet( "background-repeat" );
+		if ( source._backgroundclip != null ) OnPropertySet( "background-clip" );
+		if ( source._borderimagewidthleft != null ) OnPropertySet( "border-image-width-left" );
+		if ( source._borderimagewidthright != null ) OnPropertySet( "border-image-width-right" );
+		if ( source._borderimagewidthtop != null ) OnPropertySet( "border-image-width-top" );
+		if ( source._borderimagewidthbottom != null ) OnPropertySet( "border-image-width-bottom" );
+		if ( source._borderimagefill != null ) OnPropertySet( "border-image-fill" );
+		if ( source._borderimagerepeat != null ) OnPropertySet( "border-image-repeat" );
+		if ( source._borderimagetint != null ) OnPropertySet( "border-image-tint" );
+		if ( source._backgroundblendmode != null ) OnPropertySet( "background-blend-mode" );
+		if ( source._backgroundtint != null ) OnPropertySet( "background-tint" );
+		if ( source._backgroundangle != null ) OnPropertySet( "background-angle" );
+		if ( source._textbackgroundangle != null ) OnPropertySet( "text-background-angle" );
+		if ( source._perspectiveoriginx != null ) OnPropertySet( "perspective-origin-x" );
+		if ( source._perspectiveoriginy != null ) OnPropertySet( "perspective-origin-y" );
+		if ( source._textstrokecolor != null ) OnPropertySet( "text-stroke-color" );
+		if ( source._textstrokewidth != null ) OnPropertySet( "text-stroke-width" );
+		if ( source._imagerendering != null ) OnPropertySet( "image-rendering" );
+		if ( source._animationdelay != null ) OnPropertySet( "animation-delay" );
+		if ( source._animationdirection != null ) OnPropertySet( "animation-direction" );
+		if ( source._animationduration != null ) OnPropertySet( "animation-duration" );
+		if ( source._animationfillmode != null ) OnPropertySet( "animation-fill-mode" );
+		if ( source._animationiterationcount != null ) OnPropertySet( "animation-iteration-count" );
+		if ( source._animationname != null ) OnPropertySet( "animation-name" );
+		if ( source._animationplaystate != null ) OnPropertySet( "animation-play-state" );
+		if ( source._animationtimingfunction != null ) OnPropertySet( "animation-timing-function" );
+		if ( source._fontsmooth != null ) OnPropertySet( "font-smooth" );
+		if ( source._objectfit != null ) OnPropertySet( "object-fit" );
+		if ( source._outlinewidth != null ) OnPropertySet( "outline-width" );
+		if ( source._outlinecolor != null ) OnPropertySet( "outline-color" );
+		if ( source._outlineoffset != null ) OnPropertySet( "outline-offset" );
+		if ( source._isolation != null ) OnPropertySet( "isolation" );
+		if ( source._scrollbarwidth != null ) OnPropertySet( "scrollbar-width" );
+		if ( source._overscrollbehaviorx != null ) OnPropertySet( "overscroll-behavior-x" );
+		if ( source._overscrollbehaviory != null ) OnPropertySet( "overscroll-behavior-y" );
+		if ( source._scrollbargutter != null ) OnPropertySet( "scrollbar-gutter" );
+		if ( source._scrollbarthumbcolor != null ) OnPropertySet( "scrollbar-thumb-color" );
+		if ( source._scrollbartrackcolor != null ) OnPropertySet( "scrollbar-track-color" );
 	}
 
 	/// <summary>
@@ -3999,6 +4508,322 @@ public abstract partial class BaseStyles
 		}
 	}
 	
+	internal void TrackLerpedPropertyGenerated( string name, BaseStyles from, BaseStyles to )
+	{
+		switch ( name )
+		{
+			case "width":
+				if ( (from._width).HasValue || (to._width).HasValue ) OnPropertySet( name );
+				break;
+			case "min-width":
+				if ( (from._minwidth).HasValue || (to._minwidth).HasValue ) OnPropertySet( name );
+				break;
+			case "max-width":
+				if ( (from._maxwidth).HasValue || (to._maxwidth).HasValue ) OnPropertySet( name );
+				break;
+			case "height":
+				if ( (from._height).HasValue || (to._height).HasValue ) OnPropertySet( name );
+				break;
+			case "min-height":
+				if ( (from._minheight).HasValue || (to._minheight).HasValue ) OnPropertySet( name );
+				break;
+			case "max-height":
+				if ( (from._maxheight).HasValue || (to._maxheight).HasValue ) OnPropertySet( name );
+				break;
+			case "left":
+				if ( (from._left).HasValue || (to._left).HasValue ) OnPropertySet( name );
+				break;
+			case "top":
+				if ( (from._top).HasValue || (to._top).HasValue ) OnPropertySet( name );
+				break;
+			case "right":
+				if ( (from._right).HasValue || (to._right).HasValue ) OnPropertySet( name );
+				break;
+			case "bottom":
+				if ( (from._bottom).HasValue || (to._bottom).HasValue ) OnPropertySet( name );
+				break;
+			case "opacity":
+				if ( (from._opacity).HasValue || (to._opacity).HasValue ) OnPropertySet( name );
+				break;
+			case "background-color":
+				if ( (from._backgroundcolor).HasValue || (to._backgroundcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "padding-left":
+				if ( (from._paddingleft).HasValue || (to._paddingleft).HasValue ) OnPropertySet( name );
+				break;
+			case "padding-top":
+				if ( (from._paddingtop).HasValue || (to._paddingtop).HasValue ) OnPropertySet( name );
+				break;
+			case "padding-right":
+				if ( (from._paddingright).HasValue || (to._paddingright).HasValue ) OnPropertySet( name );
+				break;
+			case "padding-bottom":
+				if ( (from._paddingbottom).HasValue || (to._paddingbottom).HasValue ) OnPropertySet( name );
+				break;
+			case "margin-left":
+				if ( (from._marginleft).HasValue || (to._marginleft).HasValue ) OnPropertySet( name );
+				break;
+			case "margin-top":
+				if ( (from._margintop).HasValue || (to._margintop).HasValue ) OnPropertySet( name );
+				break;
+			case "margin-right":
+				if ( (from._marginright).HasValue || (to._marginright).HasValue ) OnPropertySet( name );
+				break;
+			case "margin-bottom":
+				if ( (from._marginbottom).HasValue || (to._marginbottom).HasValue ) OnPropertySet( name );
+				break;
+			case "border-top-left-radius":
+				if ( (from._bordertopleftradius).HasValue || (to._bordertopleftradius).HasValue ) OnPropertySet( name );
+				break;
+			case "border-top-right-radius":
+				if ( (from._bordertoprightradius).HasValue || (to._bordertoprightradius).HasValue ) OnPropertySet( name );
+				break;
+			case "border-bottom-right-radius":
+				if ( (from._borderbottomrightradius).HasValue || (to._borderbottomrightradius).HasValue ) OnPropertySet( name );
+				break;
+			case "border-bottom-left-radius":
+				if ( (from._borderbottomleftradius).HasValue || (to._borderbottomleftradius).HasValue ) OnPropertySet( name );
+				break;
+			case "border-top-left-radius-v":
+				if ( (from._bordertopleftradiusv ?? from._bordertopleftradius).HasValue || (to._bordertopleftradiusv ?? to._bordertopleftradius).HasValue ) OnPropertySet( name );
+				break;
+			case "border-top-right-radius-v":
+				if ( (from._bordertoprightradiusv ?? from._bordertoprightradius).HasValue || (to._bordertoprightradiusv ?? to._bordertoprightradius).HasValue ) OnPropertySet( name );
+				break;
+			case "border-bottom-right-radius-v":
+				if ( (from._borderbottomrightradiusv ?? from._borderbottomrightradius).HasValue || (to._borderbottomrightradiusv ?? to._borderbottomrightradius).HasValue ) OnPropertySet( name );
+				break;
+			case "border-bottom-left-radius-v":
+				if ( (from._borderbottomleftradiusv ?? from._borderbottomleftradius).HasValue || (to._borderbottomleftradiusv ?? to._borderbottomleftradius).HasValue ) OnPropertySet( name );
+				break;
+			case "border-left-width":
+				if ( (from._borderleftwidth).HasValue || (to._borderleftwidth).HasValue ) OnPropertySet( name );
+				break;
+			case "border-top-width":
+				if ( (from._bordertopwidth).HasValue || (to._bordertopwidth).HasValue ) OnPropertySet( name );
+				break;
+			case "border-right-width":
+				if ( (from._borderrightwidth).HasValue || (to._borderrightwidth).HasValue ) OnPropertySet( name );
+				break;
+			case "border-bottom-width":
+				if ( (from._borderbottomwidth).HasValue || (to._borderbottomwidth).HasValue ) OnPropertySet( name );
+				break;
+			case "border-left-color":
+				if ( (from._borderleftcolor).HasValue || (to._borderleftcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "border-top-color":
+				if ( (from._bordertopcolor).HasValue || (to._bordertopcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "border-right-color":
+				if ( (from._borderrightcolor).HasValue || (to._borderrightcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "border-bottom-color":
+				if ( (from._borderbottomcolor).HasValue || (to._borderbottomcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "font-size":
+				if ( (from._fontsize).HasValue || (to._fontsize).HasValue ) OnPropertySet( name );
+				break;
+			case "font-color":
+				if ( (from._fontcolor).HasValue || (to._fontcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "font-weight":
+				if ( (from._fontweight).HasValue || (to._fontweight).HasValue ) OnPropertySet( name );
+				break;
+			case "caret-color":
+				if ( (from._caretcolor).HasValue || (to._caretcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "flex-basis":
+				if ( (from._flexbasis).HasValue || (to._flexbasis).HasValue ) OnPropertySet( name );
+				break;
+			case "flex-grow":
+				if ( (from._flexgrow).HasValue || (to._flexgrow).HasValue ) OnPropertySet( name );
+				break;
+			case "flex-shrink":
+				if ( (from._flexshrink).HasValue || (to._flexshrink).HasValue ) OnPropertySet( name );
+				break;
+			case "row-gap":
+				if ( (from._rowgap).HasValue || (to._rowgap).HasValue ) OnPropertySet( name );
+				break;
+			case "column-gap":
+				if ( (from._columngap).HasValue || (to._columngap).HasValue ) OnPropertySet( name );
+				break;
+			case "text-decoration-color":
+				if ( (from._textdecorationcolor).HasValue || (to._textdecorationcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "text-decoration-thickness":
+				if ( (from._textdecorationthickness).HasValue || (to._textdecorationthickness).HasValue ) OnPropertySet( name );
+				break;
+			case "text-underline-offset":
+				if ( (from._textunderlineoffset).HasValue || (to._textunderlineoffset).HasValue ) OnPropertySet( name );
+				break;
+			case "text-overline-offset":
+				if ( (from._textoverlineoffset).HasValue || (to._textoverlineoffset).HasValue ) OnPropertySet( name );
+				break;
+			case "text-line-through-offset":
+				if ( (from._textlinethroughoffset).HasValue || (to._textlinethroughoffset).HasValue ) OnPropertySet( name );
+				break;
+			case "transform":
+				if ( (from._transform).HasValue || (to._transform).HasValue ) OnPropertySet( name );
+				break;
+			case "transform-origin-x":
+				if ( (from._transformoriginx).HasValue || (to._transformoriginx).HasValue ) OnPropertySet( name );
+				break;
+			case "transform-origin-y":
+				if ( (from._transformoriginy).HasValue || (to._transformoriginy).HasValue ) OnPropertySet( name );
+				break;
+			case "letter-spacing":
+				if ( (from._letterspacing).HasValue || (to._letterspacing).HasValue ) OnPropertySet( name );
+				break;
+			case "line-height":
+				if ( (from._lineheight).HasValue || (to._lineheight).HasValue ) OnPropertySet( name );
+				break;
+			case "word-spacing":
+				if ( (from._wordspacing).HasValue || (to._wordspacing).HasValue ) OnPropertySet( name );
+				break;
+			case "z-index":
+				if ( (from._zindex).HasValue || (to._zindex).HasValue ) OnPropertySet( name );
+				break;
+			case "order":
+				if ( (from._order).HasValue || (to._order).HasValue ) OnPropertySet( name );
+				break;
+			case "backdrop-filter-blur":
+				if ( (from._backdropfilterblur).HasValue || (to._backdropfilterblur).HasValue ) OnPropertySet( name );
+				break;
+			case "backdrop-filter-brightness":
+				if ( (from._backdropfilterbrightness).HasValue || (to._backdropfilterbrightness).HasValue ) OnPropertySet( name );
+				break;
+			case "backdrop-filter-contrast":
+				if ( (from._backdropfiltercontrast).HasValue || (to._backdropfiltercontrast).HasValue ) OnPropertySet( name );
+				break;
+			case "backdrop-filter-saturate":
+				if ( (from._backdropfiltersaturate).HasValue || (to._backdropfiltersaturate).HasValue ) OnPropertySet( name );
+				break;
+			case "backdrop-filter-sepia":
+				if ( (from._backdropfiltersepia).HasValue || (to._backdropfiltersepia).HasValue ) OnPropertySet( name );
+				break;
+			case "backdrop-filter-invert":
+				if ( (from._backdropfilterinvert).HasValue || (to._backdropfilterinvert).HasValue ) OnPropertySet( name );
+				break;
+			case "backdrop-filter-hue-rotate":
+				if ( (from._backdropfilterhuerotate).HasValue || (to._backdropfilterhuerotate).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-blur":
+				if ( (from._filterblur).HasValue || (to._filterblur).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-saturate":
+				if ( (from._filtersaturate).HasValue || (to._filtersaturate).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-sepia":
+				if ( (from._filtersepia).HasValue || (to._filtersepia).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-brightness":
+				if ( (from._filterbrightness).HasValue || (to._filterbrightness).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-hue-rotate":
+				if ( (from._filterhuerotate).HasValue || (to._filterhuerotate).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-invert":
+				if ( (from._filterinvert).HasValue || (to._filterinvert).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-contrast":
+				if ( (from._filtercontrast).HasValue || (to._filtercontrast).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-tint":
+				if ( (from._filtertint).HasValue || (to._filtertint).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-border-width":
+				if ( (from._filterborderwidth).HasValue || (to._filterborderwidth).HasValue ) OnPropertySet( name );
+				break;
+			case "filter-border-color":
+				if ( (from._filterbordercolor).HasValue || (to._filterbordercolor).HasValue ) OnPropertySet( name );
+				break;
+			case "mask-size-x":
+				if ( (from._masksizex).HasValue || (to._masksizex).HasValue ) OnPropertySet( name );
+				break;
+			case "mask-size-y":
+				if ( (from._masksizey).HasValue || (to._masksizey).HasValue ) OnPropertySet( name );
+				break;
+			case "mask-position-x":
+				if ( (from._maskpositionx).HasValue || (to._maskpositionx).HasValue ) OnPropertySet( name );
+				break;
+			case "mask-position-y":
+				if ( (from._maskpositiony).HasValue || (to._maskpositiony).HasValue ) OnPropertySet( name );
+				break;
+			case "mask-angle":
+				if ( (from._maskangle).HasValue || (to._maskangle).HasValue ) OnPropertySet( name );
+				break;
+			case "background-size-x":
+				if ( (from._backgroundsizex).HasValue || (to._backgroundsizex).HasValue ) OnPropertySet( name );
+				break;
+			case "background-size-y":
+				if ( (from._backgroundsizey).HasValue || (to._backgroundsizey).HasValue ) OnPropertySet( name );
+				break;
+			case "background-position-x":
+				if ( (from._backgroundpositionx).HasValue || (to._backgroundpositionx).HasValue ) OnPropertySet( name );
+				break;
+			case "background-position-y":
+				if ( (from._backgroundpositiony).HasValue || (to._backgroundpositiony).HasValue ) OnPropertySet( name );
+				break;
+			case "border-image-width-left":
+				if ( (from._borderimagewidthleft).HasValue || (to._borderimagewidthleft).HasValue ) OnPropertySet( name );
+				break;
+			case "border-image-width-right":
+				if ( (from._borderimagewidthright).HasValue || (to._borderimagewidthright).HasValue ) OnPropertySet( name );
+				break;
+			case "border-image-width-top":
+				if ( (from._borderimagewidthtop).HasValue || (to._borderimagewidthtop).HasValue ) OnPropertySet( name );
+				break;
+			case "border-image-width-bottom":
+				if ( (from._borderimagewidthbottom).HasValue || (to._borderimagewidthbottom).HasValue ) OnPropertySet( name );
+				break;
+			case "border-image-tint":
+				if ( (from._borderimagetint).HasValue || (to._borderimagetint).HasValue ) OnPropertySet( name );
+				break;
+			case "background-tint":
+				if ( (from._backgroundtint).HasValue || (to._backgroundtint).HasValue ) OnPropertySet( name );
+				break;
+			case "background-angle":
+				if ( (from._backgroundangle).HasValue || (to._backgroundangle).HasValue ) OnPropertySet( name );
+				break;
+			case "text-background-angle":
+				if ( (from._textbackgroundangle).HasValue || (to._textbackgroundangle).HasValue ) OnPropertySet( name );
+				break;
+			case "perspective-origin-x":
+				if ( (from._perspectiveoriginx).HasValue || (to._perspectiveoriginx).HasValue ) OnPropertySet( name );
+				break;
+			case "perspective-origin-y":
+				if ( (from._perspectiveoriginy).HasValue || (to._perspectiveoriginy).HasValue ) OnPropertySet( name );
+				break;
+			case "text-stroke-color":
+				if ( (from._textstrokecolor).HasValue || (to._textstrokecolor).HasValue ) OnPropertySet( name );
+				break;
+			case "text-stroke-width":
+				if ( (from._textstrokewidth).HasValue || (to._textstrokewidth).HasValue ) OnPropertySet( name );
+				break;
+			case "animation-iteration-count":
+				if ( (from._animationiterationcount).HasValue || (to._animationiterationcount).HasValue ) OnPropertySet( name );
+				break;
+			case "outline-width":
+				if ( (from._outlinewidth).HasValue || (to._outlinewidth).HasValue ) OnPropertySet( name );
+				break;
+			case "outline-color":
+				if ( (from._outlinecolor).HasValue || (to._outlinecolor).HasValue ) OnPropertySet( name );
+				break;
+			case "outline-offset":
+				if ( (from._outlineoffset).HasValue || (to._outlineoffset).HasValue ) OnPropertySet( name );
+				break;
+			case "scrollbar-width":
+				if ( (from._scrollbarwidth).HasValue || (to._scrollbarwidth).HasValue ) OnPropertySet( name );
+				break;
+			case "scrollbar-thumb-color":
+				if ( (from._scrollbarthumbcolor).HasValue || (to._scrollbarthumbcolor).HasValue ) OnPropertySet( name );
+				break;
+			case "scrollbar-track-color":
+				if ( (from._scrollbartrackcolor).HasValue || (to._scrollbartrackcolor).HasValue ) OnPropertySet( name );
+				break;
+		}
+	}
+
 	/// <summary>
 	/// Perform a deep copy of this stylesheet
 	/// </summary>
@@ -4172,6 +4997,7 @@ public abstract partial class BaseStyles
 		copy._scrollbarthumbcolor = _scrollbarthumbcolor;
 		copy._scrollbartrackcolor = _scrollbartrackcolor;
 		copy.CssWide = CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( CssWide );
+		copy.OnStyleCloned( this );
 		return copy;
 	}
 

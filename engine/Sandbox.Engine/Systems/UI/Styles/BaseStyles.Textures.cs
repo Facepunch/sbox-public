@@ -21,6 +21,7 @@ namespace Sandbox.UI
 
 			set
 			{
+				OnPropertySet( "background-image" );
 				if ( _backgroundImage?.Value == value )
 					return;
 
@@ -40,6 +41,7 @@ namespace Sandbox.UI
 
 			set
 			{
+				OnPropertySet( "mask-image" );
 				if ( _maskImage?.Value == value )
 					return;
 
@@ -59,6 +61,7 @@ namespace Sandbox.UI
 
 			set
 			{
+				OnPropertySet( "border-image-source" );
 				if ( _borderImageSource?.Value == value )
 					return;
 
@@ -76,6 +79,7 @@ namespace Sandbox.UI
 			get => _backgroundPlaybackPaused;
 			set
 			{
+				OnPropertySet( "background-playback-state" );
 				if ( _backgroundPlaybackPaused == value ) return;
 				_backgroundPlaybackPaused = value;
 				Dirty();
