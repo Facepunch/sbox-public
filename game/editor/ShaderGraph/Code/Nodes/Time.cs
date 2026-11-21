@@ -14,6 +14,6 @@ public sealed class Time : ShaderNode
 	[Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return new NodeResult( 1, compiler.IsPreview ? "g_flPreviewTime" : "g_flTime", compiler.IsNotPreview );
+		return new NodeResult( NodeResultType.Float, compiler.IsPreview ? "g_flPreviewTime" : "g_flTime", compiler.IsNotPreview );
 	};
 }

@@ -59,7 +59,7 @@ public abstract class ParameterNode<T> : ShaderNode, IParameterNode, IErroringNo
 			return compiler.ResultValue( value );
 
 		var result = compiler.Result( new NodeInput { Identifier = Identifier, Output = nameof( Result ) } );
-		return new( 1, $"{result}.{component}", true );
+		return new( NodeResultType.Float, $"{result}.{component}", true );
 	}
 
 	public virtual object GetDefaultValue()
