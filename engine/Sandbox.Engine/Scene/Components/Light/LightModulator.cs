@@ -658,6 +658,21 @@ public sealed class LightModulator : Component, Component.ExecuteInEditor
 	}
 
 	/// <summary>
+	/// Pass light unchanged where it crosses the plane inside a <see cref="WaterHole"/>. Set on water caustics, so
+	/// dry hulls and docks don't get them.
+	/// </summary>
+	internal bool MaskWaterHoles
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			InvalidateData();
+		}
+	}
+
+	/// <summary>
 	/// Rectangle width along local Y and height along local Z, before object scaling.
 	/// For an infinite plane, this is the UV reference size when World Sized UVs is disabled.
 	/// </summary>
@@ -828,6 +843,7 @@ public sealed class LightModulator : Component, Component.ExecuteInEditor
 		data.HalfHeight = height * 0.5f;
 		data.WorldSizedUVs = WorldSizedUVs ? 1 : 0;
 		data.Infinite = Infinite ? 1 : 0;
+		data.MaskWaterHoles = MaskWaterHoles ? 1 : 0;
 		data.Tint = new Vector3( Tint.r, Tint.g, Tint.b );
 		data.MipLevel = FiniteClamp( MipLevel, 0, 12 );
 		data.DistanceMipBias = FiniteClamp( DistanceMipBias, 0, 4 );
@@ -942,6 +958,7 @@ internal struct LightModulatorData
 	internal Vector4 EffectParameters;
 	internal int WorldSizedUVs;
 	internal int Infinite;
+	internal int MaskWaterHoles;
 
 	/// <summary>
 	/// Conservative point/spot broad phase: distance to the rectangle or infinite plane versus light range.

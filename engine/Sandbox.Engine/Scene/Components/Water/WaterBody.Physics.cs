@@ -40,7 +40,7 @@ public sealed partial class WaterBody
 			return;
 
 		var bounds = body.PhysicsBody.GetBounds();
-		if ( !InFootprint( bounds.Center ) || !IntersectsFluid( bounds ) || BuoyancyOwner( body, collider, bounds ) != this )
+		if ( !InFootprint( bounds.Center, body.GameObject ) || !IntersectsFluid( bounds ) || BuoyancyOwner( body, collider, bounds ) != this )
 			return;
 
 		var local = ToSurface( bounds.Center );
@@ -76,7 +76,7 @@ public sealed partial class WaterBody
 			if ( water.Ocean && ocean is not null )
 				continue;
 
-			if ( !water.InFootprint( bounds.Center ) || !water.IntersectsFluid( bounds ) || !water.TouchesBody( body, contact ) )
+			if ( !water.InFootprint( bounds.Center, body.GameObject ) || !water.IntersectsFluid( bounds ) || !water.TouchesBody( body, contact ) )
 				continue;
 
 			if ( !water.Ocean )
