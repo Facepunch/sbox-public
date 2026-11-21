@@ -436,6 +436,20 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		TryToDirty();
 	}
 
+	protected override void OnPreRender()
+	{
+		// Baked and custom cubemaps are only sampled bindlessly, so request full detail
+		// every frame or texture streaming treats them as unused and evicts them.
+		var texture = Mode switch
+		{
+			EnvmapProbeMode.Baked => BakedTexture,
+			EnvmapProbeMode.CustomTexture => Texture,
+			_ => null
+		};
+
+		texture?.MarkUsed( ushort.MaxValue );
+	}
+
 	void TryToDirty()
 	{
 		if ( Mode != EnvmapProbeMode.Realtime )
