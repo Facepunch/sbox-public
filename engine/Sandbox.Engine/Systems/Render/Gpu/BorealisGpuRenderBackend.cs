@@ -505,6 +505,20 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 	int blockTimer = -1;
 
+	/// <summary>
+	/// After the last frame: drop what the last block and draw were given, which would hold their textures and material
+	/// past their owners, and the sheet cache. Blocks remake the set as they start, and sheets are written again when asked for.
+	/// </summary>
+	internal void ReleaseFrameState()
+	{
+		pendingAttributes = null;
+		pendingMaterial = null;
+		pendingShader = null;
+		blockAttributes = null;
+		reusedBlockAttributes = null;
+		ReleaseSheets();
+	}
+
 	// The block's attributes, which a draw's own are layered over, as Source 2's contexts layer them
 	RenderAttributes blockAttributes, reusedBlockAttributes;
 
@@ -567,16 +581,34 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		_ = Recording;
 		Span<uint> index = [(uint)TextureIndex( texture )];
+		if ( list.Queue == QueueType.Compute ) computeSlots |= 1 << slot;
 		context.MemoryBarrier();
 		context.UpdateBuffer( pipelineTextures, MemoryMarshal.AsBytes( index ), slot * 4 );
 	}
 
-	/// <summary>Name no pipeline textures for what draws after, in this block's list: what a frame starts with.</summary>
+	// Pipeline texture slots set on the async compute queue since the last clear (ambient occlusion, run early)
+	int computeSlots;
+
+	/// <summary>
+	/// Name no pipeline textures for what draws after, in this block's list: what a frame starts with. Slots the async compute
+	/// queue set for this frame (<see cref="SetPipelineTexture"/> in a compute block, before the frame's first stage) are left
+	/// as they are: that queue may be writing them while this one clears.
+	/// </summary>
 	internal void ClearPipelineTextures()
 	{
 		_ = Recording;
 		context.MemoryBarrier();
-		context.UpdateBuffer( pipelineTextures, stackalloc byte[16], 0 );
+		if ( computeSlots == 0 ) context.UpdateBuffer( pipelineTextures, stackalloc byte[16], 0 );
+		else
+		{
+			Span<byte> none = stackalloc byte[4];
+			for ( int slot = 0; slot < 4; slot++ )
+			{
+				if ( (computeSlots & (1 << slot)) == 0 ) context.UpdateBuffer( pipelineTextures, none, slot * 4 );
+			}
+		}
+
+		computeSlots = 0;
 	}
 
 	public override void EndBlock()
@@ -628,6 +660,19 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	public void Forget( SwapChain swapChain ) => acquiredIn.Remove( swapChain );
 
 	/// <summary>
+	/// How a game window presents with vsync off: <see cref="PresentMode.Immediate"/>, or what the environment variable
+	/// <c>BOREALIS_NOVSYNC_MODE</c> asks for (<c>mailbox</c>, <c>latest</c> for <see cref="PresentMode.FifoLatestReady"/>, <c>fifo</c>),
+	/// for comparing present modes in device-loss repros.
+	/// </summary>
+	internal static PresentMode NoVSyncMode { get; } = System.Environment.GetEnvironmentVariable( "BOREALIS_NOVSYNC_MODE" )?.ToLowerInvariant() switch
+	{
+		"mailbox" => PresentMode.Mailbox,
+		"fifo" => PresentMode.Fifo,
+		"latest" => PresentMode.FifoLatestReady,
+		_ => PresentMode.Immediate,
+	};
+
+	/// <summary>
 	/// A swap chain on a window, presenting with vsync or as soon as it can.
 	/// </summary>
 	public SwapChain CreateSwapChain( SurfaceSource surface, int width, int height, bool vsync ) => gpu.CreateSwapChain( new SwapChainInfo
@@ -635,7 +680,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		Surface = surface,
 		Width = width,
 		Height = height,
-		PresentMode = vsync ? PresentMode.Fifo : PresentMode.Immediate,
+		PresentMode = vsync ? PresentMode.Fifo : NoVSyncMode,
 		Linear = true,
 	} );
 

@@ -93,6 +93,51 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// Material.CommonInputs.hlsl's <c>TextureFiltering</c> takes its filter from the material's <c>F_TEXTURE_FILTERING</c>, as
+	/// vfx evaluates annotations with the material's features: anisotropic x8 by default, then bilinear, trilinear, point.
+	/// Through a pass module (water_simple's) each value is a variant of its own.
+	/// </summary>
+	[TestMethod]
+	public void TextureFilteringFollowsTheMaterialsFeature()
+	{
+		var annotations = new Dictionary<string, Annotations>();
+		var line = File.ReadAllLines( Path.Combine( Core, "shaders", "common", "utils", "Material.CommonInputs.hlsl" ) ).Single( l => l.Contains( "SamplerState TextureFiltering", StringComparison.Ordinal ) );
+		VfxIncludes.Rewrite( line + "\n", annotations );
+		var filtering = annotations["TextureFiltering"];
+		StringAssert.Contains( filtering.Filter, "F_TEXTURE_FILTERING == 0 ? ANISOTROPIC" );
+
+		SamplerInfo With( int value ) => BackendContext.SurfaceSampler( filtering, name => name == "F_TEXTURE_FILTERING" ? value : null );
+		var anisotropic = BackendContext.SurfaceSampler( filtering );
+		Assert.AreEqual( 8, anisotropic.MaxAnisotropy, "a feature at its default (0) is anisotropic" );
+		Assert.AreEqual( Filter.Linear, anisotropic.MipFilter );
+		Assert.AreEqual( 8, With( 0 ).MaxAnisotropy );
+		Assert.AreEqual( (1f, Filter.Linear, Filter.Nearest), (With( 1 ).MaxAnisotropy, With( 1 ).MinFilter, With( 1 ).MipFilter), "bilinear" );
+		Assert.AreEqual( (1f, Filter.Linear, Filter.Linear), (With( 2 ).MaxAnisotropy, With( 2 ).MinFilter, With( 2 ).MipFilter), "trilinear" );
+		Assert.AreEqual( (Filter.Nearest, Filter.Nearest), (With( 3 ).MinFilter, With( 3 ).MagFilter), "point" );
+		Assert.AreEqual( (Filter.Nearest, Filter.Nearest), (With( 4 ).MinFilter, With( 4 ).MagFilter), "nearest" );
+
+		using var backend = new BackendDevice( Device );
+		var shader = backend.Shaders.Load( "shaders/water_simple.shader" );
+		if ( shader is null ) Assert.Inconclusive( "water_simple isn't compiled" );
+		var index = shader.FeatureIndex( "F_TEXTURE_FILTERING" );
+		Assert.IsTrue( index >= 0 );
+		SamplerInfo[] Samplers( int value )
+		{
+			var features = new int[shader.Features.StaticCombos.Length];
+			features[index] = value;
+			var variant = backend.Shaders.Variant( shader, shader.Modes[0].Name, features );
+			Assert.IsNotNull( variant );
+			return [.. variant.Resources.Where( r => r.Kind == Borealis.Source2.Shaders.ShaderResourceKind.Sampler && r.Stages.HasFlag( ShaderStages.Fragment ) ).Select( r => r.Sampler )];
+		}
+
+		var byValue = Enumerable.Range( 0, 4 ).Select( Samplers ).ToArray();
+		for ( int v = 0; v < byValue.Length; v++ ) TestContext.WriteLine( $"F_TEXTURE_FILTERING {v}: {string.Join( ", ", byValue[v].Select( s => $"{s.MinFilter}/{s.MagFilter}/{s.MipFilter} x{s.MaxAnisotropy}" ) )}" );
+		Assert.IsTrue( byValue[0].Any( s => s.MaxAnisotropy == 8 && s.MipFilter == Filter.Linear ), "anisotropic x8 at 0" );
+		Assert.IsTrue( byValue[1].Any( s => s.MaxAnisotropy == 1 && s.MinFilter == Filter.Linear && s.MipFilter == Filter.Nearest ), "bilinear at 1" );
+		Assert.IsTrue( byValue[3].Any( s => s.MinFilter == Filter.Nearest && s.MagFilter == Filter.Nearest ), "point at 3" );
+	}
+
+	/// <summary>
 	/// A shader's own shorthand for annotations (macros a package's expanded includes define, as vfx's preprocessor expands
 	/// them) reads as what it stands for; macros that aren't annotations are left alone.
 	/// </summary>

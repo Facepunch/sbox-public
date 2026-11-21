@@ -284,6 +284,7 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public void BeginFrame()
 	{
+		FrameStarts[(int)((FrameNumber + 1) & (FrameHistory - 1))] = System.Diagnostics.Stopwatch.GetTimestamp();
 		var carried = CarryRecording();
 		RememberEvent( "frame starts:", (long)FrameNumber + 1 );
 
@@ -322,6 +323,7 @@ public sealed unsafe partial class Device
 		TrimSpares();
 		MakeUploadPagesAhead();
 		Allocator.Trim( FrameNumber );
+		RelocateDraining();
 		if ( FrameNumber % MemoryBudgetFrames == 0 ) RefreshMemoryBudget();
 	}
 
@@ -463,7 +465,13 @@ public sealed unsafe partial class Device
 	/// A command list to record into, from the current frame. Submit it with <see cref="Submit"/> in the same frame; it's
 	/// recycled once that frame's work has finished.
 	/// </summary>
-	public CommandList BeginCommandList( QueueType queue = QueueType.Graphics, string name = null )
+	public CommandList BeginCommandList( QueueType queue = QueueType.Graphics, string name = null ) => BeginList( queue, name, gate: true );
+
+	/// <summary>
+	/// <see cref="BeginCommandList(QueueType, string)"/>; a list made under a queue's submit lock (scope pairing) doesn't
+	/// take the gate (<see cref="EnterGate"/>): a move takes that lock to send everything first, and would wait on it.
+	/// </summary>
+	CommandList BeginList( QueueType queue, string name, bool gate )
 	{
 		if ( queue == QueueType.Compute && !Capabilities.AsyncCompute ) queue = QueueType.Graphics;
 
@@ -471,7 +479,7 @@ public sealed unsafe partial class Device
 
 		lock ( frame.Lists ) frame.Lists.Add( list );
 		list.Frame = FrameNumber;
-		list.Begin( name );
+		list.Begin( name, gate );
 		return list;
 	}
 
@@ -505,9 +513,21 @@ public sealed unsafe partial class Device
 		var signals = stackalloc VkSemaphoreSubmitInfo[2];
 		var signalCount = 1u;
 
+		// A second submission for the same acquired image would wait for an acquire already waited for, and signal a present
+		// semaphore already signalled: the queue would wait forever. It goes as an ordinary submission
+		if ( swapChain is not null && swapChain.SubmitsForImage > 0 )
+		{
+			swapChain.RepeatedSubmits++;
+			RememberEvent( "repeated submission for a swap chain image:", swapChain.SubmitsForImage );
+			Warn( "Borealis.Gpu.RepeatedSwapChainSubmit", "A swap chain image was submitted for twice before it was presented; the second went as an ordinary submission" + (swapChain.RepeatedSubmits == 1 ? " (first time, from:\n" + Environment.StackTrace + ")" : "") );
+			swapChain = null;
+		}
+
 		if ( swapChain is not null )
 		{
 			if ( !swapChain.HasImage ) throw new InvalidOperationException( "The swap chain has no acquired image to submit for" );
+			swapChain.SubmitsForImage++;
+			RememberEvent( "submitting for a swap chain image, list marker slot:", list.MarkerSlot );
 			waitInfos[waitCount++] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = swapChain.AcquireSemaphore, stageMask = Vulkan.Vk.Stage2AllCommands };
 			signals[signalCount++] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = swapChain.PresentSemaphore, stageMask = Vulkan.Vk.Stage2AllCommands };
 		}
@@ -545,6 +565,8 @@ public sealed unsafe partial class Device
 			Interlocked.Increment( ref submissions );
 			queue.Pending.Clear();
 			Volatile.Write( ref queue.Flushed, value );
+			ApplyLayouts( list );
+			list.LeaveGate();
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
 	}
@@ -568,6 +590,8 @@ public sealed unsafe partial class Device
 			Remember( queue, value, list, -1 );
 			queue.Pending.Add( list.Handle );
 			queue.Suspended = list.EndsSuspended ? list : null;
+			ApplyLayouts( list );
+			list.LeaveGate();
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
 	}
@@ -593,7 +617,7 @@ public sealed unsafe partial class Device
 	/// <summary>A list holding one empty rendering scope on <paramref name="targets"/>, to pair suspended and resumed scopes.</summary>
 	CommandList ScopeList( DeviceQueue queue, RenderingTargets targets, uint flags )
 	{
-		var list = BeginCommandList( queue.Type, "Rendering scope pairing" );
+		var list = BeginList( queue.Type, "Rendering scope pairing", gate: false );
 		list.RecordScope( targets, flags );
 		list.End();
 		Interlocked.Increment( ref scopePairings );
@@ -1021,6 +1045,8 @@ public sealed unsafe partial class Device
 		if ( binding != ShaderAbi.BindlessVertexCache && binding != ShaderAbi.BindlessPipelineTextures ) throw new ArgumentException( $"Binding {binding} isn't a bindless buffer" );
 		ref var record = ref Get( buffer );
 		Bindless.SetBuffer( binding, record.Buffer, (ulong)record.Size );
+		if ( binding == ShaderAbi.BindlessVertexCache ) vertexCacheBuffer = buffer;
+		else pipelineTexturesBuffer = buffer;
 	}
 
 	/// <summary>
@@ -1044,13 +1070,21 @@ public sealed unsafe partial class Device
 		if ( slot >= 0 ) return true;
 		if ( (record.Usage & BufferUsage.Storage) == 0 ) throw new ArgumentException( $"{record.Name} isn't a storage buffer" );
 
-		lock ( Bindless )
+		var gated = EnterGate();
+		try
 		{
-			slot = record.BindlessSlot - 1;
-			if ( slot >= 0 ) return true;
-			if ( !Bindless.TryAddBuffer( record.Buffer, 0, (ulong)record.Size, out slot, reserve ) ) return false;
-			record.BindlessSlot = slot + 1;
-			return true;
+			lock ( Bindless )
+			{
+				slot = record.BindlessSlot - 1;
+				if ( slot >= 0 ) return true;
+				if ( !Bindless.TryAddBuffer( record.Buffer, 0, (ulong)record.Size, out slot, reserve ) ) return false;
+				record.BindlessSlot = slot + 1;
+				return true;
+			}
+		}
+		finally
+		{
+			if ( gated ) ExitGate();
 		}
 	}
 

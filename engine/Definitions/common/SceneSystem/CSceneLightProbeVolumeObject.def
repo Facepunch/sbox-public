@@ -14,4 +14,14 @@ native class CSceneLightProbeVolumeObject as NativeEngine.CSceneLightProbeVolume
 	ITexture m_hLightProbeDirectLightScalarsTexture;
 
 	void CreateConstants();
+
+	inline int GetLightGroupCount()
+	{
+		return self->m_LightGroups.Count();
+	}
+
+	inline uint GetLightGroup( int i )
+	{
+		return self->m_LightGroups[ i ].GetHashCode();
+	}
 }

@@ -27,7 +27,6 @@ internal sealed partial class SceneBridge
 		if ( ChildDepth >= MaxChildDepth ) return false;
 		if ( views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var drawing ) && drawing.Rendering ) return false;
 
-		camera.ConfigureView( setup );
 		var exposure = camera.Tonemap?.GpuExposure( gpu )?.Scale ?? 1.0f;
 
 		ChildDepth++;
@@ -98,7 +97,6 @@ internal sealed partial class SceneBridge
 	{
 		if ( ChildDepth >= MaxChildDepth ) return;
 
-		camera.ConfigureView( setup );
 		var exposure = camera.Tonemap?.GpuExposure( gpu )?.Scale ?? 1.0f;
 
 		ChildDepth++;

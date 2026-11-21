@@ -157,9 +157,11 @@ public sealed unsafe class CommandList
 		Handle = buffer;
 	}
 
-	internal void Begin( string name )
+	internal void Begin( string name, bool gate = true )
 	{
 		Name = name;
+		gated = gate && device.EnterGate();
+		LayoutChangeCount = 0;
 		var info = new VkCommandBufferBeginInfo { sType = VkStructureType.CommandBufferBeginInfo, flags = Vulkan.Vk.CommandBufferOneTimeSubmit };
 		vk.vkBeginCommandBuffer( Handle, &info ).Check( "vkBeginCommandBuffer" );
 
@@ -200,9 +202,31 @@ public sealed unsafe class CommandList
 		recording = false;
 	}
 
+	// Its texture barriers in the order recorded, which the device applies to the textures' layouts when it's submitted
+	TextureBarrier[] layoutChanges = new TextureBarrier[16];
+
+	/// <summary>Texture barriers recorded (<see cref="LayoutChanges"/>).</summary>
+	internal int LayoutChangeCount { get; private set; }
+
+	/// <summary>The texture barriers recorded so far, in order.</summary>
+	internal ReadOnlySpan<TextureBarrier> LayoutChanges => layoutChanges.AsSpan( 0, LayoutChangeCount );
+
+	// Whether it holds the device's gate (Device.EnterGate) from its beginning until it's submitted: nothing moves under a
+	// list that may name what would move
+	bool gated;
+
+	/// <summary>Submitted (or given up): let the device move what it names again.</summary>
+	internal void LeaveGate()
+	{
+		if ( !gated ) return;
+		gated = false;
+		device.ExitGate();
+	}
+
 	/// <summary>Its frame has finished: reset it for reuse.</summary>
 	internal void Recycle()
 	{
+		LeaveGate();
 		if ( recording )
 		{
 			// Recorded but never submitted
@@ -244,6 +268,7 @@ public sealed unsafe class CommandList
 
 	internal void Destroy()
 	{
+		LeaveGate();
 		foreach ( var p in descriptorPools ) vk.vkDestroyDescriptorPool( vk.Device, p, null );
 		descriptorPools.Clear();
 		foreach ( var p in pages ) device.Destroy( p.Buffer );
@@ -315,6 +340,9 @@ public sealed unsafe class CommandList
 		Recording();
 		if ( !rendering ) Act();
 		FlushBarriers();
+
+		// A graphics stage on the async compute queue: when everything before it has finished
+		if ( Queue == QueueType.Compute && ((ulong)stage & ComputeQueueStages) == 0 ) stage = PipelineStage.AllCommands;
 		vk.vkCmdWriteTimestamp2( Handle, (ulong)stage, queries.Pool, (uint)index );
 	}
 
@@ -470,6 +498,14 @@ public sealed unsafe class CommandList
 	{
 		OutsideRendering();
 		ref var record = ref device.Get( barrier.Texture );
+
+		// Where it leaves the texture, for the device to follow once the list is submitted (Device.ApplyLayouts)
+		if ( !record.External )
+		{
+			if ( LayoutChangeCount == layoutChanges.Length ) Array.Resize( ref layoutChanges, layoutChanges.Length * 2 );
+			layoutChanges[LayoutChangeCount++] = barrier;
+		}
+
 		var mips = barrier.MipCount > 0 ? (uint)barrier.MipCount : Vulkan.Vk.RemainingMipLevels;
 		var layers = barrier.LayerCount > 0 ? (uint)barrier.LayerCount : Vulkan.Vk.RemainingArrayLayers;
 
@@ -548,9 +584,51 @@ public sealed unsafe class CommandList
 		hasMemoryBarrier = true;
 	}
 
+	// What a compute-only queue's barriers may name: its stages, and the accesses those stages make
+	const ulong ComputeQueueStages = (ulong)(PipelineStage.TopOfPipe | PipelineStage.DrawIndirect | PipelineStage.ComputeShader | PipelineStage.Transfer
+		| PipelineStage.BottomOfPipe | PipelineStage.Host | PipelineStage.AllCommands);
+	const ulong ComputeQueueAccess = (ulong)(MemoryAccess.IndirectRead | MemoryAccess.UniformRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite
+		| MemoryAccess.TransferRead | MemoryAccess.TransferWrite | MemoryAccess.HostRead | MemoryAccess.HostWrite | MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite);
+
+	/// <summary>
+	/// On the async compute queue, a barrier keeps only the stages and accesses that queue has: the graphics stages a use
+	/// names (a texture sampled by pixel and compute shaders) have no work on it to wait for or block, and the queue that does
+	/// have them is ordered by the semaphores between the two.
+	/// </summary>
+	static void ForComputeQueue( ref ulong stages, ref ulong access )
+	{
+		stages &= ComputeQueueStages;
+		access = stages == 0 ? 0 : access & ComputeQueueAccess;
+	}
+
 	void FlushBarriers()
 	{
 		if ( imageBarrierCount == 0 && bufferBarrierCount == 0 && !hasMemoryBarrier ) return;
+
+		if ( Queue == QueueType.Compute )
+		{
+			for ( int i = 0; i < imageBarrierCount; i++ )
+			{
+				ref var b = ref imageBarriers[i];
+				ForComputeQueue( ref b.srcStageMask, ref b.srcAccessMask );
+				ForComputeQueue( ref b.dstStageMask, ref b.dstAccessMask );
+			}
+
+			for ( int i = 0; i < bufferBarrierCount; i++ )
+			{
+				ref var b = ref bufferBarriers[i];
+				ForComputeQueue( ref b.srcStageMask, ref b.srcAccessMask );
+				ForComputeQueue( ref b.dstStageMask, ref b.dstAccessMask );
+			}
+
+			if ( hasMemoryBarrier )
+			{
+				ForComputeQueue( ref memoryBarrier.srcStageMask, ref memoryBarrier.srcAccessMask );
+				ForComputeQueue( ref memoryBarrier.dstStageMask, ref memoryBarrier.dstAccessMask );
+				hasMemoryBarrier = memoryBarrier.srcStageMask != 0 || memoryBarrier.dstStageMask != 0;
+				if ( imageBarrierCount == 0 && bufferBarrierCount == 0 && !hasMemoryBarrier ) return;
+			}
+		}
 
 		fixed ( VkImageMemoryBarrier2* images = imageBarriers )
 		fixed ( VkBufferMemoryBarrier2* buffers = bufferBarriers )
@@ -1278,6 +1356,26 @@ public sealed unsafe class CommandList
 		};
 
 		vk.vkCmdCopyImageToBuffer( Handle, record.Image, VkImageLayout.TransferSrcOptimal, device.Get( destination ).Buffer, 1, &region );
+	}
+
+	/// <summary>
+	/// Copy <paramref name="layers"/> layers from <paramref name="layer"/> of one mip between textures made alike (every
+	/// aspect, every slice of a volume), from <see cref="ImageLayout.CopySource"/> to <see cref="ImageLayout.CopyDestination"/>.
+	/// </summary>
+	internal void CopyImage( TextureHandle source, TextureHandle destination, int mip, int layer, int layers )
+	{
+		OutsideRendering();
+		FlushBarriers();
+		ref var src = ref device.Get( source );
+		ref var dst = ref device.Get( destination );
+		var region = new VkImageCopy
+		{
+			srcSubresource = new VkImageSubresourceLayers { aspectMask = src.Aspect, mipLevel = (uint)mip, baseArrayLayer = (uint)layer, layerCount = (uint)layers },
+			dstSubresource = new VkImageSubresourceLayers { aspectMask = dst.Aspect, mipLevel = (uint)mip, baseArrayLayer = (uint)layer, layerCount = (uint)layers },
+			extent = new VkExtent3D { width = (uint)Math.Max( src.Info.Width >> mip, 1 ), height = (uint)Math.Max( src.Info.Height >> mip, 1 ), depth = (uint)VolumeDepth( in src.Info, mip ) },
+		};
+
+		vk.vkCmdCopyImage( Handle, src.Image, VkImageLayout.TransferSrcOptimal, dst.Image, VkImageLayout.TransferDstOptimal, 1, &region );
 	}
 
 	/// <summary>

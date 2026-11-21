@@ -68,6 +68,15 @@ internal sealed class EarlyStageLayer : RenderLayer
 	public override FrameResources Writes => Queue == StageQueue.AsyncCompute ? FrameResources.AmbientOcclusion : FrameResources.Reflections;
 	public override bool SupportsAsyncCompute => Queue == StageQueue.AsyncCompute;
 
+	/// <summary>
+	/// The prepass's depth readable by compute, on graphics, for the effects that read it beside the depth chain: an
+	/// attachment's transition on the compute queue may need a decompression only graphics can do.
+	/// </summary>
+	public override void HandOff( RenderFrame frame, GpuContext rc )
+	{
+		if ( Queue == StageQueue.AsyncCompute ) rc.BarrierToComputeRead( frame.Output.Target.Depth );
+	}
+
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		if ( Queue == StageQueue.AsyncCompute ? rc.AsyncCompute : frame.AsyncCompute )

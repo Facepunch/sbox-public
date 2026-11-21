@@ -42,6 +42,12 @@ public class FootIKNode : VariationDataNode<FootIKNode.Data>
 	[Input( typeof( TargetLink ) ), Title( "Right Foot Target" )]
 	public NodeInput RightFootTarget { get; set; }
 
+	[Input( typeof( TargetLink ) )]
+	public NodeInput LeftPoleTarget { get; set; }
+
+	[Input( typeof( TargetLink ) )]
+	public NodeInput RightPoleTarget { get; set; }
+
 	[Input( typeof( BoolLink ) )]
 	public NodeInput Enable { get; set; }
 
@@ -50,6 +56,14 @@ public class FootIKNode : VariationDataNode<FootIKNode.Data>
 
 	[Property]
 	public bool IsTargetInWorldSpace { get; set; }
+
+	/// <summary>Choose the animated bend plane, the reference bend relative to each foot target, or independent knee poles.</summary>
+	[Property]
+	public GraphBuilder.IKSwivelMode SwivelMode { get; set; }
+
+	/// <summary>Rotate each knee around its hip-to-foot axis, in degrees.</summary>
+	[Property]
+	public float SwivelOffset { get; set; }
 
 	[Output( typeof( PoseLink ) )]
 	[JsonIgnore]
@@ -78,6 +92,15 @@ public class FootIKNode : VariationDataNode<FootIKNode.Data>
 			return child;
 		}
 
+		GraphBuilder.Node leftPole = null, rightPole = null;
+		if ( SwivelMode == GraphBuilder.IKSwivelMode.PoleTarget )
+		{
+			leftPole = compiler.EmitValue( this, LeftPoleTarget );
+			rightPole = compiler.EmitValue( this, RightPoleTarget );
+			if ( leftPole is null && rightPole is null )
+				compiler.Warn( "Foot IK has no pole targets connected" );
+		}
+
 		var enabled = compiler.EmitValue( this, Enable );
 		return compiler.Builder.FootIK(
 			child,
@@ -87,6 +110,10 @@ public class FootIKNode : VariationDataNode<FootIKNode.Data>
 			{
 				LeftTarget = left,
 				RightTarget = right,
+				LeftPoleTarget = leftPole,
+				RightPoleTarget = rightPole,
+				SwivelMode = SwivelMode,
+				SwivelOffset = SwivelOffset,
 				Enabled = enabled,
 				BlendTime = MathF.Max( data.BlendTime, 0 ),
 				BlendMode = BlendMode,

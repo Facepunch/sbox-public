@@ -39,6 +39,6 @@ internal sealed class BridgeDynamicObject : CustomObject
 
 		var layerType = (SceneLayerType)layer.LayerType;
 		if ( layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
-		BorealisGpuCustomDraw.Draw( context, layerType, view.View, draw ??= () => BorealisGpuCustomDraw.DrawDynamic( Source ) );
+		BorealisGpuCustomDraw.Draw( context, layerType, view.View, draw ??= () => BorealisGpuCustomDraw.DrawDynamic( Source ), cameraAttributes: BridgeCustomObject.CameraAttributes( view ) );
 	}
 }

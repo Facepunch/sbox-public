@@ -1,13 +1,15 @@
 {
   "HasHumanSkin": false,
   "HumanSkinModel": null,
-  "HumanSkinMaterial": null,
-  "HumanEyesMaterial": null,
   "HumanSkinBodyGroups": 0,
   "HumanSkinMaterialGroup": null,
   "HumanSkinTags": null,
+  "AllowedSlots": "All",
+  "HumanSkinMaterial": null,
+  "HumanEyesMaterial": null,
   "Title": "Long Bangs",
   "Subtitle": null,
+  "Type": "Clothing",
   "Category": "HairLong",
   "ConditionalModels": {},
   "Tags": null,
@@ -19,7 +21,7 @@
   "MaterialGroup": null,
   "HeelHeight": 0,
   "SlotsUnder": "HeadTop",
-  "SlotsOver": 0,
+  "SlotsOver": "None",
   "HideBody": 0,
   "DeformationMode": "Normal",
   "AllowTintSelect": true,
@@ -57,9 +59,9 @@
   "SteamItemDefinitionId": null,
   "Icon": {
     "Path": "models/citizen_clothes/hair/hair_long_bangs/hair_long_bangs.clothing.vtex",
-    "Mode": "Eyes",
-    "UsePositionOffset": false,
-    "PositionOffset": "0,0,0"
+    "Mode": "Head",
+    "UsePositionOffset": true,
+    "PositionOffset": "10.5700006,0.149999604,0.990000963"
   },
   "__references": [],
   "__version": 0

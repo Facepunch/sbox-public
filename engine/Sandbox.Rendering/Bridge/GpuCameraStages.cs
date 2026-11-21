@@ -54,6 +54,54 @@ internal sealed class GpuCameraStages : IRenderStages
 
 	void DrawStage() => Run( drawing, drawingStage );
 
+	/// <summary>
+	/// The camera's effects that can run ahead of <paramref name="stage"/> on <paramref name="queue"/> (ambient occlusion on
+	/// async compute, <see cref="BasePostProcess.EarlyQueue"/>), which Borealis's frame schedules when it overlaps compute.
+	/// </summary>
+	public bool HasEarlyPostProcess( RenderStage stage, StageQueue queue )
+		=> Camera is not null && Frame is not null && View is not null && Camera.HasEarlyPostProcess( (Stage)stage, (PostProcessQueue)queue );
+
+	/// <summary>
+	/// Run them in the frame's list for that queue, with no frame targets bound: the target's depth and depth chain readable,
+	/// as the frame's compute handoff left them. The stage then skips what ran (<c>RanEarly</c>); a frame that doesn't
+	/// overlap compute doesn't call this, and the stage runs them in its place.
+	/// </summary>
+	public void RenderEarlyPostProcess( RenderStage stage, StageQueue queue, in StageTarget target )
+	{
+		if ( Camera is null || Frame is null || View is null ) return;
+
+		var layer = View.LayerType;
+		(earlyStage, earlyQueue) = ((Stage)stage, (PostProcessQueue)queue);
+		View.LayerType = SceneLayerType.DepthPrepass;
+		try
+		{
+			Frame.RunStage( target, System.Frame.Constants, View, first: false, drawEarly ??= DrawEarly );
+		}
+		finally
+		{
+			View.LayerType = layer;
+		}
+	}
+
+	Stage earlyStage;
+	PostProcessQueue earlyQueue;
+	Action drawEarly;
+
+	bool earlyFailed;
+
+	void DrawEarly()
+	{
+		try
+		{
+			Camera?.RenderEarlyPostProcess( earlyStage, earlyQueue );
+		}
+		catch ( Exception e )
+		{
+			if ( !earlyFailed ) Log.Warning( e, $"Borealis.Gpu: {Camera?.Name}'s early {earlyStage} effects: {e.Message}" );
+			earlyFailed = true;
+		}
+	}
+
 	// The reflections' trace and history capture as delegates, made once per reflections pass
 	ScreenSpaceReflectionsPass reflectionsDrawn;
 	Action trace, captureHistory;

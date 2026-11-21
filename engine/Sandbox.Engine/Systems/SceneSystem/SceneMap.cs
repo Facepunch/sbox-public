@@ -1,4 +1,7 @@
-﻿using Borealis.Source2.World;
+﻿using Borealis.Source2;
+using Borealis.Source2.Models;
+using Borealis.Source2.Resources;
+using Borealis.Source2.World;
 using NativeEngine;
 using System.Threading;
 
@@ -13,9 +16,6 @@ public sealed partial class SceneMap : IValid
 	/// The scene world this map belongs to.
 	/// </summary>
 	public SceneWorld World { get; internal set; }
-
-	private IWorldReference WorldRef;
-	internal string WorldGroup { get; private set; }
 
 	/// <summary>
 	/// The map's visibility for network culling (<see cref="Scene.IsBBoxVisibleToConnection"/>), read from its compiled
@@ -53,45 +53,28 @@ public sealed partial class SceneMap : IValid
 	string fullVpkPath;
 
 	/// <summary>
-	/// The map's world geometry when Borealis.Gpu draws it straight from the compiled world, with no native world
-	/// (<see cref="LoadsManaged"/>); null when native's world renderer loaded it.
+	/// The map's world geometry, read from its compiled world by Borealis.Source2: Borealis.Gpu draws it, and traces hit it.
 	/// </summary>
 	internal MapGeometry Geometry { get; private set; }
 
-	// The default entity lump's entities, read with the managed world
+	// The default entity lump's entities, read with the world
 	IReadOnlyList<MapEntity> entities;
 
-	// The name the map's VPK was mounted under for native resources, while a managed world holds it
+	// The name the map's VPK was mounted under for native resources, while the map holds it
 	string mountedVpk;
 
-	/// <summary>
-	/// Whether maps load without native's world renderer: in a process that draws only on Borealis.Gpu (the game), where
-	/// nothing reads native scene objects (<see cref="SceneObject.WritesNative"/>). The editor keeps Source 2's device for
-	/// its native tools, captures and bakes, and loads maps natively for them.
-	/// </summary>
-	internal static bool LoadsManaged => LoadsManagedOverride ?? (!SceneObject.WritesNative && RenderBackend.Default is BorealisGpuRenderBackend);
-
-	/// <summary>Tests choose <see cref="LoadsManaged"/>; null follows the process.</summary>
-	internal static bool? LoadsManagedOverride { get; set; }
+	// The map's VPK, opened to read its world in a process without a Borealis.Gpu device (whose content keeps its own)
+	VpkFile package;
 
 	/// <summary>
 	/// Is the map valid.
 	/// </summary>
-	public bool IsValid => Geometry is not null || WorldRef.IsValid;
+	public bool IsValid => Geometry is not null;
 
 	/// <summary>
 	/// Bounds of the map.
 	/// </summary>
-	public BBox Bounds
-	{
-		get
-		{
-			if ( !IsValid ) return default;
-			if ( Geometry is not null ) return Geometry.Bounds;
-			WorldRef.GetWorldBounds( out var min, out var max );
-			return new BBox( min, max );
-		}
-	}
+	public BBox Bounds => IsValid ? Geometry.Bounds : default;
 
 	public Vector3 WorldOrigin
 	{
@@ -101,13 +84,7 @@ public sealed partial class SceneMap : IValid
 				return;
 
 			Origin = value;
-			if ( Geometry is not null )
-			{
-				Geometry.Origin = value;
-				return;
-			}
-
-			WorldRef.SetWorldTransform( new Transform( value ) );
+			Geometry.Origin = value;
 		}
 	}
 
@@ -137,11 +114,10 @@ public sealed partial class SceneMap : IValid
 	/// </summary>
 	internal SceneMap( SceneWorld sceneWorld, string map, MapLoader loader )
 	{
-		if ( !CreateWorld( sceneWorld, map, false, loader is null ? 0 : loader.WorldOrigin ) )
+		if ( !CreateWorld( sceneWorld, map, loader is null ? 0 : loader.WorldOrigin ) )
 			return;
 
-		CreateEntities( "default_ents", loader );
-		sceneWorld.UpdateObjectsForRendering();
+		CreateEntities( loader );
 	}
 
 	/// <summary>
@@ -149,21 +125,26 @@ public sealed partial class SceneMap : IValid
 	/// </summary>
 	internal static Action<string> OnMapUpdated;
 
-	private void CreateEntities( string map, MapLoader loader )
+	private void CreateEntities( MapLoader loader )
 	{
 		loader ??= new SceneMapLoader( World, null );
-		if ( Geometry is not null ) loader.CreateEntities( entities ?? [] );
-		else loader.CreateEntities( WorldRef, map );
+		loader.CreateEntities( entities ?? [] );
 	}
 
-	private bool CreateWorld( SceneWorld sceneWorld, string map, bool async, Vector3 origin )
+	/// <summary>
+	/// Load the map: its VPK mounted for the resources loaded by path (its entities' models, materials and probe textures),
+	/// its world and its default entity lump read by Borealis.Source2. With a Borealis.Gpu device the map's content is
+	/// added to the device's and Borealis's view of the scene world draws <see cref="Geometry"/>; without one (a server,
+	/// tests) the world is read from the map's VPK, for its entities, bounds and traces.
+	/// </summary>
+	private bool CreateWorld( SceneWorld sceneWorld, string map, Vector3 origin )
 	{
 		Assert.IsValid( sceneWorld );
 
 		MapFolder = System.IO.Path.ChangeExtension( map, null );
 		var vpk = MapFolder + ".vpk";
 
-		// CWorldRendererMgr::GetLocalMapName just strips maps/ from the start and uses that
+		// The map's name is its path without maps/ at the start
 		map = System.IO.Path.ChangeExtension( map, null );
 		map = map.TrimStart( '\\', '/', ' ' );
 		if ( map.StartsWith( "maps/" ) ) map = map[5..];
@@ -172,74 +153,9 @@ public sealed partial class SceneMap : IValid
 			return false;
 
 		MapName = map;
-
 		Origin = origin;
-		if ( LoadsManaged )
-			return CreateManagedWorld( sceneWorld, vpk, origin );
 
-		// Native doesn't load the world's visibility (owner, 2026-11-18): network culling reads it itself (Visibility)
-		const bool loadVis = false;
-		const bool precacheOnly = false;
-
-		var worldGroup = sceneWorld.native.GetWorldDebugName();
-		var worldRef = g_pWorldRendererMgr.CreateWorld(
-			MapFolder + ".vpk",
-			sceneWorld,
-			async,
-			true,
-			loadVis,
-			precacheOnly,
-			worldGroup, // Worldgroup ID
-			new Transform( origin ) );
-
-		if ( !worldRef.IsValid )
-		{
-			Log.Warning( $"{this}: Unable to create world for map {map}" );
-			return false;
-		}
-
-		lock ( sceneWorld.InternalSceneMaps )
-		{
-			Assert.False( sceneWorld.InternalSceneMaps.Any( x => x.WorldRef == worldRef ), "Scene world already contains this scene map" );
-		}
-
-		WorldRef = worldRef;
-		MapFolder = worldRef.GetFolder();
-
-		fullVpkPath = FileSystem.Mounted.GetFullPath( vpk ) ?? FileSystem.Mounted.GetFullPath( MapFolder + ".vpk" );
-
-		// On Borealis.Gpu the world's models, materials and textures are read by path from the map's package and VPK
-		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu && FileSystem.Mounted.GetFullPath( vpk ) is { } fullVpk && System.IO.File.Exists( fullVpk ) )
-			gpu.AddMapContent( fullVpk );
-		WorldGroup = worldGroup;
-		World = sceneWorld;
-
-		if ( !async )
-		{
-			// We're not loading async so the world should be loaded now
-			OnWorldLoaded();
-		}
-
-		return true;
-	}
-
-	private void OnWorldLoaded()
-	{
-		WorldRef.PrecacheAllWorldNodes( 0x0080 );
-		World.AddSceneMap( this );
-	}
-
-	/// <summary>
-	/// Load the map without native's world renderer: its VPK mounted for the resources managed code loads by path (its
-	/// entities' models, materials and probe textures), its content added to Borealis.Gpu's, its world and its default
-	/// entity lump read by Borealis.Source2. Borealis's view of the scene world draws <see cref="Geometry"/>.
-	/// </summary>
-	private bool CreateManagedWorld( SceneWorld sceneWorld, string vpk, Vector3 origin )
-	{
-		if ( RenderBackend.Default is not BorealisGpuRenderBackend gpu )
-			return false;
-
-		// As native's CreateWorld: the path as given, then under maps/
+		// The path as given, then under maps/
 		var fullVpk = FileSystem.Mounted.GetFullPath( vpk );
 		if ( fullVpk is null || !System.IO.File.Exists( fullVpk ) )
 		{
@@ -259,25 +175,45 @@ public sealed partial class SceneMap : IValid
 		}
 
 		var mountName = System.IO.Path.GetFileNameWithoutExtension( vpk );
-		g_pWorldRendererMgr.MountWorldVPK( mountName, vpk );
-		gpu.AddMapContent( fullVpk );
+		EngineGlue.MountWorldVPK( mountName, vpk );
+
+		ContentFiles content;
+		Func<string, ModelFile> readModel;
+		if ( RenderBackend.Default is BorealisGpuRenderBackend gpu )
+		{
+			gpu.AddMapContent( fullVpk );
+			content = gpu.Services.Content;
+			readModel = path => gpu.Services.ReadModel( path ).GetAwaiter().GetResult();
+		}
+		else
+		{
+			// The map's package folder (<package>/maps/<map>.vpk) and VPK, then wherever the process has mounted files
+			var root = System.IO.Path.GetDirectoryName( System.IO.Path.GetDirectoryName( fullVpk ) );
+			var files = new ContentFiles( root ) { Resolve = BorealisGpuRenderBackend.MountedFile };
+			package = VpkFile.Open( fullVpk );
+			files.AddPackage( package );
+			content = files;
+			readModel = path => ModelFile.Load( files, path );
+		}
 
 		WorldFile world;
 		try
 		{
-			world = WorldFile.Load( gpu.Services.Content, MapFolder + "/world.vwrld" );
-			entities = ReadEntities( gpu.Services.Content, world, "default_ents" );
+			world = WorldFile.Load( content, MapFolder + "/world.vwrld" );
+			entities = ReadEntities( content, world, "default_ents" );
 		}
 		catch ( Exception e )
 		{
-			g_pWorldRendererMgr.UnmountWorldVPK( mountName );
+			EngineGlue.UnmountWorldVPK( mountName );
+			package?.Dispose();
+			package = null;
 			Log.Warning( e, $"{this}: Unable to read the world of map {MapName}: {e.Message}" );
 			return false;
 		}
 
 		mountedVpk = mountName;
 		fullVpkPath = fullVpk;
-		Geometry = new MapGeometry( world, MapFolder, origin );
+		Geometry = new MapGeometry( world, MapFolder, origin, readModel );
 		World = sceneWorld;
 		World.AddSceneMap( this );
 		return true;
@@ -296,8 +232,8 @@ public sealed partial class SceneMap : IValid
 			byte[] data = null;
 			if ( fullVpkPath is not null && System.IO.File.Exists( fullVpkPath ) )
 			{
-				using var package = Borealis.Source2.Resources.VpkFile.Open( fullVpkPath );
-				data = package.Read( path );
+				using var vpk = VpkFile.Open( fullVpkPath );
+				data = vpk.Read( path );
 			}
 
 			if ( data is null && FileSystem.Mounted.FileExists( path ) )
@@ -313,10 +249,10 @@ public sealed partial class SceneMap : IValid
 	}
 
 	/// <summary>
-	/// The entities of the lump called <paramref name="name"/> (native's <c>CWorld::GetEntityList</c>): the world's root
-	/// lumps and the lumps under them, each its own entities only.
+	/// The entities of the lump called <paramref name="name"/>: the world's root lumps and the lumps under them, each its
+	/// own entities only.
 	/// </summary>
-	static IReadOnlyList<MapEntity> ReadEntities( Borealis.Source2.ContentFiles content, WorldFile world, string name )
+	static IReadOnlyList<MapEntity> ReadEntities( ContentFiles content, WorldFile world, string name )
 	{
 		var queue = new Queue<string>( world.EntityLumps );
 		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
@@ -341,39 +277,19 @@ public sealed partial class SceneMap : IValid
 	}
 
 	/// <summary>
-	/// Create scene map asynchronously for when large maps take time to load.
+	/// Create scene map asynchronously for when large maps take time to load. The world is read at once: there's nothing
+	/// to wait for.
 	/// </summary>
-	internal static async Task<SceneMap> CreateAsync( SceneWorld sceneWorld, string map, MapLoader loader, CancellationToken cancelToken = default )
+	internal static Task<SceneMap> CreateAsync( SceneWorld sceneWorld, string map, MapLoader loader, CancellationToken cancelToken = default )
 	{
+		cancelToken.ThrowIfCancellationRequested();
+
 		var sceneMap = new SceneMap();
+		if ( !sceneMap.CreateWorld( sceneWorld, map, loader?.WorldOrigin ?? default ) )
+			return Task.FromResult<SceneMap>( null );
 
-		if ( !sceneMap.CreateWorld( sceneWorld, map, true, loader.WorldOrigin ) )
-			return null;
-
-		if ( !sceneMap.IsValid )
-			return null;
-
-		// Read already, with nothing native to wait for
-		if ( sceneMap.Geometry is not null )
-		{
-			sceneMap.CreateEntities( "default_ents", loader );
-			return sceneMap;
-		}
-
-		var worldRef = sceneMap.WorldRef;
-
-		while ( !worldRef.IsWorldLoaded() )
-		{
-			g_pWorldRendererMgr.ServiceWorldRequests();
-
-			await Task.Delay( 1, cancelToken );
-			cancelToken.ThrowIfCancellationRequested();
-		}
-
-		sceneMap.OnWorldLoaded();
-		sceneMap.CreateEntities( "default_ents", loader );
-
-		return sceneMap;
+		sceneMap.CreateEntities( loader );
+		return Task.FromResult( sceneMap );
 	}
 
 	/// <summary>
@@ -381,22 +297,10 @@ public sealed partial class SceneMap : IValid
 	/// </summary>
 	public void Delete()
 	{
-
 		if ( World.IsValid() )
 		{
 			World.RemoveSceneMap( this );
-
-			//World.Delete(); // don#t delete this are you crazy
 			World = null;
-		}
-
-		if ( WorldRef.IsValid )
-		{
-			WorldRef.Release();
-			WorldRef = IntPtr.Zero;
-
-			// The release is queued; tear the world down now, while the scene world holding its objects is still alive
-			g_pWorldRendererMgr.ServiceWorldRequests();
 		}
 
 		// Borealis's views take the objects out when they next see the map gone from its scene world
@@ -404,16 +308,17 @@ public sealed partial class SceneMap : IValid
 		entities = null;
 		if ( mountedVpk is not null )
 		{
-			g_pWorldRendererMgr.UnmountWorldVPK( mountedVpk );
+			EngineGlue.UnmountWorldVPK( mountedVpk );
 			mountedVpk = null;
 		}
+
+		package?.Dispose();
+		package = null;
 
 		// A read still going finishes on its own, and nothing keeps what it reads
 		visibility = null;
 		visibilityRead = true;
 		visibilityTask = null;
 		fullVpkPath = null;
-
-		WorldGroup = null;
 	}
 }

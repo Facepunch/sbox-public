@@ -513,8 +513,9 @@ internal partial class ShadowMapper
 	}
 
 	/// <summary>
-	/// Drop every cached shadow map and pooled texture - for tests, so one test's lights going stale can't
-	/// be evicted in the middle of another's.
+	/// Drop every cached shadow map and pooled texture, and what the caches keep of the views and lights that drew them: when
+	/// the renderer that draws with them shuts down, and for tests, so one test's lights going stale can't be evicted in the
+	/// middle of another's.
 	/// </summary>
 	internal static void ResetCache()
 	{
@@ -534,6 +535,8 @@ internal partial class ShadowMapper
 		Entries.Clear();
 		Schedule.Clear();
 		LastCascades = default;
+		Array.Clear( LastCascadeMaps );
+		ResetFrozenFar();
 		ResetFarCascades();
 		SettledCasters.Reset();
 	}

@@ -84,4 +84,11 @@ internal static unsafe class MeshletBuilder
 			System.Buffers.ArrayPool<byte>.Shared.Return( meshletTriangles );
 		}
 	}
+
+	/// <summary>
+	/// The cut <see cref="Borealis.Source2.Models.MeshletCooker"/> cooks compiled meshes with: what <see cref="Build"/> makes of a
+	/// range, as the resource compiler makes it (<c>compilemeshlets.cpp</c>).
+	/// </summary>
+	public static Borealis.Source2.Models.MeshletCut Cut( MeshletConfig config ) => ( indices, position, baseVertex ) =>
+		Build( indices, position, baseVertex, config ) is { } set ? (set.Indices, System.Runtime.InteropServices.MemoryMarshal.AsBytes( set.Meshlets.AsSpan() ).ToArray()) : null;
 }

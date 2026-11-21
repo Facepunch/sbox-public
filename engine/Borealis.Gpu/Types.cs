@@ -463,6 +463,12 @@ public enum PresentMode
 
 	/// <summary>Present at once, tearing; falls back to <see cref="Mailbox"/> then <see cref="Fifo"/>.</summary>
 	Immediate,
+
+	/// <summary>
+	/// Show the newest image ready at each vertical blank and drop older ones, without tearing and without waiting for the
+	/// display (VK_EXT_present_mode_fifo_latest_ready); falls back to <see cref="Mailbox"/>, <see cref="Immediate"/>, then <see cref="Fifo"/>.
+	/// </summary>
+	FifoLatestReady,
 }
 
 /// <summary>

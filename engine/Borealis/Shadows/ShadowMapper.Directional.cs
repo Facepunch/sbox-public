@@ -101,6 +101,13 @@ internal partial class ShadowMapper
 	/// </summary>
 	internal static void ForgetFrozenFar() => frozenFarView = default;
 
+	static void ResetFrozenFar()
+	{
+		frozenFarMap?.Dispose();
+		frozenFarMap = null;
+		frozenFarView = default;
+	}
+
 	/// <summary>
 	/// <see cref="FreezeFarCascade"/>: draw the cache the first time, and turn the cascade's view into a copy of it.
 	/// </summary>

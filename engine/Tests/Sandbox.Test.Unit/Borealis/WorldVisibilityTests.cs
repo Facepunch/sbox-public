@@ -9,8 +9,7 @@ using N3 = System.Numerics.Vector3;
 namespace BorealisTests;
 
 /// <summary>
-/// A compiled map's visibility as Borealis.Source2 reads it (<see cref="WorldVisibility"/>), for network culling. The
-/// answers are checked against native's PVS in Sandbox.Test.Integration (WorldVisibilityNativeTests).
+/// A compiled map's visibility as Borealis.Source2 reads it (<see cref="WorldVisibility"/>), for network culling.
 /// </summary>
 [TestClass]
 public class WorldVisibilityTests

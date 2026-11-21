@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -14,12 +14,16 @@
 						remaps = 
 						[
 							{
-								from = "hair_bangs.vmat"
-								to = "models/citizen_clothes/hair/legacy_hair/textures/hair_01.vmat"
+								from = "thinning_hair.vmat"
+								to = "models/citizen_clothes/hair/hair_long_bangs/models/hair_long_bangs_trans_01.vmat"
 							},
 							{
-								from = "hair_cap.vmat"
-								to = "models/citizen_clothes/hair/hair_tight_ponytail/textures/tight_ponytail_cap_grey.vmat"
+								from = "under_hair.vmat"
+								to = "models/citizen_clothes/hair/hair_long_bangs/models/hair_long_bangs_01.vmat"
+							},
+							{
+								from = "models/citizen_clothes/hair/hair_looseblonde/hair_cap.vmat"
+								to = "models/citizen_clothes/hair/hair_bobcut/models/hair_bobcut_cap.vmat"
 							},
 						]
 						use_global_default = false
@@ -44,78 +48,8 @@
 						parent_bone = ""
 						import_filter = 
 						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"hair_long_bangs_LOD0",
-								"hair_pigtails_cap",
-								"cap_LOD0",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "LOD1"
-						filename = "models/citizen_clothes/hair/hair_long_bangs/models/hair_long_bangs_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"hair_long_bangs_LOD1",
-								"hair_pigtails_cap",
-								"cap_LOD0",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "LOD2"
-						filename = "models/citizen_clothes/hair/hair_long_bangs/models/hair_long_bangs_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"hair_long_bangs_LOD2",
-								"hair_pigtails_cap",
-								"cap_LOD0",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "LOD3"
-						filename = "models/citizen_clothes/hair/hair_long_bangs/models/hair_long_bangs_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"hair_long_bangs_LOD3",
-								"cap_LOD0",
-							]
+							exclude_by_default = false
+							exception_list = [  ]
 						}
 					},
 				]
@@ -142,34 +76,406 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes = 
 						[
 							"LOD0",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 10.0
-						meshes = 
-						[
-							"LOD1",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 20.0
-						meshes = 
-						[
-							"LOD2",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 40.0
-						meshes = 
-						[
-							"LOD3",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.45
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 60.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.4
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsJointList"
+				children = 
+				[
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "left_01"
+						anchor_origin = [ 12.536057, 4.939131, 6.718309 ]
+						anchor_angles = [ 0.0, 0.0, 79.0 ]
+						collision_enabled = false
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2500.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 30.0
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "left_01"
+						child_body = "left_02"
+						anchor_origin = [ -3.194452, -0.259863, -0.042622 ]
+						anchor_angles = [ 0.0, 0.0, 79.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 25.290001
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "left_02"
+						child_body = "left_03"
+						anchor_origin = [ -3.457396, -0.848444, -0.594967 ]
+						anchor_angles = [ 0.0, 0.0, 79.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 12.35
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "left_back_01"
+						anchor_origin = [ 14.001391, -5.137613, 7.665277 ]
+						anchor_angles = [ 0.0, 0.0, 129.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2500.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 30.0
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "left_back_01"
+						child_body = "left_back_02"
+						anchor_origin = [ -3.194452, -0.259863, -0.042622 ]
+						anchor_angles = [ 0.0, 0.0, 129.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 25.290001
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "left_back_02"
+						child_body = "left_back_03"
+						anchor_origin = [ -3.457396, -0.848444, -0.594967 ]
+						anchor_angles = [ 0.0, 0.0, 129.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 12.35
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "right_back_01"
+						anchor_origin = [ 13.497964, -4.399579, -4.796159 ]
+						anchor_angles = [ 0.0, 0.0, -116.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2500.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 30.0
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "right_back_01"
+						child_body = "right_back_02"
+						anchor_origin = [ -3.194452, -0.259863, -0.042622 ]
+						anchor_angles = [ 0.0, 0.0, -116.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 25.290001
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "right_back_02"
+						child_body = "right_back_03"
+						anchor_origin = [ -3.457396, -0.848444, -0.594967 ]
+						anchor_angles = [ 0.0, 0.0, -116.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2000.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 12.35
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "head"
+						child_body = "right_01"
+						anchor_origin = [ 13.303379, 4.295422, -7.718247 ]
+						anchor_angles = [ 0.0, 0.0, -67.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2500.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 30.0
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "right_01"
+						child_body = "right_02"
+						anchor_origin = [ 0.0, 0.0, 0.0 ]
+						anchor_angles = [ 0.0, 0.0, -67.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2500.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 30.0
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+					{
+						_class = "PhysicsJointWeld"
+						parent_body = "right_02"
+						child_body = "right_03"
+						anchor_origin = [ 0.0, 0.0, 0.0 ]
+						anchor_angles = [ 0.0, 0.0, -67.0 ]
+						collision_enabled = true
+						linear_strength = 10.0
+						angular_strength = 10.0
+						linear_freqeuncy = 2500.0
+						linear_damping_ratio = 1.098
+						max_force = 0.02
+						angular_frequency = 30.0
+						angular_damping_ratio = 1.019
+						max_torque = 0.0
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeCapsule"
+						parent_bone = "head"
+						surface_prop = "default"
+						collision_tags = "solid"
+						radius = 8.0
+						point0 = [ -10.0, 0.0, 0.0 ]
+						point1 = [ 13.0, 0.0, 0.0 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "left_01"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.987611, 0.0, 2.577951 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 8.024778, 10.0, 5.061186 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "left_02"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ -0.327912, 0.0, -0.29752 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 5.393734, 10.0, 2.614558 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "left_03"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 1.621075, 0.0, 0.672766 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 5.464736, 10.0, 1.945718 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "left_back_01"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.987611, -1.175635, 2.164911 ]
+						angles = [ 0.0, 0.0, 43.0 ]
+						dimensions = [ 8.024778, 10.0, 5.161296 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "left_back_02"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ -0.048722, 0.0, 0.904196 ]
+						angles = [ 0.0, 0.0, 43.0 ]
+						dimensions = [ 5.952113, 10.0, 1.713676 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "left_back_03"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ -0.048722, 0.0, 0.904196 ]
+						angles = [ 0.0, 0.0, 43.0 ]
+						dimensions = [ 5.952113, 10.0, 1.713676 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "right_back_01"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.987611, -0.78498, -1.715018 ]
+						angles = [ 0.0, 0.0, -35.0 ]
+						dimensions = [ 8.024778, 8.281396, 6.905238 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "right_back_02"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.987611, 0.0, 0.904196 ]
+						angles = [ 0.0, 0.0, -35.0 ]
+						dimensions = [ 8.024778, 10.0, 1.713676 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "right_back_03"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.987611, 0.0, 0.904196 ]
+						angles = [ 0.0, 0.0, -35.0 ]
+						dimensions = [ 8.024778, 10.0, 1.713676 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "right_01"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.987611, 1.08886, -1.541422 ]
+						angles = [ 0.0, 0.0, 24.0 ]
+						dimensions = [ 8.024778, 10.0, 7.067802 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "right_02"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.987611, 0.0, 0.904196 ]
+						angles = [ 0.0, 0.0, 24.0 ]
+						dimensions = [ 8.024778, 10.0, 1.713676 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = "right_03"
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.987611, 0.0, 0.904196 ]
+						angles = [ 0.0, 0.0, 24.0 ]
+						dimensions = [ 8.024778, 10.0, 1.713676 ]
 					},
 				]
 			},
@@ -177,6 +483,8 @@
 		model_archetype = ""
 		primary_associated_entity = ""
 		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }

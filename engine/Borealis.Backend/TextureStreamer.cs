@@ -450,11 +450,36 @@ internal sealed class TextureStreamer
 		public TextureHandle Image;
 		public int NextMip = -1;
 
-		/// <summary>On a worker: the texture's mips from <see cref="Top"/>, pooled until they're uploaded.</summary>
+		/// <summary>The device its image is made on, on the worker that reads it.</summary>
+		public Device Gpu;
+
+		/// <summary>Its image couldn't be made: video memory is full.</summary>
+		public bool OutOfMemory;
+
+		/// <summary>
+		/// On a worker: the texture's mips from <see cref="Top"/>, pooled until they're uploaded, and the image they go in. A
+		/// big image is an allocation of its own from the driver, which takes milliseconds: not on the frame's thread.
+		/// </summary>
 		public static readonly Func<object, TextureFile> ReadFile = static state =>
 		{
 			var build = (Build)state;
-			return ReadMips( build.Content, build.Texture.Path, build.Top );
+			var file = ReadMips( build.Content, build.Texture.Path, build.Top );
+			if ( file is null || file.TopMip != build.Top || build.Gpu is null ) return file;
+
+			try
+			{
+				build.Image = file.CreateEmpty( build.Gpu, build.Texture.Path );
+			}
+			catch ( GpuException e ) when ( e.Result == OutOfDeviceMemory )
+			{
+				build.OutOfMemory = true;
+			}
+			catch ( NotSupportedException )
+			{
+				// Made again on the frame's thread, which reports it
+			}
+
+			return file;
 		};
 
 		/// <summary>The file it read, if it has, its mips given back: once they're uploaded, or it's dropped.</summary>
@@ -486,11 +511,18 @@ internal sealed class TextureStreamer
 				continue;
 			}
 
+			if ( build.NextMip < 0 && build.OutOfMemory )
+			{
+				OutOfMemory( build.Top );
+				Drop( build, i-- );
+				continue;
+			}
+
 			if ( build.NextMip < 0 )
 			{
 				try
 				{
-					build.Image = file.CreateEmpty( gpu, texture.Path );
+					if ( !build.Image.IsValid ) build.Image = file.CreateEmpty( gpu, texture.Path );
 				}
 				catch ( GpuException e ) when ( e.Result == OutOfDeviceMemory )
 				{
@@ -560,10 +592,32 @@ internal sealed class TextureStreamer
 	/// <summary>Builds started so far.</summary>
 	public int BuildsStarted { get; private set; }
 
+	/// <summary>
+	/// Before the device goes: wait for the builds being read (their workers make images on it) and destroy the images of
+	/// those not swapped in.
+	/// </summary>
+	public void Finish()
+	{
+		for ( int i = builds.Count - 1; i >= 0; i-- )
+		{
+			var build = builds[i];
+			try
+			{
+				build.Read?.Wait();
+			}
+			catch ( AggregateException )
+			{
+				// A read that failed made nothing
+			}
+
+			Drop( build, i );
+		}
+	}
+
 	void Drop( Build build, int index )
 	{
 		build.Release();
-		if ( build.NextMip >= 0 ) device.Gpu.Destroy( build.Image );
+		if ( build.Image.IsValid ) device.Gpu.Destroy( build.Image );
 		build.Texture.Building = null;
 		builds.RemoveAt( index );
 	}
@@ -674,7 +728,7 @@ internal sealed class TextureStreamer
 
 	void StartBuild( StreamedTexture texture, int top )
 	{
-		var build = new Build { Texture = texture, Top = top, Content = device.Content };
+		var build = new Build { Texture = texture, Top = top, Content = device.Content, Gpu = device.Gpu };
 		BuildsStarted++;
 		build.Read = BackendDevice.Read( Build.ReadFile, build );
 		texture.Building = build;

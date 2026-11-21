@@ -1,5 +1,3 @@
-using NativeEngine;
-
 namespace Sandbox;
 
 public abstract class MapLoader
@@ -22,29 +20,12 @@ public abstract class MapLoader
 
 		private readonly Dictionary<uint, string> values;
 
-		internal ObjectEntry( CEntityKeyValues keyValues, Vector3 origin ) : this( ValuesOf( keyValues ), origin )
-		{
-		}
-
 		/// <summary>
 		/// An entity read from the map's entity lump by Borealis.Source2, its values as the strings native's key values give
 		/// (<see cref="Borealis.Source2.World.MapEntity.Format"/>).
 		/// </summary>
 		internal ObjectEntry( Borealis.Source2.World.MapEntity entity, Vector3 origin ) : this( ValuesOf( entity ), origin )
 		{
-		}
-
-		static Dictionary<uint, string> ValuesOf( CEntityKeyValues keyValues )
-		{
-			var values = new Dictionary<uint, string>();
-			var keyCount = keyValues.GetKeyCount();
-			for ( int i = 0; i < keyCount; i++ )
-			{
-				var key = keyValues.GetKey( i );
-				values.Add( key, keyValues.GetValueString( key, null ) );
-			}
-
-			return values;
 		}
 
 		static Dictionary<uint, string> ValuesOf( Borealis.Source2.World.MapEntity entity )
@@ -54,6 +35,11 @@ public abstract class MapLoader
 				values[key] = Borealis.Source2.World.MapEntity.Format( value );
 
 			return values;
+		}
+
+		/// <summary>An entity from its values alone, placed at the world's origin.</summary>
+		internal ObjectEntry( Dictionary<uint, string> keyValues ) : this( keyValues, Vector3.Zero )
+		{
 		}
 
 		ObjectEntry( Dictionary<uint, string> values, Vector3 origin )
@@ -125,26 +111,6 @@ public abstract class MapLoader
 	/// Create an object from a serialized object entry
 	/// </summary>
 	protected abstract void CreateObject( ObjectEntry kv );
-
-	internal void CreateEntities( IWorldReference worldRef, string entityLumpName )
-	{
-		var entityCount = worldRef.GetEntityCount( entityLumpName );
-		if ( entityCount == 0 )
-			return;
-
-		var entries = new List<ObjectEntry>( entityCount );
-
-		for ( int i = 0; i < entityCount; ++i )
-		{
-			var kv = worldRef.GetEntityKeyValues( entityLumpName, i );
-			if ( !kv.IsValid )
-				continue;
-
-			entries.Add( new ObjectEntry( kv, WorldOrigin ) );
-		}
-
-		CreateEntities( entries );
-	}
 
 	/// <summary>
 	/// Create the objects for a map's entities read from its entity lump by Borealis.Source2.

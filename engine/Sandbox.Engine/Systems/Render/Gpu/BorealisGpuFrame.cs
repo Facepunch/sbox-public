@@ -366,13 +366,14 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// <summary>
 	/// As <see cref="RunStage"/>, with the view constants as <c>PerViewConstantBuffer_t</c>'s bytes: also what custom objects
 	/// draw through (<see cref="BorealisGpuCustomDraw"/>). <paramref name="depthAlone"/> draws into the target's depth with no
-	/// colour, at its slice (a shadow map's, or the depth prepass's), where a stage with no colour binds nothing.
+	/// colour, at its slice (a shadow map's, or the depth prepass's), where a stage with no colour binds nothing. Either way the
+	/// draw reads <paramref name="cameraAttributes"/> under the view constants.
 	/// </summary>
 	internal void RunInFrame( in StageTarget target, byte[] viewConstants, BorealisGpuView view, bool first, Action draw, bool depthAlone = false, RenderAttributes cameraAttributes = null )
 	{
 		if ( depthAlone )
 		{
-			RunInDepth( target, viewConstants, view, draw );
+			RunInDepth( target, viewConstants, view, draw, cameraAttributes );
 			return;
 		}
 
@@ -387,8 +388,10 @@ internal sealed class BorealisGpuFrame : IDisposable
 			return (engine, texture);
 		}
 
+		// On the async compute queue the depth stays readable, as the frame's handoff left it: moving an attachment there may
+		// need a decompression only graphics can do
 		var color = Borrow( StageSlot.Color, target.Color, ImageFormat.RGBA16161616F, depth: false, Borealis.Gpu.ImageLayout.ColorTarget );
-		var depth = Borrow( StageSlot.Depth, target.Depth, ImageFormat.D32FS8, depth: true, Borealis.Gpu.ImageLayout.DepthTarget );
+		var depth = Borrow( StageSlot.Depth, target.Depth, ImageFormat.D32FS8, depth: true, context.AsyncCompute ? Borealis.Gpu.ImageLayout.ShaderRead : Borealis.Gpu.ImageLayout.DepthTarget );
 		var chain = Borrow( StageSlot.Chain, ((BackendParameters)target.Attributes).Get( DepthChainName ) as GpuTexture, ImageFormat.RG3232F, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 		var normals = Borrow( StageSlot.Normals, target.Normals, ImageFormat.RGBA1010102, depth: false, Borealis.Gpu.ImageLayout.ShaderRead );
 
@@ -455,14 +458,15 @@ internal sealed class BorealisGpuFrame : IDisposable
 	}
 
 	// Depth targets drawn into alone (RunInDepth), one per Borealis texture (shadow maps, the prepass's depth): engine textures
-	// kept from frame to frame with their backings, each borrowed for a draw, and a target of each
+	// kept from frame to frame with their backings, each borrowed for a draw, and a target of each. Those whose Borealis texture
+	// was destroyed (a world's shadow maps, after a map change) go as the next one is made
 	readonly Dictionary<BackendTexture, (Texture Texture, RenderTarget Target)> depthAlone = new();
 
 	/// <summary>
 	/// <see cref="RunInFrame"/> into <paramref name="target"/>'s depth alone, at its slice: what a custom object in a shadow map
 	/// or the depth prepass draws into. The frame's view constants for that view, no depth chain (depth passes don't read it).
 	/// </summary>
-	void RunInDepth( in StageTarget target, byte[] viewConstants, BorealisGpuView view, Action draw )
+	void RunInDepth( in StageTarget target, byte[] viewConstants, BorealisGpuView view, Action draw, RenderAttributes cameraAttributes )
 	{
 		if ( target.Depth is not BackendTexture gpu ) return;
 
@@ -470,7 +474,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		var list = context.Lend();
 		if ( !depthAlone.TryGetValue( gpu, out var kept ) )
 		{
-			if ( depthAlone.Count > 8 ) DropDisposedDepthTextures();
+			DropDisposedDepthTextures();
 			var texture = Texture.CreateRenderTarget().WithSize( gpu.Width, gpu.Height ).WithDepthFormat().Create( "Borealis.Gpu depth drawn alone" );
 			depthAlone[gpu] = kept = (texture, RenderTarget.FromDepth( texture ));
 		}
@@ -485,6 +489,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		{
 			using var scope = Graphics.Scope.CreateOnView( backend, view );
 			view.Bind();
+			cameraAttributes?.MergeTo( Graphics.Attributes );
 			Graphics.Attributes.SetDataShared( ViewConstantsName, viewConstants );
 			draw();
 		}

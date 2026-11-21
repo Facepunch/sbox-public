@@ -90,7 +90,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		if ( loaded is not BackendMaterial material ) return false;
 		var file = Content.TryRead( path ) is { } data ? MaterialFile.Read( data ) : null;
-		material.Reload( file is null ? null : Shaders.Load( file.Shader ), file, file is null ? null : Textures( file ) );
+		ShaderFile shader = null;
+		if ( file is not null ) file = WithShader( path, file, out shader );
+		material.Reload( shader, file, file is null ? null : Textures( file ) );
 		return true;
 	}
 
@@ -331,6 +333,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	bool residentCullShaderLoaded;
 
 	internal override long LightingFreeKey( ShaderParameters attributes ) => attributes is BackendParameters parameters ? parameters.LightingFreeKey : base.LightingFreeKey( attributes );
+
+	/// <summary>The resident cull's calls and assignments of the view.</summary>
+	internal override void ReleaseView( object view ) => ResidentCulls.ForgetView( view );
 
 	/// <summary>A resident owner's fragment records and its draws' (tinted records, each mesh's draw records), for reuse.</summary>
 	internal override void ReleaseResident( object owner )
@@ -615,6 +620,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
+					if ( HasSwitch( "-no-cooked-meshlets" ) ) Borealis.Backend.Meshlets.MeshletStore.UseCooked = false;
 					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders } : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
@@ -715,7 +721,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			if ( lodStore is not { } s ) return GeneratedLods ? "generated LODs: none (meshopt not found or no GPU-driven geometry)" : "generated LODs: off";
 			var (room, used) = gpuDrivenTables.LevelBytes;
-			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB ({room / 1048576.0:0.0} MB still kept for levels), tables {s.Bytes / 1048576.0:0.0} MB; {gpuDrivenTables.DescribeIndexPages()}; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
+			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache, {s.CookedHits:N0} cooked into their models, {s.CookedMisses:N0} in them made anyway); level indices {used / 1048576.0:0.0} MB ({room / 1048576.0:0.0} MB still kept for levels), tables {s.Bytes / 1048576.0:0.0} MB; {gpuDrivenTables.DescribeIndexPages()}; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
 		}
 	}
 
@@ -1613,7 +1619,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal GpuMaterial LoadMaterial( string name, MaterialFile file )
 	{
-		BackendMaterial Classic() => Track( new BackendMaterial( name, Shaders.Load( file.Shader ), file, Textures( file ) ) );
+		BackendMaterial Classic()
+		{
+			var drawn = WithShader( name, file, out var shader );
+			return Track( new BackendMaterial( name, shader, drawn, Textures( drawn ) ) );
+		}
+
 #pragma warning disable CA2000 // Returned: the caller owns it
 		if ( Surfaces.HasConversions && Converted( name, file, Classic ) is { } converted ) return converted;
 #pragma warning restore CA2000
@@ -1752,9 +1763,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
-	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. It draws nothing if
-	/// it, or its shader, isn't built. A material of a shader that's a surface alone (no compiled file to draw it with:
-	/// standard, skin) is the surface with the values.
+	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. One that isn't built, or
+	/// whose shader isn't, draws as the error material. A material of a shader that's a surface alone (no compiled file to
+	/// draw it with: standard, skin) is the surface with the values.
 	/// </summary>
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
 	{
@@ -1850,7 +1861,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : MissingMaterial( path );
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
-		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
+		file = WithShader( path, file, out var shader );
+		return Track( new BackendMaterial( name ?? path, shader, file, Textures( file ), values ) );
+	}
+
+	/// <summary>
+	/// <paramref name="file"/> with its shader, or the error material's file and shader when its shader won't load (no
+	/// compiled file, as S&amp;Business's bucket water names a shader its package doesn't ship, or one that can't be read here),
+	/// as native's material system draws such a material with the error shader. One that names no shader, or the error
+	/// material itself, stays as it is.
+	/// </summary>
+	MaterialFile WithShader( string path, MaterialFile file, out ShaderFile shader )
+	{
+		shader = Shaders.Load( file.Shader );
+		if ( shader is not null || string.IsNullOrEmpty( file.Shader ) || MissingMaterial( path ) is not { } error ) return file;
+		if ( Shaders.Load( error.Shader ) is not { } errorShader ) return file;
+		shader = errorShader;
+		return error;
 	}
 
 	/// <summary>What native draws with a material that isn't there.</summary>
@@ -2380,7 +2407,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>What meshlets have been built, for reports.</summary>
 	public string MeshletReport => meshletStore is not { } s ? (Meshlets ? "meshlets: none (meshopt not found or no GPU-driven geometry)" : "meshlets: off")
-		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
+		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache), {s.CookedHits:N0} cooked into their models and taken in {s.CookedTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms, {s.CookedMisses:N0} in them built anyway; pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
 
 	/// <summary>
 	/// Debug only (<c>borealislab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this
@@ -2965,8 +2992,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		return (scratch, ids);
 	}
 
-	/// <summary>Async compute isn't wired yet: contexts all record on the graphics queue.</summary>
-	public override bool SupportsAsyncCompute => false;
+	/// <summary>
+	/// Whether frames may put their compute layers (the depth chain, contact shadows, ambient occlusion) on the device's async
+	/// compute queue beside graphics work (on by default): <see cref="SupportsAsyncCompute"/> where the device has one.
+	/// </summary>
+	public bool AsyncCompute { get; set; } = true;
+
+	/// <summary>
+	/// A compute-only queue family on the device, and <see cref="AsyncCompute"/> on. Its contexts record on that queue; the
+	/// semaphores between the two queues are timeline points (<see cref="Signalled"/>, <see cref="PointOf"/>).
+	/// </summary>
+	public override bool SupportsAsyncCompute => AsyncCompute && Gpu.Capabilities.AsyncCompute;
 
 	/// <inheritdoc/>
 	public override bool SupportsDrawIndirectCount => Gpu.Capabilities.DrawIndirectCount;
@@ -3249,6 +3285,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			System.Threading.Thread.Sleep( 1 );
 		}
 
+		// Builds read on workers make their images there: finished before the device can go
+		streamer?.Finish();
 		Gpu.WaitIdle();
 		Poll();
 		materialCache?.Dispose();
@@ -3283,7 +3321,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 }
 
 /// <summary>
-/// A <see cref="RenderHost"/> rendering through a <see cref="BackendDevice"/>, with async compute off: it has one queue.
+/// A <see cref="RenderHost"/> rendering through a <see cref="BackendDevice"/>, with async compute where the device has it
+/// (<see cref="BackendDevice.SupportsAsyncCompute"/>).
 /// </summary>
 public class BackendRenderHost( BackendDevice device ) : RenderHost
 {
@@ -3291,7 +3330,7 @@ public class BackendRenderHost( BackendDevice device ) : RenderHost
 	public override GpuDevice Device => device;
 
 	/// <inheritdoc/>
-	public override bool AsyncCompute => false;
+	public override bool AsyncCompute => device.SupportsAsyncCompute;
 
 	/// <summary>
 	/// The debug views drawn into the frame (none by default): the labs' <c>-debug-views</c>.

@@ -35,6 +35,10 @@ public class TwoBoneIKNode : VariationDataNode<TwoBoneIKNode.Data>
 	[Input( typeof( TargetLink ) ), Title( "Effector Target" )]
 	public NodeInput EffectorTarget { get; set; }
 
+	/// <summary>The position the middle joint bends toward in Pole Target mode. Uses the same space as the effector target.</summary>
+	[Input( typeof( TargetLink ) )]
+	public NodeInput PoleTarget { get; set; }
+
 	[Input( typeof( BoolLink ) )]
 	public NodeInput Enable { get; set; }
 
@@ -47,7 +51,15 @@ public class TwoBoneIKNode : VariationDataNode<TwoBoneIKNode.Data>
 	[Property]
 	public bool IsTargetInWorldSpace { get; set; }
 
-	[Property, Range( 0, 1 ), JsonPropertyName( "ReferencePoseTwistWeight" )]
+	/// <summary>Choose the animated bend plane, the reference bend relative to the effector target, or a pole position.</summary>
+	[Property]
+	public GraphBuilder.IKSwivelMode SwivelMode { get; set; }
+
+	/// <summary>Rotate the bend around the root-to-effector axis, in degrees.</summary>
+	[Property]
+	public float SwivelOffset { get; set; }
+
+	[Property, Range( 0, 1 ), ShowIf( nameof( SwivelMode ), GraphBuilder.IKSwivelMode.Parent ), JsonPropertyName( "ReferencePoseTwistWeight" )]
 	public float ChainRotationWeight { get; set; }
 
 	[Output( typeof( PoseLink ) )]
@@ -75,6 +87,10 @@ public class TwoBoneIKNode : VariationDataNode<TwoBoneIKNode.Data>
 			return child;
 		}
 
+		var pole = SwivelMode == GraphBuilder.IKSwivelMode.PoleTarget ? compiler.EmitValue( this, PoleTarget ) : null;
+		if ( SwivelMode == GraphBuilder.IKSwivelMode.PoleTarget && pole is null )
+			compiler.Warn( "Two Bone IK has no pole target connected" );
+
 		var enabled = compiler.EmitValue( this, Enable );
 		var weight = compiler.EmitValue( this, Weight );
 		return compiler.Builder.TwoBoneIK(
@@ -85,6 +101,9 @@ public class TwoBoneIKNode : VariationDataNode<TwoBoneIKNode.Data>
 			{
 				Enabled = enabled,
 				Weight = weight,
+				PoleTarget = pole,
+				SwivelMode = SwivelMode,
+				SwivelOffset = SwivelOffset,
 				BlendTime = MathF.Max( data.BlendTime, 0 ),
 				WorldSpace = IsTargetInWorldSpace,
 				BlendMode = BlendMode,

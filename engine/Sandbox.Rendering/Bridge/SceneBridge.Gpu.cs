@@ -135,7 +135,6 @@ internal sealed partial class SceneBridge
 		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		if ( size.x < 1 || size.y < 1 || NotYetInBorealis( camera, setup ) is not null ) return;
 
-		camera.ConfigureView( setup );
 		var viewport = new Rect( 0, 0, size.x, size.y );
 		gpuView ??= new BorealisGpuView( backend );
 		gpuView.Viewport = viewport;
@@ -201,7 +200,8 @@ internal sealed partial class SceneBridge
 			var output = gpuView.Target?.ColorTarget;
 			frame.SetOutputConstants( gpuView.Viewport, output is null ? gpuView.Viewport.Size : new Vector2( output.Width, output.Height ) );
 		}
-		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
+		// A window shows opaque whatever its background's alpha: some drivers present a window's alpha
+		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( encode ? camera.BackgroundColor.WithAlpha( 1 ) : camera.BackgroundColor, true, false, false );
 
 		// The view's lookup tables, as the scene's blocks have them: film grain reads the blue noise
 		BorealisGpuFrame.SetViewTextures( Graphics.Attributes );
@@ -271,6 +271,9 @@ internal sealed partial class SceneBridge
 			BorealisGpuUpscaler.Prepare();
 		}
 
+		// Until the upscale the stages draw at the render size, Painter's screen pixels mapped onto it from the display's
+		gpuView.DisplayViewport = upscaling ? displayViewport : null;
+
 		WorldRender render;
 		CameraState state;
 		using ( PrepareTiming.Scope() )
@@ -307,7 +310,8 @@ internal sealed partial class SceneBridge
 			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, state.System.DepthFormat, "Borealis.Gpu camera" );
 		}
 
-		// The stages before the scene is finished draw inside its frame; ambient occlusion runs in its stage, not early
+		// The stages before the scene is finished draw inside its frame. Ambient occlusion runs early on the async compute queue
+		// when the frame overlaps compute (GpuCameraStages.RenderEarlyPostProcess), which its stage then skips; else in its stage
 		var frame = state.GpuFrame ??= new BorealisGpuFrame( backend );
 		var stages = state.GpuStages ??= new GpuCameraStages { Run = RunStage };
 		stages.Camera = camera;
@@ -337,6 +341,7 @@ internal sealed partial class SceneBridge
 
 			// Upscaled before post processing, as native's: the stages after draw at the display size, unjittered
 			if ( upscaling ) Upscale( upscaler, frame, state.View, displayViewport );
+			gpuView.DisplayViewport = null;
 
 			RunStage( camera, Stage.BeforePostProcess );
 			if ( exposure is not null && exposureBucket >= 0 ) frame.CountExposure( exposure, exposureBucket );
@@ -462,7 +467,6 @@ internal sealed partial class SceneBridge
 
 		var reflection = CommandList.ReflectionView( eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, planned.Plane, planned.Setup );
 		var target = planned.Target;
-		camera.ConfigureView( reflection );
 		var rendered = RenderOnGpu( camera, reflection, target.ColorTarget, target.DepthTarget, view.ToneMapScalar, out var reflected );
 
 		// The reflection's prepare set the world's 3D skybox up for its view

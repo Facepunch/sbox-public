@@ -1704,7 +1704,9 @@ public partial class PolygonMesh
 			}
 
 			// Get the position and texture coordinate of the three best vertices to use to compute the face texture parameters
-			GetBestThreeTextureBasisVerticies( facePositions, faceTexCoords, numVertices, out var bestPositions, out var bestTexCoords );
+			var bestPositions = new Vector3[3];
+			var bestTexCoords = new Vector2[3];
+			GetTextureBasisVertices( facePositions, faceTexCoords, bestPositions, bestTexCoords );
 			ComputeFaceTextureParametersFromUVs( bestPositions, bestTexCoords, new Vector2( 1.0f, 1.0f ), out var vAxisU, out var vAxisV, out var vScale );
 			outFaceTetureParameters[faceIndex] = new FaceTextureParameters() { AxisU = vAxisU, AxisV = vAxisV, Scale = vScale };
 		}

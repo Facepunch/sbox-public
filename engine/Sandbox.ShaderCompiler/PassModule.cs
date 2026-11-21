@@ -640,14 +640,15 @@ public sealed partial class PassModule
 	private static partial Regex MeshDefinition();
 
 	/// <summary>
-	/// The module's own lines a stage's compile sees with these values, includes left out: what its globals' annotations
-	/// are read from, so a global declared in two <c>#if</c> branches takes the active one's.
+	/// The lines a stage's compile sees with these values (and the compiler's own defines among them), its includes' with
+	/// them: what its globals' annotations are read from, so a global declared in two <c>#if</c> branches, of the module or of
+	/// an include, takes the active one's.
 	/// </summary>
 	public string ActiveText( StageKind stage, IReadOnlyDictionary<string, int> values )
 	{
 		var all = ProgramValues( stage );
 		foreach ( var (name, value) in values ) all[name] = value;
-		return string.Join( '\n', PassPreprocessor.ActiveLines( Path, Text, all ) );
+		return string.Join( '\n', PassPreprocessor.ActiveLines( Path, Text, all, Include ) );
 	}
 
 	/// <summary>
