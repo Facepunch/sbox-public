@@ -4,9 +4,10 @@ using System.Runtime.InteropServices;
 namespace Sandbox;
 
 /// <summary>
-/// A scene model's animation: its <see cref="ModelAnimationInstance"/> when it has one (<see cref="SceneModel.UsesAnimationInstance"/>),
-/// otherwise its native twin, the <see cref="CSceneAnimatableObject"/> that animated it before. The members are the twin's, so
-/// the scene model's code reads the same either way. Draw state (body groups, deformation volumes) is always the twin's.
+/// A scene model's animation: the <see cref="ModelAnimationInstance"/> every scene model managed code makes animates on. A
+/// scene model native code made (a tool's preview) has none: native code animates its twin, a
+/// <see cref="CSceneAnimatableObject"/>, and managed code only reads the twin's pose, bounds and attachments. Draw state (body
+/// groups, deformation volumes) is always the twin's.
 /// </summary>
 internal readonly unsafe struct SceneModelAnimation
 {
@@ -38,15 +39,15 @@ internal readonly unsafe struct SceneModelAnimation
 	/// </summary>
 	internal AnimationPose* Pose => HasInstance ? (AnimationPose*)Instance.GetPose() : null;
 
-	internal float m_flDeltaTime => HasInstance ? Instance.GetDeltaTime() : Twin.m_flDeltaTime;
+	internal float m_flDeltaTime => HasInstance ? Instance.GetDeltaTime() : 0;
 	internal BBox m_worldBounds => HasInstance ? owner.AnimatedWorldBounds : Twin.m_worldBounds;
 	internal BBox m_localBounds => HasInstance ? owner.AnimatedLocalBounds : Twin.m_localBounds;
 
-	internal void InitAnimation() { if ( HasInstance ) Instance.InitAnimation(); else Twin.InitAnimation(); }
-	internal void Update( float dt ) { if ( HasInstance ) Instance.Update( dt ); else Twin.Update( dt ); }
-	internal void SetBindPose() { if ( HasInstance ) Instance.SetBindPose(); else Twin.SetBindPose(); }
-	internal void CalculateWorldSpaceBones() { if ( HasInstance ) Instance.CalculateWorldSpaceBones(); else Twin.CalculateWorldSpaceBones(); }
-	internal void FinishUpdate() { if ( HasInstance ) Instance.FinishUpdate(); else Twin.FinishUpdate(); }
+	internal void InitAnimation() { if ( HasInstance ) Instance.InitAnimation(); }
+	internal void Update( float dt ) { if ( HasInstance ) Instance.Update( dt ); }
+	internal void SetBindPose() { if ( HasInstance ) Instance.SetBindPose(); }
+	internal void CalculateWorldSpaceBones() { if ( HasInstance ) Instance.CalculateWorldSpaceBones(); }
+	internal void FinishUpdate() { if ( HasInstance ) Instance.FinishUpdate(); }
 
 	/// <summary>
 	/// Merge from another scene model's bones. Both animate the same way (the switch is per process); an instance can't merge
@@ -54,17 +55,13 @@ internal readonly unsafe struct SceneModelAnimation
 	/// </summary>
 	internal void MergeFrom( SceneModel parent )
 	{
-		if ( !HasInstance )
-		{
-			Twin.MergeFrom( parent );
-			return;
-		}
+		if ( !HasInstance ) return;
 
 		var source = parent.animNative.Instance;
 		if ( !source.IsNull ) Instance.MergeFrom( source );
 	}
 
-	internal void SetWorldSpaceRenderBoneTransform( int bone, Transform tx ) { if ( HasInstance ) Instance.SetWorldSpaceRenderBoneTransform( bone, tx ); else Twin.SetWorldSpaceRenderBoneTransform( bone, tx ); }
+	internal void SetWorldSpaceRenderBoneTransform( int bone, Transform tx ) { if ( HasInstance ) Instance.SetWorldSpaceRenderBoneTransform( bone, tx ); }
 	internal Transform GetWorldSpaceRenderBoneTransform( int bone ) => HasInstance ? Instance.GetWorldSpaceRenderBoneTransform( bone ) : Twin.GetWorldSpaceRenderBoneTransform( bone );
 	internal Transform GetWorldSpaceRenderBoneTransform( string bone ) => HasInstance ? Instance.GetWorldSpaceRenderBoneTransform( bone ) : Twin.GetWorldSpaceRenderBoneTransform( bone );
 	internal Transform GetWorldSpaceRenderBonePreviousTransform( int bone ) => HasInstance ? Instance.GetWorldSpaceRenderBonePreviousTransform( bone ) : Twin.GetWorldSpaceRenderBonePreviousTransform( bone );
@@ -111,64 +108,64 @@ internal readonly unsafe struct SceneModelAnimation
 
 	internal Transform GetParentSpaceBone( int index ) => HasInstance ? Instance.GetParentSpaceBone( index ) : Twin.GetParentSpaceBone( index );
 	internal void GetParentSpaceBones( int count, IntPtr dest ) { if ( HasInstance ) Instance.GetParentSpaceBones( count, dest ); else Twin.GetParentSpaceBones( count, dest ); }
-	internal void SetParentSpaceBone( int index, Transform tx ) { if ( HasInstance ) Instance.SetParentSpaceBone( index, tx ); else Twin.SetParentSpaceBone( index, tx ); }
+	internal void SetParentSpaceBone( int index, Transform tx ) { if ( HasInstance ) Instance.SetParentSpaceBone( index, tx ); }
 
-	internal void ResetGraphParameters() { if ( HasInstance ) Instance.ResetGraphParameters(); else Twin.ResetGraphParameters(); }
-	internal void SetAnimGraphChangedCallback( IntPtr callback ) { if ( HasInstance ) Instance.SetAnimGraphChangedCallback( callback ); else Twin.SetAnimGraphChangedCallback( callback ); }
-	internal void SetAnimGraph( string name ) { if ( HasInstance ) Instance.SetAnimGraph( name ); else Twin.SetAnimGraph( name ); }
-	internal void SetAnimGraph( HAnimationGraph graph ) { if ( HasInstance ) Instance.SetAnimGraph( graph ); else Twin.SetAnimGraph( graph ); }
-	internal HAnimationGraph GetAnimGraph() => HasInstance ? Instance.GetAnimGraph() : Twin.GetAnimGraph();
-	internal void SetAnimGraph2( HAnimGraph2 graph ) { if ( HasInstance ) Instance.SetAnimGraph2( graph ); else Twin.SetAnimGraph2( graph ); }
-	internal void SetAnimGraph2ControllerCreatedCallback( IntPtr callback ) { if ( HasInstance ) Instance.SetAnimGraph2ControllerCreatedCallback( callback ); else Twin.SetAnimGraph2ControllerCreatedCallback( callback ); }
-	internal AnimationGraph2Controller GetAnimGraph2Controller() => HasInstance ? Instance.GetAnimGraph2Controller() : Twin.GetAnimGraph2Controller();
-	internal float GetAnimGraph2UpdateTimeMs() => HasInstance ? Instance.GetAnimGraph2UpdateTimeMs() : Twin.GetAnimGraph2UpdateTimeMs();
-	internal void SetLowDetailAnimation( bool low ) { if ( HasInstance ) Instance.SetLowDetailAnimation( low ); else Twin.SetLowDetailAnimation( low ); }
-	internal bool IsLowDetailAnimation() => HasInstance ? Instance.IsLowDetailAnimation() : Twin.IsLowDetailAnimation();
+	internal void ResetGraphParameters() { if ( HasInstance ) Instance.ResetGraphParameters(); }
+	internal void SetAnimGraphChangedCallback( IntPtr callback ) { if ( HasInstance ) Instance.SetAnimGraphChangedCallback( callback ); }
+	internal void SetAnimGraph( string name ) { if ( HasInstance ) Instance.SetAnimGraph( name ); }
+	internal void SetAnimGraph( HAnimationGraph graph ) { if ( HasInstance ) Instance.SetAnimGraph( graph ); }
+	internal HAnimationGraph GetAnimGraph() => HasInstance ? Instance.GetAnimGraph() : default;
+	internal void SetAnimGraph2( HAnimGraph2 graph ) { if ( HasInstance ) Instance.SetAnimGraph2( graph ); }
+	internal void SetAnimGraph2ControllerCreatedCallback( IntPtr callback ) { if ( HasInstance ) Instance.SetAnimGraph2ControllerCreatedCallback( callback ); }
+	internal AnimationGraph2Controller GetAnimGraph2Controller() => HasInstance ? Instance.GetAnimGraph2Controller() : default;
+	internal float GetAnimGraph2UpdateTimeMs() => HasInstance ? Instance.GetAnimGraph2UpdateTimeMs() : 0;
+	internal void SetLowDetailAnimation( bool low ) { if ( HasInstance ) Instance.SetLowDetailAnimation( low ); }
+	internal bool IsLowDetailAnimation() => HasInstance ? Instance.IsLowDetailAnimation() : false;
 
-	internal void SBox_SetFlexOverride( StringToken name, float weight, float fade ) { if ( HasInstance ) Instance.SBox_SetFlexOverride( name, weight, fade ); else Twin.SBox_SetFlexOverride( name, weight, fade ); }
-	internal void SBox_SetFlexOverride( int flex, float weight, float fade ) { if ( HasInstance ) Instance.SBox_SetFlexOverride( flex, weight, fade ); else Twin.SBox_SetFlexOverride( flex, weight, fade ); }
-	internal float SBox_GetFlexOverride( int flex ) => HasInstance ? Instance.SBox_GetFlexOverride( flex ) : Twin.SBox_GetFlexOverride( flex );
-	internal float SBox_GetFlexOverride( StringToken name ) => HasInstance ? Instance.SBox_GetFlexOverride( name ) : Twin.SBox_GetFlexOverride( name );
-	internal void SBox_ClearFlexOverride( float fade ) { if ( HasInstance ) Instance.SBox_ClearFlexOverride( fade ); else Twin.SBox_ClearFlexOverride( fade ); }
-	internal void SBox_ClearFlexOverride( StringToken name, float fade ) { if ( HasInstance ) Instance.SBox_ClearFlexOverride( name, fade ); else Twin.SBox_ClearFlexOverride( name, fade ); }
-	internal void SBox_ClearFlexOverride( int flex, float fade ) { if ( HasInstance ) Instance.SBox_ClearFlexOverride( flex, fade ); else Twin.SBox_ClearFlexOverride( flex, fade ); }
+	internal void SBox_SetFlexOverride( StringToken name, float weight, float fade ) { if ( HasInstance ) Instance.SBox_SetFlexOverride( name, weight, fade ); }
+	internal void SBox_SetFlexOverride( int flex, float weight, float fade ) { if ( HasInstance ) Instance.SBox_SetFlexOverride( flex, weight, fade ); }
+	internal float SBox_GetFlexOverride( int flex ) => HasInstance ? Instance.SBox_GetFlexOverride( flex ) : 0;
+	internal float SBox_GetFlexOverride( StringToken name ) => HasInstance ? Instance.SBox_GetFlexOverride( name ) : 0;
+	internal void SBox_ClearFlexOverride( float fade ) { if ( HasInstance ) Instance.SBox_ClearFlexOverride( fade ); }
+	internal void SBox_ClearFlexOverride( StringToken name, float fade ) { if ( HasInstance ) Instance.SBox_ClearFlexOverride( name, fade ); }
+	internal void SBox_ClearFlexOverride( int flex, float fade ) { if ( HasInstance ) Instance.SBox_ClearFlexOverride( flex, fade ); }
 
-	internal void DirectPlayback_PlaySequence( string name ) { if ( HasInstance ) Instance.DirectPlayback_PlaySequence( name ); else Twin.DirectPlayback_PlaySequence( name ); }
-	internal void DirectPlayback_PlaySequence( string name, Vector3 target, float heading, float interpTime ) { if ( HasInstance ) Instance.DirectPlayback_PlaySequence( name, target, heading, interpTime ); else Twin.DirectPlayback_PlaySequence( name, target, heading, interpTime ); }
-	internal void DirectPlayback_CancelSequence() { if ( HasInstance ) Instance.DirectPlayback_CancelSequence(); else Twin.DirectPlayback_CancelSequence(); }
-	internal float DirectPlayback_GetSequenceCycle() => HasInstance ? Instance.DirectPlayback_GetSequenceCycle() : Twin.DirectPlayback_GetSequenceCycle();
-	internal string DirectPlayback_GetSequence() => HasInstance ? Instance.DirectPlayback_GetSequence() : Twin.DirectPlayback_GetSequence();
-	internal void DirectPlayback_SetSequenceStartTime( float time ) { if ( HasInstance ) Instance.DirectPlayback_SetSequenceStartTime( time ); else Twin.DirectPlayback_SetSequenceStartTime( time ); }
-	internal float DirectPlayback_GetSequenceDuration() => HasInstance ? Instance.DirectPlayback_GetSequenceDuration() : Twin.DirectPlayback_GetSequenceDuration();
+	internal void DirectPlayback_PlaySequence( string name ) { if ( HasInstance ) Instance.DirectPlayback_PlaySequence( name ); }
+	internal void DirectPlayback_PlaySequence( string name, Vector3 target, float heading, float interpTime ) { if ( HasInstance ) Instance.DirectPlayback_PlaySequence( name, target, heading, interpTime ); }
+	internal void DirectPlayback_CancelSequence() { if ( HasInstance ) Instance.DirectPlayback_CancelSequence(); }
+	internal float DirectPlayback_GetSequenceCycle() => HasInstance ? Instance.DirectPlayback_GetSequenceCycle() : 0;
+	internal string DirectPlayback_GetSequence() => HasInstance ? Instance.DirectPlayback_GetSequence() : null;
+	internal void DirectPlayback_SetSequenceStartTime( float time ) { if ( HasInstance ) Instance.DirectPlayback_SetSequenceStartTime( time ); }
+	internal float DirectPlayback_GetSequenceDuration() => HasInstance ? Instance.DirectPlayback_GetSequenceDuration() : 0;
 
 	internal bool SBox_GetAttachment( StringToken name, bool worldspace, out Transform tx ) => HasInstance ? Instance.SBox_GetAttachment( name, worldspace, out tx ) : Twin.SBox_GetAttachment( name, worldspace, out tx );
 
-	internal void SetShouldUseAnimGraph( bool enabled ) { if ( HasInstance ) Instance.SetShouldUseAnimGraph( enabled ); else Twin.SetShouldUseAnimGraph( enabled ); }
-	internal bool GetShouldUseAnimGraph() => HasInstance ? Instance.GetShouldUseAnimGraph() : Twin.GetShouldUseAnimGraph();
+	internal void SetShouldUseAnimGraph( bool enabled ) { if ( HasInstance ) Instance.SetShouldUseAnimGraph( enabled ); }
+	internal bool GetShouldUseAnimGraph() => HasInstance ? Instance.GetShouldUseAnimGraph() : false;
 
-	internal string GetSequence() => HasInstance ? Instance.GetSequence() : Twin.GetSequence();
-	internal void SetSequence( string name ) { if ( HasInstance ) Instance.SetSequence( name ); else Twin.SetSequence( name ); }
-	internal float GetSequenceDuration() => HasInstance ? Instance.GetSequenceDuration() : Twin.GetSequenceDuration();
-	internal float GetSequenceCycle() => HasInstance ? Instance.GetSequenceCycle() : Twin.GetSequenceCycle();
-	internal void SetSequenceCycle( float cycle ) { if ( HasInstance ) Instance.SetSequenceCycle( cycle ); else Twin.SetSequenceCycle( cycle ); }
-	internal void SetSequenceLooping( bool looping ) { if ( HasInstance ) Instance.SetSequenceLooping( looping ); else Twin.SetSequenceLooping( looping ); }
-	internal bool IsSequenceFinished() => HasInstance ? Instance.IsSequenceFinished() : Twin.IsSequenceFinished();
-	internal void SetSequenceBlending( bool blending ) { if ( HasInstance ) Instance.SetSequenceBlending( blending ); else Twin.SetSequenceBlending( blending ); }
+	internal string GetSequence() => HasInstance ? Instance.GetSequence() : null;
+	internal void SetSequence( string name ) { if ( HasInstance ) Instance.SetSequence( name ); }
+	internal float GetSequenceDuration() => HasInstance ? Instance.GetSequenceDuration() : 0;
+	internal float GetSequenceCycle() => HasInstance ? Instance.GetSequenceCycle() : 0;
+	internal void SetSequenceCycle( float cycle ) { if ( HasInstance ) Instance.SetSequenceCycle( cycle ); }
+	internal void SetSequenceLooping( bool looping ) { if ( HasInstance ) Instance.SetSequenceLooping( looping ); }
+	internal bool IsSequenceFinished() => HasInstance ? Instance.IsSequenceFinished() : false;
+	internal void SetSequenceBlending( bool blending ) { if ( HasInstance ) Instance.SetSequenceBlending( blending ); }
 
-	internal float GetPlaybackRate() => HasInstance ? Instance.GetPlaybackRate() : Twin.GetPlaybackRate();
-	internal void SetPlaybackRate( float rate ) { if ( HasInstance ) Instance.SetPlaybackRate( rate ); else Twin.SetPlaybackRate( rate ); }
+	internal float GetPlaybackRate() => HasInstance ? Instance.GetPlaybackRate() : 1;
+	internal void SetPlaybackRate( float rate ) { if ( HasInstance ) Instance.SetPlaybackRate( rate ); }
 
-	internal int PendingAnimationEvents() => HasInstance ? Instance.PendingAnimationEvents() : Twin.PendingAnimationEvents();
-	internal void RunAnimationEvents( IntPtr callback ) { if ( HasInstance ) Instance.RunAnimationEvents( callback ); else Twin.RunAnimationEvents( callback ); }
-	internal void DispatchTagEvents( IntPtr callback ) { if ( HasInstance ) Instance.DispatchTagEvents( callback ); else Twin.DispatchTagEvents( callback ); }
+	internal int PendingAnimationEvents() => HasInstance ? Instance.PendingAnimationEvents() : 0;
+	internal void RunAnimationEvents( IntPtr callback ) { if ( HasInstance ) Instance.RunAnimationEvents( callback ); }
+	internal void DispatchTagEvents( IntPtr callback ) { if ( HasInstance ) Instance.DispatchTagEvents( callback ); }
 
-	internal void ClearPhysicsBones() { if ( HasInstance ) Instance.ClearPhysicsBones(); else Twin.ClearPhysicsBones(); }
-	internal void SetPhysicsBone( ushort bone, Transform tx ) { if ( HasInstance ) Instance.SetPhysicsBone( bone, tx ); else Twin.SetPhysicsBone( bone, tx ); }
-	internal bool HasPhysicsBones() => HasInstance ? Instance.HasPhysicsBones() : Twin.HasPhysicsBones();
+	internal void ClearPhysicsBones() { if ( HasInstance ) Instance.ClearPhysicsBones(); }
+	internal void SetPhysicsBone( ushort bone, Transform tx ) { if ( HasInstance ) Instance.SetPhysicsBone( bone, tx ); }
+	internal bool HasPhysicsBones() => HasInstance ? Instance.HasPhysicsBones() : false;
 
-	internal Transform GetRootMotion() => HasInstance ? Instance.GetRootMotion() : Twin.GetRootMotion();
+	internal Transform GetRootMotion() => HasInstance ? Instance.GetRootMotion() : Transform.Zero;
 
-	internal IAnimParameterInstance GetAnimParameter( int index ) => HasInstance ? Instance.GetAnimParameter( index ) : Twin.GetAnimParameter( index );
+	internal IAnimParameterInstance GetAnimParameter( int index ) => HasInstance ? Instance.GetAnimParameter( index ) : default;
 
 	// Draw state: the twin's whichever animates
 	internal void SetBodyGroup( string name, int value ) => Twin.SetBodyGroup( name, value );

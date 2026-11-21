@@ -6,18 +6,6 @@ namespace Sandbox;
 public sealed partial class SceneModel
 {
 	/// <summary>
-	/// Whether scene models made from now on animate on a <see cref="ModelAnimationInstance"/> of their own instead of their
-	/// native twin: on unless <c>-noaniminstance</c> is on the command line. Their twin keeps draw state and draws their pose
-	/// in Source 2's views.
-	/// </summary>
-	internal static bool UsesAnimationInstance => AnimationInstanceOverride ?? (_animationInstanceSwitch ??= !CommandLine.HasSwitch( "-noaniminstance" ));
-
-	/// <summary>Tests set <see cref="UsesAnimationInstance"/> either way; null follows the command line.</summary>
-	internal static bool? AnimationInstanceOverride { get; set; }
-
-	static bool? _animationInstanceSwitch;
-
-	/// <summary>
 	/// The bounds of the pose, worked out from it as native's <c>UpdateBoundsFromRenderBones</c> does, while an instance
 	/// animates this model.
 	/// </summary>

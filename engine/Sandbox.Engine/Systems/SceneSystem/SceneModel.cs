@@ -37,7 +37,7 @@ public sealed partial class SceneModel : SceneObject
 				throw new System.ArgumentException( "Error creating AnimSceneObject - possible invalid model?" );
 			}
 
-			if ( UsesAnimationInstance ) CreateAnimationInstance( model, transform );
+			CreateAnimationInstance( model, transform );
 
 			Tags.RemoveAll();
 			Transform = transform;
