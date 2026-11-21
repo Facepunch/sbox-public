@@ -279,11 +279,15 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 			// An asset's file type, compiled or not: a game resource's, or the engine's (an image's compiles to nothing)
 			var type = extension[1..];
 			if ( type.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) type = type[..^2];
-			var main = AssetSystem.IsGameResource( type ) ? type : IResourceCompilerSystem.FindAssetTypeExtension( type );
+			if ( !_assetTypes.TryGetValue( type, out var main ) )
+				_assetTypes[type] = main = AssetSystem.IsGameResource( type ) ? type : IResourceCompilerSystem.FindAssetTypeExtension( type );
 			if ( main is null )
 				return;
 
-			if ( MountedPath( str ) is { } relative )
+			if ( !_mountedPaths.TryGetValue( str, out var relative ) )
+				_mountedPaths[str] = relative = MountedPath( str );
+
+			if ( relative is not null )
 			{
 				// If the file type doesn't compile to a file (like images don't) then
 				// we should just add it as a compile reference.
@@ -316,6 +320,10 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 		}
 	}
 
+
+	// A scan meets the same paths and file types many times, and each lookup goes to every mount or to native
+	readonly Dictionary<string, string> _assetTypes = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, string> _mountedPaths = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// Where the mounts (generated resources' too) have an asset's file: its path in the root that has it (a later
