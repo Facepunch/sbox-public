@@ -199,6 +199,13 @@ public abstract class GpuDevice
 	internal virtual bool WritesForwardNormals => false;
 
 	/// <summary>
+	/// Whether a view's depth prepass leaves ids that each pixel's triangle can be found from, and the device resolves them
+	/// into normals after it (<see cref="GpuContext.ResolveIdsNormals"/>, <see cref="IdsNormalsLayer"/>), which ambient
+	/// occlusion reads instead of rebuilding normals from depth.
+	/// </summary>
+	internal virtual bool ResolvesIdsNormals => false;
+
+	/// <summary>
 	/// The error a generated level may have, in pixels at an object's nearest point, as views pick the levels of meshes they
 	/// draw themselves (<see cref="GpuMesh.LevelsFor"/>); 0 when the device makes none.
 	/// </summary>

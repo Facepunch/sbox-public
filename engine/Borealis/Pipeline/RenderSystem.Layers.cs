@@ -34,6 +34,7 @@ public sealed partial class RenderSystem
 
 			// Pass inputs and outputs determine queue waits; this list is also the serial execution order.
 			new DepthChainLayer(),
+			new IdsNormalsLayer(),
 			new EarlyStageLayer( RenderStage.AfterDepthPrepass, StageQueue.AsyncCompute ),
 			contactShadows,
 			new EarlyStageLayer( RenderStage.AfterDepthPrepass, StageQueue.Graphics ),

@@ -575,6 +575,37 @@ internal static class MapRealRun
 
 				var (texture, layout) = map.Output;
 
+				// -ids-normals: the normals the frame found from its ids (n * 0.5 + 0.5, black where a pixel has none), read before
+				// the next frame takes its transient back
+				if ( map.Backend.IdsNormals )
+				{
+					var (wasDriven, wasVisible) = (map.Backend.GpuDriven, map.Backend.GpuDrivenVisibility);
+					(map.Backend.GpuDriven, map.Backend.GpuDrivenVisibility) = (true, true);
+					RenderFrame( view );
+					RenderFrame( view );
+					gpu.WaitIdle();
+					(map.Backend.GpuDriven, map.Backend.GpuDrivenVisibility) = (wasDriven, wasVisible);
+				}
+
+				if ( map.Backend.IdsNormals && map.System.Layers.OfType<global::Borealis.IdsNormalsLayer>().FirstOrDefault()?.LastResolved is { } idsNormals )
+				{
+					var (normalsTexture, normalsLayout) = BackendDevice.Unwrap( idsNormals );
+					var info = gpu.InfoOf( normalsTexture );
+					var data = Capture.Read( gpu, normalsTexture, normalsLayout );
+					BackendDevice.SetLayout( idsNormals, ImageLayout.CopySource );
+					var rgba = new byte[info.Width * info.Height * 4];
+					for ( int p = 0; p < info.Width * info.Height; p++ )
+					{
+						var has = (float)BitConverter.ToHalf( data, p * 8 + 6 ) > 0;
+						for ( int c = 0; c < 3; c++ ) rgba[p * 4 + c] = has ? (byte)Math.Clamp( ((float)BitConverter.ToHalf( data, p * 8 + c * 2 ) * 0.5f + 0.5f) * 255 + 0.5f, 0, 255 ) : (byte)0;
+						rgba[p * 4 + 3] = 255;
+					}
+
+					var normalsPath = Path.ChangeExtension( path, null ) + "-idsnormals.png";
+					File.WriteAllBytes( normalsPath, Capture.Png( rgba, info.Width, info.Height ) );
+					Console.WriteLine( $"Saved {normalsPath}" );
+				}
+
 				// -vis 10,2: the same frame in the shaders' debug views
 				foreach ( var mode in (Args.String( "-vis" ) ?? "").Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
 				{

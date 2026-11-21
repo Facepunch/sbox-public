@@ -54,6 +54,15 @@ uint BorealisGpuDrivenVertexBit( uint nInstance, uint nVertex )
 	return nBase == 0xffffffffu ? 0xffffffffu : nBase + nVertex;
 }
 
+// What the id prepass writes for the vertex, less the 1 its first word adds: its bit, and its instance record as the frame
+// chunk's bindless slot (top 10 bits) and the record's index in it (low 22 bits), all ones past them. Where the view's ids
+// target has a second word (BackendDevice.IdsNormals) both land, for the normals resolve; otherwise only the bit does
+uint2 BorealisGpuDrivenIds( uint nInstance, uint nVertex )
+{
+	uint nPointer = nInstance < ( 1u << 22 ) && g_nBorealisInstances < 1024 ? ( g_nBorealisInstances << 22 ) | nInstance : 0xffffffffu;
+	return uint2( BorealisGpuDrivenVertexBit( nInstance, nVertex ), nPointer );
+}
+
 // The draw's geometry record, vertex material record and pixel material record offsets, and its flags
 uint4 BorealisGpuDrivenDraw( uint nDraw )
 {

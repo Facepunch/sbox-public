@@ -42,8 +42,15 @@ internal sealed class MeshletStore : IDisposable
 	/// </summary>
 	public const int LocalRecordBytes = MeshletLocalRecord.Size;
 
-	/// <summary>Bytes of a data page, which holds ranges' local triangles and vertices (a range's in one page).</summary>
+	/// <summary>Bytes of a data page, which holds ranges' local triangles and vertices and their corner tables (a range's in one page).</summary>
 	public const int DataPageBytes = 32 << 20;
+
+	/// <summary>
+	/// Bytes of a corner run in the corner table (<see cref="CornerData"/>), per draw record: the data page's bindless slot
+	/// plus 1 (0 for none), the byte offset of the range's first-corner table there (<see cref="MeshletSet.Corners"/>), its
+	/// lowest first corner and how many values from it.
+	/// </summary>
+	public const int CornerRunBytes = 16;
 
 	/// <summary>Frames a rewrite waits before its runs are written: frames in flight may read the range's old order.</summary>
 	const int PublishDelay = 4;
@@ -58,6 +65,13 @@ internal sealed class MeshletStore : IDisposable
 	/// request.
 	/// </summary>
 	public bool LocalData { get; init; }
+
+	/// <summary>
+	/// Whether each range also gets its triangles by first corner (<see cref="MeshletSet.Corners"/>), for normals from the
+	/// visibility ids (<see cref="BackendDevice.IdsNormals"/>): uploaded into data pages, and a corner run per draw record
+	/// beside its run. Set before the first request.
+	/// </summary>
+	public bool CornerData { get; init; }
 
 	/// <summary>
 	/// Whether a built range's bytes are written on its build worker into a staging buffer of its own (on), so the upload on
@@ -91,6 +105,9 @@ internal sealed class MeshletStore : IDisposable
 		public State State;
 		public MeshletSet Set;
 		public MeshletLocal Local;
+		public MeshletCorners Corners;
+		public long CornersAt;
+		public uint CornerSlot, CornerAt, CornerLow, CornerSpan;
 
 		/// <summary>
 		/// What its upload copies, written on the build worker (<see cref="Stage"/>) in the range's index size: its indices, its
@@ -135,11 +152,19 @@ internal sealed class MeshletStore : IDisposable
 	BufferHandle runs;
 	int runSlot = -1;
 	long runBytes;
+
+	// The corner table (CornerData): a corner run per draw record, grown as the run table is
+	BufferHandle corners;
+	int cornerSlot = -1;
+	long cornerBytes;
 	// Run tables it grew out of, with the device frame they were retired in: draws recorded in that frame read them
 	readonly List<(BufferHandle Buffer, ulong Frame)> retiredRuns = new();
 
 	/// <summary>Ranges asked for, built, published and refused; meshlets and triangles published; build time on the workers.</summary>
 	public long Requested, Built, Published, Refused, Meshlets, Triangles, Triangles16, BuildTicks;
+
+	/// <summary>Bytes of first-corner tables uploaded (<see cref="CornerData"/>).</summary>
+	public long CornerTableBytes;
 
 	/// <summary>Ranges whose meshlets were cooked into their model, taken as they are, and the worker time that took.</summary>
 	public long CookedHits, CookedTicks;
@@ -185,6 +210,20 @@ internal sealed class MeshletStore : IDisposable
 		{
 			if ( drawRecords * RunBytes > runBytes ) GrowRuns( drawRecords * RunBytes );
 			return runSlot;
+		}
+	}
+
+	/// <summary>
+	/// The corner table's bindless slot (<see cref="CornerData"/>), grown first to hold a corner run for every one of
+	/// <paramref name="drawRecords"/> draw records, as <see cref="RunSlotCovering"/> grows the run table; -1 without corner data.
+	/// </summary>
+	public int CornerSlotCovering( long drawRecords )
+	{
+		if ( !CornerData ) return -1;
+		lock ( gate )
+		{
+			if ( drawRecords * CornerRunBytes > cornerBytes || !corners.IsValid ) GrowCorners( Math.Max( drawRecords * CornerRunBytes, 1 << 16 ) );
+			return cornerSlot;
 		}
 	}
 
@@ -237,7 +276,8 @@ internal sealed class MeshletStore : IDisposable
 		var local = entry.Local;
 		var triangleBytes = local is null ? 0 : local.Triangles.Length * 4L;
 		var vertexBytes = local is null ? 0 : (local.Vertices.Length * (wide ? 4L : 2L) + 3) & ~3L;
-		var staging = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( indexBytes + recordBytes + triangleBytes + vertexBytes, 4 ), Usage = BufferUsage.CopySource, Memory = MemoryLocation.Upload, Name = "Borealis meshlet staging" } );
+		var tableBytes = entry.Corners is { } firstCorners ? firstCorners.Words.Length * 4L : 0;
+		var staging = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( indexBytes + recordBytes + triangleBytes + vertexBytes + tableBytes, 4 ), Usage = BufferUsage.CopySource, Memory = MemoryLocation.Upload, Name = "Borealis meshlet staging" } );
 		var mapped = gpu.Map( staging );
 		if ( !set.InPlace ) Write( mapped, set.Indices, wide );
 		MemoryMarshal.AsBytes( set.Meshlets.AsSpan() ).CopyTo( mapped[(int)indexBytes..] );
@@ -246,6 +286,9 @@ internal sealed class MeshletStore : IDisposable
 			MemoryMarshal.AsBytes( local.Triangles.AsSpan() ).CopyTo( mapped[(int)(indexBytes + recordBytes)..] );
 			Write( mapped[(int)(indexBytes + recordBytes + triangleBytes)..], local.Vertices, wide );
 		}
+
+		if ( entry.Corners is { } table ) MemoryMarshal.AsBytes( table.Words.AsSpan() ).CopyTo( mapped[(int)(indexBytes + recordBytes + triangleBytes + vertexBytes)..] );
+		entry.CornersAt = indexBytes + recordBytes + triangleBytes + vertexBytes;
 
 		entry.Staging = staging;
 		entry.IndexBytes = set.InPlace ? 0 : set.Indices.Length * (wide ? 4L : 2L);
@@ -343,6 +386,7 @@ internal sealed class MeshletStore : IDisposable
 			Interlocked.Add( ref cooked ? ref CookedTicks : ref BuildTicks, Stopwatch.GetTimestamp() - started );
 			entry.Set = set is not null && set.Meshlets.Length <= MaxRunMeshlets ? set : null;
 			if ( LocalData && entry.Set is not null ) entry.Local = entry.Set.Local();
+			if ( CornerData && entry.Set is not null && entry.Set.Corners() is { } table && table.Words.Length * 4L <= DataPageBytes ) entry.Corners = table;
 			if ( StageOnWorkers && entry.Set is not null ) Stage( entry );
 			built.Enqueue( entry );
 		}
@@ -595,6 +639,7 @@ internal sealed class MeshletStore : IDisposable
 				if ( entry.Source.Format == IndexFormat.UInt16 ) Triangles16 += entry.Set.Triangles;
 				entry.Set = null;
 				entry.Local = null;
+				entry.Corners = null;
 				entry.Source = null;
 				uploaded.RemoveAt( i );
 			}
@@ -669,6 +714,7 @@ internal sealed class MeshletStore : IDisposable
 			else list.UpdateBuffer<MeshletRecord>( into, set.Meshlets, first * (long)MeshletSet.RecordBytes );
 			bytes += recordBytes;
 			if ( entry.Local is { } local ) bytes += UploadLocal( list, set, local, s.Format == IndexFormat.UInt32, entry );
+			if ( entry.Corners is { } table ) bytes += UploadCorners( list, table, entry );
 
 			// Freed once the GPU has run the copies
 			if ( staging.IsValid ) gpu.Destroy( staging );
@@ -747,8 +793,50 @@ internal sealed class MeshletStore : IDisposable
 		return triangleBytes + vertexBytes + records.Length * (long)LocalRecordBytes;
 	}
 
+	/// <summary>
+	/// A range's first-corner table into a data page with room for it, and where it went in the entry for its corner runs.
+	/// Bytes uploaded.
+	/// </summary>
+	long UploadCorners( CommandList list, MeshletCorners table, Entry entry )
+	{
+		var bytes = table.Words.Length * 4L;
+		if ( dataUsed + bytes > DataPageBytes )
+		{
+			dataPage = gpu.CreateBuffer( new BufferInfo { Size = DataPageBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Memory = MemoryLocation.Device, Name = "Borealis meshlet data page" } );
+			dataPages.Add( dataPage );
+			dataSlot = gpu.BindlessIndex( dataPage );
+			dataUsed = 0;
+		}
+
+		if ( entry.Staging.IsValid ) list.CopyBuffer( entry.Staging, entry.CornersAt, dataPage, dataUsed, bytes );
+		else list.UpdateBuffer<uint>( dataPage, table.Words, dataUsed );
+		lock ( gate )
+		{
+			entry.CornerSlot = (uint)dataSlot + 1;
+			entry.CornerAt = (uint)dataUsed;
+			(entry.CornerLow, entry.CornerSpan) = (table.Low, table.Span);
+			CornerTableBytes += bytes;
+		}
+
+		dataUsed += bytes;
+		return bytes;
+	}
+
 	void WriteRun( uint draw, Entry entry )
 	{
+		// The corner run first, its slot last: a resolve finds no table until it's whole
+		if ( CornerData && entry.CornerSlot != 0 )
+		{
+			var cornerAt = draw * (long)CornerRunBytes;
+			if ( cornerAt + CornerRunBytes > cornerBytes || !corners.IsValid ) GrowCorners( cornerAt + CornerRunBytes );
+			var corner = MemoryMarshal.Cast<byte, uint>( gpu.Map( corners ).Slice( (int)cornerAt, CornerRunBytes ) );
+			corner[1] = entry.CornerAt;
+			corner[2] = entry.CornerLow;
+			corner[3] = entry.CornerSpan;
+			Thread.MemoryBarrier();
+			Volatile.Write( ref corner[0], entry.CornerSlot );
+		}
+
 		var at = draw * (long)RunBytes;
 		if ( at + RunBytes > runBytes ) GrowRuns( at + RunBytes );
 		ref var run = ref MemoryMarshal.AsRef<MeshletRun>( gpu.Map( runs ).Slice( (int)at, RunBytes ) );
@@ -788,6 +876,24 @@ internal sealed class MeshletStore : IDisposable
 		runSlot = gpu.BindlessIndex( buffer );
 	}
 
+	void GrowCorners( long needed )
+	{
+		var size = Math.Max( cornerBytes * 2, 1 << 16 );
+		while ( size < needed ) size *= 2;
+		var buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = BufferUsage.Storage, Memory = MemoryLocation.Upload, Name = "Borealis meshlet corner runs" } );
+		var mapped = gpu.Map( buffer );
+		mapped.Clear();
+		if ( corners.IsValid )
+		{
+			gpu.Map( corners )[..(int)cornerBytes].CopyTo( mapped );
+			retiredRuns.Add( (corners, gpu.FrameNumber) );
+		}
+
+		corners = buffer;
+		cornerBytes = size;
+		cornerSlot = gpu.BindlessIndex( buffer );
+	}
+
 	public void Dispose()
 	{
 		while ( built.TryDequeue( out var entry ) )
@@ -800,6 +906,7 @@ internal sealed class MeshletStore : IDisposable
 		foreach ( var p in dataPages ) gpu.Destroy( p );
 		dataPages.Clear();
 		if ( runs.IsValid ) gpu.Destroy( runs );
+		if ( corners.IsValid ) gpu.Destroy( corners );
 		foreach ( var (r, _) in retiredRuns ) gpu.Destroy( r );
 		retiredRuns.Clear();
 	}
