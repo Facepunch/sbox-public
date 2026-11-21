@@ -669,21 +669,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal void OnPreRender( Vector2 size )
 	{
 		Size = size;
-
-		ConfigureView( default );
-	}
-
-	/// <summary>
-	/// Configure the view immediately before rendering. This will set the camera position
-	/// etc on the local camera renderer. This should be called immediately before adding
-	/// the views etc.
-	/// </summary>
-	internal void ConfigureView( in ViewSetup config )
-	{
-		if ( _world.IsValid() && !Graphics.IsActive )
-		{
-			_world.UpdateObjectsForRendering( Position, ZFar );
-		}
 	}
 
 	void IManagedCamera.OnRenderStage( Rendering.Stage renderStage )

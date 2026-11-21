@@ -90,7 +90,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		if ( loaded is not BackendMaterial material ) return false;
 		var file = Content.TryRead( path ) is { } data ? MaterialFile.Read( data ) : null;
-		material.Reload( file is null ? null : Shaders.Load( file.Shader ), file, file is null ? null : Textures( file ) );
+		ShaderFile shader = null;
+		if ( file is not null ) file = WithShader( path, file, out shader );
+		material.Reload( shader, file, file is null ? null : Textures( file ) );
 		return true;
 	}
 
@@ -1611,7 +1613,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal GpuMaterial LoadMaterial( string name, MaterialFile file )
 	{
-		BackendMaterial Classic() => Track( new BackendMaterial( name, Shaders.Load( file.Shader ), file, Textures( file ) ) );
+		BackendMaterial Classic()
+		{
+			var drawn = WithShader( name, file, out var shader );
+			return Track( new BackendMaterial( name, shader, drawn, Textures( drawn ) ) );
+		}
+
 #pragma warning disable CA2000 // Returned: the caller owns it
 		if ( Surfaces.HasConversions && Converted( name, file, Classic ) is { } converted ) return converted;
 #pragma warning restore CA2000
@@ -1709,8 +1716,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
-	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. It draws nothing if
-	/// it, or its shader, isn't built.
+	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. One that isn't built, or
+	/// whose shader isn't, draws as the error material.
 	/// </summary>
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
 		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
@@ -1774,7 +1781,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : MissingMaterial( path );
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
-		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
+		file = WithShader( path, file, out var shader );
+		return Track( new BackendMaterial( name ?? path, shader, file, Textures( file ), values ) );
+	}
+
+	/// <summary>
+	/// <paramref name="file"/> with its shader, or the error material's file and shader when its shader won't load (no
+	/// compiled file, as S&amp;Business's bucket water names a shader its package doesn't ship, or one that can't be read here),
+	/// as native's material system draws such a material with the error shader. One that names no shader, or the error
+	/// material itself, stays as it is.
+	/// </summary>
+	MaterialFile WithShader( string path, MaterialFile file, out ShaderFile shader )
+	{
+		shader = Shaders.Load( file.Shader );
+		if ( shader is not null || string.IsNullOrEmpty( file.Shader ) || MissingMaterial( path ) is not { } error ) return file;
+		if ( Shaders.Load( error.Shader ) is not { } errorShader ) return file;
+		shader = errorShader;
+		return error;
 	}
 
 	/// <summary>What native draws with a material that isn't there.</summary>

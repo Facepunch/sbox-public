@@ -75,8 +75,6 @@ SamplerState TextureFiltering < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
 #endif
 #endif
 
-// What follows is Slang (extensions, operators, conversions): vfx's own parser, which reads a recompiled package shader
-// before Slang compiles it, skips it
 // instancing.fxc's GetExtraPerInstanceShaderData took the vertex input before it took the instance's transform index
 #ifdef SBOX_EMBEDDED_EXTRA_DATA_FROM_INPUT
 ExtraShaderData_t GetExtraPerInstanceShaderData( VS_INPUT i )
@@ -93,7 +91,12 @@ uint g_nMorphTextureAtlasWidth < Attribute( "MorphTextureAtlasWidth" ); >;
 #endif
 #endif
 
-#if defined( __SLANG__ )
+// What follows is Slang (extensions, operators, conversions). In vfx's compile of a recompiled package shader (SLANG
+// defined, __SLANG__ not) vfx's HLSL parser can't read it: the pragmas take it past the parser to Slang alone
+#if defined( __SLANG__ ) || defined( SLANG )
+#ifndef __SLANG__
+#pragma sbox_slang_begin
+#endif
 
 // A world position's screen position as SV_Position has it in a pixel stage: pixels, depth, 1 / view depth
 #if defined( LIGHT_HLSL ) || defined( AMBIENTLIGHT_HLSL )
@@ -199,6 +202,13 @@ extension vector<float, 3>
 	__implicit_conversion( 900 ) __init( float4 v ) { this = v.xyz; }
 }
 
+// A float4 where a float goes (a float function returning float4( ... )) is its x, as HLSL takes it; dearer than the
+// truncations above, so a vector keeps to a vector where it can
+extension float
+{
+	__implicit_conversion( 950 ) __init( float4 v ) { this = v.x; }
+}
+
 // common/classes/ScreenSpaceTrace.hlsl's result before the trace gave a screen uv: the hit with its uv in xy, and whether
 // it hit
 #ifdef SCREEN_SPACE_TRACE_HLSL
@@ -209,6 +219,35 @@ extension TraceResult
 }
 #endif
 
-#endif // __SLANG__
+// terrain/TerrainCommon.hlsl's TerrainStruct before its units per texel had that name (Rust Legacy's grass)
+#ifdef TERRAIN_H
+extension TerrainStruct
+{
+	property float Resolution { get { return UnitsPerTexel; } }
+}
+#endif
+
+// HLSL's min and max of float vectors of two sizes truncate the wider (a water shader's min( float4, float2 )); Slang's take
+// one size. These take the narrower through a conversion of its own, so they cost more than any built-in that applies
+// (the engine's min( float3, float ), say) and are picked only where none does
+struct EmbeddedFloat2 { float2 Value; __implicit_conversion( 500 ) __init( float2 v ) { Value = v; } }
+struct EmbeddedFloat3 { float3 Value; __implicit_conversion( 500 ) __init( float3 v ) { Value = v; } }
+float2 min( float4 a, EmbeddedFloat2 b ) { return min( a.xy, b.Value ); }
+float2 min( EmbeddedFloat2 a, float4 b ) { return min( a.Value, b.xy ); }
+float2 min( float3 a, EmbeddedFloat2 b ) { return min( a.xy, b.Value ); }
+float2 min( EmbeddedFloat2 a, float3 b ) { return min( a.Value, b.xy ); }
+float3 min( float4 a, EmbeddedFloat3 b ) { return min( a.xyz, b.Value ); }
+float3 min( EmbeddedFloat3 a, float4 b ) { return min( a.Value, b.xyz ); }
+float2 max( float4 a, EmbeddedFloat2 b ) { return max( a.xy, b.Value ); }
+float2 max( EmbeddedFloat2 a, float4 b ) { return max( a.Value, b.xy ); }
+float2 max( float3 a, EmbeddedFloat2 b ) { return max( a.xy, b.Value ); }
+float2 max( EmbeddedFloat2 a, float3 b ) { return max( a.Value, b.xy ); }
+float3 max( float4 a, EmbeddedFloat3 b ) { return max( a.xyz, b.Value ); }
+float3 max( EmbeddedFloat3 a, float4 b ) { return max( a.Value, b.xyz ); }
+
+#ifndef __SLANG__
+#pragma sbox_slang_end
+#endif
+#endif // __SLANG__ || SLANG
 
 #endif // SBOX_EMBEDDED_END_SLANGH

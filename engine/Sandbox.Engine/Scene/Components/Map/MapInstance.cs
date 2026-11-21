@@ -1,5 +1,4 @@
 ﻿using Facepunch.ActionGraphs;
-using NativeEngine;
 using Sandbox.Clutter;
 using Sentry;
 using System.Text.Json.Nodes;
@@ -178,7 +177,6 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		if ( hadMap )
 		{
 			OnMapUnloaded?.InvokeWithWarning();
-			g_pWorldRendererMgr.ServiceWorldRequests();
 		}
 
 		SceneMap.OnMapUpdated -= OnMapUpdated;

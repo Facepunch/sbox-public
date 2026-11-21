@@ -108,32 +108,12 @@ internal static class SceneNative
 	}
 
 	/// <summary>
-	/// Shared lightmap-attribute key; zero without lightmaps (<c>RenderTools.GetSceneObjectLightmapKey</c>).
+	/// Read wind strength, frequencies and direction from the <c>r_world_wind_*</c> settings (<c>RenderTools.GetWorldWind</c>).
 	/// </summary>
-	public static ulong LightmapKey( SceneObject sceneObject ) => RenderTools.GetSceneObjectLightmapKey( sceneObject );
-
-	/// <summary>
-	/// Read native probe bounds, priority and light groups (<c>RenderTools.GetLightProbeVolume</c>).
-	/// </summary>
-	public static unsafe void ReadLightProbeVolume( SceneObject lightProbeVolume, Borealis.LightProbeVolume into )
-	{
-		Vector3 mins, maxs;
-		int priority;
-		var groups = stackalloc uint[8];
-		var count = RenderTools.GetLightProbeVolume( lightProbeVolume, (IntPtr)(&mins), (IntPtr)(&maxs), (IntPtr)(&priority), (IntPtr)groups, 8 );
-		into.BoxMins = mins;
-		into.BoxMaxs = maxs;
-		into.RenderPriority = priority;
-		into.LightGroups = new ReadOnlySpan<uint>( groups, Math.Clamp( count, 0, 8 ) ).ToArray();
-	}
-
-	/// <summary>
-	/// Read wind strength, frequencies and direction; zero without a world renderer (<c>RenderTools.GetSceneWorldWind</c>).
-	/// </summary>
-	public static unsafe void ReadWorldWind( SceneWorld world, out Vector4 strengthFreq, out Vector4 direction )
+	public static unsafe void ReadWorldWind( out Vector4 strengthFreq, out Vector4 direction )
 	{
 		Vector4 strength = default, dir = default;
-		if ( world is not null && world.native.IsValid ) RenderTools.GetSceneWorldWind( world, (IntPtr)(&strength), (IntPtr)(&dir) );
+		RenderTools.GetWorldWind( (IntPtr)(&strength), (IntPtr)(&dir) );
 		strengthFreq = strength;
 		direction = dir;
 	}
@@ -151,35 +131,5 @@ internal static class SceneNative
 		static bool Near( Vector4 a, Vector4 b ) => a.Distance( b ) <= 1e-3f * MathF.Max( 1, a.Length );
 		return Near( mine.Row0, native.Row0 ) && Near( mine.Row1, native.Row1 ) && Near( mine.Row2, native.Row2 ) && Near( mine.BoxMins, native.BoxMins )
 			&& Near( mine.BoxMaxs, native.BoxMaxs ) && Near( mine.Color, native.Color ) && mine.Priority == native.Priority;
-	}
-
-	/// <summary>
-	/// A native aggregate's model, and whether its draws are lit from lightmaps; null if the object isn't an aggregate
-	/// (<c>RenderTools.GetAggregateModel</c>).
-	/// </summary>
-	public static unsafe Model AggregateModel( SceneObject sceneObject, out bool lightmapped )
-	{
-		bool lit = false;
-		var model = RenderTools.GetAggregateModel( sceneObject, (IntPtr)(&lit) );
-		lightmapped = lit;
-		return model.IsNull ? null : Model.FromNative( model );
-	}
-
-	/// <summary>The light probe volume the map compiler bound an object to, 0 for none (<c>RenderTools.GetLightProbeVolumeHandshake</c>).</summary>
-	public static int LightProbeHandshake( SceneObject sceneObject ) => RenderTools.GetLightProbeVolumeHandshake( sceneObject );
-
-	/// <summary>
-	/// A native aggregate's fragments as it draws them (<c>RenderTools.GetAggregateFragments</c>).
-	/// </summary>
-	public static unsafe AggregateObject.FragmentDraw[] ReadAggregateFragments( SceneObject sceneObject )
-	{
-		var count = RenderTools.GetAggregateFragments( sceneObject, IntPtr.Zero, 0 );
-		var fragments = new AggregateObject.FragmentDraw[count];
-		fixed ( AggregateObject.FragmentDraw* ptr = fragments )
-		{
-			RenderTools.GetAggregateFragments( sceneObject, (IntPtr)ptr, count );
-		}
-
-		return fragments;
 	}
 }

@@ -366,13 +366,14 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// <summary>
 	/// As <see cref="RunStage"/>, with the view constants as <c>PerViewConstantBuffer_t</c>'s bytes: also what custom objects
 	/// draw through (<see cref="BorealisGpuCustomDraw"/>). <paramref name="depthAlone"/> draws into the target's depth with no
-	/// colour, at its slice (a shadow map's, or the depth prepass's), where a stage with no colour binds nothing.
+	/// colour, at its slice (a shadow map's, or the depth prepass's), where a stage with no colour binds nothing. Either way the
+	/// draw reads <paramref name="cameraAttributes"/> under the view constants.
 	/// </summary>
 	internal void RunInFrame( in StageTarget target, byte[] viewConstants, BorealisGpuView view, bool first, Action draw, bool depthAlone = false, RenderAttributes cameraAttributes = null )
 	{
 		if ( depthAlone )
 		{
-			RunInDepth( target, viewConstants, view, draw );
+			RunInDepth( target, viewConstants, view, draw, cameraAttributes );
 			return;
 		}
 
@@ -462,7 +463,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 	/// <see cref="RunInFrame"/> into <paramref name="target"/>'s depth alone, at its slice: what a custom object in a shadow map
 	/// or the depth prepass draws into. The frame's view constants for that view, no depth chain (depth passes don't read it).
 	/// </summary>
-	void RunInDepth( in StageTarget target, byte[] viewConstants, BorealisGpuView view, Action draw )
+	void RunInDepth( in StageTarget target, byte[] viewConstants, BorealisGpuView view, Action draw, RenderAttributes cameraAttributes )
 	{
 		if ( target.Depth is not BackendTexture gpu ) return;
 
@@ -485,6 +486,7 @@ internal sealed class BorealisGpuFrame : IDisposable
 		{
 			using var scope = Graphics.Scope.CreateOnView( backend, view );
 			view.Bind();
+			cameraAttributes?.MergeTo( Graphics.Attributes );
 			Graphics.Attributes.SetDataShared( ViewConstantsName, viewConstants );
 			draw();
 		}

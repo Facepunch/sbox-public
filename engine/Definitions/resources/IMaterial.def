@@ -28,6 +28,13 @@ native class IMaterial2 as NativeEngine.IMaterial
 	bool GetBoolAttributeOrDefault( StringToken name, bool i );
 	int GetIntAttributeOrDefault( StringToken name, int i );
 	float GetFloatAttributeOrDefault( StringToken name, float f );
+	inline string GetStringAttribute( StringToken name )
+	{
+		CUtlString value;
+		self->GetStringAttribute( &value, name );
+		return value;
+	}
+
 	ITexture GetTextureAttributeOrDefault( StringToken name );
 
 	bool HasParam( string name );

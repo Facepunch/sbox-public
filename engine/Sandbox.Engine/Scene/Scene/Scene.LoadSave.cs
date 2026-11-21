@@ -293,7 +293,7 @@ public partial class Scene : GameObject
 	public JsonObject SerializeProperties()
 	{
 		var jso = new JsonObject();
-		if ( this is not PrefabScene && SerializeInstances() is { } instances )
+		if ( SerializeInstances() is { } instances )
 			jso.Add( InstancesKey, instances );
 
 		foreach ( var prop in GlobalContext.Current.TypeLibrary.GetType<Scene>()

@@ -39,13 +39,17 @@ internal sealed class MapGeometry
 	/// <summary>Changes whenever the objects need making again (<see cref="Origin"/>).</summary>
 	public int Version { get; private set; }
 
-	public MapGeometry( WorldFile world, string folder, Vector3 origin )
+	public MapGeometry( WorldFile world, string folder, Vector3 origin, Func<string, ModelFile> readModel )
 	{
 		World = world;
 		Folder = folder;
 		Origin = origin;
 		Version = 0;
+		this.readModel = readModel;
 	}
+
+	// Reads a model the map places, for traces: Borealis.Gpu's reader when the process draws, else from the map's content
+	readonly Func<string, ModelFile> readModel;
 
 	/// <summary>Bounds of every node, placed.</summary>
 	public BBox Bounds
@@ -60,7 +64,7 @@ internal sealed class MapGeometry
 	MapTrace trace;
 
 	/// <summary>The map's render meshes for traces, built the first time something traces them.</summary>
-	public MapTrace Trace( BackendDevice gpu ) => trace ??= new MapTrace( this, gpu );
+	public MapTrace Trace() => trace ??= new MapTrace( this, readModel );
 
 	// The tags native's world node gives every object (CWorldNode::ApplyTags)
 	static uint[] worldTags;

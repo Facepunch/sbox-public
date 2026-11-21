@@ -161,6 +161,59 @@ public class EmbeddedCompatibilityTests
 	}
 
 	/// <summary>
+	/// A sampler an include declares in two <c>#if</c> branches (embedded_end.slangh's TextureFiltering) has the active
+	/// branch's states, as vfx reads them from the preprocessed program, wherever the other branch is in the file.
+	/// </summary>
+	[TestMethod]
+	public void IncludedSamplersTakeTheActiveBranchesStates()
+	{
+		const string header = """
+			#ifdef SBOX_BRANCH_POINT
+			SamplerState Chosen < Filter( POINT ); >;
+			#else
+			SamplerState Chosen < Filter( BILINEAR ); >;
+			#endif
+			#ifndef SBOX_BRANCH_UNDEFINED
+			SamplerState Kept < Filter( TRILINEAR ); AddressU( CLAMP ); >;
+			#else
+			SamplerState Kept < Filter( POINT ); >;
+			#endif
+			""";
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			#define SBOX_BRANCH_POINT
+			#include "embedded_branch_samplers.hlsl"
+			Texture2D g_tColor < Attribute( "Color" ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float4 MainPs( PS_INPUT i ) : SV_Target0
+			{
+				return g_tColor.Sample( Chosen, i.vUv ) + g_tColor.Sample( Kept, i.vUv );
+			}
+			""";
+		var (compiler, shaders) = Compiler();
+		var folder = Path.Combine( Path.GetTempPath(), $"embedded_branches_{Guid.NewGuid():N}" );
+		Directory.CreateDirectory( folder );
+		try
+		{
+			File.WriteAllText( Path.Combine( folder, "embedded_branch_samplers.hlsl" ), header );
+			var module = PassModule.FromText( Path.Combine( folder, "embedded_branches.slang" ), Module( pixel, "embedded_branches" ), [shaders] );
+			var stage = compiler.CompilePass( module, StageKind.Pixel, new Dictionary<string, int>() ).Stage;
+			Annotations Of( string name ) => stage.Bindings.Single( b => b.Kind == BindingKind.Sampler && b.Variable == name ).Annotations;
+			Assert.AreEqual( "POINT", Of( "Chosen" ).Filter?.Trim(), "the branch the module's #define takes" );
+			Assert.AreEqual( ("TRILINEAR", "CLAMP"), (Of( "Kept" ).Filter?.Trim(), Of( "Kept" ).AddressU?.Trim()), "the branch nothing defined takes" );
+		}
+		catch ( ShaderCompileException e )
+		{
+			Assert.Fail( e.Errors );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
 	/// An older engine's screen-space trace gave the hit's uv as <c>HitClipSpace</c> and whether it hit as <c>ValidHit</c> (a
 	/// water shader's reflections); today's gives <c>HitUv</c> and a confidence.
 	/// </summary>
@@ -249,8 +302,8 @@ public class EmbeddedCompatibilityTests
 
 	/// <summary>
 	/// For vfx's recompile (ShaderUpgrade) the shims' text goes in whole, since vfx doesn't find <c>sbox/</c>'s includes,
-	/// with their Slang (extensions, operators) behind <c>__SLANG__</c>, which vfx's own parser doesn't define; and the
-	/// package's copy of an engine cbuffer is the engine's there too.
+	/// with their Slang (extensions, operators) between the pragmas that take it past vfx's own HLSL parser to Slang
+	/// alone; and the package's copy of an engine cbuffer is the engine's there too.
 	/// </summary>
 	[TestMethod]
 	public void RecompileTextHasTheShimsInline()
@@ -261,7 +314,120 @@ public class EmbeddedCompatibilityTests
 		Assert.IsTrue( text.Contains( "#define Translucent()", StringComparison.Ordinal ) );
 		Assert.IsTrue( text.Contains( "#include \"common/ViewEnvironment.hlsl\"", StringComparison.Ordinal ) );
 		Assert.IsFalse( text.Contains( "cbuffer DirectionalLightCB", StringComparison.Ordinal ) );
-		Assert.IsTrue( text.IndexOf( "#if defined( __SLANG__ )", StringComparison.Ordinal ) < text.IndexOf( "extension Light", StringComparison.Ordinal ) );
+		var begin = text.IndexOf( "#pragma sbox_slang_begin", StringComparison.Ordinal );
+		var end = text.IndexOf( "#pragma sbox_slang_end", StringComparison.Ordinal );
+		Assert.IsTrue( begin >= 0 && begin < text.IndexOf( "extension Light", StringComparison.Ordinal ), text );
+		Assert.IsTrue( text.IndexOf( "float3 operator+( float3 a, float4 b )", StringComparison.Ordinal ) is var op && op > begin && op < end, text );
+		Assert.IsTrue( end > text.IndexOf( "extension TraceResult", StringComparison.Ordinal ), text );
+	}
+
+	/// <summary>
+	/// A package's own copy of an older system header declares common.fxc's descriptor sets (a post-process library's
+	/// <c>Class/System.slang</c>); vfx's parser takes each once, so the package's are the engine's include.
+	/// </summary>
+	[TestMethod]
+	public void PackageCopiesOfTheEnginesDescriptorSetsAreTheEngines()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#ifndef SYSTEM
+			#define SYSTEM
+			ExternalDescriptorSet g_globalLateBoundBindlessSet Slot 1;
+			#endif
+			#include "common.fxc"
+			Texture2D g_tColor < Attribute( "Color" ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float4 MainPs( PS_INPUT i ) : SV_Target0 { return g_tColor.Sample( g_sBilinearClamp, i.vUv ); }
+			""";
+		var text = EmbeddedCompatibility.Apply( pixel );
+		Assert.IsFalse( text.Contains( "ExternalDescriptorSet", StringComparison.Ordinal ), text );
+		Assert.IsTrue( text.Contains( "#include \"common.fxc\" // g_globalLateBoundBindlessSet, declared by the engine", StringComparison.Ordinal ), text );
+		Compiles( pixel, "embedded_descriptor_sets" );
+	}
+
+	/// <summary>
+	/// Includes no package ships (a library's <c>tonemap_exempt.hlsl</c>, Mouse Fishing's materials; retro_shader's own
+	/// <c>void_infection.hlsl</c>) are their stand-ins, so the shaders compile, here and, inlined, in vfx's recompile.
+	/// </summary>
+	[TestMethod]
+	public void IncludesNoPackageShipsAreStandIns()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+				#include "environmentsystems/shaders/tonemap_exempt.hlsl"
+			#include "materials/shaders/void_infection.hlsl"
+			Texture2D g_tColor < Attribute( "Color" ); >;
+			float g_flTonemapExempt < Default1( 0 ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float4 MainPs( PS_INPUT i ) : SV_Target0
+			{
+				float voidFactor, fogFactor;
+				GetVoidFactors( i.vPositionWs, g_flTime, voidFactor, fogFactor );
+				float4 c = g_tColor.Sample( g_sBilinearClamp, i.vUv ) * voidFactor;
+				return MarkTonemapExempt( float4( lerp( c.rgb, 0, fogFactor ), c.a ), g_flTonemapExempt );
+			}
+			""";
+		Compiles( pixel, "embedded_stand_ins" );
+
+		var (_, shaders) = Compiler();
+		var text = EmbeddedCompatibility.ForRecompile( pixel, shaders );
+		Assert.IsFalse( text.Contains( "tonemap_exempt.hlsl\"", StringComparison.Ordinal ) || text.Contains( "void_infection.hlsl\"", StringComparison.Ordinal ), text );
+		Assert.IsFalse( text.Contains( "#include \"sbox/", StringComparison.Ordinal ), text );
+		Assert.IsTrue( text.Contains( "float4 MarkTonemapExempt(", StringComparison.Ordinal ) && text.Contains( "void GetVoidFactors(", StringComparison.Ordinal ), text );
+	}
+
+	/// <summary>
+	/// HLSL's truncation through the intrinsics and into a scalar (a water shader's <c>min( float4, float2 )</c>, a float
+	/// function returning <c>float4( ... )</c>), while the engine's own calls (<c>max( float3, float )</c>,
+	/// <c>min( float4, float )</c>) keep the built-ins: none is ambiguous, each result its size.
+	/// </summary>
+	[TestMethod]
+	public void TruncationThroughIntrinsicsAndIntoScalarsCompiles()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			Texture2D g_tColor < Attribute( "Color" ); >;
+			struct PS_INPUT { float4 vPositionPs : SV_Position; float3 vPositionWs : TEXCOORD1; float2 vUv : TEXCOORD0; };
+			float Grey( float3 c )
+			{
+				float f = dot( c, float3( 0.3, 0.6, 0.1 ) );
+				return float4( f.xxx, 1.0 );
+			}
+			float4 MainPs( PS_INPUT i ) : SV_Target0
+			{
+				float4 c = g_tColor.Sample( g_sBilinearClamp, i.vUv );
+				float2 edge = min( c, g_vViewportSize - i.vUv ) + max( i.vUv, c );
+				float3 lit = min( c, i.vPositionWs ) + max( i.vPositionWs, c );
+				float3 floor3 = max( c.rgb - 0.5f, 0.0f );
+				float4 ceil4 = min( c, 1.0f );
+				return float4( lit * Grey( floor3 ) + float3( edge, 0 ), 1 ) * ceil4;
+			}
+			""";
+		Compiles( pixel, "embedded_intrinsic_truncation" );
+	}
+
+	/// <summary>An older engine's <c>TerrainStruct.Resolution</c>, its units per texel today (Rust Legacy's grass).</summary>
+	[TestMethod]
+	public void AnOlderTerrainResolutionCompiles()
+	{
+		const string pixel = """
+			#include "system.fxc"
+			#include "common.fxc"
+			#include "common/shared.hlsl"
+			struct PixelInput
+			{
+				#include "common/pixelinput.hlsl"
+			};
+			#include "terrain/TerrainCommon.hlsl"
+			float4 MainPs( PixelInput i ) : SV_Target0
+			{
+				float2 uv = i.vPositionWithOffsetWs.xy / ( 512.0 * Terrain::Get().Resolution );
+				return float4( uv, 0, 1 );
+			}
+			""";
+		Compiles( pixel, "embedded_older_terrain" );
 	}
 
 	/// <summary>The samplers the converter leaves to the engine are common_samplers.fxc's.</summary>

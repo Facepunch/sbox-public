@@ -82,7 +82,7 @@ public sealed partial class SlangCompiler
 	/// defines and passes, the generated instance and GPU-driven files, the source rewrites, reflection. A change to the
 	/// generated text alone fails <c>GeneratedCodeNeedsAVersion</c> until <see cref="GeneratedFingerprint"/> is updated here too.
 	/// </summary>
-	public const int Version = 11;
+	public const int Version = 12;
 
 	/// <summary>The <see cref="Fingerprint"/> of the generated code <see cref="Version"/> was raised for.</summary>
 	internal const string GeneratedFingerprint = "A3C07B8547152C1E";
@@ -174,14 +174,28 @@ public sealed partial class SlangCompiler
 	/// <summary>A task that completes when all of <paramref name="tasks"/> have, without throwing their exceptions.</summary>
 	static Task Settled( Task[] tasks ) => Task.WhenAll( tasks ).ContinueWith( static _ => { }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default );
 
-	/// <summary>A file read set safe to add to from several compile threads at once.</summary>
-	sealed class ReadFiles( string first )
+	/// <summary>
+	/// A file read set safe to add to from several compile threads at once; with <paramref name="keepTexts"/>, the texts read
+	/// too (what a pass's annotation macros are defined in).
+	/// </summary>
+	sealed class ReadFiles( string first, bool keepTexts = false )
 	{
 		readonly HashSet<string> files = new( StringComparer.OrdinalIgnoreCase ) { first };
+		readonly StringBuilder texts = keepTexts ? new() : null;
 
-		public void Add( string path )
+		public void Add( string path, string text )
 		{
-			lock ( files ) files.Add( path );
+			lock ( files )
+			{
+				files.Add( path );
+				texts?.Append( text ).Append( '\n' );
+			}
+		}
+
+		/// <summary>The texts read, one after another; empty unless they're kept.</summary>
+		public string Texts()
+		{
+			lock ( files ) return texts?.ToString() ?? "";
 		}
 
 		public List<string> Sorted()
@@ -303,7 +317,7 @@ public sealed partial class SlangCompiler
 		foreach ( var (name, value) in extraDefines ?? new Dictionary<string, string>() ) defines[name] = value;
 		var request = new SlangRequest( slangDirectory, [.. extraSearchPaths, .. searchPaths], defines, stage == StageKind.Vertex, SpirvOptimizer.Available( slangDirectory ), ( path, text ) =>
 		{
-			read?.Add( Path.GetFullPath( path ) );
+			read?.Add( Path.GetFullPath( path ), text );
 			return Rewrite( path, text, annotations );
 		} );
 		annotations = request.Annotations;

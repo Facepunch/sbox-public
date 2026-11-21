@@ -71,17 +71,25 @@ public sealed partial class SlangCompiler
 		using var zone = Zone( CompilePhase.Stage );
 		System.Threading.Interlocked.Increment( ref stages );
 		var directory = Path.GetDirectoryName( module.Path );
-		var read = new ReadFiles( module.Path );
+		var read = new ReadFiles( module.Path, keepTexts: true );
 		using var request = Request( stage, [directory], read, defines );
 		var source = VfxIncludes.Rewrite( module.Text, request.Annotations );
-
-		// A global declared in several #if branches (a texture read as sRGB with one combo) takes the active branch's annotations
-		VfxIncludes.Rewrite( module.ActiveText( stage, values ), request.Annotations, module.Text );
 
 		request.AddSource( module.Path, source );
 		var entry = PassModule.Entry( stage );
 		request.AddEntryPoint( entry, stage );
 		request.Compile( module.Path );
+
+		// Each file the compile read recorded every declaration's annotations, whatever its #if branches say. A global declared in
+		// several branches, in the module or an include (embedded_end.slangh's TextureFiltering, a texture read as sRGB with one
+		// combo), takes the active branch's, as vfx reads them from the preprocessed program: read once all the includes are in
+		var active = new Dictionary<string, int>( values, StringComparer.Ordinal ) { ["__SLANG__"] = 1 };
+		foreach ( var (name, value) in Defines( stage ) )
+		{
+			if ( int.TryParse( value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var number ) ) active.TryAdd( name, number );
+		}
+
+		VfxIncludes.Rewrite( module.ActiveText( stage, active ), request.Annotations, module.Text + "\n" + read.Texts() );
 
 		var spirv = request.Code() ?? throw new ShaderCompileException( module.Path, $"{entry}: Slang returned no code. {request.Diagnostics}" );
 		using ( Zone( CompilePhase.Optimize ) ) spirv = SpirvOptimizer.Optimize( slangDirectory, spirv, out _ );
