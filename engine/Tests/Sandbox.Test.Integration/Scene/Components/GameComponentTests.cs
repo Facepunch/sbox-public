@@ -701,6 +701,121 @@ public class MapLogicTest
 		return (go, door);
 	}
 
+	static (GameObject parent, GameObject go, Door door) CreateOffsetDoor( Scene scene, bool transformedParent, bool usePivot, bool absolute )
+	{
+		var parent = scene.CreateObject();
+		if ( transformedParent )
+			parent.WorldTransform = new Transform( new Vector3( 1000, 1000, 100 ), Rotation.From( 20, 90, 15 ), 2 );
+		var (go, door) = CreateDoor( scene );
+		go.SetParent( parent, false );
+		if ( absolute ) go.Flags |= GameObjectFlags.Absolute;
+		go.LocalTransform = new Transform( new Vector3( 20, -30, 10 ), Rotation.FromYaw( 30 ) );
+		if ( usePivot )
+		{
+			var pivot = scene.CreateObject();
+			pivot.SetParent( go, false );
+			pivot.LocalTransform = new Transform( new Vector3( 8, 20, 12 ), Rotation.From( 70, -15, 25 ) );
+			door.Pivot = pivot;
+		}
+		return (parent, go, door);
+	}
+
+	static void AssertDoorPose( GameObject go, Transform expected )
+	{
+		Assert.IsTrue( go.WorldPosition.AlmostEqual( expected.Position, 0.25f ), $"Expected {expected.Position}, got {go.WorldPosition}" );
+		Assert.IsTrue( go.WorldRotation.Distance( expected.Rotation ) < 0.5f, $"Expected {expected.Rotation}, got {go.WorldRotation}" );
+	}
+
+	[TestMethod]
+	[DataRow( false, false, false )]
+	[DataRow( false, true, false )]
+	[DataRow( true, false, false )]
+	[DataRow( true, true, false )]
+	[DataRow( true, false, true )]
+	[DataRow( true, true, true )]
+	public void DoorOpensAwayFromBothSidesInItsParentSpace( bool transformedParent, bool usePivot, bool absolute )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var (parent, go, door) = CreateOffsetDoor( scene, transformedParent, usePivot, absolute );
+		var closed = go.WorldTransform;
+		var hinge = usePivot ? door.Pivot.WorldPosition : closed.Position;
+		var axis = usePivot ? door.Pivot.WorldRotation.Up : absolute ? Vector3.Up : parent.WorldRotation.Up;
+		var presser = scene.CreateObject();
+		scene.GameTick();
+
+		foreach ( var side in new[] { 1, -1 } )
+		{
+			presser.WorldPosition = hinge + closed.Forward * (side * 50);
+			using ( GameComponentTestUtils.PushSceneClock( scene ) ) door.Open( presser );
+			GameComponentTestUtils.TickUntil( scene, () => door.State == Door.DoorState.Open, 40 );
+			Assert.AreEqual( Door.DoorState.Open, door.State );
+			AssertDoorPose( go, closed.RotateAround( hinge, Rotation.FromAxis( axis, -side * door.TargetAngle ) ) );
+
+			using ( GameComponentTestUtils.PushSceneClock( scene ) ) door.Close();
+			GameComponentTestUtils.TickUntil( scene, () => door.State == Door.DoorState.Closed, 40 );
+			Assert.AreEqual( Door.DoorState.Closed, door.State );
+			AssertDoorPose( go, closed );
+		}
+	}
+
+	[TestMethod]
+	public void DoorStartOpenAndReopeningUsePivotAfterParentMoves()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var (parent, go, door) = CreateOffsetDoor( scene, true, true, false );
+		var closed = go.WorldTransform;
+		var pivot = door.Pivot.WorldTransform;
+		door.StartOpen = true;
+		scene.GameTick();
+		Assert.AreEqual( Door.DoorState.Open, door.State );
+		AssertDoorPose( go, closed.RotateAround( pivot.Position, Rotation.FromAxis( pivot.Up, door.TargetAngle ) ) );
+
+		using ( GameComponentTestUtils.PushSceneClock( scene ) ) door.Close();
+		GameComponentTestUtils.TickUntil( scene, () => door.State == Door.DoorState.Closed, 40 );
+		Assert.AreEqual( Door.DoorState.Closed, door.State );
+		AssertDoorPose( go, closed );
+
+		parent.WorldTransform = new Transform( new Vector3( -500, 2000, 300 ), Rotation.From( -10, 170, 25 ), 3 );
+		closed = go.WorldTransform;
+		pivot = door.Pivot.WorldTransform;
+		var presser = scene.CreateObject();
+		presser.WorldPosition = pivot.Position + closed.Forward * 50;
+		using ( GameComponentTestUtils.PushSceneClock( scene ) ) door.Open( presser );
+		GameComponentTestUtils.TickUntil( scene, () => door.State == Door.DoorState.Open, 40 );
+		Assert.AreEqual( Door.DoorState.Open, door.State );
+		AssertDoorPose( go, closed.RotateAround( pivot.Position, Rotation.FromAxis( pivot.Up, -door.TargetAngle ) ) );
+	}
+
+	[TestMethod]
+	public void DoorReopeningDuringClosingUsesClosedOrientation()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var (parent, go, door) = CreateOffsetDoor( scene, true, false, false );
+		door.TargetAngle = 150f;
+		door.Speed = 150f;
+		var closed = go.WorldTransform;
+		var presser = scene.CreateObject();
+		presser.WorldPosition = closed.Position + closed.Forward * 50;
+		scene.GameTick();
+
+		using ( GameComponentTestUtils.PushSceneClock( scene ) ) door.Open( presser );
+		GameComponentTestUtils.TickUntil( scene, () => door.State == Door.DoorState.Open, 40 );
+		Assert.AreEqual( Door.DoorState.Open, door.State );
+
+		using ( GameComponentTestUtils.PushSceneClock( scene ) ) door.Close();
+		scene.GameTick();
+		Assert.AreEqual( Door.DoorState.Closing, door.State );
+		Assert.IsTrue( Vector3.Dot( go.WorldRotation.Forward, closed.Forward ) < 0, "the current pose faces the opposite way to the closed door" );
+
+		using ( GameComponentTestUtils.PushSceneClock( scene ) ) door.Open( presser );
+		GameComponentTestUtils.TickUntil( scene, () => door.State == Door.DoorState.Open, 40 );
+		Assert.AreEqual( Door.DoorState.Open, door.State );
+		AssertDoorPose( go, closed.RotateAround( closed.Position, Rotation.FromAxis( parent.WorldRotation.Up, -door.TargetAngle ) ) );
+	}
+
 	/// <summary>
 	/// A rotating door starts Closed after OnStart (before that the state defaults to
 	/// Open - the enum's zero value), opens through the Opening state to a yaw of
