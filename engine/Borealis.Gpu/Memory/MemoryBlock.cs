@@ -46,6 +46,9 @@ internal sealed class MemoryBlock
 	/// <summary>The allocator's frame it began draining in, or after which it may be drained again.</summary>
 	public ulong DrainFrame;
 
+	/// <summary>Never drained: it holds something that can't move (<see cref="MemoryAllocator.Pin"/>).</summary>
+	public bool Pinned;
+
 	// Size classes: sizes under SecondLevels have one class each; above, each power of two splits into SecondLevels
 	const int SecondLevelBits = 5;
 	const int SecondLevels = 1 << SecondLevelBits;
@@ -59,6 +62,9 @@ internal sealed class MemoryBlock
 		// Free: the neighbours in its class's list. Recycled: NextFree links the spare nodes
 		public int PreviousFree, NextFree;
 		public bool Free;
+
+		// Allocated: what it holds (MemoryAllocator.SetOwner), or 0
+		public ulong Owner;
 	}
 
 	Node[] nodes = new Node[8];
@@ -215,6 +221,7 @@ internal sealed class MemoryBlock
 	{
 		if ( (uint)node >= (uint)nodeCount || nodes[node].Free ) throw new ArgumentException( $"Node {node} isn't allocated", nameof( node ) );
 		Used -= nodes[node].Size;
+		nodes[node].Owner = 0;
 
 		var next = nodes[node].NextPhysical;
 		if ( next >= 0 && nodes[next].Free )
@@ -234,6 +241,36 @@ internal sealed class MemoryBlock
 		}
 
 		AddFree( node );
+	}
+
+	/// <summary>Note what the range <paramref name="node"/> names holds: a handle, so a block being emptied can find what's in it.</summary>
+	public void SetOwner( int node, ulong owner ) => nodes[node].Owner = owner;
+
+	/// <summary>Add the owners of every allocated range that has one to <paramref name="owners"/>; allocates nothing past the list's room.</summary>
+	public void CollectOwners( List<ulong> owners )
+	{
+		for ( int node = 0; node < nodeCount; node++ )
+		{
+			if ( !nodes[node].Free && nodes[node].Size > 0 && nodes[node].Owner != 0 ) owners.Add( nodes[node].Owner );
+		}
+	}
+
+	/// <summary>Add the size of every allocated range to <paramref name="sizes"/>; allocates nothing past the list's room.</summary>
+	public void CollectSizes( List<ulong> sizes )
+	{
+		for ( int node = 0; node < nodeCount; node++ )
+		{
+			if ( !nodes[node].Free && nodes[node].Size > 0 ) sizes.Add( nodes[node].Size );
+		}
+	}
+
+	/// <summary>Add every free range (offset, size) to <paramref name="ranges"/>; allocates nothing past the list's room.</summary>
+	public void CollectFree( List<(ulong Offset, ulong Size)> ranges )
+	{
+		for ( int node = 0; node < nodeCount; node++ )
+		{
+			if ( nodes[node].Free ) ranges.Add( (nodes[node].Offset, nodes[node].Size) );
+		}
 	}
 
 	/// <summary>The free ranges in address order, for tests and diagnostics; allocates.</summary>
