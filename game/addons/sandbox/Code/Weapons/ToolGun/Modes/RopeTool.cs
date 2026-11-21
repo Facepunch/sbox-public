@@ -1,6 +1,6 @@
 ﻿using Sandbox.UI;
 
-[Icon( "🐍" )]
+[Icon( "line_curve" )]
 [Title( "#tool.name.rope" )]
 [ClassName( "rope" )]
 [Group( "#tool.group.constraints" )]

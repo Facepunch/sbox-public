@@ -62,7 +62,7 @@ public enum DupeCategory
 	/// <summary>
 	/// Weapon duplication category.
 	/// </summary>
-	[Icon( "gps_fixed" )]
+	[Icon( "target" )]
 	[Title( "#ui.dupe.category.weapon" )]
 	Weapon,
 	/// <summary>
@@ -104,7 +104,7 @@ public enum DupeCategory
 	/// <summary>
 	/// Trap duplication category.
 	/// </summary>
-	[Icon( "warning_amber" )]
+	[Icon( "warning" )]
 	[Title( "#ui.dupe.category.trap" )]
 	Trap,
 	/// <summary>

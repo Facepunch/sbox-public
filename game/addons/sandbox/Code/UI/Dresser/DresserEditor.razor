@@ -4,14 +4,15 @@
 @inherits Panel
 @namespace Sandbox
 @implements IInspectorEditor
+@attribute [Icon( "apparel" )]
 
 <root>
     <div class="body">
         <Label>#ui.dresser.clothing_unavailable</Label>
     </div>
     <div class="footer">
-            <UIButton Text="#ui.common.randomize" Icon="🎲" onclick=@DoRandomize></UIButton>
-            <UIButton Text="#ui.common.clear" Icon="🧹" onclick=@DoClear></UIButton>
+            <UIButton Text="#ui.common.randomize" Icon="casino" onclick=@DoRandomize></UIButton>
+            <UIButton Text="#ui.common.clear" Icon="clear_all" onclick=@DoClear></UIButton>
     </div>
 </root>
 
@@ -20,7 +21,7 @@
     /// <summary>
     /// Localized title of the clothing inspector.
     /// </summary>
-    public string Title => "👗 " + Game.Language.GetPhrase( "ui.dresser.title" );
+    public string Title => Game.Language.GetPhrase( "ui.dresser.title" );
 
     public Dresser Target { get; private set; }
 

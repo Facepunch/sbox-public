@@ -1,13 +1,16 @@
 @import "/UI/Theme.scss";
 
-$notice-bg: rgba( 38, 38, 38, 0.7 );
+$notice-bg: rgba( 14, 14, 14, 0.8 );
 $notice-text: rgb( 230, 230, 230 );
 
 NoticePanel
 {
+	position: relative;
 	flex-direction: column;
-	width: 513px;
+	max-width: 513px;
 	background-color: $notice-bg;
+	backdrop-filter: blur( 16px );
+	border-radius: $hud-radius;
 	font-family: $body-font;
 	font-weight: 500;
 	font-size: 16px;
@@ -25,7 +28,7 @@ NoticePanel
 		flex-direction: row;
 		align-items: center;
 		gap: 13px;
-		padding: 9px 13px;
+		padding: 14px 20px;
 	}
 
 	.icon
@@ -36,6 +39,7 @@ NoticePanel
 		top: 2px; 
 		line-height: 15px;
 		font-family: $ui-icon;
+		font-variation-settings: $ui-icon-filled-axes;
 	}
 
 	.text
@@ -49,9 +53,11 @@ NoticePanel
 
 	.bar
 	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
 		height: 2px;
-		flex-shrink: 0;
-		background-color: rgba( black, 0.35 );
 		overflow: hidden;
 	}
 

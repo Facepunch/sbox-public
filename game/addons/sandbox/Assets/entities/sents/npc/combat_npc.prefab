@@ -469,7 +469,6 @@
             "__guid": "2d981081-c1b7-4be7-b39c-529e7f3fb0f2",
             "__enabled": true,
             "Flags": 0,
-            "AnimationGraph": null,
             "BodyGroups": 1,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
@@ -490,12 +489,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {
-              "floats": {
-                "scale_height": 1,
-                "scale_heel": 0
-              }
-            },
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": true,
@@ -510,7 +503,16 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "animations/sandbox_player.ag",
+              "Parameters": {
+                "floats": {
+                  "scale_height": 1,
+                  "scale_heel": 0
+                }
+              }
+            }
           },
           {
             "__type": "Sandbox.ModelHitboxes",

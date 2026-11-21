@@ -403,7 +403,7 @@ internal sealed partial class TextBlock : IDisposable
 		hash = HashCode.Combine( hash, style.TextStrokeWidth, style.TextStrokeColor, style.TextDecorationColor, style.TextDecorationThickness, style.TextDecorationSkipInk, style.TextDecorationStyle );
 		hash = HashCode.Combine( hash, style.TextUnderlineOffset, style.TextOverlineOffset, style.TextLineThroughOffset, style.TextGradient, style.TextOverflow, style.WordBreak, style.LineHeight );
 		hash = HashCode.Combine( hash, style.WordSpacing );
-		hash = HashCode.Combine( hash, Smooth, FontVariantNumeric, NoWrap, IsHtml );
+		hash = HashCode.Combine( hash, Smooth, FontVariantNumeric, style.FontVariationSettings, style.FontOpticalSizing, NoWrap, IsHtml );
 
 		if ( FontHash == hash && Block != null )
 			return false;
@@ -422,6 +422,8 @@ internal sealed partial class TextBlock : IDisposable
 		Style.FontWeight = FontWeight ?? 400;
 		Style.FontItalic = FontStyle != FontStyle.None;
 		Style.FontVariantNumeric = FontVariantNumeric ?? UI.FontVariantNumeric.Normal;
+		Style.FontVariationSettings = style.FontVariationSettings ?? default;
+		Style.FontOpticalSizing = style.FontOpticalSizing ?? UI.FontOpticalSizing.Auto;
 		Style.TextColor = fontColor.ToSkF();
 		Style.Underline = UnderlineStyle.None;
 		Style.StrokeInkSkip = style.TextDecorationSkipInk == TextSkipInk.All;

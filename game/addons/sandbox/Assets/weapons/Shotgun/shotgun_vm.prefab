@@ -20,13 +20,11 @@
         "__guid": "a1b2c3d4-3334-4aaa-b334-333333333334",
         "__enabled": true,
         "Flags": 0,
-        "AnimationSpeed": 1.25,
         "DeploySound": null,
         "ShellEjectGameObject": {
           "_type": "gameobject",
           "go": "f356ae8a-95fe-4a7b-9afe-dc337736eb24"
         },
-        "IncrementalAnimationSpeed": 1.75,
         "IncrementalReloadFinishSounds": [
           {
             "Time": 0.6,
@@ -40,9 +38,7 @@
           }
         ],
         "IncrementalReloadStartSounds": [],
-        "InertiaScale": "4,4",
         "IsIncremental": true,
-        "IsThrowable": false,
         "MuzzleGameObject": {
           "_type": "gameobject",
           "go": "71ca31da-3c1d-41d2-8061-f4b1d307d635"
@@ -60,7 +56,9 @@
           "go": "2658361a-cbbf-4054-9dfc-7eafdd48f589",
           "component_type": "SkinnedModelRenderer"
         },
-        "ThrowableType": "HEGrenade"
+        "MovementBob": true,
+        "LookInertia": true,
+        "LookInertiaAmount": 1
       }
     ],
     "Children": [
@@ -85,7 +83,6 @@
             "__guid": "0d315a8a-856e-49cb-b5d6-a16482eaf1be",
             "__enabled": true,
             "Flags": 0,
-            "AnimationGraph": null,
             "BodyGroups": 11,
             "BoneMergeTarget": null,
             "CreateAttachments": true,
@@ -102,13 +99,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {
-              "bools": {},
-              "ints": {},
-              "floats": {},
-              "vectors": {},
-              "rotations": {}
-            },
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": false,
@@ -123,7 +113,10 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "weapons/shotgun/animations/shotgun.ag"
+            }
           }
         ],
         "Children": [
@@ -1824,7 +1817,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []

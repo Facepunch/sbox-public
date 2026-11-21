@@ -1,4 +1,4 @@
-﻿﻿[Icon( "🧨" )]
+﻿﻿[Icon( "ink_eraser" )]
 [Title( "#tool.name.remover" )]
 [ClassName( "remover" )]
 [Group( "#tool.group.tools" )]

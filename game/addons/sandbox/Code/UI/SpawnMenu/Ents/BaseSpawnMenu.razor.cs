@@ -144,8 +144,8 @@ public partial class BaseSpawnMenu : Panel
 		{
 			var mounted = Sandbox.Mounting.Directory.Get( ident )?.IsMounted == true;
 			var option = mounted
-				? AddOption( "🧩", section, () => new MountedEntityList { Game = section, Tag = tag, Where = where } )
-				: AddOption( "🧩", section, () => new MountGamePanel { Ident = ident, Mounted = RebuildOptions } );
+				? AddOption( "extension", section, () => new MountedEntityList { Game = section, Tag = tag, Where = where } )
+				: AddOption( "extension", section, () => new MountGamePanel { Ident = ident, Mounted = RebuildOptions } );
 
 			option.Key = $"mounted:{section}";
 			option.Tokenize = false;
@@ -290,9 +290,29 @@ public partial class BaseSpawnMenu : Panel
 		row.SetClass( "section-heading", o.IsHeader );
 		row.Style.PaddingTop = HeadingGap( o );
 
-		row.IconName = o.Icon;
+		BindIcon( row, o );
 		row.Label.Tokenize = o.Tokenize;
 		row.Text = o.Name;
+	}
+
+	static void BindIcon( TreeRow row, SpawnMenuOption option )
+	{
+		var texture = option.IconTexture;
+		row.IconName = texture is null ? option.Icon : null;
+
+		// The tree reuses rows as it scrolls. Keep the image panel with its row.
+		var image = row.UserData as Image;
+		if ( image is null )
+		{
+			if ( texture is null ) return;
+
+			image = row.AddChild<Image>( "tree-icon tree-icon-image" );
+			row.SetChildIndex( image, row.GetChildIndex( row.Label ) );
+			row.UserData = image;
+		}
+
+		image.Texture = texture;
+		image.Style.Display = texture is null ? DisplayMode.None : DisplayMode.Flex;
 	}
 
 	protected void SwitchOption( SpawnMenuOption o )
@@ -341,6 +361,12 @@ public partial class BaseSpawnMenu : Panel
 		public bool Tokenize { get; set; } = true;
 
 		public string Icon { get; set; }
+
+		/// <summary>
+		/// Optional image shown in place of the icon glyph.
+		/// </summary>
+		public Texture IconTexture { get; set; }
+
 		public bool Enabled { get; set; } = true;
 
 		public Func<Panel> PanelCreator { get; set; }

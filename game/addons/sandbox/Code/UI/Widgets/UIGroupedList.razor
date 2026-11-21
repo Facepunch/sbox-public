@@ -4,10 +4,7 @@
 @namespace Sandbox
 
 <root>
-
-    <SpawnMenuToolbar>
-        <Body><TextEntry class="filter menu-input" Placeholder="#spawnmenu.common.filter" Value:bind=@Filter HasClearButton /></Body>
-    </SpawnMenuToolbar>
+    @Header
 
     <div class="list">
         @{ var groups = VisibleGroups().ToList(); }
@@ -51,6 +48,11 @@
     /// </summary>
     public record ListGroup( string Title, List<ListItem> Items );
 
+    /// <summary>
+    /// Optional controls that stay above the scrolling list.
+    /// </summary>
+    [Parameter] public RenderFragment Header { get; set; }
+
     [Parameter] public List<ListGroup> Groups { get; set; } = new();
 
     /// <summary>
@@ -65,20 +67,13 @@
     /// </summary>
     [Parameter] public int Revision { get; set; }
 
-    string _filter;
-
-    string Filter
-    {
-        get => _filter;
-        set
-        {
-            _filter = value;
-            StateHasChanged();
-        }
-    }
+    /// <summary>
+    /// Only show entries whose displayed title contains this text.
+    /// </summary>
+    [Parameter] public string Filter { get; set; }
 
     /// <summary>
-    /// The groups with only the entries that match the quick filter, and without the emptied ones.
+    /// Gets the matching entries under each nonempty group.
     /// </summary>
     IEnumerable<ListGroup> VisibleGroups()
     {
@@ -86,7 +81,7 @@
 
         foreach ( var group in Groups )
         {
-            var items = string.IsNullOrWhiteSpace( _filter )
+            var items = string.IsNullOrWhiteSpace( Filter )
                 ? group.Items
                 : group.Items.Where( x => Matches( x.Tokenize ? LocalizedText.Resolve( x.Title ) : x.Title ) ).ToList();
 
@@ -96,7 +91,7 @@
         }
     }
 
-    bool Matches( string text ) => text is not null && text.Contains( _filter.Trim(), StringComparison.CurrentCultureIgnoreCase );
+    bool Matches( string text ) => text is not null && text.Contains( Filter.Trim(), StringComparison.CurrentCultureIgnoreCase );
 
     protected override int BuildHash()
     {
@@ -106,6 +101,6 @@
             foreach ( var group in Groups ) count += group.Items.Count + 1;
         }
 
-        return HashCode.Combine( Selected, _filter, count, Game.Language.SelectedCode, Revision );
+        return HashCode.Combine( Selected, Filter, count, Game.Language.SelectedCode, Revision );
     }
 }

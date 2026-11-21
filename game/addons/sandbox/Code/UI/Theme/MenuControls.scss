@@ -2,6 +2,7 @@ $ui-menu-blur: 6px;
 $ui-menu-radius: 5px;
 $ui-menu-control-height: 30px;
 $ui-menu-tab-height: 32px;
+$ui-menu-title-height: 51px;
 
 @mixin ui-control-surface
 {
@@ -56,23 +57,38 @@ $ui-menu-tab-height: 32px;
 	{
 		width: auto;
 		height: auto;
-		font-family: $ui-icon-outlined;
 		font-size: 16px;
 		font-weight: 400;
 		pointer-events: none;
 	}
 }
 
-@mixin ui-wrapped-tab-bar
+@mixin ui-menu-tab-panel
 {
-	flex-direction: row;
-	flex-wrap: wrap;
-	flex-shrink: 0;
-	gap: 4px;
-	padding: 8px;
-	background-color: $ui-catalog-surface;
+	border-radius: 8px;
+	backdrop-filter: blur( $ui-menu-blur );
 
-	> .tab { @include ui-tab-button; }
+	> .tabbar
+	{
+		align-items: center;
+		height: 49px;
+		padding: 0 8px;
+		gap: 4px;
+		background-color: $ui-catalog-surface;
+		border-bottom: 1px solid $ui-separator;
+		border-radius: 8px 8px 0 0;
+
+		> .tab
+		{
+			@include ui-tab-button;
+		}
+	}
+
+	> .tab-body
+	{
+		overflow: hidden;
+		border-radius: 0 0 8px 8px;
+	}
 }
 
 @mixin ui-sidebar
@@ -112,13 +128,4 @@ $ui-menu-tab-height: 32px;
 	color: $ui-text-strong;
 	font-size: 13px;
 	font-weight: 700;
-}
-
-@mixin ui-inspect-settings-tab
-{
-	width: 420px;
-	height: 474px;
-	flex-direction: column;
-
-	UISettingsPane .settings-body { padding-right: 18px; }
 }

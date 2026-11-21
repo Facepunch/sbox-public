@@ -6,8 +6,13 @@ namespace Sandbox.PanelGallery;
 /// </summary>
 public class IconsPage : GalleryPage
 {
-	public IconsPage() : base( "Icons", "Material icons through IconPanel. Sizes scale, tints color - none of these should render default white." )
+	/// <summary>
+	/// Builds the interactive icon specimens.
+	/// </summary>
+	public IconsPage() : base( "Icons", "Material Symbols through IconPanel. Adjust the axes to compare all three families." )
 	{
+		AddVariationControls();
+
 		var row = Case( "Sizes" );
 		row.Add.Icon( "rocket_launch", "s14" );
 		row.Add.Icon( "rocket_launch", "s18" );
@@ -26,5 +31,39 @@ public class IconsPage : GalleryPage
 		{
 			row.Add.Icon( icon, "s24 tint-muted" );
 		}
+	}
+
+	void AddVariationControls()
+	{
+		var preview = Case( "Variable Material Symbols" );
+		foreach ( var family in new[] { "Outlined", "Rounded", "Sharp" } )
+		{
+			var specimen = preview.Add.Panel( "control-state" );
+			specimen.Add.Label( family, "reference-title" );
+			var icon = specimen.Add.Icon( "favorite", "s48 tint-accent" );
+			icon.Style.FontFamily = $"Material Symbols {family}";
+		}
+
+		SliderControl Slider( string name, float min, float max, float step, float initial )
+		{
+			return Case( name ).AddChild( new SliderControl( min, max, step ) { Value = initial } );
+		}
+
+		var fill = Slider( "Fill", 0, 1, 0.05f, 0 );
+		var weight = Slider( "Weight", 100, 700, 10, 400 );
+		var grade = Slider( "Grade", -50, 200, 5, 0 );
+		var opticalSize = Slider( "Optical size", 20, 48, 1, 24 );
+		var output = Output();
+
+		void Update()
+		{
+			preview.Style.FontVariationSettings = new FontVariationSettings { Fill = fill.Value, Weight = weight.Value, Grade = grade.Value, OpticalSize = opticalSize.Value };
+			output.Text = FormattableString.Invariant( $"font-variation-settings: 'FILL' {fill.Value:0.##}, 'wght' {weight.Value}, 'GRAD' {grade.Value}, 'opsz' {opticalSize.Value};" );
+		}
+
+		foreach ( var slider in new[] { fill, weight, grade, opticalSize } )
+			slider.OnValueChanged = _ => Update();
+
+		Update();
 	}
 }

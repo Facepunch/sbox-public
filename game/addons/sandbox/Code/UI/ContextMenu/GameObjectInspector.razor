@@ -5,6 +5,7 @@
 @inherits Panel
 @namespace Sandbox
 @implements IInspectorEditor
+@attribute [Icon( "deployed_code" )]
 
 <root>
     <div class="body">
@@ -18,17 +19,16 @@
                 var health = Target.Select( go => go.GetComponent<Prop>() ).FirstOrDefault( p => p.IsValid() );
                 var hasHealth = health.IsValid() && health.Health != 0;
 
-                // things like placed text have neither, and the empty row would leave its separator behind
                 if ( totalMass > 0 || hasHealth )
                 {
                     <div class="object-info">
                         @if ( totalMass > 0 )
                         {
-                            <span>⚖️ @Game.Language.GetPhrase( "ui.inspect.mass", new() { { "mass", totalMass.ToString( "0.#" ) } } )</span>
+                            <div class="stat"><IconPanel Text="scale" /><label>@Game.Language.GetPhrase( "ui.inspect.mass", new() { { "mass", totalMass.ToString( "0.#" ) } } )</label></div>
                         }
                         @if ( hasHealth )
                         {
-                            <span>❤️ @Game.Language.GetPhrase( "ui.inspect.health", new() { { "health", health.Health.ToString( "0.#" ) } } )</span>
+                            <div class="stat"><IconPanel Text="favorite" /><label>@Game.Language.GetPhrase( "ui.inspect.health", new() { { "health", health.Health.ToString( "0.#" ) } } )</label></div>
                         }
                     </div>
                 }
@@ -109,8 +109,8 @@
     /// </summary>
     public string Title => Target?.Count switch
     {
-        null or < 2 => "📦 " + Game.Language.GetPhrase( "spawnmenu.inspect.object" ),
-        _ => "📦 " + Game.Language.GetPhrase( "ui.inspect.additional_objects", new() { { "count", Target.Count - 1 } } )
+        null or < 2 => Game.Language.GetPhrase( "spawnmenu.inspect.object" ),
+        _ => Game.Language.GetPhrase( "ui.inspect.additional_objects", new() { { "count", Target.Count - 1 } } )
     };
 
     public List<GameObject> Target { get; private set; }
@@ -270,7 +270,6 @@
             Properties.Add(so.GetProperty(nameof(ModelRenderer.RenderType)));
         }
 
-        // the surface only matters to things that collide, noclip objects like placed text have no use for it
         if (firstComponent is Collider && !components.Any(x => x.Tags.Has("noclip")))
             Properties.Add(so.GetProperty(nameof(Collider.Surface)));
     }

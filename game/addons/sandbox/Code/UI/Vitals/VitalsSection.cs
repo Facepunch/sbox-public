@@ -155,8 +155,6 @@ public sealed class VitalsSection : HudSection
 			using var _ = painter.Scope();
 			painter.Opacity = opacity;
 
-			DrawShade( painter, new Vector2( 0, bounds.Height ), scale );
-
 			painter.Translate( -HideDistance * scale * hide, 0 );
 
 			BoxTop = StatTop( painter, "HEALTH", textBottom, scale ) + MathF.Round( TitleTopInset * scale ) - pad;

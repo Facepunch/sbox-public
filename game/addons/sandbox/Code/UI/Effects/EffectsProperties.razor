@@ -46,6 +46,8 @@
             ? ResourceLibrary.Get<PostProcessResource>( selectedPath )
             : null;
 
+        if ( resource?.IsRemote == true ) resource = null;
+
         if ( resource != _selected )
         {
             _selected = resource;

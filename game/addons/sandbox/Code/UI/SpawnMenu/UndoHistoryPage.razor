@@ -24,7 +24,7 @@
         {
             var entry = item;
             <div class="list-entry clickable" @onclick=@(() => Undo( entry ))>
-                <div class="list-entry-icon @(string.IsNullOrWhiteSpace( entry.Icon ) ? "material-icon" : "")">@(string.IsNullOrWhiteSpace( entry.Icon ) ? "undo" : entry.Icon)</div>
+                <IconPanel class="list-entry-icon" Text=@(string.IsNullOrWhiteSpace( entry.Icon ) ? "undo" : entry.Icon) />
                 <div class="list-entry-info">
                     <Label class="list-entry-name" Tokenize=@false Text=@DisplayName( entry ) />
                     <Label class="list-entry-detail" Tokenize=@false Text=@ObjectCountText( entry.ObjectCount ) />

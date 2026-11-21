@@ -313,7 +313,7 @@ public partial class BaseSandboxWeapon : Sandbox.BaseCombatWeapon, IKillIcon, IP
 	/// </summary>
 	public virtual void OnJump()
 	{
-		ViewModel?.RunEvent<ViewModel>( x => x.Renderer.Set( "b_jump", true ) );
+		ViewModel?.RunEvent<ViewModel>( x => x.TriggerAnimation( "b_jump" ) );
 	}
 
 	public override void DrawHud( Painter painter, Vector2 crosshair )

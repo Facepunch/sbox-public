@@ -9,13 +9,19 @@
 
         > .tab-bar
         {
-            @include ui-wrapped-tab-bar;
+            flex-direction: row;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            gap: 4px;
+            padding: 0 0 8px 0;
+            margin-bottom: 8px;
             border-bottom: 1px solid $ui-separator;
+
+            > .tab { @include ui-tab-button; }
         }
 
         > .empty-state
         {
-            background-color: $ui-menu-body;
             flex-grow: 1;
             justify-content: center;
             padding: 10px 8px;
@@ -32,7 +38,6 @@
 
     InspectObjectTab .window-stack .window
     {
-        background-color: $ui-menu-body;
         flex-grow: 1;
         width: 100%;
         min-height: 0px;
@@ -45,10 +50,9 @@
 
     InspectObjectTab .window-stack .window > .body
     {
-        @include ui-scroll-column;
+        flex-direction: column;
         flex-grow: 1;
         min-height: 0px;
-        padding: 12px $spawn-menu-content-inset;
         gap: 2px;
 
         > *
@@ -61,7 +65,7 @@
     {
         flex-direction: row;
         gap: 6px;
-        padding: 8px $spawn-menu-content-inset;
+        padding: 8px 0;
         border-top: 1px solid $ui-separator;
         flex-shrink: 0;
 

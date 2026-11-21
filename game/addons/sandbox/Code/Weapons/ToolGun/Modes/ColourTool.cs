@@ -1,4 +1,4 @@
-[Icon( "🎨" )]
+[Icon( "palette" )]
 [Title( "#tool.name.colour" )]
 [ClassName( "colour" )]
 [Group( "#tool.group.render" )]

@@ -293,22 +293,13 @@ public sealed partial class FourWheelVehicle
 
 	private static void SetIkTarget( SkinnedModelRenderer renderer, string ik, global::Transform world )
 	{
-		if ( renderer.Animation.Graph is null )
-		{
-			renderer.SetIk( ik, world );
-			return;
-		}
-
 		renderer.Animation.Parameters.TrySet( $"ik.{ik}", renderer.WorldTransform.ToLocal( world ) );
 		renderer.Animation.Parameters.TrySet( $"ik.{ik}.enabled", true );
 	}
 
 	private static void ClearIkTarget( SkinnedModelRenderer renderer, string ik )
 	{
-		if ( renderer.Animation.Graph is null )
-			renderer.ClearIk( ik );
-		else
-			renderer.Animation.Parameters.TrySet( $"ik.{ik}.enabled", false );
+		renderer.Animation.Parameters.TrySet( $"ik.{ik}.enabled", false );
 	}
 
 	internal void ApplyDriverPose()
@@ -369,18 +360,9 @@ public sealed partial class FourWheelVehicle
 	{
 		if ( !_palmOpen || string.IsNullOrEmpty( HornHoldType ) ) return;
 
-		if ( renderer.Animation.Graph is null )
-		{
-			renderer.Set( "holdtype", HornHoldType );
-			renderer.Set( "holdtype_handedness", 1 );
-			renderer.Set( "holdtype_pose_hand", HornHandPose );
-		}
-		else
-		{
-			renderer.Animation.Parameters.TrySet( "holdtype", HornHoldType );
-			renderer.Animation.Parameters.TrySet( "holdtype_handedness", 1 );
-			renderer.Animation.Parameters.TrySet( "holdtype_pose_hand", HornHandPose );
-		}
+		renderer.Animation.Parameters.TrySet( "holdtype", HornHoldType );
+		renderer.Animation.Parameters.TrySet( "holdtype_handedness", 1 );
+		renderer.Animation.Parameters.TrySet( "holdtype_pose_hand", HornHandPose );
 	}
 
 	/// <summary>

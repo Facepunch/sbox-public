@@ -2,7 +2,7 @@ using Sandbox.UI;
 
 [Hide]
 [Title( "#tool.name.button" )]
-[Icon( "🔘" )]
+[Icon( "radio_button_checked" )]
 [ClassName( "buttontool" )]
 [Group( "#tool.group.building" )]
 public sealed class ButtonTool : ToolMode
@@ -93,7 +93,7 @@ public sealed class ButtonTool : ToolMode
 
 		var undo = Player.Undo.Create();
 		undo.Name = "#tool.name.button";
-		undo.Icon = "🔘";
+		undo.Icon = "radio_button_checked";
 		undo.Add( button );
 
 		CheckContraptionStats( point.GameObject );

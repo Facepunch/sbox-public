@@ -738,10 +738,12 @@ public partial class Physgun : Local.IPlayerEvents
 
 	private void UpdateViewModel( ViewModel model )
 	{
-		model.IsAttacking = _state.Active;
-		model.Renderer?.Set( "stylus", ClawOpenAmount );
-		model.Renderer?.Set( "b_button", _isSpinning );
-		model.Renderer?.Set( "brake", _state.Active || _state.Pulling || _stateHovered.Pulling ? 1 : 0 );
+		var parameters = model.Renderer?.Animation.Parameters;
+		if ( parameters is null ) return;
+
+		parameters.TrySet( "stylus", ClawOpenAmount );
+		parameters.TrySet( "b_button", _isSpinning );
+		parameters.TrySet( "brake", _state.Active || _state.Pulling || _stateHovered.Pulling ? 1f : 0f );
 	}
 
 	readonly PhysicsHold _hold = new();

@@ -69,7 +69,7 @@ public partial class Bitmap
 	/// A run's glyphs at their laid out positions (relative to the block, whose top left is at <paramref name="origin"/>).
 	/// Colour glyphs (emoji) keep their own colours.
 	/// </summary>
-	unsafe void DrawRun( FontRun run, Vector2 origin, SKPaint paint, bool aliased )
+	void DrawRun( FontRun run, Vector2 origin, SKPaint paint, bool aliased )
 	{
 		using var font = new SKFont( run.Typeface, run.Style.FontSize )
 		{
@@ -78,10 +78,9 @@ public partial class Bitmap
 			Subpixel = true,
 		};
 
-		fixed ( ushort* glyphs = run.Glyphs.Underlying )
-		{
-			using var blob = SKTextBlob.CreatePositioned( (IntPtr)(glyphs + run.Glyphs.Start), run.Glyphs.Length * sizeof( ushort ), SKTextEncoding.GlyphId, font, run.GlyphPositions.AsSpan() );
-			if ( blob is not null ) _canvas.DrawText( blob, origin.x, origin.y, paint );
-		}
+		using var builder = new SKTextBlobBuilder();
+		builder.AddPositionedRun( run.Glyphs.AsSpan(), font, run.GlyphPositions.AsSpan() );
+		using var blob = builder.Build();
+		if ( blob is not null ) _canvas.DrawText( blob, origin.x, origin.y, paint );
 	}
 }

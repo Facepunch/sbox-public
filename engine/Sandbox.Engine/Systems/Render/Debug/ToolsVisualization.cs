@@ -14,7 +14,7 @@ internal static partial class DebugOverlay
 			var title = debugMode.GetAttributeOfType<TitleAttribute>()?.Value ?? debugMode.ToString();
 			var icon = debugMode.GetAttributeOfType<IconAttribute>()?.Value ?? "image";
 
-			var iconScope = new TextRendering.Scope( icon, Color.White.WithAlpha( 0.8f ), 14, "Material Icons", 400 )
+			var iconScope = new TextRendering.Scope( icon, Color.White.WithAlpha( 0.8f ), 14, "Material Symbols Outlined", 400 )
 			{
 				Outline = new TextRendering.Outline { Color = Color.Black, Size = 3, Enabled = true }
 			};

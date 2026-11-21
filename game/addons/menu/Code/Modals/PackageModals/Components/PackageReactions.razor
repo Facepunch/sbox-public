@@ -40,7 +40,7 @@
 
     <div class="group">
         <div class="pill fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "#menu.games.remove_from_favourites_text" : "#menu.games.add_to_favourites_text" )">
-            <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
+            <icon>favorite</icon>
             <label>@Package.Favourited.ToMetric()</label>
         </div>
     </div>

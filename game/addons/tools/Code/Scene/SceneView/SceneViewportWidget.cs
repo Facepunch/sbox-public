@@ -811,7 +811,7 @@ public partial class SceneViewportWidget : Widget
 			var iconFontSize = 18 * scale;
 
 			Gizmo.Draw.Color = Color.White.WithAlpha( 2f - timeSinceCameraSpeedChange );
-			Gizmo.Draw.ScreenText( "speed", new Vector2( baseRect.Width - iconSize.x, iconSize.y ), "Material Icons", iconFontSize, TextFlag.Center );
+			Gizmo.Draw.ScreenText( "speed", new Vector2( baseRect.Width - iconSize.x, iconSize.y ), "Material Symbols Outlined", iconFontSize, TextFlag.Center );
 
 			var barSize = new Rect( 24, 64, 12, 100 ) * scale;
 

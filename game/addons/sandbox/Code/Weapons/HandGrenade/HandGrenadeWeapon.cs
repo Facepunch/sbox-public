@@ -57,6 +57,8 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 	ThrowType CurrentThrowType { get; set; } = ThrowType.Far;
 	float ThrowBlend { get; set; }
 
+	Sandbox.Animation.GraphParameters ViewModelParameters => ViewModel?.GetComponent<ViewModel>()?.Renderer?.Animation.Parameters;
+
 	public override bool IsInUse() => IsCooking;
 
 	protected override void OnEnabled()
@@ -99,7 +101,7 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 				if ( DeploySound is not null )
 					GameObject.PlaySound( DeploySound );
 
-					WeaponModel?.Renderer?.Set( "b_reload", true );
+				ViewModelParameters?.TryTrigger( "b_reload" );
 			}
 
 			return;
@@ -114,8 +116,7 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 			if ( PinPullSound is not null )
 				GameObject.PlaySound( PinPullSound );
 
-			WeaponModel?.Renderer?.Set( "b_charge", true );
-			WeaponModel?.Renderer?.Set( "charge_type", 0 );
+			ViewModelParameters?.TryTrigger( "b_charge" );
 		}
 
 		if ( !IsCooking )
@@ -128,6 +129,7 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 		if ( TimeSinceCooked > Lifetime )
 		{
 			IsCooking = false;
+			ViewModelParameters?.TryTrigger( "b_reload" );
 			ExplodeInHand();
 			return;
 		}
@@ -148,8 +150,7 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 		ThrowBlend = ThrowBlend.LerpTo( target, Time.Delta * 3.0f );
 		CurrentThrowType = ThrowBlend < 0.4f ? ThrowType.Far : ThrowType.Near;
 
-		WeaponModel?.Renderer?.Set( "throw_blend", ThrowBlend );
-		WeaponModel?.Renderer?.Set( "throw_type", (int)CurrentThrowType );
+		ViewModelParameters?.TrySet( "throw_blend", ThrowBlend );
 	}
 
 	void Throw( Player player, Vector3? overrideDirection = null, float powerScale = 1f )
@@ -179,8 +180,9 @@ public sealed class HandGrenadeWeapon : BaseSandboxWeapon
 
 		PlayAttackSound();
 
-		WeaponModel?.Renderer?.Set( "b_charge", false );
-		WeaponModel?.Renderer?.Set( "b_attack", true );
+		var parameters = ViewModelParameters;
+		parameters?.TrySet( "throw_type", (float)CurrentThrowType );
+		parameters?.TryTrigger( "b_attack" );
 
 		SetNextFire( 1f );
 		IsThrowing = true;

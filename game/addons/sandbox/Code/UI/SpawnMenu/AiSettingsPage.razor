@@ -3,7 +3,7 @@
 @using Sandbox.Npcs;
 @inherits UtilityPage
 @namespace Sandbox
-@attribute [Icon( "🤖" )]
+@attribute [Icon( "smart_toy" )]
 @attribute [Title( "#spawnmenu.utility.npcs" )]
 @attribute [Group( "#spawnmenu.utility.group.world" )]
 @attribute [Order( 1 )]
@@ -15,7 +15,7 @@
     }
     else
     {
-        <Label class="note" Tokenize=@false Text=@( $"⚠️ {Game.Language.GetPhrase( "spawnmenu.common.admin_only" )}" ) />
+        <div class="note"><IconPanel Text="warning" /><Label Text="#spawnmenu.common.admin_only" /></div>
     }
 </root>
 

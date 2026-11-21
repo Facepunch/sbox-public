@@ -27,54 +27,16 @@
         gap: 10px;
     }
 
-    .container > .tabpanel
+    .spawnmenuleft
     {
-        border-radius: 8px;
-        backdrop-filter: blur( $ui-menu-blur );
-
-        > .tabbar
-        {
-            align-items: center;
-            height: 49px;
-            padding: 0 8px;
-            gap: 4px;
-            background-color: $ui-catalog-surface;
-            border-bottom: 1px solid $ui-separator;
-            border-radius: 8px 8px 0 0;
-
-            > .tab
-            {
-                @include ui-tab-button;
-            }
-        }
-
-        > .tab-body
-        {
-            overflow: hidden;
-            border-radius: 0 0 8px 8px;
-        }
+        @include ui-menu-tab-panel;
     }
 
-    .container > .spawnmenuright
+    // Reserve the tools column while the shared panel moves to the context menu.
+    SpawnMenu .tools-menu-slot
     {
         width: 583px;
         flex-shrink: 0;
-        flex-grow: 0;
-
-        > .tabbar > .theme-toggle
-        {
-            margin-left: auto;
-            @include ui-header-button;
-            width: $ui-menu-tab-height;
-            pointer-events: all;
-
-            > .icon { font-family: $ui-icon-outlined; font-size: 18px; pointer-events: none; }
-        }
-
-        > .tab-body > .tab-page > .tab
-        {
-            flex-direction: row;
-        }
     }
 
     .menuinner

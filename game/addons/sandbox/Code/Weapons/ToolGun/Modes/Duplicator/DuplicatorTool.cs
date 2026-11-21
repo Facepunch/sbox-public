@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-[Icon( "✌️" )]
+[Icon( "content_copy" )]
 [Title( "#tool.name.duplicator" )]
 [ClassName( "duplicator" )]
 [Group( "#tool.group.building" )]
@@ -64,7 +64,7 @@ public sealed partial class DuplicatorTool : ToolMode
 
 		if ( _isRotating )
 		{
-			var look = Input.AnalogLook with { pitch = 0 };
+			var look = Toolgun.ToolLook with { pitch = 0 };
 
 			if ( _isSnapping )
 			{

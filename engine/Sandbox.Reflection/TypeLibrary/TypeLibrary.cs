@@ -296,6 +296,8 @@ public partial class TypeLibrary
 		typeof(Sandbox.UI.TextDecoration),
 		typeof(Sandbox.UI.WhiteSpace),
 		typeof(Sandbox.UI.FontStyle),
+		typeof(Sandbox.UI.FontVariationSettings),
+		typeof(Sandbox.UI.FontOpticalSizing),
 		typeof(Sandbox.UI.ImageRendering),
 		typeof(Sandbox.UI.BorderImageFill),
 		typeof(Sandbox.UI.BorderImageRepeat),

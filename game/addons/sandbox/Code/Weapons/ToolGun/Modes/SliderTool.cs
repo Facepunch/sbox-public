@@ -1,6 +1,6 @@
 ﻿using Sandbox.UI;
 
-[Icon( "➖" )]
+[Icon( "linear_scale" )]
 [Title( "#tool.name.slider" )]
 [ClassName( "slider" )]
 [Group( "#tool.group.constraints" )]

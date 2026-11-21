@@ -48,7 +48,7 @@ public partial class Resource
 		bitmap.SetRadialGradient( width * 0.1f, height * 2, Gradient.FromColors( bg, bg.Darken( 0.25f ) ) );
 		bitmap.DrawRoundRect( bitmap.Rect, 4 );
 
-		bitmap.DrawText( new TextRendering.Scope( icon, fg, height * 0.8f, "Material Icons" ), bitmap.Rect, TextFlag.Center | TextFlag.DontClip );
+		bitmap.DrawText( new TextRendering.Scope( icon, fg, height * 0.8f, "Material Symbols Outlined" ), bitmap.Rect, TextFlag.Center | TextFlag.DontClip );
 		return bitmap;
 	}
 }

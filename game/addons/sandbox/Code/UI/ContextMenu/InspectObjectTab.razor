@@ -2,10 +2,6 @@
 @using Sandbox.UI;
 @inherits Panel
 @namespace Sandbox
-@attribute [InspectWindow.Tab( InspectWindow.Corner.BottomRight )]
-@attribute [Icon( "view_in_ar" )]
-@attribute [Title( "#spawnmenu.inspect.prop_inspector" )]
-@attribute [Order( 100 )]
 
 <root>
 
@@ -16,6 +12,10 @@
 			{
 				var e = entry;
 				<button class="tab @( _active == e ? "selected" : "" )" @onclick="@(() => SetActive( e ))">
+					@if ( !string.IsNullOrWhiteSpace( e.Icon ) )
+					{
+						<IconPanel class="tab-icon" Text=@e.Icon />
+					}
 					<Label Text=@e.Editor.Title />
 				</button>
 			}
@@ -35,19 +35,17 @@
 {
     Panel _windowStack = default;
 
-    record EditorEntry( IInspectorEditor Editor )
+    record EditorEntry( IInspectorEditor Editor, string Icon )
     {
         public bool WasVisible { get; set; }
     }
     List<EditorEntry> _editors;
     EditorEntry _active;
 
-    Inspector Inspector => Ancestors.OfType<ContextMenuHost>().FirstOrDefault()?.Inspector;
+    IReadOnlyCollection<GameObject> Selected => Scene?.Get<SpawnMenuHost>()?.SelectedObjects ?? [];
 
-    IReadOnlyCollection<GameObject> Selected => Inspector?.Selected ?? [];
-
-    // a single editor of a single object is already named by the tab of this page
-    bool ShowTabBar => _editors?.Count( e => e.WasVisible ) > 1 || Selected.Count > 1;
+    // The Tools pane already shows the selection count in its title.
+    bool ShowTabBar => _editors?.Count( e => e.WasVisible ) > 1;
 
     void InitEditors()
     {
@@ -68,7 +66,7 @@
             editorPanel.SetClass( "hidden", true );
             _windowStack.AddChild( editorPanel );
 
-            _editors.Add( new EditorEntry( editor ) );
+            _editors.Add( new EditorEntry( editor, typeDesc.Icon ) );
         }
         StateHasChanged();
     }

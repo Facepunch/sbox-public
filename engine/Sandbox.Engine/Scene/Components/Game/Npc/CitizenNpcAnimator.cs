@@ -59,9 +59,9 @@ public class CitizenNpcAnimator : Component, IEvents
 	void IEvents.OnWeaponEvent( BaseCombatWeapon weapon, string name )
 	{
 		if ( string.Equals( name, WeaponEvents.Attack, StringComparison.OrdinalIgnoreCase ) )
-			_renderer?.Set( "b_attack", true );
+			TriggerGesture( "b_attack" );
 		else if ( string.Equals( name, WeaponEvents.Reload, StringComparison.OrdinalIgnoreCase ) )
-			_renderer?.Set( "b_reload", true );
+			TriggerGesture( "b_reload" );
 	}
 
 	/// <summary>
@@ -82,7 +82,7 @@ public class CitizenNpcAnimator : Component, IEvents
 	protected override void OnUpdate()
 	{
 		var layer = Layer;
-		if ( !layer.IsValid() || !Npc.IsValid() )
+		if ( !layer.IsValid() || !_renderer.IsValid() )
 			return;
 
 		if ( layer.IsLooking )
@@ -93,21 +93,31 @@ public class CitizenNpcAnimator : Component, IEvents
 		ApplyMoveToRenderer( layer.MoveVelocity, Npc.WorldRotation );
 
 		var weapon = Weapon;
-		_renderer?.Set( "holdtype", HoldTypeOption( weapon ) );
-		_renderer?.Set( "holdtype_handedness", (int)(weapon?.Handedness ?? WeaponHandedness.Both) );
+		var hold = HoldTypeOption( weapon );
+		var handedness = (int)(weapon?.Handedness ?? WeaponHandedness.Both);
+		if ( _renderer.Animation.Graph is not null )
+		{
+			_renderer.Animation.Parameters.TrySet( "holdtype", hold );
+			_renderer.Animation.Parameters.TrySet( "holdtype_handedness", handedness );
+		}
+		else
+		{
+			_renderer.Set( "holdtype", hold );
+			_renderer.Set( "holdtype_handedness", handedness );
+		}
 
-		_renderer?.Set( "b_weapon_lower", layer.WeaponStance == AnimationLayer.WeaponStances.Lowered );
+		SetBool( "b_weapon_lower", layer.WeaponStance == AnimationLayer.WeaponStances.Lowered );
 
-		_renderer?.Set( "b_grounded", layer.IsGrounded );
+		SetBool( "b_grounded", layer.IsGrounded );
 
 		// Climb pose on the vertical part only; the step on or off at the top walks.
 		var traversal = layer.Traversal;
 		var climbing = traversal is not null && (traversal == NavMeshLinkType.Ladder || traversal == NavMeshLinkType.Climb);
-		_renderer?.Set( "b_climb", climbing && MathF.Abs( layer.MoveVelocity.z ) > 1f );
+		SetBool( "b_climb", climbing && MathF.Abs( layer.MoveVelocity.z ) > 1f );
 
 		var jump = NavMeshLinkType.Jump;
 		if ( traversal is not null && traversal == jump && _shownTraversal != jump )
-			_renderer?.Set( "b_jump", true );
+			TriggerGesture( "b_jump" );
 		_shownTraversal = traversal;
 	}
 
@@ -150,9 +160,7 @@ public class CitizenNpcAnimator : Component, IEvents
 		var forward = Npc.WorldRotation.Forward;
 		_aimDirection = forward;
 
-		_renderer.SetLookDirection( "aim_eyes", forward, 0f );
-		_renderer.SetLookDirection( "aim_head", forward, 0f );
-		_renderer.SetLookDirection( "aim_body", forward, 0f );
+		UpdateLookParameters();
 	}
 
 	/// <summary>
@@ -175,6 +183,29 @@ public class CitizenNpcAnimator : Component, IEvents
 		var t = 1f - MathF.Exp( -AimSmoothSpeed * Time.Delta );
 		_aimDirection = Vector3.Slerp( _aimDirection, desiredDirection, t, clamp: false ).Normal;
 		_aimWeight = _aimWeight.LerpTo( desiredWeight, t );
+
+		UpdateLookParameters();
+	}
+
+	private void UpdateLookParameters()
+	{
+		if ( _renderer.Animation.Graph is not null )
+		{
+			var aim = _renderer.WorldRotation.Inverse * _aimDirection;
+			var angles = Rotation.LookAt( aim ).Angles();
+			var parameters = _renderer.Animation.Parameters;
+			parameters.TrySet( "aim_body", aim );
+			parameters.TrySet( "aim_body_pitch", angles.pitch );
+			parameters.TrySet( "aim_body_yaw", angles.yaw );
+			parameters.TrySet( "aim_body_weight", AimStrengthBody * _aimWeight );
+			parameters.TrySet( "aim_head", aim );
+			parameters.TrySet( "aim_head_pitch", angles.pitch );
+			parameters.TrySet( "aim_head_yaw", angles.yaw );
+			parameters.TrySet( "aim_head_weight", AimStrengthHead * _aimWeight );
+			parameters.TrySet( "aim_eyes", aim );
+			parameters.TrySet( "aim_eyes_weight", AimStrengthEyes * _aimWeight );
+			return;
+		}
 
 		_renderer.SetLookDirection( "aim_eyes", _aimDirection, AimStrengthEyes * _aimWeight );
 		_renderer.SetLookDirection( "aim_head", _aimDirection, AimStrengthHead * _aimWeight );
@@ -212,6 +243,45 @@ public class CitizenNpcAnimator : Component, IEvents
 		return (clampedFlat + Vector3.Up * direction.z).Normal;
 	}
 
+	private void TriggerGesture( string name )
+	{
+		var renderer = _renderer;
+		if ( !renderer.IsValid() ) return;
+
+		if ( renderer.Animation.Graph is not null )
+		{
+			renderer.Animation.Parameters.TryTrigger( name );
+		}
+		else
+		{
+			renderer.Set( name, true );
+		}
+	}
+
+	private void SetFloat( string name, float value )
+	{
+		if ( _renderer.Animation.Graph is not null )
+		{
+			_renderer.Animation.Parameters.TrySet( name, value );
+		}
+		else
+		{
+			_renderer.Set( name, value );
+		}
+	}
+
+	private void SetBool( string name, bool value )
+	{
+		if ( _renderer.Animation.Graph is not null )
+		{
+			_renderer.Animation.Parameters.TrySet( name, value );
+		}
+		else
+		{
+			_renderer.Set( name, value );
+		}
+	}
+
 	private void ApplyMoveToRenderer( Vector3 velocity, Rotation reference )
 	{
 		if ( _renderer is null ) return;
@@ -235,17 +305,17 @@ public class CitizenNpcAnimator : Component, IEvents
 			_lastYaw = yaw;
 		}
 
-		_renderer.Set( "move_direction", angle );
-		_renderer.Set( "move_speed", velocity.Length );
-		_renderer.Set( "move_groundspeed", groundSpeed );
-		_renderer.Set( "move_y", sideward );
-		_renderer.Set( "move_x", forward );
-		_renderer.Set( "move_z", velocity.z );
-		_renderer.Set( "move_rotationspeed", rotationSpeed );
+		SetFloat( "move_direction", angle );
+		SetFloat( "move_speed", velocity.Length );
+		SetFloat( "move_groundspeed", groundSpeed );
+		SetFloat( "move_y", sideward );
+		SetFloat( "move_x", forward );
+		SetFloat( "move_z", velocity.z );
+		SetFloat( "move_rotationspeed", rotationSpeed );
 
-		_renderer.Set( "wish_groundspeed", groundSpeed );
-		_renderer.Set( "wish_x", forward );
-		_renderer.Set( "wish_y", sideward );
-		_renderer.Set( "wish_z", velocity.z );
+		SetFloat( "wish_groundspeed", groundSpeed );
+		SetFloat( "wish_x", forward );
+		SetFloat( "wish_y", sideward );
+		SetFloat( "wish_z", velocity.z );
 	}
 }

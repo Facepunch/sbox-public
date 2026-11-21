@@ -143,14 +143,9 @@ public partial class TerrainStorage
 	static Span<ushort> ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
 	{
 		using var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
-		using ( var pixmap = bitmap.PeekPixels() )
-		{
-			var dataBytes = MemoryMarshal.AsBytes( original );
-			Marshal.Copy( dataBytes.ToArray(), 0, pixmap.GetPixels(), dataBytes.Length );
-		}
+		MemoryMarshal.AsBytes( original ).CopyTo( bitmap.GetPixelSpan() );
 
 		using var newBitmap = bitmap.Resize( new SKSizeI( newSize, newSize ), new SKSamplingOptions( SKFilterMode.Linear, SKMipmapMode.None ) );
-		using var newPixmap = newBitmap.PeekPixels();
-		return newPixmap.GetPixelSpan<ushort>().ToArray();
+		return MemoryMarshal.Cast<byte, ushort>( newBitmap.GetPixelSpan() ).ToArray();
 	}
 }

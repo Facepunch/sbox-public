@@ -1,7 +1,7 @@
 
 [Hide]
 [Title( "#tool.name.winch" )]
-[Icon( "🪝" )]
+[Icon( "phishing" )]
 [ClassName( "WinchTool" )]
 [Group( "#tool.group.building" )]
 public sealed class WinchTool : BaseLengthConstraintTool

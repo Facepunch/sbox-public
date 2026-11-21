@@ -1,6 +1,16 @@
 ﻿public abstract partial class ToolMode
 {
 	/// <summary>
+	/// How far from the player the tool gun can select a point.
+	/// </summary>
+	protected const float ToolTraceDistance = 4096f;
+
+	/// <summary>
+	/// Where the tool is pointing. In the context menu the local player's tool follows the cursor.
+	/// </summary>
+	protected internal Ray AimRay => !IsProxy && InspectCursor.IsOpen ? InspectCursor.Ray : Player.EyeTransform.ForwardRay;
+
+	/// <summary>
 	/// A point in the world selected by the current player's toolgun. We try to keep this as minimal as possible
 	/// while catering for as much as possible.
 	/// </summary>
@@ -82,18 +92,18 @@
 	}
 
 	/// <summary>
-	/// Get a SelectionPoint from the tool gun owner's eyes.
+	/// Get a SelectionPoint along the tool's aim ray.
 	/// </summary>
 	public SelectionPoint TraceSelect()
 	{
 		// Use the exact selected surface point; tracing at an edge can hit a different face or miss.
-		if ( UseSnapGrid && !AbsorbMouseInput && Input.Down( "snap" ) && _hasSnapTarget && _snapSelection.IsValid() )
-			return _snapSelection;
+		var snapped = SnappedSelection;
+		if ( snapped.IsValid() ) return snapped;
 
 		var player = Toolgun?.Owner;
 		if ( !player.IsValid() ) return default;
 
-		return TraceFromRay( player.EyeTransform.ForwardRay, 4096, player.GameObject );
+		return TraceFromRay( AimRay, ToolTraceDistance, player.GameObject );
 	}
 
 	/// <summary>

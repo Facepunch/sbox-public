@@ -303,8 +303,9 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 					Log.Trace( $"AddRuntimeReference: {str} {path}" );
 				}
 			}
-			else if ( string.Equals( type, main, StringComparison.OrdinalIgnoreCase ) )
+			else if ( !str.Contains( ':' ) && string.Equals( type, main, StringComparison.OrdinalIgnoreCase ) )
 			{
+				// A value like "prop:models/wheel.vmdl" is a spawn ident, even though it ends in a model extension.
 				// A missing file is taken for an asset by its type's main extension only (a .vmdl, not a .png or .wav)
 				// the c++ asset system supports refs to currently unrecognized assets where, if/when that asset is registered,
 				// our dependency tree will be rebuilt, and include proper refs to those assets - so lets make sure we use that, otherwise this is all order dependent

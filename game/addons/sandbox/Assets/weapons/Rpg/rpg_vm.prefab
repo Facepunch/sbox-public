@@ -21,25 +21,17 @@
         "__enabled": true,
         "Flags": 0,
         "ADSInertiaScale": 0.1,
-        "AnimationSpeed": 1,
         "DeploySound": {
           "Id": "dc3dbe7d-9253-4464-821b-43bb8f168029",
           "Path": "weapons/common/foley/foley_deploy_weapon_02.sound"
         },
         "EjectBrass": null,
-        "IncrementalAnimationSpeed": 1,
         "IncrementalReloadFinishSounds": [],
         "IncrementalReloadSoundEvents": [],
         "IncrementalReloadStartSounds": [],
-        "InertiaScale": "0.5,1",
         "IsIncremental": false,
-        "IsThrowable": false,
         "LookInertia": true,
-        "LookInertiaAmount": 0.05,
-        "LookInertiaDamping": 0.44,
-        "LookInertiaFrequency": 1,
-        "LookInertiaPivotDistance": 4,
-        "MaxInertia": 2,
+        "LookInertiaAmount": 1,
         "MuzzleEffect": null,
         "MuzzleGameObject": {
           "_type": "gameobject",
@@ -140,8 +132,8 @@
           "_type": "gameobject",
           "go": "33f8c517-fd02-4032-ac3c-367ab3411139"
         },
-        "ThrowableType": "HEGrenade",
-        "TracerEffect": null
+        "TracerEffect": null,
+        "MovementBob": true
       }
     ],
     "Children": [
@@ -166,7 +158,6 @@
             "__guid": "f53dd8cf-dc6a-4d32-ba6e-e7de48ce9fef",
             "__enabled": true,
             "Flags": 0,
-            "AnimationGraph": null,
             "BodyGroups": 18446744073709551615,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
@@ -187,7 +178,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {},
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": false,
@@ -202,7 +192,10 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "weapons/rpg/animations/rpg.ag"
+            }
           }
         ],
         "Children": [
@@ -1992,7 +1985,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []

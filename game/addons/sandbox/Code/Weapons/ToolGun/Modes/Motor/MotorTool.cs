@@ -1,7 +1,7 @@
 
 [Hide]
 [Title( "#tool.name.motor" )]
-[Icon( "🔄" )]
+[Icon( "rotate_right" )]
 [ClassName( "MotorTool" )]
 [Group( "#tool.group.constraints" )]
 public sealed class MotorTool : BaseConstraintToolMode

@@ -111,6 +111,7 @@ GameDetailShelf
 		// Beside its name - gold when it's one of yours
 		.favourite
 		{
+			font-variation-settings: $menu-icon-outlined;
 			font-size: 20px;
 			color: $platform-faint;
 			cursor: pointer;
@@ -123,6 +124,7 @@ GameDetailShelf
 
 			&.on
 			{
+				font-variation-settings: $menu-icon-filled;
 				color: $front-trophy;
 			}
 		}

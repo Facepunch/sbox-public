@@ -21,25 +21,17 @@
         "__enabled": true,
         "Flags": 0,
         "ADSInertiaScale": 0.3,
-        "AnimationSpeed": 1,
         "DeploySound": {
           "Id": "cd40d880-a62f-4e55-93b7-5caad138cd31",
           "Path": "weapons/common/foley/foley_deploy_weapon_01.sound"
         },
         "EjectBrass": null,
-        "IncrementalAnimationSpeed": 3,
         "IncrementalReloadFinishSounds": [],
         "IncrementalReloadSoundEvents": [],
         "IncrementalReloadStartSounds": [],
-        "InertiaScale": "2,2",
         "IsIncremental": false,
-        "IsThrowable": false,
-        "LookInertia": false,
+        "LookInertia": true,
         "LookInertiaAmount": 1,
-        "LookInertiaDamping": 0.35,
-        "LookInertiaFrequency": 3,
-        "LookInertiaPivotDistance": 10,
-        "MaxInertia": 15,
         "MuzzleEffect": null,
         "MuzzleGameObject": {
           "_type": "gameobject",
@@ -62,8 +54,8 @@
           "_type": "gameobject",
           "go": "dcc37bca-a959-4b1d-87ee-15eaa48af28d"
         },
-        "ThrowableType": "HEGrenade",
-        "TracerEffect": null
+        "TracerEffect": null,
+        "MovementBob": true
       },
       {
         "__type": "PhygunViewmodel",
@@ -180,7 +172,10 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "weapons/physgun/animations/physgun.ag"
+            }
           }
         ],
         "Children": [
@@ -2851,7 +2846,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []

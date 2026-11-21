@@ -20,13 +20,9 @@
         "__guid": "aa100001-0001-0001-0001-000000000002",
         "__enabled": true,
         "Flags": 0,
-        "AnimationSpeed": 1,
         "EjectBrass": null,
         "ShellEjectGameObject": null,
-        "IncrementalAnimationSpeed": 3,
-        "InertiaScale": "2,2",
         "IsIncremental": false,
-        "IsThrowable": false,
         "MuzzleEffect": null,
         "MuzzleGameObject": null,
         "OnComponentDestroy": null,
@@ -41,8 +37,10 @@
           "go": "aa100001-0001-0001-0001-000000000004",
           "component_type": "SkinnedModelRenderer"
         },
-        "ThrowableType": "HEGrenade",
-        "TracerEffect": null
+        "TracerEffect": null,
+        "LookInertia": true,
+        "LookInertiaAmount": 1,
+        "MovementBob": true
       }
     ],
     "Children": [
@@ -105,7 +103,10 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "weapons/crowbar/animations/crowbar.ag"
+            }
           }
         ],
         "Children": [
@@ -1482,7 +1483,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []

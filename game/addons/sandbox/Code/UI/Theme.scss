@@ -12,10 +12,16 @@ $color-text: #fafaff;
 $body-font: "Inter";
 $title-font: $body-font;
 $subtitle-font: $body-font;
-$ui-icon: "Material Icons";
-$ui-icon-outlined: "Material Icons Outlined";
+$ui-icon: "Material Symbols Outlined";
+$ui-icon-filled-axes: 'FILL' 1, 'wght' 400, 'opsz' 24;
 
 $ui-mono: "Inconsolata";
+
+IconPanel, icon, i
+{
+	font-family: $ui-icon;
+	font-variation-settings: $ui-icon-filled-axes;
+}
 
 // text size in the tool settings and the controls in them
 $ui-settings-font: 12px;

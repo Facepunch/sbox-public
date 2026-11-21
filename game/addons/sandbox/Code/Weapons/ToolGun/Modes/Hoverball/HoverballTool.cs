@@ -2,7 +2,7 @@ using Sandbox.UI;
 
 [Hide]
 [Title( "#tool.name.hoverball" )]
-[Icon( "🎱" )]
+[Icon( "orbit" )]
 [ClassName( "hoverballtool" )]
 [Group( "#tool.group.building" )]
 public sealed class HoverballTool : ToolMode
@@ -115,7 +115,7 @@ public sealed class HoverballTool : ToolMode
 
 		var undo = Player.Undo.Create();
 		undo.Name = "#tool.name.hoverball";
-		undo.Icon = "🎱";
+		undo.Icon = "orbit";
 		undo.Add( go );
 
 		CheckContraptionStats( point.GameObject );

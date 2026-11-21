@@ -16,7 +16,7 @@
 using HarfBuzzSharp;
 using Sandbox.UI;
 using SkiaSharp;
-using System.Runtime.InteropServices;
+using SkiaSharp.HarfBuzz;
 using Topten.RichTextKit.Utils;
 
 namespace Topten.RichTextKit
@@ -54,40 +54,48 @@ namespace Topten.RichTextKit
 		/// Constructs a new TextShaper 
 		/// </summary>
 		/// <param name="typeface">The typeface of this shaper</param>
-		private TextShaper( SKTypeface typeface )
+		private TextShaper( SKTypeface typeface, HarfBuzzSharp.Font parent = null )
 		{
 			// Store typeface
 			_typeface = typeface;
 
-			// Load the typeface stream to a HarfBuzz font
-			int index;
-			using ( var blob = GetHarfBuzzBlob( typeface.OpenStream( out index ) ) )
-			using ( var face = new Face( blob, (uint)index ) )
+			// All variants share the original font data and have their own shaping coordinates.
+			if ( parent is not null )
 			{
-				face.UnitsPerEm = typeface.UnitsPerEm;
-
-				_font = new HarfBuzzSharp.Font( face );
-				_font.SetScale( overScale, overScale );
-				_font.SetFunctionsOpenType();
+				_font = new HarfBuzzSharp.Font( parent );
 			}
+			else
+			{
+				using var blob = typeface.OpenStream( out var index ).ToHarfBuzzBlob();
+				using var face = new Face( blob, (uint)index );
+				face.UnitsPerEm = typeface.UnitsPerEm;
+				_font = new HarfBuzzSharp.Font( face );
+			}
+			_font.SetScale( overScale, overScale );
+			_font.SetFunctionsOpenType();
+			if ( typeface.VariationDesignPositionCount > 0 )
+				_font.SetVariations( typeface.VariationDesignPosition.Select( p => new Variation { Tag = p.Axis, Value = p.Value } ).ToArray() );
 
 			// Get font metrics for this typeface
-			using ( var font = new SKFont() )
+			using ( var font = new SKFont( typeface, overScale ) )
 			{
-				font.Typeface = typeface;
-				font.Size = overScale;
-
 				_fontMetrics = font.Metrics;
 
-				// This is a temporary hack until SkiaSharp exposes
-				// a way to check if a font is fixed pitch.  For now
-				// we just measure and `i` and a `w` and see if they're
-				// the same width.
-				float[] widths = font.GetGlyphWidths( "iw", out var rects );
-				_isFixedPitch = widths != null && widths.Length > 1 && widths[0] == widths[1];
+				// Use the measured cell width for fallback, including fonts without fixed-pitch metadata.
+				Span<float> widths = stackalloc float[2];
+				font.GetGlyphWidths( "iw", widths, default );
+				_isFixedPitch = widths[0] == widths[1];
 				if ( _isFixedPitch )
 					_fixedCharacterWidth = widths[0];
+			}
+		}
 
+		internal static void RegisterVariation( SKTypeface original, SKTypeface variant )
+		{
+			lock ( _shapers )
+			{
+				if ( !_shapers.ContainsKey( variant ) )
+					_shapers.Add( variant, new TextShaper( variant, ForTypeface( original )._font ) );
 			}
 		}
 
@@ -127,6 +135,22 @@ namespace Topten.RichTextKit
 		/// Fixed pitch character width
 		/// </summary>
 		float _fixedCharacterWidth;
+
+		private sealed record SpaceMeasurement( float FontSize, float Width );
+		private volatile SpaceMeasurement _lastSpaceMeasurement;
+
+		internal float GetSpaceWidth( float fontSize )
+		{
+			var cached = _lastSpaceMeasurement;
+			if ( cached?.FontSize == fontSize )
+				return cached.Width;
+
+			using var font = new SKFont( _typeface, fontSize );
+			// Existing tab stops use glyph ID 32.
+			float width = font.MeasureText( [(ushort)32] );
+			_lastSpaceMeasurement = new SpaceMeasurement( fontSize, width );
+			return width;
+		}
 
 		/// <summary>
 		/// A set of re-usable result buffers to store the result of text shaping operation
@@ -222,13 +246,11 @@ namespace Topten.RichTextKit
 		public Result ShapeReplacement( ResultBufferSet bufferSet, Slice<int> codePoints, IStyle style, int clusterAdjustment )
 		{
 			var clusters = GraphemeClusterAlgorithm.GetBoundaries( codePoints ).ToArray();
-			var glyph = _typeface.GetGlyph( style.ReplacementCharacter );
 			using var font = new SKFont( _typeface, overScale );
+			var glyph = font.GetGlyph( style.ReplacementCharacter );
 			float glyphScale = style.FontSize / overScale;
 
-			float[] widths = new float[1];
-			SKRect[] bounds = new SKRect[1];
-			font.GetGlyphWidths( (new ushort[] { glyph }).AsSpan(), widths.AsSpan(), bounds.AsSpan() );
+			float width = font.MeasureText( [glyph] );
 
 			var r = new Result();
 			r.GlyphIndicies = bufferSet.GlyphIndicies.Add( (int)clusters.Length - 1, false );
@@ -250,7 +272,7 @@ namespace Topten.RichTextKit
 					r.CodePointXCoords[j] = r.GlyphPositions[i].X;
 				}
 
-				xCoord += widths[0] + style.LetterSpacing / glyphScale;
+				xCoord += width + style.LetterSpacing / glyphScale;
 			}
 
 			// Also return the end cursor position
@@ -339,7 +361,7 @@ namespace Topten.RichTextKit
 				}
 
 				// RTL?
-				bool rtl = buffer.Direction == Direction.RightToLeft;
+				bool rtl = direction == TextDirection.RTL;
 
 				// Work out glyph scaling and offsetting for super/subscript
 				float glyphScale = style.FontSize / overScale;
@@ -355,24 +377,24 @@ namespace Topten.RichTextKit
 					glyphVOffset += style.FontSize * 0.1f;
 				}
 
-				// Create results and get buffes
+				var glyphInfos = buffer.GetGlyphInfoSpan();
+				var glyphPositions = buffer.GetGlyphPositionSpan();
+
 				var r = new Result();
-				r.GlyphIndicies = bufferSet.GlyphIndicies.Add( (int)buffer.Length, false );
-				r.GlyphPositions = bufferSet.GlyphPositions.Add( (int)buffer.Length, false );
-				r.Clusters = bufferSet.Clusters.Add( (int)buffer.Length, false );
+				r.GlyphIndicies = bufferSet.GlyphIndicies.Add( glyphInfos.Length, false );
+				r.GlyphPositions = bufferSet.GlyphPositions.Add( glyphInfos.Length, false );
+				r.Clusters = bufferSet.Clusters.Add( glyphInfos.Length, false );
 				r.CodePointXCoords = bufferSet.CodePointXCoords.Add( codePoints.Length, false );
 				r.CodePointXCoords.Fill( 0 );
 
 				// Convert points
-				var gp = buffer.GlyphPositions;
-				var gi = buffer.GlyphInfos;
 				float cursorX = 0;
 				float cursorY = 0;
 				float cursorXCluster = 0;
-				for ( int i = 0; i < buffer.Length; i++ )
+				for ( int i = 0; i < glyphInfos.Length; i++ )
 				{
-					r.GlyphIndicies[i] = (ushort)gi[i].Codepoint;
-					r.Clusters[i] = (int)gi[i].Cluster + clusterAdjustment;
+					r.GlyphIndicies[i] = (ushort)glyphInfos[i].Codepoint;
+					r.Clusters[i] = (int)glyphInfos[i].Cluster + clusterAdjustment;
 
 
 					// Update code point positions
@@ -388,7 +410,7 @@ namespace Topten.RichTextKit
 					}
 
 					// Get the position
-					var pos = gp[i];
+					var pos = glyphPositions[i];
 
 					// Update glyph position
 					r.GlyphPositions[i] = new SKPoint(
@@ -402,17 +424,18 @@ namespace Topten.RichTextKit
 
 					// Ensure paragraph separator character (0x2029) has some
 					// width so it can be seen as part of the selection in the editor.
-					if ( pos.XAdvance == 0 && codePoints[(int)gi[i].Cluster] == 0x2029 )
+					if ( pos.XAdvance == 0 && codePoints[(int)glyphInfos[i].Cluster] == 0x2029 )
 					{
 						cursorX += style.FontSize * 2 / 3;
 					}
 
-					if ( i + 1 == gi.Length || gi[i].Cluster != gi[i + 1].Cluster )
+					bool endsCluster = i + 1 == glyphInfos.Length || glyphInfos[i].Cluster != glyphInfos[i + 1].Cluster;
+					if ( endsCluster )
 					{
 						cursorX += style.LetterSpacing;
 					}
 
-					if ( codePoints[(int)gi[i].Cluster] == ' ' )
+					if ( codePoints[(int)glyphInfos[i].Cluster] == ' ' )
 					{
 						cursorX += style.WordSpacing;
 					}
@@ -423,14 +446,14 @@ namespace Topten.RichTextKit
 					if ( forceFixedPitchWidth != 0 )
 					{
 						// New cluster?
-						if ( i + 1 >= buffer.Length || gi[i].Cluster != gi[i + 1].Cluster )
+						if ( endsCluster )
 						{
 							// Work out fixed pitch position of next cluster
 							cursorXCluster += forceFixedPitchWidth * glyphScale;
 							if ( cursorXCluster > cursorX )
 							{
 								// Nudge characters to center them in the fixed pitch width
-								if ( i == 0 || gi[i - 1].Cluster != gi[i].Cluster )
+								if ( i == 0 || glyphInfos[i - 1].Cluster != glyphInfos[i].Cluster )
 								{
 									r.GlyphPositions[i].X += (cursorXCluster - cursorX) / 2;
 								}
@@ -498,35 +521,6 @@ namespace Topten.RichTextKit
 			result.Descent = _fontMetrics.Descent * fontSize / overScale;
 			result.Leading = _fontMetrics.Leading * fontSize / overScale;
 			result.XMin = _fontMetrics.XMin * fontSize / overScale;
-		}
-
-		private static Blob GetHarfBuzzBlob( SKStreamAsset asset )
-		{
-			if ( asset == null )
-				throw new ArgumentNullException( nameof( asset ) );
-
-			Blob blob;
-
-			var size = asset.Length;
-			var memoryBase = asset.GetMemoryBase();
-			if ( memoryBase != IntPtr.Zero )
-			{
-				// the underlying stream is really a mamory block
-				// so save on copying and just use that directly
-				blob = new Blob( memoryBase, size, MemoryMode.ReadOnly, () => asset.Dispose() );
-			}
-			else
-			{
-				// this could be a forward-only stream, so we must copy
-				var ptr = Marshal.AllocCoTaskMem( size );
-				asset.Read( ptr, size );
-				blob = new Blob( ptr, size, MemoryMode.ReadOnly, () => Marshal.FreeCoTaskMem( ptr ) );
-			}
-
-			// make immutable for performance?
-			blob.MakeImmutable();
-
-			return blob;
 		}
 	}
 }

@@ -16,6 +16,12 @@ public class SpawnlistResource : GameResource
 	public string Icon { get; set; } = "collections_bookmark";
 
 	/// <summary>
+	/// Optional texture shown in place of the sidebar icon.
+	/// </summary>
+	[Property]
+	public Texture IconImage { get; set; }
+
+	/// <summary>
 	/// Mount required to see this list in the spawn menu. Leave empty for no requirement.
 	/// </summary>
 	public string RequiredMount { get; set; }

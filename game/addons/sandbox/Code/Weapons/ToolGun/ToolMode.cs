@@ -31,6 +31,16 @@
 	public virtual string PrimaryAction => GetActionName( ToolInput.Primary );
 
 	/// <summary>
+	/// The action for Use and primary fire together.
+	/// </summary>
+	public virtual string UsePrimaryAction => null;
+
+	/// <summary>
+	/// Whether pressing Use on this object should leave it under the crosshair for a tool action.
+	/// </summary>
+	public virtual bool ReservesUseFor( GameObject target ) => false;
+
+	/// <summary>
 	/// Label for the secondary action (attack2), or null if none.
 	/// Auto-populated from registered <see cref="ToolActionEntry"/> when not overridden.
 	/// </summary>
@@ -62,6 +72,7 @@
 		get
 		{
 			if ( !string.IsNullOrEmpty( PrimaryAction ) ) yield return new( PrimaryAction, ["attack1"] );
+			if ( !string.IsNullOrEmpty( UsePrimaryAction ) ) yield return new( UsePrimaryAction, ["use", "attack1"] );
 			if ( !string.IsNullOrEmpty( SecondaryAction ) ) yield return new( SecondaryAction, ["attack2"] );
 			if ( !string.IsNullOrEmpty( ReloadAction ) ) yield return new( ReloadAction, ["reload"] );
 			if ( !string.IsNullOrEmpty( ReloadSecondaryAction ) ) yield return new( ReloadSecondaryAction, ["reload", "attack2"] );
@@ -236,12 +247,25 @@
 	}
 
 	/// <summary>
-	/// Scrolls the tool name across the viewmodel screen's dot matrix in <see cref="Toolgun.ScreenColor"/>.
+	/// Text shown on the toolgun screen. Accepts plain text or a localization key starting with #.
+	/// </summary>
+	protected virtual string ToolgunScreenText => Name;
+
+	/// <summary>
+	/// Scroll speed in screen pixels per second. Zero keeps the text centered and still.
+	/// </summary>
+	protected virtual float ToolgunScreenScrollSpeed => 10f;
+
+	/// <summary>
+	/// Draws the tool's text on the viewmodel screen's dot matrix in <see cref="Toolgun.ScreenColor"/>.
 	/// </summary>
 	public virtual void DrawScreen( Rect rect, Painter paint )
 	{
+		var text = ToolgunScreenText;
+		if ( string.IsNullOrEmpty( text ) ) return;
+		if ( text.StartsWith( '#' ) ) text = Game.Language.GetPhrase( text[1..] );
+
 		using var state = paint.Scope();
-		const float scrollSpeed = 5f;
 
 		// these settings are set for the 'at01' font specifically, you need to adjust these values if you are changing the font
 		const float nameSize = 16f;
@@ -249,21 +273,28 @@
 		const float capTop = 4.375f;
 
 		var color = Toolgun.IsValid() ? Toolgun.ScreenColor : Color.White;
-		var title = Game.Language.GetPhrase( TypeDescription.Title.TrimStart( '#' ) ).ToUpperInvariant();
 
 		paint.TextStyle = new TextStyle( "at01", nameSize, color ) { Alignment = TextFlag.LeftTop | TextFlag.SingleLine };
-		var textSize = paint.MeasureText( title );
+		var textSize = paint.MeasureText( text );
 
 		var top = rect.Top + MathF.Floor( (rect.Height - capHeight) * 0.5f ) - capTop;
 
 		paint.Translate( 0, top - MathF.Floor( top ) );
 		top = MathF.Floor( top );
 
+		var scrollSpeed = ToolgunScreenScrollSpeed;
+		if ( scrollSpeed <= 0f )
+		{
+			var left = MathF.Round( rect.Left + (rect.Width - textSize.x) * 0.5f );
+			paint.Text( text, new Rect( left, top, textSize.x, textSize.y ) );
+			return;
+		}
+
 		var cycle = MathF.Ceiling( textSize.x + rect.Width * 0.5f );
 		var x = MathF.Round( rect.Right - (Time.Now * scrollSpeed) % cycle );
 
 		for ( ; x > rect.Left - textSize.x; x -= cycle )
-			paint.Text( title, new Rect( x, top, textSize.x, textSize.y ) );
+			paint.Text( text, new Rect( x, top, textSize.x, textSize.y ) );
 	}
 
 	/// <summary>

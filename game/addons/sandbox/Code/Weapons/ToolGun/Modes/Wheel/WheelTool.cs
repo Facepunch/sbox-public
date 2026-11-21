@@ -2,7 +2,7 @@ using Sandbox.UI;
 
 [Hide]
 [Title( "#tool.name.wheel" )]
-[Icon( "🛞" )]
+[Icon( "tire_repair" )]
 [ClassName( "wheeltool" )]
 [Group( "#tool.group.building" )]
 public sealed class WheelTool : ToolMode

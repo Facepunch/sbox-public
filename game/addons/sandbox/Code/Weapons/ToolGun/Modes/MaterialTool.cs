@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Icon( "🧱" )]
+[Icon( "texture" )]
 [Title( "#tool.name.material" )]
 [ClassName( "material" )]
 [Group( "#tool.group.render" )]

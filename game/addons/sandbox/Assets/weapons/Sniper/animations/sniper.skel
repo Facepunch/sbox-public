@@ -1,0 +1,6 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	_class = "CSkeletonDocument"
+	m_sourceFilename = "weapons/m700/v_m700.fbx"
+	m_flGlobalScale = 0.3937
+}

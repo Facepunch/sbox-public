@@ -18,7 +18,11 @@ public sealed partial class Player : ICameraModifier
 	private Vector3 _lastSeatWorldPos;
 	private List<BaseCombatWeapon> _seatedWeapons;
 
-	private float roll;
+	private float _viewModelStrideDistance;
+	private readonly List<(double Time, Rotation Facing)> _viewModelLookHistory = new( 32 );
+	private float _airborneFallSpeed;
+	private float _landingRoll;
+	private float _landingRollVelocity;
 
 	// The controller's first person body settings from before we sat down, restored when we get up.
 	private bool? _hideBodyBeforeSeat;
@@ -66,7 +70,10 @@ public sealed partial class Player : ICameraModifier
 		// Legacy game events still receive the camera - write the view out, let them run, fold back.
 		BridgeCameraEvent( camera, ref view, static x => x.OnCameraSetup( _bridgeCamera ) );
 
-		ApplyMovementCameraEffects( ref view );
+		ApplyStrafeTilt( ref view );
+		if ( _landingRoll != 0f && !Controller.ThirdPerson && GamePreferences.ViewBobbing )
+			view.Rotation *= Rotation.FromRoll( _landingRoll * (GamePreferences.Screenshake / 0.3f) );
+
 		ApplySeatedCameraSetup( ref view );
 		ApplySeatedFirstPersonLean( ref view );
 		ApplyDriveCamera( camera, ref view );
@@ -89,19 +96,114 @@ public sealed partial class Player : ICameraModifier
 		view.FieldOfView = camera.FieldOfView;
 	}
 
-	private void ApplyMovementCameraEffects( ref CameraView view )
+	private void ApplyStrafeTilt( ref CameraView view )
 	{
-		if ( Controller.ThirdPerson ) return;
-		if ( !GamePreferences.ViewBobbing )
+		var maxRoll = GamePreferences.ViewTilt.Clamp( 0f, 1f );
+		if ( maxRoll == 0f || !GamePreferences.ViewBobbing || Controller.ThirdPerson || IsNoclipping ) return;
+		if ( !Controller.Body.IsValid() ) return;
+
+		const float fullTiltSpeed = 200f;
+		var sideSpeed = Controller.Body.Velocity.Dot( EyeTransform.Right );
+		var roll = (sideSpeed / fullTiltSpeed).Clamp( -1f, 1f ) * maxRoll;
+		view.Rotation *= Rotation.FromRoll( roll );
+	}
+
+	protected override void OnFixedUpdate()
+	{
+		if ( !IsLocalPlayer || !Controller.IsValid() ) return;
+
+		// By the time OnLanded runs, the ground may already have stopped the body.
+		if ( !Controller.IsOnGround )
+			_airborneFallSpeed = Controller.Mode?.AllowFalling == true ? -Controller.Velocity.z : 0f;
+
+		if ( _landingRoll == 0f && _landingRollVelocity == 0f ) return;
+		if ( _landingRoll * _landingRoll <= 0.001f && _landingRollVelocity * _landingRollVelocity <= 0.001f )
 		{
-			roll = 0;
+			_landingRoll = 0f;
+			_landingRollVelocity = 0f;
 			return;
 		}
 
-		var r = Controller.WishVelocity.Dot( EyeTransform.Left ) / -250.0f;
-		roll = MathX.Lerp( roll, r, Time.Delta * 10.0f, true );
+		var delta = Time.Delta;
+		_landingRoll += _landingRollVelocity * delta;
+		_landingRollVelocity *= MathF.Max( 0f, 1f - 9f * delta );
+		_landingRollVelocity -= _landingRoll * MathF.Min( 65f * delta, 2f );
+		_landingRoll = _landingRoll.Clamp( -89f, 89f );
+	}
 
-		view.Rotation *= new Angles( 0, 0, roll * GamePreferences.ViewTilt.Clamp( 0f, 1f ) );
+	private void StartLandingRoll()
+	{
+		var speed = _airborneFallSpeed;
+		_airborneFallSpeed = 0f;
+		if ( speed < 303f || Controller.ThirdPerson || !GamePreferences.ViewBobbing ) return;
+
+		// A platform moving down with the player takes some of the force out of a dry landing.
+		if ( GetComponent<MoveModeSwim>() is not { WaterLevel: > 0f } )
+		{
+			speed += MathF.Min( Controller.GroundVelocity.z, 0f );
+			if ( speed < 173f ) return;
+		}
+
+		_landingRoll = speed * 0.013f;
+	}
+
+	internal (float Vertical, float Lateral) GetViewModelBob()
+	{
+		if ( !Controller.IsValid() || Controller.ThirdPerson || IsSeated ) return default;
+
+		// Keep the stride on the player so switching weapons mid-step carries on from the same foot.
+		const float strideLength = 288f;
+		var speed = MathF.Min( Controller.Velocity.WithZ( 0 ).Length, 320f );
+		_viewModelStrideDistance = (_viewModelStrideDistance + speed * Time.Delta) % strideLength;
+
+		// The weapon rises on each step and sways sideways once per pair of steps.
+		var phase = MathF.Tau * (_viewModelStrideDistance / strideLength);
+		var amplitude = speed * 0.005f;
+		var vertical = amplitude * (0.3f + 0.7f * MathF.Sin( phase * 2f ));
+		var lateral = amplitude * (0.3f + 0.7f * MathF.Sin( phase ));
+		return (vertical, lateral);
+	}
+
+	internal void ResetViewModelSway() => _viewModelLookHistory.Clear();
+
+	internal Vector3 GetViewModelSway( Rotation facing )
+	{
+		var now = Time.NowDouble;
+		var sampleTime = now - 0.1;
+		var history = _viewModelLookHistory;
+
+		if ( history.Count > 0 && now < history[^1].Time )
+			history.Clear();
+
+		if ( history.Count > 0 && now == history[^1].Time )
+		{
+			history[^1] = (now, facing);
+		}
+		else
+		{
+			history.Add( (now, facing) );
+		}
+
+		// Keep the frames either side of the sample time so the delay is the same at any frame rate.
+		var first = 0;
+		while ( first + 1 < history.Count && history[first + 1].Time <= sampleTime )
+			first++;
+
+		if ( first > 0 )
+			history.RemoveRange( 0, first );
+
+		var older = history[0];
+		var pastFacing = older.Facing;
+		if ( history.Count > 1 && sampleTime > older.Time )
+		{
+			var newer = history[1];
+			var fraction = (float)((sampleTime - older.Time) / (newer.Time - older.Time));
+			pastFacing = Rotation.Slerp( older.Facing, newer.Facing, fraction );
+		}
+
+		var turn = facing.Angles() - pastFacing.Angles();
+		var offset = Vector3.Forward - turn.ToRotation().Forward;
+		return facing * (offset * 1.5f);
 	}
 
 	private void UpdateSeatedWeapons()

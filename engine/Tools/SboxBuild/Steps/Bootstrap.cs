@@ -16,17 +16,19 @@ internal static class Bootstrap
 		var extension = OperatingSystem.IsWindows() ? ".bat" : ".sh";
 		var wrapper = (isPublic ? "Setup" : "Bootstrap") + extension;
 		var rerun = OperatingSystem.IsWindows() ? wrapper : $"./{wrapper}";
-		var stages = Build.GetStages().ToList();
+		var stages = Build.GetStages().Select( stage => (Row: new BuildDisplay.StageRow( stage.Name ), stage.Run) ).ToList();
 		// First, so a checkout whose later stage fails (no network, say) still refreshes itself on the next pull.
 		if ( isPublic )
-			stages.Insert( 0, ("Git hooks", new InstallGitHooks().Run) );
-		stages.Add( ("Shaders", new BuildShaders().Run) );
-		stages.Add( ("Content", new BuildContent().Run) );
+			stages.Insert( 0, (new BuildDisplay.StageRow( "Git hooks" ), new InstallGitHooks().Run) );
+		stages.Add( (new BuildDisplay.StageRow( "Shaders" ), new BuildShaders().Run) );
 		try
 		{
 			Log.StartBootstrap( verbose );
 			Log.Record( $"Bootstrap started in {Directory.GetCurrentDirectory()} (public: {Build.IsPublicSourceDistribution()}, verbose: {verbose})" );
 			string failedStage = null;
+
+			var content = new BuildDisplay.StageRow( "Content" ) { Children = [.. BuildContent.DiscoverRootRows( "game" )] };
+			stages.Add( (content, new BuildContent().Run) );
 
 			var result = BuildDisplay.Run( "s&box / bootstrap", () =>
 			{
@@ -48,13 +50,13 @@ internal static class Bootstrap
 					if ( stageResult != ExitCode.Success )
 					{
 						Log.CaptureFailure();
-						failedStage = stage.Name;
+						failedStage = stage.Row.Label;
 						return stageResult;
 					}
 				}
 
 				return ExitCode.Success;
-			}, stages.Select( stage => stage.Name ).ToArray() );
+			}, [.. stages.Select( stage => stage.Row )] );
 
 			if ( result != ExitCode.Success )
 			{

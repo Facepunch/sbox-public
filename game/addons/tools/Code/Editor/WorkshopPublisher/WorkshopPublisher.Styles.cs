@@ -87,7 +87,7 @@ public sealed partial class WorkshopPublisher
 			> .button:hover, > .button.active { background-color: #393939; color: white; }
 			> .button.selected { background-color: #253e60; color: white; }
 			> .button.selected:hover, > .button.selected.active { background-color: #2e4c73; }
-			> .button.selected::after { content: "check"; font-family: Material Icons; font-size: 16px; color: #90baff; }
+			> .button.selected::after { content: "check"; font-family: Material Symbols Outlined; font-size: 16px; color: #90baff; }
 			> .button .icon { font-size: 18px; width: 20px; flex-shrink: 0; color: #aaa; }
 			> .button.selected .icon { color: #90baff; }
 			> .button .button-right-column { flex-direction: row; flex-grow: 1; min-width: 0; text-align: left; }

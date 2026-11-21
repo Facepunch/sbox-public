@@ -121,8 +121,8 @@ internal sealed class WorldModelHolder : Component, Component.ExecuteInEditor
 	protected override void OnUpdate()
 	{
 		if ( !_model.IsValid() ) return;
-		var graph = string.IsNullOrEmpty( HoldGraph ) ? null : global::Sandbox.Animation.Graph.Load( HoldGraph );
-		if ( !string.IsNullOrEmpty( HoldGraph ) && graph?.IsValid != true ) return;
+		var graph = global::Sandbox.Animation.Graph.Load( string.IsNullOrEmpty( HoldGraph ) ? "animations/sandbox_player.ag" : HoldGraph );
+		if ( graph?.IsValid != true ) return;
 		if ( _model.Animation.Graph != graph ) _model.Animation.Graph = graph;
 
 		// Resolved here rather than in OnEnabled, which runs before HoldBone is assigned.
@@ -134,22 +134,11 @@ internal sealed class WorldModelHolder : Component, Component.ExecuteInEditor
 		_bone ??= _model.Model.Bones.AllBones.FirstOrDefault( b => string.Equals( b.Name, HoldBone, StringComparison.OrdinalIgnoreCase ) );
 		if ( _bone is null ) return;
 
-		if ( _model.Animation.Graph is not null )
-		{
-			if ( !_model.Animation.IsValid ) return;
-			var parameters = _model.Animation.Parameters;
-			parameters.TrySet( "b_grounded", true );
-			parameters.TrySet( "holdtype", HoldType );
-			parameters.TrySet( "holdtype_handedness", Handedness );
-		}
-		else
-		{
-#pragma warning disable CS0618
-			_model.SetAnimParameter( "b_grounded", true );
-			_model.SetAnimParameter( "holdtype", HoldType );
-			_model.SetAnimParameter( "holdtype_handedness", Handedness );
-#pragma warning restore CS0618
-		}
+		if ( !_model.Animation.IsValid ) return;
+		var parameters = _model.Animation.Parameters;
+		parameters.TrySet( "b_grounded", true );
+		parameters.TrySet( "holdtype", HoldType );
+		parameters.TrySet( "holdtype_handedness", Handedness );
 		_model.Update( RealTime.Delta );
 
 		// Hold bone in model space, built from parent-relative bone transforms so it doesn't depend on

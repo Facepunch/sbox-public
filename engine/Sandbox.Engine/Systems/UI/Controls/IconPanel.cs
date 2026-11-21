@@ -18,7 +18,7 @@ namespace Sandbox.UI
 		const string Styles = """
 			IconPanel
 			{
-				font-family: Material Icons;
+				font-family: Material Symbols Outlined;
 				text-transform: none;
 				letter-spacing: 0px;
 			}

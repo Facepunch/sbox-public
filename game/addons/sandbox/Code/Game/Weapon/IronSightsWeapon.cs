@@ -59,8 +59,8 @@ public abstract class IronSightsWeapon : BaseBulletWeapon
 		IsAiming = wantsAim;
 		ViewModel?.RunEvent<ViewModel>( x =>
 		{
-			x.Renderer?.Set( "ironsights", IsAiming ? 1 : 0 );
-			x.Renderer?.Set( "ironsights_fire_scale", IsAiming ? IronSightsFireScale : 1f );
+			x.Renderer?.Animation.Parameters.TrySet( "ironsights", IsAiming );
+			x.Renderer?.Animation.Parameters.TrySet( "ironsights_fire_scale", IsAiming ? IronSightsFireScale : 1f );
 		} );
 	}
 

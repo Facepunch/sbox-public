@@ -1,0 +1,119 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "17c505f9-7ac8-499c-809a-ad297b8f8868",
+          "Path": "weapons/sniper/animations/fire_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "fb80ff2f-a326-403e-879c-1eb9cfce89bb",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "9032e114-8703-44ad-a29d-c67ae01bf452",
+          "Path": "weapons/sniper/animations/trigger.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "6b18f9c9-002b-4d77-9a93-ad687d908d29",
+      "Position": "330,190",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LocalLayerNode",
+      "Input": {
+        "Identifier": "6b18f9c9-002b-4d77-9a93-ad687d908d29",
+        "Output": "Result"
+      },
+      "Weight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "RootMotionWeight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BoneMask": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "be520740-e024-439d-816a-085ef4bdae6d",
+      "Position": "665,260",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LayerBlendNode",
+      "Base": {
+        "Identifier": "fb80ff2f-a326-403e-879c-1eb9cfce89bb",
+        "Output": "Result"
+      },
+      "Layers": [
+        {
+          "Identifier": "be520740-e024-439d-816a-085ef4bdae6d",
+          "Output": "Layer"
+        }
+      ],
+      "OnlySampleBaseRootMotion": true,
+      "Identifier": "75c127ed-ffa0-459e-a799-ef233919a9b2",
+      "Position": "900,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "75c127ed-ffa0-459e-a799-ef233919a9b2",
+        "Output": "Result"
+      },
+      "Identifier": "2dd7a9ad-1d65-47f5-bd3d-1e7ae4021a77",
+      "Position": "1220,0",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "7cf3286a-3619-41f6-ad83-bbc8a84e0e1c",
+    "Path": "weapons/m700/v_m700.vmdl"
+  },
+  "Skeleton": {
+    "Id": "3bd1f7fd-d172-4b58-9aa4-0bcc0ea51d9c",
+    "Path": "weapons/sniper/animations/sniper.skel"
+  },
+  "parameters": [],
+  "virtualParameters": []
+}

@@ -4,65 +4,27 @@
 {
     SaveMenu
     {
-        width: 530px;
+        width: 100%;
+        height: 100%;
         flex-direction: column;
         color: $ui-text;
         font-family: $body-font;
         font-size: 13px;
         font-weight: 500;
 
-        > .save-list
+        SpawnMenuContent > .header
+        {
+            background-color: $ui-catalog-surface;
+        }
+
+        .save-list
         {
             background-color: $ui-menu-body;
             @include ui-scroll-column;
-            max-height: min( 600px, 58vh );
+            flex-grow: 1;
+            min-height: 0px;
             padding: 12px $spawn-menu-content-inset;
             gap: 8px;
-        }
-
-        > .footer
-        {
-            background-color: $ui-catalog-surface;
-            border-top: 1px solid $ui-separator;
-            flex-direction: row;
-            flex-shrink: 0;
-            gap: 8px;
-            padding: 10px $spawn-menu-content-inset;
-
-            TextEntry
-            {
-                @include ui-text-entry;
-                flex-grow: 1;
-                min-width: 0;
-                height: $ui-menu-control-height;
-                padding: 0 10px;
-                border-radius: $ui-menu-radius;
-            }
-
-            UIButton
-            {
-                height: $ui-menu-control-height;
-                padding: 0 16px;
-                border-radius: $ui-menu-radius;
-                @include ui-control-surface;
-            }
-        }
-
-        .empty-state
-        {
-            height: 94px;
-            flex-shrink: 0;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            color: $ui-text-muted;
-
-            IconPanel
-            {
-                font-size: 28px;
-                color: $ui-blue;
-            }
         }
     }
 

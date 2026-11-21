@@ -339,7 +339,7 @@
 		]
 		model_archetype = ""
 		primary_associated_entity = ""
-		anim_graph_name = "weapons/physgun/v_physgun.vanmgrph"
+		anim_graph_name = ""
 		base_model_name = ""
 	}
 }

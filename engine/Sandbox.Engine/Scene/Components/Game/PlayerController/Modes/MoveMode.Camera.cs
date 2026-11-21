@@ -10,11 +10,10 @@ partial class MoveMode
 	{
 		var transform = new Transform();
 		var duck = Controller.DuckInputFraction;
-		var height = Controller.BodyHeight + (Controller.DuckedHeight - Controller.BodyHeight) * duck;
-		// A visible first person body crouches its head and chest up into the ducked camera, so lift the camera
-		var duckLift = !Controller.HideBodyInFirstPerson ? 8f * duck : 0f;
-		var eyeDist = Controller.EyeDistanceFromTop - duckLift;
-		transform.Position = Controller.WorldPosition + Controller.UpDirection * (height - eyeDist);
+		var standingEyes = Controller.BodyHeight - Controller.EyeDistanceFromTop;
+		var duckedEyeDistance = Controller.DuckedEyeDistanceFromTop ?? (Controller.EyeDistanceFromTop - (Controller.HideBodyInFirstPerson ? 0f : 8f));
+		var crouchedEyes = Controller.DuckedHeight - duckedEyeDistance;
+		transform.Position = Controller.WorldPosition + Controller.UpDirection * MathX.Lerp( standingEyes, crouchedEyes, duck );
 		transform.Rotation = Controller.EyeAngles.ToRotation();
 		return transform;
 	}

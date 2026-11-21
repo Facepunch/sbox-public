@@ -51,7 +51,8 @@
 
 				> .icon, > .check
 				{
-					font-family: $ui-icon-outlined;
+					font-family: $ui-icon;
+					font-variation-settings: $ui-icon-filled-axes;
 					font-size: 17px;
 					color: $ui-text-label;
 					opacity: 1;

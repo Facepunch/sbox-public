@@ -50,16 +50,6 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 	[ConVar( "sandbox.limit.wheels", ConVarFlags.Replicated | ConVarFlags.Server | ConVarFlags.GameSetting, Help = "Maximum wheels per player. -1 = unlimited, 0 = none allowed." )]
 	public static int MaxWheels { get; set; } = -1;
 
-	[Range( -1, 256 )]
-	[Title( "Max Texts" ), Group( "Limits" ), Order( 8 )]
-	[ConVar( "sandbox.limit.texts", ConVarFlags.Replicated | ConVarFlags.Server | ConVarFlags.GameSetting, Help = "Maximum placed texts per player. -1 = unlimited, 0 = none allowed." )]
-	public static int MaxTexts { get; set; } = -1;
-
-	[Range( -1, 64 )]
-	[Title( "Max Speakers" ), Group( "Limits" ), Order( 9 )]
-	[ConVar( "sandbox.limit.speakers", ConVarFlags.Replicated | ConVarFlags.Server | ConVarFlags.GameSetting, Help = "Maximum speakers per player. -1 = unlimited, 0 = none allowed." )]
-	public static int MaxSpeakers { get; set; } = -1;
-
 	[Range( -1, 64 )]
 	[Title( "Max Cameras" ), Group( "Limits" ), Order( 10 )]
 	[ConVar( "sandbox.limit.cameras", ConVarFlags.Replicated | ConVarFlags.Server | ConVarFlags.GameSetting, Help = "Maximum cameras per player. -1 = unlimited, 0 = none allowed." )]
@@ -134,14 +124,12 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 		new( () => MaxPropsPerPlayer, "#limit.props", x => x.Has<Prop>() ),
 		new( () => MaxExplosivesPerPlayer, "#limit.explosives", x => x.IsExplosive ),
 		new( () => MaxRagdolls, "#limit.ragdolls", x => x.IsRagdoll ),
-		new( () => MaxConstraints, "#limit.constraints", x => x.IsConstraint, tool => tool is BaseConstraintToolMode or KeepUprightTool ),
+		new( () => MaxConstraints, "#limit.constraints", x => x.IsConstraint, tool => tool is BaseConstraintToolMode ),
 		new( () => MaxBalloons, "#limit.balloons", x => x.Has<BalloonEntity>(), tool => tool is BalloonTool ),
 		new( () => MaxThrusters, "#limit.thrusters", x => x.Has<ThrusterEntity>(), tool => tool is ThrusterTool ),
 		new( () => MaxEmitters, "#limit.emitters", x => x.Has<EmitterEntity>(), tool => tool is EmitterTool ),
 		new( () => MaxHoverballs, "#limit.hoverballs", x => x.Has<HoverballEntity>(), tool => tool is HoverballTool ),
 		new( () => MaxWheels, "#limit.wheels", x => x.Has<WheelEntity>(), tool => tool is WheelTool ),
-		new( () => MaxTexts, "#limit.texts", x => x.Has<TextEntity>(), tool => tool is TextTool ),
-		new( () => MaxSpeakers, "#limit.speakers", x => x.Has<SpeakerEntity>(), tool => tool is SpeakerTool ),
 		new( () => MaxCameras, "#limit.cameras", x => x.Has<CameraEntity>(), tool => tool is CameraTool ),
 		new( () => MaxDynamite, "#limit.dynamite", x => x.Has<DynamiteEntity>() ),
 		new( () => MaxLights, "#limit.lights", x => x.Has<PointLightEntity>() || x.Has<SpotLightEntity>(), tool => tool is LightTool { PlacingNew: true } ),

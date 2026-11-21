@@ -170,13 +170,14 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 		if ( Controller.IsValid() && Controller.Renderer.IsValid() )
 		{
 			var seated = GetComponentInParent<ISitTarget>( false ) is not null;
-			Controller.Renderer.Set( "b_noclip", IsNoclipping && !seated );
+			var parameters = Controller.Renderer.Animation.Parameters;
+			parameters.TrySet( "b_noclip", IsNoclipping && !seated );
 
 			// Weapons write their pose while active; empty hands need an explicit reset.
 			if ( GetComponent<PlayerInventory>()?.ActiveWeapon.IsValid() != true )
 			{
-				Controller.Renderer.Set( "holdtype", "none" );
-				Controller.Renderer.Set( "holdtype_handedness", 0 );
+				parameters.TrySet( "holdtype", "none" );
+				parameters.TrySet( "holdtype_handedness", 0 );
 			}
 		}
 
@@ -666,22 +667,14 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 		Local.IPlayerEvents.PostToGameObject( GameObject, x => x.OnLand( distance, impactVelocity ) );
 		Global.IPlayerEvents.Post( x => x.OnPlayerLanded( this, distance, impactVelocity ) );
 
-		var player = Components.Get<Player>();
-		if ( !player.IsValid() ) return;
-
-		if ( Controller.ThirdPerson || !player.IsLocalPlayer ) return;
-
-		Scene.Camera?.AddPunch( new Angles( 0.105f * distance, Random.Shared.Float( -0.35f, 0.35f ), Random.Shared.Float( -0.35f, 0.35f ) ), 0.5f, 0.75f );
+		if ( IsValid && IsLocalPlayer && Health > 0f )
+			StartLandingRoll();
 	}
 
 	void PlayerController.IEvents.OnJumped()
 	{
 		Local.IPlayerEvents.PostToGameObject( GameObject, x => x.OnJump() );
 		Global.IPlayerEvents.Post( x => x.OnPlayerJumped( this ) );
-
-		if ( Controller.ThirdPerson || !IsLocalPlayer ) return;
-
-		Scene.Camera?.AddPunch( new Angles( -10f, 0f, 0f ), 0.25f, 1f );
 	}
 
 	public T GetWeapon<T>() where T : BaseSandboxWeapon

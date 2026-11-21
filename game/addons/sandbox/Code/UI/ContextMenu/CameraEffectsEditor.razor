@@ -4,6 +4,7 @@
 @inherits Panel
 @namespace Sandbox
 @implements IInspectorEditor
+@attribute [Icon( "movie_filter" )]
 
 <root>
     <div class="list">
@@ -63,7 +64,7 @@
     /// <summary>
     /// Localized title of the camera effects inspector.
     /// </summary>
-    public string Title => "🎥 " + Game.Language.GetPhrase( "ui.camera_effects.title" );
+    public string Title => Game.Language.GetPhrase( "ui.camera_effects.title" );
 
     public CameraEntity Target { get; private set; }
 
@@ -96,6 +97,7 @@
     void RefreshResources()
     {
         _resources = ResourceLibrary.GetAll<PostProcessResource>()
+            .Where( r => !r.IsRemote )
             .OrderBy( r => r.Group )
             .ThenBy( r => LocalizedText.Resolve( r.Title ), StringComparer.CurrentCultureIgnoreCase )
             .ToList();

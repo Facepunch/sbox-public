@@ -78,6 +78,11 @@ internal static class GpuFontText
 		public int AliasedFlag;
 		public int GradientFlag;
 
+		// Decoration metrics are shared by runs and effect passes with the same font and size.
+		SKTypeface _metricsTypeface;
+		float _metricsSize;
+		SKFontMetrics _metrics;
+
 		// Reused by AddGappedLine. Thread-static so concurrent builds can't share it.
 		[ThreadStatic] static List<Vector2> _gapSpans;
 
@@ -175,16 +180,19 @@ internal static class GpuFontText
 		{
 			float fontSize = run.Style.FontSize;
 			var glyphs = run.Glyphs.AsSpan();
+			if ( glyphs.IsEmpty ) return;
+
+			var cache = GpuFontGlyphCache.ForTypeface( run.Typeface );
 			var positions = run.GlyphPositions.AsSpan();
 
 			for ( int i = 0; i < glyphs.Length; i++ )
 			{
 				var pos = origin + new Vector2( positions[i].X, positions[i].Y );
-				var layers = GpuFontGlyphCache.GetLayers( run.Typeface, glyphs[i] );
+				var layers = cache.GetLayers( glyphs[i] );
 
 				if ( layers == null )
 				{
-					AddGlyph( GpuFontGlyphCache.Get( run.Typeface, glyphs[i] ), pos, fontSize, dilate, sigma, color, flags );
+					AddGlyph( cache.Get( glyphs[i] ), pos, fontSize, dilate, sigma, color, flags );
 					continue;
 				}
 
@@ -197,7 +205,7 @@ internal static class GpuFontText
 						glyphColor.a *= color.a;
 					}
 
-					AddGlyph( GpuFontGlyphCache.Get( run.Typeface, layer ), pos, fontSize, dilate, sigma, glyphColor, flags & ~FlagGradient );
+					AddGlyph( cache.Get( layer ), pos, fontSize, dilate, sigma, glyphColor, flags & ~FlagGradient );
 				}
 			}
 		}
@@ -227,15 +235,21 @@ internal static class GpuFontText
 			if ( run.RunKind != FontRunKind.Normal ) return;
 			if ( style.Underline == UnderlineStyle.None && style.StrikeThrough == StrikeThroughStyle.None ) return;
 
-			using var font = new SKFont( run.Typeface, style.FontSize );
-			var metrics = font.Metrics;
+			if ( _metricsTypeface is null || _metricsTypeface != run.Typeface || _metricsSize != style.FontSize )
+			{
+				using var font = new SKFont( run.Typeface, style.FontSize );
+				_metrics = font.Metrics;
+				_metricsTypeface = run.Typeface;
+				_metricsSize = style.FontSize;
+			}
+
 			float x0 = run.XCoord, x1 = run.XCoord + run.Width;
 
-			var underlineWidth = style.StrokeThickness ?? metrics.UnderlineThickness ?? 0;
+			var underlineWidth = style.StrokeThickness ?? _metrics.UnderlineThickness ?? 0;
 			if ( underlineWidth > 0 && style.Underline != UnderlineStyle.None )
 			{
 				float t = MathF.Max( underlineWidth, 1 );
-				float underlineY = line.YCoord + line.BaseLine + (metrics.UnderlinePosition ?? 0);
+				float underlineY = line.YCoord + line.BaseLine + (_metrics.UnderlinePosition ?? 0);
 				bool hasUnderline = false;
 
 				if ( (style.Underline & UnderlineStyle.Gapped) != 0 )
@@ -254,11 +268,11 @@ internal static class GpuFontText
 					AddLine( x0, x1, underlineY + style.UnderlineOffset, t, style.UnderlineStrokeType, false, origin, sigma, color, flags );
 			}
 
-			var strikeWidth = style.StrokeThickness ?? metrics.StrikeoutThickness ?? 0;
+			var strikeWidth = style.StrokeThickness ?? _metrics.StrikeoutThickness ?? 0;
 			if ( strikeWidth > 0 && style.StrikeThrough != StrikeThroughStyle.None )
 			{
 				float t = MathF.Max( strikeWidth, 1 );
-				float y = line.YCoord + line.BaseLine + (metrics.StrikeoutPosition ?? 0) + style.StrikeThroughOffset;
+				float y = line.YCoord + line.BaseLine + (_metrics.StrikeoutPosition ?? 0) + style.StrikeThroughOffset;
 				AddLine( x0, x1, y, t, style.UnderlineStrokeType, false, origin, sigma, color, flags );
 			}
 		}
@@ -268,9 +282,10 @@ internal static class GpuFontText
 		{
 			float x = x0;
 
-			if ( style.StrokeInkSkip )
+			if ( style.StrokeInkSkip && run.Glyphs.Length != 0 )
 			{
 				float fontSize = style.FontSize;
+				var cache = GpuFontGlyphCache.ForTypeface( run.Typeface );
 				var glyphs = run.Glyphs.AsSpan();
 				var positions = run.GlyphPositions.AsSpan();
 				var spans = _gapSpans ??= new List<Vector2>();
@@ -278,7 +293,7 @@ internal static class GpuFontText
 
 				for ( int i = 0; i < glyphs.Length; i++ )
 				{
-					var glyph = GpuFontGlyphCache.Get( run.Typeface, glyphs[i] );
+					var glyph = cache.Get( glyphs[i] );
 					if ( glyph.IsEmpty ) continue;
 
 					float baseline = positions[i].Y;

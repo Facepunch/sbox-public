@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Icon( "✨" )]
+[Icon( "motion_blur" )]
 [Title( "#tool.name.trail" )]
 [ClassName( "trail" )]
 [Group( "#tool.group.render" )]

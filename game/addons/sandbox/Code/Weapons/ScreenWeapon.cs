@@ -1,4 +1,4 @@
-﻿using Sandbox.Rendering;
+using Sandbox.Rendering;
 
 public partial class ScreenWeapon : BaseSandboxWeapon
 {
@@ -95,13 +95,22 @@ public partial class ScreenWeapon : BaseSandboxWeapon
 		_joystickX = _joystickX.LerpTo( lookDelta.yaw.Clamp( -1f, 1f ), Time.Delta * 10f );
 		_joystickY = _joystickY.LerpTo( lookDelta.pitch.Clamp( -1f, 1f ), Time.Delta * 10f );
 
-		WeaponModel?.Renderer?.Set( "joystick_x", _joystickX );
-		WeaponModel?.Renderer?.Set( "joystick_y", _joystickY );
+		var renderer = WeaponModel?.Renderer;
+		if ( !renderer.IsValid() ) return;
+
+		renderer.Animation.Parameters.TrySet( "joystick_x", _joystickX );
+		renderer.Animation.Parameters.TrySet( "joystick_y", _joystickY );
 	}
 
+	/// <summary>
+	/// Moves the thumb onto or off the joystick when a tool starts or stops rotating an object.
+	/// </summary>
 	public void SetIsUsingJoystick( bool isUsing )
 	{
-		WeaponModel?.Renderer?.Set( "b_joystick", isUsing );
+		var renderer = WeaponModel?.Renderer;
+		if ( !renderer.IsValid() ) return;
+
+		renderer.Animation.Parameters.TrySet( "b_joystick", isUsing );
 	}
 
 	/// <summary>

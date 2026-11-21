@@ -189,7 +189,10 @@ public partial class Panel
 			return;
 
 		if ( !needsPreLayout && !cascade.SelectorChanged && !cascade.ParentChanged && !LayoutTree.ReferenceSizeChanged )
+		{
+			UpdateInheritedOpacity();
 			return;
+		}
 
 		needsPreLayout = false;
 		if ( cascade.Root is { } overlayRoot ) overlayRoot.FixedOverlaysDirty = true;
@@ -208,7 +211,7 @@ public partial class Panel
 
 		var ownStyleChanged = Style.IsDirty;
 		var hadTransitions = Transitions.HasAny;
-		ComputedStyle = Style.BuildFinal( ref cascade, out bool changed );
+		ComputedStyle = Style.BuildFinal( ref cascade, out bool changed, out bool paintOnly );
 		if ( changed )
 		{
 			// ResolveCssWide retains the sparse keyword map, including expanded shorthands.
@@ -225,8 +228,8 @@ public partial class Panel
 		if ( changed || LayoutTree.ReferenceSizeChanged || (cascade.ParentChanged && _paintCache.InheritedStylesChanged( this )) )
 			_paintCache.Invalidate( this );
 
-		var previousOpacity = Opacity;
 		Opacity = ComputedStyle.Opacity.Value * (Parent?.Opacity ?? 1.0f);
+		var wasVisibleSelf = IsVisibleSelf;
 		UpdateVisibility();
 		// Scrollbar width inherits by default and can change the gutter without changing our rules.
 		LayoutTree.Gutter = ScrollbarGutter;
@@ -235,7 +238,7 @@ public partial class Panel
 		// Only that path needs a layout-input comparison; ordinary inheritance visits must stay cheap.
 		if ( !LayoutTree.Initialized || ownStyleChanged || LayoutTree.ReferenceSizeChanged
 			|| (cascade.ParentChanged && inheritsLayoutStyle)
-			|| (changed && (!cascade.SelectorChanged || hadTransitions || ComputedStyle.IsAnimationActive || GetLayoutStyleHash() != layoutStyleHash)) )
+			|| (changed && !paintOnly && (!cascade.SelectorChanged || hadTransitions || ComputedStyle.IsAnimationActive || GetLayoutStyleHash() != layoutStyleHash)) )
 		{
 			UpdateLayoutStyle();
 		}
@@ -265,14 +268,18 @@ public partial class Panel
 
 		// We need to tell the children to force an update if any of the parent's
 		// cascading styles have changed.
-		cascade.ParentChanged = cascade.ParentChanged || changed;
+		cascade.ParentChanged |= (changed && !paintOnly) || !wasVisibleSelf;
 
 		// background-clip: text clips to the text of the whole subtree, so every label under it lends its own
 		cascade.ClipBackgroundToText = cascade.ClipBackgroundToText || ComputedStyle.BackgroundClip == BackgroundClip.Text;
 
 		for ( int i = 0; i < _children.Count; i++ )
 		{
-			_children[i].PreLayout( cascade );
+			var child = _children[i];
+			var childCascade = cascade;
+			// An explicit CSS 'inherit' can make even transform or opacity part of a child's own style.
+			childCascade.ParentChanged |= paintOnly && child.inheritsLayoutStyle;
+			child.PreLayout( childCascade );
 		}
 
 		//
@@ -285,6 +292,20 @@ public partial class Panel
 
 	private int layoutStyleHash;
 	private bool inheritsLayoutStyle;
+
+	void UpdateInheritedOpacity()
+	{
+		if ( ComputedStyle is null ) return;
+
+		var opacity = ComputedStyle.Opacity.Value * (Parent?.Opacity ?? 1.0f);
+		if ( Opacity == opacity ) return;
+
+		Opacity = opacity;
+		for ( int i = 0; i < (_children?.Count ?? 0); i++ )
+		{
+			_children[i].UpdateInheritedOpacity();
+		}
+	}
 
 	private int GetLayoutStyleHash()
 	{
@@ -453,7 +474,7 @@ public partial class Panel
 
 		if ( IsFixed && FindRootPanel() is { } root ) offset = root.PanelBounds.Position;
 
-		var hash = HashCode.Combine( offset, ScrollOffset, ScrollVelocity, ComputedStyle?.Transform, Opacity, ComputedStyle.Display );
+		var hash = HashCode.Combine( offset, ScrollOffset, ScrollVelocity, ComputedStyle?.Transform, Opacity > 0, ComputedStyle.Display );
 		if ( layoutHash == hash && !needsFinalLayout && !LayoutTree.HasNewLayout )
 		{
 			if ( !_paintCache.NeedsUpdate( this ) ) return;

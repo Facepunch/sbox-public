@@ -124,7 +124,10 @@ public sealed class PlayerCarry : Component, Local.IPlayerEvents
 
 		if ( Player.Controller.Hovered.IsValid() || Player.Controller.Pressed.IsValid() ) return;
 
-		if ( !TryPickup( FindTarget() ) ) return;
+		var target = FindTarget();
+		if ( !target.IsValid() ) return;
+		if ( Player.GetComponent<PlayerInventory>()?.ActiveWeapon is Toolgun toolgun && toolgun.GetCurrentMode()?.ReservesUseFor( target.GameObject ) == true ) return;
+		if ( !TryPickup( target ) ) return;
 
 		Input.Clear( "use" );
 	}

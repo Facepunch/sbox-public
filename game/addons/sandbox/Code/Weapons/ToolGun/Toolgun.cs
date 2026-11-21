@@ -59,11 +59,31 @@
 		if ( currentMode == null )
 			return;
 
+		UpdateToolLook();
+		currentMode.UpdateSnapTarget();
 		currentMode.OnControl();
 
 		UpdateViewmodelScreen();
 
 		ApplyCoilSpin();
+	}
+
+	Angles? _lastCursorAim;
+	internal Angles ToolLook { get; private set; }
+
+	void UpdateToolLook()
+	{
+		ToolLook = Input.AnalogLook;
+		if ( !InspectCursor.IsOpen )
+		{
+			_lastCursorAim = null;
+			return;
+		}
+
+		// The camera stays still in the menu. Tools that rotate or resize use the cursor's change in aim.
+		var aim = Rotation.LookAt( InspectCursor.Ray.Forward ).Angles();
+		ToolLook = (aim - (_lastCursorAim ?? aim)).Normal;
+		_lastCursorAim = aim;
 	}
 
 	/// <summary>
@@ -77,9 +97,13 @@
 		currentMode?.DrawHud( painter, crosshair );
 	}
 
+	/// <summary>
+	/// Returns the enabled tool mode, or null if the gun has no active mode or has been removed.
+	/// </summary>
 	public ToolMode GetCurrentMode()
 	{
-		if ( GameObject.IsDestroyed ) return null;
+		if ( GameObject is null || GameObject.IsDestroyed ) return null;
+
 		return Components.FirstOrDefault( x => x is ToolMode { Enabled: true } ) as ToolMode;
 	}
 

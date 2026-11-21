@@ -38,6 +38,7 @@ public class PropsPage : SpawnlistsPage
 			Name = list.DisplayName,
 			Key = $"builder/{key}",
 			Icon = list.Icon,
+			IconTexture = list.IconImage,
 			Tokenize = false,
 			PanelCreator = () => new SpawnlistView { Resource = list }
 		} );
@@ -56,7 +57,7 @@ public class PropsPage : SpawnlistsPage
 		AddOption( "category", "#spawnmenu.props.props", () => new SpawnPageCloud { Category = "prop", LocalCategory = "props" } );
 		AddOption( "toys", "#spawnmenu.props.toy", () => new SpawnPageCloud() { Category = "toy" } );
 		AddOption( "restaurant", "#spawnmenu.props.food", () => new SpawnPageCloud() { Category = "food" } );
-		AddOption( "gps_fixed", "#spawnmenu.props.guns", () => new SpawnPageCloud() { Category = "weapon" } );
+		AddOption( "target", "#spawnmenu.props.guns", () => new SpawnPageCloud() { Category = "weapon" } );
 
 		AddHeader( "#spawnmenu.section.spawnlists_workshop" );
 		AddOption( "trending_up", "#spawnmenu.spawnlist.popular", () => new SpawnlistWorkshop { SortOrder = WorkshopSortMode.Popular } );

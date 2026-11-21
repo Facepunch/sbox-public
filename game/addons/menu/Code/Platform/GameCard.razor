@@ -30,7 +30,7 @@
                     }
                     @if ( 5 - (Stars ?? 0) is > 0 and var unlit )
                     {
-                        <i>@(new string( StarBorderGlyph, unlit ))</i>
+                        <i>@(new string( StarGlyph, unlit ))</i>
                     }
                 </div>
             }
@@ -80,15 +80,13 @@
     /// </summary>
     [Parameter] public Action<WorkshopItemDetails> OnPickedItem { get; set; }
 
+    const char StarGlyph = '\uE838';
+
     bool Selected => Local is not null
         ? PlatformMenu.SameGame( Local, PlatformMenu.Current )
         : Item is not null && Item.Id == PlatformMenu.CurrentId;
 
     bool Subscribed => Item is not null && MenuUtility.IsSubscribed( Item.Id );
-
-    // Material Icons' star and star_border
-    const char StarGlyph = '\uE838';
-    const char StarBorderGlyph = '\uE83A';
 
     bool Favourited => Item is not null && PlatformMenu.IsFavourite( Item.Id );
 

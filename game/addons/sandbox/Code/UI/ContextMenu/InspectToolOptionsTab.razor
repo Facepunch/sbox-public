@@ -2,20 +2,22 @@
 @using Sandbox.UI;
 @inherits Panel
 @namespace Sandbox
-@attribute [InspectWindow.Tab( InspectWindow.Corner.BottomRight )]
 @attribute [Icon( "tune" )]
 @attribute [Title( "#spawnmenu.inspect.tool_options" )]
 @attribute [Order( 200 )]
 
 <root>
 
-    <UISettingsPane Title=@GetTitle() Revision=@BuildHash()>
+    @{
+        var mode = CurrentMode;
+        var hasToolSettings = mode is not null && ToolsTab.HasSettings( mode );
+    }
+    <UISettingsPane Title=@GetTitle() Revision=@BuildHash() PresetMode=@(hasToolSettings ? mode : null)>
         <Body>
-        @if ( CurrentMode is { } mode )
+        @if ( mode is not null )
         {
-            @if ( ToolsTab.HasSettings( mode ) )
+            @if ( hasToolSettings )
             {
-                <ToolPresetBar Mode=@mode />
                 <UISheet PropertyFilter="@UISheet.PropertiesAndButtons" Target="@mode"></UISheet>
             }
             else

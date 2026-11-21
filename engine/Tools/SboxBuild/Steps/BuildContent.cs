@@ -13,6 +13,38 @@ namespace Facepunch.Steps;
 /// <param name="force">Compile everything again, current or not.</param>
 internal class BuildContent( string onlyRoot = null, bool force = false )
 {
+	private static string FolderName( ContentRoot root )
+	{
+		var folder = new DirectoryInfo( root.Path );
+		return folder.Name.Equals( "Assets", StringComparison.OrdinalIgnoreCase ) ? folder.Parent.Name : folder.Name;
+	}
+
+	/// <summary>
+	/// Reads the names for the first bootstrap frame, before the content worker is built.
+	/// The worker supplies the final list when the Content stage starts compiling.
+	/// </summary>
+	internal static IEnumerable<BuildDisplay.StageRow> DiscoverRootRows( string gameDir )
+	{
+		var engineRoots = ContentRoots.Engine( gameDir );
+		foreach ( var root in engineRoots )
+			yield return new BuildDisplay.StageRow( FolderName( root ) );
+
+		var addons = new DirectoryInfo( Path.Combine( gameDir, "addons" ) );
+		if ( !addons.Exists ) yield break;
+
+		var options = new EnumerationOptions { AttributesToSkip = 0 };
+		var assetFolders = new EnumerationOptions { AttributesToSkip = 0, MatchCasing = MatchCasing.CaseInsensitive };
+		foreach ( var folder in addons.EnumerateDirectories( "*", options ).OrderBy( x => x.Name, StringComparer.OrdinalIgnoreCase ) )
+		{
+			var assets = Path.Combine( folder.FullName, "Assets" );
+			if ( engineRoots.Any( root => string.Equals( root.Path, assets, StringComparison.OrdinalIgnoreCase ) ) ) continue;
+			if ( !folder.EnumerateDirectories( "Assets", assetFolders ).Any() ) continue;
+
+			if ( folder.GetFiles( "*.sbproj", options ).Length == 1 )
+				yield return new BuildDisplay.StageRow( folder.Name );
+		}
+	}
+
 	internal ExitCode Run() => BuildDisplay.Run( "Build content", () =>
 	{
 		var gameDir = Path.Combine( Directory.GetCurrentDirectory(), "game" );
@@ -21,7 +53,7 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 		// The projects' compilers, compiled once for every worker, deleted once the workers that load them are gone
 		var compilers = Directory.CreateTempSubdirectory( "sbox-compilers" ).FullName;
 		ResourceCompiler compiler = null;
-		ContentRoot[] roots;
+		Dictionary<string, string> foldersByMod;
 		BuildReport report;
 		try
 		{
@@ -29,7 +61,10 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 			var rootsFile = Path.Combine( compilers, "roots.json" );
 			if ( !Utility.RunProcess( worker, $"-compileprojects \"{compilers}\" -addonroots \"{rootsFile}\"", gameDir ) ) return ExitCode.Failure;
 
-			roots = JsonSerializer.Deserialize<ContentRoot[]>( File.ReadAllText( rootsFile ) );
+			var roots = JsonSerializer.Deserialize<ContentRoot[]>( File.ReadAllText( rootsFile ) );
+			foldersByMod = roots.ToDictionary( root => root.Mod, FolderName, StringComparer.OrdinalIgnoreCase );
+			BuildDisplay.SetStageChildren( [.. foldersByMod.Select( root => new BuildDisplay.StageRow( root.Key, root.Value ) )] );
+
 			var request = new BuildRequest
 			{
 				Roots = roots.Select( root => root with { PublishTransientsWithAssets = root.Mod != "menu" } ).ToArray(),
@@ -42,7 +77,8 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 				CompileProgress = ( finished, activeRoots ) =>
 				{
 					var count = finished == 1 ? "1 asset compiled" : $"{finished} assets compiled";
-					BuildDisplay.Detail( activeRoots.Count == 0 ? count : $"Compiling {string.Join( ", ", activeRoots )} ({count})" );
+					var detail = activeRoots.Count == 0 ? count : $"Compiling {string.Join( ", ", activeRoots.Select( mod => foldersByMod[mod] ) )} ({count})";
+					BuildDisplay.Detail( detail, activeRoots );
 				},
 			};
 
@@ -57,10 +93,31 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 		}
 
 		if ( !BuildDisplay.IsActive || !report.Success ) Log.Info( report.Error ?? report.Log.ToString() );
-		foreach ( var root in roots )
+		foreach ( var (mod, folder) in foldersByMod )
 		{
-			int Count( List<string> list ) => list.Count( x => x.StartsWith( $"{root.Mod}:", StringComparison.OrdinalIgnoreCase ) );
-			Log.Info( $"{root.Mod}: {Count( report.Jobs )} compiled, {Count( report.Failed )} failed, {Count( report.Blocked )} blocked, {Count( report.Unsupported )} unsupported, {Count( report.Removed )} removed" );
+			var prefix = $"{mod}:";
+			int Count( List<string> list ) => foldersByMod.Count == 1 ? list.Count : list.Count( x => x.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) );
+
+			var compiled = Count( report.Jobs );
+			var removed = Count( report.Removed );
+			var failed = Count( report.Failed );
+			var blocked = Count( report.Blocked );
+			var unsupported = Count( report.Unsupported );
+
+			if ( failed > 0 || unsupported > 0 )
+			{
+				BuildDisplay.FinishChild( mod, "Failed" );
+			}
+			else if ( blocked > 0 )
+			{
+				BuildDisplay.FinishChild( mod, "Blocked" );
+			}
+			else if ( report.Error is null && !report.Cancelled )
+			{
+				BuildDisplay.FinishChild( mod, compiled == 0 && removed == 0 ? "Up to date" : "Done" );
+			}
+
+			Log.Info( $"{folder}: {compiled} compiled, {failed} failed, {blocked} blocked, {unsupported} unsupported, {removed} removed" );
 		}
 		Log.Info( $"{report.DescribeMisses} describe misses" );
 		Log.Info( $"Phases: {string.Join( ", ", report.Phases.Select( x => $"{x.Phase} {x.Time.TotalSeconds:F1}s" ) )}" );

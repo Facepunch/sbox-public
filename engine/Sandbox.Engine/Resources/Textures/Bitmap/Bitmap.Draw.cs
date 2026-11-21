@@ -66,15 +66,16 @@ public partial class Bitmap
 	/// <param name="points">The points of the polygon.</param>
 	public void DrawPolygon( Vector2[] points )
 	{
-		using var path = new SKPath();
-		path.MoveTo( points[0].ToSk() );
+		using var builder = new SKPathBuilder();
+		builder.MoveTo( points[0].ToSk() );
 
 		for ( int i = 1; i < points.Length; i++ )
 		{
-			path.LineTo( points[i].ToSk() );
+			builder.LineTo( points[i].ToSk() );
 		}
 
-		path.Close();
+		builder.Close();
+		using var path = builder.Detach();
 		_canvas.DrawPath( path, GetPen() );
 	}
 
@@ -108,7 +109,7 @@ public partial class Bitmap
 	/// <param name="destRect">The destination rectangle for the drawn bitmap.</param>
 	public void DrawBitmap( Bitmap bitmap, Rect destRect )
 	{
-		_canvas.DrawBitmap( bitmap._bitmap, destRect.ToSk(), GetPen() );
+		_canvas.DrawBitmap( bitmap._bitmap, destRect.ToSk(), SKSamplingOptions.Default, GetPen() );
 	}
 
 	/// <summary>
@@ -132,14 +133,15 @@ public partial class Bitmap
 
 		var pen = GetPen();
 
-		using var path = new SKPath();
-		path.MoveTo( points[0].ToSk() );
+		using var builder = new SKPathBuilder();
+		builder.MoveTo( points[0].ToSk() );
 
 		for ( int i = 1; i < points.Length; i++ )
 		{
-			path.LineTo( points[i].ToSk() );
+			builder.LineTo( points[i].ToSk() );
 		}
 
+		using var path = builder.Detach();
 		_canvas.DrawPath( path, pen );
 	}
 }

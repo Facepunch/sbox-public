@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Icon( "🎈" )]
+[Icon( "bubble_chart" )]
 [Title( "#tool.name.balloon" )]
 [ClassName( "balloon" )]
 [Group( "#tool.group.building" )]

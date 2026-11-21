@@ -78,7 +78,8 @@
         "EnableFootstepSounds": true,
         "EnableJumpBoost": false,
         "EnablePressing": true,
-        "EyeDistanceFromTop": 5,
+        "DuckedEyeDistanceFromTop": 8,
+        "EyeDistanceFromTop": 8,
         "FootstepMixer": {
           "Name": "game",
           "Id": "2d9828d0-7984-4843-b6b2-22d4336497d5"
@@ -419,7 +420,6 @@
                 }
               }
             },
-            "AnimationGraph": null,
             "BodyGroups": 20737,
             "BoneMergeTarget": null,
             "CreateAttachments": true,
@@ -441,12 +441,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {
-              "floats": {
-                "scale_height": 1,
-                "scale_heel": 0
-              }
-            },
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": true,

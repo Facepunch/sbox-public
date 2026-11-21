@@ -48,10 +48,18 @@
 		{
 			width: 18px;
 			margin: 0 0 0 8px;
-			font-family: $ui-icon-outlined;
+			font-family: $ui-icon;
+			font-variation-settings: $ui-icon-filled-axes;
 			font-size: 17px;
 			text-align: center;
 			opacity: 0.8;
+		}
+
+		.tree-icon-image
+		{
+			height: 18px;
+			flex-shrink: 0;
+			object-fit: contain;
 		}
 
 		.tree-label

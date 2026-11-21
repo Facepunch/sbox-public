@@ -15,9 +15,9 @@ public class Hints : GameObjectSystem<Hints>
 
 	public Hints( Scene scene ) : base( scene )
 	{
-		Queue( "openspawnmenu", "info", 10 );
-		Queue( "openinspectmenu", "info", 40 );
-		Queue( "openpausemenu", "info", 70 );
+		Queue( "openspawnmenu", "inventory_2", 10 );
+		Queue( "openinspectmenu", "search", 40 );
+		Queue( "openpausemenu", "pause", 70 );
 
 		Listen( Stage.StartUpdate, 0, Tick, "UpdateHints" );
 	}

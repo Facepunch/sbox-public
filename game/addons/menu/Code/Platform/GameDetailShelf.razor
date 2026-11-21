@@ -29,7 +29,7 @@
                     <label class="title @(Page is null ? "" : "parent")" onclick=@( () => ShowPage( null ) )>@Title</label>
                     @if ( WorkshopId != 0 )
                     {
-                        <i class="favourite @(Favourited ? "on" : "")" onclick=@( () => PlatformMenu.SetFavourite( WorkshopId, !Favourited ) ) tooltip="@(Favourited ? "Remove from your favourites" : "Add to your favourites")">@(Favourited ? "star" : "star_border")</i>
+                        <i class="favourite @(Favourited ? "on" : "")" onclick=@( () => PlatformMenu.SetFavourite( WorkshopId, !Favourited ) ) tooltip="@(Favourited ? "Remove from your favourites" : "Add to your favourites")">star</i>
                     }
                     @if ( Page is not null )
                     {

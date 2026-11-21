@@ -2,7 +2,7 @@
 
 [Hide]
 [Title( "#tool.name.thruster" )]
-[Icon( "🚀" )]
+[Icon( "rocket_launch" )]
 [ClassName( "thrustertool" )]
 [Group( "#tool.group.building" )]
 public sealed class ThrusterTool : ToolMode
@@ -134,7 +134,7 @@ public sealed class ThrusterTool : ToolMode
 		{
 			var undo = Player.Undo.Create();
 			undo.Name = "#tool.name.thruster";
-			undo.Icon = "🚀";
+			undo.Icon = "rocket_launch";
 			undo.Add( go );
 		}
 

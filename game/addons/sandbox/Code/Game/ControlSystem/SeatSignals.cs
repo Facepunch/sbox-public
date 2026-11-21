@@ -1,6 +1,6 @@
 /// <summary>
 /// Wire outputs for a seat: a pulse when someone sits down, a pulse when they get up, and an on/off "occupied" state.
-/// Wire them to anything - a speaker, a door, a light. Added to every <see cref="BaseChair"/> automatically by
+/// Wire them to a compatible input, such as a light's power switch. Added to every <see cref="BaseChair"/> automatically by
 /// <see cref="SeatSignalsSystem"/>, so seats from the spawn menu, the workshop, dupes and maps all have them.
 /// </summary>
 [Title( "#entity.name.seat" ), Icon( "event_seat" )]

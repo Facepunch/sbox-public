@@ -109,6 +109,31 @@ public class NpcWeaponTests
 		return npc;
 	}
 
+	/// <summary>
+	/// An NPC with an AG2 body sends its movement and held pose to that graph.
+	/// </summary>
+	[TestMethod]
+	public void CitizenAnimatorDrivesTheAssignedGraph()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var npc = SpawnNpc( scene );
+		var body = npc.GameObject.Components.Create<SkinnedModelRenderer>();
+		body.Model = Model.Load( "models/citizen_human/human.vmdl" );
+		body.Animation.Graph = Sandbox.Animation.Graph.Load( "models/citizen_human/animgraphs/human.ag" );
+		npc.Renderer = body;
+		npc.Components.Create<CitizenNpcAnimator>();
+		npc.Animation.SetMove( npc.WorldRotation.Forward * 120f );
+		scene.GameTick();
+
+		Assert.IsTrue( body.Animation.Parameters.TryGetFloat( "move_x", out var speed ) );
+		Assert.AreEqual( 120f, speed, 0.01f );
+		Assert.IsTrue( body.Animation.Parameters.TryGetString( "holdtype", out var hold ) );
+		Assert.AreEqual( "none", hold );
+		Assert.IsFalse( body.ContainsLegacyParameter( "move_x" ) );
+		Assert.IsFalse( body.ContainsLegacyParameter( "holdtype" ) );
+	}
+
 	[TestMethod]
 	public void TheInventorySeedsTheMagazinesAndNeverRunsOut()
 	{

@@ -76,6 +76,9 @@ public sealed partial class Bitmap : IDisposable, IValid
 
 	public void Dispose()
 	{
+		_pen?.Dispose();
+		_pen = default;
+
 		_canvas?.Dispose();
 		_canvas = default;
 
@@ -117,8 +120,16 @@ public sealed partial class Bitmap : IDisposable, IValid
 	/// </summary>
 	public Color[] GetPixels()
 	{
-		var buffer = GetBuffer();
-		if ( !IsFloatingPoint ) return _bitmap.Pixels.Select( p => p.FromSk() ).ToArray();
+		var buffer = GetBuffer( out var info );
+		if ( info.ColorType == SKColorType.Rgba8888 )
+		{
+			if ( info.AlphaType == SKAlphaType.Premul ) return _bitmap.Pixels.Select( p => p.FromSk() ).ToArray();
+
+			var pixels = MemoryMarshal.Cast<byte, Color32>( buffer );
+			var result = new Color[pixels.Length];
+			for ( int i = 0; i < result.Length; i++ ) result[i] = pixels[i].ToColor();
+			return result;
+		}
 
 		var raw = MemoryMarshal.Cast<byte, Color.Rgba16>( buffer );
 		var colors = new Color[raw.Length];
@@ -129,16 +140,25 @@ public sealed partial class Bitmap : IDisposable, IValid
 	/// <summary>Retrieves the pixel data as half-float colors.</summary>
 	public Color.Rgba16[] GetPixels16()
 	{
-		var buffer = GetBuffer();
-		if ( IsFloatingPoint ) return MemoryMarshal.Cast<byte, Color.Rgba16>( buffer ).ToArray();
-		return _bitmap.Pixels.Select( p => (Color.Rgba16)p.FromSk() ).ToArray();
+		var buffer = GetBuffer( out var info );
+		if ( info.ColorType == SKColorType.RgbaF16 ) return MemoryMarshal.Cast<byte, Color.Rgba16>( buffer ).ToArray();
+		if ( info.AlphaType == SKAlphaType.Premul ) return _bitmap.Pixels.Select( p => (Color.Rgba16)p.FromSk() ).ToArray();
+
+		var pixels = MemoryMarshal.Cast<byte, Color32>( buffer );
+		var result = new Color.Rgba16[pixels.Length];
+		for ( int i = 0; i < result.Length; i++ ) result[i] = new Color.Rgba16( pixels[i].ToColor() );
+		return result;
 	}
 
 	/// <summary>Retrieves the pixel data as 32-bit colors.</summary>
 	public Color32[] GetPixels32()
 	{
-		var buffer = GetBuffer();
-		if ( !IsFloatingPoint ) return _bitmap.Pixels.Select( p => (Color32)p.FromSk() ).ToArray();
+		var buffer = GetBuffer( out var info );
+		if ( info.ColorType == SKColorType.Rgba8888 )
+		{
+			if ( info.AlphaType == SKAlphaType.Premul ) return _bitmap.Pixels.Select( p => (Color32)p.FromSk() ).ToArray();
+			return MemoryMarshal.Cast<byte, Color32>( buffer ).ToArray();
+		}
 
 		var raw = MemoryMarshal.Cast<byte, Color.Rgba16>( buffer );
 		var colors = new Color32[raw.Length];
@@ -148,14 +168,25 @@ public sealed partial class Bitmap : IDisposable, IValid
 
 	public void SetPixels( Color[] colors )
 	{
-		var buffer = GetBuffer();
-		if ( colors is null || colors.Length != checked(Width * Height) )
+		var buffer = GetBuffer( out var info );
+		if ( colors is null || colors.Length != checked(info.Width * info.Height) )
 			throw new ArgumentException( "Colors array must match the size of the bitmap." );
 
-		if ( IsFloatingPoint )
+		if ( info.ColorType == SKColorType.RgbaF16 )
 		{
 			var raw = MemoryMarshal.Cast<byte, Color.Rgba16>( buffer );
 			for ( int i = 0; i < raw.Length; i++ ) raw[i] = new Color.Rgba16( colors[i] );
+		}
+		else if ( info.AlphaType == SKAlphaType.Unpremul && info.ColorSpace is null )
+		{
+			var pixels = MemoryMarshal.Cast<byte, Color32>( buffer );
+			for ( int i = 0; i < pixels.Length; i++ )
+			{
+				var color = colors[i].ToColor32();
+				// Skia's source blend writes transparent black when alpha rounds to zero.
+				pixels[i] = color.a == 0 ? default : color;
+			}
+			_bitmap.NotifyPixelsChanged();
 		}
 		else
 		{
@@ -204,14 +235,22 @@ public sealed partial class Bitmap : IDisposable, IValid
 	/// <summary>
 	/// Low level, get a span of the bitmap data.
 	/// </summary>
-	internal Span<byte> GetBuffer()
+	internal Span<byte> GetBuffer() => GetBuffer( out _ );
+
+	Span<byte> GetBuffer( out SKImageInfo info )
 	{
-		var colorType = GetColorType();
-		int bytesPerPixel = colorType == SKColorType.RgbaF16 ? 8 : 4;
-		int rowBytes = checked(Width * bytesPerPixel);
-		int requiredBytes = checked(rowBytes * Height);
-		if ( Width <= 0 || Height <= 0 || _bitmap.BytesPerPixel != bytesPerPixel
-			|| _bitmap.RowBytes != rowBytes || requiredBytes > _bitmap.ByteCount || _bitmap.GetPixels() == IntPtr.Zero )
+		ObjectDisposedException.ThrowIf( _bitmap is null, this );
+		info = _bitmap.Info;
+		int bytesPerPixel = info.ColorType switch
+		{
+			SKColorType.Rgba8888 => 4,
+			SKColorType.RgbaF16 => 8,
+			_ => throw new InvalidOperationException( $"Unsupported bitmap pixel format: {info.ColorType}." )
+		};
+
+		int rowBytes = checked(info.Width * bytesPerPixel);
+		int requiredBytes = checked(rowBytes * info.Height);
+		if ( info.Width <= 0 || info.Height <= 0 || _bitmap.RowBytes != rowBytes || _bitmap.GetPixels() == IntPtr.Zero )
 			throw new InvalidOperationException( "Bitmap storage does not match its pixel format and dimensions." );
 
 		var pixels = _bitmap.GetPixelSpan();

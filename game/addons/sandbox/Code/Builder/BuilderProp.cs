@@ -186,7 +186,7 @@ public sealed class BuilderProp : Component
 			{
 				var undo = player.Undo.Create();
 				undo.Name = "#tool.undo.builder";
-				undo.Icon = "🧱";
+				undo.Icon = "construction";
 				undo.Add( go );
 			}
 		}

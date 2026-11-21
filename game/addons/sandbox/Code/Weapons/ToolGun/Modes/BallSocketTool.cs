@@ -1,5 +1,5 @@
 
-[Icon( "🎱" )]
+[Icon( "360" )]
 [Title( "#tool.name.ballsocket" )]
 [ClassName( "ballsocket" )]
 [Group( "#tool.group.constraints" )]

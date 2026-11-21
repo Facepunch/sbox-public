@@ -1,3 +1,5 @@
+@import "/styles/_icons.scss";
+
 $font-default: "Inter";
 $font-heading: "Poppins";
 
@@ -72,13 +74,13 @@ label {
 }
 
 icon {
-    font-family: "Material Icons";
+    font-family: "Material Symbols Outlined";
     font-size: $text-regular;
     color: $default-text;
 
     &.medium {
         font-size: $text-medium;
-        font-family: "Material Icons";
+        font-family: "Material Symbols Outlined";
     }
 
     &.large {

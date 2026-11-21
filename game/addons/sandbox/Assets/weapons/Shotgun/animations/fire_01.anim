@@ -1,0 +1,17 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	_class = "CClipDocument"
+	m_sourceFilename = "weapons/shotgun/animations/v_spaghellim4@Fire_01.fbx"
+	m_animationSkeletonName =
+	{
+		Id = "9afb8f68-2bb3-49a4-883a-94ae5e93a07c"
+		Path = "weapons/shotgun/animations/shotgun.skel"
+	}
+	m_nTake = 0
+	m_nStartFrame = -1
+	m_nEndFrame = -1
+	m_flImportScale = 1
+	m_additiveType = "RelativeToFrame"
+	m_flImportFrameRate = 40
+	m_nAdditiveBaseFrameIdx = 0
+}

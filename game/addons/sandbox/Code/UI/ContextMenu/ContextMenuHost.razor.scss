@@ -27,6 +27,18 @@
 		}
 	}
 
+	ContextMenuHost > .tools-menu-slot
+	{
+		position: absolute;
+		top: calc( $context-menu-bar-height + $deadzone-y );
+		right: $deadzone-x;
+		bottom: $deadzone-y;
+		width: min( 583px, 96vw );
+		pointer-events: all;
+		cursor: default;
+		z-index: 200;
+	}
+
 	ContextMenuHost > .settings-bar
 	{
 		position: absolute;

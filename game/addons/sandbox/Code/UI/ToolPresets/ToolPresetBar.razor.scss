@@ -9,6 +9,9 @@
 		margin-bottom: 12px;
 		padding-bottom: 10px;
 		border-bottom: 1px solid $ui-separator;
+
+		&.collapsed { display: none; }
+
 		.preset-controls
 		{
 			width: 100%;
@@ -19,7 +22,7 @@
 		}
 	}
 
-	SpawnMenu ToolPresetBar .preset-controls, InspectWindow ToolPresetBar .preset-controls
+	SpawnMenu ToolPresetBar .preset-controls, ToolsMenu ToolPresetBar .preset-controls
 	{
 		gap: 6px;
 
@@ -31,7 +34,7 @@
 		UIButton.button.icon-only { width: $ui-menu-control-height; }
 	}
 
-	SpawnMenu ToolPresetBar .preset-error, InspectWindow ToolPresetBar .preset-error { color: $ui-danger; }
+	SpawnMenu ToolPresetBar .preset-error, ToolsMenu ToolPresetBar .preset-error { color: $ui-danger; }
 
 	ToolPresetBar .preset-error, UIModal.tool-preset-prompt .preset-error
 	{

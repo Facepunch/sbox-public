@@ -15,7 +15,7 @@
 						filename = "models/sbox/playground/beach_ball/beachball_01.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
+						import_scale = 2.0
 						align_origin_x_type = "BoundsCenter"
 						align_origin_y_type = "BoundsCenter"
 						align_origin_z_type = "BoundsCenter"
@@ -36,7 +36,7 @@
 						filename = "models/sbox/playground/beach_ball/beachball_01.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
+						import_scale = 2.0
 						align_origin_x_type = "BoundsCenter"
 						align_origin_y_type = "BoundsCenter"
 						align_origin_z_type = "BoundsCenter"
@@ -57,7 +57,7 @@
 						filename = "models/sbox/playground/beach_ball/beachball_01.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
+						import_scale = 2.0
 						align_origin_x_type = "BoundsCenter"
 						align_origin_y_type = "BoundsCenter"
 						align_origin_z_type = "BoundsCenter"
@@ -101,7 +101,7 @@
 						parent_bone = ""
 						surface_prop = "rubber"
 						collision_tags = "solid"
-						radius = 6.0
+						radius = 12.0
 						center = [ 0.0, 0.0, 0.0 ]
 					},
 				]

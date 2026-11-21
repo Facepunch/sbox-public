@@ -18,6 +18,9 @@ public static class InspectCursor
 	public static bool IsDragging => _dragging && IsOpen;
 	public static Ray DragRay { get; private set; }
 
+	internal static BaseCombatWeapon ActiveWeapon => Player.FindLocalPlayer()?.GetComponent<PlayerInventory>()?.ActiveWeapon;
+	internal static SelectTool ActiveSelectTool => (ActiveWeapon as Toolgun)?.GetCurrentMode() as SelectTool;
+
 	internal static void Press()
 	{
 		Release();
@@ -28,7 +31,7 @@ public static class InspectCursor
 		_pressed = true;
 	}
 
-	static bool HasPhysgunOut => Player.FindLocalPlayer()?.GetComponent<PlayerInventory>()?.ActiveWeapon is Physgun;
+	static bool HasPhysgunOut => ActiveWeapon is Physgun;
 
 	internal static void Release()
 	{

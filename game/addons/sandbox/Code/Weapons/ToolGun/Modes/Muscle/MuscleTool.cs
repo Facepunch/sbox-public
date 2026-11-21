@@ -1,7 +1,7 @@
 
 [Hide]
 [Title( "#tool.name.muscle" )]
-[Icon( "💪" )]
+[Icon( "exercise" )]
 [ClassName( "MuscleTool" )]
 [Group( "#tool.group.building" )]
 public sealed class MuscleTool : BaseLengthConstraintTool

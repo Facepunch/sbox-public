@@ -6,6 +6,12 @@ public sealed partial class PlayerController : ICameraModifier
 	public bool UseCameraControls { get; set; } = true;
 
 	[Property, Feature( "Camera" )] public float EyeDistanceFromTop { get; set; } = 8;
+
+	/// <summary>
+	/// Distance from the top of the crouched hull to the eyes. When unset, a visible first-person body lifts the crouched view by 8 units.
+	/// </summary>
+	[Property, Feature( "Camera" )] public float? DuckedEyeDistanceFromTop { get; set; }
+
 	[Property, Feature( "Camera" )] public bool ThirdPerson { get; set; } = true;
 	/// <summary>
 	/// Hide the local player's body and its children in first person.
@@ -39,6 +45,7 @@ public sealed partial class PlayerController : ICameraModifier
 
 	float _cameraDistance = 100;
 	float _eyez;
+	float _lastCameraDuckFraction;
 
 	// Input is read in the update loop - the view itself is composed in the camera's modifier chain.
 	void UpdateCameraInput()
@@ -69,10 +76,13 @@ public sealed partial class PlayerController : ICameraModifier
 		var rot = EyeTransform.Rotation;
 		var eyePosition = EyeTransform.Position;
 
-		if ( !IsAirborne && _eyez != 0 )
+		// A walking crouch already eases the eye height. Only smooth steps while that height is steady.
+		var duckFraction = !ThirdPerson && Mode is Movement.MoveModeWalk ? DuckInputFraction : 0f;
+		if ( !IsAirborne && _eyez != 0 && duckFraction == _lastCameraDuckFraction )
 			eyePosition.z = _eyez.LerpTo( eyePosition.z, Time.Delta * 50 );
 
 		_eyez = eyePosition.z;
+		_lastCameraDuckFraction = duckFraction;
 
 		if ( !cam.RenderExcludeTags.Has( "viewer" ) )
 		{

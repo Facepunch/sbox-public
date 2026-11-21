@@ -4,117 +4,45 @@
 @namespace Sandbox
 
 <root>
-    <UIEnumControl class="source" Property=@Source />
-
-    <div class="list-section">
-        @if ( _tab == EffectsSource.Workshop )
+    <div class="list">
+        @foreach ( var group in _groups )
         {
-            <div class="search">
-                <TextEntry Placeholder="#spawnmenu.common.search" Value:bind=@_filter HasClearButton=@false @onsubmit=@OnFilterInput />
+            <div class="group">
+                <div class="group-header">
+                    <Label Text="@(DisplayInfo.ForEnumValues<PostProcessGroup>().FirstOrDefault( entry => entry.value == group.Key ).info.Name)" />
+                </div>
+
+                <div class="group-items">
+                    @foreach ( var entry in group )
+                    {
+                        var path = entry.ResourcePath;
+                        var enabled = _manager?.IsEnabled( path ) ?? false;
+                        var selected = _manager?.SelectedPath == path;
+
+                        <button class="item @( selected ? "selected" : "" )"
+                                Tooltip="@entry.Title"
+                                @onclick="@(() => OnClick( entry ))"
+                                @onmouseenter="@(() => _manager?.Preview( path ))"
+                                @onmouseleave="@(() => _manager?.Unpreview())">
+                            <UICheckbox Value=@enabled OnValueChanged=@((bool _) => OnToggle( entry )) />
+                            <Label Text="@entry.Title" />
+                        </button>
+                    }
+                </div>
             </div>
         }
 
-        <div class="list">
-            @if ( _tab == EffectsSource.Installed )
-            {
-                @foreach ( var group in _groups )
-                {
-                    <div class="group-header">@(DisplayInfo.ForEnumValues<PostProcessGroup>().FirstOrDefault( entry => entry.value == group.Key ).info.Name)</div>
-
-                    <div class="group-items">
-                        @foreach ( var entry in group )
-                        {
-                            var path = entry.ResourcePath;
-                            var enabled = _manager?.IsEnabled( path ) ?? false;
-                            var selected = _manager?.SelectedPath == path;
-
-                            <div class="effect-row @( selected ? "active" : "" )"
-                                 @onclick="@(() => OnClick( entry ))"
-                                 @onmouseenter="@(() => _manager?.Preview( path ))"
-                                 @onmouseleave="@(() => _manager?.Unpreview())">
-                                <UICheckbox Value=@enabled OnValueChanged=@((bool _) => OnToggle( entry )) />
-                                <label class="name">@entry.Title</label>
-                            </div>
-                        }
-                    </div>
-                }
-
-                @if ( !_groups.Any() )
-                {
-                    <div class="empty-state">#spawnmenu.effects.no_installed</div>
-                }
-            }
-            else if ( _loadingWorkshop )
-            {
-                <UILoadingState />
-            }
-            else if ( _workshopPackages.Count == 0 )
-            {
-                <div class="empty-state">#spawnmenu.common.no_results</div>
-            }
-            else
-            {
-                <div class="group-items">
-                    @foreach ( var pkg in _workshopPackages )
-                    {
-                        var mounted = _mountedResources.GetValueOrDefault( pkg.FullIdent );
-                        var resourcePath = mounted?.ResourcePath;
-                        var enabled = resourcePath != null && (_manager?.IsEnabled( resourcePath ) ?? false);
-                        var selected = resourcePath != null && _manager?.SelectedPath == resourcePath;
-                        var mounting = _mountTasks.ContainsKey( pkg.FullIdent );
-
-                        <div class="effect-row workshop @( selected ? "active" : "" ) @( mounting ? "loading" : "" )"
-                             @onclick="@(() => OnWorkshopClick( pkg ))"
-                             @onmouseenter="@(() => { if ( resourcePath != null ) _manager?.Preview( resourcePath ); })"
-                             @onmouseleave="@(() => _manager?.Unpreview())">
-                            <UICheckbox Value=@enabled OnValueChanged=@((bool _) => OnWorkshopToggle( pkg )) />
-                            <div class="thumb" style="background-image: url(@pkg.Thumb)"></div>
-                            <div class="info">
-                                <label class="name">@pkg.Title</label>
-                                <div class="author">
-                                    <div class="author-avatar" style="background-image: url(@pkg.Org.Thumb)"></div>
-                                    <label>@pkg.Org.Title</label>
-                                </div>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-        </div>
-
-        @if ( _tab == EffectsSource.Installed )
+        @if ( !_groups.Any() )
         {
-            <div class="footer">
-                <UIButton Text="#spawnmenu.effects.presets" @onclick=@OpenPresetsMenu />
-            </div>
+            <div class="empty-state">#spawnmenu.effects.no_installed</div>
         }
     </div>
 </root>
 
 @code
 {
-    /// <summary>
-    /// Where the listed effects come from.
-    /// </summary>
-    public enum EffectsSource
-    {
-        [Title( "#spawnmenu.effects.installed" )] Installed,
-        [Title( "#spawnmenu.effects.workshop" )] Workshop
-    }
-
     PostProcessManager _manager;
     IGrouping<PostProcessGroup, PostProcessResource>[] _groups = [];
-    EffectsSource _tab = EffectsSource.Installed;
-
-    SerializedProperty _source;
-    SerializedProperty Source => _source ??= Game.TypeLibrary.CreateProperty( "Source", () => _tab, SwitchTab );
-
-    // Workshop
-    string _filter = "";
-    bool _loadingWorkshop;
-    List<Package> _workshopPackages = new();
-    Dictionary<string, PostProcessResource> _mountedResources = new();
-    Dictionary<string, Task<PostProcessResource>> _mountTasks = new();
 
     protected override void OnAfterTreeRender( bool firstTime )
     {
@@ -128,6 +56,7 @@
     void RefreshInstalled()
     {
         _groups = ResourceLibrary.GetAll<PostProcessResource>()
+            .Where( r => !r.IsRemote )
             .OrderBy( r => r.Group )
             .ThenBy( r => LocalizedText.Resolve( r.Title ), StringComparer.CurrentCultureIgnoreCase )
             .GroupBy( r => r.Group )
@@ -144,80 +73,6 @@
         StateHasChanged();
     }
 
-    public void SwitchTab( EffectsSource tab )
-    {
-        _tab = tab;
-        if ( tab == EffectsSource.Workshop && _workshopPackages.Count == 0 )
-            _ = FetchWorkshop();
-        StateHasChanged();
-    }
-
-    int _workshopQuery;
-
-    async Task FetchWorkshop()
-    {
-        var id = ++_workshopQuery;
-        _loadingWorkshop = true;
-        StateHasChanged();
-
-        // only effects, the newest of every type can have none of them
-        var query = string.IsNullOrEmpty( _filter ) ? "type:spp sort:newest" : $"type:spp sort:newest {_filter}";
-        var result = await Package.FindAsync( query );
-        if ( id != _workshopQuery ) return;
-
-        _workshopPackages = result?.Packages.Where( p => p.TypeName == "spp" ).ToList() ?? new();
-
-        _loadingWorkshop = false;
-        StateHasChanged();
-    }
-
-    void OnFilterInput()
-    {
-        _ = FetchWorkshop();
-    }
-
-    Task<PostProcessResource> MountAndGet( Package pkg )
-    {
-        if ( _mountedResources.TryGetValue( pkg.FullIdent, out var cached ) ) return Task.FromResult( cached );
-        if ( _mountTasks.TryGetValue( pkg.FullIdent, out var pending ) ) return pending;
-
-        var task = Mount( pkg );
-        if ( !task.IsCompleted ) _mountTasks[pkg.FullIdent] = task;
-        return task;
-    }
-
-    async Task<PostProcessResource> Mount( Package pkg )
-    {
-        StateHasChanged();
-
-        var resource = await ResourceLibrary.LoadAsync<PostProcessResource>( pkg.FullIdent );
-        resource ??= await Cloud.Load<PostProcessResource>( pkg.FullIdent, true );
-
-        _mountTasks.Remove( pkg.FullIdent );
-
-        if ( resource != null )
-            _mountedResources[pkg.FullIdent] = resource;
-
-        StateHasChanged();
-        return resource;
-    }
-
-    async void OnWorkshopClick( Package pkg )
-    {
-        var resource = await MountAndGet( pkg );
-        if ( resource is null ) return;
-        _manager?.Select( resource.ResourcePath );
-        StateHasChanged();
-    }
-
-    async void OnWorkshopToggle( Package pkg )
-    {
-        var resource = await MountAndGet( pkg );
-        if ( resource is null ) return;
-        _manager?.Toggle( resource.ResourcePath );
-        StateHasChanged();
-    }
-
     void OnClick( PostProcessResource entry )
     {
         _manager?.Select( entry.ResourcePath );
@@ -230,107 +85,14 @@
         StateHasChanged();
     }
 
-    const string PresetsKey = "effects/presets";
-
-    // only the settings changed from each effect's defaults, see EffectSettings. Presets saved before that list every
-    // setting, as plain JSON values, which load the same way
-    record EffectState( string ResourcePath, Dictionary<string, System.Text.Json.JsonElement> Properties );
-    record EffectsPreset( string Name, List<EffectState> Effects );
-    record EffectsPresetList( List<EffectsPreset> Presets );
-
-    EffectsPresetList LoadPresetList() => LocalData.Get<EffectsPresetList>( PresetsKey, new EffectsPresetList( new() ) );
-
-    void SaveNewPreset( string name )
-    {
-        if ( _manager is null ) return;
-
-        var effects = _groups.SelectMany( g => g )
-            .Where( r => _manager.IsEnabled( r.ResourcePath ) )
-            .Select( r => new EffectState( r.ResourcePath, EffectSettings.Capture( r.ResourcePath, _manager.GetComponents( r.ResourcePath ) ) ) )
-            .ToList();
-
-        var list = LoadPresetList();
-        list.Presets.RemoveAll( p => p.Name == name );
-        list.Presets.Add( new EffectsPreset( name, effects ) );
-        LocalData.Set( PresetsKey, list );
-        StateHasChanged();
-    }
-
-    void ApplyPreset( EffectsPreset preset )
-    {
-        if ( _manager is null ) return;
-
-        var presetPaths = preset.Effects.Select( e => e.ResourcePath ).ToHashSet();
-
-        foreach ( var group in _groups )
-            foreach ( var entry in group )
-                if ( !presetPaths.Contains( entry.ResourcePath ) && _manager.IsEnabled( entry.ResourcePath ) )
-                    _manager.Toggle( entry.ResourcePath );
-
-        foreach ( var effectState in preset.Effects )
-        {
-            if ( !_manager.IsEnabled( effectState.ResourcePath ) )
-                _manager.Toggle( effectState.ResourcePath );
-
-            // settings the preset doesn't list go back to their defaults
-            EffectSettings.Apply( effectState.ResourcePath, _manager.GetComponents( effectState.ResourcePath ), effectState.Properties );
-        }
-
-        StateHasChanged();
-    }
-
-    void DeletePreset( string name )
-    {
-        var list = LoadPresetList();
-        list.Presets.RemoveAll( p => p.Name == name );
-        if ( list.Presets.Count == 0 )
-            LocalData.Delete( PresetsKey );
-        else
-            LocalData.Set( PresetsKey, list );
-        StateHasChanged();
-    }
-
-    void OpenPresetsMenu()
-    {
-        var menu = new Sandbox.UI.Menu();
-
-        menu.AddOption( Game.Language.GetPhrase( "spawnmenu.effects.save_new_preset" ), "save", () =>
-        {
-            UIModal.Prompt( this, "#spawnmenu.effects.save_preset", "", SaveNewPreset, "#spawnmenu.effects.preset_name_placeholder", "#spawnmenu.common.save", "save" );
-        } );
-
-        var list = LoadPresetList();
-        if ( list.Presets.Count > 0 )
-        {
-            menu.AddSeparator();
-            foreach ( var preset in list.Presets )
-            {
-                var captured = preset;
-                var sub = menu.AddMenu( captured.Name, "auto_awesome" );
-                sub.AddOption( Game.Language.GetPhrase( "spawnmenu.common.load" ), "play_arrow", () => ApplyPreset( captured ) );
-                sub.AddOption( Game.Language.GetPhrase( "spawnmenu.inspect.delete" ), "delete", () => DeletePreset( captured.Name ) );
-            }
-        }
-
-        menu.Open( this, Popup.PositionMode.UnderMouse );
-    }
-
     protected override int BuildHash()
     {
         var hash = new HashCode();
-        hash.Add( _tab );
         hash.Add( _manager?.SelectedPath );
-        hash.Add( _loadingWorkshop );
-        hash.Add( _mountTasks.Count );
-        hash.Add( _workshopPackages.Count );
 
-        // the checkboxes follow the effects, which presets and the inspector can switch too
         foreach ( var group in _groups )
             foreach ( var entry in group )
                 hash.Add( _manager?.IsEnabled( entry.ResourcePath ) ?? false );
-
-        foreach ( var resource in _mountedResources.Values )
-            hash.Add( _manager?.IsEnabled( resource.ResourcePath ) ?? false );
 
         return hash.ToHashCode();
     }

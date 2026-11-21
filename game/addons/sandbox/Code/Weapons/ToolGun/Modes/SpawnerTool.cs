@@ -6,7 +6,7 @@
 /// </summary>
 [Hide]
 [HiddenToolMode]
-[Icon( "📦" )]
+[Icon( "add_box" )]
 [Title( "#spawner.name" )]
 [ClassName( "spawner" )]
 [Group( "#tool.group.building" )]
@@ -26,6 +26,9 @@ public sealed class SpawnerTool : ToolMode
 
 	private Material _previewMaterial;
 	private Material _previewMaterialInvalid;
+
+	// Other players need the snapped preview position now that the camera can aim between grid points.
+	[Sync] private Transform? SnappedPreview { get; set; }
 
 	/// <summary>
 	/// True while the player is holding reload to rotate the preview.
@@ -49,7 +52,7 @@ public sealed class SpawnerTool : ToolMode
 	public override string ReloadAction => Spawner is not null ? "#spawner.rotate" : null;
 
 	/// <summary>
-	/// Hold snap to steer the aim onto the grid, so placement lands on grid points.
+	/// Lets the player place the preview on the highlighted grid point.
 	/// </summary>
 	public override bool UseSnapGrid => Spawner is not null;
 
@@ -147,8 +150,7 @@ public sealed class SpawnerTool : ToolMode
 
 		if ( Spawner is null )
 		{
-			// The base stops updating the grid once UseSnapGrid goes false, so don't leave it hanging
-			SnapGrid?.Hide();
+			SnappedPreview = null;
 			IsValidState = false;
 			return;
 		}
@@ -162,7 +164,7 @@ public sealed class SpawnerTool : ToolMode
 
 		if ( _isRotating )
 		{
-			var look = Input.AnalogLook with { pitch = 0 };
+			var look = Toolgun.ToolLook with { pitch = 0 };
 
 			if ( _isSnapping )
 			{
@@ -188,13 +190,14 @@ public sealed class SpawnerTool : ToolMode
 			Toolgun.UpdateJoystick( new Angles( look.yaw, look.pitch, 0 ) );
 		}
 
-		var placement = GetPlacementInfo();
-		IsValidState = placement.Hit && Spawner.IsReady;
+		var surface = GetPlacementSurface();
+		IsValidState = surface.HasValue && Spawner.IsReady;
+		SnappedPreview = SnappedSelection.IsValid() ? GetSpawnTransform( surface.Value ) : null;
 
 		if ( IsValidState && Input.Pressed( "attack1" ) )
 		{
-			var transform = GetSpawnTransform( placement );
-			DoSpawn( transform, new Transform( placement.EndPosition, Rotation.LookAt( placement.Normal ) ) );
+			var transform = SnappedPreview ?? GetSpawnTransform( surface.Value );
+			DoSpawn( transform, surface.Value );
 			_rotationOffset = Rotation.Identity;
 			_spinRotation = Rotation.Identity;
 		}
@@ -204,6 +207,7 @@ public sealed class SpawnerTool : ToolMode
 	{
 		base.OnDisabled();
 
+		if ( !IsProxy ) SnappedPreview = null;
 		_isRotating = false;
 		Toolgun?.SetIsUsingJoystick( false );
 	}
@@ -222,36 +226,45 @@ public sealed class SpawnerTool : ToolMode
 
 	private void DrawPreview()
 	{
-		var placement = GetPlacementInfo();
-		if ( !placement.Hit ) return;
+		var transform = SnappedPreview;
+		if ( !transform.HasValue )
+		{
+			var surface = GetPlacementSurface();
+			if ( !surface.HasValue ) return;
 
-		var transform = GetSpawnTransform( placement );
+			transform = GetSpawnTransform( surface.Value );
+		}
 
 		// Use a different material for other players' previews, same as the Duplicator
 		var material = IsProxy
 			? _previewMaterialInvalid
 			: IsValidState ? _previewMaterial : _previewMaterialInvalid;
 
-		Spawner.DrawPreview( transform, material );
+		Spawner.DrawPreview( transform.Value, material );
 	}
 
-	private SceneTraceResult GetPlacementInfo()
+	private Transform? GetPlacementSurface()
 	{
-		return Scene.Trace.Ray( Player.EyeTransform.ForwardRay, 4096 )
+		var snapped = SnappedSelection;
+		if ( snapped.IsValid() ) return snapped.WorldTransform();
+
+		var trace = Scene.Trace.Ray( AimRay, ToolTraceDistance )
 			.IgnoreGameObjectHierarchy( Player.GameObject )
 			.WithoutTags( "player" )
 			.Run();
+
+		return trace.Hit ? new Transform( trace.EndPosition, Rotation.LookAt( trace.Normal ) ) : null;
 	}
 
-	private Transform GetSpawnTransform( SceneTraceResult trace )
+	private Transform GetSpawnTransform( Transform surface )
 	{
-		var up = trace.Normal;
-		var backward = -Player.EyeTransform.Forward;
+		var up = surface.Forward;
+		var backward = -AimRay.Forward;
 		var right = Vector3.Cross( up, backward ).Normal;
 		var forward = Vector3.Cross( right, up ).Normal;
 		var facingAngle = Rotation.LookAt( forward, up );
 
-		var position = trace.EndPosition;
+		var position = surface.Position;
 
 		// Offset by bounds so the object sits on the surface
 		if ( Spawner is not null )

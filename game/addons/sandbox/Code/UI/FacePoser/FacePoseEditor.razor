@@ -4,6 +4,7 @@
 @inherits Panel
 @namespace Sandbox
 @implements IInspectorEditor
+@attribute [Icon( "face" )]
 
 <root>
     <div class="body">
@@ -29,9 +30,9 @@
     </div>
 
     <div class="footer">
-            <UIButton Text="#ui.common.reset" Icon="🧹" onclick=@ClearAll></UIButton>
-            <UIButton Text="#ui.common.randomize" Icon="🎲" onclick=@Randomize></UIButton>
-            <UIButton Text="#spawnmenu.effects.presets" Icon="📋" onclick=@OpenPresetsMenu></UIButton>
+            <UIButton Text="#ui.common.reset" Icon="restart_alt" onclick=@ClearAll></UIButton>
+            <UIButton Text="#ui.common.randomize" Icon="casino" onclick=@Randomize></UIButton>
+            <UIButton Text="#spawnmenu.common.presets" Icon="list_alt" onclick=@OpenPresetsMenu></UIButton>
     </div>
 </root>
 
@@ -40,7 +41,7 @@
     /// <summary>
     /// Localized title of the face pose inspector.
     /// </summary>
-    public string Title => "😶 " + Game.Language.GetPhrase( "ui.faceposer.title" );
+    public string Title => Game.Language.GetPhrase( "ui.faceposer.title" );
 
     public SkinnedModelRenderer Target { get; private set; }
 
@@ -210,9 +211,9 @@
     {
         var menu = new Sandbox.UI.Menu();
 
-        menu.AddOption( "#spawnmenu.effects.save_new_preset", "save", () =>
+        menu.AddOption( "#spawnmenu.common.save_new_preset", "save", () =>
         {
-            UIModal.Prompt( this, "#spawnmenu.effects.save_preset", "", SaveNewPreset, "#spawnmenu.effects.preset_name_placeholder", "#spawnmenu.common.save", "save", "#ui.faceposer.preset_prompt" );
+            UIModal.Prompt( this, "#spawnmenu.common.save_preset", "", SaveNewPreset, "#spawnmenu.common.preset_name_placeholder", "#spawnmenu.common.save", "save", "#ui.faceposer.preset_prompt" );
         } );
 
         var list = LoadPresetList();

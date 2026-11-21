@@ -1,0 +1,460 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "RandomFloatNode",
+      "Min": 0,
+      "Max": 10,
+      "Identifier": "fad8a79b-31f2-4999-baee-a367403aba72",
+      "Position": "0,-170",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "7cacd86b-2a70-4282-aba2-bf9c738966ea",
+          "Path": "weapons/m4a1/animations/fire_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "59eb22ce-4080-4647-9567-1c38b3403cfa",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "e218deb8-3d78-4ae6-b993-8759f778df45",
+          "Path": "weapons/m4a1/animations/fire_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "66ab20b4-a499-4178-8fb3-af92ba8283b9",
+      "Position": "0,140",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "d6d8a3e3-55b1-42d8-be30-a18578f99d77",
+          "Path": "weapons/m4a1/animations/fire_03.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "06decede-4a0c-482b-ac45-c7c1dafc7929",
+      "Position": "0,280",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "0768c2d7-b04d-426c-82f2-09e0a50efc34",
+          "Path": "weapons/m4a1/animations/fire_04.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "45be4a6d-cc96-443e-b6a7-039a32ab8c02",
+      "Position": "0,420",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "7cf3cc71-23a9-4b45-8efa-b8737c9ed228",
+          "Path": "weapons/m4a1/animations/fire_05.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "ec9a2c73-cad8-466c-86c3-f4e7fb8caad4",
+      "Position": "0,560",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "2ad3cd7e-4f0f-47bb-8165-9dad8edfdbba",
+          "Path": "weapons/m4a1/animations/fire_06.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "9dd36cdd-d9f8-460b-afb5-7463caa207e0",
+      "Position": "0,700",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "323f8639-0919-484b-8029-54233508e4ca",
+          "Path": "weapons/m4a1/animations/fire_07.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "94a64a24-345f-47b3-abdd-54f22336cf19",
+      "Position": "0,840",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "60d90f31-7f76-4289-9f91-694a93b16f77",
+          "Path": "weapons/m4a1/animations/fire_08.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "1308e607-9fca-4585-a22a-2c98cc23fb8b",
+      "Position": "0,980",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "13ebbc1a-cb16-4190-96d6-620b13bdb3e0",
+          "Path": "weapons/m4a1/animations/fire_09.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "4df09734-8368-487e-96ca-714b71970030",
+      "Position": "0,1120",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "c7a20240-261f-4fa7-b3ad-fad95a21946a",
+          "Path": "weapons/m4a1/animations/fire_10.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "47949b91-9f52-438a-a3cb-59ad84912144",
+      "Position": "0,1260",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "fad8a79b-31f2-4999-baee-a367403aba72",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "fire 01",
+          "Pose": {
+            "Identifier": "59eb22ce-4080-4647-9567-1c38b3403cfa",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 02",
+          "Pose": {
+            "Identifier": "66ab20b4-a499-4178-8fb3-af92ba8283b9",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 03",
+          "Pose": {
+            "Identifier": "06decede-4a0c-482b-ac45-c7c1dafc7929",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 04",
+          "Pose": {
+            "Identifier": "45be4a6d-cc96-443e-b6a7-039a32ab8c02",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 05",
+          "Pose": {
+            "Identifier": "ec9a2c73-cad8-466c-86c3-f4e7fb8caad4",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 06",
+          "Pose": {
+            "Identifier": "9dd36cdd-d9f8-460b-afb5-7463caa207e0",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 07",
+          "Pose": {
+            "Identifier": "94a64a24-345f-47b3-abdd-54f22336cf19",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 08",
+          "Pose": {
+            "Identifier": "1308e607-9fca-4585-a22a-2c98cc23fb8b",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 09",
+          "Pose": {
+            "Identifier": "4df09734-8368-487e-96ca-714b71970030",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 10",
+          "Pose": {
+            "Identifier": "47949b91-9f52-438a-a3cb-59ad84912144",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "6eb7593f-52b6-4eee-81af-4941589784e1",
+      "Position": "390,20",
+      "Title": "Shot variants",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "aec5f812-ffd8-4682-ab5b-4d090bf5075e",
+          "Path": "weapons/m4a1/animations/trigger.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "24f5d3c5-acad-4f03-abd2-3680e933c259",
+      "Position": "330,1450",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LocalLayerNode",
+      "Input": {
+        "Identifier": "24f5d3c5-acad-4f03-abd2-3680e933c259",
+        "Output": "Result"
+      },
+      "Weight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "RootMotionWeight": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BoneMask": {
+        "Identifier": null,
+        "Output": null
+      },
+      "BlendMode": "Additive",
+      "IsSynchronized": false,
+      "IgnoreEvents": false,
+      "Identifier": "2d106dd9-bf36-4b5b-a7a7-5487d68e993c",
+      "Position": "665,260",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "LayerBlendNode",
+      "Base": {
+        "Identifier": "6eb7593f-52b6-4eee-81af-4941589784e1",
+        "Output": "Result"
+      },
+      "Layers": [
+        {
+          "Identifier": "2d106dd9-bf36-4b5b-a7a7-5487d68e993c",
+          "Output": "Layer"
+        }
+      ],
+      "OnlySampleBaseRootMotion": true,
+      "Identifier": "e6e57df9-f0bb-4432-b4ae-9b3479c580be",
+      "Position": "900,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "e6e57df9-f0bb-4432-b4ae-9b3479c580be",
+        "Output": "Result"
+      },
+      "Identifier": "d0c88b4a-e15c-47ac-8d9e-47876f9c3378",
+      "Position": "1220,0",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "0843ef28-00fc-0000-c200-000000000000",
+    "Path": "weapons/m4a1/v_m4a1.vmdl"
+  },
+  "Skeleton": {
+    "Id": "59b8f637-9328-48c0-876f-8a62a48a46a2",
+    "Path": "weapons/m4a1/animations/m4a1.skel"
+  },
+  "parameters": [],
+  "virtualParameters": []
+}

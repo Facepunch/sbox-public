@@ -1,9 +1,12 @@
 ﻿public partial class Toolgun : ScreenWeapon
 {
-	bool ping = false;
+	/// <summary>
+	/// Flips the viewmodel's selector when the player changes tools.
+	/// </summary>
 	public void SwitchToolMode()
 	{
-		ping = !ping;
-		WeaponModel?.Renderer?.Set( "firing_mode", ping ? 1 : 0 );
+		var parameters = ViewModel?.GetComponent<ViewModel>()?.Renderer?.Animation.Parameters;
+		if ( parameters?.TryGetBool( "selector_down", out var down ) == true )
+			parameters.Set( "selector_down", !down );
 	}
 }

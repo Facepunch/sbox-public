@@ -1,0 +1,120 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "RandomFloatNode",
+      "Min": 0,
+      "Max": 2,
+      "Identifier": "9df0fe58-d358-42a7-9f8d-dc701e8b6b7f",
+      "Position": "0,-170",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "641724ad-7549-4265-8f9c-79457c975fe9",
+          "Path": "weapons/colt1911/animations/fire_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "7529f3c4-bc85-4388-909b-5be3a6553e03",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "06bbb36c-86b0-4384-9a79-1d2a0b8dfa96",
+          "Path": "weapons/colt1911/animations/fire_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "4b35a4d7-7036-49c9-93b8-4b3a8066b8d5",
+      "Position": "0,140",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "9df0fe58-d358-42a7-9f8d-dc701e8b6b7f",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "fire 01",
+          "Pose": {
+            "Identifier": "7529f3c4-bc85-4388-909b-5be3a6553e03",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 02",
+          "Pose": {
+            "Identifier": "4b35a4d7-7036-49c9-93b8-4b3a8066b8d5",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "cdce532c-db15-41fb-a16d-557c069766db",
+      "Position": "390,20",
+      "Title": "Shot variants",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "cdce532c-db15-41fb-a16d-557c069766db",
+        "Output": "Result"
+      },
+      "Identifier": "ffa96661-6453-4c63-a5b4-667e6afbb368",
+      "Position": "710,0",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "614bc746-3915-4b50-8dcb-0d0b1b6dd46b",
+    "Path": "weapons/1911/v_1911.vmdl"
+  },
+  "Skeleton": {
+    "Id": "b65713ba-a370-4cab-ba02-5593da87045c",
+    "Path": "weapons/colt1911/animations/colt1911.skel"
+  },
+  "parameters": [],
+  "virtualParameters": []
+}

@@ -37,7 +37,7 @@ public enum StackAlignMode
 	Object
 }
 
-[Icon( "📚" )]
+[Icon( "stacks" )]
 [ClassName( "stacker" )]
 [Group( "#tool.group.building" )]
 [Title( "#tool.name.stacker" )]
@@ -382,7 +382,7 @@ public sealed class StackerTool : ToolMode
 
 		var undo = Player.Undo.Create();
 		undo.Name = "#tool.undo.stack";
-		undo.Icon = "📚";
+		undo.Icon = "stacks";
 
 		var clones = new List<GameObject>( transforms.Length );
 

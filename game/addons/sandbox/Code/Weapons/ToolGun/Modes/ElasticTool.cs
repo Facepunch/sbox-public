@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Icon( "🌀" )]
+[Icon( "expand" )]
 [Title( "#tool.name.elastic" )]
 [ClassName( "elastic" )]
 [Group( "#tool.group.constraints" )]

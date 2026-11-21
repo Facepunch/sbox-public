@@ -12,12 +12,14 @@
 		justify-content: center;
 		align-items: center;
 		cursor: pointer;
+		pointer-events: all;
 		transform: scale( 1 ) translateX( -50% ) translateY( -50% );
 		z-index: 100;
 
 		.icon
 		{
 			font-family: $ui-icon;
+			font-variation-settings: $ui-icon-filled-axes;
 			color: $ui-blue;
 			font-size: 23px;
 			pointer-events: none;

@@ -14,7 +14,7 @@ public class EntityPage : BaseSpawnMenu
 		"animal" => "pets",
 		"audio" => "volume_up",
 		"effect" => "auto_awesome",
-		"showcase" => "star_outline",
+		"showcase" => "star",
 		"test toys" or "toyfun" => "toys",
 		_ => "category"
 	};

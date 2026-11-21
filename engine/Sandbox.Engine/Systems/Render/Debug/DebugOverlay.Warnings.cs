@@ -101,7 +101,7 @@ internal static partial class DebugOverlay
 				painter.Rect( rect, 4 * scale );
 
 				var iconRect = new Rect( rect.Left + padX, rect.Top, iconSize, height );
-				DrawText( painter, new TextRendering.Scope( Icons[i], color, iconSize, "Material Icons", 400 ), iconRect, TextFlag.Center );
+				DrawText( painter, new TextRendering.Scope( Icons[i], color, iconSize, "Material Symbols Outlined", 400 ), iconRect, TextFlag.Center );
 
 				var textLeft = iconRect.Right + iconGap;
 

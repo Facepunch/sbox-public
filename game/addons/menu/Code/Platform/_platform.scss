@@ -1,4 +1,5 @@
 @import "/styles/_front.scss";
+@import "/styles/_icons.scss";
 
 // The menu's look - s&box's dark cards (the front's, _front.scss) with its blue for what's on, picked or to press, round
 // ended buttons, Poppins. The dock keeps its own navy (Dock).
@@ -867,7 +868,7 @@ $screen-w-16x9: 1920px;
 
 	i
 	{
-		font-family: "Material Icons";
+		font-family: "Material Symbols Outlined";
 	}
 
 
@@ -966,7 +967,7 @@ $screen-w-16x9: 1920px;
 	.verified
 	{
 		flex-shrink: 0;
-		font-family: "Material Icons";
+		font-family: "Material Symbols Outlined";
 		font-size: $size;
 		color: $platform-steam-blue;
 	}
@@ -1424,7 +1425,7 @@ $screen-w-16x9: 1920px;
 	// Its capitals' case and spacing undone, or a glyph's ligature spells itself out
 	icon, i
 	{
-		font-family: "Material Icons";
+		font-family: "Material Symbols Outlined";
 		font-size: 14px;
 		text-transform: none;
 		letter-spacing: 0;

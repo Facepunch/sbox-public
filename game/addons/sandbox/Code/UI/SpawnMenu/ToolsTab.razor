@@ -9,22 +9,32 @@
 
 <root class="tab">
 
-    <UIGroupedList Groups=@GetGroups() Selected=@(CurrentMode?.GetType()) OnSelect=@OnSelectTool />
+    <UIGroupedList Groups=@GetGroups() Selected=@(CurrentMode?.GetType()) OnSelect=@OnSelectTool>
+        <Header>
+            <div class="tool-shortcuts">
+                @foreach ( var type in ToolbarTools )
+                {
+                    var tool = Game.TypeLibrary.GetType( type );
+                    <Button class="tool-shortcut" Icon=@tool.Icon Tooltip=@tool.Title Active=@(CurrentMode?.GetType() == type) @onclick=@(() => SwitchMode( tool )) />
+                }
+            </div>
+        </Header>
+    </UIGroupedList>
 
-    <UISettingsPane Title=@GetTitle() Revision=@BuildHash()>
+    @{
+        var mode = CurrentMode;
+        var hasToolSettings = mode is not null and not SelectTool && HasSettings( mode );
+    }
+    <UISettingsPane Title=@GetTitle() Revision=@BuildHash() PresetMode=@(hasToolSettings ? mode : null)>
         <Body>
-        @if ( PostProcessManager?.GetSelectedComponents().Count > 0 )
+        @if ( mode is SelectTool )
         {
-            @foreach ( var component in PostProcessManager.GetSelectedComponents() )
-            {
-                <UISheet Target="@component" PropertyFilter="@UISheet.PropertiesAndButtons"></UISheet>
-            }
+            <InspectObjectTab />
         }
-        else if ( CurrentMode is { } mode )
+        else if ( mode is not null )
         {
-            @if ( HasSettings( mode ) )
+            @if ( hasToolSettings )
             {
-                <ToolPresetBar Mode=@mode />
                 <UISheet PropertyFilter="@UISheet.PropertiesAndButtons" Target="@mode"></UISheet>
             }
             else
@@ -43,10 +53,14 @@
 
 @code
 {
-    ToolMode CurrentMode => Player.FindLocalPlayer()?.GetWeapon<Toolgun>()?.GetCurrentMode();
-    PostProcessManager PostProcessManager => Game.ActiveScene.GetSystem<PostProcessManager>();
+    [SkipHotload]
+    static readonly Type[] ToolbarTools = [typeof( SelectTool ), typeof( WireTool ), typeof( DuplicatorTool ), typeof( RemoverTool )];
 
-    protected override int BuildHash() => HashCode.Combine( CurrentMode, PostProcessManager?.SelectedPath, PostProcessManager?.GetSelectedComponents().Count, Game.Language.SelectedCode );
+    ToolMode CurrentMode => Player.FindLocalPlayer()?.GetWeapon<Toolgun>()?.GetCurrentMode();
+
+    int SelectionCount => CurrentMode is SelectTool ? Scene.Get<SpawnMenuHost>()?.SelectedObjects.Count ?? 0 : 0;
+
+    protected override int BuildHash() => HashCode.Combine( CurrentMode, SelectionCount, Game.Language.SelectedCode );
 
     /// <summary>
     /// Whether the sheet would have a single row for this tool.
@@ -54,12 +68,12 @@
     public static bool HasSettings( ToolMode mode ) => Game.TypeLibrary.GetSerializedObject( mode ).Any( UISheet.PropertiesAndButtons );
 
     /// <summary>
-    /// Every tool under its group, both sorted by what the player reads.
+    /// Groups the remaining tools and sorts them by their displayed names.
     /// </summary>
     List<UIGroupedList.ListGroup> GetGroups()
     {
         return Game.TypeLibrary.GetTypes<ToolMode>()
-			.Where(x => !x.IsAbstract && !x.HasAttribute<HiddenToolMode>() )
+            .Where( x => !x.IsAbstract && !x.HasAttribute<HiddenToolMode>() && !ToolbarTools.Contains( x.TargetType ) )
             .GroupBy( x => x.Group )
             .OrderBy( x => LocalizedText.Resolve( x.Key ), StringComparer.CurrentCultureIgnoreCase )
             .Select( group => new UIGroupedList.ListGroup( group.Key, group
@@ -71,11 +85,8 @@
 
     string GetTitle()
     {
-        if ( PostProcessManager?.SelectedPath is { } path && PostProcessManager.GetSelectedComponents().Count > 0 )
-        {
-            var effect = ResourceLibrary.Get<PostProcessResource>( path );
-            if ( effect is not null ) return LocalizedText.Resolve( effect.Title );
-        }
+        if ( SelectionCount > 1 )
+            return Game.Language.GetPhrase( "tool.select.selection_title", new() { { "count", SelectionCount } } );
 
         return CurrentMode?.Name ?? Game.Language.GetPhrase( "spawnmenu.tools.none_selected" );
     }
@@ -90,8 +101,6 @@
     {
         var localPlayer = Player.FindLocalPlayer();
         if ( localPlayer == null ) return;
-
-        PostProcessManager?.Deselect();
 
         var inventory = localPlayer.GetComponent<PlayerInventory>();
         if ( !inventory.IsValid() ) return;

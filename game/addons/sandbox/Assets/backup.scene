@@ -1763,7 +1763,6 @@
               "__guid": "85969bab-3664-40e9-b066-a89601e519c1",
               "__enabled": true,
               "Flags": 0,
-              "AnimationGraph": null,
               "BodyGroups": 1025,
               "BoneMergeTarget": null,
               "CreateAttachments": false,
@@ -1803,12 +1802,6 @@
               "OnComponentFixedUpdate": null,
               "OnComponentStart": null,
               "OnComponentUpdate": null,
-              "Parameters": {
-                "floats": {
-                  "scale_height": 1,
-                  "scale_heel": 0
-                }
-              },
               "PlaybackRate": 1,
               "RenderOptions": {
                 "GameLayer": true,
@@ -1823,7 +1816,16 @@
                 "Blending": false
               },
               "Tint": "1,1,1,1",
-              "UseAnimGraph": false
+              "UseAnimGraph": false,
+              "Animation": {
+                "Graph": "animations/sandbox_player.ag",
+                "Parameters": {
+                  "floats": {
+                    "scale_height": 1,
+                    "scale_heel": 0
+                  }
+                }
+              }
             },
             {
               "__type": "Sandbox.Dresser",
@@ -3998,7 +4000,6 @@
               "__guid": "4d5ffe08-f529-4e3a-88ad-36692a44b3e2",
               "__enabled": true,
               "Flags": 0,
-              "AnimationGraph": null,
               "BodyGroups": 1025,
               "BoneMergeTarget": null,
               "CreateAttachments": false,
@@ -4019,12 +4020,6 @@
               "OnComponentFixedUpdate": null,
               "OnComponentStart": null,
               "OnComponentUpdate": null,
-              "Parameters": {
-                "floats": {
-                  "scale_height": 1,
-                  "scale_heel": 0
-                }
-              },
               "PlaybackRate": 1,
               "RenderOptions": {
                 "GameLayer": true,
@@ -4039,7 +4034,16 @@
                 "Blending": false
               },
               "Tint": "1,1,1,1",
-              "UseAnimGraph": false
+              "UseAnimGraph": false,
+              "Animation": {
+                "Graph": "animations/sandbox_player.ag",
+                "Parameters": {
+                  "floats": {
+                    "scale_height": 1,
+                    "scale_heel": 0
+                  }
+                }
+              }
             },
             {
               "__type": "Sandbox.ModelPhysics",

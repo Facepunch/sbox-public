@@ -1,5 +1,5 @@
 /// <summary>
-/// What the local player's HUD shows and how it looks, edited from the HUD tab of the inspect menu
+/// What the local player's HUD shows and how it looks, edited from the HUD page in Settings.
 /// </summary>
 internal static partial class GamePreferences
 {

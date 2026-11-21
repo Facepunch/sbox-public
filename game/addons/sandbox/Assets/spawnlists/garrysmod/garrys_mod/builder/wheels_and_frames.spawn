@@ -1,7 +1,7 @@
 {
   "Title": "Wheels and Frames",
   "Description": "",
-  "Icon": "settings",
+  "Icon": "tire_repair",
   "RequiredMount": "gmod",
   "Parent": {
     "Id": "881eeef9-7802-4ab2-b0a8-7a4335c15b87",

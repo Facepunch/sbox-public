@@ -3,7 +3,7 @@ using Sandbox.UI;
 namespace Sandbox;
 
 /// <summary>
-/// A clickable icon over a component in the world, shown while the inspect menu is open. Used for things with
+/// A clickable icon over a component in the world, shown for the Select tool in the context menu. Used for things with
 /// nothing to click on themselves, see <see cref="IInspectHandle"/>. Left click selects, right click opens the
 /// object's context menu.
 /// </summary>
@@ -19,6 +19,9 @@ public class ComponentHandle : Panel
 	readonly Label _icon;
 	Vector3 worldpos;
 
+	/// <summary>
+	/// Creates an icon for the component and routes clicks to the inspector.
+	/// </summary>
 	public ComponentHandle( Panel parent, Component c, Inspector i ) : base( parent )
 	{
 		_component = c;
@@ -31,6 +34,9 @@ public class ComponentHandle : Panel
 		_icon.Text = (c as IInspectHandle)?.InspectHandleIcon ?? typeInfo?.Icon ?? "info";
 	}
 
+	/// <summary>
+	/// Updates the icon's screen position, visibility and selection state.
+	/// </summary>
 	public override void Tick()
 	{
 		base.Tick();
@@ -67,8 +73,7 @@ public class ComponentHandle : Panel
 
 		if ( !_component.IsValid() ) return;
 
-		// the component's own object, not its network root - a hidden speaker parented to a prop should select the
-		// speaker (so the inspector shows its settings), not the prop
+		// Select the component's own object so a parented component opens its own settings.
 		var target = _component.GameObject;
 
 		if ( e.MouseButton == MouseButtons.Right )

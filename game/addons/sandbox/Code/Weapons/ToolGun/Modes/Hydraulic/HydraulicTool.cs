@@ -1,6 +1,6 @@
 [Hide]
 [Title( "#tool.name.hydraulic" )]
-[Icon( "⚙️" )]
+[Icon( "unfold_more" )]
 [ClassName( "HydraulicTool" )]
 [Group( "#tool.group.building" )]
 public sealed class HydraulicTool : BaseLengthConstraintTool

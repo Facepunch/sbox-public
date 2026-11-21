@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 public static class EffectSettings
 {
 	/// <summary>
@@ -42,18 +40,6 @@ public static class EffectSettings
 		return defaults;
 	}
 
-	public static Dictionary<string, JsonElement> Capture( string path, IEnumerable<Component> components )
-	{
-		var values = new Dictionary<string, JsonElement>();
-		foreach ( var (key, json) in CaptureJson( path, components ) )
-		{
-			using var document = JsonDocument.Parse( json );
-			values[key] = document.RootElement.Clone();
-		}
-
-		return values;
-	}
-
 	public static Dictionary<string, string> CaptureJson( string path, IEnumerable<Component> components )
 	{
 		var defaults = Defaults( path );
@@ -71,15 +57,6 @@ public static class EffectSettings
 		}
 
 		return values;
-	}
-
-	public static void Apply( string path, IEnumerable<Component> components, IReadOnlyDictionary<string, JsonElement> values )
-	{
-		// player effect presets from before keys had the component type saved just the property name
-		Apply( path, components, key =>
-			values is not null && (values.TryGetValue( key, out var stored ) || values.TryGetValue( key[(key.LastIndexOf( '.' ) + 1)..], out stored ))
-				? stored.GetRawText()
-				: null );
 	}
 
 	public static void Apply( string path, IEnumerable<Component> components, Func<string, string> storedJson )

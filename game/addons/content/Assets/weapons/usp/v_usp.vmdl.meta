@@ -6,6 +6,7 @@
       "Title": "ViewModel USP",
       "Type": "model",
       "Org": "facepunch",
+      "OrgTitle": null,
       "Ident": "v_usp",
       "Schema": 0,
       "IncludeSourceFiles": false,
@@ -23,7 +24,7 @@
         "Summary": "",
         "Description": "",
         "Public": true,
-        "ParentPackage": "facepunch.sbox_content",
+        "ParentPackage": "facepunch.sandbox",
         "AssetLicense": "CC0"
       }
     },

@@ -1,3 +1,5 @@
+@import "/styles/_icons.scss";
+
 $success: #4db649;
 $primary: #3273EB;
 $warning: #b72d4f;
@@ -149,7 +151,7 @@ HtmlPanel success
 
 	&::before
 	{
-		font-family: "Material Icons";
+		font-family: "Material Symbols Outlined";
 		content: "new_releases";
 		color: $success;
 	}
@@ -162,7 +164,7 @@ HtmlPanel info
 
 	&::before
 	{
-		font-family: "Material Icons";
+		font-family: "Material Symbols Outlined";
 		content: "info";
 		color: $primary;
 	}
@@ -175,7 +177,7 @@ HtmlPanel warning
 
 	&::before
 	{
-		font-family: "Material Icons";
+		font-family: "Material Symbols Outlined";
 		content: "gpp_maybe";
 		color: $warning;
 	}
@@ -193,6 +195,7 @@ HtmlPanel success, HtmlPanel info, HtmlPanel warning
 
 	&::before
 	{
+		font-variation-settings: $menu-icon-filled;
 		position: absolute;
 		left: 16px;
 		top: 50%;

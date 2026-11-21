@@ -157,7 +157,7 @@ public partial class GameObject
 				// Icon mode
 				//
 
-				var text = new TextRendering.Scope( _handle.Icon, _handle.EffectiveColor, 64, "Material Icons", 400 );
+				var text = new TextRendering.Scope( _handle.Icon, _handle.EffectiveColor, 64, "Material Symbols Outlined", 400 );
 				text.Shadow = new TextRendering.Shadow { Enabled = true, Color = Color.Black, Offset = 2, Size = 8 };
 				var tex = TextRendering.GetOrCreateTexture( text, flag: TextFlag.Center );
 				if ( tex is not null )

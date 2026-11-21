@@ -2,16 +2,9 @@ public sealed class PostProcessManager : GameObjectSystem<PostProcessManager>
 {
 	private readonly Dictionary<string, GameObject> _active = new();
 	private readonly HashSet<string> _enabled = new();
+	private PostProcessVolume _volume;
 
 	public string SelectedPath { get; private set; }
-
-	public IReadOnlyList<Component> GetComponents( string resourcePath )
-	{
-		if ( !_active.TryGetValue( resourcePath, out var go ) || !go.IsValid() )
-			return [];
-
-		return [.. go.GetComponentsInChildren<Component>( true )];
-	}
 
 	public IReadOnlyList<Component> GetSelectedComponents()
 	{
@@ -58,17 +51,27 @@ public sealed class PostProcessManager : GameObjectSystem<PostProcessManager>
 		else _enabled.Remove( resourcePath );
 	}
 
+	private PostProcessVolume GetLocalVolume()
+	{
+		if ( _volume.IsValid() ) return _volume;
+
+		var root = Scene.CreateObject();
+		root.Name = "Local Post Processing";
+		root.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
+		_volume = root.AddComponent<PostProcessVolume>();
+		_volume.SceneVolume = new Sandbox.Volumes.SceneVolume { Type = Sandbox.Volumes.SceneVolume.VolumeTypes.Infinite };
+		_volume.Priority = int.MaxValue;
+		return _volume;
+	}
+
 	private void SpawnGo( string resourcePath, bool startEnabled )
 	{
 		var resource = ResourceLibrary.Get<PostProcessResource>( resourcePath );
 		if ( resource?.Prefab is null ) return;
 
-		var camera = Scene.Camera?.GameObject;
-		if ( camera is null ) return;
-
 		// Spawn enabled so components initialize, then disable if not wanted
-		var go = GameObject.Clone( resource.Prefab, new CloneConfig { StartEnabled = true, Parent = camera } );
-		go.Flags |= GameObjectFlags.NotNetworked;
+		var go = GameObject.Clone( resource.Prefab, new CloneConfig { StartEnabled = true, Parent = GetLocalVolume().GameObject } );
+		go.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
 
 		_active[resourcePath] = go;
 
@@ -93,18 +96,22 @@ public sealed class PostProcessManager : GameObjectSystem<PostProcessManager>
 		_previewPath = resourcePath;
 		if ( IsEnabled( resourcePath ) ) return;
 
-		if ( !_active.ContainsKey( resourcePath ) )
-			SpawnGo( resourcePath, startEnabled: true );
+		if ( _active.TryGetValue( resourcePath, out var go ) )
+		{
+			go.Enabled = !_suppressed;
+		}
 		else
-			SetEnabled( resourcePath, true );
+		{
+			SpawnGo( resourcePath, startEnabled: true );
+		}
 	}
 
 	public void Unpreview()
 	{
 		if ( _previewPath is null ) return;
 
-		if ( !IsEnabled( _previewPath ) )
-			SetEnabled( _previewPath, false );
+		if ( !IsEnabled( _previewPath ) && _active.TryGetValue( _previewPath, out var go ) )
+			go.Enabled = false;
 
 		_previewPath = null;
 	}

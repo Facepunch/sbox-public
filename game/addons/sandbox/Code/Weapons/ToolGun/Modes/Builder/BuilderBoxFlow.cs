@@ -157,7 +157,7 @@ internal sealed class BuilderBoxFlow : BuilderFlow
 
 		_stage = Stage.Height;
 		_height = BuilderPlacement.ClampGrid( Tool.GridSize );
-		_heightAimStart = Tool.Player.EyeTransform.Forward;
+		_heightAimStart = Tool.AimRay.Forward;
 		_heightFollowsAim = false;
 		return false;
 	}
