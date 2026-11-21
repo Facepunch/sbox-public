@@ -48,6 +48,7 @@ internal class PanelInput
 	{
 		Hovered = null;
 		Active = null;
+		Selection.EndSelection();
 		Selection = new Selection();
 
 		foreach ( var state in MouseStates )
@@ -62,6 +63,7 @@ internal class PanelInput
 	/// </summary>
 	internal void CancelPointerInteraction()
 	{
+		Selection.EndSelection();
 		var dropTarget = DropTarget;
 		var dragSource = MouseStates[0].DragTarget;
 		var cancelled = MouseStates

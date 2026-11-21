@@ -71,6 +71,15 @@ internal class VerticalListLayout
 	}
 
 	/// <summary>
+	/// Get the index of the item at the given local y position.
+	/// </summary>
+	public int GetIndexAt( float y )
+	{
+		float step = MathF.Max( 1f, _cellSize.y + Spacing.y );
+		return ((y - _rect.Top) / step).FloorToInt();
+	}
+
+	/// <summary>
 	/// Get the rectangle for the item at the given index.
 	/// </summary>
 	public Rect GetPosition( int index )
