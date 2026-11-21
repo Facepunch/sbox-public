@@ -66,7 +66,7 @@ public partial struct MeshTraceRequest
 				_currentfilterCallback = default;
 			}
 
-			// Maps read by Borealis.Source2 have no native objects to trace: their own meshes, if nearer
+			// Maps have no native objects to trace: their own meshes, if nearer
 			if ( TraceMaps( r, hit?.Fraction ?? float.MaxValue ) is { } mapHit ) hit = mapHit;
 			if ( hit is { } found ) return found;
 		}
@@ -114,7 +114,7 @@ public partial struct MeshTraceRequest
 					}
 				}
 
-				// Maps read by Borealis.Source2 have no native objects to trace: their own meshes
+				// Maps have no native objects to trace: their own meshes
 				TraceMapsAll( r, output );
 				if ( output.Count > 0 ) return output.ToArray();
 			}
@@ -136,10 +136,10 @@ public partial struct MeshTraceRequest
 		return [];
 	}
 
-	/// <summary>The target world's maps read by Borealis.Source2 (<see cref="SceneMap.Geometry"/>) and the device that read them.</summary>
-	readonly (List<MapGeometry> Maps, Borealis.Backend.BackendDevice Gpu) MapsToTrace()
+	/// <summary>The target world's maps (<see cref="SceneMap.Geometry"/>), read by Borealis.Source2.</summary>
+	readonly List<MapGeometry> MapsToTrace()
 	{
-		if ( targetWorld is null || RenderBackend.Default is not BorealisGpuRenderBackend gpu ) return (null, null);
+		if ( targetWorld is null ) return null;
 
 		List<MapGeometry> maps = null;
 		lock ( targetWorld.InternalSceneMaps )
@@ -150,7 +150,7 @@ public partial struct MeshTraceRequest
 			}
 		}
 
-		return (maps, gpu.Services);
+		return maps;
 	}
 
 	/// <summary>
@@ -186,23 +186,23 @@ public partial struct MeshTraceRequest
 	/// <summary>The nearest hit on the target world's maps nearer than <paramref name="fraction"/>, or null.</summary>
 	readonly Result? TraceMaps( in MeshTraceInput r, float fraction )
 	{
-		var (maps, gpu) = MapsToTrace();
+		var maps = MapsToTrace();
 		if ( maps is null || !MapPassesTags( r ) ) return null;
 
 		var best = new MapTrace.Hit { Fraction = fraction };
 		var found = false;
-		foreach ( var map in maps ) found |= map.Trace( gpu ).Trace( r.start, r.end, r.cullMode, ref best );
+		foreach ( var map in maps ) found |= map.Trace().Trace( r.start, r.end, r.cullMode, ref best );
 		return found ? FromMap( r, best ) : null;
 	}
 
 	/// <summary>Every hit on the target world's maps.</summary>
 	readonly void TraceMapsAll( in MeshTraceInput r, List<Result> into )
 	{
-		var (maps, gpu) = MapsToTrace();
+		var maps = MapsToTrace();
 		if ( maps is null || !MapPassesTags( r ) ) return;
 
 		var hits = new List<MapTrace.Hit>();
-		foreach ( var map in maps ) map.Trace( gpu ).TraceAll( r.start, r.end, r.cullMode, hits );
+		foreach ( var map in maps ) map.Trace().TraceAll( r.start, r.end, r.cullMode, hits );
 		foreach ( var hit in hits ) into.Add( FromMap( r, hit ) );
 	}
 

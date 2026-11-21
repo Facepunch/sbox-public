@@ -1,4 +1,3 @@
-using Borealis.Backend;
 using Borealis.Source2.Models;
 using Borealis.Source2.World;
 using N3 = System.Numerics.Vector3;
@@ -33,7 +32,7 @@ internal sealed class MapTrace
 	readonly Transform[] transforms;
 	readonly Bvh instances;
 
-	public MapTrace( MapGeometry map, BackendDevice gpu )
+	public MapTrace( MapGeometry map, Func<string, ModelFile> readModel )
 	{
 		var timer = System.Diagnostics.Stopwatch.StartNew();
 		var byPath = new Dictionary<string, ModelTriangles>( StringComparer.OrdinalIgnoreCase );
@@ -47,7 +46,7 @@ internal sealed class MapTrace
 			ModelFile file = null;
 			try
 			{
-				file = gpu.ReadModel( path ).GetAwaiter().GetResult();
+				file = readModel( path );
 			}
 			catch ( Exception e )
 			{

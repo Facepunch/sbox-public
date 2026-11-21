@@ -1,5 +1,6 @@
-﻿
+
 #include "mapdoclib/mapdoc.h"
+#include "datamodel/idatamodel.h"
 
 //
 // CMapDoc - stores an open map/document, including the tree of objects that represent the world.
@@ -8,6 +9,15 @@
 [Handle:Editor.MapDoc.MapDocument]
 native class CMapDoc as NativeMapDoc.CMapDoc
 {
+    inline bool SerializeVmap( CUtlBuffer buffer )
+    {
+        self->PreSaveContents();
+        auto *root = self->GetRootElement();
+        bool success = root && g_pDataModel->Serialize( *buffer, "binary", "vmap", root->GetHandle() );
+        self->PostSaveContents();
+        return success;
+    }
+
     CMapWorld GetMapWorld();
     string GetPathName();
     CSelection GetSelection();

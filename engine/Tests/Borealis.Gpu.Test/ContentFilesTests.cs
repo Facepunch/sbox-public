@@ -53,4 +53,56 @@ public class ContentFilesTests
 			Directory.Delete( folder, true );
 		}
 	}
+
+	/// <summary>
+	/// Fallback folders (the rest of the engine's GAME search path: the menu's compiled files) are searched last: a folder
+	/// or a package's file the resolver finds wins over them, and what only they have is found there.
+	/// </summary>
+	[TestMethod]
+	public void FallbacksAreSearchedLast()
+	{
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-content-{Guid.NewGuid():N}" );
+		var loose = Path.Combine( folder, "loose" );
+		var menu = Path.Combine( folder, "menu" );
+		var cache = Path.Combine( folder, "cache" );
+		Directory.CreateDirectory( Path.Combine( loose, "models" ) );
+		Directory.CreateDirectory( Path.Combine( menu, "models" ) );
+		Directory.CreateDirectory( cache );
+		try
+		{
+			File.WriteAllText( Path.Combine( loose, "models", "both.vmdl_c" ), "loose" );
+			File.WriteAllText( Path.Combine( menu, "models", "both.vmdl_c" ), "menu" );
+			File.WriteAllText( Path.Combine( menu, "models", "packaged.vmdl_c" ), "menu" );
+			File.WriteAllText( Path.Combine( menu, "models", "grass.vmdl_c" ), "menu" );
+			var packaged = Path.Combine( cache, "packaged.0123abcd.vmdl_c" );
+			File.WriteAllText( packaged, "package" );
+
+			var files = new ContentFiles( loose ) { Resolve = path => path == "models/packaged.vmdl_c" ? packaged : null };
+			files.AddFallback( menu );
+			files.AddFallback( Path.Combine( folder, "missing" ) );
+
+			Assert.AreEqual( 1, files.Fallbacks.Count, "a folder that isn't there isn't searched" );
+			Assert.AreEqual( "loose", System.Text.Encoding.UTF8.GetString( files.TryRead( "models/both.vmdl" ) ), "the folders win" );
+			Assert.AreEqual( packaged, files.Find( "models/packaged.vmdl" ), "a package's file wins" );
+			Assert.AreEqual( Path.GetFullPath( Path.Combine( menu, "models", "grass.vmdl_c" ) ), Path.GetFullPath( files.Find( "models/grass.vmdl" ) ), "what only a fallback has is found there" );
+			Assert.IsNull( files.Find( "models/none.vmdl" ) );
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>The game's content searches the menu's compiled files last, as the engine's GAME search path does.</summary>
+	[TestMethod]
+	public void TheGameSearchesTheMenusCompiledFilesLast()
+	{
+		var files = ContentFiles.FindGame();
+		if ( files.Roots.Count == 0 ) Assert.Inconclusive( "No game folder" );
+		var transients = Path.Combine( Path.GetDirectoryName( files.Roots[0] ), "addons", "menu", "Transients" );
+		if ( !Directory.Exists( transients ) ) Assert.Inconclusive( "The menu's compiled files aren't built" );
+
+		Assert.AreEqual( Path.GetFullPath( transients ), files.Fallbacks[^1] );
+		CollectionAssert.DoesNotContain( files.Roots.ToList(), Path.GetFullPath( transients ), "the folders stay core and citizen" );
+	}
 }

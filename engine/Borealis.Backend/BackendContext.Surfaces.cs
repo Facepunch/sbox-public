@@ -649,9 +649,11 @@ internal sealed partial class BackendContext
 	/// A sampler from vfx's sampler-state annotations, as classic shaders' sampler states make them: <c>Filter</c>
 	/// (ANISOTROPIC, BILINEAR, TRILINEAR, POINT or a D3D filter name, COMPARISON_ for comparison), <c>AddressU/V/W</c>,
 	/// <c>MaxAniso</c>, <c>ComparisonFunc</c>. Without a <c>Filter</c> it's native's default sampler state
-	/// (<c>DefaultSamplerStateDesc</c>): anisotropic, wrapped.
+	/// (<c>DefaultSamplerStateDesc</c>): anisotropic, wrapped. A filter chosen by a feature
+	/// (<c>F_TEXTURE_FILTERING == 0 ? ANISOTROPIC : ...</c>) takes the feature's value from <paramref name="values"/>, 0
+	/// where it doesn't have it (a feature's default), as vfx evaluates annotations with the material's features.
 	/// </summary>
-	internal static SamplerInfo SurfaceSampler( Annotations annotations )
+	internal static SamplerInfo SurfaceSampler( Annotations annotations, Func<string, int?> values = null )
 	{
 		var sampler = SamplerInfo.Linear( AddressMode.Wrap, DefaultAnisotropy );
 		if ( annotations is null ) return sampler;
@@ -659,7 +661,7 @@ internal sealed partial class BackendContext
 
 		if ( annotations.Filter is { } filter )
 		{
-			var name = filter.Trim().ToUpperInvariant();
+			var name = AnnotationExpression.Choose( filter, values ).ToUpperInvariant();
 			var comparison = name.StartsWith( "COMPARISON_", StringComparison.Ordinal );
 			if ( comparison ) name = name["COMPARISON_".Length..];
 
@@ -694,9 +696,9 @@ internal sealed partial class BackendContext
 			if ( comparison ) sampler.Compare = CompareFunction.LessEqual;
 		}
 
-		if ( annotations.AddressU is { } u ) sampler.AddressU = Address( u );
-		if ( annotations.AddressV is { } v ) sampler.AddressV = Address( v );
-		if ( annotations.AddressW is { } w ) sampler.AddressW = Address( w );
+		if ( annotations.AddressU is { } u ) sampler.AddressU = Address( AnnotationExpression.Choose( u, values ) );
+		if ( annotations.AddressV is { } v ) sampler.AddressV = Address( AnnotationExpression.Choose( v, values ) );
+		if ( annotations.AddressW is { } w ) sampler.AddressW = Address( AnnotationExpression.Choose( w, values ) );
 		if ( annotations.Comparison is { } compare ) sampler.Compare = Compare( compare );
 		return sampler;
 	}

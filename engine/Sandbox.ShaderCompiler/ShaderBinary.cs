@@ -9,8 +9,8 @@ namespace Sandbox.ShaderCompiler;
 /// </summary>
 internal static class ShaderBinary
 {
-	/// <summary>Raised with any change to what's written.</summary>
-	public const int Format = 1;
+	/// <summary>Raised with any change to what's written, or to what's read into it (2: annotations' nested parentheses).</summary>
+	public const int Format = 2;
 
 	public static void WriteShader( BinaryWriter w, CompiledShader shader )
 	{

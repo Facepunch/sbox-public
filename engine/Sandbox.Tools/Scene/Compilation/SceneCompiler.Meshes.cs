@@ -89,14 +89,6 @@ partial class SceneCompiler
 
 		var builder = Model.Builder.WithName( resourcePath );
 
-		var hull = mesh.Collision == MeshComponent.CollisionType.Hull;
-		var collides = hull || mesh.Collision == MeshComponent.CollisionType.Mesh;
-
-		var positions = collides ? new List<Vector3>() : null;
-		var indices = hull ? null : new List<int>();
-		var surfaces = hull ? null : new List<byte>();
-		var collisionSurfaces = collides && !hull ? new List<Surface>() : null;
-
 		for ( int i = 0; i < submeshes.Count; i++ )
 		{
 			var submesh = submeshes[i];
@@ -111,50 +103,9 @@ partial class SceneCompiler
 			builder.AddMesh( render );
 			statistics.VertexCount += vertices.Length;
 			statistics.TriangleCount += submesh.Indices.Length / 3;
-
-			if ( !collides )
-				continue;
-
-			var offset = positions.Count;
-
-			foreach ( ref readonly var vertex in vertices.AsSpan() )
-			{
-				positions.Add( vertex.Position );
-			}
-
-			if ( hull )
-			{
-				builder.AddSurface( submesh.Material?.Surface );
-				continue;
-			}
-
-			var surface = SurfaceIndex( collisionSurfaces, submesh.Material?.Surface );
-			foreach ( var index in submesh.Indices )
-			{
-				indices.Add( offset + index );
-			}
-
-			for ( int triangle = 0; triangle < submesh.Indices.Length / 3; triangle++ )
-			{
-				surfaces.Add( surface );
-			}
 		}
 
-		if ( collides && positions.Count >= 3 )
-		{
-			if ( hull )
-			{
-				builder.AddCollisionHull( positions );
-			}
-			else
-			{
-				foreach ( var surface in collisionSurfaces )
-					builder.AddSurface( surface );
-
-				builder.AddCollisionMesh( positions, indices, surfaces );
-				builder.AddTraceMesh( positions, indices );
-			}
-		}
+		AddMeshCollision( builder, mesh, submeshes, addTraceMesh: true );
 
 		var model = builder.Create();
 		if ( !model.IsValid() || model.IsError )

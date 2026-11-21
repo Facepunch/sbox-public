@@ -3,9 +3,6 @@
 [Handle:Sandbox.SceneSkyBox]
 native class CSceneSkyBoxObject as NativeEngine.CSceneSkyBoxObject : CSceneObject
 {
-	void SetLighting_ConstantColorHemisphere( Vector3 vSkyColor );
-	void SetLighting_Samples( CastTo[Vector*] void* pSkyColors, CastTo[Vector*] void* pSkyDirections, int nSkyColors );
-
 	IMaterial GetMaterial();
 	void SetMaterial( IMaterial hMaterial );
 

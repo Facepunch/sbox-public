@@ -963,8 +963,13 @@ public struct SceneTraceResult
 	public static SceneTraceResult From( in Scene scene, in Engine.Utility.RayTrace.MeshTraceRequest.Result r )
 	{
 		var rawTags = new TagBuffer16();
-		var sceneTags = r.SceneObject.Tags.TryGetAll();
-		if ( sceneTags is not null )
+		if ( r.SceneObject is null )
+		{
+			// A map's world geometry: no scene object, but native's world tags (MapGeometry.WorldTags)
+			foreach ( var tag in MapGeometry.WorldTags )
+				rawTags.AddUnique( tag );
+		}
+		else if ( r.SceneObject.Tags.TryGetAll() is { } sceneTags )
 		{
 			foreach ( var tag in sceneTags )
 				rawTags.AddUnique( ((StringToken)tag).Value );
@@ -987,8 +992,8 @@ public struct SceneTraceResult
 			Direction = (r.EndPosition - r.StartPosition).Normal,
 			Triangle = r.HitTriangle,
 			_rawTags = rawTags,
-			GameObject = r.SceneObject.GameObject,
-			Component = r.SceneObject.Component
+			GameObject = r.SceneObject?.GameObject,
+			Component = r.SceneObject?.Component
 		};
 
 		return result;

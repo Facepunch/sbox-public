@@ -90,6 +90,7 @@ public partial class PrefabScene : Scene, IJsonConvert
 	public override void Deserialize( JsonObject node, DeserializeOptions options )
 	{
 		using var sceneScope = Push();
+		if ( IsEditor ) DeserializeInstances( node["__properties"]?[InstancesKey] );
 
 		base.Deserialize( node, options );
 

@@ -182,6 +182,7 @@ internal sealed class MapContent : IDisposable
 		package = VpkFile.Open( vpk );
 		Content = new ContentFiles( folder );
 		foreach ( var root in core.Roots ) Content.Add( root );
+		foreach ( var root in core.Fallbacks ) Content.AddFallback( root );
 		Content.AddPackage( package );
 
 		var name = Path.GetFileNameWithoutExtension( vpk );

@@ -37,6 +37,7 @@ partial class SceneCompiler
 		/// The blend and tint streams the mesh tool paints, which only the vertex paint shaders read.
 		/// </summary>
 		Paint = 2,
+		SecondaryPaint = 4,
 	}
 
 	/// <summary>
@@ -52,6 +53,7 @@ partial class SceneCompiler
 		public Vector2 Texcoord1;
 		public Color32 Color;
 		public Color32 Blend;
+		public Color32 SecondaryBlend;
 		public Color32 Paint;
 	}
 
@@ -161,7 +163,7 @@ partial class SceneCompiler
 		public CompiledVertex[] Apply( PolygonMesh.MeshVertex[] vertices, out CompiledStreams streams )
 		{
 			var compiled = new CompiledVertex[vertices.Length];
-			var painted = false;
+			streams = CompiledStreams.None;
 
 			for ( int i = 0; i < vertices.Length; i++ )
 			{
@@ -175,13 +177,14 @@ partial class SceneCompiler
 					Texcoord = vertex.Texcoord,
 					Color = Color32.White,
 					Blend = vertex.Blend,
+					SecondaryBlend = vertex.SecondaryBlend,
 					Paint = vertex.Color,
 				};
 
-				painted |= vertex.Blend != default || vertex.Color != default;
+				if ( vertex.Blend != default || vertex.Color != default ) streams |= CompiledStreams.Paint;
+				if ( vertex.SecondaryBlend != default ) streams |= CompiledStreams.SecondaryPaint;
 			}
 
-			streams = painted ? CompiledStreams.Paint : CompiledStreams.None;
 
 			return compiled;
 		}
@@ -231,7 +234,15 @@ partial class SceneCompiler
 			var tags = TagKey( source.GameObject );
 			var visible = !source.HideInGame;
 
-			if ( source.Collision == MeshComponent.CollisionType.Hull )
+			bool fitted = source.Collision != MeshComponent.CollisionType.None &&
+				(source.Mesh.UsesPerMaterialCollision( source.Collision ) || source.Collision is not (MeshComponent.CollisionType.Mesh or MeshComponent.CollisionType.Hull));
+			if ( fitted )
+			{
+				var builder = Model.Builder;
+				AddMeshCollision( builder, source, submeshes, addTraceMesh: false );
+				AddCollisionParts( collision, shapes, ReadCollision( builder.Create() ), source.WorldTransform, source.Surface, tags );
+			}
+			else if ( source.Collision == MeshComponent.CollisionType.Hull )
 			{
 				// The live model omits editor-hidden faces. Use the same complete snapshot as
 				// rendering. Material surfaces belong to triangles, not the mesh's single hull.
@@ -242,7 +253,7 @@ partial class SceneCompiler
 				shapes.Add( new HullShape( [.. points], source.Surface, tags ) );
 			}
 
-			var collides = source.Collision == MeshComponent.CollisionType.Mesh;
+			var collides = !fitted && source.Collision == MeshComponent.CollisionType.Mesh;
 
 			foreach ( var submesh in submeshes )
 			{
@@ -746,6 +757,7 @@ partial class SceneCompiler
 					Texcoord1 = v.Texcoord1,
 					Color = v.Color,
 					Blend = v.Blend,
+					SecondaryBlend = v.SecondaryBlend,
 					Paint = v.Paint,
 				} ) );
 				break;
@@ -898,6 +910,7 @@ partial class SceneCompiler
 		[VertexLayout.Color] public Color32 Color;
 		[VertexLayout.TexCoord( 4 )] public Color32 Blend;
 		[VertexLayout.TexCoord( 5 )] public Color32 Paint;
+		[VertexLayout.TexCoord( 6 )] public Color32 SecondaryBlend;
 	}
 
 	/// <summary>

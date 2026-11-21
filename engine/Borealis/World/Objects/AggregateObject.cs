@@ -61,7 +61,7 @@ internal sealed class AggregateObject : RenderObject
 		ArgumentNullException.ThrowIfNull( mesh );
 		Mesh = mesh;
 
-		// Fragments are already in world space; the object's bounds are all of theirs (AggregateGlue::CreateAggregateSceneObject)
+		// Fragments are already in world space; the object's bounds are all of theirs
 		Transform = Transform.Zero;
 		SetFragments( fragments );
 	}

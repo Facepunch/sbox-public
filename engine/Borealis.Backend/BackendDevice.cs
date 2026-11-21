@@ -90,7 +90,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 		if ( loaded is not BackendMaterial material ) return false;
 		var file = Content.TryRead( path ) is { } data ? MaterialFile.Read( data ) : null;
-		material.Reload( file is null ? null : Shaders.Load( file.Shader ), file, file is null ? null : Textures( file ) );
+		ShaderFile shader = null;
+		if ( file is not null ) file = WithShader( path, file, out shader );
+		material.Reload( shader, file, file is null ? null : Textures( file ) );
 		return true;
 	}
 
@@ -629,6 +631,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
+					if ( HasSwitch( "-no-cooked-meshlets" ) ) Borealis.Backend.Meshlets.MeshletStore.UseCooked = false;
 					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders, CornerData = IdsNormals } : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
@@ -729,7 +732,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			if ( lodStore is not { } s ) return GeneratedLods ? "generated LODs: none (meshopt not found or no GPU-driven geometry)" : "generated LODs: off";
 			var (room, used) = gpuDrivenTables.LevelBytes;
-			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB ({room / 1048576.0:0.0} MB still kept for levels), tables {s.Bytes / 1048576.0:0.0} MB; {gpuDrivenTables.DescribeIndexPages()}; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
+			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache, {s.CookedHits:N0} cooked into their models, {s.CookedMisses:N0} in them made anyway); level indices {used / 1048576.0:0.0} MB ({room / 1048576.0:0.0} MB still kept for levels), tables {s.Bytes / 1048576.0:0.0} MB; {gpuDrivenTables.DescribeIndexPages()}; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
 		}
 	}
 
@@ -1624,7 +1627,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal GpuMaterial LoadMaterial( string name, MaterialFile file )
 	{
-		BackendMaterial Classic() => Track( new BackendMaterial( name, Shaders.Load( file.Shader ), file, Textures( file ) ) );
+		BackendMaterial Classic()
+		{
+			var drawn = WithShader( name, file, out var shader );
+			return Track( new BackendMaterial( name, shader, drawn, Textures( drawn ) ) );
+		}
+
 #pragma warning disable CA2000 // Returned: the caller owns it
 		if ( Surfaces.HasConversions && Converted( name, file, Classic ) is { } converted ) return converted;
 #pragma warning restore CA2000
@@ -1648,6 +1656,68 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuMaterial CreateMaterial( string name, ShaderFile shader ) => Track( new BackendMaterial( name, shader, null, null ) );
 
 	/// <summary>
+	/// A material made in code from a shader as native makes one (<c>CMaterialSystem2::CreateRawMaterial</c>, what
+	/// <c>Material.Create</c> calls): every texture its shader reads from the material is the variable's default texture, or
+	/// the error texture (<see cref="ErrorTexture"/>) where it names none, until code sets one. Values and features are set
+	/// on it later (<see cref="SetOnMaterial"/>, <see cref="SetFeaturesOnMaterial"/>).
+	/// </summary>
+	public GpuMaterial CreateRawMaterial( string name, string shaderPath )
+	{
+		var shader = Shaders.Load( shaderPath );
+		return Track( new BackendMaterial( name, shader, null, RawMaterialTextures( shader ) ) );
+	}
+
+	Dictionary<string, BackendTexture> RawMaterialTextures( ShaderFile shader )
+	{
+		var textures = new Dictionary<string, BackendTexture>( StringComparer.OrdinalIgnoreCase );
+		if ( shader is null ) return textures;
+
+		// Every program's but the features', as native fills a raw material's parameters
+		for ( var type = ShaderProgramType.Vertex; (int)type < shader.Programs.Length; type++ )
+		{
+			foreach ( var variable in shader[type]?.Variables ?? [] )
+			{
+				if ( variable is not { Source: VariableSource.Material, Register: RegisterType.Texture, Type: VariableType.Texture2D } || textures.ContainsKey( variable.Name ) ) continue;
+				var texture = string.IsNullOrEmpty( variable.DefaultTexture ) ? null : LoadTexture( variable.DefaultTexture ) as BackendTexture;
+				textures[variable.Name] = texture ?? ErrorTexture;
+			}
+		}
+
+		return textures;
+	}
+
+	/// <summary>
+	/// What native binds for a texture nothing set (<c>CTextureManagerBase</c>'s error texture): 32 by 32, magenta and black
+	/// squares of 4 texels. Made on first use.
+	/// </summary>
+	internal BackendTexture ErrorTexture
+	{
+		get
+		{
+			if ( errorTexture is { } made ) return made;
+			lock ( sharedMaterials )
+			{
+				if ( errorTexture is not null ) return errorTexture;
+				var pixels = new byte[32 * 32 * 4];
+				for ( int y = 0; y < 32; y++ )
+				{
+					for ( int x = 0; x < 32; x++ )
+					{
+						var at = (y * 32 + x) * 4;
+						var magenta = (byte)(((x ^ y) & 4) != 0 ? 255 : 0);
+						pixels[at] = pixels[at + 2] = magenta;
+						pixels[at + 3] = 255;
+					}
+				}
+
+				return errorTexture = (BackendTexture)CreateTexture( new TextureDesc { Width = 32, Height = 32, Depth = 1, Format = TextureFormat.RGBA8888, Samples = 1, Mips = 1, Data = pixels }, "Error" );
+			}
+		}
+	}
+
+	BackendTexture errorTexture;
+
+	/// <summary>
 	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>:
 	/// <c>materials/default/white.vmat</c> (complex.shader, white, flat normal) tinted with <paramref name="albedo"/>.
 	/// </summary>
@@ -1660,8 +1730,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
-	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. It draws nothing if
-	/// it, or its shader, isn't built.
+	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. One that isn't built, or
+	/// whose shader isn't, draws as the error material.
 	/// </summary>
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
 		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
@@ -1686,6 +1756,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void SetOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
 	{
 		if ( material is BackendMaterial own ) SetOn( own, values, textures );
+	}
+
+	/// <summary>
+	/// Set feature values (<c>F_*</c>) in code on a material made by <see cref="CreateMaterial(string, string)"/> or
+	/// <see cref="LoadMaterial(string, IReadOnlyDictionary{string, float[]}, IReadOnlyDictionary{string, GpuTexture}, string)"/>,
+	/// over its file's, as <c>Material.SetFeature</c> does: every feature code set, so one no longer set goes back to the
+	/// file's. What draws with it draws the variants of those features from its next draw. Call between frames.
+	/// </summary>
+	public void SetFeaturesOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, int> features )
+	{
+		if ( material is BackendMaterial own ) own.SetFeatures( features );
 	}
 
 	static void SetOn( BackendMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
@@ -1714,7 +1795,23 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		var file = readMaterials.TryRemove( path, out var read ) ? read : Content.TryRead( path ) is { } data ? ReadMaterial( data ) : MissingMaterial( path );
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
-		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
+		file = WithShader( path, file, out var shader );
+		return Track( new BackendMaterial( name ?? path, shader, file, Textures( file ), values ) );
+	}
+
+	/// <summary>
+	/// <paramref name="file"/> with its shader, or the error material's file and shader when its shader won't load (no
+	/// compiled file, as S&amp;Business's bucket water names a shader its package doesn't ship, or one that can't be read here),
+	/// as native's material system draws such a material with the error shader. One that names no shader, or the error
+	/// material itself, stays as it is.
+	/// </summary>
+	MaterialFile WithShader( string path, MaterialFile file, out ShaderFile shader )
+	{
+		shader = Shaders.Load( file.Shader );
+		if ( shader is not null || string.IsNullOrEmpty( file.Shader ) || MissingMaterial( path ) is not { } error ) return file;
+		if ( Shaders.Load( error.Shader ) is not { } errorShader ) return file;
+		shader = errorShader;
+		return error;
 	}
 
 	/// <summary>What native draws with a material that isn't there.</summary>
@@ -2275,7 +2372,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>What meshlets have been built, for reports.</summary>
 	public string MeshletReport => meshletStore is not { } s ? (Meshlets ? "meshlets: none (meshopt not found or no GPU-driven geometry)" : "meshlets: off")
-		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
+		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache), {s.CookedHits:N0} cooked into their models and taken in {s.CookedTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms, {s.CookedMisses:N0} in them built anyway; pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
 
 	/// <summary>
 	/// Debug only (<c>borealislab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this
