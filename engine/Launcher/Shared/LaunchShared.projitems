@@ -13,4 +13,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Startup.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LauncherEnvironment.cs" />
   </ItemGroup>
+  <ItemGroup Condition="'$(ApplicationIcon)' != ''">
+    <!-- SdlWindow sets the macOS Dock icon from this; macOS has no exe icon -->
+    <EmbeddedResource Include="$(ApplicationIcon)" LogicalName="app.ico" />
+  </ItemGroup>
 </Project>
