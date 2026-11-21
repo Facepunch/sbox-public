@@ -12,8 +12,8 @@ internal static class ColorPickerStyles
 		.color-handle
 		{
 			position: absolute;
-			width: 14px;
-			height: 14px;
+			width: 12px;
+			height: 12px;
 			border-radius: 50%;
 			border: 2px solid #fff;
 			box-shadow: 0 0 0 1px #0008;

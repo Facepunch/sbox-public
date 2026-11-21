@@ -15,6 +15,10 @@ $accent-hover: #4c86f0;
 $accent-active: #2a62cf;
 $danger: #e2314a;
 $positive: #3dbe64;
+// A field - 4% white over $ground, as a solid colour. Popups opened from a field use it so the
+// list reads as the field unfolding; a popup is its own window, so it can't be translucent.
+$field: #161719;
+$field-line: #1d1e20;
 
 $l-ground: #f4f5f7;
 $l-surface: #ffffff;

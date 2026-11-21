@@ -51,8 +51,8 @@ public class ColorPickerTests
 		Property = Game.TypeLibrary.GetSerializedObject( target ).GetProperty( nameof( Target.Colour ) )
 	};
 
-	static Panel Palette( ColorPickerControl picker, string title ) => picker.Children
-		.First( section => section.Children.OfType<Label>().Any( label => label.Text == title ) )
+	static Panel Palette( ColorPickerControl picker, string name ) => picker.Children
+		.First( section => section.HasClass( "section" ) && section.HasClass( name.ToLowerInvariant() ) )
 		.Children.First( panel => panel.HasClass( "swatches" ) );
 
 	static Panel Numbers( ColorPickerControl picker ) => picker.Children.First( p => p.HasClass( "numbers" ) );

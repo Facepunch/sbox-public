@@ -54,23 +54,24 @@ public partial class ColorPickerControl : BaseControl
 		{
 			flex-direction: column;
 			flex-shrink: 0;
-			gap: 10px;
+			gap: 8px;
 			width: 300px;
-			padding: 12px;
+			padding: 8px;
 			pointer-events: all;
 
 			> .header
 			{
 				flex-direction: row;
 				align-items: center;
-				gap: 8px;
+				gap: 6px;
 
 				> .compare
 				{
 					flex-direction: row;
 					flex-grow: 1;
 					height: 26px;
-					border-radius: 5px;
+					border-radius: 4px;
+					border: 1px solid #ffffff12;
 					overflow: hidden;
 
 					> .colorswatch
@@ -85,38 +86,33 @@ public partial class ColorPickerControl : BaseControl
 					}
 				}
 
+				// A segmented control like any other button group - the theme draws it
 				> .tabs
 				{
 					flex-shrink: 0;
-					background-color: #0c0d0f;
-					border: 0px;
-					border-radius: 5px;
-					padding: 2px;
-					gap: 2px;
 
 					> .button
 					{
-						padding: 2px 8px;
+						padding: 0px 8px;
 						font-size: 11px;
-						border-radius: 4px;
-						background-color: transparent;
-						opacity: 0.6;
-
-						&.active
-						{
-							opacity: 1;
-							background-color: #ffffff18;
-						}
 					}
 				}
 
 				> .layout-button
 				{
 					flex-shrink: 0;
-					width: 26px;
+					width: 22px;
 					height: 26px;
 					padding: 0;
 					justify-content: center;
+					align-items: center;
+					opacity: 0.6;
+					cursor: pointer;
+
+					&:hover
+					{
+						opacity: 1;
+					}
 				}
 			}
 
@@ -124,7 +120,7 @@ public partial class ColorPickerControl : BaseControl
 			{
 				flex-direction: row;
 				align-items: stretch;
-				gap: 8px;
+				gap: 6px;
 			}
 
 			> .slider-rows
@@ -141,9 +137,17 @@ public partial class ColorPickerControl : BaseControl
 
 				> .label
 				{
-					width: 44px;
+					width: 40px;
 					flex-shrink: 0;
 					font-size: 11px;
+					opacity: 0.6;
+				}
+
+				// Brightness is marked with an icon rather than a word, as wide as the icon
+				> iconpanel.label
+				{
+					width: auto;
+					font-size: 15px;
 				}
 
 				> .entry
@@ -171,37 +175,29 @@ public partial class ColorPickerControl : BaseControl
 			> .section
 			{
 				flex-direction: column;
-				gap: 5px;
-
-				> .title
-				{
-					font-size: 10px;
-					letter-spacing: 1px;
-					text-transform: uppercase;
-					opacity: 0.7;
-				}
+				gap: 4px;
 
 				> .swatches
 				{
 					flex-direction: row;
 					flex-wrap: wrap;
 					gap: 4px;
-					min-height: 18px;
 
 					> .colorswatch
 					{
-						width: 20px;
+						width: 18px;
 						height: 18px;
+						border-radius: 3px;
+						border: 1px solid #ffffff14;
 						cursor: pointer;
-						border: 1px solid #0006;
 					}
 
 					> .add
 					{
-						width: 20px;
+						width: 18px;
 						height: 18px;
-						border: 1px dashed #ffffff30;
 						border-radius: 3px;
+						background-color: #ffffff0a;
 						font-size: 14px;
 						align-items: center;
 						justify-content: center;
@@ -214,11 +210,6 @@ public partial class ColorPickerControl : BaseControl
 						}
 					}
 				}
-			}
-
-			> .text-row > .colortextentry
-			{
-				flex-grow: 1;
 			}
 		}
 		""";
@@ -327,12 +318,14 @@ public partial class ColorPickerControl : BaseControl
 		_oldSwatch = compare.AddChild( new ColorSwatch() );
 		_oldSwatch.AddClass( "old" );
 		_oldSwatch.AddEventListener( "onclick", () => PickColor( _original ) );
+		_oldSwatch.Tooltip = "The colour before - click to go back to it";
 		_newSwatch = compare.AddChild( new ColorSwatch() );
 
 		BuildTabs( header );
 
 		Button layoutButton = null;
 		layoutButton = header.AddChild( new Button( "", "more_vert", "layout-button", () => _layoutMenu.Open( layoutButton, Popup.PositionMode.BelowRight, 4 ) ) );
+		layoutButton.Tooltip = "Picker layout";
 
 		_layoutMenu = new Menu();
 		AddLayoutOption( "Color Square", PickerLayout.ColorSquare );
@@ -408,7 +401,7 @@ public partial class ColorPickerControl : BaseControl
 		// works in doublings so each tick is a stop, and the number beside it shows the multiplier
 		//
 		_brightnessRow = Add.Panel( "slider-row" );
-		_brightnessRow.Add.Label( "Bright", "label" );
+		_brightnessRow.Add.Icon( "brightness_6", "label" ).Tooltip = "Intensity";
 		_brightness = _brightnessRow.AddChild( new SliderControl( 0, MaxStops, 0.01f ) { TickStep = 1, ShowValueTooltip = false } );
 		_brightness.OnValueChanged = stops =>
 		{
@@ -427,7 +420,6 @@ public partial class ColorPickerControl : BaseControl
 
 		BuildNumbers();
 		BuildPalette();
-		BuildTextRow();
 
 		if ( Enum.TryParse<PickerLayout>( Game.Cookies?.GetString( LayoutCookie ), out var saved ) )
 			_layout = saved;
@@ -606,8 +598,8 @@ public partial class ColorPickerControl : BaseControl
 		var pureHue = new ColorHsv( color.Hsv.Hue, 1.0f, 1.0f ).ToColor();
 		var opaque = color.BaseColor.WithAlpha( 1.0f );
 
-		_oldSwatch.Set( _original, HasAlpha, IsHdr );
-		_newSwatch.Set( color, HasAlpha, IsHdr );
+		_oldSwatch.Set( _original, HasAlpha );
+		_newSwatch.Set( color, HasAlpha );
 
 		_square.Set( color );
 		_ring.Set( color );

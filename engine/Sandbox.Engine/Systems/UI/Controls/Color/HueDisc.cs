@@ -18,6 +18,9 @@ internal class HueDisc : ColorDragPanel
 			flex-shrink: 0;
 			cursor: crosshair;
 			pointer-events: all;
+			// The texture is drawn to the box, once - left alone it tiles at its own pixel size
+			background-size: 100% 100%;
+			background-repeat: no-repeat;
 		}
 		""";
 

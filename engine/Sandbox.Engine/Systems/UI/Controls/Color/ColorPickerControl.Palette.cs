@@ -38,8 +38,8 @@ public partial class ColorPickerControl
 
 	void BuildPalette()
 	{
-		_recentRow = Section( "Recent" );
-		_savedRow = Section( "Saved" );
+		_recentRow = Section( "recent" );
+		_savedRow = Section( "saved" );
 
 		_swatchMenu = new Menu();
 		_swatchMenu.AddOption( "Replace with current", () => { _saved[_menuSwatch] = _color; SavePalette(); } );
@@ -51,10 +51,12 @@ public partial class ColorPickerControl
 		RenderSaved();
 	}
 
-	Panel Section( string title )
+	/// <summary>
+	/// A row of swatches. No heading - the swatches say what they are, and recent only shows once there is some.
+	/// </summary>
+	Panel Section( string name )
 	{
-		var section = Add.Panel( "section" );
-		section.Add.Label( title, "title" );
+		var section = Add.Panel( $"section {name}" );
 		return section.Add.Panel( "swatches" );
 	}
 
@@ -78,8 +80,11 @@ public partial class ColorPickerControl
 		_recentRow.DeleteChildren( true );
 		foreach ( var color in Recent )
 		{
-			PaletteSwatch( _recentRow, color );
+			PaletteSwatch( _recentRow, color ).Tooltip = $"Recent: {color.ToText()}";
 		}
+
+		// Nothing picked yet - no empty heading
+		Show( _recentRow.Parent, Recent.Count > 0 );
 	}
 
 	void RenderSaved()
@@ -89,6 +94,7 @@ public partial class ColorPickerControl
 		{
 			var index = i;
 			var swatch = PaletteSwatch( _savedRow, _saved[i] );
+			swatch.Tooltip = $"Saved: {_saved[i].ToText()} - right-click to replace or remove";
 			swatch.AddEventListener( "onrightclick", () =>
 			{
 				_menuSwatch = index;
@@ -97,6 +103,7 @@ public partial class ColorPickerControl
 		}
 
 		var add = _savedRow.Add.Icon( "add", "add" );
+		add.Tooltip = "Save the current colour";
 		add.AddEventListener( "onclick", () =>
 		{
 			var text = _color.ToText();
@@ -107,9 +114,8 @@ public partial class ColorPickerControl
 
 	ColorSwatch PaletteSwatch( Panel row, PickerColor color )
 	{
-		var swatch = row.AddChild( new ColorSwatch { Compact = true } );
-		swatch.AddClass( "compact" );
-		swatch.Set( color, HasAlpha, IsHdr );
+		var swatch = row.AddChild( new ColorSwatch() );
+		swatch.Set( color, HasAlpha );
 		swatch.AddEventListener( "onclick", () => PickColor( color ) );
 		return swatch;
 	}
@@ -117,7 +123,7 @@ public partial class ColorPickerControl
 	void SyncPaletteUsage()
 	{
 		foreach ( var swatch in _recentRow.Children.Concat( _savedRow.Children ).OfType<ColorSwatch>() )
-			swatch.Set( swatch.Color, HasAlpha, IsHdr );
+			swatch.Set( swatch.Color, HasAlpha );
 	}
 
 	void SavePalette()

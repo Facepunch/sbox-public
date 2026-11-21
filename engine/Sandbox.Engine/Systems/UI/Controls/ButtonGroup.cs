@@ -114,6 +114,7 @@ public class ButtonGroup : Panel
 		{
 			var btn = AddButton( option.Title, () => Value = option.Value );
 			btn.Value = option.Value?.ToString();
+			btn.Icon = option.Icon;
 		}
 
 		SetSelectedButton();

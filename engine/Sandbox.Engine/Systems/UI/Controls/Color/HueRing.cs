@@ -26,6 +26,9 @@ internal class HueRing : ColorDragPanel
 				right: 0;
 				bottom: 0;
 				pointer-events: none;
+				// The texture is drawn to the box, once - left alone it tiles at its own pixel size
+				background-size: 100% 100%;
+				background-repeat: no-repeat;
 			}
 
 			> .colorsquare

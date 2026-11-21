@@ -13,10 +13,10 @@ internal class ColorStrip : ColorDragPanel
 		.colorstrip
 		{
 			position: relative;
-			height: 14px;
+			height: 12px;
 			flex-grow: 1;
 			flex-shrink: 0;
-			border-radius: 7px;
+			border-radius: 3px;
 			cursor: pointer;
 			pointer-events: all;
 
@@ -27,15 +27,29 @@ internal class ColorStrip : ColorDragPanel
 				top: 0;
 				right: 0;
 				bottom: 0;
-				border-radius: 7px;
+				border-radius: 3px;
+			}
+
+			// A strip's handle is a bar across it rather than a dot, so it reads as a position on a line
+			> .color-handle
+			{
+				width: 6px;
+				height: 16px;
+				border-radius: 2px;
 			}
 
 			&.vertical
 			{
-				width: 14px;
+				width: 12px;
 				height: auto;
 				flex-grow: 0;
 				align-self: stretch;
+
+				> .color-handle
+				{
+					width: 16px;
+					height: 6px;
+				}
 			}
 		}
 		""";

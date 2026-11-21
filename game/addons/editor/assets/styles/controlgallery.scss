@@ -59,7 +59,7 @@
 .gallery-page .form .textentry,
 .gallery-page ControlSheet .textentry { width: auto; flex-grow: 1; }
 .gallery-page .folderselector { width: 460px; }
-.gallery-page .slidercontrol { width: 340px; flex-grow: 0; }
+.gallery-page .row > .slidercontrol { width: 340px; flex-grow: 0; }
 
 .gallery-page .demo-split { width: 420px; height: 160px; flex-grow: 0; flex-shrink: 0; border: 1px solid $line; border-radius: 8px; overflow: hidden; background-color: $surface; }
 .gallery-page .demo-split label { margin: 10px; color: $text-muted; }
