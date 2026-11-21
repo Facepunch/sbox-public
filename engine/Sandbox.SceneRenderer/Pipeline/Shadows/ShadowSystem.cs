@@ -199,7 +199,10 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		if ( !passPool.TryGetValue( (desc.Target, desc.Slice), out var pass ) )
 			passPool[(desc.Target, desc.Slice)] = pass = new ViewPass { View = new RenderView() };
 
-		passes.Add( pass );
+		// A view nothing visible samples still needs its matrix, but no pass to cull and record
+		if ( !desc.MatrixOnly )
+			passes.Add( pass );
+
 		pass.Reset( featureCount );
 		pass.IsShadow = true;
 		pass.Root = main.View;

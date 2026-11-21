@@ -161,6 +161,13 @@ internal struct ShadowViewDesc
 	/// dynamic casters are rendered on top.
 	/// </summary>
 	public ShadowMap CachedStatic;
+
+	/// <summary>
+	/// Work the view's matrix out but don't render it: nothing it could cast reaches the camera, so no visible pixel
+	/// ever samples this part of the map (<see cref="ShadowMapper.ShadowViewReachesCamera"/>). The matrix is still
+	/// needed - the lighting shader looks the map up with it whatever is in there.
+	/// </summary>
+	public bool MatrixOnly;
 }
 
 /// <summary>

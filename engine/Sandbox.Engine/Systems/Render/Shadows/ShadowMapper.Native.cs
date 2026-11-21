@@ -50,6 +50,7 @@ internal partial class ShadowMapper
 
 		SceneView = view;
 		nativeViewInfoValid = true;
+		viewHullValid = false;
 
 		var mainViewport = view.GetMainViewport();
 		var frustum = view.GetFrustum();
@@ -158,6 +159,10 @@ internal partial class ShadowMapper
 				frustum.InitOrthoCamera( view.Position, view.Rotation.Angles(), view.ZNear, view.ZFar, view.Width, view.Height );
 			else
 				frustum.BuildFrustumFromVectors( view.Position, view.ZNear, view.ZFar, view.FieldOfView, 1.0f, view.Rotation.Forward, view.Rotation.Left, view.Rotation.Up );
+
+			// A view nothing visible samples still needs its matrix, but no scenesystem view
+			if ( view.MatrixOnly )
+				return frustum.GetReverseZViewProjTranspose()._numerics;
 
 			CSceneSystem.AddShadowView( view.Name,
 				mapper.SceneView,
