@@ -251,6 +251,45 @@ public class MaterialServiceTests : GpuTest
 		Allocations.AssertSettles( "a frame's sweep", () => cache.NextEpoch(), beforePass: Device.BeginFrame );
 	}
 
+	/// <summary>
+	/// A sweep that evicts allocates nothing either: it listed what it evicted in a new list each time, so a game whose
+	/// material values change (a sign's text, a flashing light) made garbage every eighth frame.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	public void EvictingSweepsAllocateNothing()
+	{
+		using var cache = new MaterialObjectCache( Device, defaults );
+		var data = new byte[256];
+		var value = 0;
+
+		// A frame with constants nobody asks for again, so every sweep has some past the eviction age
+		void Frame()
+		{
+			Device.BeginFrame();
+			BitConverter.TryWriteBytes( data, value++ );
+			cache.KeepPassConstants( data, data.Length );
+		}
+
+		for ( int frame = 0; frame < MaterialObjectCache.EvictAfterFrames + 16; frame++ )
+		{
+			Frame();
+			cache.NextEpoch();
+		}
+
+		// Each pass is the first epoch of a sweeping frame (every eighth), which evicts
+		Allocations.AssertSettles( "a sweep that evicts", () => cache.NextEpoch(), beforePass: () =>
+		{
+			Frame();
+			while ( cache.Frame % 8 != 0 )
+			{
+				cache.NextEpoch();
+				Frame();
+			}
+		} );
+		Assert.IsTrue( cache.ConstantBytes <= (MaterialObjectCache.EvictAfterFrames + 8 + 6) * 256L, "the sweeps evicted" );
+	}
+
 	/// <summary>ui_filter's attributes for drawing <paramref name="texture"/> unfiltered at (x, y) with a blend mode.</summary>
 	static ShaderAttributes Composite( TextureHandle texture, float x, float y, int blend )
 	{

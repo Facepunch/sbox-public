@@ -3327,23 +3327,29 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public void BeginFrame()
 	{
-		Gpu.BeginFrame();
-		FreeRetiredVisibility();
-		if ( GpuDrivenFrame % 60 == 0 ) FreeIdleVisibility();
-		FreeUnheldModels();
-		gpuDrivenTables?.BeginFrame();
-		if ( meshletStore is { } meshlets ) meshlets.Loading = Loading;
-		if ( lodStore is { } lods ) lods.Loading = Loading;
-		meshletStore?.BeginFrame();
-		lodStore?.BeginFrame();
-		GpuDrivenFrame++;
-		loadFrame++;
-		TimeFrame();
-		Poll();
+		using ( Zones.DeviceFrame.Start() )
+			Gpu.BeginFrame();
+
+		using ( Zones.FrameServices.Start() )
+		{
+			FreeRetiredVisibility();
+			if ( GpuDrivenFrame % 60 == 0 ) FreeIdleVisibility();
+			FreeUnheldModels();
+			gpuDrivenTables?.BeginFrame();
+			if ( meshletStore is { } meshlets ) meshlets.Loading = Loading;
+			if ( lodStore is { } lods ) lods.Loading = Loading;
+			meshletStore?.BeginFrame();
+			lodStore?.BeginFrame();
+			GpuDrivenFrame++;
+			loadFrame++;
+			TimeFrame();
+			Poll();
+		}
 
 		// Streamed textures' new images, written now, ahead of the frame's work
 		if ( streamer is { } textures )
 		{
+			using var zone = Zones.TextureStreaming.Start();
 			using ( Gpu.DeferUploads() )
 				textures.Update();
 

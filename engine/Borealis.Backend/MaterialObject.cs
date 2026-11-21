@@ -757,31 +757,26 @@ internal sealed class MaterialObject
 		var evicted = 0;
 		lock ( sets )
 		{
-			List<(int, ulong)> old = null;
+			// Removing while enumerating is allowed for a dictionary, so nothing is listed first
 			foreach ( var (key, entry) in sets )
 			{
 				if ( entry.LastUsed >= before ) continue;
 				entry.Dead = true;
 				retireSet( entry );
-				(old ??= new()).Add( key );
+				sets.Remove( key );
+				evicted++;
 			}
-
-			if ( old is not null ) foreach ( var key in old ) sets.Remove( key );
-			evicted += old?.Count ?? 0;
 		}
 
 		lock ( constantVariants )
 		{
-			List<ulong> old = null;
 			foreach ( var (key, variant) in constantVariants )
 			{
 				if ( variant.LastUsed >= before ) continue;
 				variant.Dead = true;
 				retireConstants( variant );
-				(old ??= new()).Add( key );
+				constantVariants.Remove( key );
 			}
-
-			if ( old is not null ) foreach ( var key in old ) constantVariants.Remove( key );
 		}
 
 		return evicted;
@@ -984,15 +979,12 @@ internal sealed class MaterialObjectCache : IDisposable
 
 			lock ( keptConstants )
 			{
-				List<(ulong, int)> old = null;
 				foreach ( var (key, entry) in keptConstants )
 				{
 					if ( entry.LastUsed >= before ) continue;
 					retired.Add( (frame, null, null, entry.Offset, key.Size) );
-					(old ??= new()).Add( key );
+					keptConstants.Remove( key );
 				}
-
-				if ( old is not null ) foreach ( var key in old ) keptConstants.Remove( key );
 			}
 		}
 	}
