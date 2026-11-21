@@ -623,6 +623,9 @@ public static class ContentBuilder
 				var checkedReads = result.Inputs.Where( x => x.Game ).Select( x => Path.GetFullPath( x.Path ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 				if ( reads.Any( x => !x.OrderOnly && !checkedReads.Contains( x.File ) ) ) continue;
 
+				// A read the output checked is one of its contents, even where its description only orders it
+				reads = reads.Select( x => x.OrderOnly && checkedReads.Contains( x.File ) ? x with { OrderOnly = false } : x ).ToList();
+
 				// Whatever else the output says it read (more than its description lists) is a read too, built first
 				reads.AddRange( checkedReads.Where( x => !reads.Any( r => string.Equals( r.File, x, StringComparison.OrdinalIgnoreCase ) ) && !outputs.Contains( AdoptedKey( root, x ), StringComparer.OrdinalIgnoreCase ) ).Select( x => (ProducerOfOutput( x ), x, false) ) );
 				foreach ( var producer in reads.Select( x => x.Producer ).Where( x => x is not null && x != node ) ) node.Prerequisites.Add( producer );
