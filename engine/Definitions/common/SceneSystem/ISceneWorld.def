@@ -22,8 +22,6 @@ native class ISceneWorld as NativeEngine.ISceneWorld
 
 	bool MeshTraceAll(MeshTraceInput input, CUtlVectorMeshTraceOutput results );
 
-	IPVS GetPVS();
-	void SetPVS( IPVS pPVS );
 
 	void Add3DSkyboxWorld( ISceneWorld world );
 	void Remove3DSkyboxWorld( ISceneWorld world );

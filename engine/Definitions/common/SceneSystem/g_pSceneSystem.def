@@ -166,10 +166,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     void RemoveVolumetricFogVolume( ISceneWorld pWorld, uint nId );
 
 
-	// Ray Tracing
-	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
-	void DestroyRayTraceWorld( IRayTraceSceneWorld pRayTraceSceneWorld );
-
 	inline void SetNextRenderTime( float flNextTime )
 	{
 		if ( g_pSceneSystem )

@@ -32,8 +32,9 @@ public class SceneSkyBox : SceneObject
 		public Vector3 LightDirection;
 	}
 
-	// The settings, once managed code owns them: a sky it made, or one native code made that it has changed since. The native
-	// twin gets them only while something reads it (SceneObject.WritesNative)
+	// The settings, once managed code owns them: a sky it made, or one native code made (a tool's: Hammer's sky helper, a tool
+	// scene's sky) that it has changed since. Only a sky native code made is a native sky object; the native twin of one
+	// managed code made is a plain object, and its settings live here only
 	bool managed;
 	Material material;
 	Vector3 skyTint;
@@ -46,20 +47,27 @@ public class SceneSkyBox : SceneObject
 		Assert.NotNull( skyMaterial );
 		Assert.IsValid( world );
 
+		managed = true;
+		material = skyMaterial;
+		skyTint = Vector3.One;
+
+		// Native's defaults (CSceneSkyBoxObject)
+		fogParams = new FogParamInfo { FogType = FogType.Distance, FogMinStart = -25, FogMinEnd = -35, FogMaxStart = 25, FogMaxEnd = 35 };
+
 		using ( var h = IHandle.MakeNextHandle( this ) )
 		{
-			CSceneSystem.CreateSkyBox( skyMaterial.native, world );
+			CManagedSceneObject.Create( world );
 		}
 
-		TakeOver();
-		material = skyMaterial;
+		ChangeFlags( Rendering.SceneObjectFlags.None, ~InternalFlags );
 	}
 
 	internal override void OnNativeInit( CSceneObject ptr )
 	{
 		base.OnNativeInit( ptr );
 
-		skyboxNative = (CSceneSkyBoxObject)ptr;
+		// A sky managed code made has a plain twin (managed is set before it's made)
+		skyboxNative = managed ? default : (CSceneSkyBoxObject)ptr;
 
 		lock ( World.Skies )
 		{

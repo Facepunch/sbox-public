@@ -5,15 +5,10 @@ native static class RenderTools as NativeEngine.RenderTools
 {
 
 	bool PackSceneEnvMap( CSceneObject sceneObject, void* pOut );
-	ulong GetSceneObjectLightmapKey( CSceneObject sceneObject );
-	void GetSceneWorldWind( ISceneWorld world, CastTo[Vector4D*] void* pStrengthFreq, CastTo[Vector4D*] void* pDir );
-	int GetLightProbeVolume( CSceneObject sceneObject, CastTo[Vector*] void* pBoxMins, CastTo[Vector*] void* pBoxMaxs, CastTo[int*] void* pRenderPriority, CastTo[uint32*] void* pLightGroups, int nMaxLightGroups );
+	void GetWorldWind( CastTo[Vector4D*] void* pStrengthFreq, CastTo[Vector4D*] void* pDir );
 	IMaterial GetSceneObjectDraw( CSceneObject sceneObject, int nIndex, CastTo[int*] void* pMeshIndex, CastTo[int*] void* pDrawCall, CastTo[int*] void* pFlags );
 	float GetTextureLodScale( bool bFallback );
-	IModel GetAggregateModel( CSceneObject sceneObject, CastTo[bool*] void* pLightmapped );
 	IModel CreateBufferObjectModel( CSceneObject sceneObject );
-	int GetAggregateFragments( CSceneObject sceneObject, void* pOut, int nMaxFragments );
-	int GetLightProbeVolumeHandshake( CSceneObject sceneObject );
 
 
 	// The resource a texture was loaded from, or empty for one made at run time

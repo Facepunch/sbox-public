@@ -35,6 +35,7 @@ internal class SceneLightProbe : SceneObject
 		probeTexture = texture;
 		this.indicesTexture = indicesTexture;
 		this.scalarsTexture = scalarsTexture;
+		made = (bounds.Mins, bounds.Maxs, handshake, renderPriority);
 
 		lightProbeVolume.m_vBoxMins = bounds.Mins;
 		lightProbeVolume.m_vBoxMaxs = bounds.Maxs;
@@ -62,6 +63,9 @@ internal class SceneLightProbe : SceneObject
 
 	readonly Texture probeTexture, indicesTexture, scalarsTexture;
 
+	// What managed code made it with; null for a volume native made (Hammer's), whose settings native keeps
+	readonly (Vector3 Mins, Vector3 Maxs, int Handshake, int Priority)? made;
+
 	/// <summary>
 	/// The volume's probe texture and its direct light indices and scalars, as it was made with them, or native's for a volume
 	/// native made (the map a native tool loads for its preview).
@@ -71,7 +75,26 @@ internal class SceneLightProbe : SceneObject
 	internal Texture ScalarsTexture => scalarsTexture ?? (lightProbeVolume.IsValid ? Texture.FromNativeResource( lightProbeVolume.m_hLightProbeDirectLightScalarsTexture ) : null);
 
 	/// <summary>The handshake objects the map compiler bound to this volume carry (<c>m_nHandshake</c>).</summary>
-	internal int Handshake => lightProbeVolume.IsValid ? lightProbeVolume.m_nHandshake : 0;
+	internal int Handshake => made?.Handshake ?? (lightProbeVolume.IsValid ? lightProbeVolume.m_nHandshake : 0);
+
+	/// <summary>The box it lights, in its own space.</summary>
+	internal Vector3 BoxMins => made?.Mins ?? (lightProbeVolume.IsValid ? lightProbeVolume.m_vBoxMins : default);
+	internal Vector3 BoxMaxs => made?.Maxs ?? (lightProbeVolume.IsValid ? lightProbeVolume.m_vBoxMaxs : default);
+
+	/// <summary>Of two volumes holding an object, the higher priority lights it.</summary>
+	internal int RenderPriority => made?.Priority ?? (lightProbeVolume.IsValid ? lightProbeVolume.m_nRenderPriority : 0);
+
+	/// <summary>The light groups it lights, by token: none for one managed code made, native's (Hammer's) otherwise.</summary>
+	internal uint[] LightGroups
+	{
+		get
+		{
+			if ( made is not null || !lightProbeVolume.IsValid ) return [];
+			var groups = new uint[lightProbeVolume.GetLightGroupCount()];
+			for ( int i = 0; i < groups.Length; i++ ) groups[i] = lightProbeVolume.GetLightGroup( i );
+			return groups;
+		}
+	}
 
 	internal override void OnNativeInit( CSceneObject ptr )
 	{
