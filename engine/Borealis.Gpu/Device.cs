@@ -531,6 +531,23 @@ public sealed unsafe partial class Device : IDisposable
 		// Progress markers, for how far the GPU got when the device is lost
 		if ( options.ProgressMarkers && deviceExtensions.Contains( "VK_AMD_buffer_marker" ) ) extensions.Add( "VK_AMD_buffer_marker" );
 
+		// Presenting the newest image ready at each vertical blank, dropping older ones (PresentMode.FifoLatestReady)
+		var latestReady = new VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT { sType = VkStructureType.PhysicalDevicePresentModeFifoLatestReadyFeaturesExt };
+		if ( extensions.Contains( "VK_KHR_swapchain" ) && deviceExtensions.Contains( "VK_EXT_present_mode_fifo_latest_ready" ) )
+		{
+			var supportedLatest = new VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT { sType = VkStructureType.PhysicalDevicePresentModeFifoLatestReadyFeaturesExt };
+			var query = new VkPhysicalDeviceFeatures2 { sType = VkStructureType.PhysicalDeviceFeatures2, pNext = &supportedLatest };
+			Instance.vkGetPhysicalDeviceFeatures2( PhysicalDevice, &query );
+			if ( supportedLatest.presentModeFifoLatestReady != 0 )
+			{
+				extensions.Add( "VK_EXT_present_mode_fifo_latest_ready" );
+				latestReady.presentModeFifoLatestReady = 1;
+				latestReady.pNext = e13.pNext;
+				e13.pNext = &latestReady;
+				FifoLatestReady = true;
+			}
+		}
+
 		// Shader statistics, for measuring register use
 		var executables = new VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR { sType = VkStructureType.PhysicalDevicePipelineExecutablePropertiesFeaturesKhr };
 		if ( options.ShaderStatistics && deviceExtensions.Contains( "VK_KHR_pipeline_executable_properties" ) )
@@ -620,6 +637,9 @@ public sealed unsafe partial class Device : IDisposable
 
 	/// <summary>Whether swap chains can be made.</summary>
 	internal bool Presentation { get; private set; }
+
+	/// <summary>Whether swap chains can present with <see cref="PresentMode.FifoLatestReady"/> (VK_EXT_present_mode_fifo_latest_ready).</summary>
+	internal bool FifoLatestReady { get; private set; }
 
 	/// <summary>Whether the device was made with VK_EXT_device_fault.</summary>
 	bool faultReports;
