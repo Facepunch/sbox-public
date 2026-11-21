@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"g_flAmbientOcclusionDirectDiffuse"		"0.475000"
 	"g_flAmbientOcclusionDirectSpecular"		"0.000000"
 	"TextureAmbientOcclusion"		"models/citizen_clothes/jumper/sleeveless_jumper/textures/sleeveless_jumper_ao.png"

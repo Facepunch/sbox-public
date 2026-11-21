@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"g_vTexCoordOffset"		"[0.000 0.000]"
 	"g_vTexCoordScale"		"[1.000 1.000]"
 	"g_vTexCoordScrollSpeed"		"[0.000 0.000]"

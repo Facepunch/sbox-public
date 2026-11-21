@@ -165,6 +165,12 @@ public sealed class SurfaceShaders : IDisposable
 		lock ( programs ) conversions[ShaderKey( shader )] = file;
 	}
 
+	/// <summary>
+	/// Whether <paramref name="shader"/> is a core shader with a surface of its own (standard, complex for it, skin), whether or
+	/// not <see cref="ConvertShaders"/> is on.
+	/// </summary>
+	internal static bool IsCoreSurface( string shader ) => !string.IsNullOrEmpty( shader ) && DefaultSurfaces.ContainsKey( ShaderKey( shader ) );
+
 	/// <summary>The surface standing in for <paramref name="shader"/>, or null.</summary>
 	internal string ConversionFor( string shader )
 	{
@@ -239,13 +245,13 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>
 	/// The shaders drawn as surfaces by default (<see cref="ConvertShaders"/>): by the surface written beside them
 	/// (<c>standard.slang</c>; in the core shaders, else in a content folder's, as the citizen's <c>citizen_eye.shader</c>),
-	/// or, for null, by what <see cref="ShaderConverter"/> makes of the core <c>.shader</c>.
+	/// or, for null, by what <see cref="ShaderConverter"/> makes of the core <c>.shader</c>. complex, simple and generic are
+	/// standard (<see cref="ShaderAliases"/>).
 	/// </summary>
 	static readonly Dictionary<string, string> DefaultSurfaces = new( StringComparer.OrdinalIgnoreCase )
 	{
-		["complex"] = "standard.slang",
+		["standard"] = "standard.slang",
 		["blendable"] = "blendable.slang",
-		["generic"] = "standard.slang",
 		["vertex_color"] = "vertex_color.slang",
 		["static_overlay"] = "static_overlay.slang",
 		["glass"] = "glass.slang",
@@ -253,11 +259,10 @@ public sealed class SurfaceShaders : IDisposable
 		["fur"] = "fur.slang",
 		["skin"] = "skin.slang",
 		["eyeball"] = "eyeball_surface.slang",
-		["citizen_eye"] = "citizen_eye_surface.slang",
-		["simple"] = "standard.slang",
+		["citizen_eye"] = "citizen_eye.slang",
 		["bark"] = null,
-		["terrain_preview"] = null,
-		["water_simple"] = null,
+		["terrain_preview"] = "terrain_preview.slang",
+		["water_simple"] = "water_simple.slang",
 		["terrain"] = "terrain_surface.slang",
 		["water"] = "water_surface.slang",
 		["surface_test_rock"] = null,
@@ -417,7 +422,8 @@ public sealed class SurfaceShaders : IDisposable
 
 	internal void CountGpuDriven() => System.Threading.Interlocked.Increment( ref gpuDrivenBatches );
 
-	static string ShaderKey( string shader ) => Path.GetFileNameWithoutExtension( shader.Replace( '\\', '/' ) ).ToLowerInvariant();
+	/// <summary>A shader's name, as the one it stands for when it's an alias (<see cref="ShaderAliases"/>: complex is standard).</summary>
+	static string ShaderKey( string shader ) => Path.GetFileNameWithoutExtension( ShaderAliases.Resolve( shader.Replace( '\\', '/' ) ) ).ToLowerInvariant();
 
 	readonly Dictionary<string, string> conversions = new( StringComparer.OrdinalIgnoreCase );
 
@@ -1052,6 +1058,30 @@ internal sealed class SurfaceProgram : IDisposable
 		}
 	}
 
+	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, SurfaceRenderState State, PrimitiveTopology Topology, bool Ids, bool OpaqueFade, ToolsPass Tools), PipelineHandle> immediatePipelines = new();
+
+	/// <summary>
+	/// A pipeline for the engine's own drawing (<see cref="ShaderDrawer.DrawSurface"/>: <c>Graphics.Draw</c>, models drawn in
+	/// code, custom objects) of a pass with vertices laid out as <paramref name="layout"/> drawn as <paramref name="topology"/>,
+	/// made at once. Instance ids are stream 1, per instance where the draw has them (<paramref name="ids"/>), else read from
+	/// the start of the default stream as a classic draw's are; the default stream is 2. In a tools pass the colour pass draws
+	/// with the engine's pixel stage, as scene draws do.
+	/// </summary>
+	public PipelineHandle ImmediatePipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, ulong constantsKey, SurfaceRenderState state, PrimitiveTopology topology, bool ids, bool opaqueFade, ToolsPass tools )
+	{
+		if ( color == Format.Unknown ) tools = ToolsPass.None;
+		var key = (pass, layout, color, depth, samples, constantsKey, state, topology, ids, opaqueFade, tools);
+		lock ( pipelines )
+		{
+			if ( immediatePipelines.TryGetValue( key, out var made ) ) return made;
+			var info = Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, false, opaqueFade, false, false ) with { SkipUntilReady = false, Topology = topology };
+			if ( !ids ) info.VertexBuffers[1] = new VertexBufferLayout( 0, VertexStepRate.Instance );
+			if ( tools != ToolsPass.None ) ToolsViewStage.Apply( device.Shaders, ref info, tools, ToolsViews.ShaderColor( Compiled.Name ) );
+			using ( Zones.PipelineCreate.Start() ) made = device.Gpu.CreateGraphicsPipeline( info );
+			return immediatePipelines[key] = made;
+		}
+	}
+
 	readonly Dictionary<(PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, ulong Constants, bool OpaqueFade, SurfaceRenderState State, bool DepthEqual, bool Normals, ToolsPass Tools), PipelineHandle> toolsPipelines = new();
 
 	PipelineHandle ToolsPipeline( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, ulong constantsKey, SurfaceRenderState state, bool opaqueFade, bool depthEqual, bool normals, ToolsPass tools )
@@ -1388,8 +1418,10 @@ internal sealed class SurfaceProgram : IDisposable
 		{
 			foreach ( var pipeline in pipelines.Values ) device.Gpu.Destroy( pipeline );
 			foreach ( var pipeline in toolsPipelines.Values ) device.Gpu.Destroy( pipeline );
+			foreach ( var pipeline in immediatePipelines.Values ) device.Gpu.Destroy( pipeline );
 			pipelines.Clear();
 			toolsPipelines.Clear();
+			immediatePipelines.Clear();
 		}
 	}
 }

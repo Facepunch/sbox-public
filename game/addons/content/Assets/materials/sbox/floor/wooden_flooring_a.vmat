@@ -2,7 +2,7 @@
 
 Layer0
 {
-	shader "shaders/complex.shader"
+	shader "shaders/standard.shader"
 
 	//---- Ambient Occlusion ----
 	g_flAmbientOcclusionDirectDiffuse "0.507"

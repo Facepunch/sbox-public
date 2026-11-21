@@ -1591,15 +1591,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		var tier = Surfaces;
 		if ( tier.ConversionFor( file.Shader ) is not { } surface || tier.Layout( surface ) is not { } compiled ) return null;
-		if ( !ConvertedMaterial.Accepts( compiled, file ) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
+		// A material with features the surface doesn't do stays on its .shader; once the shader is a surface alone (no
+		// .shader_c) there's nothing else to draw it with, so the surface takes it without them
+		var shader = Shaders.Load( file.Shader );
+		if ( (shader is not null && !ConvertedMaterial.Accepts( compiled, file )) || tier.ConvertMaterial?.Invoke( path ) == false ) return null;
 		tier.CountConverted( path );
 		var converted = ConvertedMaterial.Create( compiled, WithFeatureRules( file ), path, MaterialTextureFile );
 
-		// The .shader material, for draws the surface can't make
-		converted.SetFallback( fallback );
+		// The .shader material, for draws the surface can't make; none for a surface alone
+		if ( shader is not null ) converted.SetFallback( fallback );
 
 		// Its scene attributes (overlay, NoZPrepass, ...) are the .shader material's: that material without textures
-		converted.SetAttributes( () => new BackendMaterial( path, Shaders.Load( file.Shader ), file, null ) );
+		converted.SetAttributes( () => new BackendMaterial( path, shader, file, null ) );
 		return converted;
 	}
 
@@ -1642,18 +1645,45 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		return Classic();
 	}
 
-	/// <summary>A material that's a shader with its defaults.</summary>
+	/// <summary>
+	/// A material that's a shader with its defaults: the surface standing in for it, with its defaults, when the shader
+	/// is a surface alone (no compiled <c>.shader_c</c>: <c>shaders/terrain_preview.shader</c>).
+	/// </summary>
 	public override GpuMaterial MaterialFromShader( string shaderPath )
 	{
 		lock ( sharedMaterials )
 		{
 			if ( sharedMaterials.TryGetValue( shaderPath, out var material ) ) return material;
-			return sharedMaterials[shaderPath] = Track( new BackendMaterial( shaderPath, Shaders.Load( shaderPath ), null, null ) );
+			var shader = Shaders.Load( shaderPath );
+#pragma warning disable CA2000 // Kept: the shared materials own it
+			if ( shader is null && Surfaces.HasConversions && Converted( shaderPath, EmptyMaterial( shaderPath ), () => null ) is { } converted ) return sharedMaterials[shaderPath] = converted;
+#pragma warning restore CA2000
+			return sharedMaterials[shaderPath] = Track( new BackendMaterial( shaderPath, shader, null, null ) );
 		}
 	}
 
+	/// <summary>A material file of a shader that sets nothing: the shader's (the surface's) defaults.</summary>
+	static MaterialFile EmptyMaterial( string shader ) => new()
+	{
+		Name = shader,
+		Shader = shader,
+		Ints = new Dictionary<string, int>(),
+		Floats = new Dictionary<string, float>(),
+		Vectors = new Dictionary<string, float[]>(),
+		Textures = new Dictionary<string, string>(),
+		IntAttributes = new Dictionary<string, int>(),
+	};
+
 	/// <inheritdoc/>
-	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => Track( new BackendMaterial( name, Shaders.Load( shaderPath ), null, null ) );
+	public override GpuMaterial CreateMaterial( string name, string shaderPath )
+	{
+		// A shader that's a surface alone (standard, and complex standing for it) has no compiled file: the surface with its defaults
+		var shader = Shaders.Load( shaderPath );
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( shader is null && Surfaces.HasConversions && Converted( name, EmptyMaterial( shaderPath ), () => null ) is { } converted ) return converted;
+#pragma warning restore CA2000
+		return Track( new BackendMaterial( name, shader, null, null ) );
+	}
 
 	/// <summary>A material of <paramref name="shader"/>'s defaults, values set on it later: one made in code from a shader.</summary>
 	public GpuMaterial CreateMaterial( string name, ShaderFile shader ) => Track( new BackendMaterial( name, shader, null, null ) );
@@ -1667,6 +1697,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuMaterial CreateRawMaterial( string name, string shaderPath )
 	{
 		var shader = Shaders.Load( shaderPath );
+
+		// A shader that's a surface alone (standard, complex for it; skin, glass): the surface with its defaults, every texture
+		// the error texture until code sets one, as its .shader's material had (no texture of theirs names a default)
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( shader is null && Surfaces.HasConversions && Converted( name, EmptyMaterial( shaderPath ), () => null ) is { } converted )
+		{
+			converted.FillUnsetTextures( ErrorTexture );
+			return converted;
+		}
+#pragma warning restore CA2000
+
 		return Track( new BackendMaterial( name, shader, null, RawMaterialTextures( shader ) ) );
 	}
 
@@ -1722,22 +1763,48 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>:
-	/// <c>materials/default/white.vmat</c> (complex.shader, white, flat normal) tinted with <paramref name="albedo"/>.
+	/// <c>materials/default/white.vmat</c> (standard, white, flat normal) tinted with <paramref name="albedo"/>, or the
+	/// standard surface with that tint where it isn't built.
 	/// </summary>
 	public GpuMaterial CreateMaterial( string name, Color albedo )
 	{
 		var values = new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase ) { ["g_vColorTint"] = [albedo.r, albedo.g, albedo.b, 0] };
-		return Content.Find( "materials/default/white.vmat" ) is null
-			? Track( new BackendMaterial( name, Shaders.Load( "shaders/complex.shader" ), null, null, values ) )
-			: Material( "materials/default/white.vmat", values, name );
+		if ( Content.Find( "materials/default/white.vmat" ) is not null ) return LoadMaterial( "materials/default/white.vmat", values, name );
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( Surfaces.HasConversions && Converted( name, WithValues( EmptyMaterial( "shaders/standard.shader" ), values ), () => null ) is { } converted ) return converted;
+#pragma warning restore CA2000
+		return Track( new BackendMaterial( name, Shaders.Load( "shaders/standard.shader" ), null, null, values ) );
 	}
 
 	/// <summary>
 	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. One that isn't built, or
-	/// whose shader isn't, draws as the error material.
+	/// whose shader isn't, draws as the error material. A material of a shader that's a surface alone (no compiled file to
+	/// draw it with: standard, skin) is the surface with the values.
 	/// </summary>
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
-		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
+	{
+		var own = values is null ? null : new Dictionary<string, float[]>( values, StringComparer.OrdinalIgnoreCase );
+#pragma warning disable CA2000 // Returned: the caller owns it
+		if ( Surfaces.HasConversions && Content.TryRead( path ) is { } data && ReadMaterial( data ) is { } file && Shaders.Load( file.Shader ) is null
+			&& Converted( name ?? path, WithValues( file, own ), () => null ) is { } converted ) return converted;
+#pragma warning restore CA2000
+		return Material( path, own, name );
+	}
+
+	/// <summary><paramref name="file"/> with <paramref name="values"/> (shader variables by name) over its own.</summary>
+	static MaterialFile WithValues( MaterialFile file, Dictionary<string, float[]> values )
+	{
+		if ( values is not { Count: > 0 } ) return file;
+		var floats = new Dictionary<string, float>( file.Floats, StringComparer.OrdinalIgnoreCase );
+		var vectors = new Dictionary<string, float[]>( file.Vectors, StringComparer.OrdinalIgnoreCase );
+		foreach ( var (variable, value) in values )
+		{
+			if ( floats.ContainsKey( variable ) && value.Length > 0 ) floats[variable] = value[0];
+			else vectors[variable] = value;
+		}
+
+		return new MaterialFile { Name = file.Name, Shader = file.Shader, Ints = file.Ints, Floats = floats, Vectors = vectors, Textures = file.Textures, IntAttributes = file.IntAttributes, ShaderVersion = file.ShaderVersion };
+	}
 
 	/// <summary>
 	/// A compiled material with <paramref name="values"/> and <paramref name="textures"/> (shader variables by name, such as
@@ -1746,8 +1813,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures, string name = null )
 	{
-		var material = Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
-		SetOn( material, null, textures );
+		// A material of a shader that's a surface alone is the surface with them
+		var material = LoadMaterial( path, values, name );
+		SetOnMaterial( material, null, textures );
 		return material;
 	}
 
@@ -1759,6 +1827,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void SetOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
 	{
 		if ( material is BackendMaterial own ) SetOn( own, values, textures );
+		else if ( material is ConvertedMaterial surface )
+		{
+			foreach ( var (variable, value) in values ?? new Dictionary<string, float[]>() ) surface.Set( variable, value );
+			foreach ( var (variable, texture) in textures ?? new Dictionary<string, GpuTexture>() )
+			{
+				if ( texture is not null ) surface.Set( variable, texture );
+			}
+		}
 	}
 
 	/// <summary>
@@ -1770,6 +1846,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void SetFeaturesOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, int> features )
 	{
 		if ( material is BackendMaterial own ) own.SetFeatures( features );
+		else if ( material is ConvertedMaterial surface ) surface.SetFeatures( features );
 	}
 
 	static void SetOn( BackendMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
@@ -1805,13 +1882,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// <paramref name="file"/> with its shader, or the error material's file and shader when its shader won't load (no
 	/// compiled file, as S&amp;Business's bucket water names a shader its package doesn't ship, or one that can't be read here),
-	/// as native's material system draws such a material with the error shader. One that names no shader, or the error
-	/// material itself, stays as it is.
+	/// as native's material system draws such a material with the error shader. One that names no shader, the error
+	/// material itself, or one of a core shader that's a surface alone (standard, skin: here only with surfaces switched off,
+	/// for comparisons) stays as it is.
 	/// </summary>
 	MaterialFile WithShader( string path, MaterialFile file, out ShaderFile shader )
 	{
 		shader = Shaders.Load( file.Shader );
-		if ( shader is not null || string.IsNullOrEmpty( file.Shader ) || MissingMaterial( path ) is not { } error ) return file;
+		if ( shader is not null || string.IsNullOrEmpty( file.Shader ) || SurfaceShaders.IsCoreSurface( file.Shader ) || MissingMaterial( path ) is not { } error ) return file;
 		if ( Shaders.Load( error.Shader ) is not { } errorShader ) return file;
 		shader = errorShader;
 		return error;

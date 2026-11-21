@@ -48,7 +48,8 @@ public class WaterRenderingTests
 			water.WaveSpeed = 0;
 			water.Waves = false;
 			var material = Material.FromShader( "shaders/water.shader" );
-			Assert.AreEqual( "shaders/water.shader", material.Shader.native.GetFilename(), "Water shader was replaced by a fallback." );
+			// water has no .shader (its module is the whole shader): the material keeps the shader's name
+			StringAssert.StartsWith( material.ShaderName.Replace( '\\', '/' ), "shaders/water.shader", "Water shader was replaced by a fallback." );
 
 			var camera = scene.CreateObject().Components.Create<CameraComponent>();
 			camera.CustomSize = new Vector2( width, height );

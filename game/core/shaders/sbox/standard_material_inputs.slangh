@@ -1,0 +1,210 @@
+// The standard shaders' material inputs, as vr_shared_standard_ps_code.fxc declared them: the colour, normal, roughness,
+// self-illumination, tint mask, ambient occlusion, metalness, detail and wrinkle textures made from a .vmat's images, their
+// parameters and the attributes the material keeps, chosen by the including module's S_ defines. Only MATERIAL_INPUTS blocks
+// include it (the material compiler and the material editor read them); Slang compiles never do. Ours, in place of the old
+// header there, which Slang shaders don't include.
+#ifndef SBOX_STANDARD_MATERIAL_INPUTS
+#define SBOX_STANDARD_MATERIAL_INPUTS
+
+// Undefined optional features default off. ShaderConstant combo names are defined
+// by VFX but remain language constants, so use normal if/switch expressions.
+#ifndef S_SCALE_NORMAL_MAP
+#define S_SCALE_NORMAL_MAP 0
+#endif
+#ifndef S_USE_BENT_NORMALS
+#define S_USE_BENT_NORMALS 0
+#endif
+#ifndef S_DETAIL_TEXTURE
+#define S_DETAIL_TEXTURE 0
+#endif
+
+#include "sbox/final_combiner.slangh"
+#include "sbox/detail_texture.slangh"
+
+//
+// Color and translucency
+//
+CreateInputTexture2D( TextureColor, Srgb, 8, "", "_color", "Color/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureTranslucency, Linear, 8, "", "_trans", "Translucent,15", Default3( 1.0, 1.0, 1.0 ) );
+
+#ifndef COLOR_SAMPLER_DEFINED
+	#if ( S_TRANSLUCENT )
+		Texture2D g_tColor < Channel( RGB, AlphaWeighted( TextureColor, TextureTranslucency ), Srgb );
+															  Channel( A, Box( TextureTranslucency ), Linear );
+															  OutputFormat( BC7 ); SrgbRead( true ); >;
+	#elif ( S_ALPHA_TEST )
+		Texture2D g_tColor < Channel( RGB, AlphaWeighted( TextureColor, TextureTranslucency ), Srgb );
+															  Channel( A, PreserveCoverage( TextureTranslucency ), Linear );
+															  OutputFormat( BC7 ); SrgbRead( true ); > ;
+	#elif ( S_SPECULAR && !S_METALNESS_TEXTURE ) // this condition is just to maintain backwards compatibility with old vr_standard
+		Texture2D g_tColor1 < Channel( RGB, Box( TextureColor ), Srgb );
+															   OutputFormat( DXT1 ); SrgbRead( true ); >;
+
+		#define g_tColor g_tColor1
+	#else
+		Texture2D g_tColor2 < Channel( RGB, Box( TextureColor ), Srgb );
+															   OutputFormat( DXT1 ); SrgbRead( true ); >;
+		#define g_tColor g_tColor2
+	#endif
+#endif
+
+//
+// Normal map and gloss
+//
+
+#ifdef ENABLE_NORMAL_MAPS
+	CreateInputTexture2D( TextureNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal,20", Default3( 0.5, 0.5, 1.0 ) );
+	CreateInputTexture2D( TextureBentNormal, Linear, 8, "NormalizeNormals", "_bentnormal", "Normal/20", Default3( 0.5, 0.5, 1.0 ) );
+	CreateInputTexture2D( TextureRoughness, Linear, 8, "Inverse", "_rough", "Roughness,23/10", Default3( 0.5, 0.5, 0.5 ) );
+
+	#if ( S_ANISOTROPIC_GLOSS )
+		// Pack normal & roughness into RG channels of two separate textures, for quality
+		Texture2D g_tNormal < Channel( RG, HemiOctIsoRoughness_RG_B( TextureNormal, TextureRoughness ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); > ;
+		Texture2D g_tAnisoGloss < Channel( RG, AnisoRoughness_RG( TextureNormal, TextureRoughness ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); > ;
+	#else
+		// Doesn't store anisotropic roughness to allow the compressor to do a better job.
+		Texture2D g_tNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormal, TextureRoughness ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); > ;
+	#endif
+	
+	#ifndef BENT_NORMAL_ACTIVE_IF
+	#define BENT_NORMAL_ACTIVE_IF
+	#endif
+	Texture2D g_tBentNormal < Channel( RG, HemiOctIsoRoughness_RG_B( TextureBentNormal ), Linear );  OutputFormat( ATI2N ); SrgbRead( false ); BENT_NORMAL_ACTIVE_IF >;
+
+	float g_flNormalMapScaleFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Normal" ); >;
+	float g_flRoughnessScaleFactor < Default( 1.0 ); Range( 0.0, 2.0 ); UiGroup( "Roughness" ); >;
+#endif
+
+//
+// Self Illumination
+//
+#if ( S_SELF_ILLUM )
+	CreateInputTexture2D( TextureSelfIllumMask, Srgb, 8, "", "_selfillum", "Self Illum,60/10", Default3( 0.0, 0.0, 0.0 ) );
+	Texture2D g_tSelfIllumMask < Channel( RGB, Box( TextureSelfIllumMask ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+
+	TextureAttribute( LightSim_SelfIllumMaskTexture, g_tSelfIllumMask );
+	
+	Float3Attribute( LightSim_SelfIllumTint, g_vSelfIllumTint );
+	FloatAttribute( LightSim_SelfIllumScale, g_flSelfIllumScale );
+
+	float3 g_vSelfIllumTint < UiType( Color ); Default3( 1.0, 1.0, 1.0 ); UiGroup( "Self Illum/20" ); >;
+	float g_flSelfIllumBrightness < Default( 0.0 ); Range( -10.0, 10.0 ); UiGroup( "Self Illum" ); >;
+	float g_flSelfIllumScale < Default( 1.0 ); Range( 0.0, 16.0 ); UiGroup( "Self Illum/30" ); >;
+	float2 g_vSelfIllumOffset < Default2( 0.0, 0.0 ); UiGroup( "Self Illum/35" ); >;
+	float2 g_vSelfIllumScrollSpeed < Default2( 0.0, 0.0 ); Range2( -10.0, -10.0, 10.0, 10.0 ); UiGroup( "Self Illum/40" ); >;
+	float g_flSelfIllumAlbedoFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Self Illum/50" );  >;
+#endif
+
+//
+// Tint Mask
+//
+#if ( S_TINT_MASK )
+	CreateInputTexture2D( TextureTintMask, Linear, 8, "", "_mask", "Color", Default3( 1.0, 1.0, 1.0 ) );
+
+	Texture2D g_tTintMask < Channel( R, Box( TextureTintMask ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); Filter( TRILINEAR ); >;
+	TextureAttribute( LightSim_TintMaskTextureR, g_tTintMask );
+#endif
+
+//
+// Ambient Occlusion
+//
+CreateInputTexture2D( TextureAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion,40/10", Default3( 1.0, 1.0, 1.0 ) );
+#if !defined( AMBIENT_OCCLUSION_IN_COLOR )
+	Texture2D g_tAmbientOcclusion < Channel( R, Box3( TextureAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+#endif
+
+
+//
+// UV2 Controls
+//
+#if ( S_UV2_CONTROLS )
+	bool g_bUseSecondaryUvForSelfIllum < Default( 0.0 ); UiGroup( "Self Illum/100" ); >;
+	bool g_bUseSecondaryUvForTintMask < Default( 0.0 ); UiGroup( "Color/101" ); >;
+	bool g_bUseSecondaryUvForAmbientOcclusion < Default( 1.0 ); UiGroup( "Ambient Occlusion/100" ); >;
+	bool g_bUseSecondaryUvForDetailMask < Default( 1.0 ); UiGroup( "Detail Texture/180" ); >;
+#endif
+
+//
+// Metalness
+//
+#if ( S_METALNESS_TEXTURE )
+	CreateInputTexture2D( TextureMetalness, Linear, 8, "", "_metal", "Metalness,27/10", Default3( 0.0, 0.0, 0.0 ) );
+
+	#if !defined( METALNESS_IN_COLOR )
+		CreateInputTexture2D( TextureRetroReflectiveMask, Linear, 8, "", "_mask", "Retro-Reflective,29/10", Default3( 1.0, 1.0, 1.0 ) );
+		Texture2D g_tMetalness <
+			Channel( G, Box( TextureMetalness ), Linear );
+			#if ( S_RETRO_REFLECTIVE )
+				Channel( R, Box( TextureRetroReflectiveMask ), Linear );
+			#endif
+			OutputFormat( DXT1 );
+			SrgbRead( false ); >;
+	#endif
+#else
+	float g_flMetalness < Default( 0.0 ); Range( 0.0, 1.0 ); UiGroup( "Metalness,27/20" ); >;
+	float g_flRetroReflectivity < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Retro-Reflective,29/20" ); >;
+#endif
+
+// Detail Texture
+#if S_DETAIL_TEXTURE
+	CreateInputTexture2D( TextureDetail, Linear, 8, "Mod2XCenter", "_detail", "Detail Texture,80/10", Default4( 1.0, 1.0, 1.0, 1.0 ) );
+	CreateInputTexture2D( TextureNormalDetail, Linear, 8, "NormalizeNormals", "_normal", "Detail Texture,80/10", Default3( 0.5, 0.5, 1.0 ) );
+	CreateInputTexture2D( TextureDetailMask, Linear, 8, "", "_detailmask", "Detail Texture,80/40", Default4( 1.0, 1.0, 1.0, 1.0 ) );
+
+	// A module that shows them only in the detail modes using each declares them itself (standard)
+	#ifndef DETAIL_TEXTURES_DECLARED
+	Texture2D g_tDetail < Channel( RGB, Box( TextureDetail ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+	Texture2D g_tNormalDetail < Channel( RG, HemiOctIsoRoughness_RG_B( TextureNormalDetail ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); >;
+	#endif
+	Texture2D g_tDetailMask < Channel( R, Box( TextureDetailMask ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+
+	float g_flDetailBlendFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Detail Texture,80/20" ); >;
+	float g_flDetailBlendToFull < Default( 0.0 ); Range( 0.0, 1.0 ); UiGroup( "Detail Texture,80/50" ); >;
+#endif
+
+//
+// Wrinkle
+//
+// Fixme: should pack each squish/stretch pair into a texture array
+// Would need to sort out some drama in the texture compiler first
+//
+CreateInputTexture2D( TextureSquishColor, Srgb, 8, "", "_color", "Color/11", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureStretchColor, Srgb, 8, "", "_color", "Color/12", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureSquishNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal/21", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureStretchNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal/22", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureSquishAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion/11", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureStretchAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion/12", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tSquishColor < Channel( RGB, Box( TextureSquishColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+Texture2D g_tStretchColor < Channel( RGB, Box( TextureStretchColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+Texture2D g_tSquishNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureSquishNormal, TextureRoughness ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+Texture2D g_tStretchNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureStretchNormal, TextureRoughness ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+Texture2D g_tSquishAmbientOcclusion < Channel( R, Box3( TextureSquishAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+Texture2D g_tStretchAmbientOcclusion < Channel( R, Box3( TextureStretchAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+//
+// Common Params
+//
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#if ( S_TRANSLUCENT )
+	BoolAttribute( translucent, true );
+	float g_flOpacityScale < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Translucent" ); >;
+#endif
+
+#if ( S_ALPHA_TEST )
+	BoolAttribute( alphatest, true );
+	float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); >;
+	float g_flAntiAliasedEdgeStrength < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Translucent" ); >;
+#endif
+
+BoolAttribute( DoNotCastShadows, F_DO_NOT_CAST_SHADOWS ? true : false );
+BoolAttribute( SupportsMappingDimensions, true );
+
+TextureAttribute( LightSim_DiffuseAlbedoTexture, g_tColor );
+TextureAttribute( RepresentativeTexture, g_tColor );
+
+BoolAttribute( renderbackfaces, F_RENDER_BACKFACES ? true : false );
+BoolAttribute( ShadowFastPath, true );
+
+#endif

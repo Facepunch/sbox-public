@@ -16,18 +16,21 @@ internal sealed partial class BackendContext
 	const string ForwardAlphaTestPass = ShaderPasses.Forward + "AlphaTest";
 	const string ForwardTranslucentPass = ShaderPasses.Forward + "Translucent";
 
+	/// <summary>The depth and shadow pass of a surface with a shadow of its own (<c>IShadowSurface</c>): depth dithered by its opacity.</summary>
+	internal const string DepthTranslucentPass = ShaderPasses.Depth + "Translucent";
+
 	static readonly StringToken LightmapCombo = new( "D_BAKED_LIGHTING_FROM_LIGHTMAP" );
 
 	/// <summary><c>kMaterialOffsetPerPixel</c> in sbox/material.slang.</summary>
-	const uint MaterialOffsetPerPixelId = 2;
+	internal const uint MaterialOffsetPerPixelId = 2;
 
 	/// <summary><c>kSurfaceOpaqueFade</c> in sbox/surface_passes.slangh: the draw is of a fading object (<c>D_OPAQUE_FADE</c>).</summary>
-	const uint OpaqueFadeId = 3;
+	internal const uint OpaqueFadeId = 3;
 
 	static readonly StringToken OpaqueFadeCombo = new( "D_OPAQUE_FADE" );
 
 	/// <summary><c>kSurfaceSkybox</c> in sbox/surface_passes.slangh: the draw is in the 3D skybox's view (<c>D_SKYBOX</c>).</summary>
-	const uint SkyboxId = 4;
+	internal const uint SkyboxId = 4;
 
 	static readonly StringToken SkyboxCombo = new( "D_SKYBOX" );
 
@@ -38,6 +41,8 @@ internal sealed partial class BackendContext
 		(ShaderPasses.Depth, ShaderPasses.Lightmapped ) => ShaderPasses.Depth + ShaderPasses.Lightmapped,
 		(ShaderPasses.DepthAlphaTest, ShaderPasses.Skinned ) => ShaderPasses.DepthAlphaTest + ShaderPasses.Skinned,
 		(ShaderPasses.DepthAlphaTest, ShaderPasses.Lightmapped ) => ShaderPasses.DepthAlphaTest + ShaderPasses.Lightmapped,
+		(DepthTranslucentPass, ShaderPasses.Skinned ) => DepthTranslucentPass + ShaderPasses.Skinned,
+		(DepthTranslucentPass, ShaderPasses.Lightmapped ) => DepthTranslucentPass + ShaderPasses.Lightmapped,
 		(ShaderPasses.Forward, ShaderPasses.Skinned ) => ShaderPasses.Forward + ShaderPasses.Skinned,
 		(ShaderPasses.Forward, ShaderPasses.Lightmapped ) => ShaderPasses.Forward + ShaderPasses.Lightmapped,
 		(ForwardAlphaTestPass, ShaderPasses.Skinned ) => ForwardAlphaTestPass + ShaderPasses.Skinned,
@@ -61,10 +66,18 @@ internal sealed partial class BackendContext
 		string name;
 		if ( noColor )
 		{
-			// A surface that writes no depth, or draws in the translucent layer, has no depth or shadow passes of its own (a
-			// converted one's are its .shader's: glass's dithered shadow)
-			if ( !state.DepthWrite || state.Translucent ) return false;
-			name = state.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
+			// A surface that writes no depth, or draws in the translucent layer, has depth and shadow passes only where it
+			// casts a shadow of its own (IShadowSurface: glass's, dithered by its opacity); a converted one's are otherwise its
+			// .shader's
+			if ( !state.DepthWrite || state.Translucent )
+			{
+				if ( program.Pass( DepthTranslucentPass ) is null ) return false;
+				name = DepthTranslucentPass;
+			}
+			else
+			{
+				name = state.AlphaTest ? ShaderPasses.DepthAlphaTest : ShaderPasses.Depth;
+			}
 		}
 		else if ( shaderMode.Value != ForwardMode.Value )
 		{
@@ -520,7 +533,7 @@ internal sealed partial class BackendContext
 		}
 	}
 
-	static SpirvImageDimension Dimension( TextureShape shape ) => shape switch
+	internal static SpirvImageDimension Dimension( TextureShape shape ) => shape switch
 	{
 		TextureShape.Cube => SpirvImageDimension.Cube,
 		TextureShape.CubeArray => SpirvImageDimension.CubeArray,
@@ -571,13 +584,13 @@ internal sealed partial class BackendContext
 		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
 	}
 
-	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GlobalConstants, SurfaceGlobalsLayout> GlobalLayouts = new();
+	internal static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GlobalConstants, SurfaceGlobalsLayout> GlobalLayouts = new();
 
 	/// <summary>
 	/// A stage's <c>$Globals</c> laid out once: every member's annotated default, and the members an attribute sets (an
 	/// <c>Attribute</c> annotation, as vfx binds them; the rest are a material's values, which a surface's record holds).
 	/// </summary>
-	sealed class SurfaceGlobalsLayout
+	internal sealed class SurfaceGlobalsLayout
 	{
 		public readonly byte[] Defaults;
 		public readonly int[] Bound;

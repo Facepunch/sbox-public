@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/generic.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"g_vColorTint"		"[1.000000 1.000000 1.000000 0.000000]"
 	"TextureColor"		"materials/tools/new/visblocker_color.png"
 	"g_bFogEnabled"		"1"

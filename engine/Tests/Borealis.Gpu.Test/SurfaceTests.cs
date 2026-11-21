@@ -116,6 +116,8 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( (Filter.Nearest, Filter.Nearest), (With( 3 ).MinFilter, With( 3 ).MagFilter), "point" );
 		Assert.AreEqual( (Filter.Nearest, Filter.Nearest), (With( 4 ).MinFilter, With( 4 ).MagFilter), "nearest" );
 
+		// water_simple is a surface now (water_simple.slang): a leftover compiled file isn't the pass module this checks
+		if ( !File.Exists( Path.Combine( Core, "shaders", "water_simple.shader" ) ) ) { Assert.Inconclusive( "water_simple has no .shader: it's a surface now" ); return; }
 		using var backend = new BackendDevice( Device );
 		var shader = backend.Shaders.Load( "shaders/water_simple.shader" );
 		if ( shader is null ) Assert.Inconclusive( "water_simple isn't compiled" );
@@ -626,7 +628,7 @@ public class SurfaceTests : GpuTest
 			var shaders = Path.Combine( Core, "shaders" );
 			var compiler = new SlangCompiler( bin, [shaders] );
 			string Include( string path ) => File.Exists( Path.Combine( shaders, path ) ) ? File.ReadAllText( Path.Combine( shaders, path ) ) : null;
-			foreach ( var (relative, name) in new[] { (Path.Combine( AppContext.BaseDirectory, "Data", "material.shader" ), "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), ("core/shaders/water_simple.shader", "water_simple") } )
+			foreach ( var (relative, name) in new[] { (Path.Combine( AppContext.BaseDirectory, "Data", "material.shader" ), "material"), (Path.Combine( AppContext.BaseDirectory, "Data", "bark.shader" ), "bark"), (Path.Combine( AppContext.BaseDirectory, "Data", "water_simple.shader" ), "water_simple") } )
 			{
 				var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( game, relative ) ), name, Include );
 				Assert.IsNotNull( result.Source, name );
@@ -866,19 +868,12 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
-	/// <summary>Core pass modules converted from a .shader whose .shader_c the core keeps, cheapest to compile first.</summary>
-	static readonly string[] ConvertedModules = ["cs_compress_dxt5", "downsample_depth", "debug_show_texture", "terrain", "eyeball", "water"];
-
 	/// <summary>
-	/// Pass modules compiled in the background: a converted module's variant asked for while its stages compile is its
-	/// shader's compiled programs' and the drawer doesn't keep it; once they're done it's the module's, kept. A standalone
-	/// module has no programs to fall back to, and a skipped compute dispatch would leave its outputs unwritten: its variant
-	/// is waited for (with its offline compile, as shipped, nothing compiles in game at all).
+	/// Pass modules compiled in the background: a standalone module has no programs to fall back to, and a skipped compute
+	/// dispatch would leave its outputs unwritten, so its variant is waited for (with its offline compile, as shipped, nothing
+	/// compiles in game at all). A converted module's would draw its shader's compiled programs meanwhile; none is left in
+	/// core to try it with.
 	/// </summary>
-	/// <remarks>
-	/// The converted module is the first of <see cref="ConvertedModules"/> that still is one: the engine's .shader files are
-	/// being deleted and their modules made standalone, and a branch that took the one named here failed this test.
-	/// </remarks>
 	[TestMethod]
 	[TestCategory( "Slow" )]
 	public void PassModulesCompileInTheBackground()
@@ -900,30 +895,6 @@ public class SurfaceTests : GpuTest
 			Assert.IsTrue( standalone is { ModuleOnly: true }, "clutter_cull_cs is standalone" );
 			Assert.IsTrue( drawer.Variant( standalone, new ShaderAttributes() ) is { FromModule: true }, "a standalone module's variant is waited for" );
 			Assert.AreEqual( 0, backend.Passes.PendingAsks );
-
-			// Converted: the first of these still a module without Mode lines beside its .shader_c
-			var name = ConvertedModules.FirstOrDefault( n => backend.Shaders.Files.Find( $"shaders/{n}.shader" ) is { } compiled && Path.ChangeExtension( compiled, ".slang" ) is var slang
-				&& File.Exists( slang ) && !PassModule.Read( slang, [Path.GetDirectoryName( slang )] ).Standalone );
-			Assert.IsNotNull( name, $"none of {string.Join( ", ", ConvertedModules )} is a converted pass module any more (a .slang without Mode lines beside its .shader_c): name one that is in ConvertedModules" );
-			var shader = backend.Shaders.Load( $"shaders/{name}.shader" );
-			Assert.IsTrue( shader is { ModuleOnly: false }, $"{name} loads from its .shader_c" );
-
-			var clock = System.Diagnostics.Stopwatch.StartNew();
-			var first = drawer.Variant( shader, new ShaderAttributes() );
-			Assert.IsTrue( clock.Elapsed.TotalSeconds < 1, $"the first ask took {clock.Elapsed.TotalSeconds:F1} s" );
-			Assert.IsTrue( first is { FromModule: false }, "its programs draw while the module compiles" );
-			Assert.AreEqual( 1, backend.Passes.PendingAsks );
-
-			Borealis.Source2.Shaders.ShaderVariant module = null;
-			while ( clock.Elapsed.TotalSeconds < 120 )
-			{
-				module = drawer.Variant( shader, new ShaderAttributes() );
-				if ( module.FromModule ) break;
-				System.Threading.Thread.Sleep( 50 );
-			}
-
-			Assert.IsTrue( module is { FromModule: true }, $"the module's variant never came: {string.Join( "; ", errors )}" );
-			Assert.AreSame( module, drawer.Variant( shader, new ShaderAttributes() ), "kept once it's the module's" );
 			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 		}
 		finally
@@ -1036,8 +1007,8 @@ public class SurfaceTests : GpuTest
 		using var backend = new BackendDevice( Device );
 		List<SamplerInfo> Samplers( int filtering )
 		{
-			var foliage = (BackendMaterial)((GpuDevice)backend).CreateMaterial( $"Foliage {filtering}", "shaders/foliage.shader" );
-			if ( foliage.Shader is null ) Assert.Inconclusive( "foliage.shader isn't compiled" );
+			// A shader that's a surface alone is made as the surface: nothing compiled to check
+			if ( ((GpuDevice)backend).CreateMaterial( $"Foliage {filtering}", "shaders/foliage.shader" ) is not BackendMaterial { Shader: not null } foliage ) { Assert.Inconclusive( "foliage.shader isn't compiled" ); return null; }
 			var feature = foliage.Shader.FeatureIndex( "F_TEXTURE_FILTERING" );
 			Assert.IsTrue( feature >= 0, "foliage.shader has no F_TEXTURE_FILTERING" );
 			foliage.Features[feature] = filtering;
@@ -1072,8 +1043,8 @@ public class SurfaceTests : GpuTest
 		using var backend = new BackendDevice( Device );
 		CullMode Cull( int backfaces )
 		{
-			var complex = (BackendMaterial)((GpuDevice)backend).CreateMaterial( $"Complex {backfaces}", "shaders/complex.shader" );
-			if ( complex.Shader is null ) Assert.Inconclusive( "complex.shader isn't compiled" );
+			// complex is standard's surface alone now: nothing compiled to check
+			if ( ((GpuDevice)backend).CreateMaterial( $"Complex {backfaces}", "shaders/complex.shader" ) is not BackendMaterial { Shader: not null } complex ) { Assert.Inconclusive( "complex.shader isn't compiled" ); return default; }
 			var feature = complex.Shader.FeatureIndex( "F_RENDER_BACKFACES" );
 			Assert.IsTrue( feature >= 0, "complex.shader has no F_RENDER_BACKFACES" );
 			complex.Features[feature] = backfaces;
@@ -1457,15 +1428,15 @@ public class SurfaceTests : GpuTest
 		var shaders = Path.Combine( Core, "shaders" );
 		string Convert( string name, out IReadOnlyList<string> notes )
 		{
-			var result = ShaderConverter.Convert( File.ReadAllText( Path.Combine( shaders, name + ".shader" ) ), name );
+			// static_overlay.shader, generic.shader and simple.shader are gone (surfaces stand in alone): the test keeps copies
+			var data = Path.Combine( AppContext.BaseDirectory, "Data", name + ".shader" );
+			var result = ShaderConverter.Convert( File.ReadAllText( File.Exists( data ) ? data : Path.Combine( shaders, name + ".shader" ) ), name );
 			notes = result.Notes;
 			return result.Source;
 		}
 
 		// Shaders that do more than the standard processing: their notes say why
-		Assert.IsNull( Convert( "vertex_color", out var notes ), "vertex_color converted" );
-		StringAssert.Contains( notes[0], "vertex shader" );
-		Assert.IsNull( Convert( "static_overlay", out notes ), "static_overlay converted" );
+		Assert.IsNull( Convert( "static_overlay", out var notes ), "static_overlay converted" );
 		StringAssert.Contains( notes[0], "MainPs works on" );
 		Assert.IsNull( Convert( "generic", out notes ), "generic converted" );
 		StringAssert.Contains( notes[0], "FinalCombiner" );
@@ -1601,8 +1572,9 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// standard takes complex, simple and generic materials, each with its shader's packing, and a pipeline specialised for
-	/// a material's features (its [Specialize] fields as constants) draws what the unspecialised one does.
+	/// standard takes complex, simple and generic materials, each with its shader's packing (the engine's own name standard,
+	/// complex's), and a pipeline specialised for a material's features (its [Specialize] fields as constants) draws what the
+	/// unspecialised one does.
 	/// </summary>
 	[TestMethod]
 	public void StandardSurfaceSpecializesForItsMaterials()
@@ -1610,6 +1582,16 @@ public class SurfaceTests : GpuTest
 		var compiled = Compiler().CompileSurface( Path.Combine( Core, "shaders", "standard.slang" ) );
 		Assert.AreEqual( "UseUnlit", string.Join( ", ", compiled.Material.Features.Select( f => f.Name ) ), "only [Specialize] fields are specialised for" );
 		StringAssert.Contains( compiled.Generated, "SurfaceSpecialize( m );" );
+
+		// Materials an older engine compiled for simple or generic keep their packing
+		foreach ( var (shaderName, expected) in new[] { ("shaders/standard.shader", 0), ("shaders/complex.shader", 0), ("shaders/simple.shader", 1), ("shaders/generic.shader", 2) } )
+		{
+			var file = new Borealis.Source2.Materials.MaterialFile { Name = "packing", Shader = shaderName, Ints = new Dictionary<string, int>(), Floats = new Dictionary<string, float>(), Vectors = new Dictionary<string, float[]>(), Textures = new Dictionary<string, string>(), IntAttributes = new Dictionary<string, int>() };
+			using var made = ConvertedMaterial.Create( compiled, file, "packing", _ => null );
+			var bytes = new byte[made.RecordSize];
+			made.WriteRecord( bytes, ( _, _ ) => 0 );
+			Assert.AreEqual( expected, BitConverter.ToInt32( bytes, compiled.Material.Field( "Packing" ).Offset ), shaderName );
+		}
 
 		var previousHost = RenderHost.Current;
 		try
@@ -1631,7 +1613,7 @@ public class SurfaceTests : GpuTest
 				return picture;
 			}
 
-			foreach ( var (path, packing) in new[] { ("materials/default.vmat", 0), ("materials/dev/simple/floor_simple_128.vmat", 1), ("materials/dev/primary_blue.vmat", 2), ("materials/dev/sky_helper.vmat", 2) } )
+			foreach ( var (path, packing) in new[] { ("materials/default.vmat", 0), ("materials/dev/simple/floor_simple_128.vmat", 0), ("materials/dev/primary_blue.vmat", 0), ("materials/dev/sky_helper.vmat", 0) } )
 			{
 				var plain = DrawMaterial( path, false, out _, out var none );
 				var specialized = DrawMaterial( path, true, out var material, out var made );
@@ -1652,6 +1634,40 @@ public class SurfaceTests : GpuTest
 			Device.WaitIdle();
 			RenderHost.Current = previousHost;
 		}
+	}
+
+	/// <summary>
+	/// A water_simple material loads as its surface (water_simple has no .shader: the surface is the whole shader), its
+	/// fields from the material's values whatever vfx prefix they carry (<c>g_fRoughness</c> for <c>Roughness</c>).
+	/// </summary>
+	[TestMethod]
+	public void SurfaceAloneLoadsItsMaterialsValues()
+	{
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Surfaces.Error = errors.Add;
+		if ( ((GpuDevice)backend).LoadMaterial( "materials/water/water_canal.vmat" ) is not SurfaceMaterial material )
+		{
+			Assert.Inconclusive( "water_canal.vmat isn't compiled, or isn't a surface" );
+			return;
+		}
+
+		StringAssert.EndsWith( material.Shader, "water_simple.slang" );
+		var compiled = backend.Surfaces.Layout( material.Shader );
+		var record = new byte[material.RecordSize];
+		material.WriteRecord( record, ( _, _ ) => 0 );
+		float Value( string field ) => BitConverter.ToSingle( record, compiled.Material.Field( field ).Offset );
+		Assert.AreEqual( 0.014f, Value( "Roughness" ), 1e-4f, "g_fRoughness" );
+		Assert.AreEqual( 0.764f, Value( "Metalness" ), 1e-4f, "g_fMetalness" );
+		Assert.AreEqual( 1f, Value( "AmbientOcclusion" ), 1e-4f, "g_fAmbientOcclusion" );
+		Assert.AreEqual( 0.13f, Value( "NormalScale" ), 1e-4f, "NormalScale" );
+		Assert.IsNull( material.Fallback, "no .shader to fall back to" );
+
+		// Material.FromShader of a surface alone is the surface with its defaults (the terrain material preview's)
+		var preview = backend.MaterialFromShader( "shaders/terrain_preview.shader" ) as SurfaceMaterial;
+		Assert.IsNotNull( preview, "terrain_preview from its shader" );
+		StringAssert.EndsWith( preview.Shader, "terrain_preview.slang" );
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
 	}
 
 	/// <summary>
@@ -1701,7 +1717,7 @@ public class SurfaceTests : GpuTest
 	/// </summary>
 	[TestMethod]
 	[DataRow( "materials/dev/red.vmat" )]
-	[DataRow( "materials/default/vertex_color.vmat" )]
+	[DataRow( "materials/dev/primary_blue.vmat" )]
 	public void ConvertedMaterialsKeepTheirShaderMaterial( string path )
 	{
 		Compiler();
@@ -1713,7 +1729,9 @@ public class SurfaceTests : GpuTest
 			RenderHost.Current = new BackendRenderHost( backend );
 			if ( ((GpuDevice)backend).LoadMaterial( path ) is not SurfaceMaterial ) Assert.Inconclusive( $"{path} isn't a surface" );
 
+			// standard's materials have no .shader now (complex, simple and generic are its names): nothing behind the surface
 			var material = backend.ShaderMaterial( path );
+			if ( material is null && backend.Shaders.Load( "shaders/standard.shader" ) is null ) Assert.Inconclusive( $"{path}'s shader is a surface alone: no .shader material behind it" );
 			Assert.IsNotNull( material, "the .shader material behind the surface" );
 			Assert.IsNotNull( material.Shader );
 			Assert.IsTrue( material.Textures.Count > 0, $"{path}'s textures" );
@@ -1791,8 +1809,9 @@ public class SurfaceTests : GpuTest
 	/// <summary>
 	/// glass.slang: every glass material draws in the translucent layer whatever its quality, as glass.shader defines
 	/// S_TRANSLUCENT itself: refractive glass unblended, simple glass blended by opacity, layered glass premultiplied, all
-	/// writing depth as glass.shader does; with no depth passes of its own. Its forward pass reads the frame-buffer copy, the depth chain and the BRDF lookup by
-	/// attribute; a surface that doesn't read the view inputs (complex) doesn't bind the copy.
+	/// writing depth as glass.shader does; its depth and shadows dithered by an opacity of its own (IShadowSurface). Its
+	/// forward pass reads the frame-buffer copy, the depth chain and the BRDF lookup by attribute; a surface that doesn't
+	/// read the view inputs (complex) doesn't bind the copy.
 	/// </summary>
 	[TestMethod]
 	[TestCategory( "Slow" )]
@@ -1817,11 +1836,13 @@ public class SurfaceTests : GpuTest
 		foreach ( var name in new[] { "FrameBufferCopyTexture", "DepthChainDownsample", "BRDFLookup" } )
 			Assert.IsTrue( forward.Bindings.Any( b => b.Name == name ), name );
 		Assert.IsNotNull( glass.Pass( ShaderPasses.Forward + "Translucent" + ShaderPasses.GpuDriven ), glass.GpuDrivenError );
+		foreach ( var suffix in new[] { "", ShaderPasses.Lightmapped, ShaderPasses.Skinned } )
+			Assert.IsTrue( glass.Pass( ShaderPasses.Depth + "Translucent" + suffix ) is { Pixel: { } dithered } && dithered.Bindings.Any( b => b.Name == "BRDFLookup" ), suffix );
 
 		var complex = Compiler().CompileSurface( Path.Combine( Core, "shaders", "standard.slang" ) ).Pass( ShaderPasses.Forward ).Pixel;
 		Assert.IsFalse( complex.Bindings.Any( b => b.Name == "FrameBufferCopyTexture" ), string.Join( ", ", complex.Bindings.Select( b => b.Name ) ) );
 
-		// A glass material is translucent without F_TRANSLUCENT and has no depth passes: its .shader's draw its shadows
+		// A glass material is translucent without F_TRANSLUCENT
 		using var backend = new BackendDevice( Device );
 		var material = (SurfaceMaterial)backend.Surfaces.CreateMaterial( Path.Combine( Core, "shaders", "glass.slang" ), null, new Dictionary<string, float[]>() );
 		Assert.IsTrue( material.IsTranslucent );
@@ -1864,10 +1885,44 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// The sun-lit floor's mean brightness at the frame's centre, under a slab whose top and bottom are
-	/// <paramref name="faces"/> and sides <paramref name="sides"/> (or none, when <paramref name="faces"/> is null).
+	/// Glass's own shadow (IShadowSurface): an object all of glass casts a shadow dithered by glass.shader's depth-mode
+	/// opacity, so the floor under it is darker than in the open and lighter than under an opaque slab.
 	/// </summary>
-	float FloorUnder( BackendDevice backend, GpuMaterial sides, GpuMaterial faces )
+	[TestMethod]
+	public void GlassCastsADitheredShadow()
+	{
+		Compiler();
+		using var backend = new BackendDevice( Device );
+		var errors = new List<string>();
+		backend.Surfaces.Error = errors.Add;
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			var grey = backend.CreateMaterial( "Glass shadow grey", Color.Gray );
+			var glass = backend.Surfaces.CreateMaterial( Path.Combine( Core, "shaders", "glass.slang" ), null, new Dictionary<string, float[]>() );
+
+			var none = FloorUnder( backend, grey, null );
+			var opaque = FloorUnder( backend, grey, grey );
+			var glassy = FloorUnder( backend, glass, glass, grey );
+			TestContext.WriteLine( $"floor under the slab: none {none:F3}, opaque {opaque:F3}, all glass {glassy:F3}" );
+			Assert.IsTrue( glassy < none * 0.9f, $"the glass casts a shadow ({glassy:F3} against {none:F3})" );
+			Assert.IsTrue( glassy > opaque * 1.2f, $"the glass's shadow is lighter than an opaque one ({glassy:F3} against {opaque:F3})" );
+			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// The sun-lit floor's mean brightness at the frame's centre, under a slab whose top and bottom are
+	/// <paramref name="faces"/> and sides <paramref name="sides"/> (or none, when <paramref name="faces"/> is null); the floor
+	/// is <paramref name="floor"/>, or the sides' material.
+	/// </summary>
+	float FloorUnder( BackendDevice backend, GpuMaterial sides, GpuMaterial faces, GpuMaterial floor = null )
 	{
 		const int Size = 128;
 		using var system = new RenderSystem { ParallelRecording = false };
@@ -1877,14 +1932,14 @@ public class SurfaceTests : GpuTest
 		world.Lighting.SunColor = new Color( 4, 4, 4 );
 		world.Lighting.AmbientColor = new Color( 0.05f, 0.05f, 0.05f, 1 );
 		world.Lighting.SunShadowCascades = 1;
-		world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, sides ), new Transform( new Vector3( 0, 0, -52.5f ), Rotation.Identity, new Vector3( 20, 20, 0.05f ) ) ) );
+		world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, floor ?? sides ), new Transform( new Vector3( 0, 0, -52.5f ), Rotation.Identity, new Vector3( 20, 20, 0.05f ) ) ) );
 
 		if ( faces is not null )
 		{
 			// BoxMesh's faces: four sides, then top and bottom
 			var box = ObjectAttributeTests.BoxMesh( backend, sides );
 			var slab = new RenderMesh( box.Geometry, box.Bounds, [[
-				new RenderMesh.Draw( 0, 0, 0, 24, 24, 0, sides ),
+				new RenderMesh.Draw( 0, 0, 0, 24, 24, 0, sides, Translucent: sides.IsTranslucent ),
 				new RenderMesh.Draw( 0, 1, 24, 12, 24, 0, faces, Translucent: faces.IsTranslucent ),
 			]] );
 			world.Add( new MeshObject( slab, new Transform( new Vector3( 0, 0, 100 ), Rotation.Identity, new Vector3( 3, 3, 0.1f ) ) ) { GameLayers = false } );
@@ -1907,7 +1962,7 @@ public class SurfaceTests : GpuTest
 		BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
 		var rgba = new byte[Size * Size * 4];
 		for ( int i = 0; i < rgba.Length; i++ ) rgba[i] = (byte)Math.Clamp( (float)BitConverter.ToHalf( halfs, i * 2 ) * 255, 0, 255 );
-		Save( rgba, Size, Size, $"glass-shadow-{(faces is null ? "none" : faces.IsTranslucent ? "glass" : "opaque")}" );
+		Save( rgba, Size, Size, $"glass-shadow-{(faces is null ? "none" : sides.IsTranslucent ? "all-glass" : faces.IsTranslucent ? "glass" : "opaque")}" );
 
 		float sum = 0;
 		var count = 0;
@@ -1933,7 +1988,9 @@ public class SurfaceTests : GpuTest
 		if ( Core is null ) Assert.Inconclusive( "No game content" );
 		static ShaderConverter.RenderStates Translate( string name )
 		{
-			var text = File.ReadAllText( Path.Combine( Core, "shaders", name + ".shader" ) );
+			// static_overlay.shader and generic.shader are gone (surfaces stand in alone): the test keeps copies
+			var data = Path.Combine( AppContext.BaseDirectory, "Data", name + ".shader" );
+			var text = File.ReadAllText( File.Exists( data ) ? data : Path.Combine( Core, "shaders", name + ".shader" ) );
 			var combos = System.Text.RegularExpressions.Regex.Matches( text, @"StaticCombo\(\s*(S_\w+)\s*,\s*(F_\w+)" ).DistinctBy( m => m.Groups[1].Value ).ToDictionary( m => m.Groups[1].Value, m => m.Groups[2].Value );
 			var features = System.Text.RegularExpressions.Regex.Matches( text, @"Feature\(\s*(F_\w+)\s*,\s*(\d+)\s*\.\.\s*(\d+)" ).ToDictionary( m => m.Groups[1].Value, m => (int.Parse( m.Groups[2].Value ), int.Parse( m.Groups[3].Value )) );
 			features.TryAdd( "F_RENDER_BACKFACES", (0, 1) );
@@ -2354,15 +2411,15 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
-	/// citizen_eye_surface.slang, the citizen's procedural eye as a layered surface with per-vertex values (its axes, worked
+	/// citizen_eye.slang, the citizen's procedural eye as a layered surface with per-vertex values (its axes, worked
 	/// out in world space): it draws the citizen's eye materials as citizen_eye.shader's compiled programs do.
 	/// </summary>
 	[TestMethod]
 	public void CitizenEyeSurfaceDrawsCitizenEyes()
 	{
-		var citizen = ContentFiles.FindGame().Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "citizen_eye_surface.slang" ) ) );
+		var citizen = ContentFiles.FindGame().Roots.FirstOrDefault( r => File.Exists( Path.Combine( r, "shaders", "citizen_eye.slang" ) ) );
 		if ( citizen is null ) Assert.Inconclusive( "The citizen addon isn't here" );
-		var eye = Compiler().CompileSurface( Path.Combine( citizen, "shaders", "citizen_eye_surface.slang" ) );
+		var eye = Compiler().CompileSurface( Path.Combine( citizen, "shaders", "citizen_eye.slang" ) );
 		StringAssert.Contains( eye.Generated, "SurfaceForwardLayered<SurfaceWithVaryingsLayered<CitizenEye>, false>" );
 		StringAssert.Contains( eye.Generated, "SurfaceOutputDisplacedWith<CitizenEye>" );
 

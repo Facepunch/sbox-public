@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"Shader"		"shaders/complex.shader_c"
+	"Shader"		"shaders/standard.shader_c"
 	"TextureColor"		"materials/sun/overlay_color.tga"
 	"F_ADDITIVE"		"1"
 	"legacy_import"

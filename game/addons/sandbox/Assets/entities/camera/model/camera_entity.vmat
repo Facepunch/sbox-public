@@ -1,6 +1,6 @@
 Layer0
 {
-    shader "shaders/complex.shader"
+    shader "shaders/standard.shader"
     F_SPECULAR 1
     F_METALNESS_TEXTURE 1
     TextureColor "entities/camera/model/camera_color.png"

@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/generic.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_SPECULAR"		"1"
 	"F_SPECULAR_CUBE_MAP"		"1"
 	"g_vColorTint"		"[0.517647 0.607843 0.823529 0.000000]"

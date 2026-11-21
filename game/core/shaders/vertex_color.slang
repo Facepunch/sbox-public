@@ -4,6 +4,38 @@
 // vertex colour is the surface's Varyings, read from the mesh and interpolated to Evaluate.
 import sbox.surface;
 
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): vertex_color.shader's texture inputs,
+// the textures made from them and its attributes, read with the material's features
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "vr_common_features.fxc"
+// The material's parameters as the material editor shows them, with the feature states that use them
+float2 g_vTexCoordScale < Default2( 1, 1 ); Range2( 0, 0, 100, 100 ); UiGroup( "Texture Coordinates,80/10" ); >;
+float2 g_vTexCoordOffset < Default2( 0, 0 ); Range2( -1, -1, 1, 1 ); UiGroup( "Texture Coordinates/20" ); >;
+float2 g_vTexCoordScrollSpeed < Default2( 0, 0 ); Range2( -10, -10, 10, 10 ); UiGroup( "Texture Coordinates/30" ); >;
+float3 g_vColorTint < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Color,10/20" ); >;
+float g_flModelTintAmount < Default( 1 ); Range( 0, 1 ); UiGroup( "Color,10/30" ); >;
+float g_flFadeExponent < Default( 1 ); Range( 1, 16 ); UiGroup( "Fade,400/10" ); >;
+float g_flMetalness < Default( 0 ); Range( 0, 1 ); UiGroup( "Metalness,27/20" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
+#define BLEND_MODE_ALREADY_SET
+#include "vr_shared_standard_vs_code.fxc"
+// What vr_shared_standard_ps_code.fxc (Valve's, which Slang shaders don't include) declared for vertex_color's features
+#include "vr_common_ps_code.fxc"
+CreateInputTexture2D( TextureColor, Srgb, 8, "", "_color", "Color/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureTranslucency, Linear, 8, "", "_trans", "Translucent,15", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tColor2 < Channel( RGB, Box( TextureColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+CreateInputTexture2D( TextureAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion,40/10", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tAmbientOcclusion < Channel( R, Box3( TextureAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+BoolAttribute( DoNotCastShadows, F_DO_NOT_CAST_SHADOWS ? true : false );
+BoolAttribute( SupportsMappingDimensions, true );
+TextureAttribute( RepresentativeTexture, g_tColor2 );
+BoolAttribute( renderbackfaces, F_RENDER_BACKFACES ? true : false );
+BoolAttribute( ShadowFastPath, true );
+#endif
+
 // g_sTrilinearWrap, for occlusion
 SamplerState g_VertexColorTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 

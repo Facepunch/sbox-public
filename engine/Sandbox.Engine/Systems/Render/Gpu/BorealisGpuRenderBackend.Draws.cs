@@ -95,12 +95,13 @@ internal sealed partial class BorealisGpuRenderBackend
 	void DrawPending( in GeometryDraw draw )
 	{
 		_ = Recording;
-		var shader = Prepare( pendingMaterial );
+		var (shader, surface) = PrepareDraw( pendingMaterial );
 		var lowered = Lower( pendingAttributes );
 
 		// Vertices from buffers hold plain normals and tangents, as a native view tells its draws
 		if ( lowered.Get( UncompressedTangentFrame ) is null ) lowered.Set( UncompressedTangentFrame, 1.0f );
-		context.Draw( shader, lowered, draw );
+		if ( surface is not null ) context.DrawSurface( surface, lowered, draw );
+		else context.Draw( shader, lowered, draw );
 	}
 
 	//
@@ -326,17 +327,19 @@ internal sealed partial class BorealisGpuRenderBackend
 			{
 				if ( draw.Material is null ) continue;
 
-				var shader = Prepare( draw.Material );
+				var (shader, surface) = PrepareDraw( draw.Material );
 				var lowered = Lower( attributes );
 				if ( transforms.IsValid ) lowered.Set( "g_TransformBuffer", transforms );
 				lowered.Set( UncompressedTangentFrame, draw.Uncompressed ? 1.0f : 0.0f );
-				context.Draw( shader, lowered, draw.Geometry with
+				var drawn = draw.Geometry with
 				{
 					Instances = instances,
 					Arguments = arguments,
 					ArgumentsOffset = argumentsOffset + draw.Slot * 20L,
 					DrawCount = 1,
-				} );
+				};
+				if ( surface is not null ) context.DrawSurface( surface, lowered, drawn );
+				else context.Draw( shader, lowered, drawn );
 			}
 		}
 		finally

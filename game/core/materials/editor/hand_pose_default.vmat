@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_SPECULAR"		"1"
 	"TextureAmbientOcclusion"		"materials/default/default_ao.tga"
 	"g_flMaxFinalOutputLevel"		"1.000000"

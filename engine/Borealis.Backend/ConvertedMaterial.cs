@@ -13,10 +13,122 @@ namespace Borealis.Backend;
 /// </summary>
 internal sealed class ConvertedMaterial : SurfaceMaterial
 {
-	static readonly string[] Prefixes = ["g_t", "g_fl", "g_v", "g_n", "g_b", ""];
+	static readonly string[] Prefixes = ["g_t", "g_fl", "g_f", "g_v", "g_n", "g_b", ""];
 
 	ConvertedMaterial( string shader, Sandbox.ShaderCompiler.MaterialLayout layout ) : base( shader, layout.Size, MaterialClassWriter.Hash( layout ), layout.States() )
 	{
+		this.layout = layout;
+	}
+
+	readonly Sandbox.ShaderCompiler.MaterialLayout layout;
+
+	/// <summary>
+	/// Set the fields a shader variable fills (<c>g_vColorTint</c>: a field whose <c>[Source]</c> it is, or named for it with
+	/// vfx's prefixes), as code setting it on the material does. False when the surface has no such field.
+	/// </summary>
+	public bool Set( string variable, ReadOnlySpan<float> value )
+	{
+		var found = false;
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.Kind == MaterialFieldKind.Texture2D || !Fills( field, variable ) ) continue;
+			found = true;
+			for ( int i = 0; i < field.Components && i < value.Length; i++ )
+			{
+				if ( field.Kind == MaterialFieldKind.Float ) SetFloat( field.Offset + i * 4, value[i] );
+				else SetInt( field.Offset + i * 4, field.Kind == MaterialFieldKind.Bool ? (value[i] != 0 ? 1 : 0) : (int)MathF.Round( value[i] ) );
+			}
+		}
+
+		return found;
+	}
+
+	/// <summary>Set the texture fields a shader variable (<c>g_tColor</c>) fills, as <see cref="Set(string, ReadOnlySpan{float})"/> does values.</summary>
+	public bool Set( string variable, GpuTexture texture )
+	{
+		var found = false;
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.Kind != MaterialFieldKind.Texture2D || !Fills( field, variable ) ) continue;
+			found = true;
+			SetTexture( field.Offset, texture, field.Srgb );
+		}
+
+		return found;
+	}
+
+	/// <summary>The texture of the first texture field a shader variable (<c>g_tColor</c>) fills, or null.</summary>
+	public GpuTexture Texture( string variable )
+	{
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.Kind == MaterialFieldKind.Texture2D && Fills( field, variable ) ) return GetTexture( field.Offset );
+		}
+
+		return null;
+	}
+
+	/// <summary>Every texture field nothing has set takes <paramref name="texture"/>: a material made in code, as native makes one.</summary>
+	public void FillUnsetTextures( GpuTexture texture )
+	{
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.Kind == MaterialFieldKind.Texture2D && GetTexture( field.Offset ) is null ) SetTexture( field.Offset, texture, field.Srgb );
+		}
+	}
+
+	IReadOnlyDictionary<string, int> featuresSet;
+
+	/// <summary>
+	/// Feature values (<c>F_*</c>) set in code over the material's own, as <c>Material.SetFeature</c> does: every feature
+	/// code set, so one no longer set goes back to the material's value (its file's, else off). The surface's
+	/// fields whose <c>[Source]</c> is the feature take it; features it has no field for change nothing.
+	/// </summary>
+	public void SetFeatures( IReadOnlyDictionary<string, int> features )
+	{
+		Span<float> one = stackalloc float[1];
+		foreach ( var (name, _) in featuresSet ?? new Dictionary<string, int>() )
+		{
+			if ( features is not null && features.ContainsKey( name ) ) continue;
+			one[0] = File?.Value( name ) is { Length: > 0 } v ? v[0] : 0;
+			Set( name, one );
+		}
+
+		foreach ( var (name, value) in features ?? new Dictionary<string, int>() )
+		{
+			one[0] = value;
+			Set( name, one );
+		}
+
+		featuresSet = features is { Count: > 0 } ? new Dictionary<string, int>( features, StringComparer.OrdinalIgnoreCase ) : null;
+	}
+
+	static bool Fills( MaterialField field, string variable )
+	{
+		if ( field.Source is { } source ) return string.Equals( source, variable, StringComparison.OrdinalIgnoreCase );
+		foreach ( var prefix in Prefixes )
+		{
+			if ( variable.Length == prefix.Length + field.Name.Length && variable.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) && variable.EndsWith( field.Name, StringComparison.OrdinalIgnoreCase ) ) return true;
+		}
+
+		return field.Kind == MaterialFieldKind.Texture2D && Numbered( field, variable );
+	}
+
+	/// <summary>
+	/// Whether a texture variable is a numbered variant of a texture field's (<c>g_tColor2</c> for <c>Color</c>): the same
+	/// texture made another way (vr_shared_standard_ps_code.fxc's, which vertex_color's materials name), as the material
+	/// compiler's inputs take it (<see cref="MaterialInputs"/>).
+	/// </summary>
+	static bool Numbered( MaterialField field, string variable )
+	{
+		var stem = "g_t" + field.Name;
+		if ( variable.Length <= stem.Length || !variable.StartsWith( stem, StringComparison.OrdinalIgnoreCase ) ) return false;
+		for ( int i = stem.Length; i < variable.Length; i++ )
+		{
+			if ( !char.IsAsciiDigit( variable[i] ) ) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>The compiled material it was made from: the textures it names by shader variable, read or not.</summary>
@@ -100,6 +212,12 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		foreach ( var prefix in Prefixes )
 		{
 			if ( textures.TryGetValue( prefix + field.Name, out var texture ) ) return texture;
+		}
+
+		// A numbered variant of it (g_tColor2), where the material's shader declared that one
+		foreach ( var (variable, texture) in textures )
+		{
+			if ( Numbered( field, variable ) ) return texture;
 		}
 
 		return null;

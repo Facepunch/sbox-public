@@ -1,7 +1,7 @@
 
 Layer0
 {
-	shader "shaders/complex.shader_c"
+	shader "shaders/standard.shader_c"
 
 	TextureColor "models/sbox/industrial/corrugated_metal_panel_01/materials/corrugated_metal_panels_01_color.png"
 	TextureAmbientOcclusion "models/sbox/industrial/corrugated_metal_panel_01/materials/corrugated_metal_panels_01_ao.png"

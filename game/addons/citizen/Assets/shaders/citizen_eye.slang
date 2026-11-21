@@ -7,6 +7,17 @@
 // (IInterpolatedLayeredSurface) with citizen_eye.shader's lighting features ([Combiner]), as citizen_eye.shader does.
 import sbox.surface;
 
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): citizen_eye.shader's texture inputs,
+// the textures made from them and its attributes, read with the material's features
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+// End of the material editor's lines
+#define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_WRAP
+#define S_SPECULAR 1
+#define S_SPECULAR_CUBE_MAP 1
+#include "vr_common_ps_code.fxc"
+#endif
+
 static const float EyePi = 3.14159265358979323846;
 static const float EyeTwoPi = 6.28318530717958647692;
 

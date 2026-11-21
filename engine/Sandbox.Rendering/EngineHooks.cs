@@ -26,5 +26,8 @@ internal static class EngineHooks
 		{
 			if ( MirrorContent.Gpu == backend.Services ) MirrorContent.ReleaseCapture( texture );
 		};
+
+		// The engine's own drawing of a material whose shader is a surface alone draws the material the scene draws it with
+		BorealisGpuRenderBackend.SceneMaterial ??= ( backend, material ) => MirrorContent.Gpu == backend.Services ? MirrorContent.Material( material ) : null;
 	}
 }

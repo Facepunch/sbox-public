@@ -87,6 +87,7 @@ public class DepthPassTests : GpuTest
 	{
 		using var backend = new BackendDevice( Device );
 		var shader = backend.Shaders.Load( "shaders/complex.shader" );
+		if ( shader is null ) Assert.Inconclusive( "complex.shader is gone (standard's surface draws its materials): no core .shader's depth variants to check" );
 		var features = new int[shader.Features.StaticCombos.Length];
 		var plain = backend.Shaders.Variant( shader, "Depth", features );
 		features[shader.FeatureIndex( "F_ALPHA_TEST" )] = 1;
@@ -109,6 +110,12 @@ public class DepthPassTests : GpuTest
 	[TestMethod]
 	public void DepthOnlyDrawsReadPositionsOnly()
 	{
+		// The model's materials are standard's, a surface alone now (complex stands for it): no .shader route to draw it with
+		using ( var probe = new BackendDevice( Device ) )
+		{
+			if ( probe.Shaders.Load( "shaders/complex.shader" ) is null ) Assert.Inconclusive( "complex.shader is gone: the model has no .shader route's prepass" );
+		}
+
 		byte[] Frame( bool positions, out bool positionLayout, out long copied )
 		{
 			using var backend = new BackendDevice( Device ) { PositionStreams = positions, GpuDriven = false };

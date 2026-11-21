@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_METALNESS_TEXTURE"		"1"
 	"F_SPECULAR"		"1"
 	"g_flAmbientOcclusionDirectDiffuse"		"1.000000"

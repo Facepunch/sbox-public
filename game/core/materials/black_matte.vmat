@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/simple.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_AMBIENT_OCCLUSION_TEXTURE"		"1"
 	"TextureAmbientOcclusion"		"[0.000000 0.000000 0.000000 0.000000]"
 	"g_flModelTintAmount"		"1.000000"

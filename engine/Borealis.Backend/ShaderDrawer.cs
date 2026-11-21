@@ -340,9 +340,12 @@ public struct GeometryDraw
 /// shares that device's objects. <see cref="MaterialObjects"/> off binds by reflection every draw instead, which is the
 /// reference the tests compare against; a draw also falls back to it when the frame's pass constants are full.
 /// </remarks>
-public sealed class ShaderDrawer : IDisposable
+public sealed partial class ShaderDrawer : IDisposable
 {
 	readonly Device gpu;
+
+	// The device it was made over, whose surfaces it draws (DrawSurface); null for one made over a library alone
+	readonly BackendDevice device;
 	readonly ShaderLibrary shaders;
 	readonly ShaderDefaults defaults;
 	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos, ulong Specialization), ShaderVariant> variants = new();
@@ -385,6 +388,7 @@ public sealed class ShaderDrawer : IDisposable
 	/// </summary>
 	public ShaderDrawer( BackendDevice device )
 	{
+		this.device = device;
 		gpu = device.Gpu;
 		shaders = device.Shaders;
 		defaults = device.Defaults;

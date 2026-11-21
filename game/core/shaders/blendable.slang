@@ -5,6 +5,89 @@
 // normal.
 import sbox.surface;
 
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): blendable.shader's texture inputs,
+// the textures made from them and its attributes, read with the material's features
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "common/features.hlsl"
+Feature( F_MULTIBLEND, 0..3 ( 0="1 Layers", 1="2 Layers", 2="3 Layers", 3="4 Layers" ), "Number Of Blendable Layers" );
+Feature( F_USE_TINT_MASKS_IN_VERTEX_PAINT, 0..1, "Use Tint Masks In Vertex Paint" );
+// The material's parameters as the material editor shows them, with the feature states that use them
+float3 g_flTintColorA < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material A,10/80" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+float3 g_flTintColorB < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material B,10/80" ); ActiveIf( F_MULTIBLEND != 0 ); >;
+float g_flBlendSoftnessB < Default( 0.5 ); Range( 0.1, 1 ); UiGroup( "Material B,10/90" ); ActiveIf( F_MULTIBLEND != 0 ); >;
+float2 g_vTexCoordScale2 < Default2( 1, 1 ); Range2( 0, 0, 10, 10 ); UiGroup( "Material B,10/100" ); ActiveIf( F_MULTIBLEND != 0 ); >;
+float3 g_flTintColorC < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material C,10/80" ); ActiveIf( F_MULTIBLEND >= 2 ); >;
+float g_flBlendSoftnessC < Default( 0.5 ); Range( 0.1, 1 ); UiGroup( "Material C,10/90" ); ActiveIf( F_MULTIBLEND >= 2 ); >;
+float2 g_vTexCoordScale3 < Default2( 1, 1 ); Range2( 0, 0, 10, 10 ); UiGroup( "Material C,10/100" ); ActiveIf( F_MULTIBLEND >= 2 ); >;
+float3 g_flTintColorD < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material D,10/80" ); ActiveIf( F_MULTIBLEND == 3 ); >;
+float g_flBlendSoftnessD < Default( 0.5 ); Range( 0.1, 1 ); UiGroup( "Material D,10/90" ); ActiveIf( F_MULTIBLEND == 3 ); >;
+float2 g_vTexCoordScale4 < Default2( 1, 1 ); Range2( 0, 0, 10, 10 ); UiGroup( "Material D,10/100" ); ActiveIf( F_MULTIBLEND == 3 ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
+#define S_MULTIBLEND F_MULTIBLEND
+#include "common/vertex.hlsl"
+BoolAttribute( VertexPaintUI2Layer, F_MULTIBLEND == 1 );
+BoolAttribute( VertexPaintUI3Layer, F_MULTIBLEND == 2 );
+BoolAttribute( VertexPaintUI4Layer, F_MULTIBLEND == 3 );
+BoolAttribute( VertexPaintUI5Layer, F_MULTIBLEND == 4 );
+BoolAttribute( VertexPaintUIPickColor, true );
+BoolAttribute( ShadowFastPath, true );
+#define S_MULTIBLEND F_MULTIBLEND
+#define S_USE_TINT_MASKS_IN_VERTEX_PAINT F_USE_TINT_MASKS_IN_VERTEX_PAINT
+BoolAttribute( SupportsMappingDimensions, true );
+#include "common/pixel.hlsl"
+CreateInputTexture2D( TextureColorA,            Srgb,   8, "",                 "_color",  "Material A,10/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureNormalA,           Linear, 8, "NormalizeNormals", "_normal", "Material A,10/20", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureRoughnessA,        Linear, 8, "Inverse",          "_rough",  "Material A,10/30", Default3( 0.5, 0.5, 0.5 ) );
+CreateInputTexture2D( TextureMetalnessA,        Linear, 8, "",                 "_metal",  "Material A,10/40", Default( 1.0 ) );
+CreateInputTexture2D( TextureAmbientOcclusionA, Linear, 8, "",                 "_ao",     "Material A,10/50", Default( 1.0 ) );
+CreateInputTexture2D( TextureBlendMaskA,        Linear, 8, "",                 "_blend",  "Material A,10/60", Default( 1.0 ) );
+CreateInputTexture2D( TextureTintMaskA,         Linear, 8, "",                 "_tint",   "Material A,10/70", Default( 1.0 ) );
+Texture2D g_tColorA  < Channel( RGB,  Box( TextureColorA ), Srgb ); Channel( A, Box( TextureTintMaskA ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
+Texture2D g_tNormalA < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormalA, TextureRoughnessA ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); > ;
+Texture2D g_tRmaA < Channel( R, Box( TextureMetalnessA ), Linear ); Channel( G, Box( TextureAmbientOcclusionA ), Linear ); Channel( B, Box( TextureBlendMaskA ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+TextureAttribute( LightSim_DiffuseAlbedoTexture, g_tColorA );
+TextureAttribute( RepresentativeTexture, g_tColorA );
+#if S_MULTIBLEND >= 1
+CreateInputTexture2D( TextureColorB,            Srgb,   8, "",                 "_color",  "Material B,10/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureNormalB,           Linear, 8, "NormalizeNormals", "_normal", "Material B,10/20", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureRoughnessB,        Linear, 8, "Inverse",          "_rough",  "Material B,10/30", Default3( 0.5, 0.5, 0.5 ) );
+CreateInputTexture2D( TextureMetalnessB,        Linear, 8, "",                 "_metal",  "Material B,10/40", Default( 1.0 ) );
+CreateInputTexture2D( TextureAmbientOcclusionB, Linear, 8, "",                 "_ao",     "Material B,10/50", Default( 1.0 ) );
+CreateInputTexture2D( TextureBlendMaskB,        Linear, 8, "",                 "_blend",  "Material B,10/60", Default( 1.0 ) );
+CreateInputTexture2D( TextureTintMaskB,         Linear, 8, "",                 "_tint",   "Material B,10/70", Default( 1.0 ) );
+Texture2D g_tColorB  < Channel( RGB,  Box( TextureColorB ), Srgb ); Channel( A, Box( TextureTintMaskB ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
+Texture2D g_tNormalB < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormalB, TextureRoughnessB ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); > ;
+Texture2D g_tRmaB < Channel( R, Box( TextureMetalnessB ), Linear ); Channel( G, Box( TextureAmbientOcclusionB ), Linear ); Channel( B, Box( TextureBlendMaskB ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+#if S_MULTIBLEND >= 2
+CreateInputTexture2D( TextureColorC,            Srgb,   8, "",                 "_color",  "Material C,10/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureNormalC,           Linear, 8, "NormalizeNormals", "_normal", "Material C,10/20", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureRoughnessC,        Linear, 8, "Inverse",          "_rough",  "Material C,10/30", Default3( 0.5, 0.5, 0.5 ) );
+CreateInputTexture2D( TextureMetalnessC,        Linear, 8, "",                 "_metal",  "Material C,10/40", Default( 1.0 ) );
+CreateInputTexture2D( TextureAmbientOcclusionC, Linear, 8, "",                 "_ao",     "Material C,10/50", Default( 1.0 ) );
+CreateInputTexture2D( TextureBlendMaskC,        Linear, 8, "",                 "_blend",  "Material C,10/60", Default( 1.0 ) );
+CreateInputTexture2D( TextureTintMaskC,         Linear, 8, "",                 "_tint",   "Material C,10/70", Default( 1.0 ) );
+Texture2D g_tColorC  < Channel( RGB,  Box( TextureColorC ), Srgb ); Channel( A, Box( TextureTintMaskC ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
+Texture2D g_tNormalC < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormalC, TextureRoughnessC ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); > ;
+Texture2D g_tRmaC < Channel( R, Box( TextureMetalnessC ), Linear ); Channel( G, Box( TextureAmbientOcclusionC ), Linear ); Channel( B, Box( TextureBlendMaskC ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+#if S_MULTIBLEND >= 3
+CreateInputTexture2D( TextureColorD,            Srgb,   8, "",                 "_color",  "Material D,10/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureNormalD,           Linear, 8, "NormalizeNormals", "_normal", "Material D,10/20", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureRoughnessD,        Linear, 8, "Inverse",          "_rough",  "Material D,10/30", Default3( 0.5, 0.5, 0.5 ) );
+CreateInputTexture2D( TextureMetalnessD,        Linear, 8, "",                 "_metal",  "Material D,10/40", Default( 1.0 ) );
+CreateInputTexture2D( TextureAmbientOcclusionD, Linear, 8, "",                 "_ao",     "Material D,10/50", Default( 1.0 ) );
+CreateInputTexture2D( TextureBlendMaskD,        Linear, 8, "",                 "_blend",  "Material D,10/60", Default( 1.0 ) );
+CreateInputTexture2D( TextureTintMaskD,         Linear, 8, "",                 "_tint",   "Material D,10/70", Default( 1.0 ) );
+Texture2D g_tColorD  < Channel( RGB,  Box( TextureColorD ), Srgb ); Channel( A, Box( TextureTintMaskD ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
+Texture2D g_tNormalD < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormalD, TextureRoughnessD ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); > ;
+Texture2D g_tRmaD < Channel( R, Box( TextureMetalnessD ), Linear ); Channel( G, Box( TextureAmbientOcclusionD ), Linear ); Channel( B, Box( TextureBlendMaskD ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+#endif
+#endif
+#endif
+#endif
+
 // blendable.shader samples with g_sDefault, which has no state of its own: native's default, anisotropic and wrapped
 SamplerState g_BlendableFiltering < Filter( ANISOTROPIC ); >;
 

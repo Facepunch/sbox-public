@@ -7,6 +7,63 @@
 // greater-or-equal, which draws the same pixels.
 import sbox.surface;
 
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): foliage.shader's texture inputs,
+// the textures made from them and its attributes, read with the material's features
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+#include "common/features.hlsl"
+Feature( F_ALPHA_TEST, 0..1, "Rendering" );
+Feature( F_FOLIAGE_ANIMATION, 0..2( 0 = "None", 1 = "Vertex Color Based", 2 = "Trunk Only" ), "Foliage Animation" );
+Feature( F_TRANSMISSIVE, 0..1, "Rendering" );
+Feature( F_GRAZING_FADE, 0..1, "Rendering" );
+// The material's parameters as the material editor shows them, with the feature states that use them
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+float g_flAlphaDistanceEnd < Default( 2000 ); Range( 0, 10000 ); UiGroup( "Alpha Test" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
+float g_flAlphaDistanceStart < Default( 500 ); Range( 0, 5000 ); UiGroup( "Alpha Test" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
+float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
+float g_flAmbientBoost < Default( 0 ); Range( 0, 0.5 ); UiGroup( "Foliage" ); >;
+float g_flBranchAmplitude < Default( 0.1 ); Range( 0, 1 ); UiGroup( "Foliage Animation,10/Detail" ); ActiveIf( F_FOLIAGE_ANIMATION == 1 ); >;
+float g_flBranchFrequency < Default( 0.5 ); Range( 0.1, 5 ); UiGroup( "Foliage Animation,10/Detail" ); ActiveIf( F_FOLIAGE_ANIMATION == 1 ); >;
+float g_flAntiAliasedEdgeStrength < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
+float g_flDetailFadeDistance < Default( 500 ); Range( 100, 2000 ); UiGroup( "Foliage" ); >;
+float g_flEdgeAmplitude < Default( 0.1 ); Range( 0, 1 ); UiGroup( "Foliage Animation,10/Detail" ); ActiveIf( F_FOLIAGE_ANIMATION == 1 ); >;
+float g_flEdgeFrequency < Default( 1 ); Range( 0.1, 5 ); UiGroup( "Foliage Animation,10/Detail" ); ActiveIf( F_FOLIAGE_ANIMATION == 1 ); >;
+float g_flGrassNormalUp < Default( 0 ); Range( 0, 1 ); UiGroup( "Foliage" ); >;
+float g_flGrazingFadeEnd < Default( 0.1 ); Range( 0, 1 ); UiGroup( "Grazing Fade" ); ActiveIf( F_GRAZING_FADE != 0 ); >;
+float g_flGrazingFadeStart < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Grazing Fade" ); ActiveIf( F_GRAZING_FADE != 0 ); >;
+float g_flMinRoughness < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Foliage" ); >;
+float g_flNormalVariation < Default( 0.1 ); Range( 0, 0.5 ); UiGroup( "Foliage" ); >;
+float g_flRimPower < Default( 4 ); Range( 1, 8 ); UiGroup( "Foliage" ); >;
+float g_flRimStrength < Default( 0 ); Range( 0, 2 ); UiGroup( "Foliage" ); >;
+float g_flSpecularOcclusion < Default( 0 ); Range( 0, 1 ); UiGroup( "Foliage" ); >;
+float g_flSwaySpeed < Default( 1 ); Range( 0, 10 ); UiGroup( "Foliage Animation,20/Trunk" ); ActiveIf( F_FOLIAGE_ANIMATION != 0 ); >;
+float g_flSwayStrength < Default( 1 ); Range( 0, 25 ); UiGroup( "Foliage Animation,20/Trunk" ); ActiveIf( F_FOLIAGE_ANIMATION != 0 ); >;
+float3 g_flTintColor < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material,10/90" ); >;
+float g_flTransmissionScale < Default( 1 ); Range( 0, 10 ); UiGroup( "Transmissive" ); ActiveIf( F_TRANSMISSIVE != 0 ); >;
+float g_flWrapAmount < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Foliage" ); ActiveIf( F_TRANSMISSIVE != 0 ); >;
+float g_flWrapStrength < Default( 0.3 ); Range( 0, 1 ); UiGroup( "Foliage" ); ActiveIf( F_TRANSMISSIVE != 0 ); >;
+BoolAttribute( NeedsLightProbe, true );
+#if ( F_ALPHA_TEST )
+BoolAttribute( alphatest, true );
+#endif
+// End of the material editor's lines
+#define S_FOLIAGE_ANIMATION F_FOLIAGE_ANIMATION
+#include "common/vertex.hlsl"
+BoolAttribute( VertexNeedsPropOrigin, true );
+#include "common/utils/Material.CommonInputs.hlsl"
+#include "common/pixel.hlsl"
+#define S_ALPHA_TEST F_ALPHA_TEST
+#define S_TRANSMISSIVE F_TRANSMISSIVE
+#define S_GRAZING_FADE F_GRAZING_FADE
+#if S_ALPHA_TEST
+TextureAttribute( LightSim_Opacity_A, g_tColor );
+#endif
+#if S_TRANSMISSIVE
+CreateInputTexture2D( TextureTransmissiveColor, Srgb, 8, "", "_color", "Material,10/60", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tTransmissiveColor < Channel( RGB, Box( TextureTransmissiveColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); >;
+#endif
+#endif
+
 [Material]
 public struct Foliage : IVertexSurface, ISunLitSurface
 {

@@ -15,7 +15,7 @@ public class LightModulatorShaderTests
 	public void LitShadersSpecializeOnLightModulators()
 	{
 		var files = ShaderFileTests.Files;
-		foreach ( var name in new[] { "complex", "blendable", "foliage", "static_overlay" } )
+		foreach ( var name in new[] { "complex", "generic", "simple" } )
 		{
 			var shader = ShaderFile.Read( files.Read( $"shaders/{name}.shader" ), name );
 			var pixel = shader[ShaderProgramType.Pixel];
