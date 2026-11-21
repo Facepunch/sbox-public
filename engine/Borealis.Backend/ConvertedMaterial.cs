@@ -57,6 +57,17 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		return found;
 	}
 
+	/// <summary>The texture of the first texture field a shader variable (<c>g_tColor</c>) fills, or null.</summary>
+	public GpuTexture Texture( string variable )
+	{
+		foreach ( var field in layout.Fields )
+		{
+			if ( field.Kind == MaterialFieldKind.Texture2D && Fills( field, variable ) ) return GetTexture( field.Offset );
+		}
+
+		return null;
+	}
+
 	/// <summary>Every texture field nothing has set takes <paramref name="texture"/>: a material made in code, as native makes one.</summary>
 	public void FillUnsetTextures( GpuTexture texture )
 	{
