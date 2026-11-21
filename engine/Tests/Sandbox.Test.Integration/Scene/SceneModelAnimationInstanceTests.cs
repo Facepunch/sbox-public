@@ -49,14 +49,15 @@ public class SceneModelAnimationInstanceTests
 	}
 
 	/// <summary>
-	/// The twin of a scene model on an instance never animates: with nothing reading it, it keeps the bind pose through updates
-	/// and a model change, and the bounds are the pose's, kept in managed code.
+	/// The twin of a scene model on an instance never animates and is never given the pose, even where scene objects write
+	/// their native twins: it keeps the bind pose through updates and a model change, and the bounds are the pose's, kept in
+	/// managed code.
 	/// </summary>
 	[TestMethod]
 	public void TwinStaysInBindPose()
 	{
 		var world = new SceneWorld();
-		SceneObject.WritesNativeOverride = false;
+		SceneObject.WritesNativeOverride = true;
 		try
 		{
 			var model = new SceneModel( world, Model.Load( "models/dev/box.vmdl" ), Placement );

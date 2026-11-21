@@ -56,20 +56,13 @@ public sealed partial class SceneModel
 	}
 
 	/// <summary>
-	/// The instance's pose changed: its bounds follow it, and Source 2's views draw it through the twin while anything reads it.
+	/// The instance's pose changed: its bounds follow it. The twin keeps its bind pose; nothing reads its bones.
 	/// </summary>
 	unsafe void PoseChanged()
 	{
 		if ( !animNative.HasInstance ) return;
 
-		var pose = animNative.Pose;
-		UpdatePoseBounds( pose );
-
-		if ( !WritesNative ) return;
-
-		var twin = animNative.Twin;
-		twin.SetWorldSpaceRenderBoneMatrices( pose->BoneCount, (IntPtr)pose->Bones );
-		twin.SetFlexControllerWeights( (IntPtr)pose->FlexWeights, pose->FlexWeightCount );
+		UpdatePoseBounds( animNative.Pose );
 	}
 
 	/// <summary>
@@ -137,7 +130,7 @@ public sealed partial class SceneModel
 		AnimatedWorldBounds = world;
 		AnimatedLocalBounds = local;
 
-		// Kept here for the renderer and Bounds; the twin gets them too, for render-mesh traces and Source 2's views
+		// Kept here for the renderer and Bounds; the twin gets them too, for render-mesh traces
 		SetPoseBounds( world );
 	}
 

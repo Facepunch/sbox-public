@@ -7,12 +7,12 @@ namespace Sandbox;
 /// A scene model's animation: the <see cref="ModelAnimationInstance"/> every scene model managed code makes animates on. A
 /// scene model native code made (a tool's preview) has none: native code animates its twin, a
 /// <see cref="CSceneAnimatableObject"/>, and managed code only reads the twin's pose, bounds and attachments. Draw state (body
-/// groups, deformation volumes) is always the twin's.
+/// groups) is always the twin's; deformation volumes are kept in managed code.
 /// </summary>
 internal readonly unsafe struct SceneModelAnimation
 {
 	/// <summary>
-	/// The scene model's native twin: it draws in Source 2's views and keeps draw state.
+	/// The scene model's native twin: it keeps draw state.
 	/// </summary>
 	internal readonly CSceneAnimatableObject Twin;
 
@@ -169,8 +169,6 @@ internal readonly unsafe struct SceneModelAnimation
 
 	// Draw state: the twin's whichever animates
 	internal void SetBodyGroup( string name, int value ) => Twin.SetBodyGroup( name, value );
-	internal void SetDeformationVolumes( int count, IntPtr volumes ) => Twin.SetDeformationVolumes( count, volumes );
-	internal void SetDeformationAnchors( int count, IntPtr anchors ) => Twin.SetDeformationAnchors( count, anchors );
 }
 
 /// <summary>

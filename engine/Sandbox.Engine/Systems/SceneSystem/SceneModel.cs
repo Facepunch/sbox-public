@@ -92,7 +92,6 @@ public sealed partial class SceneModel : SceneObject
 		OOBChecks.ThrowIfBoneOutOfBounds( boneIndex, Model?.BoneCount ?? 0, nameof( boneIndex ) );
 
 		animNative.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
-		if ( animNative.HasInstance && WritesNative ) animNative.Twin.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
 		BonesChanged();
 	}
 

@@ -15,16 +15,11 @@ public sealed partial class SceneModel
 	/// Replaces the active, validated deformation volumes applied to this model.
 	/// The packed values are copied, so later edits require another call.
 	/// </summary>
-	internal unsafe void SetDeformationVolumes( ReadOnlySpan<SceneDeformationVolumeData> volumes )
+	internal void SetDeformationVolumes( ReadOnlySpan<SceneDeformationVolumeData> volumes )
 	{
 		if ( volumes.SequenceEqual( CollectionsMarshal.AsSpan( _volumeSnapshot ) ) )
 		{
 			return;
-		}
-
-		fixed ( SceneDeformationVolumeData* data = volumes )
-		{
-			animNative.SetDeformationVolumes( volumes.Length, (IntPtr)data );
 		}
 
 		_volumeSnapshot.Clear();
@@ -48,16 +43,11 @@ public sealed partial class SceneModel
 	/// Makes the deformation volumes move this model rigidly: each part of it moves as they move its bone's anchor, a
 	/// model-space point per model bone, without being reshaped. None deforms it as usual.
 	/// </summary>
-	internal unsafe void SetDeformationAnchors( ReadOnlySpan<Vector4> anchors )
+	internal void SetDeformationAnchors( ReadOnlySpan<Vector4> anchors )
 	{
 		if ( anchors.SequenceEqual( CollectionsMarshal.AsSpan( _anchorSnapshot ) ) )
 		{
 			return;
-		}
-
-		fixed ( Vector4* data = anchors )
-		{
-			animNative.SetDeformationAnchors( anchors.Length, (IntPtr)data );
 		}
 
 		_anchorSnapshot.Clear();
