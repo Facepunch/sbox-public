@@ -247,4 +247,22 @@ public class ShadowTests
 
 		Assert.IsTrue( sawCaster, "the caster under the point light is in one of its faces" );
 	}
+
+	/// <summary>
+	/// A point light just behind the camera only renders the cube face looking into the view.
+	/// </summary>
+	[TestMethod]
+	public void PointLightSkipsFacesTheViewCantSee()
+	{
+		Sandbox.Rendering.ShadowMapper.ResetCache();
+
+		var world = new RenderWorld();
+		world.Lighting.SunColor = Color.Black;
+		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( -30, 0, 0 ) ) ) { Radius = 200 } );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+
+		Assert.AreEqual( 1, system.ShadowMaps.Passes.Length, "only the face looking into the view" );
+	}
 }
