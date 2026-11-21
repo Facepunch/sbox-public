@@ -194,6 +194,7 @@ public static class ContentBuilder
 		public long Started, Committed;
 		public DateTime Launched;
 		public int Misses;
+		public (AssetRecord Record, int Settled, string Reason)? Own;
 		public bool Final => State is State.Clean or State.Committed or State.Failed or State.Blocked;
 	}
 
@@ -323,6 +324,7 @@ public static class ContentBuilder
 		readonly List<(string Source, string Visible)> hidden = [];
 		long clock;
 		int jobs;
+		int settled;
 		readonly ConcurrentBag<int> freeStaging = [];
 
 		public async Task<BuildReport> Execute()
@@ -355,6 +357,7 @@ public static class ContentBuilder
 					}
 				}
 
+				var deleted = new Dictionary<RootState, List<AssetRecord>>();
 				void Load()
 				{
 					foreach ( var root in roots )
@@ -362,6 +365,7 @@ public static class ContentBuilder
 						root.Store = new RecordStore( root.Resolve, root.Def.StateDirectory );
 						DeleteStaging( Path.Combine( root.Def.StateDirectory, "staging" ) );
 						Inventory( root );
+						if ( request.Select is null ) deleted[root] = root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList();
 					}
 				}
 
@@ -371,7 +375,7 @@ public static class ContentBuilder
 
 				if ( request.Select is null )
 				{
-					foreach ( var root in roots ) RemoveDeletedSources( root );
+					foreach ( var root in roots ) RemoveDeletedSources( root, deleted[root] );
 				}
 
 				// A source whose output a later root also builds is hidden (sounds/x.wav under sounds/x.mp3 too):
@@ -543,7 +547,7 @@ public static class ContentBuilder
 				LoadFingerprints( pending );
 
 				var describable = pending.Where( x => x.Kind == AssetKind.Described ).ToList();
-				var self = await CheckAll( describable, x => SelfDirty( x ) ?? Shadowed( x ) );
+				var self = await CheckAll( describable, OwnDirty );
 				var describe = describable.Where( x => self[x] is not null ).ToList();
 				var results = await RunJobs( describe, node => Compile( Job( node, JobMode.Describe ) ) );
 				var described = new Dictionary<Node, IReadOnlyList<PrerequisiteRead>>();
@@ -668,7 +672,18 @@ public static class ContentBuilder
 		/// built from changed since, so another compile may have rebuilt it. Changed bytes with nothing else changed
 		/// are damage, which the record's hash catches and a compile repairs.
 		/// </summary>
-		bool RebuiltOutside( Node node ) => (SelfDirty( node ) ?? Shadowed( node ) ?? ReadChanged( node, Producers( node ) )) is not null;
+		bool RebuiltOutside( Node node ) => (OwnDirty( node ) ?? ReadChanged( node, Producers( node ) )) is not null;
+
+		/// <summary>
+		/// Why its own inputs or reads' roots no longer match its record, checked again once a job has settled.
+		/// </summary>
+		string OwnDirty( Node node )
+		{
+			if ( node.Own is { } own && own.Record == node.Record && own.Settled == settled ) return own.Reason;
+			var reason = SelfDirty( node ) ?? Shadowed( node );
+			node.Own = (node.Record, settled, reason);
+			return reason;
+		}
 
 		/// <summary>
 		/// An output it owns has other bytes than its record says (see <see cref="RebuiltOutside"/>).
@@ -700,10 +715,12 @@ public static class ContentBuilder
 		/// Removes what was built from sources that no longer exist. A source this build doesn't compile (a
 		/// shader, a map) still exists, and its outputs stay.
 		/// </summary>
-		void RemoveDeletedSources( RootState root )
+		void RemoveDeletedSources( RootState root, List<AssetRecord> deleted )
 		{
-			foreach ( var record in root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList() )
+			foreach ( var record in deleted )
 			{
+				if ( File.Exists( Path.Combine( root.Def.Path, record.Source ) ) ) continue;
+
 				var outputs = Unshared( root, record.Outputs.Keys, record.Source ).ToList();
 				try
 				{
@@ -854,6 +871,7 @@ public static class ContentBuilder
 				var (finished, finishedJob) = running[done];
 				running.Remove( done );
 
+				settled++;
 				try { Finish( finished, done.Result, finishedJob.Staging ); }
 				finally { ReleaseStaging( finishedJob.Staging ); }
 
@@ -1145,7 +1163,7 @@ public static class ContentBuilder
 		{
 			if ( request.Force ) return nodes.ToDictionary( x => x, _ => ("forced", (List<(string Key, FileStamp Stamp)>)null) );
 
-			var own = await CheckAll( nodes, x => (SelfDirty( x ) ?? Shadowed( x )) is { } reason ? (reason, null) : ChangedOutput( x ) );
+			var own = await CheckAll( nodes, x => OwnDirty( x ) is { } reason ? (reason, null) : ChangedOutput( x ) );
 			var current = nodes.Where( x => own[x].Reason is null ).ToList();
 			var producers = current.ToDictionary( x => x, Producers );
 			var reads = await CheckAll( current, x => ReadChanged( x, producers[x] ) );
