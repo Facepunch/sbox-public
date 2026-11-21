@@ -26,12 +26,12 @@ public class AsyncPostProcessTests
 	}
 
 	[TestMethod]
-	[DataRow( true, true, true, true, 2, 80 )]
+	[DataRow( true, true, true, true, 1, 80 )]
 	[DataRow( false, true, true, true, 1, 80 )]
 	[DataRow( true, false, true, true, 0, 80 )]
 	[DataRow( true, true, false, true, 0, 80 )]
 	[DataRow( true, true, true, false, 0, 80 )]
-	[DataRow( true, true, true, true, 2, 1 )]
+	[DataRow( true, true, true, true, 1, 1 )]
 	[DataRow( false, true, true, true, 1, 1 )]
 	[DataRow( true, false, true, true, 0, 1 )]
 	public void WaitsForDepthBeforeReflectionsAndAllComputeBeforeNormalHooks( bool reflections, bool enabled, bool parallel, bool supported, int computeSegments, int objects )
@@ -56,7 +56,8 @@ public class AsyncPostProcessTests
 			Assert.AreEqual( waits.Length, waits.Distinct().Count(), "a binary semaphore must never have two consumers" );
 			Assert.IsTrue( waits.All( i => plan.Segments[i].Async ) );
 
-			if ( computeSegments == 2 )
+			// The depth chain stays on graphics, and AO overlaps the early graphics effect that reads it
+			if ( reflections && computeSegments > 0 )
 			{
 				var layers = plan.Frames[0].Layers;
 				var depth = layers.Single( l => l.Name == "Hi-Z Depth Downsample" ).Segment;
@@ -64,8 +65,9 @@ public class AsyncPostProcessTests
 				var ssr = layers.Single( l => l.Name.EndsWith( "(early graphics)" ) ).Segment;
 				var hooks = layers.Single( l => l.Name == "Managed: AfterDepthPrepass" ).Segment;
 				Assert.IsTrue( layers.FindIndex( l => l.Name.EndsWith( "(async compute)" ) ) < layers.FindIndex( l => l.Name == "Contact Shadows" ), "AO gets the overlap window before contact shadows" );
-				Assert.AreEqual( depth, WaitFor( recorder, ssr ) );
-				Assert.AreNotEqual( ao, WaitFor( recorder, ssr ), "SSR must not wait for AO" );
+				Assert.IsFalse( plan.Segments[depth].Async, "the depth chain runs on graphics" );
+				Assert.IsTrue( plan.Segments[ao].Async );
+				Assert.AreEqual( -1, WaitFor( recorder, ssr ), "SSR waits for nothing on the compute queue" );
 				Assert.IsTrue( Enumerable.Range( ssr + 1, hooks - ssr ).Any( i => WaitFor( recorder, i ) == ao ), "ordinary camera hooks must acquire AO" );
 			}
 

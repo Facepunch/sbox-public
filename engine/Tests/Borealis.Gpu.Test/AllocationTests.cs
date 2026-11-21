@@ -1,5 +1,7 @@
 using Borealis;
+using Borealis.Backend;
 using BorealisGpuSample;
+using Sandbox;
 
 namespace BorealisGpuTests;
 
@@ -41,5 +43,64 @@ public class AllocationTests : GpuTest
 		Device.WaitIdle();
 		TestContext.WriteLine( $"renderer allocations per frame: {string.Join( ", ", bytes )}" );
 		Assert.AreEqual( SettledFrames, settled, $"the renderer kept allocating: never {SettledFrames} frames in a row with nothing in {MaxFrames}. Bytes per frame: {string.Join( ", ", bytes )}" );
+	}
+
+	sealed class CameraStages : IRenderStages
+	{
+		public void Render( RenderStage stage, in StageTarget target ) { }
+	}
+
+	/// <summary>
+	/// A game camera's frame (one with stages) whose depth chain and contact shadows go on the async compute queue beside
+	/// the sun's shadow maps: its handoffs, semaphores and layout fix-ups allocate nothing either once steady.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	public void SteadyFramesOverlappingComputeDontAllocate()
+	{
+		if ( !Device.Capabilities.AsyncCompute ) Assert.Inconclusive( "No async compute queue" );
+
+		using var backend = new BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = true };
+			using var target = ViewTarget.Create( new Vector2Int( 320, 240 ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Overlapped allocations" );
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( -1, 0.2f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 4, 4, 4 );
+			world.Lighting.SunContactShadows = true;
+			var material = backend.CreateMaterial( "Overlapped grey", Color.Gray );
+			world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), Transform.Zero ) );
+			world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( new Vector3( 0, 0, -52.5f ), Rotation.Identity, new Vector3( 20, 20, 0.05f ) ) ) );
+			var view = new RenderView { Name = "Overlapped allocations", FieldOfView = 60, ZNear = 4, ZFar = 4000, Viewport = new Rect( 0, 0, 320, 240 ) };
+			view.Rotation = Rotation.From( 35, 90, 0 );
+			view.Position = -view.Rotation.Forward * 450;
+			var stages = new CameraStages();
+
+			var bytes = new List<long>( MaxFrames );
+			var settled = 0;
+			for ( int frame = 0; frame < MaxFrames && settled < SettledFrames; frame++ )
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				RendererAllocations.TakeFrame();
+				system.Render( world, view, target, stages );
+				var allocated = RendererAllocations.TakeFrame();
+				Assert.IsTrue( system.Frame.AsyncCompute, "the frame overlaps compute" );
+				bytes.Add( allocated );
+				settled = allocated == 0 ? settled + 1 : 0;
+			}
+
+			Device.WaitIdle();
+			TestContext.WriteLine( $"renderer allocations per frame: {string.Join( ", ", bytes )}" );
+			Assert.AreEqual( SettledFrames, settled, $"the renderer kept allocating: never {SettledFrames} frames in a row with nothing in {MaxFrames}. Bytes per frame: {string.Join( ", ", bytes )}" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
 	}
 }

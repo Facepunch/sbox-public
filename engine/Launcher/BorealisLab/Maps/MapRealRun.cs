@@ -158,6 +158,10 @@ internal static class MapRealRun
 		map.Backend.CarryScopes = Args.Has( "-carry-scopes" );
 		map.Backend.LayoutPlans = !Args.Has( "-no-layout-plans" );
 
+		// -no-async-compute: the depth chain and contact shadows stay on the graphics queue
+		map.Backend.AsyncCompute = !Args.Has( "-no-async-compute" );
+		Console.WriteLine( $"Async compute: {(map.Backend.SupportsAsyncCompute ? "on" : gpu.Capabilities.AsyncCompute ? "off" : "off (no compute queue)")}" );
+
 		// -fixed-time S: shader time S seconds every frame, so captures from separate runs can be compared pixel for pixel
 		if ( Args.String( "-fixed-time" ) is { } fixedTime && float.TryParse( fixedTime, System.Globalization.CultureInfo.InvariantCulture, out var seconds ) ) map.Time = seconds;
 		map.Backend.Shaders.ShareVariants = !Args.Has( "-no-share-variants" );

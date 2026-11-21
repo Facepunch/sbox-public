@@ -45,6 +45,12 @@ public class RenderHost
 	public virtual bool ContactShadows => true;
 
 	/// <summary>
+	/// Volumetric fog, where a scene has it. Off, its passes don't run and scenes draw their other fog as they would without it.
+	/// Read once a view.
+	/// </summary>
+	public virtual bool VolumetricFog => true;
+
+	/// <summary>
 	/// Skip opaque meshes hidden by the depth prepass.
 	/// </summary>
 	public virtual bool OcclusionCulling => true;

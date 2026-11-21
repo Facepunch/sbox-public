@@ -15,6 +15,9 @@ internal static partial class ManagedSceneRendering
 	[ConVar( "r_managed_occlusion", Help = "Skip opaque meshes hidden by the depth prepass in the managed scene renderer" )]
 	public static bool Occlusion { get; set; }
 
+	[ConVar( "r_managed_async_compute", Help = "Run the depth chain, contact shadows and ambient occlusion on the async compute queue beside the shadow maps, where the GPU has one" )]
+	public static bool AsyncCompute { get; set; } = true;
+
 	/// <summary>
 	/// How occlusion culling handles aggregate fragments. Must match Borealis's <c>FragmentOcclusion</c>.
 	/// </summary>

@@ -104,12 +104,13 @@ internal sealed class VolumetricFog : IDisposable
 
 	/// <summary>
 	/// Update settings and history, then create resources on the main thread before setup
-	/// (<c>SetParams</c>, <c>FrameUpdate</c>, <c>CreateRendererSingleUse</c>). Disabling fog releases resources.
+	/// (<c>SetParams</c>, <c>FrameUpdate</c>, <c>CreateRendererSingleUse</c>). Disabling fog, in its settings or by the host
+	/// not <paramref name="allowed"/> it (<c>r_enable_volume_fog</c>), releases resources.
 	/// </summary>
-	public void BeginFrame( VolumetricFogSettings settings, bool hasVolumes )
+	public void BeginFrame( VolumetricFogSettings settings, bool hasVolumes, bool allowed = true )
 	{
 		Active = false;
-		if ( !settings.Enabled )
+		if ( !settings.Enabled || !allowed )
 		{
 			Release();
 			return;
