@@ -391,7 +391,7 @@ public sealed class MeshObject : RenderObject
 	}
 
 	/// <summary>
-	/// Shader-layout deformation volumes (<c>CSceneAnimatableObject::SetDeformationVolumes</c>).
+	/// Shader-layout deformation volumes (<c>SceneModel.DeformationVolumes</c>).
 	/// Forces vertex-cache skinning; callers must update bounds.
 	/// </summary>
 	internal DeformationVolume[] DeformationVolumes
@@ -407,7 +407,7 @@ public sealed class MeshObject : RenderObject
 	} = [];
 
 	/// <summary>
-	/// A model-space anchor per model bone the volumes move it rigidly by (<c>CSceneAnimatableObject::SetDeformationAnchors</c>),
+	/// A model-space anchor per model bone the volumes move it rigidly by (<c>SceneModel.DeformationAnchors</c>),
 	/// or none to deform it as usual.
 	/// </summary>
 	internal Vector4[] DeformationAnchors { get; set; } = [];

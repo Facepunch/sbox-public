@@ -37,7 +37,7 @@ public sealed partial class SceneModel : SceneObject
 				throw new System.ArgumentException( "Error creating AnimSceneObject - possible invalid model?" );
 			}
 
-			if ( UsesAnimationInstance ) CreateAnimationInstance( model, transform );
+			CreateAnimationInstance( model, transform );
 
 			Tags.RemoveAll();
 			Transform = transform;
@@ -92,7 +92,6 @@ public sealed partial class SceneModel : SceneObject
 		OOBChecks.ThrowIfBoneOutOfBounds( boneIndex, Model?.BoneCount ?? 0, nameof( boneIndex ) );
 
 		animNative.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
-		if ( animNative.HasInstance && WritesNative ) animNative.Twin.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
 		BonesChanged();
 	}
 
