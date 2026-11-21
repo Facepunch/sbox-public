@@ -272,6 +272,9 @@ internal sealed partial class SceneBridge
 			BorealisGpuUpscaler.Prepare();
 		}
 
+		// Until the upscale the stages draw at the render size, Painter's screen pixels mapped onto it from the display's
+		gpuView.DisplayViewport = upscaling ? displayViewport : null;
+
 		WorldRender render;
 		CameraState state;
 		using ( PrepareTiming.Scope() )
@@ -338,6 +341,7 @@ internal sealed partial class SceneBridge
 
 			// Upscaled before post processing, as native's: the stages after draw at the display size, unjittered
 			if ( upscaling ) Upscale( upscaler, frame, state.View, displayViewport );
+			gpuView.DisplayViewport = null;
 
 			RunStage( camera, Stage.BeforePostProcess );
 			if ( exposure is not null && exposureBucket >= 0 ) frame.CountExposure( exposure, exposureBucket );

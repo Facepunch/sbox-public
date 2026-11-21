@@ -1,0 +1,11 @@
+// Stands in for a library's environmentsystems/shaders/tonemap_exempt.hlsl, which the packages that include it don't ship
+// (Mouse Fishing's materials): the colour as it is, tonemapped as any other.
+#ifndef SBOX_STANDIN_TONEMAP_EXEMPT
+#define SBOX_STANDIN_TONEMAP_EXEMPT
+
+float4 MarkTonemapExempt( float4 vColor, float flExempt )
+{
+	return vColor;
+}
+
+#endif

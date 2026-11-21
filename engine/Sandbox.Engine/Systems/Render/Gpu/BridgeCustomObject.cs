@@ -39,16 +39,24 @@ internal sealed class BridgeCustomObject : CustomObject
 		}
 
 		if ( layerType is not (SceneLayerType.Opaque or SceneLayerType.Translucent) ) return;
-		BorealisGpuCustomDraw.Draw( context, layerType, view.View, render ??= Source.RenderInternal, cameraAttributes: view.View.HostView as RenderAttributes, lightingWorld: view.World, subWorlds: view.View.SubWorlds );
+		BorealisGpuCustomDraw.Draw( context, layerType, view.View, render ??= Source.RenderInternal, cameraAttributes: CameraAttributes( view ), lightingWorld: view.World, subWorlds: view.View.SubWorlds );
 	}
 
 	/// <summary>
+	/// The attributes of the camera <paramref name="view"/> draws for (<c>SceneCamera.Attributes</c>, with what
+	/// <c>Scene.RenderAttributes</c> set): a shadow view's are its main view's, as the meshes in its shadow maps read them.
+	/// </summary>
+	internal static RenderAttributes CameraAttributes( ViewPass view ) => (view.Root ?? view.View)?.HostView as RenderAttributes;
+
+	/// <summary>
 	/// A custom or dynamic object's <paramref name="draw"/> on Borealis.Gpu in a depth layer (a shadow map, the depth prepass):
-	/// into the bound depth alone, in the layer's mode, with a shadow view's depth bias, as the layer's meshes draw.
+	/// into the bound depth alone, in the layer's mode, with a shadow view's depth bias, as the layer's meshes draw, and with
+	/// the camera's attributes as its colour draw has them, so a vertex shader animated by them (Mouse Fishing's clutter grass
+	/// sways by <c>Scene.RenderAttributes</c>' time) puts the same depth where its colour lands.
 	/// </summary>
 	internal static void DrawDepthOnGpu( GpuContext context, ViewPass view, MeshLayer layer, Action draw )
 	{
 		var shadow = layer.LayerType == MeshLayerType.Shadow;
-		BorealisGpuCustomDraw.Draw( context, (SceneLayerType)layer.LayerType, view.View, draw, layer.ShaderMode, shadow ? view.DepthBias : 0, shadow ? view.SlopeScaledDepthBias : 0 );
+		BorealisGpuCustomDraw.Draw( context, (SceneLayerType)layer.LayerType, view.View, draw, layer.ShaderMode, shadow ? view.DepthBias : 0, shadow ? view.SlopeScaledDepthBias : 0, CameraAttributes( view ) );
 	}
 }

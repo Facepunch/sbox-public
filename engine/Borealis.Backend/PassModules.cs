@@ -30,7 +30,10 @@ public sealed class PassModules : IShaderModules
 		if ( name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
 		return slangPaths[compiledPath] = Path.GetFullPath( Path.ChangeExtension( name, ".slang" ) );
 	}
-	readonly Dictionary<string, (ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots)> stages = new( StringComparer.Ordinal );
+	readonly Dictionary<string, (ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots, (int Resource, Annotations Annotations)[] FeatureSamplers)> stages = new( StringComparer.Ordinal );
+
+	/// <summary>Stages whose samplers a material's features choose (<see cref="WithFeatureSamplers"/>), by stage key and those features' values.</summary>
+	readonly Dictionary<string, ModuleStage> featured = new( StringComparer.Ordinal );
 	readonly HashSet<string> reported = new( StringComparer.Ordinal );
 	readonly Dictionary<string, ShaderCompileException> failed = new( StringComparer.Ordinal );
 	readonly Dictionary<string, Task<CompiledPassStage>> running = new( StringComparer.Ordinal );
@@ -366,6 +369,7 @@ public sealed class PassModules : IShaderModules
 		var settings = Settings( mode );
 
 		var waiting = false;
+		var samplerKey = "";
 		ModuleStage Stage( StageKind kind, out Dictionary<string, int> values, bool start = false )
 		{
 			values = null;
@@ -388,7 +392,9 @@ public sealed class PassModules : IShaderModules
 				return null;
 			}
 
-			return Compiled( shader, module, kind, values, attributes );
+			var stage = Compiled( shader, module, kind, values, attributes, featureValues, out var featureKey );
+			if ( featureKey is not null ) samplerKey += $"{kind}:{featureKey}|";
+			return stage;
 		}
 
 		try
@@ -422,7 +428,7 @@ public sealed class PassModules : IShaderModules
 				Compute = compute,
 				Task = task,
 				Mesh = mesh,
-				Key = $"{module.Text.GetHashCode()}|{(gpuDriven ? "gpudriven|" : "")}{vertex?.Name}|{pixel?.Name}|{compute?.Name}|{task?.Name}|{mesh?.Name}|{Key( pixel?.RenderStates )}|{Key( vertex )}{Key( pixel )}{Key( compute )}{Key( task )}{Key( mesh )}",
+				Key = $"{module.Text.GetHashCode()}|{(gpuDriven ? "gpudriven|" : "")}{vertex?.Name}|{pixel?.Name}|{compute?.Name}|{task?.Name}|{mesh?.Name}|{Key( pixel?.RenderStates )}|{Key( vertex )}{Key( pixel )}{Key( compute )}{Key( task )}{Key( mesh )}{samplerKey}",
 			};
 		}
 		catch ( NoGpuDrivenForm )
@@ -552,10 +558,11 @@ public sealed class PassModules : IShaderModules
 		lock ( stages ) return running.TryAdd( key, task ) ? task : running[key];
 	}
 
-	ModuleStage Compiled( ShaderFile shader, PassModule module, StageKind kind, Dictionary<string, int> values, Func<string, int?> attributes )
+	ModuleStage Compiled( ShaderFile shader, PassModule module, StageKind kind, Dictionary<string, int> values, Func<string, int?> attributes, Dictionary<string, int> featureValues, out string featureKey )
 	{
+		featureKey = null;
 		var key = StageKey( module, kind, values );
-		(ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots) entry;
+		(ModuleStage Stage, IReadOnlyList<SpecializationSlot> Slots, (int Resource, Annotations Annotations)[] FeatureSamplers) entry;
 		ShaderCompileException failure;
 		lock ( stages )
 		{
@@ -602,19 +609,44 @@ public sealed class PassModules : IShaderModules
 				}
 				else
 				{
-					entry = (Describe( shader, kind, compiled, key, values.GetValueOrDefault( PassModule.GpuDrivenCombo ) == 1 ), compiled.Stage.Specializations);
+					var described = Describe( shader, kind, compiled, key, values.GetValueOrDefault( PassModule.GpuDrivenCombo ) == 1, values, out var featureSamplers );
+					entry = (described, compiled.Stage.Specializations, featureSamplers);
 					stages[key] = entry;
 					StagesCompiled++;
 				}
 			}
 		}
 
+		// Samplers a material's features choose (Material.CommonInputs.hlsl's TextureFiltering) are the material's
+		var stage = entry.Stage;
+		if ( entry.FeatureSamplers.Length > 0 ) stage = WithFeatureSamplers( key, entry.Stage, entry.FeatureSamplers, values, featureValues, out featureKey );
+
 		// Specialization constants (SpecializedConstant() globals) take their attributes' values, as for compiled programs
-		if ( entry.Slots.Count == 0 || attributes is null ) return entry.Stage;
+		if ( entry.Slots.Count == 0 || attributes is null ) return stage;
 		var constants = entry.Slots.Select( s => attributes( s.Attribute ) is int value
 			? new SpecializationConstant( (uint)s.Id, (uint)value )
 			: new SpecializationConstant( (uint)s.Id, (uint)(int)(s.Annotations?.Default is { Length: > 0 } d ? d[0] : 0) ) ).ToArray();
-		return Copy( entry.Stage, constants: constants );
+		return Copy( stage, constants: constants );
+	}
+
+	/// <summary>
+	/// A stage with the samplers whose annotations read features (<c>Filter( F_TEXTURE_FILTERING == 0 ? ANISOTROPIC : ... )</c>)
+	/// made with these features' values, as vfx evaluates a material's annotations; one per stage and set of values.
+	/// </summary>
+	ModuleStage WithFeatureSamplers( string key, ModuleStage stage, (int Resource, Annotations Annotations)[] samplers, Dictionary<string, int> values, Dictionary<string, int> featureValues, out string featureKey )
+	{
+		featureKey = string.Join( ';', featureValues.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) );
+		var full = $"{key}|{featureKey}";
+		lock ( stages )
+		{
+			if ( featured.TryGetValue( full, out var known ) ) return known;
+		}
+
+		int? Value( string name ) => values.TryGetValue( name, out var combo ) ? combo : featureValues.TryGetValue( name, out var feature ) ? feature : null;
+		var resources = stage.Resources.ToArray();
+		foreach ( var (index, annotations) in samplers ) resources[index] = resources[index] with { Sampler = BackendContext.SurfaceSampler( annotations, Value ) };
+		var made = Copy( stage, resources: resources );
+		lock ( stages ) return featured.TryAdd( full, made ) ? made : featured[full];
 	}
 
 	static ModuleStage WithRenderStates( ModuleStage stage, IReadOnlyList<(string State, string Value)> states ) => Copy( stage, renderStates: Literals( states ) );
@@ -631,7 +663,7 @@ public sealed class PassModules : IShaderModules
 		return literals;
 	}
 
-	static ModuleStage Copy( ModuleStage stage, SpecializationConstant[] constants = null, IReadOnlyList<(int, ShaderVariable)> renderStates = null, PrimitiveExpansion? expansion = null ) => new()
+	static ModuleStage Copy( ModuleStage stage, SpecializationConstant[] constants = null, IReadOnlyList<(int, ShaderVariable)> renderStates = null, PrimitiveExpansion? expansion = null, IReadOnlyList<ModuleResource> resources = null ) => new()
 	{
 		Expansion = expansion ?? stage.Expansion,
 		Type = stage.Type,
@@ -640,7 +672,7 @@ public sealed class PassModules : IShaderModules
 		AttributeMap = stage.AttributeMap,
 		ThreadGroupSize = stage.ThreadGroupSize,
 		Constants = constants ?? stage.Constants,
-		Resources = stage.Resources,
+		Resources = resources ?? stage.Resources,
 		Globals = stage.Globals,
 		GlobalMembers = stage.GlobalMembers,
 		ConstantBuffers = stage.ConstantBuffers,
@@ -649,10 +681,12 @@ public sealed class PassModules : IShaderModules
 	};
 
 	/// <summary>A compiled stage as a shader file's tables would say it: each binding's variable, the <c>$Globals</c> members' sources.</summary>
-	static ModuleStage Describe( ShaderFile shader, StageKind kind, CompiledPassStage compiled, string key, bool gpuDriven )
+	static ModuleStage Describe( ShaderFile shader, StageKind kind, CompiledPassStage compiled, string key, bool gpuDriven, Dictionary<string, int> values, out (int Resource, Annotations Annotations)[] featureSamplers )
 	{
 		var stage = compiled.Stage;
 		var resources = new List<ModuleResource>();
+		var chosen = new List<(int, Annotations)>();
+		int? Value( string name ) => values.TryGetValue( name, out var value ) ? value : null;
 		var buffers = new List<ConstantBufferLayout>();
 		(int, int, int) globals = (-1, -1, 0);
 		foreach ( var b in stage.Bindings )
@@ -664,7 +698,9 @@ public sealed class PassModules : IShaderModules
 					globals = (b.Set, b.Binding, stage.Globals?.Size ?? 0);
 					continue;
 				case BindingKind.Sampler:
-					resources.Add( new ModuleResource( b.Set, b.Binding, Variable( b, VariableType.SamplerState, RegisterType.SamplerState ), BackendContext.SurfaceSampler( b.Annotations ) ) );
+					// One whose annotations are conditional is made again with each material's features
+					if ( Conditional( b.Annotations ) ) chosen.Add( (resources.Count, b.Annotations) );
+					resources.Add( new ModuleResource( b.Set, b.Binding, Variable( b, VariableType.SamplerState, RegisterType.SamplerState ), BackendContext.SurfaceSampler( b.Annotations, Value ) ) );
 					continue;
 				case BindingKind.ConstantBuffer:
 					buffers.Add( new ConstantBufferLayout { Name = b.Name, Size = b.Size, Members = [] } );
@@ -744,6 +780,7 @@ public sealed class PassModules : IShaderModules
 			}
 		}
 
+		featureSamplers = [.. chosen];
 		return new ModuleStage
 		{
 			Type = kind switch { StageKind.Vertex => ShaderProgramType.Vertex, StageKind.Compute => ShaderProgramType.Compute, StageKind.Task => ShaderProgramType.Task, StageKind.Mesh => ShaderProgramType.Mesh, _ => ShaderProgramType.Pixel },
@@ -759,6 +796,9 @@ public sealed class PassModules : IShaderModules
 			GpuDriven = gpuDriven,
 		};
 	}
+
+	/// <summary>Whether a sampler's state depends on values (a conditional in its filter or address modes).</summary>
+	static bool Conditional( Annotations a ) => a is not null && ((a.Filter?.Contains( '?' ) ?? false) || (a.AddressU?.Contains( '?' ) ?? false) || (a.AddressV?.Contains( '?' ) ?? false) || (a.AddressW?.Contains( '?' ) ?? false));
 
 	/// <summary>Usages in <c>SemanticUsageVulkan_t</c> order.</summary>
 	static readonly string[] Usages = ["POSITION", "BLENDWEIGHT", "BLENDINDICES", "NORMAL", "PSIZE", "TEXCOORD", "TANGENT", "BINORMAL", "POSITIONT", "COLOR"];

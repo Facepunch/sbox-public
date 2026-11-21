@@ -23,6 +23,15 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	/// <summary>The camera's part of <see cref="Target"/>, in pixels.</summary>
 	public Rect Viewport;
 
+	/// <summary>
+	/// The camera's viewport at the display size while its scene draws at an upscaler's render size, else null (the same as
+	/// <see cref="Viewport"/>): what a block on the view gives Painter as its screen (<c>PainterScreenViewport</c>), as native's
+	/// pipeline gives its view's main viewport, so a list painting in screen pixels lands where it would at the display size.
+	/// </summary>
+	public Rect? DisplayViewport;
+
+	static readonly StringToken PainterScreenViewportName = new( "PainterScreenViewport" );
+
 	/// <summary>What <c>ISceneView.GetPostProcessEnabled</c> says for a native view.</summary>
 	public bool PostProcessEnabled = true;
 
@@ -74,6 +83,8 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	{
 		BindOwn();
 		Graphics.Viewport = Viewport;
+		var screen = DisplayViewport ?? Viewport;
+		if ( Graphics.IsActive ) Graphics.Attributes.Set( PainterScreenViewportName, new Vector4( screen.Left, screen.Top, screen.Width, screen.Height ) );
 	}
 
 	/// <summary>
