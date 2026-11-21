@@ -9,7 +9,11 @@ namespace Sandbox;
 [Expose]
 public sealed partial class PolygonMesh : IJsonConvert
 {
-	private HalfEdgeMesh.Mesh Topology { get; init; } = new();
+	internal HalfEdgeMesh.Mesh Topology { get; private init; } = new();
+
+	// Hammer triangulates transformed positions. Keep the import placement so moving the mesh preserves its diagonals.
+	internal Transform? TriangulationTransform { get; set; }
+	internal float CollisionTolerance { get; set; }
 
 	private readonly List<FaceHandle> _triangleFaces = new();
 	private readonly List<FaceHandle> _badFaces = new();
@@ -69,6 +73,16 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	private VertexData<Vector3> Positions { get; init; }
 	private HalfEdgeData<Color32> Blends { get; init; }
+	private HalfEdgeData<Vector3> CornerNormals;
+	private HalfEdgeData<Vector3> EnsureCornerNormals() => CornerNormals ??= Topology.CreateHalfEdgeData<Vector3>( nameof( CornerNormals ) );
+	internal void SetCornerNormal( HalfEdgeHandle corner, Vector3 normal )
+	{
+		EnsureCornerNormals()[corner] = normal;
+		_isDirty = true;
+	}
+
+	private HalfEdgeData<Color32> SecondaryBlends;
+	private HalfEdgeData<Color32> EnsureSecondaryBlends() => SecondaryBlends ??= Topology.CreateHalfEdgeData<Color32>( nameof( SecondaryBlends ) );
 	private HalfEdgeData<Color32> Colors { get; init; }
 	private HalfEdgeData<Vector2> TextureCoord { get; init; }
 	private FaceData<Vector3> TextureUAxis { get; init; }
@@ -91,6 +105,12 @@ public sealed partial class PolygonMesh : IJsonConvert
 		out Dictionary<VertexHandle, VertexHandle> newVertices,
 		out Dictionary<HalfEdgeHandle, HalfEdgeHandle> newHalfEdges,
 		out Dictionary<FaceHandle, FaceHandle> newFaces )
+		=> MergeMesh( sourceMesh, transform, true, out newVertices, out newHalfEdges, out newFaces );
+
+	internal void MergeMesh( PolygonMesh sourceMesh, Transform transform, bool preserveNormals,
+		out Dictionary<VertexHandle, VertexHandle> newVertices,
+		out Dictionary<HalfEdgeHandle, HalfEdgeHandle> newHalfEdges,
+		out Dictionary<FaceHandle, FaceHandle> newFaces )
 	{
 		Topology.AppendComponentsFromMesh( sourceMesh.Topology,
 			out newVertices, out newHalfEdges, out newFaces );
@@ -100,12 +120,16 @@ public sealed partial class PolygonMesh : IJsonConvert
 			Positions[pair.Value] = transform.PointToWorld( sourceMesh.Positions[pair.Key] );
 		}
 
+		var normalScale = GetNormalDivisor( transform );
 		foreach ( var pair in newHalfEdges )
 		{
 			TextureCoord[pair.Value] = sourceMesh.TextureCoord[pair.Key];
 			EdgeFlags[pair.Value] = sourceMesh.EdgeFlags[pair.Key];
 			Colors[pair.Value] = sourceMesh.Colors[pair.Key];
 			Blends[pair.Value] = sourceMesh.Blends[pair.Key];
+			if ( preserveNormals && sourceMesh.CornerNormals?[pair.Key] is { LengthSquared: > 0 } normal )
+				EnsureCornerNormals()[pair.Value] = transform.Rotation * (normal / normalScale).Normal;
+			if ( sourceMesh.SecondaryBlends is not null ) EnsureSecondaryBlends()[pair.Value] = sourceMesh.SecondaryBlends[pair.Key];
 		}
 
 		foreach ( var pair in newFaces )
@@ -135,15 +159,39 @@ public sealed partial class PolygonMesh : IJsonConvert
 	internal IEnumerable<Material> Materials => Enumerable.Range( 0, _materialsById.Count )
 				.Select( x => _materialsById[x] );
 
-	internal IEnumerable<Vector3> GetFaceVertexNormals()
+	private void CacheFaceNormals()
 	{
-		_faceNormalCache.Clear();
-
 		foreach ( var hFace in Topology.FaceHandles )
 		{
 			PlaneEquation( hFace, out var n, out _ );
 			_faceNormalCache[hFace] = n;
 		}
+	}
+
+	internal void SetIndexedCornerNormals( ReadOnlySpan<System.Numerics.Vector3> normals, ReadOnlySpan<int> indices )
+	{
+		CacheFaceNormals();
+		try
+		{
+			foreach ( var corner in HalfEdgeHandles )
+			{
+				if ( !corner.Face.IsValid ) continue;
+				var normal = ((Vector3)normals[indices[corner.Index]]).Normal;
+				if ( normal.LengthSquared > 0 && !normal.AlmostEqual( ComputeFaceVertexNormal( corner ), 0.00001f ) )
+					SetCornerNormal( corner, normal );
+			}
+		}
+		finally
+		{
+			_faceNormalCache.Clear();
+		}
+	}
+
+	internal IEnumerable<Vector3> GetFaceVertexNormals()
+	{
+		_faceNormalCache.Clear();
+
+		CacheFaceNormals();
 
 		var normals = new List<Vector3>();
 
@@ -187,7 +235,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	internal int TopologyVersion { get; private set; }
 
 	/// <summary>
-	/// Has there been changes to the vertex data?
+	/// Whether the current render buffers have pending paint changes. A full rebuild reads paint directly from the corner streams.
 	/// </summary>
 	internal bool IsVertexDataDirty => _dirtyHalfEdges.Count > 0;
 
@@ -240,15 +288,19 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		Topology.OnCopyFaceVertexData = ( dst, src ) =>
 		{
+			if ( CornerNormals is not null ) CornerNormals[dst] = CornerNormals[src];
 			Colors[dst] = Colors[src];
 			Blends[dst] = Blends[src];
+			if ( SecondaryBlends is not null ) SecondaryBlends[dst] = SecondaryBlends[src];
 			TextureCoord[dst] = TextureCoord[src];
 		};
 
 		Topology.OnClearFaceVertexData = ( hEdge ) =>
 		{
+			if ( CornerNormals is not null ) CornerNormals[hEdge] = default;
 			Colors[hEdge] = default;
 			Blends[hEdge] = default;
+			if ( SecondaryBlends is not null ) SecondaryBlends[hEdge] = default;
 			TextureCoord[hEdge] = default;
 		};
 
@@ -391,8 +443,21 @@ public sealed partial class PolygonMesh : IJsonConvert
 		{
 			Positions[hVertex] = Positions[hVertex] * scale;
 		}
+		if ( CornerNormals is not null )
+		{
+			var normalScale = GetNormalDivisor( Transform.Zero.WithScale( scale ) );
+			foreach ( var edge in HalfEdgeHandles )
+				CornerNormals[edge] = (CornerNormals[edge] / normalScale).Normal;
+		}
 
 		_isDirty = true;
+	}
+
+	// An odd number of reflected axes reverses the face winding.
+	private static Vector3 GetNormalDivisor( Transform transform )
+	{
+		var scale = transform.SafeScale;
+		return (scale.x < 0) ^ (scale.y < 0) ^ (scale.z < 0) ? -scale : scale;
 	}
 
 	/// <summary>
@@ -541,6 +606,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// </summary>
 	public void SetEdgeSmoothing( HalfEdgeHandle hEdge, EdgeSmoothMode mode )
 	{
+		if ( CornerNormals is not null && EdgeFlags[hEdge] != (int)mode )
+		{
+			if ( hEdge.Face.IsValid ) ClearCornerNormals( hEdge );
+			if ( hEdge.OppositeEdge.Face.IsValid ) ClearCornerNormals( hEdge.OppositeEdge );
+		}
 		EdgeFlags[hEdge] = (int)mode;
 		_isDirty = true;
 	}
@@ -603,6 +673,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		var vertexPositions = new Vector3[numTotalFaceDataSamples];
 		var vertexColors = new Color32[numTotalFaceDataSamples];
 		var vertexBlends = new Color32[numTotalFaceDataSamples];
+		var secondaryBlends = SecondaryBlends is null ? null : new Color32[numTotalFaceDataSamples];
 		var faceData = new FaceData[numFaces];
 
 		for ( var i = 0; i < numFaces; ++i )
@@ -627,6 +698,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 				vertexPositions[nDstDataIndex] = GetVertexPosition( hCurrentVertex );
 				vertexColors[nDstDataIndex] = Colors[hCurrentFaceVertex];
 				vertexBlends[nDstDataIndex] = Blends[hCurrentFaceVertex];
+				if ( secondaryBlends is not null ) secondaryBlends[nDstDataIndex] = SecondaryBlends[hCurrentFaceVertex];
 				hCurrentFaceVertex = Topology.GetNextEdgeInFaceLoop( hCurrentFaceVertex );
 
 				++vertexIndex;
@@ -667,6 +739,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 				SetVertexPosition( hCurrentVertex, vertexPositions[nSrcDataIndex] + offset );
 				Colors[hCurrentFaceVertex] = vertexColors[nSrcDataIndex];
 				Blends[hCurrentFaceVertex] = vertexBlends[nSrcDataIndex];
+				if ( secondaryBlends is not null ) SecondaryBlends[hCurrentFaceVertex] = secondaryBlends[nSrcDataIndex];
 				hCurrentFaceVertex = Topology.GetNextEdgeInFaceLoop( hCurrentFaceVertex );
 
 				++vertexIndex;
@@ -1446,6 +1519,26 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	public void FlipAllFaces()
 	{
+		// Reversing a face moves each edge's endpoint to its predecessor. Shift
+		// the corner samples once around the loop so paint stays on the same vertex.
+		foreach ( var face in FaceHandles )
+		{
+			var first = face.Edge;
+			if ( !first.IsValid ) continue;
+			var edge = first;
+			var color = Colors[first];
+			var blend = Blends[first];
+			var normal = CornerNormals?[first] ?? default;
+			var secondary = SecondaryBlends?[first] ?? default;
+			do
+			{
+				edge = edge.NextEdge;
+				(Colors[edge], color) = (color, Colors[edge]);
+				(Blends[edge], blend) = (blend, Blends[edge]);
+				if ( CornerNormals is not null ) (CornerNormals[edge], normal) = (-normal, CornerNormals[edge]);
+				if ( SecondaryBlends is not null ) (SecondaryBlends[edge], secondary) = (secondary, SecondaryBlends[edge]);
+			} while ( edge != first );
+		}
 		Topology.FlipAllFaces();
 
 		ComputeFaceTextureCoordinatesFromParameters();
@@ -3534,6 +3627,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		TextureCoord[hDstFaceVertex] = TextureCoord[hFaceVertexA].LerpTo( TextureCoord[hFaceVertexB], param );
 		Colors[hDstFaceVertex] = Colors[hFaceVertexA].LerpTo( Colors[hFaceVertexB], param );
 		Blends[hDstFaceVertex] = Blends[hFaceVertexA].LerpTo( Blends[hFaceVertexB], param );
+		if ( SecondaryBlends is not null ) SecondaryBlends[hDstFaceVertex] = SecondaryBlends[hFaceVertexA].LerpTo( SecondaryBlends[hFaceVertexB], param );
 	}
 
 	/// <summary>
@@ -3567,8 +3661,23 @@ public sealed partial class PolygonMesh : IJsonConvert
 		if ( !hVertex.IsValid )
 			return;
 
-		Positions[hVertex] = position;
+		if ( CornerNormals is not null && hVertex.Edge.IsValid && !Positions[hVertex].Equals( position ) )
+		{
+			// A geometry edit changes the planes of the incident faces. Recompute their shading.
+			var first = hVertex.Edge;
+			var outgoing = first;
+			do
+			{
+				if ( outgoing.Face.IsValid ) ClearCornerNormals( outgoing );
+				outgoing = outgoing.OppositeEdge.NextEdge;
+			} while ( outgoing != first );
+		}
+		SetVertexPositionPreserveNormals( hVertex, position );
+	}
 
+	internal void SetVertexPositionPreserveNormals( VertexHandle hVertex, Vector3 position )
+	{
+		Positions[hVertex] = position;
 		_isDirty = true;
 	}
 
@@ -3621,8 +3730,20 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		Blends[hFaceVertex] = blend;
 
-		_dirtyHalfEdges.Add( hFaceVertex );
+		if ( !_isDirty ) _dirtyHalfEdges.Add( hFaceVertex );
 	}
+
+	/// <summary>
+	/// Set the additional four material blend channels of a face corner.
+	/// </summary>
+	internal void SetSecondaryVertexBlend( HalfEdgeHandle corner, Color32 blend )
+	{
+		if ( !corner.IsValid ) return;
+		EnsureSecondaryBlends()[corner] = blend;
+		if ( !_isDirty ) _dirtyHalfEdges.Add( corner );
+	}
+
+	internal Color32 GetSecondaryVertexBlend( HalfEdgeHandle corner ) => corner.IsValid ? SecondaryBlends?[corner] ?? default : default;
 
 	/// <summary>
 	/// Set the color of a vertex
@@ -3634,7 +3755,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		Colors[hFaceVertex] = color;
 
-		_dirtyHalfEdges.Add( hFaceVertex );
+		if ( !_isDirty ) _dirtyHalfEdges.Add( hFaceVertex );
 	}
 
 	/// <summary>
@@ -3782,38 +3903,31 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	public void ComputeFaceTextureParametersFromCoordinates( IEnumerable<FaceHandle> faces, IReadOnlyList<Vector2> textureSizes, Transform transform )
 	{
+		var positions = new List<Vector3>();
+		var coords = new List<Vector2>();
+		Span<Vector3> basisPositions = stackalloc Vector3[3];
+		Span<Vector2> basisCoords = stackalloc Vector2[3];
 		foreach ( var hFace in faces )
 		{
-			if ( !hFace.IsValid )
-				continue;
-
-			GetFaceVerticesConnectedToFace( hFace, out var faceVertices );
-
-			var facePositions = new List<Vector3>();
-			var faceTexCoords = new List<Vector2>();
-
-			var nNumVertices = faceVertices.Length;
-
-			for ( var iVertex = 0; iVertex < nNumVertices; ++iVertex )
+			if ( !hFace.IsValid ) continue;
+			positions.Clear();
+			coords.Clear();
+			var first = hFace.Edge;
+			var edge = first;
+			if ( edge.IsValid )
 			{
-				var hFaceVertex = faceVertices[iVertex];
-				var hVertex = GetVertexConnectedToFaceVertex( hFaceVertex );
-
-				var vLocalPosition = Positions[hVertex];
-				var vWorldPosition = transform.PointToWorld( vLocalPosition );
-
-				facePositions.Add( vWorldPosition );
-				faceTexCoords.Add( TextureCoord[hFaceVertex] );
+				do
+				{
+					positions.Add( transform.PointToWorld( Positions[edge.Vertex] ) );
+					coords.Add( TextureCoord[edge] );
+					edge = edge.NextEdge;
+				} while ( edge != first );
 			}
-
-			GetBestThreeTextureBasisVerticies( facePositions, faceTexCoords, nNumVertices, out var bestPositions, out var bestTexCoords );
-
-			if ( CalcTextureBasisFromUVs( bestPositions, bestTexCoords, out _, out _ ) )
+			GetTextureBasisVertices( positions, coords, basisPositions, basisCoords );
+			var materialIndex = MaterialIndex[hFace];
+			var textureSize = materialIndex >= 0 && materialIndex < textureSizes.Count ? textureSizes[materialIndex] : DefaultTextureSize;
+			if ( positions.Count >= 3 && ComputeFaceTextureParametersFromUVs( basisPositions, basisCoords, textureSize, out var axisU, out var axisV, out var scale ) )
 			{
-				var materialIndex = MaterialIndex[hFace];
-				var textureSize = materialIndex >= 0 && materialIndex < textureSizes.Count ? textureSizes[materialIndex] : DefaultTextureSize;
-				ComputeFaceTextureParametersFromUVs( bestPositions, bestTexCoords, textureSize,
-					out var axisU, out var axisV, out var scale );
 
 				TextureUAxis[hFace] = (Vector3)axisU;
 				TextureVAxis[hFace] = (Vector3)axisV;
@@ -3831,6 +3945,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	public void ComputeFaceTextureCoordinatesFromParameters( IEnumerable<FaceHandle> faces, Transform transform, IReadOnlyList<Vector2> textureSizes, float defaultScale )
+		=> ComputeFaceTextureCoordinatesFromParameters( faces, transform, textureSizes, defaultScale, null );
+
+	private void ComputeFaceTextureCoordinatesFromParameters( IEnumerable<FaceHandle> faces, Transform transform, IReadOnlyList<Vector2> textureSizes, float defaultScale, Vector2? defaultTextureSize )
 	{
 		foreach ( var hFace in faces )
 		{
@@ -3838,7 +3955,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 				continue;
 
 			var materialIndex = MaterialIndex[hFace];
-			var textureSize = materialIndex >= 0 && materialIndex < textureSizes.Count ? textureSizes[materialIndex] : DefaultTextureSize;
+			var textureSize = materialIndex >= 0 && materialIndex < textureSizes.Count ? textureSizes[materialIndex] : defaultTextureSize ?? DefaultTextureSize;
 
 			var axisU = TextureUAxis[hFace];
 			var axisV = TextureVAxis[hFace];
@@ -3870,25 +3987,27 @@ public sealed partial class PolygonMesh : IJsonConvert
 		_isDirty = true;
 	}
 
-	private static bool CalcTextureBasisFromUVs( Vector3[] vVertPos, Vector2[] vTexCoord, out Vector3 vOutU, out Vector3 vOutV )
+	internal static bool CalcTextureBasisFromUVs( ReadOnlySpan<Vector3> vVertPos, ReadOnlySpan<Vector2> vTexCoord, out Vector3 vOutU, out Vector3 vOutV )
 	{
 		const float flEpsilon = 0.000001f;
 
 		vOutU = new Vector3( 1.0f, 0.0f, 0.0f );
 		vOutV = new Vector3( 0.0f, 1.0f, 0.0f );
 
-		Vector3[] E = { vVertPos[1] - vVertPos[0], vVertPos[2] - vVertPos[0] };
-		Vector2[] T = { vTexCoord[1] - vTexCoord[0], vTexCoord[2] - vTexCoord[0] };
+		var edgeA = vVertPos[1] - vVertPos[0];
+		var edgeB = vVertPos[2] - vVertPos[0];
+		var uvA = vTexCoord[1] - vTexCoord[0];
+		var uvB = vTexCoord[2] - vTexCoord[0];
 
-		if ( T[0].LengthSquared < flEpsilon && T[1].LengthSquared < flEpsilon )
+		if ( uvA.LengthSquared < flEpsilon && uvB.LengthSquared < flEpsilon )
 			return false;
 
-		var eDet = T[0].x * T[1].y - T[1].x * T[0].y;
+		var eDet = uvA.x * uvB.y - uvB.x * uvA.y;
 		if ( MathF.Abs( eDet ) < flEpsilon )
 			eDet = flEpsilon;
 
-		var textureU = 1.0f / eDet * (T[1].y * E[0] - T[0].y * E[1]);
-		var textureV = 1.0f / eDet * (-T[1].x * E[0] + T[0].x * E[1]);
+		var textureU = 1.0f / eDet * (uvB.y * edgeA - uvA.y * edgeB);
+		var textureV = 1.0f / eDet * (-uvB.x * edgeA + uvA.x * edgeB);
 		var textureNormal = Vector3.Cross( textureU, textureV );
 
 		var mTextureToWorld = new System.Numerics.Matrix4x4(
@@ -3907,17 +4026,17 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return false;
 	}
 
-	private static void ComputeFaceTextureParametersFromUVs( Vector3[] vVertPos, Vector2[] vTexCoord, Vector2 vTextureDimensions, out Vector4 pAxisU, out Vector4 pAxisV, out Vector2 pScale )
+	private static bool ComputeFaceTextureParametersFromUVs( ReadOnlySpan<Vector3> positions, ReadOnlySpan<Vector2> coords, Vector2 vTextureDimensions, out Vector4 pAxisU, out Vector4 pAxisV, out Vector2 pScale )
 	{
-		if ( !CalcTextureBasisFromUVs( vVertPos, vTexCoord, out var vWorldU, out var vWorldV ) )
+		if ( !CalcTextureBasisFromUVs( positions, coords, out var vWorldU, out var vWorldV ) )
 		{
 			pAxisU = default;
 			pAxisV = default;
 			pScale = default;
-
-			return;
+			return false;
 		}
-
+		var position = positions[0];
+		var texCoord = coords[0];
 		var flWorldUScale = vWorldU.Length;
 		var flWorldVScale = vWorldV.Length;
 
@@ -3930,34 +4049,20 @@ public sealed partial class PolygonMesh : IJsonConvert
 		pAxisV = new Vector4( vWorldV );
 
 		var vWorldOffset = new Vector2(
-			Vector3.Dot( vWorldU, vVertPos[0] ) * flWorldUScale,
-			Vector3.Dot( vWorldV, vVertPos[0] ) * flWorldVScale );
+			Vector3.Dot( vWorldU, position ) * flWorldUScale,
+			Vector3.Dot( vWorldV, position ) * flWorldVScale );
 
-		var vWorldOffsetFrac = new Vector2( vWorldOffset.x - (int)vWorldOffset.x, vWorldOffset.y - (int)vWorldOffset.y );
-		var vTexCoordFrac = new Vector2( vTexCoord[0].x - (int)vTexCoord[0].x, vTexCoord[0].y - (int)vTexCoord[0].y );
-
-		var uvOffset = vTexCoordFrac - vWorldOffsetFrac;
-		uvOffset.x -= (int)uvOffset.x;
-		uvOffset.y -= (int)uvOffset.y;
-		if ( uvOffset.x < 0 ) uvOffset.x += 1.0f;
-		if ( uvOffset.y < 0 ) uvOffset.y += 1.0f;
-
-		var uOffset = uvOffset.x * vTextureDimensions.x;
-		var vOffset = uvOffset.y * vTextureDimensions.y;
-		if ( uOffset >= vTextureDimensions.x ) uOffset -= vTextureDimensions.x;
-		if ( vOffset >= vTextureDimensions.y ) vOffset -= vTextureDimensions.y;
-
-		pAxisU.w = uOffset;
-		pAxisV.w = vOffset;
+		// Preserve the authored UV tile when the editor reapplies these parameters.
+		var offset = (texCoord - vWorldOffset) * vTextureDimensions;
+		pAxisU.w = offset.x;
+		pAxisV.w = offset.y;
+		return true;
 	}
 
-	private static void GetBestThreeTextureBasisVerticies( IReadOnlyList<Vector3> pPositions, IReadOnlyList<Vector2> pTexCoords, int nNumPositions, out Vector3[] pOutPositions, out Vector2[] pOutTexCoords )
+	internal static void GetTextureBasisVertices( IReadOnlyList<Vector3> pPositions, IReadOnlyList<Vector2> pTexCoords, Span<Vector3> pOutPositions, Span<Vector2> pOutTexCoords )
 	{
-		pOutPositions = new Vector3[3];
-		pOutTexCoords = new Vector2[3];
-
-		if ( nNumPositions < 3 )
-			return;
+		int nNumPositions = pPositions.Count;
+		if ( nNumPositions < 3 ) return;
 
 		var nBestVert = 0;
 		var flBestHeuristic = -1.0f;
@@ -4508,6 +4613,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 					var vertices = _submeshes[vertex.SubmeshIndex].Vertices;
 					var v = vertices[vertex.VertexIndex];
 					v.Blend = blend;
+					v.SecondaryBlend = SecondaryBlends?[hEdge] ?? default;
 					v.Color = color;
 					vertices[vertex.VertexIndex] = v;
 
@@ -4654,11 +4760,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		// Pre-compute every face normal once; ComputeFaceNormal will read from this cache
 		// instead of recomputing (which is otherwise called O(V²) times per face during triangulation).
-		foreach ( var hFace in Topology.FaceHandles )
-		{
-			PlaneEquation( hFace, out var n, out _ );
-			_faceNormalCache[hFace] = n;
-		}
+		CacheFaceNormals();
 
 		foreach ( var hFace in Topology.FaceHandles )
 		{
@@ -4698,19 +4800,18 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		if ( _meshVertices.Count >= 3 && _meshIndices.Count >= 3 )
 		{
-			switch ( collision )
-			{
-				case MeshComponent.CollisionType.Hull:
-					builder.AddCollisionHull( _meshVertices );
-					break;
-				case MeshComponent.CollisionType.Mesh:
-					builder.AddCollisionMesh( _meshVertices, _meshIndices, _meshTriangleMaterials );
-					break;
-			}
+			AddCollision( builder, collision, _meshVertices, _meshIndices, _meshTriangleMaterials );
 			builder.AddTraceMesh( _meshVertices, _meshIndices );
 		}
 
 		return builder.Create();
+	}
+
+	ReadOnlySpan<int> TriangulateLocalFace( Vector3[] positions )
+	{
+		return TriangulationTransform is { } placement
+			? PolygonTriangulation.TriangulateFace( positions, placement )
+			: Mesh.TriangulatePolygon( positions );
 	}
 
 	private int AddMaterial( Material material )
@@ -4733,23 +4834,36 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return material;
 	}
 
-	private static Vector2 CalculateTextureSize( Material material )
+	private static Vector2 MaterialTextureSize( Material material )
 	{
-		Vector2 textureSize = 512;
+		if ( material?.FirstTexture is not { } texture ) return 512;
+		var width = material.Attributes.GetInt( "WorldMappingWidth" );
+		var height = material.Attributes.GetInt( "WorldMappingHeight" );
+		return new Vector2( width > 0 ? width / 0.25f : texture.Width, height > 0 ? height / 0.25f : texture.Height );
+	}
+
+	private Vector2 CalculateTextureSize( Material material )
+	{
+		if ( !TriangulationTransform.HasValue ) return MaterialTextureSize( material );
+
+		const int defaultDimension = 512;
+		const float defaultScale = 0.25f;
 		if ( material is null )
-			return textureSize;
+			return defaultDimension;
+		if ( material.IsError )
+			return defaultDimension / defaultScale;
 
 		var width = material.Attributes.GetInt( "WorldMappingWidth" );
 		var height = material.Attributes.GetInt( "WorldMappingHeight" );
-		var texture = material.FirstTexture;
-		if ( texture != null )
+		if ( width == 0 || height == 0 )
 		{
-			textureSize = texture.Size;
-			if ( width > 0 ) textureSize.x = width / 0.25f;
-			if ( height > 0 ) textureSize.y = height / 0.25f;
+			// Hammer measures the representative texture on disk and stores world dimensions in whole units.
+			var texture = material.Attributes.GetTexture( "RepresentativeTexture" );
+			if ( width == 0 ) width = (int)((texture?.Width ?? defaultDimension) * defaultScale);
+			if ( height == 0 ) height = (int)((texture?.Height ?? defaultDimension) * defaultScale);
 		}
 
-		return textureSize;
+		return new Vector2( width > 0 ? width : defaultDimension, height > 0 ? height : defaultDimension ) / defaultScale;
 	}
 
 	public bool IsEdgeSmooth( HalfEdgeHandle hEdge )
@@ -5616,8 +5730,21 @@ public sealed partial class PolygonMesh : IJsonConvert
 		FinaliseNewellNormal( vNormal, refpt, count, out pOutNormal, out pOutPlaneDistance );
 	}
 
-	private Vector3 ComputeFaceVertexNormal( HalfEdgeHandle hTargetFaceVertex )
+	private void ClearCornerNormals( HalfEdgeHandle first )
 	{
+		var edge = first;
+		do
+		{
+			CornerNormals[edge] = default;
+			edge = edge.NextEdge;
+		} while ( edge != first );
+	}
+
+	internal Vector3 ComputeFaceVertexNormal( HalfEdgeHandle hTargetFaceVertex )
+	{
+		if ( CornerNormals?[hTargetFaceVertex] is { LengthSquared: > 0 } normalOverride )
+			return normalOverride;
+
 		var hFirstFaceVertex = hTargetFaceVertex;
 		var hLastFaceVertex = hTargetFaceVertex;
 		var hCurrentFaceVertex = hTargetFaceVertex;
@@ -6060,7 +6187,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			.Select( x => Positions[x] )
 			.ToArray();
 
-		var faceIndices = Mesh.TriangulatePolygon( vertexPositions );
+		var faceIndices = TriangulateLocalFace( vertexPositions );
 
 		// Triangulation produced fewer indices than expected, remember the face so it can be highlighted in the editor
 		if ( faceIndices.Length != (vertexPositions.Length - 2) * 3 )
@@ -6097,6 +6224,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 				Tangent = tangent,
 				Texcoord = TextureCoord[faceEdge],
 				Blend = Blends[faceEdge],
+				SecondaryBlend = SecondaryBlends?[faceEdge] ?? default,
 				Color = Colors[faceEdge],
 			} );
 
@@ -6661,5 +6789,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 		[VertexLayout.TexCoord] public Vector2 Texcoord = texcoord;
 		[VertexLayout.TexCoord( 4 )] public Color32 Blend = blend;
 		[VertexLayout.TexCoord( 5 )] public Color32 Color = color;
+		[VertexLayout.TexCoord( 6 )] public Color32 SecondaryBlend;
 	}
 }

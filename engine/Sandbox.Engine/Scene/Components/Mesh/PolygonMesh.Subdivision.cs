@@ -4,13 +4,6 @@ namespace Sandbox;
 
 public partial class PolygonMesh
 {
-	private void SubdividePatch( FaceHandle hFace, int nNumDivisions, int nCurrentLevel, VertexHandle hVert0, VertexHandle hVert1, VertexHandle hVert2, VertexHandle hVert3 )
-	{
-		var originalVertices = new VertexHandle[4] { hVert0, hVert1, hVert2, hVert3 };
-
-		SubdivideFace( hFace, nNumDivisions, nCurrentLevel + 1, originalVertices, 4, out _ );
-	}
-
 	private VertexHandle SubdivideFace( FaceHandle hFace )
 	{
 		Topology.GetVerticesConnectedToFace( hFace, out var vertices );
@@ -19,12 +12,17 @@ public partial class PolygonMesh
 		return hCenterVertex;
 	}
 
-	private void SubdivideFace( FaceHandle hFace, int nNumDivisions, int nCurrentLevel, IReadOnlyList<VertexHandle> pOriginalVertices, int nNumOriginalVertices, out VertexHandle pOutCenterVertex )
+	internal void SubdivideFace( FaceHandle hFace, int nNumDivisions, int nCurrentLevel, IReadOnlyList<VertexHandle> pOriginalVertices, int nNumOriginalVertices, out VertexHandle pOutCenterVertex,
+		Action<FaceHandle, IReadOnlyList<VertexHandle>, int, int, int> visitQuad = null, int patch = 0, int x = 0, int y = 0 )
 	{
 		pOutCenterVertex = VertexHandle.Invalid;
 
-		if ( (nNumOriginalVertices < 3) || (nCurrentLevel >= nNumDivisions) )
+		if ( nNumOriginalVertices < 3 ) return;
+		if ( nCurrentLevel >= nNumDivisions )
+		{
+			visitQuad?.Invoke( hFace, pOriginalVertices, patch, x, y );
 			return;
+		}
 
 		Assert.True( (nCurrentLevel == 0) || (nNumOriginalVertices == 4) );
 		if ( (nCurrentLevel != 0) && (nNumOriginalVertices != 4) )
@@ -101,26 +99,20 @@ public partial class PolygonMesh
 
 		// Recursively subdivide the resulting faces
 
-		var nNumPatchSteps = (1 << (nNumDivisions - 1));
-		var nNumPatchFaceVertices = nNumPatchSteps * nNumPatchSteps * 4;
-
-		int nOutFaceVerticesOffset = 0;
-
 		if ( nCurrentLevel > 0 )
 		{
 			Assert.True( nNumOriginalVertices == 4 );
 
-			var hChildFace = Topology.FindFaceSharedByVertices( hCenterVertex, pOriginalVertices[0] );
-			SubdividePatch( hChildFace, nNumDivisions, nCurrentLevel, pOriginalVertices[0], pMidpointVertices[0], hCenterVertex, pMidpointVertices[3] );
-
-			hChildFace = Topology.FindFaceSharedByVertices( hCenterVertex, pOriginalVertices[1] );
-			SubdividePatch( hChildFace, nNumDivisions, nCurrentLevel, pMidpointVertices[0], pOriginalVertices[1], pMidpointVertices[1], hCenterVertex );
-
-			hChildFace = Topology.FindFaceSharedByVertices( hCenterVertex, pOriginalVertices[3] );
-			SubdividePatch( hChildFace, nNumDivisions, nCurrentLevel, pMidpointVertices[3], hCenterVertex, pMidpointVertices[2], pOriginalVertices[3] );
-
-			hChildFace = Topology.FindFaceSharedByVertices( hCenterVertex, pOriginalVertices[2] );
-			SubdividePatch( hChildFace, nNumDivisions, nCurrentLevel, hCenterVertex, pMidpointVertices[1], pOriginalVertices[2], pMidpointVertices[2] );
+			int half = 1 << (nNumDivisions - nCurrentLevel - 1);
+			void Quad( int corner, int dx, int dy, VertexHandle a, VertexHandle b, VertexHandle c, VertexHandle d )
+			{
+				var child = Topology.FindFaceSharedByVertices( hCenterVertex, pOriginalVertices[corner] );
+				SubdivideFace( child, nNumDivisions, nCurrentLevel + 1, [a, b, c, d], 4, out _, visitQuad, patch, x + dx, y + dy );
+			}
+			Quad( 0, 0, 0, pOriginalVertices[0], pMidpointVertices[0], hCenterVertex, pMidpointVertices[3] );
+			Quad( 1, half, 0, pMidpointVertices[0], pOriginalVertices[1], pMidpointVertices[1], hCenterVertex );
+			Quad( 3, 0, half, pMidpointVertices[3], hCenterVertex, pMidpointVertices[2], pOriginalVertices[3] );
+			Quad( 2, half, half, hCenterVertex, pMidpointVertices[1], pOriginalVertices[2], pMidpointVertices[2] );
 		}
 		else
 		{
@@ -135,9 +127,8 @@ public partial class PolygonMesh
 
 				var hChildFace = Topology.FindFaceSharedByVertices( hCenterVertex, pOriginalVertices[iVertex] );
 
-				SubdivideFace( hChildFace, nNumDivisions, nCurrentLevel + 1, childFaceOriginalVertices, 4, out _ );
+				SubdivideFace( hChildFace, nNumDivisions, nCurrentLevel + 1, childFaceOriginalVertices, 4, out _, visitQuad, iVertex );
 
-				nOutFaceVerticesOffset += nNumPatchFaceVertices;
 			}
 		}
 	}

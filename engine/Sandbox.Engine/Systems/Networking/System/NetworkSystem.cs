@@ -307,6 +307,8 @@ internal partial class NetworkSystem
 
 		TickHostMigration();
 
+		TickHostTimeout();
+
 		if ( timeSinceTick >= 1f )
 		{
 			timeSinceTick = 0f;

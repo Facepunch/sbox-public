@@ -56,6 +56,11 @@ public abstract class MapLoader
 			return values;
 		}
 
+		/// <summary>An entity from its values alone, placed at the world's origin.</summary>
+		internal ObjectEntry( Dictionary<uint, string> keyValues ) : this( keyValues, Vector3.Zero )
+		{
+		}
+
 		ObjectEntry( Dictionary<uint, string> values, Vector3 origin )
 		{
 			this.values = values;

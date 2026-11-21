@@ -48,6 +48,12 @@ native class CHammerApp as NativeHammer.CHammerApp
 		return pEditorSession->GetMapDoc();
 	}
 
+	inline CMapDoc FindMapDoc( string filename )
+	{
+		auto session = dynamic_cast<CHammerEditorSession*>( self->FindEditorSession( filename ) );
+		return session ? session->GetMapDoc() : nullptr;
+	}
+
 	inline void MarkAllViewHudsDirty()
 	{
 		auto editorSession = self->GetActiveHammerEditorSession();
