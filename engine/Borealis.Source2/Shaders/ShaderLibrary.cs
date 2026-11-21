@@ -167,7 +167,7 @@ public sealed class ShaderLibrary : IDisposable
 		// A compiled file with no .shader in any root where a Slang module or surface stands in its place is a leftover (a
 		// package's copy of an engine shader the module replaced, or a stale local one): the module's, as native's
 		// ShaderIsSlangModuleOnly decides
-		if ( full is not null && Modules is not null && Leftover( bare ? $"shaders/{key}.shader" : key ) ) full = null;
+		if ( full is not null && Modules is not null && !Modules.Skips( full ) && Leftover( bare ? $"shaders/{key}.shader" : key ) ) full = null;
 		if ( full is not null )
 		{
 			// A standalone module describes its shader itself: the compiled file beside it is only Source 2's renderer's
