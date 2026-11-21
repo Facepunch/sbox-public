@@ -12,6 +12,7 @@ public partial class EditableCurve
 		public Tangent In;
 		public Tangent Out;
 		public Vector2 RealPosition;
+		IDisposable dragScope;
 
 		public Handle( EditableCurve parent, in Curve.Frame k ) : base( parent )
 		{
@@ -236,7 +237,10 @@ public partial class EditableCurve
 			base.OnMousePressed( e );
 
 			if ( e.LeftMouseButton )
+			{
+				dragScope ??= EditableCurve?.History?.Push( "Move Keyframe" );
 				EditableCurve?.editor?.Drag.Begin( this );
+			}
 
 			if ( e.RightMouseButton )
 				OpenContextMenu( e.ScreenPosition );
@@ -247,6 +251,9 @@ public partial class EditableCurve
 			base.OnMouseReleased( e );
 
 			EditableCurve?.editor?.Drag.End();
+
+			dragScope?.Dispose();
+			dragScope = null;
 		}
 
 		public virtual void OpenContextMenu( Vector2 pos )
@@ -272,6 +279,8 @@ public partial class EditableCurve
 		{
 			if ( Frame.Mode == mode )
 				return;
+
+			using var scope = EditableCurve?.History?.Push( "Change Handle Mode" );
 
 			Frame.Mode = mode;
 			OnHandleModeChanged();
