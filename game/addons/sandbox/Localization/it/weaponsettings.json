@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Rinculo",
+    "weapon.setting.primary.description": "Controlla l'azione primaria dell'arma.",
+    "weapon.setting.secondary.description": "Controlla l'azione secondaria dell'arma.",
+    "weapon.setting.recoil_force": "Forza del rinculo",
+    "weapon.setting.recoil_force.description": "Rinculo fisico applicato quando spara un'arma non impugnata.",
+    "weapon.setting.extend": "Aumenta distanza di presa",
+    "weapon.setting.extend.description": "Allontana l'oggetto afferrato.",
+    "weapon.setting.retract": "Riduci distanza di presa",
+    "weapon.setting.retract.description": "Avvicina l'oggetto afferrato.",
+    "weapon.setting.camera_aim": "Mira con la telecamera",
+    "weapon.setting.camera_aim.description": "Mira nella direzione della telecamera del giocatore seduto.",
+    "weapon.setting.guide_rockets": "Guida razzi",
+    "weapon.setting.guide_rockets.description": "Guida i razzi sparati verso il mirino del giocatore."
+}

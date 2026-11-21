@@ -41,7 +41,7 @@ internal sealed class LodStore : IDisposable
 	/// <summary>Bytes of a view's levels: a byte per aggregate visibility fragment (level, last direction, changed before).</summary>
 	public const int StateSliceBytes = GpuDrivenTables.FrameVisibilityFragmentBase;
 
-	const uint CacheMagic = 0x53444F4C, CacheVersion = 3;
+	const uint CacheMagic = 0x53444F4C, CacheVersion = 5;
 	const int CounterRing = 4;
 
 	readonly Device gpu;
@@ -83,6 +83,9 @@ internal sealed class LodStore : IDisposable
 		public BufferHandle Staging;
 		public long[] LevelsAt;
 		public byte[][] LevelBytes;
+
+		/// <summary>Cooked levels' own index buffers, with their meshlets, for the levels' meshlet requests; null when made here.</summary>
+		public Borealis.Source2.Models.MeshIndexBuffer[] LevelBuffers;
 	}
 
 	/// <summary>
@@ -106,7 +109,8 @@ internal sealed class LodStore : IDisposable
 
 		var staging = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( size, 4 ), Usage = BufferUsage.CopySource, Memory = MemoryLocation.Upload, Name = "Borealis LOD staging" } );
 		var mapped = gpu.Map( staging );
-		var bytes = new byte[levels.Length][];
+		// Cooked levels' meshlet requests take their own buffers
+		var bytes = entry.LevelBuffers is null ? new byte[levels.Length][] : null;
 		for ( int k = 0; k < levels.Length; k++ )
 		{
 			var level = levels[k];
@@ -117,7 +121,7 @@ internal sealed class LodStore : IDisposable
 				for ( int i = 0; i < level.Length; i++ ) narrow[i] = (ushort)level[i];
 			}
 
-			bytes[k] = MemoryMarshal.AsBytes( level.AsSpan() ).ToArray();
+			if ( bytes is not null ) bytes[k] = MemoryMarshal.AsBytes( level.AsSpan() ).ToArray();
 		}
 
 		entry.LevelsAt = at;
@@ -171,6 +175,12 @@ internal sealed class LodStore : IDisposable
 
 	/// <summary>Ranges asked for, built, published (with levels placed), dropped (no room for any) and with no level worth making; levels placed and their triangles; the published ranges' own triangles; build time on the workers; ranges read from the cache; levels left out for want of room.</summary>
 	public long Requested, Built, Published, Dropped, Simplest, Levels, LevelTriangles, BaseTriangles, BuildTicks, CacheHits, NoRoom;
+
+	/// <summary>Ranges whose levels were cooked into their model, taken as they are.</summary>
+	public long CookedHits;
+
+	/// <summary>Ranges of index buffers with cooked meshlets whose levels were made all the same: none cooked, another config, or a range not cooked.</summary>
+	public long CookedMisses;
 
 	public LodStore( Device gpu, GpuDrivenTables tables, LodConfig config, int threads, string cacheFolder = null )
 	{
@@ -280,10 +290,39 @@ internal sealed class LodStore : IDisposable
 		}
 	}
 
+	int publishVersion;
+
+	/// <summary>Counts ranges settled (published, or with no levels): what waits for some asks again once it moves.</summary>
+	public int PublishVersion => Volatile.Read( ref publishVersion );
+
 	/// <summary>
-	/// Ask for a range's levels: built once, on a worker. They're published once a GPU-driven colour pass draws the range
-	/// too (<paramref name="color"/>): a range drawn the classic way in colour must keep its full triangles in the prepass,
-	/// whose depth the colour pass tests equal against. <paramref name="label"/> is kept while <see cref="Labelled"/>.
+	/// A range's levels once settled: true with each level's first index and count in the page and its error when
+	/// published, true with none when it has none (no level worth making, no room for any, or too few triangles to ask for);
+	/// false until it's asked for (<see cref="Request"/>), while it's being built and while it waits to be published.
+	/// </summary>
+	public bool TryGetLevels( in Range range, out (uint First, uint Count)[] placed, out float[] errors )
+	{
+		placed = [];
+		errors = [];
+		lock ( gate )
+		{
+			if ( !entries.TryGetValue( range, out var entry ) ) return range.IndexCount / 3 < Config.MinRangeTriangles;
+			if ( entry.State is Phase.Building or Phase.Built ) return false;
+			if ( entry.State == Phase.Published )
+			{
+				placed = entry.Placed;
+				errors = entry.Chain.Errors;
+			}
+
+			return true;
+		}
+	}
+
+	/// <summary>
+	/// Ask for a range's levels: built once, on a worker. They're published once a colour pass whose prepass draws the same
+	/// level draws the range too (<paramref name="color"/>): a GPU-driven one, or a view's own draws, which pick one level per
+	/// object for every pass. A range drawn whole in colour must keep its full triangles in the prepass, whose depth the colour
+	/// pass tests equal against. <paramref name="label"/> is kept while <see cref="Labelled"/>.
 	/// </summary>
 	public void Request( in Range range, Source source, bool color, Label label = default )
 	{
@@ -304,6 +343,110 @@ internal sealed class LodStore : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// What a range's levels are made from, its vertices' from the lowest index it uses, in pooled scratch (a map's ranges made
+	/// hundreds of MiB of garbage a load; each array holds <see cref="VertexCount"/> values at its start, pooled arrays are
+	/// longer): positions; texture coordinates (2D float sets), vertex colours and blend weights (four bytes each), which count
+	/// in the error; and normals where the format is one read here (a compressed tangent frame's octahedral normal, or floats).
+	/// Disposing returns them.
+	/// </summary>
+	internal readonly struct Attributes : IDisposable
+	{
+		public readonly V3[] Positions, Normals;
+		public readonly List<System.Numerics.Vector2[]> Sets;
+		public readonly List<System.Numerics.Vector4[]> Colors;
+		public readonly int VertexCount, Offset;
+
+		public Attributes( MeshVertexBuffer vertices, Borealis.Source2.Models.VertexField position, int vertexBase, uint min, int vertexCount )
+		{
+			VertexCount = vertexCount;
+			Offset = vertexBase + (int)min;
+			Sets = new( 4 );
+			Colors = new( 4 );
+			Normals = null;
+			Positions = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+			for ( int v = 0; v < vertexCount; v++ )
+			{
+				var p = vertices.Read( position, Offset + v );
+				Positions[v] = new V3( p.X, p.Y, p.Z );
+			}
+
+			foreach ( var field in vertices.Fields )
+			{
+				if ( Sets.Count == 4 || !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) || field.PerInstance ) continue;
+				if ( field.Format is not (ColorFormat.R32G32_FLOAT or ColorFormat.R16G16_FLOAT or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT or ColorFormat.R16G16B16A16_FLOAT or ColorFormat.R16G16_UNORM) ) continue;
+				var set = System.Buffers.ArrayPool<System.Numerics.Vector2>.Shared.Rent( vertexCount );
+				Sets.Add( set );
+				for ( int v = 0; v < vertexCount; v++ ) set[v] = Coordinate( vertices, field, Offset + v );
+			}
+
+			foreach ( var field in vertices.Fields )
+			{
+				if ( Colors.Count == 4 || field.PerInstance || field.Format != ColorFormat.R8G8B8A8_UNORM ) continue;
+				if ( !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) && !string.Equals( field.Semantic, "COLOR", StringComparison.OrdinalIgnoreCase ) ) continue;
+				var set = System.Buffers.ArrayPool<System.Numerics.Vector4>.Shared.Rent( vertexCount );
+				Colors.Add( set );
+				for ( int v = 0; v < vertexCount; v++ )
+				{
+					var c = vertices.Read( field, Offset + v );
+					set[v] = new System.Numerics.Vector4( c.X, c.Y, c.Z, c.W );
+				}
+			}
+
+			if ( vertices.Find( "NORMAL" ) is { } normalField && normalField.Format is ColorFormat.R10G10B10A2_UNORM or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT )
+			{
+				Normals = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+				for ( int v = 0; v < vertexCount; v++ ) Normals[v] = Normal( vertices, normalField, Offset + v );
+			}
+		}
+
+		/// <summary>The range's levels from these, or null when it has none.</summary>
+		public LodChain Make( ReadOnlySpan<uint> indices, int vertexBase, LodConfig config )
+		{
+			var (positions, normals, offset) = (Positions, Normals, Offset);
+			var readers = Sets.Select( set => (Func<int, System.Numerics.Vector2>)(v => set[v - offset]) ).ToArray();
+			var colorReaders = Colors.Select( set => (Func<int, System.Numerics.Vector4>)(v => set[v - offset]) ).ToArray();
+			return LodBuilder.Build( indices, v => positions[v - offset], vertexBase, config, readers, normals is null ? null : v => normals[v - offset], colorReaders );
+		}
+
+		public void Dispose()
+		{
+			if ( Positions is not null ) System.Buffers.ArrayPool<V3>.Shared.Return( Positions );
+			if ( Normals is not null ) System.Buffers.ArrayPool<V3>.Shared.Return( Normals );
+			foreach ( var set in Sets ?? [] ) System.Buffers.ArrayPool<System.Numerics.Vector2>.Shared.Return( set );
+			foreach ( var set in Colors ?? [] ) System.Buffers.ArrayPool<System.Numerics.Vector4>.Shared.Return( set );
+		}
+	}
+
+	/// <summary>
+	/// The cut <see cref="Borealis.Source2.Models.MeshletCooker"/> cooks levels with: what a load makes of a range, as the
+	/// resource compiler makes it (<c>compilemeshlets.cpp</c>); empty when nothing simplifies.
+	/// </summary>
+	public static Borealis.Source2.Models.LevelCut Cut( LodConfig config ) => ( indices, vertices, position, vertexBase ) =>
+	{
+		uint min = uint.MaxValue, max = 0;
+		foreach ( var index in indices )
+		{
+			min = Math.Min( min, index );
+			max = Math.Max( max, index );
+		}
+
+		using var attributes = new Attributes( vertices, position, vertexBase, min, indices.Length == 0 ? 0 : (int)(max - min + 1) );
+		return attributes.Make( indices, vertexBase, config ) is { } chain ? (chain.Levels, chain.Errors) : ([], []);
+	};
+
+	/// <summary>The config's identity as cooked levels carry it.</summary>
+	public static CookedLodConfig Cooked( LodConfig config ) => new( config.MaxLevels, config.Ratio, config.KeepRatio, config.MinTriangles, config.MinRangeTriangles, config.NormalWeight, config.ColorWeight );
+
+	/// <summary>A range's cooked levels (<see cref="CookedMeshlets.FindLevels"/>), when they were made with this store's config; null to make them.</summary>
+	CookedLevels Cooked( Source s, int count )
+	{
+		if ( !MeshletStore.UseCooked || s.Indices.Meshlets is not { } cooked ) return null;
+		var levels = cooked.Lods == Cooked( Config ) ? cooked.FindLevels( s.IndexBase, count, s.Vertices, s.VertexBase ) : null;
+		if ( levels is null ) Interlocked.Increment( ref CookedMisses );
+		return levels;
+	}
+
 	void BuildOn( Entry entry )
 	{
 		workers.Wait();
@@ -313,74 +456,58 @@ internal sealed class LodStore : IDisposable
 			var started = Stopwatch.GetTimestamp();
 			var s = entry.Source;
 			var count = (int)entry.Range.IndexCount;
-			var indices = new uint[count];
-			uint min = uint.MaxValue, max = 0;
-			for ( int k = 0; k < count; k++ )
-			{
-				var index = s.Indices[s.IndexBase + k];
-				indices[k] = index;
-				min = Math.Min( min, index );
-				max = Math.Max( max, index );
-			}
+			LodChain chain;
 
-			var positions = new V3[max - min + 1];
-			for ( int v = 0; v < positions.Length; v++ )
+			// Cooked into the model with this config: its levels taken as they are, each with its meshlets, nothing read
+			if ( Cooked( s, count ) is { } cooked )
 			{
-				var p = s.Vertices.Read( s.Position, s.VertexBase + (int)min + v );
-				positions[v] = new V3( p.X, p.Y, p.Z );
-			}
-
-			// Its texture coordinates (2D float sets), which count in the error
-			var sets = new List<System.Numerics.Vector2[]>();
-			foreach ( var field in s.Vertices.Fields )
-			{
-				if ( sets.Count == 4 || !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) || field.PerInstance ) continue;
-				if ( field.Format is not (ColorFormat.R32G32_FLOAT or ColorFormat.R16G16_FLOAT or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT or ColorFormat.R16G16B16A16_FLOAT or ColorFormat.R16G16_UNORM) ) continue;
-				var set = new System.Numerics.Vector2[positions.Length];
-				for ( int v = 0; v < set.Length; v++ ) set[v] = Coordinate( s.Vertices, field, s.VertexBase + (int)min + v );
-				sets.Add( set );
-			}
-
-			// Its vertex colours and blend weights (four bytes each), which count in the error too
-			var colors = new List<System.Numerics.Vector4[]>();
-			foreach ( var field in s.Vertices.Fields )
-			{
-				if ( colors.Count == 4 || field.PerInstance || field.Format != ColorFormat.R8G8B8A8_UNORM ) continue;
-				if ( !string.Equals( field.Semantic, "TEXCOORD", StringComparison.OrdinalIgnoreCase ) && !string.Equals( field.Semantic, "COLOR", StringComparison.OrdinalIgnoreCase ) ) continue;
-				var set = new System.Numerics.Vector4[positions.Length];
-				for ( int v = 0; v < set.Length; v++ )
+				if ( cooked.Errors.Count == 0 ) chain = null;
+				else
 				{
-					var c = s.Vertices.Read( field, s.VertexBase + (int)min + v );
-					set[v] = new System.Numerics.Vector4( c.X, c.Y, c.Z, c.W );
+					var levels = new uint[cooked.Buffers.Count][];
+					for ( int k = 0; k < levels.Length; k++ ) levels[k] = MemoryMarshal.Cast<byte, uint>( cooked.Buffers[k].Data ).ToArray();
+					chain = new LodChain { Levels = levels, Errors = [.. cooked.Errors] };
+					entry.LevelBuffers = [.. cooked.Buffers];
 				}
 
-				colors.Add( set );
-			}
-
-			// Its normals, where the format is one read here (a compressed tangent frame's octahedral normal, or floats)
-			V3[] normals = null;
-			if ( s.Vertices.Find( "NORMAL" ) is { } normalField && normalField.Format is ColorFormat.R10G10B10A2_UNORM or ColorFormat.R32G32B32_FLOAT or ColorFormat.R32G32B32A32_FLOAT )
-			{
-				normals = new V3[positions.Length];
-				for ( int v = 0; v < normals.Length; v++ ) normals[v] = Normal( s.Vertices, normalField, s.VertexBase + (int)min + v );
-			}
-
-			FieldsSeen.AddOrUpdate( string.Join( " ", s.Vertices.Fields.Select( f => f.ToString() ) ), 1, ( _, n ) => n + 1 );
-			var key = CacheFolder is null ? null : Key( indices, positions, sets, normals, colors );
-			var empty = false;
-			var cached = key is null ? null : ReadCached( key, out empty );
-			LodChain chain;
-			if ( cached is not null || empty )
-			{
-				chain = cached;
-				Interlocked.Increment( ref CacheHits );
+				Interlocked.Increment( ref CookedHits );
 			}
 			else
 			{
-				var readers = sets.Select( set => (Func<int, System.Numerics.Vector2>)(v => set[v - s.VertexBase - (int)min]) ).ToArray();
-				var colorReaders = colors.Select( set => (Func<int, System.Numerics.Vector4>)(v => set[v - s.VertexBase - (int)min]) ).ToArray();
-				chain = LodBuilder.Build( indices, v => positions[v - s.VertexBase - (int)min], s.VertexBase, Config, readers, normals is null ? null : v => normals[v - s.VertexBase - (int)min], colorReaders );
-				if ( key is not null ) WriteCached( key, chain );
+				// The range's indices and its vertices' attributes (Attributes), in pooled scratch: with the config, the cache's key
+				var indexArray = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+				try
+				{
+					var indices = indexArray.AsSpan( 0, count );
+					uint min = uint.MaxValue, max = 0;
+					for ( int k = 0; k < count; k++ )
+					{
+						var index = s.Indices[s.IndexBase + k];
+						indices[k] = index;
+						min = Math.Min( min, index );
+						max = Math.Max( max, index );
+					}
+
+					using var attributes = new Attributes( s.Vertices, s.Position, s.VertexBase, min, count == 0 ? 0 : (int)(max - min + 1) );
+					FieldsSeen.AddOrUpdate( string.Join( " ", s.Vertices.Fields.Select( f => f.ToString() ) ), 1, ( _, n ) => n + 1 );
+					var key = CacheFolder is null ? null : Key( indices, attributes.Positions.AsSpan( 0, attributes.VertexCount ), attributes.Sets, attributes.Normals, attributes.Colors, attributes.VertexCount );
+					var empty = false;
+					var cached = key is null ? null : ReadCached( key, out empty );
+					if ( cached is not null || empty )
+					{
+						chain = cached;
+						Interlocked.Increment( ref CacheHits );
+					}
+					else
+					{
+						chain = attributes.Make( indices, s.VertexBase, Config );
+						if ( key is not null ) WriteCached( key, chain );
+					}
+				}
+				finally
+				{
+					System.Buffers.ArrayPool<uint>.Shared.Return( indexArray );
+				}
 			}
 
 			Interlocked.Add( ref BuildTicks, Stopwatch.GetTimestamp() - started );
@@ -473,6 +600,7 @@ internal sealed class LodStore : IDisposable
 					Simplest++;
 					entry.State = Phase.None;
 					entry.Source = null;
+					publishVersion++;
 					continue;
 				}
 
@@ -546,8 +674,8 @@ internal sealed class LodStore : IDisposable
 
 				placed.Add( (first, (uint)level.Length) );
 				var levelRange = new Range( entry.Range.PageSlot, first, (uint)level.Length, entry.Range.BaseVertex );
-				var bytes = entry.LevelBytes?[k] ?? MemoryMarshal.AsBytes( level.AsSpan() ).ToArray();
-				(meshletRequests ??= new()).Add( (levelRange, s with { Indices = new MeshIndexBuffer( level.Length, 4, bytes ), IndexBase = 0 }) );
+				var levelIndices = entry.LevelBuffers?[k] ?? new MeshIndexBuffer( level.Length, 4, entry.LevelBytes?[k] ?? MemoryMarshal.AsBytes( level.AsSpan() ).ToArray() );
+				(meshletRequests ??= new()).Add( (levelRange, s with { Indices = levelIndices, IndexBase = 0 }) );
 				LevelTriangles += level.Length / 3;
 			}
 
@@ -555,6 +683,7 @@ internal sealed class LodStore : IDisposable
 			if ( entry.Staging.IsValid ) gpu.Destroy( entry.Staging );
 			entry.Staging = default;
 			entry.LevelBytes = null;
+			entry.LevelBuffers = null;
 
 			uint[] draws;
 			lock ( gate )
@@ -574,6 +703,7 @@ internal sealed class LodStore : IDisposable
 					BaseTriangles += entry.Range.IndexCount / 3;
 				}
 				else Dropped++;
+				publishVersion++;
 			}
 
 			// Outside the lock: making the levels' draw records registers them here
@@ -692,16 +822,17 @@ internal sealed class LodStore : IDisposable
 		return normal.LengthSquared() > 0 ? V3.Normalize( normal ) : V3.UnitZ;
 	}
 
-	string Key( uint[] indices, V3[] positions, List<System.Numerics.Vector2[]> sets, V3[] normals, List<System.Numerics.Vector4[]> colors )
+	// Each set holds vertexCount values at its start (pooled arrays are longer)
+	string Key( ReadOnlySpan<uint> indices, ReadOnlySpan<V3> positions, List<System.Numerics.Vector2[]> sets, V3[] normals, List<System.Numerics.Vector4[]> colors, int vertexCount )
 	{
 		using var hash = System.Security.Cryptography.IncrementalHash.CreateHash( System.Security.Cryptography.HashAlgorithmName.SHA256 );
 		Span<int> head = [(int)CacheVersion, Config.MaxLevels, BitConverter.SingleToInt32Bits( Config.Ratio ), BitConverter.SingleToInt32Bits( Config.KeepRatio ), Config.MinTriangles, Config.MinRangeTriangles, BitConverter.SingleToInt32Bits( Config.NormalWeight ), BitConverter.SingleToInt32Bits( Config.ColorWeight ), indices.Length, positions.Length];
 		hash.AppendData( MemoryMarshal.AsBytes( head ) );
-		hash.AppendData( MemoryMarshal.AsBytes( indices.AsSpan() ) );
-		hash.AppendData( MemoryMarshal.AsBytes( positions.AsSpan() ) );
-		foreach ( var set in sets ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan() ) );
-		if ( normals is not null ) hash.AppendData( MemoryMarshal.AsBytes( normals.AsSpan() ) );
-		foreach ( var set in colors ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan() ) );
+		hash.AppendData( MemoryMarshal.AsBytes( indices ) );
+		hash.AppendData( MemoryMarshal.AsBytes( positions ) );
+		foreach ( var set in sets ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan( 0, vertexCount ) ) );
+		if ( normals is not null ) hash.AppendData( MemoryMarshal.AsBytes( normals.AsSpan( 0, vertexCount ) ) );
+		foreach ( var set in colors ) hash.AppendData( MemoryMarshal.AsBytes( set.AsSpan( 0, vertexCount ) ) );
 		return Convert.ToHexString( hash.GetHashAndReset() );
 	}
 
@@ -715,34 +846,43 @@ internal sealed class LodStore : IDisposable
 		{
 			var path = CachePath( key );
 			if ( !System.IO.File.Exists( path ) ) return null;
-			var bytes = System.IO.File.ReadAllBytes( path );
-			if ( bytes.Length < 12 ) return null;
-			var head = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( 0, 12 ) );
-			if ( head[0] != CacheMagic || head[1] != CacheVersion || head[2] > MaxLevels ) return null;
-			var levels = (int)head[2];
-			if ( levels == 0 )
+			// Read into pooled scratch: only the chain's own arrays are new
+			var buffer = PooledFile.Read( path, out var length );
+			try
 			{
-				empty = bytes.Length == 12;
-				return null;
+				var bytes = buffer.AsSpan( 0, length );
+				if ( bytes.Length < 12 ) return null;
+				var head = MemoryMarshal.Cast<byte, uint>( bytes.Slice( 0, 12 ) );
+				if ( head[0] != CacheMagic || head[1] != CacheVersion || head[2] > MaxLevels ) return null;
+				var levels = (int)head[2];
+				if ( levels == 0 )
+				{
+					empty = bytes.Length == 12;
+					return null;
+				}
+
+				var table = 12 + levels * 8;
+				if ( bytes.Length < table ) return null;
+				var counts = MemoryMarshal.Cast<byte, uint>( bytes.Slice( 12, levels * 4 ) );
+				var errors = MemoryMarshal.Cast<byte, float>( bytes.Slice( 12 + levels * 4, levels * 4 ) ).ToArray();
+				long total = 0;
+				foreach ( var count in counts ) total += count;
+				if ( bytes.Length != table + total * 4 ) return null;
+
+				var chain = new uint[levels][];
+				var at = table;
+				for ( int k = 0; k < levels; k++ )
+				{
+					chain[k] = MemoryMarshal.Cast<byte, uint>( bytes.Slice( at, (int)counts[k] * 4 ) ).ToArray();
+					at += (int)counts[k] * 4;
+				}
+
+				return new LodChain { Levels = chain, Errors = errors };
 			}
-
-			var table = 12 + levels * 8;
-			if ( bytes.Length < table ) return null;
-			var counts = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( 12, levels * 4 ) );
-			var errors = MemoryMarshal.Cast<byte, float>( bytes.AsSpan( 12 + levels * 4, levels * 4 ) ).ToArray();
-			long total = 0;
-			foreach ( var count in counts ) total += count;
-			if ( bytes.Length != table + total * 4 ) return null;
-
-			var chain = new uint[levels][];
-			var at = table;
-			for ( int k = 0; k < levels; k++ )
+			finally
 			{
-				chain[k] = MemoryMarshal.Cast<byte, uint>( bytes.AsSpan( at, (int)counts[k] * 4 ) ).ToArray();
-				at += (int)counts[k] * 4;
+				PooledFile.Return( buffer );
 			}
-
-			return new LodChain { Levels = chain, Errors = errors };
 		}
 		catch ( System.IO.IOException )
 		{

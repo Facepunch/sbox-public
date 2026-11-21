@@ -1,0 +1,23 @@
+{
+  "guid": "9092f135-0dbf-4f1a-a810-e6da12fcc03c",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "ViewModel Magnum",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "v_magnum",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/v_magnum.vmdl",
+        "AssetLicense": ""
+      }
+    }
+  }
+}

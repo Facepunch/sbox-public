@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Rekyl",
+    "weapon.setting.primary.description": "Styrer våpenets primære handling.",
+    "weapon.setting.secondary.description": "Styrer våpenets sekundære handling.",
+    "weapon.setting.recoil_force": "Rekylkraft",
+    "weapon.setting.recoil_force.description": "Fysisk rekyl når et våpen som ingen holder, avfyres.",
+    "weapon.setting.extend": "Øk gripeavstand",
+    "weapon.setting.extend.description": "Flytter det grepne objektet lenger unna.",
+    "weapon.setting.retract": "Reduser gripeavstand",
+    "weapon.setting.retract.description": "Flytter det grepne objektet nærmere.",
+    "weapon.setting.camera_aim": "Sikt med kamera",
+    "weapon.setting.camera_aim.description": "Sikt i retningen til den sittende spillerens kamera.",
+    "weapon.setting.guide_rockets": "Styr raketter",
+    "weapon.setting.guide_rockets.description": "Styr avfyrte raketter mot spillerens siktekors."
+}

@@ -1,0 +1,136 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	menulist.menulist
+	{
+		z-index: 10002; // menus may be opened from property pickers above a fullscreen editor
+		min-width: 180px;
+		max-height: 90vh;
+		flex-shrink: 0;
+
+		background-color: $ui-popup-bg-light;
+		border: 1px solid $ui-separator;
+		border-radius: 8px;
+		box-shadow: none;
+		filter: drop-shadow( 0 5px 10px rgba( black, 0.38 ) );
+		padding: 5px;
+		overflow-x: hidden;
+		@include ui-scroll;
+
+		font-family: $body-font;
+		font-size: 13px;
+		font-weight: 500;
+		color: $ui-text;
+		sound-in: "sounds/kenney/ui/ui.navigate.forward.sound";
+
+		> .menu
+		{
+			height: $ui-menu-control-height;
+			padding: 0 8px;
+			gap: 8px;
+			border: 1px solid transparent;
+			border-radius: $ui-menu-radius;
+			background-color: transparent;
+			color: $ui-text;
+			transition: none;
+
+			// keep hover and clicks on the row as the pointer crosses its contents
+			> .part, > .part *
+			{
+				pointer-events: none;
+			}
+
+			// the slot for the option's icon
+			> .gutter
+			{
+				width: 18px;
+				height: 18px;
+				flex-shrink: 0;
+				overflow: hidden;
+
+				> .icon, > .check
+				{
+					font-family: $ui-icon-outlined;
+					font-size: 17px;
+					color: $ui-text-label;
+					opacity: 1;
+				}
+			}
+
+			> .text
+			{
+				flex-grow: 1;
+				padding: 0px;
+			}
+
+			> .shortcut
+			{
+				margin-left: 0px;
+				color: $ui-text-muted;
+				opacity: 1;
+			}
+
+			> .chevron
+			{
+				margin-left: 0px;
+				font-size: 16px;
+				color: $ui-text-muted;
+				opacity: 1;
+			}
+
+			&.disabled
+			{
+				opacity: 0.4;
+			}
+
+			&:not(.disabled):not(.separator)
+			{
+				&.active, &.open
+				{
+					background-color: $ui-blue-soft;
+					color: $ui-text-strong;
+
+					> .gutter > .icon, > .gutter > .check, > .chevron, > .shortcut
+					{
+						color: $ui-text-strong;
+					}
+				}
+
+				&:hover { sound-in: ui.hover; }
+
+				&.selected
+				{
+					@include ui-selected( $ui-catalog-selected-bg );
+					font-weight: 600;
+
+					> .gutter > .icon, > .gutter > .check, > .chevron, > .shortcut { color: $ui-selected-text; }
+					&.active, &.open { border-color: $ui-hover-border; }
+				}
+
+				&:active
+				{
+					sound-in: ui.select;
+				}
+			}
+
+			// a separator added to a menu is a thin line between groups of rows
+			&.separator
+			{
+				height: 1px;
+				min-height: 1px;
+				margin: 3px 4px;
+				padding: 0px;
+				border: none;
+				background-color: $ui-separator;
+
+				> *
+				{
+					display: none;
+				}
+			}
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

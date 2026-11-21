@@ -61,10 +61,6 @@ public class ToolAppSystem : AppSystem, IDisposable
 		_appSystem.SetInToolsMode();
 		_appSystem.SetSteamAppId( (uint)Application.AppId );
 
-		// A tool that needs the GPU (a compiler that renders) asks for it, as resourcecompiler does
-		if ( Environment.GetCommandLineArgs().Contains( "-vulkan" ) )
-			_appSystem.SetDefaultRenderSystemOption( "-vulkan" );
-
 		//_appSystem.Init();
 
 		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )

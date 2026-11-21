@@ -38,6 +38,37 @@ internal sealed class LodChain
 internal static unsafe class LodBuilder
 {
 	/// <summary>
+	/// A range's triangles in one order whatever order they're stored in: each from the corner that makes it smallest (its
+	/// winding kept), then sorted, so its levels don't depend on it. The resource compiler stores aggregate fragments in
+	/// meshlet order (<see cref="Borealis.Source2.Models.CookedMeshlets"/>), the index buffer's encoding rotates triangles,
+	/// and the simplifier's result depends on its input's order.
+	/// </summary>
+	static void Canonical( ReadOnlySpan<uint> indices, Span<uint> sorted )
+	{
+		var count = indices.Length / 3;
+		var scratch = System.Buffers.ArrayPool<(uint A, uint B, uint C)>.Shared.Rent( count );
+		try
+		{
+			var triangles = scratch.AsSpan( 0, count );
+			for ( int t = 0; t < count; t++ )
+			{
+				var (a, b, c) = (indices[t * 3], indices[t * 3 + 1], indices[t * 3 + 2]);
+				var best = (a, b, c);
+				if ( (b, c, a).CompareTo( best ) < 0 ) best = (b, c, a);
+				if ( (c, a, b).CompareTo( best ) < 0 ) best = (c, a, b);
+				triangles[t] = best;
+			}
+
+			triangles.Sort();
+			for ( int t = 0; t < count; t++ ) (sorted[t * 3], sorted[t * 3 + 1], sorted[t * 3 + 2]) = triangles[t];
+		}
+		finally
+		{
+			System.Buffers.ArrayPool<(uint A, uint B, uint C)>.Shared.Return( scratch );
+		}
+	}
+
+	/// <summary>
 	/// The levels of <paramref name="indices"/> (index values as stored, vertex <c>baseVertex + index</c> at
 	/// <paramref name="position"/>), or null when it's too small, nothing simplifies or the library isn't there.
 	/// </summary>
@@ -48,6 +79,22 @@ internal static unsafe class LodBuilder
 		if ( config.MaxLevels is < 1 or > LodStore.MaxLevels ) throw new ArgumentOutOfRangeException( nameof( config ), config, $"1 to {LodStore.MaxLevels} levels" );
 		var count = indices.Length;
 		if ( count / 3 < Math.Max( config.MinRangeTriangles, 1 ) || !MeshOptimizer.Available ) return null;
+		var canonical = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+		try
+		{
+			Canonical( indices, canonical.AsSpan( 0, count ) );
+			return BuildCanonical( canonical.AsSpan( 0, count ), position, baseVertex, config, coordinates, normal, colors );
+		}
+		finally
+		{
+			System.Buffers.ArrayPool<uint>.Shared.Return( canonical );
+		}
+	}
+
+	// The levels of indices already in canonical order
+	static LodChain BuildCanonical( ReadOnlySpan<uint> indices, Func<int, V3> position, int baseVertex, LodConfig config, Func<int, System.Numerics.Vector2>[] coordinates, Func<int, V3> normal, Func<int, System.Numerics.Vector4>[] colors )
+	{
+		var count = indices.Length;
 
 		uint min = uint.MaxValue, max = 0;
 		for ( int k = 0; k < count; k++ )
@@ -56,15 +103,40 @@ internal static unsafe class LodBuilder
 			max = Math.Max( max, indices[k] );
 		}
 
+		// Scratch from the shared pools (a map's thousands of ranges made hundreds of MiB of garbage a load); only the levels
+		// are new
 		var vertexCount = (int)(max - min + 1);
-		var positions = new V3[vertexCount];
+		var sets = coordinates?.Length ?? 0;
+		var normals = normal is not null && config.NormalWeight > 0 ? 3 : 0;
+		var colorSets = config.ColorWeight > 0 ? colors?.Length ?? 0 : 0;
+		var stride = sets * 2 + normals + colorSets * 4;
+		var positions = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
+		var current = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+		var destination = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
+		var attributes = System.Buffers.ArrayPool<float>.Shared.Rent( Math.Max( vertexCount * stride, 1 ) );
+		try
+		{
+			return Build( indices, position, baseVertex, config, coordinates, normal, colors, min, vertexCount, sets, normals, colorSets, stride, positions, current, destination, attributes );
+		}
+		finally
+		{
+			System.Buffers.ArrayPool<V3>.Shared.Return( positions );
+			System.Buffers.ArrayPool<uint>.Shared.Return( current );
+			System.Buffers.ArrayPool<uint>.Shared.Return( destination );
+			System.Buffers.ArrayPool<float>.Shared.Return( attributes );
+		}
+	}
+
+	static LodChain Build( ReadOnlySpan<uint> indices, Func<int, V3> position, int baseVertex, LodConfig config, Func<int, System.Numerics.Vector2>[] coordinates, Func<int, V3> normal, Func<int, System.Numerics.Vector4>[] colors,
+		uint min, int vertexCount, int sets, int normals, int colorSets, int stride, V3[] positions, uint[] current, uint[] destination, float[] attributes )
+	{
+		var count = indices.Length;
 		for ( int v = 0; v < vertexCount; v++ ) positions[v] = position( baseVertex + (int)min + v );
 
 		// The bounds of the vertices it uses: errors are kept as a fraction of their half diagonal, which the culls scale by
 		// a fragment's world bounds
 		var lo = new V3( float.MaxValue );
 		var hi = new V3( float.MinValue );
-		var current = new uint[count];
 		for ( int k = 0; k < count; k++ )
 		{
 			current[k] = indices[k] - min;
@@ -78,12 +150,7 @@ internal static unsafe class LodBuilder
 
 		// Texture coordinates, each weighed by the surface it maps per unit (world area over its area), over meshoptimizer's
 		// scale (it works in positions scaled to a unit box), so a coordinate's error is the distance its texture slides
-		var sets = coordinates?.Length ?? 0;
-		var normals = normal is not null && config.NormalWeight > 0 ? 3 : 0;
-		var colorSets = config.ColorWeight > 0 ? colors?.Length ?? 0 : 0;
-		var stride = sets * 2 + normals + colorSets * 4;
-		var attributes = new float[Math.Max( vertexCount * stride, 1 )];
-		var weights = new float[Math.Max( stride, 1 )];
+		Span<float> weights = stackalloc float[Math.Max( stride, 1 )];
 		float extent;
 		fixed ( V3* p = positions ) extent = MeshOptimizer.SimplifyScale( (float*)p, (nuint)vertexCount, 12 );
 		for ( int c = 0; c < sets; c++ )
@@ -140,12 +207,12 @@ internal static unsafe class LodBuilder
 
 		var levels = new List<uint[]>();
 		var errors = new List<float>();
-		var destination = new uint[count];
+		var currentLength = count;
 		float total = 0;
 		const MeshOptimizer.SimplifyOptions Options = MeshOptimizer.SimplifyOptions.LockBorder | MeshOptimizer.SimplifyOptions.ErrorAbsolute;
-		while ( levels.Count < config.MaxLevels && current.Length / 3 > config.MinTriangles )
+		while ( levels.Count < config.MaxLevels && currentLength / 3 > config.MinTriangles )
 		{
-			var target = (nuint)Math.Min( Math.Max( (int)(current.Length / 3 * config.Ratio), config.MinTriangles ) * 3, current.Length );
+			var target = (nuint)Math.Min( Math.Max( (int)(currentLength / 3 * config.Ratio), config.MinTriangles ) * 3, currentLength );
 			float error = 0;
 			nuint written;
 			fixed ( uint* dst = destination )
@@ -155,17 +222,18 @@ internal static unsafe class LodBuilder
 			fixed ( float* w = weights )
 			{
 				written = stride > 0
-					? MeshOptimizer.SimplifyWithAttributes( dst, src, (nuint)current.Length, (float*)p, (nuint)vertexCount, 12, a, (nuint)(stride * 4), w, (nuint)stride, null, target, float.MaxValue, Options, &error )
-					: MeshOptimizer.Simplify( dst, src, (nuint)current.Length, (float*)p, (nuint)vertexCount, 12, target, float.MaxValue, Options, &error );
+					? MeshOptimizer.SimplifyWithAttributes( dst, src, (nuint)currentLength, (float*)p, (nuint)vertexCount, 12, a, (nuint)(stride * 4), w, (nuint)stride, null, target, float.MaxValue, Options, &error )
+					: MeshOptimizer.Simplify( dst, src, (nuint)currentLength, (float*)p, (nuint)vertexCount, 12, target, float.MaxValue, Options, &error );
 			}
 
 			// Not worth a level, or nothing left to draw
-			if ( written < 3 || written > (nuint)(current.Length * config.KeepRatio) || !float.IsFinite( error ) ) break;
+			if ( written < 3 || written > (nuint)(currentLength * config.KeepRatio) || !float.IsFinite( error ) ) break;
 
 			// Errors add up along the chain: each level's is at most the sum of the steps to it
 			total += error;
-			current = destination.AsSpan( 0, (int)written ).ToArray();
-			var level = new uint[current.Length];
+			(current, destination) = (destination, current);
+			currentLength = (int)written;
+			var level = new uint[currentLength];
 			for ( int k = 0; k < level.Length; k++ ) level[k] = current[k] + min;
 			levels.Add( level );
 			errors.Add( total / radius );

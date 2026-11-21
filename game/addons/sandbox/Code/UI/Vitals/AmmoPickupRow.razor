@@ -1,0 +1,20 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits Panel
+
+<root class="pickup">
+    <label class="amount">+@Notice.Amount</label>
+    <label class="name">@Notice.Type.Title</label>
+    @if ( Notice.Type.Icon is not null )
+    {
+        <Image class="icon" Texture=@Notice.Type.Icon />
+    }
+</root>
+
+@code
+{
+    [Parameter] public PlayerInventory.AmmoPickupNotice Notice { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Notice, Notice?.Amount );
+}

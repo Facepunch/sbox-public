@@ -498,6 +498,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		CheckRecords( Content );
 		Shaders = new ShaderLibrary( gpu, Content );
 		Passes = new PassModules( this );
+		Shaders.Modules = Passes;
 		SlangPasses = SlangPassesByDefault;
 		CompileGpuDrivenWithShaderCompiler();
 		Defaults = new ShaderDefaults( gpu );
@@ -614,6 +615,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			{
 				if ( !meshletStoreTried )
 				{
+					if ( HasSwitch( "-no-cooked-meshlets" ) ) Borealis.Backend.Meshlets.MeshletStore.UseCooked = false;
 					meshletStore = Borealis.Backend.Meshlets.MeshOptimizer.Available ? new Borealis.Backend.Meshlets.MeshletStore( Gpu, Borealis.Backend.Meshlets.MeshletConfig.Parse( SwitchValue( "-meshlets" ) ), MeshletThreads, MeshletCacheFolder() ) { LocalData = MeshletTasks && Gpu.Capabilities.MeshShaders } : null;
 					if ( meshletStore is not null ) gpuDrivenTables.Meshlets = meshletStore;
 					Volatile.Write( ref meshletStoreTried, true );
@@ -631,6 +633,18 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// keep room for the levels (<see cref="LodLevelRoom"/>).
 	/// </summary>
 	public bool GeneratedLods { get; set; } = !HasSwitch( "-no-lodgen" );
+
+	/// <summary>
+	/// Whether resident meshes of models without LODs of their own get generated levels too, as aggregate fragments do (on);
+	/// <c>-no-mesh-lodgen</c> leaves them whole, for comparisons.
+	/// </summary>
+	public bool MeshLods { get; set; } = !HasSwitch( "-no-mesh-lodgen" );
+
+	/// <inheritdoc/>
+	internal override float LevelPixels => MeshLods && LodStore is not null ? LodPixels : 0;
+
+	/// <inheritdoc/>
+	internal override int LevelsVersion => lodStore?.PublishVersion ?? 0;
 
 	/// <summary>
 	/// Room index pages keep for generated levels, as a fraction of the indices of the draws that may get them (draws of
@@ -702,7 +716,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		{
 			if ( lodStore is not { } s ) return GeneratedLods ? "generated LODs: none (meshopt not found or no GPU-driven geometry)" : "generated LODs: off";
 			var (room, used) = gpuDrivenTables.LevelBytes;
-			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); level indices {used / 1048576.0:0.0} MB ({room / 1048576.0:0.0} MB still kept for levels), tables {s.Bytes / 1048576.0:0.0} MB; {gpuDrivenTables.DescribeIndexPages()}; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
+			return $"generated LODs ({s.Config}, {LodPixels:0.##} px; view records by mode {string.Join( '/', LodModes )}, {s.SlicesTaken} views keeping levels): {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Simplest:N0} simplify no further, {s.Dropped:N0} without room, {s.Pending:N0} pending, {s.WaitingForColor.Ranges:N0} of {s.WaitingForColor.Triangles:N0} triangles drawn in no GPU-driven colour pass), {s.Levels:N0} levels, {s.LevelTriangles:N0} level triangles over {s.BaseTriangles:N0}, {s.NoRoom:N0} levels without room; built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache, {s.CookedHits:N0} cooked into their models, {s.CookedMisses:N0} in them made anyway); level indices {used / 1048576.0:0.0} MB ({room / 1048576.0:0.0} MB still kept for levels), tables {s.Bytes / 1048576.0:0.0} MB; {gpuDrivenTables.DescribeIndexPages()}; layouts {string.Join( "; ", s.FieldsSeen.OrderByDescending( f => f.Value ).Take( 4 ).Select( f => $"{f.Value} x {f.Key}" ) )}";
 		}
 	}
 
@@ -711,13 +725,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Whether shaders that have a pass module beside them (post-processing, UI, tools, compute, the engine's fullscreen
-	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. Set it before
-	/// drawing: variants already made keep their stages.
+	/// passes) draw from it, compiled with Slang (on), or from their compiled <c>.shader_c</c> programs. A shader only its
+	/// module describes (no <c>.shader_c</c>) draws from it either way. Set it before drawing: variants already made keep
+	/// their stages.
 	/// </summary>
 	public bool SlangPasses
 	{
-		get => Shaders.Modules is not null;
-		set => Shaders.Modules = value ? Passes : null;
+		get => !Shaders.CompiledFirst;
+		set => Shaders.CompiledFirst = !value;
 	}
 
 	/// <summary>
@@ -949,28 +964,45 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		return made;
 	}
 
-	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file
+	// A texture file's image with every mip written: the one its read made ahead (ImageAheadBytes) when it's for this file,
+	// copied from the mips its read staged (StageAheadBytes) when uploads are deferred into a list
 	TextureHandle CreateTexture( TextureFile texture, string path )
 	{
 		if ( !imagesAhead.TryRemove( path, out var ahead ) ) return texture.Create( Gpu, path );
 		if ( ahead.File != texture )
 		{
-			Gpu.Destroy( ahead.Image );
+			DestroyAhead( ahead );
 			return texture.Create( Gpu, path );
 		}
 
 		try
 		{
-			for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+			if ( ahead.Staged.IsValid && Gpu.DeferredList is { } list )
+			{
+				texture.CopyStaged( list, ahead.Staged, ahead.Image );
+				StagedTextures++;
+			}
+			else
+			{
+				for ( int mip = texture.TopMip; mip < texture.Mips; mip++ ) texture.Write( Gpu, ahead.Image, mip );
+			}
 		}
 		catch
 		{
 			Gpu.Destroy( ahead.Image );
 			throw;
 		}
+		finally
+		{
+			// Once the GPU is done with the copies
+			if ( ahead.Staged.IsValid ) Gpu.Destroy( ahead.Staged );
+		}
 
 		return ahead.Image;
 	}
+
+	/// <summary>Textures made from mips staged on the worker that read them (<see cref="StageAheadBytes"/>), for tests.</summary>
+	internal int StagedTextures { get; private set; }
 
 	/// <inheritdoc/>
 	public override GpuTexture Black => black;
@@ -1603,6 +1635,68 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public GpuMaterial CreateMaterial( string name, ShaderFile shader ) => Track( new BackendMaterial( name, shader, null, null ) );
 
 	/// <summary>
+	/// A material made in code from a shader as native makes one (<c>CMaterialSystem2::CreateRawMaterial</c>, what
+	/// <c>Material.Create</c> calls): every texture its shader reads from the material is the variable's default texture, or
+	/// the error texture (<see cref="ErrorTexture"/>) where it names none, until code sets one. Values and features are set
+	/// on it later (<see cref="SetOnMaterial"/>, <see cref="SetFeaturesOnMaterial"/>).
+	/// </summary>
+	public GpuMaterial CreateRawMaterial( string name, string shaderPath )
+	{
+		var shader = Shaders.Load( shaderPath );
+		return Track( new BackendMaterial( name, shader, null, RawMaterialTextures( shader ) ) );
+	}
+
+	Dictionary<string, BackendTexture> RawMaterialTextures( ShaderFile shader )
+	{
+		var textures = new Dictionary<string, BackendTexture>( StringComparer.OrdinalIgnoreCase );
+		if ( shader is null ) return textures;
+
+		// Every program's but the features', as native fills a raw material's parameters
+		for ( var type = ShaderProgramType.Vertex; (int)type < shader.Programs.Length; type++ )
+		{
+			foreach ( var variable in shader[type]?.Variables ?? [] )
+			{
+				if ( variable is not { Source: VariableSource.Material, Register: RegisterType.Texture, Type: VariableType.Texture2D } || textures.ContainsKey( variable.Name ) ) continue;
+				var texture = string.IsNullOrEmpty( variable.DefaultTexture ) ? null : LoadTexture( variable.DefaultTexture ) as BackendTexture;
+				textures[variable.Name] = texture ?? ErrorTexture;
+			}
+		}
+
+		return textures;
+	}
+
+	/// <summary>
+	/// What native binds for a texture nothing set (<c>CTextureManagerBase</c>'s error texture): 32 by 32, magenta and black
+	/// squares of 4 texels. Made on first use.
+	/// </summary>
+	internal BackendTexture ErrorTexture
+	{
+		get
+		{
+			if ( errorTexture is { } made ) return made;
+			lock ( sharedMaterials )
+			{
+				if ( errorTexture is not null ) return errorTexture;
+				var pixels = new byte[32 * 32 * 4];
+				for ( int y = 0; y < 32; y++ )
+				{
+					for ( int x = 0; x < 32; x++ )
+					{
+						var at = (y * 32 + x) * 4;
+						var magenta = (byte)(((x ^ y) & 4) != 0 ? 255 : 0);
+						pixels[at] = pixels[at + 2] = magenta;
+						pixels[at + 3] = 255;
+					}
+				}
+
+				return errorTexture = (BackendTexture)CreateTexture( new TextureDesc { Width = 32, Height = 32, Depth = 1, Format = TextureFormat.RGBA8888, Samples = 1, Mips = 1, Data = pixels }, "Error" );
+			}
+		}
+	}
+
+	BackendTexture errorTexture;
+
+	/// <summary>
 	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>:
 	/// <c>materials/default/white.vmat</c> (complex.shader, white, flat normal) tinted with <paramref name="albedo"/>.
 	/// </summary>
@@ -1641,6 +1735,17 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public void SetOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
 	{
 		if ( material is BackendMaterial own ) SetOn( own, values, textures );
+	}
+
+	/// <summary>
+	/// Set feature values (<c>F_*</c>) in code on a material made by <see cref="CreateMaterial(string, string)"/> or
+	/// <see cref="LoadMaterial(string, IReadOnlyDictionary{string, float[]}, IReadOnlyDictionary{string, GpuTexture}, string)"/>,
+	/// over its file's, as <c>Material.SetFeature</c> does: every feature code set, so one no longer set goes back to the
+	/// file's. What draws with it draws the variants of those features from its next draw. Call between frames.
+	/// </summary>
+	public void SetFeaturesOnMaterial( GpuMaterial material, IReadOnlyDictionary<string, int> features )
+	{
+		if ( material is BackendMaterial own ) own.SetFeatures( features );
 	}
 
 	static void SetOn( BackendMaterial material, IReadOnlyDictionary<string, float[]> values, IReadOnlyDictionary<string, GpuTexture> textures )
@@ -2199,7 +2304,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>What meshlets have been built, for reports.</summary>
 	public string MeshletReport => meshletStore is not { } s ? (Meshlets ? "meshlets: none (meshopt not found or no GPU-driven geometry)" : "meshlets: off")
-		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache); pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
+		: $"meshlets {s.Config}: {s.Published:N0} ranges published of {s.Requested:N0} asked for ({s.Refused:N0} overlapping refused, {s.Pending:N0} pending), {s.Meshlets:N0} meshlets over {s.Triangles:N0} triangles ({s.Triangles16:N0} with 16-bit indices), built in {s.BuildTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms of worker time ({s.CacheHits:N0} from the cache), {s.CookedHits:N0} cooked into their models and taken in {s.CookedTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms, {s.CookedMisses:N0} in them built anyway; pass module {(MeshletCullShader is null ? "missing" : "drawing")}; task and mesh shaders {(MeshletIds is null ? "off" : "on")}";
 
 	/// <summary>
 	/// Debug only (<c>borealislab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this

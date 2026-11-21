@@ -1,0 +1,44 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	//---- Number Of Blendable Layers ----
+	F_MULTIBLEND 1 // 2 Layers
+
+	//---- Rendering ----
+	F_DYNAMIC_REFLECTIONS 1
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/sbox/floor/concrete_glossy_ao.tga"
+	TextureBlendMaskA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColorA "materials/sbox/floor/concrete_glossy_color.tga"
+	TextureMetalnessA "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormalA "materials/sbox/floor/concrete_glossy_normal.tga"
+	TextureRoughnessA "materials/sbox/floor/concrete_glossy_rough.tga"
+	TextureTintMaskA "[1.000000 1.000000 1.000000 0.000000]"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "0.602"
+	g_flTintColorB "[1.000000 1.000000 1.000000 1.000000]"
+	g_vTexCoordScale2 "[0.900 0.900]"
+	TextureAmbientOcclusionB "[1.000000 1.000000 1.000000 0.000000]"
+	TextureBlendMaskB "materials/sbox/floor/concrete_glossy_used_blend.tga"
+	TextureColorB "materials/sbox/floor/concrete_glossy_used_color.tga"
+	TextureMetalnessB "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormalB "materials/sbox/floor/concrete_glossy_normal.tga"
+	TextureRoughnessB "materials/sbox/floor/concrete_glossy_used_rough.tga"
+	TextureTintMaskB "[1.000000 1.000000 1.000000 0.000000]"
+
+	SystemAttributes
+	{
+		WorldMappingWidth "128"
+		WorldMappingHeight "128"
+		PhysicsSurfaceProperties "concrete"
+	}
+}

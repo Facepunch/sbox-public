@@ -9,12 +9,6 @@ namespace Sandbox;
 public partial class Texture
 {
 	/// <summary>
-	/// Whether the texture's pixels are Source 2's: drawn by native's renderer in a process that draws on another device
-	/// with Source 2's kept beside it (a capture a tool asks of native by name), so reading it back reads Source 2's copy.
-	/// </summary>
-	internal bool PixelsOnSource2 { get; set; }
-
-	/// <summary>
 	/// Reads pixel colors from the texture at the specified mip level
 	/// </summary>
 	[Pure]
@@ -55,7 +49,7 @@ public partial class Texture
 		bool floatingPoint = ImageFormat == ImageFormat.RGBA16161616F;
 
 		var (width, height) = ReadSize( mip );
-		var depth = RenderBackend.Default is Source2RenderBackend || Depth == 1 ? Depth : ReadSlices( mip ); // Cubes have 6 depth even though reports as only 1 in desc
+		var depth = Depth == 1 ? Depth : ReadSlices( mip ); // Cubes have 6 depth even though reports as only 1 in desc
 		var outputFormat = floatingPoint ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
 		var targetMemoryRequired = NativeEngine.ImageLoader.GetMemRequired( width, height, depth, 1, outputFormat );
 
@@ -109,24 +103,12 @@ public partial class Texture
 	}
 
 	/// <summary>
-	/// A mip's size as it reads back: on Source 2's device what it has streamed in (on disk sizes can be larger), else the
-	/// texture's own, which is what the drawing device holds.
+	/// A mip's size as it reads back: the texture's own, which is what the drawing device holds.
 	/// </summary>
-	internal (int Width, int Height) ReadSize( int mip )
-	{
-		// BUG: Width/Height is on disk and not the currently streamed mip
-		//      I don't know what would break if I made Width/Height represent that instead
-		if ( RenderBackend.Default is Source2RenderBackend )
-		{
-			var desc = g_pRenderDevice.GetTextureDesc( native );
-			return (desc.m_nWidth / (1 << mip), desc.m_nHeight / (1 << mip));
-		}
-
-		return (Math.Max( Width >> mip, 1 ), Math.Max( Height >> mip, 1 ));
-	}
+	internal (int Width, int Height) ReadSize( int mip ) => (Math.Max( Width >> mip, 1 ), Math.Max( Height >> mip, 1 ));
 
 	/// <summary>Slices a whole read of a mip takes: a volume's shrink with its mips, an array's layers and a cube's faces don't.</summary>
-	int ReadSlices( int mip ) => RenderBackend.Default is Source2RenderBackend ? Depth / (1 << mip) : GetSliceCount( mip );
+	int ReadSlices( int mip ) => GetSliceCount( mip );
 
 	private static int GetImageFormatSize( ImageFormat format )
 	{
@@ -502,9 +484,7 @@ public partial class Texture
 
 		if ( dstFormat == ImageFormat.Default ) dstFormat = ImageFormat;
 
-		var context = ReadContext();
-
-		context.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
+		AsyncGPUReadback.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
 		{
 			if ( dstFormat != readFormat )
 			{
@@ -529,8 +509,6 @@ public partial class Texture
 				callback( typedResult );
 			}
 		}, slice, mip, srcRect );
-
-		SubmitReadContext( context );
 	}
 
 	/// <summary>
@@ -578,8 +556,6 @@ public partial class Texture
 		byte[] resultBuffer = ArrayPool<byte>.Shared.Rent( totalBytes );
 
 		var completedSlices = 0;
-		var context = ReadContext();
-
 		// Process each slice asynchronously
 		for ( var z = 0; z < srcBox.Depth; z++ )
 		{
@@ -587,7 +563,7 @@ public partial class Texture
 			var srcRect = (srcBox.X, srcBox.Y, srcBox.Width, srcBox.Height);
 			var sliceIndex = srcBox.Z + currentZ;
 
-			context.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
+			AsyncGPUReadback.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
 			{
 				var sliceOffset = currentZ * sliceSize;
 
@@ -617,8 +593,6 @@ public partial class Texture
 				}
 			}, sliceIndex, mip, srcRect );
 		}
-
-		SubmitReadContext( context );
 	}
 
 	/// <summary>
@@ -640,9 +614,7 @@ public partial class Texture
 		var dstFormat = floatingPoint ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
 		var premultiplied = Flags.HasFlag( TextureFlags.PremultipliedAlpha );
 
-		var context = ReadContext();
-
-		context.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
+		AsyncGPUReadback.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
 		{
 			var bitmap = new Bitmap( width, height, floatingPoint );
 			byte[] converted = null;
@@ -673,21 +645,6 @@ public partial class Texture
 
 			callback( bitmap );
 		}, 0, mip, (0, 0, width, height) );
-
-		SubmitReadContext( context );
-	}
-
-	/// <summary>
-	/// A Source 2 render context for an asynchronous read, or none when another device draws: that one reads at once
-	/// (<see cref="AsyncGPUReadback"/>).
-	/// </summary>
-	static IRenderContext ReadContext() => RenderBackend.Default is Source2RenderBackend ? g_pRenderDevice.CreateRenderContext( 0 ) : default;
-
-	static void SubmitReadContext( IRenderContext context )
-	{
-		if ( context.IsNull ) return;
-		context.Submit();
-		g_pRenderDevice.ReleaseRenderContext( context );
 	}
 
 	/// <summary>

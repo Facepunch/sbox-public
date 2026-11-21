@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Задръжте {input:SpawnMenu}, за да отворите менюто за създаване",
+    "hint.openinspectmenu": "Задръжте {input:InspectMenu}, за да отворите менюто за преглед",
+    "hint.openpausemenu": "Натиснете ESC, за да отворите менюто за пауза и да видите управлението"
+}

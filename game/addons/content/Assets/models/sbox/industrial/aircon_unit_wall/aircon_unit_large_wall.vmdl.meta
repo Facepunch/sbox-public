@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "aircon_unit_large_wall",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "aircon_unit_large_wall",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/aircon_unit_wall/aircon_unit_large_wall.vmdl"
+      }
+    }
+  },
+  "guid": "11deed68-00fc-0000-2201-000000000000"
+}

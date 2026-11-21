@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Intruder Alarm 1",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "intruder_alarm_1",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/intruder_alarm_1/intruder_alarm_1.vmdl",
+        "Summary": "",
+        "Description": "An intruder alarm, usually put on shop facades",
+        "Public": true,
+        "ReplaceTags": "intruder alarm shop"
+      }
+    }
+  },
+  "guid": "11f6edd8-00fc-0000-d200-000000000000"
+}

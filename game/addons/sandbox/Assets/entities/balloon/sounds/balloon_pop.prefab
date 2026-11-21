@@ -1,0 +1,155 @@
+{
+  "RootObject": {
+    "__guid": "e0a02dac-b949-46cf-833e-072328fc05f2",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "balloon_pop",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "TemporaryEffect",
+        "__guid": "b03b2e4c-89c6-4b6b-8d6e-b6e7f0c179db",
+        "__enabled": true,
+        "Flags": 0,
+        "BecomeOrphan": false,
+        "DestroyAfterSeconds": 1,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "WaitForChildEffects": false
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "034bc824-c4a7-42c5-a968-5eac7d00edad",
+        "__version": 2,
+        "__Prefab": "entities/balloon/particles/balloon_pop.prefab",
+        "__PrefabInstancePatch": {
+          "AddedObjects": [],
+          "RemovedObjects": [],
+          "PropertyOverrides": [],
+          "MovedObjects": []
+        },
+        "__PrefabIdToInstanceId": {
+          "8acc96e0-08ea-4bea-916d-f49e49b857dd": "034bc824-c4a7-42c5-a968-5eac7d00edad",
+          "43190d63-daea-4d7c-8547-dd523c8ea206": "d5286833-8287-4631-b16a-3794888e1cc3",
+          "6f719d35-48ac-4a4e-9fa5-cb1912b659f4": "0cbd1a70-f13f-4e8d-ad95-242266baf322",
+          "fd2c7383-1f00-48d8-95fc-44cf7902e315": "efeef02c-95cb-4423-9fd1-fe65db9ed843",
+          "705c7cc9-d27b-4a8f-b99e-503942fe84c5": "4876378e-cbbd-499d-adf4-98c692fab72d",
+          "f3b9dbd0-e90b-430c-a0a6-efefd86fef4b": "d11959c2-6bed-475b-b99d-9cb83305ce3d",
+          "7a3ced42-a46b-46ce-8054-52b32e7c6262": "e287ddb7-44d5-4246-a43b-23b35f58d426",
+          "61a29f64-67e1-4fc5-a624-646da4cf3b9e": "8b093e04-7c2f-4219-9bfe-600f1476b65f",
+          "dd44e2b3-5168-47cc-ad07-dfa963ab30e4": "fdfc3e13-50fe-43e9-af78-b57892b1936b"
+        }
+      },
+      {
+        "__guid": "196be0d2-5144-465e-941e-95891a9c20bb",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "snd",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SoundPointComponent",
+            "__guid": "8fafa284-38b9-41e9-b94f-7880dfb13bfe",
+            "__enabled": true,
+            "Flags": 0,
+            "Distance": 512,
+            "DistanceAttenuation": false,
+            "DistanceAttenuationOverride": false,
+            "Falloff": [
+              {
+                "x": 0,
+                "y": 1,
+                "in": 3.1415927,
+                "out": -3.1415927,
+                "mode": "Mirrored"
+              },
+              {
+                "x": 1,
+                "y": 0,
+                "in": 0,
+                "out": 0,
+                "mode": "Mirrored"
+              }
+            ],
+            "Force2d": false,
+            "MaxRepeatTime": 1,
+            "MinRepeatTime": 1,
+            "Occlusion": false,
+            "OcclusionOverride": false,
+            "OcclusionRadius": 32,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Pitch": 1,
+            "PlayOnStart": true,
+            "ReflectionOverride": false,
+            "Reflections": false,
+            "Repeat": false,
+            "SoundEvent": "entities/balloon/sounds/balloon_pop.sound",
+            "SoundOverride": false,
+            "StopOnNew": false,
+            "TargetMixer": {
+              "Name": "game",
+              "Id": "e2c7bd76-af44-45eb-95d2-8d9a7d494e19"
+            },
+            "Volume": 1
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

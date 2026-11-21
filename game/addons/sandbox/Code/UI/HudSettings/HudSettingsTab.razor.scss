@@ -1,0 +1,6 @@
+@import "/UI/Theme.scss";
+
+HudSettingsTab
+{
+    @include ui-inspect-settings-tab;
+}

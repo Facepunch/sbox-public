@@ -1,0 +1,51 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@attribute [InspectWindow.Tab( InspectWindow.Corner.BottomRight )]
+@attribute [Icon( "tune" )]
+@attribute [Title( "#spawnmenu.inspect.tool_options" )]
+@attribute [Order( 200 )]
+
+<root>
+
+    <UISettingsPane Title=@GetTitle() Revision=@BuildHash()>
+        <Body>
+        @if ( CurrentMode is { } mode )
+        {
+            @if ( ToolsTab.HasSettings( mode ) )
+            {
+                <ToolPresetBar Mode=@mode />
+                <UISheet PropertyFilter="@UISheet.PropertiesAndButtons" Target="@mode"></UISheet>
+            }
+            else
+            {
+                <div class="note">#spawnmenu.tools.no_settings</div>
+            }
+        }
+        else
+        {
+            <div class="note">#spawnmenu.inspect.no_tool_hint</div>
+        }
+        </Body>
+    </UISettingsPane>
+
+</root>
+
+@code
+{
+    // the settings of the toolgun's mode, the same ones as in the tools tab of the spawn menu
+    ToolMode CurrentMode => Player.FindLocalPlayer()?.GetWeapon<Toolgun>()?.GetCurrentMode();
+
+    protected override int BuildHash() => HashCode.Combine( CurrentMode, Game.Language.SelectedCode );
+
+    string GetTitle() => CurrentMode?.Name ?? Game.Language.GetPhrase( "spawnmenu.tools.none_selected" );
+
+    protected override void OnVisibilityChanged()
+    {
+        if ( !IsVisible )
+        {
+            CurrentMode?.SaveCookies();
+        }
+    }
+}

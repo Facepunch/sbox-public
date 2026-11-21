@@ -1,0 +1,4 @@
+"settings"
+{
+	"nomip"		"1"
+}

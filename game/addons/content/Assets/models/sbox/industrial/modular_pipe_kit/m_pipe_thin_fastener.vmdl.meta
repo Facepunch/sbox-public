@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe Thin Fastener",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipethinfastener",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_thin_fastener.vmdl"
+      }
+    }
+  },
+  "guid": "a03461bf-2c17-4cfc-a31b-171b73cc0441"
+}

@@ -1,5 +1,4 @@
 ﻿#include "sbox/imanagedrenderpipeline.h"
-native struct ManagedRenderSetup_t;
 
 native enum ManagedRenderHookStage is Sandbox.Rendering.Stage;
 

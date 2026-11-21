@@ -1,8 +1,8 @@
 name: Formatting
 
+# Every base branch: master, and the Steam branches mirrored beside it
 on:
   pull_request:
-    branches: [ master ]
 
 permissions:
   contents: read

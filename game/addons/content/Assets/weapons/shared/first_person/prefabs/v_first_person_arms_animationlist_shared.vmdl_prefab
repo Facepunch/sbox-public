@@ -1,0 +1,2572 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "AnimationList"
+				children = 
+				[
+					{
+						_class = "AnimBindPose"
+						name = "bindPose_internal"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						frame_count = 1
+						frame_rate = 30
+					},
+					{
+						_class = "AnimFile"
+						name = "Shared_WeaponRoot_Zero"
+						note = "This is here as a reference point to compute deltas from. This is because this prefab will get imported into various VMDLs, so I can only rely on animations that this prefab itself is providing (and especially not the host VMDL\'s bindPose)."
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = true
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponRoot_Zero.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+						anim_hold_list = 
+						[
+							{
+								frame = 0
+								frame_count = 30
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Shared_Fire"
+						note = "Note that the additives are subtracting from the LAST frame. This is because the first (0th, really) frame already has the finger pressing on the trigger... exploiting how, in the animgraph, the fire anims blend in over a much shorter time, meaning the action is instant instead of a full animation frame (33ms). Long story short, it\'s a fun way to exploit blend times."
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_SMG_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_SMG_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_SMG.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Pistol_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Pistol_delta"
+										frame = 60
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Pistol.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Dry_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Dry_delta"
+										frame = 40
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Dry.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_01_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_01_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_01.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_02_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_02_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_02.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_03_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_03_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_03.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_04_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_04_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_04.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_05_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_05_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_05.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_06_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_06_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_06.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_07_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_07_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_07.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_08_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_08_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_08.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_09_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_09_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_09.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Fire_Rifle_10_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Fire_Rifle_10_delta"
+										frame = 30
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Fire_Rifle_10.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Shared_Grab"
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Pose_Entry"
+								note = "Frame 40 is effectively used as Grab_Pose for other animations subtracting"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Pose_Entry.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Pose_Exit"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Pose_Exit.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Pose_Entry_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_Pose_Entry_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Pose_Entry.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Pose_Exit_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_Pose_Exit_delta"
+										frame = 40
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Pose_Exit.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Action_Swipe_Down"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Action_Swipe_Down.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Action_Swipe_Left"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Action_Swipe_Left.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Action_Swipe_Right"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Action_Swipe_Right.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Action_Push_Button"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Action_Push_Button.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_MovePosLayer_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_MovePosLayer_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_MovePosLayer.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Run"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Run.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 52.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_Run_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_Pose_Entry"
+										frame = 40
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_Run.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 52.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_IdleLayer"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_IdleLayer.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 10.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_IdleLayer_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_Pose_Entry"
+										frame = 40
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_IdleLayer.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 10.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Center"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Pos.fbx"
+								start_frame = -1
+								end_frame = 0
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Position_Up"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_AimOffset_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Pos.fbx"
+								start_frame = 1
+								end_frame = 1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Position_Down"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_AimOffset_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Pos.fbx"
+								start_frame = 2
+								end_frame = 2
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Position_Left"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_AimOffset_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Pos.fbx"
+								start_frame = 3
+								end_frame = 3
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Position_Right"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_AimOffset_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Pos.fbx"
+								start_frame = 4
+								end_frame = 4
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Orientation_Up"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_AimOffset_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Rot.fbx"
+								start_frame = 1
+								end_frame = 1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Orientation_Down"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_AimOffset_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Rot.fbx"
+								start_frame = 2
+								end_frame = 2
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Orientation_Left"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_AimOffset_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Rot.fbx"
+								start_frame = 3
+								end_frame = 3
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Grab_AimOffset_Orientation_Right"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Grab_AimOffset_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Grab_AimOffset_Rot.fbx"
+								start_frame = 4
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Shared_Idle"
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Shared_IdleLayer_Breathe_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_IdleLayer_Breathe.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 10.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_IdleLayer_Noise_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+									{
+										_class = "AnimSmoothLoop"
+										frames_from_start = 20
+										frames_from_end = 20
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_IdleLayer_Noise.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 9.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Shared_Ironsights"
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Shared_Ironsights_Entry_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Ironsights_Entry_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Ironsights_Entry.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Ironsights_Exit_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Ironsights_Exit_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Ironsights_Exit.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Shared_Movement"
+						note = "weapon_root (& occasionally camera) animated for movement purposes. Note that because the arms aren\'t in here, this means you don\'t get \'elbow IK pole / swivel\' action, so the animations can\'t be as good as they can be... but this already gets you a lot of the way there."
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Shared_Airborne_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Airborne.fbx"
+								start_frame = 0
+								end_frame = -1
+								framerate = 40.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Jump_Light_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Jump_Light.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Land_Light_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Land_Light.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_MovePosLayer_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_MovePosLayer_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_MovePosLayer.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Run_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Run.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 52.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Run_Heavy_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Run_Heavy.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 52.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Sprint_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Sprint.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 72.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Sprint_Heavy_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Sprint_Heavy.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 72.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Sprint_Pose_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = true
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Sprint_Pose.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+								anim_hold_list = 
+								[
+									{
+										frame = 0
+										frame_count = 30
+									},
+								]
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Sprint_Entry_delta"
+								note = "Sped up from 30 fps; looks better with a typical 2-handed rifle sprint pose (down and to the left), with a 300ms transition between pose that\'s biased towards the out"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Sprint_Entry_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Sprint_Entry.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 39.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Sprint_Exit_delta"
+								note = "Sped up from 30 fps; looks better with a typical 2-handed rifle sprint pose (down and to the left), with a 300ms transition between pose that\'s biased towards the out"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Sprint_Exit_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Sprint_Exit.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 42.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Shared_WeaponOffset_Generic"
+						note = "A single input file with only weapon_root animated & exported is being used to generate many animations which will be fed into animgraph 2D Blendspace nodes. The order of AnimFile nodes follows the frame order in the file. But for quick and easy reference, the order goes like this: Center reference (from which all deltas are computed), 8-way counter-clockwise position, 8-way counter-clockwise orientation, roll right, roll left, position forwards, position backwards."
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Center"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 0
+								end_frame = 0
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_Up"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 1
+								end_frame = 1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_UpLeft"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								disabled = true
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 2
+								end_frame = 2
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_Left"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 3
+								end_frame = 3
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_DownLeft"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								disabled = true
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 4
+								end_frame = 4
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_Down"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 5
+								end_frame = 5
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_DownRight"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								disabled = true
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 6
+								end_frame = 6
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_Right"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 7
+								end_frame = 7
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_UpRight"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								disabled = true
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 8
+								end_frame = 8
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_Up"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 10
+								end_frame = 10
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_UpLeft"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 11
+								end_frame = 11
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_Left"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 12
+								end_frame = 12
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_DownLeft"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 13
+								end_frame = 13
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_Down"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 14
+								end_frame = 14
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_DownRight"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 15
+								end_frame = 15
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_Right"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 16
+								end_frame = 16
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_UpRight"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 17
+								end_frame = 17
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_Roll_Right"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 20
+								end_frame = 20
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Orientation_Roll_Left"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 21
+								end_frame = 21
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_Forwards"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 23
+								end_frame = 23
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_WeaponOffset_Generic_Position_Backwards"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponOffset_Generic_Center"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_WeaponOffset_Generic.fbx"
+								start_frame = 24
+								end_frame = 24
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Shared_WeaponState"
+						children = 
+						[
+							{
+								_class = "AnimFile"
+								name = "Shared_Holster_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Holster_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Holster.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_LowerWeapon_Entry_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_LowerWeapon_Entry_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_LowerWeapon_Entry.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 50.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_LowerWeapon_Exit_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_LowerWeapon_Exit_delta"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_LowerWeapon_Exit.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = 50.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_LowerWeapon_Pose_delta"
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_WeaponRoot_Zero"
+										frame = 0
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_LowerWeapon_Pose.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Deploy_Rifle_delta"
+								note = "Note the subtraction from the LAST frame of the animation."
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Deploy_Rifle_delta"
+										frame = 35
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Deploy_Rifle.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+							{
+								_class = "AnimFile"
+								name = "Shared_Deploy_Pistol_delta"
+								note = "Note the subtraction from the LAST frame of the animation."
+								children = 
+								[
+									{
+										_class = "AnimSubtract"
+										anim_name = "Shared_Deploy_Pistol_delta"
+										frame = 40
+									},
+								]
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_Deploy_Pistol.fbx"
+								start_frame = -1
+								end_frame = -1
+								framerate = -1.0
+								take = 0
+								reverse = false
+							},
+						]
+					},
+				]
+				default_root_bone_name = ""
+			},
+			{
+				_class = "Folder"
+				name = "Shared_NonWeaponRootCentric"
+				note = "Animations that are made for non-weapon_root-centric setups\n"
+				children = 
+				[
+					{
+						_class = "AnimFile"
+						name = "Shared_NWRC_Run_Arms"
+						children = 
+						[
+							{
+								_class = "AnimStartLoop"
+								start_loop_frame = 20
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = true
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_NWRC_Run_Arms.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 55.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Shared_NWRC_Sprint"
+						children = 
+						[
+							{
+								_class = "AnimStartLoop"
+								start_loop_frame = 30
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_NWRC_Sprint_Arms.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = 72.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Shared_NWRC_Deploy_Right"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_NWRC_Deploy_Right_Hand.fbx"
+						start_frame = -1
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+					},
+					{
+						_class = "AnimFile"
+						name = "Shared_NWRC_Idle_Right"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/animations/shared/FPArms@Shared_NWRC_Deploy_Right_Hand.fbx"
+						start_frame = 30
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+						anim_hold_list = 
+						[
+							{
+								frame = 30
+								frame_count = 30
+							},
+						]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

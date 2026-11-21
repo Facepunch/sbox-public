@@ -343,17 +343,16 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		const int cubemapSize = 64;
 		int numMips = (int)MathF.Log2( cubemapSize ) + 1;
 
-		// Captured on Borealis.Gpu, where it draws: Source 2's copy, where its device is kept (the editor), is a placeholder
 		_captureTexture = Texture.CreateCube( cubemapSize, cubemapSize )
 								.WithUAVBinding()
 								.WithMips( numMips )
 								.WithFormat( ImageFormat.RGBA16161616F )
-								.Build( onBorealisGpu: true );
+								.Finish();
 
 		_captureDepth = Texture.CreateCube( cubemapSize, cubemapSize )
 								.WithUAVBinding()
 								.WithFormat( ImageFormat.R32F )
-								.Build( onBorealisGpu: true );
+								.Finish();
 	}
 
 	private void OnRenderFinish( Vector3Int probeIndex )

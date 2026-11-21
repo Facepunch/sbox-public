@@ -1,0 +1,10 @@
+{
+  "Prefab": "entities/pickup/ammo_9mm.prefab",
+  "Title": "#asset.ammo_pistol.title",
+  "Description": null,
+  "Category": "Pickup",
+  "IncludeCode": false,
+  "Developer": false,
+  "__references": [],
+  "__version": 0
+}

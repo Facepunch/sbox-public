@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Python Dryfire",
+      "Type": "vsnd",
+      "Org": "rust",
+      "Ident": "pythondryfire",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "weapons/magnum/sounds/python-dryfire.wav"
+      }
+    }
+  },
+  "guid": "b2ae2dc9-88d7-43ca-af3b-c9f817f15735"
+}

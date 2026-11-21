@@ -1,0 +1,28 @@
+{
+  "guid": "bab9ca5e-6bc0-4ff4-a688-fa3fa8e1d87d",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Physgun C",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_physgun_c",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/physgun/v_physgun_c.vmat"
+      }
+    }
+  }
+}

@@ -29,25 +29,32 @@ partial class Compiler
 		}
 	}
 
-	private SyntaxTree GetGeneratedCode( Version version, CSharpParseOptions options )
+	private SyntaxTree GetGeneratedCode( CSharpParseOptions options )
 	{
-		var generatedCode = GeneratedCode.ToString();
+		var source = GeneratedCode.ToString().ReplaceLineEndings( "\n" );
+		source += "\n[assembly: System.Runtime.Versioning.TargetFramework( \".NETCoreApp,Version=v9.0\", FrameworkDisplayName = \".NET 9.0\" )]";
+		return CSharpSyntaxTree.ParseText( source, options, CompilerExtraPath, Encoding.UTF8 );
+	}
 
-		generatedCode += $"{Environment.NewLine}[assembly: System.Runtime.Versioning.TargetFramework( \".NETCoreApp,Version=v9.0\", FrameworkDisplayName = \".NET 9.0\" )]";
-		generatedCode += $"{Environment.NewLine}[assembly: global::System.Reflection.AssemblyMetadata( \"CompileTime\", {DateTime.UtcNow.ToString( "O" ).QuoteSafe()} )]";
+	/// <summary>
+	/// Stamp the assembly used by hotload and the local build cache without changing the archived source.
+	/// </summary>
+	private static SyntaxTree StampAssembly( SyntaxTree tree, Version version )
+	{
+		if ( tree.FilePath != CompilerExtraPath )
+			return tree;
 
-		if ( version != null )
-		{
-			generatedCode += $"{Environment.NewLine}[assembly: global::System.Reflection.AssemblyVersion(\"{version}\")]";
-			generatedCode += $"{Environment.NewLine}[assembly: global::System.Reflection.AssemblyFileVersion(\"{version}\")]";
-		}
+		// Older archives carry the original stamps in the compiler-generated tree.
+		if ( tree.GetCompilationUnitRoot().AttributeLists.SelectMany( list => list.Attributes )
+			.Any( attribute => attribute.Name.GetLastToken().ValueText is "AssemblyVersion" or "AssemblyVersionAttribute" ) )
+			return tree;
 
-		if ( string.IsNullOrEmpty( generatedCode ) )
-			return default;
+		var text = tree.GetText();
+		var attributes = $"\n[assembly: global::System.Reflection.AssemblyMetadata( \"CompileTime\", {DateTime.UtcNow.ToString( "O" ).QuoteSafe()} )]" +
+			$"\n[assembly: global::System.Reflection.AssemblyVersion(\"{version}\")]" +
+			$"\n[assembly: global::System.Reflection.AssemblyFileVersion(\"{version}\")]";
 
-		var tree = CSharpSyntaxTree.ParseText( text: generatedCode, options: options, path: CompilerExtraPath, encoding: System.Text.Encoding.UTF8 );
-		return tree;
-
+		return tree.WithChangedText( text.WithChanges( new TextChange( new TextSpan( text.Length, 0 ), attributes ) ) );
 	}
 
 	/// <summary>

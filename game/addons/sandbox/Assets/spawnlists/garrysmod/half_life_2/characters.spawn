@@ -1,0 +1,801 @@
+{
+  "Title": "Characters",
+  "Description": "",
+  "Icon": "collections_bookmark",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "4a40a186-0eb7-4050-b196-73d05dfa2df9",
+    "Path": "spawnlists/garrysmod/half_life_2.spawn"
+  },
+  "Order": 17,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Main Characters",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mossman.mdl",
+      "Title": "mossman",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/alyx.mdl",
+      "Title": "alyx",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/barney.mdl",
+      "Title": "barney",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/breen.mdl",
+      "Title": "breen",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/eli.mdl",
+      "Title": "eli",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/gman_high.mdl",
+      "Title": "gman_high",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/kleiner.mdl",
+      "Title": "kleiner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/monk.mdl",
+      "Title": "monk",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/odessa.mdl",
+      "Title": "odessa",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/vortigaunt.mdl",
+      "Title": "vortigaunt",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/vortigaunt_slave.mdl",
+      "Title": "vortigaunt_slave",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/dog.mdl",
+      "Title": "dog",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/lamarr.mdl",
+      "Title": "lamarr",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Citizens",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/female_01.mdl",
+      "Title": "female_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/female_02.mdl",
+      "Title": "female_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/female_03.mdl",
+      "Title": "female_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/female_04.mdl",
+      "Title": "female_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/female_06.mdl",
+      "Title": "female_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/female_07.mdl",
+      "Title": "female_07",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_01.mdl",
+      "Title": "male_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_02.mdl",
+      "Title": "male_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_03.mdl",
+      "Title": "male_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_04.mdl",
+      "Title": "male_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_05.mdl",
+      "Title": "male_05",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_06.mdl",
+      "Title": "male_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_07.mdl",
+      "Title": "male_07",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_08.mdl",
+      "Title": "male_08",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_09.mdl",
+      "Title": "male_09",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group01/male_cheaple.mdl",
+      "Title": "male_cheaple",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Refugees",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/female_01.mdl",
+      "Title": "female_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/female_02.mdl",
+      "Title": "female_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/female_03.mdl",
+      "Title": "female_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/female_04.mdl",
+      "Title": "female_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/female_06.mdl",
+      "Title": "female_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/female_07.mdl",
+      "Title": "female_07",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_01.mdl",
+      "Title": "male_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_02.mdl",
+      "Title": "male_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_03.mdl",
+      "Title": "male_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_04.mdl",
+      "Title": "male_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_05.mdl",
+      "Title": "male_05",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_06.mdl",
+      "Title": "male_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_07.mdl",
+      "Title": "male_07",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_08.mdl",
+      "Title": "male_08",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group02/male_09.mdl",
+      "Title": "male_09",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Rebels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/female_01.mdl",
+      "Title": "female_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/female_02.mdl",
+      "Title": "female_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/female_03.mdl",
+      "Title": "female_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/female_04.mdl",
+      "Title": "female_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/female_06.mdl",
+      "Title": "female_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/female_07.mdl",
+      "Title": "female_07",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_01.mdl",
+      "Title": "male_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_02.mdl",
+      "Title": "male_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_03.mdl",
+      "Title": "male_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_04.mdl",
+      "Title": "male_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_05.mdl",
+      "Title": "male_05",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_06.mdl",
+      "Title": "male_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_07.mdl",
+      "Title": "male_07",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_08.mdl",
+      "Title": "male_08",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03/male_09.mdl",
+      "Title": "male_09",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Medic Rebels",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/female_01.mdl",
+      "Title": "female_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/female_02.mdl",
+      "Title": "female_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/female_03.mdl",
+      "Title": "female_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/female_04.mdl",
+      "Title": "female_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/female_06.mdl",
+      "Title": "female_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/female_07.mdl",
+      "Title": "female_07",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_01.mdl",
+      "Title": "male_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_02.mdl",
+      "Title": "male_02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_03.mdl",
+      "Title": "male_03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_04.mdl",
+      "Title": "male_04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_05.mdl",
+      "Title": "male_05",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_06.mdl",
+      "Title": "male_06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_07.mdl",
+      "Title": "male_07",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_08.mdl",
+      "Title": "male_08",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/group03m/male_09.mdl",
+      "Title": "male_09",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Bad Guys",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/police.mdl",
+      "Title": "police",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_soldier.mdl",
+      "Title": "combine_soldier",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_soldier.mdl",
+      "Title": "combine_soldier",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_soldier_prisonguard.mdl",
+      "Title": "combine_soldier_prisonguard",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_soldier_prisonguard.mdl",
+      "Title": "combine_soldier_prisonguard",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_super_soldier.mdl",
+      "Title": "combine_super_soldier",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/stalker.mdl",
+      "Title": "stalker",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_strider.mdl",
+      "Title": "combine_strider",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/gunship.mdl",
+      "Title": "gunship",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_dropship.mdl",
+      "Title": "combine_dropship",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_scanner.mdl",
+      "Title": "combine_scanner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/shield_scanner.mdl",
+      "Title": "shield_scanner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/manhack.mdl",
+      "Title": "manhack",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_mine01.mdl",
+      "Title": "combine_mine01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/roller.mdl",
+      "Title": "roller",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/roller_spikes.mdl",
+      "Title": "roller_spikes",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_turrets/floor_turret.mdl",
+      "Title": "floor_turret",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/advisor.mdl",
+      "Title": "advisor",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/mortarsynth.mdl",
+      "Title": "mortarsynth",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/synth.mdl",
+      "Title": "synth",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/soldier_stripped.mdl",
+      "Title": "soldier_stripped",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Fauna",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/ichthyosaur.mdl",
+      "Title": "ichthyosaur",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/pigeon.mdl",
+      "Title": "pigeon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/crow.mdl",
+      "Title": "crow",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/seagull.mdl",
+      "Title": "seagull",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/leech.mdl",
+      "Title": "leech",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/barnacle.mdl",
+      "Title": "barnacle",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/antlion.mdl",
+      "Title": "antlion",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/antlion.mdl",
+      "Title": "antlion",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/antlion.mdl",
+      "Title": "antlion",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/antlion.mdl",
+      "Title": "antlion",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/antlion_guard.mdl",
+      "Title": "antlion_guard",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Undead Guys",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/headcrabclassic.mdl",
+      "Title": "headcrabclassic",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/classic.mdl",
+      "Title": "classic",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/classic_legs.mdl",
+      "Title": "classic_legs",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/classic_torso.mdl",
+      "Title": "classic_torso",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/headcrab.mdl",
+      "Title": "headcrab",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/gibs/fast_zombie_torso.mdl",
+      "Title": "fast_zombie_torso",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/fast_torso.mdl",
+      "Title": "fast_torso",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/fast.mdl",
+      "Title": "fast",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/gibs/fast_zombie_legs.mdl",
+      "Title": "fast_zombie_legs",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/headcrabblack.mdl",
+      "Title": "headcrabblack",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/zombie/poison.mdl",
+      "Title": "poison",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Dead Guys",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/charple01.mdl",
+      "Title": "charple01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/charple02.mdl",
+      "Title": "charple02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/charple03.mdl",
+      "Title": "charple03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/charple04.mdl",
+      "Title": "charple04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/humans/corpse1.mdl",
+      "Title": "corpse1",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

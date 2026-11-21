@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "後座力",
+    "weapon.setting.primary.description": "控制武器的主要動作。",
+    "weapon.setting.secondary.description": "控制武器的次要動作。",
+    "weapon.setting.recoil_force": "後座力強度",
+    "weapon.setting.recoil_force.description": "未被手持的武器開火時施加的物理後座力。",
+    "weapon.setting.extend": "增加抓取距離",
+    "weapon.setting.extend.description": "將抓取的物件移遠。",
+    "weapon.setting.retract": "縮短抓取距離",
+    "weapon.setting.retract.description": "將抓取的物件拉近。",
+    "weapon.setting.camera_aim": "跟隨鏡頭瞄準",
+    "weapon.setting.camera_aim.description": "朝著就座玩家的攝影機方向瞄準。",
+    "weapon.setting.guide_rockets": "引導火箭彈",
+    "weapon.setting.guide_rockets.description": "引導已發射的火箭彈飛向玩家的準星。"
+}

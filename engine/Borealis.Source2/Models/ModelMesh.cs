@@ -89,13 +89,41 @@ public sealed class ModelMesh
 	/// <inheritdoc/>
 	public override string ToString() => Name;
 
+	/// <summary>The same mesh over other buffers (as many, laid out the same): a cooked copy's.</summary>
+	internal ModelMesh WithBuffers( IReadOnlyList<MeshVertexBuffer> vertexBuffers, IReadOnlyList<MeshIndexBuffer> indexBuffers ) => new()
+	{
+		Name = Name,
+		Index = Index,
+		MeshGroupMask = MeshGroupMask,
+		LodMask = LodMask,
+		Mins = Mins,
+		Maxs = Maxs,
+		VertexBuffers = vertexBuffers,
+		IndexBuffers = indexBuffers,
+		DrawCalls = DrawCalls,
+		Bones = Bones,
+		BoneWeightCount = BoneWeightCount,
+		HasMorphs = HasMorphs,
+		Morphs = Morphs,
+		MorphTexture = MorphTexture,
+	};
+
 	/// <summary>
 	/// Read a mesh from its KV3 (<c>CRenderMesh</c>) and buffer blocks.
 	/// </summary>
-	internal static ModelMesh Read( ReadOnlySpan<byte> kv3, ReadOnlySpan<byte> buffers, string name, int index, ulong meshGroups, byte lods, bool morphs, string morphTexture, MorphSet morphSet = null )
+	internal static ModelMesh Read( ReadOnlySpan<byte> kv3, ReadOnlySpan<byte> buffers, string name, int index, ulong meshGroups, byte lods, bool morphs, string morphTexture, MorphSet morphSet = null, ReadOnlySpan<byte> meshlets = default )
 	{
 		if ( Kv3.Read( kv3 ) is not Dictionary<string, object> root ) throw new InvalidDataException( $"Mesh {name} isn't a KV3 object" );
 		var (vertexBuffers, indexBuffers) = ReadBuffers( buffers, name );
+
+		// The compiler's meshlets (an MSHL block), each index buffer given its ranges'
+		if ( !meshlets.IsEmpty && CookedMeshlets.Read( meshlets, vertexBuffers, indexBuffers ) is { } cooked )
+		{
+			for ( int i = 0; i < indexBuffers.Length; i++ )
+			{
+				if ( cooked[i] is not null ) indexBuffers[i] = indexBuffers[i] with { Meshlets = cooked[i] };
+			}
+		}
 
 		var draws = new List<MeshDrawCall>();
 		var mins = new Vector3( float.MaxValue );
@@ -305,6 +333,9 @@ public sealed record MeshIndexBuffer( int Count, int Size, byte[] Data )
 {
 	/// <summary>Made by the reader, not in the file: the counting indices of a mesh's unindexed draws.</summary>
 	public bool Generated { get; init; }
+
+	/// <summary>The meshlets the resource compiler cooked for ranges of it (their indices in meshlet order), or null.</summary>
+	public CookedMeshlets Meshlets { get; init; }
 
 	/// <summary>An index.</summary>
 	public uint this[int i] => Size == 2 ? BinaryPrimitives.ReadUInt16LittleEndian( Data.AsSpan( i * 2 ) ) : BinaryPrimitives.ReadUInt32LittleEndian( Data.AsSpan( i * 4 ) );

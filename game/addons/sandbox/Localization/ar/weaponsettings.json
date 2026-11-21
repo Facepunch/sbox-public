@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "الارتداد",
+    "weapon.setting.primary.description": "يتحكم في الإجراء الأساسي للسلاح.",
+    "weapon.setting.secondary.description": "يتحكم في الإجراء الثانوي للسلاح.",
+    "weapon.setting.recoil_force": "قوة الارتداد",
+    "weapon.setting.recoil_force.description": "الارتداد الفيزيائي المطبق عند إطلاق سلاح غير محمول.",
+    "weapon.setting.extend": "زيادة مسافة الإمساك",
+    "weapon.setting.extend.description": "يبعد الجسم الممسوك.",
+    "weapon.setting.retract": "تقليل مسافة الإمساك",
+    "weapon.setting.retract.description": "يقرب الجسم الممسوك.",
+    "weapon.setting.camera_aim": "التصويب بالكاميرا",
+    "weapon.setting.camera_aim.description": "التصويب في اتجاه كاميرا اللاعب الجالس.",
+    "weapon.setting.guide_rockets": "توجيه الصواريخ",
+    "weapon.setting.guide_rockets.description": "توجيه الصواريخ المطلقة نحو علامة تصويب اللاعب."
+}

@@ -1,0 +1,5 @@
+{
+    "hint.openspawnmenu": "Oluşturma menüsünü açmak için {input:SpawnMenu} tuşunu basılı tutun",
+    "hint.openinspectmenu": "İnceleme menüsünü açmak için {input:InspectMenu} tuşunu basılı tutun",
+    "hint.openpausemenu": "Duraklatma menüsünü açıp kontrolleri görmek için ESC tuşuna basın"
+}

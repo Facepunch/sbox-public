@@ -1,0 +1,25 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <IconPanel Text="@Icon" />
+    <Label class="title" Text="@Title" />
+    @if ( !string.IsNullOrWhiteSpace( Subtitle ) )
+    {
+        <Label class="subtitle" Text="@Subtitle" />
+    }
+</root>
+
+@code
+{
+    [Parameter]
+    public string Icon { get; set; } = "search_off";
+
+    [Parameter]
+    public string Title { get; set; } = "#spawnmenu.common.no_results";
+
+    [Parameter]
+    public string Subtitle { get; set; }
+}

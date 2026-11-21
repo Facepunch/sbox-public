@@ -2,7 +2,6 @@ using Sandbox.Engine;
 using Sandbox.Internal;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace ScriptingTests;
 
@@ -23,15 +22,21 @@ public partial class ScriptLoadingTests
 	}
 
 	/// <summary>
-	/// A failed assembly migration keeps its original message and explicitly requires recovery.
+	/// A publication interrupted after commit keeps its diagnostic and can be repaired by loading source again.
 	/// </summary>
 	[TestMethod]
-	public void BatchPublicationFailureRetainsOriginalDiagnostic()
+	[DataRow( false, false, false )]
+	[DataRow( true, false, false )]
+	[DataRow( false, true, false )]
+	[DataRow( false, true, true )]
+	public void InterruptedPublicationRecoversInPlace( bool removeAll, bool tick, bool invalidEdit )
 	{
 		var replace = context.ReplaceScriptAssembly;
+		var scripting = Game.Scripting;
+		Assert.IsTrue( scripting.LoadFile( "existing.csx", "int Existing() { return 41; }" ).Success );
 		try
 		{
-			context.ReplaceScriptAssembly = ( _, _, _ ) => throw new InvalidOperationException( "Injected assembly migration failure" );
+			context.ReplaceScriptAssembly = ( _, _ ) => throw new InvalidOperationException( "Injected assembly migration failure" );
 			var result = Game.Scripting.LoadFiles( new Dictionary<string, string> { ["fault.csx"] = "class BatchFault {}" } );
 			Assert.IsFalse( result.Success );
 			Assert.IsTrue( result.Published );
@@ -45,6 +50,120 @@ public partial class ScriptLoadingTests
 		{
 			context.ReplaceScriptAssembly = replace;
 		}
+
+		if ( tick )
+		{
+			if ( invalidEdit )
+			{
+				Assert.IsFalse( scripting.LoadFile( "fault.csx", "invalid !!!" ).Success );
+			}
+			context.TickScripting();
+			Assert.IsFalse( scripting.RequiresReload );
+			Assert.AreEqual( 41, scripting.Run<int>( "return Existing();" ) );
+			Assert.IsNull( Game.TypeLibrary.GetType( "BatchFault" ) );
+		}
+
+		var repaired = removeAll ? scripting.LoadFiles( new Dictionary<string, string>() )
+			: scripting.LoadFile( "fault.csx", "int Repaired() { return Existing() + 1; }" );
+		Assert.IsTrue( repaired.Success, string.Join( "\n", repaired.Diagnostics ) );
+		Assert.IsFalse( scripting.RequiresReload );
+		if ( removeAll )
+		{
+			Assert.IsTrue( scripting.Load( "int Repaired() { return 42; }" ) );
+		}
+		Assert.AreEqual( 42, scripting.Run<int>( "return Repaired();" ) );
+		Assert.IsNull( Game.TypeLibrary.GetType( "BatchFault" ) );
+	}
+
+	/// <summary>
+	/// If the loader queues a replacement but migration cannot start, recovery follows the queued assembly chain.
+	/// </summary>
+	[TestMethod]
+	public void InterruptedReferenceMigrationRecoversLiveInstances()
+	{
+		var scripting = Game.Scripting;
+		const string original = "class Editable { public int Saved; }";
+		const string edited = "class Editable { public int Saved; public int Added = 7; }";
+		Assert.IsTrue( scripting.LoadFile( "edit.csx", original ).Success );
+		reloadRoots = [scripting.Run<object>( "return new Editable { Saved = 42 };" )];
+
+		static void Interrupt() => throw new InvalidOperationException( "Interrupted before migration" );
+		scriptPackageLoader.HotloadManager.PreSwap += Interrupt;
+		try
+		{
+			var result = scripting.LoadFile( "edit.csx", edited );
+			Assert.IsFalse( result.Success );
+			Assert.IsTrue( result.Published );
+			Assert.IsTrue( result.RequiresReload );
+			Assert.AreEqual( "Interrupted before migration", scripting.LastError.Message );
+		}
+		finally
+		{
+			scriptPackageLoader.HotloadManager.PreSwap -= Interrupt;
+		}
+
+		context.TickScripting();
+		var restored = reloadRoots[0];
+		Assert.IsFalse( scripting.RequiresReload );
+		Assert.AreSame( Game.TypeLibrary.GetType( "Editable" ).TargetType, restored.GetType() );
+		Assert.IsNull( restored.GetType().GetField( "Added" ) );
+		Assert.AreEqual( 42, restored.GetType().GetField( "Saved" ).GetValue( restored ) );
+
+		Assert.IsTrue( scripting.LoadFile( "edit.csx", edited ).Success );
+		var updated = reloadRoots[0];
+		Assert.AreEqual( 42, updated.GetType().GetField( "Saved" ).GetValue( updated ) );
+		Assert.AreEqual( 7, updated.GetType().GetField( "Added" ).GetValue( updated ) );
+	}
+
+	/// <summary>
+	/// A persistent publication failure is retried once automatically. The next source edit can still repair it.
+	/// </summary>
+	[TestMethod]
+	public void FailedAutomaticRestoreWaitsForNextEdit()
+	{
+		var scripting = Game.Scripting;
+		Assert.IsTrue( scripting.LoadFile( "existing.csx", "class Existing {}" ).Success );
+		var replace = context.ReplaceScriptAssembly;
+		var attempts = 0;
+		context.ReplaceScriptAssembly = ( _, _ ) =>
+		{
+			attempts++;
+			throw new InvalidOperationException( "Injected publication failure" );
+		};
+		try
+		{
+			Assert.IsFalse( scripting.LoadFile( "existing.csx", "class Existing { public int Value; }" ).Success );
+			context.TickScripting();
+			context.TickScripting();
+			Assert.AreEqual( 2, attempts );
+		}
+		finally
+		{
+			context.ReplaceScriptAssembly = replace;
+		}
+
+		Assert.IsTrue( scripting.LoadFile( "existing.csx", "class Existing { public int Value = 42; }" ).Success );
+		Assert.AreEqual( 42, scripting.Run<int>( "return new Existing().Value;" ) );
+	}
+
+	/// <summary>
+	/// An initializer that throws on existing objects leaves their other fields and the next source edit usable.
+	/// </summary>
+	[TestMethod]
+	public void SourceEditSurvivesFailedFieldInitializer()
+	{
+		var scripting = Game.Scripting;
+		Assert.IsTrue( scripting.LoadFile( "edit.csx", "class Editable { public int Saved; }" ).Success );
+		reloadRoots = [scripting.Run<object>( "return new Editable { Saved = 42 };" )];
+		var result = scripting.LoadFile( "edit.csx", "class Editable { public int Broken = int.Parse(\"bad\"); public int Saved; }" );
+		Assert.IsTrue( result.Success, string.Join( "\n", result.Diagnostics ) );
+		var instance = reloadRoots[0];
+		Assert.AreSame( Game.TypeLibrary.GetType( "Editable" ).TargetType, instance.GetType() );
+		Assert.AreEqual( 42, instance.GetType().GetField( "Saved" ).GetValue( instance ) );
+		Assert.AreEqual( 0, instance.GetType().GetField( "Broken" ).GetValue( instance ) );
+		Assert.IsTrue( scripting.LoadFile( "edit.csx", "class Editable { public int Saved; public int Fixed = 7; }" ).Success );
+		instance = reloadRoots[0];
+		Assert.AreEqual( 7, instance.GetType().GetField( "Fixed" ).GetValue( instance ) );
 	}
 
 	/// <summary>
@@ -143,17 +262,24 @@ public partial class ScriptLoadingTests
 	}
 
 	/// <summary>
-	/// The engine hotload-failure flag blocks execution while preserving the original diagnostics.
+	/// A scene notification failure leaves the published script types usable on this and the next edit.
 	/// </summary>
 	[TestMethod]
-	public void FaultedContextStillExposesFailureAndReloadState()
+	public void NotificationFailureLeavesScriptEditsUsable()
 	{
 		var scripting = Game.Scripting;
-		Assert.IsFalse( scripting.Load( "class {", "fault.csx" ) );
-		var original = scripting.LastError;
-		typeof( ScriptSystem ).GetField( "_hotloadFailed", BindingFlags.Instance | BindingFlags.NonPublic ).SetValue( scripting, true );
-		Assert.IsTrue( scripting.RequiresReload );
-		Assert.IsTrue( scripting.Diagnostics.Any( x => x.Message == original.Message ) );
-		Assert.ThrowsException<InvalidOperationException>( () => scripting.CreateScript( "return 1;" ) );
+		Assert.IsTrue( scripting.LoadFile( "edit.csx", "class Example { public int Value; }" ).Success );
+		var notifications = 0;
+		scriptPackageLoader.OnAfterHotload = () =>
+		{
+			notifications++;
+			throw new InvalidOperationException( "Injected hotload notification failure" );
+		};
+
+		Assert.IsTrue( scripting.LoadFile( "edit.csx", "class Example { public int Second = 2; }" ).Success );
+		Assert.AreEqual( 2, scripting.Run<int>( "return new Example().Second;" ) );
+		Assert.IsTrue( scripting.LoadFile( "edit.csx", "class Example { public int Third = 3; }" ).Success );
+		Assert.AreEqual( 3, scripting.Run<int>( "return new Example().Third;" ) );
+		Assert.AreEqual( 2, notifications );
 	}
 }

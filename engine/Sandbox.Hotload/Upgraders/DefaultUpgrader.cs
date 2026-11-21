@@ -427,40 +427,42 @@ public class DefaultUpgrader : Hotload.InstanceUpgrader
 				CurrentSrcField = srcField;
 				CurrentDstField = dstField;
 
-				object newValue;
-				if ( srcField == null )
-				{
-					if ( dstField.GetCustomAttribute<InitializedByAttribute>() is { } initByAttrib )
-					{
-						if ( initByAttrib.MethodName is null )
-						{
-							// Deliberately not initialized
-							continue;
-						}
-
-						var initMethod = dstField.DeclaringType!.GetMethod( initByAttrib.MethodName,
-							BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic );
-
-						if ( initMethod is null )
-						{
-							Log( HotloadEntryType.Error, $"Invalid InitializedByAttribute, method not found.", dstField );
-							continue;
-						}
-
-						initMethod.Invoke( newInst, null );
-						continue;
-					}
-
-					if ( !TryGetDefaultValue( dstField, out newValue ) ) continue;
-				}
-				else
-				{
-					newValue = ProcessFieldValue( oldInst, srcField );
-				}
-
-
 				try
 				{
+					object newValue;
+					if ( srcField == null )
+					{
+						// An existing instance already has a value for this field. Only initialize fields on a new instance.
+						if ( sameInstance ) continue;
+
+						if ( dstField.GetCustomAttribute<InitializedByAttribute>() is { } initByAttrib )
+						{
+							if ( initByAttrib.MethodName is null )
+							{
+								// Deliberately not initialized
+								continue;
+							}
+
+							var initMethod = dstField.DeclaringType!.GetMethod( initByAttrib.MethodName,
+								BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic );
+
+							if ( initMethod is null )
+							{
+								Log( HotloadEntryType.Error, $"Invalid InitializedByAttribute, method not found.", dstField );
+								continue;
+							}
+
+							initMethod.Invoke( newInst, null );
+							continue;
+						}
+
+						if ( !TryGetDefaultValue( dstField, out newValue ) ) continue;
+					}
+					else
+					{
+						newValue = ProcessFieldValue( oldInst, srcField );
+					}
+
 					dstField.SetValue( newInst, newValue );
 				}
 #if !HOTLOAD_NOCATCH

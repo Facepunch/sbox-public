@@ -78,7 +78,7 @@
 
         // Fetched again when they're old - or never came, a fetch lost to a hotload or failed. Favourited lately, on the
         // Workshop, there under your recent ones next time it's looked at.
-        foreach ( var row in IsDiscover ? PlatformMenu.Discover : [PlatformMenu.Favourites] )
+        foreach ( var row in IsDiscover ? PlatformMenu.Discover : YoursAndFavourites )
             _ = row.RefreshAsync();
     }
 

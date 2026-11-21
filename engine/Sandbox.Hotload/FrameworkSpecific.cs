@@ -288,7 +288,7 @@ namespace Sandbox
 			Assert.True( oldType.IsGenericTypeDefinition );
 
 			// Assembly not hotloaded, so type hasn't changed
-			if ( !Swaps.TryGetValue( oldType.Assembly, out var newAsm ) ) return oldType;
+			if ( !TryGetTypeReplacement( oldType.Assembly, out var newAsm ) ) return oldType;
 
 			// Assembly was unloaded, so replace with null
 			if ( newAsm is null ) return null;
@@ -379,7 +379,7 @@ namespace Sandbox
 			Assert.True( oldType.IsGenericTypeDefinition );
 
 			// Assembly not hotloaded, so type hasn't changed
-			if ( !Swaps.TryGetValue( oldType.Assembly, out var newAsm ) ) return oldType;
+			if ( !TryGetTypeReplacement( oldType.Assembly, out var newAsm ) ) return oldType;
 
 			// Assembly was unloaded, so replace with null
 			if ( newAsm is null ) return null;

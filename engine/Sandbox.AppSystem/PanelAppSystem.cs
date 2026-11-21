@@ -174,17 +174,11 @@ public class PanelAppSystem : AppSystem
 	}
 
 	/// <summary>
-	/// The render pipeline's layers hold shaders and materials in static fields, and creating
-	/// those asserts the main thread - but in an app like this their first touch is on a render
-	/// job. Make them here, where it's allowed.
+	/// The scene renderer makes what it renders with on the main thread, before anything renders.
 	/// </summary>
 	static void WarmRenderLayers()
 	{
 		Sandbox.Rendering.SceneRenderer.WarmUp();
-		Sandbox.Rendering.RenderPipeline.WarmUp();
-
-		// Native's shadow callback reads its convar mid-render, so its compute shader would be made there otherwise
-		System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor( typeof( Sandbox.Rendering.ContactShadows ).TypeHandle );
 	}
 
 	/// <summary>

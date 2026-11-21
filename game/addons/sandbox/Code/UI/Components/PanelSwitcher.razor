@@ -1,0 +1,41 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root></root>
+
+@code
+{
+    Panel _active;
+
+    public Panel ActivePanel
+    {
+        get => _active;
+        set => SwitchToPanel(value );
+    }
+
+    protected override void OnChildAdded(Panel child)
+    {
+        base.OnChildAdded(child);
+
+        if ( ChildrenCount == 1 )
+        {
+            SwitchToPanel(child);
+        }
+        else
+        {
+            child.AddClass("hidden");
+        }
+    }
+
+    public void SwitchToPanel( Panel panel )
+    {
+        _active = panel;
+
+        foreach ( var child in Children )
+        {
+            child.SetClass("hidden", child != panel);
+        }
+    }
+}

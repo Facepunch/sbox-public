@@ -1,0 +1,66 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+@if ( Items.Count == 0 )
+{
+    <SpawnMenuEmptyState Icon="search_off" Title="#spawnmenu.entity.no_results" Subtitle="#spawnmenu.empty.try_another_category" />
+    return;
+}
+
+<VirtualGrid Items=@Items ItemSize=@(new Vector2( 123, 123 ))>
+    <Item Context="item">
+        @if (item is Entry entry)
+        {
+            <SpawnMenuIcon Ident=@entry.Ident Title=@entry.Title Developer=@(entry.Entity?.Developer ?? false)></SpawnMenuIcon>
+        }
+    </Item>
+</VirtualGrid>
+
+@code
+{
+    /// <summary>
+    /// The game this lists, such as "Half-Life 2".
+    /// </summary>
+    public string Game { get; set; }
+
+    /// <summary>
+    /// Its prefabs with this tag, see <see cref="MountedPrefabs"/>.
+    /// </summary>
+    public string Tag { get; set; }
+
+    /// <summary>
+    /// Its scripted entities this accepts, for ones the sandbox makes itself from the game's art.
+    /// </summary>
+    public Func<ScriptedEntity, bool> Where { get; set; }
+
+    /// <summary>
+    /// A mounted prefab or a scripted entity. A prefab's title comes from its metadata once the icon has built it.
+    /// </summary>
+    record Entry( string Ident, string Path, ScriptedEntity Entity )
+    {
+        public string Title => Entity?.Title ?? MountedPrefabs.Title( Path );
+    }
+
+    List<Entry> Items = [];
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        var prefabs = MountedPrefabs.WithTag( Tag )
+            .Where( x => string.Equals( MountedPrefabs.GameTitle( x.Path ), Game, StringComparison.OrdinalIgnoreCase ) )
+            .Select( x => new Entry( $"mountprefab:{x.Path}", x.Path, null ) );
+
+        var entities = ResourceLibrary.GetAll<ScriptedEntity>()
+            .Where( e => Where is not null && !string.IsNullOrEmpty( e.RequiredMount ) && !e.IsRemote && e.IsMountAvailable && (!e.Developer || ServerSettings.ShowDeveloperEntities) )
+            .Where( e => string.Equals( SpawnMenuCategory.Section( e.Category ), Game, StringComparison.OrdinalIgnoreCase ) && Where( e ) )
+            .Select( e => new Entry( $"entity:{e.ResourcePath}", e.ResourcePath, e ) );
+
+        Items = prefabs.Concat( entities ).OrderBy( x => LocalizedText.Resolve( x.Title ), StringComparer.CurrentCultureIgnoreCase ).ToList();
+    }
+
+    // Titles change as the icons build their prefabs
+    protected override int BuildHash() => HashCode.Combine( Items.Count, Items.Count( x => x.Entity is null && MountedPrefabs.Loaded( x.Path ) is not null ) );
+}

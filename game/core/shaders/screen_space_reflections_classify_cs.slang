@@ -13,15 +13,15 @@ Mode( Default );
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
 
 // Whether the opaque pass's normals target (common/classes/ForwardNormals.hlsl) is multisampled, as the view
 DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_CS )
-    #include "math_general.fxc"
+    #include "sbox/math.slangh"
     #include "common/classes/ForwardNormals.hlsl"
 
     static const uint TILE_COORD_MASK = 0xFFFFu;

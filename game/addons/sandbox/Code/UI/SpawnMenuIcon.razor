@@ -1,0 +1,242 @@
+@namespace Sandbox
+@using Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root>
+
+    <div class="thumb-skeleton"><div class="shimmer"></div></div>
+
+    @if ( Type == "builder" )
+    {
+        <BuilderThumbnail @ref="BuilderPanel" Data=@Path PreviewMaterial=@PreviewMaterial />
+    }
+    else
+    {
+        <div class="thumb" @ref="ThumbPanel"></div>
+    }
+
+    @if ( Developer )
+    {
+        <div class="developer-badge">🪲</div>
+    }
+    @if ( !string.IsNullOrWhiteSpace( Title ) && !HideText )
+    {
+        <div class="title">@Title</div>
+    }
+
+</root>
+
+@code
+{
+    [Parameter] public string Ident { get; set; }
+    [Parameter] public string Icon { get; set; }
+    [Parameter] public string Title { get; set; }
+    [Parameter] public Material PreviewMaterial { get; set; }
+    [Parameter] public bool HideText { get; set; }
+    [Parameter] public bool Developer { get; set; }
+    [Parameter] public Guid SpawnlistItemId { get; set; }
+
+    string Type;
+    string Path;
+    string Source;
+
+    /// <summary>
+    /// We want to drag from this panel
+    /// </summary>
+    public override bool WantsDrag => true;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        (Type, Path, Source) = SpawnlistItem.ParseIdent( Ident );
+
+        if ( Type == "builder" )
+        {
+            Icon = "";
+        }
+        else if ( string.IsNullOrWhiteSpace( Icon ) )
+        {
+            Icon = $"thumb:{Path}";
+        }
+
+        // Show the skeleton straight away for anything not loaded yet, rather than a frame of empty tile
+        if ( Type == "builder" )
+        {
+            SetClass( "thumb-loading", BuilderPanel?.IsReady != true );
+        }
+        else if ( Icon != _appliedIcon )
+        {
+            SetClass( "thumb-loading", !string.IsNullOrWhiteSpace( Icon ) && ThumbnailLoader.Get( Icon, false, out _ ) == ThumbnailLoader.State.Loading );
+        }
+    }
+
+    Panel ThumbPanel;
+    BuilderThumbnail BuilderPanel;
+
+    /// <summary>
+    /// The icon whose texture is on <see cref="ThumbPanel"/>, so we only touch the style when it changes.
+    /// </summary>
+    string _appliedIcon;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        // a fresh thumb panel has no image yet, even if the icon didn't change
+        if ( firstTime ) _appliedIcon = null;
+        UpdateThumbnail();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+        UpdateThumbnail();
+    }
+
+    void UpdateThumbnail()
+    {
+        if ( Type == "builder" )
+        {
+            // the builder preview renders itself on its own budget, just mirror its state
+            SetClass( "thumb-loading", BuilderPanel.IsValid() && !BuilderPanel.IsReady );
+            return;
+        }
+
+        if ( Icon == _appliedIcon || !ThumbPanel.IsValid() ) return;
+
+        switch ( ThumbnailLoader.Get( Icon, IsVisible, out var texture ) )
+        {
+            case ThumbnailLoader.State.Ready:
+                ThumbPanel.Style.SetBackgroundImage( texture );
+                _appliedIcon = Icon;
+                SetClass( "thumb-loading", false );
+                break;
+
+            case ThumbnailLoader.State.Failed:
+                ThumbPanel.Style.SetBackgroundImage( (Texture)null );
+                _appliedIcon = Icon;
+                SetClass( "thumb-loading", false );
+                break;
+
+            default:
+                SetClass( "thumb-loading", true );
+                break;
+        }
+    }
+
+    protected override int BuildHash()
+    {
+        return HashCode.Combine( Ident, Icon, Title, HideText, Developer, PreviewMaterial );
+    }
+
+    protected override async void OnDragStart( DragEvent e )
+    {
+        var dragData = new DragData
+        {
+            Type = Type,
+            Path = Path,
+            Icon = Icon ?? $"thumb:{Path}",
+            Title = Title,
+            Source = this,
+            SpawnlistItemId = SpawnlistItemId
+        };
+
+        DragHandler.StartDragging( dragData );
+
+        if ( Type == "dupe" )
+        {
+            dragData.Data = await LoadDupeJson( Path, Source );
+        }
+    }
+
+    protected override void OnDragEnd( DragEvent e )
+    {
+        DragHandler.StopDragging();
+    }
+
+    protected override async void OnClick( MousePanelEvent e )
+    {
+        // Work out what we can locally first, the host might not have this content (e.g. mounts)
+        var metadata = await ISpawner.ResolveMetadata( Type, Path );
+        GameManager.Spawn( Ident, metadata );
+    }
+
+    protected override async void OnMouseDown( MousePanelEvent e )
+    {
+        if ( e.MouseButton != MouseButtons.Right )
+        {
+            base.OnMouseDown( e );
+            return;
+        }
+
+        var menu = new Sandbox.UI.Menu();
+
+        // If inside a spawnlist, offer removal
+        var spawnlistView = Ancestors.OfType<SpawnlistView>().FirstOrDefault();
+        if ( spawnlistView?.Entry?.Files.IsReadOnly == false )
+        {
+            menu.AddOption( "#spawnmenu.spawnlist.remove_item", "delete", () =>
+            {
+                if ( SpawnlistItemId != Guid.Empty )
+                    SpawnlistData.RemoveItem( spawnlistView.Entry, SpawnlistItemId );
+                else
+                {
+                    var data = SpawnlistData.Load( spawnlistView.Entry );
+                    var idx = data.Items.FindIndex( x => x.Ident == Ident );
+                    if ( idx >= 0 ) SpawnlistData.RemoveItem( spawnlistView.Entry, idx );
+                }
+
+                spawnlistView.RefreshCache();
+            } );
+            menu.AddSeparator();
+        }
+
+        SpawnlistData.PopulateContextMenu( menu, this, new SpawnlistItem
+        {
+            Ident = Ident,
+            Title = Title,
+            Icon = Icon,
+        }, spawnlistView?.Entry );
+
+        menu.Open( this, Popup.PositionMode.UnderMouse );
+
+        e.StopPropagation();
+
+        // Spawner-specific actions are optional: cloud loading must not leave the
+        // generic spawnlist and workshop options empty if it fails.
+        try
+        {
+            var spawner = ISpawner.Create( Type, Path );
+            if ( spawner is not null && await spawner.Loading )
+            {
+                spawner.PopulateContextMenu( menu, Ident );
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    async Task<string> LoadDupeJson( string id, string source )
+    {
+        if ( !ulong.TryParse( id, out var fileId ) )
+            return null;
+
+        if ( source == "workshop" )
+        {
+            var query = new Storage.Query { FileIds = [fileId] };
+            var result = await query.Run();
+            var item = result.Items?.FirstOrDefault();
+            if ( item is null ) return null;
+
+            var installed = await item.Install();
+            return installed?.Files.ReadAllText( "/dupe.json" );
+        }
+
+        var entry = Storage.GetAll( "dupe" ).FirstOrDefault( x => x.Id.ToString() == fileId.ToString() );
+        if ( entry is null ) return null;
+
+        return await entry.Files.ReadAllTextAsync( "/dupe.json" );
+    }
+}

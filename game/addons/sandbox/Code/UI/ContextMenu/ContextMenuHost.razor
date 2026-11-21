@@ -1,0 +1,150 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+@attribute [SpawnMenuHost.SpawnMenuMode]
+@attribute [Icon("🔍")]
+@attribute [Title("#spawnmenu.mode.inspect")]
+@attribute [Order( 500 )]
+
+<root>
+	
+    <div class="container">
+
+        <Inspector @ref=Inspector></Inspector>
+
+    </div>
+
+    <InspectWindow />
+    <InspectWindow Placement=@(InspectWindow.Corner.BottomRight) />
+
+    <div class="settings-bar" @ref="SettingsBar" @onmousedown=@SettingsBarPress></div>
+
+</root>
+
+@code
+{
+    public Inspector Inspector { get; private set; }
+    Panel SettingsBar = default;
+
+    public GameObject Hovered => Inspector?.Hovered;
+
+    public HighlightOutline SelectedOutline;
+    public HighlightOutline HoveredOutline;
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        base.OnAfterTreeRender(firstTime);
+
+        // built here rather than on first render so it comes back after a hotload
+        if ( SettingsBar.IsValid() && !SettingsBar.Children.Any() )
+        {
+            BuildMenuBar();
+        }
+
+        SelectedOutline ??= ObjectHighlight.Create( GameObject );
+        HoveredOutline ??= ObjectHighlight.Create( GameObject );
+    }
+
+    /// <summary>
+    /// The strip of settings along the top, like Garry's Mod's context menu bar. Its menus come from <see cref="IMenuBarEvent"/>.
+    /// </summary>
+    void BuildMenuBar()
+    {
+        var ev = new IMenuBarEvent.Event();
+        Scene.RunEvent<IMenuBarEvent>( listener => listener.PopulateMenuBar( ev ) );
+
+        var bar = new MenuBar();
+        foreach ( var menu in ev.Menus )
+        {
+            bar.AddMenu( menu );
+        }
+
+        SettingsBar.AddChild( bar );
+    }
+
+    // keep clicks on the bar from selecting whatever is in the world behind it
+    void SettingsBarPress( PanelEvent e )
+    {
+        Sandbox.UI.InputFocus.Clear();
+        e.StopPropagation();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        UpdateCursor();
+        DrawHandles();
+        InspectCursor.Update( HasActive );
+    }
+
+    protected override void OnVisibilityChanged()
+    {
+        base.OnVisibilityChanged();
+        InspectCursor.Release();
+    }
+
+    void UpdateCursor()
+    {
+        Style.Cursor = (Inspector?.Hovered.IsValid() ?? false) ? "pointer" : null;
+    }
+
+    protected override void OnMouseDown(MousePanelEvent e)
+    {
+        Sandbox.UI.InputFocus.Clear();
+
+        if ( e.MouseButton == MouseButtons.Right )
+        {
+            // right click while dragging with the physgun freezes instead
+            if ( InspectCursor.RequestFreeze() ) return;
+
+            Inspector?.WorldMouseRightDown( e );
+            return;
+        }
+
+        Inspector?.WorldMouseDown( e );
+
+        if ( e.MouseButton == MouseButtons.Left && Inspector?.Hovered.IsValid() == true )
+            InspectCursor.Press();
+    }
+
+    protected override void OnMouseUp(MousePanelEvent e)
+    {
+        if ( e.MouseButton == MouseButtons.Left )
+            InspectCursor.Release();
+    }
+
+    Dictionary<Component, Panel> _handles = [];
+
+    void DrawHandles()
+    {
+		if ( Scene?.Camera is not { IsValid: true } )
+			return;
+
+        // things with nothing to click on in the world, like hidden speakers, get an icon instead
+        foreach ( var component in InspectHandles.GetVisible( Scene ) )
+        {
+            if ( _handles.TryGetValue( component, out var existing ) && existing.IsValid() )
+                continue;
+
+            if ( component.WorldPosition.Distance( Scene.Camera.WorldPosition ) > ComponentHandle.MaxDistance )
+                continue;
+
+            _handles[component] = new ComponentHandle( this, component, Inspector );
+        }
+
+        // forget handles that have gone
+        _goneHandles.Clear();
+        foreach ( var (component, handle) in _handles )
+        {
+            if ( !handle.IsValid() ) _goneHandles.Add( component );
+        }
+
+        foreach ( var component in _goneHandles )
+            _handles.Remove( component );
+    }
+
+    readonly List<Component> _goneHandles = new();
+
+}

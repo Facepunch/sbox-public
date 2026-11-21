@@ -1,0 +1,774 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"MP5_LOD0",
+							"MP5_Magazine_LOD0",
+							"MP5_RailMount_LOD0",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 2.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"MP5_LOD1",
+							"MP5_Magazine_LOD1",
+							"MP5_RailMount_LOD1",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 8.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"MP5_LOD2",
+							"MP5_Magazine_LOD2",
+							"MP5_RailMount_LOD2",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 15.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"MP5_LOD3",
+							"MP5_Magazine_LOD3",
+							"MP5_RailMount_LOD3",
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 40.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						meshes = 
+						[
+							"MP5_LOD4",
+							"MP5_Magazine_LOD4",
+						]
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "w_mp5.vmat"
+								to = "weapons/mp5/materials/w_mp5.vmat"
+							},
+							{
+								from = "w_mp5_lod4.vmat"
+								to = "weapons/mp5/materials/w_mp5_bakelod.vmat"
+							},
+							{
+								from = "v_mp5_railmount.vmat"
+								to = "weapons/mp5/materials/v_mp5_railmount.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "Folder"
+						name = "MP5"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_lod0",
+										"w_mp5_stock_lod0",
+										"w_mp5_bolt_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_LOD1"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_bolt_lod1",
+										"w_mp5_lod1",
+										"w_mp5_stock_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_LOD2"
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_lod2",
+										"w_mp5_stock_lod2",
+										"w_mp5_bolt_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_LOD3"
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_stock_lod3",
+										"w_mp5_bolt_lod3",
+										"w_mp5_lod3",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_LOD4"
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_lod4",
+										"w_mp5_stock_lod4",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "MP5_Magazine"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_Magazine_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_magazine_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_Magazine_LOD1"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_magazine_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_Magazine_LOD2"
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_magazine_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_Magazine_LOD3"
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_magazine_lod3",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_Magazine_LOD4"
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_magazine_lod4",
+									]
+								}
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "MP5_RailMount"
+						children = 
+						[
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_RailMount_LOD0"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_railmount_lod0",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_RailMount_LOD1"
+								children = 
+								[
+									{
+										_class = "RenderMeshMarkup"
+										material_search_path = ""
+										use_expensive_tangents = true
+										high_high_precision_texcoords = false
+										calc_per_vertex_curvature = false
+										prefer_high_density_tris_in_uv_density_calc = false
+									},
+								]
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_railmount_lod1",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_RailMount_LOD2"
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_railmount_lod2",
+									]
+								}
+							},
+							{
+								_class = "RenderMeshFile"
+								name = "MP5_RailMount_LOD3"
+								filename = "weapons/mp5/w_mp5.fbx"
+								import_translation = [ 0.0, 0.0, 0.0 ]
+								import_rotation = [ 0.0, 0.0, 0.0 ]
+								import_scale = 1.0
+								align_origin_x_type = "None"
+								align_origin_y_type = "None"
+								align_origin_z_type = "None"
+								parent_bone = ""
+								import_filter = 
+								{
+									exclude_by_default = true
+									exception_list = 
+									[
+										"w_mp5_railmount_lod3",
+									]
+								}
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "BodyGroupList"
+				children = 
+				[
+					{
+						_class = "BodyGroup"
+						name = "MP5"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"MP5_LOD0",
+									"MP5_LOD1",
+									"MP5_LOD2",
+									"MP5_LOD3",
+									"MP5_LOD4",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "Magazine"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"MP5_Magazine_LOD0",
+									"MP5_Magazine_LOD1",
+									"MP5_Magazine_LOD2",
+									"MP5_Magazine_LOD3",
+									"MP5_Magazine_LOD4",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "top_rail_mount"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+							{
+								_class = "BodyGroupChoice"
+								name = "rail_mount"
+								meshes = 
+								[
+									"MP5_RailMount_LOD0",
+									"MP5_RailMount_LOD1",
+									"MP5_RailMount_LOD2",
+									"MP5_RailMount_LOD3",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+				]
+			},
+			{
+				_class = "Skeleton"
+				children = 
+				[
+					{
+						_class = "Bone"
+						name = "hold_R"
+						origin = [ -1.45742, 0.0, 5.464317 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						do_not_discard = true
+					},
+				]
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = ""
+						relative_origin = [ 13.219601, 0.0, 8.088171 ]
+						relative_angles = [ -0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "eject"
+						parent_bone = ""
+						relative_origin = [ 2.0, -0.443764, 8.557577 ]
+						relative_angles = [ -35.0, -90.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 2.604088, 0.002222, 8.555374 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 16.589909, 1.954733, 2.078602 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 2.930798, -0.029159, 6.653157 ]
+						angles = [ -6.8572, 0.0, 0.0 ]
+						dimensions = [ 1.802375, 1.495739, 2.003398 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 3.390237, -0.044856, 4.849892 ]
+						angles = [ -14.8572, 0.0, 0.0 ]
+						dimensions = [ 1.47897, 1.086062, 2.790128 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 4.454978, -0.044856, 1.952837 ]
+						angles = [ -23.857201, 0.0, 0.0 ]
+						dimensions = [ 1.443206, 1.086062, 3.642055 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.500653
+						point0 = [ 10.862893, -0.015625, 8.114185 ]
+						point1 = [ 13.018086, -0.015625, 8.13971 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ 11.306971, 0.000202, 9.21529 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.80175, 0.968424, 3.175491 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						origin = [ -2.600157, 0.009935, 9.964244 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.541854, 0.845556, 1.062679 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -0.385826, 0.024413, 6.523516 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 5.098495, 1.518325, 2.057158 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -4.426938, 0.024413, 6.967618 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.01233, 1.518325, 1.168956 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -0.132194, -0.108588, 4.889067 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.223046, 1.474023, 1.825849 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -2.679044, 0.030249, 3.951054 ]
+						angles = [ 28.074583, 0.0, 0.0 ]
+						dimensions = [ 1.96612, 0.935852, 3.593653 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						radius = 1.171446
+						point0 = [ 3.90616, 0.0, 7.766837 ]
+						point1 = [ 10.84219, 0.0, 8.574387 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -7.34832, 0.001723, 8.209439 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 3.793247, 2.32842, 1.619874 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "plastic"
+						collision_tags = "solid"
+						origin = [ -8.548246, 0.004695, 6.508122 ]
+						angles = [ 10.557556, 0.0, 0.0 ]
+						dimensions = [ 1.396938, 1.39908, 4.687834 ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 2.8
+						inertia_scale = 1.0
+						linear_damping = 0.0
+						angular_damping = 0.0
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

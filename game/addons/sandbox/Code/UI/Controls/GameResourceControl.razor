@@ -1,0 +1,72 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits BaseControl
+@attribute [CustomEditor(typeof(GameResource))]
+
+<root>
+    <ResourcePickerButton Thumb=@(ResourcePath != null ? $"thumb:{ResourcePath}" : null) Badge=@Extension Title=@(Title ?? "#ui.resource.none_selected") Empty=@(Title == null) Subtitle=@TypeName />
+</root>
+
+@code
+{
+    string Title;
+    string ResourcePath;
+    string Extension;
+    string TypeName;
+
+    /// <summary>
+    /// Refreshes the displayed resource type and current selection.
+    /// </summary>
+    public override void Rebuild()
+    {
+        base.Rebuild();
+
+        var typeDesc = TypeLibrary.GetType( Property.PropertyType );
+        var assetType = typeDesc?.GetAttribute<AssetTypeAttribute>();
+        Extension = assetType?.Extension ?? "RES";
+        TypeName = LocalizedText.ResourceTypeName( assetType, Property.PropertyType?.Name );
+
+        OnValueChanged();
+    }
+
+    /// <summary>
+    /// Updates the preview and display title when the selected resource changes.
+    /// </summary>
+    public void OnValueChanged()
+    {
+        var resource = Property.GetValue<GameResource>();
+
+        // a model collider with no surface override uses the model's own, show that rather than nothing
+        if ( resource == null && Property.Name == nameof( Collider.Surface ) && Property.Parent?.Targets.FirstOrDefault() is ModelCollider collider )
+            resource = collider.Model?.Physics?.Parts.SelectMany( x => x.Parts ).Select( x => x.Surface ).FirstOrDefault( x => x.IsValid() );
+
+        if ( resource == null || !resource.IsValid() )
+        {
+            Title = null;
+            ResourcePath = null;
+            return;
+        }
+
+        Title = resource is IDefinitionResource definition ? definition.Title ?? resource.ResourceName : resource.ResourceName;
+        ResourcePath = resource.ResourcePath;
+    }
+
+    void SelectFile( string filePath )
+    {
+        var resource = ResourceLibrary.Get<GameResource>( filePath );
+        Property.SetValue( resource );
+        OnValueChanged();
+    }
+
+    protected override void OnClick( MousePanelEvent e )
+    {
+        base.OnClick( e );
+
+        var typeDesc = TypeLibrary.GetType( Property.PropertyType );
+        var assetType = typeDesc?.GetAttribute<AssetTypeAttribute>();
+
+        Property.TryGetAttribute<MetadataAttribute>( out var metadata );
+        ResourceSelectPopup.Open( this, assetType?.Extension, Property.GetValue<GameResource>()?.ResourcePath, SelectFile, category: metadata?.Tag );
+    }
+}

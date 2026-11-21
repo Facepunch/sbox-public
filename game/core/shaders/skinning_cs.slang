@@ -1,5 +1,4 @@
-// skinning_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md). The .shader
-// beside it is only Source 2's renderer's.
+// skinning_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // HEADER: DevShader = true;
 // HEADER: Description = "Vertex Skinning CS";
 
@@ -7,16 +6,16 @@
 
 Mode( Default );
 
-#include "system.fxc" // This should always be the first include in COMMON
-#include "common.fxc"
-#include "vr_common.fxc"
-#include "math_general.fxc"
+#include "sbox/system.slangh" // This should always be the first include in COMMON
+#include "sbox/view.slangh"
+#include "sbox/shading.slangh"
+#include "sbox/math.slangh"
 #include "common/utils/normal_transform.hlsl"
-#include "transform_buffer.fxc"
+#include "sbox/transform.slangh"
 
 #if ( PROGRAM == VFX_PROGRAM_CS )
-#include "vs_decompress.fxc"
-#include "octohedral_encoding.fxc"
+#include "sbox/vertex_decompress.slangh"
+#include "sbox/encoding.slangh"
 
 struct VS_INPUT // A bogus dummy struct required to use includes below
 {
@@ -28,8 +27,8 @@ struct VS_INPUT // A bogus dummy struct required to use includes below
 
 uint g_nMorphTextureAtlasWidth < Attribute( "MorphTextureAtlasWidth" ); >;
 
-#include "instancing.fxc"
-#include "morph.fxc"
+#include "sbox/instancing.slangh"
+#include "sbox/morph.slangh"
 #include "common/classes/Deformation.hlsl"
 
 DynamicCombo( D_MORPH, 0..1, Sys( ALL ) );

@@ -196,8 +196,7 @@ public partial class Texture : Resource, IDisposable
 	/// Returns how many frames ago this texture was last used by the renderer
 	/// </summary>
 	public int LastUsed => !native.IsValid ? 1000
-		: RenderBackend.Default is Source2RenderBackend ? g_pRenderDevice.GetTextureLastUsed( native ).Clamp( 0, 1000 )
-		: (int)Math.Clamp( (long)(Application.FrameCount - Math.Max( _markedUsedFrame, _deviceUsedFrame )), 0, 1000 ); // Another device draws: when it last used it
+		: (int)Math.Clamp( (long)(Application.FrameCount - Math.Max( _markedUsedFrame, _deviceUsedFrame )), 0, 1000 ); // When the device last used it
 
 	/// <summary>
 	/// Gets if the texture has UAV access
@@ -209,11 +208,11 @@ public partial class Texture : Resource, IDisposable
 		get
 		{
 			if ( !native.IsValid ) return RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
-			return Graphics.HasSource2Device ? g_pRenderDevice.GetTextureMultisampleType( native ) : CreatedMultisample;
+			return CreatedMultisample;
 		}
 	}
 
-	/// <summary>What the texture was made with, for answering without Source 2's device (<see cref="Graphics.HasSource2Device"/>).</summary>
+	/// <summary>What the texture was made with: Source 2's empty device keeps no sample count.</summary>
 	internal RenderMultisampleType CreatedMultisample { get; set; }
 
 	internal override void Destroy()
@@ -419,12 +418,9 @@ public partial class Texture : Resource, IDisposable
 
 		_markedUsedFrame = Application.FrameCount;
 		_markedUsedMipSize = requiredMipSize;
-
-		// Source 2's empty device streams nothing
-		if ( Graphics.HasSource2Device ) g_pRenderDevice.MarkTextureUsed( native, requiredMipSize );
 	}
 
-	internal bool IsRenderTarget => Graphics.HasSource2Device ? g_pRenderDevice.IsTextureRenderTarget( native ) : Desc.m_nFlags.Contains( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );
+	internal bool IsRenderTarget => Desc.m_nFlags.Contains( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );
 
 	/// <summary>
 	/// Mark this texture as loading, create a texture in a task, replace this texture with it, mark it as loaded.

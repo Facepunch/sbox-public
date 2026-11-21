@@ -2,9 +2,6 @@ namespace Sandbox;
 
 public partial class BaseCombatWeapon
 {
-	private bool _reloadAnimationPending;
-	private bool _reloadCancelAnimationPending;
-
 	//
 	// Reloading. Host authoritative: the host runs the reload over time, topping the magazine up from
 	// reserve, and the result replicates via the FromHost magazine and IsReloading. Reload tolerates the
@@ -201,18 +198,13 @@ public partial class BaseCombatWeapon
 	// the hooks on its BaseWeaponModel. Override these to add weapon-level reactions on top.
 
 	/// <summary>
-	/// Reload started. Plays the reload animation on the weapon model, and fires the "b_reload" gesture on
-	/// the holder's body. Fires once, on every peer, off the synced IsReloading.
+	/// Reload started. Plays the reload animation on the weapon model, and posts
+	/// <see cref="WeaponEvents.Reload"/> to the holder. Fires once, on every peer, off the synced IsReloading.
 	/// </summary>
 	protected virtual void OnReloadStarted()
 	{
 		WeaponModel?.OnReloadStart();
-		_reloadAnimationPending = true;
-
-#pragma warning disable CS0618
-		if ( HolderRenderer is { Animation.Graph: null } renderer )
-			renderer.Set( "b_reload", true );
-#pragma warning restore CS0618
+		PostWeaponEvent( WeaponEvents.Reload );
 	}
 
 	/// <summary>Reload ended (finished or cancelled). Drives the active weapon model.</summary>
@@ -225,8 +217,7 @@ public partial class BaseCombatWeapon
 	protected virtual void OnReloadCancelled()
 	{
 		WeaponModel?.OnReloadCancel();
-		_reloadAnimationPending = false;
-		_reloadCancelAnimationPending = true;
+		PostWeaponEvent( WeaponEvents.ReloadCancel );
 	}
 
 	/// <summary>A round was loaded (incremental). Drives the active weapon model's per-shell insert.</summary>

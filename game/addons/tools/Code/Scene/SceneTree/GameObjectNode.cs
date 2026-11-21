@@ -50,6 +50,8 @@ partial class GameObjectNode : TreeNode<GameObject>
 	{
 		get
 		{
+			if ( !Value.IsValid() ) return 0;
+
 			HashCode hc = new HashCode();
 			hc.Add( Value.Name );
 			hc.Add( Value.IsPrefabInstance );

@@ -74,10 +74,10 @@ namespace Editor
 				return new DragAssetData( asset );
 			}
 
-			if ( Package.TryParseIdent( value, out var ident ) )
+			if ( Package.TryParseIdentParts( value, out var ident ) )
 			{
 				return new DragAssetData( Package.FormatIdent(
-					ident.org, ident.package, ident.version, ident.local ) );
+					ident.org, ident.package, ident.version ) );
 			}
 
 			return null;
@@ -139,8 +139,11 @@ namespace Editor
 				return null;
 			}
 
-			DownloadProgress = 1f;
-			ProgressChanged?.Invoke( 1f );
+			if ( asset is not null )
+			{
+				DownloadProgress = 1f;
+				ProgressChanged?.Invoke( 1f );
+			}
 
 			return asset;
 		}

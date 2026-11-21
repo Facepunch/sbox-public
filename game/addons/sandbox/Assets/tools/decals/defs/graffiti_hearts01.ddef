@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "a9231703-3e3b-4c85-a55a-2035c9f0809d",
+    "Path": "decals/graffiti/graffiti_hearts01.decal"
+  },
+  "Title": "#asset.decal.hearts01.title",
+  "__references": [],
+  "__version": 0
+}

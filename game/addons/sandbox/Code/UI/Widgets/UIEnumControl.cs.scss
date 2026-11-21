@@ -1,0 +1,52 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	UIEnumControl
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		height: 24px;
+
+		&.segmented
+		{
+			border: 1px solid $ui-control-border;
+			background-color: $ui-control-bg;
+		}
+
+		.segment
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			flex-basis: 0px;
+			justify-content: center;
+			align-items: center;
+			font-family: $body-font;
+			font-size: $ui-settings-font;
+			font-weight: 800;
+			color: $ui-text-disabled;
+			text-transform: uppercase;
+			cursor: pointer;
+
+			&:hover
+			{
+				color: $ui-text-disabled-hover;
+				sound-in: ui.hover;
+			}
+
+			&.active
+			{
+				@include ui-selected;
+				pointer-events: none;
+			}
+		}
+	}
+
+	UISheet UIEnumControl
+	{
+		height: 34px;
+		min-width: 0;
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

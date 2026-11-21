@@ -1,0 +1,110 @@
+@import "/UI/Theme.scss";
+
+@keyframes resource-thumb-pulse
+{
+	0%   { opacity: 0.5; }
+	50%  { opacity: 1; }
+	100% { opacity: 0.5; }
+}
+
+@mixin component-theme
+{
+	UIResourceGrid
+	{
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-content: flex-start;
+		flex-grow: 1;
+		max-height: 237px;
+		padding: 1px;
+		margin: 0px 0px 20px 0px;
+		gap: 1px;
+		border: 1px solid $ui-control-border;
+		overflow: hidden;
+		@include ui-scroll;
+		pointer-events: all;
+
+		&.scrolls
+		{
+			overflow-y: scroll;
+		}
+
+		&.empty
+		{
+			height: 40px;
+		}
+
+		.thumb
+		{
+			width: 100%;
+			height: 100%;
+			background-size: cover;
+			background-position: center;
+			background-repeat: no-repeat;
+		}
+	}
+
+	UIResourceGrid .resource-cell
+	{
+		width: 45px;
+		height: 46px;
+		flex-shrink: 0;
+		padding: 1px;
+		background-color: $ui-well;
+		border: 1px solid $ui-control-border;
+		cursor: pointer;
+
+		&:hover
+		{
+			border-color: $ui-control-border-hover;
+			sound-in: ui.hover;
+		}
+
+		&:active
+		{
+			sound-in: ui.select;
+		}
+
+		// thumbnail still streaming in, see ThumbnailLoader
+		&.thumb-loading .thumb
+		{
+			margin: 18%;
+			width: auto;
+			height: auto;
+			flex-grow: 1;
+			border-radius: 4px;
+			background-color: rgba( 128, 128, 128, 0.18 );
+			animation: resource-thumb-pulse 1.2s ease-in-out infinite;
+		}
+
+		&.selected
+		{
+			background-color: $ui-selected-bg;
+			border-color: $ui-blue;
+
+			.thumb
+			{
+				opacity: 0.75; // make thumbnail semi-transparent so it blends with blue color
+			}
+		}
+	}
+
+	SpawnMenu UIResourceGrid .resource-cell, InspectWindow UIResourceGrid .resource-cell
+	{
+		border-radius: $ui-menu-radius;
+		overflow: hidden;
+		&:not(.selected) { background-color: $ui-resource-preview-bg; border-color: transparent; }
+		&:hover { border-color: $ui-control-border-hover; }
+	}
+
+	UISheet UIResourceGrid
+	{
+		margin-bottom: 0;
+		border-color: $ui-field-border;
+		border-radius: 7px;
+
+		.thumb { background-size: contain; }
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

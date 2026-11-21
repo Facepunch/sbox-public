@@ -6,23 +6,23 @@ namespace AddonTests
 		[TestMethod]
 		public void ParseIdent()
 		{
-			Assert.IsFalse( Package.TryParseIdent( "assetparty", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( "asset_party", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( "asset-party", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( ".", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( "@", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( "#", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( "/", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "assetparty", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "asset_party", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "asset-party", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( ".", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "@", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "#", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "/", out var _ ) );
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "asset.party", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "asset.party", out var p ) );
 				Assert.AreEqual( "asset", p.org );
 				Assert.AreEqual( "party", p.package );
 				Assert.IsNull( p.version );
 			}
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "asset/party", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "asset/party", out var p ) );
 				Assert.AreEqual( "asset", p.org );
 				Assert.AreEqual( "party", p.package );
 				Assert.IsNull( p.version );
@@ -33,20 +33,20 @@ namespace AddonTests
 		[TestMethod]
 		public void ParseIdentWithVersion()
 		{
-			Assert.IsFalse( Package.TryParseIdent( "asset.party#poop", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( "asset.party#!!", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( "asset.party#0.234", out var _ ) );
-			Assert.IsFalse( Package.TryParseIdent( "asset.party#", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "asset.party#poop", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "asset.party#!!", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "asset.party#0.234", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "asset.party#", out var _ ) );
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "asset.party#45366", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "asset.party#45366", out var p ) );
 				Assert.AreEqual( "asset", p.org );
 				Assert.AreEqual( "party", p.package );
 				Assert.AreEqual( 45366, p.version );
 			}
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "asset/party#45366", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "asset/party#45366", out var p ) );
 				Assert.AreEqual( "asset", p.org );
 				Assert.AreEqual( "party", p.package );
 				Assert.AreEqual( 45366, p.version );
@@ -56,31 +56,31 @@ namespace AddonTests
 		[TestMethod]
 		public void ParseIdentWithUrl()
 		{
-			Assert.IsFalse( Package.TryParseIdent( "https://www.google.com/", out var _ ) );
+			Assert.IsFalse( Package.TryParseIdentParts( "https://www.google.com/", out var _ ) );
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "https://asset.party/facepunch/sandbox", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "https://asset.party/facepunch/sandbox", out var p ) );
 				Assert.AreEqual( "facepunch", p.org );
 				Assert.AreEqual( "sandbox", p.package );
 				Assert.IsNull( p.version );
 			}
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "https://sbox.game/facepunch/sandbox", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "https://sbox.game/facepunch/sandbox", out var p ) );
 				Assert.AreEqual( "facepunch", p.org );
 				Assert.AreEqual( "sandbox", p.package );
 				Assert.IsNull( p.version );
 			}
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "https://asset.party/facepunch/sandbox/", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "https://asset.party/facepunch/sandbox/", out var p ) );
 				Assert.AreEqual( "facepunch", p.org );
 				Assert.AreEqual( "sandbox", p.package );
 				Assert.IsNull( p.version );
 			}
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "https://asset.party/facepunch/sandbox#45366", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "https://asset.party/facepunch/sandbox#45366", out var p ) );
 				Assert.AreEqual( "facepunch", p.org );
 				Assert.AreEqual( "sandbox", p.package );
 				Assert.AreEqual( 45366, p.version );
@@ -88,20 +88,41 @@ namespace AddonTests
 
 
 			{
-				Assert.IsTrue( Package.TryParseIdent( "https://asset.party/facepunch/sandbox/#45366", out var p ) );
+				Assert.IsTrue( Package.TryParseIdentParts( "https://asset.party/facepunch/sandbox/#45366", out var p ) );
 				Assert.AreEqual( "facepunch", p.org );
 				Assert.AreEqual( "sandbox", p.package );
 				Assert.AreEqual( 45366, p.version );
 			}
 		}
 
+		/// <summary>
+		/// Existing addons can read the local flag from an inferred tuple.
+		/// </summary>
 		[TestMethod]
-		public void ParseIdentWithLocal()
+		public void TryParseIdentPreservesInferredLocalFlag()
 		{
-			Assert.IsTrue( Package.TryParseIdent( "asset.party#local", out var p ) );
+			const string ident = "asset.party#42";
 
-			Assert.IsTrue( p.local );
-			Assert.IsNull( p.version );
+#pragma warning disable CS0618 // This is how existing addon source calls the parser.
+			Assert.IsTrue( Package.TryParseIdent( ident, out var p ) );
+			Assert.IsFalse( Package.TryParseIdent( "asset.party#local", out _ ) );
+#pragma warning restore CS0618
+
+			Assert.AreEqual( 42, p.version );
+			Assert.IsFalse( p.local );
+		}
+
+		/// <summary>
+		/// The obsolete overloads still accept ordinary package identifiers.
+		/// </summary>
+		[TestMethod]
+		public void ObsoleteOverloadsUsePackageIdent()
+		{
+#pragma warning disable CS0618 // Existing compiled addons can still call these overloads.
+			Assert.IsTrue( Package.TryParseIdent( "asset.party", out (string org, string package, int? version, bool local) legacy ) );
+			Assert.IsFalse( legacy.local );
+			Assert.AreEqual( "asset.party", Package.FormatIdent( legacy.org, legacy.package, local: true ) );
+#pragma warning restore CS0618
 		}
 
 		[TestMethod]

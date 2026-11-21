@@ -167,8 +167,7 @@ internal sealed partial class SceneBridge
 	/// <summary>
 	/// A camera's output in the block being recorded, its target bound: the frame copied in (or the background, without one),
 	/// then the stages that draw over the finished frame. <paramref name="encode"/> is for an 8-bit target, bound through a
-	/// linear view: the copy and the UI write gamma-encoded output into it, as native's UI hook layers do over an sRGB swap
-	/// chain (ui_gamma_blend).
+	/// linear view: the copy and the UI write gamma-encoded output into it, so the UI blends in gamma space like a browser.
 	/// </summary>
 	void DrawOutput( SceneCamera camera, BorealisGpuFrame frame, bool ui, bool encode, bool flipX, bool flipY )
 	{
@@ -202,7 +201,8 @@ internal sealed partial class SceneBridge
 			var output = gpuView.Target?.ColorTarget;
 			frame.SetOutputConstants( gpuView.Viewport, output is null ? gpuView.Viewport.Size : new Vector2( output.Width, output.Height ) );
 		}
-		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( camera.BackgroundColor, true, false, false );
+		// A window shows opaque whatever its background's alpha: some drivers present a window's alpha
+		else if ( (camera.ClearFlags & ClearFlags.Color) != 0 ) Graphics.Clear( encode ? camera.BackgroundColor.WithAlpha( 1 ) : camera.BackgroundColor, true, false, false );
 
 		// The view's lookup tables, as the scene's blocks have them: film grain reads the blue noise
 		BorealisGpuFrame.SetViewTextures( Graphics.Attributes );
@@ -416,8 +416,15 @@ internal sealed partial class SceneBridge
 		var samples = depthTarget is null ? 1 : Source2Formats.Samples( depthTarget.MultisampleType );
 		if ( state.GpuTarget is not { } drawn || drawn.Size != size || drawn.Samples != samples || drawn.Color.Format != format )
 		{
-			state.GpuTarget?.Dispose();
-			state.GpuTarget = drawn = ViewTarget.Create( size, samples, format, state.System.DepthFormat, "Borealis.Gpu child view" );
+			// The other size's target, kept for views that alternate sizes
+			(state.GpuTarget, state.GpuOtherTarget) = (state.GpuOtherTarget, state.GpuTarget);
+			if ( state.GpuTarget is not { } other || other.Size != size || other.Samples != samples || other.Color.Format != format )
+			{
+				state.GpuTarget?.Dispose();
+				state.GpuTarget = ViewTarget.Create( size, samples, format, state.System.DepthFormat, "Borealis.Gpu child view" );
+			}
+
+			drawn = state.GpuTarget;
 		}
 
 		state.System.Render( render.World, state.View, drawn, null );

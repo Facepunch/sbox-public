@@ -56,6 +56,13 @@ public sealed class GamePageLoad( string ident, Package start )
 	{
 		if ( Package.TryGetCached( ident, out var cached, true ) ) Package = cached;
 
+		if ( Package is { IsRemote: false } )
+		{
+			HasFullPackage = true;
+			changed();
+			return;
+		}
+
 		// Known to be on the workshop already - ask Steam about its item while the backend's asked about the package
 		var known = Package is null ? 0 : MenuUtility.KnownWorkshopId( Package );
 		var workshop = known != 0 ? FetchWorkshopItem( known, changed ) : null;

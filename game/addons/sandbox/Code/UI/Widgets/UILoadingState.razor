@@ -1,0 +1,17 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    <IconPanel class="spinner" Text="hourglass_empty" />
+    <Label class="title" Text="@Text" />
+</root>
+
+@code
+{
+    /// <summary>
+    /// What's being waited for, can be a localization token.
+    /// </summary>
+    [Parameter] public string Text { get; set; } = "#ui.common.loading_workshop";
+}

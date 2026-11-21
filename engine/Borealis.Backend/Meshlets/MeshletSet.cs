@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Borealis.Backend.Meshlets;
 
 /// <summary>How meshes are cut into meshlets: at most this many vertices and triangles each.</summary>
@@ -22,10 +24,10 @@ internal readonly record struct MeshletConfig( int MaxVertices = 64, int MaxTria
 }
 
 /// <summary>
-/// The meshlets of one index range: what Borealis builds at load (<see cref="MeshletBuilder"/>) and a resource compiler
-/// could cook into a model or map instead, so the renderer takes either. <see cref="Indices"/> are the range's own index
-/// values in meshlet order, each triangle's corners in their order (its first vertex is what the visibility ids name);
-/// each meshlet's triangles are a run of them.
+/// The meshlets of one index range: what Borealis builds at load (<see cref="MeshletBuilder"/>) or the resource compiler
+/// cooked into the model (<see cref="FromCooked"/>). <see cref="Indices"/> are the range's own index values in meshlet
+/// order, each triangle's corners in their order (its first vertex is what the visibility ids name); each meshlet's
+/// triangles are a run of them.
 /// </summary>
 internal sealed class MeshletSet
 {
@@ -34,6 +36,27 @@ internal sealed class MeshletSet
 
 	public uint[] Indices { get; init; }
 	public MeshletRecord[] Meshlets { get; init; }
+
+	/// <summary>Whether the range's indices are already in this order where they're drawn from (cooked): nothing to rewrite.</summary>
+	public bool InPlace { get; init; }
+
+	/// <summary>
+	/// A cooked range's set: its indices as stored (already in meshlet order) and its records, or null when they aren't
+	/// one run covering every triangle once, cut no larger than <paramref name="config"/>.
+	/// </summary>
+	public static MeshletSet FromCooked( uint[] indices, ReadOnlySpan<byte> records, MeshletConfig config )
+	{
+		if ( records.Length == 0 || records.Length % RecordBytes != 0 ) return null;
+		var meshlets = MemoryMarshal.Cast<byte, MeshletRecord>( records ).ToArray();
+		uint next = 0;
+		foreach ( ref readonly var meshlet in meshlets.AsSpan() )
+		{
+			if ( meshlet.FirstTriangle != next || meshlet.TriangleCount == 0 || meshlet.TriangleCount > config.MaxTriangles ) return null;
+			next += meshlet.TriangleCount;
+		}
+
+		return next * 3 == indices.Length ? new MeshletSet { Indices = indices, Meshlets = meshlets, InPlace = true } : null;
+	}
 
 	/// <summary>Triangles in the range.</summary>
 	public int Triangles => Indices.Length / 3;
@@ -51,42 +74,54 @@ internal sealed class MeshletSet
 			max = Math.Max( max, index );
 		}
 
-		// Per index value, the last meshlet that numbered it (plus one) and its number there
-		var seen = new int[Indices.Length == 0 ? 0 : max - min + 1];
-		var number = new byte[seen.Length];
-		var vertices = new List<uint>( Indices.Length / 2 );
-		var triangles = new uint[Triangles];
-		var first = new int[Meshlets.Length];
-		var counts = new int[Meshlets.Length];
-		for ( int m = 0; m < Meshlets.Length; m++ )
+		// Per index value, the last meshlet that numbered it (plus one) and its number there; scratch from the shared pools
+		var range = Indices.Length == 0 ? 0 : (int)(max - min + 1);
+		var seen = System.Buffers.ArrayPool<int>.Shared.Rent( range );
+		var number = System.Buffers.ArrayPool<byte>.Shared.Rent( range );
+		var vertices = System.Buffers.ArrayPool<uint>.Shared.Rent( Indices.Length );
+		try
 		{
-			ref readonly var meshlet = ref Meshlets[m];
-			first[m] = vertices.Count;
-			for ( var t = meshlet.FirstTriangle; t < meshlet.FirstTriangle + meshlet.TriangleCount; t++ )
+			seen.AsSpan( 0, range ).Clear();
+			var vertexCount = 0;
+			var triangles = new uint[Triangles];
+			var first = new int[Meshlets.Length];
+			var counts = new int[Meshlets.Length];
+			for ( int m = 0; m < Meshlets.Length; m++ )
 			{
-				uint packed = 0;
-				for ( int c = 0; c < 3; c++ )
+				ref readonly var meshlet = ref Meshlets[m];
+				first[m] = vertexCount;
+				for ( var t = meshlet.FirstTriangle; t < meshlet.FirstTriangle + meshlet.TriangleCount; t++ )
 				{
-					var index = Indices[t * 3 + c];
-					var at = (int)(index - min);
-					if ( seen[at] != m + 1 )
+					uint packed = 0;
+					for ( int c = 0; c < 3; c++ )
 					{
-						if ( vertices.Count - first[m] > byte.MaxValue ) throw new InvalidOperationException( "A meshlet with more than 256 vertices" );
-						seen[at] = m + 1;
-						number[at] = (byte)(vertices.Count - first[m]);
-						vertices.Add( index );
+						var index = Indices[t * 3 + c];
+						var at = (int)(index - min);
+						if ( seen[at] != m + 1 )
+						{
+							if ( vertexCount - first[m] > byte.MaxValue ) throw new InvalidOperationException( "A meshlet with more than 256 vertices" );
+							seen[at] = m + 1;
+							number[at] = (byte)(vertexCount - first[m]);
+							vertices[vertexCount++] = index;
+						}
+
+						packed |= (uint)number[at] << (c * 8);
 					}
 
-					packed |= (uint)number[at] << (c * 8);
+					triangles[t] = packed;
 				}
 
-				triangles[t] = packed;
+				counts[m] = vertexCount - first[m];
 			}
 
-			counts[m] = vertices.Count - first[m];
+			return new MeshletLocal { Vertices = vertices.AsSpan( 0, vertexCount ).ToArray(), Triangles = triangles, FirstVertex = first, VertexCount = counts };
 		}
-
-		return new MeshletLocal { Vertices = [.. vertices], Triangles = triangles, FirstVertex = first, VertexCount = counts };
+		finally
+		{
+			System.Buffers.ArrayPool<int>.Shared.Return( seen );
+			System.Buffers.ArrayPool<byte>.Shared.Return( number );
+			System.Buffers.ArrayPool<uint>.Shared.Return( vertices );
+		}
 	}
 }
 

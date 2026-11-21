@@ -1,0 +1,59 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- Detail Texture ----
+	F_DETAIL_TEXTURE 3 // Normals
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.000"
+	g_flAmbientOcclusionDirectSpecular "0.000"
+	TextureAmbientOcclusion "materials/construction/tiles/generic_tiles_ambientocclusion.png"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "materials/construction/tiles/generic_tiles_basecolor.png"
+
+	//---- Detail Texture ----
+	g_flDetailBlendFactor "0.326"
+	g_flDetailBlendToFull "0.000"
+	g_flDetailNormalStrength "0.823"
+	g_flDetailTexCoordRotation "0.000"
+	g_vDetailTexCoordOffset "[0.000 0.000]"
+	g_vDetailTexCoordScale "[2.000 2.000]"
+	TextureDetailMask "materials/default/default_detailmask.tga"
+	TextureNormalDetail "materials/construction/robotics/robotics_hs_detail.png"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	g_flMetalness "0.000"
+
+	//---- Normal ----
+	g_flLightRangeForSelfShadowNormals "1.000"
+	g_flNormalMapScaleFactor "1.000"
+	TextureNormal "materials/construction/tiles/generic_tiles_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.429"
+	TextureRoughness "materials/construction/tiles/generic_tiles_roughness.png"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "ceramic"
+		WorldMappingWidth "512"
+		WorldMappingHeight "512"
+	}
+}

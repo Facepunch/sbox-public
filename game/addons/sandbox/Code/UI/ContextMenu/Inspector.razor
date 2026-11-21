@@ -1,0 +1,141 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits Panel
+
+<root>
+
+	<div class="canvas" @ref=_canvas></div>
+
+</root>
+
+@code
+{
+    public GameObject Hovered => hovered;
+
+    Panel _canvas = default;
+
+    protected override int BuildHash() => HashCode.Combine( hovered, _selected.Count );
+
+    public override void Tick()
+    {
+        _selected.RemoveWhere( x => !x.IsValid() );
+        UpdateHighlights();
+        UpdateCursor();
+    }
+
+    protected override void OnVisibilityChanged()
+    {
+        UpdateHighlights();
+    }
+
+    void UpdateHighlights()
+    {
+        var host = Ancestors.OfType<ContextMenuHost>().FirstOrDefault();
+        if ( host is null ) return;
+
+        if ( !IsVisible )
+        {
+            host.SelectedOutline.Hide();
+            host.HoveredOutline.Hide();
+            return;
+        }
+
+        host.SelectedOutline.Show( _selected, HighlightStyle.Selected );
+
+        // Something already selected keeps its selection outline when hovered
+        host.HoveredOutline.Show( _selected.Contains( hovered ) ? null : hovered, HighlightStyle.Hovered );
+    }
+
+    GameObject hovered;
+
+    HashSet<GameObject> _selected = new();
+
+    public IReadOnlyCollection<GameObject> Selected => _selected;
+
+    void UpdateCursor()
+    {
+        var cursorPos = Mouse.Position;
+        var screenRay = Scene.Camera.ScreenPixelToRay( cursorPos );
+        var tr = Scene.Trace.Ray( screenRay, 4096 )
+                            .IgnoreGameObjectHierarchy( Player.FindLocalPlayer()?.GameObject )
+                            .Run();
+
+        var go = tr.Collider?.GameObject ?? tr.GameObject;
+        go = go.FindNetworkRoot();
+
+        if ( !CanSelect( go ) ) go = null;
+
+        UpdateHovered( go );
+    }
+
+    bool CanSelect( GameObject o )
+    {
+        if ( !o.IsValid() ) return false;
+        if ( o.Tags.Has( "world" ) ) return false;
+        if ( o.NetworkMode == NetworkMode.Never ) return false;
+
+        o = o?.FindNetworkRoot();
+
+        return true;
+    }
+
+    void UpdateHovered( GameObject o )
+    {
+        o = o?.FindNetworkRoot();
+
+        if ( hovered == o ) return;
+
+        hovered = o;
+        PlaySound( "ui.button.over" );
+    }
+
+
+    public void WorldMouseDown(MousePanelEvent e)
+    {
+        SelectObject( hovered );
+    }
+
+    public void WorldMouseRightDown(MousePanelEvent e)
+    {
+        OpenContextMenu( hovered );
+    }
+
+    /// <summary>
+    /// Select the object and open its right-click menu under the mouse.
+    /// </summary>
+    public void OpenContextMenu( GameObject target )
+    {
+        if ( !target.IsValid() ) return;
+
+        SelectObject( target );
+
+        var ev = new IContextMenuEvent.Event( target );
+        Scene.RunEvent<IContextMenuEvent>( listener => listener.PopulateContextMenu( ev ) );
+        if ( !ev.Options.Any() ) return;
+
+        var menu = new Sandbox.UI.Menu();
+        ev.Populate( menu );
+
+        menu.Open( this, Popup.PositionMode.UnderMouse );
+    }
+
+    public void SelectObject( GameObject o )
+    {
+        if ( !o.IsValid() )
+        {
+            _selected.Clear();
+        }
+        else
+        {
+            if ( !Input.Down( "run" ) )
+            {
+                _selected.Clear();
+            }
+
+            _selected.Add( o );
+        }
+    }
+}
+
+

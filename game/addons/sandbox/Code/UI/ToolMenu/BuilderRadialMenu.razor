@@ -1,0 +1,140 @@
+@using System.Globalization;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+<root>
+	<div class="wheel">
+		@if ( Hovered is { } hovered )
+		{
+			<div class="highlight" @ref="_highlight" style="@HighlightStyle( hovered )" />
+		}
+
+		@for ( int i = 0; i < Shapes.Count; i++ )
+		{
+			var shape = Shapes[i];
+			<div class="item @( shape == Hovered ? "hovered" : null )" style="@ItemStyle( i )">
+				<div class="icon @( IconOf( shape ) is null ? "missing" : null )" style="@IconStyle( shape )" />
+			</div>
+		}
+
+		<div class="middle">
+			<div class="icon @( IconOf( Shown ) is null ? "missing" : null )" style="@IconStyle( Shown )" />
+			<Label class="name" Tokenize=@false Text=@TitleOf( Shown ) />
+		</div>
+	</div>
+</root>
+
+@code
+{
+	const float IconRadius = 0.415f;
+
+	BuilderShapeMenu _menu;
+	Panel _highlight;
+	BuilderCatalog.Shape _current;
+	bool _open;
+
+	static BuilderTool ActiveBuilder => Player.FindLocalPlayer()?.GetComponent<PlayerInventory>()?.ActiveWeapon is Toolgun toolgun
+		&& toolgun.GetCurrentMode() is BuilderTool tool ? tool : null;
+
+	IReadOnlyList<BuilderCatalog.Shape> Shapes => _menu?.Shapes ?? [];
+	BuilderCatalog.Shape? Hovered => _menu?.Hovered;
+
+	/// <summary>The shape in the middle: the one pointed at, or the tool's current shape.</summary>
+	BuilderCatalog.Shape Shown => Hovered ?? _current;
+
+	protected override void OnUpdate()
+	{
+		var tool = ActiveBuilder;
+		if ( tool is not null )
+		{
+			_menu = tool.ShapeMenu;
+			_current = tool.Shape;
+		}
+
+		_open = tool is not null && tool.ShapeMenu.IsOpen && Hud.IsVisible( HudElement.ToolMenu );
+		SetClass( "open", _open );
+
+		if ( _highlight.IsValid() && _menu is not null ) _highlight.Style.MaskImage = WedgeMask( _menu.SliceAngle );
+	}
+
+	protected override int BuildHash() => System.HashCode.Combine( _menu, Hovered, _current, Game.Language.SelectedCode );
+
+	static string IconOf( BuilderCatalog.Shape shape ) => shape switch
+	{
+		BuilderCatalog.Shape.Box => "box",
+		BuilderCatalog.Shape.Triangle => "triangle",
+		BuilderCatalog.Shape.Carved => "triangleframe",
+		BuilderCatalog.Shape.Trapezium => "trapezium",
+		BuilderCatalog.Shape.Tube => "tube",
+		BuilderCatalog.Shape.HalfPipe => "halfpipe",
+		BuilderCatalog.Shape.Ring => "disc",
+		BuilderCatalog.Shape.Bend => "benttube",
+		BuilderCatalog.Shape.PlateHole => "platewithhole",
+		BuilderCatalog.Shape.Cone => "cone",
+		BuilderCatalog.Shape.MirroredCone => "doublecone",
+		BuilderCatalog.Shape.Sphere => "sphere",
+		BuilderCatalog.Shape.Dome => "dome",
+		BuilderCatalog.Shape.QuarterDome => "halfdome",
+		BuilderCatalog.Shape.Stairs => "stairs",
+		BuilderCatalog.Shape.Parallelogram => "parallelogram",
+		BuilderCatalog.Shape.Pentagon => "pentagon",
+		BuilderCatalog.Shape.BoxFrame => "boxframe",
+		_ => null
+	};
+
+	static string IconStyle( BuilderCatalog.Shape shape ) => IconOf( shape ) is { } icon ? $"mask-image: url( /UI/building/{icon}.svg );" : null;
+
+	static string TitleOf( BuilderCatalog.Shape shape )
+	{
+		var title = TypeLibrary.GetEnumDescription( typeof( BuilderCatalog.Shape ) ).GetEntry( shape ).Title;
+		return LocalizedText.Resolve( title ?? shape.ToString() );
+	}
+
+	/// <summary>How far the hovered icon pops out from the middle, in pixels.</summary>
+	const float HoverPop = 8f;
+
+	const float HoverScale = 1.1f;
+
+	string ItemStyle( int index )
+	{
+		var angle = _menu.AngleOf( index ).DegreeToRadian();
+		float x = MathF.Sin( angle ), y = -MathF.Cos( angle );
+		var hovered = Shapes[index] == Hovered;
+		var pop = hovered ? HoverPop : 0;
+
+		return $"left: {Number( 50 + x * IconRadius * 100 )}%; top: {Number( 50 + y * IconRadius * 100 )}%; "
+			+ $"transform: translate( {Number( x * pop )}px, {Number( y * pop )}px ) scale( {Number( hovered ? HoverScale : 1 )} );";
+	}
+
+	string HighlightStyle( BuilderCatalog.Shape hovered )
+	{
+		var index = 0;
+		for ( int i = 0; i < Shapes.Count; i++ )
+			if ( Shapes[i] == hovered ) index = i;
+
+		return $"transform: rotate( {Number( _menu.AngleOf( index ) )}deg );";
+	}
+
+	static Texture _wedge;
+	static float _wedgeSlice;
+
+	static Texture WedgeMask( float slice )
+	{
+		if ( _wedge is not null && _wedgeSlice == slice ) return _wedge;
+
+		const int size = 256;
+		using var bitmap = new Bitmap( size, size );
+		bitmap.Clear( Color.Transparent );
+		bitmap.SetAntialias( true );
+		bitmap.SetFill( Color.White );
+		bitmap.DrawArc( new Rect( 0, 0, size, size ), -90 - slice / 2, slice, true );
+
+		_wedge = bitmap.ToTexture( false );
+		_wedgeSlice = slice;
+		return _wedge;
+	}
+
+	static string Number( float value ) => value.ToString( "0.###", CultureInfo.InvariantCulture );
+}

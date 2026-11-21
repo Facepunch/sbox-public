@@ -1,0 +1,44 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/blendable.shader"
+
+	//---- Number Of Blendable Layers ----
+	F_MULTIBLEND 1 // 2 Layers
+
+	//---- Use Tint Masks In Vertex Paint ----
+	F_USE_TINT_MASKS_IN_VERTEX_PAINT 1
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Material A ----
+	g_flTintColorA "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusionA "materials/sbox/metal/corrugated_wall_b_ao.tga"
+	TextureBlendMaskA "materials/sbox/metal/corrugated_wall_b_rust_blend.tga"
+	TextureColorA "materials/sbox/metal/corrugated_wall_b_color.tga"
+	TextureMetalnessA "materials/sbox/metal/corrugated_wall_b_metal.tga"
+	TextureNormalA "materials/sbox/metal/corrugated_wall_b_normal.tga"
+	TextureRoughnessA "materials/sbox/metal/corrugated_wall_b_rough.tga"
+	TextureTintMaskA "materials/sbox/metal/corrugated_wall_b_tint.tga"
+
+	//---- Material B ----
+	g_flBlendSoftnessB "0.289"
+	g_flTintColorB "[1.000000 1.000000 1.000000 0.000000]"
+	g_vTexCoordScale2 "[1.000 1.000]"
+	TextureAmbientOcclusionB "materials/sbox/metal/corrugated_wall_b_rust_ao.tga"
+	TextureBlendMaskB "materials/sbox/metal/corrugated_wall_b_rust_blend.tga"
+	TextureColorB "materials/sbox/metal/corrugated_wall_b_rust_color.tga"
+	TextureMetalnessB "[0.000000 0.000000 0.000000 0.000000]"
+	TextureNormalB "materials/sbox/metal/corrugated_wall_b_rust_normal.tga"
+	TextureRoughnessB "materials/sbox/metal/corrugated_wall_b_rust_rough.tga"
+	TextureTintMaskB "materials/sbox/metal/corrugated_wall_b_rust_tint.tga"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "metal.sheet"
+		WorldMappingWidth "128"
+		WorldMappingHeight "128"
+	}
+}

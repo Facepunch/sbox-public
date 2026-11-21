@@ -1,0 +1,252 @@
+// The shader declaration language every shader's text is written in: the program numbers PROGRAM is one of, texture
+// declaration and sampling shorthands, texture dimensions, artist texture inputs, combos and rules, and the annotations on
+// globals (Attribute, Default, Range, UiType/UiGroup, sampler state, render states, material attributes, vertex semantics).
+// VfxIncludes reads the annotations from the text; these definitions turn them into annotation syntax the compiler accepts
+// and ignores. Ours, in place of the old system.fxc in Slang compiles (SlangHeaders): every macro keeps its name and
+// expansion, which package shaders' text relies on. Shares the old header's include guard.
+#ifndef SYSTEM_FXC
+#define SYSTEM_FXC
+
+// Paste and stringize through one more expansion, so macro arguments are expanded first
+#define TOKENPASTE2(x, y) x##y
+#define TOKEN_STRINGIZE( L ) #L
+
+// The programs: PROGRAM is one of these
+#define VFX_PROGRAM_VS 1
+#define VFX_PROGRAM_PS 2
+#define VFX_PROGRAM_GS 3
+#define VFX_PROGRAM_HS 4
+#define VFX_PROGRAM_DS 5
+#define VFX_PROGRAM_CS 6
+#define VFX_PROGRAM_RS 7
+#define VFX_PROGRAM_RTX 8
+
+#ifndef PROGRAM
+	#error PROGRAM needs to be defined!
+#endif
+
+// Textures with their own sampler: CreateX( name ) declares name and name_sampler, which the TexX( name, ... ) forms sample
+// with. The ...S forms (sbox/descriptor_sets.slangh) take a sampler instead.
+
+// 2D
+#define CreateTexture2DWithoutSampler( name ) Texture2D name
+#define CreateTexture2D( name ) SamplerState TOKENPASTE2( name, _sampler ); Texture2D name
+#define CreateTexture2DInRegister( name, reg ) SamplerState TOKENPASTE2( name, _sampler ); Texture2D name : register( TOKENPASTE2( t, reg ) )
+#define CreateTexture2DCmp( name ) SamplerComparisonState TOKENPASTE2( name, _sampler ); Texture2D name
+#define CreateTexture2DArrayWithoutSampler( name ) Texture2DArray name
+#define CreateTexture2DArray( name ) SamplerState TOKENPASTE2( name, _sampler ); Texture2DArray name
+#define CreateTexture2DArrayCmp( name ) SamplerComparisonState TOKENPASTE2( name, _sampler ); Texture2DArray name
+#define CreateTexture2DMS( name ) SamplerState TOKENPASTE2( name, _sampler ); Texture2DMS< float > name
+#define CreateTexture2DMSArg( name, nSamples ) SamplerState TOKENPASTE2( name, _sampler ); Texture2DMS< float, nSamples > name
+#define CreateTexture2DMSComponents( name, c ) SamplerState TOKENPASTE2( name, _sampler ); Texture2DMS< TOKENPASTE2( float, c ) > name
+#define CreateTexture2DMSComponentsArg( name, c, nSamples ) SamplerState TOKENPASTE2( name, _sampler ); Texture2DMS< TOKENPASTE2( float, c ), nSamples > name
+#define PassToArgTexture2D( name ) TOKENPASTE2( name, _sampler ), name
+#define PassToArgTexture2DCmp( name ) TOKENPASTE2( name, _sampler ), name
+#define ArgTexture2D( name ) SamplerState TOKENPASTE2( name, _sampler ), Texture2D name
+#define ArgTexture2DCmp( name ) SamplerComparisonState TOKENPASTE2( name, _sampler ), Texture2D name
+#define Tex2D( name, uv ) name.Sample( TOKENPASTE2( name, _sampler ), ( uv ).xy )
+#define Tex2DArrayFromSampler( texturename, samplername, uv ) texturename.Sample( TOKENPASTE2( samplername, _sampler ), ( uv ).xyz )
+#define Tex2DArray( name, uv ) name.Sample( TOKENPASTE2( name, _sampler ), ( uv ).xyz )
+#define Tex2DArrayLevel( name, uv, flLevel ) name.SampleLevel( TOKENPASTE2( name, _sampler ), ( uv ).xyz, flLevel )
+#define Tex2DArrayCmp( name, uv, flCmp ) name.SampleCmp( TOKENPASTE2( name, _sampler ), ( uv ).xyz, flCmp )
+#define Tex2DArrayCmpLevelZero( name, uv, flCmp ) name.SampleCmpLevelZero( TOKENPASTE2( name, _sampler ), ( uv ).xyz, flCmp )
+#define Tex2DFromSampler( texturename, samplername, uv ) texturename.Sample( TOKENPASTE2( samplername, _sampler ), ( uv ).xy )
+#define Tex2DGradFromSampler( texturename, samplername, uv, vDDX, vDDY ) texturename.SampleGrad( TOKENPASTE2( samplername, _sampler ), ( uv ).xy, ( vDDX ).xy, ( vDDY ).xy )
+#define Tex2DCmp( name, uv, flCmp ) name.SampleCmp( TOKENPASTE2( name, _sampler ), ( uv ).xy, flCmp )
+#define Tex2DCmpLevelZero( name, uv, flCmp ) ( name.SampleCmpLevelZero( TOKENPASTE2( name, _sampler ), ( uv ).xy, flCmp ).x )
+// Into result, at an integer texel offset (the inverse size arguments are unused)
+#define Tex2DCmpLevelZeroWithOffset( result, name, uv, flCmp, flXOfs, flYOfs, flInvTexWidth, flInvTexHeight ) result = name.SampleCmpLevelZero( TOKENPASTE2( name, _sampler ), ( uv ).xy, flCmp, int2( flXOfs, flYOfs ) ).x
+#define Tex2DBias( name, uv, flBias ) name.SampleBias( TOKENPASTE2( name, _sampler ), ( uv ).xy, flBias )
+#define Tex2DBiasS( tex, sampler, uv, flBias ) tex.SampleBias( sampler, ( uv ).xy, flBias )
+#define Tex2DLevel( name, uv, flLevel ) name.SampleLevel( TOKENPASTE2( name, _sampler ), ( uv ).xy, flLevel )
+#define Tex2DLevelFromSampler( texturename, samplername, uv, flLevel ) texturename.SampleLevel( TOKENPASTE2( samplername, _sampler ), ( uv ).xy, flLevel )
+#define Tex2DOffset( name, uv, nOffset, vPixelSize ) name.SampleLevel( TOKENPASTE2( name, _sampler ), ( uv ).xy, 0.0, ( nOffset ).xy )
+#define Tex2DLevelWithOffset( result, name, uv, flLevel, flXOfs, flYOfs, flInvTexWidth, flInvTexHeight ) { result = name.SampleLevel( TOKENPASTE2( name, _sampler ), ( uv ).xy, flLevel, int2( flXOfs, flYOfs ) ); }
+#define Tex2DGrad( name, uv, vDDX, vDDY ) name.SampleGrad( TOKENPASTE2( name, _sampler ), ( uv ).xy, ( vDDX ).xy, ( vDDY ).xy )
+#define Tex2DMS( name, uv, nSample ) name.Load( ( uv ).xy, nSample )
+#define Tex2DLoad( name, intUV ) name.Load( intUV )
+
+// 3D
+#define CreateTexture3DWithoutSampler( name ) Texture3D name
+#define CreateTexture3D( name ) SamplerState TOKENPASTE2( name, _sampler ); Texture3D name
+#define Tex3D( name, uv ) name.Sample( TOKENPASTE2( name, _sampler ), ( uv ).xyz )
+#define Tex3DFromSampler( name, samplername, uv ) name.Sample( TOKENPASTE2( samplername, _sampler ), ( uv ).xyz )
+#define Tex3DLevel( name, uv, flLevel ) name.SampleLevel( TOKENPASTE2( name, _sampler ), ( uv ).xyz, flLevel )
+#define Tex3DLevelFromSampler( name, samplername, uv, flLevel ) name.SampleLevel( TOKENPASTE2( samplername, _sampler ), ( uv ).xyz, flLevel )
+#define Tex3DLoad( name, intUVWL ) name.Load( intUVWL )
+#define Tex3DLoadWithOffset( name, intUVWL, ofsUVW ) name.Load( intUVWL, ofsUVW )
+
+// Cubes
+#define CreateTextureCube( name ) SamplerState TOKENPASTE2( name, _sampler ); TextureCube name
+#define CreateTextureCubeArray( name ) SamplerState TOKENPASTE2( name, _sampler ); TextureCubeArray name
+#define CreateTextureCubeCmp( name ) SamplerComparisonState TOKENPASTE2( name, _sampler ); TextureCube name
+#define TexCube( name, uv ) name.Sample( TOKENPASTE2( name, _sampler ), ( uv ).xyz )
+#define TexCubeArray( name, uv ) name.Sample( TOKENPASTE2( name, _sampler ), ( uv ).xyzw )
+#define TexCubeArrayLevel( name, uv, flLevel ) name.SampleLevel( TOKENPASTE2( name, _sampler ), ( uv ).xyzw, flLevel )
+#define TexCubeCmp( name, uv, flCmp ) name.SampleCmp( TOKENPASTE2( name, _sampler ), ( uv ).xyz, flCmp )
+#define TexCubeCmpLevelZero( name, uv, flCmp ) name.SampleCmpLevelZero( TOKENPASTE2( name, _sampler ), ( uv ).xyz, flCmp )
+#define TexCubeBias( name, uv, flBias ) name.SampleBias( TOKENPASTE2( name, _sampler ), ( uv ).xyz, flBias )
+#define TexCubeLevel( name, uv, flLevel ) name.SampleLevel( TOKENPASTE2( name, _sampler ), ( uv ).xyz, flLevel )
+#define TexCubeGrad( name, uv, vDDX, vDDY ) name.SampleGrad( TOKENPASTE2( name, _sampler ), ( uv ).xyz, ( vDDX ).xyz, ( vDDY ).xyz )
+
+// Textures the engine binds by attribute
+#define CreateAttributeTexture2DWithoutSampler( name ) Texture2D name
+#define AttributeTex2DLevelS( name, sampler, uv, level ) name.SampleLevel( sampler, ( uv ).xy, level )
+#define AttributeTex2DS( name, sampler, uv ) name.Sample( sampler, ( uv ).xy )
+#define TextureDimensions2DS( tex, nMipLevel ) TextureDimensions2D( tex, nMipLevel )
+#define TextureDimensions2DArrayS( tex, nMipLevel ) TextureDimensions2DArray( tex, nMipLevel )
+
+#define DECLARE_TEXTURE_DIM_VAR( tex )
+
+/// Width of a mip.
+int TextureDimensions1D( Texture1D tex, int nMipLevel )
+{
+	int nWidth;
+	int nLevels;
+	tex.GetDimensions( nMipLevel, nWidth, nLevels );
+	return nWidth;
+}
+
+/// Width and height of a mip.
+int2 TextureDimensions2D( Texture2D tex, int nMipLevel )
+{
+	int2 vSize;
+	int nLevels;
+	tex.GetDimensions( nMipLevel, vSize.x, vSize.y, nLevels );
+	return vSize;
+}
+
+/// Width, height and depth of a mip.
+int3 TextureDimensions3D( Texture3D tex, int nMipLevel )
+{
+	int3 vSize;
+	int nLevels;
+	tex.GetDimensions( nMipLevel, vSize.x, vSize.y, vSize.z, nLevels );
+	return vSize;
+}
+
+/// A cube face's size at a mip.
+int TextureDimensionsCube( TextureCube tex, int nMipLevel )
+{
+	int2 vSize;
+	int nLevels;
+	tex.GetDimensions( nMipLevel, vSize.x, vSize.y, nLevels );
+	return vSize.x;
+}
+
+/// Width and height of a mip of an array.
+int2 TextureDimensions2DArray( Texture2DArray tex, int nMipLevel )
+{
+	int2 vSize;
+	int nElements;
+	int nLevels;
+	tex.GetDimensions( nMipLevel, vSize.x, vSize.y, nElements, nLevels );
+	return vSize;
+}
+
+/// A cube face's size at a mip of a cube array.
+int TextureDimensionsCubeArray( TextureCubeArray tex, int nMipLevel )
+{
+	int2 vSize;
+	int nElements;
+	int nLevels;
+	tex.GetDimensions( nMipLevel, vSize.x, vSize.y, nElements, nLevels );
+	return vSize.x;
+}
+
+// Geometry shader output
+#define GSAppendVertex( streamName, v ) streamName.Append( v )
+#define GSRestartStrip( streamName ) streamName.RestartStrip()
+
+// Artist texture inputs (what the material editor offers and the texture compiler reads) and how a texture is built from them
+#define CreateInputTexture2D( _name, _inputColorSpace, _minPrecision, _imageAlgorithm, _fileExt, _uigroup, _default ) \
+	string TOKENPASTE2( g_inputTexture2D_, _name ) < string inputColorSpace = TOKEN_STRINGIZE( _inputColorSpace ); string minPrecision = TOKEN_STRINGIZE( _minPrecision ); string imageAlgorithm = _imageAlgorithm; string fileExt = _fileExt; string uigroup = _uigroup; _default; > = "";
+
+#define CreateInputTextureCube( _name, _inputColorSpace, _minPrecision, _imageAlgorithm, _fileExt, _uigroup, _default ) \
+	string TOKENPASTE2( g_inputTextureCube_, _name ) < string inputColorSpace = TOKEN_STRINGIZE( _inputColorSpace ); string minPrecision = TOKEN_STRINGIZE( _minPrecision ); string imageAlgorithm = _imageAlgorithm; string fileExt = _fileExt; string uigroup = _uigroup; _default; > = "";
+
+#define CreateInputTexture3D( _name, _inputColorSpace, _minPrecision, _imageAlgorithm, _fileExt, _uigroup, _default ) \
+	string TOKENPASTE2( g_inputTexture3D_, _name ) < string inputColorSpace = TOKEN_STRINGIZE( _inputColorSpace ); string minPrecision = TOKEN_STRINGIZE( _minPrecision ); string imageAlgorithm = _imageAlgorithm; string fileExt = _fileExt; string uigroup = _uigroup; _default; > = "";
+
+#define Channel( _dstChannels, _mipAlgorithm, _outputColorSpace ) \
+	string TOKENPASTE2( channelMipAlgorithm_, _dstChannels ) = TOKEN_STRINGIZE( _mipAlgorithm ); \
+	string TOKENPASTE2( channelOutputColorSpace_, _dstChannels ) = TOKEN_STRINGIZE( _outputColorSpace )
+
+#define OutputFormat( _format ) string outputFormat = #_format
+
+// Combos, features' rules and combo rules: read from the text by the shader compiler, nothing to the compiler itself
+#define StaticCombo( comboName, range, sys, ... ) ;
+#define SpecializationCombo( comboName, range, sys ) ;
+#define DynamicCombo( comboName, range, sys ) ;
+#define DynamicComboFromFeature( comboName, range, feature, sys ) ;
+
+#define FeatureRule( ruleAsFunction, errorString ) ;
+#define StaticComboRule( ruleAsFunction ) ;
+#define DynamicComboRule( ruleAsFunction ) ;
+
+// Annotations on globals: what a value is bound from and computed as, its default, range and UI
+#define Source( arg1 ) string source = #arg1
+#define SourceArg( arg1 ) string sourceArg = #arg1
+
+#define Attribute( arg1 ) string attribute = arg1
+// The condition as written: combo names before they expand
+#define ActiveIf( condition ) string activeif = #condition
+
+#define Default( arg1 ) float default1 = { arg1 }
+#define Default1( arg1 ) float default1 = { arg1 }
+#define Default2( arg1, arg2 ) float default2[2] = { arg1, arg2 }
+#define Default3( arg1, arg2, arg3 ) float default3[3] = { arg1, arg2, arg3 }
+#define Default4( arg1, arg2, arg3, arg4 ) float default4[4] = { arg1, arg2, arg3, arg4 }
+// For input textures: DefaultFile( "materials/dev/test.tga" )
+#define DefaultFile( arg1 ) string defaultFile = arg1
+#define Default1AndFile( arg1, arg2 ) float default1 = { arg1 }; string defaultFile = arg2
+#define Default2AndFile( arg1, arg2, arg3 ) float default2[2] = { arg1, arg2 }; string defaultFile = arg3
+#define Default3AndFile( arg1, arg2, arg3, arg4 ) float default3[3] = { arg1, arg2, arg3 }; string defaultFile = arg4
+#define Default4AndFile( arg1, arg2, arg3, arg4, arg5 ) float default4[4] = { arg1, arg2, arg3, arg4 }; string defaultFile = arg5
+
+#define Range( min0, max0 ) float range1[2] = { min0, max0 }
+#define Range1( min0, max0 ) float range1[2] = { min0, max0 }
+#define Range2( min0, min1, max0, max1 ) float range2[4] = { min0, min1, max0, max1 }
+#define Range3( min0, min1, min2, max0, max1, max2 ) float range3[6] = { min0, min1, min2, max0, max1, max2 }
+#define Range4( min0, min1, min2, min3, max0, max1, max2, max3 ) float range4[8] = { min0, min1, min2, min3, max0, max1, max2, max3 }
+
+// UiType's argument is a bare token, UiGroup's a string
+#define UiType( arg1 ) string uitype = #arg1
+#define UiGroup( arg1 ) string uigroup = arg1
+#define UiStep( arg1 ) float uistep = { arg1 }
+// A specialization constant bound from its Attribute(): pipelines are rebuilt when it changes
+#define SpecializedConstant() float specializedconstant = { 1 }
+
+// Render states, by name
+#define RenderState( argName, arg ) string TOKENPASTE2( g_renderState_, argName ) < string arg1 = TOKEN_STRINGIZE( arg ); > = "";
+#define SrgbWrite( arg ) string g_renderState_SrgbWriteEnable0 < string arg1 = TOKEN_STRINGIZE( arg ); > = "";
+
+// Sampler state, on a SamplerState global (Filter takes the filter's name)
+#define Filter( arg ) string SamplerState_Filter = #arg
+#define AddressU( arg ) string SamplerState_AddressU = #arg
+#define AddressV( arg ) string SamplerState_AddressV = #arg
+#define AddressW( arg ) string SamplerState_AddressW = #arg
+#define BorderColor( arg ) string SamplerState_BorderColor = #arg
+#define MipBias( flBias ) string SamplerState_MipBias = #flBias
+#define MaxLOD( flLOD ) string SamplerState_MaxLOD = #flLOD
+#define MaxAniso( nAniso ) string SamplerState_MaxAniso = #nAniso
+#define Fetch4( bEnable ) string SamplerState_Fetch4 = #bEnable
+#define SrgbRead( bArg ) string _SrgbRead = #bArg
+#define UvScaleVar( arg ) string _UvScaleVar = #arg
+#define MinLOD( flLOD ) string SamplerState_MinLOD = #flLOD
+#define ComparisonFunc( arg ) string SamplerState_ComparisonFunc = #arg
+
+// Material and shader attributes
+#define BoolAttribute( attributeName, val ) string TOKENPASTE2( g_boolAttr_, attributeName ) < string value = TOKEN_STRINGIZE( val ); > = "";
+#define FloatAttribute( attributeName, val ) string TOKENPASTE2( g_floatAttr_, attributeName ) < string value = TOKEN_STRINGIZE( val ); > = "";
+#define Float3Attribute( attributeName, val ) string TOKENPASTE2( g_float3Attr_, attributeName ) < string value = TOKEN_STRINGIZE( val ); > = "";
+#define TextureAttribute( attributeName, val ) string TOKENPASTE2( g_texAttr_, attributeName ) < string value = TOKEN_STRINGIZE( val ); > = "";
+
+// A vertex input member's vertex semantic
+#define Semantic( s ) string semantic = #s
+
+// What the old header included, in its order, which code that includes it may rely on
+#include "common_samplers.fxc"
+#include "sbox/descriptor_sets.slangh"
+
+#endif // SYSTEM_FXC

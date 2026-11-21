@@ -1,0 +1,35 @@
+// Bindings in a given descriptor set (EXTERNAL_DESC_SET: the static sets and the view's), push constants, and the sampling
+// shorthands that take their sampler as an argument. Ours, in place of the old descriptor_set_support.fxc in Slang compiles
+// (SlangHeaders): the same macro names and expansions. Shares the old header's include guard.
+#ifndef DESCRIPTOR_SET_SUPPORT_FXC
+#define DESCRIPTOR_SET_SUPPORT_FXC
+
+#if defined( VULKAN )
+	// : register( <type><reg>, space<set> )
+	#define EXTERNAL_DESC_SET( regType, set_slot, reg ) : register( TOKENPASTE2( regType, reg ), TOKENPASTE2( space, set_slot ) )
+	#define BEGIN_PUSH_CONSTANT( name ) struct TOKENPASTE2( name, _t )
+	#define END_PUSH_CONSTANT( name ) [[vk::push_constant]] TOKENPASTE2( name, _t ) name;
+	#define PUSH_CONSTANT( name, member ) name.member
+	#define CreateTextureCubeWithoutSampler( name ) TextureCube name
+#else
+	#define EXTERNAL_DESC_SET( regType, set_slot, reg )
+	#define BEGIN_PUSH_CONSTANT( name ) cbuffer name
+	#define END_PUSH_CONSTANT( name )
+	#define PUSH_CONSTANT( name, member ) member
+	#define CreateTextureCubeWithoutSampler( name ) CreateTextureCube( name )
+#endif
+
+#define Tex2DS( tex, sampler, uv ) tex.Sample( sampler, ( uv ).xy )
+#define Tex3DS( tex, sampler, uv ) tex.Sample( sampler, ( uv ).xyz )
+#define Tex2DLevelS( tex, sampler, uv, flLevel ) tex.SampleLevel( sampler, ( uv ).xy, flLevel )
+#define Tex3DLevelS( tex, sampler, uv, flLevel ) tex.SampleLevel( sampler, ( uv ).xyz, flLevel )
+#define Tex2DCmpLevelZeroS( tex, sampler, uv, flCmp ) ( tex.SampleCmpLevelZero( sampler, ( uv ).xy, flCmp ).x )
+#define TexCubeS( tex, sampler, uv ) tex.Sample( sampler, ( uv ).xyz )
+#define Tex2DLevelWithOffsetS( result, tex, sampler, uv, flLevel, flXOfs, flYOfs, flInvTexWidth, flInvTexHeight ) { result = tex.SampleLevel( sampler, ( uv ).xy, flLevel, int2( flXOfs, flYOfs ) ); }
+#define Tex2DArrayS( tex, sampler, uv ) tex.Sample( sampler, ( uv ).xyz )
+#define Tex2DArrayLevelS( tex, sampler, uv, flLevel ) tex.SampleLevel( sampler, ( uv ).xyz, flLevel )
+
+#define PassToArgTexture2DS( name, sampler ) sampler, name
+#define PassToArgTexture2DCmpS( name, sampler ) sampler, name
+
+#endif // DESCRIPTOR_SET_SUPPORT_FXC

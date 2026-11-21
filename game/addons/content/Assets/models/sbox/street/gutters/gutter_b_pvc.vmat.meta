@@ -1,0 +1,27 @@
+{
+  "guid": "020800e4-0000-0000-00e8-0611fc000000",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Gutter B Pvc",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "gutterbpvc",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_b_pvc.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -27,8 +27,8 @@ namespace Sandbox;
 /// </summary>
 /// <remarks>
 /// Engine resources get a backing on this device the first time it uses them. Render targets are made empty with the
-/// texture's size, format and mips; other textures are copied from Source 2's pixels (mip 0); buffers made while
-/// recording for this device start empty, and others start with what Source 2's copy holds. A backing lives until its
+/// texture's size, format and mips; other textures come from their compiled files or the pixels they were made with;
+/// buffers made while recording for this device start empty, and others start with what the device they were made for holds. A backing lives until its
 /// resource is disposed, or until this backend is.
 /// </remarks>
 internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposable
@@ -168,6 +168,14 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// </summary>
 	internal static int UnseenRenders;
 
+	/// <summary>
+	/// Whether the game's scene is loading as the engine shows it: its loading tasks, the loading screen, or connecting.
+	/// <c>Game.Render</c> draws the scene as usual otherwise. Not the game instance's own flag: nothing clears that when a
+	/// game started without a scene load adds its map (a <c>MapInstance</c>), so its frames, on screen, kept loading budgets
+	/// and native's envmap order, and its world was never counted as shown.
+	/// </summary>
+	internal static bool GameLoading( Scene scene ) => (scene?.IsLoading ?? false) || LoadingScreen.IsVisible || Networking.IsConnecting;
+
 	/// <summary>The most frames it waits for an unseen render once the models are made (a scene with no camera has none).</summary>
 	internal static int UnseenRenderWaitFrames { get; set; } = 8;
 
@@ -211,6 +219,25 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 	}
 
+	/// <summary>
+	/// Before a scene's load finishes in the game window on Borealis.Gpu, wait for the next frame's first tasks
+	/// (<see cref="NextFrameStart"/>), so it finishes before the game ticks in that frame. Its waits (for content, the
+	/// navmesh) end in whichever frame's tasks run next, often the last ones, after the frame's render: the game's first tick
+	/// and render then took a frame of their own after the loading screen (220-290 ms after a load on Flatgrass and
+	/// Construct), where native's load finished in a frame's first tasks and had them in the frame it finished in.
+	/// </summary>
+	internal static Task BeforeLoadFinishes() => (RenderBackend.Default as BorealisGpuRenderBackend)?.services is { AsyncModels: true } ? NextFrameStart() : Task.CompletedTask;
+
+	/// <summary>
+	/// Resume in the next frame's first tasks, before the game ticks in it (<c>EngineLoop.FrameStart</c>), wherever in the
+	/// frame this is awaited.
+	/// </summary>
+	internal static async Task NextFrameStart()
+	{
+		var frame = Application.FrameCount;
+		while ( Application.FrameCount == frame ) await Task.Yield();
+	}
+
 	/// <summary>Validation errors the device has reported.</summary>
 	public int ValidationErrors => gpu.ValidationErrors;
 
@@ -235,7 +262,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		BiasMips();
 
 		// Behind a loading screen nobody watches the frames: what a map loads is made and streamed with bigger budgets
-		services.Loading = LoadingScreen.IsVisible || (Sandbox.Engine.GlobalContext.Game?.ActiveScene?.IsLoading ?? false) || (IGameInstance.Current?.IsLoading ?? false);
+		services.Loading = GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene );
 		services.BeginFrame();
 		TimeFrame();
 		if ( frame % PipelineCacheSaveFrames == 0 ) SavePipelineCacheInBackground();
@@ -369,7 +396,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// Where the game's or the menu's mounted files have a compiled file on disk: a game package's models, materials,
 	/// textures and shaders, which are named by their hash in the download cache.
 	/// </summary>
-	static string MountedFile( string path )
+	internal static string MountedFile( string path )
 	{
 		foreach ( var context in (Sandbox.Engine.GlobalContext[])[Sandbox.Engine.GlobalContext.Game, Sandbox.Engine.GlobalContext.Menu] )
 		{
@@ -792,14 +819,10 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	/// <summary>The layout an engine texture's backing is in, as the recording left it.</summary>
 	internal ImageLayout LayoutOf( Texture texture ) => textures.TryGetValue( texture, out var backing ) ? context.LayoutOf( backing.Handle ) : ImageLayout.Undefined;
 
-	/// <summary>How many textures were copied from Source 2's pixels, having nothing of their own to start from.</summary>
-	public int CopiedFromSource2 { get; private set; }
-
 	/// <summary>
 	/// A texture's backing. A render target is made to match, cleared as Source 2 clears a new one. Anything else comes
-	/// from its compiled file through Borealis.Source2, or from the pixels it was made with, as RGBA8; failing both (a
-	/// texture changed since, or made before this device), from mip 0 of Source 2's copy. A material's texture with no
-	/// path of its own (a sky's cubemap) is the material's, as Borealis's draws read it.
+	/// from its compiled file through Borealis.Source2, or from the pixels it was made with, as RGBA8; failing both, one
+	/// transparent pixel. A material's texture with no path of its own (a sky's cubemap) is the material's, as Borealis's draws read it.
 	/// </summary>
 	internal TextureHandle TextureOf( Texture texture )
 	{
@@ -967,21 +990,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			handle = gpu.CreateTexture( info );
 			Upload( handle, info, raw.Data, ImageLayout.Undefined );
 		}
-		else if ( (texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) || (!Graphics.HasSource2Device && texture.InitialPixels is null && texture.InitialColor is not null)) && texture.Depth <= 1 && DataFormatOf( texture.ImageFormat ) is var storage && storage != GpuFormat.Unknown )
+		else if ( (texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) || (texture.InitialPixels is null && texture.InitialColor is not null)) && texture.Depth <= 1 && DataFormatOf( texture.ImageFormat ) is var storage && storage != GpuFormat.Unknown )
 		{
-			// Made empty, for compute to fill (a terrain's baked normals) or made at run time with no pixels and no Source 2 device to copy from: its own format,
+			// Made empty, for compute to fill (a terrain's baked normals) or made at run time with no pixels: its own format,
 			// storage when made for compute, cleared as a new target is, to the colour it was made or last cleared with
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, storage, Math.Max( texture.Mips, 1 ), $"Engine storage {texture.Width}x{texture.Height}" );
 			if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
 			Track( handle, ImageLayout.Undefined );
 			ClearNow( handle, texture.InitialColor ?? Color.Transparent );
-		}
-		else if ( TryCopyFromSource2( texture ) is { } copy )
-		{
-			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" );
-			handle = gpu.CreateTexture( info );
-			Upload( handle, info, copy, ImageLayout.Undefined );
 		}
 		else
 		{
@@ -1179,29 +1196,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ => GpuFormat.Unknown,
 	};
 
-	/// <summary>Mip 0 of Source 2's copy as RGBA8, or null when Source 2 can't read it back.</summary>
-	unsafe byte[] TryCopyFromSource2( Texture texture )
-	{
-		// Source 2's empty render system has no pixels to read: its read would hand back zeros as if they were the texture's
-		if ( !Graphics.HasSource2Device ) return null;
-
-		try
-		{
-			var pixels = new byte[texture.Width * texture.Height * 4];
-			var rect = new NativeRect( 0, 0, texture.Width, texture.Height );
-			fixed ( byte* data = pixels ) Source2RenderBackend.Instance.ReadPixels( texture, rect, 0, 0, rect, (IntPtr)data, ImageFormat.RGBA8888, 0 );
-			CopiedFromSource2++;
-			return pixels;
-		}
-		catch ( Exception )
-		{
-			// A readback Source 2 can't do
-			return null;
-		}
-	}
-
 	/// <summary>
-	/// A texture with nothing to make it from (pixels Source 2 can't read back): one transparent pixel, kept
+	/// A texture with nothing to make it from: one transparent pixel, kept
 	/// as its backing so it isn't made again each time it's asked for, and said once.
 	/// </summary>
 	TextureHandle Unreadable( Texture texture )
@@ -1434,7 +1430,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	};
 
 	/// <summary>
-	/// A buffer's backing. One made while recording for another device starts with what Source 2's copy holds.
+	/// A buffer's backing. One made while recording for another device starts with what that device's copy holds.
 	/// </summary>
 	internal BufferHandle BufferOf( GpuBuffer buffer )
 	{
@@ -1666,11 +1662,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( material is null ) return null;
 		if ( materialFiles.TryGetValue( material, out var known ) )
 		{
-			// Code set more on it since: its own copy of the file takes the new values
-			if ( known.Version != material.SetInCodeVersion && known.File is not null && material.SetInCode is { } changed )
+			// Code set more on it since: its own copy of the file takes the new values and features
+			if ( known.Version != material.SetInCodeVersion && known.File is not null )
 			{
-				var (values, textures) = LowerSetInCode( changed );
-				services.SetOnMaterial( known.File, values, textures );
+				if ( material.SetInCode is { } changed )
+				{
+					var (values, textures) = LowerSetInCode( changed );
+					services.SetOnMaterial( known.File, values, textures );
+				}
+
+				services.SetFeaturesOnMaterial( known.File, material.FeaturesSetInCode );
 				known.Version = material.SetInCodeVersion;
 			}
 
@@ -1678,8 +1679,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		}
 
 		// A copy's path is its original's file (FilePath); as the .shader draws it, also where a surface stands in for its shader in
-		// the scene. One with values set in code is a file of its own with them over the file's; one made in code from a shader
-		// is that shader's defaults with them over
+		// the scene. One with values or features set in code is a file of its own with them over the file's; one made in code from
+		// a shader is that shader's defaults with them over
 		var path = material.FilePath;
 		BackendMaterial file = null;
 		if ( material.MadeFromShader is { } shader )
@@ -1693,13 +1694,16 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 				var (values, textures) = LowerSetInCode( set );
 				services.SetOnMaterial( file, values, textures );
 			}
+
+			services.SetFeaturesOnMaterial( file, material.FeaturesSetInCode );
 		}
 		else if ( !string.IsNullOrEmpty( path ) && files.Find( path ) is not null )
 		{
-			if ( material.SetInCode is { Count: > 0 } set )
+			if ( material.SetInCode is { Count: > 0 } || material.FeaturesSetInCode is { Count: > 0 } )
 			{
-				var (values, textures) = LowerSetInCode( set );
+				var (values, textures) = LowerSetInCode( material.SetInCode ?? new Dictionary<string, object>() );
 				file = services.LoadMaterial( path, values, textures, $"{path} (set in code)" ) as BackendMaterial;
+				services.SetFeaturesOnMaterial( file, material.FeaturesSetInCode );
 			}
 			else file = services.ShaderMaterial( path );
 		}
@@ -2244,7 +2248,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	}
 
 	/// <summary>The engine form of a backing's format, for converting what's read back, or null.</summary>
-	static ImageFormat? ImageFormatOf( GpuFormat format ) => format.Linear() switch
+	internal static ImageFormat? ImageFormatOf( GpuFormat format ) => format.Linear() switch
 	{
 		GpuFormat.RGBA8Unorm => ImageFormat.RGBA8888,
 		GpuFormat.BGRA8Unorm => ImageFormat.BGRA8888,

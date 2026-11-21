@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe M Fastener",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipemfastener",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_m_fastener.vmdl"
+      }
+    }
+  },
+  "guid": "92a765b3-571e-419d-8d64-d7b68af13bd2"
+}

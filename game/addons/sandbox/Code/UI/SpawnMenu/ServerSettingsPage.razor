@@ -1,0 +1,20 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits UtilityPage
+@namespace Sandbox
+
+<root class="page">
+    <UISheet Target="@Rows" PropertyFilter="@UISheet.PropertiesAndButtons" />
+</root>
+
+@code
+{
+    public string Group { get; init; }
+
+    List<SerializedProperty> _rows;
+
+    List<SerializedProperty> Rows => _rows ??= ServerSettings.CreateRows( Group );
+
+    // the utility tab adds one of these per group, it never lists the type itself
+    public override bool IsPageVisible() => Group is not null && ServerSettings.CanEdit;
+}

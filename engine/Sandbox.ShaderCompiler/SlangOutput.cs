@@ -16,7 +16,7 @@ public sealed class SlangOutput
 	const int Magic = 0x43474C53; // "SLGC"
 
 	/// <summary>Raised with any change to the layout.</summary>
-	const int Format = 3;
+	const int Format = 4;
 
 	readonly byte[] data;
 	readonly Dictionary<string, (int Offset, int Length)> entries = new( StringComparer.Ordinal );
@@ -26,6 +26,9 @@ public sealed class SlangOutput
 	readonly string identity, textHash;
 	readonly bool complete;
 	readonly List<(string Name, string Hash)> dependencies = [];
+
+	/// <summary>A pass module's declarations, includes and all (<see cref="PassModule.Declarations"/>); empty for other modules.</summary>
+	readonly byte[] declarations = [];
 
 	SlangOutput( byte[] data )
 	{
@@ -47,7 +50,14 @@ public sealed class SlangOutput
 
 		var count = r.ReadInt32();
 		for ( int i = 0; i < count; i++ ) entries[r.ReadString()] = records[r.ReadInt32()];
+		declarations = r.ReadBytes( r.ReadInt32() );
 	}
+
+	/// <summary>
+	/// The pass module's declarations as the offline compile read them (<see cref="PassModule.Declarations"/>), when it was made
+	/// from <paramref name="text"/>: a player's install has none of the private headers some of them come from.
+	/// </summary>
+	internal byte[] DeclarationsOf( string text ) => declarations.Length > 0 && textHash == CompileCache.Hash( text ) ? declarations : null;
 
 	/// <summary>Entries in it.</summary>
 	public int Count => entries.Count;
@@ -97,7 +107,7 @@ public sealed class SlangOutput
 		complete && identity == compiler && textHash == CompileCache.Hash( text ) && dependencies.TrueForAll( d => paths.Resolve( d.Name ) is { } path && PassCache.FileHash( path ) == d.Hash );
 
 	/// <summary>Write a compiled file at <paramref name="path"/>; not <paramref name="complete"/> when some of it failed, so it's compiled again next time.</summary>
-	internal static void Write( string path, string compiler, string text, bool complete, IEnumerable<(string Name, string Hash)> dependencies, IEnumerable<KeyValuePair<string, byte[]>> entries )
+	internal static void Write( string path, string compiler, string text, bool complete, IEnumerable<(string Name, string Hash)> dependencies, IEnumerable<KeyValuePair<string, byte[]>> entries, byte[] declarations = null )
 	{
 		// Keys whose compiles came out the same share one record
 		var list = entries.OrderBy( e => e.Key, StringComparer.Ordinal ).Select( e => (e.Key, Record: ShaderCacheFile.WithoutKey( e.Value )) ).ToList();
@@ -146,6 +156,10 @@ public sealed class SlangOutput
 				w.Write( key );
 				w.Write( record );
 			}
+
+			declarations ??= [];
+			w.Write( declarations.Length );
+			w.Write( declarations );
 		}
 
 		File.Move( temporary, path, overwrite: true );

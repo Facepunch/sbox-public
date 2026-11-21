@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Віддача",
+    "weapon.setting.primary.description": "Керує основною дією зброї.",
+    "weapon.setting.secondary.description": "Керує додатковою дією зброї.",
+    "weapon.setting.recoil_force": "Сила віддачі",
+    "weapon.setting.recoil_force.description": "Фізична віддача під час пострілу зі зброї, яку ніхто не тримає.",
+    "weapon.setting.extend": "Збільшити відстань захоплення",
+    "weapon.setting.extend.description": "Відсуває захоплений об’єкт.",
+    "weapon.setting.retract": "Зменшити відстань захоплення",
+    "weapon.setting.retract.description": "Наближає захоплений об’єкт.",
+    "weapon.setting.camera_aim": "Прицілювання камерою",
+    "weapon.setting.camera_aim.description": "Спрямовує зброю в напрямку камери гравця, що сидить.",
+    "weapon.setting.guide_rockets": "Наведення ракет",
+    "weapon.setting.guide_rockets.description": "Спрямовує випущені ракети до прицілу гравця."
+}

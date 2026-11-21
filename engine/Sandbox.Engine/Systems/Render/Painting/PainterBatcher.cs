@@ -309,7 +309,7 @@ internal partial class PainterBatcher
 				// Don't Dispose it here — may be called off the main thread. It's cleaned up by the GC finalizer.
 				Upload();
 				// The UI draws these on the device it records on; Source 2's copy (kept by the editor) is never read
-				buffer = new GpuBuffer<T>( GetBufferCapacity<T>( _items.Count ) ) { CopiesToSource2 = false };
+				buffer = new GpuBuffer<T>( GetBufferCapacity<T>( _items.Count ) );
 				_uploaded = 0;
 			}
 

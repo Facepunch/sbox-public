@@ -1,0 +1,56 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- Color ----
+	F_TINT_MASK 1
+
+	//---- PBR ----
+	F_SPECULAR 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.183"
+	g_flAmbientOcclusionDirectSpecular "0.193"
+	TextureAmbientOcclusion "materials/sbox/trimsheets/basic/trim_sheet_ao.png"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "materials/sbox/trimsheets/wood/wood_trim_painted_color.tga"
+	TextureTintMask "materials/sbox/trimsheets/wood/wood_trim_painted_tint.tga"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	g_flMetalness "0.000"
+
+	//---- Normal ----
+	TextureNormal "materials/sbox/trimsheets/wood/wood_trim_01_normal.tga"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "materials/sbox/trimsheets/wood/wood_trim_painted_rough.tga"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "wood"
+		WorldMappingWidth "64"
+		WorldMappingHeight "64"
+	}
+
+	ToolAttributes
+	{
+		SubrectDefinition "materials/sbox/trimsheets/trim_sheet_master_01a.rect"
+	}
+}
