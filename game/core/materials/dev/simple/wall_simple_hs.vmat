@@ -2,7 +2,7 @@
 
 Layer0
 {
-	shader "shaders/simple.shader_c"
+	shader "shaders/standard.shader_c"
 
 	//---- Color ----
 	g_flModelTintAmount "1.000"

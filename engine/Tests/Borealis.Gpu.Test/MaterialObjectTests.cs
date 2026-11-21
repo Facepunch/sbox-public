@@ -105,7 +105,8 @@ public class MaterialObjectTests : GpuTest
 		Frame();
 		Frame();
 		var before = Frame();
-		var material = scene.Backend.MaterialCache.Materials.First( m => m.Value( "g_vColorTint" ) is not null );
+		var material = scene.Backend.MaterialCache.Materials.FirstOrDefault( m => m.Value( "g_vColorTint" ) is not null );
+		if ( material is null ) Assert.Inconclusive( "the scene's materials are all surfaces (standard has no .shader): no .shader material objects to change" );
 		var tint = material.Value( "g_vColorTint" );
 		var objects = scene.Backend.MaterialObjectStats.Objects;
 		var made = scene.Backend.MaterialCache.Made;

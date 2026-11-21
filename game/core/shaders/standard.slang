@@ -1,6 +1,8 @@
-// The standard lit material: complex.shader, simple.shader and generic.shader as one surface. Materials of all three
-// load into it with their own values; Packing says which shader's textures they were compiled for (the normal map's
-// encoding, what the colour's alpha holds) and picks that shader's shading where the three differ.
+// The standard lit material, which stands in for complex.shader, simple.shader and generic.shader: those names are
+// aliases of standard (ShaderAliases), so materials naming them compile from this module, open in the material editor with
+// its inputs (complex's) and draw here. Materials an older engine compiled for the three load into it with their own
+// values; Packing says which shader's textures they were compiled for (the normal map's encoding, what the colour's alpha
+// holds) and picks that shader's shading where the three differ. Materials compiled now are packed as complex's.
 //
 // complex's features: colour with tint mask and object tint, the hemi-octahedral normal map with roughness, ambient
 // occlusion, metalness as a value or texture, alpha test (alpha to coverage), translucency and additive blending,
@@ -11,11 +13,129 @@
 // the three shaders do.
 //
 // The features are fields, [Source] naming the feature a .vmat sets them with, read by uniform branches; unlit, whose
-// pipelines need far fewer registers, is a specialization constant too ([Specialize]). A material using a feature this surface doesn't do
-// (a field below with Range( 0, 0 )) isn't converted and stays on its .shader: complex's parallax occlusion, anisotropic
-// gloss, retro-reflection, cloth, bent normals, normal self shadowing, diffuse wrap, the secondary uv set and wrinkles,
-// and generic's vertex paint.
+// pipelines need far fewer registers, is a specialization constant too ([Specialize]). Features this surface doesn't do
+// (the fields below with Range( 0, 0 )) aren't offered, and a material setting them draws without them: complex's parallax
+// occlusion, anisotropic gloss, retro-reflection, cloth, bent normals, normal self shadowing, diffuse wrap, the secondary
+// uv set and wrinkles, and generic's vertex paint.
 import sbox.surface;
+
+// What the material compiler makes of a .vmat's images (SlangMaterialCompiler) and the material editor shows: complex.shader's
+// texture inputs, the textures made from them, its parameters and attributes, read with the material's features. Materials
+// naming complex, simple or generic compile and open as standard's (ShaderAliases)
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines: complex.shader's, less the features this surface doesn't do (above)
+#include "vr_common_features.fxc"
+Feature( F_ALPHA_TEST, 0..1, "Translucent" );
+Feature( F_TRANSLUCENT, 0..1, "Translucent" );
+Feature( F_ADDITIVE_BLEND, 0..1, "Translucent" );
+FeatureRule( Allow1( F_ALPHA_TEST, F_TRANSLUCENT ), "Translucent and Alpha Test are not compatible" );
+FeatureRule( Requires1( F_ADDITIVE_BLEND, F_TRANSLUCENT ), "Requires translucency" );
+FeatureRule( Allow1( F_TRANSLUCENT, F_DO_NOT_CAST_SHADOWS ), "Translucent and Do Not Cast Shadows are not compatible" );
+Feature( F_TINT_MASK, 0..1, "Color" );
+Feature( F_SCALE_NORMAL_MAP, 0..1, "Normal" );
+FeatureRule( Allow1( F_SCALE_NORMAL_MAP, F_ALPHA_TEST ), "Scale normals and Alpha Test are not compatible" );
+FeatureRule( Allow1( F_SCALE_NORMAL_MAP, F_TRANSLUCENT ), "Scale normals and Translucent are not compatible" );
+FeatureRule( Allow1( F_SCALE_NORMAL_MAP, F_ADDITIVE_BLEND ), "Scale Normal Map and Additive Blend are incompatible" );
+Feature( F_SELF_ILLUM, 0..1, "PBR" );
+Feature( F_DETAIL_TEXTURE, 0..4( 0="None", 1="Mod2X", 2="Overlay", 3="Normals", 4="Overlay and Normals" ), "Detail Texture" );
+FeatureRule( Allow1( F_DETAIL_TEXTURE, F_SELF_ILLUM ), "Detail Texture and Self Illum are not compatible" );
+FeatureRule( Allow1( F_DETAIL_TEXTURE, F_ADDITIVE_BLEND ), "Detail Texture and Additive Blend are not compatible" );
+Feature( F_METALNESS_TEXTURE, 0..1, "PBR" );
+FeatureRule( Allow1( F_METALNESS_TEXTURE, F_ADDITIVE_BLEND ), "Metalness Texture and Additive Blend are not compatible" );
+Feature( F_TRANSMISSIVE_BACKFACE_NDOTL, 0..1, "PBR" );
+FeatureRule( Allow1( F_TRANSMISSIVE_BACKFACE_NDOTL, F_SCALE_NORMAL_MAP ), "Transmissive Backface Ndotl and Scale Normal Map are not compatible" );
+FeatureRule( Allow1( F_TRANSMISSIVE_BACKFACE_NDOTL, F_DETAIL_TEXTURE ), "Transmissive Backface Ndotl and Detail Texture are not compatible" );
+FeatureRule( Allow1( F_TRANSMISSIVE_BACKFACE_NDOTL, F_ADDITIVE_BLEND ), "Transmissive Backface Ndotl and Additive Blend are not compatible" );
+// The material's parameters as the material editor shows them, with the feature states that use them
+float2 g_vTexCoordScale < Default2( 1, 1 ); Range2( 0, 0, 100, 100 ); UiGroup( "Texture Coordinates,80/10" ); >;
+float2 g_vTexCoordOffset < Default2( 0, 0 ); Range2( -1, -1, 1, 1 ); UiGroup( "Texture Coordinates/20" ); >;
+float2 g_vTexCoordScrollSpeed < Default2( 0, 0 ); Range2( -10, -10, 10, 10 ); UiGroup( "Texture Coordinates/30" ); >;
+float3 g_vColorTint < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Color,10/20" ); >;
+float g_flModelTintAmount < Default( 1 ); Range( 0, 1 ); UiGroup( "Color,10/30" ); >;
+float g_flFadeExponent < Default( 1 ); Range( 1, 16 ); UiGroup( "Fade,400/10" ); >;
+float g_flNormalMapScaleFactor < Default( 1 ); Range( 0, 1 ); UiGroup( "Normal" ); >;
+float g_flRoughnessScaleFactor < Default( 1 ); Range( 0, 2 ); UiGroup( "Roughness" ); >;
+float g_flMetalness < Default( 0 ); Range( 0, 1 ); UiGroup( "Metalness,27/20" ); ActiveIf( F_METALNESS_TEXTURE == 0 ); >;
+float g_flAmbientOcclusionDirectDiffuse < Default( 0 ); Range( 0, 1 ); UiGroup( "Ambient Occlusion/20" ); >;
+float g_flAmbientOcclusionDirectSpecular < Default( 0 ); Range( 0, 1 ); UiGroup( "Ambient Occlusion/30" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
+float g_flAntiAliasedEdgeStrength < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
+float g_flOpacityScale < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); ActiveIf( F_TRANSLUCENT != 0 ); >;
+float3 g_vSelfIllumTint < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Self Illum/20" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+float g_flSelfIllumBrightness < Default( 0 ); Range( -10, 10 ); UiGroup( "Self Illum" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+float g_flSelfIllumScale < Default( 1 ); Range( 0, 16 ); UiGroup( "Self Illum/30" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+float2 g_vSelfIllumOffset < Default2( 0, 0 ); UiGroup( "Self Illum/35" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+float2 g_vSelfIllumScrollSpeed < Default2( 0, 0 ); Range2( -10, -10, 10, 10 ); UiGroup( "Self Illum/40" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+float g_flSelfIllumAlbedoFactor < Default( 1 ); Range( 0, 1 ); UiGroup( "Self Illum/50" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+float2 g_vDetailTexCoordScale < Default2( 1, 1 ); UiGroup( "Detail Texture,80/30" ); ActiveIf( F_DETAIL_TEXTURE != 0 ); >;
+float g_flDetailTexCoordRotation < Default( 0 ); Range( 0, 360 ); UiGroup( "Detail Texture,80/35" ); ActiveIf( F_DETAIL_TEXTURE != 0 ); >;
+float2 g_vDetailTexCoordOffset < Default2( 0, 0 ); Range2( -1, -1, 1, 1 ); UiGroup( "Detail Texture,80/40" ); ActiveIf( F_DETAIL_TEXTURE != 0 ); >;
+float g_flDetailBlendFactor < Default( 1 ); Range( 0, 1 ); UiGroup( "Detail Texture,80/20" ); ActiveIf( F_DETAIL_TEXTURE != 0 ); >;
+float g_flDetailBlendToFull < Default( 0 ); Range( 0, 1 ); UiGroup( "Detail Texture,80/50" ); ActiveIf( F_DETAIL_TEXTURE != 0 ); >;
+float g_flDetailNormalStrength < Default( 1 ); Range( 0, 1 ); UiGroup( "Detail Texture,80/15" ); ActiveIf( F_DETAIL_TEXTURE >= 3 ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
+// The detail textures with the modes that use each (the colour in mod2x and the overlays, the normal in the normal modes),
+// and the detail parameters declared above with the states that show them: the standard inputs leave both to this
+#if ( F_DETAIL_TEXTURE )
+Texture2D g_tDetail < Channel( RGB, Box( TextureDetail ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); ActiveIf( F_DETAIL_TEXTURE == 1 || F_DETAIL_TEXTURE == 2 || F_DETAIL_TEXTURE == 4 ); >;
+Texture2D g_tNormalDetail < Channel( RG, HemiOctIsoRoughness_RG_B( TextureNormalDetail ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); ActiveIf( F_DETAIL_TEXTURE >= 3 ); >;
+#endif
+#define DETAIL_TEXTURES_DECLARED
+#define VR_DETAIL_TEXTURE_FXC
+// The features this surface doesn't do, off
+#define S_ANISOTROPIC_GLOSS 0
+#define S_RETRO_REFLECTIVE 0
+#define S_ENABLE_NORMAL_SELF_SHADOW 0
+#define S_USE_BENT_NORMALS 0
+#define S_SECONDARY_UV 0
+#define S_DIFFUSE_WRAP 0
+#define S_CLOTH_SHADING 0
+#define S_PARALLAX_OCCLUSION 0
+#define ENABLE_NORMAL_MAPS
+#define S_SPECULAR 1
+#define S_UV2 ( S_SECONDARY_UV )
+#define S_UV2_DEFAULT_FOR_AO ( S_SECONDARY_UV )
+#define S_UV2_CONTROLS ( S_SECONDARY_UV )
+#define S_SPECULAR_CUBE_MAP 1
+#define MATERIAL_CONTROLLED_BACKFACES 1
+#define BENT_NORMAL_ACTIVE_IF ActiveIf( S_USE_BENT_NORMALS != 0 );
+#define S_DETAIL_TEXTURE F_DETAIL_TEXTURE
+#include "vr_shared_standard_vs_code.fxc"
+#define S_ALPHA_TEST F_ALPHA_TEST
+#define S_TRANSLUCENT F_TRANSLUCENT
+#define S_ADDITIVE_BLEND F_ADDITIVE_BLEND
+#define S_SELF_ILLUM F_SELF_ILLUM
+#define S_TINT_MASK F_TINT_MASK
+#define S_METALNESS_TEXTURE F_METALNESS_TEXTURE
+#define S_SCALE_NORMAL_MAP F_SCALE_NORMAL_MAP
+#define S_TRANSMISSIVE_BACKFACE_NDOTL F_TRANSMISSIVE_BACKFACE_NDOTL
+#if ( S_TRANSLUCENT )
+Texture2D g_tColor < Channel( RGB, AlphaWeighted( TextureColor, TextureTranslucency ), Srgb );
+Channel( A, Box( TextureTranslucency ), Linear );
+OutputFormat( BC7 ); SrgbRead( true ); >;
+#elif ( S_ALPHA_TEST )
+Texture2D g_tColor < Channel( RGB, AlphaWeighted( TextureColor, TextureTranslucency ), Srgb );
+Channel( A, PreserveCoverage( TextureTranslucency ), Linear );
+OutputFormat( BC7 ); SrgbRead( true ); >;
+#elif ( S_METALNESS_TEXTURE && !S_RETRO_REFLECTIVE )
+#define METALNESS_IN_COLOR
+Texture2D g_tColor < Channel( RGB, Box( TextureColor ), Srgb );
+Channel( A, Box( TextureMetalness ), Linear );
+OutputFormat( BC7 ); SrgbRead( true ); >;
+#else
+Texture2D g_tColor < Channel( RGB, Box( TextureColor ), Srgb );
+OutputFormat( DXT1 ); SrgbRead( true ); >;
+#endif
+#if ( ( S_TRANSLUCENT || S_ALPHA_TEST ) )
+TextureAttribute( LightSim_Opacity_A, g_tColor );
+#endif
+#define COLOR_SAMPLER_DEFINED
+#include "sbox/standard_material_inputs.slangh"
+CreateInputTexture2D( TextureTransmissiveColor, Srgb, 8, "", "_color", "Transmission", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tTransmissiveColor < Channel( RGB, Box( TextureTransmissiveColor ), Srgb );  OutputFormat( BC7 ); SrgbRead( true ); ActiveIf( S_TRANSMISSIVE_BACKFACE_NDOTL != 0 ); >;
+#endif
 
 // complex.shader's g_sTrilinearWrap (occlusion, metalness, self-illumination and transmission); the rest of complex's use
 // g_sAniso, the surfaces' standard filtering
@@ -45,7 +165,7 @@ public struct Standard : ICombinerSurface
 	[Group( "Features" ), Source( "F_ADDITIVE_BLEND" ), RenderState( "Blend: Additive" )] bool UseAdditiveBlend;
 	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
-	// Features this surface doesn't do: materials that set them stay on their .shader
+	// Features this surface doesn't do: materials that set them draw without them
 	[Group( "Not converted" ), Source( "F_PARALLAX_OCCLUSION" ), Range( 0, 0 )] int ParallaxOcclusion;
 	[Group( "Not converted" ), Source( "F_ANISOTROPIC_GLOSS" ), Range( 0, 0 )] int AnisotropicGloss;
 	[Group( "Not converted" ), Source( "F_RETRO_REFLECTIVE" ), Range( 0, 0 )] int RetroReflective;

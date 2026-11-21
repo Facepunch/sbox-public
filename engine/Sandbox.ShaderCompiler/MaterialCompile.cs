@@ -30,6 +30,70 @@ public sealed class MaterialCompile
 	public IReadOnlyList<string> Prerequisites { get; init; }
 
 	/// <summary>
+	/// An image's width and height from its file (PNG, JPEG, TGA, PSD, EXR), as the material compiler reads a representative
+	/// texture's; null for anything else.
+	/// </summary>
+	public static (int Width, int Height)? ImageSize( ReadOnlySpan<byte> data )
+	{
+		static int Be16( ReadOnlySpan<byte> d, int at ) => (d[at] << 8) | d[at + 1];
+		static int Be32( ReadOnlySpan<byte> d, int at ) => (d[at] << 24) | (d[at + 1] << 16) | (d[at + 2] << 8) | d[at + 3];
+		static int Le16( ReadOnlySpan<byte> d, int at ) => d[at] | (d[at + 1] << 8);
+		static int Le32( ReadOnlySpan<byte> d, int at ) => d[at] | (d[at + 1] << 8) | (d[at + 2] << 16) | (d[at + 3] << 24);
+
+		// PNG: IHDR first
+		if ( data.Length >= 24 && data[..8].SequenceEqual( (ReadOnlySpan<byte>)[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] ) ) return (Be32( data, 16 ), Be32( data, 20 ));
+
+		// PSD: 8BPS, height then width
+		if ( data.Length >= 22 && data[..4].SequenceEqual( "8BPS"u8 ) ) return (Be32( data, 18 ), Be32( data, 14 ));
+
+		// JPEG: the first start-of-frame segment
+		if ( data.Length >= 4 && data[0] == 0xFF && data[1] == 0xD8 )
+		{
+			var at = 2;
+			while ( at + 9 < data.Length )
+			{
+				if ( data[at] != 0xFF ) return null;
+				var marker = data[at + 1];
+				if ( marker is >= 0xC0 and <= 0xCF and not 0xC4 and not 0xC8 and not 0xCC ) return (Be16( data, at + 7 ), Be16( data, at + 5 ));
+				at += 2 + Be16( data, at + 2 );
+			}
+
+			return null;
+		}
+
+		// OpenEXR: the dataWindow attribute (box2i: xMin, yMin, xMax, yMax)
+		if ( data.Length >= 8 && Le32( data, 0 ) == 20000630 )
+		{
+			var at = 8;
+			while ( at < data.Length && data[at] != 0 )
+			{
+				var name = ReadName( data, ref at );
+				var type = ReadName( data, ref at );
+				if ( at + 4 > data.Length ) return null;
+				var size = Le32( data, at );
+				at += 4;
+				if ( name == "dataWindow" && type == "box2i" && at + 16 <= data.Length ) return (Le32( data, at + 8 ) - Le32( data, at ) + 1, Le32( data, at + 12 ) - Le32( data, at + 4 ) + 1);
+				at += size;
+			}
+
+			return null;
+		}
+
+		// TGA has no signature: an uncompressed or RLE colour, grey or mapped image type, sizes at 12 and 14
+		if ( data.Length >= 18 && data[2] is 1 or 2 or 3 or 9 or 10 or 11 ) return (Le16( data, 12 ), Le16( data, 14 ));
+		return null;
+
+		static string ReadName( ReadOnlySpan<byte> d, ref int at )
+		{
+			var end = d[at..].IndexOf( (byte)0 );
+			if ( end < 0 ) { at = d.Length; return ""; }
+			var name = Encoding.ASCII.GetString( d.Slice( at, end ) );
+			at += end + 1;
+			return name;
+		}
+	}
+
+	/// <summary>
 	/// The shader a material names, as the material compiler writes it: <c>shaders/x.shader</c>, from <c>x.vfx</c>,
 	/// <c>shaders/x.shader_c</c> or a bare name.
 	/// </summary>
@@ -47,9 +111,10 @@ public sealed class MaterialCompile
 	/// <summary>
 	/// Compile <paramref name="material"/> (at <paramref name="materialPath"/>, relative) for <paramref name="shader"/>
 	/// with the module's <paramref name="inputs"/> for its features. <paramref name="fileExists"/> says whether a relative
-	/// file is in the content (the default input images).
+	/// file is in the content (the default input images); <paramref name="imageSize"/> is a relative image's width and
+	/// height, or null (<see cref="ImageSize"/> of its file's start).
 	/// </summary>
-	public static MaterialCompile Compile( VmatSource material, string materialPath, string shader, MaterialInputs inputs, Func<string, bool> fileExists )
+	public static MaterialCompile Compile( VmatSource material, string materialPath, string shader, MaterialInputs inputs, Func<string, bool> fileExists, Func<string, (int Width, int Height)?> imageSize = null )
 	{
 		materialPath = materialPath.Replace( '\\', '/' );
 		var ints = new List<(string, int)>();
@@ -113,6 +178,15 @@ public sealed class MaterialCompile
 			if ( intAttributes.Exists( a => a.Item1.Equals( name, StringComparison.OrdinalIgnoreCase ) ) || floatAttributes.Exists( a => a.Item1.Equals( name, StringComparison.OrdinalIgnoreCase ) ) ) continue;
 			if ( kind == "Bool" ) intAttributes.Add( (name, (int)value[0]) );
 			else if ( kind == "Float" ) floatAttributes.Add( (name, value[0]) );
+		}
+
+		// The representative texture's first input's size, as the material compiler records it: a colour is one texel
+		if ( inputs.RepresentativeTexture is { } representative && inputs.Declared.FirstOrDefault( t => t.Name == representative ) is { Channels: [{ Inputs: [var first, ..] }, ..] }
+			&& material.Value( first ) is { Length: > 0 } file
+			&& (file[0] == '[' ? (1, 1) : imageSize?.Invoke( file.Replace( '\\', '/' ) )) is var (width, height) )
+		{
+			intAttributes.Add( ("RepresentativeTextureWidth", width) );
+			intAttributes.Add( ("RepresentativeTextureHeight", height) );
 		}
 
 		var kv = new StringBuilder();

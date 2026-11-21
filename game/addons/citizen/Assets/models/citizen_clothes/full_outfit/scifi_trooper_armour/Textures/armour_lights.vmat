@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader"
+	"shader"		"shaders/standard.shader"
 	"F_SELF_ILLUM"		"1"
 	"F_TRANSLUCENT"		"1"
 	"g_flAmbientOcclusionDirectDiffuse"		"0.000000"

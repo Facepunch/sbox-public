@@ -1680,6 +1680,36 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		return shader;
 	}
 
+	/// <summary>
+	/// What a draw with <paramref name="material"/> draws with: its shader (prepared as <see cref="Prepare"/> does), or, for a
+	/// material whose shader has no compiled <c>.shader</c> (one a surface alone stands for: standard, and complex for it;
+	/// skin, glass), the surface material its scene draws use, with what code set on it. A surface's module where the
+	/// <c>.shader_c</c> would be (<c>vertex_color.slang</c>) describes a shader with no stages to draw: that's a surface alone
+	/// too. Throws as <see cref="Require"/> when it has neither.
+	/// </summary>
+	(ShaderFile Shader, SurfaceMaterial Surface) PrepareDraw( Material material )
+	{
+		if ( ShaderOf( material ) is not { } shader || shader[global::Borealis.Source2.Shaders.ShaderProgramType.Vertex] is null )
+		{
+			if ( SurfaceOf( material ) is { } surface ) return (null, surface);
+		}
+
+		return (Prepare( material ), null);
+	}
+
+	/// <summary>
+	/// The material the scene draws for an engine material on this device (<c>MirrorContent.Material</c>: its compiled file,
+	/// or for one made or changed in code a material of its own with what code set on it, following later sets). Null when
+	/// the scene has none on this device. Set by Sandbox.Rendering.
+	/// </summary>
+	internal static Func<BorealisGpuRenderBackend, Material, global::Borealis.GpuMaterial> SceneMaterial { get; set; }
+
+	/// <summary>
+	/// The surface a material's draws use where its shader is a surface alone: the very material the scene draws it with
+	/// (<see cref="SceneMaterial"/>), so code's values, textures and features reach both alike. Null when it isn't one.
+	/// </summary>
+	SurfaceMaterial SurfaceOf( Material material ) => material is null ? null : SceneMaterial?.Invoke( this, material ) as SurfaceMaterial;
+
 	/// <summary>Draw with materials' compiled values (the default); off draws their shaders' defaults, for comparisons.</summary>
 	internal static bool MaterialValues { get; set; } = true;
 
@@ -1845,14 +1875,15 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var layout = LayoutOf( vertexType );
 		if ( layout.Stride > vertexSize ) throw new ArgumentException( $"{vertexType} vertex layout is larger than the vertex type" );
 
-		var shader = Prepare( material );
+		var (shader, surface) = PrepareDraw( material );
 		var bytes = new ReadOnlySpan<byte>( (void*)vertices, vertexSize * vertexCount );
 		// CPU vertices hold plain normals and tangents, as a native view tells its draws (UncompressedTangentFrame)
 		var lowered = Lower( attributes );
 		if ( lowered.Get( UncompressedTangentFrame ) is null ) lowered.Set( UncompressedTangentFrame, 1.0f );
 		if ( indices == IntPtr.Zero )
 		{
-			context.DrawVertices( shader, lowered, bytes, layout, vertexCount, Topology( primitiveType ) );
+			if ( surface is not null ) context.DrawSurfaceVertices( surface, lowered, bytes, layout, vertexCount, Topology( primitiveType ) );
+			else context.DrawVertices( shader, lowered, bytes, layout, vertexCount, Topology( primitiveType ) );
 			return;
 		}
 
@@ -1862,7 +1893,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		var indexBytes = new ReadOnlySpan<byte>( (void*)indices, indexCount * sizeof( ushort ) );
 		var indexUpload = list.AllocateUpload( indexBytes.Length, 16 );
 		indexBytes.CopyTo( indexUpload.Data );
-		context.Draw( shader, lowered, new GeometryDraw
+		var geometry = new GeometryDraw
 		{
 			Vertices = vertexUpload.Buffer,
 			VertexOffset = vertexUpload.Offset,
@@ -1872,7 +1903,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			IndexFormat = IndexFormat.UInt16,
 			Topology = Topology( primitiveType ),
 			Count = indexCount,
-		} );
+		};
+		if ( surface is not null ) context.DrawSurface( surface, lowered, geometry );
+		else context.Draw( shader, lowered, geometry );
 	}
 
 	public override bool SetRenderState( Material material, RenderAttributes attributes, Type vertexType )
@@ -1880,7 +1913,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		_ = Recording;
 		pendingLayout = vertexType is null ? null : LayoutOf( vertexType );
 		pendingMaterial = material;
-		pendingShader = Prepare( material );
+		pendingShader = PrepareDraw( material ).Shader;
 		pendingAttributes = attributes;
 		return true;
 	}

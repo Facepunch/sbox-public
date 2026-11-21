@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_SPECULAR"		"1"
 	"TextureColor"		"models/citizen_props/gritbin01_color.png"
 	"TextureRoughness"		"models/citizen_props/gritbin01_rough.png"

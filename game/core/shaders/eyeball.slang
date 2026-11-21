@@ -1,5 +1,4 @@
-// eyeball.shader as a pass module: Borealis.Gpu draws this; the .shader stays for the other routes
-// and as the fallback (docs/reference/borealis-slang-materials.md, "Pass modules").
+// eyeball: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 // Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -9,16 +8,44 @@
 // HEADER: Version = 22;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// MODES: Forward();
-// MODES: Depth( S_MODE_DEPTH );
-// MODES: ToolsShadingComplexity( "tools_shading_complexity.shader" );
 
 #include "sbox/pass.slangh"
+
+Mode( Forward );
+Mode( Depth, S_MODE_DEPTH );
+Mode( ToolsShadingComplexity, "tools_shading_complexity.shader" );
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 Feature( F_SPECULAR_CUBE_MAP, 0..2( 0 = "None", 1 = "In-game Cube Map", 2 = "Artist Cube Map" ), "Specular" );
 
 Feature( F_SELF_ILLUM, 0..1, "Self Illum" );
+
+// The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
+#if MATERIAL_INPUTS
+// The material editor's FEATURES lines, as the .shader declared them
+// The material's parameters as the material editor shows them, with the feature states that use them
+float2 g_vTexCoordScale < Default2( 1, 1 ); Range2( 0, 0, 100, 100 ); UiGroup( "Texture Coordinates,80/10" ); >;
+float2 g_vTexCoordOffset < Default2( 0, 0 ); Range2( -1, -1, 1, 1 ); UiGroup( "Texture Coordinates/20" ); >;
+float2 g_vTexCoordScrollSpeed < Default2( 0, 0 ); Range2( -10, -10, 10, 10 ); UiGroup( "Texture Coordinates/30" ); >;
+float3 g_vColorTint < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Color,10/20" ); >;
+float g_flModelTintAmount < Default( 1 ); Range( 0, 1 ); UiGroup( "Color,10/30" ); >;
+float g_flFadeExponent < Default( 1 ); Range( 1, 16 ); UiGroup( "Fade,400/10" ); >;
+float2 g_vReflectanceRange < Default2( 0, 1 ); Range2( 0, 0, 1, 1 ); UiGroup( "Lighting,30/Reflectance/20" ); >;
+float g_flCorneaScleraBumpStrength < Default( 1 ); Range( 0, 2 ); UiGroup( "Normal" ); >;
+float g_flIrisBumpStrength < Default( 1 ); Range( 0, 2 ); UiGroup( "Iris,30" ); >;
+float g_flParallaxStrength < Default( 0.05 ); Range( 0, 0.2 ); UiGroup( "Iris,30" ); >;
+float2 g_vIrisAutoexposureRange < Default2( 0, 0 ); Range2( 0, 0, 1, 1 ); UiGroup( "Iris,30" ); >;
+float g_flScleraDiffuseWrap < Default( 0.3 ); Range( 0, 1 ); UiGroup( "Normal/21" ); >;
+float g_flScleraDiffuseExponent < Default( 1.5 ); Range( 1, 2 ); UiGroup( "Normal/22" ); >;
+float g_flOcclusionWidth < Default( 3 ); Range( 0.1, 5 ); UiGroup( "Occlusion/20" ); >;
+float g_flOcclusionStrength < Default( 0.75 ); Range( 0, 1 ); UiGroup( "Occlusion/30" ); >;
+bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
+float3 g_vSelfIllumTint < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Self Illum" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+float g_flSelfIllumBrightness < Default( 0 ); Range( -10, 10 ); UiGroup( "Self Illum" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+float g_flSelfIllumAlbedoFactor < Default( 1 ); Range( 0, 1 ); UiGroup( "Self Illum" ); ActiveIf( F_SELF_ILLUM != 0 ); >;
+BoolAttribute( NeedsLightProbe, true );
+// End of the material editor's lines
+#endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 

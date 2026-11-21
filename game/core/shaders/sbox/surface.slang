@@ -347,6 +347,15 @@ public interface ICompositeSurface : ISurface
 	float4 Composite( float4 shaded, Material m, SurfaceInput i );
 }
 
+/// Optional, beside ISurface or ICompositeSurface: depth and shadow passes for a surface that has none of its own otherwise,
+/// one in the translucent layer ([Translucent]) or that writes no depth (glass's shadow). Its depth is dithered by the
+/// opacity ShadowOpacity returns, against the view's blue noise as a fading object's is: 0 casts nothing, 1 a full shadow.
+/// It runs instead of Evaluate in those passes, so it reads only what it needs.
+public interface IShadowSurface
+{
+	float ShadowOpacity( SurfaceInput i );
+}
+
 /// Optional: light the surface as complex.shader's final combiner does, rather than common/pixel.hlsl's shading model:
 /// emission and transmission added after the light loops, back-face transmission (Material.BackfaceTransmission), the
 /// material's direct-light occlusion factors and its own alpha-test cutoff. For surfaces standing in for complex-style

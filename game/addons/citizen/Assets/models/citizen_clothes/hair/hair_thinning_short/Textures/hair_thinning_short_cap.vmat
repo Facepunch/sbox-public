@@ -2,7 +2,7 @@
 
 Layer0
 {
-	shader "shaders/complex.shader"
+	shader "shaders/standard.shader"
 
 	//---- Translucent ----
 	F_TRANSLUCENT 1

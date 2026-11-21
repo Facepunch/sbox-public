@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_UNLIT"		"1"
 	"TextureAmbientOcclusion"		"[1.000000 1.000000 1.000000 0.000000]"
 	"g_flFadeExponent"		"1.000000"

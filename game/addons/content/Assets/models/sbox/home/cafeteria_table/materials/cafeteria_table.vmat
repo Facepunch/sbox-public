@@ -1,7 +1,7 @@
 
 Layer0
 {
-	shader "shaders/complex.shader_c"
+	shader "shaders/standard.shader_c"
 
 	TextureColor "models/sbox/home/cafeteria_table/materials/cafeteria_table_color.png"
 	TextureAmbientOcclusion "models/sbox/home/cafeteria_table/materials/cafeteria_table_ao.png"

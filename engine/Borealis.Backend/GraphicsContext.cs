@@ -317,6 +317,34 @@ public sealed class GraphicsContext
 		return Drawn( attributes, drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, draw, Viewport, mode ) );
 	}
 
+	/// <summary>
+	/// Draw <paramref name="draw"/>'s geometry with a material whose shader is a surface alone (no compiled <c>.shader</c>:
+	/// standard, skin, glass), as Borealis's scene draws it (<see cref="ShaderDrawer.DrawSurface"/>), into the target in
+	/// <see cref="Mode"/>: what the engine's draws lower to for such a material. With the identity transform unless the draw
+	/// sets its own, as <see cref="DrawVertices"/>.
+	/// </summary>
+	public bool DrawSurface( SurfaceMaterial material, ShaderAttributes attributes, in GeometryDraw draw )
+	{
+		if ( !Target.IsValid && !Depth.IsValid ) return false;
+		var depth = BeginScope( material, attributes );
+		if ( attributes.Get( TransformBufferName ) is null ) attributes.Set( TransformBufferName, IdentityTransform() );
+		if ( !drawer.DrawSurface( List, material, attributes, TargetFormat, depth, TargetSamples, draw, Viewport, Mode ) ) return false;
+		Draws++;
+		return true;
+	}
+
+	/// <summary>
+	/// <see cref="DrawSurface(SurfaceMaterial, ShaderAttributes, in GeometryDraw)"/> of <paramref name="count"/> vertices of
+	/// <paramref name="layout"/> from the CPU, as <see cref="DrawVertices"/> draws them for a shader.
+	/// </summary>
+	public bool DrawSurfaceVertices( SurfaceMaterial material, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology )
+	{
+		if ( !Target.IsValid && !Depth.IsValid ) return false;
+		var upload = List.AllocateUpload( vertices.Length, 16 );
+		vertices.CopyTo( upload.Data );
+		return DrawSurface( material, attributes, new GeometryDraw { Vertices = upload.Buffer, VertexOffset = upload.Offset, Layout = layout, Count = count, Topology = topology } );
+	}
+
 	/// <summary>Said once, the first time a draw is skipped for having no target (<see cref="HasTarget"/>).</summary>
 	public Action<string> Warn { get; set; } = message => Console.WriteLine( message );
 
@@ -1014,6 +1042,26 @@ public sealed class GraphicsContext
 
 		var variant = Depth.IsValid ? drawer.Variant( shader, attributes, mode ) : null;
 		var depth = variant?.State is { } state && (state.DepthTest || state.DepthWrite) ? (state.DepthWrite ? DepthUse.Write : DepthUse.ReadOnly) : DepthUse.None;
+		return BeginScope( depth, attributes, shader, mode, variant );
+	}
+
+	/// <summary>
+	/// <see cref="BeginScope(ShaderFile, ShaderAttributes, string)"/> for a surface's draw: depth as its render state uses it
+	/// (written into depth alone), and a target among the attributes taken as unread, since surfaces read the view's
+	/// colour and depth through the view set.
+	/// </summary>
+	Format BeginScope( SurfaceMaterial material, ShaderAttributes attributes )
+	{
+		if ( !Target.IsValid && !Depth.IsValid ) throw new InvalidOperationException( "No target is bound." );
+		var state = material.RenderState;
+		var depth = !Depth.IsValid ? DepthUse.None : !Target.IsValid ? DepthUse.Write : state.DepthTest || state.DepthWrite ? (state.DepthWrite ? DepthUse.Write : DepthUse.ReadOnly) : DepthUse.None;
+		return BeginScope( depth, attributes, null, null, null );
+	}
+
+	// The scope for a draw using depth as given; a target among the attributes is an error where the shader reads it (a
+	// surface, with no shader, reads none)
+	Format BeginScope( DepthUse depth, ShaderAttributes attributes, ShaderFile shader, string mode, ShaderVariant variant )
+	{
 		if ( depth == DepthUse.None && !Target.IsValid ) depth = DepthUse.ReadOnly;
 
 		if ( dispatched.Count > 0 ) ReadableAfterDispatches( attributes );
@@ -1025,7 +1073,7 @@ public sealed class GraphicsContext
 			// The targets may be among the attributes (a post process's view colour and depth) without the shader reading them
 			if ( texture == Target || texture == Depth )
 			{
-				if ( !Reads( variant ?? drawer.Variant( shader, attributes, mode ), name ) ) continue;
+				if ( shader is null || !Reads( variant ?? drawer.Variant( shader, attributes, mode ), name ) ) continue;
 
 				// A draw that samples the colour it draws into (a feedback effect: RUN IT AGAIN's menu, its last frame) reads it
 				// as it was before the draw: a copy stands in for it while it draws
