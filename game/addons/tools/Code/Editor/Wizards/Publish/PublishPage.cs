@@ -26,6 +26,7 @@ partial class PublishWizard : BaseWizard
 	{
 		AddStep( new ReviewWizardPage() // this the right ident etc
 		{
+			Wizard = this,
 			Project = Project,
 			PublishConfig = Config,
 			CanUploadSourceFiles = context?.CanIncludeSourceFiles ?? true
