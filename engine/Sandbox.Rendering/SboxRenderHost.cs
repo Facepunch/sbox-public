@@ -23,6 +23,9 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override bool ContactShadows => Sandbox.Rendering.ContactShadows.Enabled;
 
+	// The player's volumetric fog setting, which the quality profiles set: native's convar (CRenderingPipelineStandard)
+	public override bool VolumetricFog => ConVarSystem.GetNativeInt( "r_enable_volume_fog", 1 ) != 0;
+
 	public override bool OcclusionCulling => ManagedSceneRendering.Occlusion;
 
 	public override FragmentOcclusion FragmentOcclusion => (FragmentOcclusion)ManagedSceneRendering.OcclusionAggregates;
