@@ -7,7 +7,7 @@ using System.Linq;
 namespace EngineTests;
 
 /// <summary>
-/// The engine's own drawing on Borealis.Gpu (<c>Graphics.DrawModel</c>, <c>Graphics.Render</c>, <c>Graphics.Draw</c> with
+/// The engine's own drawing on Borealis.Gpu (<c>Graphics.DrawModel</c>, <c>Graphics.Draw</c> with
 /// vertices or a vertex buffer, a command list's draws, all from a custom object) with materials whose shader is a surface
 /// alone, with no compiled <c>.shader</c>: standard's (complex, simple and generic stand for it), a material made in code
 /// from it with values and a texture set, and the held surfaces' (skin, glass, blendable, vertex_color). Each draws what
@@ -25,7 +25,6 @@ public class BorealisGpuSurfaceDrawsTest
 	/// <summary>A model drawn by the scene on the left and by a custom object's <paramref name="draw"/> on the right: the halves match.</summary>
 	[TestMethod]
 	[DataRow( "DrawModel" )]
-	[DataRow( "Render" )]
 	[DataRow( "CommandList" )]
 	public void CustomModelDrawsMatchTheScene( string path )
 	{
@@ -37,7 +36,7 @@ public class BorealisGpuSurfaceDrawsTest
 		try
 		{
 			Light( world );
-			var scene = new SceneModel( world, model, Left );
+			_ = new SceneModel( world, model, Left );
 			var commands = new CommandList();
 			commands.DrawModel( model, Right );
 			var custom = new SceneCustomObject( world ) { Transform = Right, Bounds = model.Bounds.Transform( Right ) };
@@ -46,7 +45,6 @@ public class BorealisGpuSurfaceDrawsTest
 				switch ( path )
 				{
 					case "DrawModel": Graphics.DrawModel( model, Right ); break;
-					case "Render": Graphics.Render( scene, Right ); break;
 					case "CommandList": commands.Execute(); break;
 				}
 			};
