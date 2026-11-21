@@ -37,15 +37,51 @@ public class ContactShadowTests : GpuTest
 		Assert.IsTrue( darker > Width * Height / 200, $"{darker} pixels darker with contact shadows" );
 	}
 
-	byte[] Render( bool contactShadows )
+	/// <summary>
+	/// The same frame recorded in parallel with the depth chain and contact shadows on the async compute queue, beside the
+	/// sun's shadow maps on graphics, draws the same pixels as with every layer on graphics, and validation (synchronisation
+	/// included) finds nothing wrong with the handoffs between the queues.
+	/// </summary>
+	[TestMethod]
+	public void AsyncComputeDrawsTheSameFrame()
 	{
-		using var backend = new BackendDevice( Device );
+		if ( !Device.Capabilities.AsyncCompute ) Assert.Inconclusive( "No async compute queue" );
+
+		var serial = Render( true, parallel: true, asyncCompute: false, out var overlappedSerial );
+		var overlapped = Render( true, parallel: true, asyncCompute: true, out var overlappedAsync );
+		Assert.IsFalse( overlappedSerial, "with async compute off, nothing goes on the compute queue" );
+		Assert.IsTrue( overlappedAsync, "the frame put its compute layers on the async compute queue" );
+
+		// The contact shadows' march differs by a few pixels from one run to the next on its own (about 70 of these 65,536 on an
+		// RX 9070 XT, async compute or not): the same frame is the same within that
+		var again = Render( true, parallel: true, asyncCompute: false, out _ );
+		var noise = Differing( serial, again );
+		var differing = Differing( serial, overlapped );
+		Assert.IsTrue( differing <= Math.Max( 3 * noise, 200 ), $"{differing} pixels differ with async compute, {noise} between two runs without" );
+	}
+
+	static int Differing( byte[] a, byte[] b )
+	{
+		var count = 0;
+		for ( int i = 0; i < a.Length; i += 4 )
+		{
+			if ( a[i] != b[i] || a[i + 1] != b[i + 1] || a[i + 2] != b[i + 2] ) count++;
+		}
+
+		return count;
+	}
+
+	byte[] Render( bool contactShadows ) => Render( contactShadows, parallel: false, asyncCompute: false, out _ );
+
+	byte[] Render( bool contactShadows, bool parallel, bool asyncCompute, out bool overlapped )
+	{
+		using var backend = new BackendDevice( Device ) { AsyncCompute = asyncCompute };
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		try
 		{
 			Assert.IsTrue( RenderHost.Current.ContactShadows, "Borealis.Gpu draws contact shadows" );
-			using var system = new RenderSystem { ParallelRecording = false };
+			using var system = new RenderSystem { ParallelRecording = parallel };
 			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Contact shadow test" );
 			var world = new RenderWorld();
 			world.Lighting.SunDirection = new Vector3( -1, 0.2f, -0.8f ).Normal;
@@ -54,6 +90,9 @@ public class ContactShadowTests : GpuTest
 			world.Lighting.SunContactShadows = contactShadows;
 			var material = backend.CreateMaterial( "Contact shadow grey", Color.Gray );
 			world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), Transform.Zero ) { CastShadows = false } );
+
+			// A second box, which casts into the sun's shadow maps: graphics work for the compute queue to overlap
+			if ( parallel ) world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( new Vector3( 0, 120, 0 ), Rotation.Identity, 1 ) ) );
 			world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, material ), new Transform( new Vector3( 0, 0, -52.5f ), Rotation.Identity, new Vector3( 20, 20, 0.05f ) ) ) );
 
 			var view = new RenderView { Name = "Contact shadow test", FieldOfView = 60, ZNear = 4, ZFar = 4000, Viewport = new Rect( 0, 0, Width, Height ) };
@@ -63,13 +102,14 @@ public class ContactShadowTests : GpuTest
 			backend.BeginFrame();
 			RenderHost.Current.NextFrame();
 			system.Render( world, view, target, new CameraStages() );
+			overlapped = system.Frame.AsyncCompute;
 			Device.WaitIdle();
 
 			var (texture, layout) = BackendDevice.Unwrap( target.Color );
 			var halfs = ReadBack( texture, layout );
 			var rgba = new byte[Width * Height * 4];
 			for ( int i = 0; i < rgba.Length; i++ ) rgba[i] = (byte)Math.Clamp( (float)BitConverter.ToHalf( halfs, i * 2 ) * 255, 0, 255 );
-			Save( rgba, Width, Height, $"contact-shadows-{(contactShadows ? "on" : "off")}" );
+			Save( rgba, Width, Height, $"contact-shadows-{(contactShadows ? "on" : "off")}{(parallel ? asyncCompute ? "-async" : "-parallel" : "")}" );
 			return rgba;
 		}
 		finally

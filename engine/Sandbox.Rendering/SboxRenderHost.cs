@@ -13,9 +13,8 @@ internal sealed class SboxRenderHost : RenderHost
 	/// </summary>
 	public override GpuDevice Device => RenderBackend.Default is BorealisGpuRenderBackend backend ? backend.Services : null;
 
-	// What a Borealis.Gpu device doesn't do yet: async compute (Borealis.Backend's BackendRenderHost), occlusion culling's debug
-	// output and GPU timings
-	public override bool AsyncCompute => false;
+	// Async compute where the device has a compute queue (BackendDevice.SupportsAsyncCompute) and r_managed_async_compute is on
+	public override bool AsyncCompute => ManagedSceneRendering.AsyncCompute && Device is { SupportsAsyncCompute: true };
 
 	public override ulong FrameCount => Application.FrameCount;
 
