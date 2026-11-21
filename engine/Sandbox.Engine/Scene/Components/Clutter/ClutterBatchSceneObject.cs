@@ -336,10 +336,13 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		for ( int lod = 0; lod < _lodCount; lod++ )
 			_commandList.UavBarrier( _visible[lod] );
 
+		// A buffer transition waits for all earlier GPU work (BottomOfPipe source stage), so every LOD's
+		// transitions go before the copies and draws. Interleaved, each LOD waited for the previous one.
 		for ( int lod = 0; lod < _lodCount; lod++ )
-		{
 			_commandList.ResourceBarrierTransition( _args[lod], ResourceState.CopyDestination );
 
+		for ( int lod = 0; lod < _lodCount; lod++ )
+		{
 			// Every draw call at this LOD draws the same visible-instance set, just a different
 			// material's index range, so the same counter is replicated into each entry's InstanceCount.
 			for ( int d = 0; d < _drawCallCounts[lod]; d++ )
@@ -350,8 +353,10 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		{
 			_commandList.ResourceBarrierTransition( _visible[lod], ResourceState.GenericRead );
 			_commandList.ResourceBarrierTransition( _args[lod], ResourceState.IndirectArgument );
-			_commandList.DrawModelInstancedIndirect( _model, _visible[lod], _args[lod], 0, lod );
 		}
+
+		for ( int lod = 0; lod < _lodCount; lod++ )
+			_commandList.DrawModelInstancedIndirect( _model, _visible[lod], _args[lod], 0, lod );
 	}
 
 	public override void RenderSceneObject()
