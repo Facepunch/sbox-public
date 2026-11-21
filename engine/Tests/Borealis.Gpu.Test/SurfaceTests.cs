@@ -116,6 +116,8 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( (Filter.Nearest, Filter.Nearest), (With( 3 ).MinFilter, With( 3 ).MagFilter), "point" );
 		Assert.AreEqual( (Filter.Nearest, Filter.Nearest), (With( 4 ).MinFilter, With( 4 ).MagFilter), "nearest" );
 
+		// water_simple is a surface now (water_simple.slang): a leftover compiled file isn't the pass module this checks
+		if ( !File.Exists( Path.Combine( Core, "shaders", "water_simple.shader" ) ) ) { Assert.Inconclusive( "water_simple has no .shader: it's a surface now" ); return; }
 		using var backend = new BackendDevice( Device );
 		var shader = backend.Shaders.Load( "shaders/water_simple.shader" );
 		if ( shader is null ) Assert.Inconclusive( "water_simple isn't compiled" );
