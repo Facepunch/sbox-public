@@ -298,9 +298,7 @@
     /// </summary>
     string Eta( long bytesLeft )
     {
-        if ( bytesLeft <= 0 || mbps <= 0 ) return null;
-
-        var time = TimeSpan.FromSeconds( Math.Max( 1, Math.Round( bytesLeft / (mbps * 1024 * 1024 / 8) ) ) );
+        if ( WorkshopDownloadEta.Calculate( bytesLeft, mbps ) is not { } time ) return null;
 
         // Seconds only once it's under a minute
         return time.ToCountdownString( includeSeconds: time.TotalMinutes < 1 );
