@@ -110,6 +110,7 @@ public sealed partial class GraphBuilder
 		} );
 	}
 
+	[Expose]
 	public enum IKSwivelMode
 	{
 		Parent,
