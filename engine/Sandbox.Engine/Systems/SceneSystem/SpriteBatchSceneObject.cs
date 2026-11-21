@@ -24,6 +24,20 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	private readonly GpuBuffer<uint> SpriteAtomicCounter;
 	private readonly CommandList _commandList = new( "SpriteBatch" );
 
+	/// <summary>
+	/// What shadow views replay: the same as <see cref="_commandList"/> without the sort, which a depth pass has no use for.
+	/// Every shadow view runs it itself: one view's compute can't be shared with another's draw, since nothing orders the
+	/// first before the second.
+	/// </summary>
+	private readonly CommandList _shadowCommandList = new( "SpriteBatchShadow" );
+	private CommandList _renderShadowList;
+
+	/// <summary>
+	/// Where each group's sprites, and each component sprite, are as of the last upload - what a shadow view tests, since
+	/// <see cref="SceneObject.Bounds"/> is all of them together.
+	/// </summary>
+	private BBox[] _viewBounds = [];
+
 	private static Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
 
 	/// <summary>
@@ -265,6 +279,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		Delete(); // native removal waits for frame end, so also empty what RenderSceneObject replays
 		_pendingSpriteCount = 0;
 		_commandList.Reset();
+		_shadowCommandList.Reset();
 		SpriteAtomicCounter.Dispose();
 		VertexBuffer.Dispose();
 		IndexBuffer.Dispose();
@@ -554,6 +569,33 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		// Use a degenerate zero-size bounds for empty batches so they can be frustum-culled.
 		Bounds = spriteCount > 0 ? new BBox( boundsMin, boundsMax ) : default;
 
+		// Each group and component on its own, for the shadow views that only some of them reach - a batch that doesn't cast
+		// is in none
+		if ( Flags.CastShadows )
+		{
+			int boxes = componentCount;
+			foreach ( var spriteGroup in SpriteGroups.Values )
+			{
+				if ( spriteGroup.Count > 0 ) boxes++;
+			}
+
+			var viewBounds = new BBox[boxes];
+			int box = 0;
+			for ( int i = 0; i < componentCount; i++ )
+				viewBounds[box++] = new BBox( _componentBounds[i].mins, _componentBounds[i].maxs );
+
+			foreach ( var spriteGroup in SpriteGroups.Values )
+			{
+				if ( spriteGroup.Count > 0 ) viewBounds[box++] = spriteGroup.Bounds;
+			}
+
+			_viewBounds = viewBounds;
+		}
+		else
+		{
+			_viewBounds = [];
+		}
+
 		_pendingSpriteCount = spriteCount;
 		GPUUploadQueued = false;
 
@@ -565,108 +607,148 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	private const int MaxDimThreads = GroupSize * MaxDimGroups;
 
 	/// <summary>
-	/// Build the command list that will be replayed on the render thread.
+	/// Build the command lists that will be replayed on the render thread: one for the views a player looks through, which
+	/// sorts, and one for shadow views, which don't need an order.
 	/// </summary>
 	private void BuildCommandList( int spriteCount, int splotCount, int componentCount )
 	{
 		_commandList.Reset();
+		_shadowCommandList.Reset();
 
 		if ( spriteCount == 0 )
 			return;
 
+		int totalInstances = spriteCount + splotCount;
+		bool didSort = RecordSprites( _commandList, spriteCount, splotCount, componentCount, Sorted );
+
+		// Without a sort the two lists would be the same, and a batch that casts no shadow is drawn in no shadow view
+		bool shadowList = didSort && Flags.CastShadows;
+		if ( shadowList ) RecordSprites( _shadowCommandList, spriteCount, splotCount, componentCount, false );
+		_renderShadowList = shadowList ? _shadowCommandList : _commandList;
+
+		_renderInstanceCount = totalInstances;
+		_renderIsSorted = didSort;
+		_renderFiltered = Filtered;
+		_renderAdditive = Additive;
+		_renderOpaque = Opaque;
+		_renderRefraction = Flags.WantsFrameBufferCopy;
+		_renderHasText = _pendingHasText;
+		_renderFrame = Application.FrameCount;
+	}
+
+	/// <summary>
+	/// Record the upload, the compute that writes every sprite and its trail, and, if <paramref name="sorted"/>, the sort.
+	/// Returns whether it sorted.
+	/// </summary>
+	private bool RecordSprites( CommandList list, int spriteCount, int splotCount, int componentCount, bool sorted )
+	{
 		// Upload sprite data to GPU (deferred to render thread, zero-copy)
 		if ( componentCount > 0 )
 		{
-			_commandList.SetBufferData( SpriteBuffer, SpriteDataBuffer, 0, componentCount );
+			list.SetBufferData( SpriteBuffer, SpriteDataBuffer, 0, componentCount );
 		}
 
 		int currentOffset = componentCount;
 		foreach ( var group in SpriteGroups.Values )
 		{
-			_commandList.SetBufferData( SpriteBuffer, group.SharedSprites, group.Offset, group.Count, currentOffset );
+			list.SetBufferData( SpriteBuffer, group.SharedSprites, group.Offset, group.Count, currentOffset );
 			currentOffset += group.Count;
 		}
 
-		bool sorted = Sorted;
-		bool filtered = Filtered;
-		bool additive = Additive;
-		bool opaque = Opaque;
 		int bufferSize = CurrentBufferSize;
 		int totalInstances = spriteCount + splotCount;
 
-		_commandList.SetBufferData( SpriteAtomicCounter, ZeroUint );
+		list.SetBufferData( SpriteAtomicCounter, ZeroUint );
 
 		if ( sorted && totalInstances >= 2 )
 		{
-			_commandList.Attributes.Set( "SortBuffer", (GpuBuffer)GPUSortingBuffer );
-			_commandList.Attributes.Set( "DistanceBuffer", (GpuBuffer)GPUDistanceBuffer );
-			_commandList.Attributes.Set( "Count", bufferSize );
-			_commandList.Attributes.SetCombo( "D_CLEAR", 1 );
-			_commandList.DispatchCompute( SortComputeShader, bufferSize, 1, 1 );
+			list.Attributes.Set( "SortBuffer", (GpuBuffer)GPUSortingBuffer );
+			list.Attributes.Set( "DistanceBuffer", (GpuBuffer)GPUDistanceBuffer );
+			list.Attributes.Set( "Count", bufferSize );
+			list.Attributes.SetCombo( "D_CLEAR", 1 );
+			list.DispatchCompute( SortComputeShader, bufferSize, 1, 1 );
 
-			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
-			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+			list.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+			list.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
 		}
 
-		_commandList.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
-		_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBuffer, ResourceState.Common );
-		_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBufferOut, ResourceState.Common );
-		_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.Common );
+		list.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
+		list.ResourceBarrierTransition( (GpuBuffer)SpriteBuffer, ResourceState.Common );
+		list.ResourceBarrierTransition( (GpuBuffer)SpriteBufferOut, ResourceState.Common );
+		list.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.Common );
 
-		_commandList.Attributes.Set( "Sprites", (GpuBuffer)SpriteBuffer );
-		_commandList.Attributes.Set( "SpriteBufferOut", (GpuBuffer)SpriteBufferOut );
-		_commandList.Attributes.Set( "SpriteCount", spriteCount );
-		_commandList.Attributes.Set( "AtomicCounter", SpriteAtomicCounter );
-		_commandList.Attributes.Set( "DistanceBuffer", (GpuBuffer)GPUDistanceBuffer );
-		_commandList.DispatchCompute( SpriteComputeShader, spriteCount, 1, 1 );
+		list.Attributes.Set( "Sprites", (GpuBuffer)SpriteBuffer );
+		list.Attributes.Set( "SpriteBufferOut", (GpuBuffer)SpriteBufferOut );
+		list.Attributes.Set( "SpriteCount", spriteCount );
+		list.Attributes.Set( "AtomicCounter", SpriteAtomicCounter );
+		list.Attributes.Set( "DistanceBuffer", (GpuBuffer)GPUDistanceBuffer );
+		list.DispatchCompute( SpriteComputeShader, spriteCount, 1, 1 );
 
-		_commandList.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
-		_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBufferOut, ResourceState.Common );
+		list.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
+		list.ResourceBarrierTransition( (GpuBuffer)SpriteBufferOut, ResourceState.Common );
 
-		if ( sorted && totalInstances >= 2 )
+		if ( !sorted || totalInstances < 2 )
+			return false;
+
+		list.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.Common );
+		list.Attributes.SetCombo( "D_CLEAR", 0 );
+
+		var x = Math.Min( bufferSize, MaxDimThreads );
+		var y = (bufferSize + MaxDimThreads - 1) / MaxDimThreads;
+
+		for ( var dim = 2; dim <= bufferSize; dim <<= 1 )
 		{
-			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.Common );
-			_commandList.Attributes.SetCombo( "D_CLEAR", 0 );
+			list.Attributes.Set( "Dim", dim );
 
-			var x = Math.Min( bufferSize, MaxDimThreads );
-			var y = (bufferSize + MaxDimThreads - 1) / MaxDimThreads;
-
-			for ( var dim = 2; dim <= bufferSize; dim <<= 1 )
+			for ( var block = dim >> 1; block > 0; block >>= 1 )
 			{
-				_commandList.Attributes.Set( "Dim", dim );
+				list.Attributes.Set( "Block", block );
+				list.DispatchCompute( SortComputeShader, x, y, 1 );
 
-				for ( var block = dim >> 1; block > 0; block >>= 1 )
-				{
-					_commandList.Attributes.Set( "Block", block );
-					_commandList.DispatchCompute( SortComputeShader, x, y, 1 );
-
-					_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
-					_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
-				}
+				list.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+				list.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
 			}
 		}
 
-		bool didSort = sorted && totalInstances >= 2;
+		return true;
+	}
 
-		_renderInstanceCount = totalInstances;
-		_renderIsSorted = didSort;
-		_renderFiltered = filtered;
-		_renderAdditive = additive;
-		_renderOpaque = opaque;
-		_renderRefraction = Flags.WantsFrameBufferCopy;
-		_renderHasText = _pendingHasText;
-		_renderFrame = Application.FrameCount;
+	/// <summary>
+	/// Whether any group or component sprite is in the view being rendered. The scene's own cull tests <see cref="SceneObject.Bounds"/>,
+	/// all of them together: two groups apart pass it for a view that reaches neither.
+	/// </summary>
+	private bool ReachesView()
+	{
+		var boxes = _viewBounds;
+		if ( boxes.Length == 0 ) return true;
+
+		var frustum = Graphics.Frustum;
+		foreach ( var box in boxes )
+		{
+			if ( frustum.IsInside( box, true ) ) return true;
+		}
+
+		return false;
 	}
 
 	public override void RenderSceneObject()
 	{
 		base.RenderSceneObject();
 
-		if ( _pendingSpriteCount == 0 || !_commandList.Enabled )
+		if ( _pendingSpriteCount == 0 )
+			return;
+
+		bool shadow = Graphics.LayerType == SceneLayerType.Shadow;
+		if ( shadow && !ReachesView() )
+			return;
+
+		var list = shadow ? _renderShadowList : _commandList;
+		if ( list is null || !list.Enabled )
 			return;
 
 		Graphics.Attributes.Set( "CameraPosition", Graphics.CameraPosition );
-		_commandList.ExecuteOnRenderThread();
+
+		list.ExecuteOnRenderThread();
 
 		var attributes = RenderAttributes.Pool.Get();
 		try
@@ -677,7 +759,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			// The scene binds FrameBufferCopyTexture for readers in translucent layers.
 			bool refractive = _renderRefraction && Graphics.LayerType == SceneLayerType.Translucent;
 			attributes.SetCombo( "D_REFRACTION", refractive ? 1 : 0 );
-			attributes.Set( "IsSorted", _renderIsSorted ? 1 : 0 );
+			attributes.Set( "IsSorted", !shadow && _renderIsSorted ? 1 : 0 );
 			attributes.Set( "SpriteCount", _renderInstanceCount );
 			attributes.Set( "Filtered", _renderFiltered );
 			attributes.Set( "Sprites", (GpuBuffer)SpriteBufferOut );
