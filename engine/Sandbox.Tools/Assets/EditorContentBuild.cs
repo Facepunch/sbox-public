@@ -36,8 +36,6 @@ internal static class EditorContentBuild
 	static string compilerKey;
 	static Task incrementalBuild;
 	static CancellationTokenSource cancellation;
-	static RealTimeSince buildStarted;
-	static PopupToast progress;
 
 	/// <summary>
 	/// Changes usually come in bursts (a save writes several files, a checkout many)
@@ -140,9 +138,6 @@ internal static class EditorContentBuild
 		if ( building )
 		{
 			ContentCompilerHost.Pump();
-			if ( incrementalBuild is { IsCompleted: false } && buildStarted > 1 )
-				progress ??= new PopupToast { Title = "Compiling assets", Icon = "build" };
-			if ( progress?.GetCancel().IsCancellationRequested == true ) cancellation?.Cancel();
 			return;
 		}
 
@@ -171,7 +166,6 @@ internal static class EditorContentBuild
 	{
 		building = true;
 		startupBuild = startup;
-		buildStarted = 0;
 		cancellation = new CancellationTokenSource();
 		var generation = codeGeneration;
 		IAssetSystem.SuspendOnDemandCompiles( true );
@@ -214,11 +208,7 @@ internal static class EditorContentBuild
 					IToolsDll.Current?.Spin();
 				}
 				: null,
-				JobFinished = source =>
-				{
-					if ( startup ) EditorSplashScreen.SetMessage( $"Compiled {source}" );
-					else if ( progress is not null ) progress.Subtitle = $"Compiled {source}";
-				},
+				JobFinished = startup ? source => EditorSplashScreen.SetMessage( $"Compiled {source}" ) : null,
 			};
 
 			// The last build's workers are gone before this one takes any
@@ -241,9 +231,8 @@ internal static class EditorContentBuild
 
 			if ( report.Error is not null || report.Cancelled )
 			{
-				// An explicit cancel waits for another edit; a lock conflict or hotload retries automatically.
-				if ( progress?.GetCancel().IsCancellationRequested == true && generation == codeGeneration ) builtEpoch = epoch;
-				else retryAfter = RetryDelay;
+				// A lock conflict or hotload retries automatically
+				retryAfter = RetryDelay;
 				return;
 			}
 
@@ -258,8 +247,6 @@ internal static class EditorContentBuild
 		}
 		finally
 		{
-			progress?.Dispose();
-			progress = null;
 			cancellation.Dispose();
 			cancellation = null;
 			IAssetSystem.SuspendOnDemandCompiles( false );
