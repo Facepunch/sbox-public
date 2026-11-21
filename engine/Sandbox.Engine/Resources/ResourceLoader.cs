@@ -252,7 +252,14 @@ internal static class ResourceLoader
 
 		var fileSystem = EngineFileSystem.Mounted;
 		var watchers = Watchers.GetOrCreateValue( fileSystem );
-		var key = (context, type.TargetType.AssemblyQualifiedName);
+
+		// Keyed and captured without the assembly version: a hotloaded game type keeps its watcher, and the callback
+		// looks the type up when files change. Capturing the type pinned the unloaded assembly it came from, with every
+		// older version that one still referenced, and kept loading changed files with the old type.
+		var extension = type.Extension;
+		var assemblyName = type.TargetType.Assembly.GetName().Name;
+		var typeName = type.TargetType.FullName;
+		var key = (context, $"{assemblyName}:{typeName}");
 		if ( watchers.ContainsKey( key ) )
 			return;
 
@@ -262,9 +269,15 @@ internal static class ResourceLoader
 			if ( context.FileMount != fileSystem || context.ResourceSystem is null )
 				return;
 
+			// The context outlives type library resets, the library itself gets replaced
+			var current = context.TypeLibrary?.GetAttributes<AssetTypeAttribute>().FirstOrDefault( x => x.Extension == extension
+				&& x.TargetType.FullName == typeName && x.TargetType.Assembly.GetName().Name == assemblyName );
+			if ( current is null )
+				return;
+
 			// Watchers are dispatched together, outside the context in which they were created.
 			using var scope = new GlobalContext.GlobalContextScope( context );
-			OnAssetFilesChanged( watch, type );
+			OnAssetFilesChanged( watch, current );
 		};
 
 		var subscription = new WatcherSubscription( watcher );

@@ -151,6 +151,7 @@ namespace Sandbox
 				ScopeMethodOrdinals.Clear();
 				AnonymousTypes.Clear();
 				RootUpgraderGroup.ClearCache();
+				ReferencePath.Clear();
 
 				// If a start hook failed, no references moved. Keep the old roots and retry the swap.
 				if ( walkStarted ) AdvanceWatchedAssemblies();
