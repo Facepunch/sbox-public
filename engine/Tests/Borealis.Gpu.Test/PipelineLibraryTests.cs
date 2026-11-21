@@ -530,7 +530,7 @@ public class PipelineLibraryTests : GpuTest
 		}
 		finally
 		{
-			Directory.Delete( folder, recursive: true );
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, recursive: true );
 		}
 
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
@@ -570,7 +570,7 @@ public class PipelineLibraryTests : GpuTest
 		}
 		finally
 		{
-			Directory.Delete( folder, recursive: true );
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, recursive: true );
 		}
 	}
 
@@ -646,7 +646,7 @@ public class PipelineLibraryTests : GpuTest
 		}
 		finally
 		{
-			Directory.Delete( folder, recursive: true );
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, recursive: true );
 		}
 
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
@@ -694,7 +694,7 @@ public class PipelineLibraryTests : GpuTest
 		}
 		finally
 		{
-			Directory.Delete( folder, recursive: true );
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, recursive: true );
 		}
 
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
