@@ -235,6 +235,9 @@ public class MeshletTests
 				CollectionAssert.AreEqual( System.Runtime.InteropServices.MemoryMarshal.AsBytes( expected.Meshlets.AsSpan() ).ToArray(), records.ToArray(), "and its records are the load's" );
 				var set = MeshletSet.FromCooked( stored, records.Span, config );
 				Assert.IsTrue( set is { InPlace: true } && set.Meshlets.Length == expected.Meshlets.Length, "which the store takes as they are" );
+				var (cookedCorners, builtCorners) = (set.Corners(), expected.Corners());
+				Assert.IsTrue( cookedCorners.Low == builtCorners.Low && cookedCorners.Span == builtCorners.Span, "with the load's first-corner table" );
+				CollectionAssert.AreEqual( builtCorners.Words, cookedCorners.Words, "word for word" );
 				Assert.IsNull( MeshletSet.FromCooked( stored, records.Span, new MeshletConfig( 64, 4 ) ), "but not with meshlets over its config" );
 				Assert.IsTrue( mesh.IndexBuffers[ibIndex].Meshlets is null, "the mesh as compiled has none" );
 				ranges++;
@@ -258,7 +261,7 @@ public class MeshletTests
 				{
 					var level = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( levels.Buffers[k].Data ).ToArray();
 					var own = levels.Buffers[k].Meshlets.Find( 0, level.Length, cooked.VertexBuffers[vbIndex], baseVertex );
-					Assert.IsTrue( MeshletSet.FromCooked( level, own.Span, config ) is { InPlace: true }, "each level's meshlets cover it, taken as they are" );
+					Assert.IsTrue( MeshletSet.FromCooked( level, own.Span, config ) is { InPlace: true } levelSet && levelSet.Corners() is { } levelCorners && levelCorners.Words.Length == levelCorners.Span + 1 + levelSet.Triangles, "each level's meshlets cover it, taken as they are, with a first-corner table" );
 				}
 
 				levelCount += levels.Buffers.Count;
