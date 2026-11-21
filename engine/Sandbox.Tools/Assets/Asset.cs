@@ -550,11 +550,14 @@ public abstract partial class Asset
 	/// </summary>
 	/// <param name="obj">The instance data to save.</param>
 	/// <returns>Whether the instance was successfully saved or not.</returns>
-	public virtual bool SaveToDisk( GameResource obj ) => SaveToDisk( obj, register: true );
+	public virtual bool SaveToDisk( GameResource obj ) => SaveToDisk( obj, register: true, compile: true );
 
-	internal bool SaveSource( GameResource obj ) => SaveToDisk( obj, register: false );
+	/// <summary>
+	/// Writes the source only: the content build compiles it on a worker, off the editor's thread.
+	/// </summary>
+	internal bool SaveSource( GameResource obj ) => SaveToDisk( obj, register: false, compile: false );
 
-	bool SaveToDisk( GameResource obj, bool register )
+	bool SaveToDisk( GameResource obj, bool register, bool compile )
 	{
 		if ( obj == null )
 			return false;
@@ -580,7 +583,8 @@ public abstract partial class Asset
 			{
 				obj.SaveToDisk( filename, jsonString );
 
-				Compile( false );
+				if ( compile )
+					Compile( false );
 				if ( register )
 					obj.Register( Path );
 				return true;

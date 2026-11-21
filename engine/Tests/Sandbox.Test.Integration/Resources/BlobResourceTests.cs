@@ -153,4 +153,35 @@ public class BlobResourceTest
 		Assert.IsTrue( withoutSidecar.TryLoadFromData( compiled ) );
 		Assert.AreEqual( 42, withoutSidecar.Scalar );
 	}
+
+	/// <summary>
+	/// Saving leaves an unchanged "_d" sidecar alone (a write starts a content build), and rewrites one whose bytes
+	/// differ only past the first chunk compared.
+	/// </summary>
+	[TestMethod]
+	public void SaveRewritesSidecarOnlyWhenChanged()
+	{
+		var resource = new BlobResource { Data = Enumerable.Range( 0, 600_000 ).ToArray() };
+		var path = Path.Combine( Path.GetTempPath(), $"{Guid.NewGuid()}.blobres" );
+		try
+		{
+			resource.SaveToDisk( path, resource.Serialize().ToJsonString() );
+			var written = new DateTime( 2000, 1, 1, 0, 0, 0, DateTimeKind.Utc );
+			File.SetLastWriteTimeUtc( path + "_d", written );
+
+			resource.SaveToDisk( path, resource.Serialize().ToJsonString() );
+			Assert.AreEqual( written, File.GetLastWriteTimeUtc( path + "_d" ), "An unchanged sidecar must not be written" );
+
+			resource.Data[^1] = -1;
+			var json = resource.Serialize().ToJsonString();
+			var expected = resource.BinaryData;
+			resource.SaveToDisk( path, json );
+			Assert.IsTrue( File.ReadAllBytes( path + "_d" ).AsSpan().SequenceEqual( expected ), "A changed sidecar must be written" );
+		}
+		finally
+		{
+			File.Delete( path );
+			File.Delete( path + "_d" );
+		}
+	}
 }
