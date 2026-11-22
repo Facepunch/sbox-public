@@ -117,12 +117,14 @@ public sealed partial class Project
 			}
 		}
 
+		ProjectInfo editorProject = null;
+
 		if ( Config.Type is "game" or "menu" or "library" or "addon" )
 		{
 			//
 			// Editor project
 			//
-			var editorProject = AddEditorProjectFrom( projectName, generator );
+			editorProject = AddEditorProjectFrom( projectName, generator );
 			if ( editorProject is not null )
 			{
 				editorProject.Folder = projectFolder;
@@ -131,21 +133,21 @@ public sealed partial class Project
 				if ( project is not null )
 					editorProject.PackageReferences.Add( project.Name );
 			}
+		}
 
-			//
-			// Unit test project
-			//
-			var testProject = AddUnitTestProjectFrom( projectName, generator );
-			if ( testProject is not null )
-			{
-				testProject.Folder = projectFolder;
+		//
+		// Unit test project, for tools too
+		//
+		var testProject = AddUnitTestProjectFrom( projectName, generator );
+		if ( testProject is not null )
+		{
+			testProject.Folder = projectFolder;
 
-				if ( project is not null )
-					testProject.PackageReferences.Add( project.Name );
+			if ( project is not null )
+				testProject.PackageReferences.Add( project.Name );
 
-				if ( editorProject is not null )
-					testProject.PackageReferences.Add( editorProject.Name );
-			}
+			if ( editorProject is not null )
+				testProject.PackageReferences.Add( editorProject.Name );
 		}
 	}
 
