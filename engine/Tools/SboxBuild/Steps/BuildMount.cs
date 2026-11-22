@@ -164,7 +164,7 @@ internal class BuildMount
 				Roots = [new ContentRoot( $"mnt_{name}", assetsDir, Path.Combine( temp, "state" ) )],
 				ReadOnlyMounts = [.. ContentRoots.Engine( gameDir ).Select( x => (x.Mod, x.Path) )],
 				OutputRoots = new Dictionary<string, string> { ["transient"] = assetsDir },
-				OutputFallbacks = new Dictionary<string, string> { ["transient"] = Path.Combine( gameDir, "addons", "menu", "Transients" ) },
+				OutputFallbacks = new Dictionary<string, string> { ["transient"] = ContentRoots.EngineTransients( gameDir ) },
 				MaxJobs = ResourceCompiler.DefaultMaxJobs,
 			};
 

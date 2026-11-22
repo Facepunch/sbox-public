@@ -1,3 +1,4 @@
+using Sandbox.ContentBuild;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -108,7 +109,9 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool sh
 			}
 
 			var repoRoot = Path.TrimEndingDirectorySeparator( Path.GetFullPath( Directory.GetCurrentDirectory() ) );
-			return DownloadArtifacts( httpClient, manifest, repoRoot, IsWanted );
+			// A binaries-only restore touches no compiled assets
+			var recorded = nativeBinariesOnly ? [] : ContentRoots.RecordedOutputs( Path.Combine( repoRoot, "game" ) );
+			return DownloadArtifacts( httpClient, manifest, repoRoot, IsWanted, recorded );
 		}
 		catch ( AggregateException ex )
 		{
@@ -138,7 +141,8 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool sh
 			|| (shadersOnly && artifactPath.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ));
 	}
 
-	private static ExitCode DownloadArtifacts( HttpClient httpClient, ArtifactManifest manifest, string repoRoot, Func<string, bool> isWanted )
+	/// <param name="recorded">Compiled files a content build has a record of, which it keeps current itself.</param>
+	private static ExitCode DownloadArtifacts( HttpClient httpClient, ArtifactManifest manifest, string repoRoot, Func<string, bool> isWanted, HashSet<string> recorded )
 	{
 		if ( manifest.Files.Any( entry => entry is null || string.IsNullOrWhiteSpace( entry.Path ) || string.IsNullOrWhiteSpace( entry.Sha256 ) ) )
 		{
@@ -152,6 +156,7 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool sh
 		var progress = new DownloadProgress();
 		var skippedCount = 0;
 		var cachedCount = 0;
+		var compiledCount = 0;
 		var checkedCount = 0;
 		var knownState = LoadState( repoRoot );
 		var newState = new ConcurrentDictionary<string, ArtifactStateEntry>( StringComparer.OrdinalIgnoreCase );
@@ -191,10 +196,37 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool sh
 					return;
 				}
 
+				// The content build that recorded it compiles it again when its sources change; another build of it would
+				// only look modified to it. No state, so once nothing records it the next run checks it against the manifest.
+				if ( recorded.Contains( destination ) && File.Exists( destination ) )
+				{
+					Interlocked.Increment( ref compiledCount );
+					Interlocked.Increment( ref skippedCount );
+					return;
+				}
+
+				// Changed since this restore wrote it
+				if ( known is not null && IsCompiledShader( artifactPath, destination, known ) )
+				{
+					newState[entry.Path] = known;
+					Interlocked.Increment( ref compiledCount );
+					Interlocked.Increment( ref skippedCount );
+					return;
+				}
+
 				if ( FileMatchesHash( destination, entry.Sha256, message => progress.Messages.Enqueue( (true, message) ) )
 					&& (entry.Size <= 0 || new FileInfo( destination ).Length == entry.Size) )
 				{
 					newState[entry.Path] = Snapshot( entry, destination );
+					Interlocked.Increment( ref skippedCount );
+					return;
+				}
+
+				// Nothing says who wrote it (first run, or the state was lost) and it isn't the published build
+				if ( known is null && IsCompiledShader( artifactPath, destination, null ) )
+				{
+					newState[entry.Path] = NotRestored( entry );
+					Interlocked.Increment( ref compiledCount );
 					Interlocked.Increment( ref skippedCount );
 					return;
 				}
@@ -215,6 +247,8 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool sh
 		}
 		ReportMessages();
 		checking.GetAwaiter().GetResult();
+		if ( compiledCount > 0 )
+			Log.Detail( $"Kept {compiledCount} compiled file(s) the content build or shader compiler keeps current." );
 
 		if ( pending.IsEmpty )
 		{
@@ -568,6 +602,20 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool sh
 		return info.LastWriteTimeUtc.Ticks == known.ModifiedTicks;
 	}
 
+	/// <summary>
+	/// A compiled shader this restore didn't leave as it is: the shader compiler wrote it, and compiles it again whenever
+	/// it doesn't match its source, so it stays. Anything else compiled that no content build records has nothing to
+	/// keep it current but this restore.
+	/// </summary>
+	private static bool IsCompiledShader( string artifactPath, string destination, ArtifactStateEntry known )
+	{
+		if ( !artifactPath.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ) )
+			return false;
+
+		var info = new FileInfo( destination );
+		return info.Exists && (known is null || info.Length != known.Size || info.LastWriteTimeUtc.Ticks != known.ModifiedTicks);
+	}
+
 	private static ArtifactStateEntry Snapshot( ArtifactFileInfo entry, string destination )
 	{
 		var info = new FileInfo( destination );
@@ -579,6 +627,11 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool sh
 			ModifiedTicks = info.LastWriteTimeUtc.Ticks
 		};
 	}
+
+	/// <summary>
+	/// State for a file this restore didn't write: no file has its size, so later runs keep it without hashing it.
+	/// </summary>
+	private static ArtifactStateEntry NotRestored( ArtifactFileInfo entry ) => new() { Path = entry.Path, Sha256 = entry.Sha256, Size = -1 };
 
 	private static void SaveState( string repoRoot, string commit, IEnumerable<ArtifactStateEntry> entries )
 	{

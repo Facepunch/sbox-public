@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Sandbox.ContentBuild;
 
 /// <summary>
@@ -44,4 +46,43 @@ public static class ContentRoots
 	/// Short, because compiled paths under its staging have to fit the native MAX_PATH.
 	/// </summary>
 	public static string ProjectState( string projectDirectory ) => Path.Combine( projectDirectory, ".sbox", "build" );
+
+	/// <summary>
+	/// Where the engine roots' build publishes the generated files they share.
+	/// </summary>
+	public static string EngineTransients( string gameDirectory ) => Path.Combine( gameDirectory, "addons", "menu", "Transients" );
+
+	/// <summary>
+	/// Every compiled file a content build of the engine roots or a project under game/addons has a record of: that
+	/// build checks it against its sources and compiles it again when they change, so nothing else should replace it.
+	/// Read only, unlike opening the roots' stores, which recovers interrupted publications.
+	/// </summary>
+	public static HashSet<string> RecordedOutputs( string gameDirectory )
+	{
+		var roots = Engine( gameDirectory ).Select( x => (x.Path, x.StateDirectory, Transients: EngineTransients( gameDirectory )) ).ToList();
+		var addons = new DirectoryInfo( Path.Combine( gameDirectory, "addons" ) );
+		var anyCase = new EnumerationOptions { AttributesToSkip = 0, MatchCasing = MatchCasing.CaseInsensitive };
+		foreach ( var project in addons.Exists ? addons.EnumerateDirectories( "*", anyCase ) : [] )
+		{
+			var assets = project.EnumerateDirectories( "Assets", anyCase ).FirstOrDefault()?.FullName;
+			if ( assets is null || roots.Any( x => string.Equals( x.Path, assets, StringComparison.OrdinalIgnoreCase ) ) ) continue;
+
+			// The editor publishes a project's generated files under it (see EditorContentBuild)
+			roots.Add( (assets, ProjectState( project.FullName ), Path.Combine( project.FullName, ".sbox", "transient" )) );
+		}
+
+		var records = roots
+			.Where( root => Directory.Exists( Path.Combine( root.StateDirectory, "records" ) ) )
+			.SelectMany( root => Directory.GetFiles( Path.Combine( root.StateDirectory, "records" ), "*.json" ).Select( file => (Root: root, File: file) ) );
+
+		return records.AsParallel()
+			.SelectMany( x => JsonSerializer.Deserialize<AssetRecord>( File.ReadAllText( x.File ) ).Outputs.Keys.Select( key =>
+			{
+				var colon = key.IndexOf( ':' );
+				var directory = colon < 0 ? x.Root.Path : string.Equals( key[..colon], "transient", StringComparison.OrdinalIgnoreCase ) ? x.Root.Transients : null;
+				return directory is null ? null : Path.GetFullPath( Path.Combine( directory, key[(colon + 1)..] ) );
+			} ) )
+			.Where( x => x is not null )
+			.ToHashSet( StringComparer.OrdinalIgnoreCase );
+	}
 }
