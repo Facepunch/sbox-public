@@ -22,7 +22,7 @@ public class ConnectionWireTest
 		var library = new TypeLibrary();
 		library.AddAssembly( typeof( Scene ).Assembly, false );
 		var capture = new SnapshotCapture { SceneJson = new Lazy<string>( () => "{}" ) };
-		capture.AddObject( new JsonObject { ["Name"] = "Worker snapshot" } );
+		capture.AddObject( System.Text.Json.JsonSerializer.SerializeToUtf8Bytes( new JsonObject { ["Name"] = "Worker snapshot" } ) );
 		var table = new byte[400 * 1024];
 		new Random( 42 ).NextBytes( table );
 		capture.Snapshot.NetworkObjects.Add( new ObjectCreateMsg { TableData = table } );

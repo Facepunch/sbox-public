@@ -824,7 +824,7 @@ public class NetworkTest
 			}
 		}
 
-		refreshMsg.JsonData = rootJson.ToJsonString();
+		refreshMsg.JsonData = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes( rootJson );
 
 		go._net.OnRefreshMessage( clientAndHost.Client, refreshMsg );
 
@@ -871,7 +871,7 @@ public class NetworkTest
 			}
 		}
 
-		refreshMsg.JsonData = rootJson.ToJsonString();
+		refreshMsg.JsonData = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes( rootJson );
 
 		go._net.OnRefreshMessage( clientAndHost.Client, refreshMsg );
 

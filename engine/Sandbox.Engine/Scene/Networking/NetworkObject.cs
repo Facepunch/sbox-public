@@ -418,11 +418,15 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		var snapshot = WriteRefreshSnapshot();
 
 		using var blobs = BlobDataSerializer.Capture();
+		var jsonData = NetworkJson.Serialize( GameObject, _refreshSerializeOptions );
+		if ( jsonData is null )
+			throw new( $"Unable to serialize {GameObject.Id} ({GameObject.Name})" );
+
 		var msg = new ObjectRefreshMsg
 		{
 			Guid = GameObject.Id,
 			Parent = GameObject.Parent.Id,
-			JsonData = GameObject.Serialize( _refreshSerializeOptions ).ToJsonString(),
+			JsonData = jsonData,
 			BlobData = blobs.ToByteArray(),
 			TableData = WriteReliableData(),
 			Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
@@ -476,7 +480,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 			using var blobs = BlobDataSerializer.Capture();
 
 			// Not networked
-			var json = go.Serialize( go.IsOutermostPrefabInstanceRoot ? _refreshDescendantInstanceSerializeOptions : _refreshDescendantSerializeOptions );
+			var json = NetworkJson.Serialize( go, go.IsOutermostPrefabInstanceRoot ? _refreshDescendantInstanceSerializeOptions : _refreshDescendantSerializeOptions );
 			if ( json is null )
 				return;
 
@@ -486,7 +490,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 			{
 				GameObjectId = GameObject.Id,
 				ParentId = go.Parent.Id,
-				JsonData = json.ToJsonString(),
+				JsonData = json,
 				BlobData = blobs.ToByteArray(),
 				TableData = WriteReliableData(),
 				Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
@@ -525,7 +529,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 			using var blobs = BlobDataSerializer.Capture();
 
 			// Not networked
-			var json = component.Serialize( _componentRefreshSerializeOptions );
+			var json = NetworkJson.Serialize( component, _componentRefreshSerializeOptions );
 			if ( json is null )
 				return;
 
@@ -533,7 +537,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 
 			var msg = new ObjectRefreshComponentMsg
 			{
-				JsonData = json.ToJsonString(),
+				JsonData = json,
 				BlobData = blobs.ToByteArray(),
 				GameObjectId = component.GameObject.Id,
 				TableData = WriteReliableData(),
@@ -891,7 +895,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		}
 
 		using var blobs = BlobDataSerializer.Capture();
-		var jsonData = GameObject.Serialize( includeLocalObjects ? _handoffSerializeOptions : _createSerializeOptions );
+		var jsonData = NetworkJson.Serialize( GameObject, includeLocalObjects ? _handoffSerializeOptions : _createSerializeOptions );
 		if ( jsonData is null )
 		{
 			throw new( $"Unable to serialize {GameObject.Id} ({GameObject.Name})" );
@@ -903,7 +907,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 			Guid = GameObject.Id,
 			SnapshotVersion = GameObject._net.LocalSnapshotState.Version,
 			Transform = includeLocalObjects ? GameObject.Transform.TargetLocal : SampleLocal( Time.NowDouble ),
-			JsonData = capture is null ? jsonData.ToJsonString() : null,
+			JsonData = capture is null ? jsonData : null,
 			BlobData = capture is null ? blobs.ToByteArray() : null,
 			Creator = Creator,
 			Parent = GameObject.Parent.Id,

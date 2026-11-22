@@ -51,7 +51,7 @@ public class HostMigrationTest
 		Assert.AreEqual( expected.SceneData, actual.SceneData );
 		var before = expected.NetworkObjects.OfType<ObjectCreateMsg>().Single( x => x.Guid == go.Id );
 		var after = actual.NetworkObjects.OfType<ObjectCreateMsg>().Single( x => x.Guid == go.Id );
-		Assert.AreEqual( before.JsonData, after.JsonData );
+		CollectionAssert.AreEqual( before.JsonData, after.JsonData );
 		CollectionAssert.AreEqual( before.TableData, after.TableData );
 	}
 

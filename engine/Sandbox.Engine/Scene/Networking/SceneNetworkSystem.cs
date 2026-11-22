@@ -1587,7 +1587,7 @@ struct ObjectDestroyDescendantMsg
 [Expose]
 struct ObjectRefreshDescendantMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1602,7 +1602,7 @@ struct ObjectRefreshDescendantMsg
 [Expose]
 struct ObjectRefreshComponentMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1617,7 +1617,7 @@ struct ObjectRefreshComponentMsg
 [Expose]
 struct ObjectRefreshMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1667,7 +1667,7 @@ struct ObjectCreateBatchMsg
 struct ObjectCreateMsg
 {
 	public ushort SnapshotVersion { get; set; }
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public Transform Transform { get; set; }
 	public Guid Guid { get; set; }

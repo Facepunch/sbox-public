@@ -55,7 +55,8 @@ namespace Sandbox.Internal.JsonConvert
 
 		public override void Write( Utf8JsonWriter writer, Angles val, JsonSerializerOptions options )
 		{
-			writer.WriteStringValue( string.Create( System.Globalization.CultureInfo.InvariantCulture, $"{val.pitch:G9},{val.yaw:G9},{val.roll:G9}" ) );
+			Span<char> text = stackalloc char[128];
+			writer.WriteStringValue( text.TryWrite( System.Globalization.CultureInfo.InvariantCulture, $"{val.pitch:G9},{val.yaw:G9},{val.roll:G9}", out var written ) ? text[..written] : string.Create( System.Globalization.CultureInfo.InvariantCulture, $"{val.pitch:G9},{val.yaw:G9},{val.roll:G9}" ) );
 		}
 	}
 }

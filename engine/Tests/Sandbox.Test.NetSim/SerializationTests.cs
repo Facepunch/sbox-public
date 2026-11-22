@@ -66,6 +66,80 @@ public class SerializationTests
 		return JsonNode.DeepEquals( a, b ) ? null : $"{path}: {b?.ToJsonString()}, host has {a?.ToJsonString()}";
 	}
 
+	// The writer alone, without the node fallback NetworkJson.Serialize has when it throws
+	static string Written( GameObject go, GameObject.SerializeOptions options )
+	{
+		if ( !options.ShouldSave( go ) ) return null;
+		var writers = new NetworkJson.Writers();
+		writers.Begin();
+		go.WriteNetworkJson( writers, options );
+		return System.Text.Encoding.UTF8.GetString( writers.End() );
+	}
+
+	static string Written( Component component, GameObject.SerializeOptions options )
+	{
+		var writers = new NetworkJson.Writers();
+		writers.Begin();
+		return component.WriteNetworkJson( writers, options ) ? System.Text.Encoding.UTF8.GetString( writers.End() ) : null;
+	}
+
+	/// <summary>
+	/// The written network JSON is exactly the text the node tree gives.
+	/// </summary>
+	[TestMethod]
+	public void NetworkJsonMatchesNodes()
+	{
+		using var sim = new NetSimulation();
+
+		sim.As( sim.Host, () =>
+		{
+			var player = SerializationScene.SpawnPlayer( new Vector3( 1.5f, -2.25f, 1e6f ) );
+			player.WorldRotation = Rotation.From( 10, 20, 30 );
+			player.WorldScale = new Vector3( 0.1f, 2, 3 );
+			player.Tags.Add( "a", "b" );
+
+			var stats = player.Components.Get<SimStats>();
+			stats.DisplayName = "quotes \" and <tags> & unicode é ✓";
+			stats.Bio = null;
+			stats.Armor = float.NaN;
+			stats.Target = player.Children[0];
+			stats.Badges = new List<string> { null, "", "\n\t" };
+			player.Components.Get<SimInventory>().ActiveWeapon = player.Components.Get<SimMovement>();
+			player.Components.Create<SimProp>().Flags |= ComponentFlags.NotNetworked;
+			player.Components.Create<SimFire>( false );
+
+			var prop = new GameObject( true, "prop" );
+			prop.Components.Create<SimProp>();
+			prop.NetworkSpawn( null );
+			var fire = SerializationScene.Ignite( prop );
+
+			var hidden = new GameObject( player, true, "not networked" );
+			hidden.Flags |= GameObjectFlags.NotNetworked;
+			var child = new GameObject( player, true, "own network object" );
+			child.NetworkMode = NetworkMode.Object;
+
+			var options = new[]
+			{
+				SerializationScene.CreateOptions,
+				new GameObject.SerializeOptions { SingleNetworkObject = true },
+				new GameObject.SerializeOptions { SingleNetworkObject = true, SkipNulls = true, IgnoreChildren = true },
+				new GameObject.SerializeOptions { SingleNetworkObject = true, SkipNulls = true, IncludeLocalObjects = true },
+				new GameObject.SerializeOptions { SceneForNetwork = true }
+			};
+
+			foreach ( var o in options )
+			{
+				foreach ( var go in new[] { player, prop, fire, player.Children[0], hidden } )
+				{
+					Assert.AreEqual( go.Serialize( o )?.ToJsonString(), Written( go, o ), $"{go}" );
+
+					foreach ( var component in go.Components.GetAll() )
+						Assert.AreEqual( component.Serialize( o )?.ToJsonString(), Written( component, o ), $"{component}" );
+				}
+			}
+		} );
+	}
+
 	[TestMethod]
 	public void PlayerPrefabCreate()
 	{

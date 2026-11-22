@@ -12,12 +12,12 @@ internal sealed class SnapshotCapture
 	internal SnapshotMsg Snapshot = SnapshotMsg.Create();
 	internal Lazy<string> SceneJson;
 	internal Lazy<byte[]> SceneBlobs;
-	readonly List<JsonNode> objectJson = new();
+	readonly List<byte[]> objectJson = new();
 	readonly List<BlobDataSerializer.CapturedBlob[]> objectBlobs = new();
 
-	internal void AddObject( JsonNode node, BlobDataSerializer.BlobContext blobs = null )
+	internal void AddObject( byte[] json, BlobDataSerializer.BlobContext blobs = null )
 	{
-		objectJson.Add( Detach( node ) );
+		objectJson.Add( json );
 		objectBlobs.Add( blobs?.Detach() );
 	}
 
@@ -68,7 +68,7 @@ internal sealed class SnapshotCapture
 		for ( int i = 0; i < Snapshot.NetworkObjects.Count; i++ )
 		{
 			var message = (ObjectCreateMsg)Snapshot.NetworkObjects[i];
-			message.JsonData = objectJson[i].ToJsonString();
+			message.JsonData = objectJson[i];
 			if ( objectBlobs[i] is { } blobs )
 			{
 				message.BlobData = BlobDataSerializer.PackBlobs( blobs );
