@@ -28,7 +28,7 @@ public partial class Panel
 	/// Overridden/implemented by Razor templating, contains render tree checksum to determine when the render tree content has changed.
 	/// </summary>
 	protected virtual string GetRenderTreeChecksum() => ChildContent == null ? null : "1";
-	internal bool HasRenderTree => GetRenderTreeChecksum() is not null;
+	internal virtual bool HasRenderTree => GetRenderTreeChecksum() is not null;
 
 	PanelRenderTreeBuilder renderTree;
 
