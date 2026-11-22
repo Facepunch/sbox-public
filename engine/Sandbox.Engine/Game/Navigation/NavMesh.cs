@@ -184,13 +184,13 @@ public sealed partial class NavMesh : IDisposable
 	/// The widest gap an agent jumps across.
 	/// </summary>
 	[ShowIf( nameof( GenerateLinks ), true )]
-	public float AgentMaxJumpDistance { get; set; } = 128.0f;
+	public float AgentMaxJumpDistance { get; set; } = 250.0f;
 
 	/// <summary>
 	/// The highest an agent jumps up, onto a ledge or across a gap.
 	/// </summary>
 	[ShowIf( nameof( GenerateLinks ), true )]
-	public float AgentMaxJumpHeight { get; set; } = 48.0f;
+	public float AgentMaxJumpHeight { get; set; } = 80.0f;
 
 	// Tiling props not exposed until we are sure we want to expose them
 	private const float CellSize = 4.0f;
