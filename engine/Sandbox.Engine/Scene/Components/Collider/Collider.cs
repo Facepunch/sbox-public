@@ -594,8 +594,16 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 	protected void CalculateLocalBounds()
 	{
 		var invScale = 1.0f / Transform.World.SafeScale;
-		LocalBounds = BBox.FromBoxes( Shapes.Where( x => x.IsValid() )
-			.Select( x => x.LocalBounds.Scale( invScale ) ) );
+		BBox bounds = default;
+		var first = true;
+		foreach ( var shape in Shapes )
+		{
+			if ( !shape.IsValid() ) continue;
+			var box = shape.LocalBounds.Scale( invScale );
+			bounds = first ? box : bounds.AddBBox( box );
+			first = false;
+		}
+		LocalBounds = bounds;
 	}
 
 	[AttributeUsage( AttributeTargets.Property )]

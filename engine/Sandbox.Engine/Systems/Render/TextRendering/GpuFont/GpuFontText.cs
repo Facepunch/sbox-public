@@ -35,6 +35,11 @@ internal static class GpuFontText
 		/// <summary>Draw only the text effects, without run backgrounds, selection, fill or decorations.</summary>
 		public bool EffectsOnly;
 
+		/// <summary>
+		/// Fill colour instead of the runs' own, for single style text whose layout is cached without its colour.
+		/// </summary>
+		public Color? TextColor;
+
 		public static Options Default => new() { SelectionStart = -1, SelectionEnd = -1, Opacity = 1 };
 
 		/// <summary>The options a scene text scope draws with.</summary>
@@ -137,8 +142,9 @@ internal static class GpuFontText
 
 					if ( run.RunKind == FontRunKind.Tabs || run.RunKind == FontRunKind.TrailingWhitespace ) continue;
 
-					AddGlyphs( run, Origin, 0, 0, ToColor( run.Style.TextColor ), AliasedFlag | GradientFlag, layerColors: true );
-					AddDecorations( run, line, Origin, 0, ToColor( run.Style.UnderlineColor ?? run.Style.TextColor ), GradientFlag );
+					var fill = Options.TextColor ?? ToColor( run.Style.TextColor );
+					AddGlyphs( run, Origin, 0, 0, fill, AliasedFlag | GradientFlag, layerColors: true );
+					AddDecorations( run, line, Origin, 0, run.Style.UnderlineColor is { } underline ? ToColor( underline ) : fill, GradientFlag );
 				}
 			}
 		}

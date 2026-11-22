@@ -56,7 +56,7 @@ public sealed partial class PlayerController : Component
 	bool TryProbeSlideContact( Vector3 position, PhysicsShape shape, Vector3 direction, bool includeGroundClearance, bool matchNormal, out SceneTraceResult surface )
 	{
 		var probeOffset = direction * 0.125f;
-		foreach ( var hit in TraceFeetMovement( position + probeOffset, position - probeOffset, 0, includeGroundClearance, out var offset ).UseHitPosition().RunAll() )
+		foreach ( var hit in RunAll( TraceFeetMovement( position + probeOffset, position - probeOffset, 0, includeGroundClearance, out var offset ).UseHitPosition(), _probeHits ) )
 		{
 			if ( hit.Shape != shape || hit.StartedSolid || (matchNormal && hit.Normal.Dot( direction ) < 0.9999f) ) continue;
 			surface = hit;
@@ -93,9 +93,9 @@ public sealed partial class PlayerController : Component
 			result.StartPosition -= offset;
 			result.EndPosition -= offset;
 		}
-		foreach ( var hit in TraceFeetMovement( from, to, 0, includeGroundClearance, out var offset ).RunAll() ) Consider( hit, offset );
+		foreach ( var hit in RunAll( TraceFeetMovement( from, to, 0, includeGroundClearance, out var offset ), _feetHits ) ) Consider( hit, offset );
 		if ( BodyCollider.IsValid() && BodyCollider.Enabled )
-			foreach ( var hit in TraceUpperMovement( from, to, 0 ).RunAll() ) Consider( hit, Vector3.Zero );
+			foreach ( var hit in RunAll( TraceUpperMovement( from, to, 0 ), _upperHits ) ) Consider( hit, Vector3.Zero );
 		return result;
 	}
 
@@ -187,7 +187,7 @@ public sealed partial class PlayerController : Component
 		{
 			bool CheckApproach( SceneTrace trace )
 			{
-				foreach ( var hit in trace.RunAll() )
+				foreach ( var hit in RunAll( trace, _approachHits ) )
 				{
 					if ( hit.StartedSolid )
 					{
@@ -236,7 +236,7 @@ public sealed partial class PlayerController : Component
 		var available = maxLift;
 		bool CheckUpward( SceneTrace trace )
 		{
-			foreach ( var hit in trace.RunAll() )
+			foreach ( var hit in RunAll( trace, _liftHits ) )
 			{
 				if ( hit.StartedSolid )
 				{
@@ -259,7 +259,7 @@ public sealed partial class PlayerController : Component
 		var foundContact = false;
 		bool CheckExit( SceneTrace trace )
 		{
-			foreach ( var hit in trace.RunAll() )
+			foreach ( var hit in RunAll( trace, _exitHits ) )
 			{
 				if ( hit.StartedSolid || !IsContactShape( hit ) )
 					return false;
@@ -282,6 +282,17 @@ public sealed partial class PlayerController : Component
 
 		lift = available;
 		return true;
+	}
+
+	// These run every physics step for every player, so each loop reuses its own list instead of a new one per trace.
+	// They never nest; separate lists keep it that way if one ever calls another.
+	readonly List<SceneTraceResult> _liftHits = new(), _exitHits = new(), _groundHits = new(), _probeHits = new(),
+		_feetHits = new(), _upperHits = new(), _approachHits = new();
+
+	List<SceneTraceResult> RunAll( SceneTrace trace, List<SceneTraceResult> into )
+	{
+		Scene.RunTraceAll( trace, into );
+		return into;
 	}
 
 	bool TryFindGround( Vector3 position, float lift, float drop, out SceneTraceResult ground, out Vector3 landing, bool requireContact = false, bool preciseDrop = false )
@@ -370,7 +381,7 @@ public sealed partial class PlayerController : Component
 		var trace = GroundTrace( supportMargin + inset );
 		var found = false;
 		landing = position;
-		foreach ( var candidate in trace.RunAll() )
+		foreach ( var candidate in RunAll( trace, _groundHits ) )
 		{
 			var hit = candidate;
 			if ( !TryLanding( ref hit, true, out var target ) || (found && target.Dot( up ) <= landing.Dot( up )) )

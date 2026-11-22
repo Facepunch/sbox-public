@@ -49,6 +49,8 @@ internal class NetworkTable : IDisposable
 		public bool IsReliableType;
 		public bool IsDirty;
 		public byte[] Serialized;
+		// The last serialized bytes, kept when the value changes so a same size value can reuse the array
+		public byte[] SerializedBuffer;
 		public INetworkProperty InitializedProperty;
 		public int Slot;
 		public ListHasher ListHasher;
@@ -552,7 +554,15 @@ internal class NetworkTable : IDisposable
 			try
 			{
 				WriteEntryToStream( entry, ref bs );
-				entry.Serialized = bs.ToArray();
+				var span = bs.ToSpan();
+
+				// Most values keep their size: write over the previous bytes instead of allocating. The snapshot
+				// state holds this array and hashes the new bytes, sent packets only remember change numbers.
+				if ( entry.SerializedBuffer is not { } buffer || buffer.Length != span.Length )
+					entry.SerializedBuffer = buffer = new byte[span.Length];
+
+				span.CopyTo( buffer );
+				entry.Serialized = buffer;
 			}
 			catch ( Exception e )
 			{

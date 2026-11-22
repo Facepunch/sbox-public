@@ -82,6 +82,7 @@ public class NetworkTableTest
 		fail = false;
 		table.WriteSnapshotState( snapshot );
 		var previous = snapshot.Lookup[1].Value;
+		var previousBytes = previous.ToArray();
 		var previousChange = snapshot.LastChange;
 
 		value++;
@@ -93,7 +94,7 @@ public class NetworkTableTest
 
 		fail = false;
 		table.WriteSnapshotState( snapshot );
-		Assert.IsFalse( previous.SequenceEqual( snapshot.Lookup[1].Value ) );
+		Assert.IsFalse( previousBytes.SequenceEqual( snapshot.Lookup[1].Value ) );
 	}
 
 	[TestMethod]

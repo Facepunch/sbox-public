@@ -123,7 +123,7 @@ public class Logger
 		Error( $"{message}" );
 	}
 
-	internal void WriteToTargets( NLog.LogLevel nlogLevel, Exception ex, FormattableString message, string name = null )
+	internal void WriteToTargets( NLog.LogLevel nlogLevel, Exception ex, FormattableString message, string name = null, bool captureStack = true )
 	{
 		name ??= Name;
 
@@ -161,7 +161,7 @@ public class Logger
 		{
 			logEvent.Exception = ex;
 		}
-		else
+		else if ( captureStack )
 		{
 			stackTrace = new StackTrace( 0, true );
 			logEvent.SetStackTrace( stackTrace, 0 );

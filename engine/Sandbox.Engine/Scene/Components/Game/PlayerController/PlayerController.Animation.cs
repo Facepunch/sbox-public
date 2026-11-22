@@ -189,17 +189,21 @@ public sealed partial class PlayerController : Component, BaseCombatWeapon.IEven
 	// Setting an id the graph doesn't list still succeeds, so check its described options. A graph that describes none could have any.
 	static bool HasHoldOption( Sandbox.Animation.Graph graph, string name )
 	{
-		foreach ( var parameter in graph.Parameters )
+		// Indexed: this runs every frame for every held weapon, and foreach over the interfaces boxes
+		var parameters = graph.Parameters;
+		for ( int i = 0; i < parameters.Count; i++ )
 		{
+			var parameter = parameters[i];
 			if ( !string.Equals( parameter.Name, "holdtype", StringComparison.OrdinalIgnoreCase ) )
 				continue;
 
-			if ( parameter.Options.Count == 0 )
+			var options = parameter.Options;
+			if ( options.Count == 0 )
 				return true;
 
-			foreach ( var option in parameter.Options )
+			for ( int j = 0; j < options.Count; j++ )
 			{
-				if ( string.Equals( option, name, StringComparison.OrdinalIgnoreCase ) )
+				if ( string.Equals( options[j], name, StringComparison.OrdinalIgnoreCase ) )
 					return true;
 			}
 

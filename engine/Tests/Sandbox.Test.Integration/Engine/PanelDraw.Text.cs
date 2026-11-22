@@ -359,7 +359,8 @@ public partial class PanelDrawTextTest : PainterTestBase
 		var rect = new Rect( 10, 20, 300.25f, 60.5f );
 		var color = new Color( 0.2f, 0.4f, 0.6f );
 		const float size = 14.25f;
-		var scope = new TextRendering.Scope( text, color.WithAlpha( 1 ), size * 2 );
+		// Painter text is laid out in white and coloured per glyph
+		var scope = new TextRendering.Scope( text, Color.White, size * 2 );
 		WithTextBlock( scope, rect.Size, textBlock =>
 		{
 			textBlock.EnsureLayout();

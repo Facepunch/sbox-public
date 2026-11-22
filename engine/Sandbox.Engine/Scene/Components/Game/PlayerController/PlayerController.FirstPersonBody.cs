@@ -92,8 +92,7 @@ public sealed partial class PlayerController
 			target.Transform = source.Transform;
 			target.RenderingEnabled = source.RenderingEnabled;
 			target.MeshGroupMask = source.MeshGroupMask;
-			target.Tags.SetFrom( renderer.GameObject.Tags );
-			target.Tags.Remove( "viewer" );
+			copy.ApplyTags( renderer.GameObject.Tags, removeViewer: true, firstPerson: false );
 
 			// Materials matter for alpha-tested shadows (hair, cloth). No RenderOptions: they'd re-include the game layer.
 			var materialState = HashCode.Combine( renderer.MaterialOverride, renderer.MaterialGroup, renderer.MaterialOverrideVersion );
@@ -134,8 +133,11 @@ public sealed partial class PlayerController
 	void CollectFirstPersonHiddenAttachments()
 	{
 		_firstPersonHiddenAttachments.Clear();
-		foreach ( var bone in _firstPersonBodyModel.Bones.AllBones )
+		// Indexed, every frame in first person: foreach over the interface boxes an enumerator
+		var bones = _firstPersonBodyModel.Bones.AllBones;
+		for ( int i = 0; i < bones.Count; i++ )
 		{
+			var bone = bones[i];
 			if ( !IsFirstPersonUpperBodyBone( bone ) ) continue;
 			var go = Renderer.GetBoneObject( bone );
 			if ( go.IsValid() ) _firstPersonHiddenAttachments.Add( go );
@@ -250,11 +252,9 @@ public sealed partial class PlayerController
 			// Collapsing its parent transform isn't sufficient when copying world-space bones.
 			// ShadowsOnly renderers are shadow proxies, the original still casts, and the copy (which never casts) has nothing to show.
 			target.RenderingEnabled = source.RenderingEnabled && renderer.RenderType != ModelRenderer.ShadowRenderType.ShadowsOnly && !IsFirstPersonHiddenAttachment( renderer.GameObject );
-			target.Tags.SetFrom( renderer.GameObject.Tags );
 			// The copy is what the viewer sees, so it drops the viewer tag inherited from the hidden body.
 			// It's tagged "firstperson" like view models, so other cameras (mirrors, render targets) can exclude the headless copy.
-			if ( !HasGameViewerTag( renderer.GameObject, body ) ) target.Tags.Remove( "viewer" );
-			target.Tags.Add( "firstperson" );
+			copy.ApplyTags( renderer.GameObject.Tags, removeViewer: !HasGameViewerTag( renderer.GameObject, body ), firstPerson: true );
 			target.ColorTint = source.ColorTint;
 			target.MeshGroupMask = source.MeshGroupMask;
 
@@ -298,6 +298,27 @@ public sealed partial class PlayerController
 		public Transform[] Bones { get; }
 		public (int Index, bool Hidden)[] BoneMap { get; }
 		public int? MaterialState { get; set; }
+
+		HashSet<uint> _appliedTags;
+		bool _appliedRemoveViewer;
+
+		/// <summary>
+		/// Copy the source renderer's tags, adjusted. Only when they changed: rewriting them every frame churns the scene object.
+		/// </summary>
+		public void ApplyTags( GameTags source, bool removeViewer, bool firstPerson )
+		{
+			var tokens = source.GetTokens();
+			if ( _appliedTags is not null && _appliedRemoveViewer == removeViewer && _appliedTags.SetEquals( tokens ) )
+				return;
+
+			Object.Tags.SetFrom( source );
+			if ( removeViewer ) Object.Tags.Remove( "viewer" );
+			if ( firstPerson ) Object.Tags.Add( "firstperson" );
+
+			(_appliedTags ??= new()).Clear();
+			_appliedTags.UnionWith( tokens );
+			_appliedRemoveViewer = removeViewer;
+		}
 
 		public FirstPersonBodyCopy( SceneObject source, SceneWorld world )
 		{

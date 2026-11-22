@@ -85,7 +85,17 @@ public sealed partial class GraphParameters : IJsonPopulator
 		=> TryGetController( name, out var controller ) && controller.SetParamVector( name, value );
 
 	public bool TrySet( string name, Transform value )
-		=> TryGetController( name, out var controller ) && controller.SetParamTarget( name, value, true, false, default );
+	{
+		if ( !TryGetController( name, out var controller ) ) return false;
+
+		// Targets feed IK solvers, which need a unit rotation. Composed and blended rotations drift off it.
+		var r = value.Rotation;
+		var lengthSquared = r.x * r.x + r.y * r.y + r.z * r.z + r.w * r.w;
+		if ( lengthSquared > 0 && MathF.Abs( lengthSquared - 1 ) > 0.00001f )
+			value.Rotation = value.Rotation.Normal;
+
+		return controller.SetParamTarget( name, value, true, false, default );
+	}
 
 	public bool TrySet( string name, Rotation value ) => TrySet( name, new Transform( Vector3.Zero, value ) );
 
