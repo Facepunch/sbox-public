@@ -11,24 +11,25 @@ public static class SceneUtility
 	/// </summary>
 	public static Dictionary<Guid, Guid> MakeIdGuidsUnique( JsonObject json, Guid? rootGuid = null )
 	{
-		var translate = CreateUniqueGuidLookup( json, rootGuid );
+		// Every guid value is found while building the lookup, so the tree is only walked once
+		var found = new List<(JsonValue Node, Guid Guid)>();
+		var translate = CreateUniqueGuidLookup( json, rootGuid, found );
 
 		//
-		// Find every guid and translate them, but only if they're in our
-		// guid dictionary.
+		// Translate every guid, but only if it's in our guid dictionary.
 		//
-		Sandbox.Json.WalkJsonTree( json, ( k, v ) =>
+		foreach ( var (node, guid) in found )
 		{
-			if ( !v.TryGetValue<Guid>( out var guid ) ) return v;
-			if ( !translate.TryGetValue( guid, out var updatedGuid ) ) return v;
-
-			return updatedGuid;
-		} );
+			if ( translate.TryGetValue( guid, out var updatedGuid ) )
+				node.ReplaceWith( updatedGuid );
+		}
 
 		return translate;
 	}
 
-	internal static Dictionary<Guid, Guid> CreateUniqueGuidLookup( JsonObject json, Guid? rootGuid = null )
+	internal static Dictionary<Guid, Guid> CreateUniqueGuidLookup( JsonObject json, Guid? rootGuid = null ) => CreateUniqueGuidLookup( json, rootGuid, null );
+
+	static Dictionary<Guid, Guid> CreateUniqueGuidLookup( JsonObject json, Guid? rootGuid, List<(JsonValue Node, Guid Guid)> found )
 	{
 		Dictionary<Guid, Guid> translate = new();
 
@@ -58,40 +59,50 @@ public static class SceneUtility
 		}
 
 		//
-		// Find all guids with "__guid" as their name. Add them to translate 
+		// Find all guids with "__guid" as their name. Add them to translate
 		// with a new target value.
 		//
-		Sandbox.Json.WalkJsonTree( json, ( k, v ) =>
-		{
-			if ( k == GameObject.JsonKeys.Id )
-			{
-				if ( v.TryGetValue<Guid>( out var guid ) && !translate.ContainsKey( guid ) )
-				{
-					translate[guid] = Guid.NewGuid();
-				}
-			}
+		CollectGuids( json, null, translate, found );
 
-			return v;
-		},
-		( k, v ) =>
+		return translate;
+	}
+
+	static void CollectGuids( JsonNode node, string key, Dictionary<Guid, Guid> translate, List<(JsonValue Node, Guid Guid)> found )
+	{
+		if ( node is JsonObject obj )
 		{
 			// GameObjects & Components that are part of prefab instances have their id stored in the PrefabToInstanceId lookup in JSON.
 			// We need to remap those as well in addtion to __guid id's.
-			if ( k == GameObject.JsonKeys.PrefabIdToInstanceId )
+			if ( key == GameObject.JsonKeys.PrefabIdToInstanceId )
 			{
-				foreach ( var (prefabId, instanceID) in v )
+				foreach ( var (_, instanceId) in obj )
 				{
-					if ( instanceID.AsValue().TryGetValue<Guid>( out var guid ) && !translate.ContainsKey( guid ) )
-					{
-						translate[guid] = Guid.NewGuid();
-					}
+					if ( instanceId.AsValue().TryGetValue<Guid>( out var guid ) )
+						translate.TryAdd( guid, Guid.NewGuid() );
 				}
 			}
 
-			return v;
-		} );
+			foreach ( var (childKey, child) in obj )
+				CollectGuids( child, childKey, translate, found );
 
-		return translate;
+			return;
+		}
+
+		if ( node is JsonArray array )
+		{
+			for ( var i = 0; i < array.Count; i++ )
+				CollectGuids( array[i], null, translate, found );
+
+			return;
+		}
+
+		if ( node is JsonValue value && value.TryGetValue<Guid>( out var id ) )
+		{
+			found?.Add( (value, id) );
+
+			if ( key == GameObject.JsonKeys.Id )
+				translate.TryAdd( id, Guid.NewGuid() );
+		}
 	}
 
 	/// <summary>
