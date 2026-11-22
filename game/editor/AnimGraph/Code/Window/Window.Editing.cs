@@ -395,7 +395,7 @@ public partial class Window
 		if ( target is StateMachineNode.State state && state == _selectedState
 			&& _selectedStateMachine is { } machine && _selectedStateName != state.Name )
 		{
-			machine.RenameState( _selectedStateName, state.Name );
+			machine.RenameState( _selectedStateName, state );
 			_selectedStateName = state.Name;
 		}
 

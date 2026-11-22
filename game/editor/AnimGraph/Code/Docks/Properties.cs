@@ -211,9 +211,9 @@ public class Properties : Widget
 			var so = _target.GetSerialized();
 			so.OnPropertyChanged += property =>
 			{
+				PropertyUpdated?.Invoke( property );
 				UpdateHeader();
 				SyncPreview();
-				PropertyUpdated?.Invoke( property );
 			};
 			so.OnPropertyFinishEdit += p => _window.CommitChange(
 				p is null ? "Edit Properties" : $"Edit {p.Name}", _window.GetPropertyChangeScope( p ) );
