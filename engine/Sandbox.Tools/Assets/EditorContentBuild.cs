@@ -15,11 +15,9 @@ namespace Editor;
 /// after files change (the asset system counts changes, the frame tick builds them), which rebuilds whatever a
 /// change affects, in order. The asset system compiles single assets itself (a load of a changed one, a tool's
 /// compile); their outputs record what they were built from, so the build takes them as they are rather than
-/// compiling them again. Startup's compiles run in a content worker, as in SboxBuild, with the tool and project code the
-/// editor has loaded, so one that crashes fails its source rather than end the editor at every startup; later builds
-/// compile a source that crashed a worker in one too. Other compiles run in this process, as a content worker runs
-/// them: each on a thread of its own, the main thread doing what they need of it every frame
-/// (<see cref="ContentCompilerHost.RunJob"/>).
+/// compiling them again. Compiles run in this process, as a content worker runs them: each on a thread of its own, the
+/// main thread doing what they need of it every frame (<see cref="ContentCompilerHost.RunJob"/>). A source that crashed
+/// a worker compiles in one, with the tool and project code the editor has loaded.
 /// </summary>
 internal static class EditorContentBuild
 {
@@ -165,7 +163,6 @@ internal static class EditorContentBuild
 	static async Task Update( bool startup )
 	{
 		building = true;
-		startupBuild = startup;
 		cancellation = new CancellationTokenSource();
 		var generation = codeGeneration;
 		IAssetSystem.SuspendOnDemandCompiles( true );
@@ -333,11 +330,6 @@ internal static class EditorContentBuild
 	static int codeGeneration;
 
 	/// <summary>
-	/// Whether the build running is startup's.
-	/// </summary>
-	static bool startupBuild;
-
-	/// <summary>
 	/// Sources whose compile crashed every worker it ran on (or ran it out of memory), which compile in a worker until
 	/// a compile of one succeeds.
 	/// </summary>
@@ -355,9 +347,8 @@ internal static class EditorContentBuild
 	static int compilerSets;
 
 	/// <summary>
-	/// The compiler for these mounts and the code the editor has loaded now. Startup's compiles run in a content worker,
-	/// later builds' in this process but for the sources in <see cref="lost"/>. Adopting what's built, and questions
-	/// about the compilers, are answered here.
+	/// The compiler for these mounts and the code the editor has loaded now. Compiles run in this process but for the
+	/// sources in <see cref="lost"/>. Adopting what's built, and questions about the compilers, are answered here.
 	/// </summary>
 	static ResourceCompiler Compiler( IReadOnlyList<(string Mod, string Path)> mounts )
 	{
@@ -381,7 +372,7 @@ internal static class EditorContentBuild
 		{
 			RenderDevice = true,
 			InProcess = ( mode, source, staging, report, args ) => ContentCompilerHost.RunJob( mode, source, staging, report, args ),
-			InWorker = ( mode, source ) => startupBuild ? mode is "compile" or "describe" : lost.ContainsKey( source ),
+			InWorker = ( mode, source ) => lost.ContainsKey( source ),
 			Lost = lost,
 		};
 		return compiler;
