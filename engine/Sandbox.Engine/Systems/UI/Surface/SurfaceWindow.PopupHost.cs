@@ -43,6 +43,11 @@ internal partial class SurfaceWindow : IPopupHost
 		while ( sizingWindow is SurfacePopupWindow parentPopup ) sizingWindow = parentPopup.Parent;
 		popup.Style.MaxHeight = sizingWindow.PixelSize.y * popup.ScaleFromScreen;
 
+		// A stretched popup is at least as wide as what opened it, as it is floating in a root.
+		// The source's scale, not the popup's - the popup hasn't been laid out in its window yet.
+		if ( position == Sandbox.UI.Popup.PositionMode.BelowStretch )
+			popup.Style.MinWidth = (popup.AnchorRect ?? source.Box.Rect).Width * source.ScaleFromScreen;
+
 		// The compositor rounds the window's corners. Rounding the popup's own as well shows the
 		// window's background in between - whatever radius its stylesheet asked for.
 		popup.Style.Set( "border-radius", "0" );

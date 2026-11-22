@@ -3,8 +3,8 @@ using Sandbox.UI.Construct;
 namespace Sandbox.UI;
 
 //
-// The number fields under the picker - hex, RGB or HSV, chosen by the tabs in the header - and
-// the text entry at the bottom that takes a colour in any form.
+// The number fields under the picker - hex, RGB or HSV, chosen by the tabs in the header. The
+// hex field takes a colour in any form, not only hex.
 //
 public partial class ColorPickerControl
 {
@@ -53,7 +53,6 @@ public partial class ColorPickerControl
 
 	ButtonGroup _tabs;
 	ColorTextEntry _hexEntry;
-	ColorTextEntry _textEntry;
 
 	Panel _rgbFields;
 	Panel _hsvFields;
@@ -89,6 +88,7 @@ public partial class ColorPickerControl
 		var numbers = Add.Panel( "numbers" );
 
 		_hexEntry = numbers.AddChild( new ColorTextEntry() );
+		_hexEntry.Placeholder = "#ff8800, rgba( 255, 136, 0, 0.5 ), white * 4 ...";
 		WireTextEntry( _hexEntry );
 
 		_rgbFields = numbers.Add.Panel( "fields" );
@@ -105,15 +105,6 @@ public partial class ColorPickerControl
 
 		SetNumberMode( NumberMode.Hex );
 	}
-
-	void BuildTextRow()
-	{
-		var row = Add.Panel( "text-row" );
-		_textEntry = row.AddChild( new ColorTextEntry() );
-		_textEntry.Placeholder = "#ff8800, rgba( 255, 136, 0, 0.5 ), white * 4 ...";
-		WireTextEntry( _textEntry );
-	}
-
 	/// <summary>
 	/// A whole number from 0 to <paramref name="max"/> with a letter in front, that scrubs like the editor's.
 	/// </summary>
@@ -174,8 +165,6 @@ public partial class ColorPickerControl
 
 	void SyncText()
 	{
-		var text = _color.ToText();
-		_hexEntry.Value = text;
-		_textEntry.Value = text;
+		_hexEntry.Value = _color.ToText();
 	}
 }

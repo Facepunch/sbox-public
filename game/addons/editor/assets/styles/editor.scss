@@ -29,7 +29,8 @@
 	border-radius: 3px;
 	overflow: hidden;
 	.curve-body > .curve-canvas { background-color: $surface; color: #79c9a0; }
-	> .toolbar { padding: 2px 6px; min-height: 30px; }
+	// Flat inside its popup: no second band of grey for the toolbar
+	> .toolbar { padding: 2px 6px; min-height: 30px; background-color: transparent; border-bottom: 1px solid $line; }
 	.curve-inspector { padding: 12px; gap: 12px; background-color: $ground; border-left: 1px solid $line; }
 	.curve-inspector-title { color: $text-muted; font-size: 11px; font-weight: 600; margin-bottom: 4px; }
 	.curve-key-field { gap: 4px; }
@@ -40,17 +41,22 @@
 	.curve-inspector > .button:hover { background-color: $raised-hover; }
 	.curve-inspector > .curve-tangent-mode { justify-content: space-between; }
 	.curve-inspector > .toolbar-separator { margin: 0px; }
-	.curve-presets { padding: 6px 10px; align-items: center; gap: 4px; flex-wrap: wrap; }
-	.curve-preset { width: 54px; height: 30px; padding: 0px; background-color: $raised; color: #79c9a0; border-radius: 2px; }
-	.curve-preset:hover, .curve-preset:focus { background-color: $raised-hover; color: #79c9a0; }
+	.curve-presets { padding: 6px 8px; align-items: center; gap: 4px; flex-wrap: wrap; border-top: 1px solid $line; }
+	.curve-preset { width: 54px; height: 30px; padding: 0px; align-items: center; justify-content: center; background-color: rgba( #fff, 0.04 ); border: 1px solid rgba( #fff, 0.07 ); color: #79c9a0; border-radius: 4px; }
+	.curve-preset:hover, .curve-preset:focus { background-color: rgba( #fff, 0.06 ); border-color: rgba( #fff, 0.14 ); color: #79c9a0; }
 }
-.editor-window .curvecontrol { width: 100%; min-width: 0; height: 32px; background-color: $raised; border: 1px solid transparent; border-radius: 4px; color: #79c9a0; }
-.editor-window .curvecontrol:hover { background-color: $raised-hover; }
-.editor-window .curvecontrol:focus { border-color: $accent; }
-.editor-window .curve-editor-popup, .os-popup .curve-editor-popup { padding: 6px; background-color: $surface; border: 1px solid $line; border-radius: 4px; }
-.editor-window.style-light .curvecontrol { background-color: $l-raised; color: #237a51; }
-.editor-window.style-light .curvecontrol:hover { background-color: $l-raised-hover; }
-.editor-window.style-light .curve-editor-popup { background-color: $l-surface; border-color: $l-line; }
+.editor-window .curvecontrol { width: 100%; min-width: 0; color: #79c9a0; }
+// One surface: the title bar, the editor's toolbar, the graph and the presets sit flat on it, split
+// by lines. It opens in a window of its own, outside .editor-window, so it brings the editor's font.
+.editor-window .curve-editor-popup, .os-popup .curve-editor-popup { padding: 0; background-color: $surface; border: 1px solid $line; border-radius: 4px; font-family: Poppins; font-size: 12px; color: $text; }
+.os-popup .curve-editor-popup { border: none; border-radius: 0; }
+.curve-editor-popup > .toolbar { padding: 4px 4px 4px 12px; min-height: 34px; background-color: transparent; border-bottom: 1px solid $line; }
+.curve-editor-popup > .toolbar > .label { font-weight: 600; color: $text; }
+.curve-editor-popup > .curveeditor { border-radius: 0; }
+.editor-window.style-light .curvecontrol { color: #237a51; }
+.editor-window.style-light .curve-editor-popup { background-color: $l-surface; border-color: $l-line; color: $l-text; }
+.editor-window.style-light .curve-editor-popup > .toolbar { border-color: $l-line; }
+.editor-window.style-light .curve-editor-popup > .toolbar > .label { color: $l-text; }
 .editor-window.style-light .curveeditor
 {
 	background-color: $l-surface;
@@ -59,7 +65,8 @@
 	.curve-key-field > .textentry, .curve-inspector > .button { background-color: $l-surface; }
 	.curve-key-field > .label, .curve-inspector-title { color: $l-text-muted; }
 	.curve-inspector > .button:hover { background-color: $l-raised-hover; }
-	.curve-preset { background-color: $l-surface; color: $l-text-muted; }
+	> .toolbar, .curve-presets { border-color: $l-line; }
+	.curve-preset { background-color: $l-surface; border-color: $l-line; color: $l-text-muted; }
 	.curve-preset:hover, .curve-preset:focus { color: #237a51; }
 }
 
@@ -253,12 +260,12 @@
 //
 .iconbutton
 {
-	width: 34px;
-	height: 34px;
+	width: 32px;
+	height: 32px;
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	border-radius: 8px;
+	border-radius: 4px;
 	background-color: $raised;
 	border: 1px solid $line;
 	color: $text-muted;
@@ -276,9 +283,9 @@
 	flex-shrink: 0;
 	flex-direction: row;
 	align-items: center;
-	height: 34px;
+	height: 32px;
 	padding: 0 14px;
-	border-radius: 8px;
+	border-radius: 4px;
 	background-color: $accent;
 	color: #fff;
 	font-weight: 600;
@@ -298,13 +305,13 @@
 
 .flatbutton
 {
-	height: 34px;
+	height: 32px;
 	padding: 0 16px;
 	flex-direction: row;
 	align-items: center;
-	border-radius: 8px;
-	background-color: transparent;
-	border: 1px solid $line;
+	border-radius: 4px;
+	background-color: rgba( #fff, 0.04 );
+	border: 1px solid rgba( #fff, 0.07 );
 	color: $text;
 	font-size: 11px;
 	font-weight: 600;
@@ -320,7 +327,7 @@
 }
 
 .flatbutton.disabled { background-color: $raised; color: $text-muted; pointer-events: none; }
-.flatbutton:hover { background-color: $raised; }
+.flatbutton:hover { background-color: rgba( #fff, 0.07 ); border-color: rgba( #fff, 0.14 ); }
 .flatbutton:active { background-color: $ground; transform: scale( 0.97 ); }
 .flatbutton .icon { font-size: 15px; margin-right: 6px; }
 
@@ -329,28 +336,74 @@
 .primarybutton:focus { outline: 2px solid #fff; }
 
 //
+// Fields - every value control is the same compact box: 26px, 4px corners, a faint fill.
+// The line brightens under the mouse; with the keyboard in it the box sinks darker and its
+// line brightens further - no accent, the caret already says where typing goes.
+//
+.textentry,
+.button.popupbutton.dropdown,
+.buttongroup,
+.editor-window .colorcontrol,
+.editor-window .curvecontrol,
+ControlSheetRow > .right .slidercontrol.property
+{
+	height: 26px;
+	border-radius: 4px;
+	// Translucent, so the box lifts the same amount off a page, a dock or a popup
+	background-color: rgba( #fff, 0.04 );
+	border: 1px solid rgba( #fff, 0.07 );
+	transition: border-color 0.12s ease-out, background-color 0.12s ease-out;
+}
+
+.textentry:hover,
+.button.popupbutton.dropdown:hover,
+.buttongroup:hover,
+.editor-window .colorcontrol:hover,
+.editor-window .curvecontrol:hover,
+ControlSheetRow > .right .slidercontrol.property:hover { background-color: rgba( #fff, 0.06 ); border-color: rgba( #fff, 0.14 ); }
+
+// Only somewhere you type sinks; a dropdown or curve being open or focused keeps its fill
+.textentry:focus { background-color: rgba( #000, 0.25 ); border-color: rgba( #fff, 0.22 ); }
+
+.button.popupbutton.dropdown:focus,
+.button.popupbutton.dropdown.open,
+.editor-window .curvecontrol:focus { background-color: rgba( #fff, 0.06 ); border-color: rgba( #fff, 0.22 ); }
+
+.style-light .textentry,
+.style-light .button.popupbutton.dropdown,
+.style-light .buttongroup,
+.editor-window.style-light .colorcontrol,
+.editor-window.style-light .curvecontrol,
+.style-light ControlSheetRow > .right .slidercontrol.property { background-color: $l-surface; border-color: $l-line; }
+
+.style-light .textentry:hover,
+.style-light .button.popupbutton.dropdown:hover,
+.style-light .buttongroup:hover,
+.editor-window.style-light .colorcontrol:hover,
+.editor-window.style-light .curvecontrol:hover,
+.style-light ControlSheetRow > .right .slidercontrol.property:hover { background-color: $l-surface; border-color: rgba( $l-text-muted, 0.5 ); }
+
+.style-light .textentry:focus,
+.style-light .button.popupbutton.dropdown:focus,
+.style-light .button.popupbutton.dropdown.open,
+.editor-window.style-light .curvecontrol:focus { background-color: $l-surface; border-color: $l-text-faint; }
+
+//
 // Text inputs
 //
 .textentry
 {
-	height: 34px;
-	padding: 0 11px;
+	padding: 0 8px;
 	flex-direction: row;
 	align-items: center;
-	border-radius: 8px;
-	background-color: $raised;
-	border: 1px solid $raised;
 	pointer-events: all;
 	overflow: hidden;
 	white-space: nowrap;
-	transition: border-color 0.12s ease-out;
 }
 
-.textentry:focus { border-color: $accent; }
-
-// Read only still reads as text you can select, just not as somewhere to type
-.textentry.readonly { background-color: $surface; border-color: $line; }
-.textentry.readonly:focus { border-color: $line; }
+// Read only still reads as text you can select, just not as somewhere to type - no fill
+.textentry.readonly, .textentry.readonly:hover { background-color: transparent; border-color: rgba( #fff, 0.07 ); }
+.textentry.readonly:focus { border-color: rgba( #fff, 0.07 ); }
 .textentry iconpanel { font-size: 14px; color: $text-faint; }
 .textentry .content-label { color: $text; align-self: center; }
 .textentry .content-label.placeholder { color: $text-faint; }
@@ -361,9 +414,15 @@ NumberEntry > .content-label
 	min-width: 0;
 }
 
-// A property slider is one box like an entry, with its chip, track and value inside
-ControlSheetRow > .right .slidercontrol.property { height: 34px; background-color: $raised; border: 1px solid $raised; }
-.style-light ControlSheetRow > .right .slidercontrol.property { background-color: $l-raised; border-color: $l-raised; }
+// The colour field: a small swatch, then the hex text sitting in the box borderless
+.editor-window .colorcontrol { padding: 3px; gap: 2px; }
+.editor-window .colorcontrol > .colorswatch { width: 24px; border-radius: 2px; }
+.editor-window .colorcontrol > .colortextentry { height: 100%; padding: 0 6px; background-color: transparent; border-width: 0; }
+
+// Values in a property sheet read at the same size as everywhere else in the editor, with a
+// little air between the boxes
+ControlSheet > .body { font-size: 12px; }
+.editor-window .controlgroup > .body { gap: 4px; }
 
 // Property sheet group headers: small uppercase titles with room above them, a nested group's
 // in quieter mixed case
@@ -402,10 +461,7 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 {
 	flex-direction: row;
 	flex-shrink: 0;
-	border-radius: 8px;
 	overflow: hidden;
-	border: 1px solid $line;
-	background-color: $raised;
 	pointer-events: all;
 }
 
@@ -414,18 +470,21 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
-	height: 32px;
-	padding: 0 14px;
+	// Inside the group's 1px border, so the whole control is the 26px of every other field
+	height: 24px;
+	padding: 0 12px;
+	// Icon and text apart; an icon on its own isn't pushed off centre
+	gap: 6px;
 	color: $text-muted;
 	font-size: 12px;
-	font-weight: 600;
+	font-weight: 500;
 	cursor: pointer;
 	transition: background-color 0.12s ease-out, color 0.12s ease-out;
 }
 
-.buttongroup .button:hover { background-color: $raised-hover; color: $text; }
+.buttongroup .button:hover { background-color: $raised; color: $text; }
 .buttongroup .button.active { background-color: $accent; color: #ffffff; }
-.buttongroup .button .icon { font-size: 15px; }
+.buttongroup .button .icon { font-size: 14px; }
 
 //
 // Form - a column of titled rows, which is what most property editors are
@@ -450,17 +509,20 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 {
 	flex-direction: row;
 	align-items: center;
-	margin-bottom: 6px;
+	margin-bottom: 4px;
 	flex-shrink: 0;
 }
 
+// The same label column as a control sheet row, so a form and a sheet line up
 .field > .label
 {
-	width: 110px;
+	width: 150px;
 	flex-shrink: 0;
-	padding-right: 12px;
+	padding: 0 12px 0 6px;
 	color: $text-muted;
 }
+.editor-window ControlSheetRow > .left > .title { font-size: 12px; color: $text-muted; }
+.editor-window.style-light ControlSheetRow > .left > .title { color: $l-text-muted; }
 
 .field .field-control { flex-grow: 1; flex-direction: row; align-items: center; }
 
@@ -521,18 +583,27 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 
 // In an OS popup window the compositor rounds and borders the window itself - our own
 // radius and border would double up inside its clip
-.os-popup .dropdown { border-radius: 0; border: none; }
+.os-popup .dropdown, .os-popup .dropdown-options { border-radius: 0; border: none; }
+
+// The colour picker's popup is the same surface as a dropdown's list, not the game's tinted panel.
+// It opens in a window of its own, outside .editor-window, so it brings the editor's font with it.
+.popup-panel.color-popup { background-color: $field; color: $text; font-family: Poppins; font-size: 12px; border: 1px solid $field-line; border-radius: 4px; box-shadow: 0 8px 24px rgba( #000, 0.5 ); }
+.os-popup .popup-panel.color-popup { border: none; border-radius: 0; box-shadow: none; }
+
 // Dropdown menus flow vertically through their items.
-.dropdown
+.dropdown,
+// DropDown's option list - a menu of its own, one row per option
+.dropdown-options
 {
 	flex-direction: column;
 	align-items: stretch;
 	flex-shrink: 0;
 	min-width: 160px;
 	padding: 6px;
-	border-radius: 8px;
-	background-color: $raised;
-	border: 1px solid $raised;
+	// The same corners Windows gives a popup window, so a list looks the same in a window or not
+	border-radius: 4px;
+	background-color: $field;
+	border: 1px solid $field-line;
 	color: $text;
 	font-family: Poppins;
 	font-size: 12px;
@@ -540,20 +611,25 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 	transition: background-color 0.12s ease-out, border-color 0.12s ease-out;
 }
 
-.dropdown:hover { background-color: $raised-hover; }
-.dropdown:focus { border-color: $accent; }
-
 // The icon belongs beside the text, not above it
-.dropdown > iconpanel { font-size: 15px; margin-right: 8px; color: $text-muted; }
+// The icon takes the text's colour - the chevron alone stays muted
+.dropdown > iconpanel { font-size: 15px; margin-right: 8px; }
 .dropdown .dropdown_indicator { color: $text-muted; font-size: 16px; margin: 0; }
 
 // The DropDown control shares the class with menus, but reads like a text box: icon, then the
 // text from the left, chevron on the right
-.button.popupbutton.dropdown { flex-direction: row; align-items: center; justify-content: flex-start; min-width: 0; padding: 0 32px 0 12px; }
+.button.popupbutton.dropdown { flex-direction: row; align-items: center; justify-content: flex-start; min-width: 0; padding: 0 28px 0 8px; }
+// Open: the field keeps its corners, the list hangs a few pixels under it
+.button.popupbutton.dropdown.open { border-radius: 4px; }
+
+// DropDown's list: rows the height of a field, their icons and text lined up with the field's
+.dropdown-options { padding: 4px; min-width: 0; }
+.dropdown-options > .button { height: 26px; padding: 0 5px; border-radius: 3px; }
 .button.popupbutton.dropdown > .button-right-column { flex-grow: 1; min-width: 0; align-items: flex-start; }
 .button.popupbutton.dropdown .button-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.dropdown .row
+.dropdown .row,
+.dropdown-options > .button
 {
 	flex-direction: row;
 	align-items: center;
@@ -563,15 +639,34 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 	border-radius: 6px;
 	// Menus grow to their widest item rather than wrapping it
 	white-space: nowrap;
+	font-weight: normal;
 	pointer-events: all;
 	cursor: pointer;
 	transition: background-color 0.1s ease-out;
 }
 
-.dropdown .row:hover { background-color: $accent; color: #fff; }
-.dropdown .row:active { background-color: $accent-active; color: #fff; }
-.dropdown .row .icon { font-size: 14px; margin-right: 8px; }
+.dropdown .row:hover, .dropdown-options > .button:hover { background-color: $accent; color: #fff; }
+.dropdown .row:active, .dropdown-options > .button:active { background-color: $accent-active; color: #fff; }
+// A fixed icon column, so every option's text starts at the same place whatever its glyph's width
+.dropdown .row .icon, .dropdown-options > .button > .icon { flex-shrink: 0; width: 16px; font-size: 14px; text-align: center; overflow: hidden; margin-right: 8px; }
+// The option already chosen, and the one the arrow keys are on
+.dropdown-options > .button.active { background-color: rgba( $accent, 0.18 ); color: #fff; }
+.dropdown-options > .button.active:hover { background-color: $accent; }
+.dropdown-options > .button > .button-right-column { flex-grow: 1; align-items: flex-start; }
 .dropdown .separator { height: 1px; margin: 5px 4px; background-color: $line; }
+
+// Menus are the same list as a dropdown's: the same surface, 26px rows, the accent under the
+// pointer. Rows only - a menu bar's own titles keep their look.
+.editor-window .menulist, .os-popup .menulist { padding: 4px; border-radius: 4px; background-color: $field; border: 1px solid $field-line; box-shadow: none; color: $text; font-family: Poppins; font-size: 12px; }
+.os-popup .menulist { border-radius: 0; border: none; }
+.editor-window .menulist > .menu, .os-popup .menulist > .menu { height: 26px; padding: 0 8px 0 0; border-radius: 3px; }
+.editor-window .menulist > .menu.active, .editor-window .menulist > .menu.open,
+.os-popup .menulist > .menu.active, .os-popup .menulist > .menu.open { background-color: $accent; color: #fff; }
+.editor-window .menulist > .menu:active, .os-popup .menulist > .menu:active { background-color: $accent-active; color: #fff; }
+.editor-window .menulist > .menu > .gutter > .icon, .os-popup .menulist > .menu > .gutter > .icon { opacity: 1; }
+.editor-window .menulist > .menu.disabled.active, .os-popup .menulist > .menu.disabled.active { background-color: transparent; color: $text; }
+.editor-window .menulist > .menu.separator, .editor-window .menulist > .menu.separator.active,
+.os-popup .menulist > .menu.separator, .os-popup .menulist > .menu.separator.active { height: 1px; margin: 5px 4px; background-color: $line; }
 
 //
 // Toolbars - the control owns layout and input; the editor owns its appearance.
@@ -767,21 +862,19 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 .style-light .titlebar .windowbutton:active { background-color: $l-raised-hover; }
 .style-light .navitem:active { background-color: $l-raised-hover; }
 
-.style-light .flatbutton { border-color: $l-line; color: $l-text; }
+.style-light .flatbutton { background-color: $l-surface; border-color: $l-line; color: $l-text; }
 .style-light .flatbutton:hover { background-color: $l-raised; }
 .style-light .primarybutton.disabled,
 .style-light .flatbutton.disabled { background-color: $l-raised; color: $l-text-muted; }
 .style-light .primarybutton:focus { outline-color: $accent; }
 
-.style-light .textentry { background-color: $l-raised; border-color: $l-raised; }
-.style-light .textentry:focus { border-color: $accent; }
+.style-light .textentry.readonly, .style-light .textentry.readonly:hover { background-color: transparent; border-color: $l-line; }
 .style-light .textentry iconpanel { color: $l-text-faint; }
 .style-light .textentry .content-label { color: $l-text; }
 .style-light .textentry .content-label.placeholder { color: $l-text-muted; opacity: 1; }
 
-.style-light .buttongroup { background-color: $l-raised; border-color: $l-line; }
 .style-light .buttongroup .button { color: $l-text-muted; }
-.style-light .buttongroup .button:hover { background-color: $l-raised-hover; color: $l-text; }
+.style-light .buttongroup .button:hover { background-color: $l-raised; color: $l-text; }
 .style-light .buttongroup .button.active { background-color: $accent; color: #ffffff; }
 
 .style-light .form .field-header { color: $l-text-faint; }
@@ -800,8 +893,11 @@ ControlSheetRow > .right .slidercontrol.property { height: 34px; background-colo
 .style-light .switchcontrol .switch-label { color: $l-text-muted; }
 .style-light .switchcontrol:hover .switch-label { color: $l-text; }
 
-.style-light .dropdown { background-color: $l-raised; border-color: $l-line; color: $l-text; }
+.style-light .dropdown, .style-light .dropdown-options { background-color: $l-raised; border-color: $l-line; color: $l-text; }
+.style-light .popup-panel.color-popup { background-color: $l-raised; border-color: $l-line; color: $l-text; }
 .style-light .dropdown .separator { background-color: $l-line; }
+.style-light .menulist { background-color: $l-raised; border-color: $l-line; color: $l-text; }
+.style-light .menulist > .menu.separator, .style-light .menulist > .menu.separator.active { background-color: $l-line; }
 
 .style-light .empty .icon { color: $l-line; }
 .style-light .empty .title { color: $l-text-muted; }

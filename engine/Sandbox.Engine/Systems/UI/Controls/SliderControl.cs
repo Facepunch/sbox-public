@@ -146,35 +146,37 @@ public class SliderControl : BaseControl
 		    }
 		}
 
-		// Bound to a property it's laid out like the editor's float control: one box with an f chip
+		// Bound to a property it's laid out like the editor's float control: one box with an f
 		// to scrub from, the track, and the value on the right
 		.slidercontrol.property
 		{
 		    gap: 0px;
-		    min-height: 32px;
-		    padding: 0px 4px;
-		    border-radius: 8px;
+		    min-height: 26px;
+		    padding: 0px 4px 0px 8px;
+		    border-radius: 4px;
 		    background-color: #000a;
 
 		    > .prefix-chip
 		    {
 		        order: -1;
 		        flex-shrink: 0;
-		        width: 24px;
-		        height: 24px;
-		        border-radius: 5px;
+		        align-self: center;
+		        min-width: 10px;
+		        padding-right: 8px;
+		        margin-right: 4px;
+		        border-right: 1px solid #ffffff14;
 		        font-weight: 600;
 		        text-align: center;
 		        justify-content: center;
 		        align-items: center;
 		        color: #B0E24D;
-		        background-color: #B0E24D1a;
+		        opacity: 0.85;
 		        cursor: ew-resize;
 		    }
 
 		    &:hover > .prefix-chip
 		    {
-		        background-color: #B0E24D33;
+		        opacity: 1;
 		    }
 
 		    > .inner
@@ -189,7 +191,7 @@ public class SliderControl : BaseControl
 
 		        > numberentry
 		        {
-		            height: 28px;
+		            height: 22px;
 		            padding: 0px 6px;
 		            border: 0px solid transparent;
 		        }

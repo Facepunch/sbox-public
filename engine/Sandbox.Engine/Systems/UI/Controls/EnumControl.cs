@@ -25,22 +25,13 @@ public partial class EnumControl : BaseControl
 		EnumControl DropDown,
 		EnumControl ButtonGroup
 		{
-			border-radius: 8px;
-			background-color: #000a;
 			flex-grow: 1;
-		}
-
-		EnumControl DropDown
-		{
-			flex-grow: 1;
-			min-height: 32px;
+			min-height: 26px;
 		}
 
 		EnumControl ButtonGroup
 		{
-			border-radius: 12px;
 			overflow: hidden;
-			min-height: 32px;
 
 			Button
 			{
@@ -52,19 +43,9 @@ public partial class EnumControl : BaseControl
 				font-size: 1rem;
 				cursor: pointer;
 
-				.icon
-				{
-					color: #08f;
-				}
-
 				&:hover
 				{
 					color: #ddd;
-
-					.icon
-					{
-						color: #3af;
-					}
 				}
 
 				&:active
@@ -72,11 +53,6 @@ public partial class EnumControl : BaseControl
 					background-color: #04a;
 					color: white;
 					transform: translateX( 1px ) translateY( 1px );
-
-					.icon
-					{
-						color: #fff;
-					}
 				}
 
 				&.active
@@ -84,11 +60,6 @@ public partial class EnumControl : BaseControl
 					background-color: #08f;
 					color: white;
 					pointer-events: none;
-
-					.icon
-					{
-						color: #fff;
-					}
 				}
 			}
 		}

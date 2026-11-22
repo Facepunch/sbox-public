@@ -104,14 +104,17 @@ public partial class ColorControl : BaseControl
 
 	void Sync()
 	{
-		_swatch.Set( _color, _hasAlpha, _isHdr );
+		_swatch.Set( _color, _hasAlpha );
 		_text.Value = _color.ToText();
 	}
 
 	void OpenPopup()
 	{
 		_text.Blur();
-		var popup = new Popup( _swatch, Popup.PositionMode.BelowLeft, 4 );
+		// Hung off the whole field, not the swatch inset in it - lined up with its edge and a gap
+		// under it, like a dropdown's list
+		var popup = new Popup( this, Popup.PositionMode.BelowLeft, 4 );
+		popup.AddClass( "color-popup" );
 
 		var picker = popup.AddChild<ColorPickerControl>();
 		picker.HasAlpha = _hasAlpha;
