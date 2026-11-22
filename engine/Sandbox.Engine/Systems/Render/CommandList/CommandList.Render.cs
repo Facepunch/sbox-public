@@ -17,10 +17,28 @@ public sealed unsafe partial class CommandList
 			if ( !renderer.IsValid() )
 				return;
 
-			renderer.RenderSceneObject( (RendererSetup)entry.Object2 );
+			var setup = new RendererSetup { Material = (Material)entry.Object2 };
+			if ( (entry.Count & 1) != 0 ) setup.Transform = new Transform( new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ), new Rotation( entry.Data2.x, entry.Data2.y, entry.Data2.z, entry.Data2.w ), new Vector3( entry.Data3.x, entry.Data3.y, entry.Data3.z ) );
+			if ( (entry.Count & 2) != 0 ) setup.Color = new Color( entry.Data4.x, entry.Data4.y, entry.Data4.z, entry.Data4.w );
+			renderer.RenderSceneObject( setup );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = renderer, Object2 = rendererSetup } );
+		// The setup's fields go into the entry: boxing it allocated on every call
+		var entry = new Entry { Object1 = renderer, Object2 = rendererSetup.Material };
+		if ( rendererSetup.Transform is { } tx )
+		{
+			entry.Count |= 1;
+			entry.Data1 = new Vector4( tx.Position, 0 );
+			entry.Data2 = new Vector4( tx.Rotation.x, tx.Rotation.y, tx.Rotation.z, tx.Rotation.w );
+			entry.Data3 = new Vector4( tx.Scale, 0 );
+		}
+		if ( rendererSetup.Color is { } color )
+		{
+			entry.Count |= 2;
+			entry.Data4 = new Vector4( color.r, color.g, color.b, color.a );
+		}
+
+		AddEntry( &Execute, entry );
 	}
 
 	/// <summary>
