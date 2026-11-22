@@ -6,6 +6,7 @@ public sealed partial class PlayerController
 	BoneCollection.Bone _firstPersonChest;
 	BoneCollection.Bone _firstPersonNeck;
 	bool _firstPersonShowArms;
+	bool[] _firstPersonUpperBody;
 	readonly Dictionary<ModelRenderer, FirstPersonBodyCopy> _firstPersonBodyCopies = new();
 	readonly Dictionary<ModelRenderer, FirstPersonBodyCopy> _firstPersonShadowCopies = new();
 	readonly HashSet<GameObject> _firstPersonHiddenAttachments = new();
@@ -24,6 +25,11 @@ public sealed partial class PlayerController
 			var bones = _firstPersonBodyModel.Bones;
 			_firstPersonChest = bones.GetBone( "spine_2" );
 			_firstPersonNeck = bones.GetBone( "neck_0" ) ?? bones.GetBone( "neck_1" ) ?? bones.GetBone( "head" );
+
+			// Walking every bone's parents with name compares each frame is slow, the answer only changes with the model
+			_firstPersonUpperBody = new bool[bones.AllBones.Count];
+			for ( int i = 0; i < _firstPersonUpperBody.Length; i++ )
+				_firstPersonUpperBody[i] = WalkFirstPersonUpperBody( bones.AllBones[i] );
 		}
 
 		return FirstPersonHiddenRoot is not null;
@@ -118,6 +124,14 @@ public sealed partial class PlayerController
 	}
 
 	bool IsFirstPersonUpperBodyBone( BoneCollection.Bone bone )
+	{
+		if ( bone is null ) return false;
+		if ( _firstPersonUpperBody is { } upper && bone.Index >= 0 && bone.Index < upper.Length && _firstPersonBodyModel.Bones.AllBones[bone.Index] == bone )
+			return upper[bone.Index];
+		return WalkFirstPersonUpperBody( bone );
+	}
+
+	bool WalkFirstPersonUpperBody( BoneCollection.Bone bone )
 	{
 		var root = FirstPersonHiddenRoot;
 		for ( ; bone is not null; bone = bone.Parent )
