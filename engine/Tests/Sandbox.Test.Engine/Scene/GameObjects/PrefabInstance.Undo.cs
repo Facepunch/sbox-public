@@ -137,4 +137,27 @@ public partial class PrefabInstanceTest
 				Json.ToNode( instance.PrefabInstance.Patch ) ) );
 		}
 	}
+
+	[TestMethod]
+	public void ComponentScopedRefreshKeepsUncapturedEditsAcrossPrefabReload()
+	{
+		using var registration = RegisterBasicPrefab( out var prefab );
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var instance = prefab.Clone();
+		var component = GetChild( instance, "ChildA" ).Components.Get<PrefabInstanceStatComponent>();
+
+		instance.Name = "Uncaptured";
+		component.Number = 42;
+		instance.PrefabInstance.RefreshPatch( [component] );
+
+		var file = ResourceLibrary.Get<PrefabFile>( BasicPrefabPath );
+		file.RootObject["Components"][0]["Number"] = 99;
+		((PrefabCacheScene)prefab).Refresh( file );
+		instance.UpdateFromPrefab();
+
+		Assert.AreEqual( "Uncaptured", instance.Name );
+		Assert.AreEqual( 42, component.Number );
+		Assert.AreEqual( 99, instance.Components.Get<PrefabInstanceStatComponent>().Number, "Prefab changes still propagate" );
+	}
 }
