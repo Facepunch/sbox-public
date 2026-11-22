@@ -16,8 +16,7 @@ namespace Editor;
 /// change affects, in order. The asset system compiles single assets itself (a load of a changed one, a tool's
 /// compile); their outputs record what they were built from, so the build takes them as they are rather than
 /// compiling them again. Compiles run in this process, as a content worker runs them: each on a thread of its own, the
-/// main thread doing what they need of it every frame (<see cref="ContentCompilerHost.RunJob"/>). A source that crashed
-/// a worker compiles in one, with the tool and project code the editor has loaded.
+/// main thread doing what they need of it every frame (<see cref="ContentCompilerHost.RunJob"/>).
 /// </summary>
 internal static class EditorContentBuild
 {
@@ -208,21 +207,7 @@ internal static class EditorContentBuild
 				JobFinished = startup ? source => EditorSplashScreen.SetMessage( $"Compiled {source}" ) : null,
 			};
 
-			// The last build's workers are gone before this one takes any
-			var stopping = workersStopping;
-			workersStopping = null;
-			if ( stopping is not null ) await stopping;
-			var assetCompiler = Compiler( request.Mounts );
-			BuildReport report;
-			try
-			{
-				report = await ContentBuilder.BuildAsync( request, assetCompiler, cancellation.Token );
-			}
-			finally
-			{
-				// Workers go after the build that started them; the editor opens while startup's shuts down
-				workersStopping = Task.Run( assetCompiler.Finished );
-			}
+			var report = await ContentBuilder.BuildAsync( request, Compiler( request.Mounts ), cancellation.Token );
 
 			Report( report, roots, startup );
 
@@ -330,73 +315,20 @@ internal static class EditorContentBuild
 	static int codeGeneration;
 
 	/// <summary>
-	/// Sources whose compile crashed every worker it ran on (or ran it out of memory), which compile in a worker until
-	/// a compile of one succeeds.
-	/// </summary>
-	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> lost = new( StringComparer.OrdinalIgnoreCase );
-
-	/// <summary>
-	/// The last build's workers shutting down.
-	/// </summary>
-	static Task workersStopping;
-
-	/// <summary>
-	/// The tool and project assemblies the workers load: this editor's own copy of the ones it compiled and loaded.
-	/// </summary>
-	static string Compilers => Path.Combine( Path.GetTempPath(), "sbox-compilers", $"editor-{Environment.ProcessId}" );
-	static int compilerSets;
-
-	/// <summary>
-	/// The compiler for these mounts and the code the editor has loaded now. Compiles run in this process but for the
-	/// sources in <see cref="lost"/>. Adopting what's built, and questions about the compilers, are answered here.
+	/// The compiler for these mounts and the code the editor has loaded now, which runs each job in this process.
+	/// Adopting what's built, and questions about the compilers, are answered here.
 	/// </summary>
 	static ResourceCompiler Compiler( IReadOnlyList<(string Mod, string Path)> mounts )
 	{
 		var key = string.Join( "\n", mounts.Select( x => $"{x.Mod}|{x.Path}" ).Append( $"{codeGeneration}" ) );
 		if ( key == compilerKey ) return compiler;
 
-		// The old workers go before the assemblies they loaded
-		StopWorkers();
-		DeleteLeftovers();
-
-		// A folder of its own, so a worker or scanner still holding the last set's files can't fail this one
-		var folder = Path.Combine( Compilers, $"{++compilerSets}" );
-		Directory.CreateDirectory( folder );
-		foreach ( var assembly in ToolsDll.LoadedAssemblies.Where( x => x.CompiledAssemblyBytes is not null ) )
-			File.WriteAllBytes( Path.Combine( folder, $"{assembly.Assembly.GetName().Name}.dll" ), assembly.CompiledAssemblyBytes );
-
 		compilerKey = key;
-		// The editor has a GPU, and its projects' image generators can copy compiled textures
-		var worker = OperatingSystem.IsWindows() ? "contentworker.exe" : "contentworker";
-		compiler = new ResourceCompiler( EngineFileSystem.Root.GetFullPath( $"bin/managed/{worker}" ), new AssetTypeTable( EngineFileSystem.Root.GetFullPath( "bin/assettypes.txt" ) ), mounts, folder )
+		compiler = new ResourceCompiler( null, new AssetTypeTable( EngineFileSystem.Root.GetFullPath( "bin/assettypes.txt" ) ), mounts, null )
 		{
-			RenderDevice = true,
 			InProcess = ( mode, source, staging, report, args ) => ContentCompilerHost.RunJob( mode, source, staging, report, args ),
-			InWorker = ( mode, source ) => lost.ContainsKey( source ),
-			Lost = lost,
 		};
 		return compiler;
-	}
-
-	/// <summary>
-	/// The folders of editors that are gone without deleting theirs (closed with their workers still letting go of it).
-	/// </summary>
-	static void DeleteLeftovers()
-	{
-		var parent = Path.GetDirectoryName( Compilers );
-		if ( !Directory.Exists( parent ) ) return;
-
-		foreach ( var folder in Directory.GetDirectories( parent, "editor-*" ) )
-		{
-			if ( !int.TryParse( Path.GetFileName( folder )["editor-".Length..], out var id ) || id <= 0 || Running( id ) ) continue;
-			try { Directory.Delete( folder, true ); } catch ( IOException ) { } catch ( UnauthorizedAccessException ) { }
-		}
-	}
-
-	static bool Running( int processId )
-	{
-		try { using var process = System.Diagnostics.Process.GetProcessById( processId ); return !process.HasExited; }
-		catch ( ArgumentException ) { return false; }
 	}
 
 	/// <summary>
@@ -420,16 +352,5 @@ internal static class EditorContentBuild
 		cancellation?.Cancel();
 		ContentCompilerHost.WaitForJobs();
 		incrementalBuild = null;
-		StopWorkers();
-	}
-
-	static void StopWorkers()
-	{
-		workersStopping?.Wait();
-		compiler?.Finished();
-		compiler = null;
-		compilerKey = null;
-
-		try { Directory.Delete( Compilers, true ); } catch ( IOException ) { } catch ( UnauthorizedAccessException ) { }
 	}
 }

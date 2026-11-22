@@ -51,98 +51,10 @@ public class CompilerWorkerTests
 	}
 
 	/// <summary>
-	/// A worker that answers each job right away, or exits during it if its source has a ".crash" file beside it.
-	/// </summary>
-	const string CrashingWorker = """
-		using System;
-		using System.IO;
-		Console.WriteLine("\u0001ready");
-		while (Console.ReadLine() is {} line)
-		{
-			var fields = line.Split('\t');
-			if (File.Exists(fields[2] + ".crash")) Environment.Exit(1);
-			File.WriteAllLines(fields[4], ["buildreport\t1", "result\t1"]);
-			Console.WriteLine($"\u0001done\t{fields[0]}\tsucceeded");
-		}
-		""";
-
-	/// <summary>
-	/// The editor's builds, with a worker and this process both. At startup, questions about the compilers are answered
-	/// here without starting a worker, and compiles run in one. A source that lost every worker it ran on is lost, and the
-	/// next build's compiler, which shares that, compiles it in a worker too, everything else here, until it compiles.
+	/// A worker that exits before it's ready (no render device, compilers that don't load) fails the job.
 	/// </summary>
 	[TestMethod]
-	public void LostSourcesCompileInAWorkerUntilOneSucceeds()
-	{
-		var directory = Directory.CreateTempSubdirectory( "worker-lost-test" ).FullName;
-		try
-		{
-			var assembly = Emit( directory, CrashingWorker );
-			var types = Path.Combine( directory, "assettypes.txt" );
-			File.WriteAllText( types, "" );
-
-			var lost = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>( StringComparer.OrdinalIgnoreCase );
-			var here = new System.Collections.Concurrent.ConcurrentQueue<string>();
-			ResourceCompiler Compiler( bool startup ) => new( Launcher( directory, assembly ), new AssetTypeTable( types ), [], null )
-			{
-				InProcess = ( mode, source, staging, report, args ) =>
-				{
-					here.Enqueue( mode == "compile" ? Path.GetFileName( source ) : mode );
-					File.WriteAllLines( report, mode == "types" ? [".gres\t.gres_c"] : ["buildreport\t1", "result\t1"] );
-					return true;
-				},
-				InWorker = ( mode, source ) => mode == "compile" && (startup || lost.ContainsKey( source )),
-				Lost = lost,
-			};
-
-			var root = new ContentRoot( "test", directory, directory );
-			CompileResult Compile( ResourceCompiler compiler, string name )
-			{
-				var staging = Directory.CreateDirectory( Path.Combine( directory, $"staging_{Guid.NewGuid():N}" ) ).FullName;
-				return compiler.Compile( new CompileJob( root, [], Path.Combine( directory, name ), staging, [] ), default );
-			}
-
-			File.WriteAllText( Path.Combine( directory, "crash.gres.crash" ), "" );
-			var startup = Compiler( true );
-			try
-			{
-				Assert.AreEqual( AssetKind.Described, startup.Classify( ".gres", out var output ) );
-				Assert.AreEqual( ".gres_c", output );
-				Assert.AreEqual( 0, startup.Launches );
-
-				Assert.IsTrue( Compile( startup, "a.gres" ).Success );
-				Assert.IsFalse( Compile( startup, "crash.gres" ).Success );
-			}
-			finally { startup.Finished(); }
-			CollectionAssert.AreEqual( new[] { "types" }, here.ToArray() );
-			CollectionAssert.AreEqual( new[] { Path.Combine( directory, "crash.gres" ) }, lost.Keys.ToArray() );
-
-			var next = Compiler( false );
-			try
-			{
-				Assert.IsFalse( Compile( next, "crash.gres" ).Success );
-				Assert.IsTrue( Compile( next, "a.gres" ).Success );
-				CollectionAssert.AreEqual( new[] { "types", "a.gres" }, here.ToArray() );
-				Assert.AreEqual( 3, next.Launches );
-
-				// Fixed, it compiles in a worker once more, then here
-				File.Delete( Path.Combine( directory, "crash.gres.crash" ) );
-				Assert.IsTrue( Compile( next, "crash.gres" ).Success );
-				Assert.AreEqual( 0, lost.Count );
-				Assert.IsTrue( Compile( next, "crash.gres" ).Success );
-				CollectionAssert.AreEqual( new[] { "types", "a.gres", "crash.gres" }, here.ToArray() );
-			}
-			finally { next.Finished(); }
-		}
-		finally { Directory.Delete( directory, true ); }
-	}
-
-	/// <summary>
-	/// A worker that exits before it's ready (no render device, compilers that don't load) fails the job, which isn't
-	/// lost: the next build doesn't send it to a worker that can't start either.
-	/// </summary>
-	[TestMethod]
-	public void AWorkerThatNeverGetsReadyLosesNoSource()
+	public void AWorkerThatNeverGetsReadyFailsTheJob()
 	{
 		var directory = Directory.CreateTempSubdirectory( "worker-unready-test" ).FullName;
 		try
@@ -150,17 +62,12 @@ public class CompilerWorkerTests
 			var assembly = Emit( directory, "System.Environment.Exit(1);" );
 			var types = Path.Combine( directory, "assettypes.txt" );
 			File.WriteAllText( types, "" );
-			var compiler = new ResourceCompiler( Launcher( directory, assembly ), new AssetTypeTable( types ), [], null )
-			{
-				InProcess = ( mode, source, staging, report, args ) => true,
-				InWorker = ( mode, source ) => true,
-			};
+			var compiler = new ResourceCompiler( Launcher( directory, assembly ), new AssetTypeTable( types ), [], null );
 			try
 			{
 				var root = new ContentRoot( "test", directory, directory );
 				var staging = Directory.CreateDirectory( Path.Combine( directory, "staging" ) ).FullName;
 				Assert.IsFalse( compiler.Compile( new CompileJob( root, [], Path.Combine( directory, "a.vtex" ), staging, [] ), default ).Success );
-				Assert.AreEqual( 0, compiler.Lost.Count );
 			}
 			finally { compiler.Finished(); }
 		}
