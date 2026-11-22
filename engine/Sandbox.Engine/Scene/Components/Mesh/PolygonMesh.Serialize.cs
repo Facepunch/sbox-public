@@ -184,13 +184,13 @@ public partial class PolygonMesh
 		// serialized because they are world-space dependent and derived at runtime.
 		// MeshComponent sets Mesh.Transform = WorldTransform on enable/transform change, which
 		// triggers ComputeFaceTextureParametersFromCoordinates() to recompute them from TextureCoord.
-		var blob = MeshBlob.FromMesh( mesh );
+		var data = MeshBlob.FromMesh( mesh ).ToBytes();
 		writer.WritePropertyName( "Data" );
 
 		if ( BlobDataSerializer.IsActive )
-			Json.Serialize( writer, blob );
+			Json.Serialize( writer, MeshBlob.Deferred( data ) );
 		else
-			writer.WriteBase64StringValue( blob.ToBytes() );
+			writer.WriteBase64StringValue( data );
 
 		if ( mesh._materialsById.Count > 0 )
 		{
@@ -213,6 +213,9 @@ public partial class PolygonMesh
 	private sealed class MeshBlob : BlobData
 	{
 		public override int Version => 1;
+
+		// Read on first use: a blob written by a context it's read back from carries only its bytes
+		protected override bool LoadOnDemand => true;
 
 		float CollisionTolerance;
 		Transform? TriangulationTransform;
@@ -237,23 +240,31 @@ public partial class PolygonMesh
 
 		const int SectionCount = 7;
 
+		// Set for writing: Serialize reads the mesh's streams in place instead of copies.
+		// The array properties below are only filled by reading.
+		PolygonMesh _source;
+
 		public static MeshBlob FromMesh( PolygonMesh mesh ) => new()
 		{
+			_source = mesh,
 			CollisionTolerance = mesh.CollisionTolerance,
 			TriangulationTransform = mesh.TriangulationTransform,
-			Topology = mesh.Topology.Serialize(),
-			Positions = mesh.Positions.ToArray(),
-			Blends = mesh.Blends.ToArray(),
-			CornerNormals = mesh.CornerNormals?.ToArray() ?? [],
-			SecondaryBlends = mesh.SecondaryBlends?.ToArray() ?? [],
-			Colors = mesh.Colors.ToArray(),
-			TextureCoord = mesh.TextureCoord.ToArray(),
-			MaterialIndex = mesh.MaterialIndex.ToArray(),
-			EdgeFlags = mesh.EdgeFlags.ToArray(),
 		};
+
+		/// <summary>
+		/// A blob holding <paramref name="data"/> (from <see cref="ToBytes"/>): saved as is, deserialized only if read.
+		/// </summary>
+		public static MeshBlob Deferred( byte[] data )
+		{
+			var blob = new MeshBlob();
+			blob.TryDeferLoad( data );
+			return blob;
+		}
 
 		public void ApplyTo( PolygonMesh mesh )
 		{
+			EnsureLoaded();
+
 			using ( var ms = new MemoryStream( Topology ) )
 			using ( var br = new BinaryReader( ms ) )
 			{
@@ -275,8 +286,11 @@ public partial class PolygonMesh
 		public override void Serialize( ref Writer writer )
 		{
 			ref var stream = ref writer.Stream;
+			var mesh = _source ?? throw new InvalidOperationException( "Mesh blobs are only written from a mesh" );
+			var cornerNormals = mesh.CornerNormals is null ? default : mesh.CornerNormals.AsSpan();
+			var secondaryBlends = mesh.SecondaryBlends is null ? default : mesh.SecondaryBlends.AsSpan();
 
-			stream.Write( SectionCount + (SecondaryBlends.Length > 0 ? 1 : 0) + (CornerNormals.Length > 0 ? 1 : 0)
+			stream.Write( SectionCount + (secondaryBlends.Length > 0 ? 1 : 0) + (cornerNormals.Length > 0 ? 1 : 0)
 				+ (CollisionTolerance > 0 ? 1 : 0) + (TriangulationTransform.HasValue ? 1 : 0) );
 			if ( CollisionTolerance > 0 )
 			{
@@ -292,16 +306,19 @@ public partial class PolygonMesh
 				stream.Write( t.Rotation );
 				stream.Write( t.Scale );
 			}
-			if ( CornerNormals.Length > 0 ) WriteSection( ref stream, "cornernormals", CornerNormals );
-			if ( SecondaryBlends.Length > 0 ) WriteSection( ref stream, "secondaryblends", SecondaryBlends );
+			if ( cornerNormals.Length > 0 ) WriteSection( ref stream, "cornernormals", cornerNormals );
+			if ( secondaryBlends.Length > 0 ) WriteSection( ref stream, "secondaryblends", secondaryBlends );
 
-			WriteSection( ref stream, SectionTopology, Topology );
-			WriteSection( ref stream, SectionPositions, Positions );
-			WriteSection( ref stream, SectionBlends, Blends );
-			WriteSection( ref stream, SectionColors, Colors );
-			WriteSection( ref stream, SectionTextureCoord, TextureCoord );
-			WriteSection( ref stream, SectionMaterialIndex, MaterialIndex );
-			WriteSection( ref stream, SectionEdgeFlags, EdgeFlags );
+			stream.Write( SectionTopology );
+			stream.Write( mesh.Topology.SerializedSize );
+			mesh.Topology.Serialize( ref stream );
+
+			WriteSection( ref stream, SectionPositions, mesh.Positions.AsSpan() );
+			WriteSection( ref stream, SectionBlends, mesh.Blends.AsSpan() );
+			WriteSection( ref stream, SectionColors, mesh.Colors.AsSpan() );
+			WriteSection( ref stream, SectionTextureCoord, mesh.TextureCoord.AsSpan() );
+			WriteSection( ref stream, SectionMaterialIndex, mesh.MaterialIndex.AsSpan() );
+			WriteSection( ref stream, SectionEdgeFlags, mesh.EdgeFlags.AsSpan() );
 		}
 
 		public override void Deserialize( ref Reader reader )
