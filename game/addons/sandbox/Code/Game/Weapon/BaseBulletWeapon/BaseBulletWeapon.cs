@@ -117,7 +117,7 @@ public partial class BaseBulletWeapon : BaseSandboxWeapon
 		return Scene.Trace.Ray( ray, distance )
 			.IgnoreGameObjectHierarchy( AimIgnoreRoot )
 			.WithCollisionRules( "bullet" )
-			.WithoutTags( "playercontroller" )
+			.WithoutTags( "playercontroller", "trigger", "playerclip" )
 			.Radius( radius )
 			.UseHitboxes();
 	}

@@ -27,6 +27,7 @@ public partial class BaseCombatWeapon
 	{
 		var tr = scene.Trace.Ray( ray, distance )
 			.IgnoreGameObjectHierarchy( ignore ?? attacker )
+			.WithoutTags( "trigger", "playerclip" )
 			.Radius( radius )
 			.UseHitboxes()
 			.Run();
@@ -168,6 +169,7 @@ public partial class BaseCombatWeapon
 	{
 		return Scene.Trace.Ray( ray, distance )
 			.IgnoreGameObjectHierarchy( Holder?.GameObject ?? GameObject )
+			.WithoutTags( "trigger", "playerclip" )
 			.Radius( radius )
 			.UseHitboxes();
 	}
