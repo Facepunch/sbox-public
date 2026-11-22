@@ -386,7 +386,7 @@ internal static partial class HammerTools
 
 	static bool LooksLikeAssetPath( string value )
 	{
-		if ( string.IsNullOrWhiteSpace( value ) || value.Length > 260 )
+		if ( string.IsNullOrWhiteSpace( value ) || LongPath.IsTooLong( value ) )
 			return false;
 
 		return AssetExtensions.Contains( System.IO.Path.GetExtension( value.Trim() ) );
