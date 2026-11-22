@@ -11,6 +11,11 @@ internal partial class BytePack
 	{
 		void Write( ref ByteStream bs, T value );
 		T Read( ref ByteStream bs );
+
+		/// <summary>
+		/// Read as part of another value, for packers that read nested values.
+		/// </summary>
+		T Read( ref ByteStream bs, int depth ) => Read( ref bs );
 	}
 
 	public class Packer
@@ -83,5 +88,15 @@ internal partial class BytePack
 
 		internal object Deserialize( ref ByteStream bs, int depth ) => parent.Deserialize( ref bs, depth );
 		internal void Serialize( ref ByteStream bs, object obj ) => parent.Serialize( ref bs, obj );
+
+		/// <summary>
+		/// Write a value as its own type, which doesn't box plain values. Same bytes as <see cref="Serialize"/>.
+		/// </summary>
+		internal void SerializeValue<T>( ref ByteStream bs, T value ) => parent.Serialize( ref bs, value );
+
+		/// <summary>
+		/// Read a nested value as its own type. A null reads as default, like setting a field through reflection.
+		/// </summary>
+		internal T DeserializeValue<T>( ref ByteStream bs, int depth ) => parent.DeserializeValue<T>( ref bs, depth );
 	}
 }

@@ -33,7 +33,7 @@ public abstract partial class Component
 			// we don't want to do all the logic below for the same value.
 			// Obviously, if we're reading changes from the network, then we
 			// should just allow all the logic to go through.
-			if ( !NetworkTable.IsReadingChanges )
+			if ( !NetworkTable.IsReadingChanges && !NetworkTable.HasReflectionEquality<T>() )
 			{
 				var currentValue = p.Getter();
 

@@ -104,6 +104,27 @@ internal partial class BytePack
 		return (T)Deserialize( ref data, 0 );
 	}
 
+	internal T DeserializeValue<T>( ref ByteStream data, int depth )
+	{
+		if ( typeof( T ).IsValueType )
+		{
+			if ( depth > MaxDepth )
+				throw new System.Exception( $"BytePack nesting depth exceeded ({MaxDepth}) - possible malicious payload" );
+
+			var start = data.Position;
+			var h = data.Read<Identifier>();
+
+			var packer = h == Identifier.Runtime ? GetOrCreatePacker( data.Read<int>() ) : handlers.GetValueOrDefault( h );
+			if ( packer is IValuePacker<T> reader )
+				return reader.Read( ref data, depth );
+
+			data.Position = start;
+		}
+
+		var value = Deserialize( ref data, depth );
+		return value is null ? default : (T)value;
+	}
+
 	/// <inheritdoc cref="Deserialize{T}(ref ByteStream)"/>
 	public T Deserialize<T>( ReadOnlySpan<byte> data )
 	{

@@ -136,7 +136,7 @@ internal class NetworkTable : IDisposable
 			hc.Add( items.Length );
 
 			foreach ( var item in items )
-				hc.Add( item );
+				hc.Add( PlainValue<T>.HashesBytes ? HashBytes( item ) : item?.GetHashCode() ?? 0 );
 
 			hash = hc.ToHashCode();
 			return true;
@@ -331,7 +331,7 @@ internal class NetworkTable : IDisposable
 			return false;
 
 		// Same hash as ToHashCode gives the boxed value
-		return SetHash( v, HashCode.Combine( value ) );
+		return SetHash( v, HashValue( value ) );
 	}
 
 	/// <summary>
@@ -390,7 +390,7 @@ internal class NetworkTable : IDisposable
 				return;
 
 			// Same hash as ToHashCode gives the boxed value
-			SetHash( entry, HashCode.Combine( value ) );
+			SetHash( entry, HashValue( value ) );
 			_set( value );
 		}
 
@@ -407,6 +407,55 @@ internal class NetworkTable : IDisposable
 	private static class PlainValue<T>
 	{
 		public static readonly bool IsPlain = NetworkTable.IsPlain( typeof( T ) );
+		public static readonly bool HashesBytes = UsesDefaultHash( typeof( T ) );
+		public static readonly bool ReflectionEquality = IsPlain && HashesBytes && !typeof( T ).IsAssignableTo( typeof( IEquatable<T> ) )
+			&& typeof( T ).GetMethod( nameof( Equals ), [typeof( object )] )?.DeclaringType == typeof( ValueType );
+	}
+
+	/// <summary>
+	/// A struct compared field by field through reflection, which boxes both values. Its hash already tells
+	/// whether it changed, so setters can skip comparing.
+	/// </summary>
+	internal static bool HasReflectionEquality<T>() => PlainValue<T>.ReflectionEquality;
+
+	// The default struct hash only looks at the first field, so a change to any other field would go unnoticed
+	static bool UsesDefaultHash( Type type )
+	{
+		// A nullable struct hashes through its value
+		type = Nullable.GetUnderlyingType( type ) ?? type;
+		return type.IsValueType && type.GetMethod( nameof( GetHashCode ), Type.EmptyTypes )?.DeclaringType == typeof( ValueType );
+	}
+
+	[SkipHotload] static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Type, object> DefaultHashTypes = new();
+	static readonly object HashesBytes = new();
+	static readonly object HashesItself = new();
+
+	static int HashValue<T>( T value ) => PlainValue<T>.HashesBytes ? HashBytes( value ) : HashCode.Combine( value );
+
+	/// <summary>
+	/// Hash what would be sent, the same for a value and its box.
+	/// </summary>
+	static int HashBytes<T>( T value )
+	{
+		var bs = ByteStream.Create( 256 );
+
+		try
+		{
+			GlobalContext.Current.TypeLibrary.ToBytes( value, ref bs );
+
+			HashCode hc = default;
+			hc.AddBytes( bs.ToSpan() );
+			return hc.ToHashCode();
+		}
+		catch
+		{
+			// Can't be sent either, writing the snapshot reports it
+			return HashCode.Combine( value );
+		}
+		finally
+		{
+			bs.Dispose();
+		}
 	}
 
 	private static int ToHashCode( object value )
@@ -418,7 +467,7 @@ internal class NetworkTable : IDisposable
 			hc.Add( list.Count );
 			for ( var i = 0; i < list.Count; i++ )
 			{
-				hc.Add( list[i] );
+				hc.Add( HashElement( list[i] ) );
 			}
 
 			return hc.ToHashCode();
@@ -431,14 +480,23 @@ internal class NetworkTable : IDisposable
 			hc.Add( dictionary.Count );
 			foreach ( DictionaryEntry item in dictionary )
 			{
-				hc.Add( HashCode.Combine( item.Key, item.Value ) );
+				hc.Add( HashCode.Combine( HashElement( item.Key ), HashElement( item.Value ) ) );
 			}
 
 			return hc.ToHashCode();
 		}
 
+		if ( HashesItsBytes( value ) )
+			return HashBytes( value );
+
 		return HashCode.Combine( value );
 	}
+
+	static bool HashesItsBytes( object value ) => value is not null && value.GetType().IsValueType
+		&& DefaultHashTypes.GetValue( value.GetType(), static t => UsesDefaultHash( t ) ? HashesBytes : HashesItself ) == HashesBytes;
+
+	// Collection elements too: a struct with the default hash would miss changes after its first field
+	static int HashElement( object value ) => HashesItsBytes( value ) ? HashBytes( value ) : value?.GetHashCode() ?? 0;
 
 	/// <summary>
 	/// Set a variable from a slot id.
