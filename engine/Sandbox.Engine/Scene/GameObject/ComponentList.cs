@@ -234,6 +234,13 @@ public class ComponentList
 	}
 
 	/// <summary>
+	/// Find the same components as <see cref="GetAll{T}(FindMode)"/>, in the same order, without allocating a list.
+	/// They're found as you iterate, so don't add, remove or reparent components or GameObjects in the loop.
+	/// Use it with <c>foreach</c>: LINQ on it boxes the query and its enumerator, which costs more than <see cref="GetAll{T}(FindMode)"/>.
+	/// </summary>
+	internal ComponentQuery<T> Query<T>( FindMode find = FindMode.InSelf | FindMode.Enabled | FindMode.InDescendants ) => new( go, find );
+
+	/// <summary>
 	/// Append matching components to reusable engine-owned storage.
 	/// </summary>
 	internal void GetAll<T>( List<T> results, FindMode find )
