@@ -1100,7 +1100,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			if ( ownsBatch )
 			{
 				CSceneSystem.FinishRenderingViews();
-				CSceneSystem.WaitForRenderingToComplete();
+				Graphics.WaitForRenderingToComplete();
 			}
 		}
 	}

@@ -82,6 +82,25 @@ public static partial class Graphics
 	[ThreadStatic]
 	private static RenderState _state;
 
+	/// <summary>
+	/// Wait for the scene's render jobs. The calling thread runs jobs while it waits, so the wait goes without a
+	/// sync context: a job's contended lock would otherwise pump the main thread's queue, and a continuation that
+	/// syncs the resource system waits for rendering from inside the job it interrupted.
+	/// </summary>
+	internal static void WaitForRenderingToComplete()
+	{
+		var syncContext = System.Threading.SynchronizationContext.Current;
+		try
+		{
+			System.Threading.SynchronizationContext.SetSynchronizationContext( null );
+			CSceneSystem.WaitForRenderingToComplete();
+		}
+		finally
+		{
+			System.Threading.SynchronizationContext.SetSynchronizationContext( syncContext );
+		}
+	}
+
 	internal static IRenderContext Context => _state.renderContext;
 
 	/// <summary>

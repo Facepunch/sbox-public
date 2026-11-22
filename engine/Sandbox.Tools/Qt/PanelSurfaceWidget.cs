@@ -169,7 +169,7 @@ internal class PanelSurfaceWidget : Frame
 		finally
 		{
 			NativeEngine.CSceneSystem.FinishRenderingViews();
-			NativeEngine.CSceneSystem.WaitForRenderingToComplete();
+			Sandbox.Graphics.WaitForRenderingToComplete();
 		}
 
 		g_pRenderDevice.Present( _swapChain );
