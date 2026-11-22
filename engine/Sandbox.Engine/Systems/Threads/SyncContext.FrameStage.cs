@@ -14,28 +14,56 @@ internal static partial class SyncContext
 		{
 			public ulong Value { get; private set; }
 
-			public Action Queue { get; set; }
+			// Swapped out before running, so waiting again from a continuation lands in the next trigger
+			List<Action> _queue = new();
+			List<Action> _spare;
 
 			public void Trigger()
 			{
 				Value++;
 
-				var q = Queue;
-				Queue = default;
-
-				if ( q is not null )
+				List<Action> running;
+				lock ( this )
 				{
-					foreach ( var d in q.GetInvocationList() )
+					running = _queue;
+					_queue = _spare ?? new();
+					_spare = null;
+				}
+
+				try
+				{
+					foreach ( var continuation in running )
 					{
-						d.DynamicInvoke();
+						continuation();
 					}
+				}
+				finally
+				{
+					running.Clear();
+					_spare = running;
 				}
 			}
 
-			public async Task Await() => await new UpdateAwaiter( this, Value );
+			internal void Enqueue( Action continuation )
+			{
+				lock ( this )
+				{
+					_queue.Add( continuation );
+				}
+			}
+
+			internal void Remove( Action continuation )
+			{
+				lock ( this )
+				{
+					_queue.Remove( continuation );
+				}
+			}
+
+			internal UpdateAwaiter Await() => new UpdateAwaiter( this, Value );
 		}
 
-		struct UpdateAwaiter : INotifyCompletion
+		internal struct UpdateAwaiter : INotifyCompletion
 		{
 			ulong startValue;
 			FrameStageAwaiter source;
@@ -48,11 +76,11 @@ internal static partial class SyncContext
 
 			public void OnCompleted( Action continuation )
 			{
-				source.Queue += continuation;
+				source.Enqueue( continuation );
 			}
 
-			internal bool IsCompleted => startValue != source.Value;
-			internal UpdateAwaiter GetAwaiter() => this;
+			public bool IsCompleted => startValue != source.Value;
+			public UpdateAwaiter GetAwaiter() => this;
 			public void GetResult() { }
 		}
 

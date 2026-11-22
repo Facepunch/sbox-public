@@ -29,7 +29,7 @@ public class ScenePanelTest
 
 			if ( duringFrameStart )
 			{
-				frameStart.Queue += DeletePreview;
+				frameStart.Enqueue( DeletePreview );
 			}
 			else
 			{
@@ -44,7 +44,7 @@ public class ScenePanelTest
 		}
 		finally
 		{
-			frameStart.Queue -= DeletePreview;
+			frameStart.Remove( DeletePreview );
 			root.Delete( true );
 		}
 	}
