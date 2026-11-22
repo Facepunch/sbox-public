@@ -172,7 +172,7 @@ public sealed class StackerTool : ToolMode
 		if ( select.IsPlayer ) return false;
 
 		var root = ResolveRoot( select.GameObject );
-		if ( root.Tags.Contains( "constraint" ) ) return false;
+		if ( root.Tags.Has( "constraint" ) ) return false;
 
 		return true;
 	}
@@ -361,7 +361,7 @@ public sealed class StackerTool : ToolMode
 		if ( !target.IsValid() ) return;
 
 		var root = ResolveRoot( target );
-		if ( root.Tags.Contains( "constraint" ) ) return;
+		if ( root.Tags.Has( "constraint" ) || IsWorldObject( root ) ) return;
 
 		// Recompute transforms server-side from synced properties
 		var transforms = ComputeStackTransforms( root );

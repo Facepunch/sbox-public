@@ -106,10 +106,13 @@ public sealed partial class CameraEntity
 	void UpdateEffects()
 	{
 		// an edit is done once the host's copy matches it
-		foreach ( var (key, value) in _pendingValues.ToList() )
+		if ( _pendingValues.Count > 0 )
 		{
-			if ( SyncedValue( key ) == value )
-				_pendingValues.Remove( key );
+			foreach ( var (key, value) in _pendingValues.ToList() )
+			{
+				if ( SyncedValue( key ) == value )
+					_pendingValues.Remove( key );
+			}
 		}
 
 		LensEffects.Apply( Feed?.Camera?.GameObject, this );

@@ -176,8 +176,15 @@ public sealed partial class DuplicatorTool : ToolMode
 		PlayerData.For( Rpc.Caller )?.AddStat( "tool.duplicator.copy" );
 	}
 
+	// Refreshes of the toolgun resend the copy. Parsing it again is the expensive part, so only on a different one.
+	string _parsedJson;
+
 	void JsonChanged()
 	{
+		if ( spawner is not null && string.Equals( _parsedJson, CopiedJson, StringComparison.Ordinal ) )
+			return;
+
+		_parsedJson = CopiedJson;
 		spawner = null;
 
 		_rotationOffset = Rotation.Identity;

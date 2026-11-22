@@ -80,12 +80,21 @@ public partial class ScreenWeapon : BaseSandboxWeapon
 
 		if ( !ViewModel.IsValid() ) return;
 
-		var coil = ViewModel.GetAllObjects( true ).FirstOrDefault( x => x.Name == "coil" );
-		if ( coil.IsValid() )
+		// Found once per view model, searching its whole hierarchy every frame adds up
+		if ( _coilViewModel != ViewModel || (_coil is not null && !_coil.IsValid()) )
 		{
-			coil.WorldRotation *= Rotation.From( 0, 0, _coilSpin );
+			_coilViewModel = ViewModel;
+			_coil = ViewModel.GetAllObjects( true ).FirstOrDefault( x => x.Name == "coil" );
+		}
+
+		if ( _coil.IsValid() )
+		{
+			_coil.WorldRotation *= Rotation.From( 0, 0, _coilSpin );
 		}
 	}
+
+	GameObject _coil;
+	GameObject _coilViewModel;
 
 	/// <summary>
 	/// Updates joystick_x and joystick_y on the viewmodel based on a per-frame look delta.

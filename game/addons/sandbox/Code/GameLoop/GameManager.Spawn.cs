@@ -72,7 +72,8 @@ public sealed partial class GameManager
 		{
 			Spawner = spawner,
 			Transform = transform,
-			Player = player?.Network.Owner
+			// The player can die while the spawner loads
+			Player = player.IsValid() ? player.Network.Owner : null
 		};
 
 		scene.RunEvent<Global.ISpawnEvents>( x => x.OnSpawn( spawnData ) );

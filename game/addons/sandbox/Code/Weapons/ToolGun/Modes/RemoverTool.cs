@@ -19,9 +19,9 @@ public sealed class RemoverTool : ToolMode
 		if ( !go.IsValid() ) return false;
 
 		// gibs can always go
-		if ( go.Tags.Contains( "debris" ) ) return true;
+		if ( go.Tags.Has( "debris" ) ) return true;
 
-		if ( !go.Tags.Contains( "removable" ) ) return false;
+		if ( !go.Tags.Has( "removable" ) ) return false;
 
 		return true;
 	}

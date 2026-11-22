@@ -15,7 +15,7 @@ public sealed class Ownable : Component
 	[Property, ReadOnly, JsonIgnore]
 	public Connection Owner
 	{
-		get => Connection.All.FirstOrDefault( c => c.Id == _ownerId );
+		get => Connection.Find( _ownerId );
 		internal set => _ownerId = value?.Id ?? Guid.Empty;
 	}
 

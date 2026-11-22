@@ -1,7 +1,7 @@
 /// <summary>
 /// Colours a physgun effect (the beam end and the grab ball) in exactly the holder's colour. The prefab's own colours only
 /// say how bright each part is: particle gradients are turned grey and glowing materials neutral, so nothing else tints them.
-/// Remembers what the prefab set up, so it can be applied every frame.
+/// Remembers what the prefab set up, so it can be applied again when the colour changes.
 /// </summary>
 public sealed class PhysgunEffectColor : Component
 {

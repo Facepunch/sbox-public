@@ -15,8 +15,18 @@ public class InputHint : Panel
 	/// </summary>
 	[Parameter] public string Key { get; set; }
 
+	// Resolving a glyph builds strings and a lookup every call. It only changes with a rebind or a switch between
+	// keyboard and controller, so look again on those or twice a second.
+	(string Key, string Action, InputGlyphSize Size, bool Controller) _resolvedFor;
+	RealTimeSince _sinceResolved;
+
 	public override void Tick()
 	{
+		var inputs = (Key, Action, GlyphSize, Input.UsingController);
+		if ( inputs == _resolvedFor && _sinceResolved < 0.5f ) return;
+		_resolvedFor = inputs;
+		_sinceResolved = 0;
+
 		if ( !string.IsNullOrEmpty( Key ) )
 		{
 			var keyGlyph = Input.Keyboard.GetGlyph( Key, GlyphSize, false );

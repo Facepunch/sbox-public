@@ -36,25 +36,68 @@ public sealed class MountMetadata : Component
 		_isFallback = true;
 		foreach ( var mr in GameObject.GetComponentsInChildren<ModelRenderer>() )
 		{
-			mr.Enabled = false;
+			if ( mr != _box ) mr.Enabled = false;
 		}
+	}
+
+	// The box and label live on a local child, drawing them through the debug overlay made new scene objects every frame
+	GameObject _fallbackRoot;
+	ModelRenderer _box;
+	TextRenderer _label;
+	string _labelTitle;
+
+	protected override void OnDisabled()
+	{
+		_fallbackRoot?.Destroy();
+		_fallbackRoot = null;
+		_box = null;
+		_label = null;
 	}
 
 	protected override void OnUpdate()
 	{
 		if ( !_isFallback ) return;
 
+		EnsureFallbackRenderers();
+
 		var bounds = new BBox( BoundsCenter - BoundsSize / 2f, BoundsCenter + BoundsSize / 2f );
 
 		var t = WorldTransform;
-		t = new Transform( t.PointToWorld( bounds.Center ), t.Rotation, t.Scale * (bounds.Size / 50f) );
+		_box.WorldTransform = new Transform( t.PointToWorld( bounds.Center ), t.Rotation, t.Scale * (bounds.Size / 50f) );
 
-		Game.ActiveScene.DebugOverlay.Model( Model.Cube, transform: t, overlay: false, materialOveride: _material );
+		var hasTitle = !string.IsNullOrEmpty( GameTitle );
+		_label.Enabled = hasTitle;
+		if ( !hasTitle ) return;
 
-		if ( !string.IsNullOrEmpty( GameTitle ) )
+		if ( _labelTitle != GameTitle )
 		{
-			var textPos = WorldPosition + Vector3.Up * (BoundsSize.z / 2f + 8f);
-			DebugOverlay.Text( textPos, Game.Language.GetPhrase( "entity.mount.install", new() { { "name", GameTitle } } ), color: Color.White, duration: 0f );
+			_labelTitle = GameTitle;
+			_label.TextScope = new TextRendering.Scope( Game.Language.GetPhrase( "entity.mount.install", new() { { "name", GameTitle } } ), Color.White, 32 )
+			{
+				Shadow = new TextRendering.Shadow { Color = Color.Black, Enabled = true, Offset = 2, Size = 4 }
+			};
 		}
+
+		_label.WorldPosition = WorldPosition + Vector3.Up * (BoundsSize.z / 2f + 8f);
+	}
+
+	void EnsureFallbackRenderers()
+	{
+		if ( _box.IsValid() && _label.IsValid() ) return;
+
+		// One went missing, start over rather than leave a second fallback beside the first
+		_fallbackRoot?.Destroy();
+
+		var go = _fallbackRoot = new GameObject( GameObject, true, "Mount Fallback" );
+		go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked | GameObjectFlags.Hidden;
+
+		_box = new GameObject( go, true, "Box" ).AddComponent<ModelRenderer>();
+		_box.Model = Model.Cube;
+		_box.MaterialOverride = _material;
+		_box.RenderType = ModelRenderer.ShadowRenderType.Off;
+
+		_label = new GameObject( go, true, "Label" ).AddComponent<TextRenderer>();
+		_label.Billboard = TextRenderer.BillboardMode.Always;
+		_labelTitle = null;
 	}
 }

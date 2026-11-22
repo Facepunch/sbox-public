@@ -49,7 +49,11 @@ public static class ObjectHighlight
 	/// </summary>
 	public static void Show( this HighlightOutline outline, GameObject target, HighlightStyle style )
 	{
-		Show( outline, [target], style );
+		if ( !outline.IsValid() ) return;
+
+		Prepare( outline, style );
+		AddRenderers( target, outline.Targets );
+		outline.Enabled = outline.Targets.Count > 0;
 	}
 
 	/// <summary>
@@ -59,6 +63,18 @@ public static class ObjectHighlight
 	{
 		if ( !outline.IsValid() ) return;
 
+		Prepare( outline, style );
+
+		foreach ( var target in targets )
+		{
+			AddRenderers( target, outline.Targets );
+		}
+
+		outline.Enabled = outline.Targets.Count > 0;
+	}
+
+	static void Prepare( HighlightOutline outline, HighlightStyle style )
+	{
 		outline.Material = Material;
 		outline.OverrideTargets = true;
 		outline.Color = style.Color;
@@ -67,13 +83,6 @@ public static class ObjectHighlight
 
 		outline.Targets ??= new();
 		outline.Targets.Clear();
-
-		foreach ( var target in targets )
-		{
-			AddRenderers( target, outline.Targets );
-		}
-
-		outline.Enabled = outline.Targets.Count > 0;
 	}
 
 	/// <summary>

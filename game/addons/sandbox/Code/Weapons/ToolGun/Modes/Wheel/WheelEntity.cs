@@ -45,9 +45,7 @@ public sealed class WheelEntity : Component, IPlayerControllable
 	{
 		if ( SpawnMenuHost.GetActiveMode() is not ContextMenuHost ) return;
 
-		var renderers = GameObject.GetComponentsInChildren<Renderer>();
-		var outlines = Game.ActiveScene.GetAllComponents<HighlightOutline>();
-		if ( !outlines.Any( outline => outline.Targets?.Any( target => renderers.Contains( target ) ) == true ) ) return;
+		if ( !IsOutlined() ) return;
 
 		var joint = GetComponentInChildren<WheelJoint>();
 		if ( !joint.IsValid() || !joint.Body.IsValid() || _localAxle == Vector3.Zero ) return;
@@ -64,6 +62,20 @@ public sealed class WheelEntity : Component, IPlayerControllable
 		}
 
 		WheelOverlay.DrawDirection( WorldPosition, spinAxis, stableUp, overlayRadius, Reversed );
+	}
+
+	// Whether an outline targets one of this wheel's renderers
+	bool IsOutlined()
+	{
+		foreach ( var outline in Game.ActiveScene.GetAllComponents<HighlightOutline>() )
+		{
+			if ( outline.Targets is not { } targets ) continue;
+
+			foreach ( var target in targets )
+				if ( target.IsValid() && target.Active && target.GameObject.IsAncestor( GameObject ) ) return true;
+		}
+
+		return false;
 	}
 
 	private void ApplyInput( float forward, float reverse, float brake, float turnLeft, float turnRight )

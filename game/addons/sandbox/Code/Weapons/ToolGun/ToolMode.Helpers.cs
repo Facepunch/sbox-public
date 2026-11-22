@@ -11,6 +11,11 @@
 	protected internal Ray AimRay => !IsProxy && InspectCursor.IsOpen ? InspectCursor.Ray : Player.EyeTransform.ForwardRay;
 
 	/// <summary>
+	/// Part of the static map. Map terrain isn't tagged "world" like map meshes are, and cloning it rebuilds its heightfield for seconds.
+	/// </summary>
+	public static bool IsWorldObject( GameObject go ) => go.IsValid() && (go.Tags.Has( "world" ) || go.GetComponentInChildren<Terrain>( true ).IsValid());
+
+	/// <summary>
 	/// A point in the world selected by the current player's toolgun. We try to keep this as minimal as possible
 	/// while catering for as much as possible.
 	/// </summary>
@@ -49,7 +54,7 @@
 		/// <summary>
 		/// Returns true if this object is a part of the static map
 		/// </summary>
-		public bool IsWorld => GameObject.Tags.Has( "world" );
+		public bool IsWorld => IsWorldObject( GameObject );
 
 
 		/// <summary>

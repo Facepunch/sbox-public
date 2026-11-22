@@ -556,8 +556,34 @@ internal sealed class SignalSystem : GameObjectSystem<SignalSystem>, IContextMen
 		if ( !gameObject.IsValid() ) return [];
 
 		return gameObject.Root.GetComponentsInChildren<Component>( true )
-			.Where( component => component.Enabled )
+			.Where( component => component.Enabled && HasPorts( component ) )
 			.SelectMany( GetOutputs );
+	}
+
+	/// <summary>
+	/// Outputs with wires on enabled components under this object's root, added to <paramref name="results"/>.
+	/// For overlays that refresh often: unlike <see cref="GetOutputs(GameObject)"/> it allocates nothing per component.
+	/// </summary>
+	public static void GetWiredOutputs( GameObject gameObject, List<(Component Component, SignalOutput Output)> results )
+	{
+		if ( gameObject.IsValid() ) CollectWiredOutputs( gameObject.Root, results );
+	}
+
+	private static void CollectWiredOutputs( GameObject gameObject, List<(Component Component, SignalOutput Output)> results )
+	{
+		foreach ( var component in gameObject.Components.GetAll() )
+		{
+			if ( !component.IsValid() || !component.Enabled || GetTypePorts( component ) is not { } ports ) continue;
+
+			foreach ( var port in ports.Outputs )
+			{
+				if ( port.Property?.GetValue( component ) is SignalOutput { Connections.Count: > 0 } output )
+					results.Add( (component, output) );
+			}
+		}
+
+		foreach ( var child in gameObject.Children )
+			CollectWiredOutputs( child, results );
 	}
 
 	public static IEnumerable<SignalPortDescription> GetPorts( GameObject gameObject )
@@ -565,7 +591,7 @@ internal sealed class SignalSystem : GameObjectSystem<SignalSystem>, IContextMen
 		if ( !gameObject.IsValid() ) return [];
 
 		return gameObject.Root.GetComponentsInChildren<Component>( true )
-			.Where( component => component.Enabled )
+			.Where( component => component.Enabled && HasPorts( component ) )
 			.SelectMany( component => GetOutputs( component ).Cast<SignalPortDescription>().Concat( GetInputs( component ) ) )
 			.OrderBy( port => port.Order )
 			.ThenByDescending( port => port.IsDefault )
@@ -966,15 +992,41 @@ internal sealed class SignalSystem : GameObjectSystem<SignalSystem>, IContextMen
 		}
 	}
 
-	private static IEnumerable<SignalPort> GetOutputPorts( Component component )
+	/// <summary>
+	/// A type's signal ports. Ids declared twice are listed once, and lookups by id refuse to choose between them.
+	/// </summary>
+	private sealed class TypePorts
+	{
+		public int Revision;
+		public SignalPort[] Inputs = [];
+		public SignalPort[] Outputs = [];
+		public readonly HashSet<string> AmbiguousInputs = new( StringComparer.OrdinalIgnoreCase );
+		public readonly HashSet<string> AmbiguousOutputs = new( StringComparer.OrdinalIgnoreCase );
+	}
+
+	// Ports only depend on the type. A hotload reinitialises the same type description and bumps its revision.
+	private static readonly Dictionary<TypeDescription, TypePorts> _portsByType = new();
+
+	private static TypePorts GetTypePorts( Component component )
 	{
 		var type = Game.TypeLibrary.GetType( component.GetType() );
-		if ( type is null ) yield break;
+		if ( type is null ) return null;
 
-		if ( type.GetAttribute<SignalOutputAttribute>() is { } classAttribute )
-			yield return CreateComponentOutput( type, classAttribute );
+		if ( !_portsByType.TryGetValue( type, out var ports ) || ports.Revision != type.Revision )
+			_portsByType[type] = ports = CreateTypePorts( type );
 
+		return ports;
+	}
+
+	private static TypePorts CreateTypePorts( TypeDescription type )
+	{
+		var ports = new TypePorts { Revision = type.Revision };
+
+		var outputs = new List<SignalPort>();
 		var ids = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		if ( type.GetAttribute<SignalOutputAttribute>() is { } classAttribute )
+			outputs.Add( CreateComponentOutput( type, classAttribute ) );
+
 		foreach ( var property in type.Properties )
 		{
 			var attribute = property.GetCustomAttribute<SignalOutputAttribute>();
@@ -984,26 +1036,21 @@ internal sealed class SignalSystem : GameObjectSystem<SignalSystem>, IContextMen
 			if ( !ids.Add( port.Id ) )
 			{
 				Log.Warning( $"Signal output '{port.Id}' is declared twice on {type.FullName}; the duplicate was ignored." );
+				ports.AmbiguousOutputs.Add( port.Id );
 				continue;
 			}
 
-			yield return port;
+			outputs.Add( port );
 		}
-	}
 
-	private static IEnumerable<SignalPort> GetInputPorts( Component component )
-	{
-		var type = Game.TypeLibrary.GetType( component.GetType() );
-		if ( type is null ) yield break;
-
-		var ids = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
-
+		var inputs = new List<SignalPort>();
+		ids.Clear();
 		foreach ( var method in type.Methods )
 		{
 			var attribute = method.GetCustomAttribute<SignalInputAttribute>();
 			if ( attribute is null ) continue;
 			if ( !TryCreateInput( type, method, attribute, out var port ) ) continue;
-			if ( TryAddInput( type, ids, port ) ) yield return port;
+			AddInput( type, ids, ports, inputs, port );
 		}
 
 		foreach ( var property in type.Properties )
@@ -1011,89 +1058,63 @@ internal sealed class SignalSystem : GameObjectSystem<SignalSystem>, IContextMen
 			var attribute = property.GetCustomAttribute<SignalInputAttribute>();
 			if ( attribute is null ) continue;
 			if ( !TryCreateInput( type, property, attribute, out var port ) ) continue;
-			if ( TryAddInput( type, ids, port ) ) yield return port;
+			AddInput( type, ids, ports, inputs, port );
 		}
+
+		ports.Outputs = outputs.ToArray();
+		ports.Inputs = inputs.ToArray();
+		return ports;
 	}
 
-	private static bool TryAddInput( TypeDescription type, HashSet<string> ids, SignalPort port )
+	private static void AddInput( TypeDescription type, HashSet<string> ids, TypePorts ports, List<SignalPort> inputs, SignalPort port )
 	{
-		if ( ids.Add( port.Id ) ) return true;
+		if ( ids.Add( port.Id ) )
+		{
+			inputs.Add( port );
+			return;
+		}
 
 		Log.Warning( $"Signal input '{port.Id}' is declared twice on {type.FullName}; the duplicate was ignored." );
-		return false;
+		ports.AmbiguousInputs.Add( port.Id );
 	}
+
+	// Most components have no ports, skipping them saves the per component iterators
+	private static bool HasPorts( Component component ) => GetTypePorts( component ) is { } ports && (ports.Inputs.Length > 0 || ports.Outputs.Length > 0);
+
+	private static SignalPort[] GetOutputPorts( Component component ) => GetTypePorts( component )?.Outputs ?? [];
+
+	private static SignalPort[] GetInputPorts( Component component ) => GetTypePorts( component )?.Inputs ?? [];
 
 	private static bool TryFindOutput( Component component, string id, out SignalPort result )
 	{
-		result = default;
-		var found = false;
-		var type = Game.TypeLibrary.GetType( component.GetType() );
-		if ( type is null ) return false;
-
-		if ( string.Equals( id, ComponentOutputId, StringComparison.OrdinalIgnoreCase ) )
-		{
-			if ( type.GetAttribute<SignalOutputAttribute>() is not { } classAttribute ) return false;
-
-			result = CreateComponentOutput( type, classAttribute );
-			return true;
-		}
-
-		foreach ( var property in type.Properties )
-		{
-			var attribute = property.GetCustomAttribute<SignalOutputAttribute>();
-			if ( attribute is null || !string.Equals( property.Name, id, StringComparison.OrdinalIgnoreCase ) ) continue;
-			if ( !TryCreateOutput( type, property, attribute, out var port ) ) continue;
-			if ( found )
-			{
-				Log.Warning( $"Signal output '{id}' is declared twice on {type.FullName}; refusing to choose one." );
-				return false;
-			}
-
-			result = port;
-			found = true;
-		}
-
-		return found;
+		return TryFindPort( component, id, false, out result );
 	}
 
 	private static bool TryFindInput( Component component, string id, out SignalPort result )
 	{
-		result = default;
-		var found = false;
-		var type = Game.TypeLibrary.GetType( component.GetType() );
-		if ( type is null ) return false;
-
-		foreach ( var method in type.Methods )
-		{
-			var attribute = method.GetCustomAttribute<SignalInputAttribute>();
-			var portId = attribute?.Id ?? method.Name;
-			if ( attribute is null || !string.Equals( portId, id, StringComparison.OrdinalIgnoreCase ) ) continue;
-			if ( !TryCreateInput( type, method, attribute, out var port ) ) continue;
-			if ( found ) return WarnDuplicateInput( type, id, out result );
-
-			result = port;
-			found = true;
-		}
-
-		foreach ( var property in type.Properties )
-		{
-			var attribute = property.GetCustomAttribute<SignalInputAttribute>();
-			var portId = attribute?.Id ?? property.Name;
-			if ( attribute is null || !string.Equals( portId, id, StringComparison.OrdinalIgnoreCase ) ) continue;
-			if ( !TryCreateInput( type, property, attribute, out var port ) ) continue;
-			if ( found ) return WarnDuplicateInput( type, id, out result );
-
-			result = port;
-			found = true;
-		}
-
-		return found;
+		return TryFindPort( component, id, true, out result );
 	}
 
-	private static bool WarnDuplicateInput( TypeDescription type, string id, out SignalPort result )
+	private static bool TryFindPort( Component component, string id, bool input, out SignalPort result )
 	{
 		result = default;
-		Log.Warning( $"Signal input '{id}' is declared twice on {type.FullName}; refusing to choose one." );
+		var ports = GetTypePorts( component );
+		if ( ports is null ) return false;
+
+		if ( (input ? ports.AmbiguousInputs : ports.AmbiguousOutputs).Contains( id ) )
+		{
+			Log.Warning( $"Signal {(input ? "input" : "output")} '{id}' is declared twice on {component.GetType().FullName}; refusing to choose one." );
+			return false;
+		}
+
+		foreach ( var port in input ? ports.Inputs : ports.Outputs )
+		{
+			if ( !string.Equals( port.Id, id, StringComparison.OrdinalIgnoreCase ) ) continue;
+
+			result = port;
+			return true;
+		}
+
 		return false;
 	}
 

@@ -4,6 +4,17 @@
     "Flags": 0,
     "Name": "rifle_muzzleflash",
     "Enabled": true,
+    "Components": [
+      {
+        "__type": "TemporaryEffect",
+        "__guid": "091f4678-f0ff-4dc7-b785-1460cc7a4b85",
+        "__enabled": true,
+        "Flags": 0,
+        "BecomeOrphan": false,
+        "DestroyAfterSeconds": 0.5,
+        "WaitForChildEffects": true
+      }
+    ],
     "Children": [
       {
         "__guid": "87dd95e5-f338-4150-836f-6d878fbddea9",

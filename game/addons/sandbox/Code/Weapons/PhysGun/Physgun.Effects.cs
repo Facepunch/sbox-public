@@ -106,16 +106,36 @@ public partial class Physgun : ScreenWeapon
 	// the beam's gradient as the prefab set it up, for how bright it is along its length
 	Gradient? _beamGradient;
 
+	// what was last coloured, and in which colour
+	Color? _coloredBeam;
+	LineRenderer _coloredBeamRenderer;
+	GameObject _coloredGrabEffect, _coloredEndPointEffect;
+
 	void UpdateBeamColor()
 	{
 		_beamGradient ??= BeamRenderer.Color;
 
 		var color = BeamColor;
-		var frames = _beamGradient.Value.Colors.Select( x => new Gradient.ColorFrame( x.Time, Tint( x.Value, color ) ) );
-		BeamRenderer.Color = _beamGradient.Value.WithFrames( [.. frames] );
+		if ( color != _coloredBeam || BeamRenderer != _coloredBeamRenderer )
+		{
+			var frames = _beamGradient.Value.Colors.Select( x => new Gradient.ColorFrame( x.Time, Tint( x.Value, color ) ) );
+			BeamRenderer.Color = _beamGradient.Value.WithFrames( [.. frames] );
+			_coloredBeam = color;
+			_coloredBeamRenderer = BeamRenderer;
+			_coloredGrabEffect = _coloredEndPointEffect = null;
+		}
 
-		if ( _grabEffect.IsValid() ) PhysgunEffectColor.Apply( _grabEffect, color );
-		if ( _endPointEffect.IsValid() ) PhysgunEffectColor.Apply( _endPointEffect, color );
+		if ( _grabEffect.IsValid() && _grabEffect != _coloredGrabEffect )
+		{
+			PhysgunEffectColor.Apply( _grabEffect, color );
+			_coloredGrabEffect = _grabEffect;
+		}
+
+		if ( _endPointEffect.IsValid() && _endPointEffect != _coloredEndPointEffect )
+		{
+			PhysgunEffectColor.Apply( _endPointEffect, color );
+			_coloredEndPointEffect = _endPointEffect;
+		}
 	}
 
 	void UpdateBeam( Transform source, Vector3 aimForward, Vector3 end, Vector3 endNormal, bool grabbed )
@@ -237,15 +257,25 @@ public partial class Physgun : ScreenWeapon
 	/// <summary>
 	/// Outlines the object held by the beam, visible only to player holding the physgun
 	/// </summary>
+	GameObject _highlighted;
+	RealTimeSince _sinceHighlighted;
+
 	void UpdateHighlight( GameObject target )
 	{
 		if ( IsProxy || !target.IsValid() || !GamePreferences.PhysgunOutline )
 		{
 			BeamHighlight.Hide();
+			_highlighted = null;
 			return;
 		}
 
-		BeamHighlight.Show( ObjectHighlight.GetTarget( target ), HighlightStyle.Selected );
+		// Showing collects the renderers of the whole object, so only when the target changes or now and then for added parts
+		var outlined = ObjectHighlight.GetTarget( target );
+		if ( outlined == _highlighted && _sinceHighlighted < 0.25f && BeamHighlight.IsValid() && BeamHighlight.Enabled ) return;
+
+		_highlighted = outlined;
+		_sinceHighlighted = 0;
+		BeamHighlight.Show( outlined, HighlightStyle.Selected );
 	}
 
 	void CloseBeam()

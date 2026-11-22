@@ -111,7 +111,7 @@ public sealed class ThrusterTool : ToolMode
 		var thruster = go.GetComponent<ThrusterEntity>();
 		ApplyConfiguration( thruster, configuration );
 
-		if ( !noWeld && !point.GameObject.Tags.Contains( "world" ) )
+		if ( !noWeld && !point.GameObject.Tags.Has( "world" ) )
 		{
 			// attach it
 			var joint = thruster.AddComponent<FixedJoint>();

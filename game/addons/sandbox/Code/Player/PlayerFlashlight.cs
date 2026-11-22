@@ -58,16 +58,24 @@ public sealed class PlayerFlashlight : Component
 	/// </summary>
 	private bool IsKeyTaken()
 	{
-		var e = new PlayerFlashlightEvent { Player = _player };
-		Local.IPlayerEvents.PostToGameObject( _player.GameObject, x => x.OnFlashlight( e ) );
-		Global.IPlayerEvents.Post( x => x.OnPlayerFlashlight( e ) );
-		return e.Cancelled;
+		// Asked every frame the light is on, so the event and the callbacks are made once
+		if ( _keyEvent?.Player != _player ) _keyEvent = new PlayerFlashlightEvent { Player = _player };
+		_keyEvent.Cancelled = false;
+
+		Local.IPlayerEvents.PostToGameObject( _player.GameObject, _postLocal ??= x => x.OnFlashlight( _keyEvent ) );
+		Global.IPlayerEvents.Post( _postGlobal ??= x => x.OnPlayerFlashlight( _keyEvent ) );
+		return _keyEvent.Cancelled;
 	}
+
+	PlayerFlashlightEvent _keyEvent;
+	Action<Local.IPlayerEvents> _postLocal;
+	Action<Global.IPlayerEvents> _postGlobal;
+	static readonly string[] FillIgnoreTags = ["ragdoll", "effect"];
 
 	private Vector3 GetFillPosition( Transform eye )
 	{
 		var target = eye.Position + eye.Forward * FillDistance;
-		var tr = Scene.Trace.FromTo( eye.Position, target ).Radius( 4f ).WithoutTags( "ragdoll", "effect" ).IgnoreGameObjectHierarchy( _player.GameObject.Root ).Run();
+		var tr = Scene.Trace.FromTo( eye.Position, target ).Radius( 4f ).WithoutTags( FillIgnoreTags ).IgnoreGameObjectHierarchy( _player.GameObject.Root ).Run();
 
 		return tr.Hit ? tr.EndPosition : target;
 	}

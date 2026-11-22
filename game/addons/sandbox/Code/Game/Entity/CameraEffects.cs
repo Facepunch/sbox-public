@@ -13,7 +13,20 @@ public sealed class CameraEffectStack
 		}
 
 		var version = camera.EffectsVersion;
-		if ( parent == _parent && version == _appliedVersion && _spawned.Values.All( x => x.IsValid() ) ) return;
+		if ( parent == _parent && version == _appliedVersion && AllSpawnedValid() ) return;
+		Respawn( parent, camera, version );
+	}
+
+	bool AllSpawnedValid()
+	{
+		foreach ( var go in _spawned.Values )
+			if ( !go.IsValid() ) return false;
+		return true;
+	}
+
+	// Separate so the settings closure below is only allocated when something changed
+	void Respawn( GameObject parent, CameraEntity camera, int version )
+	{
 		if ( parent != _parent ) Clear();
 
 		_parent = parent;

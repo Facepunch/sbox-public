@@ -4,6 +4,17 @@
     "Flags": 0,
     "Name": "pistol_muzzleflash",
     "Enabled": true,
+    "Components": [
+      {
+        "__type": "TemporaryEffect",
+        "__guid": "6ea37bd1-516e-4905-bd16-e26eb5518522",
+        "__enabled": true,
+        "Flags": 0,
+        "BecomeOrphan": false,
+        "DestroyAfterSeconds": 0.5,
+        "WaitForChildEffects": true
+      }
+    ],
     "Children": [
       {
         "__guid": "9fa519fd-2513-4abb-abff-af55cabdc497",
