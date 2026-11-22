@@ -55,15 +55,13 @@ public partial class Project
 
 	static string Stamps( IEnumerable<string> folders, string pattern = "*" )
 	{
+		// The enumeration fills in each file's size and time, so nothing is opened or queried again per file
 		var stamps = new System.Text.StringBuilder();
-		var files = folders.Where( Directory.Exists ).SelectMany( x => Directory.EnumerateFiles( x, pattern, SearchOption.AllDirectories ) )
-			.Where( x => pattern != "*" || x.EndsWith( ".cs", StringComparison.OrdinalIgnoreCase ) || x.EndsWith( ".razor", StringComparison.OrdinalIgnoreCase ) );
+		var files = folders.Where( Directory.Exists ).SelectMany( x => new DirectoryInfo( x ).EnumerateFiles( pattern, SearchOption.AllDirectories ) )
+			.Where( x => pattern != "*" || x.Name.EndsWith( ".cs", StringComparison.OrdinalIgnoreCase ) || x.Name.EndsWith( ".razor", StringComparison.OrdinalIgnoreCase ) );
 
-		foreach ( var file in files.Order( StringComparer.OrdinalIgnoreCase ) )
-		{
-			var info = new FileInfo( file );
-			stamps.AppendLine( $"{file}|{info.Length}|{info.LastWriteTimeUtc.Ticks}" );
-		}
+		foreach ( var file in files.OrderBy( x => x.FullName, StringComparer.OrdinalIgnoreCase ) )
+			stamps.AppendLine( $"{file.FullName}|{file.Length}|{file.LastWriteTimeUtc.Ticks}" );
 		return stamps.ToString();
 	}
 
@@ -229,11 +227,12 @@ public partial class Project
 		if ( CacheAssemblies )
 		{
 			// see if we've got cached assemblies from a previous compile
+			var fingerprint = CacheFingerprint( EngineCode() );
 			foreach ( var compiler in new[] { Compiler, EditorCompiler } )
 			{
 				if ( compiler is null ) continue;
 
-				LoadCachedAssembly( compiler );
+				LoadCachedAssembly( compiler, fingerprint );
 
 				if ( compiler.BuildSuccess )
 					compiler.Group.ClearForRecompile( compiler );
@@ -241,14 +240,14 @@ public partial class Project
 		}
 	}
 
-	private bool LoadCachedAssembly( Compiler compiler )
+	private bool LoadCachedAssembly( Compiler compiler, string fingerprint )
 	{
 		try
 		{
 			string directory = Path.Combine( GetRootPath(), ".sbox", "bin" );
 			string binPath = Path.Combine( directory, $"{compiler.AssemblyName}.dll" );
 			string fingerprintPath = Path.Combine( directory, $"{compiler.AssemblyName}.fingerprint" );
-			if ( !File.Exists( binPath ) || !File.Exists( fingerprintPath ) || File.ReadAllText( fingerprintPath ) != CacheFingerprint( EngineCode() ) )
+			if ( !File.Exists( binPath ) || !File.Exists( fingerprintPath ) || File.ReadAllText( fingerprintPath ) != fingerprint )
 				return false;
 
 			byte[] bytes = File.ReadAllBytes( binPath );
