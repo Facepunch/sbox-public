@@ -53,7 +53,7 @@ public sealed partial class CollisionSoundSystem : GameObjectSystem<CollisionSou
 		if ( surface is null ) return;
 
 		// If we have more than 4, remove any that are slower/less significant
-		if ( Pending.Count > 4 && Pending.RemoveAll( x => x.Speed < speed ) == 0 )
+		if ( Pending.Count > 4 && RemoveSlowerThan( speed ) == 0 )
 			return;
 
 		// check for redundancies
@@ -67,6 +67,20 @@ public sealed partial class CollisionSoundSystem : GameObjectSystem<CollisionSou
 		}
 
 		Pending.Add( new PendingSound( surface, position, speed, networked ) );
+	}
+
+	int RemoveSlowerThan( float speed )
+	{
+		var kept = 0;
+		for ( int i = 0; i < Pending.Count; i++ )
+		{
+			if ( Pending[i].Speed < speed ) continue;
+			Pending[kept++] = Pending[i];
+		}
+
+		var removed = Pending.Count - kept;
+		Pending.RemoveRange( kept, removed );
+		return removed;
 	}
 
 	public void AddShapeCollision( PhysicsShape shape, Surface surface, in PhysicsContact contact, bool networked )

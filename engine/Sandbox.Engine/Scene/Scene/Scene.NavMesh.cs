@@ -35,11 +35,7 @@ public partial class Scene : GameObject
 
 		if ( NavMesh.IsGenerating ) return;
 
-		// An editor scene that loaded without its bake has just generated, and bakes that
-		if ( IsEditor && NavMesh.TakeMissingBake() && Editor is { HasUnsavedChanges: false } editor && editor.GetSceneFolder() is { } folder )
-		{
-			_ = NavMesh.BakeInEditor( PhysicsWorld, folder, () => !editor.HasUnsavedChanges, regenerate: false );
-		}
+		if ( IsEditor ) BakeMissingInEditor();
 
 		if ( NavMesh.IsDirty || (NavMesh.AutoUpdates && IsEditor) )
 		{
@@ -49,5 +45,16 @@ public partial class Scene : GameObject
 		NavMesh.UpdateCache( PhysicsWorld );
 
 		NavMesh.Simulation.Update( Time.Delta );
+	}
+
+	/// <summary>
+	/// An editor scene that loaded without its bake has just generated, and bakes that.
+	/// </summary>
+	void BakeMissingInEditor()
+	{
+		if ( NavMesh.TakeMissingBake() && Editor is { HasUnsavedChanges: false } editor && editor.GetSceneFolder() is { } folder )
+		{
+			_ = NavMesh.BakeInEditor( PhysicsWorld, folder, () => !editor.HasUnsavedChanges, regenerate: false );
+		}
 	}
 }

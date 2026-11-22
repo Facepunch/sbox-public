@@ -34,11 +34,11 @@ public partial class Panel
 			return;
 
 
-		foreach ( var methodDesc in typeDescription.Members.OfType<MethodDescription>() )
+		foreach ( var methodDesc in typeDescription.Methods )
 		{
 			if ( methodDesc.IsStatic ) continue;
 
-			var pea = methodDesc.Attributes.OfType<PanelEventAttribute>().FirstOrDefault();
+			var pea = methodDesc.GetCustomAttribute<PanelEventAttribute>();
 			if ( pea == null ) continue;
 
 			var method = methodDesc.MemberInfo as MethodInfo;

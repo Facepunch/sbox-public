@@ -754,7 +754,12 @@ internal sealed partial class PackageLoader : IDisposable
 		if ( HoldHotload?.Invoke() == true ) return;
 
 		LoadPendingChanges();
+		SwapIncoming();
+	}
 
+	// Separate from Tick so its closure isn't allocated on every frame
+	void SwapIncoming()
+	{
 		lock ( MixingThread.LockObject )
 		{
 			var batch = IncomingThisHotload.ToArray();
