@@ -431,9 +431,12 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		return msg;
 	}
 
-	private static readonly GameObject.SerializeOptions _refreshDescendantSerializeOptions = new() { IgnoreChildren = true, SkipNulls = true };
+	private static readonly GameObject.SerializeOptions _refreshDescendantSerializeOptions = new() { SingleNetworkObject = true, IgnoreChildren = true, SkipNulls = true };
 
-	private static readonly GameObject.SerializeOptions _componentRefreshSerializeOptions = new() { SkipNulls = true };
+	// A prefab instance goes with its children, like the whole instance it used to be sent as
+	private static readonly GameObject.SerializeOptions _refreshDescendantInstanceSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
+
+	private static readonly GameObject.SerializeOptions _componentRefreshSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
 
 	internal void SendNetworkRefresh( GameObject go )
 	{
@@ -470,14 +473,20 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 			return;
 
 		{
+			using var blobs = BlobDataSerializer.Capture();
+
+			// Not networked
+			var json = go.Serialize( go.IsOutermostPrefabInstanceRoot ? _refreshDescendantInstanceSerializeOptions : _refreshDescendantSerializeOptions );
+			if ( json is null )
+				return;
+
 			var snapshot = WriteRefreshSnapshot();
 
-			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshDescendantMsg
 			{
 				GameObjectId = GameObject.Id,
 				ParentId = go.Parent.Id,
-				JsonData = go.Serialize( _refreshDescendantSerializeOptions ).ToJsonString(),
+				JsonData = json.ToJsonString(),
 				BlobData = blobs.ToByteArray(),
 				TableData = WriteReliableData(),
 				Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
@@ -513,12 +522,18 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		}
 
 		{
+			using var blobs = BlobDataSerializer.Capture();
+
+			// Not networked
+			var json = component.Serialize( _componentRefreshSerializeOptions );
+			if ( json is null )
+				return;
+
 			var snapshot = WriteRefreshSnapshot();
 
-			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshComponentMsg
 			{
-				JsonData = component.Serialize( _componentRefreshSerializeOptions ).ToJsonString(),
+				JsonData = json.ToJsonString(),
 				BlobData = blobs.ToByteArray(),
 				GameObjectId = component.GameObject.Id,
 				TableData = WriteReliableData(),
