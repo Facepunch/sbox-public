@@ -12,6 +12,10 @@ public partial class ResourceSystem
 {
 	// Strong references to managed file resources, including uncompiled assets.
 	private Dictionary<int, Resource> ResourceIndex { get; } = new();
+
+	// GetAll<T> walks every indexed resource, and games call it every frame: keep each type's answer until the index changes
+	int _indexVersion;
+	readonly Dictionary<Type, (int Version, object Items)> _allByType = new();
 	private Dictionary<ulong, Resource> ResourceIndexLong { get; } = new();
 	private Dictionary<Guid, Resource> GuidIndex { get; } = new();
 
@@ -43,6 +47,7 @@ public partial class ResourceSystem
 			ResourceIndex[resource.ResourceId] = resource;
 #pragma warning restore CS0618 // Type or member is obsolete
 			ResourceIndexLong[resource.ResourceIdLong] = resource;
+			_indexVersion++;
 		}
 
 		if ( resource.Guid != Guid.Empty )
@@ -95,7 +100,11 @@ public partial class ResourceSystem
 		removed |= RemoveIndexedWeak( WeakIndexLong, resource.ResourceIdLong, resource );
 
 #pragma warning disable CS0618 // Type or member is obsolete
-		removed |= RemoveIndexed( ResourceIndex, resource.ResourceId, resource );
+		if ( RemoveIndexed( ResourceIndex, resource.ResourceId, resource ) )
+		{
+			removed = true;
+			_indexVersion++;
+		}
 		removed |= RemoveIndexedWeak( WeakIndex, resource.ResourceId, resource );
 #pragma warning restore CS0618 // Type or member is obsolete
 
@@ -217,6 +226,7 @@ public partial class ResourceSystem
 	internal void OnHotload()
 	{
 		TypeCache.Clear();
+		ClearAllByType();
 	}
 
 	/// <summary>
@@ -266,6 +276,7 @@ public partial class ResourceSystem
 		WeakGuidIndex.Clear();
 
 		ResourceIndex.Clear();
+		_indexVersion++;
 		WeakIndex.Clear();
 
 		ResourceIndexLong.Clear();
@@ -273,6 +284,7 @@ public partial class ResourceSystem
 		PathIndex.Clear();
 
 		TypeCache.Clear();
+		ClearAllByType();
 
 		_referenceInstallCancel.Cancel();
 		_referenceInstallCancel = new();
@@ -442,13 +454,29 @@ public partial class ResourceSystem
 		return resource != null;
 	}
 
+	void ClearAllByType()
+	{
+		lock ( _allByType )
+		{
+			_allByType.Clear();
+		}
+	}
+
 	/// <summary>
 	/// Get all cached resources of given type.
 	/// </summary>
 	/// <typeparam name="T">Resource type to get.</typeparam>
 	public IEnumerable<T> GetAll<T>()
 	{
-		return ResourceIndex.Values.OfType<T>().Distinct();
+		lock ( _allByType )
+		{
+			if ( _allByType.TryGetValue( typeof( T ), out var cached ) && cached.Version == _indexVersion )
+				return (IReadOnlyList<T>)cached.Items;
+
+			IReadOnlyList<T> items = Array.AsReadOnly( ResourceIndex.Values.OfType<T>().Distinct().ToArray() );
+			_allByType[typeof( T )] = (_indexVersion, items);
+			return items;
+		}
 	}
 
 	/// <summary>
