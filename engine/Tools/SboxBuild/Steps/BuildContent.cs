@@ -74,11 +74,11 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 				OutputRoots = new Dictionary<string, string> { ["transient"] = Path.Combine( gameDir, "addons", "menu", "Transients" ) },
 				Select = onlyRoot is null ? null : [Path.Combine( gameDir, onlyRoot )],
 				Force = force,
-				CompileProgress = ( finished, activeRoots ) =>
+				CompileProgress = progress =>
 				{
-					var count = finished == 1 ? "1 asset compiled" : $"{finished} assets compiled";
-					var detail = activeRoots.Count == 0 ? count : $"Compiling {string.Join( ", ", activeRoots.Select( mod => foldersByMod[mod] ) )} ({count})";
-					BuildDisplay.Detail( detail, activeRoots );
+					var count = $"{progress.Finished}/{progress.Total} assets compiled";
+					var detail = progress.Compiling.Count == 0 ? count : $"Compiling {string.Join( ", ", progress.Compiling.Select( mod => foldersByMod[mod] ) )} ({count})";
+					BuildDisplay.Detail( detail, progress.Compiling );
 				},
 			};
 

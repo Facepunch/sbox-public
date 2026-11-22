@@ -204,7 +204,7 @@ internal static class EditorContentBuild
 					IToolsDll.Current?.Spin();
 				}
 				: null,
-				JobFinished = startup ? source => EditorSplashScreen.SetMessage( $"Compiled {source}" ) : null,
+				CompileProgress = startup ? progress => EditorSplashScreen.SetMessage( progress.Compiled is { } source ? $"Compiled {source} ({progress.Finished}/{progress.Total})" : $"Compiling assets ({progress.Finished}/{progress.Total})" ) : null,
 			};
 
 			var report = await ContentBuilder.BuildAsync( request, Compiler( request.Mounts ), cancellation.Token );

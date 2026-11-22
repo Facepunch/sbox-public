@@ -16,6 +16,12 @@ public sealed record ContentRoot( string Mod, string Path, string StateDirectory
 	public bool PublishTransientsWithAssets { get; init; }
 }
 
+/// <param name="Finished">Compiles finished.</param>
+/// <param name="Total">Compiles known so far, finished, running or to come. Sources are checked as what they read settles, so it grows when a compile changes what others read.</param>
+/// <param name="Compiling">Mount names of the roots compiling.</param>
+/// <param name="Compiled">The source whose compile just finished, if one did.</param>
+public readonly record struct BuildProgress( int Finished, int Total, IReadOnlyList<string> Compiling, string Compiled );
+
 public sealed class BuildRequest
 {
 	/// <summary>
@@ -77,10 +83,9 @@ public sealed class BuildRequest
 	public Func<bool> CanStartJob { get; init; }
 
 	/// <summary>
-	/// Reports the number of finished compile jobs and the mount names of roots currently compiling.
 	/// Called on the scheduling thread when a compile starts or finishes.
 	/// </summary>
-	public Action<int, IReadOnlyList<string>> CompileProgress { get; init; }
+	public Action<BuildProgress> CompileProgress { get; init; }
 
 	public Action<string> JobFinished { get; init; }
 
@@ -789,19 +794,21 @@ public static class ContentBuilder
 
 		async Task ScheduleUntilDone( Dictionary<Task<CompileResult>, (Node Node, CompileJob Job)> running )
 		{
-			void ReportProgress( Node starting = null )
+			var queue = new List<Node>();
+			void ReportProgress( Node starting = null, Node compiled = null )
 			{
 				if ( request.CompileProgress is null ) return;
 
 				var activeRoots = running.Values.Select( x => x.Node.Root.Def.Mod );
 				if ( starting is not null ) activeRoots = activeRoots.Append( starting.Root.Def.Mod );
 
-				var finished = report.Jobs.Count - running.Count;
+				// A source still waiting on what it reads compiles once that settles if it has no record, one with a record only if that changed
+				var started = report.Jobs.Count + (starting is null ? 0 : 1);
+				var total = started + queue.Count + nodes.Values.Count( x => x.State == State.Waiting && x.Record is null );
 				var names = activeRoots.Distinct( StringComparer.OrdinalIgnoreCase ).Order( StringComparer.OrdinalIgnoreCase );
-				request.CompileProgress( finished, [.. names] );
+				request.CompileProgress( new BuildProgress( report.Jobs.Count - running.Count, total, [.. names], compiled?.Name ) );
 			}
 
-			var queue = new List<Node>();
 			while ( true )
 			{
 				// Producers a compile turned out to read are planned like the rest before they run
@@ -847,7 +854,7 @@ public static class ContentBuilder
 					node.State = State.Running;
 					node.Started = ++clock;
 					node.Launched = DateTime.UtcNow;
-					ReportProgress( node );
+					ReportProgress( starting: node );
 					report.Jobs.Add( node.Name );
 
 					// A thread of its own, not the pool's, as it waits for the whole compile
@@ -879,7 +886,7 @@ public static class ContentBuilder
 				finally { ReleaseStaging( finishedJob.Staging ); }
 
 				request.JobFinished?.Invoke( finished.Name );
-				ReportProgress();
+				ReportProgress( compiled: finished );
 			}
 		}
 
