@@ -51,7 +51,7 @@ public class ImmutabilityTest
 		var definitions = BuildDefinitions();
 		var source = Source();
 		var expectedSource = source.DeepClone().AsObject();
-		var calculate = Json.CreateDifferenceCalculator( source, definitions );
+		var calculate = new Json.DiffSource( source, definitions ).CalculateDifferences;
 		source["company"]["departments"][0]["employees"][0]["role"] = "Changed after capture";
 
 		foreach ( var target in new[] { Target(), expectedSource, Target() } )

@@ -225,7 +225,31 @@ internal class PrefabInstanceData
 		var prefabScene = (PrefabCacheScene)GetPrefab( PrefabSource );
 		Assert.IsValid( prefabScene );
 
-		_patch = prefabScene.CalculateDifferences( instanceData );
+		_patch = prefabScene.DiffSource.CalculateDifferences( instanceData );
+	}
+
+	/// <summary>
+	/// Updates the cached patch after property changes on <paramref name="components"/> only, without diffing the rest of the instance.
+	/// Falls back to a full <see cref="RefreshPatch()"/> if any of them has no counterpart in the prefab.
+	/// </summary>
+	internal void RefreshPatch( IEnumerable<Component> components )
+	{
+		if ( _patch is not null && GetPrefab( PrefabSource ) is PrefabCacheScene prefabScene )
+		{
+			// Same reason as in RefreshPatch(): the patch must hold self-contained data.
+			using var suppressBlobs = BlobDataSerializer.Suppress();
+
+			if ( components.All( c => c is not MissingComponent && c.Serialize( _serializeOptions ) is JsonObject json && TryUpdatePropertyOverrides( prefabScene, json ) ) )
+				return;
+		}
+
+		RefreshPatch();
+	}
+
+	private bool TryUpdatePropertyOverrides( PrefabCacheScene prefabScene, JsonObject json )
+	{
+		RemapInstanceIdsToPrefabIds( ref json );
+		return prefabScene.DiffSource.TryUpdatePropertyOverrides( _patch, json );
 	}
 
 	/// <summary>

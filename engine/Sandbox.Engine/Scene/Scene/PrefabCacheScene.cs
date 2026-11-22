@@ -18,9 +18,7 @@ internal partial class PrefabCacheScene : PrefabScene
 	/// </summary>
 	internal JsonObject FullPrefabInstanceJson { get; private set; }
 
-	private Func<JsonObject, Json.Patch> calculateDifferences;
-
-	internal Json.Patch CalculateDifferences( JsonObject instance ) => calculateDifferences( instance );
+	internal Json.DiffSource DiffSource { get; private set; }
 
 	/// <summary>
 	/// Contains all the prefab files that are referenced by this prefab scene.
@@ -36,7 +34,7 @@ internal partial class PrefabCacheScene : PrefabScene
 		using var sourceScope = ActionGraph.PushSerializationOptions( resource.SerializationOptions with { ForceUpdateCached = IsEditor } );
 		using var suppressBlobs = BlobDataSerializer.Suppress();
 		FullPrefabInstanceJson = Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
-		calculateDifferences = Json.CreateDifferenceCalculator( FullPrefabInstanceJson, TrackedDiffDefinitions );
+		DiffSource = new Json.DiffSource( FullPrefabInstanceJson, TrackedDiffDefinitions );
 
 		// Iterate all gameobjects in scene and find prefab instances, add them to reference set
 		referencedPrefabs = GetAllObjects( false ).Where( o => o.IsPrefabInstanceRoot ).Select( p => ResourceLibrary.Get<PrefabFile>( p.PrefabInstanceSource ) ).ToHashSet();

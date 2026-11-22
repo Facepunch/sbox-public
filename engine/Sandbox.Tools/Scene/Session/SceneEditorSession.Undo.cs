@@ -474,12 +474,22 @@ internal sealed class SceneUndoSnapshot : IDisposable
 			_prefabRootsToRefresh.Add( go.Parent.OutermostPrefabInstanceRoot.Id );
 	}
 
-	private static void RefreshPrefabPatches( Scene scene, IEnumerable<Guid> rootIds )
+	// changedComponents is set when the scope only changed properties of those components; each root then diffs just its own.
+	private static void RefreshPrefabPatches( Scene scene, IEnumerable<Guid> rootIds, Guid[] changedComponents )
 	{
 		foreach ( var id in rootIds )
 		{
 			var root = scene.Directory.FindByGuid( id );
-			if ( root.IsValid() && root.IsOutermostPrefabInstanceRoot )
+			if ( !root.IsValid() || !root.IsOutermostPrefabInstanceRoot ) continue;
+
+			var components = changedComponents?
+				.Select( scene.Directory.FindComponentByGuid )
+				.Where( c => c.IsValid() && c.GameObject.IsPrefabInstance && c.GameObject.OutermostPrefabInstanceRoot == root )
+				.ToArray();
+
+			if ( components is { Length: > 0 } )
+				root.PrefabInstance.RefreshPatch( components );
+			else
 				root.PrefabInstance.RefreshPatch();
 		}
 	}
@@ -813,11 +823,17 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		var destroyedComponentRefs = _destroyedComponents.Select( x => x.Value ).ToArray();
 
 		var prefabRootsToRefresh = _prefabRootsToRefresh.ToArray();
+		// Property-only edits can be diffed per component, unless one sits on an instance added inside another,
+		// whose whole data is an added object of the outer patch.
+		var changedComponents = !_captureGameObjectChanges && !_captureDestructions && !_captureGameObjectCreations && !_captureComponentCreations
+			&& !_initialCapturedComponents.Any( c => c.IsValid() && c.GameObject.IsOutermostPrefabInstanceRoot && c.GameObject.Parent.IsValid() && c.GameObject.Parent.IsPrefabInstance )
+			? _initialCapturedComponents.Where( c => c.IsValid() ).Select( c => c.Id ).ToArray()
+			: null;
 		// Full root snapshots already refreshed their patch during serialization.
 		var refreshedRoots = disposeWatchedGameObjects
 			.Where( x => x.Key.IsOutermostPrefabInstanceRoot && x.Value.HasFlag( GameObjectUndoFlags.Children ) )
 			.Select( x => x.Key.Id );
-		RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh.Except( refreshedRoots ) );
+		RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh.Except( refreshedRoots ), changedComponents );
 
 		// if nothing changed, don't add an undo
 		var finalInstanceState = _session.Scene.InstanceState;
@@ -837,7 +853,8 @@ internal sealed class SceneUndoSnapshot : IDisposable
 			{
 				using var sceneScope = _session.Scene.Push();
 				RestoreInitialState( createdGameObjectRefs, createdComponentRefs );
-				RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh );
+				// Full refresh: undo is rare and also folds in edits made outside any undo scope.
+				RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh, null );
 				_initialState.Selection?.Restore( _session.Scene );
 			},
 			() =>
@@ -875,7 +892,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					disposeState.ComponentSnapshot?.PostRestore( _session.Scene );
 				}
 
-				RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh );
+				RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh, null );
 
 				// restore selection
 				if ( disposeState.Selection != null )

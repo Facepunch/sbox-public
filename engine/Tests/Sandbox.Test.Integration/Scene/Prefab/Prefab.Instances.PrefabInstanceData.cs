@@ -85,6 +85,40 @@ public class InstanceDataTest
 	}
 
 	[TestMethod]
+	public void ComponentScopedRefreshPatch_MatchesFullRefresh()
+	{
+		var saveLocation = "___component_scoped_refresh_test.prefab";
+		using var prefab = SceneTests.Helpers.RegisterPrefabFromJson( saveLocation, _basicPrefabSource );
+		var prefabScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( saveLocation ) );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var instance = prefabScene.Clone( Vector3.Zero );
+		var modelRenderer = instance.Components.Get<ModelRenderer>();
+		instance.WorldPosition = new Vector3( 1, 2, 3 );
+		instance.PrefabInstance.RefreshPatch();
+
+		modelRenderer.Tint = Color.Blue;
+		instance.PrefabInstance.RefreshPatch( [modelRenderer] );
+		var scoped = Json.SerializeAsObject( instance.PrefabInstance.Patch ).ToJsonString();
+		Assert.IsTrue( instance.PrefabInstance.IsPropertyOverridden( modelRenderer, "Tint" ) );
+		Assert.IsTrue( instance.PrefabInstance.IsPropertyOverridden( instance.Transform, "Position" ), "Overrides of untouched objects survive" );
+
+		instance.PrefabInstance.RefreshPatch();
+		Assert.AreEqual( Json.SerializeAsObject( instance.PrefabInstance.Patch ).ToJsonString(), scoped );
+
+		// Reverting the value drops the override
+		modelRenderer.Tint = new Color( 1, 0, 0, 1 );
+		instance.PrefabInstance.RefreshPatch( [modelRenderer] );
+		Assert.IsFalse( instance.PrefabInstance.IsPropertyOverridden( modelRenderer, "Tint" ) );
+
+		// A component the prefab doesn't have falls back to a full refresh
+		var added = instance.AddComponent<BoxCollider>();
+		instance.PrefabInstance.RefreshPatch( [added] );
+		Assert.IsTrue( instance.PrefabInstance.IsAddedComponent( added ) );
+	}
+
+	[TestMethod]
 	public void IsGameObjectModified_ReturnsTrueForModifiedGameObjects()
 	{
 		var saveLocation = "___go_modified_test.prefab";
