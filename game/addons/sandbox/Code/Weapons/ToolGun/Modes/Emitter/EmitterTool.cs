@@ -8,7 +8,7 @@ using Sandbox.UI;
 public sealed class EmitterTool : ToolMode
 {
 	public override bool UseSnapGrid => true;
-	public override IEnumerable<string> TraceIgnoreTags => ["constraint", "collision"];
+	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 
 	/// <summary>
 	/// The physical emitter body to spawn (model + physics).

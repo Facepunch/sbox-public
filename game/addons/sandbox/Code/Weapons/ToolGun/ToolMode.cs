@@ -17,7 +17,25 @@
 	/// <summary>
 	/// Display name for the tool, defaults to the TypeDescription title.
 	/// </summary>
-	public virtual string Name => Game.Language.GetPhrase( (TypeDescription?.Title ?? GetType().Name).TrimStart( '#' ) );
+	public virtual string Name => Game.Language.GetPhrase( NameToken );
+
+	string _nameTitle, _nameToken;
+
+	// The HUD reads the name every frame, so the trimmed token is kept until the title changes
+	string NameToken
+	{
+		get
+		{
+			var title = TypeDescription?.Title ?? GetType().Name;
+			if ( !ReferenceEquals( title, _nameTitle ) )
+			{
+				_nameTitle = title;
+				_nameToken = title.TrimStart( '#' );
+			}
+
+			return _nameToken;
+		}
+	}
 
 	/// <summary>
 	/// Description of what this tool does.
@@ -71,17 +89,25 @@
 	{
 		get
 		{
-			if ( !string.IsNullOrEmpty( PrimaryAction ) ) yield return new( PrimaryAction, ["attack1"] );
-			if ( !string.IsNullOrEmpty( UsePrimaryAction ) ) yield return new( UsePrimaryAction, ["use", "attack1"] );
-			if ( !string.IsNullOrEmpty( SecondaryAction ) ) yield return new( SecondaryAction, ["attack2"] );
-			if ( !string.IsNullOrEmpty( ReloadAction ) ) yield return new( ReloadAction, ["reload"] );
-			if ( !string.IsNullOrEmpty( ReloadSecondaryAction ) ) yield return new( ReloadSecondaryAction, ["reload", "attack2"] );
-			if ( !string.IsNullOrEmpty( SnapAction ) ) yield return new( SnapAction, ["snap"] );
-			if ( !string.IsNullOrEmpty( MenuAction ) ) yield return new( MenuAction, ["ToolMenu"] );
+			if ( !string.IsNullOrEmpty( PrimaryAction ) ) yield return new( PrimaryAction, PrimaryKeys );
+			if ( !string.IsNullOrEmpty( UsePrimaryAction ) ) yield return new( UsePrimaryAction, UsePrimaryKeys );
+			if ( !string.IsNullOrEmpty( SecondaryAction ) ) yield return new( SecondaryAction, SecondaryKeys );
+			if ( !string.IsNullOrEmpty( ReloadAction ) ) yield return new( ReloadAction, ReloadKeys );
+			if ( !string.IsNullOrEmpty( ReloadSecondaryAction ) ) yield return new( ReloadSecondaryAction, ReloadSecondaryKeys );
+			if ( !string.IsNullOrEmpty( SnapAction ) ) yield return new( SnapAction, SnapKeys );
+			if ( !string.IsNullOrEmpty( MenuAction ) ) yield return new( MenuAction, MenuKeys );
 
 			foreach ( var hint in ExtraHints ) yield return hint;
 		}
 	}
+
+	static readonly string[] PrimaryKeys = ["attack1"];
+	static readonly string[] UsePrimaryKeys = ["use", "attack1"];
+	static readonly string[] SecondaryKeys = ["attack2"];
+	static readonly string[] ReloadKeys = ["reload"];
+	static readonly string[] ReloadSecondaryKeys = ["reload", "attack2"];
+	static readonly string[] SnapKeys = ["snap"];
+	static readonly string[] MenuKeys = ["ToolMenu"];
 
 	protected virtual IEnumerable<ToolHint> ExtraHints => [];
 
@@ -89,7 +115,11 @@
 	/// Tags that TraceSelect will ignore. Override per-tool to filter out specific objects.
 	/// Defaults to "player" so tools cannot target players.
 	/// </summary>
-	public virtual IEnumerable<string> TraceIgnoreTags => ["player"];
+	public virtual IEnumerable<string> TraceIgnoreTags => IgnorePlayerTags;
+
+	// Shared so traces every frame don't allocate a new collection
+	protected static readonly string[] IgnorePlayerTags = ["player"];
+	protected static readonly string[] IgnoreConstraintTags = ["constraint", "collision"];
 
 	/// <summary>
 	/// When true, TraceSelect will also hit hitboxes.

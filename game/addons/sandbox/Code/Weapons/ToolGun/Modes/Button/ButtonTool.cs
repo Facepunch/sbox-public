@@ -8,7 +8,7 @@ using Sandbox.UI;
 public sealed class ButtonTool : ToolMode
 {
 	public override bool UseSnapGrid => true;
-	public override IEnumerable<string> TraceIgnoreTags => ["constraint", "collision"];
+	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 
 	[Property, ResourceSelect( Extension = "btndef", AllowPackages = true ), Title( "#tool.name.button" )]
 	public string Definition { get; set; } = "entities/button/basic.btndef";

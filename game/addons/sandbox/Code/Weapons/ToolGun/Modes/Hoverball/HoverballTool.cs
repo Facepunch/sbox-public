@@ -7,7 +7,7 @@ using Sandbox.UI;
 [Group( "#tool.group.building" )]
 public sealed class HoverballTool : ToolMode
 {
-	public override IEnumerable<string> TraceIgnoreTags => ["constraint", "collision"];
+	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 
 	[Property, ResourceSelect( Extension = "hdef", AllowPackages = true ), Title( "#tool.name.hoverball" )]
 	public string Definition { get; set; } = "entities/hoverball/hoverball.hdef";

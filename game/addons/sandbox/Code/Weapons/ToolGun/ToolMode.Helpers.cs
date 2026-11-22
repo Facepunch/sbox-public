@@ -71,8 +71,9 @@
 		var trace = Scene.Trace.Ray( ray, distance )
 			.IgnoreGameObjectHierarchy( source );
 
-		if ( TraceIgnoreTags.Any() )
-			trace = trace.WithoutTags( TraceIgnoreTags.ToArray() );
+		var ignoreTags = TraceIgnoreTags as string[] ?? TraceIgnoreTags.ToArray();
+		if ( ignoreTags.Length > 0 )
+			trace = trace.WithoutTags( ignoreTags );
 
 		if ( TraceHitboxes )
 			trace = trace.UseHitboxes();
