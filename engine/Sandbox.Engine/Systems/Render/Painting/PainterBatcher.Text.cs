@@ -18,7 +18,8 @@ internal partial class PainterBatcher
 		if ( !gradient.ColorOffsets.IsDefaultOrEmpty )
 		{
 			var stops = new GradientStops();
-			foreach ( var stop in gradient.ColorOffsets.Take( GradientInfo.MaxStops ) ) stops = stops.Add( stop );
+			var offsets = gradient.ColorOffsets;
+			for ( int i = 0; i < offsets.Length && i < GradientInfo.MaxStops; i++ ) stops = stops.Add( offsets[i] );
 			gradientIndex = GetOrAddGradient( new GradientInfo
 			{
 				Angle = gradient.Angle,
