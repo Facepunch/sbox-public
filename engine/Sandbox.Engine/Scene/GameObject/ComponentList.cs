@@ -1,4 +1,6 @@
 ﻿using Sandbox.Engine;
+using System.Buffers;
+using System.Runtime.CompilerServices;
 namespace Sandbox;
 
 /// <summary>
@@ -226,11 +228,74 @@ public class ComponentList
 			|| (Count == 0 && go.Children.Count == 0 && (find & (FindMode.InParent | FindMode.InAncestors)) == 0) )
 			return Enumerable.Empty<T>();
 
-		var results = new List<T>( 16 );
+		// Collected on the stack, handed out as an exact-size array: nothing found allocates nothing
+		var results = new GetAllResults<T>();
+		CollectAll( ref results, find );
+		return results.ToArray();
+	}
 
-		CollectAll( results, find );
+	const int GetAllInline = 16;
 
-		return results;
+	[InlineArray( GetAllInline )]
+	struct GetAllBuffer<T>
+	{
+		T _element;
+	}
+
+	// The first 16 results go into a buffer on the stack, more into an array rented from the shared pool.
+	// Given a list, everything goes into the list instead.
+	struct GetAllResults<T>
+	{
+		readonly List<T> _list;
+		GetAllBuffer<T> _inline;
+		T[] _rented;
+		int _count;
+
+		internal GetAllResults( List<T> list ) => _list = list;
+
+		internal void Add( T item )
+		{
+			if ( _list is not null )
+			{
+				_list.Add( item );
+				return;
+			}
+
+			if ( _count < GetAllInline )
+			{
+				_inline[_count++] = item;
+				return;
+			}
+
+			if ( _rented is null )
+			{
+				_rented = ArrayPool<T>.Shared.Rent( GetAllInline * 4 );
+				((ReadOnlySpan<T>)_inline).CopyTo( _rented );
+			}
+			else if ( _count == _rented.Length )
+			{
+				var larger = ArrayPool<T>.Shared.Rent( _count * 2 );
+				_rented.AsSpan().CopyTo( larger );
+				ArrayPool<T>.Shared.Return( _rented, true );
+				_rented = larger;
+			}
+
+			_rented[_count++] = item;
+		}
+
+		/// <summary>
+		/// The results as an exact-size array. Gives the rented array back, so call it once.
+		/// </summary>
+		internal T[] ToArray()
+		{
+			if ( _count == 0 ) return Array.Empty<T>();
+			if ( _rented is null ) return ((ReadOnlySpan<T>)_inline)[.._count].ToArray();
+
+			var results = _rented.AsSpan( 0, _count ).ToArray();
+			ArrayPool<T>.Shared.Return( _rented, true );
+			_rented = null;
+			return results;
+		}
 	}
 
 	/// <summary>
@@ -246,11 +311,13 @@ public class ComponentList
 	internal void GetAll<T>( List<T> results, FindMode find )
 	{
 		if ( go.IsDestroyed ) return;
-		CollectAll( results, find );
+
+		var collector = new GetAllResults<T>( results );
+		CollectAll( ref collector, find );
 	}
 
 	// This is an incredibly hot code path, even the slightest change should be verified with benchmarks.
-	private void CollectAll<T>( List<T> results, FindMode find )
+	private void CollectAll<T>( ref GetAllResults<T> results, FindMode find )
 	{
 		bool enabledOnly = find.Contains( FindMode.Enabled );
 		bool disabledOnly = find.Contains( FindMode.Disabled );
@@ -303,7 +370,7 @@ public class ComponentList
 				var child = go.Children[i];
 				if ( child.IsValid() )
 				{
-					child.Components.CollectAll( results, childFlags );
+					child.Components.CollectAll( ref results, childFlags );
 				}
 			}
 		}
@@ -325,7 +392,7 @@ public class ComponentList
 
 			if ( go.Parent is not null && go.Parent is PrefabScene or not Scene )
 			{
-				go.Parent.Components.CollectAll( results, parentFlags );
+				go.Parent.Components.CollectAll( ref results, parentFlags );
 			}
 		}
 	}

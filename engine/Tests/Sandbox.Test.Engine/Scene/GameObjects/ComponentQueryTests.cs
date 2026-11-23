@@ -18,15 +18,22 @@ public class ComponentQueryTests : SceneTest
 		return list;
 	}
 
+	static List<T> Collect<T>( GameObject go, FindMode find )
+	{
+		var list = new List<T>();
+		go.Components.GetAll( list, find );
+		return list;
+	}
+
 	static void AssertMatchesGetAll<T>( GameObject go, string name )
 	{
 		for ( var mode = 0; mode <= (int)AllFlags; mode++ )
 		{
 			var find = (FindMode)mode;
-			var expected = go.Components.GetAll<T>( find ).ToList();
-			var actual = Iterate( go.Components.Query<T>( find ) );
+			var expected = Collect<T>( go, find );
 
-			CollectionAssert.AreEqual( expected, actual, $"{name}, {typeof( T ).Name}, {find}" );
+			CollectionAssert.AreEqual( expected, go.Components.GetAll<T>( find ).ToList(), $"GetAll {name}, {typeof( T ).Name}, {find}" );
+			CollectionAssert.AreEqual( expected, Iterate( go.Components.Query<T>( find ) ), $"Query {name}, {typeof( T ).Name}, {find}" );
 		}
 	}
 
@@ -94,8 +101,13 @@ public class ComponentQueryTests : SceneTest
 			go = new GameObject( go );
 		}
 
-		CollectionAssert.AreEqual( root.Components.GetAll<Component>().ToList(), Iterate( root.Components.Query<Component>() ) );
-		CollectionAssert.AreEqual( go.Components.GetAll<Component>( FindMode.EverythingInSelfAndAncestors ).ToList(), Iterate( go.Components.Query<Component>( FindMode.EverythingInSelfAndAncestors ) ) );
+		foreach ( var (from, find) in new[] { (root, FindMode.InSelf | FindMode.Enabled | FindMode.InDescendants), (go, FindMode.EverythingInSelfAndAncestors) } )
+		{
+			var expected = Collect<Component>( from, find );
+			Assert.IsTrue( expected.Count > 16 );
+			CollectionAssert.AreEqual( expected, from.Components.GetAll<Component>( find ).ToList() );
+			CollectionAssert.AreEqual( expected, Iterate( from.Components.Query<Component>( find ) ) );
+		}
 	}
 
 	[TestMethod]
@@ -152,6 +164,60 @@ public class ComponentQueryTests : SceneTest
 		} );
 
 		Assert.IsTrue( found > 0 );
+	}
+
+	[TestMethod, TestCategory( Allocations.Category )]
+	public void GetAllFindingNothingDoesNotAllocate()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var root = scene.CreateObject();
+		root.AddComponent<QueryProbeComponent>();
+		new GameObject( root ).AddComponent<QueryProbeComponent>();
+
+		var found = 0;
+		Allocations.AssertSettles( "GetAll with no matches", () =>
+		{
+			foreach ( var c in root.Components.GetAll<QueryOtherComponent>( FindMode.EverythingInSelfAndDescendants ) )
+				found++;
+		} );
+
+		Assert.AreEqual( 0, found );
+	}
+
+	[TestMethod]
+	public void GetAllAroundTheInlineSize()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		foreach ( var count in new[] { 1, 15, 16, 17, 32, 33 } )
+		{
+			var root = scene.CreateObject();
+			for ( var i = 0; i < count; i++ )
+				new GameObject( root ).AddComponent<QueryProbeComponent>();
+
+			var all = root.Components.GetAll<QueryProbeComponent>( FindMode.EverythingInSelfAndDescendants ).ToList();
+			Assert.AreEqual( count, all.Count );
+			CollectionAssert.AreEqual( Collect<QueryProbeComponent>( root, FindMode.EverythingInSelfAndDescendants ), all );
+		}
+	}
+
+	[TestMethod]
+	public void GetAllResultsAreSnapshots()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var root = scene.CreateObject();
+		var a = root.AddComponent<QueryProbeComponent>();
+		var first = root.Components.GetAll<QueryProbeComponent>( FindMode.EverythingInSelfAndDescendants );
+		var b = new GameObject( root ).AddComponent<QueryProbeComponent>();
+		var second = root.Components.GetAll<QueryProbeComponent>( FindMode.EverythingInSelfAndDescendants );
+
+		CollectionAssert.AreEqual( new[] { a }, first.ToArray() );
+		CollectionAssert.AreEqual( new[] { a, b }, second.ToArray() );
 	}
 }
 
