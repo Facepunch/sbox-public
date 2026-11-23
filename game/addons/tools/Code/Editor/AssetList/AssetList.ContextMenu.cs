@@ -285,7 +285,13 @@ public partial class AssetList
 				else
 				{
 					e.Menu.AddOption( count == 1 ? "Open" : $"Open {count} files", "open_in_new",
-					() => e.SelectedList.ForEach( x => EditorUtility.OpenFolder( x.FileInfo.FullName ) ) );
+					() => e.SelectedList.ForEach( x =>
+					{
+						if ( Sandbox.Mounting.MountUtility.IsMountPath( x.FileInfo.ToString() ) && x.FileInfo.Extension is ".scene" or ".prefab" )
+							SceneEditorSession.CreateFromPath( x.FileInfo.ToString() )?.MakeActive();
+						else
+							EditorUtility.OpenFolder( x.FileInfo.FullName );
+					} ) );
 				}
 			}
 		}
