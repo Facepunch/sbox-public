@@ -88,6 +88,7 @@ public partial class Scene : GameObject
 
 			ProcessDeletes();
 			NavMesh.Reset();
+			_navMeshLoadPending = !IsEditor && !options.ShowLoadingScreen;
 
 			if ( HasPhysicsWorld )
 			{

@@ -810,6 +810,61 @@ public class NavMeshDecisions
 		Assert.IsNotNull( link.WorldStartPositionOnNavmesh );
 		Assert.AreEqual( NavMeshPathStatus.Complete, scene.NavMesh.CalculatePath( up ).Status );
 	}
+
+	/// <summary>
+	/// A game scene loaded without the loading flow (SceneLoadOptions.ShowLoadingScreen = false) never ran
+	/// NavMesh.Load, so its first navigation updates load it.
+	/// </summary>
+	[TestMethod]
+	public async Task GameSceneLoadedWithoutTheLoadingScreenLoadsItsNavMesh()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var file = new SceneFile { GameObjects = [] };
+		file.RegisterWeakResourceId( "tests/navmesh_no_loading_screen.scene" );
+		var options = new SceneLoadOptions { ShowLoadingScreen = false };
+		options.SetScene( file );
+		Assert.IsTrue( scene.Load( options ) );
+
+		// What the scene file would have brought: geometry and an enabled navmesh
+		scene.Floor( Vector3.Zero, 700 );
+		scene.NavMesh.IsEnabled = true;
+		Assert.IsFalse( scene.IsEditor );
+		Assert.IsFalse( scene.NavMesh.IsLoaded );
+
+		for ( int i = 0; i < 5000 && !scene.NavMesh.IsLoaded; i++ )
+		{
+			scene.GameTick();
+			await Task.Delay( 1 );
+		}
+
+		Assert.IsTrue( scene.NavMesh.IsLoaded );
+		Assert.IsTrue( scene.NavMesh.OnMesh( Vector3.Zero ) );
+	}
+
+	/// <summary>
+	/// A game that turns the navmesh on at runtime builds the tiles it asks for, the game loop doesn't load the whole mesh for it.
+	/// </summary>
+	[TestMethod]
+	public async Task NavMeshEnabledAtRuntimeIsNotLoadedByTheGameLoop()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero, 700 );
+		scene.Floor( new Vector3( 2000, 0, 0 ), 700 );
+		scene.NavMesh.IsEnabled = true;
+
+		scene.NavMesh.RequestTilesGeneration( BBox.FromPositionAndSize( Vector3.Zero, 200 ) );
+		for ( int i = 0; i < 50; i++ )
+		{
+			scene.GameTick();
+			await Task.Delay( 1 );
+		}
+
+		Assert.IsFalse( scene.NavMesh.IsLoaded );
+		Assert.IsTrue( scene.NavMesh.OnMesh( Vector3.Zero ), "The requested tiles are built" );
+		Assert.IsFalse( scene.NavMesh.OnMesh( new Vector3( 2000, 0, 0 ) ), "Tiles nobody asked for are not" );
+	}
 }
 
 public sealed class CountingNavMeshLink : NavMeshLink
