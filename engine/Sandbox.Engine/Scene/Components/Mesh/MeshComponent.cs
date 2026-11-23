@@ -228,6 +228,8 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 
 	void UpdateMesh()
 	{
+		// In game only a collision type change does anything, and this runs every frame for every mesh
+		if ( Scene?.IsEditor != true && (_builtMesh is null || _builtCollision == Collision) ) return;
 		if ( !Active || !PhysicsBody.IsValid() ) return;
 
 		if ( Scene.IsEditor && (_builtMesh != Mesh || Mesh?.IsDirty == true) )
