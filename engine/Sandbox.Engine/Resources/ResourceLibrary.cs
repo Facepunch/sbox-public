@@ -1,5 +1,6 @@
 ﻿using NativeEngine;
 using Sandbox.Engine;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -15,7 +16,7 @@ public partial class ResourceSystem
 
 	// GetAll<T> walks every indexed resource, and games call it every frame: keep each type's answer until the index changes
 	int _indexVersion;
-	readonly Dictionary<Type, (int Version, object Items)> _allByType = new();
+	readonly ConcurrentDictionary<Type, (int Version, object Items)> _allByType = new();
 	private Dictionary<ulong, Resource> ResourceIndexLong { get; } = new();
 	private Dictionary<Guid, Resource> GuidIndex { get; } = new();
 
@@ -456,10 +457,7 @@ public partial class ResourceSystem
 
 	void ClearAllByType()
 	{
-		lock ( _allByType )
-		{
-			_allByType.Clear();
-		}
+		_allByType.Clear();
 	}
 
 	/// <summary>
@@ -468,15 +466,14 @@ public partial class ResourceSystem
 	/// <typeparam name="T">Resource type to get.</typeparam>
 	public IEnumerable<T> GetAll<T>()
 	{
-		lock ( _allByType )
-		{
-			if ( _allByType.TryGetValue( typeof( T ), out var cached ) && cached.Version == _indexVersion )
-				return (IReadOnlyList<T>)cached.Items;
+		var version = _indexVersion;
+		if ( _allByType.TryGetValue( typeof( T ), out var cached ) && cached.Version == version )
+			return (IReadOnlyList<T>)cached.Items;
 
-			IReadOnlyList<T> items = Array.AsReadOnly( ResourceIndex.Values.OfType<T>().Distinct().ToArray() );
-			_allByType[typeof( T )] = (_indexVersion, items);
-			return items;
-		}
+		// Threads racing to build the same list build equal ones, so the last one stored wins
+		IReadOnlyList<T> items = Array.AsReadOnly( ResourceIndex.Values.OfType<T>().Distinct().ToArray() );
+		_allByType[typeof( T )] = (version, items);
+		return items;
 	}
 
 	/// <summary>

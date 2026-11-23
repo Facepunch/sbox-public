@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ResourceTests;
@@ -39,5 +41,32 @@ public class ResourceGetAllTests
 		}
 
 		Assert.IsFalse( ResourceLibrary.GetAll<PrefabFile>().Contains( first ) );
+	}
+
+	[TestMethod]
+	public void GetAllFromManyThreadsAgreesAndSettlesOnOneList()
+	{
+		ThreadSafe.MarkMainThread();
+		var resource = new PrefabFile();
+		resource.RegisterWeakResourceId( "getalltest_threads.prefab" );
+		var resources = Game.Resources;
+		resources.Register( resource );
+		try
+		{
+			for ( int round = 0; round < 20; round++ )
+			{
+				resources.OnHotload();
+				var lists = new ConcurrentBag<IEnumerable<PrefabFile>>();
+				Parallel.For( 0, 64, _ => lists.Add( resources.GetAll<PrefabFile>() ) );
+				Assert.IsTrue( lists.All( x => x.Count( r => r == resource ) == 1 ) );
+
+				var settled = resources.GetAll<PrefabFile>();
+				Assert.AreSame( settled, resources.GetAll<PrefabFile>() );
+			}
+		}
+		finally
+		{
+			resources.Unregister( resource );
+		}
 	}
 }
