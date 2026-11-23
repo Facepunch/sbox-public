@@ -548,6 +548,14 @@ public class SkinnedRendererTest
 		Assert.IsTrue( local.HasValue );
 		Assert.IsTrue( local.Value.Position.Length < 200.0f, "Local-space attachments stay relative to the scene object" );
 
+		go.WorldRotation = Rotation.FromYaw( 90 );
+		scene.GameTick();
+		var world = smr.GetAttachment( "HAND_r" );
+		Assert.IsTrue( world.HasValue, "Attachment names are case insensitive" );
+		var fromLocal = go.WorldTransform.ToWorld( smr.GetAttachment( "hand_R", false ).Value );
+		Assert.IsTrue( world.Value.Position.Distance( fromLocal.Position ) < 0.01f, "World space is the local attachment moved by the object's transform" );
+		Assert.IsTrue( world.Value.Rotation.Distance( fromLocal.Rotation ) < 0.01f );
+
 		smr.Enabled = false;
 
 		Assert.IsNull( smr.GetAttachment( "hand_R" ), "No scene model means no attachments" );
