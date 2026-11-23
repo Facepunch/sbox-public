@@ -188,13 +188,13 @@ public static class MountUtility
 			{
 				cc.WorldTransform = mapPreview.WorldTransform;
 			}
-			else if ( scene.GetComponentInChildren<SpawnPoint>()?.GameObject is { } spawnPoint )
+			else if ( scene.GetAllComponents<SpawnPoint>().OrderByDescending( x => x.Priority ).FirstOrDefault()?.GameObject is { } spawnPoint )
 			{
 				cc.WorldTransform = spawnPoint.WorldTransform with { Position = spawnPoint.WorldPosition + new Vector3( 0, 0, 64 ) };
 			}
 			else
 			{
-				Log.Warning( $"No map_preview tag or spawn point found in scene: '{sceneLoader.Path}'.. skipping!" );
+				Log.Warning( $"No map_preview tag or SpawnPoint found in scene: '{sceneLoader.Path}'.. skipping!" );
 				return false;
 			}
 

@@ -546,6 +546,12 @@ public partial class SceneViewportWidget : Widget
 					EditorScene.Selection.Add( go );
 				} );
 
+				menu.AddSeparator();
+
+				var playFromHere = GetPlayFromHereTransform( trace );
+				menu.AddOption( "Play From Here", "play_circle", () => EditorScene.PlayFromHere( playFromHere, Session ) )
+					.Enabled = !Game.IsPlaying && !Session.IsPrefabSession;
+
 				var ev = new EditorEvent.ShowContextMenuEvent( Session, menu, ray, trace );
 
 				EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.ShowContextMenu( ev ) );
@@ -557,6 +563,16 @@ public partial class SceneViewportWidget : Widget
 
 			menu.OpenAtCursor();
 		}
+	}
+
+	Transform GetPlayFromHereTransform( SceneTraceResult? trace )
+	{
+		var rotation = Rotation.FromYaw( _activeCamera.WorldRotation.Yaw() );
+
+		if ( trace is { } tr && tr.Normal.z > 0.7f )
+			return new Transform( tr.HitPosition, rotation );
+
+		return new Transform( _activeCamera.WorldPosition, rotation );
 	}
 
 	bool blockCamera;

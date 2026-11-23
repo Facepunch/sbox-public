@@ -215,24 +215,29 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	private Vector3? _lastSpawnPosition;
 
 	/// <summary>
-	/// Find a place to respawn: a floor-settled spawn point nobody is standing on, avoiding the
-	/// last one used.
+	/// Find a place to respawn: the highest priority floor-settled spawn point nobody is standing on,
+	/// avoiding the last one used.
 	/// </summary>
 	Transform FindSpawnLocation()
 	{
-		var spawnPoints = Scene.GetAllComponents<SpawnPoint>().ToArray();
+		var spawnPoints = SpawnPoint.GetAllByPriority( Scene );
 
 		// No spawn points — fall back to the world origin and warn. The map needs a SpawnPoint.
-		if ( spawnPoints.Length == 0 )
+		if ( spawnPoints.Count == 0 )
 		{
 			Log.Warning( "No SpawnPoint components in the scene — spawning at the world origin. Add a SpawnPoint to the map to fix this." );
 			return Transform.Zero;
 		}
 
-		var transform = SpawnPlacement.FindSpawnPosition(
-			spawnPoints.OrderBy( _ => Random.Shared.Next() ).Select( x => x.Transform.World ),
-			PlayerHull,
-			avoid: _lastSpawnPosition );
+		// Lower priorities are only used once every higher one is occupied. Within a priority, push the
+		// last one used to the back (stable sort, so the shuffle is kept).
+		var last = _lastSpawnPosition;
+		var seeds = spawnPoints
+			.OrderByDescending( x => x.Priority )
+			.ThenBy( x => last.HasValue && x.WorldPosition.Distance( last.Value ) < 16f ? 1 : 0 )
+			.Select( x => x.Transform.World );
+
+		var transform = SpawnPlacement.FindSpawnPosition( seeds, PlayerHull );
 
 		_lastSpawnPosition = transform.Position;
 		return transform;

@@ -87,6 +87,42 @@ public class PureComponentStateTest : SceneTest
 	}
 
 	/// <summary>
+	/// GetAllByPriority returns every enabled SpawnPoint, highest Priority first,
+	/// skips disabled ones, and is empty for a scene without any.
+	/// </summary>
+	[TestMethod]
+	public void SpawnPointsByPriority()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		Assert.AreEqual( 0, SpawnPoint.GetAllByPriority( scene ).Count );
+
+		SpawnPoint Create( int priority )
+		{
+			var spawn = scene.CreateObject().Components.Create<SpawnPoint>();
+			spawn.Priority = priority;
+			return spawn;
+		}
+
+		var low = Create( -1 );
+		var a = Create( 0 );
+		var b = Create( 0 );
+		var top = Create( 5 );
+
+		var ordered = SpawnPoint.GetAllByPriority( scene );
+		Assert.AreEqual( 4, ordered.Count );
+		Assert.AreSame( top, ordered[0] );
+		CollectionAssert.AreEquivalent( new[] { a, b }, ordered.GetRange( 1, 2 ) );
+		Assert.AreSame( low, ordered[3] );
+
+		top.Enabled = false;
+		ordered = SpawnPoint.GetAllByPriority( scene );
+		Assert.AreEqual( 3, ordered.Count );
+		CollectionAssert.DoesNotContain( ordered, top );
+	}
+
+	/// <summary>
 	/// SceneInformation has no lifecycle at all - a fresh component reports an
 	/// empty metadata dictionary, and GetMetadata only emits the keys that have
 	/// actually been filled in.
