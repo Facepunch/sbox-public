@@ -23,6 +23,15 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 
 	[nogc]
 	void SetWorldSpaceRenderBoneTransform( int nBoneIndex, Transform pRenderWorldTransform );
+
+	[nogc]
+	inline void SetWorldSpaceRenderBoneTransforms( int nNumBones, void* pTransforms )
+	{
+		const CTransformUnaligned* pSource = static_cast<const CTransformUnaligned*>( pTransforms );
+		for ( int i = 0; i < nNumBones; ++i )
+			self->SetWorldSpaceRenderBoneTransform( i, pSource[i] );
+	}
+
 	[nogc]
 	Transform GetWorldSpaceRenderBoneTransform( int nBoneIndex );
 	Transform GetWorldSpaceRenderBoneTransform( string boneName );

@@ -111,10 +111,10 @@ public sealed partial class PlayerController
 			if ( source is SceneModel sourceModel && target is SceneModel targetModel )
 			{
 				sourceModel.GetBoneWorldTransforms( copy.Bones );
-				for ( int i = 0; i < copy.Bones.Length; i++ )
-					targetModel.SetBoneWorldTransform( i, copy.Bones[i] );
+				targetModel.SetBoneWorldTransforms( copy.Bones );
 
-				for ( int i = 0; i < source.Model.MorphCount; i++ )
+				var morphs = source.Model.MorphCount;
+				for ( int i = 0; i < morphs; i++ )
 					targetModel.Morphs.Set( i, sourceModel.Morphs.Get( i ), 0 );
 			}
 
@@ -294,10 +294,12 @@ public sealed partial class PlayerController
 				{
 					var (bodyBone, hidden) = copy.BoneMap[i];
 					var bone = mergePreview && bodyBone >= 0 ? preview.Bones[bodyBone] : copy.Bones[i];
-					targetModel.SetBoneWorldTransform( i, hidden ? collapsed : bone );
+					copy.Pose[i] = hidden ? collapsed : bone;
 				}
+				targetModel.SetBoneWorldTransforms( copy.Pose );
 
-				for ( int i = 0; i < source.Model.MorphCount; i++ )
+				var morphs = source.Model.MorphCount;
+				for ( int i = 0; i < morphs; i++ )
 					targetModel.Morphs.Set( i, sourceModel.Morphs.Get( i ), 0 );
 			}
 
@@ -310,6 +312,7 @@ public sealed partial class PlayerController
 	{
 		public SceneObject Object { get; }
 		public Transform[] Bones { get; }
+		public Transform[] Pose { get; }
 		public (int Index, bool Hidden)[] BoneMap { get; }
 		public int? MaterialState { get; set; }
 
@@ -342,6 +345,7 @@ public sealed partial class PlayerController
 			Object.Flags.CastShadows = false;
 			Object.Component = source.Component;
 			Bones = new Transform[source.Model.BoneCount];
+			Pose = new Transform[Bones.Length];
 			BoneMap = new (int, bool)[Bones.Length];
 		}
 	}
