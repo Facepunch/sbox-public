@@ -41,46 +41,36 @@ public partial class Panel
 			var pea = methodDesc.GetCustomAttribute<PanelEventAttribute>();
 			if ( pea == null ) continue;
 
-			var method = methodDesc.MemberInfo as MethodInfo;
-			var event_name = methodDesc.Name.ToLower();
+			AddMethodEventListener( methodDesc, pea );
+		}
+	}
 
-			var args = method.GetParameters(); // todo cache
-			var ret = method.ReturnParameter;
+	// Separate so the listener closures are only allocated for event methods, not for every method we look at
+	void AddMethodEventListener( MethodDescription methodDesc, PanelEventAttribute pea )
+	{
+		var method = methodDesc.MemberInfo as MethodInfo;
+		var event_name = methodDesc.Name.ToLower();
 
-			if ( event_name.EndsWith( "event" ) ) event_name = event_name[..^5];
-			if ( pea != null && pea.Name != null ) event_name = pea.Name.ToLower();
+		var args = method.GetParameters(); // todo cache
 
-			if ( args.Length == 1 )
+		if ( event_name.EndsWith( "event" ) ) event_name = event_name[..^5];
+		if ( pea.Name != null ) event_name = pea.Name.ToLower();
+
+		if ( args.Length == 1 )
+		{
+			var argType = args[0].ParameterType;
+			var argcache = new object[1];
+
+			if ( argType == typeof( PanelEvent ) )
 			{
-				var argType = args[0].ParameterType;
-				var argcache = new object[1];
-
-				if ( argType == typeof( PanelEvent ) )
-				{
-					AddAutomaticEventListener( event_name, ( x ) => { argcache[0] = x; method.Invoke( this, argcache ); } );
-				}
-				else
-				{
-					AddAutomaticEventListener( event_name, ( x ) =>
-					{
-						argcache[0] = Convert.ChangeType( x.Value, argType );
-						var response = method.Invoke( this, argcache );
-
-						// If the response is a bool, and false, stop propogation
-						if ( response != null && response is bool bReturnedValue )
-						{
-							x.Propagate = x.Propagate && bReturnedValue;
-						}
-
-					} );
-
-				}
+				AddAutomaticEventListener( event_name, ( x ) => { argcache[0] = x; method.Invoke( this, argcache ); } );
 			}
-			else if ( args.Length == 0 )
+			else
 			{
 				AddAutomaticEventListener( event_name, ( x ) =>
 				{
-					var response = method.Invoke( this, null );
+					argcache[0] = Convert.ChangeType( x.Value, argType );
+					var response = method.Invoke( this, argcache );
 
 					// If the response is a bool, and false, stop propogation
 					if ( response != null && response is bool bReturnedValue )
@@ -89,11 +79,26 @@ public partial class Panel
 					}
 
 				} );
+
 			}
-			else
+		}
+		else if ( args.Length == 0 )
+		{
+			AddAutomaticEventListener( event_name, ( x ) =>
 			{
-				Log.Warning( $"PanelEvent {method} - couldn't set up (too many arguments)" );
-			}
+				var response = method.Invoke( this, null );
+
+				// If the response is a bool, and false, stop propogation
+				if ( response != null && response is bool bReturnedValue )
+				{
+					x.Propagate = x.Propagate && bReturnedValue;
+				}
+
+			} );
+		}
+		else
+		{
+			Log.Warning( $"PanelEvent {method} - couldn't set up (too many arguments)" );
 		}
 	}
 
