@@ -678,7 +678,7 @@ public static partial class Networking
 			if ( token.IsCancellationRequested )
 				return false;
 
-			Disconnect();
+			await DisconnectAfterLoad( ActiveSceneLoad(), token );
 			return false;
 		}
 
@@ -689,6 +689,26 @@ public static partial class Networking
 		AddLocalListenSocket( net );
 
 		return true;
+	}
+
+	/// <summary>
+	/// The load the active scene is in the middle of, or null. The host joins the game it hosts at a load's end
+	/// (<see cref="GameNetworkSystem.OnLoadedScene"/>), which is where a game spawns its player.
+	/// </summary>
+	static Task ActiveSceneLoad() => Game.ActiveScene is { } scene && scene.IsValid() && scene.IsLoading ? scene.WaitForLoading() : null;
+
+	/// <summary>
+	/// Disconnect after a lobby that couldn't be made, once <paramref name="load"/> (the active scene's, if it's loading) is
+	/// over. The host joins at the load's end: a lobby failing after the load leaves the host's player in the game, but
+	/// disconnecting during the load meant the host never joined and no player spawned. Which comes first is a race between
+	/// the lobby's answer and the map's load. Nothing happens if another lobby or a disconnect came meanwhile (<paramref name="token"/>).
+	/// </summary>
+	internal static async Task DisconnectAfterLoad( Task load, CancellationToken token )
+	{
+		if ( load is not null ) await Task.WhenAny( load );
+		if ( token.IsCancellationRequested ) return;
+
+		Disconnect();
 	}
 
 	/// <summary>
