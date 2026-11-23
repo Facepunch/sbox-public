@@ -169,6 +169,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		Assert.IsNull( _sceneObject );
 
 		_sceneObject = new DecalSceneObject( Scene.SceneWorld );
+		_applied = null;
 
 		_seed = Random.Shared.Int( 10000 );
 		_startTime = Time.NowDouble;
@@ -294,6 +295,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		if ( _def is null )
 		{
 			_sceneObject.RenderingEnabled = false;
+			_applied = null;
 			return;
 		}
 
@@ -302,24 +304,52 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		var tx = Transform.World.WithScale( Transform.World.Scale * size );
 		tx.Rotation = tx.Rotation * rotation;
 
-		_sceneObject.RenderingEnabled = _isActive;
-		_sceneObject.Color = _def.Tint * ColorTint.Evaluate( delta, Rand( 238 ) );
-		_sceneObject.ColorMix = _def.ColorMix * ColorMix.Evaluate( delta, Rand( 324 ) );
-		_sceneObject.BlendMode = _def.BlendMode;
-		_sceneObject.AttenuationAngle = AttenuationAngle;
-		_sceneObject.CoverageAmount = _def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) ) * CoverageFadeInDelta;
-		_sceneObject.CoverageRange = CoverageRange;
-		_sceneObject.ParallaxStrength = Parallax.Evaluate( delta, Rand( 245 ) ) * _def.ParallaxStrength * 0.25f;
-		_sceneObject.SamplerIndex = SamplerState.GetBindlessIndex( new SamplerState { AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp, Filter = _def.FilterMode } );
-		_sceneObject.Transform = tx;
+		var state = new AppliedState(
+			_isActive,
+			_def.Tint * ColorTint.Evaluate( delta, Rand( 238 ) ),
+			_def.ColorMix * ColorMix.Evaluate( delta, Rand( 324 ) ),
+			_def.BlendMode,
+			AttenuationAngle,
+			_def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) ) * CoverageFadeInDelta,
+			CoverageRange,
+			Parallax.Evaluate( delta, Rand( 245 ) ) * _def.ParallaxStrength * 0.25f,
+			_def.FilterMode,
+			tx,
+			_def.ColorTexture, _def.NormalTexture, _def.RoughMetalOcclusionTexture, _def.HeightTexture, _def.EmissiveTexture,
+			_def.EmissionEnergy,
+			_def.ColorTexture?.native ?? default, _def.NormalTexture?.native ?? default, _def.RoughMetalOcclusionTexture?.native ?? default,
+			_def.HeightTexture?.native ?? default, _def.EmissiveTexture?.native ?? default );
 
-		_sceneObject.ColorTexture = _def.ColorTexture;
-		_sceneObject.NormalTexture = _def.NormalTexture;
-		_sceneObject.RMOTexture = _def.RoughMetalOcclusionTexture;
-		_sceneObject.HeightTexture = _def.HeightTexture;
-		_sceneObject.EmissionTexture = _def.EmissiveTexture;
-		_sceneObject.EmissionEnergy = _def.EmissionEnergy;
+		// Most decals never change: every set is a native write and a change notification
+		if ( _applied == state ) return;
+		_applied = state;
+
+		_sceneObject.RenderingEnabled = state.Active;
+		_sceneObject.Color = state.Color;
+		_sceneObject.ColorMix = state.ColorMix;
+		_sceneObject.BlendMode = state.BlendMode;
+		_sceneObject.AttenuationAngle = state.AttenuationAngle;
+		_sceneObject.CoverageAmount = state.CoverageAmount;
+		_sceneObject.CoverageRange = state.CoverageRange;
+		_sceneObject.ParallaxStrength = state.ParallaxStrength;
+		_sceneObject.SamplerIndex = SamplerState.GetBindlessIndex( new SamplerState { AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp, Filter = state.Filter } );
+		_sceneObject.Transform = state.Transform;
+
+		_sceneObject.ColorTexture = state.ColorTexture;
+		_sceneObject.NormalTexture = state.NormalTexture;
+		_sceneObject.RMOTexture = state.RMOTexture;
+		_sceneObject.HeightTexture = state.HeightTexture;
+		_sceneObject.EmissionTexture = state.EmissionTexture;
+		_sceneObject.EmissionEnergy = state.EmissionEnergy;
 	}
+
+	AppliedState? _applied;
+
+	// Handles too: a texture can swap its native handle in place (video textures)
+	readonly record struct AppliedState( bool Active, Color Color, float ColorMix, DecalBlendMode BlendMode, float AttenuationAngle,
+		float CoverageAmount, float CoverageRange, float ParallaxStrength, FilterMode Filter, Transform Transform,
+		Texture ColorTexture, Texture NormalTexture, Texture RMOTexture, Texture HeightTexture, Texture EmissionTexture, float EmissionEnergy,
+		NativeEngine.ITexture ColorHandle, NativeEngine.ITexture NormalHandle, NativeEngine.ITexture RMOHandle, NativeEngine.ITexture HeightHandle, NativeEngine.ITexture EmissionHandle );
 
 	private void UpdateSequence()
 	{

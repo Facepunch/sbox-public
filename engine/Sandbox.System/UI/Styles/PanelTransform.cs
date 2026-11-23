@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox.UI
 {
@@ -179,7 +180,10 @@ namespace Sandbox.UI
 			var entries = Math.Max( ma.Entries, mb.Entries );
 			if ( entries <= 0 ) return new PanelTransform();
 
-			var builder = ImmutableList.CreateBuilder<Entry>();
+			// Collected on the stack and made into a list in one go: this runs every frame of a transition
+			var buffer = new EntryBuffer();
+			Span<Entry> lerped = ma.Entries + mb.Entries <= EntryBufferLength ? buffer : new Entry[ma.Entries + mb.Entries];
+			var count = 0;
 
 			for ( int i = 0; i < ma.Entries; i++ )
 			{
@@ -189,10 +193,7 @@ namespace Sandbox.UI
 				if ( to.Type == EntryType.Invalid )
 					to = from.GetDefault();
 
-				if ( dimensions != null )
-					builder.Add( Entry.Lerp( from, to, delta, dimensions.Value ) );
-				else
-					builder.Add( Entry.Lerp( from, to, delta ) );
+				lerped[count++] = dimensions != null ? Entry.Lerp( from, to, delta, dimensions.Value ) : Entry.Lerp( from, to, delta );
 			}
 
 			for ( int i = 0; i < mb.Entries; i++ )
@@ -202,23 +203,18 @@ namespace Sandbox.UI
 				if ( from.Type != EntryType.Invalid )
 					continue;
 
-				if ( dimensions != null )
-					builder.Add( Entry.Lerp( to.GetDefault(), to, delta, dimensions.Value ) );
-				else
-					builder.Add( Entry.Lerp( to.GetDefault(), to, delta ) );
+				lerped[count++] = dimensions != null ? Entry.Lerp( to.GetDefault(), to, delta, dimensions.Value ) : Entry.Lerp( to.GetDefault(), to, delta );
 			}
 
-			var o = new PanelTransform();
-			o.List = builder.ToImmutable();
-
-			return o;
+			return new PanelTransform { List = ImmutableList.Create<Entry>( lerped[..count] ) };
 		}
 
 		internal readonly PanelTransform GetScaled( float scale )
 		{
 			if ( Entries <= 0 ) return new PanelTransform();
 
-			var builder = ImmutableList.CreateBuilder<Entry>();
+			var buffer = new EntryBuffer();
+			Span<Entry> scaled = Entries <= EntryBufferLength ? buffer : new Entry[Entries];
 
 			for ( int i = 0; i < Entries; i++ )
 			{
@@ -228,13 +224,18 @@ namespace Sandbox.UI
 				Length.Scale( ref e.Y, scale );
 				Length.Scale( ref e.Z, scale );
 
-				builder.Add( e );
+				scaled[i] = e;
 			}
 
-			var o = new PanelTransform();
-			o.List = builder.ToImmutable();
+			return new PanelTransform { List = ImmutableList.Create<Entry>( scaled[..Entries] ) };
+		}
 
-			return o;
+		const int EntryBufferLength = 8;
+
+		[InlineArray( EntryBufferLength )]
+		struct EntryBuffer
+		{
+			Entry _element;
 		}
 
 		public override bool Equals( object obj )

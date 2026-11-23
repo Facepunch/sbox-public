@@ -53,4 +53,44 @@ public class DecalTests
 			scene.Destroy();
 		}
 	}
+
+	[TestMethod]
+	public void SceneObjectFollowsChangesAfterSettling()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		try
+		{
+			var go = scene.CreateObject();
+			var decal = go.AddComponent<Decal>();
+			decal.Decals = [new DecalDefinition()];
+			decal.Rotation = 0;
+			go.Enabled = false;
+			go.Enabled = true;
+
+			var preRender = typeof( Decal ).GetMethod( "OnPreRender", BindingFlags.Instance | BindingFlags.NonPublic );
+			var sceneObject = (DecalSceneObject)typeof( Decal ).GetField( "_sceneObject", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( decal );
+			void PreRender() => preRender.Invoke( decal, null );
+
+			PreRender();
+			PreRender();
+			Assert.AreEqual( Vector3.Zero, sceneObject.Transform.Position );
+
+			go.WorldPosition = new Vector3( 10, 20, 30 );
+			PreRender();
+			Assert.AreEqual( new Vector3( 10, 20, 30 ), sceneObject.Transform.Position );
+
+			decal.ColorTint = Color.Red;
+			PreRender();
+			Assert.AreEqual( Color.Red, sceneObject.Color );
+
+			decal.Decals[0].BlendMode = DecalBlendMode.Multiply;
+			PreRender();
+			Assert.AreEqual( DecalBlendMode.Multiply, sceneObject.BlendMode );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
 }
