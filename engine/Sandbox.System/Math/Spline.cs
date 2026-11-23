@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Collections.ObjectModel;
+using System.Text.Json.Serialization;
 
 namespace Sandbox;
 
@@ -113,6 +114,25 @@ public class Spline
 	[JsonInclude, JsonPropertyName( "Points" )]
 	private List<Point> _points = new();
 
+	private ReadOnlyCollection<Point> _pointsView;
+	private List<Point> _pointsViewOf;
+
+	// One wrapper for the queries instead of one per call. Deserialization can swap the list, so it follows _points.
+	private ReadOnlyCollection<Point> PointsView
+	{
+		get
+		{
+			var points = _points;
+			if ( _pointsViewOf != points )
+			{
+				_pointsView = points.AsReadOnly();
+				_pointsViewOf = points;
+			}
+
+			return _pointsView;
+		}
+	}
+
 	private bool _areDistancesSampled = false;
 
 	/// <summary>
@@ -130,7 +150,7 @@ public class Spline
 
 	private void SampleDistances()
 	{
-		_distanceSampler.Sample( _points.AsReadOnly() );
+		_distanceSampler.Sample( PointsView );
 		_areDistancesSampled = true;
 	}
 
@@ -149,10 +169,10 @@ public class Spline
 	[Property, JsonIgnore]
 	public bool IsLoop
 	{
-		get => SplineUtils.IsLoop( _points.AsReadOnly() );
+		get => SplineUtils.IsLoop( PointsView );
 		set
 		{
-			var isAlreadyLoop = SplineUtils.IsLoop( _points.AsReadOnly() );
+			var isAlreadyLoop = SplineUtils.IsLoop( PointsView );
 			// We emulate loops by adding an addtional point at the end which matches the first point
 			// this might seem hacky at first but it makes things so much easier downstream,
 			// because we can handle open splines and looped splines exactly the same when doing complex calculations
@@ -192,8 +212,8 @@ public class Spline
 		var splineParams = _distanceSampler.CalculateSegmentParamsAtDistance( distance );
 		var distanceAlongSegment = distance - _distanceSampler.GetSegmentStartDistance( splineParams.Index );
 		var segmentLength = _distanceSampler.GetSegmentLength( splineParams.Index );
-		var position = SplineUtils.GetPosition( _points.AsReadOnly(), splineParams );
-		var tangent = SplineUtils.GetTangent( _points.AsReadOnly(), splineParams );
+		var position = SplineUtils.GetPosition( PointsView, splineParams );
+		var tangent = SplineUtils.GetTangent( PointsView, splineParams );
 		var roll = MathX.Lerp( _points[splineParams.Index].Roll, _points[splineParams.Index + 1].Roll, distanceAlongSegment / segmentLength );
 		var scale = Vector3.Lerp( _points[splineParams.Index].Scale, _points[splineParams.Index + 1].Scale, distanceAlongSegment / segmentLength );
 		var upVector = Vector3.Lerp( _points[splineParams.Index].Up, _points[splineParams.Index + 1].Up, distanceAlongSegment / segmentLength );
@@ -300,7 +320,7 @@ public class Spline
 	/// Number of segments in the spline, a spline contains one less segment than points.
 	/// </summary>
 	[JsonIgnore] // Ignored because we compute it
-	public int SegmentCount => SplineUtils.SegmentNum( _points.AsReadOnly() );
+	public int SegmentCount => SplineUtils.SegmentNum( PointsView );
 
 	/// <summary>
 	/// Update the information stored at a spline point.
@@ -354,7 +374,7 @@ public class Spline
 
 		var distanceParam = (distance - _distanceSampler.GetSegmentStartDistance( splineParams.Index )) / _distanceSampler.GetSegmentLength( splineParams.Index );
 
-		var positionSplitResult = SplineUtils.SplitSegment( _points.AsReadOnly(), splineParams, distanceParam );
+		var positionSplitResult = SplineUtils.SplitSegment( PointsView, splineParams, distanceParam );
 
 		// modify points before and after the split
 		_points[splineParams.Index] = positionSplitResult.Left;
@@ -410,7 +430,7 @@ public class Spline
 	{
 		EnsureSplineIsDistanceSampled();
 
-		var splineParamsForClosestPosition = SplineUtils.FindSegmentAndTClosestToPosition( _points.AsReadOnly(), position );
+		var splineParamsForClosestPosition = SplineUtils.FindSegmentAndTClosestToPosition( PointsView, position );
 
 		return _distanceSampler.GetDistanceAtSplineParams( splineParamsForClosestPosition );
 	}
@@ -424,7 +444,7 @@ public class Spline
 
 		EnsureSplineIsDistanceSampled();
 
-		SplineUtils.ConvertSplineToPolyLineWithCachedSampler( _points.AsReadOnly(), ref outPolyLine, _distanceSampler, 0.1f );
+		SplineUtils.ConvertSplineToPolyLineWithCachedSampler( PointsView, ref outPolyLine, _distanceSampler, 0.1f );
 	}
 
 	/// <summary>
@@ -570,7 +590,7 @@ public class Spline
 
 	private void CheckSegmentIndex( int segmentIndex )
 	{
-		if ( segmentIndex < 0 || segmentIndex >= SplineUtils.SegmentNum( _points.AsReadOnly() ) )
+		if ( segmentIndex < 0 || segmentIndex >= SplineUtils.SegmentNum( PointsView ) )
 		{
 			throw new ArgumentOutOfRangeException( nameof( segmentIndex ), "Spline segment index out of range." );
 		}
@@ -612,10 +632,10 @@ public class Spline
 		switch ( _points[index].Mode )
 		{
 			case HandleMode.Auto:
-				_points[index] = SplineUtils.CalculateSmoothTangentForPoint( _points.AsReadOnly(), index );
+				_points[index] = SplineUtils.CalculateSmoothTangentForPoint( PointsView, index );
 				break;
 			case HandleMode.Linear:
-				_points[index] = SplineUtils.CalculateLinearTangentForPoint( _points.AsReadOnly(), index );
+				_points[index] = SplineUtils.CalculateLinearTangentForPoint( PointsView, index );
 				break;
 			case HandleMode.Split:
 				break;

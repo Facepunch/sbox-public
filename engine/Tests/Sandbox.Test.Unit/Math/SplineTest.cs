@@ -1,4 +1,4 @@
-﻿namespace MathTests;
+namespace MathTests;
 
 [TestClass]
 public class SplineTest
@@ -106,5 +106,57 @@ public class SplineTest
 			Assert.AreEqual( 5.0f, sample.Distance, 0.001f );
 			Assert.AreEqual( new Vector3( 5, 0, 0 ), sample.Position );
 		}
+	}
+
+	/// <summary>
+	/// Sampling a spline every frame (roads, rails, paths) shouldn't allocate.
+	/// </summary>
+	[TestMethod]
+	public void SamplingDoesNotAllocate()
+	{
+		var spline = new Spline();
+		spline.InsertPoint( 0, new Spline.Point { Position = new Vector3( 0, 0, 0 ) } );
+		spline.InsertPoint( 1, new Spline.Point { Position = new Vector3( 10, 0, 0 ) } );
+		spline.InsertPoint( 2, new Spline.Point { Position = new Vector3( 10, 10, 0 ) } );
+		spline.SampleAtDistance( 1 );
+
+		var before = System.GC.GetAllocatedBytesForCurrentThread();
+		var total = 0f;
+		for ( int i = 0; i < 100; i++ )
+		{
+			total += spline.SampleAtDistance( i * 0.2f ).Position.x;
+			total += spline.PointCount + spline.SegmentCount + (spline.IsLoop ? 1 : 0);
+		}
+
+		Assert.AreEqual( 0L, System.GC.GetAllocatedBytesForCurrentThread() - before );
+		Assert.IsTrue( total > 0 );
+	}
+
+	/// <summary>
+	/// Deserialization replaces the point list; queries must read the new one, not a view of the old.
+	/// </summary>
+	[TestMethod]
+	public void QueriesFollowAReplacedPointList()
+	{
+		var spline = new Spline();
+		spline.InsertPoint( 0, new Spline.Point { Position = new Vector3( 0, 0, 0 ) } );
+		spline.InsertPoint( 1, new Spline.Point { Position = new Vector3( 10, 0, 0 ) } );
+		Assert.AreEqual( new Vector3( 5, 0, 0 ), spline.SampleAtDistance( 5 ).Position );
+
+		var replaced = new System.Collections.Generic.List<Spline.Point>
+		{
+			new() { Position = new Vector3( 0, 0, 0 ) },
+			new() { Position = new Vector3( 0, 20, 0 ) },
+			new() { Position = new Vector3( 0, 40, 0 ) },
+		};
+		var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+		typeof( Spline ).GetField( "_points", flags ).SetValue( spline, replaced );
+		typeof( Spline ).GetField( "_areDistancesSampled", flags ).SetValue( spline, false );
+
+		Assert.AreEqual( 3, spline.PointCount );
+		Assert.AreEqual( 2, spline.SegmentCount );
+		var sample = spline.SampleAtDistance( 25 ).Position;
+		Assert.AreEqual( 0f, sample.x, 0.01f );
+		Assert.AreEqual( 25f, sample.y, 0.1f );
 	}
 }
