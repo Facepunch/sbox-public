@@ -14,6 +14,7 @@ class IsolatedAssemblyContext : AssemblyLoadContext
 
 	public IsolatedAssemblyContext() : base( "IsolatedAssemblyContext", true )
 	{
+		Unloading += Sandbox.Diagnostics.LoggedStack.FormatCollectibleStacks;
 	}
 
 	/// <summary>
@@ -131,6 +132,7 @@ class LoadContext : AssemblyLoadContext
 		{
 			using var pdbStream = new System.IO.MemoryStream( pdbData );
 			lc.Assembly = lc.LoadFromStream( stream, pdbStream );
+			Sandbox.Diagnostics.LoggedStack.AddSymbols( lc.Assembly, pdbData );
 		}
 		else
 		{

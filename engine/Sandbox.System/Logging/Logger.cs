@@ -163,22 +163,25 @@ public class Logger
 		}
 		else if ( captureStack )
 		{
-			stackTrace = new StackTrace( 0, true );
+			// Source lines are the slow part: errors get them now, everything else when the stack is first read
+			stackTrace = new StackTrace( 0, level == LogLevel.Error );
 			logEvent.SetStackTrace( stackTrace, 0 );
 		}
 
 		_log.Log( logEvent );
 
 		string stacktrace = null;
+		LoggedStack deferredStack = null;
 
 		if ( logEvent.Exception != null )
 		{
 			stacktrace = GameLog.WriteExceptionDetails( logEvent.Exception );
 		}
 
-		if ( stacktrace == null && logEvent.StackTrace != null )
+		if ( stacktrace == null && stackTrace != null )
 		{
-			stacktrace = logEvent.StackTrace.ToString();
+			if ( level == LogLevel.Error ) stacktrace = stackTrace.ToString();
+			else deferredStack = new LoggedStack( stackTrace );
 		}
 
 		var e = new LogEvent
@@ -189,6 +192,7 @@ public class Logger
 			Exception = ex,
 			HtmlMessage = htmlMessage,
 			Stack = stacktrace,
+			DeferredStack = deferredStack,
 			Time = DateTime.Now,
 			Arguments = arguments.ToArray(),
 			SourceAssembly = level == LogLevel.Error ? FindPackageAssembly( ex, stackTrace ) : null
