@@ -141,6 +141,11 @@ public static partial class Directory
 				EngineFileSystem.AddAssetPath( $"mnt_{folderName}", assetsPath );
 			}
 
+			// Compiled thumbnails, loaded as {ident}/thumbs/{path}.vtex. Only native resource loads see them, not the managed filesystems.
+			var mountsPath = System.IO.Path.Combine( fullPath, "Mounts" );
+			if ( System.IO.Directory.Exists( mountsPath ) )
+				NativeEngine.EngineGlue.AddSearchPath( mountsPath, "GAME", false );
+
 			foreach ( var dll in assemblies )
 			{
 				try

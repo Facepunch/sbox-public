@@ -54,15 +54,14 @@ internal static class ThumbLoader
 				var loader = MountUtility.FindLoader( filename );
 				if ( loader is null ) return;
 
-				// check to see if there's a pre-generated thumb in the mount
-				var imageFile = $"{loader.RelativePath}.png";
-				if ( loader.Mount.ThumbsFileSystem is { } fs && fs.FileExists( imageFile ) )
+				// check to see if there's a pre-generated thumb in the mount, compiled when the mount was built and named by a hash of its path
+				var thumbHash = loader.RelativePath.Replace( '\\', '/' ).ToLowerInvariant().Md5()[..16];
+				if ( loader.Mount.ThumbsFileSystem is { } fs && fs.FileExists( $"{thumbHash}.vtex_c" ) )
 				{
-					using var bitmap = Bitmap.CreateFromBytes( await fs.ReadAllBytesAsync( imageFile ) );
+					var compiled = await Texture.LoadAsync( $"{loader.Mount.Ident}/thumbs/{thumbHash}.vtex", false );
 					if ( ct.IsCancellationRequested ) return;
 
-					using var texture = bitmap.ToTexture();
-					placeholder.CopyFrom( texture );
+					placeholder.CopyFrom( compiled );
 					return;
 				}
 
