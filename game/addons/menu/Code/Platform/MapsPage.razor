@@ -70,7 +70,9 @@
                         }
                         else if ( item is ResourceLoader scene )
                         {
-                            <MapTile class="@(scene.Path == Selected ? "selected" : "")" Title=@MapName( scene ) Thumbnail=@((scene as IThumbnailProvider)?.Thumbnail)
+                            var title = MapTitle( scene );
+                            <MapTile class="@(scene.Path == Selected ? "selected" : "")" Title=@(title ?? MapName( scene )) File=@(title is null ? null : MapName( scene ))
+                                     Thumbnail=@((scene as IThumbnailProvider)?.Thumbnail)
                                      OnSelect=@( () => Pick( scene.Path ) ) />
                         }
                         else if ( item is WorkshopItemDetails map )
@@ -159,7 +161,8 @@
     IReadOnlyList<object> ShownMaps => source switch
     {
         null or Workshop or Subscribed => found,
-        _ => MountMaps( source ).Where( x => MapName( x ).Contains( search, StringComparison.OrdinalIgnoreCase ) )
+        _ => MountMaps( source ).Where( x => MapName( x ).Contains( search, StringComparison.OrdinalIgnoreCase )
+                || (MapTitle( x )?.Contains( search, StringComparison.OrdinalIgnoreCase ) ?? false) )
             .OrderBy( MapName ).ToArray(),
     };
 
@@ -167,6 +170,11 @@
     /// A mounted map's name, without its file's extension (gm_construct, not gm_construct.bsp)
     /// </summary>
     static string MapName( ResourceLoader scene ) => System.IO.Path.GetFileNameWithoutExtension( scene.Name );
+
+    /// <summary>
+    /// A mounted map's title from its loader (Hangar for E1M1), or null when it has none
+    /// </summary>
+    static string MapTitle( ResourceLoader scene ) => (scene as ITitleProvider)?.Title is { Length: > 0 } title ? title : null;
 
     List<object> found = new();
     WorkshopItemSearch pages;

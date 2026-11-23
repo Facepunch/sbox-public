@@ -5,8 +5,13 @@ namespace Sandbox.Mounting;
 /// Override <see cref="BuildScene"/> and create GameObjects - they become part of the
 /// mounted scene. Registration and teardown are handled for you.
 /// </summary>
-public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider where T : BaseGameMount
+public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider, ITitleProvider where T : BaseGameMount
 {
+	/// <summary>
+	/// The scene's display title, shown beside its file name in map pickers. Null to show only the file name.
+	/// </summary>
+	public virtual string Title => null;
+
 	public Texture Thumbnail
 	{
 		get

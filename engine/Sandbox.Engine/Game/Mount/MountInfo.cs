@@ -50,6 +50,11 @@ public struct MountResourceInfo
 	/// </summary>
 	public Texture Thumbnail { get; init; }
 
+	/// <summary>
+	/// The display title for this resource, if provided by the loader.
+	/// </summary>
+	public string Title { get; init; }
+
 	/// <inheritdoc cref="ResourceLoader.Flags" />
 	public ResourceFlags Flags { get; init; }
 
@@ -58,6 +63,7 @@ public struct MountResourceInfo
 		Name = e.Name;
 		Path = e.Path;
 		Thumbnail = (e as IThumbnailProvider)?.Thumbnail;
+		Title = (e as ITitleProvider)?.Title;
 		Flags = e.Flags;
 	}
 }
@@ -66,4 +72,15 @@ public struct MountResourceInfo
 public interface IThumbnailProvider
 {
 	Texture Thumbnail { get; }
+}
+
+/// <summary>
+/// A mount resource with a display title, shown beside its file name (a map's name, like "Hangar" for E1M1).
+/// </summary>
+public interface ITitleProvider
+{
+	/// <summary>
+	/// The display title, or null to show only the file name.
+	/// </summary>
+	string Title { get; }
 }

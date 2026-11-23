@@ -71,4 +71,15 @@ MapTile
 		text-overflow: ellipsis;
 		text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
 	}
+
+	.file
+	{
+		flex-shrink: 0;
+		margin-left: 8px;
+		font-size: 12px;
+		font-weight: 500;
+		color: rgba( 255, 255, 255, 0.6 );
+		white-space: nowrap;
+		text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+	}
 }

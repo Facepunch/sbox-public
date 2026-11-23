@@ -184,11 +184,18 @@ public static class MountUtility
 			cc.ZFar = 100000.0f;
 			cc.ZNear = 0.1f;
 
-			var transform = scene.FindAllWithTag( "map_preview" ).FirstOrDefault()
-				?? scene.GetComponentInChildren<SpawnPoint>()?.GameObject;
-			if ( transform.IsValid() )
+			if ( scene.FindAllWithTag( "map_preview" ).FirstOrDefault() is { } mapPreview )
 			{
-				cc.WorldTransform = transform.WorldTransform;
+				cc.WorldTransform = mapPreview.WorldTransform;
+			}
+			else if ( scene.GetComponentInChildren<SpawnPoint>()?.GameObject is { } spawnPoint )
+			{
+				cc.WorldTransform = spawnPoint.WorldTransform with { Position = spawnPoint.WorldPosition + new Vector3( 0, 0, 64 ) };
+			}
+			else
+			{
+				Log.Warning( $"No map_preview tag or spawn point found in scene: '{sceneLoader.Path}'.. skipping!" );
+				return false;
 			}
 
 			byte[] bytes;
