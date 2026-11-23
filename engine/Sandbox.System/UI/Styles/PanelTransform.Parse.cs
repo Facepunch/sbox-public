@@ -117,32 +117,32 @@ namespace Sandbox.UI
 
 		private bool Set( string key, string val )
 		{
-			if ( string.Compare( key, "rotate", true ) == 0 ) return AddRotation( 0, 0, ReadRotation( val ) );
-			if ( string.Compare( key, "rotatex", true ) == 0 ) return AddRotation( ReadRotation( val ), 0, 0 );
-			if ( string.Compare( key, "rotatey", true ) == 0 ) return AddRotation( 0, ReadRotation( val ), 0 );
-			if ( string.Compare( key, "rotatez", true ) == 0 ) return AddRotation( 0, 0, ReadRotation( val ) );
-			if ( string.Compare( key, "rotate3d", true ) == 0 ) return AddRotation( Read3DRotation( val ) );
+			if ( key.Equals( "rotate", StringComparison.OrdinalIgnoreCase ) ) return AddRotation( 0, 0, ReadRotation( val ) );
+			if ( key.Equals( "rotatex", StringComparison.OrdinalIgnoreCase ) ) return AddRotation( ReadRotation( val ), 0, 0 );
+			if ( key.Equals( "rotatey", StringComparison.OrdinalIgnoreCase ) ) return AddRotation( 0, ReadRotation( val ), 0 );
+			if ( key.Equals( "rotatez", StringComparison.OrdinalIgnoreCase ) ) return AddRotation( 0, 0, ReadRotation( val ) );
+			if ( key.Equals( "rotate3d", StringComparison.OrdinalIgnoreCase ) ) return AddRotation( Read3DRotation( val ) );
 
-			if ( string.Compare( key, "scale", true ) == 0 ) return AddScale( ReadVector( val, false ) );
-			if ( string.Compare( key, "scale3d", true ) == 0 ) return AddScale( ReadVector( val, true ) );
-			if ( string.Compare( key, "scalex", true ) == 0 ) return AddScale( new Vector3( ReadFloat( val ), 1, 1 ) );
-			if ( string.Compare( key, "scaley", true ) == 0 ) return AddScale( new Vector3( 1, ReadFloat( val ), 1 ) );
-			if ( string.Compare( key, "scalez", true ) == 0 ) return AddScale( new Vector3( 1, 1, ReadFloat( val ) ) );
+			if ( key.Equals( "scale", StringComparison.OrdinalIgnoreCase ) ) return AddScale( ReadVector( val, false ) );
+			if ( key.Equals( "scale3d", StringComparison.OrdinalIgnoreCase ) ) return AddScale( ReadVector( val, true ) );
+			if ( key.Equals( "scalex", StringComparison.OrdinalIgnoreCase ) ) return AddScale( new Vector3( ReadFloat( val ), 1, 1 ) );
+			if ( key.Equals( "scaley", StringComparison.OrdinalIgnoreCase ) ) return AddScale( new Vector3( 1, ReadFloat( val ), 1 ) );
+			if ( key.Equals( "scalez", StringComparison.OrdinalIgnoreCase ) ) return AddScale( new Vector3( 1, 1, ReadFloat( val ) ) );
 
-			if ( string.Compare( key, "skew", true ) == 0 ) return ParseSkew( val );
-			if ( string.Compare( key, "skewx", true ) == 0 ) return AddSkew( ReadRotation( val ), 0, 0 );
-			if ( string.Compare( key, "skewy", true ) == 0 ) return AddSkew( 0, ReadRotation( val ), 0 );
+			if ( key.Equals( "skew", StringComparison.OrdinalIgnoreCase ) ) return ParseSkew( val );
+			if ( key.Equals( "skewx", StringComparison.OrdinalIgnoreCase ) ) return AddSkew( ReadRotation( val ), 0, 0 );
+			if ( key.Equals( "skewy", StringComparison.OrdinalIgnoreCase ) ) return AddSkew( 0, ReadRotation( val ), 0 );
 
-			if ( string.Compare( key, "translate", true ) == 0 ) return ParseTranslate( val, false );
-			if ( string.Compare( key, "translate3d", true ) == 0 ) return ParseTranslate( val, true );
-			if ( string.Compare( key, "translatex", true ) == 0 ) return AddTranslateX( Length.Parse( val ) ?? new Length() );
-			if ( string.Compare( key, "translatey", true ) == 0 ) return AddTranslateY( Length.Parse( val ) ?? new Length() );
-			if ( string.Compare( key, "translatez", true ) == 0 ) return AddTranslateZ( Length.Parse( val ) ?? new Length() );
+			if ( key.Equals( "translate", StringComparison.OrdinalIgnoreCase ) ) return ParseTranslate( val, false );
+			if ( key.Equals( "translate3d", StringComparison.OrdinalIgnoreCase ) ) return ParseTranslate( val, true );
+			if ( key.Equals( "translatex", StringComparison.OrdinalIgnoreCase ) ) return AddTranslateX( Length.Parse( val ) ?? new Length() );
+			if ( key.Equals( "translatey", StringComparison.OrdinalIgnoreCase ) ) return AddTranslateY( Length.Parse( val ) ?? new Length() );
+			if ( key.Equals( "translatez", StringComparison.OrdinalIgnoreCase ) ) return AddTranslateZ( Length.Parse( val ) ?? new Length() );
 
 			if ( string.Compare( key, "matrix" ) == 0 ) return ParseMatrix( val );
-			if ( string.Compare( key, "matrix3d", true ) == 0 ) return ParseMatrix3D( val );
+			if ( key.Equals( "matrix3d", StringComparison.OrdinalIgnoreCase ) ) return ParseMatrix3D( val );
 
-			if ( string.Compare( key, "perspective", true ) == 0 ) return AddPerspective( Length.Parse( val ) ?? new Length() );
+			if ( key.Equals( "perspective", StringComparison.OrdinalIgnoreCase ) ) return AddPerspective( Length.Parse( val ) ?? new Length() );
 
 			return false;
 		}
