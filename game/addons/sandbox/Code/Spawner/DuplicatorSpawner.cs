@@ -23,9 +23,19 @@ public sealed class DuplicatorSpawner : ISpawner
 	/// <summary>
 	/// The building blocks in this dupe, for limits, permissions and prewarming their models.
 	/// </summary>
-	public BuilderDupe.Contents BuilderBlocks => _builderBlocks ??= BuilderDupe.Read( Dupe?.Objects );
+	public BuilderDupe.Contents BuilderBlocks => _builderBlocks ??= ReadObjects( BuilderDupe.Read );
 	private BuilderDupe.Contents _builderBlocks;
 	private (BuilderShapeKey Key, BBox Bounds)?[] _previewBlocks;
+
+	/// <summary>
+	/// Read the dupe's objects from its JSON text. Reading <see cref="Dupe"/> itself would create a node for every value
+	/// in it, which a big dupe feels, and the copy that gets spawned would have to copy all of those too.
+	/// </summary>
+	public T ReadObjects<T>( Func<JsonElement, T> read )
+	{
+		using var document = JsonDocument.Parse( Json ?? Sandbox.Json.Serialize( Dupe ) );
+		return read( document.RootElement.TryGetProperty( nameof( DuplicationData.Objects ), out var objects ) ? objects : default );
+	}
 
 	public DuplicatorSpawner( DuplicationData dupe, string json, string name = null, string icon = null )
 	{
@@ -204,14 +214,15 @@ public sealed class DuplicatorSpawner : ISpawner
 			if ( LimitsSystem.Get( scene ) is { } limits && !limits.CheckDupeLimits( owner, this ) ) return new List<GameObject>();
 		}
 
-		var jsonObject = Sandbox.Json.ToNode( Dupe ) as JsonObject;
-		SceneUtility.MakeIdGuidsUnique( jsonObject );
+		// Only the objects are copied: that shares their parsed text until something reads them
+		var objects = Dupe.Objects.DeepClone().AsArray();
+		SceneUtility.MakeIdGuidsUnique( new JsonObject { [nameof( DuplicationData.Objects )] = objects } );
 
 		var results = new List<GameObject>();
 
 		using ( Game.ActiveScene.BatchGroup() )
 		{
-			foreach ( var entry in jsonObject["Objects"] as JsonArray )
+			foreach ( var entry in objects )
 			{
 				if ( entry is not JsonObject obj )
 					continue;

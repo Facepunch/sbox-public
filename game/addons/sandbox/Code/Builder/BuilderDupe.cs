@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+using System.Text.Json;
 
 namespace Sandbox;
 
@@ -32,46 +32,47 @@ public static class BuilderDupe
 	/// <summary>
 	/// Walk <paramref name="objects"/> and their children for BuilderProp components.
 	/// </summary>
-	public static Contents Read( JsonArray objects )
+	public static Contents Read( JsonElement objects )
 	{
 		var contents = new Contents();
-		if ( objects is null ) return contents;
+		if ( objects.ValueKind != JsonValueKind.Array ) return contents;
 
-		foreach ( var node in objects )
-			Read( node as JsonObject, contents, 0 );
+		foreach ( var go in objects.EnumerateArray() )
+			Read( go, contents, 0 );
 
 		return contents;
 	}
 
-	static void Read( JsonObject go, Contents contents, int depth )
+	static void Read( JsonElement go, Contents contents, int depth )
 	{
-		if ( go is null ) return;
+		if ( go.ValueKind != JsonValueKind.Object ) return;
 		if ( depth > MaxDepth )
 		{
 			contents.TooDeep = true;
 			return;
 		}
 
-		if ( go["Components"] is JsonArray components )
+		if ( go.TryGetProperty( "Components", out var components ) && components.ValueKind == JsonValueKind.Array )
 		{
-			foreach ( var node in components )
+			foreach ( var component in components.EnumerateArray() )
 			{
-				if ( node is not JsonObject component ) continue;
-				if ( component["__type"] is not JsonValue type || !type.TryGetValue<string>( out var name ) || (name != FullName && name != ClassName) ) continue;
+				if ( component.ValueKind != JsonValueKind.Object ) continue;
+				if ( !component.TryGetProperty( "__type", out var type ) || type.ValueKind != JsonValueKind.String ) continue;
+				if ( !type.ValueEquals( FullName ) && !type.ValueEquals( ClassName ) ) continue;
 
 				contents.Count++;
 				if ( TryGetKey( component, out var key ) ) contents.Keys.Add( key );
 			}
 		}
 
-		if ( go["Children"] is JsonArray children )
+		if ( go.TryGetProperty( "Children", out var children ) && children.ValueKind == JsonValueKind.Array )
 		{
-			foreach ( var child in children )
-				Read( child as JsonObject, contents, depth + 1 );
+			foreach ( var child in children.EnumerateArray() )
+				Read( child, contents, depth + 1 );
 		}
 	}
 
-	static bool TryGetKey( JsonObject component, out BuilderShapeKey key )
+	static bool TryGetKey( JsonElement component, out BuilderShapeKey key )
 	{
 		key = default;
 
@@ -91,5 +92,5 @@ public static class BuilderDupe
 		}
 	}
 
-	static T Value<T>( JsonObject json, string name ) => json[name] is { } node ? Json.FromNode<T>( node ) : default;
+	static T Value<T>( JsonElement json, string name ) => json.TryGetProperty( name, out var value ) && value.ValueKind != JsonValueKind.Null ? Json.Deserialize<T>( value.GetRawText() ) : default;
 }
