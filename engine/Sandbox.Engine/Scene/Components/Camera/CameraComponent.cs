@@ -699,7 +699,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	public Rect BBoxToScreenPixels( BBox bounds, out bool isBehind )
 	{
-		Vector2[] corners = new Vector2[8];
+		Span<Vector2> corners = stackalloc Vector2[8];
 		Vector3 min = bounds.Mins;
 		Vector3 max = bounds.Maxs;
 
