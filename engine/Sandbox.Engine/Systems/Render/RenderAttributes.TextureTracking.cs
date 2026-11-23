@@ -98,6 +98,28 @@ public partial class RenderAttributes
 		usedTextures[k] = native.CopyStrongHandle();
 	}
 
+	// MergeToPtr copies the raw texture handles, so the target needs its own strong handles
+	private void MergeUsedTexturesTo( RenderAttributes target )
+	{
+		if ( target == this || usedTextures is null )
+			return;
+
+		foreach ( var (k, texture) in usedTextures )
+		{
+			target.usedTextures ??= [];
+
+			if ( target.usedTextures.TryGetValue( k, out var old ) )
+			{
+				if ( old.GetBindingPtr() == texture.GetBindingPtr() )
+					continue;
+
+				old.DestroyStrongHandle();
+			}
+
+			target.usedTextures[k] = texture.CopyStrongHandle();
+		}
+	}
+
 	/// <summary>
 	/// Clear used textures, destroying any strong handles we've created.
 	/// These handles are mainly used for storage RenderAttributes like SceneObject.Attributes
