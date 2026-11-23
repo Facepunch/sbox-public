@@ -176,7 +176,7 @@ public class GeneratedLinkTests
 		Assert.IsTrue( (Links with { Spacing = Settings.CellSize }).IsValid( Settings, out _ ) );
 
 		// Wider spacing, fewer links along the same ledge: the value is used, not raised or replaced.
-		int Count( float spacing ) => Platform().Generate( Links with { Spacing = spacing } ).Generated().Count;
+		static int Count( float spacing ) => Platform().Generate( Links with { Spacing = spacing } ).Generated().Count;
 		Assert.IsTrue( Count( 256 ) < Count( 64 ), $"{Count( 256 )} against {Count( 64 )}" );
 	}
 

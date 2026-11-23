@@ -19,8 +19,8 @@ internal class RenderTests( string[] presets, bool update, bool pullRequest = fa
 	const string SkipLabel = "skip-render-tests";
 
 	// What can change a frame: the renderer, native and managed, the components that feed it, shaders and the content
-	// the presets use, and the tests themselves. A change elsewhere that still breaks rendering is caught on master, which
-	// always runs them; add its path here when that happens.
+	// the presets use, the compilers that build that content and their settings, and the tests themselves. A change
+	// elsewhere that still breaks rendering is caught on master, which always runs them; add its path here when that happens.
 	static readonly string[] RenderingPaths =
 	[
 		"src/rendersystem/", "src/scenesystem/", "src/materialsystem2/", "src/materialobjects/", "src/meshsystem/",
@@ -34,6 +34,9 @@ internal class RenderTests( string[] presets, bool update, bool pullRequest = fa
 		"engine/Definitions/common/Render/", "engine/Definitions/common/SceneSystem/", "engine/Definitions/engine/Render/",
 		"engine/Definitions/engine/SceneSystem/", "engine/Definitions/engine/materialsystem2.def",
 		"game/core/shaders/", "game/core/materials/", "game/core/textures/",
+		"src/utils/resourcecompiler/", "src/bitmap/", "src/thirdparty/bc7enc_rdo/", "src/thirdparty/directxtex/",
+		"src/thirdparty/etc2comp/", "src/appframework/gameinfo.cpp", "engine/Sandbox.ContentBuild/",
+		"engine/Tools/SboxBuild/Native/RemoteDeps.cs",
 		"engine/Launcher/SceneLab/", "engine/Tests/GoldenTruth/", "engine/Tools/SboxBuild/Steps/RenderTests",
 	];
 
