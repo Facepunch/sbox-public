@@ -20,9 +20,9 @@ internal sealed class TileAssembler
 	/// </summary>
 	public Tile? Create( int x, int y, Vector3[] verts, ReadOnlySpan<ushort> polyVerts, ReadOnlySpan<ushort> neighbours, ReadOnlySpan<byte> areas, in NavSettings settings, out string? error )
 	{
-		int count = areas.Length;
+		int count = areas.Length, limit = settings.MaxTilePolygons;
 		error = count == 0 ? "the tile has no polygons"
-			: count > Poly.MaxPerTile ? $"the tile has {count} polygons, the limit is {Poly.MaxPerTile}"
+			: count > limit ? $"the tile has {count} polygons, the limit is {limit} (MaxTilePolygons)"
 			: verts.Length > Poly.MaxVertsPerTile ? $"the tile has {verts.Length} vertices, the limit is {Poly.MaxVertsPerTile}"
 			: null;
 		if ( error != null ) return null;

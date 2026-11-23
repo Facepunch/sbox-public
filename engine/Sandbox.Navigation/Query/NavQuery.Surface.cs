@@ -32,7 +32,7 @@ public sealed partial class NavQuery
 		{
 			uint id = nodes[head].Id;
 			var tile = s.Get( id );
-			int p = (int)(id & PolyRef.PolyMask);
+			int p = (int)(id & s.PolyMask);
 			ref readonly var current = ref tile.Polys[p];
 			int n = Gather( tile, current, v );
 
@@ -53,7 +53,7 @@ public sealed partial class NavQuery
 					if ( filter.Allows( tile.Polys[nei].Area ) )
 					{
 						open = true;
-						if ( near ) Enqueue( id & ~PolyRef.PolyMask | nei, head );
+						if ( near ) Enqueue( id & ~s.PolyMask | nei, head );
 					}
 				}
 				else if ( nei != Poly.Wall )
@@ -92,7 +92,7 @@ public sealed partial class NavQuery
 
 		uint last = nodes[bestNode].Id;
 		poly = s.RefOf( last );
-		int count = Gather( s.Get( last ), in s.Get( last ).Polys[last & PolyRef.PolyMask], v );
+		int count = Gather( s.Get( last ), in s.Get( last ).Polys[last & s.PolyMask], v );
 		if ( HeightOver( v[..count], bestPoint, out float height ) ) bestPoint.Z = height;
 		position = bestPoint;
 		return true;
@@ -122,7 +122,7 @@ public sealed partial class NavQuery
 		{
 			uint id = nodes[head].Id;
 			var tile = s.Get( id );
-			int p = (int)(id & PolyRef.PolyMask);
+			int p = (int)(id & s.PolyMask);
 			ref readonly var poly = ref tile.Polys[p];
 			int n = Gather( tile, poly, v );
 
@@ -134,7 +134,7 @@ public sealed partial class NavQuery
 				ushort nei = poly.Neis[edge];
 				if ( nei < Poly.Border )
 				{
-					if ( filter.Allows( tile.Polys[nei].Area ) ) Enqueue( id & ~PolyRef.PolyMask | nei, head );
+					if ( filter.Allows( tile.Polys[nei].Area ) ) Enqueue( id & ~s.PolyMask | nei, head );
 					else AddWall( a, b, position, height, segments, distances, ref count, ref rangeSquared, nearestOnly );
 					continue;
 				}
@@ -212,7 +212,7 @@ public sealed partial class NavQuery
 		for ( int steps = 0; steps < 65536; steps++ )
 		{
 			var tile = s.Get( id );
-			int p = (int)(id & PolyRef.PolyMask);
+			int p = (int)(id & s.PolyMask);
 			ref readonly var poly = ref tile.Polys[p];
 			int n = Gather( tile, poly, v );
 			last = new PolyRef( tile.Serial, id );
@@ -229,7 +229,7 @@ public sealed partial class NavQuery
 			ushort nei = poly.Neis[exit];
 			if ( nei < Poly.Border )
 			{
-				if ( filter.Allows( tile.Polys[nei].Area ) ) next = id & ~PolyRef.PolyMask | nei;
+				if ( filter.Allows( tile.Polys[nei].Area ) ) next = id & ~s.PolyMask | nei;
 			}
 			else if ( nei != Poly.Wall )
 			{
@@ -267,6 +267,7 @@ public sealed partial class NavQuery
 	/// </summary>
 	public bool FindRandomPoint( Vector3 center, float radius, in NavFilter filter, ref uint seed, out PolyRef poly, out Vector3 point )
 	{
+		filter.Check();
 		poly = default;
 		point = default;
 		var s = mesh.State;
@@ -284,7 +285,7 @@ public sealed partial class NavQuery
 				foreach ( var tile in page )
 				{
 					if ( tile == null ) continue;
-					float area = filter.Forbidden == 0 ? tile.Area : AllowedArea( tile, filter );
+					float area = filter.ForbiddenAreas == 0 ? tile.Area : AllowedArea( tile, filter );
 					if ( area <= 0 ) continue;
 					sum += area;
 					if ( NextRandom( ref seed ) * sum <= area ) chosen = tile;
@@ -306,7 +307,7 @@ public sealed partial class NavQuery
 			int n = Gather( chosen, in chosen.Polys[chosenPoly], v );
 			point = RandomInPolygon( v[..n], NextRandom( ref seed ), NextRandom( ref seed ) );
 			if ( HeightOver( v[..n], point, out float height ) ) point.Z = height;
-			poly = new PolyRef( chosen.Serial, (uint)chosen.Slot << PolyRef.PolyBits | (uint)chosenPoly );
+			poly = new PolyRef( chosen.Serial, s.IdOf( chosen, chosenPoly ) );
 			return true;
 		}
 
@@ -324,7 +325,7 @@ public sealed partial class NavQuery
 			point = RandomInPolygon( v[..n], NextRandom( ref seed ), NextRandom( ref seed ) );
 			if ( HeightOver( v[..n], point, out float height ) ) point.Z = height;
 			if ( !InDisc( point, center, radius ) ) continue;
-			poly = new PolyRef( chosen.Serial, (uint)chosen.Slot << PolyRef.PolyBits | (uint)chosenPoly );
+			poly = new PolyRef( chosen.Serial, s.IdOf( chosen, chosenPoly ) );
 			return true;
 		}
 

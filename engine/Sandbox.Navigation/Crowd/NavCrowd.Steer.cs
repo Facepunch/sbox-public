@@ -26,7 +26,10 @@ public sealed partial class NavCrowd
 
 	readonly Tally[] tallies;
 	int walkers, gridBits, gridMask;
-	float cellSize, largestRadius;
+	float cellSize, perCell, largestRadius;
+
+	// Binning, per body: the agents in its band of grid rows, then the first frame slot of the band.
+	readonly int[] bands;
 
 	static readonly Vector2[] SamplePattern = CreatePattern();
 
@@ -44,6 +47,7 @@ public sealed partial class NavCrowd
 		if ( !p.External && (a.Count == 0 || state.Link >= 0) )
 		{
 			shown.Id[i] = -1;
+			slots[i] = -1;
 			return;
 		}
 		a.Push = default;
@@ -51,15 +55,23 @@ public sealed partial class NavCrowd
 		shown.Radius[i] = p.Radius;
 		shown.VelocityX[i] = state.Velocity.X;
 		shown.VelocityY[i] = state.Velocity.Y;
-		shown.Yields[i] = !p.External;
-		Place( i );
+		shown.Part[i] = p.External ? 1 : 0.5f;
+		Put( i );
 		tally.Radius = MathF.Max( tally.Radius, p.Radius );
 		tally.Look = MathF.Max( tally.Look, p.MaxSpeed * reach );
 		tally.Count++;
 	}
 
-	// Where the next binning takes the agent to be: where it stands plus the push it has collected.
+	// Where the next binning takes the agent to be, in a stage after the snapshot has sized the grid:
+	// the bucket goes with it, so that binning only counts.
 	void Place( int i )
+	{
+		Put( i );
+		buckets[i] = Bucket( i );
+	}
+
+	// Where the next binning takes the agent to be: where it stands plus the push it has collected.
+	void Put( int i )
 	{
 		ref readonly var state = ref states[i];
 		var push = agents[i].Push;
@@ -70,10 +82,10 @@ public sealed partial class NavCrowd
 	}
 
 	// Snapshot: size the grid for the agents the plan stage put up and bin them. A cell is at least
-	// two radii wide, so agents that touch are in neighbouring cells, and at least a sixth of the
-	// widest range an agent avoids others in. Buckets wrap, with more per axis than any lookup is
-	// wide: the cells of one lookup never share a bucket, and agents of far cells that do share one
-	// fail the distance test.
+	// two radii wide, so agents that touch are in neighbouring cells, at least a sixth of the widest
+	// range an agent avoids others in, and at least a fifth of eps, for very small agents. Buckets
+	// wrap, with more per axis than any lookup is wide: the cells of one lookup never share a bucket,
+	// and agents of far cells that do share one fail the distance test.
 	void Snapshot()
 	{
 		float radius = 0, look = 0;
@@ -93,39 +105,83 @@ public sealed partial class NavCrowd
 		}
 
 		float widest = radius * 4 + look;
-		cellSize = MathF.Max( radius * 2, widest / 6 );
+		cellSize = MathF.Max( MathF.Max( radius * 2, widest / 6 ), eps * 0.2f );
 		int width = 2 * (int)MathF.Ceiling( widest / cellSize ) + 2;
 		gridBits = 2;
 		while ( 1 << gridBits < width || 1 << (gridBits * 2) < count * 4 ) gridBits++;
 		gridMask = (1 << gridBits) - 1;
+		perCell = 1f / cellSize;
 		if ( bucketStart.Length < (1 << (gridBits * 2)) + 2 ) bucketStart = new int[(1 << (gridBits * 2)) + 2];
 		if ( frame.Capacity < count ) frame = new Frame( Math.Max( count, frame.Capacity * 2 ) );
+		Run( Stage.Bucket );
 		Bin();
 	}
 
-	// Sorts the agents of the snapshot into the frame by the cell they are shown in now.
+	// The grid bucket of the cell the agent is shown in.
+	int Bucket( int i ) => ((int)MathF.Floor( shown.X[i] * perCell ) & gridMask) | (((int)MathF.Floor( shown.Y[i] * perCell ) & gridMask) << gridBits);
+
+	// Sorts the agents of the snapshot into the frame by the bucket they are shown in now, in id order
+	// within a bucket. The bodies of two stages each take a band of grid rows, the buckets of which are
+	// a run of bucketStart: the first counts the agents of its band, the second, after the bands are
+	// given their first slots here, hands out the slots and fills them. Every body reads every agent's
+	// bucket and writes only its own band and frame slots.
 	void Bin()
 	{
-		// Count into bucket + 2, sum, then place through bucket + 1: that entry ends up as the start of
-		// the next bucket, which is where it has to be.
-		var starts = bucketStart.AsSpan( 0, (1 << (gridBits * 2)) + 2 );
-		starts.Clear();
-		float perCell = 1f / cellSize;
-		for ( int i = 0; i < high; i++ )
+		Run( Stage.Count );
+		int first = 0;
+		for ( int k = 0; k < bodies; k++ )
 		{
-			if ( shown.Id[i] < 0 )
-			{
-				slots[i] = -1;
-				continue;
-			}
-			int bucket = buckets[i] = ((int)MathF.Floor( shown.X[i] * perCell ) & gridMask) | (((int)MathF.Floor( shown.Y[i] * perCell ) & gridMask) << gridBits);
-			starts[bucket + 2]++;
+			int n = bands[k];
+			bands[k] = first;
+			first += n;
 		}
-		for ( int b = 2; b < starts.Length; b++ ) starts[b] += starts[b - 1];
+		bucketStart[0] = 0;
+		Run( Stage.Assign );
+	}
+
+	// The buckets of the rows of body k of bodies.
+	void Band( int k, out int first, out int last )
+	{
+		long rows = 1L << gridBits;
+		first = (int)(rows * k / bodies) << gridBits;
+		last = (int)(rows * (k + 1) / bodies) << gridBits;
+	}
+
+	// Counts the agents of each bucket of the band into bucketStart[bucket + 1], then turns the counts
+	// into starts from 0.
+	void Count( int body )
+	{
+		Band( body, out int first, out int last );
+		var starts = bucketStart.AsSpan( 1 );
+		starts[first..last].Clear();
 		for ( int i = 0; i < high; i++ )
 		{
-			if ( shown.Id[i] < 0 ) continue;
-			int slot = slots[i] = starts[buckets[i] + 1]++;
+			int b = buckets[i];
+			if ( shown.Id[i] >= 0 && b >= first && b < last ) starts[b]++;
+		}
+		int sum = 0;
+		for ( int b = first; b < last; b++ )
+		{
+			int n = starts[b];
+			starts[b] = sum;
+			sum += n;
+		}
+		bands[body] = sum;
+	}
+
+	// Hands out the slots of the band in id order, through bucketStart[bucket + 1]: that entry ends up
+	// as the start of the next bucket. Fills each slot with what its agent shows.
+	void Assign( int body )
+	{
+		Band( body, out int first, out int last );
+		var starts = bucketStart.AsSpan( 1 );
+		int start = bands[body];
+		for ( int b = first; b < last; b++ ) starts[b] += start;
+		for ( int i = 0; i < high; i++ )
+		{
+			int b = buckets[i];
+			if ( shown.Id[i] < 0 || b < first || b >= last ) continue;
+			int slot = slots[i] = starts[b]++;
 			frame.X[slot] = shown.X[i];
 			frame.Y[slot] = shown.Y[i];
 			frame.Z[slot] = shown.Z[i];
@@ -134,7 +190,7 @@ public sealed partial class NavCrowd
 			frame.VelocityX[slot] = shown.VelocityX[i];
 			frame.VelocityY[slot] = shown.VelocityY[i];
 			frame.Id[slot] = i;
-			frame.Yields[slot] = shown.Yields[i];
+			frame.Part[slot] = shown.Part[i];
 		}
 	}
 
@@ -166,7 +222,7 @@ public sealed partial class NavCrowd
 		public int Id, Slot, Neighbours;
 		public Vector2 Correction;
 
-		// Only the eight-wide pass adds to these, lane by lane.
+		// Only the eight-wide pass writes these, lane by lane.
 		public Vector256<float> SumX, SumY;
 	}
 
@@ -198,9 +254,9 @@ public sealed partial class NavCrowd
 		};
 
 		int reach = (int)MathF.Ceiling( ((p.Radius + largestRadius) * 2 + scan.Look) / cellSize );
-		for ( int n = 0; Cells( bucket, reach, n, out int slot, out int last ); n++ )
+		if ( EightWide ) AvoidEight( ref scan, bucket, reach );
+		for ( int n = 0; !EightWide && Cells( bucket, reach, n, out int slot, out int last ); n++ )
 		{
-			if ( EightWide ) slot = AvoidEight( ref scan, slot, last );
 			for ( ; slot < last; slot++ )
 			{
 				// In range, on the same level, and not the agent itself.

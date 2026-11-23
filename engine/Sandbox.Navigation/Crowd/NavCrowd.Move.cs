@@ -1,12 +1,10 @@
 using System.Numerics;
+using System.Runtime.Intrinsics;
 
 namespace Nav;
 
 public sealed partial class NavCrowd
 {
-	// Set by any body of the separate stage that pushed an agent.
-	int overlapped;
-
 	// Steer and move, per agent: avoid neighbours and walls, accelerate towards the result and walk
 	// the surface.
 	void Walk( int i, MeshState s, NavQuery query )
@@ -129,12 +127,23 @@ public sealed partial class NavCrowd
 		for ( int round = 0; round < 4; round++ )
 		{
 			Bin();
-			overlapped = 0;
+			claims.Overlapped = 0;
 			Run( Stage.Separate );
-			if ( overlapped == 0 ) break;
+			if ( claims.Overlapped == 0 ) break;
 			pushed = true;
 		}
 		if ( pushed ) Run( Stage.Constrain );
+	}
+
+	// What one agent collects from its overlaps while separating.
+	struct Separation
+	{
+		public float X, Y, Z, Top, Radius, Tiny;
+		public int Id, Slot, Count;
+		public Vector2 Push;
+
+		// Only the eight-wide pass writes these, lane by lane.
+		public Vector256<float> SumX, SumY;
 	}
 
 	// Moves the agent out of its overlaps by 0.7 of their mean depth: half of each when the other
@@ -142,24 +151,37 @@ public sealed partial class NavCrowd
 	bool Separate( int i )
 	{
 		int self = slots[i], bucket = buckets[i];
-		float x = frame.X[self], y = frame.Y[self], z = frame.Z[self], top = frame.Top[self], radius = frame.Radius[self], tiny = eps * 0.01f;
-		var push = Vector2.Zero;
-		int count = 0;
-		for ( int n = 0; Cells( bucket, 1, n, out int slot, out int last ); n++ )
+		var scan = new Separation
 		{
-			for ( ; slot < last; slot++ )
-			{
-				float dx = x - frame.X[slot], dy = y - frame.Y[slot], sum = radius + frame.Radius[slot], squared = dx * dx + dy * dy;
-				if ( squared >= sum * sum || slot == self || top <= frame.Z[slot] || frame.Top[slot] <= z ) continue;
-				float distance = MathF.Sqrt( squared );
-				var normal = distance > tiny ? new Vector2( dx, dy ) / distance : new Vector2( i < frame.Id[slot] ? -1 : 1, 0 );
-				push += normal * ((sum - distance) * (frame.Yields[slot] ? 0.5f : 1));
-				count++;
-			}
+			X = frame.X[self],
+			Y = frame.Y[self],
+			Z = frame.Z[self],
+			Top = frame.Top[self],
+			Radius = frame.Radius[self],
+			Tiny = eps * 0.01f,
+			Id = i,
+			Slot = self
+		};
+		if ( EightWide ) SeparateEight( ref scan, bucket );
+		for ( int n = 0; !EightWide && Cells( bucket, 1, n, out int slot, out int last ); n++ )
+		{
+			for ( ; slot < last; slot++ ) Separate( ref scan, slot );
 		}
-		if ( count == 0 ) return false;
-		agents[i].Push += push * (0.7f / count);
+		if ( scan.Count == 0 ) return false;
+		var push = scan.Push + new Vector2( Vector256.Sum( scan.SumX ), Vector256.Sum( scan.SumY ) );
+		agents[i].Push += push * (0.7f / scan.Count);
 		Place( i );
 		return true;
+	}
+
+	// One neighbour: its overlap, if any.
+	void Separate( ref Separation scan, int slot )
+	{
+		float dx = scan.X - frame.X[slot], dy = scan.Y - frame.Y[slot], sum = scan.Radius + frame.Radius[slot], squared = dx * dx + dy * dy;
+		if ( squared >= sum * sum || slot == scan.Slot || scan.Top <= frame.Z[slot] || frame.Top[slot] <= scan.Z ) return;
+		float distance = MathF.Sqrt( squared );
+		var normal = distance > scan.Tiny ? new Vector2( dx, dy ) / distance : new Vector2( scan.Id < frame.Id[slot] ? -1 : 1, 0 );
+		scan.Push += normal * ((sum - distance) * frame.Part[slot]);
+		scan.Count++;
 	}
 }

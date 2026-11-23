@@ -42,8 +42,8 @@ int[] indices =
 	4, 5, 6, 4, 6, 7,   // wall: every triangle is an obstacle, whichever way it faces
 ];
 
-var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
-var mesh = new NavMesh( settings );
+var settings = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+var mesh = new NavMesh( settings, NavMeshOptions.Create( settings ) );
 
 var failures = new List<(int X, int Y, string Error)>();
 mesh.Build( new NavBuilder(), vertices, indices, failures );
@@ -53,7 +53,8 @@ foreach ( var (x, y, error) in failures ) Console.WriteLine( $"tile {x},{y} fail
 var query = new NavQuery( mesh );
 var path = new NavPath();
 var halfExtents = new Vector3( 2.1f * settings.AgentRadius, 2.1f * settings.AgentRadius, 1.51f * settings.AgentHeight );
-var status = query.FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), halfExtents, default, path );
+var anyone = NavFilter.Create();   // every area at cost 1, nothing forbidden; change it with its With methods
+var status = query.FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), halfExtents, anyone, path );
 Console.WriteLine( $"{status}, {path.Length:0.0} long" );
 foreach ( var corner in path.Corners ) Console.WriteLine( corner );
 ```
@@ -134,8 +135,8 @@ sealed class TileStreamer
 ```
 
 ```csharp
-var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
-var mesh = new NavMesh( settings );
+var settings = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+var mesh = new NavMesh( settings, NavMeshOptions.Create( settings ) );
 var streamer = new TileStreamer( mesh, vertices, indices );   // the level of the first example
 
 mesh.MarkDirty( new Vector3( 0, 0, -10 ), new Vector3( 50, 30, 10 ) );
@@ -170,7 +171,7 @@ using Nav;
 var crowd = new NavCrowd( mesh, workers: Environment.ProcessorCount );
 
 // The player: the game moves it, the crowd plans its route and makes others avoid it.
-var player = AgentParams.Create( radius: 0.4f, height: 1.8f, maxSpeed: 5, acceleration: 20 );
+var player = AgentParams.Create( new AgentDesc { Radius = 0.4f, Height = 1.8f, MaxSpeed = 5, Acceleration = 20 } );
 player.External = true;
 var position = new Vector3( 5, 5, 0 );
 int id = crowd.Add( position, player );
@@ -178,7 +179,7 @@ uint generation = crowd.States[id].Generation;
 crowd.MoveTo( id, new Vector3( 45, 5, 0 ) );
 
 // Four agents the crowd moves, coming the other way.
-var walker = AgentParams.Create( radius: 0.4f, height: 1.8f, maxSpeed: 3, acceleration: 10 );
+var walker = AgentParams.Create( new AgentDesc { Radius = 0.4f, Height = 1.8f, MaxSpeed = 3, Acceleration = 10 } );
 for ( int i = 0; i < 4; i++ )
 {
 	int other = crowd.Add( new Vector3( 45, 3 + i * 1.5f, 0 ), walker );
@@ -214,8 +215,8 @@ call happens on one thread and never during a `Step`; a mesh `Commit` during a s
 
 ## Example: generated links
 
-Drops off ledges and jumps across gaps, found by the tile builds themselves. Off unless the mesh is given
-`NavLinkSettings`. With `Insert` the mesh adds them as links of its own, as here; without, it reports them and the
+Drops off ledges and jumps across gaps, found by the tile builds themselves. Off unless the `NavLinkSettings`
+of the mesh's options set a distance. With `Insert` the mesh adds them as links of its own, as here; without, it reports them and the
 caller adds them (next example).
 
 ```csharp
@@ -233,9 +234,9 @@ int[] dockIndices = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11];
 
 // The link types are the caller's numbers: what a filter forbids or prices generated links by.
 const byte drop = 1, jump = 2;
-var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
-var links = new NavLinkSettings { MaxDrop = 3, MaxJumpDistance = 2, MaxJumpUp = 0.5f, DropType = drop, JumpType = jump, Insert = true };
-var mesh = new NavMesh( settings, links: links );
+var settings = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+var links = NavLinkSettings.Create( settings ) with { MaxDrop = 3, MaxJumpDistance = 2, MaxJumpUp = 0.5f, DropType = drop, JumpType = jump, Insert = true };
+var mesh = new NavMesh( settings, NavMeshOptions.Create( settings ) with { Links = links } );
 mesh.Build( new NavBuilder(), dockVertices, dockIndices );
 
 // For drawing: the generated links, apart from those placed by hand.
@@ -252,9 +253,10 @@ var query = new NavQuery( mesh );
 var path = new NavPath();
 var halfExtents = new Vector3( 2.1f * settings.AgentRadius, 2.1f * settings.AgentRadius, 1.51f * settings.AgentHeight );
 Vector3 onTheDock = new( 4, 10, 2 ), inTheYard = new( 15, 10, 0 );
-var down = query.FindPath( onTheDock, inTheYard, halfExtents, default, path );
-var careful = query.FindPath( onTheDock, inTheYard, halfExtents, new NavFilter( 0, forbiddenLinks: 1ul << drop ), path );
-var up = query.FindPath( inTheYard, onTheDock, halfExtents, default, path );
+var anyone = NavFilter.Create();
+var down = query.FindPath( onTheDock, inTheYard, halfExtents, anyone, path );
+var careful = query.FindPath( onTheDock, inTheYard, halfExtents, anyone.WithForbiddenLinks( 1ul << drop ), path );
+var up = query.FindPath( inTheYard, onTheDock, halfExtents, anyone, path );
 ```
 
 `down` is `Complete` and crosses one of the drops, spaced two agent diameters apart along the dock; `careful` and
@@ -271,7 +273,7 @@ nothing: after each `Commit` it says which tiles' generated links changed, and t
 and adds them with `AddLink` like any link placed by hand.
 
 ```csharp
-var reported = new NavMesh( settings, links: links with { Insert = false } );
+var reported = new NavMesh( settings, NavMeshOptions.Create( settings ) with { Links = links with { Insert = false } } );
 reported.Build( new NavBuilder(), dockVertices, dockIndices );
 
 // Per tile, the link objects the engine made and the id each got from AddLink.
@@ -327,26 +329,39 @@ does not make the generator drop them.
 - `GetStats().TrianglesUsed` and `TrianglesRejected` are running totals over every build from triangles, not a
   count of what the mesh holds now.
 
-**Settings and struct defaults**
+**Settings and defaults**
 
-- `new NavSettings { ... }` without `Create` leaves `MaxEdgeCells`, `MinRegionCells` and `MaxEdgeError` at 0. That
-  is valid and gives outlines that are not simplified, no splitting of long edges and no removal of small regions.
-  `TileSize` 0 is not valid and the `NavMesh` constructor throws. Those three are in cells, not world units.
-- `new AgentParams { ... }` without `Create` leaves `Separation` at 0 and `AutoLinks` false: such an agent waits on
-  every link until `CompleteLink`.
-- `default( NavFilter )` allows every area at cost 1. `NavLink.Area` 0 means ground (`NavFilter.DefaultArea`).
-  `NavVolume.Area` 0 (`NavFilter.NoArea`) blocks. Area ids above 63 throw.
+- No value stands for another: 0 means 0, and a value is used as set or refused with an `ArgumentException`, never
+  raised, lowered or replaced. Defaults come only from the `Create` methods (`NavSettings`, `NavMeshOptions`,
+  `NavLinkSettings`, `NavFilter`, `NavLink`, `AgentParams`), which set every field. Start from one and change
+  fields with `with`.
+- A call that would take several numbers of one kind in a row takes a struct with named fields instead:
+  `NavSettingsDesc` for `NavSettings.Create`, `AgentDesc` for `AgentParams.Create`, `WallRequest` for `FindWalls`,
+  `RouteDesc` for `NavCrowd.SetPath`. Every field of these is `required`, so the compiler refuses one left out;
+  the tile size too, since it sets `MaxTilePolygons` and how many tiles a mesh holds.
+- `new NavSettings { ... }` without `Create` leaves `MaxEdgeCells` at 0, which is not valid: it is at least 1, and
+  `int.MaxValue` for no limit. `MinRegionCells` and `MaxEdgeError` at 0 are valid and give outlines that are not
+  simplified and no removal of small regions. All three are in cells, not world units.
+- `default( NavFilter )` is not a filter: every query and the crowd throw for it. `NavFilter.Create()` allows every
+  area and link at cost 1; the `With` methods change one part and check it. A filter is a value of about 780 bytes,
+  passed with `in`.
+- `NavLink.Area` 0 (`NavFilter.NoArea`) is refused by `AddLink` and `SetLink`; `NavLink.Create` gives
+  `NavFilter.DefaultArea`, crossed like ground. `NavVolume.Area` 0 blocks. Area ids above 63 throw.
+- `new AgentParams { ... }` without `Create` has no filter, and `Add` throws. `Add` and `SetParams` also throw for
+  a size of 0, a negative speed or a separation outside 0 to 1.
 - `SubstepTime = 0.05` and `AvoidHorizon = 0.75` are seconds. A caller stepping in milliseconds sets 50 and 750.
 - Blockers do not re-erode the mesh: without `Margin` the walkable edge comes right up to the volume.
-- `keepFields` (on by default) keeps a tile's eroded field only once a volume overlaps the tile, so the first volume
-  over a tile asks for its triangles again. With `keepFields` false every volume change asks for them.
+- `NavMeshOptions.KeepFields` (true from `Create`) keeps a tile's eroded field only once a volume overlaps the tile,
+  so the first volume over a tile asks for its triangles again. With it false every volume change asks for them.
   `GetStats().CacheBytes` is what is kept.
 
 **Queries**
 
 - `halfExtents` is how far off the mesh a point may be and still snap, Z third. For where an agent stands the crowd
-  uses 2.1 radii sideways and 1.51 heights vertically, for targets 16 radii and never less than that of the agent
-  itself; infinite extents search the whole mesh.
+  uses 2.1 radii sideways and 1.51 heights vertically, for targets 16 radii, both of the mesh's agent as the
+  crowd is made, and never less than the agent's own 2.1 radii and 1.51 heights; infinite extents search the whole
+  mesh. `SetMesh` keeps `PlacementExtents` and `TargetExtents` as they are: set them again for a mesh of another
+  agent or unit.
 - Heights are on the polygon plane, off by up to a cell height plus the simplification error from the real ground,
   more on rough terrain. Use a ground trace for feet.
 - `NavPath.Corners` passes through links: a link gives its entry and its exit as two corners in a row, and `Polys`
@@ -365,16 +380,16 @@ does not make the generator drop them.
   mesh, or no route); it is planned again on a new target, a changed filter, a new position or a changed mesh.
   `Target` is stale while `Idle` or `Arrived`.
 - `SetPosition` means "teleport" for an agent the crowd moves and "this tick's position" for an External one.
-- `SetParams` compares the filter's cost array by content, but only when it is handed in: an array edited in place
-  counts once `SetParams` is called again.
+- The crowd keeps its own copy of the params, filter included, and compares a new filter by value in `SetParams`.
 - `workers` only sizes scratch; threads come from `Step`'s `run` hook, which must call `body( i )` for every `i`
   below `count` and return when all have returned. Small crowds never call it.
 
 **Generated links**
 
-- With `NavLinkSettings` left at its default nothing is generated and a build does what it does without. Any of
-  `MaxDrop` and `MaxJumpDistance` above 0 turns generation on; `MaxJumpDistance` plus two agent diameters must fit
-  in a tile, or the constructor throws.
+- With `NavLinkSettings.Create` nothing is generated and a build does what it does without. Any of `MaxDrop` and
+  `MaxJumpDistance` above 0 turns generation on; `MaxJumpDistance` plus two agent diameters must fit in a tile, and
+  `Spacing` (two agent diameters from `Create`) must be at least a cell, or the constructor throws. The spacing is
+  used as set.
 - The type says what the agent does. A drop is one way. A ledge no higher than `MaxJumpUp` also gets a one-way
   jump from below up onto it, so a filter can allow down and forbid up. A jump is two-way when its ends are within
   `MaxJumpUp` of each other in height, else one way towards the lower end. Links go straight out from
@@ -404,7 +419,7 @@ does not make the generator drop them.
   mesh keeps no such list). Both belong to the owner thread. A
   tile whose links across a border are still to be judged reports them once the tiles around it are in; a tile that
   is being built again keeps reporting what it had until the new links are made.
-- A bake does not hold generated links. `Load` takes the link settings for later builds; a loaded tile has no
+- A bake does not hold generated links. `Load` takes the link settings in its options for later builds; a loaded tile has no
   generated links, and reports none, until it is built from triangles again. An engine that saves its link objects
   with the scene has them after a load without generating.
 

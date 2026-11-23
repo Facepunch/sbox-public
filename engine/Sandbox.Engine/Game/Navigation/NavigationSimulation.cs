@@ -178,7 +178,8 @@ internal sealed class SimulationAgent
 
 	internal AgentParams Options
 	{
-		get { lock ( Owner.Gate ) return Removed ? default : Owner.Crowd.Params[Id]; }
+		// Once removed, what was asked for last: a default filter is refused by every query
+		get { lock ( Owner.Gate ) return Removed ? wanted : Owner.Crowd.Params[Id]; }
 		set
 		{
 			lock ( Owner.Gate )
@@ -222,7 +223,7 @@ internal sealed class SimulationAgent
 		lock ( Owner.Gate )
 		{
 			if ( Removed || path.Mesh != Owner.Mesh ) return;
-			Owner.Crowd.SetPath( Id, path.Polygons, path.Points[^1].Position, path.RequestedTarget, path.Status == NavMeshPathStatus.Partial );
+			Owner.Crowd.SetPath( Id, path.Polygons, new RouteDesc { End = path.Points[^1].Position, Target = path.RequestedTarget, Partial = path.Status == NavMeshPathStatus.Partial } );
 		}
 	}
 

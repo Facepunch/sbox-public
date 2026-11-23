@@ -254,11 +254,11 @@ public class NavMeshRegressions
 			agent.ForbiddenAreas.Add( area );
 			var restricted = scene.NavMesh.CreateFilter( agent );
 			Assert.IsFalse( Allows( restricted, id ) );
-			Assert.AreEqual( 7f, restricted.Costs[id] );
+			Assert.AreEqual( 7f, restricted.AreaCosts[id] );
 			Assert.IsTrue( Allows( original, id ) );
-			Assert.AreEqual( 1f, original.Costs[id] );
+			Assert.AreEqual( 1f, original.AreaCosts[id] );
 			var unrestricted = scene.NavMesh.CreateFilter();
-			Assert.AreEqual( 7f, unrestricted.Costs[id] );
+			Assert.AreEqual( 7f, unrestricted.AreaCosts[id] );
 			Allocations.AssertSettles( "64 pairs of unchanged filters", () =>
 			{
 				for ( int i = 0; i < 64; i++ ) { scene.NavMesh.CreateFilter( agent ); scene.NavMesh.CreateFilter(); }
@@ -266,13 +266,13 @@ public class NavMeshRegressions
 			agent.ForbiddenAreas.Clear();
 			area.CostMultiplier = 3;
 			Assert.IsTrue( Allows( scene.NavMesh.CreateFilter( agent ), id ) );
-			Assert.AreEqual( 3f, scene.NavMesh.CreateFilter().Costs[id] );
-			Assert.AreEqual( 7f, unrestricted.Costs[id] );
+			Assert.AreEqual( 3f, scene.NavMesh.CreateFilter().AreaCosts[id] );
+			Assert.AreEqual( 7f, unrestricted.AreaCosts[id] );
 			Assert.IsFalse( Allows( restricted, id ) );
 		}
 		finally { Game.Resources.Unregister( area ); }
 
-		static bool Allows( Nav.NavFilter filter, int area ) => (filter.Forbidden >> area & 1) == 0;
+		static bool Allows( Nav.NavFilter filter, int area ) => (filter.ForbiddenAreas >> area & 1) == 0;
 	}
 
 	sealed class NavigationEditorScene : Scene

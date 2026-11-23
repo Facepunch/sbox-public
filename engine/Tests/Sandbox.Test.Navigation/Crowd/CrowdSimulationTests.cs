@@ -11,7 +11,7 @@ namespace Nav.Lib.Tests;
 [TestClass]
 public class CrowdSimulationTests
 {
-	static readonly AgentParams Runner = AgentParams.Create( 16, 64, 180, 1200 );
+	static readonly AgentParams Runner = AgentParams.Create( new() { Radius = 16, Height = 64, MaxSpeed = 180, Acceleration = 1200 } );
 
 	[TestMethod]
 	public void WallSteeringDoesNotAvoidWallsBeyondTheDestination_11822()
@@ -65,7 +65,7 @@ public class CrowdSimulationTests
 		sim.Step();
 
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( start, target, new Vector3( 8 ), default, path ) );
+		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( start, target, new Vector3( 8 ), Filters.All, path ) );
 		var corners = path.Corners.ToArray();
 		float shortest = path.Length, traveled = Vector3.Distance( sim.Position( agent ), start ), deviation = 0;
 		for ( int tick = 0; tick < 1000 && sim.HasTarget( agent ); tick++ )
@@ -555,7 +555,7 @@ public class CrowdSimulationTests
 	[TestMethod]
 	public void HeadOnAgentsTouchingAtAWallCornerPass()
 	{
-		var walker = AgentParams.Create( 16, 64, 120, 120 );
+		var walker = AgentParams.Create( new() { Radius = 16, Height = 64, MaxSpeed = 120, Acceleration = 120 } );
 		var along = Vector3.Normalize( new Vector3( 1, 1, 0 ) );
 		foreach ( float back in new[] { 0.4f, 2f, 6f, 12f } )
 			foreach ( float apart in new[] { 31.9f, 32f, 33f, 40f, 60f } )

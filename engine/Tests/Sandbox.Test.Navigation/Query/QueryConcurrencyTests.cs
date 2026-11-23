@@ -59,7 +59,7 @@ public class QueryConcurrencyTests
 						Vector3 from = new( random.NextSingle() * 1200 + 20, random.NextSingle() * Size * 640, 0 );
 						Vector3 to = new( Size * 640 - 20 - random.NextSingle() * 1200, random.NextSingle() * Size * 640, 0 );
 						uint versionBefore = mesh.Version;
-						var status = query.FindPath( from, to, GridMesh.Snap, default, path );
+						var status = query.FindPath( from, to, GridMesh.Snap, Filters.All, path );
 						uint versionAfter = mesh.Version;
 						Interlocked.Increment( ref queries );
 						if ( status >= PathStatus.Partial )
@@ -72,15 +72,15 @@ public class QueryConcurrencyTests
 							query.FindCorners( path.Polys, from, to, corners );
 							var poly = path.Polys[0];
 							var position = path.Start;
-							query.Move( ref poly, ref position, new Vector3( 30, 10, 0 ), default, visited, out _ );
-							query.FindWalls( path.Polys[^1], path.End, 100, 50, default, walls );
-							query.IsValid( path.Polys[path.Polys.Length / 2], default );
+							query.Move( ref poly, ref position, new Vector3( 30, 10, 0 ), Filters.All, visited, out _ );
+							query.FindWalls( new() { Poly = path.Polys[^1], Center = path.End, Radius = 100, Height = 50 }, Filters.All, walls );
+							query.IsValid( path.Polys[path.Polys.Length / 2], Filters.All );
 							var corridor = path.Polys.ToArray();
 							int count = corridor.Length;
-							query.Repair( mesh.State, path.Polys[0], path.Start, path.End, default, ref corridor, ref count, 32 );
+							query.Repair( mesh.State, path.Polys[0], path.Start, path.End, Filters.All, ref corridor, ref count, 32 );
 						}
-						query.FindRandomPoint( default, float.PositiveInfinity, default, ref randomSeed, out _, out _ );
-						query.FindNearest( to, new Vector3( float.PositiveInfinity ), default, out _, out _ );
+						query.FindRandomPoint( default, float.PositiveInfinity, Filters.All, ref randomSeed, out _, out _ );
+						query.FindNearest( to, new Vector3( float.PositiveInfinity ), Filters.All, out _, out _ );
 					}
 				}
 				catch ( Exception e )

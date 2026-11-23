@@ -204,16 +204,20 @@ public sealed class NavMeshAgent : Component
 		CurrentLinkTraversal = null;
 	}
 
+	// The engine takes any size, speed and separation, the library refuses what it cannot work with:
+	// sizes go up to the least the navmesh gives an agent, speeds up to 0, separation into 0 to 1.
 	private Nav.AgentParams CreateAgentSettings()
 	{
+		static float AtLeast( float value, float least ) => value > least && float.IsFinite( value ) ? value : least;
+
 		capturedFilter = Scene.NavMesh.CreateFilter( this );
 		return new()
 		{
-			Radius = Radius,
-			Height = Height,
-			MaxSpeed = MaxSpeed,
-			Acceleration = Acceleration,
-			Separation = Separation,
+			Radius = AtLeast( Radius, NavMesh.LeastAgentSize ),
+			Height = AtLeast( Height, NavMesh.LeastAgentSize ),
+			MaxSpeed = AtLeast( MaxSpeed, 0 ),
+			Acceleration = AtLeast( Acceleration, 0 ),
+			Separation = Separation > 0 ? MathF.Min( Separation, 1 ) : 0,
 			AutoLinks = AutoTraverseLinks,
 			// An agent without a speed of its own is moved by its owner
 			External = MaxSpeed <= 0,

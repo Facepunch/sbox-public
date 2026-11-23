@@ -1,5 +1,6 @@
 using Nav;
 using Sandbox.Engine.Resources;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Sandbox.Navigation;
@@ -12,19 +13,19 @@ public sealed partial class NavMesh
 	// A published registry is never mutated
 	private sealed record AreaRegistry( Dictionary<NavMeshAreaDefinition, int> Ids, NavMeshAreaDefinition[] Definitions );
 	private AreaRegistry areaRegistry;
-	private float[] areaCosts = Enumerable.Repeat( 1f, AreaCount ).ToArray();
 
 	private readonly List<NavMeshArea> areas = new();
 	private readonly List<NavMeshLink> links = new();
 
-	// Link type ids, given out on first use and kept. 0 is the plain link. Published registries and prices are never mutated.
+	// Link type ids, given out on first use and kept. 0 is the plain link. A published registry is never mutated.
 	internal const int LinkTypeCount = NavFilter.MaxLinkType + 1;
 	private sealed record LinkTypeRegistry( Dictionary<NavMeshLinkType, int> Ids, NavMeshLinkType[] Types );
-	private sealed record LinkPrices( float[] Costs, float[] Penalties );
 	private LinkTypeRegistry linkTypes = new( new(), new NavMeshLinkType[LinkTypeCount] );
-	private LinkPrices linkPrices = new( Enumerable.Repeat( 1f, LinkTypeCount ).ToArray(), new float[LinkTypeCount] );
 	private readonly object linkTypeGate = new();
 	private bool linkTypesFull;
+
+	// The costs of areas and link types and the penalties of link types, swapped whole: filters are made on workers too
+	private StrongBox<NavFilter> prices = new( NavFilter.Create() );
 
 	internal void UpdateAreaIds()
 	{
@@ -73,19 +74,22 @@ public sealed partial class NavMesh
 		}
 	}
 
-	// Equal filters share their cost and penalty arrays, and a filter handed out never changes
+	// An agent's filter is the prices with what it may not cross
 	internal NavFilter CreateFilter( NavMeshAgent agent = null )
 	{
-		var prices = CurrentLinkPrices();
-		return new NavFilter( agent is null ? 0 : ForbiddenAreas( agent ), CurrentCosts(), agent is null ? 0 : ForbiddenLinks( agent ), prices.Costs, prices.Penalties );
+		var current = CurrentPrices();
+		if ( agent is null ) return current.Value;
+		return current.Value.WithForbiddenAreas( ForbiddenAreas( agent ) ).WithForbiddenLinks( ForbiddenLinks( agent ) );
 	}
 
 	// Whether CreateFilter would still give the agent this filter. Costs and penalties are as of the last navigation update.
 	internal bool FilterMatches( in NavFilter filter, NavMeshAgent agent )
 	{
-		var prices = Volatile.Read( ref linkPrices );
-		return filter.Costs == Volatile.Read( ref areaCosts ) && filter.LinkCosts == prices.Costs && filter.LinkPenalties == prices.Penalties
-			&& filter.Forbidden == ForbiddenAreas( agent ) && filter.ForbiddenLinks == ForbiddenLinks( agent );
+		var current = Volatile.Read( ref prices );
+		return filter.ForbiddenAreas == ForbiddenAreas( agent ) && filter.ForbiddenLinks == ForbiddenLinks( agent )
+			&& ((ReadOnlySpan<float>)filter.AreaCosts).SequenceEqual( current.Value.AreaCosts )
+			&& ((ReadOnlySpan<float>)filter.LinkCosts).SequenceEqual( current.Value.LinkCosts )
+			&& ((ReadOnlySpan<float>)filter.LinkPenalties).SequenceEqual( current.Value.LinkPenalties );
 	}
 
 	// Plain links are always open. A restricted agent forbids every other type, also those no link has used yet.
@@ -101,36 +105,33 @@ public sealed partial class NavMesh
 		return ~allowed;
 	}
 
-	// A type's cost and penalty change without notice, so the arrays are replaced when one differs
-	private LinkPrices CurrentLinkPrices()
-	{
-		var types = Volatile.Read( ref linkTypes ).Types;
-		var prices = Volatile.Read( ref linkPrices );
-		for ( int id = 1; id < LinkTypeCount && types[id] is { } type; id++ )
-		{
-			if ( prices.Costs[id] == CostOf( type.CostMultiplier ) && prices.Penalties[id] == PenaltyOf( type.Penalty ) ) continue;
-			prices = new LinkPrices( Enumerable.Repeat( 1f, LinkTypeCount ).ToArray(), new float[LinkTypeCount] );
-			for ( int i = 1; i < LinkTypeCount && types[i] is { } priced; i++ ) (prices.Costs[i], prices.Penalties[i]) = (CostOf( priced.CostMultiplier ), PenaltyOf( priced.Penalty ));
-			Volatile.Write( ref linkPrices, prices );
-			break;
-		}
-		return prices;
-	}
-
-	// A definition's cost changes without notice, so the array is replaced when one differs
-	private float[] CurrentCosts()
+	// A definition's or type's cost and penalty change without notice, so the prices are replaced when one differs
+	private StrongBox<NavFilter> CurrentPrices()
 	{
 		var definitions = Volatile.Read( ref areaRegistry ).Definitions;
-		var costs = Volatile.Read( ref areaCosts );
+		var types = Volatile.Read( ref linkTypes ).Types;
+		var current = Volatile.Read( ref prices );
+		if ( PricesMatch( current.Value, definitions, types ) ) return current;
+
+		var filter = NavFilter.Create();
+		for ( int id = FirstDefinitionArea; id < AreaCount; id++ ) filter = filter.WithAreaCost( id, CostOf( definitions[id] ) );
+		for ( int id = 1; id < LinkTypeCount && types[id] is { } type; id++ ) filter = filter.WithLinkCost( id, CostOf( type.CostMultiplier ) ).WithLinkPenalty( id, PenaltyOf( type.Penalty ) );
+		current = new StrongBox<NavFilter>( filter );
+		Volatile.Write( ref prices, current );
+		return current;
+	}
+
+	private static bool PricesMatch( in NavFilter filter, NavMeshAreaDefinition[] definitions, NavMeshLinkType[] types )
+	{
 		for ( int id = FirstDefinitionArea; id < AreaCount; id++ )
 		{
-			if ( costs[id] == CostOf( definitions[id] ) ) continue;
-			costs = Enumerable.Repeat( 1f, AreaCount ).ToArray();
-			for ( int i = FirstDefinitionArea; i < AreaCount; i++ ) costs[i] = CostOf( definitions[i] );
-			Volatile.Write( ref areaCosts, costs );
-			break;
+			if ( filter.AreaCosts[id] != CostOf( definitions[id] ) ) return false;
 		}
-		return costs;
+		for ( int id = 1; id < LinkTypeCount && types[id] is { } type; id++ )
+		{
+			if ( filter.LinkCosts[id] != CostOf( type.CostMultiplier ) || filter.LinkPenalties[id] != PenaltyOf( type.Penalty ) ) return false;
+		}
+		return true;
 	}
 
 	// Links without an area definition are always open. AllowDefaultArea is about the ground.

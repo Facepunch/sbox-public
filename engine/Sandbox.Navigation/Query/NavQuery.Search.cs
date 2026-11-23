@@ -329,7 +329,7 @@ public sealed partial class NavQuery
 		BeginNodes();
 		searchTarget = targetId;
 		searchTargetPoint = target;
-		searchClosest = SearchNode( Run( s, startId >> PolyRef.PolyBits ) + (int)(startId & PolyRef.PolyMask), startId, out _ );
+		searchClosest = SearchNode( Run( s, startId >> s.PolyBits ) + (int)(startId & s.PolyMask), startId, out _ );
 		searchClosestDistance = Vector3.Distance( start, target );
 		nodes[searchClosest].Pos = start;
 		wedges[searchClosest] = new Wedge { Apex = start, Left = start, Right = start };
@@ -348,6 +348,8 @@ public sealed partial class NavQuery
 		uint targetId = searchTarget;
 		bool reached = false;
 		int expansions = SearchExpansions;
+		int bits = s.PolyBits;
+		uint mask = s.PolyMask;
 		while ( (heapCount > 0 || front != NoFront) && expansions < limit )
 		{
 			ulong top = Pop();
@@ -371,13 +373,13 @@ public sealed partial class NavQuery
 			uint parent = node.Parent >= 0 ? nodes[node.Parent].Id : PolyRef.NoId;
 
 			var tile = s.Get( id );
-			int p = (int)(id & PolyRef.PolyMask);
-			uint tileBase = id & ~PolyRef.PolyMask;
-			int run = Run( s, id >> PolyRef.PolyBits );
+			int p = (int)(id & mask);
+			uint tileBase = id & ~mask;
+			int run = Run( s, id >> bits );
 			var polys = tile.Polys;
 			var verts = tile.Verts;
 			ref readonly var poly = ref polys[p];
-			float areaCost = filter.Cost( poly.Area );
+			float areaCost = filter.AreaCosts[poly.Area];
 			int n = poly.VertCount;
 
 			for ( int j = 0; j < n; j++ )
@@ -392,7 +394,7 @@ public sealed partial class NavQuery
 					byte area = polys[nei].Area;
 					if ( !filter.Allows( area ) ) continue;
 					int index = SearchNode( run + nei, next, out _ );
-					Enter( index, current, from, verts[poly.Verts[j]], verts[poly.Verts[j + 1 < n ? j + 1 : 0]], areaCost, filter.Cost( area ) );
+					Enter( index, current, from, verts[poly.Verts[j]], verts[poly.Verts[j + 1 < n ? j + 1 : 0]], areaCost, filter.AreaCosts[area] );
 					continue;
 				}
 
@@ -403,10 +405,10 @@ public sealed partial class NavQuery
 					if ( link.Target == parent ) continue;
 					byte area = link.Area;
 					if ( !filter.Allows( area ) ) continue;
-					int index = SearchNode( Run( s, link.Target >> PolyRef.PolyBits ) + (int)(link.Target & PolyRef.PolyMask), link.Target, out _ );
+					int index = SearchNode( Run( s, link.Target >> bits ) + (int)(link.Target & mask), link.Target, out _ );
 					Vector3 a = verts[poly.Verts[j]], b = verts[poly.Verts[j + 1 < n ? j + 1 : 0]];
-					if ( link.TMin == 0 && link.TMax == 255 ) Enter( index, current, from, a, b, areaCost, filter.Cost( area ) );
-					else Enter( index, current, from, Vector3.Lerp( a, b, link.TMin * (1f / 255f) ), Vector3.Lerp( a, b, link.TMax * (1f / 255f) ), areaCost, filter.Cost( area ) );
+					if ( link.TMin == 0 && link.TMax == 255 ) Enter( index, current, from, a, b, areaCost, filter.AreaCosts[area] );
+					else Enter( index, current, from, Vector3.Lerp( a, b, link.TMin * (1f / 255f) ), Vector3.Lerp( a, b, link.TMax * (1f / 255f) ), areaCost, filter.AreaCosts[area] );
 				}
 			}
 
@@ -414,20 +416,20 @@ public sealed partial class NavQuery
 			if ( attach.Length == 0 ) continue;
 			for ( int e = FirstAttach( attach, p ); e < attach.Length && attach[e].Poly == p; e++ )
 			{
-				ref readonly var link = ref s.Links[attach[e].Link];
+				ref readonly var link = ref s.Link( attach[e].Link );
 				bool forward = link.StartPoly == id;
 				uint next = forward ? link.EndPoly : link.StartPoly;
 				int type = link.Def.Type;
 				if ( next == parent || !filter.Allows( link.Def.Area ) || !filter.AllowsLink( type ) ) continue;
-				byte area = s.Get( next ).Polys[next & PolyRef.PolyMask].Area;
+				byte area = s.Get( next ).Polys[next & mask].Area;
 				if ( !filter.Allows( area ) ) continue;
 
 				// Walk to the entry on this polygon, pay the penalty of the link's type, then the link
 				// itself at the cost of its area and type.
 				Vector3 entry = forward ? link.StartPoint : link.EndPoint, exit = forward ? link.EndPoint : link.StartPoint;
-				int index = SearchNode( Run( s, next >> PolyRef.PolyBits ) + (int)(next & PolyRef.PolyMask), next, out _ );
-				float crossing = filter.LinkPenalty( type ) + Vector3.Distance( entry, exit ) * filter.Cost( link.Def.Area ) * filter.LinkCost( type );
-				EnterByLink( index, current, from, entry, exit, areaCost, crossing, filter.Cost( area ), attach[e].Link + 1u );
+				int index = SearchNode( Run( s, next >> bits ) + (int)(next & mask), next, out _ );
+				float crossing = filter.LinkPenalties[type] + Vector3.Distance( entry, exit ) * filter.AreaCosts[link.Def.Area] * filter.LinkCosts[type];
+				EnterByLink( index, current, from, entry, exit, areaCost, crossing, filter.AreaCosts[area], attach[e].Link + 1u );
 			}
 		}
 
@@ -663,7 +665,7 @@ public sealed partial class NavQuery
 		{
 			buffer[--at] = s.RefOf( nodes[i].Id );
 			uint link = nodes[i].Bits >> StateShift;
-			if ( link != 0 ) buffer[--at] = PolyRef.ForLink( s.Links[link - 1].Serial, (int)(link - 1) );
+			if ( link != 0 ) buffer[--at] = PolyRef.ForLink( s.Link( (int)(link - 1) ).Serial, (int)(link - 1) );
 		}
 		return count;
 	}
@@ -681,7 +683,7 @@ public sealed partial class NavQuery
 		{
 			if ( !s.TryGet( corridor[k], out _, out _ ) ) continue;
 			uint id = corridor[k].Id;
-			int node = cells[Run( s, id >> PolyRef.PolyBits ) + (int)(id & PolyRef.PolyMask)] - 1;
+			int node = cells[Run( s, id >> s.PolyBits ) + (int)(id & s.PolyMask)] - 1;
 			// Joining at the start node would leave the corridor unchanged.
 			if ( node < 0 || nodes[node].Parent < 0 ) continue;
 
@@ -703,25 +705,31 @@ public sealed partial class NavQuery
 
 	/// <summary>
 	/// The island map of a state for the area and link type masks of the filter, built on first need
-	/// and kept with the state. Finding a map that exists takes no lock. Threads that miss it at the
-	/// same moment queue behind one builder, so a state gets each map once.
+	/// and kept with the state. Finding a map that exists takes no lock. Threads that miss it queue
+	/// behind one builder per mesh, so a state gets each map once and a map starts from the last one
+	/// built for its area mask on any state of the mesh.
 	/// </summary>
 	internal static IslandMap GetIslands( MeshState s, in NavFilter filter )
 	{
-		ulong forbidden = filter.Forbidden, forbiddenLinks = filter.ForbiddenLinks;
+		ulong forbidden = filter.ForbiddenAreas, forbiddenLinks = filter.ForbiddenLinks;
 		for ( var map = Volatile.Read( ref s.Islands ); map != null; map = map.Next )
 		{
 			if ( map.Forbidden == forbidden && map.ForbiddenLinks == forbiddenLinks ) return map;
 		}
 
 		// Taken only on the miss path, never by a reader that finds the value
-		lock ( s )
+		var latest = s.LatestIslands;
+		lock ( latest )
 		{
 			for ( var map = s.Islands; map != null; map = map.Next )
 			{
 				if ( map.Forbidden == forbidden && map.ForbiddenLinks == forbiddenLinks ) return map;
 			}
-			var built = new IslandMap( s, forbidden, forbiddenLinks ) { Next = s.Islands };
+			int at = 0;
+			while ( at < latest.Count && latest[at].Forbidden != forbidden ) at++;
+			var built = new IslandMap( s, forbidden, forbiddenLinks, at < latest.Count ? latest[at] : null ) { Next = s.Islands };
+			if ( at < latest.Count ) latest[at] = built;
+			else latest.Add( built );
 			Volatile.Write( ref s.Islands, built );
 			return built;
 		}

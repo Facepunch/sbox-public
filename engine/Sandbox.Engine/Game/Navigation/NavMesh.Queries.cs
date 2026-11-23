@@ -87,7 +87,7 @@ public sealed partial class NavMesh
 		return (filter, new Vector3( SnapDistance, SnapDistance, height * SnapHeights ));
 	}
 
-	private NavMeshPath CalculatePathCore( QueryScratch scratch, Vector3 start, Vector3 target, Vector3 extents, NavFilter filter )
+	private NavMeshPath CalculatePathCore( QueryScratch scratch, Vector3 start, Vector3 target, Vector3 extents, in NavFilter filter )
 	{
 		if ( scratch is null ) return new() { Status = NavMeshPathStatus.StartNotFound };
 
@@ -145,13 +145,16 @@ public sealed partial class NavMesh
 		return null;
 	}
 
+	// Queries without an agent look at every area
+	private static readonly NavFilter anyArea = NavFilter.Create();
+
 	private Vector3? RandomPoint( Vector3 center, float radius )
 	{
 		var scratch = RentQuery();
 		if ( scratch is null ) return null;
 
 		uint seed = (uint)Random.Shared.Next();
-		bool found = scratch.Query.FindRandomPoint( center, radius, default, ref seed, out _, out var point );
+		bool found = scratch.Query.FindRandomPoint( center, radius, anyArea, ref seed, out _, out var point );
 		ReturnQuery( scratch );
 		return found ? (Vector3)point : null;
 	}
@@ -161,7 +164,7 @@ public sealed partial class NavMesh
 		var scratch = RentQuery();
 		if ( scratch is null ) return null;
 
-		bool found = scratch.Query.FindNearest( box.Center, box.Extents, default, out _, out var nearest );
+		bool found = scratch.Query.FindNearest( box.Center, box.Extents, anyArea, out _, out var nearest );
 		ReturnQuery( scratch );
 		return found ? (Vector3)nearest : null;
 	}
@@ -178,8 +181,8 @@ public sealed partial class NavMesh
 		if ( scratch is null ) return null;
 
 		var extents = box.Extents;
-		bool found = scratch.Query.FindNearest( box.Center, extents, default, out var poly, out var nearest )
-			&& scratch.Query.FindNearestWall( poly, nearest, MathF.Max( extents.x, extents.y ), default, out nearest );
+		bool found = scratch.Query.FindNearest( box.Center, extents, anyArea, out var poly, out var nearest )
+			&& scratch.Query.FindNearestWall( poly, nearest, MathF.Max( extents.x, extents.y ), anyArea, out nearest );
 		ReturnQuery( scratch );
 		return found ? (Vector3)nearest : null;
 	}

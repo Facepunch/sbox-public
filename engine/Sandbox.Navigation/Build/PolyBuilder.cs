@@ -179,7 +179,7 @@ internal sealed class PolyBuilder
 			i--;
 		}
 
-		if ( PolyCount > BuildConfig.MaxPolys )
+		if ( PolyCount > Poly.MaxPerTile )
 		{
 			error = "Too many polygons";
 			return false;

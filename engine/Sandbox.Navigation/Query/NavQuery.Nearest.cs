@@ -96,7 +96,7 @@ public sealed partial class NavQuery
 				foreach ( var tile in page )
 				{
 					if ( tile != null && tile.X >= minX && tile.X <= maxX && tile.Y >= minY && tile.Y <= maxY )
-						NearestInTile( tile, point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
+						NearestInTile( s, tile, point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
 				}
 			}
 			return id != PolyRef.NoId;
@@ -106,7 +106,7 @@ public sealed partial class NavQuery
 		{
 			if ( ring == 0 )
 			{
-				NearestInTile( s.Find( cx, cy ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
+				NearestInTile( s, s.Find( cx, cy ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
 				continue;
 			}
 
@@ -116,13 +116,13 @@ public sealed partial class NavQuery
 
 			for ( int x = Math.Max( cx - ring, minX ); x <= Math.Min( cx + ring, maxX ); x++ )
 			{
-				if ( cy - ring >= minY ) NearestInTile( s.Find( x, cy - ring ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
-				if ( cy + ring <= maxY ) NearestInTile( s.Find( x, cy + ring ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
+				if ( cy - ring >= minY ) NearestInTile( s, s.Find( x, cy - ring ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
+				if ( cy + ring <= maxY ) NearestInTile( s, s.Find( x, cy + ring ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
 			}
 			for ( int y = Math.Max( cy - ring + 1, minY ); y <= Math.Min( cy + ring - 1, maxY ); y++ )
 			{
-				if ( cx - ring >= minX ) NearestInTile( s.Find( cx - ring, y ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
-				if ( cx + ring <= maxX ) NearestInTile( s.Find( cx + ring, y ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
+				if ( cx - ring >= minX ) NearestInTile( s, s.Find( cx - ring, y ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
+				if ( cx + ring <= maxX ) NearestInTile( s, s.Find( cx + ring, y ), point, bmin, bmax, filter, islands, island, ref best, ref id, ref nearest );
 			}
 		}
 		return id != PolyRef.NoId;
@@ -141,7 +141,7 @@ public sealed partial class NavQuery
 		return bmin.X <= max.X && bmax.X >= min.X && bmin.Y <= max.Y && bmax.Y >= min.Y && bmin.Z <= max.Z && bmax.Z >= min.Z;
 	}
 
-	void NearestInTile( Tile? tile, Vector3 point, Vector3 bmin, Vector3 bmax, in NavFilter filter, IslandMap? islands, int island, ref float best, ref uint id, ref Vector3 nearest )
+	void NearestInTile( MeshState s, Tile? tile, Vector3 point, Vector3 bmin, Vector3 bmax, in NavFilter filter, IslandMap? islands, int island, ref float best, ref uint id, ref Vector3 nearest )
 	{
 		if ( tile == null ) return;
 		var tree = tile.Tree;
@@ -151,15 +151,13 @@ public sealed partial class NavQuery
 		var polys = tile.Polys;
 		// Restricted to an island: skip the tile unless one of its components belongs to it.
 		ushort[]? components = null;
-		int[] labels = [];
-		int firstLabel = 0;
+		TileLabels labels = default;
 		if ( islands != null )
 		{
 			var local = tile.Islands( islands.Forbidden );
-			labels = islands.Labels;
-			firstLabel = islands.First[tile.Slot];
+			labels = islands.For( tile );
 			bool any = false;
-			for ( int c = 0; c < local.Count; c++ ) any |= labels[firstLabel + c] == island;
+			for ( int c = 0; c < local.Count; c++ ) any |= labels[c] == island;
 			if ( !any ) return;
 			components = local.Component;
 		}
@@ -209,7 +207,7 @@ public sealed partial class NavQuery
 			{
 				ref readonly var poly = ref polys[p];
 				if ( !filter.Allows( poly.Area ) ) continue;
-				if ( components != null && (components[p] == TileIslands.None || labels[firstLabel + components[p]] != island) ) continue;
+				if ( components != null && (components[p] == TileIslands.None || labels[components[p]] != island) ) continue;
 
 				int n = Gather( tile, poly, v );
 				Vector3 min = v[0], max = v[0];
@@ -238,7 +236,7 @@ public sealed partial class NavQuery
 				{
 					best = distance;
 					nearest = closest;
-					id = (uint)tile.Slot << PolyRef.PolyBits | (uint)p;
+					id = s.IdOf( tile, p );
 				}
 			}
 		}

@@ -11,7 +11,7 @@ namespace Nav.Lib.Tests;
 public class CrowdCorneringTests
 {
 	const float Delta = 0.02f;
-	static readonly AgentParams Settings = AgentParams.Create( 16, 64, 180, 1200 );
+	static readonly AgentParams Settings = AgentParams.Create( new() { Radius = 16, Height = 64, MaxSpeed = 180, Acceleration = 1200 } );
 
 	[TestMethod]
 	[DataRow( "straight", false )]
@@ -27,7 +27,7 @@ public class CrowdCorneringTests
 		if ( reverse ) (start, target) = (target, start);
 
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( start, target, new Vector3( 8 ), default, path ) );
+		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( start, target, new Vector3( 8 ), Filters.All, path ) );
 		var route = path.Corners.ToArray();
 		float shortest = path.Length;
 

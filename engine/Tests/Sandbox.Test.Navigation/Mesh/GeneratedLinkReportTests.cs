@@ -68,7 +68,7 @@ public class GeneratedLinkReportTests
 
 		Assert.AreEqual( 0, scene.Mesh.GetGeneratedLinks( new List<int>() ) );
 		Assert.AreEqual( 0, scene.Mesh.LinksRefused );
-		Assert.AreEqual( 0, scene.Mesh.State.Links.Count( l => l.Serial != 0 ) );
+		Assert.AreEqual( 0, scene.Mesh.State.Links().Count( l => l.Serial != 0 ) );
 
 		var reported = Reported( scene.Mesh, 0, 0 ).Concat( Reported( scene.Mesh, 1, 0 ) ).ToList();
 		var ids = new List<int>();
@@ -144,7 +144,7 @@ public class GeneratedLinkReportTests
 		var query = new NavQuery( scene.Mesh );
 		var path = new NavPath();
 		Vector3 west = new( 380, 240, 100 ), east = new( 680, 240, 100 ), floor = new( 100, 100, 0 );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( west, east, Snap, default, path ), "nothing is inserted" );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( west, east, Snap, Filters.All, path ), "nothing is inserted" );
 
 		var engine = new Engine();
 		engine.Sync( scene.Mesh );
@@ -153,21 +153,21 @@ public class GeneratedLinkReportTests
 		// Each stands where it was reported, on the polygons the inserted link of the twin joins.
 		var ids = new List<int>();
 		twin.Mesh.GetGeneratedLinks( ids );
-		var meant = ids.Select( id => twin.Mesh.State.Links[id] ).ToList();
+		var meant = ids.Select( id => twin.Mesh.State.LinkAt( id ) ).ToList();
 		foreach ( var (link, id) in engine.All )
 		{
 			Assert.IsTrue( scene.Mesh.GetLink( id, out _, out bool generated ) && !generated );
-			var entry = scene.Mesh.State.Links[id];
+			var entry = scene.Mesh.State.LinkAt( id );
 			Assert.IsTrue( entry.Connected, $"{link} is not on the mesh" );
 			Assert.AreEqual( link.Start, entry.StartPoint );
 			Assert.AreEqual( link.End, entry.EndPoint );
 			Assert.IsTrue( meant.Any( m => m.StartPoly == entry.StartPoly && m.EndPoly == entry.EndPoly && m.StartPoint == entry.StartPoint && m.EndPoint == entry.EndPoint ), $"{link} joins other polygons" );
 		}
 
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( west, east, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( west, east, Snap, Filters.All, path ) );
 		Assert.IsTrue( path.Polys.ToArray().Count( p => p.IsLink ) == 1 && path.Length < 400 );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( west, floor, Snap, default, path ) );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( west, east, Snap, new NavFilter( 0, forbiddenLinks: 1ul << Jump ), path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( west, floor, Snap, Filters.All, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( west, east, Snap, Filters.All.WithForbiddenLinks( 1ul << Jump ), path ) );
 
 		// The links the engine added hide nothing from the generator: built again, every tile reports
 		// what it did, and the engine has nothing to do.
@@ -181,7 +181,7 @@ public class GeneratedLinkReportTests
 		Assert.AreEqual( (created, 0), (engine.Created, engine.Destroyed) );
 		CollectionAssert.AreEqual( Reported( twin.Mesh, 0, 0 ), Reported( scene.Mesh, 0, 0 ) );
 		CollectionAssert.AreEqual( Reported( twin.Mesh, 1, 0 ), Reported( scene.Mesh, 1, 0 ) );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( west, east, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( west, east, Snap, Filters.All, path ) );
 	}
 
 	[TestMethod]
@@ -201,7 +201,7 @@ public class GeneratedLinkReportTests
 		engine.Sync( scene.Mesh );
 		Assert.AreEqual( (all.Count, east), (engine.Created, engine.Destroyed) );
 		CollectionAssert.AreEqual( all.Where( l => !East( l ) ).ToList(), Reported( scene.Mesh, 0, 0 ) );
-		Assert.IsTrue( engine.All.All( o => scene.Mesh.State.Links[o.Id].Connected ) );
+		Assert.IsTrue( engine.All.All( o => scene.Mesh.State.LinkAt( o.Id ).Connected ) );
 
 		// It leaves: they come back, the same as before.
 		scene.Mesh.RemoveVolume( id );

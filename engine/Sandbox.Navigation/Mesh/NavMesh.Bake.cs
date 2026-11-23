@@ -24,8 +24,8 @@ namespace Nav;
 /// </summary>
 public sealed partial class NavMesh
 {
-	const uint BakeMagic = 0x4256414E, BakeVersion = 2;
-	const int HeaderBytes = 52;
+	const uint BakeMagic = 0x4256414E, BakeVersion = 3;
+	const int HeaderBytes = 56;
 
 	// The least a tile takes: two coordinates, two counts, and a polygon of three corners over three vertices
 	const int MinTileBytes = 4 + 4 + 9;
@@ -35,16 +35,19 @@ public sealed partial class NavMesh
 	static long MostBytes( Tile tile ) => 28 + tile.Polys.Length * 19L + tile.Verts.Length * 15L;
 
 	/// <summary>
-	/// Writes the bake. False, with nothing written, when it could exceed 2 GB. Call it on the owner
-	/// thread. The tiles written are one state, but the volume set each was built with is what the owner
-	/// holds at that moment: a save that overlaps a Commit can write a tile next to the volume set of
-	/// its next build, and a mesh loaded from that takes the tile for up to date. The writer has to hand
-	/// out the header as one span and each tile as one span.
+	/// Writes the bake. False, with nothing written, when it could exceed 2 GB. Any thread, also while
+	/// the owner commits. The tiles written are one state, each with the volume set it was built with or,
+	/// when the save overlaps a Commit, one it had before, never the set of a later build. A load keeps a
+	/// tile only under the set written with it, so loaded under the volumes it was built with, a tile is
+	/// kept or rebuilt, never kept out of date. The writer has to hand out the header as one span and
+	/// each tile as one span.
 	/// A vertex is written as the cell it sits on, which is where the builder puts every vertex, so a
 	/// loaded tile is the built one bit for bit.
 	/// </summary>
 	public bool Save( IBufferWriter<byte> output )
 	{
+		// The hashes before the state: the owner publishes them after it.
+		var hashes = Volatile.Read( ref tileHashes );
 		var s = State;
 		var tiles = new Tile[s.TileCount];
 		int count = 0;
@@ -77,11 +80,13 @@ public sealed partial class NavMesh
 		BinaryPrimitives.WriteInt32LittleEndian( head[36..], settings.MaxEdgeCells );
 		BinaryPrimitives.WriteInt32LittleEndian( head[40..], settings.MinRegionCells );
 		BinaryPrimitives.WriteSingleLittleEndian( head[44..], settings.MaxEdgeError );
-		BinaryPrimitives.WriteInt32LittleEndian( head[48..], count );
+		BinaryPrimitives.WriteInt32LittleEndian( head[48..], settings.MaxTilePolygons );
+		BinaryPrimitives.WriteInt32LittleEndian( head[52..], count );
 		output.Advance( HeaderBytes );
 
 		double cellSize = settings.CellSize, cellHeight = settings.CellHeight;
 		long lastX = 0, lastY = 0;
+		int next = 0;
 		foreach ( var tile in tiles )
 		{
 			var to = output.GetSpan( (int)MostBytes( tile ) );
@@ -91,7 +96,9 @@ public sealed partial class NavMesh
 			lastX = tile.X;
 			lastY = tile.Y;
 
-			ulong hash = VolumeHashOf( tile.X, tile.Y );
+			// Both in the order of y, then x
+			while ( next < hashes.Length && (hashes[next].Y, hashes[next].X).CompareTo( (tile.Y, tile.X) ) < 0 ) next++;
+			ulong hash = next < hashes.Length && hashes[next].Y == tile.Y && hashes[next].X == tile.X ? hashes[next].Hash : 0;
 			Put( to, ref at, (ulong)tile.Polys.Length * 2 + (hash != 0 ? 1u : 0u) );
 			Put( to, ref at, (ulong)tile.Verts.Length );
 			if ( hash != 0 )
@@ -217,7 +224,8 @@ public sealed partial class NavMesh
 			AgentMaxSlope = BinaryPrimitives.ReadSingleLittleEndian( data[32..] ),
 			MaxEdgeCells = BinaryPrimitives.ReadInt32LittleEndian( data[36..] ),
 			MinRegionCells = BinaryPrimitives.ReadInt32LittleEndian( data[40..] ),
-			MaxEdgeError = BinaryPrimitives.ReadSingleLittleEndian( data[44..] )
+			MaxEdgeError = BinaryPrimitives.ReadSingleLittleEndian( data[44..] ),
+			MaxTilePolygons = BinaryPrimitives.ReadInt32LittleEndian( data[48..] )
 		};
 		return settings.IsValid( out _ );
 	}
@@ -231,11 +239,11 @@ public sealed partial class NavMesh
 	/// which asks for geometry, for every tile where they differ. Generated links are not in a bake
 	/// either: a loaded tile has none until it is built from triangles again.
 	/// </summary>
-	public static NavMesh? Load( ReadOnlySpan<byte> data, NavCodec codec = default, bool keepFields = true, NavLinkSettings links = default )
+	public static NavMesh? Load( ReadOnlySpan<byte> data, in NavMeshOptions options )
 	{
-		if ( !TryReadSettings( data, out var settings ) || !links.IsValid( settings, out _ ) ) return null;
-		int count = BinaryPrimitives.ReadInt32LittleEndian( data[48..] );
-		if ( count < 0 || count > PolyRef.MaxTiles || HeaderBytes + (long)count * MinTileBytes > data.Length ) return null;
+		if ( !TryReadSettings( data, out var settings ) || !options.Links.IsValid( settings, out _ ) ) return null;
+		int count = BinaryPrimitives.ReadInt32LittleEndian( data[52..] );
+		if ( count < 0 || count > PolyRef.MaxTiles( settings.PolyBits ) || HeaderBytes + (long)count * MinTileBytes > data.Length ) return null;
 
 		var reader = new BakeReader( data, HeaderBytes );
 		var loader = new TileLoader( settings );
@@ -257,7 +265,7 @@ public sealed partial class NavMesh
 		}
 		if ( reader.Left != 0 ) return null;
 
-		var mesh = new NavMesh( settings, codec, keepFields, links );
+		var mesh = new NavMesh( settings, options );
 		mesh.CommitTiles( tiles );
 		mesh.SetVolumeHashes( tiles, hashes );
 		return mesh;
@@ -283,7 +291,7 @@ public sealed partial class NavMesh
 		{
 			hash = 0;
 			ulong head = reader.Number(), vertNumber = reader.Number();
-			if ( head < 2 || head >> 1 > Poly.MaxPerTile || vertNumber < 3 || vertNumber > Poly.MaxVertsPerTile ) return null;
+			if ( head < 2 || head >> 1 > (ulong)settings.MaxTilePolygons || vertNumber < 3 || vertNumber > Poly.MaxVertsPerTile ) return null;
 			int polyCount = (int)(head >> 1), vertCount = (int)vertNumber;
 
 			// Before anything is allocated: a polygon takes at least four bytes, a vertex three

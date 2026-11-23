@@ -22,16 +22,30 @@ public sealed partial class NavMesh
 
 	// Scratch of one commit.
 	Tile?[]?[] workPages = [];
+	LinkEntry[]?[] workLinks = [];
 	TileIndex workIndex = null!;
-	bool pagesOwned, indexOwned;
-	uint[] pageStamps = [];
+	bool pagesOwned, linksOwned, indexOwned;
+	uint[] pageStamps = [], linkPageStamps = [];
 	readonly List<(int X, int Y)> touched = new();
 	readonly HashSet<(int X, int Y)> touchedSet = new();
 	readonly Dictionary<int, byte> slotFlags = new();
 	readonly List<ExtLink> extScratch = new();
+	int[] facingScratch = [];
 	readonly List<ulong> attachKeys = new();
 	readonly List<int> attachSlots = new();
+	readonly List<int> linkCandidates = new();
+
+	// Owner side, per tile: the published links whose snap boxes overlap it. An end snaps only to a tile
+	// of its box, so these are all the links the link rule can resolve again when the tile changes, and
+	// all that attach to it. A link whose two boxes cover more than WideTiles tiles is in wideLinks
+	// instead, which every commit that changes tiles goes through.
+	readonly Dictionary<(int X, int Y), List<int>> linksNear = new();
+	readonly List<int> wideLinks = new();
+	const int WideTiles = 64;
 	NavQuery? snapQuery;
+
+	// A link end snaps to any polygon.
+	static readonly NavFilter anyPoly = NavFilter.Create();
 
 	/// <summary>
 	/// Publishes finished tiles in one state swap. Returns how many did not fit the tile table.
@@ -45,7 +59,7 @@ public sealed partial class NavMesh
 
 	int Apply()
 	{
-		if ( changes.Count == 0 && !linksDirty && relink.Count == 0 && held.Count == 0 ) return 0;
+		if ( changes.Count == 0 && linkQueue.Count == 0 && relink.Count == 0 && held.Count == 0 ) return 0;
 
 		var old = state;
 		if ( ++commits == 0 )
@@ -54,12 +68,14 @@ public sealed partial class NavMesh
 			// the last round may pass for a copy of this commit.
 			commits = 1;
 			Array.Clear( pageStamps );
+			Array.Clear( linkPageStamps );
 			old.Index.ForgetStamps();
 		}
 		uint serial = commits;
 		workPages = old.Pages;
+		workLinks = old.LinkPages;
 		workIndex = old.Index;
-		pagesOwned = indexOwned = false;
+		pagesOwned = linksOwned = indexOwned = false;
 		int tileCount = old.TileCount, failed = 0;
 
 		foreach ( var change in changes )
@@ -80,11 +96,11 @@ public sealed partial class NavMesh
 				if ( slot < 0 )
 				{
 					if ( freeSlots.Count > 0 ) slot = freeSlots.Dequeue();
-					else if ( slotCount < PolyRef.MaxTiles ) slot = slotCount++;
+					else if ( slotCount < MaxTiles ) slot = slotCount++;
 					else
 					{
 						failed++;
-						change.Job?.Complete( TileJobStatus.Failed, null, $"the mesh already holds {PolyRef.MaxTiles} tiles" );
+						change.Job?.Complete( TileJobStatus.Failed, null, $"the mesh already holds {MaxTiles} tiles" );
 						continue;
 					}
 					OwnIndex().Set( change.X, change.Y, slot, serial );
@@ -120,18 +136,17 @@ public sealed partial class NavMesh
 
 		if ( indexOwned ) workIndex.Seal();
 		// Link ends snap against the new tiles. Attaching them may still replace tile objects.
-		var links = old.Links;
-		var next = new MeshState( workPages, workIndex, links, 0, tileCount );
+		var next = new MeshState( workPages, workIndex, old.LinkPages, 0, tileCount, polyBits, old.LatestIslands );
 		if ( relink.Count > 0 || held.Count > 0 ) SettleLinks( next );
-		bool linksChanged = linkHigh > 0 && (linksDirty || touched.Count > 0) && ResolveLinks( next, serial, ref links );
-		linksDirty = false;
+		bool linksChanged = (linkQueue.Count > 0 || touched.Count > 0) && ResolveLinks( old, next, serial );
 
-		if ( touched.Count > 0 || linksChanged ) Volatile.Write( ref state, new MeshState( workPages, workIndex, links, old.Version + 1, tileCount ) );
+		if ( touched.Count > 0 || linksChanged ) Volatile.Write( ref state, new MeshState( workPages, workIndex, workLinks, old.Version + 1, tileCount, polyBits, old.LatestIslands ) );
 
 		touched.Clear();
 		touchedSet.Clear();
 		slotFlags.Clear();
 		workPages = [];
+		workLinks = [];
 		workIndex = null!;
 		return failed;
 	}
@@ -146,23 +161,27 @@ public sealed partial class NavMesh
 		return workIndex;
 	}
 
-	void SetTile( int slot, Tile? tile, uint serial )
+	void SetTile( int slot, Tile? tile, uint serial ) => Owned( ref workPages, ref pagesOwned, ref pageStamps, slot, MeshState.PageBits, serial ) = tile;
+
+	// An element of a paged table that this commit may write. The root is copied once per commit, a
+	// page once per commit that writes to it: pages carry the serial of the commit that copied them.
+	static ref T Owned<T>( ref T[]?[] pages, ref bool owned, ref uint[] stamps, int index, int bits, uint serial )
 	{
-		int page = slot >> MeshState.PageBits;
-		if ( !pagesOwned || page >= workPages.Length )
+		int page = index >> bits;
+		if ( !owned || page >= pages.Length )
 		{
-			var root = new Tile?[]?[Math.Max( workPages.Length, page + 1 )];
-			workPages.CopyTo( root, 0 );
-			workPages = root;
-			pagesOwned = true;
-			if ( pageStamps.Length < root.Length ) Array.Resize( ref pageStamps, Math.Max( root.Length, pageStamps.Length * 2 ) );
+			var root = new T[]?[Math.Max( pages.Length, page + 1 )];
+			pages.CopyTo( root, 0 );
+			pages = root;
+			owned = true;
+			if ( stamps.Length < root.Length ) Array.Resize( ref stamps, Math.Max( root.Length, stamps.Length * 2 ) );
 		}
-		if ( pageStamps[page] != serial )
+		if ( stamps[page] != serial )
 		{
-			workPages[page] = workPages[page] is { } shared ? (Tile?[])shared.Clone() : new Tile?[MeshState.PageSize];
-			pageStamps[page] = serial;
+			pages[page] = pages[page] is { } shared ? (T[])shared.Clone() : new T[1 << bits];
+			stamps[page] = serial;
 		}
-		workPages[page]![slot & (MeshState.PageSize - 1)] = tile;
+		return ref pages[page]![index & ((1 << bits) - 1)];
 	}
 
 	Tile? WorkTile( int x, int y )
@@ -193,17 +212,35 @@ public sealed partial class NavMesh
 		threshold *= threshold;
 		Tile? east = WorkTile( tile.X + 1, tile.Y ), north = WorkTile( tile.X, tile.Y + 1 ), west = WorkTile( tile.X - 1, tile.Y ), south = WorkTile( tile.X, tile.Y - 1 );
 
+		// Per side, the portals of the tile beyond that face this one, in their order.
+		int total = (east?.Portals.Length ?? 0) + (north?.Portals.Length ?? 0) + (west?.Portals.Length ?? 0) + (south?.Portals.Length ?? 0);
+		if ( facingScratch.Length < total ) facingScratch = new int[Math.Max( total, facingScratch.Length * 2 )];
+		Span<int> first = stackalloc int[5];
+		int gathered = 0;
+		for ( int side = 0; side < 4; side++ )
+		{
+			first[side] = gathered;
+			var beyond = side == 0 ? east : side == 1 ? north : side == 2 ? west : south;
+			if ( beyond == null ) continue;
+			for ( int c = 0; c < beyond.Portals.Length; c++ )
+			{
+				if ( beyond.Portals[c].Side == (side ^ 2) ) facingScratch[gathered++] = c;
+			}
+		}
+		first[4] = gathered;
+
 		foreach ( ref readonly var edge in tile.Portals.AsSpan() )
 		{
 			var other = edge.Side == 0 ? east : edge.Side == 1 ? north : edge.Side == 2 ? west : south;
 			if ( other == null ) continue;
 			bool ascending = EdgeHeights( tile, edge, out float zLo, out float zHi );
 
-			int facing = edge.Side ^ 2, last = -1;
-			foreach ( ref readonly var candidate in other.Portals.AsSpan() )
+			int last = -1;
+			for ( int f = first[edge.Side]; f < first[edge.Side + 1]; f++ )
 			{
+				ref readonly var candidate = ref other.Portals[facingScratch[f]];
 				// One connection per neighbour polygon and edge.
-				if ( candidate.Side != facing || candidate.Poly == last ) continue;
+				if ( candidate.Poly == last ) continue;
 				int lo = Math.Max( edge.Lo, candidate.Lo ), hi = Math.Min( edge.Hi, candidate.Hi );
 				if ( lo >= hi ) continue;
 
@@ -219,7 +256,7 @@ public sealed partial class NavMesh
 
 				extScratch.Add( new ExtLink
 				{
-					Target = (uint)other.Slot << PolyRef.PolyBits | candidate.Poly,
+					Target = (uint)other.Slot << polyBits | candidate.Poly,
 					Poly = edge.Poly,
 					Edge = edge.Edge,
 					Side = edge.Side,
@@ -247,17 +284,33 @@ public sealed partial class NavMesh
 	static float HeightAt( in PortalEdge edge, float zLo, float zHi, int cell ) => zLo + (zHi - zLo) * (cell - edge.Lo) / (edge.Hi - edge.Lo);
 
 	// The link rule: a link is resolved again when it changed, when its snap boxes overlap a committed or
-	// removed tile, or when one of its polygons lives in one. Returns true when any link entry changed.
-	bool ResolveLinks( MeshState next, uint serial, ref LinkEntry[] links )
+	// removed tile, or when one of its polygons lives in one. Only links added, set or removed since the
+	// last commit and those listed at a changed tile can be such. Returns true when any entry changed.
+	bool ResolveLinks( MeshState old, MeshState next, uint serial )
 	{
-		bool owned = false;
 		attachSlots.Clear();
-
-		for ( int id = 0; id < linkHigh; id++ )
+		var candidates = linkCandidates;
+		candidates.Clear();
+		candidates.AddRange( linkQueue );
+		linkQueue.Clear();
+		if ( touched.Count > 0 )
 		{
+			foreach ( var at in touched )
+			{
+				if ( linksNear.TryGetValue( at, out var near ) ) candidates.AddRange( near );
+			}
+			candidates.AddRange( wideLinks );
+		}
+		candidates.Sort();
+
+		int previous = -1;
+		foreach ( int id in candidates )
+		{
+			if ( id == previous ) continue;
+			previous = id;
 			byte status = linkStatus[id];
 			if ( status == LinkFree ) continue;
-			var entry = id < links.Length ? links[id] : default;
+			var entry = old.LinkAt( id );
 			LinkEntry updated = default;
 
 			if ( status == LinkRemoved ) linkStatus[id] = LinkFree;
@@ -275,14 +328,15 @@ public sealed partial class NavMesh
 			}
 
 			if ( entry.Serial == 0 && updated.Serial == 0 ) continue;
-			if ( !owned )
+			Owned( ref workLinks, ref linksOwned, ref linkPageStamps, id, MeshState.LinkPageBits, serial ) = updated;
+
+			if ( entry.Serial == 0 || updated.Serial == 0 || SnapBox( entry.Def.Start, entry.Def.Radius ) != SnapBox( updated.Def.Start, updated.Def.Radius )
+				|| SnapBox( entry.Def.End, entry.Def.Radius ) != SnapBox( updated.Def.End, updated.Def.Radius ) )
 			{
-				var copy = new LinkEntry[Math.Max( links.Length, linkHigh )];
-				links.CopyTo( copy, 0 );
-				links = copy;
-				owned = true;
+				if ( entry.Serial != 0 ) ListLink( id, entry.Def, false );
+				if ( updated.Serial != 0 ) ListLink( id, updated.Def, true );
 			}
-			links[id] = updated;
+
 			if ( entry.Serial != 0 && entry.Connected )
 			{
 				MarkReattach( entry.StartPoly );
@@ -295,55 +349,93 @@ public sealed partial class NavMesh
 			}
 		}
 
-		if ( !owned ) return false;
-		if ( attachSlots.Count == 0 ) return true;
+		if ( !linksOwned ) return false;
 
-		// Polygon id above, link id in the low 16 bits: sorting groups by tile, then polygon.
-		attachKeys.Clear();
-		for ( int id = 0; id < links.Length; id++ )
-		{
-			ref readonly var entry = ref links[id];
-			if ( entry.Serial == 0 || !entry.Connected || entry.StartPoly == entry.EndPoly ) continue;
-			if ( NeedsReattach( entry.StartPoly ) ) attachKeys.Add( (ulong)entry.StartPoly << 16 | (uint)id );
-			if ( entry.Def.Bidirectional && NeedsReattach( entry.EndPoly ) ) attachKeys.Add( (ulong)entry.EndPoly << 16 | (uint)id );
-		}
-		attachKeys.Sort();
-
-		var keys = CollectionsMarshal.AsSpan( attachKeys );
+		// Polygon id above, link id in the low 16 bits: sorting groups by polygon.
 		foreach ( int slot in attachSlots )
 		{
-			if ( workPages[slot >> MeshState.PageBits]?[slot & (MeshState.PageSize - 1)] == null ) continue;
-			int first = 0, end = keys.Length;
-			ulong low = (ulong)slot << (PolyRef.PolyBits + 16);
-			while ( first < end )
-			{
-				int middle = (first + end) >> 1;
-				if ( keys[middle] < low ) first = middle + 1;
-				else end = middle;
-			}
-			int count = 0;
-			while ( first + count < keys.Length && (int)(keys[first + count] >> (PolyRef.PolyBits + 16)) == slot ) count++;
+			var target = workPages[slot >> MeshState.PageBits]?[slot & (MeshState.PageSize - 1)];
+			if ( target == null ) continue;
+			attachKeys.Clear();
+			if ( linksNear.TryGetValue( (target.X, target.Y), out var near ) ) AttachKeys( near, slot );
+			AttachKeys( wideLinks, slot );
+			attachKeys.Sort();
 
 			ref byte flags = ref CollectionsMarshal.GetValueRefOrNullRef( slotFlags, slot );
 			var tile = FreshTile( slot, ref flags, serial );
+			int count = attachKeys.Count;
 			tile.Attach = count == 0 ? [] : new LinkAttach[count];
 			for ( int i = 0; i < count; i++ )
-				tile.Attach[i] = new LinkAttach { Poly = (ushort)(keys[first + i] >> 16 & PolyRef.PolyMask), Link = (ushort)keys[first + i] };
+				tile.Attach[i] = new LinkAttach { Poly = (ushort)(attachKeys[i] >> 16 & polyMask), Link = (ushort)attachKeys[i] };
 		}
 		return true;
 	}
 
-	void MarkReattach( uint poly )
+	void AttachKeys( List<int> ids, int slot )
 	{
-		ref byte flags = ref CollectionsMarshal.GetValueRefOrAddDefault( slotFlags, (int)(poly >> PolyRef.PolyBits), out _ );
-		if ( (flags & Reattach) != 0 ) return;
-		flags |= Reattach;
-		attachSlots.Add( (int)(poly >> PolyRef.PolyBits) );
+		foreach ( int id in ids )
+		{
+			ref readonly var entry = ref workLinks[id >> MeshState.LinkPageBits]![id & (MeshState.LinkPageSize - 1)];
+			if ( !entry.Connected || entry.StartPoly == entry.EndPoly ) continue;
+			if ( (int)(entry.StartPoly >> polyBits) == slot ) attachKeys.Add( (ulong)entry.StartPoly << 16 | (uint)id );
+			if ( entry.Def.Bidirectional && (int)(entry.EndPoly >> polyBits) == slot ) attachKeys.Add( (ulong)entry.EndPoly << 16 | (uint)id );
+		}
 	}
 
-	bool NeedsReattach( uint poly ) => slotFlags.TryGetValue( (int)(poly >> PolyRef.PolyBits), out byte flags ) && (flags & Reattach) != 0;
+	readonly record struct TileBox( int MinX, int MinY, int MaxX, int MaxY )
+	{
+		public static readonly TileBox Empty = new( 0, 0, -1, -1 );
+		public long Area => MaxX < MinX || MaxY < MinY ? 0 : ((long)MaxX - MinX + 1) * ((long)MaxY - MinY + 1);
+		public bool Contains( int x, int y ) => x >= MinX && x <= MaxX && y >= MinY && y <= MaxY;
+	}
 
-	bool SlotTouched( uint poly ) => poly != PolyRef.NoId && slotFlags.TryGetValue( (int)(poly >> PolyRef.PolyBits), out byte flags ) && (flags & Touched) != 0;
+	TileBox SnapBox( Vector3 point, float radius ) => new( TileOf( point.X - radius ), TileOf( point.Y - radius ), TileOf( point.X + radius ), TileOf( point.Y + radius ) );
+
+	// Lists or unlists a link at every tile of its snap boxes, once per tile.
+	void ListLink( int id, in NavLink link, bool add )
+	{
+		TileBox start = SnapBox( link.Start, link.Radius ), end = SnapBox( link.End, link.Radius );
+		if ( start.Area + end.Area > WideTiles )
+		{
+			if ( add ) wideLinks.Add( id );
+			else wideLinks.Remove( id );
+			return;
+		}
+		ListLink( id, start, TileBox.Empty, add );
+		ListLink( id, end, start, add );
+	}
+
+	void ListLink( int id, TileBox box, TileBox skip, bool add )
+	{
+		for ( int y = box.MinY; y <= box.MaxY; y++ )
+		{
+			for ( int x = box.MinX; x <= box.MaxX; x++ )
+			{
+				if ( skip.Contains( x, y ) ) continue;
+				if ( add )
+				{
+					ref var list = ref CollectionsMarshal.GetValueRefOrAddDefault( linksNear, (x, y), out _ );
+					(list ??= new List<int>()).Add( id );
+					continue;
+				}
+				var near = linksNear[(x, y)];
+				int at = near.IndexOf( id );
+				near[at] = near[^1];
+				near.RemoveAt( near.Count - 1 );
+				if ( near.Count == 0 ) linksNear.Remove( (x, y) );
+			}
+		}
+	}
+
+	void MarkReattach( uint poly )
+	{
+		ref byte flags = ref CollectionsMarshal.GetValueRefOrAddDefault( slotFlags, (int)(poly >> polyBits), out _ );
+		if ( (flags & Reattach) != 0 ) return;
+		flags |= Reattach;
+		attachSlots.Add( (int)(poly >> polyBits) );
+	}
+
+	bool SlotTouched( uint poly ) => poly != PolyRef.NoId && slotFlags.TryGetValue( (int)(poly >> polyBits), out byte flags ) && (flags & Touched) != 0;
 
 	bool LinkTouched( in LinkEntry entry )
 	{
@@ -352,10 +444,17 @@ public sealed partial class NavMesh
 
 	bool BoxTouched( Vector3 point, float radius )
 	{
-		int minX = TileOf( point.X - radius ), maxX = TileOf( point.X + radius );
-		int minY = TileOf( point.Y - radius ), maxY = TileOf( point.Y + radius );
-		for ( int y = minY; y <= maxY; y++ )
-			for ( int x = minX; x <= maxX; x++ )
+		var box = SnapBox( point, radius );
+		if ( box.Area > touched.Count )
+		{
+			foreach ( var (x, y) in touched )
+			{
+				if ( box.Contains( x, y ) ) return true;
+			}
+			return false;
+		}
+		for ( int y = box.MinY; y <= box.MaxY; y++ )
+			for ( int x = box.MinX; x <= box.MaxX; x++ )
 				if ( touchedSet.Contains( (x, y) ) ) return true;
 		return false;
 	}
@@ -374,12 +473,12 @@ public sealed partial class NavMesh
 			if ( snapQuery.Under( next, link.End, link.End.Z - reach, link.End.Z + reach, out entry.EndPoly, out float endZ ) ) entry.EndPoint.Z = endZ;
 			return entry;
 		}
-		if ( snapQuery.Nearest( next, link.Start, half, default, null, 0, out uint start, out var startPoint ) && WithinRadius( startPoint, link.Start, link.Radius ) )
+		if ( snapQuery.Nearest( next, link.Start, half, anyPoly, null, 0, out uint start, out var startPoint ) && WithinRadius( startPoint, link.Start, link.Radius ) )
 		{
 			entry.StartPoly = start;
 			entry.StartPoint = startPoint;
 		}
-		if ( snapQuery.Nearest( next, link.End, half, default, null, 0, out uint end, out var endPoint ) && WithinRadius( endPoint, link.End, link.Radius ) )
+		if ( snapQuery.Nearest( next, link.End, half, anyPoly, null, 0, out uint end, out var endPoint ) && WithinRadius( endPoint, link.End, link.Radius ) )
 		{
 			entry.EndPoly = end;
 			entry.EndPoint = endPoint;

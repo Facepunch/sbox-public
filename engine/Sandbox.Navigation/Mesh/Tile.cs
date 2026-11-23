@@ -19,7 +19,8 @@ internal struct Index6
 internal struct Poly
 {
 	public const ushort Wall = 0xFFFF, Border = 0xFFF0;
-	public const int MaxVerts = 6, MaxPerTile = PolyRef.MaxPolys, MaxVertsPerTile = 65535;
+	// MaxPerTile is what the encoding allows, the settings of a mesh can lower it.
+	public const int MaxVerts = 6, MaxPerTile = Border, MaxVertsPerTile = 65535;
 
 	public Index6 Verts, Neis;
 	public byte VertCount, Area;

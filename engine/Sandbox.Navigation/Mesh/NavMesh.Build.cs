@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Numerics;
 using Nav.Build;
 
@@ -18,9 +17,14 @@ public sealed partial class NavMesh
 		public ulong AreaHash, VolumeHash;
 	}
 
-	// Written by the owner only. Save reads a tile's volume hash and belongs on the owner thread as
-	// well; the type is there so that a save from another thread reads a stale hash at worst.
-	readonly ConcurrentDictionary<(int X, int Y), TileRecord> records = new();
+	// Owner thread.
+	readonly Dictionary<(int X, int Y), TileRecord> records = new();
+
+	// The volume hash of every record that has one, in the order of y, then x: what Save writes beside the
+	// tiles. The owner publishes it after the state that holds the tiles it describes. hashesChanged: a
+	// hash of the records is not in it yet.
+	(int Y, int X, ulong Hash)[] tileHashes = [];
+	bool hashesChanged;
 
 	// Set by a load that brought tiles built with volumes, until TakeJobs has compared them with the
 	// volumes there are now.
@@ -62,7 +66,7 @@ public sealed partial class NavMesh
 		return failed + Commit();
 	}
 
-	// The volume set a tile stands for, as kept in a bake.
+	// The volume set a tile stands for. Owner thread.
 	internal ulong VolumeHashOf( int tileX, int tileY ) => records.TryGetValue( (tileX, tileY), out var record ) ? record.VolumeHash : 0;
 
 	// Called by a load: the volume set each tile was baked with. The fields are not in a bake.
@@ -72,8 +76,35 @@ public sealed partial class NavMesh
 		{
 			if ( hashes[i] == 0 ) continue;
 			records[(tiles[i].X, tiles[i].Y)] = new TileRecord { VolumeHash = hashes[i] };
-			loadedUnchecked = true;
+			loadedUnchecked = hashesChanged = true;
 		}
+		PublishVolumeHashes();
+	}
+
+	void SetVolumeHash( TileRecord record, ulong hash )
+	{
+		hashesChanged |= record.VolumeHash != hash;
+		record.VolumeHash = hash;
+	}
+
+	// Called at the end of a commit, once the state with the tiles is out, and by a load.
+	partial void PublishVolumeHashes()
+	{
+		if ( !hashesChanged ) return;
+		hashesChanged = false;
+		int count = 0;
+		foreach ( var (_, record) in records )
+		{
+			if ( record.VolumeHash != 0 ) count++;
+		}
+		var published = new (int Y, int X, ulong Hash)[count];
+		count = 0;
+		foreach ( var (at, record) in records )
+		{
+			if ( record.VolumeHash != 0 ) published[count++] = (at.Y, at.X, record.VolumeHash);
+		}
+		Array.Sort( published );
+		Volatile.Write( ref tileHashes, published );
 	}
 
 	// Called at the start of TakeJobs. A loaded tile that was baked with volumes is marked dirty once:
@@ -138,7 +169,7 @@ public sealed partial class NavMesh
 			// From the kept field: other areas, or other volumes that mark the same. A tile removed since has no record.
 			if ( record == null ) return;
 			if ( job.Status == TileJobStatus.Built ) record.AreaHash = job.AreaHash;
-			record.VolumeHash = job.VolumeHash;
+			SetVolumeHash( record, job.VolumeHash );
 			return;
 		}
 
@@ -150,17 +181,21 @@ public sealed partial class NavMesh
 		Interlocked.Add( ref CacheBytes, (job.Field?.Bytes ?? 0) - (record?.Field?.Bytes ?? 0) );
 		if ( job.Field == null && (job.VolumeHash == 0 || job.AreaHash == 0) )
 		{
-			if ( record != null ) records.TryRemove( at, out _ );
+			if ( record == null ) return;
+			hashesChanged |= record.VolumeHash != 0;
+			records.Remove( at );
 			return;
 		}
 		if ( record == null ) records[at] = record = new TileRecord();
 		record.Field = job.Field;
 		record.AreaHash = job.AreaHash;
-		record.VolumeHash = job.VolumeHash;
+		SetVolumeHash( record, job.VolumeHash );
 	}
 
 	partial void TileRemoved( int tileX, int tileY )
 	{
-		if ( records.TryRemove( (tileX, tileY), out var record ) && record.Field != null ) Interlocked.Add( ref CacheBytes, -record.Field.Bytes );
+		if ( !records.Remove( (tileX, tileY), out var record ) ) return;
+		hashesChanged |= record.VolumeHash != 0;
+		if ( record.Field != null ) Interlocked.Add( ref CacheBytes, -record.Field.Bytes );
 	}
 }

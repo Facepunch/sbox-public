@@ -70,9 +70,9 @@ public sealed partial class NavMesh
 	/// </summary>
 	public bool GetLink( int id, out NavLink link, out bool generated )
 	{
-		var entries = State.Links;
-		bool found = (uint)id < (uint)entries.Length && entries[id].Serial != 0;
-		link = found ? entries[id].Def : default;
+		ref readonly var entry = ref State.LinkAt( id );
+		bool found = entry.Serial != 0;
+		link = found ? entry.Def : default;
 		generated = link.Generated;
 		return found;
 	}
@@ -82,11 +82,16 @@ public sealed partial class NavMesh
 	/// </summary>
 	public int GetGeneratedLinks( List<int> ids )
 	{
-		var entries = State.Links;
+		var pages = State.LinkPages;
 		int first = ids.Count;
-		for ( int id = 0; id < entries.Length; id++ )
+		for ( int page = 0; page < pages.Length; page++ )
 		{
-			if ( entries[id].Serial != 0 && entries[id].Def.Generated ) ids.Add( id );
+			var entries = pages[page];
+			if ( entries == null ) continue;
+			for ( int i = 0; i < entries.Length; i++ )
+			{
+				if ( entries[i].Serial != 0 && entries[i].Def.Generated ) ids.Add( page << MeshState.LinkPageBits | i );
+			}
 		}
 		return ids.Count - first;
 	}
@@ -133,7 +138,7 @@ public sealed partial class NavMesh
 		if ( !links.Insert ) linkChanges.Add( at );
 	}
 
-	NavLink ToLink( in FoundLink link ) => new() { Start = link.Start, End = link.End, Radius = settings.CellSize, Bidirectional = link.Bidirectional, Type = link.Kind == LinkKind.Drop ? links.DropType : links.JumpType };
+	NavLink ToLink( in FoundLink link ) => new() { Start = link.Start, End = link.End, Radius = settings.CellSize, Bidirectional = link.Bidirectional, Area = NavFilter.DefaultArea, Type = link.Kind == LinkKind.Drop ? links.DropType : links.JumpType };
 
 	bool SeamsPending( (int X, int Y) at ) => tileLinks.TryGetValue( at, out var t ) && t.Held != null && (t.Judge || t.Judging);
 
@@ -475,7 +480,7 @@ public sealed partial class NavMesh
 	// keeps the one of a pair here and the other a few steps along the ledge.
 	void MakeLinks( MeshState next, (int X, int Y) at, TileLinks t )
 	{
-		float spacing = links.SpacingOf( settings );
+		float spacing = links.Spacing;
 		linkScratch.Clear();
 		upScratch.Clear();
 		for ( int i = 0, own = t.Own.Length; i < own + t.Seam.Length; i++ )
@@ -566,7 +571,7 @@ public sealed partial class NavMesh
 			for ( int i = 0; i <= steps; i++ )
 			{
 				float t = i / (float)steps;
-				float z = link.Kind == LinkKind.Drop ? start.Z : links.JumpHeight( start, end, t, settings.AgentClimb );
+				float z = link.Kind == LinkKind.Drop ? start.Z : links.JumpHeight( settings, start, end, t );
 				float feet = link.Kind == LinkKind.Drop && i == steps ? end.Z : z;
 				for ( int lane = -lanes; lane <= lanes; lane++ )
 				{

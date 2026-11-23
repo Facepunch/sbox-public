@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Nav.Build;
 
 /// <summary>
@@ -154,22 +156,28 @@ internal sealed class FieldBuilder
 	}
 
 	// Connects the spans of column a with those of the earlier column b: the first span in reach on each side.
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	void Connect( int b, int bCount, int a, int aCount, int direction, int height, int climb )
 	{
-		int shift = direction * 6;
-		int oppositeShift = ((direction + 2) & 3) * 6;
-		if ( aCount == 1 && bCount == 1 )
+		if ( aCount != 1 || bCount != 1 )
 		{
-			// One span on each side: they connect as span 0 of each other or not at all
-			int floorA = floors[a], floorB = floors[b];
-			if ( Math.Abs( floorA - floorB ) <= climb && Math.Min( tops[a], tops[b] ) - Math.Max( floorA, floorB ) >= height )
-			{
-				cons[a] &= ~(63u << shift);
-				cons[b] &= ~(63u << oppositeShift);
-			}
+			ConnectStacks( b, bCount, a, aCount, direction, height, climb );
 			return;
 		}
 
+		// One span on each side, the case of open ground: they connect as span 0 of each other or not at all
+		int floorA = floors[a], floorB = floors[b];
+		if ( Math.Abs( floorA - floorB ) <= climb && Math.Min( tops[a], tops[b] ) - Math.Max( floorA, floorB ) >= height )
+		{
+			cons[a] &= ~(63u << (direction * 6));
+			cons[b] &= ~(63u << (((direction + 2) & 3) * 6));
+		}
+	}
+
+	void ConnectStacks( int b, int bCount, int a, int aCount, int direction, int height, int climb )
+	{
+		int shift = direction * 6;
+		int oppositeShift = ((direction + 2) & 3) * 6;
 		int first = 0;
 		for ( int i = 0; i < aCount; i++ )
 		{

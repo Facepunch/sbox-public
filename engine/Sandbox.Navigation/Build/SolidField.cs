@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Nav.Build;
 
 /// <summary>
@@ -45,18 +47,25 @@ internal sealed class SolidField
 	/// Adds a span to a column, merging it with every span it overlaps or touches. A merged span takes the
 	/// higher area when the tops are within mergeThreshold of each other, else the new span's area.
 	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public void Add( int column, int min, int max, int area, int mergeThreshold )
+	{
+		// The first span of an empty column needs none of the merging
+		if ( Counts[column] != 0 )
+		{
+			Merge( column, min, max, area, mergeThreshold );
+			return;
+		}
+		Spans[column * Capacity] = Pack( min, max, area );
+		Counts[column] = 1;
+		SpanCount++;
+	}
+
+	void Merge( int column, int min, int max, int area, int mergeThreshold )
 	{
 		var spans = Spans;
 		int count = Counts[column];
 		int start = column * Capacity;
-		if ( count == 0 )
-		{
-			spans[start] = Pack( min, max, area );
-			Counts[column] = 1;
-			SpanCount++;
-			return;
-		}
 
 		// first..end are the existing spans the new one swallows
 		int first = 0, end = 0;

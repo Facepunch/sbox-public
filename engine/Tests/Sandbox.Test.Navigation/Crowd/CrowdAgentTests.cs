@@ -122,7 +122,7 @@ public class CrowdAgentTests
 		Assert.AreEqual( active.Corners[^1], pending.Corners[^1] );
 		Assert.AreEqual( active.End, pending.End );
 
-		Assert.IsTrue( sim.Crowd.SetPath( agent, pending.Polys, pending.End, sim[agent].RouteTarget, false ) );
+		Assert.IsTrue( sim.Crowd.SetPath( agent, pending.Polys, new() { End = pending.End, Target = sim[agent].RouteTarget, Partial = false } ) );
 		Assert.AreEqual( firstTarget, sim[agent].Target );
 		sim.Run( 200 );
 		Assert.IsTrue( Vector3.Distance( sim.Position( agent ), firstTarget ) < 1, "An assigned path cancels the pending retarget" );
@@ -135,14 +135,14 @@ public class CrowdAgentTests
 		var target = At( 400, 320, 201 );
 		int agent = sim.Add( At( 100, 320 ) );
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Partial, sim.Query.FindPath( At( 100, 320 ), target, Snap, default, path ) );
-		Assert.IsTrue( sim.Crowd.SetPath( agent, path.Polys, path.End, target, true ) );
+		Assert.AreEqual( PathStatus.Partial, sim.Query.FindPath( At( 100, 320 ), target, Snap, Filters.All, path ) );
+		Assert.IsTrue( sim.Crowd.SetPath( agent, path.Polys, new() { End = path.End, Target = target, Partial = true } ) );
 		Assert.AreEqual( target, sim[agent].Target );
 		Assert.AreEqual( AgentStatus.Moving, sim.Status( agent ) );
 
 		var own = new NavPath();
 		Assert.AreEqual( PathStatus.Partial, sim.Crowd.GetPath( agent, own ) );
-		Assert.IsTrue( sim.Crowd.SetPath( agent, own.Polys, own.End, sim[agent].RouteTarget, true ) );
+		Assert.IsTrue( sim.Crowd.SetPath( agent, own.Polys, new() { End = own.End, Target = sim[agent].RouteTarget, Partial = true } ) );
 		Assert.AreEqual( target, sim[agent].Target );
 
 		sim.Run( 300 );
@@ -158,26 +158,26 @@ public class CrowdAgentTests
 		var sim = new Sim( new() { Obstacles = true } );
 		var target = At( 600, 320 );
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( At( 100, 320 ), target, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( At( 100, 320 ), target, Snap, Filters.All, path ) );
 
 		// A1: the agent stands further along the corridor, then in a polygon next to it.
 		int ahead = sim.Add( At( 250, 320 ) );
-		Assert.IsTrue( sim.Crowd.SetPath( ahead, path.Polys, path.End, target, false ) );
+		Assert.IsTrue( sim.Crowd.SetPath( ahead, path.Polys, new() { End = path.End, Target = target, Partial = false } ) );
 		Assert.AreEqual( sim.PolyAt( At( 250, 320 ) ), sim[ahead].Poly );
 		int beside = sim.Add( At( 30, 40 ) );
-		Assert.IsTrue( sim.Crowd.SetPath( beside, path.Polys, path.End, target, false ) );
+		Assert.IsTrue( sim.Crowd.SetPath( beside, path.Polys, new() { End = path.End, Target = target, Partial = false } ) );
 		sim.Run( 600 );
 		Assert.IsTrue( Vector3.Distance( sim.Position( ahead ), target ) < 20 );
 		Assert.IsTrue( Vector3.Distance( sim.Position( beside ), target ) < 20 );
 
 		int other = sim.Add( At( 100, 320 ), At( 100, 600 ) );
 		sim.Step();
-		Assert.IsFalse( sim.Crowd.SetPath( other, default, target, target, false ) );
-		Assert.IsFalse( sim.Crowd.SetPath( other, [default], target, target, false ), "A stale entry" );
+		Assert.IsFalse( sim.Crowd.SetPath( other, default, new() { End = target, Target = target, Partial = false } ) );
+		Assert.IsFalse( sim.Crowd.SetPath( other, [default], new() { End = target, Target = target, Partial = false } ), "A stale entry" );
 		var forbidden = Walker();
-		forbidden.Filter = new NavFilter( 1ul << 1 );
+		forbidden.Filter = Filters.All.WithForbiddenAreas( 1ul << 1 );
 		int barred = sim.Add( At( 100, 320 ), forbidden );
-		Assert.IsFalse( sim.Crowd.SetPath( barred, path.Polys, path.End, target, false ), "An area the agent may not cross" );
+		Assert.IsFalse( sim.Crowd.SetPath( barred, path.Polys, new() { End = path.End, Target = target, Partial = false } ), "An area the agent may not cross" );
 		Assert.AreEqual( AgentStatus.Moving, sim.Status( other ), "A rejected path changes nothing" );
 		Assert.AreEqual( At( 100, 600 ), sim[other].Target );
 	}
@@ -195,8 +195,8 @@ public class CrowdAgentTests
 		Assert.AreEqual( 0f, sim.Position( agent ).X );
 
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( At( -14, 320 ), At( 320, 320 ), Snap, default, path ) );
-		Assert.IsTrue( sim.Crowd.SetPath( agent, path.Polys, path.End, At( 320, 320 ), false ) );
+		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( At( -14, 320 ), At( 320, 320 ), Snap, Filters.All, path ) );
+		Assert.IsTrue( sim.Crowd.SetPath( agent, path.Polys, new() { End = path.End, Target = At( 320, 320 ), Partial = false } ) );
 		Assert.AreEqual( AgentStatus.Moving, sim.Status( agent ) );
 		Assert.AreEqual( PathStatus.Complete, sim.Crowd.GetPath( agent, path ) );
 	}
@@ -228,17 +228,33 @@ public class CrowdAgentTests
 		Assert.AreEqual( (0, 1, 2), (first, second, third) );
 		Assert.AreEqual( 3, sim.Crowd.States.Length );
 
-		var value = AgentParams.Create( 32, 80, 240, 480 );
+		var value = AgentParams.Create( new() { Radius = 32, Height = 80, MaxSpeed = 240, Acceleration = 480 } );
 		value.Separation = 0.5f;
 		value.AutoLinks = false;
 		sim.Crowd.SetParams( second, value );
 		var seen = sim.Crowd.Params[second];
 		Assert.AreEqual( (32f, 80f, 240f, 480f, 0.5f, false), (seen.Radius, seen.Height, seen.MaxSpeed, seen.Acceleration, seen.Separation, seen.AutoLinks) );
 
-		// Radius and height have a floor of a tenth of eps (cell / 400), the rest is clamped to its range.
-		sim.Crowd.SetParams( third, new AgentParams { Radius = -1, Height = 0, MaxSpeed = -5, Acceleration = float.NaN, Separation = 7 } );
+		// Params out of range are refused, and the agent keeps the ones it had.
+		var good = sim.Crowd.Params[third];
+		foreach ( var bad in new[]
+		{
+			good with { Radius = -1 }, good with { Radius = 0 }, good with { Height = 0 }, good with { Height = float.PositiveInfinity },
+			good with { MaxSpeed = -5 }, good with { Acceleration = float.NaN }, good with { Separation = 7 }, good with { Separation = -0.1f }
+		} )
+		{
+			Assert.IsFalse( bad.IsValid( out _ ) );
+			Assert.ThrowsException<ArgumentException>( () => sim.Crowd.SetParams( third, bad ) );
+			Assert.ThrowsException<ArgumentException>( () => sim.Crowd.Add( At( 100, 400 ), bad ) );
+		}
 		seen = sim.Crowd.Params[third];
-		Assert.AreEqual( (0.025f, 0.025f, 0f, 0f, 1f), (seen.Radius, seen.Height, seen.MaxSpeed, seen.Acceleration, seen.Separation) );
+		Assert.AreEqual( (good.Radius, good.Height, good.MaxSpeed, good.Acceleration, good.Separation), (seen.Radius, seen.Height, seen.MaxSpeed, seen.Acceleration, seen.Separation) );
+		Assert.AreEqual( 3, sim.Crowd.States.Length, "No agent was added" );
+		var tiny = good with { Radius = 1e-6f, Height = 1e-6f, MaxSpeed = 0, Acceleration = 0, Separation = 0 };
+		sim.Crowd.SetParams( third, tiny );
+		seen = sim.Crowd.Params[third];
+		Assert.AreEqual( (1e-6f, 1e-6f), (seen.Radius, seen.Height), "Used as set, however small" );
+		sim.Crowd.SetParams( third, good );
 
 		sim.Run( 10 );
 		sim.Crowd.Remove( first );
@@ -333,9 +349,9 @@ public class CrowdAgentTests
 		int agent = sim.Add( start );
 		var path = new NavPath();
 		Assert.AreEqual( PathStatus.NotFound, sim.Crowd.GetPath( agent, path ), "No target, no path" );
-		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( start, target, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( start, target, Snap, Filters.All, path ) );
 
-		Assert.IsTrue( sim.Crowd.SetPath( agent, path.Polys, path.End, target, false ) );
+		Assert.IsTrue( sim.Crowd.SetPath( agent, path.Polys, new() { End = path.End, Target = target, Partial = false } ) );
 		Assert.AreEqual( AgentStatus.Moving, sim.Status( agent ), "SetPath makes the agent navigate at once" );
 		Assert.AreEqual( target, sim[agent].Target );
 
@@ -512,8 +528,8 @@ public class CrowdAgentTests
 			}
 			if ( tick == 20 )
 			{
-				Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( places[1], target, Snap, default, path ) );
-				Assert.IsTrue( sim.Crowd.SetPath( 1, path.Polys, path.End, target, false ) );
+				Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( places[1], target, Snap, Filters.All, path ) );
+				Assert.IsTrue( sim.Crowd.SetPath( 1, path.Polys, new() { End = path.End, Target = target, Partial = false } ) );
 			}
 			if ( tick == 30 ) sim.Crowd.Stop( 0 );
 			sim.Step();
@@ -648,18 +664,49 @@ public class CrowdAgentTests
 		Assert.IsTrue( Vector3.Distance( sim.Position( walker ), At( 300, 0 ) ) < 5 );
 
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( At( 30, 300 ), At( 30, 600 ), Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, sim.Query.FindPath( At( 30, 300 ), At( 30, 600 ), Snap, Filters.All, path ) );
 		int beside = sim.Add( At( -150, 300 ) );
-		Assert.IsTrue( sim.Crowd.SetPath( beside, path.Polys, path.End, At( 30, 600 ), false ) );
+		Assert.IsTrue( sim.Crowd.SetPath( beside, path.Polys, new() { End = path.End, Target = At( 30, 600 ), Partial = false } ) );
 		Assert.AreEqual( At( 0, 300 ), sim.Position( beside ) );
 		sim.Crowd.PlacementExtents = new Vector3( 16.8f, 16.8f, 48.32f );
 		int outOfReach = sim.Add( At( -150, 300 ) );
-		Assert.IsFalse( sim.Crowd.SetPath( outOfReach, path.Polys, path.End, At( 30, 600 ), false ) );
+		Assert.IsFalse( sim.Crowd.SetPath( outOfReach, path.Polys, new() { End = path.End, Target = At( 30, 600 ), Partial = false } ) );
 
-		// Another mesh: what the caller set stays, what was left alone follows the new mesh.
+		// Another mesh, of another agent: the extents stay what they are.
+		sim.Crowd.TargetExtents = new Vector3( 128 );
 		sim.Crowd.SetMesh( CrowdMesh.Create( new() { Scale = 2 } ) );
-		Assert.AreEqual( new Vector3( 33.6f, 33.6f, 96.64f ), sim.Crowd.PlacementExtents );
-		Assert.AreEqual( new Vector3( 256 ), sim.Crowd.TargetExtents );
+		Assert.AreEqual( new Vector3( 16.8f, 16.8f, 48.32f ), sim.Crowd.PlacementExtents );
+		Assert.AreEqual( new Vector3( 128 ), sim.Crowd.TargetExtents );
+		Assert.AreEqual( new Vector3( 33.6f, 33.6f, 96.64f ), new NavCrowd( CrowdMesh.Create( new() { Scale = 2 } ), 1 ).PlacementExtents, "A new crowd starts from the mesh's agent" );
+	}
+
+	[TestMethod]
+	public void CrowdSettingsOutOfRangeAreRefused()
+	{
+		var sim = new Sim();
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => new NavCrowd( sim.Mesh, 0 ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => sim.Crowd.PlacementExtents = new Vector3( 1, -1, 1 ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => sim.Crowd.TargetExtents = new Vector3( float.NaN ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => sim.Crowd.SubstepTime = 0 );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => sim.Crowd.SubstepTime = float.NaN );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => sim.Crowd.AvoidHorizon = 0 );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => sim.Crowd.AvoidHorizon = float.PositiveInfinity );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => sim.Crowd.MaxSubsteps = 0 );
+		Assert.AreEqual( (0.05f, 0.75f, 8), (sim.Crowd.SubstepTime, sim.Crowd.AvoidHorizon, sim.Crowd.MaxSubsteps), "Nothing refused is kept" );
+
+		// Zero extents leave the agent's own box, 1.51 heights up and down: 60 above the floor is out of it.
+		sim.Crowd.PlacementExtents = Vector3.Zero;
+		sim.Crowd.TargetExtents = new Vector3( float.PositiveInfinity );
+		int agent = sim.Add( At( 100, 320, 60 ), At( 900, 320 ) );
+		sim.Step();
+		Assert.AreEqual( AgentStatus.Unreachable, sim.Status( agent ) );
+
+		// No limit on a substep: one per Step, however long.
+		sim.Crowd.SubstepTime = float.PositiveInfinity;
+		sim.Crowd.PlacementExtents = new Vector3( 16.8f, 16.8f, 48.32f );
+		sim.Crowd.SetPosition( agent, At( 100, 320 ) );
+		sim.Step( 0.1f );
+		Assert.AreEqual( AgentStatus.Moving, sim.Status( agent ) );
 	}
 
 	[TestMethod]
@@ -689,32 +736,29 @@ public class CrowdAgentTests
 	}
 
 	[TestMethod]
-	public void CostArrayEditedInPlaceIsNoticedBySetParams()
+	public void ChangedCostIsNoticedBySetParams()
 	{
 		var sim = new Sim( new() { Ring = true } );
 		// Both ways round the block are five polygons long. North is area 2, south area 3.
-		var costs = new float[8];
-		Array.Fill( costs, 1f );
-		costs[3] = 4;
 		var walker = Walker();
-		walker.Filter = new NavFilter( 0, costs );
+		walker.Filter = Filters.All.WithAreaCost( 3, 4 );
 		var target = At( 540, 320 );
 		int agent = sim.Add( At( 100, 320 ), target, walker );
 		sim.Run( 10 );
 		Assert.IsTrue( sim[agent].DesiredVelocity.Y > 1, "North, the cheap way" );
 
-		costs[3] = 1;
-		costs[2] = 4;
+		// A filter is a value: the crowd has its own copy, and a changed one counts once it is handed in.
+		walker.Filter = walker.Filter.WithAreaCost( 3, 1 ).WithAreaCost( 2, 4 );
 		sim.Step();
-		Assert.IsTrue( sim[agent].DesiredVelocity.Y > 1, "An array edited in place is not looked at until it is handed in" );
+		Assert.IsTrue( sim[agent].DesiredVelocity.Y > 1, "The crowd's copy is unchanged" );
 		sim.Crowd.SetParams( agent, walker );
 		sim.Step();
 		Assert.IsTrue( sim[agent].DesiredVelocity.Y < -1, "South now" );
 		Assert.AreEqual( At( 200, 280 ), sim.Crowd.GetCorners( agent )[1] );
 
-		// The same contents in another array are no change: no search, the corners stay.
+		// The same values made again are no change: no search, the corners stay.
 		var copy = walker;
-		copy.Filter = new NavFilter( 0, (float[])costs.Clone() );
+		copy.Filter = Filters.All.WithAreaCost( 2, 4 );
 		var before = sim.Crowd.GetCorners( agent ).ToArray();
 		sim.Crowd.SetParams( agent, copy );
 		sim.Step();
@@ -733,7 +777,7 @@ public class CrowdAgentTests
 		Array.Fill( costs, 1f );
 		costs[3] = 4;
 		var walker = Walker();
-		walker.Filter = new NavFilter( 0, costs );
+		walker.Filter = Filters.All.WithAreaCosts( costs );
 		int agent = sim.Add( At( 100, 320 ), At( 540, 320 ), walker );
 		sim.Run( 10 );
 		Assert.AreEqual( At( 200, 360 ), sim.Crowd.GetCorners( agent )[1] );
@@ -741,7 +785,7 @@ public class CrowdAgentTests
 		sim.Crowd.GetPath( agent, path );
 		int length = path.Polys.Length;
 
-		walker.Filter = new NavFilter( 1ul << 2 );
+		walker.Filter = Filters.All.WithForbiddenAreas( 1ul << 2 );
 		sim.Crowd.SetParams( agent, walker );
 		sim.Step();
 		sim.Crowd.GetPath( agent, path );
@@ -754,7 +798,7 @@ public class CrowdAgentTests
 	public void MoveAcrossMoreThanThirtyTwoPolygonsEndsWhereItShould()
 	{
 		// One polygon per cell of 10: a stride of 630 crosses 63 of them, more than the move reports.
-		var fast = AgentParams.Create( 8, 32, 20000, 1e9f );
+		var fast = AgentParams.Create( new() { Radius = 8, Height = 32, MaxSpeed = 20000, Acceleration = 1e9f } );
 		// Along a row and along a column: straight routes, so the whole stride is one move. (Round a
 		// corner a stride this long overshoots, as any stride does by its length at most.)
 		foreach ( var (start, target) in new[] { (new Vector3( 5, 325, 0 ), new Vector3( 635, 325, 0 )), (new Vector3( 415, 635, 0 ), new Vector3( 415, 5, 0 )) } )
@@ -768,7 +812,7 @@ public class CrowdAgentTests
 			Assert.AreEqual( AgentStatus.Arrived, sim.Status( agent ) );
 
 			// And back in strides of 20 polygons and more, past a neighbour standing in the way.
-			var slower = AgentParams.Create( 8, 32, 4500, 1e9f );
+			var slower = AgentParams.Create( new() { Radius = 8, Height = 32, MaxSpeed = 4500, Acceleration = 1e9f } );
 			sim.Crowd.SetParams( agent, slower );
 			sim.Crowd.MoveTo( agent, start );
 			int other = sim.Add( (start + target) / 2 );
@@ -813,9 +857,9 @@ public class CrowdAgentTests
 		sim.Step();
 		var query = new NavQuery( second );
 		Assert.AreEqual( AgentStatus.Moving, sim.Status( walker ) );
-		Assert.IsTrue( query.IsValid( sim[walker].Poly, default ), "The polygon is one of the new mesh" );
+		Assert.IsTrue( query.IsValid( sim[walker].Poly, Filters.All ), "The polygon is one of the new mesh" );
 		Assert.IsTrue( Vector3.Distance( sim.Position( walker ), before ) < 5 );
-		Assert.IsTrue( query.IsValid( sim[idle].Poly, default ) );
+		Assert.IsTrue( query.IsValid( sim[idle].Poly, Filters.All ) );
 
 		sim.Run( 600 );
 		Assert.AreEqual( AgentStatus.Arrived, sim.Status( walker ) );
@@ -833,7 +877,10 @@ public class CrowdAgentTests
 		const float scale = 0.0254f;
 		var metres = CrowdMesh.Create( new() { Scale = scale } );
 		sim.Crowd.SetMesh( metres );
-		var value = AgentParams.Create( 8 * scale, 32 * scale, 120 * scale, 240 * scale );
+		// The extents are the caller's, and stay in inches until it sets them in metres.
+		sim.Crowd.PlacementExtents *= scale;
+		sim.Crowd.TargetExtents *= scale;
+		var value = AgentParams.Create( new() { Radius = 8 * scale, Height = 32 * scale, MaxSpeed = 120 * scale, Acceleration = 240 * scale } );
 		var target = At( 500, 320 ) * scale;
 		int agent = sim.Crowd.Add( At( 100, 320 ) * scale, value );
 		sim.Crowd.MoveTo( agent, target );
@@ -881,7 +928,7 @@ public class CrowdAgentTests
 	// Three tiles in a row with gaps between them, joined by two links that meet on the middle tile.
 	static Sim TwoLinks( float gap, out int firstLink, out int secondLink )
 	{
-		var mesh = new NavMesh( CrowdMesh.Settings() );
+		var mesh = new NavMesh( CrowdMesh.Settings(), NavMeshOptions.Create( CrowdMesh.Settings() ) );
 		mesh.CommitTiles( [CrowdMesh.Tile( default ), CrowdMesh.Tile( default, 2 ), CrowdMesh.Tile( default, 4 )] );
 		firstLink = mesh.AddLink( new NavLink { Start = At( 630, 320 ), End = At( 1290, 320 ), Radius = 12, Area = 1 } );
 		secondLink = mesh.AddLink( new NavLink { Start = At( 1290 + gap, 320 ), End = At( 2570, 320 ), Radius = 12, Area = 1 } );
@@ -1170,7 +1217,7 @@ public class CrowdAgentTests
 		sim.Run( 50 );
 		Assert.AreEqual( AgentStatus.Moving, sim.Status( agent ) );
 		var barred = Walker();
-		barred.Filter = new NavFilter( 1ul << 2 );
+		barred.Filter = Filters.All.WithForbiddenAreas( 1ul << 2 );
 		sim.Crowd.SetParams( agent, barred );
 		sim.Run( 400 );
 		Assert.AreEqual( AgentStatus.Blocked, sim.Status( agent ), "The strip of area 2 is closed to it now" );
@@ -1186,7 +1233,7 @@ public class CrowdAgentTests
 	public void StaleCorridorAheadIsCutAndPlannedAgainWithoutLosingTheRoute_M2()
 	{
 		// Three tiles in a row. Without the middle one the target is on an island of its own.
-		var mesh = new NavMesh( CrowdMesh.Settings() );
+		var mesh = new NavMesh( CrowdMesh.Settings(), NavMeshOptions.Create( CrowdMesh.Settings() ) );
 		var borders = new CrowdMesh.Options { TileBorders = true };
 		mesh.CommitTiles( [CrowdMesh.Tile( borders ), CrowdMesh.Tile( borders, 1 ), CrowdMesh.Tile( borders, 2 )] );
 		var sim = new Sim( mesh );
@@ -1232,7 +1279,7 @@ public class CrowdAgentTests
 		var slow = new Sim();
 		slow.Crowd.SubstepTime = 50;
 		slow.Crowd.AvoidHorizon = 750;
-		var value = AgentParams.Create( 8, 32, 0.12f, 0.00024f );
+		var value = AgentParams.Create( new() { Radius = 8, Height = 32, MaxSpeed = 0.12f, Acceleration = 0.00024f } );
 		int other = slow.Add( At( 100, 320 ), At( 600, 320 ), value );
 		var reference = new Sim();
 		int same = reference.Add( At( 100, 320 ), At( 600, 320 ) );

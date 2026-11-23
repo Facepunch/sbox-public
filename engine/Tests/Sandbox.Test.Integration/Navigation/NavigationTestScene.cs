@@ -121,5 +121,5 @@ internal static class NavigationTestScene
 		return navMesh.GetClosestPoint( point, MathF.Max( distance, 24 ) ) is Vector3 found && found.WithZ( 0 ).Distance( point.WithZ( 0 ) ) <= distance;
 	}
 
-	public static bool Allows( this Nav.NavFilter filter, int area ) => (filter.Forbidden >> area & 1) == 0;
+	public static bool Allows( this Nav.NavFilter filter, int area ) => (filter.ForbiddenAreas >> area & 1) == 0;
 }

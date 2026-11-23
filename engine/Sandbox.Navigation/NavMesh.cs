@@ -16,6 +16,9 @@ public sealed partial class NavMesh
 	internal readonly NavCodec Codec;
 	internal readonly bool KeepFields;
 	internal readonly float TileWorld;
+	internal readonly int MaxTiles;
+	readonly int polyBits;
+	readonly uint polyMask;
 
 	// Portal edges connect when they are at most this many AgentClimb apart.
 	internal const float PortalClimbFactor = 1;
@@ -31,19 +34,22 @@ public sealed partial class NavMesh
 	MeshState state;
 
 	/// <summary>
-	/// Throws when the settings are not valid. With links set, tile builds from triangles also find
-	/// drops and jumps, which the mesh keeps as links of its own.
+	/// Throws when the settings or the link settings of the options are not valid. With links enabled,
+	/// tile builds from triangles also find drops and jumps.
 	/// </summary>
-	public NavMesh( in NavSettings settings, NavCodec codec = default, bool keepFields = true, NavLinkSettings links = default )
+	public NavMesh( in NavSettings settings, in NavMeshOptions options )
 	{
 		if ( !settings.IsValid( out var reason ) ) throw new ArgumentException( reason, nameof( settings ) );
-		if ( !links.IsValid( settings, out reason ) ) throw new ArgumentException( reason, nameof( links ) );
+		if ( !options.Links.IsValid( settings, out reason ) ) throw new ArgumentException( reason, nameof( options ) );
 		this.settings = settings;
-		this.links = links;
-		Codec = codec;
-		KeepFields = keepFields;
+		links = options.Links;
+		Codec = options.Codec;
+		KeepFields = options.KeepFields;
 		TileWorld = settings.TileSize * settings.CellSize;
-		state = new MeshState( [], new TileIndex(), [], 0, 0 );
+		polyBits = settings.PolyBits;
+		polyMask = (1u << polyBits) - 1;
+		MaxTiles = PolyRef.MaxTiles( polyBits );
+		state = new MeshState( [], new TileIndex(), [], 0, 0, polyBits, [] );
 	}
 
 	public NavSettings Settings => settings;
@@ -72,13 +78,16 @@ public sealed partial class NavMesh
 	public (int Tiles, int Polygons, int Vertices, long RuntimeBytes, long CacheBytes, long TrianglesUsed, long TrianglesRejected) GetStats()
 	{
 		var s = State;
-		int tiles = 0, polygons = 0, vertices = 0, slots = 0;
-		long bytes = 16 + 48 + Tile.ArrayBytes( s.Pages.Length, 8 ) + s.Index.Bytes + Tile.ArrayBytes( s.Links.Length, System.Runtime.CompilerServices.Unsafe.SizeOf<LinkEntry>() );
+		int tiles = 0, polygons = 0, vertices = 0;
+		long bytes = 16 + 48 + Tile.ArrayBytes( s.Pages.Length, 8 ) + s.Index.Bytes + Tile.ArrayBytes( s.LinkPages.Length, 8 );
+		foreach ( var page in s.LinkPages )
+		{
+			if ( page != null ) bytes += Tile.ArrayBytes( page.Length, System.Runtime.CompilerServices.Unsafe.SizeOf<LinkEntry>() );
+		}
 		foreach ( var page in s.Pages )
 		{
 			if ( page == null ) continue;
 			bytes += Tile.ArrayBytes( page.Length, 8 );
-			slots += page.Length;
 			foreach ( var tile in page )
 			{
 				if ( tile == null ) continue;
@@ -89,10 +98,16 @@ public sealed partial class NavMesh
 			}
 		}
 
-		// The top level of the island maps: a label per tile component, about two per tile.
-		int maps = 0;
-		for ( var map = Volatile.Read( ref s.Islands ); map != null; map = map.Next ) maps++;
-		bytes += Math.Max( maps, 1 ) * (16 + 40 + Tile.ArrayBytes( slots, 4 ) + Tile.ArrayBytes( tiles * 2, 4 ));
+		// The island maps, their blocks once per area mask. Before any is built, what one would hold.
+		long islands = 0;
+		var maps = Volatile.Read( ref s.Islands );
+		for ( var map = maps; map != null; map = map.Next )
+		{
+			var earlier = maps;
+			while ( earlier != map && earlier!.Forbidden != map.Forbidden ) earlier = earlier.Next;
+			islands += map.Bytes( earlier == map );
+		}
+		bytes += islands > 0 ? islands : tiles * 16L;
 
 		return (tiles, polygons, vertices, bytes, Interlocked.Read( ref CacheBytes ), Interlocked.Read( ref TrianglesUsed ), Interlocked.Read( ref TrianglesRejected ));
 	}

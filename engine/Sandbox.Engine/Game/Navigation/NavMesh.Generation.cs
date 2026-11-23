@@ -202,8 +202,7 @@ public sealed partial class NavMesh
 
 		if ( live is null ) return;
 
-		CurrentCosts();
-		CurrentLinkPrices();
+		CurrentPrices();
 		if ( generatedRoot is not null && (!generatedRoot.IsValid() || generatedRoot.IsDestroyed) ) RestoreGeneratedLinks();
 		UpdateTiles( live, world );
 		if ( next is not null )

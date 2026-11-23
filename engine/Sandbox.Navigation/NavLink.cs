@@ -13,8 +13,8 @@ public record struct NavLink
 	public bool Bidirectional;
 
 	/// <summary>
-	/// The area id a filter judges the link by, up to NavFilter.MaxArea. 0, the default, stands for
-	/// NavFilter.DefaultArea, so a link that sets nothing is crossed like plain ground.
+	/// The area id a filter judges the link by, from 1 to NavFilter.MaxArea. NavFilter.NoArea is
+	/// refused by AddLink and SetLink.
 	/// </summary>
 	public byte Area;
 
@@ -26,4 +26,12 @@ public record struct NavLink
 
 	// Made by the mesh from a tile build, not placed by the caller.
 	internal bool Generated;
+
+	/// <summary>
+	/// A link of area NavFilter.DefaultArea, crossed like plain ground, and type 0.
+	/// </summary>
+	public static NavLink Create( Vector3 start, Vector3 end, float radius, bool bidirectional )
+	{
+		return new NavLink { Start = start, End = end, Radius = radius, Bidirectional = bidirectional, Area = NavFilter.DefaultArea, Type = 0 };
+	}
 }

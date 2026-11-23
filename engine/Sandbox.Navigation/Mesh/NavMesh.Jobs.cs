@@ -30,7 +30,8 @@ public sealed partial class NavMesh
 	NavLink[] linkDefs = [];
 	byte[] linkStatus = [];
 	int linkHigh;
-	bool linksDirty;
+	// Ids added, set or removed since the last commit, each once.
+	readonly List<int> linkQueue = new();
 	// Ids below linkHigh that are free or removed, lowest first.
 	readonly PriorityQueue<int, int> freeLinks = new();
 
@@ -56,7 +57,7 @@ public sealed partial class NavMesh
 		float border = BorderCells * settings.CellSize;
 		int minX = TileOf( min.X - border ), maxX = TileOf( max.X + border ), minY = TileOf( min.Y - border ), maxY = TileOf( max.Y + border );
 		// More marks than a mesh can hold tiles is a mistake, and a box that saturates would never end.
-		if ( ((double)maxX - minX + 1) * ((double)maxY - minY + 1) > PolyRef.MaxTiles ) throw new ArgumentException( "The box covers more tiles than a mesh can hold" );
+		if ( ((double)maxX - minX + 1) * ((double)maxY - minY + 1) > MaxTiles ) throw new ArgumentException( "The box covers more tiles than a mesh can hold" );
 		for ( int y = minY; y <= maxY; y++ )
 			for ( int x = minX; x <= maxX; x++ )
 				MarkDirty( x, y, true );
@@ -214,6 +215,7 @@ public sealed partial class NavMesh
 			if ( job.Status != TileJobStatus.Failed ) JobPublished( job );
 		}
 		published.Clear();
+		PublishVolumeHashes();
 		return failed;
 	}
 
@@ -227,10 +229,12 @@ public sealed partial class NavMesh
 
 	// Where generation hooks in, see NavMesh.Build.cs. PrepareJob gives a job its volumes and cached
 	// field, or clears issue when the tile turns out clean. JobPublished keeps what a job leaves behind
-	// for later rebuilds. TileRemoved drops what was kept for a tile.
+	// for later rebuilds. TileRemoved drops what was kept for a tile. PublishVolumeHashes hands Save the
+	// volume hashes once the state they describe is out.
 	partial void PrepareJob( TileJob job, bool geometryForced, ref bool issue );
 	partial void JobPublished( TileJob job );
 	partial void TileRemoved( int tileX, int tileY );
+	partial void PublishVolumeHashes();
 
 	/// <summary>
 	/// Takes effect at the next Commit. Returns the link id, the lowest that is free, or -1 when all
@@ -251,33 +255,29 @@ public sealed partial class NavMesh
 			Array.Resize( ref linkStatus, capacity );
 		}
 		linkDefs[id] = value;
-		linkStatus[id] = LinkDirty;
-		linksDirty = true;
+		Pend( id, LinkDirty );
 		return id;
 	}
 
-	// An area id or type out of range is refused: a filter has one bit per id. No area means ground.
-	// Only the mesh makes generated links.
+	// An area id or type out of range is refused: a filter has one bit per id, and no link is NoArea.
 	static NavLink Checked( in NavLink link )
 	{
+		if ( link.Area == NavFilter.NoArea ) throw new ArgumentOutOfRangeException( nameof( link ), "Link area 0 is NavFilter.NoArea, which no link can have: use NavLink.Create or set an area from 1" );
 		if ( link.Area > NavFilter.MaxArea ) throw new ArgumentOutOfRangeException( nameof( link ), $"Link area {link.Area} is above {NavFilter.MaxArea}" );
 		if ( link.Type > NavFilter.MaxLinkType ) throw new ArgumentOutOfRangeException( nameof( link ), $"Link type {link.Type} is above {NavFilter.MaxLinkType}" );
-		var value = link;
-		if ( value.Area == NavFilter.NoArea ) value.Area = NavFilter.DefaultArea;
-		return value;
+		return link;
 	}
 
 	/// <summary>
-	/// Throws for an id that is not in use, and for an area id above NavFilter.MaxArea or a type above
-	/// NavFilter.MaxLinkType, as AddLink does.
+	/// Throws for an id that is not in use, and for an area id of NavFilter.NoArea or above
+	/// NavFilter.MaxArea or a type above NavFilter.MaxLinkType, as AddLink does.
 	/// </summary>
 	public void SetLink( int id, in NavLink link )
 	{
 		if ( (uint)id >= (uint)linkHigh || linkStatus[id] is LinkFree or LinkRemoved ) throw new ArgumentException( "No such link", nameof( id ) );
 		if ( linkDefs[id].Generated ) throw new ArgumentException( "The link is a generated one", nameof( id ) );
 		linkDefs[id] = Checked( link );
-		linkStatus[id] = LinkDirty;
-		linksDirty = true;
+		Pend( id, LinkDirty );
 	}
 
 	/// <summary>
@@ -291,9 +291,14 @@ public sealed partial class NavMesh
 	void FreeLink( int id )
 	{
 		if ( (uint)id >= (uint)linkHigh || linkStatus[id] is LinkFree or LinkRemoved ) return;
-		linkStatus[id] = LinkRemoved;
+		Pend( id, LinkRemoved );
 		freeLinks.Enqueue( id, id );
-		linksDirty = true;
+	}
+
+	void Pend( int id, byte status )
+	{
+		if ( linkStatus[id] is LinkFree or LinkUsed ) linkQueue.Add( id );
+		linkStatus[id] = status;
 	}
 
 	/// <summary>
@@ -301,14 +306,13 @@ public sealed partial class NavMesh
 	/// </summary>
 	public bool GetLinkEnds( int id, out Vector3 start, out Vector3 end, out bool startConnected, out bool endConnected )
 	{
-		var links = State.Links;
-		if ( (uint)id >= (uint)links.Length || links[id].Serial == 0 )
+		ref readonly var entry = ref State.LinkAt( id );
+		if ( entry.Serial == 0 )
 		{
 			start = end = default;
 			startConnected = endConnected = false;
 			return false;
 		}
-		ref readonly var entry = ref links[id];
 		start = entry.StartPoint;
 		end = entry.EndPoint;
 		startConnected = entry.StartPoly != PolyRef.NoId;

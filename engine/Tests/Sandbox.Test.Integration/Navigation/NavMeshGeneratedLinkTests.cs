@@ -220,7 +220,7 @@ public class NavMeshGeneratedLinkTests
 	}
 
 	[TestMethod]
-	public async Task ABakeOfTheFirstVersionStillLoads()
+	public async Task BakesOfEarlierVersionsAreIgnored()
 	{
 		var scene = new Scene();
 		using var scope = scene.Push();
@@ -228,32 +228,30 @@ public class NavMeshGeneratedLinkTests
 		Assert.IsTrue( await scene.NavMesh.Generate( scene.PhysicsWorld ) );
 		var baked = await scene.NavMesh.BakeDataToBytes();
 
-		// Version 1: the same header, the raw length of the library's bake and its block to the end
-		int raw = BinaryPrimitives.ReadInt32LittleEndian( baked.AsSpan( 24 ) ), stored = BinaryPrimitives.ReadInt32LittleEndian( baked.AsSpan( 28 ) );
-		var old = new byte[28 + stored];
-		baked.AsSpan( 0, 24 ).CopyTo( old );
-		BinaryPrimitives.WriteUInt32LittleEndian( old.AsSpan( 4 ), 1 );
-		BinaryPrimitives.WriteInt32LittleEndian( old.AsSpan( 24 ), raw );
-		baked.AsSpan( 32, stored ).CopyTo( old.AsSpan( 28 ) );
+		using ( var current = new NavMesh { IsEnabled = true } )
+		{
+			await current.LoadFromBakedData( baked );
+			Assert.IsTrue( current.OnMesh( Vector3.Zero ) );
+		}
 
-		using var loaded = new NavMesh { IsEnabled = true };
-		await loaded.LoadFromBakedData( old );
-		Assert.IsTrue( loaded.OnMesh( Vector3.Zero ) );
-		Assert.IsTrue( loaded.OnMesh( new Vector3( 300, 300, 0 ) ) );
-
-		// It has no links, so a navmesh that generates them generates
-		using var linked = new NavMesh { GenerateLinks = true, IsEnabled = true };
-		await linked.LoadFromBakedData( old );
-		Assert.IsNull( linked.GetRandomPoint() );
+		// Versions 1 and 2 held the library's bake of an older format, which it no longer reads: the scene generates
+		foreach ( uint version in new uint[] { 1, 2 } )
+		{
+			var old = baked.ToArray();
+			BinaryPrimitives.WriteUInt32LittleEndian( old.AsSpan( 4 ), version );
+			using var loaded = new NavMesh { IsEnabled = true };
+			await loaded.LoadFromBakedData( old );
+			Assert.IsNull( loaded.GetRandomPoint(), $"Version {version}" );
+		}
 	}
 
 	// The bake with its link block rewritten. Raw layout: four floats of settings, the tile count at 16, the first tile's link count at 28, its first link at 32.
 	static byte[] WithLinkBlock( byte[] baked, Action<byte[]> edit )
 	{
 		int offset = 24;
-		NavMesh.ReadBlock( baked, ref offset, false );
+		NavMesh.ReadBlock( baked, ref offset );
 		int at = offset;
-		var raw = NavMesh.ReadBlock( baked, ref offset, false );
+		var raw = NavMesh.ReadBlock( baked, ref offset );
 		edit( raw );
 		var data = new byte[at + 8 + Sandbox.Compression.LZ4.MaxCompressedSize( raw.Length )];
 		baked.AsSpan( 0, at ).CopyTo( data );

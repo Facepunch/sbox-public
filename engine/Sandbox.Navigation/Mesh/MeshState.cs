@@ -17,27 +17,42 @@ internal struct LinkEntry
 
 /// <summary>
 /// Everything a query reads. Immutable once published, except the lazily added island maps. Tiles sit
-/// in pages by slot so a commit copies the root and the pages it touches, not one entry per loaded tile.
+/// in pages by slot and links in pages by id, so a commit copies the roots and the pages it touches,
+/// not one entry per loaded tile or link.
 /// </summary>
 internal sealed class MeshState
 {
 	public const int PageBits = 8, PageSize = 1 << PageBits;
+	public const int LinkPageBits = 6, LinkPageSize = 1 << LinkPageBits;
 
 	public readonly Tile?[]?[] Pages;
 	public readonly TileIndex Index;
-	public readonly LinkEntry[] Links;
+	public readonly LinkEntry[]?[] LinkPages;
 	public readonly uint Version;
 	public readonly int TileCount;
 
+	// The split of a polygon id, the same in every state of a mesh. See PolyRef.
+	public readonly int PolyBits;
+	public readonly uint PolyMask;
+
 	public IslandMap? Islands;
 
-	public MeshState( Tile?[]?[] pages, TileIndex index, LinkEntry[] links, uint version, int tileCount )
+	// Shared by every state of one mesh: the last island map built per area mask, which the next map
+	// of that mask starts from. Its lock builds island maps one at a time.
+	public readonly List<IslandMap> LatestIslands;
+
+	static readonly LinkEntry noLink = new() { StartPoly = PolyRef.NoId, EndPoly = PolyRef.NoId };
+
+	public MeshState( Tile?[]?[] pages, TileIndex index, LinkEntry[]?[] linkPages, uint version, int tileCount, int polyBits, List<IslandMap> latestIslands )
 	{
 		Pages = pages;
 		Index = index;
-		Links = links;
+		LinkPages = linkPages;
 		Version = version;
 		TileCount = tileCount;
+		LatestIslands = latestIslands;
+		PolyBits = polyBits;
+		PolyMask = (1u << polyBits) - 1;
 	}
 
 	// For slots that come from outside, such as a PolyRef.
@@ -51,7 +66,7 @@ internal sealed class MeshState
 	// For ids this state produced itself.
 	public Tile Get( uint id )
 	{
-		uint slot = id >> PolyRef.PolyBits;
+		uint slot = id >> PolyBits;
 		return Pages[slot >> PageBits]![slot & (PageSize - 1)]!;
 	}
 
@@ -64,19 +79,33 @@ internal sealed class MeshState
 	public bool TryGet( PolyRef reference, out Tile tile, out int poly )
 	{
 		uint id = reference.Id;
-		poly = (int)(id & PolyRef.PolyMask);
-		tile = TileAt( id >> PolyRef.PolyBits )!;
+		poly = (int)(id & PolyMask);
+		tile = TileAt( id >> PolyBits )!;
 		return tile != null && tile.Serial == reference.Serial && poly < tile.Polys.Length;
 	}
 
+	// For link ids that come from outside, such as a PolyRef: a free entry, Serial 0, for an id not in use.
+	public ref readonly LinkEntry LinkAt( int id )
+	{
+		var pages = LinkPages;
+		uint page = (uint)id >> LinkPageBits;
+		if ( page < (uint)pages.Length && pages[page] is { } entries ) return ref entries[id & (LinkPageSize - 1)];
+		return ref noLink;
+	}
+
+	// For link ids this state produced itself.
+	public ref readonly LinkEntry Link( int id ) => ref LinkPages[id >> LinkPageBits]![id & (LinkPageSize - 1)];
+
 	public PolyRef RefOf( uint id ) => new( Get( id ).Serial, id );
+
+	public uint IdOf( Tile tile, int poly ) => (uint)tile.Slot << PolyBits | (uint)poly;
 
 	// Whether a corridor entry, polygon or link, still names what it named and the filter lets it pass.
 	public bool IsValid( PolyRef entry, in NavFilter filter )
 	{
 		if ( !entry.IsLink ) return TryGet( entry, out var tile, out int poly ) && filter.Allows( tile.Polys[poly].Area );
-		int id = entry.Link;
-		return (uint)id < (uint)Links.Length && Links[id].Serial == entry.Serial && Links[id].Connected && filter.Allows( Links[id].Def.Area ) && filter.AllowsLink( Links[id].Def.Type );
+		ref readonly var link = ref LinkAt( entry.Link );
+		return link.Serial == entry.Serial && link.Connected && filter.Allows( link.Def.Area ) && filter.AllowsLink( link.Def.Type );
 	}
 }
 

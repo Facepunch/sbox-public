@@ -12,8 +12,8 @@ namespace Nav.Lib.Tests;
 public class GeneratedLinkTests
 {
 	internal const byte Drop = 1, Jump = 2;
-	static readonly NavSettings Settings = NavSettings.Create( 64, 16, 18, 40, 4, 4, 128 );
-	internal static readonly NavLinkSettings Links = new() { MaxDrop = 300, MaxJumpDistance = 200, MaxJumpUp = 40, DropType = Drop, JumpType = Jump, Insert = true };
+	static readonly NavSettings Settings = NavSettings.Create( new() { AgentHeight = 64, AgentRadius = 16, AgentClimb = 18, AgentMaxSlope = 40, CellSize = 4, CellHeight = 4, TileSize = 128 } );
+	internal static readonly NavLinkSettings Links = NavLinkSettings.Create( Settings ) with { MaxDrop = 300, MaxJumpDistance = 200, MaxJumpUp = 40, DropType = Drop, JumpType = Jump, Insert = true };
 	internal static readonly Vector3 Snap = new( 34, 34, 97 );
 
 	internal sealed class Scene
@@ -51,7 +51,7 @@ public class GeneratedLinkTests
 
 		public Scene Start( NavLinkSettings links )
 		{
-			Mesh = new NavMesh( Settings, links: links );
+			Mesh = new NavMesh( Settings, NavMeshOptions.Create( Settings ) with { Links = links } );
 			return this;
 		}
 
@@ -152,9 +152,32 @@ public class GeneratedLinkTests
 	[TestMethod]
 	public void SettingsThatDoNotFitATileAreRefused()
 	{
-		Assert.ThrowsException<ArgumentException>( () => new NavMesh( Settings, links: Links with { MaxJumpDistance = 500 } ) );
-		Assert.ThrowsException<ArgumentException>( () => new NavMesh( Settings, links: Links with { JumpType = 64 } ) );
-		Assert.ThrowsException<ArgumentException>( () => new NavMesh( Settings, links: Links with { MaxDrop = float.NaN } ) );
+		Assert.ThrowsException<ArgumentException>( () => new NavMesh( Settings, NavMeshOptions.Create( Settings ) with { Links = Links with { MaxJumpDistance = 500 } } ) );
+		Assert.ThrowsException<ArgumentException>( () => new NavMesh( Settings, NavMeshOptions.Create( Settings ) with { Links = Links with { JumpType = 64 } } ) );
+		Assert.ThrowsException<ArgumentException>( () => new NavMesh( Settings, NavMeshOptions.Create( Settings ) with { Links = Links with { MaxDrop = float.NaN } } ) );
+	}
+
+	[TestMethod]
+	public void SpacingIsUsedAsSetAndMustBeACellAtLeast()
+	{
+		var made = NavLinkSettings.Create( Settings );
+		Assert.AreEqual( (0f, 0f, 0f, 4 * Settings.AgentRadius, (byte)0, (byte)0, false), (made.MaxDrop, made.MaxJumpDistance, made.MaxJumpUp, made.Spacing, made.DropType, made.JumpType, made.Insert) );
+		Assert.IsFalse( made.Enabled );
+		Assert.IsTrue( made.IsValid( Settings, out _ ) );
+		Assert.IsTrue( (made with { Spacing = 0 }).IsValid( Settings, out _ ), "Nothing generated: no spacing needed" );
+
+		foreach ( float spacing in new[] { 0f, Settings.CellSize * 0.5f, -1f, float.NaN } )
+		{
+			var links = Links with { Spacing = spacing };
+			Assert.IsFalse( links.IsValid( Settings, out var reason ), $"spacing {spacing}" );
+			Assert.IsNotNull( reason );
+			Assert.ThrowsException<ArgumentException>( () => new NavMesh( Settings, NavMeshOptions.Create( Settings ) with { Links = links } ) );
+		}
+		Assert.IsTrue( (Links with { Spacing = Settings.CellSize }).IsValid( Settings, out _ ) );
+
+		// Wider spacing, fewer links along the same ledge: the value is used, not raised or replaced.
+		int Count( float spacing ) => Platform().Generate( Links with { Spacing = spacing } ).Generated().Count;
+		Assert.IsTrue( Count( 256 ) < Count( 64 ), $"{Count( 256 )} against {Count( 64 )}" );
 	}
 
 	[TestMethod]
@@ -175,11 +198,11 @@ public class GeneratedLinkTests
 		var query = new NavQuery( scene.Mesh );
 		var path = new NavPath();
 		Vector3 top = new( 240, 240, 100 ), floor = new( 420, 240, 0 );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( top, floor, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( top, floor, Snap, Filters.All, path ) );
 		Assert.IsTrue( path.Polys.ToArray().Any( p => p.IsLink ) );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( top, floor, Snap, new NavFilter( 0, forbiddenLinks: 1ul << Drop ), path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( top, floor, Snap, Filters.All.WithForbiddenLinks( 1ul << Drop ), path ) );
 		// One way: there is no path up.
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( floor, top, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( floor, top, Snap, Filters.All, path ) );
 	}
 
 	[TestMethod]
@@ -221,11 +244,11 @@ public class GeneratedLinkTests
 		var query = new NavQuery( scene.Mesh );
 		var path = new NavPath();
 		Vector3 top = new( 240, 240, 30 ), floor = new( 420, 240, 0 );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( floor, top, Snap, default, path ) );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( floor, top, Snap, new NavFilter( 0, forbiddenLinks: 1ul << Jump ), path ), "up is a jump" );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( floor, top, Snap, new NavFilter( 0, forbiddenLinks: 1ul << Drop ), path ) );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( top, floor, Snap, new NavFilter( 0, forbiddenLinks: 1ul << Jump ), path ), "down is a drop" );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( top, floor, Snap, new NavFilter( 0, forbiddenLinks: 1ul << Drop ), path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( floor, top, Snap, Filters.All, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( floor, top, Snap, Filters.All.WithForbiddenLinks( 1ul << Jump ), path ), "up is a jump" );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( floor, top, Snap, Filters.All.WithForbiddenLinks( 1ul << Drop ), path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( top, floor, Snap, Filters.All.WithForbiddenLinks( 1ul << Jump ), path ), "down is a drop" );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( top, floor, Snap, Filters.All.WithForbiddenLinks( 1ul << Drop ), path ) );
 
 		// Reported the same way, and with MaxJumpUp 0 the drops alone.
 		var reported = Ledge().Generate( Links with { Insert = false } );
@@ -244,7 +267,7 @@ public class GeneratedLinkTests
 	{
 		var plain = Platform().Generate( Links );
 		var scene = Platform().Start( Links );
-		int placed = scene.Mesh.AddLink( new NavLink { Start = new Vector3( 300, 240, 100 ), End = new Vector3( 360, 240, 0 ), Radius = 16 } );
+		int placed = scene.Mesh.AddLink( new NavLink { Start = new Vector3( 300, 240, 100 ), End = new Vector3( 360, 240, 0 ), Radius = 16, Area = NavFilter.DefaultArea } );
 		scene.Mesh.MarkDirty( 0, 0 );
 		scene.Pump();
 
@@ -590,12 +613,12 @@ public class GeneratedLinkTests
 		Assert.IsTrue( scene.Generated().Count > tiles * tiles );
 
 		// Without links the order is the order of the marks, as before.
-		var plain = new NavMesh( Settings );
+		var plain = new NavMesh( Settings, NavMeshOptions.Create( Settings ) );
 		plain.MarkDirty( 3, 3 );
 		plain.MarkDirty( 0, 0 );
 		Assert.AreEqual( 2, plain.TakeJobs( jobs ) );
 		Assert.AreEqual( (3, 3), (jobs[0].X, jobs[0].Y) );
-		var sorted = new NavMesh( Settings, links: Links );
+		var sorted = new NavMesh( Settings, NavMeshOptions.Create( Settings ) with { Links = Links } );
 		sorted.MarkDirty( 3, 3 );
 		sorted.MarkDirty( 0, 0 );
 		Assert.AreEqual( 2, sorted.TakeJobs( jobs ) );
@@ -714,9 +737,9 @@ public class GeneratedLinkTests
 		scene.Mesh.MarkDirty( 1, 0 );
 		scene.Pump();
 
-		var nowhere = new NavLink { Start = new Vector3( 0, 0, 9000 ), End = new Vector3( 10, 0, 9000 ), Radius = 1 };
+		var nowhere = new NavLink { Start = new Vector3( 0, 0, 9000 ), End = new Vector3( 10, 0, 9000 ), Radius = 1, Area = NavFilter.DefaultArea };
 		for ( int i = 0; i < 65534; i++ ) Assert.AreEqual( i, scene.Mesh.AddLink( nowhere ) );
-		int last = scene.Mesh.AddLink( new NavLink { Start = new Vector3( 440, 240, 0 ), End = new Vector3( 630, 240, 0 ), Radius = 16, Bidirectional = true } );
+		int last = scene.Mesh.AddLink( new NavLink { Start = new Vector3( 440, 240, 0 ), End = new Vector3( 630, 240, 0 ), Radius = 16, Bidirectional = true, Area = NavFilter.DefaultArea } );
 		Assert.AreEqual( 65534, last );
 		Assert.AreEqual( -1, scene.Mesh.AddLink( nowhere ) );
 
@@ -730,10 +753,10 @@ public class GeneratedLinkTests
 
 		var query = new NavQuery( scene.Mesh );
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 100, 240, 0 ), new Vector3( 800, 240, 0 ), Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 100, 240, 0 ), new Vector3( 800, 240, 0 ), Snap, Filters.All, path ) );
 		var link = path.Polys.ToArray().Single( p => p.IsLink );
 		Assert.AreEqual( 65534, link.Link );
-		Assert.IsTrue( query.IsValid( link, default ) );
+		Assert.IsTrue( query.IsValid( link, Filters.All ) );
 		Assert.IsTrue( query.GetLink( link, new Vector3( 100, 240, 0 ), out var entry, out var exit ) );
 		Assert.IsTrue( entry.X < 512 && exit.X > 512 );
 		Assert.IsFalse( path.Polys.ToArray().Any( p => !p.IsLink && p.Link >= 0 ) );
@@ -743,7 +766,7 @@ public class GeneratedLinkTests
 	public void GeneratedLinksThatFindNoFreeIdAreCounted()
 	{
 		var scene = Platform().Start( Links );
-		var nowhere = new NavLink { Start = new Vector3( 0, 0, 9000 ), End = new Vector3( 10, 0, 9000 ), Radius = 1 };
+		var nowhere = new NavLink { Start = new Vector3( 0, 0, 9000 ), End = new Vector3( 10, 0, 9000 ), Radius = 1, Area = NavFilter.DefaultArea };
 		for ( int i = 0; i < 65533; i++ ) scene.Mesh.AddLink( nowhere );
 		scene.Mesh.MarkDirty( 0, 0 );
 		scene.Pump();
@@ -859,12 +882,12 @@ public class GeneratedLinkTests
 	public void JumpHeightStartsAndEndsOnTheGroundAndHopsNoHigherThanMaxJumpUp()
 	{
 		Vector3 start = new( 0, 0, 100 ), end = new( 200, 0, 20 );
-		Assert.AreEqual( 100, Links.JumpHeight( start, end, 0, 18 ) );
-		Assert.AreEqual( 20, Links.JumpHeight( start, end, 1, 18 ), 0.001f );
-		for ( float t = 0; t <= 1; t += 0.05f ) Assert.IsTrue( Links.JumpHeight( start, end, t, 18 ) <= 100 + Links.MaxJumpUp );
+		Assert.AreEqual( 100, Links.JumpHeight( Settings, start, end, 0 ) );
+		Assert.AreEqual( 20, Links.JumpHeight( Settings, start, end, 1 ), 0.001f );
+		for ( float t = 0; t <= 1; t += 0.05f ) Assert.IsTrue( Links.JumpHeight( Settings, start, end, t ) <= 100 + Links.MaxJumpUp );
 		// Level: a quarter of the distance, capped.
-		Assert.AreEqual( 40, Links.JumpHeight( start, new Vector3( 200, 0, 100 ), 0.5f, 18 ) - 100, 0.001f );
-		Assert.AreEqual( 20, Links.JumpHeight( start, new Vector3( 80, 0, 100 ), 0.5f, 18 ) - 100, 0.001f );
+		Assert.AreEqual( 40, Links.JumpHeight( Settings, start, new Vector3( 200, 0, 100 ), 0.5f ) - 100, 0.001f );
+		Assert.AreEqual( 20, Links.JumpHeight( Settings, start, new Vector3( 80, 0, 100 ), 0.5f ) - 100, 0.001f );
 	}
 
 	[TestMethod]

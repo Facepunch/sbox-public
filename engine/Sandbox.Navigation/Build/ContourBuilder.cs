@@ -449,34 +449,31 @@ internal sealed class ContourBuilder
 			else i++;
 		}
 
-		if ( maxEdgeLength > 0 )
+		for ( int i = 0; i < simpleCount / 4; )
 		{
-			for ( int i = 0; i < simpleCount / 4; )
-			{
-				int next = (i + 1) % (simpleCount / 4);
-				int ax = simple[i * 4], ay = simple[i * 4 + 1], a = simple[i * 4 + 3];
-				int bx = simple[next * 4], by = simple[next * 4 + 1], b = simple[next * 4 + 3];
+			int next = (i + 1) % (simpleCount / 4);
+			int ax = simple[i * 4], ay = simple[i * 4 + 1], a = simple[i * 4 + 3];
+			int bx = simple[next * 4], by = simple[next * 4 + 1], b = simple[next * 4 + 3];
 
-				int split = -1;
-				int current = (a + 1) % pointCount;
-				if ( (raw[current * 4 + 3] & RegionMask) == 0 )
+			int split = -1;
+			int current = (a + 1) % pointCount;
+			if ( (raw[current * 4 + 3] & RegionMask) == 0 )
+			{
+				int dx = bx - ax;
+				int dy = by - ay;
+				if ( dx * dx + dy * dy > (long)maxEdgeLength * maxEdgeLength )
 				{
-					int dx = bx - ax;
-					int dy = by - ay;
-					if ( dx * dx + dy * dy > maxEdgeLength * maxEdgeLength )
+					int n = b < a ? b + pointCount - a : b - a;
+					if ( n > 1 )
 					{
-						int n = b < a ? b + pointCount - a : b - a;
-						if ( n > 1 )
-						{
-							if ( bx > ax || (bx == ax && by > ay) ) split = (a + n / 2) % pointCount;
-							else split = (a + (n + 1) / 2) % pointCount;
-						}
+						if ( bx > ax || (bx == ax && by > ay) ) split = (a + n / 2) % pointCount;
+						else split = (a + (n + 1) / 2) % pointCount;
 					}
 				}
-
-				if ( split != -1 ) InsertSimple( i + 1, split );
-				else i++;
 			}
+
+			if ( split != -1 ) InsertSimple( i + 1, split );
+			else i++;
 		}
 
 		// The border flag comes from the point itself, the neighbour region from the point after it
