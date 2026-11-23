@@ -1,4 +1,24 @@
 {
+    "tool.hint.faceposer.description": "Edit facial expressions and copy them between characters.",
+    "tool.hint.faceposer.apply": "Apply expression to face",
+    "tool.hint.faceposer.select": "Copy face and edit in tool panel",
+    "tool.hint.faceposer.reset": "Reset facial expression",
+
+    "tool.name.fingerposer": "Finger Poser",
+    "tool.hint.fingerposer.description": "Select a hand to edit its fingers, or copy the pose to another hand.",
+    "tool.hint.fingerposer.apply": "Apply pose to hand",
+    "tool.hint.fingerposer.select": "Copy hand pose and edit in tool panel",
+    "tool.hint.fingerposer.reset": "Restore hand pose",
+    "tool.finger.thumb": "Thumb",
+    "tool.finger.index": "Index",
+    "tool.finger.middle": "Middle",
+    "tool.finger.ring": "Ring",
+    "tool.finger.pinky": "Pinky",
+    "tool.finger.base": "Base bend",
+    "tool.finger.middle_joint": "Middle bend",
+    "tool.finger.tip": "Tip bend",
+    "tool.finger.spread": "Spread",
+
     "tool.name.eyeposer": "Eye Poser",
     "tool.screen.eyeposer.aim": "Click To Aim Eyes",
     "tool.hint.eyeposer.description": "Change the eye direction of NPCs and Ragdolls",
@@ -139,10 +159,6 @@
     "tool.hint.emittertool.place": "Place",
     "tool.hint.emittertool.place_no_weld": "Place (no weld)",
 
-    "tool.hint.stacker.description": "Duplicates objects along a direction with live preview",
-    "tool.hint.stacker.stack": "Stack",
-    "tool.hint.stacker.cycle_alignment": "Cycle Alignment",
-    "tool.hint.stacker.cycle_direction": "Cycle Direction",
 
     "tool.name.weld": "Weld",
     "tool.name.rope": "Rope",
@@ -181,7 +197,6 @@
     "tool.name.decal": "Decal",
     "tool.name.trail": "Trail",
     "tool.name.duplicator": "Duplicator",
-    "tool.name.stacker": "Stacker",
     "tool.name.builder": "Builder",
     "tool.hint.builder.description": "Create building blocks of any size and shape",
     "tool.hint.builder.start": "First Corner",

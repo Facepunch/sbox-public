@@ -420,7 +420,7 @@
                 }
               }
             },
-            "BodyGroups": 20737,
+            "BodyGroups": 147713,
             "BoneMergeTarget": null,
             "CreateAttachments": true,
             "CreateBoneObjects": true,
@@ -431,8 +431,8 @@
             "MaterialOverride": null,
             "Materials": null,
             "Model": {
-              "Id": "161d0b00-c517-4044-989d-b679dab75a28",
-              "Path": "models/citizen_human/citizen_human_male.vmdl"
+              "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+              "Path": "models/citizen_human/human.vmdl"
             },
             "Morphs": {},
             "OnComponentDestroy": null,

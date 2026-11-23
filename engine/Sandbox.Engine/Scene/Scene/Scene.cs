@@ -215,8 +215,19 @@ public partial class Scene : GameObject
 		// persistent between the clears.
 		ClearObjectIndex();
 
-		Clear();
-		ProcessDeletes();
+		// A component callback can destroy another scene. Finish that scene's
+		// teardown callbacks while its GameObjects and systems are still available.
+		var running = CallbackBatch.Detach();
+		try
+		{
+			Clear();
+			ProcessDeletes();
+		}
+		finally
+		{
+			CallbackBatch.Reattach( running );
+		}
+
 		ShutdownSystems();
 
 		GC.SuppressFinalize( this );

@@ -27,8 +27,7 @@ public sealed partial class WorkshopPublisher : Panel
 	readonly PanelLabel itemDetails;
 	readonly PanelLabel message;
 	readonly PanelLabel status;
-	readonly Panel progress;
-	readonly Panel progressFill;
+	readonly PanelProgressBar progress;
 	readonly Panel addonTypeRow;
 	readonly Panel addonTypeChoices;
 	readonly HashSet<string> addonTypes;
@@ -131,8 +130,7 @@ public sealed partial class WorkshopPublisher : Panel
 		notes.AddClass( "notes-row" );
 		changes = notes.AddChild( new TextEntry { Multiline = true, Placeholder = "What changed? (optional)" } );
 		message = body.Add.Label( "", "message" );
-		progress = Add.Panel( "progress" );
-		progressFill = progress.Add.Panel( "progress-fill" );
+		progress = AddChild<PanelProgressBar>();
 		var footer = Add.Panel( "footer" );
 		status = footer.Add.Label( "Loading…", "status" );
 		cancel = footer.AddChild( new PanelButton( "Cancel", Cancel ) );
@@ -431,7 +429,7 @@ public sealed partial class WorkshopPublisher : Panel
 		if ( !uploading || publisher is null ) return;
 		status.Text = publisher.WorkshopUploadStatus ?? "Preparing files…";
 		var total = publisher.WorkshopBytesTotal;
-		progressFill.Style.Width = Length.Percent( total > 0 ? (100f * publisher.WorkshopBytesDone / total).Clamp( 0, 100 ) : 0 );
+		progress.Fraction = total > 0 ? (float)publisher.WorkshopBytesDone / total : 0;
 	}
 
 	/// <summary>

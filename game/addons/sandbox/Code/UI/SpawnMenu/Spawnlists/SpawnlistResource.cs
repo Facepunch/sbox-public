@@ -54,6 +54,12 @@ public class SpawnlistResource : GameResource
 		public SpawnlistItemKind Kind { get; set; }
 
 		/// <summary>
+		/// A prefab to spawn directly. The spawnlist includes it as a resource dependency.
+		/// </summary>
+		[Property, ShowIf( nameof( Kind ), SpawnlistItemKind.Item )]
+		public PrefabFile Prefab { get; set; }
+
+		/// <summary>
 		/// A raw spawn ident, for anything that isn't a local model or entity,
 		/// e.g. <c>prop:facepunch.wooden_crate</c>. Used when no model or entity is set.
 		/// </summary>
@@ -72,11 +78,22 @@ public class SpawnlistResource : GameResource
 		[Property, ShowIf( nameof( Kind ), SpawnlistItemKind.Item ), IconName]
 		public string Icon { get; set; }
 
+		/// <summary>
+		/// Expands model paths for prop and mount spawners while preserving other spawn identifiers.
+		/// </summary>
 		public string GetIdent()
 		{
-			var ident = Ident.Trim();
-			// only paths get the extension, package idents like prop:facepunch.wooden_crate stay as they are
-			if ( ident.Contains( '/' ) && !ident.EndsWith( ".vmdl" ) ) ident += ".vmdl";
+			if ( Prefab is not null )
+				return $"prefab:{Prefab.ResourcePath}";
+
+			var ident = Ident?.Trim();
+			if ( string.IsNullOrEmpty( ident ) )
+				return null;
+
+			var (type, path, _) = SpawnlistItem.ParseIdent( ident );
+			if ( type is ("prop" or "mount") && path.Contains( '/' ) && !path.EndsWith( ".vmdl" ) )
+				ident += ".vmdl";
+
 			return ident;
 		}
 
@@ -84,6 +101,18 @@ public class SpawnlistResource : GameResource
 		{
 			return $"({Kind}) {GetIdent() ?? Title}";
 		}
+	}
+
+	/// <summary>
+	/// Resolves a spawn request against the prefabs offered by the game's authored spawnlists.
+	/// </summary>
+	internal static Entry FindPrefab( string path )
+	{
+		return ResourceLibrary.GetAll<SpawnlistResource>()
+			.Where( list => !list.IsRemote && list.ShouldShow() )
+			.SelectMany( list => list.Items ?? [] )
+			.FirstOrDefault( entry => entry?.Kind == SpawnlistItemKind.Item && entry.Prefab is not null
+				&& string.Equals( entry.Prefab.ResourcePath, path, StringComparison.OrdinalIgnoreCase ) );
 	}
 
 	/// <summary>

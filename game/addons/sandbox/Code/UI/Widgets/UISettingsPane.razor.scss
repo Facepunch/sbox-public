@@ -223,15 +223,20 @@
 			.list-entry { background-color: $ui-catalog-surface; border-radius: $ui-menu-radius; }
 			.list-entry.clickable:hover { background-color: $ui-blue-soft; }
 
-			UIEnumControl.segmented
+			EnumControl > ButtonGroup
 			{
-				.segment:hover { background-color: $ui-blue-soft; color: $ui-text-strong; }
 				@include ui-menu-segments;
 				height: 34px;
 				border-radius: 7px;
+
+				> .button:hover
+				{
+					background-color: $ui-blue-soft;
+					color: $ui-text-strong;
+				}
 			}
 
-			UIButton.button:not(.active), UIDropdown
+			UIButton.button:not(.active), UIDropdown, EnumControl > .button.popupbutton.dropdown
 			{
 				border-radius: $ui-menu-radius;
 				@include ui-control-surface;

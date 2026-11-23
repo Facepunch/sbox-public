@@ -1,7 +1,7 @@
 {
   "HasHumanSkin": true,
-  "HumanSkinModel": "models/citizen_human/citizen_human_male.vmdl",
-  "HumanSkinBodyGroups": 32644,
+  "HumanSkinModel": "models/citizen_human/human.vmdl",
+  "HumanSkinBodyGroups": 149764,
   "HumanSkinMaterialGroup": "body_03",
   "HumanSkinTags": "male",
   "HumanSkinMaterial": null,

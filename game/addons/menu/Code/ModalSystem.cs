@@ -5,7 +5,7 @@ using Sandbox.Modals;
 
 /// <summary>
 /// What games and the menu open over themselves. Pages - a map, a server list, a player - come up out of the dock as
-/// pages of the shelf (<see cref="PlatformRoot.ShowModal"/>). Questions and forms - a review, a report, a password -
+/// pages of the shelf (<see cref="PlatformRoot.ShowModal"/>). Questions and forms - a report, a password -
 /// pop up over everything on the overlay, the loading screen too.
 /// </summary>
 public class ModalSystem : IModalSystem
@@ -156,9 +156,12 @@ public class ModalSystem : IModalSystem
 		Shelve( SetupModal.Map( selected, onSelected ) );
 	}
 
+	/// <summary>
+	/// Retained for callers that opened the former review form.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public void Review( Package package )
 	{
-		Push( new ReviewModal { Package = package } );
 	}
 
 	/// <summary>

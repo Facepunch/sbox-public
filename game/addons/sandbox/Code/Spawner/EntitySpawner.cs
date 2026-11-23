@@ -1,20 +1,32 @@
 /// <summary>
-/// Payload for spawning a scripted entity prefab.
+/// Spawns a prefab offered by a scripted entity or a spawnlist.
 /// </summary>
 public sealed class EntitySpawner : ISpawner
 {
 	public string DisplayName { get; private set; }
-	public string FullIdent => Path is not null && !Path.EndsWith( ".sent" ) ? Path : null;
+	public string FullIdent => ListedPrefab is null && Path is not null && !Path.EndsWith( ".sent" ) ? Path : null;
 	public string Icon => Path;
 	public string Data => Path;
 	public BBox Bounds { get; private set; }
-	public bool IsReady => Entity is not null && Entity.IsMountAvailable
+	public bool IsReady => ListedPrefab is not null || Entity is not null && Entity.IsMountAvailable
 		&& (string.IsNullOrEmpty( Entity.RequiredMount ) || Sandbox.Mounting.Directory.Get( Entity.RequiredMount )?.IsMounted == true);
 	public Task<bool> Loading { get; }
-	public GameObject Prefab => Entity?.Prefab is not null ? GameObject.GetPrefab( Entity.Prefab.ResourcePath ) : null;
+	public GameObject Prefab => PrefabFile is not null ? GameObject.GetPrefab( PrefabFile.ResourcePath ) : null;
+
+	internal PrefabFile ListedPrefab { get; }
+	PrefabFile PrefabFile => ListedPrefab ?? Entity?.Prefab;
 
 	public ScriptedEntity Entity { get; private set; }
 	public string Path { get; }
+
+	internal EntitySpawner( SpawnlistResource.Entry entry )
+	{
+		ListedPrefab = entry.Prefab;
+		Path = ListedPrefab.ResourcePath;
+		DisplayName = entry.Title ?? ListedPrefab.ResourceName;
+		Bounds = ListedPrefab.GetScene().GetLocalBounds();
+		Loading = Task.FromResult( true );
+	}
 
 	public EntitySpawner( string path )
 	{
@@ -124,7 +136,7 @@ public sealed class EntitySpawner : ISpawner
 		Game.ActiveScene.DebugOverlay.Model( Model.Cube, transform: previewTransform, overlay: false, materialOveride: overrideMaterial );
 	}
 
-	public Task<List<GameObject>> Spawn( Transform transform, Player player ) => Task.FromResult( SpawnPrefab( Entity.Prefab, Bounds, transform, player ) );
+	public Task<List<GameObject>> Spawn( Transform transform, Player player ) => Task.FromResult( SpawnPrefab( PrefabFile, Bounds, transform, player ) );
 
 	/// <summary>
 	/// Clone an entity prefab standing on the spot, clear of others, with the sandbox's rules: removable, owned by

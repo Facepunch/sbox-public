@@ -1,5 +1,6 @@
 using Sandbox.Resources;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -13,6 +14,8 @@ namespace Editor;
 internal class SceneResourceCompiler : ResourceCompiler
 {
 	internal static string GetBakePath( string sourcePath ) => $"{Path.ChangeExtension( sourcePath, null )}_scene_data/baked.input";
+
+	internal static string GetCompiledFolder( string sourcePath ) => Path.Combine( Path.GetDirectoryName( GetBakePath( sourcePath ) ), "compiled" );
 
 	internal static byte[] GetSourceHash( string sourcePath )
 	{
@@ -29,48 +32,121 @@ internal class SceneResourceCompiler : ResourceCompiler
 		return hash.GetHashAndReset();
 	}
 
-	internal static bool IsBakeCurrent( string sourcePath )
+	internal static bool IsBakeCurrent( string sourcePath, out string outputFolder )
+		=> TryReadBake( sourcePath, out outputFolder, out _, readContents: false );
+
+	internal static string ReadBake( string sourcePath )
+		=> TryReadBake( sourcePath, out _, out var json, readContents: true ) ? json : null;
+
+	static bool TryReadBake( string sourcePath, out string folder, out string json, bool readContents )
 	{
+		folder = GetCompiledFolder( sourcePath );
+		json = null;
 		var path = GetBakePath( sourcePath );
 		if ( !File.Exists( sourcePath ) || !File.Exists( path ) )
 			return false;
 
 		using var reader = File.OpenText( path );
-		return HasCurrentHeader( sourcePath, reader.ReadLine() );
-	}
-
-	static bool HasCurrentHeader( string sourcePath, string header, bool warn = false )
-	{
-		var parts = header?.Split( ' ' );
+		var parts = reader.ReadLine()?.Split( ' ' );
 		Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
-		if ( parts?.Length != 2 || parts[0].Length != hash.Length * 2
-			|| Convert.FromHexString( parts[0], hash, out _, out _ ) != System.Buffers.OperationStatus.Done
-			|| (parts[1] != "-" && !Guid.TryParseExact( parts[1], "N", out _ )) )
+		int aggregates = 0, meshes = 0, collisions = 0;
+		var counted = parts?.Length == 4 && Count( parts[1], out aggregates ) && Count( parts[2], out meshes ) && Count( parts[3], out collisions );
+		var legacy = parts?.Length == 2 && (parts[1] is "-" or "." || Guid.TryParseExact( parts[1], "N", out _ ));
+		if ( (!counted && !legacy) || parts[0].Length != hash.Length * 2
+			|| Convert.FromHexString( parts[0], hash, out _, out _ ) != System.Buffers.OperationStatus.Done )
 		{
-			if ( warn )
-				Log.Warning( $"Ignoring scene bake '{GetBakePath( sourcePath )}': invalid bake header. Compile the scene again to replace it." );
+			if ( readContents )
+				Log.Warning( $"Ignoring scene bake '{path}': invalid bake header. Compile the scene again to replace it." );
 			return false;
 		}
 
 		if ( !CryptographicOperations.FixedTimeEquals( hash, GetSourceHash( sourcePath ) ) )
 			return false;
 
-		if ( parts[1] == "-" || Directory.Exists( Path.Combine( Path.GetDirectoryName( GetBakePath( sourcePath ) ), "compiled", parts[1] ) ) )
-			return true;
+		bool complete;
+		if ( counted )
+		{
+			complete = HasFiles( folder, "aggregate_", ".vmdl_c", aggregates )
+				&& HasFiles( folder, "mesh_", ".vmdl_c", meshes )
+				&& HasFiles( folder, "collision_", ".vphys_c", collisions );
+		}
+		else if ( parts[1] == "-" )
+		{
+			complete = true;
+		}
+		else
+		{
+			if ( parts[1] != "." )
+				folder = Path.Combine( folder, parts[1] );
 
-		if ( warn )
-			Log.Warning( $"Ignoring scene bake '{GetBakePath( sourcePath )}': compiled geometry is missing. Compile the scene again to replace it." );
-		return false;
+			complete = false;
+			if ( Directory.Exists( folder ) )
+			{
+				json = reader.ReadToEnd();
+				try
+				{
+					complete = HasLegacyOutputs( folder, json );
+				}
+				catch ( JsonException )
+				{
+					if ( readContents )
+						Log.Warning( $"Ignoring scene bake '{path}': invalid scene JSON. Compile the scene again to replace it." );
+					return false;
+				}
+			}
+		}
+
+		if ( !complete )
+		{
+			if ( readContents )
+				Log.Warning( $"Ignoring scene bake '{path}': compiled geometry is missing. Compile the scene again to replace it." );
+			return false;
+		}
+
+		if ( readContents )
+			json ??= reader.ReadToEnd();
+		return true;
+
+		static bool Count( string text, out int count ) => int.TryParse( text, NumberStyles.None, CultureInfo.InvariantCulture, out count );
 	}
 
-	static string ReadBake( string sourcePath )
+	static bool HasFiles( string folder, string prefix, string extension, int count )
 	{
-		var path = GetBakePath( sourcePath );
-		if ( !File.Exists( path ) )
-			return null;
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( !File.Exists( Path.Combine( folder, $"{prefix}{i}{extension}" ) ) )
+				return false;
+		}
 
-		using var reader = File.OpenText( path );
-		return HasCurrentHeader( sourcePath, reader.ReadLine(), warn: true ) ? reader.ReadToEnd() : null;
+		return true;
+	}
+
+	// Bakes made before the header carried counts store the generated paths on the scene components.
+	static bool HasLegacyOutputs( string folder, string json )
+	{
+		var reader = new Utf8JsonReader( Encoding.UTF8.GetBytes( json ), new JsonReaderOptions { MaxDepth = 512 } );
+		var absoluteFolder = Path.GetFullPath( folder ).Replace( '\\', '/' );
+		var found = false;
+		while ( reader.Read() )
+		{
+			if ( reader.TokenType != JsonTokenType.PropertyName || !(reader.ValueTextEquals( "Path" ) || reader.ValueTextEquals( "Model" ) || reader.ValueTextEquals( "Physics" )) )
+				continue;
+
+			if ( !reader.Read() || reader.TokenType != JsonTokenType.String )
+				continue;
+
+			var path = reader.GetString();
+			var slash = path.LastIndexOf( '/' );
+			if ( slash < 0 || !absoluteFolder.EndsWith( "/" + path[..slash].TrimStart( '/' ), StringComparison.OrdinalIgnoreCase )
+				|| !(path.EndsWith( ".vmdl", StringComparison.OrdinalIgnoreCase ) || path.EndsWith( ".vphys", StringComparison.OrdinalIgnoreCase )) )
+				continue;
+
+			found = true;
+			if ( !File.Exists( Path.Combine( folder, path[(slash + 1)..] + "_c" ) ) )
+				return false;
+		}
+
+		return found;
 	}
 
 	protected override async Task<bool> Compile()

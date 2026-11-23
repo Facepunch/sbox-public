@@ -46,7 +46,6 @@ public class ClothingBodyTests
 		var body = scene.CreateObject().AddComponent<SkinnedModelRenderer>();
 		var dresser = Dresser.GetOrCreate( body );
 		var replacement = CreateHuman();
-		replacement.BodyModel = "models/citizen_human/citizen_human_male.vmdl";
 		replacement.BodyMaterialGroup = "body_03";
 		var gloves = new Clothing
 		{

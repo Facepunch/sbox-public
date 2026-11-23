@@ -1,9 +1,16 @@
+/// <summary>
+/// Applies the camera's saved effects to a lens or to the player's view through it.
+/// </summary>
 public sealed class CameraEffectStack
 {
-	readonly Dictionary<string, GameObject> _spawned = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, EffectSettings> _spawned = new( StringComparer.OrdinalIgnoreCase );
 	GameObject _parent;
+	int _catalogRevision;
 	int? _appliedVersion;
 
+	/// <summary>
+	/// Updates the target camera's components and restores any saved property overrides.
+	/// </summary>
 	public void Apply( GameObject parent, CameraEntity camera )
 	{
 		if ( !parent.IsValid() || !camera.IsValid() )
@@ -12,71 +19,63 @@ public sealed class CameraEffectStack
 			return;
 		}
 
+		var manager = camera.Scene.GetSystem<PostProcessManager>();
+		var revision = manager.CatalogRevision;
+		if ( parent != _parent || revision != _catalogRevision )
+			Clear();
+
 		var version = camera.EffectsVersion;
-		if ( parent == _parent && version == _appliedVersion && AllSpawnedValid() ) return;
-		Respawn( parent, camera, version );
+		if ( version == _appliedVersion && AllSpawnedValid() ) return;
+
+		Respawn( parent, camera, version, manager );
 	}
 
 	bool AllSpawnedValid()
 	{
-		foreach ( var go in _spawned.Values )
-			if ( !go.IsValid() ) return false;
+		foreach ( var settings in _spawned.Values )
+			if ( !settings.Component.IsValid() ) return false;
+
 		return true;
 	}
 
 	// Separate so the settings closure below is only allocated when something changed
-	void Respawn( GameObject parent, CameraEntity camera, int version )
+	void Respawn( GameObject parent, CameraEntity camera, int version, PostProcessManager manager )
 	{
-		if ( parent != _parent ) Clear();
-
 		_parent = parent;
+		_catalogRevision = manager.CatalogRevision;
 		_appliedVersion = version;
 
-		var wanted = camera.ActiveEffects.ToHashSet( StringComparer.OrdinalIgnoreCase );
-		foreach ( var path in _spawned.Keys.Where( x => !wanted.Contains( x ) ).ToList() )
+		foreach ( var id in _spawned.Keys.Where( x => !camera.HasEffect( x ) ).ToList() )
 		{
-			_spawned[path]?.Destroy();
-			_spawned.Remove( path );
+			if ( _spawned[id].GameObject.IsValid() ) _spawned[id].GameObject.Destroy();
+			_spawned.Remove( id );
 		}
 
-		foreach ( var path in camera.ActiveEffects )
+		foreach ( var id in camera.ActiveEffects )
 		{
-			if ( !_spawned.TryGetValue( path, out var go ) || !go.IsValid() )
+			if ( !_spawned.TryGetValue( id, out var settings ) || !settings.Component.IsValid() )
 			{
-				go = Spawn( parent, path );
+				if ( settings?.GameObject.IsValid() == true ) settings.GameObject.Destroy();
+
+				var go = manager.CreateEffect( parent, id, true );
 				if ( go is null ) continue;
-				_spawned[path] = go;
+
+				settings = new EffectSettings( go );
+				_spawned[id] = settings;
 			}
 
-			EffectSettings.Apply( path, go.GetComponentsInChildren<Component>( true ), setting => camera.GetEffectValue( path, setting ) );
+			settings.Apply( key => camera.GetEffectValue( id, key ) );
 		}
-	}
-
-	static GameObject Spawn( GameObject parent, string path )
-	{
-		// a workshop effect only resolves once its package is mounted on this client
-		var resource = ResourceLibrary.Get<PostProcessResource>( path );
-		if ( resource?.Prefab is null ) return null;
-
-		var go = GameObject.Clone( resource.Prefab, new CloneConfig { StartEnabled = true, Parent = parent } );
-		go.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
-		return go;
 	}
 
 	/// <summary>
-	/// The live components of one effect, for editing its settings.
+	/// Removes this stack's local copies of the camera effects.
 	/// </summary>
-	public IReadOnlyList<Component> GetComponents( string path )
-	{
-		if ( !_spawned.TryGetValue( path, out var go ) || !go.IsValid() ) return [];
-		return [.. go.GetComponentsInChildren<Component>( true )];
-	}
-
 	public void Clear()
 	{
-		foreach ( var go in _spawned.Values )
+		foreach ( var settings in _spawned.Values )
 		{
-			if ( go.IsValid() ) go.Destroy();
+			if ( settings.GameObject.IsValid() ) settings.GameObject.Destroy();
 		}
 
 		_spawned.Clear();

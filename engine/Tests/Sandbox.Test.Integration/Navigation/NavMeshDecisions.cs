@@ -2,6 +2,7 @@ using Sandbox.Navigation;
 using Sandbox.Volumes;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace NavigationTests;
 
@@ -402,6 +403,40 @@ public class NavMeshDecisions
 		await loaded.LoadFromBakedData( folder.Written[1] );
 		Assert.IsTrue( loaded.OnMesh( new Vector3( 150, 150, 0 ) ) );
 		Assert.IsFalse( loaded.OnMesh( Vector3.Zero ), "The bake should be of the world as it was when it was asked for" );
+	}
+
+	/// <summary>
+	/// Cancelling a navigation compile preserves the last completed file and its scene reference.
+	/// </summary>
+	[TestMethod]
+	public async Task CancelledCompileKeepsPreviousNavMeshBake()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.Floor( Vector3.Zero );
+		await scene.NavMesh.Generate( scene.PhysicsWorld );
+
+		var job = ((Editor.ISceneCompile)scene.GetSystem<NavMeshGameSystem>()).GetWork();
+		Assert.IsNotNull( job.Run );
+		Assert.IsNotNull( job.Clear );
+
+		var folder = new WrittenFiles();
+		Assert.IsTrue( await scene.NavMesh.BakeInEditor( scene.PhysicsWorld, folder, () => true, regenerate: true ) );
+		var writes = folder.Written.Count;
+		var reference = scene.NavMesh.Serialize()["BakedDataPath"].ToJsonString();
+		Assert.IsTrue( folder.Written[^1].Length > 0 );
+
+		using var cancel = new CancellationTokenSource();
+		var compile = scene.NavMesh.BakeForCompile( scene, folder, cancel.Token, clean: false );
+		cancel.Cancel();
+		await Assert.ThrowsExceptionAsync<OperationCanceledException>( () => compile );
+
+		Assert.AreEqual( writes, folder.Written.Count );
+		Assert.AreEqual( reference, scene.NavMesh.Serialize()["BakedDataPath"].ToJsonString() );
+
+		await scene.NavMesh.BakeForCompile( scene, folder, CancellationToken.None, clean: false );
+		Assert.AreEqual( writes + 1, folder.Written.Count );
+		Assert.IsTrue( folder.Written[^1].Length > 0 );
 	}
 
 	[TestMethod]

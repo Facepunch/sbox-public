@@ -1,15 +1,11 @@
 @using Sandbox;
 @using Sandbox.UI;
-@attribute [InspectorEditor(null)]
-@attribute [Order(100)]
 @inherits Panel
 @namespace Sandbox
-@implements IInspectorEditor
-@attribute [Icon( "deployed_code" )]
 
 <root>
     <div class="body">
-            @if (Target == null || Target.Count == 0)
+            @if ( Target.Count == 0 )
             {
             <div class="empty-state">#spawnmenu.inspect.click_to_inspect</div>
             }
@@ -18,6 +14,11 @@
                 var totalMass = Target.SelectMany( go => go.GetComponentsInChildren<Rigidbody>() ).Sum( ResolveMass );
                 var health = Target.Select( go => go.GetComponent<Prop>() ).FirstOrDefault( p => p.IsValid() );
                 var hasHealth = health.IsValid() && health.Health != 0;
+
+                if ( totalMass <= 0 && !hasHealth && Properties.Count == 0 && Renderers.Count == 0 )
+                {
+                    <div class="empty-state">#spawnmenu.inspect.nothing_to_edit</div>
+                }
 
                 if ( totalMass > 0 || hasHealth )
                 {
@@ -104,29 +105,20 @@
 
 @code
 {
+    readonly List<GameObject> Target = new();
+
     /// <summary>
-    /// Localized inspector title including any additional selected objects.
+    /// Rebuilds the property sheet when the Select tool's selection changes.
     /// </summary>
-    public string Title => Target?.Count switch
+    public override void Tick()
     {
-        null or < 2 => Game.Language.GetPhrase( "spawnmenu.inspect.object" ),
-        _ => Game.Language.GetPhrase( "ui.inspect.additional_objects", new() { { "count", Target.Count - 1 } } )
-    };
+        var selection = Scene?.Get<SpawnMenuHost>()?.SelectedObjects ?? [];
+        if ( Target.SequenceEqual( selection ) ) return;
 
-    public List<GameObject> Target { get; private set; }
-
-    public bool TrySetTarget(List<GameObject> selection)
-    {
-        var ids = selection.Select(x => x.Id);
-        if (!ids.SequenceEqual(Target?.Select(x => x.Id) ?? []))
-        {
-            Target = selection.Any() ? selection.ToList() : null;
-            RebuildFromTarget();
-            StateHasChanged();
-        }
-
-        // Hide the tab when something is selected but there's nothing to show
-        return Target == null || InspectorHasContent();
+        Target.Clear();
+        Target.AddRange( selection );
+        RebuildFromTarget();
+        StateHasChanged();
     }
 
     // Frozen rigidbodies report Mass = 0 from the live physics body, so fall back
@@ -140,20 +132,6 @@
         return rb.Mass;
     }
 
-    bool InspectorHasContent()
-    {
-        if ( Target == null ) return false;
-        if ( Properties.Count > 0 || Renderers.Count > 0 ) return true;
-
-        var totalMass = Target.SelectMany( go => go.GetComponentsInChildren<Rigidbody>() ).Sum( ResolveMass );
-        if ( totalMass > 0 ) return true;
-
-        var health = Target.Select( go => go.GetComponent<Prop>() ).FirstOrDefault( p => p.IsValid() );
-        if ( health.IsValid() && health.Health != 0 ) return true;
-
-        return false;
-    }
-
     List<SerializedProperty> Properties = new();
     List<ModelRenderer> Renderers = new();
     List<string> MaterialGroups = new();
@@ -162,7 +140,7 @@
     protected override int BuildHash()
     {
         var hc = new HashCode();
-        foreach ( var go in Target ?? [] )
+        foreach ( var go in Target )
         {
             hc.Add( go.Id );
             hc.Add( ResolveMass( go.GetComponent<Rigidbody>() ) );
@@ -181,20 +159,12 @@
         return hc.ToHashCode();
     }
 
-    protected override void OnParametersSet()
-    {
-        base.OnParametersSet();
-        RebuildFromTarget();
-    }
-
     void RebuildFromTarget()
     {
         Properties = new();
         Renderers = new();
         MaterialGroups = new();
         BodyParts = new();
-
-        if (Target == null) return;
 
         foreach (var c in Target.SelectMany(x => x.Components.GetAll()).Distinct().GroupBy(x => x is Collider ? typeof(Collider) : x.GetType()))
         {

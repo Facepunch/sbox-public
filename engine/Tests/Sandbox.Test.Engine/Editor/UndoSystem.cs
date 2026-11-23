@@ -1,3 +1,4 @@
+using Editor;
 using Sandbox.Helpers;
 using System;
 using System.Collections.Generic;
@@ -7,6 +8,34 @@ namespace EditorTests;
 [TestClass]
 public class UndoSystemTest
 {
+	/// <summary>
+	/// A direct authored edit must stop a bake save even when the bake has already marked the scene dirty.
+	/// </summary>
+	[TestMethod]
+	[DoNotParallelize]
+	public void BakeSaveDetectsDirectEditOnDirtyScene()
+	{
+		ThreadSafe.MarkMainThread();
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var session = new GameEditorSession( null, scene );
+		try
+		{
+			var revision = session.UndoSystem.DocumentRevision;
+			scene.Editor.MarkBakeReferencesChanged();
+			Assert.IsTrue( session.HasUnsavedChanges );
+			Assert.AreEqual( revision, session.UndoSystem.DocumentRevision );
+
+			session.HasUnsavedChanges = true;
+			Assert.ThrowsException<InvalidOperationException>( () => session.SaveBakeReferences( revision ) );
+			Assert.IsTrue( session.HasUnsavedChanges );
+		}
+		finally
+		{
+			session.Destroy();
+		}
+	}
+
 	/// <summary>
 	/// Undo and redo on a brand new system should fail gracefully.
 	/// </summary>

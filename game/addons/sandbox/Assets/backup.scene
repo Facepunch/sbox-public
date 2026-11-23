@@ -1763,7 +1763,7 @@
               "__guid": "85969bab-3664-40e9-b066-a89601e519c1",
               "__enabled": true,
               "Flags": 0,
-              "BodyGroups": 1025,
+              "BodyGroups": 16385,
               "BoneMergeTarget": null,
               "CreateAttachments": false,
               "CreateBoneObjects": true,
@@ -1773,8 +1773,8 @@
               "MaterialOverride": null,
               "Materials": null,
               "Model": {
-                "Id": "161d0b00-c517-4044-989d-b679dab75a28",
-                "Path": "models/citizen_human/citizen_human_male.vmdl"
+                "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+                "Path": "models/citizen_human/human.vmdl"
               },
               "Morphs": {
                 "browDown_L": 0,
@@ -4000,7 +4000,7 @@
               "__guid": "4d5ffe08-f529-4e3a-88ad-36692a44b3e2",
               "__enabled": true,
               "Flags": 0,
-              "BodyGroups": 1025,
+              "BodyGroups": 16385,
               "BoneMergeTarget": null,
               "CreateAttachments": false,
               "CreateBoneObjects": true,
@@ -4010,8 +4010,8 @@
               "MaterialOverride": null,
               "Materials": null,
               "Model": {
-                "Id": "161d0b00-c517-4044-989d-b679dab75a28",
-                "Path": "models/citizen_human/citizen_human_male.vmdl"
+                "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+                "Path": "models/citizen_human/human.vmdl"
               },
               "Morphs": {},
               "OnComponentDestroy": null,
@@ -4062,8 +4062,8 @@
                 "Roll": false
               },
               "Model": {
-                "Id": "5d52c023-5f52-49ae-b5c8-555a26263126",
-                "Path": "models/citizen_human/citizen_human_female.vmdl"
+                "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+                "Path": "models/citizen_human/human.vmdl"
               },
               "MotionEnabled": true,
               "OnComponentDestroy": null,

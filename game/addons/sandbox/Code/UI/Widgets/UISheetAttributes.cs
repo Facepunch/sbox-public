@@ -34,14 +34,6 @@ public sealed class HideLabelAttribute : Attribute
 }
 
 /// <summary>
-/// A slider for this property only sets it when you let go of it or finish typing, not on every change.
-/// </summary>
-[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field )]
-public sealed class ApplyOnReleaseAttribute : Attribute
-{
-}
-
-/// <summary>
 /// A button or property in a <see cref="UISheet"/> only works while a property of the same object has this value, otherwise it shows greyed out.
 /// </summary>
 [AttributeUsage( AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method )]

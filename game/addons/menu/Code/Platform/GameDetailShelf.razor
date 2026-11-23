@@ -41,7 +41,7 @@
             <Tools>
                 @if ( !PageLoading && Package is { IsRemote: true } )
                 {
-                    <PackageReactions Package=@Package ShowReviews=@false OnWorkshop=@OnWorkshop Workshop=@WorkshopItem />
+                    <PackageReactions Package=@Package OnWorkshop=@OnWorkshop Workshop=@WorkshopItem />
                 }
 
                 @if ( OnWorkshop && WorkshopId != 0 )

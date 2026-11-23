@@ -205,6 +205,48 @@
       "Icon": null
     },
     {
+      "Kind": "Item",
+      "Ident": "prop:weapons/crowbar/w_crowbar.vmdl",
+      "Title": "Crowbar",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon.vmdl",
+      "Title": "Balloon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon_circle.vmdl",
+      "Title": "Balloon Circle",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon_heart.vmdl",
+      "Title": "Balloon Heart",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon_speech.vmdl",
+      "Title": "Balloon Speech",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon_star.vmdl",
+      "Title": "Balloon Star",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:weapons/camera/camera_film.vmdl",
+      "Title": "Film Camera",
+      "Icon": null
+    },
+    {
       "Kind": "Title",
       "Ident": null,
       "Title": "Industrial",
@@ -310,6 +352,144 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/industrial/wiring/wiring_junction_wide.vmdl",
       "Title": "Wiring Junction Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_wheel.vmdl",
+      "Title": "Large Pipe Valve",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_wheelsmall.vmdl",
+      "Title": "Small Pipe Valve",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_lever.vmdl",
+      "Title": "Large Pipe Lever",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat.vmdl",
+      "Title": "Gas Cylinder Medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall.vmdl",
+      "Title": "Gas Cylinder Tall",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/fire_extinguisher/fire_extinguisher.vmdl",
+      "Title": "Fire Extinguisher",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l.vmdl",
+      "Title": "Large Pipe 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l_90long.vmdl",
+      "Title": "Large Pipe Corner A",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l_t.vmdl",
+      "Title": "Large Pipe Tee",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m.vmdl",
+      "Title": "Medium Pipe 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m_90.vmdl",
+      "Title": "Medium Pipe Corner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m_t.vmdl",
+      "Title": "Medium Pipe Tee",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s.vmdl",
+      "Title": "Small Pipe 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s_90.vmdl",
+      "Title": "Small Pipe Corner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s_t.vmdl",
+      "Title": "Small Pipe Tee",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin.vmdl",
+      "Title": "Thin Pipe 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin_90.vmdl",
+      "Title": "Thin Pipe Corner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin_t.vmdl",
+      "Title": "Thin Pipe Tee",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/construction/step_ladder/step_ladder_01.vmdl",
+      "Title": "Step Ladder 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/construction/cement_mixer/cement_mixer.vmdl",
+      "Title": "Cement Mixer Drum",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/construction/scaffolding/scaffolding_tube_a.vmdl",
+      "Title": "Scaffolding Tube a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/construction/scaffolding/scaffolding_base_a.vmdl",
+      "Title": "Scaffolding Base a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/industrial_light/industrial_light.vmdl",
+      "Title": "Industrial Light",
       "Icon": null
     },
     {
@@ -544,6 +724,72 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/bathroom/bathroomprops/toilet_brush/toilet_brush_02.vmdl",
       "Title": "Toilet Brush 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/beer_keg/beer_cask.vmdl",
+      "Title": "Beer Cask",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/beer_keg/beer_keg_a1.vmdl",
+      "Title": "Beer Keg a1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/beer_keg/beer_keg_a2.vmdl",
+      "Title": "Beer Keg a2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/toilet_a/toilet_a.vmdl",
+      "Title": "Toilet",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/wooden_chair/wooden_chair_a.vmdl",
+      "Title": "Wooden Chair 1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/dentist_chair/dentist_chair.vmdl",
+      "Title": "Dentist Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/cola_can/cola_can.vmdl",
+      "Title": "Soda Can",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/shop/trolley/trolley.vmdl",
+      "Title": "Shopping Trolley",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/office/studio_light_projector/studio_light_projector.vmdl",
+      "Title": "Studio Light Projector",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/shop/kickstool/kickstool.vmdl",
+      "Title": "Kick Stool",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/packaged_food/can_long.vmdl",
+      "Title": "Can Long",
       "Icon": null
     },
     {
@@ -814,6 +1060,42 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_strt_04.vmdl",
       "Title": "Dirt Pile Straight 04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/plastic_chair/plastic_chair.vmdl",
+      "Title": "Garden Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/park/park_bin/park_bin.vmdl",
+      "Title": "Park Bin",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/car_tyre/tyre.vmdl",
+      "Title": "Old Tyre",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/car_tyre/tyre_with_rim.vmdl",
+      "Title": "Old Tyre",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/car_tyre/tyre_rim.vmdl",
+      "Title": "Tyre Rim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/car_seat/car_seat.vmdl",
+      "Title": "Car Seat",
       "Icon": null
     }
   ],

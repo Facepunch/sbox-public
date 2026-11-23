@@ -97,15 +97,6 @@ public static class ThumbnailLoader
 	}
 
 	/// <summary>
-	/// <see cref="TryTakeSlot"/> for async work: wait for a frame with budget left.
-	/// </summary>
-	public static async Task WaitForSlot()
-	{
-		while ( !TryTakeSlot() )
-			await GameTask.DelayRealtime( 1 );
-	}
-
-	/// <summary>
 	/// Charge the frame's budget for work started at <paramref name="startTimestamp"/> (<see cref="Stopwatch.GetTimestamp"/>).
 	/// </summary>
 	public static void Spend( long startTimestamp ) => _spentMs += ElapsedMs( startTimestamp );
@@ -142,11 +133,10 @@ public static class ThumbnailLoader
 			}
 
 			var mounted = MountedEntity( path );
-			var mountedPrefab = mounted is null && IsMountedPrefab( path );
-			var sync = mounted is null && !mountedPrefab && (NeedsSync.Contains( path ) || SyncOnlySchemes.Contains( Scheme( path ) ));
+			var sync = mounted is null && (NeedsSync.Contains( path ) || SyncOnlySchemes.Contains( Scheme( path ) ));
 
 			// async loads only cost the time to kick them off, but don't flood the downloader
-			if ( !sync && !mountedPrefab && InFlight.Count >= MaxInFlight )
+			if ( !sync && InFlight.Count >= MaxInFlight )
 			{
 				i++;
 				continue;
@@ -158,7 +148,7 @@ public static class ThumbnailLoader
 			Queue.RemoveAt( i );
 			Wanted.Remove( path );
 
-			if ( mounted is not null || mountedPrefab )
+			if ( mounted is not null )
 				LoadMounted( path, mounted );
 			else if ( sync )
 				LoadNow( path );
@@ -248,7 +238,7 @@ public static class ThumbnailLoader
 
 		try
 		{
-			texture = entity is null ? await MountedPrefabIconAsync( path[6..] ) : await entity.LoadMountedIconAsync();
+			texture = await entity.LoadMountedIconAsync();
 		}
 		catch ( Exception e )
 		{
@@ -257,44 +247,6 @@ public static class ThumbnailLoader
 
 		InFlight.Remove( path );
 		Finish( path, texture );
-	}
-
-	/// <summary>
-	/// A <c>thumb:</c> path for a prefab a mounted game builds, see <see cref="MountedPrefabs"/>.
-	/// </summary>
-	static bool IsMountedPrefab( string path ) => path.StartsWith( "thumb:mount://", StringComparison.OrdinalIgnoreCase ) && path.EndsWith( ".prefab", StringComparison.OrdinalIgnoreCase );
-
-	/// <summary>
-	/// The icon of a prefab a mounted game builds: the model and sequence its metadata names, weapons from the side.
-	/// Building the prefab is what makes its metadata readable, so this builds it.
-	/// </summary>
-	static async Task<Texture> MountedPrefabIconAsync( string prefabPath )
-	{
-		var prefab = MountedPrefabs.Load( prefabPath );
-		if ( prefab?.GetMetadata( "PreviewModel" ) is not { Length: > 0 } preview ) return null;
-
-		var model = await Model.LoadAsync( preview );
-		if ( !model.IsValid() || model.IsError ) return null;
-
-		Rotation? view = MountedPrefabs.HasTag( prefabPath, MountedPrefabs.WeaponTag ) ? Rotation.FromYaw( -90 ) : null;
-		return await RenderModelIcon( model, prefab.GetMetadata( "PreviewSequence" ), view );
-	}
-
-	/// <summary>
-	/// Render a model for an icon, in a frame with thumbnail budget left. Posed in <paramref name="sequence"/> when set,
-	/// seen from <paramref name="view"/> when set.
-	/// </summary>
-	public static async Task<Texture> RenderModelIcon( Model model, string sequence, Rotation? view )
-	{
-		await WaitForSlot();
-		var start = Stopwatch.GetTimestamp();
-
-		var bitmap = new Bitmap( 256, 256 );
-		ThumbnailCamera.RenderModel( model, sequence, view, bitmap );
-		var texture = bitmap.ToTexture();
-
-		Spend( start );
-		return texture;
 	}
 
 	static void Finish( string path, Texture texture )

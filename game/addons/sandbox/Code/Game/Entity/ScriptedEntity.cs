@@ -21,23 +21,20 @@ public class ScriptedEntity : GameResource, IDefinitionResource
 	[Property] public string PreviewModel { get; set; }
 
 	/// <summary>
-	/// Sequence <see cref="PreviewModel"/> is posed in for its icon, instead of its reference pose.
-	/// </summary>
-	[Property] public string PreviewSequence { get; set; }
-
-	/// <summary>
 	/// Mount <see cref="RequiredMount"/> and load <see cref="PreviewModel"/> from it. Null when either isn't there.
 	/// </summary>
-	public async Task<Model> LoadPreviewModelAsync( bool animated = false )
+	public async Task<Model> LoadPreviewModelAsync()
 	{
 		if ( string.IsNullOrEmpty( RequiredMount ) || string.IsNullOrEmpty( PreviewModel ) ) return null;
 
 		var mount = await Sandbox.Mounting.Directory.Mount( RequiredMount );
 		if ( mount?.IsMounted != true ) return null;
 
-		var model = await Model.LoadAsync( $"mount://{RequiredMount}/{PreviewModel}{(animated ? ".animated" : "")}.vmdl" );
+		var model = await Model.LoadAsync( PreviewModelPath );
 		return model.IsValid() && !model.IsError ? model : null;
 	}
+
+	string PreviewModelPath => $"mount://{RequiredMount}/{PreviewModel}.vmdl";
 
 	/// <summary>
 	/// The spawn menu icon of an entity whose art comes from <see cref="RequiredMount"/>, mounting it first if it's
@@ -56,11 +53,13 @@ public class ScriptedEntity : GameResource, IDefinitionResource
 			return icon.IsValid() && !icon.IsError ? icon : null;
 		}
 
-		var model = await LoadPreviewModelAsync( !string.IsNullOrEmpty( PreviewSequence ) );
-		if ( model is null ) return null;
+		if ( Prefab is null || !IsMountAvailable ) return null;
 
-		Rotation? weaponView = SpawnMenuCategory.Matches( Category, "Weapon" ) ? ThumbnailCamera.ViewOf( Prefab ) ?? Rotation.FromYaw( -90 ) : null;
-		return await ThumbnailLoader.RenderModelIcon( model, PreviewSequence, weaponView );
+		if ( !string.IsNullOrEmpty( PreviewModel ) )
+			return await Prefab.LoadThumbnailAsync( PreviewModelPath );
+
+		var requiredMount = await Sandbox.Mounting.Directory.Mount( RequiredMount );
+		return requiredMount?.IsMounted == true ? await Prefab.LoadThumbnailAsync() : null;
 	}
 
 	[Property]
@@ -98,14 +97,7 @@ public class ScriptedEntity : GameResource, IDefinitionResource
 		// No prefab - can't make a thumbnail. Mounted art isn't loaded here, and mustn't be baked into one.
 		if ( Prefab is null || !string.IsNullOrEmpty( RequiredMount ) ) return default;
 
-		var bitmap = new Bitmap( options.Width, options.Height );
-		bitmap.Clear( Color.Transparent );
-
-		// A ThumbnailCamera in the prefab frames the shot, otherwise fit the whole thing
-		if ( !ThumbnailCamera.TryRender( Prefab, bitmap ) )
-			SceneUtility.RenderGameObjectToBitmap( Prefab.GetScene(), bitmap );
-
-		return bitmap;
+		return Prefab.RenderThumbnail( options );
 	}
 
 	protected override Bitmap CreateAssetTypeIcon( int width, int height )

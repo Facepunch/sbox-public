@@ -3,8 +3,7 @@ using Sandbox.UI;
 namespace Sandbox;
 
 /// <summary>
-/// Who may create building blocks. Checked on the host for the Builder tool, the spawn menu and dupes;
-/// the Stacker checks <see cref="CanBuild"/> itself since its events don't say what it's copying.
+/// Controls who may create building blocks on the host.
 /// </summary>
 public sealed class BuilderPolicy : GameObjectSystem<BuilderPolicy>, Global.ISpawnEvents, IToolActionEvents
 {

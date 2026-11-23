@@ -300,10 +300,9 @@ partial class SceneCompiler
 					processed.Add( owner.Id );
 				}
 
-				if ( Collider( go ) is { } collider )
+				if ( Collider( go ) is { } collider && processed.Add( collider.Id ) )
 				{
 					AddModelCollision( collision, shapes, physics, collider.Model, collider.WorldTransform, collider.Surface, TagKey( go ) );
-					processed.Add( collider.Id );
 				}
 			}
 

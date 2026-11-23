@@ -2,7 +2,7 @@
 
 @mixin component-theme
 {
-	UIDropdownList.popup-panel
+	UIDropdownList.popup-panel, .dropdown-popup.popup-panel
 	{
 		flex-direction: column;
 		margin-top: -1px;
@@ -16,21 +16,22 @@
 		font-family: $body-font;
 		z-index: 10001; // above the modal popups (Popup.scss)
 
-		.option
+		> .option, > .button
 		{
 			flex-direction: row;
 			align-items: center;
 			flex-shrink: 0;
 			height: 24px;
 			padding: 0 7px;
+			font-family: $body-font;
 			font-size: $ui-settings-font;
 			font-weight: 500;
 			color: $ui-text;
 			cursor: pointer;
 
-			&.alt
+			&:nth-child(even)
 			{
-				background-color: $ui-popup-hover;
+				background-color: rgba( $ui-popup-hover, 0.4 );
 			}
 
 			&:hover
@@ -52,7 +53,7 @@
 		font-size: 12px;
 	}
 
-	UIDropdownList.popup-panel:outro
+	UIDropdownList.popup-panel:outro, .dropdown-popup.popup-panel:outro
 	{
 		margin-top: -1px;
 		opacity: 0;

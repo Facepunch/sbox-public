@@ -9,6 +9,44 @@
 
         .item { gap: 6px; }
 
+        .switchcontrol.compact
+        {
+            @include ui-switch;
+
+            > .switch-frame
+            {
+                width: 26px;
+                height: 16px;
+                padding: 1px;
+
+                > .switch-inner
+                {
+                    width: 12px;
+                    height: 12px;
+                }
+            }
+
+            &.inactive > .switch-frame
+            {
+                background-color: $ui-control-border;
+            }
+        }
+
+        // Keep an enabled switch visible against the selected row.
+        .selected, .active
+        {
+            > .switchcontrol.compact.active > .switch-frame
+            {
+                background-color: $ui-selected-text;
+                border-color: $ui-selected-text;
+
+                > .switch-inner
+                {
+                    background-color: $ui-catalog-selected-bg;
+                }
+            }
+        }
+
         .empty-state
         {
             flex-shrink: 0;

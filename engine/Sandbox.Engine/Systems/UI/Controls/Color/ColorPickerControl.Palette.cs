@@ -2,19 +2,10 @@ using Sandbox.UI.Construct;
 
 namespace Sandbox.UI;
 
-//
-// The palette - colours picked recently, and the ones the user has kept. Recent fills itself
-// as a drag ends or a value is typed. Saved starts with the everyday colours and lives in a
-// cookie; right-clicking a swatch replaces, removes or clears.
-//
+// Saved colours persist in a cookie and can be managed from a swatch's context menu.
 public partial class ColorPickerControl
 {
 	const string SavedCookie = "colorpicker.saved";
-
-	/// <summary>
-	/// How many recent colours to keep.
-	/// </summary>
-	const int RecentLimit = 12;
 
 	/// <summary>
 	/// The palette before the user has kept anything. The everyday colours, no primaries.
@@ -25,21 +16,16 @@ public partial class ColorPickerControl
 		"#3273eb", "#5cc8ff", "#4ecdc4", "#7ed491", "#f0b34c", "#e8632b", "#ff7b7b", "#b07cd8", "#8b5a2b"
 	];
 
-	/// <summary>
-	/// Shared between every picker, for the session.
-	/// </summary>
-	static readonly List<PickerColor> Recent = new();
-
 	List<PickerColor> _saved;
-	Panel _recentRow;
 	Panel _savedRow;
 	Menu _swatchMenu;
 	int _menuSwatch;
 
 	void BuildPalette()
 	{
-		_recentRow = Section( "Recent" );
-		_savedRow = Section( "Saved" );
+		var section = Add.Panel( "section" );
+		section.Add.Label( "Saved", "title" );
+		_savedRow = section.Add.Panel( "swatches" );
 
 		_swatchMenu = new Menu();
 		_swatchMenu.AddOption( "Replace with current", () => { _saved[_menuSwatch] = _color; SavePalette(); } );
@@ -47,39 +33,7 @@ public partial class ColorPickerControl
 		_swatchMenu.AddOption( "Clear all", () => { _saved.Clear(); SavePalette(); } );
 
 		_saved = LoadPalette();
-		RenderRecent();
 		RenderSaved();
-	}
-
-	Panel Section( string title )
-	{
-		var section = Add.Panel( "section" );
-		section.Add.Label( title, "title" );
-		return section.Add.Panel( "swatches" );
-	}
-
-	/// <summary>
-	/// The colour has settled - a drag ended or a value was typed - so it goes in recent.
-	/// </summary>
-	void Commit()
-	{
-		var text = _color.ToText();
-		Recent.RemoveAll( x => x.ToText() == text );
-		Recent.Insert( 0, _color );
-
-		if ( Recent.Count > RecentLimit )
-			Recent.RemoveRange( RecentLimit, Recent.Count - RecentLimit );
-
-		RenderRecent();
-	}
-
-	void RenderRecent()
-	{
-		_recentRow.DeleteChildren( true );
-		foreach ( var color in Recent )
-		{
-			PaletteSwatch( _recentRow, color );
-		}
 	}
 
 	void RenderSaved()
@@ -88,7 +42,11 @@ public partial class ColorPickerControl
 		for ( int i = 0; i < _saved.Count; i++ )
 		{
 			var index = i;
-			var swatch = PaletteSwatch( _savedRow, _saved[i] );
+			var color = _saved[i];
+			var swatch = _savedRow.AddChild( new ColorSwatch { Compact = true } );
+			swatch.AddClass( "compact" );
+			swatch.Set( color, HasAlpha, IsHdr );
+			swatch.AddEventListener( "onclick", () => PickColor( color ) );
 			swatch.AddEventListener( "onrightclick", () =>
 			{
 				_menuSwatch = index;
@@ -105,18 +63,9 @@ public partial class ColorPickerControl
 		} );
 	}
 
-	ColorSwatch PaletteSwatch( Panel row, PickerColor color )
-	{
-		var swatch = row.AddChild( new ColorSwatch { Compact = true } );
-		swatch.AddClass( "compact" );
-		swatch.Set( color, HasAlpha, IsHdr );
-		swatch.AddEventListener( "onclick", () => PickColor( color ) );
-		return swatch;
-	}
-
 	void SyncPaletteUsage()
 	{
-		foreach ( var swatch in _recentRow.Children.Concat( _savedRow.Children ).OfType<ColorSwatch>() )
+		foreach ( var swatch in _savedRow.Children.OfType<ColorSwatch>() )
 			swatch.Set( swatch.Color, HasAlpha, IsHdr );
 	}
 

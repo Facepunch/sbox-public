@@ -40,7 +40,7 @@ public sealed partial class CameraEntity : Component, ICameraModifier, IPhysgunE
 		if ( _appliedStatic != Static || Static && (body.IsValid() && (body.Enabled || body.MotionEnabled)
 			|| collider.IsValid() && !collider.Static) ) RefreshPhysics();
 		UpdateTracking();
-		UpdateEffects();
+		LensEffects.Apply( Feed?.Camera?.GameObject, this );
 	}
 
 	protected override void OnPreRender()

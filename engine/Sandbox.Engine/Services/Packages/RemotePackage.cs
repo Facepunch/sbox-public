@@ -123,7 +123,6 @@ internal sealed class RemotePackage : Package
 			LatestNewsPost = Sandbox.Services.News.From( newsPost );
 		}
 
-		Reviews = new ReviewStats( p.ReviewStats );
 		_data = p.Data;
 
 		Interaction = new PackageInteraction

@@ -357,29 +357,6 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 		c.GameObject.Network?.Refresh();
 	}
 
-	/// <summary>
-	/// Apply a debounced batch of morph changes to a <see cref="SkinnedModelRenderer"/>,
-	/// replicated to all clients. Only the morphs present in the batch are modified.
-	/// </summary>
-	[Rpc.Host]
-	internal static void ApplyMorphBatch( SkinnedModelRenderer smr, string morphsJson )
-	{
-		if ( !smr.IsValid() ) return;
-
-		smr.GameObject.GetOrAddComponent<MorphState>().ApplyBatch( morphsJson );
-	}
-
-	/// <summary>
-	/// Apply a full morph preset (as json), and captures with <see cref="MorphState"/> which replicates changes to other clients
-	/// </summary>
-	[Rpc.Host]
-	internal static void ApplyFacePosePreset( SkinnedModelRenderer smr, string morphsJson )
-	{
-		if ( !smr.IsValid() ) return;
-
-		smr.GameObject.GetOrAddComponent<MorphState>().ApplyPreset( morphsJson );
-	}
-
 	[Rpc.Host]
 	internal static async void ChangeMaterialOverride( ModelRenderer renderer, int materialIndex, string materialPath )
 	{

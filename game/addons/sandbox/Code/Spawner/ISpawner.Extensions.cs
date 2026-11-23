@@ -14,6 +14,7 @@ public static class ISpawnerExtensions
 				"builder" => new BuilderSpawner( path ),
 				"mount" => new MountSpawner( path, metadata ),
 				"entity" or "sent" => new EntitySpawner( path ),
+				"prefab" => SpawnlistResource.FindPrefab( path ) is { } entry ? new EntitySpawner( entry ) : null,
 				"mountprefab" => new MountPrefabSpawner( path ),
 				"dupe" => new DuplicatorSpawner( path, source ),
 				_ => null

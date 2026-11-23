@@ -28,7 +28,7 @@ public sealed class MorphState : Component
 		if ( morphs is null ) return;
 
 		foreach ( var (name, val) in morphs )
-			smr.SceneModel.Morphs.Set( name, val );
+			smr.SceneModel.Morphs.Set( name, val, 0f );
 
 		Capture( smr );
 		BroadcastBatch( morphsJson );
@@ -67,7 +67,7 @@ public sealed class MorphState : Component
 		if ( morphs is null ) return;
 
 		foreach ( var (name, val) in morphs )
-			smr.SceneModel.Morphs.Set( name, val );
+			smr.SceneModel.Morphs.Set( name, val, 0f );
 	}
 
 	[Rpc.Broadcast]

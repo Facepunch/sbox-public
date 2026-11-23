@@ -1,0 +1,217 @@
+{
+  "Title": "Characters",
+  "Icon": "groups",
+  "Order": 0,
+  "Items": [
+    {
+      "Kind": "Item",
+      "Title": "Man 01",
+      "Prefab": "entities/characters/man_01.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Woman 01",
+      "Prefab": "entities/characters/woman_01.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Man 02",
+      "Prefab": "entities/characters/man_02.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Woman 02",
+      "Prefab": "entities/characters/woman_02.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Man 03",
+      "Prefab": "entities/characters/man_03.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Woman 03",
+      "Prefab": "entities/characters/woman_03.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Man 04",
+      "Prefab": "entities/characters/man_04.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Woman 04",
+      "Prefab": "entities/characters/woman_04.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Man 05",
+      "Prefab": "entities/characters/man_05.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Man 06",
+      "Prefab": "entities/characters/man_06.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Man 07",
+      "Prefab": "entities/characters/man_07.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Zombie",
+      "Prefab": "entities/characters/zombie.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Chef",
+      "Prefab": "entities/characters/chef.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Gardener",
+      "Prefab": "entities/characters/gardener.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Mechanic",
+      "Prefab": "entities/characters/mechanic.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Lounge Singer",
+      "Prefab": "entities/characters/lounge_singer.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Deckhand",
+      "Prefab": "entities/characters/deckhand.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Skater",
+      "Prefab": "entities/characters/skater.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Detective",
+      "Prefab": "entities/characters/detective.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Photographer",
+      "Prefab": "entities/characters/photographer.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Hiker",
+      "Prefab": "entities/characters/hiker.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Tennis Coach",
+      "Prefab": "entities/characters/tennis_coach.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Boxer",
+      "Prefab": "entities/characters/boxer.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Researcher",
+      "Prefab": "entities/characters/researcher.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Construction Worker",
+      "Prefab": "entities/characters/construction_worker.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Pirate Captain",
+      "Prefab": "entities/characters/pirate_captain.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Tourist",
+      "Prefab": "entities/characters/tourist.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "DJ",
+      "Prefab": "entities/characters/dj.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Goalkeeper",
+      "Prefab": "entities/characters/goalkeeper.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Rancher",
+      "Prefab": "entities/characters/rancher.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Wizard",
+      "Prefab": "entities/characters/wizard.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Knight",
+      "Prefab": "entities/characters/knight.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Tina",
+      "Prefab": "entities/characters/tina.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Stuart",
+      "Prefab": "entities/characters/stuart.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Inez Vega",
+      "Prefab": "entities/characters/inez_vega.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Leon Brooks",
+      "Prefab": "entities/characters/leon_brooks.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Tess Rowan",
+      "Prefab": "entities/characters/tess_rowan.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Otto Bell",
+      "Prefab": "entities/characters/otto_bell.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Juno Park",
+      "Prefab": "entities/characters/juno_park.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Rafi Khan",
+      "Prefab": "entities/characters/rafi_khan.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Nell Avery",
+      "Prefab": "entities/characters/nell_avery.prefab"
+    },
+    {
+      "Kind": "Item",
+      "Title": "Milo Reed",
+      "Prefab": "entities/characters/milo_reed.prefab"
+    }
+  ]
+}

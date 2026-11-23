@@ -304,6 +304,38 @@ public static class SceneUtility
 	}
 
 	/// <summary>
+	/// Studio lighting that follows the camera, so every thumbnail is lit the same way: a warm key
+	/// from above-left, a soft fill from beside the camera, and a cool rim from behind to pick out
+	/// the edges.
+	/// The rim is a point light - a scene only takes one directional light, a second replaces the first.
+	/// </summary>
+	internal static void AddThumbnailLights( Rotation view, BBox bounds )
+	{
+		var key = new GameObject( true, "key" ).Components.Create<DirectionalLight>();
+		key.WorldRotation = Rotation.LookAt( (view.Forward + view.Right * 0.7f - view.Up * 0.9f).Normal );
+		key.LightColor = new Color( 1f, 0.95f, 0.88f ) * 0.8f;
+		key.SkyColor = new Color( 0.55f, 0.6f, 0.7f ) * 0.55f;
+		key.Shadows = false;
+
+		var size = bounds.Size.Length;
+
+		// A soft fill from beside the camera, so dark metal facing us doesn't go black
+		var fill = new GameObject( true, "fill" ).Components.Create<PointLight>();
+		fill.WorldPosition = bounds.Center - view.Forward * size * 1.5f + view.Right * size * 0.6f;
+		fill.Radius = size * 4f;
+		fill.Attenuation = 0f;
+		fill.LightColor = new Color( 1f, 0.97f, 0.92f ) * 0.3f;
+		fill.Shadows = false;
+
+		var rim = new GameObject( true, "rim" ).Components.Create<PointLight>();
+		rim.WorldPosition = bounds.Center + view.Forward * size * 0.6f + view.Left * size * 0.5f + view.Up * size * 0.5f;
+		rim.Radius = size * 4f;
+		rim.Attenuation = 0f;
+		rim.LightColor = new Color( 0.7f, 0.85f, 1f ) * 6f;
+		rim.Shadows = false;
+	}
+
+	/// <summary>
 	/// Render a Model to a bitmap. This is usually used for easily rendering "previews" of Models for thumbnails
 	/// </summary>
 	public static void RenderModelBitmap( Model model, Bitmap bitmap )

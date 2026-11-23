@@ -80417,8 +80417,8 @@
       "ID": "Female",
       "ParentID": "Default",
       "Model": {
-        "Id": "5d52c023-5f52-49ae-b5c8-555a26263126",
-        "Path": "models/citizen_human/citizen_human_female.vmdl"
+        "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+        "Path": "models/citizen_human/human.vmdl"
       },
       "Skeleton": {
         "Id": "b3ea68e8-0e1a-4ce1-aba2-06e8b815e49c",

@@ -19,7 +19,7 @@
 			</div>
 
 			@* Straight into Browse, with a search field out of its end that's ready to type in *@
-			<div class="pill discover @(DiscoverOpen ? "open" : "") @(FirstTime.Seen( FirstTime.Discover ) ? "" : "new")">
+			<div class="pill discover @(DiscoverOpen ? "open" : "")">
 				<div class="go" onclick=@ToggleDiscover>
 					<i>explore</i>
 					<label>Games</label>
@@ -126,7 +126,7 @@
 			@* Not in a started game - you dress up on a menu *@
 			@if ( PlatformRoot.CanDressUp )
 			{
-				<div class="square avatar @(Shelf == PlatformShelf.Avatar ? "open" : "") @(FirstTime.Seen( FirstTime.Avatar ) ? "" : "new")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
+				<div class="square avatar @(Shelf == PlatformShelf.Avatar ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
 					<MenuProject.MenuUI.Front.CitizenPreview AvatarJson=@AvatarJson Still=@true PlayIntro=@false Studio=@false
 						FieldOfView=@(11f) CameraDistance=@(158f) CameraHeight=@(57f) HeadOffset=@(-2f) Yaw=@(-20f) />
 				</div>
@@ -344,9 +344,6 @@
         // Set up and then cancelled - put away, not up again the next time you're in a party
         if ( !PartyView.Exists && !PartyDeck.Drafting ) PartyDeck.ShownOnPlatform = false;
 
-        if ( DiscoverOpen ) FirstTime.MarkSeen( FirstTime.Discover );
-        if ( Shelf == PlatformShelf.Avatar ) FirstTime.MarkSeen( FirstTime.Avatar );
-
         CountFriends();
         UpdateSearch();
         UpdateAvatar();
@@ -514,5 +511,5 @@
 
     protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, onlineCount, Root?.FriendsOpen == true ), PartyDeck.ShownOnPlatform,
         MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x ), PartyView.IsMemberReady( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),
-        Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), Drop, Root?.RewardsOpen == true, HashCode.Combine( LibraryOpen, FirstTime.Seen( FirstTime.Discover ), FirstTime.Seen( FirstTime.Avatar ), AvatarJson ) ) );
+        Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), Drop, Root?.RewardsOpen == true, HashCode.Combine( LibraryOpen, AvatarJson ) ) );
 }

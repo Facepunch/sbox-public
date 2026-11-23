@@ -665,7 +665,7 @@
             "__guid": "2d981081-c1b7-4be7-b39c-529e7f3fb0f2",
             "__enabled": true,
             "Flags": 0,
-            "BodyGroups": 3752,
+            "BodyGroups": 16392,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
             "CreateBoneObjects": true,
@@ -675,8 +675,8 @@
             "MaterialOverride": null,
             "Materials": null,
             "Model": {
-              "Id": "161d0b00-c517-4044-989d-b679dab75a28",
-              "Path": "models/citizen_human/citizen_human_male.vmdl"
+              "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+              "Path": "models/citizen_human/human.vmdl"
             },
             "Morphs": {},
             "OnComponentDestroy": null,

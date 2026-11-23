@@ -66,7 +66,15 @@ internal static class ThumbLoader
 					return;
 				}
 
-				// only generate thumbs for models for now
+				if ( loader.Type == ResourceType.PrefabFile )
+				{
+					if ( await Mounting.Directory.TryLoadAsync( filename ) is not PrefabFile prefab || ct.IsCancellationRequested ) return;
+					using var icon = await prefab.LoadThumbnailAsync( prefab.GetMetadata( "PreviewModel" ) );
+					if ( icon is not null && !ct.IsCancellationRequested ) placeholder.CopyFrom( icon );
+					return;
+				}
+
+				// Map previews are baked by mount_generatethumb.
 				if ( loader.Type != ResourceType.Model ) return;
 
 				var t = MountUtility.GetPreviewTexture( loader );
@@ -98,54 +106,47 @@ internal static class ThumbLoader
 
 			if ( ct.IsCancellationRequested ) return;
 
-			//
-			// if it's a resource, it can generate itself
-			//
+			var compiledPath = filename.EndsWith( "_c" ) ? filename : $"{filename}_c";
+			var imagePath = $"{compiledPath}.t.png";
+			if ( FileSystem.Mounted.FileExists( imagePath ) )
 			{
-				// Load it from disk, if it exists!
-				{
-					var fn = filename.EndsWith( "_c" ) ? filename : $"{filename}_c"; // needs to end in _c
-					string imageFile = $"{fn}.t.png";
-
-					if ( FileSystem.Mounted.FileExists( imageFile ) )
-					{
-						using var bitmap = Bitmap.CreateFromBytes( await FileSystem.Mounted.ReadAllBytesAsync( imageFile ) );
-						if ( ct.IsCancellationRequested ) return;
-
-						using var texture = bitmap.ToTexture();
-						placeholder.CopyFrom( texture );
-						return;
-					}
-				}
-
+				using var bitmap = Bitmap.CreateFromBytes( await FileSystem.Mounted.ReadAllBytesAsync( imagePath ) );
 				if ( ct.IsCancellationRequested ) return;
 
-				if ( IToolsDll.Current != null )
-				{
-					var bitmap = await IToolsDll.Current.GetThumbnail( filename );
-					if ( bitmap != null )
-					{
-						using var downscaled = bitmap.Resize( 256, 256, true );
-						using var texture = downscaled.ToTexture();
-						placeholder.CopyFrom( texture );
-						return;
-					}
-				}
+				using var texture = bitmap.ToTexture();
+				placeholder.CopyFrom( texture );
+				return;
+			}
 
+			// The editor owns its authored preview overrides and their invalidation.
+			if ( IToolsDll.Current is { } tools )
+			{
+				using var preview = await tools.GetThumbnail( filename );
 				if ( ct.IsCancellationRequested ) return;
-
-				// last resort - generate it!
+				if ( preview is not null )
 				{
-					using var bitmap = await ResourceLibrary.GetThumbnail( filename, 512, 512 );
-					if ( bitmap != null && !ct.IsCancellationRequested )
-					{
-						using var downscaled = bitmap.Resize( 256, 256, true );
-						using var texture = downscaled.ToTexture();
-						placeholder.CopyFrom( texture );
-						return;
-					}
+					using var resized = preview.Resize( 256, 256 );
+					using var texture = resized.ToTexture();
+					placeholder.CopyFrom( texture );
+					return;
 				}
 			}
+
+			var cache = new ThumbnailCache( filename );
+			using var cached = cache.Load();
+			if ( cached is not null )
+			{
+				placeholder.CopyFrom( cached );
+				return;
+			}
+
+			using var rendered = await ResourceLibrary.GetThumbnail( filename, 512, 512 );
+			if ( rendered is null || ct.IsCancellationRequested ) return;
+
+			using var thumbnail = rendered.Resize( 256, 256 );
+			using var generated = thumbnail.ToTexture();
+			placeholder.CopyFrom( generated );
+			cache.Save( thumbnail );
 		}
 		finally
 		{

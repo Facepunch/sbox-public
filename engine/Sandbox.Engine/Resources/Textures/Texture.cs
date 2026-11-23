@@ -89,7 +89,14 @@ public partial class Texture : Resource, IDisposable
 		native = texture.native.CopyStrongHandle();
 
 		IsAnimated = texture.IsAnimated;
+		RefreshNativeDescription();
+	}
 
+	/// <summary>
+	/// Refreshes cached metadata when the texture behind a strong handle changes.
+	/// </summary>
+	internal void RefreshNativeDescription()
+	{
 		UpdateSheetInfo();
 
 		gotdesc = false;

@@ -317,7 +317,7 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 
 	/// <summary>
 	/// True if <paramref name="player"/> can create <paramref name="adding"/> more building blocks, otherwise tells them.
-	/// Host only. For tools that copy blocks without going through the spawn or Builder tool events, like the Stacker.
+	/// Call on the host before creating the blocks.
 	/// </summary>
 	public bool CheckBuilderLimit( Connection player, int adding )
 	{

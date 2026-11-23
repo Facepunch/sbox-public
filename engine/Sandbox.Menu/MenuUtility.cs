@@ -480,12 +480,11 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// Post a review for a package
+	/// Completes without submitting a package review.
 	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content, Sandbox.Services.Review.PositiveTags positives, Sandbox.Services.Review.NegativeTags negatives )
-	{
-		return Sandbox.Services.Review.Post( packageIdent, score, content, positives, negatives );
-	}
+		=> Task.CompletedTask;
 
 	/// <summary>
 	/// Post a report for a package

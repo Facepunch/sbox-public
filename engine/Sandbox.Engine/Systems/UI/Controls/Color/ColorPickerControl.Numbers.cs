@@ -125,21 +125,14 @@ public partial class ColorPickerControl
 		entry.MinValue = 0;
 		entry.MaxValue = max;
 		entry.OnTextEdited = text => { if ( TryParseNumber( text, out var v ) ) set( Math.Clamp( v, 0, max ) ); };
-		entry.AddEventListener( "onblur", OnTextBlurred );
-		entry.ScrubEnded += Commit;
+		entry.AddEventListener( "onblur", Sync );
 		return entry;
 	}
 
 	void WireTextEntry( ColorTextEntry entry )
 	{
 		entry.ColorEntered = text => { if ( PickerColor.TryParse( text, _color.Hsv.Hue, out var color ) ) SetColor( color ); };
-		entry.Blurred = OnTextBlurred;
-	}
-
-	void OnTextBlurred()
-	{
-		Commit();
-		Sync();
+		entry.Blurred = Sync;
 	}
 
 	void SetNumberMode( NumberMode mode )

@@ -10,12 +10,101 @@ $ui-menu-title-height: 51px;
 	background-color: $ui-control-bg;
 }
 
+@mixin ui-switch
+{
+	pointer-events: all;
+
+	> .switch-frame
+	{
+		width: 34px;
+		height: 20px;
+		padding: 2px;
+		border-radius: 10px;
+		background-color: $ui-check-bg;
+		border: 1px solid $ui-control-border;
+		transition: background-color 0s;
+		pointer-events: none;
+
+		> .switch-inner
+		{
+			background-color: white;
+			box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.2 );
+			transition: margin-left 0s, background-color 0s;
+		}
+	}
+
+	&:hover
+	{
+		filter: brightness( 1.25 );
+		sound-in: ui.hover;
+	}
+
+	&.active > .switch-frame
+	{
+		justify-content: flex-end;
+		background-color: $ui-blue;
+		border-color: $ui-blue;
+
+		> .switch-inner
+		{
+			margin-left: 0;
+		}
+	}
+}
+
+// Keep the draggable track and editable number visible in narrow tool panels.
+@mixin ui-property-slider
+{
+	min-width: 0;
+	min-height: 26px;
+	padding: 0;
+	gap: 4px;
+	background-color: transparent;
+
+	> .prefix-chip
+	{
+		display: none;
+	}
+
+	> .inner > .track
+	{
+		height: 4px;
+		background-color: $ui-slider-track;
+
+		> .track-active
+		{
+			background-color: $ui-blue;
+		}
+	}
+
+	> .entry
+	{
+		width: 48px;
+
+		> numberentry
+		{
+			@include ui-number-entry;
+			height: 24px;
+			border-color: $ui-field-border;
+			border-radius: 4px;
+			background-color: $ui-input-bg;
+			color: $ui-text-strong;
+
+			> .content-label
+			{
+				padding: 0;
+				text-align: center;
+			}
+		}
+	}
+}
+
 @mixin ui-menu-segments
 {
 	border-radius: $ui-menu-radius;
 	overflow: hidden;
 
-	.segment
+	> .button
 	{
 		color: $ui-text-label;
 		font-weight: 600;

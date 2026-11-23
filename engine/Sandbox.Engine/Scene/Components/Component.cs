@@ -377,11 +377,13 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 			_enabledState = false;
 			_enabled = false;
 			Scene.UnregisterComponent( this );
+		}
 
-			if ( ShouldExecute )
-			{
-				CallbackBatch.Add( CommonCallback.Disable, this, "OnDisabled" );
-			}
+		// A disable may still be queued in an outer batch. Pair the dispatched
+		// enable with a disable in the destroy batch before unlinking the component.
+		if ( _onEnabled && ShouldExecute )
+		{
+			CallbackBatch.Add( CommonCallback.Disable, this, "OnDisabled" );
 		}
 	}
 

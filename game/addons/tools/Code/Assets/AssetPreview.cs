@@ -246,6 +246,9 @@ public class AssetPreview : IDisposable
 	[Asset.ThumbnailRenderer]
 	public static async Task<Bitmap> RenderAssetThumbnail( Asset asset )
 	{
+		// PrefabFile supplies the still image. PreviewPrefab supplies the interactive widget.
+		if ( asset.AssetType.FileExtension == "prefab" ) return null;
+
 		using AssetPreview v = CreateForAsset( asset );
 
 		// unsupported

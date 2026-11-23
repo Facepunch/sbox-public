@@ -76,17 +76,15 @@ public static class MountUtility
 			return cached;
 
 		// Disk cache
-		var cacheKey = $"preview/icons/{path.Md5()}.png";
-		if ( FileSystem.Cache.TryGet( cacheKey, out var data ) )
+		var cache = new ThumbnailCache( path );
+		if ( cache.Load() is { } tex )
 		{
-			using var bitmap = Bitmap.CreateFromBytes( data );
-			var tex = bitmap.ToTexture( true );
 			_cache[path] = tex;
 			return tex;
 		}
 
 		// Queue render job
-		var job = new RenderJob( path, cacheKey );
+		var job = new RenderJob( path, cache );
 		_jobs.Add( job );
 		_cache[path] = job.Texture;
 
@@ -230,13 +228,13 @@ class RenderJob
 	public Texture Texture { get; }
 
 	Task _task;
-	readonly string _cacheKey;
+	readonly ThumbnailCache _cache;
 
 	public bool IsFinished => _task is null || _task.IsCompleted;
 
-	public RenderJob( string path, string cacheKey )
+	public RenderJob( string path, ThumbnailCache cache )
 	{
-		_cacheKey = cacheKey;
+		_cache = cache;
 		Path = path;
 
 		using var bitmap = new Bitmap( 256, 256 );
@@ -252,7 +250,7 @@ class RenderJob
 	public async Task Run()
 	{
 		var modelResource = await Model.LoadAsync( Path );
-		if ( !modelResource.IsValid() ) return;
+		if ( !modelResource.IsValid() || modelResource.IsError ) return;
 
 		using var bitmap = new Bitmap( 512, 512 );
 		SceneUtility.RenderModelBitmap( modelResource, bitmap );
@@ -260,6 +258,6 @@ class RenderJob
 		using var resized = bitmap.Resize( 256, 256 );
 		Texture.Update( resized );
 
-		FileSystem.Cache.Set( _cacheKey, resized.ToPng() );
+		_cache.Save( resized );
 	}
 }

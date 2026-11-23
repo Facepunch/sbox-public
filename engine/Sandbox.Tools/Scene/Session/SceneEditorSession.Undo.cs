@@ -20,12 +20,12 @@ public partial class SceneEditorSession
 		// annoy everyone as much as possible
 		UndoSystem.OnUndo = ( x ) =>
 		{
-			HasUnsavedChanges = true;
+			if ( x.ChangesDocument ) HasUnsavedChanges = true;
 		};
 
 		UndoSystem.OnRedo = ( x ) =>
 		{
-			HasUnsavedChanges = true;
+			if ( x.ChangesDocument ) HasUnsavedChanges = true;
 		};
 	}
 
@@ -827,12 +827,13 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		}
 
 		// check if we have non selection changes
-		if ( _captureComponentChanges || _captureGameObjectChanges || _captureDestructions || _captureGameObjectCreations || _captureComponentCreations )
+		var changesScene = _captureComponentChanges || _captureGameObjectChanges || _captureDestructions || _captureGameObjectCreations || _captureComponentCreations || _initialInstanceState != finalInstanceState;
+		if ( changesScene )
 		{
 			_session.HasUnsavedChanges = true;
 		}
 
-		_session.AddUndo( _name,
+		_session.UndoSystem.Insert( _name,
 			() =>
 			{
 				using var sceneScope = _session.Scene.Push();
@@ -882,7 +883,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				{
 					disposeState.Selection.Restore( _session.Scene );
 				}
-			} );
+			}, changesScene );
 	}
 
 	/// <summary>Restores the captured state for undo or a rejected recursive instance edit.</summary>

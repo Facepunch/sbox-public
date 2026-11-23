@@ -94,7 +94,7 @@ internal static class WorldModelHolderPreview
 /// </summary>
 internal sealed class WorldModelHolder : Component, Component.ExecuteInEditor
 {
-	const string HolderModelPath = "models/citizen_human/citizen_human_male.vmdl";
+	const string HolderModelPath = "models/citizen_human/human.vmdl";
 
 	public string HoldType { get; set; }
 	public int Handedness { get; set; }

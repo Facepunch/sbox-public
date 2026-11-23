@@ -70,10 +70,7 @@
     "spawnmenu.mode.effects": "Effects",
 
     "spawnmenu.inspect.click_to_inspect": "Click on an object to inspect it.",
-    "spawnmenu.inspect.object": "Object",
     "spawnmenu.inspect.nothing_to_edit": "This object has nothing to edit.",
-    "spawnmenu.inspect.tool_options": "Tool Options",
-    "spawnmenu.inspect.no_tool_hint": "Pick a tool in the spawn menu to see its settings here.",
     "spawnmenu.inspect.skin": "Skin",
     "spawnmenu.inspect.material": "Material",
     "spawnmenu.inspect.drive": "Drive",

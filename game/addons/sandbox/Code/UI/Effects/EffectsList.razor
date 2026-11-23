@@ -9,23 +9,23 @@
         {
             <div class="group">
                 <div class="group-header">
-                    <Label Text="@(DisplayInfo.ForEnumValues<PostProcessGroup>().FirstOrDefault( entry => entry.value == group.Key ).info.Name)" />
+                    <Label Text="@(group.Key)" />
                 </div>
 
                 <div class="group-items">
                     @foreach ( var entry in group )
                     {
-                        var path = entry.ResourcePath;
+                        var path = entry.ClassName;
                         var enabled = _manager?.IsEnabled( path ) ?? false;
                         var selected = _manager?.SelectedPath == path;
 
                         <button class="item @( selected ? "selected" : "" )"
-                                Tooltip="@entry.Title"
+                                Tooltip="@(PostProcessManager.MenuTitle( entry ))"
                                 @onclick="@(() => OnClick( entry ))"
                                 @onmouseenter="@(() => _manager?.Preview( path ))"
                                 @onmouseleave="@(() => _manager?.Unpreview())">
-                            <UICheckbox Value=@enabled OnValueChanged=@((bool _) => OnToggle( entry )) />
-                            <Label Text="@entry.Title" />
+                            <Label Text="@(PostProcessManager.MenuTitle( entry ))" />
+                            <SwitchControl class="compact" Value=@enabled OnValueChanged=@((bool _) => OnToggle( entry )) />
                         </button>
                     }
                 </div>
@@ -42,25 +42,26 @@
 @code
 {
     PostProcessManager _manager;
-    IGrouping<PostProcessGroup, PostProcessResource>[] _groups = [];
+    IGrouping<string, TypeDescription>[] _groups = [];
 
-    protected override void OnAfterTreeRender( bool firstTime )
+    int _revision = -1;
+
+    /// <summary>
+    /// Refreshes an open menu when an effect is added, edited or unloaded.
+    /// </summary>
+    public override void Tick()
     {
-        if ( !firstTime ) return;
-
-        _manager = Game.ActiveScene.GetSystem<PostProcessManager>();
-        RefreshInstalled();
-        StateHasChanged();
+        base.Tick();
+        _manager ??= Game.ActiveScene.GetSystem<PostProcessManager>();
+        if ( _manager.CatalogRevision != _revision ) RefreshInstalled();
     }
 
     void RefreshInstalled()
     {
-        _groups = ResourceLibrary.GetAll<PostProcessResource>()
-            .Where( r => !r.IsRemote )
-            .OrderBy( r => r.Group )
-            .ThenBy( r => LocalizedText.Resolve( r.Title ), StringComparer.CurrentCultureIgnoreCase )
-            .GroupBy( r => r.Group )
-            .ToArray();
+        if ( _manager is null ) return;
+        _revision = _manager.CatalogRevision;
+        _groups = _manager.MenuGroups();
+        StateHasChanged();
     }
 
     /// <summary>
@@ -73,15 +74,15 @@
         StateHasChanged();
     }
 
-    void OnClick( PostProcessResource entry )
+    void OnClick( TypeDescription entry )
     {
-        _manager?.Select( entry.ResourcePath );
+        _manager?.Select( entry.ClassName );
         StateHasChanged();
     }
 
-    void OnToggle( PostProcessResource entry )
+    void OnToggle( TypeDescription entry )
     {
-        _manager?.Toggle( entry.ResourcePath );
+        _manager?.Toggle( entry.ClassName );
         StateHasChanged();
     }
 
@@ -89,10 +90,11 @@
     {
         var hash = new HashCode();
         hash.Add( _manager?.SelectedPath );
+        hash.Add( _revision );
 
         foreach ( var group in _groups )
             foreach ( var entry in group )
-                hash.Add( _manager?.IsEnabled( entry.ResourcePath ) ?? false );
+                hash.Add( _manager?.IsEnabled( entry.ClassName ) ?? false );
 
         return hash.ToHashCode();
     }

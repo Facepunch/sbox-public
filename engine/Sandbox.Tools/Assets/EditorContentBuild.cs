@@ -57,6 +57,11 @@ internal static class EditorContentBuild
 	public static bool IsBuilding => building;
 
 	/// <summary>
+	/// Lets the current editor build finish before a scene compiler writes to the same content roots.
+	/// </summary>
+	internal static Task WaitForCurrentBuild( CancellationToken cancel ) => incrementalBuild?.WaitAsync( cancel ) ?? Task.CompletedTask;
+
+	/// <summary>
 	/// Builds everything before the editor opens, waiting for any other build of the same roots.
 	/// </summary>
 	public static async Task Startup( Project project )
@@ -341,6 +346,13 @@ internal static class EditorContentBuild
 	{
 		codeGeneration++;
 		if ( incrementalBuild is { IsCompleted: false } ) cancellation?.Cancel();
+	}
+
+	// The file watcher can start the build for a scene's outputs after the compile window reports completion.
+	[Event( "scene.compile.finished" )]
+	static void SceneCompileFinished( string name, string status, string detail )
+	{
+		sinceChange = 0;
 	}
 
 	[Event( "app.exit" )]

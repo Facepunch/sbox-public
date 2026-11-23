@@ -113,6 +113,7 @@ public sealed class SpawnerTool : ToolMode
 		var type = spawner switch
 		{
 			PropSpawner => "prop",
+			EntitySpawner { ListedPrefab: not null } => "prefab",
 			EntitySpawner => "entity",
 			MountPrefabSpawner => "mountprefab",
 			MountSpawner => "mount",

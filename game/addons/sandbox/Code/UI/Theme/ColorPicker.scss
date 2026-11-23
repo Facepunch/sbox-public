@@ -1,0 +1,187 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	Popup.popup-panel
+	{
+		width: 330px;
+		padding: 0;
+		overflow: hidden;
+		background-color: $ui-popup-bg-light;
+		border: 1px solid $ui-field-border;
+		border-radius: 8px;
+		box-shadow: 0px 4px 16px rgba( 0, 0, 0, 0.24 );
+		transition: none;
+		font-family: $body-font;
+		color: $ui-text;
+		z-index: 10001; // above fullscreen editors and resource pickers (Popup.scss)
+
+		&:outro
+		{
+			margin-top: 0px;
+			opacity: 0;
+			transition: opacity 0.1s ease-in;
+		}
+
+		.colorpickercontrol
+		{
+			width: 100%;
+			padding: 14px;
+			gap: 14px;
+			background-color: transparent;
+
+			.color-handle
+			{
+				border: 1px solid white;
+				outline: 2px solid #292929;
+				box-shadow: none;
+			}
+
+			// The tool sheet already has a color text field beside the swatch.
+			> .header, > .numbers, > .text-row
+			{
+				display: none;
+			}
+
+			> .body
+			{
+				gap: 12px;
+
+				> .colorsquare
+				{
+					height: 200px;
+				}
+
+				> .colorstrip.vertical
+				{
+					width: 16px;
+					border-radius: 4px;
+
+					> .fill
+					{
+						border-radius: 4px;
+					}
+
+					> .color-handle
+					{
+						width: 20px;
+						height: 7px;
+						border-radius: 3px;
+					}
+				}
+			}
+
+			.slider-row
+			{
+				gap: 10px;
+
+				> .label
+				{
+					width: 72px;
+					font-size: 13px;
+					font-weight: 600;
+					color: $ui-text-label;
+				}
+
+				> .entry
+				{
+					width: 50px;
+
+					.textentry
+					{
+						@include ui-number-entry;
+						height: 26px;
+						background-color: $ui-input-bg;
+						border-color: $ui-field-border;
+						border-radius: 4px;
+					}
+				}
+
+				> .slidercontrol > .inner > .track
+				{
+					height: 4px;
+					background-color: $ui-slider-track;
+
+					> .track-active
+					{
+						background-color: $ui-blue;
+					}
+
+					> .tick
+					{
+						width: 1px;
+						background-color: $ui-popup-bg-light;
+					}
+
+					> .thumb
+					{
+						background-color: $ui-popup-bg-light;
+						border: 2px solid $ui-blue;
+						box-shadow: 0px 1px 3px #0004;
+					}
+				}
+			}
+
+			> .slider-row:has(> .slidercontrol) > .label
+			{
+				content: "#ui.color.brightness";
+			}
+
+			> .section
+			{
+				padding-top: 10px;
+				border-top: 1px solid $ui-separator;
+				gap: 7px;
+
+				> .title
+				{
+					font-size: 13px;
+					font-weight: 600;
+					letter-spacing: 0px;
+					text-transform: none;
+					color: $ui-text-strong;
+					opacity: 1;
+				}
+
+				> .swatches
+				{
+					// The default palette and its add button fill two rows at any UI scale.
+					display: grid;
+					grid-template-columns: repeat(8, 1fr);
+					gap: 5px;
+
+					> .colorswatch, > .add
+					{
+						width: 100%;
+						height: 24px;
+						border: 1px solid $ui-field-border;
+						border-radius: 4px;
+
+						&:hover
+						{
+							border-color: $ui-blue;
+							box-shadow: 0px 0px 0px 1px $ui-blue;
+						}
+					}
+
+					> .add
+					{
+						background-color: $ui-control-bg;
+						color: $ui-text-label;
+						opacity: 1;
+						font-size: 18px;
+						text-align: center;
+
+						&:hover
+						{
+							background-color: $ui-blue-soft;
+							color: $ui-blue;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

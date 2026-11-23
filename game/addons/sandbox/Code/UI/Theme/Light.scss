@@ -75,10 +75,5 @@ $ui-card-hover-bg: #e6e6e6;
 $ui-card-hover-text: #3a3a3a;
 $ui-card-hover-subtext: rgba( 0, 0, 0, 0.6 );
 
-// slider: the line and its ticks, and the thumb
-$ui-slider-line: #8a8a8a;
-$ui-slider-track: rgba( $ui-slider-line, 0.5 );
-$ui-slider-thumb: #9b9b9b;
-$ui-slider-thumb-border: #6d6d6d;
-$ui-slider-thumb-hover: #b0b0b0;
-$ui-slider-thumb-pressed: #7d7d7d;
+$ui-slider-track: rgba( #8a8a8a, 0.5 );
+$ui-scroll-thumb: #9b9b9b;

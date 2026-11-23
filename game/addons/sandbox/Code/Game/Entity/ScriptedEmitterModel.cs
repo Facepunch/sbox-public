@@ -14,10 +14,8 @@ public class ScriptedEmitterModel : GameResource, IDefinitionResource
 	[Property]
 	public string Description { get; set; }
 
-	public override Bitmap RenderThumbnail( ThumbnailOptions options )
-	{
-		return ThumbnailCamera.RenderToolModel( Prefab, options.Width, options.Height );
-	}
+	/// <inheritdoc/>
+	public override Bitmap RenderThumbnail( ThumbnailOptions options ) => Prefab?.RenderThumbnail( options );
 
 	protected override Bitmap CreateAssetTypeIcon( int width, int height )
 	{

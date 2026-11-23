@@ -47,8 +47,14 @@ public sealed partial class WorkshopPublisher
 			.notes-row .field-label { padding-top: 10px; }
 			.notes-row .textentry { height: 100%; min-height: 110px; }
 			.message { color: #efba82; flex-shrink: 0; white-space: normal; }
-			.progress { height: 3px; background-color: #414141; flex-shrink: 0; }
-			.progress-fill { height: 100%; background-color: #3479ed; }
+			.progress
+			{
+				height: 3px; background-color: #414141;
+				.progress-fill
+				{
+					background-color: #3479ed;
+				}
+			}
 			.footer { padding: 16px 24px; gap: 9px; align-items: center; background-color: #242424; border-top: 1px solid #414141; flex-shrink: 0; }
 			.status { flex-grow: 1; color: #aaa; font-size: 12px; }
 			.primary { background-color: #3479ed; border-color: #3479ed; color: white; }

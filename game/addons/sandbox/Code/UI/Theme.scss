@@ -56,7 +56,7 @@ $ui-section-gap: 20px;
 @mixin ui-scroll
 {
 	scrollbar-width: 10px;
-	scrollbar-color: $ui-slider-thumb $ui-scroll-track;
+	scrollbar-color: $ui-scroll-thumb $ui-scroll-track;
 
 	> scrollbar
 	{
@@ -458,16 +458,6 @@ $ui-section-gap: 20px;
 	font-weight: 500;
 	text-align: center;
 	@include ui-ellipsis;
-}
-
-// handle for the slider
-@mixin ui-slider-thumb
-{
-	width: 10px;
-	height: 16px;
-	background-color: $ui-slider-thumb;
-	border: 1px solid $ui-slider-thumb-border;
-	border-shape: polygon( 0% 0%, 100% 0%, 100% 62%, 50% 100%, 0% 62% );
 }
 
 // the plain number box next to a slider, an outline shows on hover and focus

@@ -6,6 +6,49 @@ namespace SceneTests.UI;
 [TestClass]
 public class ScenePanelTest
 {
+	/// <summary>
+	/// Deleting a preview during its scene tick releases the scene and ends the panel's render work.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void DeleteDuringTickReleasesPreview( bool duringFrameStart )
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 100, 100 ) };
+		var panel = root.AddChild<ScenePanel>();
+		panel.Style.Set( "width: 100px; height: 100px;" );
+		var scene = panel.RenderScene;
+		var frameStart = Sandbox.Tasks.SyncContext.FrameStage.Update;
+
+		void DeletePreview() => panel.Delete( true );
+
+		try
+		{
+			root.Layout();
+			scene.UpdateTime( 0.1 );
+
+			if ( duringFrameStart )
+			{
+				frameStart.Queue += DeletePreview;
+			}
+			else
+			{
+				scene.AddHook( GameObjectSystem.Stage.PhysicsStep, 0, DeletePreview, nameof( ScenePanelTest ), nameof( DeletePreview ) );
+			}
+
+			panel.Tick();
+
+			Assert.IsFalse( scene.IsValid );
+			Assert.IsNull( panel.RenderScene );
+			Assert.IsNull( panel.RenderTexture );
+		}
+		finally
+		{
+			frameStart.Queue -= DeletePreview;
+			root.Delete( true );
+		}
+	}
+
 	[TestMethod]
 	public void OwnedSceneIsNotInAll()
 	{

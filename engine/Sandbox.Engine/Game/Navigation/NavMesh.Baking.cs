@@ -27,6 +27,7 @@ public sealed partial class NavMesh
 	// The scene refers to a baked file that held nothing the navmesh could use
 	private bool bakeMissing;
 	private CancellationTokenSource editorBake;
+	private Task<bool> editorBakeTask;
 
 	// Bakes waiting for the navmesh to finish. Auto update would mark every tile again each frame.
 	private int bakesWaiting;
@@ -60,38 +61,81 @@ public sealed partial class NavMesh
 	/// loads. Nothing is written unless unedited() still holds then: what was built would no longer
 	/// be the scene as it was saved. regenerate builds every tile from the world as it is now first.
 	/// </summary>
-	internal Task BakeInEditor( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate )
+	internal Task<bool> BakeInEditor( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate )
 	{
-		editorBake?.Cancel();
-		editorBake = null;
 		if ( !IsEnabled || folder is null )
 		{
+			editorBake?.Cancel();
 			_bakedDataPath = null;
-			return Task.CompletedTask;
+			return editorBakeTask = Task.FromResult( false );
 		}
 
-		_bakedDataPath = folder.WriteFile( _navDataFilename, [] );
-		editorBake = new CancellationTokenSource();
-		return WriteBake( world, folder, unedited, regenerate, editorBake.Token );
+		_bakedDataPath = folder.WriteFile( BakeFilename, [] );
+		return StartBake( world, folder, unedited, regenerate, default );
 	}
 
-	private async Task WriteBake( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate, CancellationToken cancelToken )
+	Task<bool> StartBake( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate, CancellationToken cancel )
 	{
+		editorBake?.Cancel();
+		editorBake = CancellationTokenSource.CreateLinkedTokenSource( cancel );
+		return editorBakeTask = WriteBake( world, folder, unedited, regenerate, editorBake );
+	}
+
+	internal void ClearBake( Scene scene )
+	{
+		editorBake?.Cancel();
+
+		if ( _bakedDataPath is null )
+			return;
+
+		_bakedDataPath = null;
+		scene.Editor.MarkBakeReferencesChanged();
+	}
+
+	internal async Task BakeForCompile( Scene scene, SceneFolder folder, CancellationToken cancel, bool clean )
+	{
+		var previousPath = _bakedDataPath;
+		if ( clean || editorBakeTask is not { IsCompleted: false } pending || !await pending.WaitAsync( cancel ) )
+		{
+			cancel.ThrowIfCancellationRequested();
+			if ( !await StartBake( scene.PhysicsWorld, folder, () => scene.IsValid() && IsEnabled, regenerate: true, cancel ) )
+			{
+				cancel.ThrowIfCancellationRequested();
+				throw new InvalidOperationException( "Navigation mesh bake produced no data." );
+			}
+		}
+
+		if ( previousPath != _bakedDataPath )
+			scene.Editor.MarkBakeReferencesChanged();
+	}
+
+	private async Task<bool> WriteBake( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate, CancellationTokenSource cancellation )
+	{
+		var cancelToken = cancellation.Token;
 		try
 		{
 			if ( regenerate ) SetDirty();
 			var data = await BakeDataToBytes( cancelToken, world );
 			await GameTask.MainThread();
-			if ( data is null || cancelToken.IsCancellationRequested || !unedited() ) return;
+			if ( data is null || cancelToken.IsCancellationRequested || !unedited() ) return false;
 
-			folder.WriteFile( _navDataFilename, data );
+			_bakedDataPath = folder.WriteFile( BakeFilename, data );
+			return true;
 		}
 		catch ( OperationCanceledException )
 		{
+			return false;
 		}
 		catch ( Exception e )
 		{
 			Log.Warning( e, "NavMesh: Failed to bake" );
+			return false;
+		}
+		finally
+		{
+			if ( editorBake == cancellation )
+				editorBake = null;
+			cancellation.Dispose();
 		}
 	}
 
@@ -353,10 +397,12 @@ public sealed partial class NavMesh
 	/// </summary>
 	private string _bakedDataPath;
 
+	internal bool HasBakedDataPath => !string.IsNullOrEmpty( _bakedDataPath );
+
 	/// <summary>
 	/// Get the navdata filename for this scene
 	/// </summary>
-	private readonly string _navDataFilename = "/navmesh/baked.navdata";
+	internal const string BakeFilename = "navmesh/baked.navdata";
 
 	/// <summary>
 	/// Data saved in a Scene file
