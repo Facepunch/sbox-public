@@ -105,6 +105,7 @@ internal partial class NetworkSystem
 			Assigned = new ChannelInfo { Id = channel.Id },
 			IsDeveloperHost = IsDeveloperHost,
 			HostMigration = IsHostMigrationEnabled,
+			IsDedicatedServer = Application.IsDedicatedServer,
 			PasswordRequired = NeedsPassword( channel ),
 			HandshakeId = channel.HandshakeId
 		};

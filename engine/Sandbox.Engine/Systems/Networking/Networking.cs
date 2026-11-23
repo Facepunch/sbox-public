@@ -148,6 +148,11 @@ public static partial class Networking
 	public static int MaxPlayers { get; internal set; }
 
 	/// <summary>
+	/// Is the current server running on a dedicated server.
+	/// </summary>
+	public static bool IsDedicatedServer { get; internal set; }
+
+	/// <summary>
 	/// The last connection string used to connect to a server.
 	/// </summary>
 	internal static string LastConnectionString { get; set; }
@@ -355,6 +360,7 @@ public static partial class Networking
 	internal static void Reset()
 	{
 		MaxPlayers = 0;
+		IsDedicatedServer = false;
 		ServerData.Clear();
 		LocalStats = default;
 	}
@@ -704,6 +710,7 @@ public static partial class Networking
 
 			System.Disconnect();
 			System = null;
+			IsDedicatedServer = false;
 
 			DedicatedServer.Hide();
 		}

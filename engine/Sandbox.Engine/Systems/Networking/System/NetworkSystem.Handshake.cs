@@ -138,6 +138,7 @@ internal partial class NetworkSystem
 		Networking.MaxPlayers = msg.MaxPlayers;
 		Networking.ServerName = msg.ServerName;
 		Networking.MapName = msg.MapName;
+		Networking.IsDedicatedServer = msg.IsDedicatedServer;
 
 		//
 		// Check any required mount for this map

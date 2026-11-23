@@ -374,6 +374,7 @@ internal static class DedicatedServer
 
 			Networking.UpdateServerName( hostname );
 			Networking.MaxPlayers = config.MaxPlayers;
+			Networking.IsDedicatedServer = Application.IsDedicatedServer;
 
 			_mapName = mapName;
 			_name = hostname;

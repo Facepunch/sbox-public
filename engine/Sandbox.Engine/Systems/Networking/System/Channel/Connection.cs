@@ -198,9 +198,23 @@ public abstract partial class Connection : BytePack.ISerializer
 	/// </summary>
 	/// <seealso cref="DisplayName"/>
 	[ActionGraphInclude]
-	public string Name => Preferences.StreamerMode
-		? Utility.Steam.GetAnonymousName( SteamId )
-		: Info?.Name ?? "Unknown Player";
+	public string Name
+	{
+		get
+		{
+			if ( IsDedicatedServer ) return "Server";
+
+			return Preferences.StreamerMode
+				? Utility.Steam.GetAnonymousName( SteamId )
+				: Info?.Name ?? "Unknown Player";
+		}
+	}
+
+	/// <summary>
+	/// True if this connection is a dedicated server host rather than a player.
+	/// </summary>
+	[ActionGraphInclude]
+	public bool IsDedicatedServer => IsHost && Networking.IsDedicatedServer;
 
 	[ActionGraphInclude]
 	public virtual float Time => 0.0f;
@@ -548,6 +562,8 @@ public abstract partial class Connection : BytePack.ISerializer
 	{
 		get
 		{
+			if ( IsDedicatedServer ) return Name;
+
 			string source = null;
 			if ( Steamworks.SteamFriends.IsInstalled )
 			{

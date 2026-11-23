@@ -35,7 +35,8 @@ public static class Application
 	public static bool IsConsoleApp => IsHeadless;
 
 	/// <summary>
-	/// True if this is a dedicated server
+	/// True if this process is a dedicated server.
+	/// To check if the current game is hosted on a dedicated server, use <seealso cref="Networking.IsDedicatedServer"/> instead.
 	/// </summary>
 	public static bool IsDedicatedServer { get; private set; }
 
