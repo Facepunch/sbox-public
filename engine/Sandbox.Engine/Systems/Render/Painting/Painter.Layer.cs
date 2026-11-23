@@ -69,7 +69,7 @@ public readonly ref partial struct Painter
 			context.ActiveLayer = _name;
 			var commands = output.CommandList;
 			commands.PushRenderTarget();
-			var target = commands.GetRenderTarget( _name, (int)MathF.Ceiling( _layerBounds.Width ), (int)MathF.Ceiling( _layerBounds.Height ),
+			var target = commands.GetRenderTarget( _name, LayerTargetSize( (int)MathF.Ceiling( _layerBounds.Width ) ), LayerTargetSize( (int)MathF.Ceiling( _layerBounds.Height ) ),
 				ImageFormat.RGBA8888, ImageFormat.None, numMips: filter.Blur > 0 ? 16 : 1 );
 			commands.SetRenderTarget( target );
 			commands.Clear( Color.Transparent, clearDepth: false, clearStencil: false );
