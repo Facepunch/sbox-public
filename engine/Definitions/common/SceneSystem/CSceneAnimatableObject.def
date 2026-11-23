@@ -65,6 +65,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 
 	void SetAnimGraph2( HAnimGraph2 hGraph );
 	void SetAnimGraph2ControllerCreatedCallback( SboxAnimGraph2ControllerCreatedCallback callback );
+	[nogc]
 	NativeEngine.AnimationGraph2Controller GetAnimGraph2Controller();
 	float GetAnimGraph2UpdateTimeMs();
 	void SetLowDetailAnimation( bool bLowDetail );
@@ -96,6 +97,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 
 	float GetSequenceDuration();
 
+	[nogc]
 	float GetSequenceCycle();
 	void SetSequenceCycle( float flCycle );
 
