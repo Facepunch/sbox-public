@@ -215,6 +215,8 @@ public class NetworkTest
 
 		Input.InputSettings = inputSettings;
 		Input.SetAction( "Jump", true );
+		var camera = Game.ActiveScene.CreateObject().Components.Create<CameraComponent>();
+		camera.WorldRotation = Rotation.FromYaw( 90 );
 
 		// Send a client tick - this will build a user command as well
 		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
@@ -233,11 +235,14 @@ public class NetworkTest
 
 		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
 		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+		Assert.AreEqual( camera.WorldRotation.Angles(), clientAndHost.Client.AimAngles );
 
 		// Become the client
 		clientAndHost.BecomeClient();
 
 		Input.ClearActions();
+		camera.Enabled = false;
+		Assert.AreEqual( camera.WorldRotation.Angles(), Connection.Local.AimAngles );
 
 		// Send a client tick - this will build a user command as well
 		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
@@ -256,6 +261,7 @@ public class NetworkTest
 
 		Assert.AreEqual( true, clientAndHost.Client.Released( "Jump" ) );
 		Assert.AreEqual( false, clientAndHost.Client.Down( "Jump" ) );
+		Assert.IsNull( clientAndHost.Client.AimAngles );
 
 		// Let's test wrap-aware command number processing
 		var userCommand = new UserCommand( uint.MaxValue );

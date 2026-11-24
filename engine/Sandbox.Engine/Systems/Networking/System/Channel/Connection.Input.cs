@@ -8,7 +8,14 @@ public abstract partial class Connection
 	internal void BuildUserCommand( ref UserCommand cmd )
 	{
 		cmd.Actions = Sandbox.Input.Actions;
+		cmd.AimAngles = Game.ActiveScene?.Camera?.WorldRotation.Angles();
+		Input.AimAngles = cmd.AimAngles;
 	}
+
+	/// <summary>
+	/// World-space view angles from this player's latest user command, or null when unavailable.
+	/// </summary>
+	public Angles? AimAngles => Input.AimAngles;
 
 	/// <summary>
 	/// Clear pending pressed and released actions for all connections in the Update context.
@@ -62,6 +69,11 @@ public abstract partial class Connection
 		}
 
 		private UserCommand _lastUserCommand;
+		internal Angles? AimAngles
+		{
+			get => _lastUserCommand.AimAngles;
+			set => _lastUserCommand.AimAngles = value;
+		}
 
 		public ulong Actions;
 
