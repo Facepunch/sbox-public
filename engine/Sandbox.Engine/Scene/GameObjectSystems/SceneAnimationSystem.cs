@@ -111,6 +111,10 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 			//
 			foreach ( var x in SkinnedRenderers.EnumerateLocked() )
 			{
+				// A renderer whose own update was skipped this frame has no graph and no animations: nothing to raise
+				if ( x.AnimatedFrame == BoneFrame && x.OwnUpdateSkipped )
+					continue;
+
 				x.DispatchEvents();
 			}
 		}
@@ -350,6 +354,8 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 		{
 			ChangedTransforms.Enqueue( renderer.Transform );
 		}
+
+		renderer.AnimatedFrame = BoneFrame;
 
 		foreach ( var child in renderer.SkinnedChildren )
 		{

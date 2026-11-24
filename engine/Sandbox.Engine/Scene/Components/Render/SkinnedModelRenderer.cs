@@ -178,7 +178,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	internal HashSet<SkinnedModelRenderer> BoneMergeChildren => _mergeChildren;
 
 	// The animation pass's grouping (SceneAnimationSystem), written on the main thread before the pass each frame
-	internal int AnimationUnitFrame;
+	internal int AnimationUnitFrame, AnimatedFrame;
 	internal SkinnedModelRenderer AnimationUnitHead, NextAttachedRoot, FirstAttachedRoot, NextUnitMerge, FirstUnitMerge;
 
 	private void UpdateSkinnedRendererParent()
@@ -358,6 +358,11 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		MergeDescendants();
 	}
 
+	/// <summary>
+	/// Whether the last animation update skipped this renderer's own update (<see cref="SkipsOwnAnimationUpdate"/>).
+	/// </summary>
+	internal bool OwnUpdateSkipped { get; private set; }
+
 	internal void DispatchEvents()
 	{
 		ThreadSafe.AssertIsMainThread();
@@ -504,8 +509,11 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 			}
 
 			_transformDirty = false;
+			OwnUpdateSkipped = true;
 			return false;
 		}
+
+		OwnUpdateSkipped = false;
 
 		SceneModel.Transform = WorldTransform;
 
