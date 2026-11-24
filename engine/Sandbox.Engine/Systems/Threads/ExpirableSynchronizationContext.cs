@@ -52,7 +52,14 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	/// When true, any continuations that attempt to run on this instance will
 	/// log an exception, unless whitelisted by <see cref="AllowPersistentTaskMethods"/>.
 	/// </summary>
-	internal bool HasExpired => _descendant != null;
+	internal bool HasExpired => _descendant != null || _closed;
+
+	private volatile bool _closed;
+
+	/// <summary>
+	/// True once <see cref="Close"/> has run: nothing queued to this instance, or posted to it later, runs.
+	/// </summary>
+	internal bool IsClosed => _closed;
 
 	public int QueueCount => m_queue.Reader.Count;
 
@@ -294,6 +301,9 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	{
 		isCancelled = false;
 
+		// Closed at shutdown: dropped without a warning, logging may already be gone
+		if ( _closed ) return false;
+
 		if ( !HasExpired ) return true;
 
 		var methodInfo = string.Empty;
@@ -344,9 +354,25 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		if ( !CheckValid( state, out var isCancelled ) ) return;
 
 		var target = GetCurrentContext();
+		if ( target.IsClosed ) return;
+
 		var data = new Data( d, state, isCancelled ? this : target, Sandbox.Engine.GlobalContext.Current );
 
 		target.m_queue.Writer.TryWrite( data );
+	}
+
+	/// <summary>
+	/// The process is ending and the native engine with it: drops what is queued here and everything posted from now on,
+	/// and <see cref="Wait"/> stops running queued work. A continuation left over from a game or menu task (a Workshop query
+	/// polling Steam, say) would otherwise run in a later wait on this thread, the runtime's own at exit included, and call
+	/// into native code that has been unloaded.
+	/// </summary>
+	public void Close()
+	{
+		_closed = true;
+		m_queue.Writer.TryComplete();
+
+		while ( m_queue.Reader.TryRead( out _ ) ) { }
 	}
 
 	public void Expire( ExpirableSynchronizationContext newInstance )
@@ -366,7 +392,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	{
 		var ctx = this;
 
-		while ( ctx.HasExpired )
+		while ( ctx._descendant != null )
 		{
 			ctx = ctx._descendant;
 		}
@@ -473,8 +499,8 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	{
 		const int WAIT_TIMEOUT = 0x102; // 258
 
-		// A zero timeout is a poll, and invalid timeouts should be rejected by the runtime.
-		if ( millisecondsTimeout != Timeout.Infinite && millisecondsTimeout <= 0 )
+		// A zero timeout is a poll, and invalid timeouts should be rejected by the runtime. A closed context runs nothing.
+		if ( _closed || millisecondsTimeout != Timeout.Infinite && millisecondsTimeout <= 0 )
 			return base.Wait( waitHandles, waitAll, millisecondsTimeout );
 
 		var started = Stopwatch.GetTimestamp();

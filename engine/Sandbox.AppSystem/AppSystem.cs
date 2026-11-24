@@ -335,6 +335,11 @@ public class AppSystem
 		Graphics.Shutdown();
 		WindowInput.Shutdown();
 		SdlGamepads.Shutdown();
+
+		// No task continuation runs from here on: one left queued (a menu's Workshop query, say) would run in a later
+		// wait on this thread, the runtime's own at exit included, after the native dlls are unloaded
+		Tasks.SyncContext.Shutdown();
+
 		NativeEngine.EngineGlobal.SourceEngineShutdown( _appSystem, false );
 		// Qt window destruction during PreShutdown can enqueue more frame-end cleanup.
 		EngineLoop.DrainFrameEndDisposables();

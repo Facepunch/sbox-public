@@ -44,6 +44,24 @@ internal static partial class SyncContext
 		WorkerThread = Reset( WorkerThread );
 	}
 
+	/// <summary>
+	/// Called on the main thread before the native engine shuts down: stops the worker threads' loops and closes
+	/// <see cref="MainThread"/> and <see cref="WorkerThread"/>, so no task continuation queued to them, or posted later,
+	/// runs once native code is gone. Clears this thread's context too, so the runtime's own waits at exit don't pump it.
+	/// </summary>
+	public static void Shutdown()
+	{
+		Tasks.WorkerThread.Stop( 1000 );
+
+		MainThread?.Close();
+		WorkerThread?.Close();
+
+		if ( SynchronizationContext.Current is ExpirableSynchronizationContext )
+		{
+			SynchronizationContext.SetSynchronizationContext( null );
+		}
+	}
+
 	private static ExpirableSynchronizationContext Reset( ExpirableSynchronizationContext oldInstance )
 	{
 		var newInstance = new ExpirableSynchronizationContext( oldInstance.WarnNonYieldingTasks );
