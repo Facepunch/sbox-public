@@ -1,5 +1,6 @@
 using Sandbox.Services;
 using Sandbox.Services.Players;
+using Steamworks;
 using System.Text.Json.Serialization;
 using System.Threading;
 
@@ -34,6 +35,11 @@ internal static partial class Workshop
 
 		public string Title { get; init; }
 		public string Description { get; init; }
+
+		/// <summary>
+		/// What this is
+		/// </summary>
+		public WorkshopFileType FileType { get; init; }
 
 		/// <summary>
 		/// Its preview image

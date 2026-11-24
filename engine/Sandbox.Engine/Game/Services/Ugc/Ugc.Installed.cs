@@ -255,6 +255,7 @@ internal static partial class Ugc
 	/// </summary>
 	internal static void InitializeSubscriptions()
 	{
+		bool isServer = Application.IsDedicatedServer;
 		Dispatch.Install<ItemInstalled_t>( x =>
 		{
 			// Steam reports items installed for other apps too
@@ -262,14 +263,19 @@ internal static partial class Ugc
 
 			Log.Info( $"Workshop item {NameOf( x.PublishedFileId )} downloaded" );
 			MarkInstalled( x.PublishedFileId );
-		} );
-		Dispatch.Install<DownloadItemResult_t>( x => OnDownloadResult( x.PublishedFileId, x.Result ) );
-		Dispatch.Install<RemoteStoragePublishedFileSubscribed_t>( x => Refresh() );
-		Dispatch.Install<RemoteStoragePublishedFileUnsubscribed_t>( x => Refresh() );
+		}, isServer );
+		Dispatch.Install<DownloadItemResult_t>( x => OnDownloadResult( x.PublishedFileId, x.Result ), isServer );
+		Dispatch.Install<RemoteStoragePublishedFileSubscribed_t>( x => Refresh(), isServer );
+		Dispatch.Install<RemoteStoragePublishedFileUnsubscribed_t>( x => Refresh(), isServer ); ;
 
 		Refresh();
 
 		_ = CheckForUpdatesAsync();
+
+		if ( isServer )
+		{
+			SyncContext.RunBlocking( WaitForServerItemsAsync() );
+		}
 	}
 
 	/// <summary>
@@ -293,7 +299,7 @@ internal static partial class Ugc
 		var subscribedItems = ReadItems( NativeEngine.CUgcSubscriptions.GetSubscribedJson() );
 		var downloadedItems = ReadItems( NativeEngine.CUgcSubscriptions.GetDownloadedJson() );
 
-		subscribed = subscribedItems.Select( x => x.PublishedFileId ).ToHashSet();
+		subscribed = Application.IsDedicatedServer ? serverItems : subscribedItems.Select( x => x.PublishedFileId ).ToHashSet();
 
 		// Steam downloads subscriptions when it gets round to it - ask for them, so they come down now and we
 		// hear how they went
