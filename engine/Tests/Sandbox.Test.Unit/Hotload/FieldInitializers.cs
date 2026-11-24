@@ -353,6 +353,47 @@ public class FieldInitializerTest : HotloadFixtureTestBase
 	}
 
 	[TestMethod]
+	public async Task ChangedGenericBaseTypeArgument()
+	{
+		// Fields of a generic base type whose type changes with a new type argument are new, so get their initializer.
+		// Its other fields, and other types still deriving from the old construction, keep their values. Hotload
+		// warns that the changed field's old values are discarded, like any field that changed type.
+
+		await HotloadFixtureAsync(
+			"""
+			using System.Collections.Generic;
+
+			public class GenericBase<T>
+			{
+				public List<T> Items = new() { default };
+				public string Created = typeof( T ).Name;
+			}
+
+			-public class Player : GenericBase<int>
+			+public class Player : GenericBase<string>
+			{
+			}
+
+			public class Sibling : GenericBase<int>
+			{
+			}
+
+			public class ChangedGenericBaseTypeArgument : IHotloadTestFixture
+			{
+				public Player Value = new();
+				public Sibling Other = new() { Items = { 1, 2 } };
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		Assert.AreEqual( 1, Value.Items?.Count );
+			+		Assert.AreEqual( "Int32", Value.Created );
+			+		CollectionAssert.AreEqual( new[] { 0, 1, 2 }, Other.Items );
+			+	}
+			}
+			""" );
+	}
+
+	[TestMethod]
 	public async Task AddedStructFieldAssignedInConstructor()
 	{
 		// Struct constructors don't call a base constructor, so body statements

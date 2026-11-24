@@ -124,11 +124,13 @@ partial class HotloadProcessor
 
 		if ( oldCompilation.Assembly.GetTypeByMetadataName( GetFullMetadataName( type ) ) is not { } oldType ) return;
 
-		var oldHierarchy = new HashSet<string>();
+		// Base types as constructed in the old hierarchy, like B<int>, so their fields' types have the old type arguments
+
+		var oldHierarchy = new Dictionary<string, INamedTypeSymbol>();
 
 		for ( var oldBase = oldType; oldBase is not null; oldBase = oldBase.BaseType )
 		{
-			oldHierarchy.Add( GetFullMetadataName( oldBase ) );
+			oldHierarchy[GetFullMetadataName( oldBase )] = oldBase;
 		}
 
 		// Fields added to base types from other assemblies are found by those assemblies' own compiles
@@ -137,32 +139,29 @@ partial class HotloadProcessor
 
 		for ( ; baseType is not null && SymbolEqualityComparer.Default.Equals( baseType.ContainingAssembly, compilation.Assembly ); baseType = baseType.BaseType )
 		{
-			var name = GetFullMetadataName( baseType );
-
 			// A base type that wasn't in the old hierarchy has no old fields to copy from
 
-			var oldFields = oldHierarchy.Contains( name ) && oldCompilation.Assembly.GetTypeByMetadataName( name ) is { } oldBase
+			var oldFields = oldHierarchy.TryGetValue( GetFullMetadataName( baseType ), out var oldBase )
 				? GetInstanceFields( oldBase ).ToDictionary( x => x.Name, x => x.Type.ToDisplayString( FieldTypeFormat ) )
 				: new Dictionary<string, string>();
 
-			// Compare and generate from a generic base type's definition, like the old type we compare against. The
-			// constructed type's fields have its type arguments substituted, so their types wouldn't match the old
-			// ones, and every construction would generate its own method into the definition.
-
-			foreach ( var field in GetInstanceFields( baseType.OriginalDefinition ) )
+			foreach ( var field in GetInstanceFields( baseType ) )
 			{
-				// A field that changed type is treated as new too
+				// A field that changed type is treated as new too, including a field of type T in a generic base type
+				// whose type argument changed
 
 				if ( oldFields.TryGetValue( field.Name, out var oldFieldType ) && oldFieldType == field.Type.ToDisplayString( FieldTypeFormat ) ) continue;
 
-				addedFields.Add( field );
+				// Generate into the generic definition, where one method serves every construction of it
+
+				addedFields.Add( field.OriginalDefinition );
 			}
 		}
 
 		// A base type from another assembly that wasn't in the old hierarchy has fields that hotload treats as new,
 		// but their initializer methods would have to go in that type, and it might not even be our source
 
-		if ( baseType is not null && !oldHierarchy.Contains( GetFullMetadataName( baseType ) ) )
+		if ( baseType is not null && !oldHierarchy.ContainsKey( GetFullMetadataName( baseType ) ) )
 		{
 			var location = type.DeclaringSyntaxReferences
 				.Select( x => x.GetSyntax() )
