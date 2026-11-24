@@ -15,7 +15,7 @@ public partial class Mixer
 		public bool Fed;
 		public readonly NativeReverbEffect Effect = new();
 		public readonly MultiChannelBuffer Send = new( 1 );
-		public readonly MultiChannelBuffer Output = new( 1 );
+		public readonly MultiChannelBuffer Output = new( 2 );
 
 		public void Feed( MultiChannelBuffer send, float level )
 		{
@@ -117,14 +117,13 @@ public partial class Mixer
 				continue;
 			}
 
-			// The send is the same in every channel, so is the reverb: run it once and spread it.
+			// Decorrelated left and right into the channels the binaural direct path fills; a mono device gets the left alone.
 			r.Output.Silence();
 			r.Effect.Apply( r.Low, r.Mid, r.High, r.Send, r.Output );
 
-			var output = r.Output.Get( 0 );
 			var target = GetListenerBuffer( r.Listener );
-			for ( var ch = 0; ch < target.ChannelCount; ch++ )
-				target.Get( ch ).MixFrom( output, 1f );
+			for ( var ch = 0; ch < Math.Min( target.ChannelCount, 2 ); ch++ )
+				target.Get( ch ).MixFrom( r.Output.Get( ch ), 1f );
 		}
 	}
 
