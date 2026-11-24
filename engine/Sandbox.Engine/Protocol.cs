@@ -13,7 +13,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1121;
+	public static int Network => 1125;
 }
 
 // Api Versions
@@ -34,6 +34,7 @@ public static class Protocol
 
 
 // Network Versions
+// 1125. 24 November 2026 - User commands pack named actions, controller axes, aim angles, mouse movement and wheel deltas
 // 1121. 23 November 2026 - ServerInfo says whether the host is a dedicated server
 // 1120. 22 November 2026 - Object create and refresh messages carry their JSON as UTF-8 bytes
 // 1119. 18 November 2026 - CodeArchive join snapshots advertise checksums

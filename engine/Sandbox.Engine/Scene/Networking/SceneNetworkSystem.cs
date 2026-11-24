@@ -26,6 +26,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal SceneNetworkSystem( Internal.TypeLibrary typeLibrary, NetworkSystem system )
 	{
 		Instance = this;
+		Input.ResetNetworkInput();
 		DeltaSnapshots = new( this );
 
 		Library = typeLibrary;
@@ -1018,6 +1019,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		DeltaSnapshots?.Reset();
+		Input.ResetNetworkInput();
 		UserCommand.Reset();
 	}
 

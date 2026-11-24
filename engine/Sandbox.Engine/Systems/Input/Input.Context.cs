@@ -31,12 +31,58 @@ public static partial class Input
 		}
 	}
 
+	// Independent of the frame and physics contexts: a tap between network sends must survive until sampled.
+	private static Context NetworkContext;
+
 	static Input()
 	{
+		NetworkContext = Context.Create( "Network" );
+
 		// We should always have a context available
 		// This will just get GC'd on client as we replace it with frame/tick context
 		var d = Context.Create( "Default" );
 		defaultContextScope = d.Push();
+	}
+
+	// Finish the sample and discard pending taps. Held actions carry into the next sample.
+	internal static void ResetNetworkInput()
+	{
+		NetworkContext.Flip();
+		NetworkContext.PendingNetworkActions = 0;
+
+		foreach ( var controller in Controller.All )
+		{
+			controller.InputContext.PendingNetworkActions = 0;
+		}
+	}
+
+	/// <summary>
+	/// Sample input once per outgoing command, preserving short taps for one command.
+	/// </summary>
+	internal static void CaptureNetworkInput( ref UserCommand command )
+	{
+		var actions = Actions | (CurrentController?.InputContext.PendingNetworkActions ?? 0);
+
+		if ( CurrentPlayerScope <= 0 )
+		{
+			actions |= (NetworkContext.AccumActionsPressed & ~CurrentContext.ActionsCleared)
+				| NetworkContext.PendingNetworkActions;
+		}
+
+		ResetNetworkInput();
+
+		if ( Suppressed )
+			return;
+
+		command.Actions = actions;
+		command.MouseDelta = NetworkContext.MouseDelta;
+		command.MouseWheel = NetworkContext.MouseWheel;
+
+		for ( var i = 0; i < UserCommand.AnalogCount; i++ )
+		{
+			var analog = (InputAnalog)i;
+			command.SetAnalog( analog, GetAnalog( analog ) );
+		}
 	}
 
 	/// <summary>
@@ -78,6 +124,17 @@ public static partial class Input
 		internal Vector2 MouseWheel { get; set; }
 		internal ulong ActionsCurrent { get; set; }
 		internal ulong ActionsPrevious { get; set; }
+
+		/// <summary>
+		/// Actions cleared by game code in this context, overriding physical input for this sample.
+		/// </summary>
+		internal ulong ActionsCleared { get; set; }
+
+		/// <summary>
+		/// Presses retained for the next network sample, independent of this context's update rate.
+		/// </summary>
+		internal ulong PendingNetworkActions { get; set; }
+
 		internal HashSet<ButtonCode> KeysCurrent { get; set; } = new();
 		internal HashSet<ButtonCode> KeysPrevious { get; set; } = new();
 		internal bool MouseCursorVisible { get; set; }
@@ -92,6 +149,19 @@ public static partial class Input
 		Context( string name )
 		{
 			this.Name = name;
+		}
+
+		internal void AccumulateAction( ulong mask, bool down )
+		{
+			if ( down )
+			{
+				AccumActionsPressed |= mask;
+				AccumActionsReleased &= ~mask;
+			}
+			else
+			{
+				AccumActionsReleased |= mask;
+			}
 		}
 
 		/// <summary>
@@ -118,6 +188,7 @@ public static partial class Input
 			// Current actions are all pressed
 			ActionsCurrent = AccumActionsPressed;
 			SavedActions = ActionsCurrent;
+			ActionsCleared = 0;
 
 			// Remove released actions
 			AccumActionsPressed &= ~AccumActionsReleased;

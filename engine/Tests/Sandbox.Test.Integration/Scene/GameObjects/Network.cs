@@ -217,6 +217,12 @@ public class NetworkTest
 		Input.SetAction( "Jump", true );
 		var camera = Game.ActiveScene.CreateObject().Components.Create<CameraComponent>();
 		camera.WorldRotation = Rotation.FromYaw( 90 );
+		var movement = new Vector2( 2, 3 );
+		var wheel = new Vector2( 0.75f, -0.75f );
+		Input.AddMouseMovement( new Vector2( 3, -2 ) );
+		Input.AddMouseWheel( new Vector2( 0.25f, -1 ) );
+		Input.AddMouseMovement( new Vector2( -1, 5 ) );
+		Input.AddMouseWheel( new Vector2( 0.5f, 0.25f ) );
 
 		// Send a client tick - this will build a user command as well
 		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
@@ -236,12 +242,16 @@ public class NetworkTest
 		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
 		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
 		Assert.AreEqual( camera.WorldRotation.Angles(), clientAndHost.Client.AimAngles );
+		Assert.AreEqual( movement, clientAndHost.Client.MouseDelta );
+		Assert.AreEqual( wheel, clientAndHost.Client.MouseWheel );
 
 		// Become the client
 		clientAndHost.BecomeClient();
 
 		Input.ClearActions();
 		camera.Enabled = false;
+		Input.AddMouseMovement( -movement );
+		Input.AddMouseWheel( -wheel );
 		Assert.AreEqual( camera.WorldRotation.Angles(), Connection.Local.AimAngles );
 
 		// Send a client tick - this will build a user command as well
@@ -262,6 +272,8 @@ public class NetworkTest
 		Assert.AreEqual( true, clientAndHost.Client.Released( "Jump" ) );
 		Assert.AreEqual( false, clientAndHost.Client.Down( "Jump" ) );
 		Assert.IsNull( clientAndHost.Client.AimAngles );
+		Assert.AreEqual( -movement, clientAndHost.Client.MouseDelta );
+		Assert.AreEqual( -wheel, clientAndHost.Client.MouseWheel );
 
 		// Let's test wrap-aware command number processing
 		var userCommand = new UserCommand( uint.MaxValue );
@@ -288,6 +300,8 @@ public class NetworkTest
 		} );
 
 		Assert.AreEqual( false, clientAndHost.Client.Pressed( "Forward" ) );
+		Assert.AreEqual( Vector2.Zero, clientAndHost.Client.MouseDelta );
+		Assert.AreEqual( Vector2.Zero, clientAndHost.Client.MouseWheel );
 		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
 		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
 
@@ -299,6 +313,57 @@ public class NetworkTest
 
 		// Don't leak pressed input state into later tests
 		Input.ClearActions();
+	}
+
+	/// <summary>
+	/// Controller axis movement and release travel through the normal client tick.
+	/// </summary>
+	[TestMethod]
+	public void NetworkedAnalogInput()
+	{
+		using var scope = new Scene().Push();
+		using var peers = new ClientAndHost( TypeLibrary );
+		var scene = Game.ActiveScene;
+		var suppressed = Input.Suppressed;
+		var usingController = Input.UsingController;
+		var controllers = Controller.All.ToArray();
+
+		try
+		{
+			Input.Suppressed = false;
+			Controller.All.Clear();
+			var controller = new Controller( 4096 );
+			controller.SetAxis( GameControllerAxis.LeftX, -16384 );
+			Controller.All.Add( controller );
+			Input.UsingController = true;
+
+			peers.BecomeClient();
+			var expectedAxis = Connection.Local.GetAnalog( InputAnalog.LeftStickX );
+			Assert.IsTrue( expectedAxis < -0.4f );
+			scene.SendClientTick( SceneNetworkSystem.Instance );
+			peers.BecomeHost();
+			peers.Host.ProcessMessages( InternalMessageType.ClientTick, bs => Networking.System.OnReceiveClientTick( bs, peers.Client ) );
+			peers.Host.Messages.Clear();
+			peers.Client.Messages.Clear();
+
+			Assert.AreEqual( expectedAxis, peers.Client.GetAnalog( InputAnalog.LeftStickX ), 0.00004f );
+
+			// Return the axis to neutral.
+			peers.BecomeClient();
+			controller.SetAxis( GameControllerAxis.LeftX, 0 );
+			scene.SendClientTick( SceneNetworkSystem.Instance );
+			peers.BecomeHost();
+			peers.Host.ProcessMessages( InternalMessageType.ClientTick, bs => Networking.System.OnReceiveClientTick( bs, peers.Client ) );
+			Assert.AreEqual( 0f, peers.Client.GetAnalog( InputAnalog.LeftStickX ) );
+		}
+		finally
+		{
+			Controller.All.Clear();
+			Controller.All.UnionWith( controllers );
+			Input.UsingController = usingController;
+			Input.Suppressed = suppressed;
+			scene.Destroy();
+		}
 	}
 
 	[TestMethod]
