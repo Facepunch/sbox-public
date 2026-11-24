@@ -171,6 +171,19 @@ $ui-menu-title-height: 51px;
 		{
 			@include ui-tab-button;
 		}
+
+		> .button
+		{
+			@include ui-header-button;
+			width: $ui-menu-tab-height;
+			pointer-events: all;
+
+			> .icon
+			{
+				font-size: 18px;
+				pointer-events: none;
+			}
+		}
 	}
 
 	> .tab-body

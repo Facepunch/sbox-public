@@ -30,6 +30,11 @@
     .spawnmenuleft
     {
         @include ui-menu-tab-panel;
+
+        > .tabbar > .icon-size-button
+        {
+            margin-left: auto;
+        }
     }
 
     // Reserve the tools column while the shared panel moves to the context menu.

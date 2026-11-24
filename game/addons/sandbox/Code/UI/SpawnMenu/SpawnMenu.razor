@@ -17,12 +17,30 @@
 @code
 {
     TabPanel SpawnTabs;
+    Button IconSizeButton;
     internal Panel ToolsParent { get; private set; }
 
     protected override void OnAfterTreeRender( bool firstTime )
     {
         BuildTabs();
+
+        if ( !IconSizeButton.IsValid() )
+        {
+            IconSizeButton = SpawnTabs.TabBar.AddChild( new Button( null, SpawnMenuIconSizeExtensions.Current.Icon(), OpenIconSizeMenu ) );
+            IconSizeButton.AddClass( "icon-size-button" );
+            IconSizeButton.Tooltip = "#ui.icon_size.title";
+        }
+
         Scene?.Get<SpawnMenuHost>()?.MoveToolsMenu();
+    }
+
+    void OpenIconSizeMenu()
+    {
+        SpawnMenuIconSizeExtensions.OpenMenu( IconSizeButton, size =>
+        {
+            SpawnMenuIconSizeExtensions.Current = size;
+            IconSizeButton.Icon = size.Icon();
+        } );
     }
 
     /// <summary>

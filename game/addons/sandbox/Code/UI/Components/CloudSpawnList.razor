@@ -12,7 +12,6 @@
             </Left>
 
             <Right>
-                <UIButton Icon=@IconSize.Icon() Tooltip="#ui.icon_size.title" @onclick=@OpenIconSizeMenu />
                 <UIButton Icon="verified" Active=@VerifiedOnly Tooltip="#ui.verified_only" @onclick=@ToggleVerified />
                 <UIDropdown class="big sort" Items=@SortItems Value=@SortOrder ValueChanged=@OnSortChanged Tooltip="#ui.sort_order" />
             </Right>
@@ -113,16 +112,7 @@
         Rebuild();
     }
 
-    SpawnMenuIconSize IconSize
-    {
-        get => SpawnMenuIconSizeExtensions.Current;
-        set
-        {
-            if ( value == IconSize ) return;
-            SpawnMenuIconSizeExtensions.Current = value;
-            OnIconSizeChanged();
-        }
-    }
+    SpawnMenuIconSize IconSize => SpawnMenuIconSizeExtensions.Current;
     SpawnMenuIconSize _lastIconSize = SpawnMenuIconSizeExtensions.Current;
     MixedVirtualGrid Grid;
 
@@ -145,13 +135,10 @@
             SortOrder = mode;
     }
 
-    void OpenIconSizeMenu() => SpawnMenuIconSizeExtensions.OpenMenu( this, size => IconSize = size );
-
     public override void Tick()
     {
         base.Tick();
 
-        // Another list may have changed these while we weren't visible
         if ( _lastIconSize != IconSize )
             OnIconSizeChanged();
 
