@@ -42,16 +42,7 @@ internal static class ContactShadows
 		{
 			LightCoordinate = lightCoordinate,
 			InvDepthTextureSize = new Vector2( 1.0f / width, 1.0f / height ),
-			DepthBounds = new Vector2( 0.0f, 1.0f ),
-			SurfaceThickness = 0.01f,
-			BilinearThreshold = 0.02f,
-			ShadowContrast = 1.0f + shadowHardness * 4.0f, // same as CSM penumbra
-			FarDepthValue = 0.0f,  // reverse-Z
-			NearDepthValue = 1.0f,
-			IgnoreEdgePixels = 0,
-			UsePrecisionOffset = 0,
-			BilinearSamplingOffsetMode = 0,
-			UseEarlyOut = 1,
+			ShadowContrast = 1.0f + MathX.Clamp( shadowHardness, 0.4f, 1.0f ) * 4.0f, // same as CSM penumbra
 		};
 
 		// Sparse wavefront writes — unwritten pixels stay lit.
@@ -106,17 +97,8 @@ internal static class ContactShadows
 		public int WaveOffsetX;
 		public int WaveOffsetY;
 		public Vector2 InvDepthTextureSize;
-		public Vector2 DepthBounds;
-		public float SurfaceThickness;
-		public float BilinearThreshold;
 		public float ShadowContrast;
-		public float FarDepthValue;
-		public float NearDepthValue;
-		public int IgnoreEdgePixels;
-		public int UsePrecisionOffset;
-		public int BilinearSamplingOffsetMode;
-		public int UseEarlyOut;
-		int _pad0;
+		Vector3 _pad0;
 	}
 
 	struct DispatchData

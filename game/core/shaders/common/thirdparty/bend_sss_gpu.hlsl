@@ -75,8 +75,7 @@ struct DispatchParameters
 	// These values will require manual tuning.
 	// All shadow computation is performed in non-linear depth space (not in world space), so tuned value choices will depend on scene depth distribution (as determined by the Projection Matrix setup).
 
-	float SurfaceThickness;				// This is the assumed thickness of each pixel for shadow-casting, measured as a percentage of the difference in non-linear depth between the sample and FarDepthValue.
-										// Recommended starting value: 0.005 (0.5%)
+	float SurfaceThickness;				// Assumed thickness of a shadow caster along view Z, in world units.
 
 	float BilinearThreshold;			// Percentage threshold for determining if the difference between two depth values represents an edge, and should not perform interpolation.
 										// To tune this value, set 'DebugOutputEdgeMask' to true to visualize where edges are being detected.
@@ -119,7 +118,7 @@ struct DispatchParameters
 	[mutating]
 	void SetDefaults()
 	{
-		SurfaceThickness			= 0.005;
+		SurfaceThickness			= 2.0;
 		BilinearThreshold			= 0.02;
 		ShadowContrast				= 4;
 		IgnoreEdgePixels			= false;
@@ -263,7 +262,7 @@ void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int
 		// Read in the depth values
 		float sampling_depth[READ_COUNT];
 		float shadowing_depth[READ_COUNT];
-		float depth_thickness_scale[READ_COUNT];
+		float depth_to_far[READ_COUNT];
 		float sample_distance[READ_COUNT];
 
 		const float direction = -inParameters.LightCoordinate.w;
@@ -305,17 +304,17 @@ void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int
 
 			depths.x = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0);
 			depths.y = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0, offset_xy);
-		#endif
+#endif
 
 			// Sbox: Normalize the depth values to [0,1] range, so they can be compared against the FarDepthValue and NearDepthValue
             depths.x = Depth::Normalize(depths.x);
 			depths.y = Depth::Normalize(depths.y);
 
-			// Depth thresholds (bilinear/shadow thickness) are based on a fractional ratio of the difference between sampled depth and the far clip depth
-			depth_thickness_scale[i] = abs(inParameters.FarDepthValue - depths.x);
+			// The edge threshold and the minimum window near the light use the remaining depth range.
+			depth_to_far[i] = abs(inParameters.FarDepthValue - depths.x);
 
 			// If depth variance is more than a specific threshold, then just use point filtering
-			bool use_point_filter = abs(depths.x - depths.y) > depth_thickness_scale[i] * inParameters.BilinearThreshold;
+			bool use_point_filter = abs(depths.x - depths.y) > depth_to_far[i] * inParameters.BilinearThreshold;
 
 			// Store for debug output when inParameters.DebugOutputEdgeMask is true
 			if (i == 0) is_edge = use_point_filter;
@@ -411,9 +410,7 @@ void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int
 
 		float start_depth = sampling_depth[0];
 
-		// sbox: try to guess the viewmodel, just use the stencil state eventually
-        bool near_sharpen = Depth::Linearize(start_depth) < 24.0;
-		float shadow_contrast = near_sharpen ? max( inParameters.ShadowContrast, 2.0 ) : inParameters.ShadowContrast;
+		float view_z = Depth::Linearize(start_depth, write_xy + 0.5);
 
 		// lerp away from far depth by a tiny fraction?
 		if (inParameters.UsePrecisionOffset)
@@ -428,16 +425,19 @@ void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int
 		float4 shadow_value = 1;
 		float hard_shadow = 1;
 
-		// This is the inverse of how large the shadowing window is for the projected sample data. 
-		// All values in the LDS sample list are scaled by 1.0 / sample_distance, such that all light directions become parallel.
-		// The multiply by sample_distance[0] here is to compensate for the projection divide in the data.
-		// The 1.0 / inParameters.SurfaceThickness is to adjust user selected thickness. So a 0.5% thickness will scale depth values from [0,1] to [0,200]. The shadow window is always 1 wide.
-		// 1.0 / depth_thickness_scale[0] is because SurfaceThickness is percentage of remaining depth between the sample and the far clip - not a percentage of the full depth range.
-		// The min() function is to make sure the window is a minimum width when very close to the light. The +direction term will bias the result so the pixel at the very center of the light is either fully lit or shadowed
-		float depth_scale = min(sample_distance[0] + direction, 1.0 / inParameters.SurfaceThickness) * sample_distance[0] / depth_thickness_scale[0];
+		// Along this perspective ray depth is A + B / z. The difference from z to z - thickness
+		// is B * thickness / (z * (z - thickness)). The inverse projection's last row gives 1/B.
+		float thickness = inParameters.SurfaceThickness;
+		float inv_depth_window = view_z * (view_z - thickness) * abs(g_vInvProjRow3.z) / thickness;
+
+		// Clip the nearer end of the window to the near plane. EarlyOutPixel excludes the plane itself.
+		inv_depth_window = max(inv_depth_window, rcp(abs(inParameters.NearDepthValue - sampling_depth[0])));
+
+		// Keep Bend's minimum window near the projected light and undo the LDS sample-distance divide.
+		float light_limit = (sample_distance[0] + direction) / depth_to_far[0];
+		float depth_scale = min(light_limit, inv_depth_window) * sample_distance[0];
 
 		start_depth = start_depth * depth_scale - z_sign;
-		float end_depth = DepthData[sample_index + SAMPLE_COUNT - 1] * depth_scale;
 
 		// The first number of hard shadow samples, a single pixel can produce a full shadow
 		[unroll] for (i = 0; i < HARD_SHADOW_SAMPLES; i++)
@@ -450,35 +450,24 @@ void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int
 
 		// Brute force go!
 		// The main shadow samples, averaged in to a set of 4 shadow values
-		// SBOX: distance-based penumbra. Occluders hit near the receiving surface produce a hard,
-		// full-contrast shadow; hits further along the ray fade towards lit. This replaces the
-		// stock fixed tail fade (last FADE_OUT_SAMPLES only) with a bias that grows over the whole
-		// ray, so shadow softness tracks receiver-to-occluder distance.
+		const float fade_scale = 0.75 / (FADE_OUT_SAMPLES + 1);
+
 		[unroll] for (i = HARD_SHADOW_SAMPLES; i < SAMPLE_COUNT; i++)
 		{
-			// sbox: near_sharpen (viewmodels) accepts backfacing occluders: a sample between the
-			// receiver and the light whose depth recedes toward the light along the ray occludes
-			// regardless of the thickness window. Front-facing hits keep the stock window so thin
-			// objects still pass light. 1e8 cap skips the 1e10/1e20 sentinels.
-			float toward_light = (start_depth - DepthData[sample_index + i] * depth_scale) * z_sign;
-            bool backface_hit = near_sharpen && toward_light > 0
-				&& (start_depth - end_depth) * z_sign > 0;
-
-            float depth_delta = backface_hit ? 0 : abs(toward_light);
+			// Values above one are fully lit. Clamping here keeps register use down in the unrolled loop.
+			float depth_delta = saturate(abs(start_depth - DepthData[sample_index + i] * depth_scale));
 
 			// Do the same as the hard_shadow code above, but this will accumulate to 4 separate values.
 			// By using 4 values, the average shadow can be taken, which can help soften single-pixel shadows.
-			// Softening bias grows linearly with sample distance; 0.75 max matches the stock tail fade.
-			const float fade_out = (float)(i + 1 - HARD_SHADOW_SAMPLES) / (float)(SAMPLE_COUNT - HARD_SHADOW_SAMPLES) * 0.75;
-
-			shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta + (near_sharpen ? 0.0 : fade_out));
+			// The last FADE_OUT_SAMPLES fade out
+			shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta + max(i + 1 - (SAMPLE_COUNT - FADE_OUT_SAMPLES), 0) * fade_scale);
 		}
 
 		// Apply the contrast value.
 		// A value of 0 indicates a sample was exactly matched to the reference depth (and the result is fully shadowed)
 		// We want some boost to this range, so samples don't have to exactly match to produce a full shadow. 
-		shadow_value = saturate(shadow_value * shadow_contrast + (1 - shadow_contrast));
-		hard_shadow = saturate(hard_shadow * shadow_contrast + (1 - shadow_contrast));
+		shadow_value = saturate(shadow_value * inParameters.ShadowContrast + (1 - inParameters.ShadowContrast));
+		hard_shadow = saturate(hard_shadow * inParameters.ShadowContrast + (1 - inParameters.ShadowContrast));
 
 		float result = 0;
 
