@@ -477,7 +477,7 @@ public partial class Mixer
 			var sourceParams = allParams[vs.SourceOffset + i];
 
 			float mixerReverbScale = Reverb;
-			if ( vs.HasReverb && mixerReverbScale > 0f && vs.ReverbRoom.Mix > 0.09f )
+			if ( vs.HasReverb && mixerReverbScale > 0f )
 			{
 				var reverbSendLevel = sourceParams.ReverbAmount * mixerReverbScale * ReverbLevel( listener, in sourceParams, vs.ReverbRoom ) * volume;
 
@@ -512,17 +512,17 @@ public partial class Mixer
 		return _directBuffers[channels] ??= new MultiChannelBuffer( channels );
 	}
 
-	// Past the critical distance a room's reverb would match the source at full volume; held a little under so loud,
-	// sharp sounds heard from afar don't drown in it. Same idea as a max wet level elsewhere.
-	const float MaxReverbLevel = 0.7f;
+	// Wet level against physical, where the reverb matches the direct sound at the room's critical distance. -10.5 dB, a usual send level.
+	const float ReverbTrim = 0.3f;
 
 	/// <summary>
-	/// Reverb level of a source in its room. A diffuse field doesn't fall with distance like the direct sound does: it matches
-	/// the direct sound at the room's critical distance and stays there, closer in the direct sound dominates.
+	/// Reverb send of a source in its room, the reverb unit has unity gain. A diffuse field doesn't fall with distance like the
+	/// direct sound does: it is the direct sound's level at the room's critical distance (less inside the sound's min distance)
+	/// times <see cref="ReverbTrim"/>, and only fades slowly further out.
 	/// </summary>
 	static float ReverbLevel( Listener listener, in DirectSoundParams p, in ReverbSnapshot room )
 	{
-		if ( !p.DistanceAttenuation ) return 1f;
+		if ( !p.DistanceAttenuation ) return ReverbTrim;
 
 		var dist = p.Position.Distance( listener.MixTransform.Position );
 		float near = SoundFalloff.MinDistance( p.MinDistance, p.Distance );
@@ -530,8 +530,10 @@ public partial class Mixer
 
 		// The direct sound's level at the critical distance by whichever falloff the sound uses, quieter still inside its size
 		float diffuse = SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, critical ) * MathF.Min( 1f, dist / near );
+		// Barron's revised theory: the reflected field's amplitude falls by exp(-0.02 r / T60), r in meters.
+		float falloff = MathF.Exp( -0.02f * dist / 39.37f / MathF.Max( room.DecayTime, 0.05f ) );
 		float fade = p.FalloffMode == SoundFalloffMode.Physical ? SoundFalloff.RangeFade( dist, p.Distance ) : (dist < p.Distance ? 1f : 0f);
-		return MathF.Min( MaxReverbLevel, diffuse ) * fade;
+		return ReverbTrim * diffuse * falloff * fade;
 	}
 
 	/// <summary>
