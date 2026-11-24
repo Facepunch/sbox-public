@@ -242,11 +242,13 @@ partial class HotloadProcessor
 
 			text.Append( $"[{AddedFieldInitializerAttribute}( \"{field.Name}\" )] {methodModifiers} {fieldType} {methodName}() =>" );
 
-			// Array initializers like { 1, 2 } are only allowed in declarations
+			// Array initializers like { 1, 2 } are only allowed in declarations. An array creation can't be
+			// annotated as nullable, so leave off the field type's top-level "?".
 
 			if ( value is InitializerExpressionSyntax )
 			{
-				text.Append( $" new {fieldType}" );
+				var arrayType = field.Type.WithNullableAnnotation( NullableAnnotation.NotAnnotated ).ToDisplayString( FieldTypeFormat );
+				text.Append( $" new {arrayType}" );
 			}
 
 			text.AppendLine();

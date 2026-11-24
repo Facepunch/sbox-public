@@ -685,6 +685,35 @@ public class FieldInitializerTest : HotloadFixtureTestBase
 	}
 
 	[TestMethod]
+	public async Task AddedNullableFieldArrayInitializer()
+	{
+		// An array creation can't have a nullable annotation, so "new int[]" is added without the field type's "?".
+		// Annotating an existing field counts as a type change, so it gets a method too.
+
+		var result = await HotloadFixtureAsync(
+			"""
+			#nullable enable
+
+			public class AddedNullableFieldArrayInitializer : IHotloadTestFixture
+			{
+			+	public int[]? Values = { 1, 2, 3 };
+			+	public string?[]? Names = { "a", null };
+			-	public int[] Annotated = { 4 };
+			+	public int[]? Annotated = { 4 };
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		CollectionAssert.AreEqual( new[] { 1, 2, 3 }, Values );
+			+		CollectionAssert.AreEqual( new[] { "a", null }, Names );
+			+		CollectionAssert.AreEqual( new[] { 4 }, Annotated );
+			+	}
+			}
+			""" );
+
+		Assert.IsFalse( result.HasWarnings );
+	}
+
+	[TestMethod]
 	public async Task AddedFieldMultiLineInitializer()
 	{
 		// The generated method is copied onto one line, so comments and line breaks need replacing
