@@ -177,7 +177,7 @@ public partial class ProjectPublisher
 			}
 		}
 
-		internal async Task BuildFrom( Asset singleAsset, Project project = null, CancellationToken cancel = default )
+		internal async Task BuildFrom( Asset singleAsset, CancellationToken cancel = default )
 		{
 			IsPreview = false;
 			ClearAssets();
@@ -188,16 +188,6 @@ public partial class ProjectPublisher
 			};
 
 			await CollectAssets( assetList, cancel );
-
-			var includeCode = singleAsset.Publishing.BuildPublishContext().IncludeCode;
-
-			if ( project is not null && includeCode )
-			{
-				foreach ( var path in AllCodePaths( project ) )
-				{
-					await IncludeFiles( path, "*", cancel, IncludeSourceFiles );
-				}
-			}
 
 			progress = null;
 

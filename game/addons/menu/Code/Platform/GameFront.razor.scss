@@ -77,18 +77,14 @@ GameFront
 		gap: 14px;
 	}
 
-	// Just words on the art - the first the one to press, white and a size up, the rest a step back. Under the pointer
-	// one comes forward: white and nudged right, the others dimmed.
-	// It gives a little when pressed.
 	.nav
 	{
-		pointer-events: all;
+		pointer-events: none;
 
 		.item
 		{
-			position: relative;
-			flex-direction: row;
-			align-items: center;
+			pointer-events: all;
+			white-space: nowrap;
 			font-size: 26px;
 			font-weight: 700;
 			letter-spacing: -0.3px;
@@ -96,47 +92,22 @@ GameFront
 			text-shadow: 0 2px 12px rgba( 0, 0, 0, 0.5 );
 			cursor: pointer;
 			@include platform-sounds;
-			transition: color 0.12s ease, opacity 0.12s ease, transform 0.15s ease-out;
+			transition: color 0.12s ease, transform 0.15s ease-out;
 
 			&:hover
 			{
 				color: white;
-				opacity: 1;
-				transform: translateX( 8px );
 			}
 
 			&:active
 			{
-				transform: translateX( 8px ) scale( 0.97 );
+				transform: scale( 0.97 );
 			}
 
 			&.disabled
 			{
 				opacity: 0.4;
 			}
-
-			&.leave:hover
-			{
-				color: $platform-danger;
-			}
-		}
-
-		// The one to press
-		.tier > .item:first-child
-		{
-			font-size: 30px;
-			color: white;
-		}
-
-		// One under the pointer - the rest step back
-		&:hover .item
-		{
-			opacity: 0.6;
-		}
-
-		&:hover .item:hover
-		{
-			opacity: 1;
 		}
 	}
 

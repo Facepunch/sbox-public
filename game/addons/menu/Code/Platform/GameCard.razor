@@ -180,7 +180,7 @@
     void View()
     {
         if ( Local is not null ) PlatformRoot.Instance?.ShowGame( Local );
-        else if ( Item?.KeyValues.GetValueOrDefault( "package" ) is { } ident ) PlatformRoot.Instance?.ShowGame( ident );
+        else PlatformRoot.Instance?.ShowWorkshopItem( Item );
     }
 
     async System.Threading.Tasks.Task Vote( bool up )

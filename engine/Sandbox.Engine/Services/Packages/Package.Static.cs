@@ -362,16 +362,10 @@ public partial class Package
 	}
 
 	/// <summary>
-	/// Retrieve a list of packages, organised into groups, for discovery
+	/// Returns an empty discovery list for legacy callers.
 	/// </summary>
-	public static async Task<ListResult> ListAsync( string id, CancellationToken token = default )
-	{
-		var result = await Backend.Package.GetList( id );
-		if ( result.Groupings is null )
-			return null;
-
-		return ListResult.From( result );
-	}
+	[Obsolete( "Grouped discovery lists have been retired. Use Package.FindAsync for package search." )]
+	public static Task<ListResult> ListAsync( string id, CancellationToken token = default ) => Task.FromResult( new ListResult { Groupings = [] } );
 
 	/// <summary>
 	/// Sort the given list of packages so that referenced packages are ordered before the packages that reference them.

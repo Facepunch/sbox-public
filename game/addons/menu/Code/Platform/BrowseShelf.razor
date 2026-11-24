@@ -8,8 +8,7 @@
 
 @*
     Browse the Workshop's games - search, put them in an order, narrow them down by tag (how it's played, what it is),
-    and page through what's found. The search field lives in the dock (Dock calls Find), or it's opened from a
-    Discover row's See more.
+    and page through what's found. The search field lives in the dock.
 *@
 <root>
 
@@ -93,7 +92,7 @@
                 <Item Context="item">
                     @if ( item is WorkshopItemDetails game )
                     {
-                        <GameCard Item=@game OnPicked=@Pressed />
+                        <GameCard Item=@game OnPickedItem=@Pressed />
                     }
                 </Item>
             </VirtualGrid>
@@ -115,16 +114,7 @@
     /// </summary>
     public string SortBy { get; set; }
 
-    void Pressed( Package package )
-    {
-        if ( package is not null && package.IsRemote )
-        {
-            PlatformRoot.Instance?.ShowGame( package );
-            return;
-        }
-
-        PlatformRoot.Instance?.Picked( package );
-    }
+    void Pressed( WorkshopItemDetails item ) => PlatformRoot.Instance?.ShowWorkshopItem( item );
 
     record Order( string Title, string Icon, Storage.SortOrder? Sort );
 

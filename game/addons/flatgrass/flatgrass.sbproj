@@ -16,6 +16,7 @@
     "EnableMcpCommunication": true
   },
   "Metadata": {
+    "WorkshopId": 3819030036,
     "PrimaryAsset": "maps/flatgrass/flatgrass.scene"
   }
 }

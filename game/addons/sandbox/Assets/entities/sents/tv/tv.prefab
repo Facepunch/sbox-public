@@ -73,7 +73,7 @@
         "Elasticity": null,
         "Friction": null,
         "IsTrigger": false,
-        "Model": "models/sbox_props/tv/tv.vmdl",
+        "Model": "models/sbox/home/tv/tv.vmdl",
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -98,7 +98,7 @@
         "Health": 15,
         "IsStatic": false,
         "MaterialGroup": null,
-        "Model": "models/sbox_props/tv/tv.vmdl",
+        "Model": "models/sbox/home/tv/tv.vmdl",
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -121,7 +121,7 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "models/sbox_props/tv/tv.vmdl",
+        "Model": "models/sbox/home/tv/tv.vmdl",
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -209,8 +209,6 @@
   "MenuPath": null,
   "MenuIcon": null,
   "DontBreakAsTemplate": false,
-  "__references": [
-    "facepunch.tv#279757"
-  ],
+  "__references": [],
   "__version": 2
 }

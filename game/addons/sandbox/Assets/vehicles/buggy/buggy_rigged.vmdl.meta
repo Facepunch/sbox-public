@@ -12,10 +12,7 @@
       "Resources": null,
       "PublishUsedAssetsOnly": false,
       "PackageReferences": null,
-      "EditorReferences": [
-        "facepunch.beer_keg_a1#429474",
-        "facepunch.carseat#143559"
-      ],
+      "EditorReferences": [],
       "Mounts": null,
       "IsStandaloneOnly": false,
       "AI": {

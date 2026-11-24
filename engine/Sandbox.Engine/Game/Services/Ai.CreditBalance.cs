@@ -17,13 +17,13 @@ public static partial class Ai
 		/// </summary>
 		public DateTimeOffset RenewsAt { get; init; }
 
-		internal CreditBalance( ServiceApi.CreditBalance balance )
+		internal CreditBalance( AiCreditBalance balance )
 		{
 			Available = balance.Available;
 			RenewsAt = balance.RenewsAt;
 		}
 
-		internal static CreditBalance? FromDto( ServiceApi.CreditBalance? balance )
+		internal static CreditBalance? FromDto( AiCreditBalance? balance )
 			=> balance is { } value ? new CreditBalance( value ) : null;
 	}
 }

@@ -45,10 +45,14 @@ public sealed class ResourcePublishContext
 	public Func<Bitmap> CreateThumbnailFunction { get; set; }
 
 	/// <summary>
-	/// If true we'll include the addon's code with this 
+	/// Retained for compatibility. Always returns false.
 	/// </summary>
-	public bool IncludeCode { get; set; }
-
+	[Obsolete( "Publishing a resource no longer includes project code." )]
+	public bool IncludeCode
+	{
+		get => false;
+		set { }
+	}
 
 	/// <summary>
 	/// If true then we'll offer an option to upload source files with this asset. This will make it easier for people
@@ -58,7 +62,6 @@ public sealed class ResourcePublishContext
 
 	//
 	// TODO: CreateVideoFunction. Need to make a class to wrap the video writer in a nicer way.
-	// TODO: IncludeCode expanded so we can set which code to include, by filename
 	//
 
 }

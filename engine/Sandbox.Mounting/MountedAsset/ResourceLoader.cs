@@ -141,7 +141,12 @@ public abstract class ResourceLoader
 	/// <summary>
 	/// Should be implemented to load a specific type
 	/// </summary>
-	public async Task<object> GetOrCreate()
+	public Task<object> GetOrCreate() => GetOrCreate( cacheResult: true );
+
+	/// <summary>
+	/// A bulk preview bake can reuse an existing resource without retaining every model it loads.
+	/// </summary>
+	internal async Task<object> GetOrCreate( bool cacheResult )
 	{
 		if ( _loadTask is not null && !_loadTask.IsCompleted )
 		{
@@ -166,7 +171,7 @@ public abstract class ResourceLoader
 				await _loadTask;
 
 				result = _loadTask.Result;
-				if ( Type != ResourceType.GameResource )
+				if ( cacheResult && Type != ResourceType.GameResource )
 					_cachedResult = result;
 			}
 		}

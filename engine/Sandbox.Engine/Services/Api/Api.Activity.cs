@@ -12,6 +12,7 @@ internal static partial class Api
 	{
 		static int ActivityCount;
 		static string[] lastAddons;
+		static ulong[] lastAddonWorkshopIds;
 		static string sessionGame;
 		static Dictionary<string, object> sessionLoad;
 		static Origin sessionOrigin;
@@ -42,9 +43,13 @@ internal static partial class Api
 		internal static void QueueUpdate( string game, string gameVersion, string map, string[] addons, object net = null )
 		{
 			var (load, origin) = PeekCompletedLoad( game );
+			var gameWorkshopId = Application.GamePackage?.WorkshopId ?? 0;
+			var mapWorkshopId = Application.MapPackage?.WorkshopId ?? 0;
+			var addonWorkshopIds = WorkshopItems.Current?.GetMountedAddonIds() ?? [];
+
 			lock ( updateLock )
 			{
-				queuedUpdate = queuedUpdate.ContinueWith( _ => UpdateActivity( game, gameVersion, map, addons, net, load, origin ), TaskScheduler.Default ).Unwrap();
+				queuedUpdate = queuedUpdate.ContinueWith( _ => UpdateActivity( game, gameVersion, map, addons, net, load, origin, gameWorkshopId, mapWorkshopId, addonWorkshopIds ), TaskScheduler.Default ).Unwrap();
 			}
 		}
 
@@ -52,7 +57,7 @@ internal static partial class Api
 		/// Heartbeat for the current game. <paramref name="net"/> is the network state sampled on the
 		/// main thread: mode, players, max.
 		/// </summary>
-		static async Task UpdateActivity( string game, string gameVersion, string map, string[] addons, object net, Dictionary<string, object> load, Origin origin )
+		static async Task UpdateActivity( string game, string gameVersion, string map, string[] addons, object net, Dictionary<string, object> load, Origin origin, ulong gameWorkshopId, ulong mapWorkshopId, ulong[] addonWorkshopIds )
 		{
 			try
 			{
@@ -97,6 +102,7 @@ internal static partial class Api
 				}
 
 				lastAddons = addons;
+				lastAddonWorkshopIds = addonWorkshopIds;
 				if ( load is not null )
 				{
 					sessionLoad = load;
@@ -114,6 +120,9 @@ internal static partial class Api
 				data.Add( "gameversion", gameVersion );
 				data.Add( "map", map );
 				data.Add( "content", lastAddons );
+				if ( gameWorkshopId != 0 ) data.Add( "gameWorkshopId", gameWorkshopId );
+				if ( mapWorkshopId != 0 ) data.Add( "mapWorkshopId", mapWorkshopId );
+				data.Add( "addonWorkshopIds", addonWorkshopIds );
 				data.Add( "st", SessionSeconds.FloorToInt() );
 				data.Add( "sh", SessionId.ToString() );
 				data.Add( "performance", performanceData );
@@ -195,6 +204,7 @@ internal static partial class Api
 			data.Add( "sh", SessionId.ToString() );
 			data.Add( "i", ActivityCount++ );
 			data.Add( "content", lastAddons );
+			data.Add( "addonWorkshopIds", lastAddonWorkshopIds );
 			data.Add( "performance", performanceData );
 			data.Add( "config", GetConfig() );
 			data.Add( "hardware", Engine.SystemInfo.AsObject() );
@@ -220,6 +230,7 @@ internal static partial class Api
 			SessionTimer = default;
 			ActivityCount = -1;
 			lastAddons = null;
+			lastAddonWorkshopIds = null;
 			sessionLoad = null;
 			sessionOrigin = null;
 

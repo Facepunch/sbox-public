@@ -58,7 +58,7 @@ public static partial class Ai
 			{
 				AiQueryResponse query => query.Credits,
 				AiChatToolResponse tool => tool.Credits,
-				ServiceApi.CreditBalance balance => balance,
+				AiCreditBalance balance => balance,
 				_ => null
 			} );
 			return response;
@@ -84,7 +84,7 @@ public static partial class Ai
 		}
 	}
 
-	static void UpdateCredits( ServiceApi.CreditBalance? balance )
+	static void UpdateCredits( AiCreditBalance? balance )
 	{
 		if ( balance.HasValue ) Credits = CreditBalance.FromDto( balance );
 	}

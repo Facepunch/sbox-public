@@ -148,6 +148,7 @@ public static partial class MenuUtility
 	/// <summary>
 	/// The games sbox.game features, in its order, as the Workshop has them
 	/// </summary>
+	[Obsolete( "The Featured menu page has been retired. Use SearchWorkshopGames to browse games." )]
 	public static async Task<WorkshopItemDetails[]> FindFeaturedWorkshopGamesAsync( int count = 24 )
 	{
 		var featured = await Package.FindAsync( "type:game in:facepunch.featured-games", count );

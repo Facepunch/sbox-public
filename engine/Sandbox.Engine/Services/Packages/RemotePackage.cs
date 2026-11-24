@@ -114,7 +114,6 @@ internal sealed class RemotePackage : Package
 		EditorReferences = p.EditorReferences;
 		ErrorRate = p.ErrorRate;
 		Flair = PackageFlair.FromDto( p.Flair );
-		LatestChangeLists = ChangeListSummary.FromDto( p.Changelists );
 		AssetLicense = LicenseName( p.AssetLicense );
 		Metadata = AssetMetaData.FromDto( p.Version?.Extra );
 

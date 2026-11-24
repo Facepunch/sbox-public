@@ -14,12 +14,16 @@
 						remaps =
 						[
 							{
-								from = "gas_cylinder_fat_red.vmat"
+								from = "gas_cylinder_fat.vmat"
+								to = "models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat_red.vmat"
+							},
+							{
+								from = "models/sbox/kitchen/propane_canister/gas_cylinder_fat.vmat"
 								to = "models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat_red.vmat"
 							},
 						]
-						use_global_default = false
-						global_default_material = ""
+						use_global_default = true
+						global_default_material = "models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat_red.vmat"
 					},
 				]
 			},
@@ -32,8 +36,9 @@
 						parent_bone = ""
 						surface_prop = "metal.sheet"
 						collision_tags = "solid"
-						faceMergeAngle = 20.0
-						maxHullVertices = 32
+						faceMergeAngle = 31.59
+						maxHullVertices = 9
+						hull_mode = "SingleHull"
 					},
 				]
 			},
@@ -43,10 +48,10 @@
 				[
 					{
 						_class = "RenderMeshFile"
-						filename = "models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat.fbx"
+						filename = "models/sbox/industrial/gas_cylinder_fat/propane_canister.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
 						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 0.3937
+						import_scale = 1.0
 						align_origin_x_type = "None"
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
@@ -56,7 +61,7 @@
 							exclude_by_default = true
 							exception_list =
 							[
-								"gas_cylinder_fat_gib03",
+								"gib_04",
 							]
 						}
 					},
@@ -71,8 +76,8 @@
 						target_body = ""
 						mass_override = 0.8
 						inertia_scale = 1.0
-						linear_damping = 0.0
-						angular_damping = 0.0
+						linear_damping = 0.08
+						angular_damping = 0.3
 						use_mass_center_override = false
 						mass_center_override = [ 0.0, 0.0, 0.0 ]
 						gravity_scale = 1.0
@@ -83,6 +88,8 @@
 		model_archetype = ""
 		primary_associated_entity = ""
 		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }

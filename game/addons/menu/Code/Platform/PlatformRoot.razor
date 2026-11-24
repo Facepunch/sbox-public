@@ -451,9 +451,26 @@
         Side = SidePanel.None;
     }
 
+    /// <summary>
+    /// Opens the details page for a Steam Workshop item.
+    /// </summary>
+    public void ShowWorkshopItem( WorkshopItemDetails item )
+    {
+        if ( item is not null ) ShowGame( item.Id.ToString() );
+    }
+
+    /// <summary>
+    /// Opens the details page for a local project or published package.
+    /// </summary>
     public void ShowGame( Package package )
     {
         if ( package is null ) return;
+
+        if ( package.IsRemote && package.WorkshopId != 0 )
+        {
+            ShowGame( package.WorkshopId.ToString() );
+            return;
+        }
 
         ShowGame( package.FullIdent, package );
     }
@@ -529,15 +546,9 @@
     {
         if ( item is null ) return;
 
-        if ( item.Id == PlatformMenu.CurrentId )
+        if ( item.Id == PlatformMenu.CurrentId || !PlatformMenu.CanChangeGame )
         {
-            ShowGame( item.KeyValues.GetValueOrDefault( "package" ) ?? PlatformMenu.Ident, PlatformMenu.Current );
-            return;
-        }
-
-        if ( !PlatformMenu.CanChangeGame )
-        {
-            ShowGame( item.KeyValues.GetValueOrDefault( "package" ) );
+            ShowWorkshopItem( item );
             return;
         }
 

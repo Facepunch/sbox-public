@@ -256,15 +256,10 @@ class RenderJob
 
 	public async Task Run()
 	{
-		var modelResource = await Model.LoadAsync( Path );
-		if ( !modelResource.IsValid() || modelResource.IsError ) return;
+		using var icon = await Model.RenderSpawnIconAsync( Path );
+		if ( icon is null ) return;
 
-		using var bitmap = new Bitmap( 512, 512 );
-		SceneUtility.RenderModelBitmap( modelResource, bitmap );
-
-		using var resized = bitmap.Resize( 256, 256 );
-		Texture.Update( resized );
-
-		_cache.Save( resized );
+		Texture.Update( icon );
+		_cache.Save( icon );
 	}
 }

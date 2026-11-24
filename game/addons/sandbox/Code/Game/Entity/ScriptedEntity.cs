@@ -80,12 +80,6 @@ public class ScriptedEntity : GameResource, IDefinitionResource
 	public string Category { get; set; }
 
 	/// <summary>
-	/// If this entity uses code then you should enable this so the code is included when publishing.
-	/// </summary>
-	[Property]
-	public bool IncludeCode { get; set; }
-
-	/// <summary>
 	/// If true, this entity only appears in the spawn menu when running in the editor.
 	/// Use for test/debug entities that shouldn't ship to players.
 	/// </summary>
@@ -108,11 +102,6 @@ public class ScriptedEntity : GameResource, IDefinitionResource
 	public override void ConfigurePublishing( ResourcePublishContext context )
 	{
 		if ( Prefab is null )
-		{
 			context.SetPublishingDisabled( "Invalid: missing a prefab" );
-			return;
-		}
-
-		context.IncludeCode = IncludeCode;
 	}
 }

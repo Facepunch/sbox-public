@@ -5,33 +5,22 @@ namespace MenuProject.Platform;
 /// <summary>
 /// A row of games on a shelf - what it's called, where its games come from, and them once they've been fetched
 /// </summary>
-public sealed class GameRow( string title, string icon, Func<Task<WorkshopItemDetails[]>> find, float maxAge = 0,
-	Storage.SortOrder? browseSort = null )
+public sealed class GameRow( string title, string icon, Func<Task<WorkshopItemDetails[]>> find )
 {
 	public string Title => title;
 	public string Icon => icon;
-
-	/// <summary>
-	/// What its See more browses the Workshop by - null for none
-	/// </summary>
-	public Storage.SortOrder? BrowseSort => browseSort;
 
 	/// <summary>
 	/// The games, as the Workshop has them - null until they've been fetched
 	/// </summary>
 	public WorkshopItemDetails[] Games { get; private set; }
 
-	RealTimeSince sinceFetched;
-
 	public async Task RefreshAsync()
 	{
-		if ( Games is not null && sinceFetched < maxAge ) return;
-
 		var games = await find();
 		if ( games is null ) return;
 
 		Games = games;
-		sinceFetched = 0;
 		LoadArt( games );
 	}
 

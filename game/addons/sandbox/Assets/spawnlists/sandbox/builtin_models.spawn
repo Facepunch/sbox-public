@@ -272,6 +272,30 @@
     },
     {
       "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/lockers/locker_single.vmdl",
+      "Title": "Single Locker",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/lockers/locker_group_01.vmdl",
+      "Title": "Locker Group 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/lockers/locker_group_02.vmdl",
+      "Title": "Locker Group 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/lockers/locker_door.vmdl",
+      "Title": "Locker Door",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
       "Ident": "prop:models/sbox/industrial/metal_ladder_01/metal_ladder_01.vmdl",
       "Title": "Metal Ladder 01",
       "Icon": null
@@ -380,8 +404,26 @@
     },
     {
       "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat_02.vmdl",
+      "Title": "Propane Canister",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
       "Ident": "prop:models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall.vmdl",
       "Title": "Gas Cylinder Tall",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/petrol_can/petrol_can_01.vmdl",
+      "Title": "Petrol Can 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/petrol_can/petrol_can_02.vmdl",
+      "Title": "Petrol Can 02",
       "Icon": null
     },
     {
@@ -506,6 +548,12 @@
     },
     {
       "Kind": "Item",
+      "Ident": "prop:models/sbox/shop/cash_register/cash_register.vmdl",
+      "Title": "Cash Register",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
       "Ident": "prop:models/sbox/home/alphabet_blocks/alphabet_blocks_01a.vmdl",
       "Title": "Alphabet Blocks 01A",
       "Icon": null
@@ -626,6 +674,12 @@
     },
     {
       "Kind": "Item",
+      "Ident": "prop:models/sbox/home/watermelon/watermelon.vmdl",
+      "Title": "Watermelon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
       "Ident": "prop:models/sbox/doors/door_a/door_a.vmdl",
       "Title": "Door A",
       "Icon": null
@@ -658,6 +712,18 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/home/door_03/door_03.vmdl",
       "Title": "Door 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/umbrella_stand/umbrella_stand.vmdl",
+      "Title": "Umbrella Stand",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/radiator/radiator.vmdl",
+      "Title": "Radiator",
       "Icon": null
     },
     {
@@ -754,6 +820,24 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/home/wooden_chair/wooden_chair_a.vmdl",
       "Title": "Wooden Chair 1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/wooden_chair/wooden_chair.vmdl",
+      "Title": "Wooden Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/bentwood_chair/bentwood_chair.vmdl",
+      "Title": "Bentwood Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/metal_chair/metal_chair.vmdl",
+      "Title": "Metal Chair",
       "Icon": null
     },
     {
@@ -1066,6 +1150,12 @@
       "Kind": "Item",
       "Ident": "prop:models/sbox/home/plastic_chair/plastic_chair.vmdl",
       "Title": "Garden Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/cemetery/watering_can/watering_can.vmdl",
+      "Title": "Watering Can",
       "Icon": null
     },
     {

@@ -1,0 +1,27 @@
+{
+  "guid": "e80217fd-0ba6-476e-829e-c4884e0d3fd3",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Radiator",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "radiator",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/home/radiator/materials/radiator.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

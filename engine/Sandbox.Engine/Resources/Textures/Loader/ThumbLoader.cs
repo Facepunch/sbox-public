@@ -86,7 +86,10 @@ internal static class ThumbLoader
 			//
 			// if it looks like a package, try to load the thumb from there
 			//
-			if ( filename.Count( x => x == '/' || x == '\\' ) == 0 && filename.Count( '.' ) == 1 && Package.TryParseIdentParts( filename, out var ident ) )
+			var compiledPath = filename.EndsWith( "_c" ) ? filename : $"{filename}_c";
+			if ( filename.Count( x => x == '/' || x == '\\' ) == 0 && filename.Count( '.' ) == 1
+				&& !(compiledPath.EndsWith( ".vmdl_c", StringComparison.OrdinalIgnoreCase ) && FileSystem.Mounted.FileExists( compiledPath ))
+				&& Package.TryParseIdentParts( filename, out var ident ) )
 			{
 				var packageInfo = await Package.FetchAsync( $"{ident.org}.{ident.package}", true );
 				if ( packageInfo == null || ct.IsCancellationRequested ) return;
@@ -105,7 +108,6 @@ internal static class ThumbLoader
 
 			if ( ct.IsCancellationRequested ) return;
 
-			var compiledPath = filename.EndsWith( "_c" ) ? filename : $"{filename}_c";
 			var imagePath = $"{compiledPath}.t.png";
 			if ( FileSystem.Mounted.FileExists( imagePath ) )
 			{
@@ -124,8 +126,8 @@ internal static class ThumbLoader
 				if ( ct.IsCancellationRequested ) return;
 				if ( preview is not null )
 				{
-					using var resized = preview.Resize( 256, 256 );
-					using var texture = resized.ToTexture();
+					using var resized = preview.Width == 256 && preview.Height == 256 ? null : preview.Resize( 256, 256 );
+					using var texture = (resized ?? preview).ToTexture();
 					placeholder.CopyFrom( texture );
 					return;
 				}

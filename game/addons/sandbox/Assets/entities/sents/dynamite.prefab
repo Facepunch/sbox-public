@@ -45,7 +45,7 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "models/props/dynamite/dynamite.vmdl",
+        "Model": "models/sbox/construction/dynamite/dynamite.vmdl",
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -70,7 +70,7 @@
         "Elasticity": null,
         "Friction": null,
         "IsTrigger": false,
-        "Model": "models/props/dynamite/dynamite.vmdl",
+        "Model": "models/sbox/construction/dynamite/dynamite.vmdl",
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -150,8 +150,6 @@
   "MenuPath": null,
   "MenuIcon": null,
   "DontBreakAsTemplate": false,
-  "__references": [
-    "facepunch.dynamite#280341"
-  ],
+  "__references": [],
   "__version": 2
 }

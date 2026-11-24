@@ -1,0 +1,23 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Watermelon",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "watermelon",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/home/watermelon/watermelon.vmdl",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "2e564a11-2859-4dbb-983d-84879893fd20"
+}

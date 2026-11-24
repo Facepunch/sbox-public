@@ -380,12 +380,7 @@ internal class ToolsDll : IToolsDll
 		var asset = AssetSystem.FindByPath( filename );
 		if ( asset is null ) return null;
 
-		var thumb = await AssetThumbnail.GetAssetThumbAsync( asset );
-		if ( thumb is null ) return null;
-
-		// Sorry - we have no fast GetPixels
-		var pixels = thumb.GetPng();
-		return Bitmap.CreateFromBytes( pixels );
+		return await AssetThumbnail.GetThumbnailBitmapAsync( asset, filename );
 	}
 
 	/// <summary>

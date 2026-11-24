@@ -52,16 +52,13 @@ public partial class ProjectPublisher
 		if ( asset.Publishing is null )
 			return null;
 
-		// We don't have a better way right now. In the future we'll allow them to define which
-		// code to include and whatever.
-		var context = asset.Publishing.BuildPublishContext();
-		var fakeProject = asset.Publishing.CreateTemporaryProject( context.IncludeCode ? Project.Current?.RootDirectory : null );
+		var fakeProject = asset.Publishing.CreateTemporaryProject();
 
 		var p = new ProjectPublisher( fakeProject );
 		// p.Manifest.IncludeSourceFiles = asset.Publishing.ProjectConfig.IncludeSourceFiles;
 		p.Manifest.IncludeSourceFiles = false; // tony: Disabled this until we implement it in a better way
 		p.SetMetaFromAsset( asset );
-		await p.Manifest.BuildFrom( asset, fakeProject );
+		await p.Manifest.BuildFrom( asset );
 
 		// include thumbnail!
 		var thumb = await asset.RenderThumb();

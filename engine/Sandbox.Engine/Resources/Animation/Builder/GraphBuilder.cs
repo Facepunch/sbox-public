@@ -386,7 +386,9 @@ public sealed partial class GraphBuilder
 			{
 				var skeleton = runtimeSkeleton;
 				if ( skeleton is null && Mounting.MountUtility.IsMountPath( skeletonPath ) )
+#pragma warning disable CA2000 // The mount owns the shared skeleton returned by Load.
 					skeleton = Animation.Skeleton.Load( SkeletonReference );
+#pragma warning restore CA2000
 				if ( runtimeSkeleton is not null && !skeleton.IsValid() )
 					throw new InvalidOperationException( "The runtime skeleton has been disposed." );
 				if ( skeleton.IsValid() )
@@ -437,7 +439,9 @@ public sealed partial class GraphBuilder
 				{
 					var clip = slot.Resource;
 					if ( clip is null && Mounting.MountUtility.IsMountPath( slot.Reference.ResolvePath() ) )
+#pragma warning disable CA2000 // The mount owns the shared clip returned by Load.
 						clip = Animation.Clip.Load( slot.Reference );
+#pragma warning restore CA2000
 					if ( slot.Resource is not null && !clip.IsValid() )
 						throw new InvalidOperationException( "The runtime clip has been disposed." );
 					if ( clip.IsValid() )
@@ -453,8 +457,10 @@ public sealed partial class GraphBuilder
 				{
 					var graph = slot.Resource;
 					if ( graph is null && Mounting.MountUtility.IsMountPath( slot.Graph.ResolvePath() ) )
+#pragma warning disable CA2000 // Both paths load a shared graph owned by the mount.
 						graph = string.IsNullOrEmpty( slot.Variation ) ? Graph.Load( slot.Graph )
 							: Graph.Load( $"{slot.Graph.ResolvePath()}+{slot.Variation}.ag" );
+#pragma warning restore CA2000
 					if ( slot.Resource is not null && !graph.IsValid() )
 						throw new InvalidOperationException( $"Referenced graph '{slot.Graph}' has been disposed." );
 					if ( graph.IsValid() )

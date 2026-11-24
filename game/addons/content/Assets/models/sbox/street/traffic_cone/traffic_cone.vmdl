@@ -1,17 +1,17 @@
 <!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
-	rootNode = 
+	rootNode =
 	{
 		_class = "RootNode"
-		children = 
+		children =
 		[
 			{
 				_class = "MaterialGroupList"
-				children = 
+				children =
 				[
 					{
 						_class = "DefaultMaterialGroup"
-						remaps = 
+						remaps =
 						[
 							{
 								from = "traffic_cone_retro.vmat"
@@ -29,7 +29,7 @@
 			},
 			{
 				_class = "PhysicsShapeList"
-				children = 
+				children =
 				[
 					{
 						_class = "PhysicsHullFile"
@@ -49,10 +49,10 @@
 						maxHullVertices = 0
 						import_mode = "HullPerElement"
 						optimization_algorithm = "Exact"
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"traffic_cone_phys01",
 							]
@@ -76,10 +76,10 @@
 						maxHullVertices = 0
 						import_mode = "HullPerElement"
 						optimization_algorithm = "QEM"
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"traffic_cone_phys02",
 							]
@@ -89,7 +89,7 @@
 			},
 			{
 				_class = "RenderMeshList"
-				children = 
+				children =
 				[
 					{
 						_class = "RenderMeshFile"
@@ -102,10 +102,10 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"traffic_cone_lod0_001",
 								"traffic_cone_lod0_002",
@@ -125,10 +125,10 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"traffic_cone_lod0_001",
 								"traffic_cone_lod0_002",
@@ -148,10 +148,10 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"traffic_cone_lod0_001",
 								"traffic_cone_lod0_002",
@@ -171,10 +171,10 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"traffic_cone_lod0_001",
 								"traffic_cone_lod0_002",
@@ -187,7 +187,7 @@
 			},
 			{
 				_class = "BreakPieceList"
-				children = 
+				children =
 				[
 					{
 						_class = "BreakPieceExternal"
@@ -232,12 +232,12 @@
 			},
 			{
 				_class = "GameDataList"
-				children = 
+				children =
 				[
 					{
 						_class = "GenericGameData"
 						game_class = "prop_data"
-						game_keys = 
+						game_keys =
 						{
 							bakelighting = true
 							health = 75.0
@@ -246,15 +246,15 @@
 							explosive_damage = -1.0
 							explosive_radius = -1.0
 							explosive_force = -1.0
-							min_impact_damage_speed = -1.0
-							impact_damage = -1.0
+							min_impact_damage_speed = 800.0
+							impact_damage = 25.0
 						}
 					},
 				]
 			},
 			{
 				_class = "LODGroupList"
-				children = 
+				children =
 				[
 					{
 						_class = "LODGroup"
@@ -269,7 +269,7 @@
 						auto_prune_isolated_components = false
 						auto_strip_vertex_color = false
 						auto_material_culling_enabled = false
-						meshes = 
+						meshes =
 						[
 							"lod0",
 						]
@@ -288,7 +288,7 @@
 						auto_prune_isolated_components = false
 						auto_strip_vertex_color = false
 						auto_material_culling_enabled = false
-						meshes = 
+						meshes =
 						[
 							"lod1",
 						]
@@ -307,7 +307,7 @@
 						auto_prune_isolated_components = false
 						auto_strip_vertex_color = false
 						auto_material_culling_enabled = false
-						meshes = 
+						meshes =
 						[
 							"lod2",
 						]
@@ -326,7 +326,7 @@
 						auto_prune_isolated_components = false
 						auto_strip_vertex_color = false
 						auto_material_culling_enabled = false
-						meshes = 
+						meshes =
 						[
 							"lod3",
 						]
@@ -336,7 +336,7 @@
 			},
 			{
 				_class = "PhysicsBodyMarkupList"
-				children = 
+				children =
 				[
 					{
 						_class = "PhysicsBodyMarkup"

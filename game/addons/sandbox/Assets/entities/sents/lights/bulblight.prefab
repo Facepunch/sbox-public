@@ -142,7 +142,7 @@
             "MaterialGroup": "plastic_on",
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/props/light_bulb_fitting/light_bulb_fitting.vmdl",
+            "Model": "models/sbox/industrial/light_bulb_fitting/light_bulb_fitting.vmdl",
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -226,7 +226,7 @@
             "MaterialGroup": "default",
             "MaterialOverride": null,
             "Materials": null,
-            "Model": "models/props/light_bulb_fitting/light_bulb_fitting.vmdl",
+            "Model": "models/sbox/industrial/light_bulb_fitting/light_bulb_fitting.vmdl",
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -271,8 +271,6 @@
   "MenuPath": null,
   "MenuIcon": null,
   "DontBreakAsTemplate": false,
-  "__references": [
-    "facepunch.light_bulb_fitting#143325"
-  ],
+  "__references": [],
   "__version": 2
 }

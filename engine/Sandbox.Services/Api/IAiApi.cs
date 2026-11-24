@@ -13,7 +13,7 @@ public partial class ServiceApi
 		/// Returns the current player's remaining credits and next monthly renewal.
 		/// </summary>
 		[Get( "/ai/credits" )]
-		Task<ServiceApi.CreditBalance> GetCredits( CancellationToken cancellationToken = default );
+		Task<AiCreditBalance> GetCredits( CancellationToken cancellationToken = default );
 
 		/// <summary>
 		/// Generates a response. No conversation state is retained between calls.

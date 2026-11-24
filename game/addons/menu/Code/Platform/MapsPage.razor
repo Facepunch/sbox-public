@@ -79,7 +79,7 @@
                         {
                             <MapTile class="@(IsSelected( MenuUtility.LaunchMapOf( map ) ) ? "selected" : "")" Title=@map.Title Thumb=@map.Thumb
                                      Tooltip=@(map.OwnerName is { } owner ? $"By {owner}" : null) OnSelect=@( () => Pick( MenuUtility.LaunchMapOf( map ) ) )
-                                     OnView=@( () => PlatformRoot.Instance?.ShowGame( MenuUtility.LaunchMapOf( map ) ) ) />
+                                     OnView=@( () => PlatformRoot.Instance?.ShowWorkshopItem( map ) ) />
                         }
                     </Item>
                 </VirtualGrid>

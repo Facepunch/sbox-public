@@ -14,14 +14,6 @@
     <div class="header" @ref="Header">
         <i class="icon">@Row?.Icon</i>
         <label class="title">@Row?.Title</label>
-        <div class="spacer"></div>
-        @if ( Row?.BrowseSort is not null && OnSeeMore is not null )
-        {
-            <div class="see-more" onclick=@( () => OnSeeMore( Row ) )>
-                <label>See more</label>
-                <i>chevron_right</i>
-            </div>
-        }
     </div>
 
     <div class="cards" @ref="Cards">
@@ -55,7 +47,7 @@
             @if ( IsYours && Shown < Columns )
             {
                 <div class="cell" style="@CellStyle">
-                    <div class="discover-more" onclick=@( () => PlatformRoot.Instance?.OpenShelf( PlatformShelf.Discover ) )>
+                    <div class="discover-more" onclick=@( () => PlatformRoot.Instance?.Browse( null ) )>
                         <i>explore</i>
                         <label class="title">Discover more</label>
                         <label class="hint">Find something new to play</label>
@@ -111,11 +103,6 @@
     /// How many cards fit across
     /// </summary>
     public int ColumnCount => Columns;
-
-    /// <summary>
-    /// Browse the Workshop the way this row does - a See more in its header, if it has a way
-    /// </summary>
-    [Parameter] public Action<GameRow> OnSeeMore { get; set; }
 
     Panel Header;
     Panel Cards;

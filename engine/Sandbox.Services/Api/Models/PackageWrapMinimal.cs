@@ -40,6 +40,12 @@ public class PackageWrapMinimal
 	/// </summary>
 	public List<PackageFlair> Flair { get; set; } = [];
 
+	/// <summary>
+	/// The current version's metadata, for package types whose metadata is small enough to
+	/// ship on listings (games - see <see cref="GameMetaData"/>). Null for other types.
+	/// </summary>
+	public BaseMetaData Metadata { get; set; }
+
 	// Added afterwards, describes how a user interacted with this package
 	public PackageInteraction Interaction { get; set; }
 	public long Spawns { get; set; }

@@ -321,6 +321,17 @@ internal sealed class WorkshopItems
 	internal bool IsMounted( ulong id ) => Get( id ) is not null;
 
 	/// <summary>
+	/// Workshop IDs of addons mounted in the current game.
+	/// </summary>
+	internal ulong[] GetMountedAddonIds()
+	{
+		return items
+			.Where( x => x.Value.Type == Workshop.ItemType.Addon && !x.Value.Failed && x.Value.Mount is not null )
+			.Select( x => x.Key )
+			.ToArray();
+	}
+
+	/// <summary>
 	/// Finds the mounted content without fetching a package or starting another download.
 	/// </summary>
 	WorkshopFileSystem Get( ulong id ) => items.GetValueOrDefault( id )?.Mount;

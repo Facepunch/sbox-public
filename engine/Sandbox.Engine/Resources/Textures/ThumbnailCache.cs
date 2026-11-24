@@ -9,6 +9,7 @@ namespace Sandbox;
 internal sealed class ThumbnailCache
 {
 	readonly string key;
+	readonly string bakedModelPath;
 
 	/// <summary>
 	/// Identifies a preview by resource path and optional variant. Local resources are scoped
@@ -18,12 +19,12 @@ internal sealed class ThumbnailCache
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace( resourcePath );
 
+		var path = Resource.FixPath( resourcePath );
+		if ( variant is null ) bakedModelPath = path;
+
 		var identity = resourcePath;
 		if ( !Mounting.MountUtility.IsMountPath( resourcePath ) )
 		{
-			var path = resourcePath.NormalizeFilename( false ).TrimStart( '/' );
-			if ( path.EndsWith( "_c" ) ) path = path[..^2];
-
 			var files = FileSystem.Mounted;
 			var source = files.FileExists( $"{path}_c" ) ? $"{path}_c" : path;
 			var modified = files.FileExists( source ) ? files.GetLastWriteTime( source ).ToUniversalTime().Ticks : 0;
@@ -37,16 +38,54 @@ internal sealed class ThumbnailCache
 	}
 
 	/// <summary>
+	/// Stable across games and rebuilds. Hash the entire path, including the mount ident.
+	/// </summary>
+	internal static string GetBakedModelKey( string resourcePath )
+		=> GetBakedKeyForPath( Resource.FixPath( resourcePath ) );
+
+	static string GetBakedKeyForPath( string path )
+	{
+		if ( path?.EndsWith( ".vmdl", StringComparison.Ordinal ) != true ) return null;
+
+		var source = Mounting.MountUtility.IsMountPath( path ) ? "mount" : "local";
+		return $"spawnicon/model/{source}/{path.Md5()}";
+	}
+
+	/// <summary>
 	/// Loads the cached texture, or returns null when the thumbnail needs rendering.
 	/// </summary>
 	public Texture Load()
 	{
+		using var bitmap = LoadBitmap();
+		return bitmap?.ToTexture();
+	}
+
+	/// <summary>
+	/// Read the loose thumbnail first, then the shipped fallback for a model.
+	/// </summary>
+	internal Bitmap LoadBitmap() => LoadLooseBitmap() ?? LoadBakedBitmap();
+
+	Bitmap LoadBakedBitmap()
+	{
+		var bakedKey = GetBakedKeyForPath( bakedModelPath );
+		if ( bakedKey is null || !BakeCache.TryGet( bakedKey, out var baked ) ) return null;
+
 		try
 		{
-			if ( !FileSystem.Cache.TryGet( key, out var bytes ) ) return null;
+			return Bitmap.CreateFromBytes( baked );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't read thumbnail {bakedKey}: {e.Message}" );
+			return null;
+		}
+	}
 
-			using var bitmap = Bitmap.CreateFromBytes( bytes );
-			return bitmap?.ToTexture();
+	Bitmap LoadLooseBitmap()
+	{
+		try
+		{
+			return FileSystem.Cache.TryGet( key, out var bytes ) ? Bitmap.CreateFromBytes( bytes ) : null;
 		}
 		catch ( Exception e )
 		{

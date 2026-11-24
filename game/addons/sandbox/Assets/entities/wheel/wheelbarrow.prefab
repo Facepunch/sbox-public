@@ -26,7 +26,7 @@
         "MaterialGroup": null,
         "MaterialOverride": null,
         "Materials": null,
-        "Model": "models/props/wheelbarrow/wheelbarrow_gib05.vmdl",
+        "Model": "models/sbox/vehicles/wheels/wheelbarrow_wheel/wheelbarrow_wheel.vmdl",
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -51,7 +51,7 @@
         "Elasticity": null,
         "Friction": null,
         "IsTrigger": false,
-        "Model": "models/props/wheelbarrow/wheelbarrow_gib05.vmdl",
+        "Model": "models/sbox/vehicles/wheels/wheelbarrow_wheel/wheelbarrow_wheel.vmdl",
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
         "OnComponentEnabled": null,
@@ -255,8 +255,6 @@
   "MenuPath": null,
   "MenuIcon": null,
   "DontBreakAsTemplate": false,
-  "__references": [
-    "facepunch.wheelbarrowwheel#289782"
-  ],
+  "__references": [],
   "__version": 2
 }

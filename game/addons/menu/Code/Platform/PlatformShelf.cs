@@ -10,11 +10,8 @@ public static class PlatformShelf
 {
 	public const string YourGames = "/shelf/games";
 
-	public const string Discover = "/shelf/discover";
-
 	/// <summary>
-	/// Searching the Workshop - sorted, filtered by tag. From the dock's search, or a Discover row's See more. What it
-	/// starts on comes in its query (<see cref="BrowseFor"/>).
+	/// The Games tab browses the Workshop with the search and sort supplied by <see cref="BrowseFor"/>.
 	/// </summary>
 	public const string Browse = "/shelf/browse";
 

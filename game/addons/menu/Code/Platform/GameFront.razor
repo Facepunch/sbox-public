@@ -41,16 +41,16 @@
         {
             <div class="nav" @ref="PauseNav">
                 <div class="tier">
-                    <div class="item" onclick=@Resume><label>Resume</label></div>
+                    <label class="item" onclick=@Resume>Resume</label>
 
                     @if ( CanChangeMap )
                     {
-                        <div class="item" onclick=@( () => page = OnMaps )><label>Change Map</label></div>
+                        <label class="item" onclick=@( () => page = OnMaps )>Change Map</label>
                     }
 
                     @if ( ShowPlayers )
                     {
-                        <div class="item" onclick=@( () => page = OnPlayers )><label>Players</label></div>
+                        <label class="item" onclick=@( () => page = OnPlayers )>Players</label>
                     }
                 </div>
 
@@ -59,14 +59,14 @@
                     <div class="tier">
                         @foreach ( var action in Actions )
                         {
-                            <div class="item @(action.IsEnabled ? "" : "disabled")" tooltip="@(action.Tooltip ?? "")" onclick=@( () => Press( action ) )><label>@action.Title</label></div>
+                            <label class="item @(action.IsEnabled ? "" : "disabled")" tooltip="@(action.Tooltip ?? "")" onclick=@( () => Press( action ) )>@action.Title</label>
                         }
                     </div>
                 }
 
                 <div class="tier">
-                    <div class="item" onclick=@( () => ModalSystem.Instance?.Settings() )><label>Settings</label></div>
-                    <div class="item leave" onclick=@Leave><label>Leave Game</label></div>
+                    <label class="item" onclick=@( () => ModalSystem.Instance?.Settings() )>Settings</label>
+                    <label class="item" onclick=@Leave>Leave Game</label>
                 </div>
             </div>
         }

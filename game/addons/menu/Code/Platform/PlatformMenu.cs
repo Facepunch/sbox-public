@@ -260,9 +260,8 @@ public static class PlatformMenu
 	/// </summary>
 	static void RefreshShelves()
 	{
-		foreach ( var row in Discover.Prepend( Favourites ).Prepend( YourGames ) )
-			_ = row.RefreshAsync();
-
+		_ = YourGames.RefreshAsync();
+		_ = Favourites.RefreshAsync();
 		_ = RefreshFavouriteIdsAsync();
 	}
 
@@ -595,14 +594,4 @@ public static class PlatformMenu
 			x.KeyValues.GetValueOrDefault( "package" ), StringComparison.OrdinalIgnoreCase ) ) ).ToArray();
 	}
 
-	/// <summary>
-	/// Discover's rows, top to bottom - just the first until View all
-	/// </summary>
-	public static GameRow[] Discover { get; } =
-	[
-		new( "Featured", "star", () => MenuUtility.FindFeaturedWorkshopGamesAsync(), 300 ),
-		new( "Most played", "sports_esports", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByTotalPlaytime ), 300, Storage.SortOrder.RankedByTotalPlaytime ),
-		new( "Trending", "trending_up", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByTrend ), 300, Storage.SortOrder.RankedByTrend ),
-		new( "Newest", "new_releases", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByPublicationDate ), 300, Storage.SortOrder.RankedByPublicationDate ),
-	];
 }

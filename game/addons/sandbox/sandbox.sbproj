@@ -18,6 +18,7 @@
     "EnableMcpCommunication": true
   },
   "Metadata": {
+    "WorkshopId": 3832911306,
     "MapSettings": {
       "UseCreateGameModal": true,
       "NeedsMap": true,

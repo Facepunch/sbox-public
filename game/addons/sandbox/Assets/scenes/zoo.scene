@@ -6426,7 +6426,7 @@
           "Health": 15,
           "IsStatic": false,
           "MaterialGroup": null,
-          "Model": "models/sbox_props/tv/tv.vmdl",
+          "Model": "models/sbox/home/tv/tv.vmdl",
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -6449,7 +6449,7 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/sbox_props/tv/tv.vmdl",
+          "Model": "models/sbox/home/tv/tv.vmdl",
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -6474,7 +6474,7 @@
           "Elasticity": null,
           "Friction": null,
           "IsTrigger": false,
-          "Model": "models/sbox_props/tv/tv.vmdl",
+          "Model": "models/sbox/home/tv/tv.vmdl",
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -6598,7 +6598,6 @@
   "Description": null,
   "__references": [
     "facepunch.hoovera#279744",
-    "facepunch.tv#279757",
     "facepunch.washingmachine#279042"
   ],
   "__version": 3

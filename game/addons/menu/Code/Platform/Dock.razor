@@ -161,7 +161,7 @@
 
     bool LibraryOpen => Shelf == PlatformShelf.YourGames;
 
-    bool DiscoverOpen => Shelf is PlatformShelf.Discover or PlatformShelf.Browse;
+    bool DiscoverOpen => Shelf == PlatformShelf.Browse;
 
     /// <summary>
     /// Your games - in a game too, where picking one leaves it for that one (PlatformRoot.Picked): the way out, there
