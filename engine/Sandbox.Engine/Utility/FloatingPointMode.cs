@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Sandbox;
@@ -23,7 +24,7 @@ internal static partial class FloatingPointMode
 	/// <summary>
 	/// This thread's mode, or 0 where it isn't read (outside Windows on x86 and x64).
 	/// </summary>
-	internal static uint Current => Supported ? ControlFp( 0, 0 ) & Mask : 0;
+	internal static uint Current => Supported ? Read() & Mask : 0;
 
 	/// <summary>
 	/// Put this thread in <paramref name="mode"/>, a value of <see cref="Current"/>.
@@ -31,10 +32,18 @@ internal static partial class FloatingPointMode
 	internal static void Set( uint mode )
 	{
 		if ( !Supported ) return;
-		if ( (ControlFp( 0, 0 ) & Mask) == mode ) return;
+		if ( (Read() & Mask) == mode ) return;
 
-		ControlFp( mode, Mask );
+		Write( mode, Mask );
 	}
+
+	// Out of line: a P/Invoke without a GC transition is inlined into its caller and bound when the caller is compiled,
+	// so calling it from Current or Set directly fails on Linux (no ucrtbase.dll) even though Supported is false there.
+	[MethodImpl( MethodImplOptions.NoInlining )]
+	static uint Read() => ControlFp( 0, 0 );
+
+	[MethodImpl( MethodImplOptions.NoInlining )]
+	static void Write( uint value, uint mask ) => ControlFp( value, mask );
 
 	[LibraryImport( "ucrtbase.dll", EntryPoint = "_controlfp" )]
 	[SuppressGCTransition]
