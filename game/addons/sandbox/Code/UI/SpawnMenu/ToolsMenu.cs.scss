@@ -15,7 +15,8 @@
 		&.hide-search > .tabbar > .theme-toggle { margin-left: auto; }
 
 		> .tabbar > .search-toggle,
-		> .tabbar > .theme-toggle
+		> .tabbar > .theme-toggle,
+		> .tabbar > .pin-toggle
 		{
 			@include ui-header-button;
 			width: $ui-menu-tab-height;

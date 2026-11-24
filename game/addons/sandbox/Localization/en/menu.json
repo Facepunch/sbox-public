@@ -249,6 +249,8 @@
     "spawnmenu.common.delete": "Delete",
     "spawnmenu.common.publish": "Publish",
     "spawnmenu.common.search": "Search...",
+    "spawnmenu.common.pin": "Pin menu open",
+    "spawnmenu.common.unpin": "Unpin menu",
     "spawnmenu.common.filter": "Quick filter...",
     "spawnmenu.common.host_only": "Host only",
     "spawnmenu.common.admin_only": "Admin only",

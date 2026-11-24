@@ -9,6 +9,7 @@ public sealed class ToolsMenu : TabPanel
 {
 	readonly Button _searchToggle;
 	readonly Button _themeToggle;
+	readonly Button _pinToggle;
 	readonly Tab _savesTab;
 	ToolMenuSearch _search;
 	InterfaceTheme _theme;
@@ -33,6 +34,15 @@ public sealed class ToolsMenu : TabPanel
 		_themeToggle = TabBar.AddChild( new Button( null, ToggleTheme ) );
 		_themeToggle.AddClass( "theme-toggle" );
 		UpdateThemeButton();
+
+		_pinToggle = TabBar.AddChild( new Button( null, "push_pin", () => Scene?.Get<SpawnMenuHost>()?.TogglePin() ) );
+		_pinToggle.AddClass( "pin-toggle" );
+	}
+
+	internal void SetPinned( bool pinned )
+	{
+		_pinToggle.SetClass( "selected", pinned );
+		_pinToggle.Tooltip = pinned ? "#spawnmenu.common.unpin" : "#spawnmenu.common.pin";
 	}
 
 	/// <summary>
