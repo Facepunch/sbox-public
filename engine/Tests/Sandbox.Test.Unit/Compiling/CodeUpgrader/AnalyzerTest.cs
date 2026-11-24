@@ -15,14 +15,11 @@ public class AnalyzerTest<T> : IAnalyzerTest where T : DiagnosticAnalyzer, new()
 	{
 		var test = new CSharpAnalyzerTest<T, Microsoft.CodeAnalysis.Testing.DefaultVerifier>
 		{
-			// The engine targets .NET 10, so test code that calls into it needs the matching reference set
-			ReferenceAssemblies = new ReferenceAssemblies( "net10.0", new PackageIdentity( "Microsoft.NETCore.App.Ref", "10.0.11" ), System.IO.Path.Combine( "ref", "net10.0" ) ),
+			ReferenceAssemblies = TestReferences.None,
 			TestCode = code,
 		};
 
-		test.TestState.AdditionalReferences.Add( MetadataReference.CreateFromFile( typeof( Sandbox.Internal.GlobalGameNamespace ).Assembly.Location ) );
-		test.TestState.AdditionalReferences.Add( MetadataReference.CreateFromFile( typeof( Sandbox.ConCmdAttribute ).Assembly.Location ) );
-		test.TestState.AdditionalReferences.Add( MetadataReference.CreateFromFile( typeof( NetFlags ).Assembly.Location ) );
+		TestReferences.AddTo( test.TestState );
 
 		if ( globalConfig is not null )
 		{
