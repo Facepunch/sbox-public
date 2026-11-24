@@ -200,16 +200,20 @@ public static class PlatformMenu
 	{
 		// Switched on in the middle of a game - on the one being played, rather than out of it for the one picked last
 		// time
-		if ( Game.InGame && !Game.IsOnMenu && MenuUtility.GamePackage is { } playing )
+		if ( AdoptPlaying() )
 		{
-			Current = playing;
-			_ = AdoptAsync( playing );
 			RefreshShelves();
 			return;
 		}
 
 		Run( async () =>
 		{
+			// Launched into a join - a local instance joining the editor, or a friend's invite.
+			// Wait for the connection to finish / fail, then try to adopt that game.
+			await WaitUntil( () => !MenuUtility.IsJoining, float.PositiveInfinity );
+
+			if ( AdoptPlaying() ) return;
+
 			var startup = MenuUtility.StartupGameIdent;
 
 			// A local project, or a game by its ident - on the command line
@@ -238,6 +242,22 @@ public static class PlatformMenu
 		} );
 
 		RefreshShelves();
+	}
+
+	/// <summary>
+	/// On the game being played, if there is one, instead of switching to another
+	/// </summary>
+	static bool AdoptPlaying()
+	{
+		if ( !Game.InGame || Game.IsOnMenu ) return false;
+
+		if ( MenuUtility.GamePackage is { } playing )
+		{
+			Current = playing;
+			_ = AdoptAsync( playing );
+		}
+
+		return true;
 	}
 
 	/// <summary>
@@ -477,7 +497,13 @@ public static class PlatformMenu
 	/// </summary>
 	static async Task OpenOwnMenu( Package package )
 	{
-		await MenuUtility.OpenGameMenu( package.FullIdent );
+		// Not over a join that's started meanwhile
+		if ( MenuUtility.IsJoining ) return;
+
+		// A notice stays up, such as why a join at launch failed
+		ModalSystem.Instance?.CloseAll( false, keepNotice: true );
+
+		if ( !await MenuUtility.OpenGameMenu( package.FullIdent ) ) return;
 		await WaitUntil( () => !LoadingScreen.IsVisible );
 	}
 

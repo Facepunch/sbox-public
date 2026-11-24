@@ -37,14 +37,24 @@ public class ModalSystem : IModalSystem
 	/// </summary>
 	internal bool HasOverlayModalsOpen => OpenModals.Any( x => x.IsValid() && x.WantsMouseInput() && !x.HasClass( "anchored" ) );
 
-	public void CloseAll( bool immediate = false )
+	public void CloseAll( bool immediate = false ) => CloseAll( immediate, keepNotice: false );
+
+	/// <summary>
+	/// Close every modal. With <paramref name="keepNotice"/>, a <see cref="Notice"/> the player hasn't read yet stays
+	/// up. Use this when the menu moves on by itself rather than because the player did something.
+	/// </summary>
+	public void CloseAll( bool immediate, bool keepNotice )
 	{
+		var kept = keepNotice && _notice.IsValid() ? _notice : null;
+
 		foreach ( var modal in OpenModals )
 		{
+			if ( modal == kept ) continue;
 			modal.Delete( immediate );
 		}
 
 		OpenModals.Clear();
+		if ( kept is not null ) OpenModals.Add( kept );
 
 		Root?.CloseModal( Root.ShelfModal );
 	}

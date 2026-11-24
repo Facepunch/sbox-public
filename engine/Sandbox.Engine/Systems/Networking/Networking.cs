@@ -264,6 +264,24 @@ public static partial class Networking
 	/// </summary>
 	public static bool IsConnecting => System?.IsConnecting ?? false;
 
+	static int _joinsStarting;
+
+	/// <summary>
+	/// Joining someone else's game: from the moment the join starts, finding a Steam lobby included, until the game
+	/// it joins is loaded, or the join fails. Loading another game meanwhile would leave the session.
+	/// </summary>
+	internal static bool IsJoining => Volatile.Read( ref _joinsStarting ) > 0 || (IsClient && !Game.InGame);
+
+	/// <summary>
+	/// A join is starting, before there's a <see cref="System"/> to show for it. Taken synchronously, before the
+	/// first await, so nothing sees a gap.
+	/// </summary>
+	internal static DisposeAction JoinScope()
+	{
+		Interlocked.Increment( ref _joinsStarting );
+		return new DisposeAction( () => Interlocked.Decrement( ref _joinsStarting ) );
+	}
+
 	/// <summary>
 	/// True if we're currently connecting to the server
 	/// </summary>
@@ -836,6 +854,7 @@ public static partial class Networking
 	{
 		var request = Api.Activity.PendingRequest;
 		var result = ConnectResult.Interrupted;
+		using var joining = JoinScope();
 		try
 		{
 			return result = await TryConnectCore( target, retries, token );
@@ -957,6 +976,7 @@ public static partial class Networking
 	{
 		var request = Api.Activity.PendingRequest;
 		var result = ConnectResult.Interrupted;
+		using var joining = JoinScope();
 		try
 		{
 			result = await TryConnectSteamIdInternal( steamId, retries );
