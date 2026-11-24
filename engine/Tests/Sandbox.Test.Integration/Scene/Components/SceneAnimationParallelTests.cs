@@ -168,4 +168,68 @@ public class SceneAnimationParallelTests
 
 		Assert.IsTrue( moved, "The crowd should be animating" );
 	}
+
+	/// <summary>
+	/// One walking human's world bones after some frames on one thread, alone or updated after other humans of the same model
+	/// in other poses.
+	/// </summary>
+	static Transform[] RunOne( bool afterOthers, int frames )
+	{
+		var previous = JobDispatcher.MaxDegreeOfParallelism;
+		JobDispatcher.MaxDegreeOfParallelism = 1;
+
+		var scene = new Scene();
+		try
+		{
+			using var sceneScope = scene.Push();
+
+			SkinnedModelRenderer Walker( float yaw, float speed, float duck )
+			{
+				var go = scene.CreateObject();
+				go.WorldRotation = Rotation.FromYaw( yaw );
+				var body = go.Components.Create<SkinnedModelRenderer>( false );
+				body.Model = HumanModel;
+				body.Enabled = true;
+				body.Set( "move_x", speed );
+				body.Set( "wish_x", speed );
+				body.Set( "move_groundspeed", speed );
+				body.Set( "b_grounded", true );
+				body.Set( "duck", duck );
+				return body;
+			}
+
+			if ( afterOthers )
+			{
+				for ( int i = 0; i < 4; i++ )
+					Walker( 90 * i + 40, 40 + 50 * i, i * 0.3f );
+			}
+
+			var walker = Walker( 10, 120, 0 );
+
+			for ( int i = 0; i < frames; i++ )
+				scene.GameTick( 1.0 / 30.0 );
+
+			return walker.GetBoneTransforms( true );
+		}
+		finally
+		{
+			scene.Destroy();
+			JobDispatcher.MaxDegreeOfParallelism = previous;
+		}
+	}
+
+	/// <summary>
+	/// A model's pose is its own: other instances of the same model updated before it, in other poses, change none of its
+	/// bones. Bone constraints that carry state from one update to the next (tilt-twist) keep it per instance.
+	/// </summary>
+	[TestMethod]
+	public void PoseDoesNotDependOnOtherInstances()
+	{
+		var alone = RunOne( false, 20 );
+		var afterOthers = RunOne( true, 20 );
+
+		Assert.AreEqual( alone.Length, afterOthers.Length );
+		for ( int i = 0; i < alone.Length; i++ )
+			Assert.IsTrue( Same( alone[i], afterOthers[i] ), $"Bone {i} ({HumanModel.Bones.AllBones[i].Name}) differs: alone {alone[i]}, after others {afterOthers[i]}" );
+	}
 }
