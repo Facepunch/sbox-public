@@ -85,7 +85,7 @@
           "Id": "2d9828d0-7984-4843-b6b2-22d4336497d5"
         },
         "FootstepVolume": 2,
-        "HideBodyInFirstPerson": false,
+        "HideBodyInFirstPerson": true,
         "HoldToJump": false,
         "JumpSpeed": 300,
         "LookSensitivity": 1,
