@@ -26,38 +26,17 @@ public abstract class AnimationEvent
 		}
 	}
 
-	internal const int MaxTypeNameLength = 1024;
-	internal const int MaxJsonBytes = 64 * 1024;
-
-	internal static TypeDescription ResolveType( string name )
-	{
-		if ( string.IsNullOrWhiteSpace( name ) || name.Length > MaxTypeNameLength ) return null;
-		// Only cache the registered types. Asset-provided names can be arbitrary.
-		var types = Game.TypeLibrary.GetTypes<AnimationEvent>();
-		TypeDescription alias = null;
-		for ( int i = 0; i < types.Count; i++ )
-		{
-			var type = types[i];
-			if ( type.FullName == name ) return type;
-			if ( (alias is null || alias.IsDynamicAssembly) && type.IsNamed( name ) ) alias = type;
-		}
-		return alias;
-	}
-
 	internal static T Deserialize<T>( string typeName, string data ) where T : AnimationEvent
 	{
 		if ( string.IsNullOrEmpty( typeName ) )
 			throw new InvalidOperationException( "Animation event has no type." );
 
-		var eventType = ResolveType( typeName );
+		var eventType = Game.TypeLibrary.GetType<AnimationEvent>( typeName );
 		if ( eventType is null || eventType.IsAbstract )
-			throw new InvalidOperationException( "Unregistered animation event type." );
+			throw new InvalidOperationException( $"Animation event type '{typeName}' is unavailable or is not an AnimationEvent." );
 
 		if ( !eventType.TargetType.IsAssignableTo( typeof( T ) ) )
 			return null;
-
-		if ( data is null || data.Length > MaxJsonBytes || System.Text.Encoding.UTF8.GetByteCount( data ) > MaxJsonBytes )
-			throw new InvalidOperationException( "Animation event payload is missing or too large." );
 
 		return (T)Json.Deserialize( data, eventType.TargetType )
 			?? throw new InvalidOperationException( "Animation event has no data." );

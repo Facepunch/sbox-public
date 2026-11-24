@@ -8,7 +8,6 @@ native class CAnimClipBuilder as NativeEngine.AnimationClipBuilder
 	bool AddFrame( CastTo[CTransformUnaligned*] void* transforms, int count, Transform rootMotion );
 	bool AddFloatChannelTrack( string set, string channel, CastTo[float*] void* values, int count );
 	void AddSyncEvent( float time, string name );
-	void AddManagedEvent( float time, float duration, string type, string json );
 	HAnimClip CreateResource( string name, string skeletonName, float frameRate, bool additive, bool disableInterpolation );
 }
 
