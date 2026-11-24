@@ -398,6 +398,69 @@ public partial class SoundFile : Resource, IValid
 		return Create( filename, pcmData, soundData.Channels, soundData.SampleRate, format, soundData.SampleCount, soundData.Duration, loopStart, loopEnd );
 	}
 
+	/// <summary>Decode mono or stereo Opus packets at 48 kHz.</summary>
+	public static SoundFile FromOpusPackets( string filename, int channels, IReadOnlyList<ReadOnlyMemory<byte>> packets )
+		=> FromOpusPackets( filename, channels, packets, 48000 );
+
+	/// <summary>Decode mono or stereo Opus packets at an output rate of 8, 12, 16, 24 or 48 kHz.
+	/// A sound can contain up to 16,384 packets, 65,535 bytes per packet, 16 MiB of encoded audio and 32 MiB of PCM.
+	/// Sounds are cached by filename. Use a separate filename for each output rate.</summary>
+	public static unsafe SoundFile FromOpusPackets( string filename, int channels, IReadOnlyList<ReadOnlyMemory<byte>> packets, int sampleRate )
+	{
+		ThreadSafe.AssertIsMainThread();
+		ArgumentException.ThrowIfNullOrWhiteSpace( filename );
+		if ( filename.Contains( '\0' ) ) throw new ArgumentException( "Sound names cannot contain a null character.", nameof( filename ) );
+		ArgumentNullException.ThrowIfNull( packets );
+		if ( channels is not (1 or 2) ) throw new ArgumentOutOfRangeException( nameof( channels ) );
+		if ( sampleRate is not (8000 or 12000 or 16000 or 24000 or 48000) ) throw new ArgumentOutOfRangeException( nameof( sampleRate ) );
+		if ( Application.IsHeadless ) return null;
+
+		int count = packets.Count;
+		if ( count is <= 0 or > 16384 ) throw new ArgumentOutOfRangeException( nameof( packets ) );
+		filename = System.IO.Path.ChangeExtension( filename.Replace( '\\', '/' ), "vsnd" );
+		if ( Loaded.TryGetValue( filename, out var cached ) ) return cached;
+
+		const int maxPacketBytes = ushort.MaxValue;
+		const int maxInputBytes = 16 * 1024 * 1024;
+		const int maxPcmBytes = 32 * 1024 * 1024;
+		int maxFrames = sampleRate * 120 / 1000; // Maximum duration of an Opus packet.
+		int frameSize = channels * sizeof( short );
+		int encoded = 0;
+		byte[] input = new byte[maxPacketBytes];
+		byte[] decoded = new byte[maxFrames * frameSize];
+		using var pcm = new System.IO.MemoryStream( 32 * 1024 );
+		var decoder = NativeEngine.OpusDecoder.Open( sampleRate, channels );
+		if ( decoder.IsNull ) throw new InvalidOperationException( "Could not allocate an Opus decoder." );
+		try
+		{
+			for ( int i = 0; i < count; i++ )
+			{
+				var packet = packets[i].Span;
+				int size = packet.Length;
+				if ( size is <= 0 or > maxPacketBytes || size > maxInputBytes - encoded )
+					throw new ArgumentException( "Opus packet data exceeds the allowed input range.", nameof( packets ) );
+				encoded += size;
+				packet.CopyTo( input );
+
+				int frames;
+				fixed ( byte* src = input, dst = decoded )
+				{
+					frames = decoder.Decode( (IntPtr)src, size, (IntPtr)dst, maxFrames );
+				}
+				if ( frames <= 0 || frames > maxFrames ) throw new ArgumentException( "Invalid Opus packet.", nameof( packets ) );
+				int bytes = frames * frameSize;
+				if ( bytes > maxPcmBytes - pcm.Length ) throw new ArgumentException( "Decoded sound is too large.", nameof( packets ) );
+				pcm.Write( decoded, 0, bytes );
+			}
+			uint samples = (uint)(pcm.Length / frameSize);
+			return Create( filename, pcm.GetBuffer().AsSpan( 0, (int)pcm.Length ), channels, (uint)sampleRate, 0, samples, samples / (float)sampleRate, -1, 0 );
+		}
+		finally
+		{
+			decoder.Close();
+		}
+	}
+
 	/// <summary>
 	/// Load sound from OGG vorbis.
 	/// </summary>
