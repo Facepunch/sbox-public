@@ -245,11 +245,9 @@ public static class SceneUtility
 				c.Bounds = BBox.FromPositionAndSize( Vector3.Zero, 100000 );
 			}
 
-			GameObject o = default;
-
 			// prefab spawn
 			{
-				o = func();
+				var o = func();
 				o.WorldPosition = 0;
 			}
 
@@ -259,21 +257,23 @@ public static class SceneUtility
 				scene.GameTick( 0.1f );
 			}
 
-			// place the camera
+			void RenderPreview()
 			{
-				var bounds = o.GetBounds();
+				var bounds = GetThumbnailBounds( scene.SceneWorld );
 
 				var distance = MathX.SphereCameraDistance( bounds.Size.Length * 0.5f, camera.FieldOfView );
-				var aspect = bitmap.Width / bitmap.Height;
+				var aspect = bitmap.Width / (float)bitmap.Height;
 				if ( aspect > 1 ) distance *= aspect;
 
-				camera.WorldPosition = (o.WorldRotation * bounds.Center) + camera.WorldRotation.Forward * -distance;
+				camera.WorldPosition = bounds.Center - camera.WorldRotation.Forward * distance;
+				camera.ComposeView();
+				camera.RenderToBitmap( bitmap );
 			}
 
-			// render twice, for any temporal shit to kick in
-			camera.RenderToBitmap( bitmap );
+			// Warm up temporal effects, then frame the geometry at its final pose.
+			RenderPreview();
 			scene.GameTick( 0.1f );
-			camera.RenderToBitmap( bitmap );
+			RenderPreview();
 
 			scene.Destroy();
 		}
@@ -282,6 +282,15 @@ public static class SceneUtility
 			scene.Destroy();
 		}
 	}
+
+	/// <summary>
+	/// World-space bounds of the geometry drawn in the preview. A projected decal only covers its receiver.
+	/// </summary>
+	internal static BBox GetThumbnailBounds( SceneWorld world ) => BBox.FromBoxes( world.SceneObjects
+		.Where( x => x.RenderingEnabled && !x.Flags.ExcludeGameLayer && !x.Flags.SkyBoxLayer )
+		.Where( x => (x.Flags.IsOpaque || x.Flags.IsTranslucent) && x is not DecalSceneObject )
+		.Select( x => x.Bounds )
+		.Where( box => box.Size.IsFinite ) );
 
 	/// <summary>
 	/// Render a GameObject to a bitmap. This is usually used for easily rendering "previews" of GameObjects, 
