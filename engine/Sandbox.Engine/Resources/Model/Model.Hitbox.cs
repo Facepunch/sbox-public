@@ -1,9 +1,9 @@
 namespace Sandbox;
 
 /// <summary>
-/// A set of hitboxes on a model. Hitboxes can be boxes, spheres or capsules.
+/// A set of hitboxes on a model. Hitboxes can be boxes, spheres, capsules, cylinders or convex hulls.
 /// </summary>
-public class HitboxSet
+public partial class HitboxSet
 {
 	readonly List<Box> _all = new();
 
@@ -29,7 +29,7 @@ public class HitboxSet
 	public IReadOnlyList<Box> All => _all;
 
 	/// <summary>
-	/// A single hitbox on the model. This can be a box, sphere or capsule.
+	/// A single hitbox on the model. Its geometry is in bone-local space.
 	/// </summary>
 	public class Box
 	{
@@ -37,6 +37,7 @@ public class HitboxSet
 		const int HITBOX_SHAPE_SPHERE = 1;
 		const int HITBOX_SHAPE_CAPSULE = 2;
 		const int HITBOX_SHAPE_CYLINDER = 3;
+		const int HITBOX_SHAPE_HULL = 4;
 
 		internal Box( ModelBones bones, CHitBox cHitBox )
 		{
@@ -47,6 +48,7 @@ public class HitboxSet
 
 			Shape = cHitBox.m_nShapeType switch
 			{
+				HITBOX_SHAPE_HULL => new Hull( cHitBox ),
 				HITBOX_SHAPE_SPHERE => new Sphere( cHitBox.m_vMinBounds, cHitBox.m_flShapeRadius ),
 				HITBOX_SHAPE_CAPSULE => new Capsule( cHitBox.m_vMinBounds, cHitBox.m_vMaxBounds, cHitBox.m_flShapeRadius ),
 				HITBOX_SHAPE_CYLINDER => new Cone( cHitBox.m_vMinBounds, cHitBox.m_vMaxBounds, cHitBox.m_flShapeRadius, cHitBox.m_flShapeRadius ),
@@ -71,7 +73,7 @@ public class HitboxSet
 		public ITagSet Tags { get; init; }
 
 		/// <summary>
-		/// Either a Sphere, Capsule or BBox
+		/// A Sphere, Capsule, Cone, BBox or <see cref="Hull"/> in bone-local space.
 		/// </summary>
 		public object Shape { get; init; }
 
@@ -86,6 +88,7 @@ public class HitboxSet
 				if ( Shape is BBox bbox ) return bbox.RandomPointInside;
 				if ( Shape is Capsule capsule ) return capsule.RandomPointInside;
 				if ( Shape is Cone cone ) return cone.RandomPointInside;
+				if ( Shape is Hull hull ) return hull.RandomPointInside;
 
 				throw new NotImplementedException();
 			}
@@ -102,6 +105,7 @@ public class HitboxSet
 				if ( Shape is BBox bbox ) return bbox.RandomPointOnEdge;
 				if ( Shape is Capsule capsule ) return capsule.RandomPointOnEdge;
 				if ( Shape is Cone cone ) return cone.RandomPointOnEdge;
+				if ( Shape is Hull hull ) return hull.RandomPointOnEdge;
 
 				throw new NotImplementedException();
 			}

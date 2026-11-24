@@ -143,6 +143,15 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 				shape.Tags.SetFrom( GameObject.Tags );
 				hitbox.Bounds = box;
 			}
+			else if ( hb.Shape is HitboxSet.Hull hull )
+			{
+				var points = new Vector3[hull.Points.Count];
+				for ( int i = 0; i < points.Length; i++ )
+					points[i] = hull.Points[i] * tx.Scale;
+
+				shape = body.AddHullShape( Vector3.Zero, Rotation.Identity, points );
+				hitbox.Bounds = BBox.FromPoints( points );
+			}
 
 			if ( shape is not null )
 			{
