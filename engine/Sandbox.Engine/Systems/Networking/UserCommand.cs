@@ -18,12 +18,20 @@ internal struct UserCommand( uint commandNumber )
 	public ulong Actions;
 
 	/// <summary>
+	/// World-space view angles of the local player, when available.
+	/// </summary>
+	internal Angles? AimAngles;
+
+	/// <summary>
 	/// Serialize this <see cref="UserCommand"/> to the specified <see cref="ByteStream"/>.
 	/// </summary>
 	internal void Serialize( ref ByteStream bs )
 	{
 		bs.Write( CommandNumber );
 		bs.Write( Actions );
+
+		if ( AimAngles is { } aim )
+			bs.Write( aim );
 	}
 
 	/// <summary>
@@ -33,6 +41,8 @@ internal struct UserCommand( uint commandNumber )
 	{
 		CommandNumber = bs.Read<uint>();
 		Actions = bs.Read<ulong>();
+		AimAngles = bs.TryRead( out Angles aim ) && float.IsFinite( aim.pitch ) && float.IsFinite( aim.yaw ) && float.IsFinite( aim.roll )
+			? aim.Normal : null;
 	}
 
 	/// <summary>
