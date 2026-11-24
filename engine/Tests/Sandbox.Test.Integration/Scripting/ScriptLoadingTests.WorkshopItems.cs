@@ -89,6 +89,51 @@ public partial class ScriptLoadingTests
 		}
 	}
 
+	/// <summary>
+	/// A map published before items shipped a metadata.json is known by its Steam metadata, and loads as a map. With
+	/// neither it's still turned down.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void WorkshopMapWithoutMetadataFileUsesSteamMetadata( bool hasSteamMetadata )
+	{
+		var folder = Directory.CreateTempSubdirectory( "sbox-workshop-old-map-" ).FullName;
+		File.WriteAllText( Path.Combine( folder, "content.txt" ), "old map" );
+		var steamMetadata = hasSteamMetadata
+			? Json.Serialize( new WorkshopItemMetaData { Title = "Old map", PackageIdent = "test.old-map", TypeName = "map", Meta = "{\"PrimaryAsset\":\"maps/old.vmap\"}", ApiVersion = 1 } )
+			: null;
+		var previousItems = WorkshopItems.Current;
+		var previousSystem = Networking.System;
+		var mounted = new AggregateFileSystem();
+		var items = new WorkshopItems( ( id, token ) => WorkshopFileSystem.OpenInstalledAsync( id, folder, token, itemMetadata: steamMetadata ) );
+		try
+		{
+			Networking.System = null;
+			WorkshopItems.Current = items;
+			context.FileMount = mounted;
+			WorkshopFileSystem content = null;
+			AsyncPump.RunSynchronously( async () => content = await items.LoadAsync( 4322, Workshop.ItemType.Map ) );
+
+			Assert.AreEqual( hasSteamMetadata, content is not null );
+			if ( hasSteamMetadata )
+			{
+				Assert.AreEqual( "Old map", content.Title );
+				Assert.IsNull( content.Metadata.Value.Meta, "Steam's partial meta must not stand in for the package's." );
+				Assert.AreEqual( "old map", mounted.ReadAllText( "content.txt" ) );
+			}
+		}
+		finally
+		{
+			items.Clear();
+			context.FileMount = files;
+			mounted.Dispose();
+			WorkshopItems.Current = previousItems;
+			Networking.System = previousSystem;
+			Directory.Delete( folder, true );
+		}
+	}
+
 	private static string CreateWorkshopContent( string type )
 	{
 		var folder = Directory.CreateTempSubdirectory( "sbox-workshop-item-" ).FullName;
