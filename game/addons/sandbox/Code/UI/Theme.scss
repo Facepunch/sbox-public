@@ -460,7 +460,7 @@ $ui-section-gap: 20px;
 	@include ui-ellipsis;
 }
 
-// the plain number box next to a slider, an outline shows on hover and focus
+// The numeric entry sits inside the slider row.
 @mixin ui-number-entry
 {
 	width: 100%;
@@ -469,19 +469,12 @@ $ui-section-gap: 20px;
 	padding: 0px;
 	justify-content: center;
 	background-color: transparent;
-	border: 1px solid transparent;
+	border: 0;
 	border-radius: 0;
 	font-family: $body-font;
 	font-size: $ui-settings-font;
 	font-weight: 500;
 	color: $ui-text-label;
-
-	&:hover
-	{
-		border-color: $ui-row-hover-outline;
-	}
-
-	@include ui-focus-ring;
 }
 
 @mixin ui-footer-bar

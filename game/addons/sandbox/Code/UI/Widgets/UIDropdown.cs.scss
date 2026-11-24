@@ -32,14 +32,9 @@
 		}
 	}
 
-	UISheet UIDropdown
+	UISheet UIDropdown, UIDropdown.inspector-field
 	{
-		height: 34px;
-		min-width: 0;
-		flex-shrink: 1;
-		padding: 0 8px 0 10px;
-		border-radius: 7px;
-		font-weight: 500;
+		@include ui-inspector-field;
 	}
 }
 

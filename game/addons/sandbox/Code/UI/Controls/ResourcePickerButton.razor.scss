@@ -5,18 +5,18 @@
 	ResourcePickerButton
 	{
 		@include resource-picker-control;
+		border-radius: $ui-menu-radius;
 	}
 
-	UISheet .sheet-row:not(.bare) ResourcePickerButton
+	UISheet .sheet-row:not(.bare) ResourcePickerButton,
+	GameObjectInspector .material-row > ResourcePickerButton
 	{
-		height: 34px;
-		padding: 4px 10px;
-		gap: 9px;
-		border-radius: 7px;
-		border-color: $ui-field-border;
+		@include ui-inspector-field;
 
-		.preview { width: 22px; height: 22px; border-radius: 4px; }
-		.subtitle { display: none; }
+		.subtitle
+		{
+			display: none;
+		}
 
 		&::after
 		{

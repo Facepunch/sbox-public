@@ -198,6 +198,9 @@ public class NetworkTest
 		Assert.IsTrue( local.Scale.AlmostEqual( expected.Scale ), $"Scale was {local.Scale}" );
 	}
 
+	/// <summary>
+	/// Action and physical key taps, aim, and mouse deltas reach the host through client ticks.
+	/// </summary>
 	[TestMethod]
 	public void NetworkedInput()
 	{
@@ -215,6 +218,8 @@ public class NetworkTest
 
 		Input.InputSettings = inputSettings;
 		Input.SetAction( "Jump", true );
+		Input.OnButton( NativeEngine.ButtonCode.KEY_K, "k", true );
+		Input.OnButton( NativeEngine.ButtonCode.KEY_K, "k", false );
 		var camera = Game.ActiveScene.CreateObject().Components.Create<CameraComponent>();
 		camera.WorldRotation = Rotation.FromYaw( 90 );
 		var movement = new Vector2( 2, 3 );
@@ -241,6 +246,8 @@ public class NetworkTest
 
 		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
 		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+		Assert.IsTrue( clientAndHost.Client.KeyPressed( "k" ) );
+		Assert.IsTrue( clientAndHost.Client.KeyDown( "k" ) );
 		Assert.AreEqual( camera.WorldRotation.Angles(), clientAndHost.Client.AimAngles );
 		Assert.AreEqual( movement, clientAndHost.Client.MouseDelta );
 		Assert.AreEqual( wheel, clientAndHost.Client.MouseWheel );
@@ -271,6 +278,8 @@ public class NetworkTest
 
 		Assert.AreEqual( true, clientAndHost.Client.Released( "Jump" ) );
 		Assert.AreEqual( false, clientAndHost.Client.Down( "Jump" ) );
+		Assert.IsTrue( clientAndHost.Client.KeyReleased( "k" ) );
+		Assert.IsFalse( clientAndHost.Client.KeyDown( "k" ) );
 		Assert.IsNull( clientAndHost.Client.AimAngles );
 		Assert.AreEqual( -movement, clientAndHost.Client.MouseDelta );
 		Assert.AreEqual( -wheel, clientAndHost.Client.MouseWheel );

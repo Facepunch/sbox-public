@@ -40,9 +40,9 @@
                     @if ( MaterialGroups.Count > 1 )
                     {
                         var currentGroup = Renderers[0].MaterialGroup ?? MaterialGroups[0];
-                        <div class="material-row">
-                        <label>#spawnmenu.inspect.skin</label>
-                            <UIDropdown Items=@MaterialGroups.Select( group => new UIDropdown.Item( group, group ) ).ToList()
+                        <div class="material-row skin-row">
+                            <label>#spawnmenu.inspect.skin</label>
+                            <UIDropdown class="inspector-field" Items=@MaterialGroups.Select( group => new UIDropdown.Item( group, group ) ).ToList()
                                         Value=@currentGroup ValueChanged=@((object value) => SetMaterialGroup( (string)value )) Tokenize=@false></UIDropdown>
                         </div>
                     }
@@ -56,7 +56,7 @@
                     <div class="material-row @(anyOverride ? "overridden" : "")">
                         <UIHintLabel class="label" Text="#ui.inspect.material_override" Hint="#ui.inspect.material_override_hint"></UIHintLabel>
                         <ResourcePickerButton class="material-picker" @onclick=@PickWholeMaterial Thumb=@MaterialThumb( wholeOverride ) Badge=@(mixedOverride ? "*" : "-")
-                                              Title=@overrideName Empty=@(!anyOverride) Subtitle=@MaterialType />
+                                              Title=@overrideName Empty=@(!anyOverride) />
                         @if (anyOverride)
                         {
                             <UIButton class="material-revert" Text="x" @onclick=@(() => SetWholeMaterialOverride(null))></UIButton>
@@ -74,8 +74,8 @@
                         var mat = locked ? wholeOverride : hasOverride ? accessor.GetOverride(index) : accessor.GetOriginal(index);
 
                         <div class="material-row @(hasOverride ? "overridden" : "") @(locked ? "locked" : "")">
-                        <label>@Game.Language.GetPhrase( "ui.inspect.material_number", new() { { "number", index + 1 } } )</label>
-                            <ResourcePickerButton class="material-picker" @onclick=@(() => PickMaterial(index)) Thumb=@MaterialThumb( mat ) Empty=@(mat is null) Subtitle=@MaterialType
+                            <label>@Game.Language.GetPhrase( "ui.inspect.material_number", new() { { "number", index + 1 } } )</label>
+                            <ResourcePickerButton class="material-picker" @onclick=@(() => PickMaterial(index)) Thumb=@MaterialThumb( mat ) Empty=@(mat is null)
                                                   Title=@(locked && mat is null ? overrideName : mat?.ResourceName ?? Game.Language.GetPhrase( "ui.inspect.default_material" )) />
                             @if (hasOverride)
                             {
@@ -93,7 +93,7 @@
                             var partName = part.Name;
                             <div class="material-row">
                                 <label>@partName</label>
-                                <UIDropdown Items=@(part.Choices.Select( ( choice, i ) => new UIDropdown.Item( ChoiceTitle( choice ), i ) ).ToList())
+                                <UIDropdown class="inspector-field" Items=@(part.Choices.Select( ( choice, i ) => new UIDropdown.Item( ChoiceTitle( choice ), i ) ).ToList())
                                             Value=@(Renderers[0].GetBodyGroup( part.Index )) ValueChanged=@((object value) => SetBodyGroup( partName, (int)value )) Tokenize=@false></UIDropdown>
                             </div>
                         }
@@ -273,8 +273,6 @@
 
     bool HasAnyOverride => Renderers.Any( r => r.MaterialOverride is not null );
     bool HasMixedOverride => Renderers.Select( r => r.MaterialOverride ).Distinct().Skip( 1 ).Any();
-
-    static readonly string MaterialType = LocalizedText.ResourceTypeName( "material", null );
 
     static string MaterialThumb( Material material ) => material is null ? null : $"thumb:{material.ResourcePath}";
 

@@ -1,4 +1,6 @@
-﻿using System.Runtime.CompilerServices;
+﻿using NativeEngine;
+using System.IO;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
@@ -18,6 +20,29 @@ internal struct UserCommand( uint commandNumber )
 	/// Which actions are currently being held down.
 	/// </summary>
 	public ulong Actions;
+
+	/// <summary>
+	/// Physical keyboard and mouse buttons sampled for this command.
+	/// </summary>
+	internal ushort[] Keys;
+
+	/// <summary>
+	/// Take an ordered snapshot of the held keys. Reuse the previous array while the same keys are held.
+	/// </summary>
+	internal void SetKeys( Span<ushort> codes, ushort[] previous )
+	{
+		codes.Sort();
+		var count = 0;
+		foreach ( var code in codes )
+		{
+			if ( code is 0 or > (ushort)ButtonCode.MOUSE_LAST ) continue;
+			if ( count > 0 && codes[count - 1] == code ) continue;
+			codes[count++] = code;
+		}
+
+		var held = codes[..count];
+		Keys = held.SequenceEqual( previous ) ? previous : held.ToArray();
+	}
 
 	/// <summary>
 	/// World-space view angles of the local player, when available.
@@ -41,7 +66,8 @@ internal struct UserCommand( uint commandNumber )
 		// Bits 1–6 follow InputAnalog order.
 		MouseDelta = 1 << 7,
 		MouseWheel = 1 << 8,
-		AimAngles = 1 << 9
+		AimAngles = 1 << 9,
+		Keys = 1 << 10
 	}
 
 	private static InputFlags AnalogFlag( int index ) => (InputFlags)(1 << (index + 1));
@@ -92,6 +118,11 @@ internal struct UserCommand( uint commandNumber )
 		if ( AimAngles.HasValue )
 			flags |= InputFlags.AimAngles;
 
+		var keyCount = Keys?.Length ?? 0;
+
+		if ( keyCount > 0 )
+			flags |= InputFlags.Keys;
+
 		bs.Write( flags );
 		bs.Write( CommandNumber );
 
@@ -112,12 +143,27 @@ internal struct UserCommand( uint commandNumber )
 
 		if ( AimAngles is { } aim )
 			bs.Write( aim );
+
+		if ( keyCount == 0 ) return;
+
+		// The flag already represents an empty set. A zero count extends the range to 256 and above.
+		if ( keyCount <= byte.MaxValue )
+		{
+			bs.Write( (byte)keyCount );
+		}
+		else
+		{
+			bs.Write( (byte)0 );
+			bs.Write( (byte)(keyCount - 256) );
+		}
+
+		bs.WriteArray( Keys, includeCount: false );
 	}
 
 	/// <summary>
 	/// Deserialize this <see cref="UserCommand"/> from specified <see cref="ByteStream"/>.
 	/// </summary>
-	internal void Deserialize( ref ByteStream bs )
+	internal void Deserialize( ref ByteStream bs, ushort[] previousKeys = null )
 	{
 		this = default;
 		var flags = bs.Read<InputFlags>();
@@ -143,6 +189,20 @@ internal struct UserCommand( uint commandNumber )
 			if ( aim.AsVector3().IsFinite )
 				AimAngles = aim.Normal;
 		}
+
+		if ( (flags & InputFlags.Keys) == 0 ) return;
+
+		int keyCount = bs.Read<byte>();
+		if ( keyCount == 0 ) keyCount = 256 + bs.Read<byte>();
+		if ( keyCount > (int)ButtonCode.MOUSE_LAST )
+			throw new InvalidDataException( $"Invalid physical key count {keyCount}." );
+
+		bs.EnsureCanRead( keyCount * sizeof( ushort ) );
+		Span<ushort> codes = stackalloc ushort[keyCount];
+		for ( var i = 0; i < codes.Length; i++ )
+			codes[i] = bs.Read<ushort>();
+
+		SetKeys( codes, previousKeys );
 	}
 
 	/// <summary>

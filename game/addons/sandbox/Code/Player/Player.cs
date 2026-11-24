@@ -105,6 +105,21 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 			hidden |= HiddenHud;
 	}
 
+	protected override void OnEnabled() => UpdateControlSeat();
+
+	protected override void OnParentChanged( GameObject oldParent, GameObject newParent )
+	{
+		if ( Active ) UpdateControlSeat();
+	}
+
+	protected override void OnDisabled() => Scene?.GetSystem<ControlSystem>()?.SetSeat( this, null );
+
+	private void UpdateControlSeat()
+	{
+		var seat = GetComponentInParent<BaseChair>( true );
+		Scene.GetSystem<ControlSystem>()?.SetSeat( this, seat );
+	}
+
 	protected override void OnStart()
 	{
 		_timeSinceSpawned = 0;

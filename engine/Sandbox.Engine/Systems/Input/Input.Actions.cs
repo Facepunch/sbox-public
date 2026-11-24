@@ -242,9 +242,31 @@ public static partial class Input
 	/// </summary>
 	internal static void OnButton( ButtonCode code, string button, bool down )
 	{
+		foreach ( var context in Contexts )
+		{
+			if ( down )
+			{
+				context.AccumKeysPressed.Add( code );
+				context.AccumKeysReleased.Remove( code );
+			}
+			else
+			{
+				context.AccumKeysReleased.Add( code );
+			}
+		}
+
 		if ( InputActions == null )
 		{
 			activeButtons.Clear();
+			return;
+		}
+
+		if ( down )
+		{
+			activeButtons.Add( button );
+		}
+		else if ( !activeButtons.Remove( button ) )
+		{
 			return;
 		}
 
@@ -253,27 +275,6 @@ public static partial class Input
 		if ( string.IsNullOrEmpty( loadedGame ) ) loadedGame = "common";
 
 		var collection = InputBinds.FindCollection( loadedGame );
-
-		if ( down )
-		{
-			activeButtons.Add( button );
-
-			foreach ( var e in Contexts )
-			{
-				e.AccumKeysPressed.Add( code );
-			}
-		}
-		else
-		{
-			foreach ( var e in Contexts )
-			{
-				e.AccumKeysReleased.Add( code );
-			}
-
-			// remove it but if it wasn't even active, ignore it
-			if ( !activeButtons.Remove( button ) )
-				return;
-		}
 
 		UsingController = false;
 

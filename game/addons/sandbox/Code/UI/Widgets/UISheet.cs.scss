@@ -19,12 +19,8 @@
 		.sheet-row > .control > .slidercontrol.property
 		{
 			@include ui-property-slider;
-			height: 34px;
+			@include ui-inspector-field;
 			padding: 0 3px 0 10px;
-			gap: 9px;
-			background-color: $ui-control-bg;
-			border: 1px solid $ui-field-border;
-			border-radius: 7px;
 
 			> .inner > .track
 			{
@@ -48,7 +44,6 @@
 				> numberentry
 				{
 					background-color: transparent;
-					border-color: transparent;
 				}
 			}
 		}
@@ -61,7 +56,8 @@
 			> ButtonGroup
 			{
 				border: 1px solid $ui-control-border;
-				border-radius: 0;
+				border-radius: $ui-menu-radius;
+				overflow: hidden;
 				background-color: $ui-control-bg;
 
 				> .button
@@ -101,7 +97,7 @@
 				height: 34px;
 				padding: 0 8px 0 10px;
 				gap: 4px;
-				border-radius: 7px;
+				border-radius: $ui-menu-radius;
 				background-color: rgba( 0, 0, 0, 0 );
 				font-family: $body-font;
 				font-size: $ui-settings-font;
@@ -125,7 +121,7 @@
 
 				&.open
 				{
-					border-radius: 7px;
+					border-radius: $ui-menu-radius;
 
 					> .dropdown_indicator
 					{
@@ -137,13 +133,9 @@
 
 		.colorcontrol
 		{
-			height: 34px;
-			min-width: 0;
+			@include ui-inspector-field;
 			padding: 3px;
 			gap: 3px;
-			background-color: $ui-control-bg;
-			border: 1px solid $ui-field-border;
-			border-radius: 7px;
 
 			> .colorswatch, > .colortextentry
 			{
@@ -156,7 +148,7 @@
 			> .colorswatch
 			{
 				border: 1px solid $ui-control-border;
-				border-radius: 4px;
+				border-radius: $ui-menu-radius;
 
 				&:hover
 				{
@@ -302,7 +294,7 @@
 			width: 100%;
 			flex-shrink: 0;
 			min-height: 34px;
-			border-radius: 7px;
+			border-radius: $ui-menu-radius;
 			border-color: $ui-field-border;
 
 			&.text-area
@@ -360,6 +352,11 @@
 				flex-grow: 1;
 				flex-shrink: 1;
 				min-width: 0px;
+
+				> NumberEntry, > UIButton
+				{
+					border-radius: $ui-menu-radius;
+				}
 			}
 
 			// a [SameLine] control whose condition hides it

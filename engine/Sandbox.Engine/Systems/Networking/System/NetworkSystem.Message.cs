@@ -439,7 +439,7 @@ internal partial class NetworkSystem
 
 			// This is a user command directly from another client
 			UserCommand cmd = default;
-			cmd.Deserialize( ref data );
+			cmd.Deserialize( ref data, source.Input.Command.Keys );
 			source.Input.ApplyUserCommand( cmd );
 		}
 	}

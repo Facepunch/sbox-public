@@ -4,6 +4,13 @@
 /// </summary>
 public interface IPlayerControllable
 {
+	/// <summary>
+	/// Whether this component accepts input from the seated player.
+	/// </summary>
 	bool CanControl( Player player ) => true;
+
+	/// <summary>
+	/// Apply the driver's input during the host's fixed update.
+	/// </summary>
 	void OnControl();
 }

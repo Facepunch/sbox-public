@@ -78,7 +78,7 @@
 			align-items: center;
 			background-color: $ui-control-bg;
 			border: 1px solid $ui-field-border;
-			border-radius: 7px;
+			border-radius: $ui-menu-radius;
 			overflow: hidden;
 
 			.prefix-label

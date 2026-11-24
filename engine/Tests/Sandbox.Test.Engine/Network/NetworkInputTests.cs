@@ -85,6 +85,47 @@ public class NetworkInputTests
 	}
 
 	/// <summary>
+	/// Held keys use a count and one code per key, including when the count exceeds one byte.
+	/// An empty list clears previously received keys without adding payload bytes.
+	/// </summary>
+	[TestMethod]
+	[DataRow( 0, 6 )]
+	[DataRow( 1, 9 )]
+	[DataRow( 3, 13 )]
+	[DataRow( 255, 517 )]
+	[DataRow( 256, 520 )]
+	[DataRow( 320, 648 )]
+	public void HeldKeyListRoundTrip( int count, int expectedBytes )
+	{
+		var command = new UserCommand( 7 ) { Keys = new ushort[count] };
+		for ( var i = 0; i < count; i++ )
+			command.Keys[i] = (ushort)((int)ButtonCode.MOUSE_LAST - count + 1 + i);
+
+		var previous = new UserCommand( 6 ) { Keys = [(ushort)ButtonCode.KEY_W] };
+		var received = RoundTrip( command, expectedBytes, previous );
+		CollectionAssert.AreEqual( command.Keys, received.Keys ?? [] );
+	}
+
+	/// <summary>
+	/// Reordered and repeated codes reuse the same key snapshot. A later change preserves the earlier sample.
+	/// </summary>
+	[TestMethod]
+	public void HeldKeySnapshots()
+	{
+		var command = new UserCommand( 1 );
+		var k = (ushort)ButtonCode.KEY_K;
+		var ctrl = (ushort)ButtonCode.KEY_LCONTROL;
+		command.SetKeys( [ctrl, k], null );
+		var first = command.Keys;
+
+		command.SetKeys( [k, ctrl, k, 0, ushort.MaxValue], first );
+		Assert.AreSame( first, command.Keys );
+		command.SetKeys( [ctrl], first );
+		CollectionAssert.AreEqual( new[] { k, ctrl }, first );
+		CollectionAssert.AreEqual( new[] { ctrl }, command.Keys );
+	}
+
+	/// <summary>
 	/// Mouse movement, scrolling and camera aim can each be sent independently.
 	/// </summary>
 	[TestMethod]
@@ -354,6 +395,112 @@ public class NetworkInputTests
 
 		Input.ReleaseActions();
 		Assert.AreEqual( 0UL, CaptureCommand().Actions );
+	}
+
+	/// <summary>
+	/// Captured keys resolve against both live binding slots. Chords match exactly, independent of order.
+	/// </summary>
+	[TestMethod]
+	public void CapturedKeyboardBinding()
+	{
+		using var scope = new ActionCaptureScope();
+		var game = string.IsNullOrEmpty( Application.GameIdent ) ? "common" : Application.GameIdent;
+		var binds = Sandbox.Engine.InputBinds.FindCollection( game );
+		binds.Set( "Forward", 0, "w" );
+		binds.Set( "Forward", 1, "ctrl + p" );
+		binds.Set( "Jump", 1, "ctrl + p" );
+
+		Assert.AreEqual( "Forward", Input.Keyboard.GetBoundActions( ["W"] ).Single().Name );
+		Assert.AreEqual( 0, Input.Keyboard.GetBoundActions( ["h"] ).Count );
+		Assert.AreEqual( 0, Input.Keyboard.GetBoundActions( ["p"] ).Count );
+		CollectionAssert.AreEquivalent( new[] { "Forward", "Jump" }, Input.Keyboard.GetBoundActions( ["P", "CTRL"] ).Select( x => x.Name ).ToArray() );
+	}
+
+	/// <summary>
+	/// A physical mouse tap while Ctrl is held reaches the host even when several frames pass before sending.
+	/// Key edges survive multiple commands in one update and a stale command cannot restore a released key.
+	/// </summary>
+	[TestMethod]
+	public void PhysicalChordSurvivesNetworkSend()
+	{
+		using var input = new ActionCaptureScope();
+		var remote = new MockConnection( Guid.NewGuid() );
+
+		Input.OnButton( ButtonCode.KEY_LCONTROL, "ctrl", true );
+		remote.Input.ApplyUserCommand( RoundTrip( CaptureCommand( 1 ) ) );
+		Assert.IsTrue( remote.KeyDown( "CTRL" ) );
+		Assert.IsFalse( remote.KeyPressed( "ctrl", "mouse1" ) );
+
+		Input.OnButton( ButtonCode.MouseLeft, "mouse1", true );
+		Input.OnButton( ButtonCode.MouseLeft, "mouse1", false );
+		input.Frame.Flip();
+		Assert.IsTrue( Connection.Local.KeyPressed( "ctrl", "mouse1" ) );
+		input.Frame.Flip();
+
+		var tap = RoundTrip( CaptureCommand( 2 ) );
+		remote.Input.ApplyUserCommand( tap );
+		Assert.IsTrue( remote.KeyDown( "mouse1", "CTRL" ) );
+
+		remote.Input.ApplyUserCommand( RoundTrip( CaptureCommand( 3 ) ) );
+		remote.Input.ApplyUserCommand( tap );
+		Assert.IsFalse( remote.KeyDown( "mouse1" ) );
+		Assert.IsTrue( remote.KeyPressed( "ctrl", "mouse1" ) );
+		Assert.IsTrue( remote.KeyReleased( "ctrl", "mouse1" ) );
+		Assert.IsFalse( remote.KeyReleased( "ctrl" ) );
+		Assert.IsFalse( remote.KeyDown() );
+		Assert.IsFalse( remote.KeyDown( "unknown" ) );
+
+		remote.Input.ClearUpdateContext();
+		Assert.IsFalse( remote.KeyPressed( "mouse1" ) );
+		Assert.IsFalse( remote.KeyReleased( "mouse1" ) );
+		Assert.IsTrue( remote.KeyDown( "ctrl" ) );
+	}
+
+	/// <summary>
+	/// A release followed by another press stays held. Suppressed and controller-only samples omit keyboard input.
+	/// </summary>
+	[TestMethod]
+	public void PhysicalKeysRespectInputScope()
+	{
+		using var input = new ActionCaptureScope();
+		var remote = new MockConnection( Guid.NewGuid() );
+		foreach ( var down in new[] { true, false, true } )
+			Input.OnButton( ButtonCode.KEY_K, "k", down );
+
+		remote.Input.ApplyUserCommand( RoundTrip( CaptureCommand( 1 ), 9 ) );
+		remote.Input.ApplyUserCommand( RoundTrip( CaptureCommand( 2 ), 9 ) );
+		Assert.IsTrue( remote.KeyDown( "k" ) );
+
+		Input.Suppressed = true;
+		remote.Input.ApplyUserCommand( RoundTrip( CaptureCommand( 3 ), 6 ) );
+		Assert.IsFalse( remote.KeyDown( "k" ) );
+		Input.Suppressed = false;
+
+		using var scope = Input.PlayerScope( (Input.PlayerIndex)1 );
+		remote.Input.ApplyUserCommand( RoundTrip( CaptureCommand( 4 ), 6 ) );
+		Assert.IsFalse( remote.KeyDown( "k" ) );
+	}
+
+	/// <summary>
+	/// Keys held in separate commands do not activate a chord, even if both commands arrive during one update.
+	/// </summary>
+	[TestMethod]
+	public void SeparateKeySamplesDoNotPressChord()
+	{
+		using var input = new ActionCaptureScope();
+		var remote = new MockConnection( Guid.NewGuid() );
+
+		Input.OnButton( ButtonCode.KEY_LCONTROL, "ctrl", true );
+		Input.OnButton( ButtonCode.KEY_LCONTROL, "ctrl", false );
+		remote.Input.ApplyUserCommand( RoundTrip( CaptureCommand( 1 ) ) );
+
+		Input.OnButton( ButtonCode.KEY_K, "k", true );
+		remote.Input.ApplyUserCommand( RoundTrip( CaptureCommand( 2 ) ) );
+		Assert.IsTrue( remote.KeyPressed( "ctrl" ) );
+		Assert.IsTrue( remote.KeyPressed( "k" ) );
+		Assert.IsFalse( remote.KeyDown( "ctrl", "k" ) );
+		Assert.IsFalse( remote.KeyPressed( "ctrl", "k" ) );
+		Assert.IsFalse( remote.KeyReleased( "ctrl", "k" ) );
 	}
 
 	private static UserCommand CaptureCommand( uint number = 1 )

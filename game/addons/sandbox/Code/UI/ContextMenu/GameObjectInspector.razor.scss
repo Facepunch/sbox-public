@@ -45,7 +45,7 @@
         padding: 10px 8px;
     }
 
-    GameObjectInspector .material-row
+    GameObjectInspector > .body > .material-row
     {
         flex-direction: row;
         align-items: center;
@@ -58,13 +58,13 @@
             flex-shrink: 0;
             font-size: $ui-settings-font;
             color: $ui-text-label;
-            width: 121px;
+            width: 32%;
             padding-right: 6px;
         }
 
-        .material-picker
+        &.skin-row
         {
-            min-width: 0px;
+            padding-top: 5px;
         }
 
         .material-revert

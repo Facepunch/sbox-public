@@ -1,35 +1,18 @@
-@import 'resource-picker.scss';
+@import "/UI/Theme.scss";
 
 @mixin component-theme
 {
 	ClientInputControl
 	{
-		@include resource-picker-base;
+		@include ui-inspector-field;
 
-		&.no-binding
+		&.capturing .bind-label
 		{
-			background-color: $ui-control-bg;
-			border-color: $ui-control-border;
-
-			&:hover
-			{
-				background-color: $ui-blue-soft;
-				border-color: $ui-control-border-hover;
-			}
-		}
-
-		&.capturing
-		{
-			background-color: $ui-blue-soft;
-			border-color: $ui-control-border-hover;
-
-			.bind-label { color: $ui-text-muted; }
+			color: $ui-text-muted;
 		}
 
 		.preview
 		{
-			width: 24px;
-			height: 24px;
 			flex-shrink: 0;
 			align-items: center;
 			justify-content: center;
@@ -41,6 +24,7 @@
 				background-size: contain;
 				background-repeat: no-repeat;
 				background-position: center center;
+				background-tint: $ui-text-strong;
 
 				&.hidden { display: none; }
 			}
@@ -57,22 +41,7 @@
 		.bind-label
 		{
 			flex-grow: 1;
-			font-size: $ui-settings-font;
-			font-weight: 500;
-			color: $ui-text;
 		}
-	}
-
-	UISheet ClientInputControl
-	{
-		height: 34px;
-		padding: 4px 10px;
-		gap: 9px;
-		border-radius: 7px;
-		border-color: $ui-field-border;
-
-		.preview { width: 22px; height: 22px; }
-		&:hover, &.capturing { border-color: $ui-control-border-hover; }
 	}
 }
 

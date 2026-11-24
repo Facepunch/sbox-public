@@ -10,6 +10,52 @@ $ui-menu-title-height: 51px;
 	background-color: $ui-control-bg;
 }
 
+// Clickable fields in property sheets and the object inspector.
+@mixin ui-inspector-field
+{
+	@include ui-control-surface;
+	@include ui-focus-ring;
+	align-items: center;
+	flex-grow: 1;
+	flex-shrink: 1;
+	min-width: 0;
+	height: 34px;
+	padding: 4px 10px;
+	gap: 9px;
+	border: 1px solid $ui-control-border;
+	border-radius: $ui-menu-radius;
+	font-family: $body-font;
+	font-size: $ui-settings-font;
+	font-weight: 500;
+	color: $ui-text;
+	cursor: pointer;
+
+	> .preview
+	{
+		width: 22px;
+		height: 22px;
+	}
+
+	&:hover, &.capturing
+	{
+		filter: brightness( 1 );
+		background-color: $ui-blue-soft;
+		border-color: $ui-control-border-hover;
+	}
+
+	&:hover
+	{
+		sound-in: ui.hover;
+	}
+
+	&:active
+	{
+		transform: none;
+		border-color: $ui-blue;
+		sound-in: ui.select;
+	}
+}
+
 @mixin ui-switch
 {
 	pointer-events: all;
@@ -85,8 +131,7 @@ $ui-menu-title-height: 51px;
 		{
 			@include ui-number-entry;
 			height: 24px;
-			border-color: $ui-field-border;
-			border-radius: 4px;
+			border-radius: $ui-menu-radius;
 			background-color: $ui-input-bg;
 			color: $ui-text-strong;
 

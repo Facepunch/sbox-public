@@ -37,7 +37,7 @@
 		height: 24px;
 		flex-shrink: 0;
 		background-color: $ui-tile-bg;
-		border-radius: 2px;
+		border-radius: $ui-menu-radius;
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;

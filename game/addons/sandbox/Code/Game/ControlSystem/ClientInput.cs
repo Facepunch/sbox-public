@@ -1,115 +1,101 @@
 using System.Text.Json.Serialization;
 
 /// <summary>
-/// A configurable input for contraptions driven from a seat. This contains no state:
-/// it reads the active driver's connection while <see cref="IPlayerControllable.OnControl"/>
-/// is running. Wired inputs are ordinary <see cref="SignalInputAttribute"/> handlers instead.
-/// <para>
-/// Bound to a raw <see cref="Key"/>, which <see cref="ControlSystem"/> has the driver report. Saves from before
-/// raw keys are bound to an input <see cref="Action"/> instead, which still works.
-/// </para>
+/// A project action or physical keyboard binding read during the contraption's control tick.
 /// </summary>
 public struct ClientInput
 {
-	/// <summary>
-	/// The key, or <c>+</c>-joined combo, by the names <see cref="Input.Keyboard.Down"/> takes.
-	/// </summary>
-	[Property]
-	public string Key { get; set; }
+	private string _key;
+	private string[] _buttons;
+	private string _keyId;
 
 	/// <summary>
-	/// The input action this was bound to before raw keys. Only used when <see cref="Key"/> is empty.
+	/// The physical buttons to hold together when the captured combination has no project action.
+	/// </summary>
+	[Property]
+	public string Key
+	{
+		readonly get => _key;
+		set
+		{
+			_buttons = value?.Split( '+', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
+			_key = _buttons is { Length: > 0 } ? string.Join( "+", _buttons ) : null;
+			_keyId = _key is null ? null : "key:" + string.Join( "+", _buttons.Order( StringComparer.OrdinalIgnoreCase ) );
+		}
+	}
+
+	/// <summary>
+	/// The project input action bound to this control.
 	/// </summary>
 	[Property]
 	public string Action { get; set; }
 
-	[JsonIgnore, Hide]
-	public readonly bool HasKey => !string.IsNullOrWhiteSpace( Key );
+	internal readonly string BindingId => _keyId ?? Action;
 
+	/// <summary>
+	/// Whether this input is bound to a physical key or key combination.
+	/// </summary>
+	[JsonIgnore, Hide]
+	public readonly bool HasKey => Key is not null;
+
+	/// <summary>
+	/// The individual buttons of <see cref="Key"/>, in capture order. Treat the array as read-only.
+	/// </summary>
+	[JsonIgnore, Hide]
+	public readonly string[] Keys => _buttons ?? [];
+
+	/// <summary>
+	/// Whether this control has a binding.
+	/// </summary>
 	[JsonIgnore, Hide]
 	public readonly bool IsEnabled => HasKey || !string.IsNullOrWhiteSpace( Action );
 
 	/// <summary>
-	/// The individual keys of <see cref="Key"/>. Split once per distinct binding and shared - don't modify it.
+	/// Whether the driver is holding the bound action.
 	/// </summary>
-	[JsonIgnore, Hide]
-	public readonly string[] Keys
-	{
-		get
-		{
-			if ( !HasKey ) return [];
-
-			if ( !_splitKeys.TryGetValue( Key, out var keys ) )
-			{
-				keys = Key.Split( '+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
-				_splitKeys[Key] = keys;
-			}
-
-			return keys;
-		}
-	}
+	public readonly bool Down() => Down( ControlContext.Connection );
 
 	/// <summary>
-	/// Bindings are a handful of short strings, so this never gets big.
+	/// Whether the driver pressed the bound action during this tick.
 	/// </summary>
-	private static readonly Dictionary<string, string[]> _splitKeys = new();
+	public readonly bool Pressed() => Pressed( ControlContext.Connection );
 
-	public readonly bool Down() => HasKey
-		? ControlSystem.Current?.KeysDown( ControlContext.Connection, Keys ) == true
-		: IsEnabled && ControlContext.Connection?.Down( Action ) == true;
-
-	public readonly bool Pressed() => HasKey
-		? ControlSystem.Current?.KeysPressed( ControlContext.Connection, Keys ) == true
-		: IsEnabled && ControlContext.Connection?.Pressed( Action ) == true;
-
+	/// <summary>
+	/// Whether the driver released the bound action during this tick.
+	/// </summary>
 	public readonly bool Released() => HasKey
-		? ControlSystem.Current?.KeysReleased( ControlContext.Connection, Keys ) == true
-		: IsEnabled && ControlContext.Connection?.Released( Action ) == true;
+		? ControlContext.Connection?.KeyReleased( _buttons ) == true
+		: ControlContext.Connection?.Released( Action ) == true;
 
 	/// <summary>
-	/// How far it's pushed, 0 to 1: a key's all the way, a gamepad's trigger or stick on an action anything between
-	/// (see <see cref="Player.ActionAmounts"/>).
+	/// How far the driver is pressing the action, from zero to one.
 	/// </summary>
-	public readonly float GetAnalog()
+	public readonly float GetAnalog() => GetAnalog( ControlContext.Player, ControlContext.Connection );
+
+	internal readonly float GetAnalog( Player driver, Connection connection )
 	{
-		if ( !Down() ) return 0f;
+		if ( !Down( connection ) ) return 0f;
 		if ( HasKey ) return 1f;
 
-		var amounts = ControlContext.Player?.ActionAmounts;
+		var amounts = driver?.ActionAmounts;
 		return amounts is not null && amounts.TryGetValue( Action, out var amount ) ? amount : 1f;
 	}
 
 	/// <summary>
-	/// Held by the local player - for things that run on the client rather than in the host's control tick.
+	/// Whether the local player is holding the binding.
 	/// </summary>
-	public readonly bool LocalDown()
-	{
-		if ( !HasKey ) return IsEnabled && Input.Down( Action );
-
-		var keys = Keys;
-		if ( keys.Length == 0 ) return false;
-
-		foreach ( var key in keys )
-		{
-			if ( !Input.Keyboard.Down( key ) ) return false;
-		}
-
-		return true;
-	}
+	public readonly bool LocalDown() => Down( Connection.Local );
 
 	/// <summary>
-	/// Went down this frame for the local player. See <see cref="LocalDown"/>.
+	/// Whether the local player pressed the binding this frame.
 	/// </summary>
-	public readonly bool LocalPressed()
-	{
-		if ( !HasKey ) return IsEnabled && Input.Pressed( Action );
-		if ( !LocalDown() ) return false;
+	public readonly bool LocalPressed() => Pressed( Connection.Local );
 
-		foreach ( var key in Keys )
-		{
-			if ( Input.Keyboard.Pressed( key ) ) return true;
-		}
+	private readonly bool Down( Connection connection ) => HasKey
+		? connection?.KeyDown( _buttons ) == true
+		: connection?.Down( Action ) == true;
 
-		return false;
-	}
+	private readonly bool Pressed( Connection connection ) => HasKey
+		? connection?.KeyPressed( _buttons ) == true
+		: connection?.Pressed( Action ) == true;
 }

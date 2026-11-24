@@ -7,12 +7,12 @@
 public sealed class CameraViewSystem : Component, Global.ISaveEvents
 {
 	const string BodyTag = "remote_camera_body";
-	readonly Dictionary<string, bool> _down = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, CameraEntity> _targets = new( StringComparer.OrdinalIgnoreCase );
+	readonly HashSet<string> _held = new( StringComparer.OrdinalIgnoreCase );
 	// Rebuilt at the start of each input pass; the view pass later in the frame reads it.
 	readonly HashSet<CameraEntity> _viewable = new();
 	readonly Dictionary<GameObject, bool?> _seatAccess = new();
 	readonly LinkedGameObjectBuilder _linked = new();
-	readonly HashSet<BaseChair> _linkedChairs = new();
 	CameraComponent _mainCamera;
 	bool _hadViewmodel, _hadFirstperson, _hadViewer;
 	CameraComponent.Axis _originalAxis;
@@ -66,19 +66,23 @@ public sealed class CameraViewSystem : Component, Global.ISaveEvents
 		}
 	}
 
-	/// <summary>Null when nothing linked has a seat, otherwise whether the local player sits in one of them.</summary>
+	/// <summary>
+	/// Returns null for a loose camera, or whether the local player occupies a linked seat.
+	/// </summary>
 	bool? ResolveSeatAccess( GameObject source, BaseChair localSeat )
 	{
-		_linked.Clear();
-		_linkedChairs.Clear();
 		_linked.AddConnected( source );
+		bool? hasAccess = null;
 		foreach ( var obj in _linked.Objects )
+		{
 			foreach ( var chair in obj.GetComponentsInChildren<BaseChair>() )
-				_linkedChairs.Add( chair );
-		if ( _linkedChairs.Count == 0 ) return null;
-		var seated = localSeat.IsValid() && _linkedChairs.Contains( localSeat );
-		_linkedChairs.Clear();
-		return seated;
+			{
+				if ( chair == localSeat ) return true;
+				hasAccess = false;
+			}
+		}
+
+		return hasAccess;
 	}
 
 	protected override void OnEnabled() => RegisterInputHook();
@@ -105,69 +109,53 @@ public sealed class CameraViewSystem : Component, Global.ISaveEvents
 			_viewable.Clear();
 			_sinceRefresh = float.MaxValue;
 			Clear();
-			_down.Clear();
+			_held.Clear();
 			return;
 		}
 
 		// Leaving the seat drops a contraption camera here, ending the view below.
 		RefreshViewable( player );
-		if ( ActiveCamera is not null && (!CanView( ActiveCamera ) || !ActiveCamera.ViewInput.IsEnabled) ) Clear();
+		if ( ActiveCamera is not null && (!CanView( ActiveCamera ) || !IsBound( ActiveCamera.ViewInput )) )
+			Clear();
 
-		// Nothing to bind and nothing held, which is most frames
-		if ( _viewable.Count == 0 && _down.Count == 0 ) return;
+		// Nothing to bind and nothing held, which is most frames.
+		if ( _viewable.Count == 0 && _held.Count == 0 ) return;
 
-		foreach ( var group in _groups.Values ) group.Clear();
+		// Keep bindings in discovery order when several actions are pressed in the same frame.
+		foreach ( var binding in _targets.Keys )
+			_targets[binding] = null;
+
 		foreach ( var camera in _viewable )
 		{
-			if ( !CanView( camera ) || !camera.ViewInput.IsEnabled ) continue;
-			var binding = (camera.ViewInput.HasKey ? camera.ViewInput.Key : camera.ViewInput.Action) ?? "";
-			if ( !_groups.TryGetValue( binding, out var group ) ) _groups[binding] = group = new();
-			group.Add( camera );
+			if ( !CanView( camera ) || !IsBound( camera.ViewInput ) ) continue;
+			var binding = camera.ViewInput.BindingId;
+
+			if ( !_targets.TryGetValue( binding, out var latest ) || latest is null || camera.ViewOrder >= latest.ViewOrder )
+				_targets[binding] = camera;
 		}
 
-		_stale.Clear();
-		foreach ( var key in _down.Keys )
-			if ( !_groups.TryGetValue( key, out var group ) || !IsBound( key, group ) ) _stale.Add( key );
-		foreach ( var key in _stale ) _down.Remove( key );
-
-		foreach ( var (binding, group) in _groups )
+		foreach ( var (binding, latest) in _targets )
 		{
-			if ( group.Count == 0 ) continue;
-			if ( !IsBound( binding, group ) )
+			if ( latest is null )
 			{
-				if ( ActiveCamera.IsValid() && group.Contains( ActiveCamera ) ) Clear();
+				_held.Remove( binding );
 				continue;
 			}
-			// Process a binding only once, even if several cameras use it. An active
-			// camera gets first refusal so the next toggle can always leave its view.
-			var target = ActiveCamera.IsValid() && group.Contains( ActiveCamera ) ? ActiveCamera : LastInViewOrder( group );
-			var input = target.ViewInput;
-			bool down = input.LocalDown();
-			bool pressed = target.ToggleMode ? input.LocalPressed() : down && !_down.GetValueOrDefault( binding );
-			_down[binding] = down;
-			ProcessInput( target, down, pressed );
+
+			// Give the active camera its own binding so the player can always leave its view.
+			var target = string.Equals( ActiveCamera?.ViewInput.BindingId, binding, StringComparison.OrdinalIgnoreCase ) ? ActiveCamera : latest;
+			bool down = target.ViewInput.LocalDown();
+			bool newlyHeld = down && _held.Add( binding );
+			if ( !down ) _held.Remove( binding );
+			ProcessInput( target, down, target.ToggleMode ? target.ViewInput.LocalPressed() : newlyHeld );
 			// A bound camera owns Change View; don't also flip first/third person,
 			// especially when releasing a hold-to-view camera.
-			if ( !input.HasKey && string.Equals( binding, player.Controller.ToggleCameraModeButton, StringComparison.OrdinalIgnoreCase ) )
+			if ( !target.ViewInput.HasKey && string.Equals( binding, player.Controller.ToggleCameraModeButton, StringComparison.OrdinalIgnoreCase ) )
 				Input.Clear( binding );
 		}
 	}
 
-	// Viewable cameras by the key or action that views them, reused every frame
-	readonly Dictionary<string, List<CameraEntity>> _groups = new( StringComparer.OrdinalIgnoreCase );
-	readonly List<string> _stale = new();
-
-	// A raw key always works; an action has to still exist in this game.
-	bool IsBound( string binding, List<CameraEntity> group ) => group.Count > 0 && (group[0].ViewInput.HasKey
-		|| (_actionNames ??= Input.ActionNames.ToHashSet( StringComparer.OrdinalIgnoreCase )).Contains( binding ));
-
-	static CameraEntity LastInViewOrder( List<CameraEntity> group )
-	{
-		var last = group[0];
-		foreach ( var camera in group )
-			if ( camera.ViewOrder >= last.ViewOrder ) last = camera;
-		return last;
-	}
+	bool IsBound( ClientInput input ) => input.HasKey || (input.IsEnabled && (_actionNames ??= Input.ActionNames.ToHashSet( StringComparer.OrdinalIgnoreCase )).Contains( input.Action ));
 
 	void StopInputHook()
 	{

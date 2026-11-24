@@ -101,7 +101,7 @@
 	{
 		margin-bottom: 0;
 		border-color: $ui-field-border;
-		border-radius: 7px;
+		border-radius: $ui-menu-radius;
 
 		.thumb { background-size: contain; }
 	}

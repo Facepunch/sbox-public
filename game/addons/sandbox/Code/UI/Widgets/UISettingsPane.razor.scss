@@ -246,7 +246,6 @@
 			{
 				@include ui-menu-segments;
 				height: 34px;
-				border-radius: 7px;
 
 				> .button:hover
 				{
@@ -255,7 +254,7 @@
 				}
 			}
 
-			.menu-control:not(.active), EnumControl > .button.popupbutton.dropdown
+			.menu-control:not(.active):not(.inspector-field), EnumControl > .button.popupbutton.dropdown
 			{
 				border-radius: $ui-menu-radius;
 				@include ui-control-surface;

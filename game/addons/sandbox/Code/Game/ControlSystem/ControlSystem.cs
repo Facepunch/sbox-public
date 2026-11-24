@@ -1,121 +1,89 @@
 /// <summary>
-/// Lets players drive contraptions from a seat. Every tick, this finds who's sitting in each
-/// chair and calls <see cref="IPlayerControllable.OnControl"/> on the attached contraption.
+/// Runs <see cref="IPlayerControllable.OnControl"/> on each seated driver's linked contraption.
 /// </summary>
-public sealed partial class ControlSystem : GameObjectSystem<ControlSystem>
+public sealed class ControlSystem : GameObjectSystem<ControlSystem>
 {
-	private readonly Dictionary<BaseChair, RealTimeSince> _occupiedSince = new();
-	private readonly List<BaseChair> _chairs = new();
-	private readonly List<BaseChair> _seats = new();
+	private readonly List<(Player Player, BaseChair Seat)> _drivers = new();
 	private readonly HashSet<GameObject> _driven = new();
-	private readonly LinkedGameObjectBuilder _linked = new();
-	private readonly List<Component> _components = new();
+	private readonly LinkedGameObjectBuilder _linked = new() { ComponentSnapshot = new() };
 
+	/// <summary>
+	/// Runs seat controls before the contraption's fixed update.
+	/// </summary>
 	public ControlSystem( Scene scene ) : base( scene )
 	{
 		Listen( Stage.StartFixedUpdate, 10, OnTick, "ControlSystem" );
-		Listen( Stage.StartUpdate, 10, ReportWatchedKeys, "ControlSystem.Keys" );
+	}
+
+	/// <summary>
+	/// Keeps occupied seats in entry order. The first driver on a linked contraption gets control.
+	/// </summary>
+	internal void SetSeat( Player player, BaseChair seat )
+	{
+		for ( var i = 0; i < _drivers.Count; i++ )
+		{
+			if ( _drivers[i].Player != player ) continue;
+			if ( _drivers[i].Seat == seat ) return;
+
+			// A callback can eject a later driver. Clear their slot without moving anyone else's turn.
+			_drivers[i] = default;
+			break;
+		}
+
+		if ( seat is not null )
+			_drivers.Add( (player, seat) );
 	}
 
 	private void OnTick()
 	{
-		if ( Scene != Game.ActiveScene ) return;
+		_drivers.RemoveAll( static driver => driver.Player is null );
+		if ( _drivers.Count == 0 || !Networking.IsHost || Scene != Game.ActiveScene ) return;
 
-		if ( !Networking.IsHost ) return;
-
-		// Whoever sat down first claims the contraption — a second seat on the same vehicle does nothing.
-		var driven = _driven;
-		driven.Clear();
-
-		foreach ( var chair in GetSortedSeats() )
+		try
 		{
-			if ( driven.Contains( chair.GameObject.Root ) ) continue;
-
-			_linked.Clear();
-			_linked.AddConnected( chair.GameObject );
-
-			if ( AnyDriven( _linked.Objects ) ) continue;
-
-			foreach ( var gameObject in _linked.Objects )
-				driven.Add( gameObject );
-
-			RunControl( chair, _linked );
-		}
-
-		_linked.Clear();
-
-		StopUnwatchedKeys();
-	}
-
-	private bool AnyDriven( List<GameObject> objects )
-	{
-		foreach ( var gameObject in objects )
-		{
-			if ( _driven.Contains( gameObject ) ) return true;
-		}
-
-		return false;
-	}
-
-	private List<BaseChair> GetSortedSeats()
-	{
-		_chairs.Clear();
-		_seats.Clear();
-
-		Scene.GetAll( _chairs );
-
-		foreach ( var chair in _chairs )
-		{
-			if ( !chair.IsValid() || !chair.IsOccupied )
+			// Drivers who enter during a callback get their first turn next tick.
+			var count = _drivers.Count;
+			for ( var i = 0; i < count; i++ )
 			{
-				_occupiedSince.Remove( chair );
-				continue;
+				var (player, seat) = _drivers[i];
+				RunControl( player, seat );
 			}
-
-			_occupiedSince.TryAdd( chair, 0 );
-
-			// Insertion keeps it stable, like the OrderBy it replaced
-			var index = _seats.Count;
-			while ( index > 0 && _occupiedSince[_seats[index - 1]] > _occupiedSince[chair] ) index--;
-			_seats.Insert( index, chair );
 		}
-
-		return _seats;
+		finally
+		{
+			_driven.Clear();
+			_linked.Clear();
+		}
 	}
 
-	private void RunControl( BaseChair chair, LinkedGameObjectBuilder linked )
+	private void RunControl( Player player, BaseChair seat )
 	{
-		var player = chair.GetOccupant()?.GetComponent<Player>();
-		if ( !player.IsValid() ) return;
+		if ( !seat.IsValid() || !seat.Active || seat.GameObject.IsDestroyed ) return;
+		if ( !player.IsValid() || player.GameObject.IsDestroyed || player.Controller is not { Active: true } ) return;
+		if ( _driven.Contains( seat.GameObject.Root ) ) return;
 
 		var connection = player.Network?.Owner;
 		if ( connection is null ) return;
 
-		_controllables.Clear();
-		_components.Clear();
+		_linked.Clear();
+		_linked.AddConnected( seat.GameObject );
 
-		foreach ( var gameObject in linked.Objects )
-			LinkedGameObjectBuilder.CollectComponents( gameObject, _components );
-
-		foreach ( var component in _components )
+		foreach ( var obj in _linked.Objects )
 		{
-			if ( !component.IsValid() ) continue;
-			if ( component is not IPlayerControllable controllable ) continue;
-			if ( !controllable.CanControl( player ) ) continue;
-
-			_controllables.Add( controllable );
+			if ( _driven.Contains( obj ) ) return;
 		}
 
-		_components.Clear();
-
-		WatchKeys( connection, _controllables );
+		foreach ( var obj in _linked.Objects )
+			_driven.Add( obj );
 
 		using var scope = ControlContext.Push( player, connection );
 
-		foreach ( var controllable in _controllables )
+		foreach ( var component in _linked.ComponentSnapshot )
 		{
-			// An earlier one might have destroyed it - dynamite going off
-			if ( controllable is Component component && !component.IsValid() ) continue;
+			if ( !component.IsValid() || component.GameObject.IsDestroyed ) continue;
+			if ( component is not IPlayerControllable controllable ) continue;
+			if ( !controllable.CanControl( player ) ) continue;
+
 			controllable.OnControl();
 		}
 	}

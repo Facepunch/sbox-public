@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Utility;
+
+namespace Sandbox;
 
 public abstract partial class Connection
 {
@@ -69,6 +71,28 @@ public abstract partial class Connection
 		{
 			public ulong Pressed;
 			public ulong Released;
+
+			internal int KeySamples;
+		}
+
+		// Keep recent changes in order so chords that went down and up between updates have both edges.
+		// Physics can be paused while commands continue arriving, so bound the history per connection.
+		private CircularBuffer<ushort[]> _keyHistory;
+
+		internal readonly bool HasKeyEdge( ReadOnlySpan<string> keys, bool pressed )
+		{
+			var count = GetCurrentContext().KeySamples;
+			if ( count == 0 ) return false;
+
+			var down = ContainsKeys( Command.Keys, keys );
+			for ( var i = _keyHistory.Size - 1; i >= _keyHistory.Size - count; i-- )
+			{
+				var wasDown = ContainsKeys( _keyHistory[i], keys );
+				if ( down == pressed && wasDown != down ) return true;
+				down = wasDown;
+			}
+
+			return false;
 		}
 
 		/// <summary>
@@ -79,7 +103,10 @@ public abstract partial class Connection
 		private Context _fixedUpdateContext;
 		private Context _updateContext;
 
-		public Context GetCurrentContext()
+		/// <summary>
+		/// Returns the input edges accumulated for the active frame or fixed update.
+		/// </summary>
+		public readonly Context GetCurrentContext()
 		{
 			var isFixedUpdate = Game.ActiveScene?.IsFixedUpdate ?? false;
 			return isFixedUpdate ? _fixedUpdateContext : _updateContext;
@@ -99,6 +126,14 @@ public abstract partial class Connection
 			_updateContext.Pressed |= pressed;
 			_fixedUpdateContext.Released |= released;
 			_updateContext.Released |= released;
+
+			ReadOnlySpan<ushort> previousKeys = Command.Keys;
+			if ( !previousKeys.SequenceEqual( cmd.Keys ) )
+			{
+				(_keyHistory ??= new( 64 )).PushBack( Command.Keys );
+				_fixedUpdateContext.KeySamples = Math.Min( _fixedUpdateContext.KeySamples + 1, _keyHistory.Size );
+				_updateContext.KeySamples = Math.Min( _updateContext.KeySamples + 1, _keyHistory.Size );
+			}
 
 			Command = cmd;
 		}
@@ -184,6 +219,41 @@ public abstract partial class Connection
 
 		return (context.Released & mask) != 0;
 	}
+
+	private static bool ContainsKeys( ReadOnlySpan<ushort> held, ReadOnlySpan<string> keys )
+	{
+		if ( held.IsEmpty || keys.IsEmpty ) return false;
+
+		foreach ( var key in keys )
+		{
+			var code = Engine.KeyTranslation.StringToButtonCode( key );
+			if ( !held.Contains( (ushort)code ) ) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// Whether all named keyboard or mouse buttons are held on this connection.
+	/// Pass the individual button names returned by <see cref="Sandbox.Input.Keyboard.Capture"/>.
+	/// </summary>
+	public bool KeyDown( params ReadOnlySpan<string> keys ) => this == Local
+		? Sandbox.Input.Keyboard.ReadKeys( keys ).Down
+		: ContainsKeys( Input.Command.Keys, keys );
+
+	/// <summary>
+	/// Whether the key or combination became held during the current frame or fixed update.
+	/// </summary>
+	public bool KeyPressed( params ReadOnlySpan<string> keys ) => this == Local
+		? Sandbox.Input.Keyboard.ReadKeys( keys ).Pressed
+		: Input.HasKeyEdge( keys, true );
+
+	/// <summary>
+	/// Whether the key or combination stopped being held during the current frame or fixed update.
+	/// </summary>
+	public bool KeyReleased( params ReadOnlySpan<string> keys ) => this == Local
+		? Sandbox.Input.Keyboard.ReadKeys( keys ).Released
+		: Input.HasKeyEdge( keys, false );
 
 	/// <summary>
 	/// Read a normalized controller axis. On the host, remote axes come from the latest received command.

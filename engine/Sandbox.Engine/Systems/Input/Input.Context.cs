@@ -33,6 +33,7 @@ public static partial class Input
 
 	// Independent of the frame and physics contexts: a tap between network sends must survive until sampled.
 	private static Context NetworkContext;
+	private static ushort[] _lastNetworkKeys;
 
 	static Input()
 	{
@@ -74,6 +75,17 @@ public static partial class Input
 		if ( Suppressed )
 			return;
 
+		if ( CurrentPlayerScope <= 0 && NetworkContext.KeysCurrent.Count > 0 )
+		{
+			Span<ushort> codes = stackalloc ushort[NetworkContext.KeysCurrent.Count];
+			var i = 0;
+			foreach ( var key in NetworkContext.KeysCurrent )
+				codes[i++] = (ushort)key;
+
+			command.SetKeys( codes, _lastNetworkKeys );
+		}
+
+		_lastNetworkKeys = command.Keys;
 		command.Actions = actions;
 		command.MouseDelta = NetworkContext.MouseDelta;
 		command.MouseWheel = NetworkContext.MouseWheel;
