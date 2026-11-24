@@ -89,6 +89,28 @@
 			width: 166px;
 			flex-grow: 0;
 		}
+
+		.workshop-sort
+		{
+			@include ui-control-surface;
+			@include ui-menu-segments;
+			height: $ui-menu-control-height;
+			border: 1px solid $ui-control-border;
+
+			> .button
+			{
+				align-items: center;
+				justify-content: center;
+				padding: 0 10px;
+				font-size: 13px;
+				cursor: pointer;
+
+				&:hover:not(.active)
+				{
+					background-color: $ui-blue-soft;
+				}
+			}
+		}
 	}
 }
 

@@ -1,35 +1,19 @@
-using Sandbox.UI;
-
 /// <summary>
-/// This component has a kill icon that can be used in the killfeed, or somewhere else.
+/// Browses workshop dupes by category.
 /// </summary>
 [Title( "#spawnmenu.tab.dupes" ), Order( 3000 ), Icon( "content_copy" )]
 public class DupesPage : BaseSpawnMenu
 {
 	protected override void Rebuild()
 	{
-		AddHeader( "#spawnmenu.section.workshop" );
-		AddOption( "trending_up", "#spawnmenu.dupes.popular", () => new DupesWorkshop() { SortOrder = WorkshopSortMode.Popular } );
-		AddOption( "fiber_new", "#spawnmenu.dupes.newest", () => new DupesWorkshop() { SortOrder = WorkshopSortMode.Newest } );
-
 		AddHeader( "#spawnmenu.section.categories" );
 
 		foreach ( var entry in TypeLibrary.GetEnumDescription( typeof( DupeCategory ) ) )
 		{
-			AddOption( entry.Icon, entry.Title, () => new DupesWorkshop()
-			{
-				SortOrder = WorkshopSortMode.Popular,
-				Category = entry.Name.ToString()
-			} );
+			AddOption( entry.Icon, entry.Title, () => new DupesWorkshop { Category = entry.Name.ToString() } );
 		}
 
-		AddHeader( "#spawnmenu.section.local" );
-		AddOption( "folder_open", "#spawnmenu.dupes.local", () => new DupesLocal() );
-	}
-
-	protected override void OnMenuFooter( Panel footer )
-	{
-		footer.AddChild<DupesFooter>();
+		AddOption( "apps", "#spawnmenu.entity.all", () => new DupesWorkshop() );
 	}
 }
 

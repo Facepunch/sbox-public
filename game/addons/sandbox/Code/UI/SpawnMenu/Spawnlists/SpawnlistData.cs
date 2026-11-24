@@ -271,30 +271,32 @@ public class SpawnlistData
 		}
 	}
 
-	public static void PopulateContextMenu( Sandbox.UI.Menu menu, Panel sourcePanel, SpawnlistItem item, Storage.Entry skipEntry = null )
+	/// <summary>
+	/// Adds item actions and spawnlist destinations to a context menu.
+	/// </summary>
+	public static void PopulateContextMenu( Sandbox.UI.Menu menu, Panel sourcePanel, SpawnlistItem item, Storage.Entry skipEntry = null, bool allowCreateSpawnlist = true )
 	{
 		var entries = GetAll()
 			.Where( e => skipEntry is null || e.Id != skipEntry.Id )
 			.ToList();
 
-		( string Type, string Path, string Source ) = SpawnlistItem.ParseIdent( item.Ident );
+		var (type, path, source) = SpawnlistItem.ParseIdent( item.Ident );
 
-		if ( Type != "dupe" )
+		if ( type != "dupe" )
 		{
 			menu.AddOption( "#spawnmenu.spawn_with_toolgun", "my_location", async () =>
 			{
 				// Work out what we can locally first, the host might not have this content (e.g. mounts)
-				var metadata = await ISpawner.ResolveMetadata( Type, Path );
-				Toolgun.SetSpawner( Type, Path, metadata );
+				var metadata = await ISpawner.ResolveMetadata( type, path );
+				Toolgun.SetSpawner( type, path, metadata );
 			} );
 		}
 
 		menu.AddOption( "#spawnmenu.copy", "content_copy", () => Clipboard.SetText( item.Ident ) );
 
-		menu.AddSeparator();
-
 		if ( entries.Count > 0 )
 		{
+			menu.AddSeparator();
 			var sub = menu.AddMenu( "#spawnmenu.spawnlist.add_to_submenu", "playlist_add" );
 			foreach ( var entry in entries )
 			{
@@ -311,24 +313,25 @@ public class SpawnlistData
 				option.Text = data.Name;
 			}
 
-			menu.AddSeparator();
 		}
 
-		var (type, path, source) = SpawnlistItem.ParseIdent( item.Ident );
-
-		menu.AddOption( "#spawnmenu.spawnlist.create_new_option", "add", () =>
+		if ( allowCreateSpawnlist )
 		{
-			var name = (type == "dupe" ? item.Title : LocalizedText.Resolve( item.Title ))
-				?? Game.Language.GetPhrase( "spawnmenu.spawnlist.new_button" );
+			menu.AddSeparator();
+			menu.AddOption( "#spawnmenu.spawnlist.create_new_option", "add", () =>
+			{
+				var name = (type == "dupe" ? item.Title : LocalizedText.Resolve( item.Title ))
+					?? Game.Language.GetPhrase( "spawnmenu.spawnlist.new_button" );
 
-			// open the list that was made
-			Action<Storage.Entry> opened = null;
-			var spawnMenu = sourcePanel.Ancestors.OfType<SpawnMenu>().FirstOrDefault();
-			if ( spawnMenu is not null )
-				opened = spawnMenu.OpenSpawnlist;
+				// open the list that was made
+				Action<Storage.Entry> opened = null;
+				var spawnMenu = sourcePanel.Ancestors.OfType<SpawnMenu>().FirstOrDefault();
+				if ( spawnMenu is not null )
+					opened = spawnMenu.OpenSpawnlist;
 
-			PromptCreate( sourcePanel, onEntryCreated: opened, initialItem: item, name: name );
-		} );
+				PromptCreate( sourcePanel, onEntryCreated: opened, initialItem: item, name: name );
+			} );
+		}
 
 		var spawner = ISpawner.Create( type, path, source );
 		var fullIdent = spawner?.FullIdent;

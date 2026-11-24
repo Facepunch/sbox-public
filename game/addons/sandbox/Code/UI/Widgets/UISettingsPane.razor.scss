@@ -16,8 +16,19 @@
 	UISettingsPane .title-bar
 	{
 		@include ui-title-bar;
-		justify-content: space-between;
 		overflow: hidden;
+
+		> label
+		{
+			flex-grow: 1;
+			min-width: 0;
+		}
+
+		> UIButton
+		{
+			height: 30px;
+			padding: 0 10px;
+		}
 
 		label
 		{
@@ -185,6 +196,14 @@
 		border-radius: 0;
 		background-image: none;
 		background-color: $ui-menu-body;
+
+		// The virtual dupe grid handles its own scrolling and content inset.
+		&.dupe-inspector > .settings-body
+		{
+			padding: 0;
+			overflow: hidden;
+			scrollbar-gutter: auto;
+		}
 
 		> .title-bar
 		{

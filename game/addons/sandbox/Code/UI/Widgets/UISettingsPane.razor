@@ -12,6 +12,7 @@
             {
                 <Button class="preset-toggle" Icon="settings" Tooltip="#spawnmenu.common.presets" Active=@PresetsExpanded @onclick=@TogglePresets />
             }
+            @HeaderActions
         </div>
     }
 
@@ -27,6 +28,11 @@
 @code
 {
     [Parameter] public string Title { get; set; }
+
+    /// <summary>
+    /// Actions displayed at the right end of the title bar.
+    /// </summary>
+    [Parameter] public RenderFragment HeaderActions { get; set; }
 
     /// <summary>
     /// Bump this when the content changed in a way the title does not show, to make the pane build it again.

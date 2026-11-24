@@ -7,7 +7,14 @@
         <SpawnMenuSearchEntry Value:bind=@Filter />
     </Left>
     <Right>
-        <UIDropdown class="big" Items=@SortItems Value=@SortOrder ValueChanged=@OnSortChanged />
+        <ButtonGroup class="workshop-sort" Value=@SortOrder ValueChanged=@OnSortChanged Tooltip="#ui.sort_order">
+            <ChildContent>
+                @foreach ( var (mode, info) in DisplayInfo.ForEnumValues<WorkshopSortMode>() )
+                {
+                    <Button Text=@info.Name Value=@mode />
+                }
+            </ChildContent>
+        </ButtonGroup>
     </Right>
 </SpawnMenuToolbar>
 
@@ -22,8 +29,6 @@
     /// Sort order bound to the workshop page's query.
     /// </summary>
     [Parameter] public WorkshopSortMode SortOrder { get; set; }
-
-    List<UIDropdown.Item> SortItems => UIDropdown.ForEnum<WorkshopSortMode>();
 
     void OnSortChanged( object value )
     {

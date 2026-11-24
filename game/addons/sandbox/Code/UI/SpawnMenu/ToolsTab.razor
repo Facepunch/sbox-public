@@ -25,11 +25,21 @@
         var mode = CurrentMode;
         var hasToolSettings = mode is not null and not SelectTool && HasSettings( mode );
     }
-    <UISettingsPane Title=@GetTitle() Revision=@BuildHash() PresetMode=@(hasToolSettings ? mode : null)>
+    <UISettingsPane class="@(mode is DuplicatorTool ? "dupe-inspector" : null)" Title=@GetTitle() Revision=@BuildHash() PresetMode=@(hasToolSettings ? mode : null)>
+        <HeaderActions>
+            @if ( mode is DuplicatorTool duplicator )
+            {
+                <UIButton Icon="save" Text="#spawnmenu.dupes.save_button" Disabled=@(!CanSaveDupe( duplicator )) @onclick=@(() => SaveDupe( duplicator )) />
+            }
+        </HeaderActions>
         <Body>
         @if ( mode is SelectTool )
         {
             <GameObjectInspector />
+        }
+        else if ( mode is DuplicatorTool dupeTool )
+        {
+            <DupesLocal Tool=@dupeTool @ref=LocalDupes />
         }
         else if ( mode is not null )
         {
@@ -60,7 +70,23 @@
 
     int SelectionCount => CurrentMode is SelectTool ? Scene.Get<SpawnMenuHost>()?.SelectedObjects.Count ?? 0 : 0;
 
-    protected override int BuildHash() => HashCode.Combine( CurrentMode, SelectionCount, Game.Language.SelectedCode );
+    DupesLocal LocalDupes;
+
+    static bool CanSaveDupe( ToolMode mode ) => mode is DuplicatorTool { Active: true } duplicator && !string.IsNullOrWhiteSpace( duplicator.CopiedJson );
+
+    void SaveDupe( DuplicatorTool duplicator )
+    {
+        if ( !CanSaveDupe( duplicator ) ) return;
+
+        duplicator.Save();
+        LocalDupes?.StateHasChanged();
+    }
+
+    protected override int BuildHash()
+    {
+        var mode = CurrentMode;
+        return HashCode.Combine( mode, CanSaveDupe( mode ), SelectionCount, Game.Language.SelectedCode );
+    }
 
     /// <summary>
     /// Whether the sheet would have a single row for this tool.
