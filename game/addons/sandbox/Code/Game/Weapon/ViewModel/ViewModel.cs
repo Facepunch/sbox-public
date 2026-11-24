@@ -9,6 +9,14 @@ public partial class ViewModel : Sandbox.BaseWeaponModel
 	private static bool HideViewModel { get; set; } = false;
 
 	/// <summary>
+	/// Horizontal field of view at 16:9 used to frame this weapon in first person.
+	/// </summary>
+	[Property, Range( 60f, 120f )]
+	public float FieldOfView { get; set; } = 90f;
+
+	private Vector3? _unscaledWorldScale;
+
+	/// <summary>
 	/// A sound to play at a specific time during reload.
 	/// </summary>
 	public record struct ReloadSoundEntry
@@ -141,17 +149,39 @@ public partial class ViewModel : Sandbox.BaseWeaponModel
 	}
 
 	/// <summary>
-	/// Follow the render-only camera shake after placement, without feeding it into look inertia.
-	/// Use the final camera view as the pivot to preserve the camera bone and procedural bob offsets.
+	/// Follow camera shake and compensate for the rendered FOV around the final camera position.
 	/// </summary>
 	public void FollowCameraEffects( CameraComponent camera, in CameraView view )
 	{
-		var effects = CameraEffectSystem.Get( Scene );
-		if ( effects is null ) return;
+		var offset = Vector3.Zero;
+		var angles = Angles.Zero;
+		var fovOffset = 0f;
+		CameraEffectSystem.Get( Scene )?.QueryOffsets( camera, out offset, out angles, out fovOffset );
 
-		effects.QueryOffsets( camera, out var offset, out var angles, out _ );
-		var renderTransform = new Transform( view.Position + view.Rotation * offset, view.Rotation * angles );
-		WorldTransform = renderTransform.ToWorld( view.Transform.ToLocal( WorldTransform ) );
+		var depthScale = GetDepthScale( camera, view.FieldOfView + fovOffset );
+		var renderTransform = new Transform( view.Position + view.Rotation * offset, view.Rotation * angles, new Vector3( depthScale, 1f, 1f ) );
+
+		// Start from the original scale each frame so changing FOV never compounds.
+		_unscaledWorldScale ??= WorldScale;
+		var model = view.Transform.ToLocal( WorldTransform ).WithScale( _unscaledWorldScale.Value );
+		WorldTransform = renderTransform.ToWorld( model );
+	}
+
+	private float GetDepthScale( CameraComponent camera, float renderFov )
+	{
+		if ( camera.Orthographic ) return 1f;
+
+		// Match the player camera's vertical framing across aspect ratios.
+		var targetTan = MathF.Tan( FieldOfView.Clamp( 60f, 120f ).DegreeToRadian() * 0.5f ) * (9f / 16f);
+		if ( camera.FovAxis == CameraComponent.Axis.Horizontal )
+		{
+			var viewport = camera.ScreenRect;
+			if ( viewport.Width <= 0f || viewport.Height <= 0f ) return 1f;
+
+			targetTan *= viewport.Width / viewport.Height;
+		}
+
+		return targetTan / MathF.Tan( renderFov.Clamp( 1f, 179f ).DegreeToRadian() * 0.5f );
 	}
 
 	/// <summary>
