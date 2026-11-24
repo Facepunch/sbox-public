@@ -916,10 +916,12 @@ public class ModelBuilderTests
 		var a = new Vector3( 1, 2, 3 );
 		var b = new Vector3( 2, -1, 1 );
 
-		Assert.ThrowsException<ArgumentException>( () => set.AddHull( "duplicate", "head", [a, a, a, a] ) );
-		Assert.ThrowsException<ArgumentException>( () => set.AddHull( "line", "head", [a, a * 2, a * 3, a * 4] ) );
-		Assert.ThrowsException<ArgumentException>( () => set.AddHull( "plane", "head", [a, a + b, a * 2, a * 2 + b] ) );
-		Assert.ThrowsException<ArgumentException>( () => set.AddHull( "invalid", "head", [a, b, Vector3.Zero, new( float.NaN, 0, 0 )] ) );
+		Assert.ThrowsException<ArgumentException>( () => set.AddHull( "triangle", "head", [a, b, Vector3.Zero] ) );
+		set.AddHull( "duplicate", "head", [a, a, a, a] );
+		set.AddHull( "line", "head", [a, a * 2, a * 3, a * 4] );
+		set.AddHull( "plane", "head", [a, a + b, a * 2, a * 2 + b] );
+		set.AddHull( "invalid", "head", [a, b, Vector3.Zero, new( float.NaN, 0, 0 )] );
+		set.AddHull( "thin", "head", [new( 10, 10, 10 ), Vector3.Zero, new( 0.00008f, 0, 0 ), new( 0, 0.00008f, 0 )] );
 
 		set.AddHull( "valid", "head", [a, a, a * 2, a * 3, b, Vector3.Up] );
 		Assert.AreEqual( "valid", builder.Create().HitboxSet.All.Single().Name );
@@ -970,8 +972,11 @@ public class ModelBuilderTests
 	public void ConvexHitboxFollowsBone()
 	{
 		var builder = Model.Builder.AddMesh( CreateBoundsMesh() );
-		builder.AddBone( "head", Vector3.Zero, Rotation.Identity );
-		builder.AddHitboxSet().AddHull( "head_hull", "head", [Vector3.Zero, new( 12, 0, 0 ), new( 0, 12, 0 ), new( 0, 0, 12 )] );
+		builder.AddBone( "spine", Vector3.Zero, Rotation.Identity );
+		builder.AddBone( "head", Vector3.Zero, Rotation.Identity, "spine" );
+		var set = builder.AddHitboxSet();
+		set.AddHull( "flat", "spine", [Vector3.Zero, Vector3.Forward, Vector3.Left, Vector3.Forward + Vector3.Left] );
+		set.AddHull( "head_hull", "head", [Vector3.Zero, new( 12, 0, 0 ), new( 0, 12, 0 ), new( 0, 0, 12 )] );
 		var scene = new Scene();
 		try
 		{
@@ -979,6 +984,9 @@ public class ModelBuilderTests
 			var go = scene.CreateObject();
 			var renderer = go.AddComponent<SkinnedModelRenderer>( false );
 			renderer.Model = builder.Create();
+			var nativeSet = renderer.Model.native.GetHitboxSetByIndex( 0, 0 );
+			Assert.AreEqual( 1, nativeSet.numhitboxes() );
+			Assert.AreEqual( (ushort)1, nativeSet.pHitbox( 0 ).m_nHitBoxIndex );
 			renderer.Enabled = true;
 			var bone = renderer.Model.Bones.GetBone( "head" );
 			renderer.SceneModel.UpdateToBindPose();
