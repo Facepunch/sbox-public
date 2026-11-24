@@ -918,6 +918,64 @@ public class FieldInitializerTest : HotloadFixtureTestBase
 	}
 
 	[TestMethod]
+	public async Task AddedFieldBeforeMemberOnSameLine()
+	{
+		// Something else starts on the field's line and continues onto the next, so the generated method can't go
+		// at the start of the next line. That would split the constructor from its body, put the method inside the
+		// comment, or take the method's [SourceLocation] attribute, which codegen puts at the end of the line before it.
+
+		var result = await HotloadFixtureAsync(
+			"""
+			public class AddedFieldBeforeMemberOnSameLine : IHotloadTestFixture
+			{
+			+	public int Added = 5; public AddedFieldBeforeMemberOnSameLine()
+			+	{
+			+	}
+			+
+			+	public int Commented = 6; /* A comment
+			+	continuing onto the next line */
+			+
+			+	public int Other = 7; public int Method() => 8;
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		Assert.AreEqual( 5, Added );
+			+		Assert.AreEqual( 6, Commented );
+			+		Assert.AreEqual( 7, Other );
+			+		Assert.AreEqual( 8, Method() );
+			+		Assert.AreEqual( 18, new System.Diagnostics.StackTrace( true ).GetFrame( 0 ).GetFileLineNumber() );
+			+	}
+			}
+			""" );
+
+		Assert.IsFalse( result.HasWarnings );
+	}
+
+	[TestMethod]
+	public async Task AddedFieldsWithSimilarNames()
+	{
+		// An auto-property's backing field <A>k__BackingField isn't a valid identifier, so its method name is
+		// escaped, and mustn't collide with the method for a field that already has the escaped name
+
+		var result = await HotloadFixtureAsync(
+			"""
+			public class AddedFieldsWithSimilarNames : IHotloadTestFixture
+			{
+			+	public int A { get; set; } = 1;
+			+	public int _A_k__BackingField = 2;
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		Assert.AreEqual( 1, A );
+			+		Assert.AreEqual( 2, _A_k__BackingField );
+			+	}
+			}
+			""" );
+
+		Assert.IsFalse( result.HasWarnings );
+	}
+
+	[TestMethod]
 	public async Task AddedFieldChangedType()
 	{
 		// Hotload treats a field that changed type as new, so it needs an initializer too

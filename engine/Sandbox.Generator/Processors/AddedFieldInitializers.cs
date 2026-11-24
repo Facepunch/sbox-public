@@ -212,12 +212,12 @@ partial class HotloadProcessor
 		var methodName = AddedFieldInitializerPrefix + GetSafeIdentifier( field.Name );
 		var text = new StringBuilder();
 
-		// Insert at the start of the next line, unless the type ends on this one. A record without a body, like
-		// record R( int A );, gets one before its semicolon.
+		// Insert at the start of the next line if only whitespace or a line comment follows, so nothing after it
+		// moves. Otherwise insert straight after and break the line, because whatever follows might continue onto
+		// the next line: a member, a block comment, or codegen's [SourceLocation] for the next member. A record
+		// without a body, like record R( int A );, gets one before its semicolon.
 
 		var position = insertAfter;
-		var lines = tree.GetText().Lines;
-		var line = lines.GetLineFromPosition( position );
 		var addBody = type.OpenBraceToken.IsKind( SyntaxKind.None );
 
 		if ( addBody )
@@ -225,13 +225,12 @@ partial class HotloadProcessor
 			position = type.SemicolonToken.SpanStart;
 			text.AppendLine();
 		}
-		else if ( line.LineNumber + 1 < lines.Count && lines[line.LineNumber + 1].Start <= type.CloseBraceToken.SpanStart )
+		else if ( TryGetNextLineStart( tree, insertAfter, out var nextLineStart ) )
 		{
-			position = lines[line.LineNumber + 1].Start;
+			position = nextLineStart;
 		}
 		else
 		{
-			position = type.CloseBraceToken.SpanStart;
 			text.AppendLine();
 		}
 
@@ -357,6 +356,21 @@ partial class HotloadProcessor
 	}
 
 	/// <summary>
+	/// If nothing but whitespace or a line comment follows <paramref name="position"/> on its line, gets the start
+	/// of the next line.
+	/// </summary>
+	private static bool TryGetNextLineStart( SyntaxTree tree, int position, out int nextLineStart )
+	{
+		var text = tree.GetText();
+		var line = text.Lines.GetLineFromPosition( position );
+		var rest = text.ToString( TextSpan.FromBounds( position, line.End ) ).TrimStart();
+
+		nextLineStart = line.EndIncludingLineBreak;
+
+		return (rest.Length == 0 || rest.StartsWith( "//", StringComparison.Ordinal )) && line.LineNumber + 1 < text.Lines.Count;
+	}
+
+	/// <summary>
 	/// A <c>#line</c> directive mapping the next line to wherever <paramref name="position"/> maps to, which may
 	/// be another file if the tree was generated, like for Razor.
 	/// </summary>
@@ -434,13 +448,19 @@ partial class HotloadProcessor
 		return code is LiteralExpressionSyntax { Token.Value: int number } ? $"CS{number:D4}" : code.ToString();
 	}
 
+	/// <summary>
+	/// Makes a field's metadata name, like <c>&lt;A&gt;k__BackingField</c>, into part of an identifier. Escapes
+	/// <c>_</c> too, so different names can't give the same identifier.
+	/// </summary>
 	private static string GetSafeIdentifier( string name )
 	{
 		var builder = new StringBuilder( name.Length );
 
 		foreach ( var c in name )
 		{
-			builder.Append( char.IsLetterOrDigit( c ) || c == '_' ? c : '_' );
+			if ( c == '_' ) builder.Append( "__" );
+			else if ( char.IsLetterOrDigit( c ) ) builder.Append( c );
+			else builder.Append( $"_{(int)c:X}_" );
 		}
 
 		return builder.ToString();
