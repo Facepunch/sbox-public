@@ -25,8 +25,7 @@ public sealed partial class Player : ICameraModifier
 	private float _landingRollVelocity;
 
 	// The controller's first person body settings from before we sat down, restored when we get up.
-	private bool? _hideBodyBeforeSeat;
-	private bool _showArmsBeforeSeat;
+	private bool? _showArmsBeforeSeat;
 	private bool _firstPersonAnimBeforeSeat;
 
 	// Static so the event lambdas don't capture
