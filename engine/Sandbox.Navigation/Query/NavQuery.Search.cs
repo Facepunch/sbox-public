@@ -441,6 +441,7 @@ public sealed partial class NavQuery
 	// The route of from, continued through the portal from left to right into the polygon of node
 	// index: taken when it is cheaper than the route the node has. cost is the multiplier of the
 	// polygon it leaves, nextCost of the one it enters. The funnel takes the portal the way Pull does.
+	// The JIT inlines nothing with more than 32 locals: a local more and Expand calls this.
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	void Enter( int index, int current, in Route from, Vector3 left, Vector3 right, float cost, float nextCost )
 	{
@@ -497,9 +498,9 @@ public sealed partial class NavQuery
 		}
 
 		// The part of the portal the corner sees, from 0 at left to 1 at right
-		float low = 0, high = 1, parallel = 1e-6f * areaScale;
-		if ( (own & LeftOwn) == 0 && Seen( apex, sideLeft, left, right, parallel, out float seen ) ) low = seen > 0 ? MathF.Min( seen, 1 ) : 0;
-		if ( (own & RightOwn) == 0 && Seen( apex, sideRight, left, right, parallel, out seen ) ) high = seen < 1 ? MathF.Max( seen, 0 ) : 1;
+		float low = 0, high = 1;
+		if ( (own & LeftOwn) == 0 && Seen( apex, sideLeft, left, right, 1e-6f * areaScale, out float seen ) ) low = seen > 0 ? MathF.Min( seen, 1 ) : 0;
+		if ( (own & RightOwn) == 0 && Seen( apex, sideRight, left, right, 1e-6f * areaScale, out seen ) ) high = seen < 1 ? MathF.Max( seen, 0 ) : 1;
 		if ( low > high ) low = high = (low + high) * 0.5f;
 
 		Vector3 target = searchTargetPoint;
@@ -541,7 +542,7 @@ public sealed partial class NavQuery
 			}
 		}
 
-		float rest = distance * last, had = node.Cost + node.Rest;
+		float had = node.Cost + node.Rest;
 		// Of two routes that cost the same the one with its corner further back goes on straighter.
 		// Written so that a total that is not a number never counts as cheaper.
 		if ( !(total < had) && !(total == had && apexCost < wedges[index].ApexCost) ) return;
@@ -549,7 +550,7 @@ public sealed partial class NavQuery
 		node.Parent = current;
 		node.Pos = position;
 		node.Cost = entered;
-		node.Rest = rest;
+		node.Rest = distance * last;
 		if ( cost == nextCost ) wedges[index] = new Wedge { Apex = apex, Left = sideLeft, Right = sideRight, ApexCost = apexCost, Extra = over };
 		else
 		{

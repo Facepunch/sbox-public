@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace Nav;
 
-public sealed partial class NavMesh
+internal sealed partial class MeshAgentType
 {
 	// Per tile: whether something changed that no job has seen yet, and the job in flight. A tile that
 	// is neither dirty nor in flight has no entry. NeedsGeometry belongs to the dirty mark: the triangles
@@ -25,15 +25,12 @@ public sealed partial class NavMesh
 	readonly List<TileJob> published = new();
 	readonly List<(int X, int Y)> arrived = new();
 
-	const byte LinkFree = 0, LinkUsed = 1, LinkDirty = 2, LinkRemoved = 3;
+	internal const byte LinkFree = 0, LinkUsed = 1, LinkDirty = 2, LinkRemoved = 3;
 
-	NavLink[] linkDefs = [];
+	// Per link id of the mesh, what it is in this type. The definitions and ids are the mesh's.
 	byte[] linkStatus = [];
-	int linkHigh;
-	// Ids added, set or removed since the last commit, each once.
+	// Ids added, set or removed here since the last commit, each once.
 	readonly List<int> linkQueue = new();
-	// Ids below linkHigh that are free or removed, lowest first.
-	readonly PriorityQueue<int, int> freeLinks = new();
 
 	/// <summary>
 	/// Tiles that are dirty or have a job in flight, and those whose links across a tile border a job is
@@ -48,16 +45,22 @@ public sealed partial class NavMesh
 	/// </summary>
 	public bool IsPending( int tileX, int tileY ) => marks.ContainsKey( (tileX, tileY) ) || SeamsPending( (tileX, tileY) );
 
-	/// <summary>
-	/// Geometry changed inside this box: every tile it can affect is rebuilt by the next jobs.
-	/// </summary>
-	public void MarkDirty( Vector3 min, Vector3 max )
+	// Throws for a box MarkDirty refuses.
+	internal void CheckDirtyBox( Vector3 min, Vector3 max )
 	{
 		if ( !Geo.IsFinite( min ) || !Geo.IsFinite( max ) ) throw new ArgumentException( "The box must be finite" );
 		float border = BorderCells * settings.CellSize;
 		int minX = TileOf( min.X - border ), maxX = TileOf( max.X + border ), minY = TileOf( min.Y - border ), maxY = TileOf( max.Y + border );
 		// More marks than a mesh can hold tiles is a mistake, and a box that saturates would never end.
 		if ( ((double)maxX - minX + 1) * ((double)maxY - minY + 1) > MaxTiles ) throw new ArgumentException( "The box covers more tiles than a mesh can hold" );
+	}
+
+	// Geometry changed inside this box, checked by CheckDirtyBox: every tile it can affect is rebuilt by
+	// the next jobs.
+	internal void MarkDirty( Vector3 min, Vector3 max )
+	{
+		float border = BorderCells * settings.CellSize;
+		int minX = TileOf( min.X - border ), maxX = TileOf( max.X + border ), minY = TileOf( min.Y - border ), maxY = TileOf( max.Y + border );
 		for ( int y = minY; y <= maxY; y++ )
 			for ( int x = minX; x <= maxX; x++ )
 				MarkDirty( x, y, true );
@@ -128,7 +131,7 @@ public sealed partial class NavMesh
 				NeedsGeometry = true,
 				BoundsMin = new Vector3( at.X * TileWorld - border, at.Y * TileWorld - border, float.NegativeInfinity ),
 				BoundsMax = new Vector3( (at.X + 1) * TileWorld + border, (at.Y + 1) * TileWorld + border, float.PositiveInfinity ),
-				Mesh = this,
+				Owner = this,
 				GeometryChanged = mark.NeedsGeometry
 			};
 
@@ -147,7 +150,7 @@ public sealed partial class NavMesh
 			if ( seams == null ) continue;
 			(job.Seams, job.SeamState, seamJob, seams) = (seams, State, job, null);
 		}
-		if ( seams != null ) jobs[count++] = seamJob = new TileJob { X = seams[0].X, Y = seams[0].Y, Mesh = this, Seams = seams, SeamState = State, SeamsOnly = true };
+		if ( seams != null ) jobs[count++] = seamJob = new TileJob { X = seams[0].X, Y = seams[0].Y, Owner = this, Seams = seams, SeamState = State, SeamsOnly = true };
 		if ( dirtyHead == dirtyQueue.Count )
 		{
 			dirtyQueue.Clear();
@@ -172,13 +175,13 @@ public sealed partial class NavMesh
 		foreach ( var job in jobs )
 		{
 			var at = (job.X, job.Y);
-			if ( job.Mesh == this && job == seamJob )
+			if ( job.Owner == this && job == seamJob )
 			{
 				SeamsJudged( job );
 				if ( job.SeamsOnly ) continue;
 			}
 			ref var mark = ref CollectionsMarshal.GetValueRefOrNullRef( marks, at );
-			if ( job.Mesh != this || Unsafe.IsNullRef( ref mark ) || mark.InFlight != job ) continue;
+			if ( job.Owner != this || Unsafe.IsNullRef( ref mark ) || mark.InFlight != job ) continue;
 			mark.InFlight = null;
 
 			var status = job.Status;
@@ -236,70 +239,16 @@ public sealed partial class NavMesh
 	partial void TileRemoved( int tileX, int tileY );
 	partial void PublishVolumeHashes();
 
-	/// <summary>
-	/// Takes effect at the next Commit. Returns the link id, the lowest that is free, or -1 when all
-	/// 65,535 are in use, generated links included.
-	/// </summary>
-	public int AddLink( in NavLink link )
+	// The mesh pends a link id for this type's next commit: LinkDirty for a link added or set here,
+	// LinkRemoved for one removed.
+	internal void Pend( int id, byte status )
 	{
-		var value = Checked( link );
-		if ( !freeLinks.TryDequeue( out int id, out _ ) )
-		{
-			if ( linkHigh == PolyRef.MaxLinks ) return -1;
-			id = linkHigh++;
-		}
-		if ( id == linkDefs.Length )
-		{
-			int capacity = Math.Min( PolyRef.MaxLinks, Math.Max( 16, linkDefs.Length * 2 ) );
-			Array.Resize( ref linkDefs, capacity );
-			Array.Resize( ref linkStatus, capacity );
-		}
-		linkDefs[id] = value;
-		Pend( id, LinkDirty );
-		return id;
-	}
-
-	// An area id or type out of range is refused: a filter has one bit per id, and no link is NoArea.
-	static NavLink Checked( in NavLink link )
-	{
-		if ( link.Area == NavFilter.NoArea ) throw new ArgumentOutOfRangeException( nameof( link ), "Link area 0 is NavFilter.NoArea, which no link can have: use NavLink.Create or set an area from 1" );
-		if ( link.Area > NavFilter.MaxArea ) throw new ArgumentOutOfRangeException( nameof( link ), $"Link area {link.Area} is above {NavFilter.MaxArea}" );
-		if ( link.Type > NavFilter.MaxLinkType ) throw new ArgumentOutOfRangeException( nameof( link ), $"Link type {link.Type} is above {NavFilter.MaxLinkType}" );
-		return link;
-	}
-
-	/// <summary>
-	/// Throws for an id that is not in use, and for an area id of NavFilter.NoArea or above
-	/// NavFilter.MaxArea or a type above NavFilter.MaxLinkType, as AddLink does.
-	/// </summary>
-	public void SetLink( int id, in NavLink link )
-	{
-		if ( (uint)id >= (uint)linkHigh || linkStatus[id] is LinkFree or LinkRemoved ) throw new ArgumentException( "No such link", nameof( id ) );
-		if ( linkDefs[id].Generated ) throw new ArgumentException( "The link is a generated one", nameof( id ) );
-		linkDefs[id] = Checked( link );
-		Pend( id, LinkDirty );
-	}
-
-	/// <summary>
-	/// Does nothing for an id that is not in use and for a generated link: those go with their tile.
-	/// </summary>
-	public void RemoveLink( int id )
-	{
-		if ( (uint)id < (uint)linkHigh && !linkDefs[id].Generated ) FreeLink( id );
-	}
-
-	void FreeLink( int id )
-	{
-		if ( (uint)id >= (uint)linkHigh || linkStatus[id] is LinkFree or LinkRemoved ) return;
-		Pend( id, LinkRemoved );
-		freeLinks.Enqueue( id, id );
-	}
-
-	void Pend( int id, byte status )
-	{
+		if ( linkStatus.Length <= id ) Array.Resize( ref linkStatus, Mesh.LinkCapacity );
 		if ( linkStatus[id] is LinkFree or LinkUsed ) linkQueue.Add( id );
 		linkStatus[id] = status;
 	}
+
+	internal bool LinkInUse( int id ) => (uint)id < (uint)linkStatus.Length && linkStatus[id] is LinkUsed or LinkDirty;
 
 	/// <summary>
 	/// The ends of a link as of the last Commit: snapped where an end found the mesh, as placed otherwise.

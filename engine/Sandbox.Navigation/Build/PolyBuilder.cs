@@ -1,9 +1,11 @@
+using System.Runtime.Intrinsics;
+
 namespace Nav.Build;
 
 /// <summary>
-/// Turns contours into convex polygons of up to six vertices: triangulate each contour, merge
-/// triangles across their longest shared edge, drop the helper vertices on tile borders, then
-/// find neighbours.
+/// Turns contours into convex polygons of up to six vertices: triangulate each contour, flip the
+/// triangles to its constrained Delaunay triangulation, merge them across their longest shared edge,
+/// drop the helper vertices on tile borders, then find neighbours.
 /// </summary>
 internal sealed class PolyBuilder
 {
@@ -11,8 +13,7 @@ internal sealed class PolyBuilder
 	const ushort None = BuildConfig.NoIndex;
 	const int VertexBuckets = 1 << 12;
 	const int EdgeBuckets = 256;
-	const int IndexMask = 0x0FFFFFFF;
-	const int Removable = int.MinValue;
+	const int NoEar = int.MaxValue;
 
 	public int VertCount, PolyCount;
 
@@ -34,7 +35,6 @@ internal sealed class PolyBuilder
 
 	public byte[] Areas = [];
 
-	int[] regions = [];
 	int maxPolys;
 
 	byte[] vertexFlags = [];
@@ -42,6 +42,12 @@ internal sealed class PolyBuilder
 	readonly int[] firstVertex = new int[VertexBuckets];
 	int[] indices = [];
 	int[] tris = [];
+
+	// Ear clipping
+	int[] order = [];
+	int[] xs = [];
+	int[] ys = [];
+	int[] ears = [];
 	ushort[] work = [];
 
 	// Edge hash of the polygons being merged
@@ -52,22 +58,24 @@ internal sealed class PolyBuilder
 	int[] edgeV1 = [];
 	int[] edgeNext = [];
 
-	// What MergeAll keeps up to date between merges
+	// What Merge keeps up to date between merges; polyBest is the largest merge value of each polygon
 	int[] vertCount = [];
 	int[] neighbourPoly = [];
 	int[] neighbourEdge = [];
 	int[] mergeValue = [];
+	int[] polyBest = [];
+
+	// Flips
+	int[] flipStack = [];
+	bool[] queued = [];
 
 	// Vertex removal
 	int[] holeEdges = [];
 	int[] hole = [];
-	int[] holeRegion = [];
 	int[] holeArea = [];
 	int[] holeVerts = [];
-	int[] holeIndices = [];
 	int[] holeTris = [];
 	ushort[] holePolys = [];
-	int[] holePolyRegion = [];
 	int[] holePolyArea = [];
 
 	// Adjacency
@@ -90,78 +98,17 @@ internal sealed class PolyBuilder
 	/// </summary>
 	public bool Build( ContourBuilder contours, int size, out string? error )
 	{
-		error = null;
-		VertCount = 0;
-		PolyCount = 0;
+		if ( !Begin( contours, out error ) ) return false;
 
-		int maxVertices = 0, maxTris = 0, maxVertsPerContour = 0;
-		for ( int i = 0; i < contours.Count; i++ )
-		{
-			int count = contours.VertCount[i];
-			if ( count < 3 ) continue;
-			maxVertices += count;
-			maxTris += count - 2;
-			maxVertsPerContour = Math.Max( maxVertsPerContour, count );
-		}
-
-		if ( maxVertices >= 0xFFFE )
-		{
-			error = "Too many vertices";
-			return false;
-		}
-
-		maxPolys = maxTris;
-		Ensure( ref Verts, maxVertices * 3 );
-		Ensure( ref Polys, maxTris * Nvp );
-		Ensure( ref Neis, maxTris * Nvp );
-		Ensure( ref Areas, maxTris );
-		Ensure( ref regions, maxTris );
-		Ensure( ref vertexFlags, maxVertices );
-		Ensure( ref nextVertex, maxVertices );
-		Ensure( ref indices, maxVertsPerContour );
-		Ensure( ref tris, maxVertsPerContour * 3 );
-		Ensure( ref work, (maxVertsPerContour + 1) * Nvp );
-		Array.Clear( vertexFlags, 0, maxVertices );
-		Array.Fill( firstVertex, -1 );
-		Array.Fill( Polys, None, 0, maxTris * Nvp );
-		Array.Fill( Neis, None, 0, maxTris * Nvp );
-
-		var contourVerts = contours.Verts;
 		for ( int c = 0; c < contours.Count; c++ )
 		{
-			int count = contours.VertCount[c];
-			if ( count < 3 ) continue;
-			int start = contours.Start[c];
-
-			for ( int j = 0; j < count; j++ ) indices[j] = j;
-			int triangleCount = Math.Abs( Triangulate( count, contourVerts, start, indices, tris ) );
-
-			for ( int j = 0; j < count; j++ )
-			{
-				int v = start + j * 4;
-				indices[j] = AddVertex( contourVerts[v], contourVerts[v + 1], contourVerts[v + 2] );
-				if ( (contourVerts[v + 3] & ContourBuilder.BorderVertex) != 0 ) vertexFlags[indices[j]] = 1;
-			}
-
-			int polyCount = 0;
-			Array.Fill( work, None, 0, (maxVertsPerContour + 1) * Nvp );
-			for ( int j = 0; j < triangleCount; j++ )
-			{
-				int t0 = tris[j * 3], t1 = tris[j * 3 + 1], t2 = tris[j * 3 + 2];
-				if ( t0 == t1 || t0 == t2 || t1 == t2 ) continue;
-				work[polyCount * Nvp] = (ushort)indices[t0];
-				work[polyCount * Nvp + 1] = (ushort)indices[t1];
-				work[polyCount * Nvp + 2] = (ushort)indices[t2];
-				polyCount++;
-			}
+			int polyCount = Triangles( contours, c, out bool linked );
 			if ( polyCount == 0 ) continue;
-
-			polyCount = MergeAll( work, polyCount, null, null );
+			polyCount = Merge( work, polyCount, null, linked );
 
 			for ( int j = 0; j < polyCount; j++ )
 			{
 				Array.Copy( work, j * Nvp, Polys, PolyCount * Nvp, Nvp );
-				regions[PolyCount] = contours.Region[c];
 				Areas[PolyCount] = (byte)contours.Area[c];
 				PolyCount++;
 			}
@@ -190,6 +137,98 @@ internal sealed class PolyBuilder
 		return true;
 	}
 
+	/// <summary>
+	/// Empties the polygons and makes room for those of the contours.
+	/// </summary>
+	internal bool Begin( ContourBuilder contours, out string? error )
+	{
+		error = null;
+		VertCount = 0;
+		PolyCount = 0;
+
+		int maxVertices = 0, maxTris = 0, maxVertsPerContour = 0;
+		for ( int i = 0; i < contours.Count; i++ )
+		{
+			int count = contours.VertCount[i];
+			if ( count < 3 ) continue;
+			maxVertices += count;
+			maxTris += count - 2;
+			maxVertsPerContour = Math.Max( maxVertsPerContour, count );
+		}
+
+		if ( maxVertices >= 0xFFFE )
+		{
+			error = "Too many vertices";
+			return false;
+		}
+
+		maxPolys = maxTris;
+		Ensure( ref Verts, maxVertices * 3 );
+		Ensure( ref Polys, maxTris * Nvp );
+		Ensure( ref Neis, maxTris * Nvp );
+		Ensure( ref Areas, maxTris );
+		Ensure( ref vertexFlags, maxVertices );
+		Ensure( ref nextVertex, maxVertices );
+		Ensure( ref indices, maxVertsPerContour );
+		Ensure( ref tris, maxVertsPerContour * 3 );
+		Ensure( ref work, (maxVertsPerContour + 1) * Nvp );
+		Array.Clear( vertexFlags, 0, maxVertices );
+		Array.Fill( firstVertex, -1 );
+		Array.Fill( Polys, None, 0, maxTris * Nvp );
+		Array.Fill( Neis, None, 0, maxTris * Nvp );
+		return true;
+	}
+
+	/// <summary>
+	/// Triangulates contour c, adds its vertices, and flips the triangles to its constrained Delaunay
+	/// triangulation: into Work, linked as Merge takes them. linked is false when they are not a clean
+	/// surface, and then not flipped. Returns the triangle count.
+	/// </summary>
+	internal int Triangles( ContourBuilder contours, int c, out bool linked )
+	{
+		linked = false;
+		int count = contours.VertCount[c];
+		if ( count < 3 ) return 0;
+		int start = contours.Start[c];
+		var contourVerts = contours.Verts;
+
+		int triangleCount = Math.Abs( Triangulate( count, contourVerts, start, tris ) );
+
+		for ( int j = 0; j < count; j++ )
+		{
+			int v = start + j * 4;
+			indices[j] = AddVertex( contourVerts[v], contourVerts[v + 1], contourVerts[v + 2] );
+			if ( (contourVerts[v + 3] & ContourBuilder.BorderVertex) != 0 ) vertexFlags[indices[j]] = 1;
+		}
+
+		int polyCount = 0;
+		Array.Fill( work, None, 0, (count + 1) * Nvp );
+		for ( int j = 0; j < triangleCount; j++ )
+		{
+			int t0 = tris[j * 3], t1 = tris[j * 3 + 1], t2 = tris[j * 3 + 2];
+			if ( t0 == t1 || t0 == t2 || t1 == t2 ) continue;
+			work[polyCount * Nvp] = (ushort)indices[t0];
+			work[polyCount * Nvp + 1] = (ushort)indices[t1];
+			work[polyCount * Nvp + 2] = (ushort)indices[t2];
+			polyCount++;
+		}
+		if ( polyCount == 0 ) return 0;
+
+		linked = Link( work, polyCount );
+		if ( linked ) Flip( work, polyCount );
+		return polyCount;
+	}
+
+	/// <summary>
+	/// Six vertex indices per triangle that Triangles made, unused ones NoIndex.
+	/// </summary>
+	internal ushort[] Work => work;
+
+	/// <summary>
+	/// The polygon across each edge of what Triangles made, -1 for none; six per triangle.
+	/// </summary>
+	internal int[] Across => neighbourPoly;
+
 	int AddVertex( int x, int y, int height )
 	{
 		const uint h1 = 0x8da6b343, h3 = 0xcb1ab31f;
@@ -211,75 +250,92 @@ internal sealed class PolyBuilder
 	static int Next( int i, int n ) => i + 1 < n ? i + 1 : 0;
 	static int Previous( int i, int n ) => i - 1 >= 0 ? i - 1 : n - 1;
 
-	// True when the line from vertex i to vertex j of the outline runs inside it and crosses none of its
-	// edges. The vertices are four ints each (x, y, height, flags) starting at offset, as contours have them.
-	static bool Diagonal( int i, int j, int n, int[] verts, int offset, int[] indices, bool loose = false )
+	// True when the line from position i to position j of the outline runs inside it and crosses none of its
+	// edges. Only edges whose box meets the line's box can cross it.
+	bool Diagonal( int i, int j, int n, bool loose = false )
 	{
-		int pi = offset + (indices[i] & IndexMask) * 4;
-		int pj = offset + (indices[j] & IndexMask) * 4;
-		int pn = offset + (indices[Next( i, n )] & IndexMask) * 4;
-		int pp = offset + (indices[Previous( i, n )] & IndexMask) * 4;
-		if ( !GridGeometry.InCone( verts[pp], verts[pp + 1], verts[pi], verts[pi + 1], verts[pn], verts[pn + 1], verts[pj], verts[pj + 1], loose ) ) return false;
+		var x = xs;
+		var y = ys;
+		int previous = Previous( i, n ), next = Next( i, n );
+		if ( !GridGeometry.InCone( x[previous], y[previous], x[i], y[i], x[next], y[next], x[j], y[j], loose ) ) return false;
 
-		for ( int k = 0; k < n; k++ )
+		int ax = x[i], ay = y[i], bx = x[j], by = y[j];
+		int minX = Math.Min( ax, bx ), maxX = Math.Max( ax, bx ), minY = Math.Min( ay, by ), maxY = Math.Max( ay, by );
+		var lowX = Vector128.Create( minX );
+		var highX = Vector128.Create( maxX );
+		var lowY = Vector128.Create( minY );
+		var highY = Vector128.Create( maxY );
+		for ( int k = 0; k < n; k += 4 )
 		{
-			int k1 = Next( k, n );
-			if ( k == i || k1 == i || k == j || k1 == j ) continue;
-
-			int p0 = offset + (indices[k] & IndexMask) * 4;
-			int p1 = offset + (indices[k1] & IndexMask) * 4;
-			if ( GridGeometry.Crosses( verts[pi], verts[pi + 1], verts[pj], verts[pj + 1], verts[p0], verts[p0 + 1], verts[p1], verts[p1 + 1], loose ) ) return false;
+			var x0 = Vector128.Create( x, k );
+			var x1 = Vector128.Create( x, k + 1 );
+			var y0 = Vector128.Create( y, k );
+			var y1 = Vector128.Create( y, k + 1 );
+			var apart = (Vector128.LessThan( x0, lowX ) & Vector128.LessThan( x1, lowX )) | (Vector128.GreaterThan( x0, highX ) & Vector128.GreaterThan( x1, highX ))
+				| (Vector128.LessThan( y0, lowY ) & Vector128.LessThan( y1, lowY )) | (Vector128.GreaterThan( y0, highY ) & Vector128.GreaterThan( y1, highY ));
+			uint near = ~apart.ExtractMostSignificantBits() & 0xF;
+			for ( ; near != 0; near &= near - 1 )
+			{
+				int e = k + System.Numerics.BitOperations.TrailingZeroCount( near );
+				if ( e >= n ) break;
+				int e1 = Next( e, n );
+				if ( e == i || e1 == i || e == j || e1 == j ) continue;
+				if ( GridGeometry.Crosses( ax, ay, bx, by, x[e], y[e], x[e + 1], y[e + 1], loose ) ) return false;
+			}
 		}
 		return true;
 	}
 
-	// Ear clipping, shortest diagonal first. Returns the triangle count, negative when it had to give up.
-	static int Triangulate( int n, int[] verts, int offset, int[] indices, int[] tris )
+	// The squared length of the diagonal from position i past the next vertex when that vertex is an ear, else NoEar.
+	int Ear( int i, int n )
 	{
-		int count = 0;
+		int j = Next( Next( i, n ), n );
+		if ( !Diagonal( i, j, n ) ) return NoEar;
+		int dx = xs[j] - xs[i], dy = ys[j] - ys[i];
+		return dx * dx + dy * dy;
+	}
 
-		// The top bit of an index marks a vertex whose neighbours can be joined by a diagonal
-		for ( int i = 0; i < n; i++ )
+	// Ear clipping, shortest diagonal first, the first in outline order on a tie. The vertices are four ints each
+	// (x, y, height, flags) starting at offset, as contours have them; tris gets their indices. The outline is kept
+	// in order, x, y and the ear of each position (ears[i] is the ear at the vertex after i), position n repeating
+	// position 0. Returns the triangle count, negative when it had to give up.
+	int Triangulate( int n, int[] verts, int offset, int[] tris )
+	{
+		Ensure( ref order, n + 1 );
+		Ensure( ref xs, n + 5 );
+		Ensure( ref ys, n + 5 );
+		Ensure( ref ears, n );
+		for ( int i = 0; i <= n; i++ )
 		{
-			int i1 = Next( i, n );
-			int i2 = Next( i1, n );
-			if ( Diagonal( i, i2, n, verts, offset, indices ) ) indices[i1] |= Removable;
+			int v = offset + (i < n ? i : 0) * 4;
+			order[i] = i < n ? i : 0;
+			xs[i] = verts[v];
+			ys[i] = verts[v + 1];
 		}
+		for ( int i = 0; i < n; i++ ) ears[i] = Ear( i, n );
 
+		int count = 0;
 		while ( n > 3 )
 		{
-			int shortest = -1;
-			int ear = -1;
+			int ear = -1, shortest = NoEar;
 			for ( int i = 0; i < n; i++ )
 			{
-				int i1 = Next( i, n );
-				if ( (indices[i1] & Removable) == 0 ) continue;
-
-				int p0 = offset + (indices[i] & IndexMask) * 4;
-				int p2 = offset + (indices[Next( i1, n )] & IndexMask) * 4;
-				int dx = verts[p2] - verts[p0];
-				int dy = verts[p2 + 1] - verts[p0 + 1];
-				int length = dx * dx + dy * dy;
-				if ( shortest < 0 || length < shortest )
-				{
-					shortest = length;
-					ear = i;
-				}
+				if ( ears[i] >= shortest ) continue;
+				shortest = ears[i];
+				ear = i;
 			}
 
 			if ( ear == -1 )
 			{
 				// Overlapping segments in the contour. Try again accepting diagonals that touch it.
+				shortest = -1;
 				for ( int i = 0; i < n; i++ )
 				{
-					int i1 = Next( i, n );
-					int i2 = Next( i1, n );
-					if ( !Diagonal( i, i2, n, verts, offset, indices, loose: true ) ) continue;
+					int i2 = Next( Next( i, n ), n );
+					if ( !Diagonal( i, i2, n, loose: true ) ) continue;
 
-					int p0 = offset + (indices[i] & IndexMask) * 4;
-					int p2 = offset + (indices[Next( i2, n )] & IndexMask) * 4;
-					int dx = verts[p2] - verts[p0];
-					int dy = verts[p2 + 1] - verts[p0 + 1];
+					int i3 = Next( i2, n );
+					int dx = xs[i3] - xs[i], dy = ys[i3] - ys[i];
 					int length = dx * dx + dy * dy;
 					if ( shortest < 0 || length < shortest )
 					{
@@ -296,28 +352,30 @@ internal sealed class PolyBuilder
 				int i1 = Next( i0, n );
 				int i2 = Next( i1, n );
 
-				tris[count * 3] = indices[i0] & IndexMask;
-				tris[count * 3 + 1] = indices[i1] & IndexMask;
-				tris[count * 3 + 2] = indices[i2] & IndexMask;
+				tris[count * 3] = order[i0];
+				tris[count * 3 + 1] = order[i1];
+				tris[count * 3 + 2] = order[i2];
 				count++;
 
 				n--;
-				for ( int k = i1; k < n; k++ ) indices[k] = indices[k + 1];
+				Array.Copy( order, i1 + 1, order, i1, n - i1 );
+				Array.Copy( xs, i1 + 1, xs, i1, n - i1 );
+				Array.Copy( ys, i1 + 1, ys, i1, n - i1 );
+				Array.Copy( ears, i1 + 1, ears, i1, n - i1 );
+				order[n] = order[0];
+				xs[n] = xs[0];
+				ys[n] = ys[0];
 
 				if ( i1 >= n ) i1 = 0;
 				i0 = Previous( i1, n );
-
-				if ( Diagonal( Previous( i0, n ), i1, n, verts, offset, indices ) ) indices[i0] |= Removable;
-				else indices[i0] &= IndexMask;
-
-				if ( Diagonal( i0, Next( i1, n ), n, verts, offset, indices ) ) indices[i1] |= Removable;
-				else indices[i1] &= IndexMask;
+				ears[Previous( i0, n )] = Ear( Previous( i0, n ), n );
+				ears[i0] = Ear( i0, n );
 			}
 		}
 
-		tris[count * 3] = indices[0] & IndexMask;
-		tris[count * 3 + 1] = indices[1] & IndexMask;
-		tris[count * 3 + 2] = indices[2] & IndexMask;
+		tris[count * 3] = order[0];
+		tris[count * 3 + 1] = order[1];
+		tris[count * 3 + 2] = order[2];
 		return count + 1;
 	}
 
@@ -338,41 +396,52 @@ internal sealed class PolyBuilder
 		return (bx - ax) * (cy - ay) - (cx - ax) * (by - ay) < 0;
 	}
 
-	// Merges polygons across shared edges, always the longest edge whose two polygons make a convex one
-	// of at most six vertices, the first such edge in polygon order on a tie. The merged polygon takes
-	// the place of the lower of the two, the last polygon moves into the place of the other.
-	// regionOf and areaOf follow the polygons when given; a polygon made of two regions gets region 0.
-	int MergeAll( ushort[] polys, int polyCount, int[]? regionOf, int[]? areaOf )
+	// Merges triangles into polygons across shared edges, always the longest edge whose two polygons make a
+	// convex one of at most six vertices, the first such edge in polygon order on a tie. The merged polygon
+	// takes the place of the lower of the two, the last polygon moves into the place of the other. linked: Link
+	// found the triangles a clean surface; else every merge searches from scratch. areaOf follows the polygons
+	// when given.
+	int Merge( ushort[] polys, int polyCount, int[]? areaOf, bool linked )
 	{
-		if ( !Link( polys, polyCount ) )
+		if ( !linked )
 		{
 			// An edge with three polygons on it, or two that walk it the same way: search from scratch every time
 			while ( FindBestMerge( polys, polyCount, out int a, out int b, out int ea, out int eb ) )
 			{
 				MergePolys( polys, a, b, ea, eb );
 				Array.Copy( polys, (polyCount - 1) * Nvp, polys, b * Nvp, Nvp );
-				Follow( regionOf, areaOf, a, b, polyCount - 1 );
+				if ( areaOf != null ) areaOf[b] = areaOf[polyCount - 1];
 				polyCount--;
 			}
 			return polyCount;
+		}
+
+		for ( int p = 0; p < polyCount; p++ )
+		{
+			for ( int e = 0; e < vertCount[p]; e++ )
+			{
+				if ( neighbourPoly[p * Nvp + e] > p ) Rate( polys, p, e );
+			}
 		}
 
 		Span<int> mergedPoly = stackalloc int[Nvp];
 		Span<int> mergedEdge = stackalloc int[Nvp];
 		while ( true )
 		{
-			int best = 0, at = -1;
-			for ( int i = 0, n = polyCount * Nvp; i < n; i++ )
+			int best = 0, a = -1;
+			for ( int p = 0; p < polyCount; p++ )
 			{
-				if ( mergeValue[i] > best )
+				if ( polyBest[p] > best )
 				{
-					best = mergeValue[i];
-					at = i;
+					best = polyBest[p];
+					a = p;
 				}
 			}
-			if ( at < 0 ) break;
+			if ( a < 0 ) break;
 
-			int a = at / Nvp, ea = at % Nvp;
+			int ea = 0;
+			while ( mergeValue[a * Nvp + ea] != best ) ea++;
+			int at = a * Nvp + ea;
 			int b = neighbourPoly[at], eb = neighbourEdge[at];
 			int na = vertCount[a], nb = vertCount[b];
 
@@ -394,6 +463,7 @@ internal sealed class PolyBuilder
 
 			MergePolys( polys, a, b, ea, eb );
 			vertCount[a] = count;
+			polyBest[a] = 0;
 			for ( int k = 0; k < Nvp; k++ )
 			{
 				int edge = a * Nvp + k;
@@ -406,11 +476,12 @@ internal sealed class PolyBuilder
 			}
 
 			int last = polyCount - 1;
-			Follow( regionOf, areaOf, a, b, last );
+			if ( areaOf != null ) areaOf[b] = areaOf[last];
 			if ( b != last )
 			{
 				Array.Copy( polys, last * Nvp, polys, b * Nvp, Nvp );
 				vertCount[b] = vertCount[last];
+				polyBest[b] = 0;
 				for ( int k = 0; k < Nvp; k++ )
 				{
 					int edge = b * Nvp + k;
@@ -432,16 +503,8 @@ internal sealed class PolyBuilder
 		return polyCount;
 	}
 
-	static void Follow( int[]? regionOf, int[]? areaOf, int a, int b, int last )
-	{
-		if ( regionOf == null || areaOf == null ) return;
-		if ( regionOf[a] != regionOf[b] ) regionOf[a] = 0;
-		regionOf[b] = regionOf[last];
-		areaOf[b] = areaOf[last];
-	}
-
-	// Finds the polygon on the other side of every edge and rates every shared edge. False when the
-	// polygons are not a clean surface: more than two on an edge, or two walking it in the same direction.
+	// Finds the polygon on the other side of every edge. False when the polygons are not a clean surface:
+	// more than two on an edge, or two walking it in the same direction.
 	bool Link( ushort[] polys, int polyCount )
 	{
 		int maxEdges = polyCount * Nvp;
@@ -449,10 +512,12 @@ internal sealed class PolyBuilder
 		Ensure( ref neighbourPoly, maxEdges );
 		Ensure( ref neighbourEdge, maxEdges );
 		Ensure( ref mergeValue, maxEdges );
+		Ensure( ref polyBest, polyCount );
 		Ensure( ref edgeNext, maxEdges );
 		Array.Fill( buckets, -1 );
 		Array.Fill( neighbourPoly, -1, 0, maxEdges );
 		Array.Clear( mergeValue, 0, maxEdges );
+		Array.Clear( polyBest, 0, polyCount );
 
 		for ( int p = 0; p < polyCount; p++ )
 		{
@@ -487,15 +552,102 @@ internal sealed class PolyBuilder
 				neighbourEdge[edge] = other % Nvp;
 			}
 		}
-
-		for ( int p = 0; p < polyCount; p++ )
-		{
-			for ( int e = 0; e < vertCount[p]; e++ )
-			{
-				if ( neighbourPoly[p * Nvp + e] > p ) Rate( polys, p, e );
-			}
-		}
 		return true;
+	}
+
+	// Lawson flips of linked triangles. An edge with a triangle on each side becomes the other diagonal of
+	// their quad when the quad is strictly convex and the far corner lies inside the circle through the other
+	// three, or on it while the edge touches the greatest of the four corners (by x, then y, then index). That
+	// tie rule makes it the Delaunay triangulation of the points lifted by amounts too small to measure that
+	// grow with that order, which is unique: the triangles that come out depend neither on the ones that went
+	// in nor on the order of the flips; only where each lands in the list does. Edges with one triangle, the
+	// outline and its holes, stay; a bridge to a hole has a triangle on each side and may flip. The stack
+	// starts with every shared edge, the first triangle's on top, and takes the outer edges of each flipped quad.
+	void Flip( ushort[] tris, int count )
+	{
+		Ensure( ref flipStack, count * 3 );
+		Ensure( ref queued, count * Nvp );
+		Array.Clear( queued, 0, count * Nvp );
+		int top = 0;
+		for ( int t = count - 1; t >= 0; t-- )
+		{
+			for ( int e = 2; e >= 0; e-- ) Push( t * Nvp + e, ref top );
+		}
+
+		// A planar triangulation needs far fewer flips; a contour that crosses itself could cycle
+		for ( long flips = 0; top > 0 && flips < (long)count * count; )
+		{
+			int edge = flipStack[--top];
+			queued[edge] = false;
+			int u = neighbourPoly[edge];
+			if ( u < 0 ) continue;
+
+			int t = edge / Nvp, e = edge % Nvp, f = neighbourEdge[edge];
+			int a = tris[edge], b = tris[t * Nvp + (e + 1) % 3], c = tris[t * Nvp + (e + 2) % 3], d = tris[u * Nvp + (f + 2) % 3];
+			if ( !Flips( a, b, c, d ) ) continue;
+			flips++;
+
+			// t becomes (c, a, d) and u becomes (d, b, c)
+			int bc = t * Nvp + (e + 1) % 3, ca = t * Nvp + (e + 2) % 3, ad = u * Nvp + (f + 1) % 3, db = u * Nvp + (f + 2) % 3;
+			int bcPoly = neighbourPoly[bc], bcEdge = neighbourEdge[bc], caPoly = neighbourPoly[ca], caEdge = neighbourEdge[ca];
+			int adPoly = neighbourPoly[ad], adEdge = neighbourEdge[ad], dbPoly = neighbourPoly[db], dbEdge = neighbourEdge[db];
+			tris[t * Nvp] = (ushort)c;
+			tris[t * Nvp + 1] = (ushort)a;
+			tris[t * Nvp + 2] = (ushort)d;
+			tris[u * Nvp] = (ushort)d;
+			tris[u * Nvp + 1] = (ushort)b;
+			tris[u * Nvp + 2] = (ushort)c;
+			Join( t * Nvp, caPoly, caEdge );
+			Join( t * Nvp + 1, adPoly, adEdge );
+			Join( t * Nvp + 2, u, 2 );
+			Join( u * Nvp, dbPoly, dbEdge );
+			Join( u * Nvp + 1, bcPoly, bcEdge );
+
+			Push( t * Nvp, ref top );
+			Push( t * Nvp + 1, ref top );
+			Push( u * Nvp, ref top );
+			Push( u * Nvp + 1, ref top );
+		}
+	}
+
+	void Push( int edge, ref int top )
+	{
+		int other = neighbourPoly[edge];
+		if ( other < 0 || queued[edge] || queued[other * Nvp + neighbourEdge[edge]] ) return;
+		queued[edge] = true;
+		flipStack[top++] = edge;
+	}
+
+	void Join( int edge, int poly, int polyEdge )
+	{
+		neighbourPoly[edge] = poly;
+		neighbourEdge[edge] = polyEdge;
+		if ( poly < 0 ) return;
+		neighbourPoly[poly * Nvp + polyEdge] = edge / Nvp;
+		neighbourEdge[poly * Nvp + polyEdge] = edge % Nvp;
+	}
+
+	// Whether the edge from a to b, between the triangles (a, b, c) and (b, a, d), should be the edge from c to d.
+	bool Flips( int a, int b, int c, int d )
+	{
+		int ax = Verts[a * 3], ay = Verts[a * 3 + 1], bx = Verts[b * 3], by = Verts[b * 3 + 1];
+		int cx = Verts[c * 3], cy = Verts[c * 3 + 1], dx = Verts[d * 3], dy = Verts[d * 3 + 1];
+		int abc = GridGeometry.Area( ax, ay, bx, by, cx, cy ), abd = GridGeometry.Area( ax, ay, bx, by, dx, dy );
+		int cda = GridGeometry.Area( cx, cy, dx, dy, ax, ay ), cdb = GridGeometry.Area( cx, cy, dx, dy, bx, by );
+		if ( abc == 0 || abd == 0 || cda == 0 || cdb == 0 || (abc > 0) == (abd > 0) || (cda > 0) == (cdb > 0) ) return false;
+
+		long inside = GridGeometry.InCircle( ax, ay, bx, by, cx, cy, dx, dy );
+		if ( inside != 0 ) return abc > 0 ? inside > 0 : inside < 0;
+		int greatest = Greater( Greater( a, b ), Greater( c, d ) );
+		return greatest == a || greatest == b;
+	}
+
+	int Greater( int p, int q )
+	{
+		int px = Verts[p * 3], py = Verts[p * 3 + 1], qx = Verts[q * 3], qy = Verts[q * 3 + 1];
+		if ( px != qx ) return px > qx ? p : q;
+		if ( py != qy ) return py > qy ? p : q;
+		return p > q ? p : q;
 	}
 
 	// The squared length of a shared edge when its two polygons can merge, else 0, kept with the lower polygon.
@@ -518,6 +670,15 @@ internal sealed class PolyBuilder
 
 		mergeValue[p * Nvp + e] = p < q ? value : 0;
 		mergeValue[q * Nvp + eq] = p < q ? 0 : value;
+		polyBest[p] = Best( p );
+		polyBest[q] = Best( q );
+	}
+
+	int Best( int p )
+	{
+		int best = 0;
+		for ( int e = p * Nvp; e < p * Nvp + Nvp; e++ ) best = Math.Max( best, mergeValue[e] );
+		return best;
 	}
 
 	// The pair of polygons sharing the longest edge whose union is still convex and fits in six vertices.
@@ -679,9 +840,8 @@ internal sealed class PolyBuilder
 			}
 		}
 
-		Ensure( ref holeEdges, touching * Nvp * 4 );
+		Ensure( ref holeEdges, touching * Nvp * 3 );
 		Ensure( ref hole, touching * Nvp );
-		Ensure( ref holeRegion, touching * Nvp );
 		Ensure( ref holeArea, touching * Nvp );
 		var edges = holeEdges;
 		int edgeCount = 0;
@@ -701,16 +861,14 @@ internal sealed class PolyBuilder
 			{
 				int a = Polys[i * Nvp + k], b = Polys[i * Nvp + j];
 				if ( a == remove || b == remove ) continue;
-				edges[edgeCount * 4] = a;
-				edges[edgeCount * 4 + 1] = b;
-				edges[edgeCount * 4 + 2] = regions[i];
-				edges[edgeCount * 4 + 3] = Areas[i];
+				edges[edgeCount * 3] = a;
+				edges[edgeCount * 3 + 1] = b;
+				edges[edgeCount * 3 + 2] = Areas[i];
 				edgeCount++;
 			}
 
 			int last = PolyCount - 1;
 			if ( i != last ) Array.Copy( Polys, last * Nvp, Polys, i * Nvp, Nvp );
-			regions[i] = regions[last];
 			Areas[i] = Areas[last];
 			PolyCount--;
 			i--;
@@ -730,8 +888,8 @@ internal sealed class PolyBuilder
 
 		for ( int i = 0; i < edgeCount; i++ )
 		{
-			if ( edges[i * 4] > remove ) edges[i * 4]--;
-			if ( edges[i * 4 + 1] > remove ) edges[i * 4 + 1]--;
+			if ( edges[i * 3] > remove ) edges[i * 3]--;
+			if ( edges[i * 3 + 1] > remove ) edges[i * 3 + 1]--;
 		}
 
 		if ( edgeCount == 0 ) return true;
@@ -739,8 +897,7 @@ internal sealed class PolyBuilder
 		// Chain the edges into the outline of the hole
 		int holeCount = 0;
 		hole[holeCount] = edges[0];
-		holeRegion[holeCount] = edges[2];
-		holeArea[holeCount] = edges[3];
+		holeArea[holeCount] = edges[2];
 		holeCount++;
 
 		while ( edgeCount > 0 )
@@ -748,15 +905,13 @@ internal sealed class PolyBuilder
 			bool match = false;
 			for ( int i = 0; i < edgeCount; i++ )
 			{
-				int ea = edges[i * 4], eb = edges[i * 4 + 1], r = edges[i * 4 + 2], a = edges[i * 4 + 3];
+				int ea = edges[i * 3], eb = edges[i * 3 + 1], a = edges[i * 3 + 2];
 				bool add = false;
 				if ( hole[0] == eb )
 				{
 					Array.Copy( hole, 0, hole, 1, holeCount );
-					Array.Copy( holeRegion, 0, holeRegion, 1, holeCount );
 					Array.Copy( holeArea, 0, holeArea, 1, holeCount );
 					hole[0] = ea;
-					holeRegion[0] = r;
 					holeArea[0] = a;
 					holeCount++;
 					add = true;
@@ -764,14 +919,13 @@ internal sealed class PolyBuilder
 				else if ( hole[holeCount - 1] == ea )
 				{
 					hole[holeCount] = eb;
-					holeRegion[holeCount] = r;
 					holeArea[holeCount] = a;
 					holeCount++;
 					add = true;
 				}
 
 				if ( !add ) continue;
-				Array.Copy( edges, (edgeCount - 1) * 4, edges, i * 4, 4 );
+				Array.Copy( edges, (edgeCount - 1) * 3, edges, i * 3, 3 );
 				edgeCount--;
 				match = true;
 				i--;
@@ -780,9 +934,11 @@ internal sealed class PolyBuilder
 			if ( !match ) break;
 		}
 
+		// A chain of fewer than three vertices encloses nothing
+		if ( holeCount < 3 ) return true;
+
 		Ensure( ref holeTris, holeCount * 3 );
 		Ensure( ref holeVerts, holeCount * 4 );
-		Ensure( ref holeIndices, holeCount );
 		for ( int i = 0; i < holeCount; i++ )
 		{
 			int v = hole[i] * 3;
@@ -790,13 +946,11 @@ internal sealed class PolyBuilder
 			holeVerts[i * 4 + 1] = Verts[v + 1];
 			holeVerts[i * 4 + 2] = Verts[v + 2];
 			holeVerts[i * 4 + 3] = 0;
-			holeIndices[i] = i;
 		}
 
-		int triangleCount = Math.Abs( Triangulate( holeCount, holeVerts, 0, holeIndices, holeTris ) );
+		int triangleCount = Math.Abs( Triangulate( holeCount, holeVerts, 0, holeTris ) );
 
 		Ensure( ref holePolys, (triangleCount + 1) * Nvp );
-		Ensure( ref holePolyRegion, triangleCount );
 		Ensure( ref holePolyArea, triangleCount );
 		var polys = holePolys;
 		Array.Fill( polys, None, 0, (triangleCount + 1) * Nvp );
@@ -811,20 +965,19 @@ internal sealed class PolyBuilder
 			polys[polyCount * Nvp + 1] = (ushort)hole[t1];
 			polys[polyCount * Nvp + 2] = (ushort)hole[t2];
 
-			// 0 marks a polygon that covers more than one region
-			holePolyRegion[polyCount] = holeRegion[t0] != holeRegion[t1] || holeRegion[t1] != holeRegion[t2] ? 0 : holeRegion[t0];
 			holePolyArea[polyCount] = holeArea[t0];
 			polyCount++;
 		}
 		if ( polyCount == 0 ) return true;
 
-		polyCount = MergeAll( polys, polyCount, holePolyRegion, holePolyArea );
+		// Not flipped: a hole is a few triangles around one vertex, and rare
+		bool linked = Link( polys, polyCount );
+		polyCount = Merge( polys, polyCount, holePolyArea, linked );
 		if ( PolyCount + polyCount > maxPolys ) return false;
 
 		for ( int i = 0; i < polyCount; i++ )
 		{
 			Array.Copy( polys, i * Nvp, Polys, PolyCount * Nvp, Nvp );
-			regions[PolyCount] = holePolyRegion[i];
 			Areas[PolyCount] = (byte)holePolyArea[i];
 			PolyCount++;
 		}

@@ -7,7 +7,7 @@ using System.Threading;
 namespace NavigationTests;
 
 /// <summary>
-/// Navigation behaviour that is easy to get wrong: blockers keep an agent radius away, one snap rule for
+/// Navigation behaviour that is easy to get wrong: blockers remove exactly their box, one snap rule for
 /// path ends and agents, what a bake holds and when it is ignored, areas that rebuild from what was kept,
 /// and link callbacks.
 /// </summary>
@@ -15,7 +15,7 @@ namespace NavigationTests;
 public class NavMeshDecisions
 {
 	[TestMethod]
-	public async Task BlockersKeepAgentsOneAgentRadiusAway()
+	public async Task BlockersRemoveExactlyTheirBox()
 	{
 		var scene = new Scene();
 		using var scope = scene.Push();
@@ -23,10 +23,10 @@ public class NavMeshDecisions
 		scene.Area( Vector3.Zero, new Vector3( 100, 100, 200 ) );
 		Assert.IsTrue( await scene.NavMesh.Generate( scene.PhysicsWorld ) );
 
-		// The blocker ends at x = 50. The navmesh starts a radius of 16 further out, as it does at a wall.
-		var edge = scene.NavMesh.GetClosestPoint( new Vector3( 50, 0, 0 ), 60 );
+		// The blocker ends at x = 50 and so does the navmesh, with no agent radius on top as at a wall
+		var edge = scene.NavMesh.GetClosestPoint( new Vector3( 30, 0, 0 ), 60 );
 		Assert.IsTrue( edge.HasValue );
-		Assert.IsTrue( edge.Value.x >= 62 && edge.Value.x <= 74, $"The navmesh starts at x = {edge.Value.x}" );
+		Assert.IsTrue( edge.Value.x >= 50 && edge.Value.x <= 56, $"The navmesh starts at x = {edge.Value.x}" );
 	}
 
 	[TestMethod]

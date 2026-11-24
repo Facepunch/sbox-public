@@ -1,149 +1,152 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
+using Nav.Build;
 
 namespace Nav;
 
 /// <summary>
-/// The tiles and links of one navigation world, the volumes that mark areas on it, and the rebuild
-/// cache: the eroded field of every tile a volume overlaps, kept so that a volume change rebuilds the
-/// tile without its triangles. One owner thread changes it, any number of threads query it without
-/// locks: every Commit swaps in a new immutable state. Everything that marks, takes, commits, adds,
-/// sets or removes belongs on the owner thread.
+/// The tiles and links of one navigation world for one or more agent types, the volumes that mark
+/// areas on it, and the rebuild cache: the eroded field of every tile a volume overlaps, kept so that a
+/// volume change rebuilds the tile without its triangles. One owner thread changes it, any number of
+/// threads query it without locks: every Commit swaps in new immutable states. Everything that marks,
+/// takes, commits, adds, sets or removes belongs on the owner thread.
+/// Each agent type has settings, tiles, jobs and generated links of its own; the types share the
+/// geometry, the volumes, the links placed by the caller, the commit and the bake. A call that is about
+/// one type's tiles or links has a form that names the type; its form without one is for a mesh of one
+/// agent type and throws on a mesh of several.
 /// Setting a link or volume id that is not in use throws; removing one does nothing.
 /// </summary>
 public sealed partial class NavMesh
 {
-	readonly NavSettings settings;
-	internal readonly NavCodec Codec;
-	internal readonly bool KeepFields;
-	internal readonly float TileWorld;
-	internal readonly int MaxTiles;
-	readonly int polyBits;
-	readonly uint polyMask;
+	/// <summary>
+	/// The most agent types one mesh has.
+	/// </summary>
+	public const int MaxAgentTypes = 16;
 
-	// Portal edges connect when they are at most this many AgentClimb apart.
-	internal const float PortalClimbFactor = 1;
-
-	// What queries and the crowd derive their tolerances from: a length that is a tenth of a unit at a
-	// cell of 4, and the factor for area-like terms.
-	internal float Epsilon => settings.CellSize / 40f;
-	internal float AreaScale => settings.CellSize * settings.CellSize / 16f;
-
-	// Kept up to date by generation.
-	internal long CacheBytes, TrianglesUsed, TrianglesRejected;
-
-	MeshState state;
+	readonly MeshAgentType[] types;
 
 	/// <summary>
-	/// Throws when the settings or the link settings of the options are not valid. With links enabled,
-	/// tile builds from triangles also find drops and jumps.
+	/// A mesh of one agent type. Throws when the settings or the link settings of the options are not
+	/// valid. With links enabled, tile builds from triangles also find drops and jumps.
 	/// </summary>
 	public NavMesh( in NavSettings settings, in NavMeshOptions options )
 	{
-		if ( !settings.IsValid( out var reason ) ) throw new ArgumentException( reason, nameof( settings ) );
-		if ( !options.Links.IsValid( settings, out reason ) ) throw new ArgumentException( reason, nameof( options ) );
-		this.settings = settings;
-		links = options.Links;
-		Codec = options.Codec;
-		KeepFields = options.KeepFields;
-		TileWorld = settings.TileSize * settings.CellSize;
-		polyBits = settings.PolyBits;
-		polyMask = (1u << polyBits) - 1;
-		MaxTiles = PolyRef.MaxTiles( polyBits );
-		state = new MeshState( [], new TileIndex(), [], 0, 0, polyBits, [] );
+		Check( settings, options, -1 );
+		types = [new MeshAgentType( this, 0, settings, options )];
+		maxRound = uint.MaxValue;
 	}
 
-	public NavSettings Settings => settings;
-	public NavLinkSettings LinkSettings => links;
+	/// <summary>
+	/// A mesh of 1 to MaxAgentTypes agent types, numbered in the order given. Throws for none, more, or a
+	/// type whose settings or link settings are not valid. The types' settings are independent of each
+	/// other: cell sizes, tile sizes and polygon limits may all differ.
+	/// </summary>
+	public NavMesh( ReadOnlySpan<NavAgentTypeDesc> agentTypes )
+	{
+		if ( agentTypes.Length < 1 || agentTypes.Length > MaxAgentTypes ) throw new ArgumentException( $"A mesh has 1 to {MaxAgentTypes} agent types, not {agentTypes.Length}", nameof( agentTypes ) );
+		for ( int i = 0; i < agentTypes.Length; i++ ) Check( agentTypes[i].Settings, agentTypes[i].Options, i );
+		types = new MeshAgentType[agentTypes.Length];
+		for ( int i = 0; i < types.Length; i++ ) types[i] = new MeshAgentType( this, i, agentTypes[i].Settings, agentTypes[i].Options );
+		maxRound = (uint.MaxValue - (uint)(types.Length - 1)) / (uint)types.Length;
+		if ( types.Length > 1 ) linkScopes = [];
+	}
+
+	static void Check( in NavSettings settings, in NavMeshOptions options, int type )
+	{
+		string prefix = type < 0 ? "" : $"Agent type {type}: ";
+		if ( !settings.IsValid( out var reason ) ) throw new ArgumentException( prefix + reason, type < 0 ? nameof( settings ) : "agentTypes" );
+		if ( !options.Links.IsValid( settings, out reason ) ) throw new ArgumentException( prefix + reason, type < 0 ? nameof( options ) : "agentTypes" );
+	}
+
+	public int AgentTypeCount => types.Length;
 
 	/// <summary>
-	/// Bumped by every Commit that changed the mesh.
+	/// What the agent type was made with. Throws for a type the mesh does not have.
 	/// </summary>
-	public uint Version => State.Version;
+	public NavAgentTypeDesc GetAgentType( int agentType )
+	{
+		var type = TypeAt( agentType );
+		return new NavAgentTypeDesc { Settings = type.Settings, Options = type.Options };
+	}
 
-	internal MeshState State => Volatile.Read( ref state );
+	internal MeshAgentType TypeAt( int agentType )
+	{
+		if ( (uint)agentType >= (uint)types.Length ) throw new ArgumentOutOfRangeException( nameof( agentType ), $"Agent type {agentType} is not one of the mesh's {types.Length}" );
+		return types[agentType];
+	}
+
+	// The one type of a mesh of one, for the calls that do not name a type.
+	internal MeshAgentType Single => types.Length == 1 ? types[0] : throw new InvalidOperationException( $"The mesh has {types.Length} agent types: name the agent type" );
+
+	internal ReadOnlySpan<MeshAgentType> Types => types;
+
+	/// <summary>
+	/// The settings of a mesh of one agent type. See GetAgentType.
+	/// </summary>
+	public NavSettings Settings => Single.Settings;
+	public NavLinkSettings LinkSettings => Single.LinkSettings;
+
+	/// <summary>
+	/// Bumped once by every Commit that changed the mesh, whichever agent types it changed.
+	/// </summary>
+	public uint Version => types.Length == 1 ? types[0].State.Version : Volatile.Read( ref version );
+
+	uint version;
 
 	/// <summary>
 	/// Tile coordinates are unbounded and may be negative.
 	/// </summary>
-	public (int X, int Y) GetTileAt( Vector3 point ) => (TileOf( point.X ), TileOf( point.Y ));
-
-	// Saturates, so a box without end reaches every tile.
-	int TileOf( float world ) => (int)Math.Clamp( MathF.Floor( world / TileWorld ), int.MinValue, int.MaxValue );
+	public (int X, int Y) GetTileAt( Vector3 point ) => Single.GetTileAt( point );
+	public (int X, int Y) GetTileAt( int agentType, Vector3 point ) => TypeAt( agentType ).GetTileAt( point );
 
 	/// <summary>
 	/// RuntimeBytes is what queries need, including the island data of one area mask. The triangle
 	/// counters are running totals over every build since the mesh was made, rebuilds included, not the
-	/// triangles of the tiles there are now. Safe on any thread.
+	/// triangles of the tiles there are now. The sums over every agent type. Safe on any thread.
 	/// </summary>
 	public (int Tiles, int Polygons, int Vertices, long RuntimeBytes, long CacheBytes, long TrianglesUsed, long TrianglesRejected) GetStats()
 	{
-		var s = State;
-		int tiles = 0, polygons = 0, vertices = 0;
-		long bytes = 16 + 48 + Tile.ArrayBytes( s.Pages.Length, 8 ) + s.Index.Bytes + Tile.ArrayBytes( s.LinkPages.Length, 8 );
-		foreach ( var page in s.LinkPages )
+		if ( types.Length == 1 ) return types[0].GetStats();
+		(int Tiles, int Polygons, int Vertices, long RuntimeBytes, long CacheBytes, long TrianglesUsed, long TrianglesRejected) sum = default;
+		foreach ( var type in types )
 		{
-			if ( page != null ) bytes += Tile.ArrayBytes( page.Length, System.Runtime.CompilerServices.Unsafe.SizeOf<LinkEntry>() );
+			var s = type.GetStats();
+			sum = (sum.Tiles + s.Tiles, sum.Polygons + s.Polygons, sum.Vertices + s.Vertices, sum.RuntimeBytes + s.RuntimeBytes, sum.CacheBytes + s.CacheBytes, sum.TrianglesUsed + s.TrianglesUsed, sum.TrianglesRejected + s.TrianglesRejected);
 		}
-		foreach ( var page in s.Pages )
-		{
-			if ( page == null ) continue;
-			bytes += Tile.ArrayBytes( page.Length, 8 );
-			foreach ( var tile in page )
-			{
-				if ( tile == null ) continue;
-				tiles++;
-				polygons += tile.Polys.Length;
-				vertices += tile.Verts.Length;
-				bytes += tile.Bytes + tile.IslandBytes;
-			}
-		}
-
-		// The island maps, their blocks once per area mask. Before any is built, what one would hold.
-		long islands = 0;
-		var maps = Volatile.Read( ref s.Islands );
-		for ( var map = maps; map != null; map = map.Next )
-		{
-			var earlier = maps;
-			while ( earlier != map && earlier!.Forbidden != map.Forbidden ) earlier = earlier.Next;
-			islands += map.Bytes( earlier == map );
-		}
-		bytes += islands > 0 ? islands : tiles * 16L;
-
-		return (tiles, polygons, vertices, bytes, Interlocked.Read( ref CacheBytes ), Interlocked.Read( ref TrianglesUsed ), Interlocked.Read( ref TrianglesRejected ));
+		return sum;
 	}
+
+	/// <summary>
+	/// The stats of one agent type, as GetStats() has them for the whole mesh.
+	/// </summary>
+	public (int Tiles, int Polygons, int Vertices, long RuntimeBytes, long CacheBytes, long TrianglesUsed, long TrianglesRejected) GetStats( int agentType ) => TypeAt( agentType ).GetStats();
 
 	/// <summary>
 	/// Writes the coordinates of loaded tiles and returns how many were written.
 	/// </summary>
-	public int GetTiles( Span<(int X, int Y)> coordinates )
-	{
-		int count = 0;
-		foreach ( var page in State.Pages )
-		{
-			if ( page == null ) continue;
-			foreach ( var tile in page )
-			{
-				if ( tile == null ) continue;
-				if ( count == coordinates.Length ) return count;
-				coordinates[count++] = (tile.X, tile.Y);
-			}
-		}
-		return count;
-	}
+	public int GetTiles( Span<(int X, int Y)> coordinates ) => Single.GetTiles( coordinates );
+	public int GetTiles( int agentType, Span<(int X, int Y)> coordinates ) => TypeAt( agentType ).GetTiles( coordinates );
 
 	/// <summary>
 	/// Appends the polygons of one tile, counter-clockwise seen from above: for consecutive vertices
 	/// a, b, c the cross product of b - a and c - b points up.
 	/// </summary>
-	public void GetPolygons( int tileX, int tileY, List<Vector3> vertices, List<int> vertexCounts, List<byte> areas )
+	public void GetPolygons( int tileX, int tileY, List<Vector3> vertices, List<int> vertexCounts, List<byte> areas ) => Single.GetPolygons( tileX, tileY, vertices, vertexCounts, areas );
+	public void GetPolygons( int agentType, int tileX, int tileY, List<Vector3> vertices, List<int> vertexCounts, List<byte> areas ) => TypeAt( agentType ).GetPolygons( tileX, tileY, vertices, vertexCounts, areas );
+
+	// For the tests and the lab, which reach internals of a mesh of one type.
+	internal MeshState State => Single.State;
+	internal long HeldBytes => Single.HeldBytes;
+	internal long HeldPeak => Single.HeldPeak;
+	internal int HeldFields => Single.HeldFields;
+	internal int MaxHeldFields { get => Single.MaxHeldFields; set => Single.MaxHeldFields = value; }
+	internal void SkipSlots( int slot ) => Single.slotCount = slot;
+	internal int MaxTiles => Single.MaxTiles;
+	internal ulong VolumeHashOf( int tileX, int tileY ) => Single.VolumeHashOf( tileX, tileY );
+	internal void SetVolumeHashes( ReadOnlySpan<Tile> tiles, ReadOnlySpan<ulong> hashes ) => Single.SetVolumeHashes( tiles, hashes );
+	internal int CommitTiles( ReadOnlySpan<Tile> tiles )
 	{
-		var tile = State.Find( tileX, tileY );
-		if ( tile == null ) return;
-		foreach ( ref readonly var poly in tile.Polys.AsSpan() )
-		{
-			for ( int j = poly.VertCount - 1; j >= 0; j-- ) vertices.Add( tile.Verts[poly.Verts[j]] );
-			vertexCounts.Add( poly.VertCount );
-			areas.Add( poly.Area );
-		}
+		counted = false;
+		return Single.CommitTiles( tiles );
 	}
 }

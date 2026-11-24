@@ -19,17 +19,14 @@ internal sealed class FieldBuilder
 	public ushort[] Tops => tops;
 
 	/// <summary>
-	/// One pass per column: decides which solid spans can be stood on (low obstacles, clearance, ledges),
-	/// writes an open span above each of those and connects it to the columns already written.
+	/// One pass per row: decides which solid spans can be stood on (low obstacles, clearance, ledges) and writes an
+	/// open span above each of those, then connects the row's spans to each other and to the row before.
 	/// </summary>
 	public bool Compact( SolidField solid, CompactField field, int walkableHeight, int walkableClimb, out string? error )
 	{
 		int w = solid.Width;
 		int h = solid.Height;
 		int columns = w * h;
-		int capacity = solid.Capacity;
-		var spans = solid.Spans;
-		var counts = solid.Counts;
 
 		if ( floors.Length < solid.SpanCount )
 		{
@@ -46,68 +43,16 @@ internal sealed class FieldBuilder
 
 		for ( int y = 0; y < h; y++ )
 		{
-			for ( int x = 0; x < w; x++ )
+			write = WriteRow( solid, index, y, write, walkableHeight, walkableClimb );
+			if ( write < 0 )
 			{
-				int column = x + y * w;
-				index[column] = write;
-				int count = counts[column];
-				if ( count == 0 ) continue;
-
-				// A column on the edge of the field has a neighbour missing, which makes everything in it a ledge
-				bool inside = x > 0 && y > 0 && x + 1 < w && y + 1 < h;
-				int start = column * capacity;
-				bool previousWalkable = false;
-				int previousMax = 0;
-				ulong span = spans[start];
-				for ( int i = 1; i <= count; i++ )
-				{
-					ulong next = i < count ? spans[start + i] : BuildConfig.MaxSpanHeight;
-					int floor = SolidField.Max( span );
-					int ceiling = SolidField.Min( next );
-
-					// A low obstacle on top of walkable ground is walkable and skips the other two tests
-					bool wasWalkable = SolidField.Area( span ) != 0;
-					bool walkable;
-					if ( !wasWalkable )
-					{
-						walkable = previousWalkable && floor - previousMax <= walkableClimb;
-					}
-					else if ( !inside || ceiling - floor < walkableHeight )
-					{
-						walkable = false;
-					}
-					else
-					{
-						int lowest = floor, highest = floor;
-						walkable = (SameGap( spans, start + capacity, counts[column + 1], i, span, next ) || Reachable( spans, start + capacity, counts[column + 1], floor, ceiling, walkableHeight, walkableClimb, ref lowest, ref highest ))
-							&& (SameGap( spans, start + w * capacity, counts[column + w], i, span, next ) || Reachable( spans, start + w * capacity, counts[column + w], floor, ceiling, walkableHeight, walkableClimb, ref lowest, ref highest ))
-							&& (SameGap( spans, start - capacity, counts[column - 1], i, span, next ) || Reachable( spans, start - capacity, counts[column - 1], floor, ceiling, walkableHeight, walkableClimb, ref lowest, ref highest ))
-							&& (SameGap( spans, start - w * capacity, counts[column - w], i, span, next ) || Reachable( spans, start - w * capacity, counts[column - w], floor, ceiling, walkableHeight, walkableClimb, ref lowest, ref highest ))
-							&& highest - lowest <= walkableClimb;
-					}
-
-					previousWalkable = wasWalkable;
-					previousMax = floor;
-					span = next;
-					if ( !walkable ) continue;
-
-					floors[write] = (ushort)floor;
-					tops[write] = (ushort)ceiling;
-					cons[write] = 0xFFFFFF;
-					write++;
-				}
-
-				int open = write - index[column];
-				if ( open > 255 )
-				{
-					error = "A column has more than 255 walkable layers";
-					return false;
-				}
-				if ( open == 0 ) continue;
-
-				if ( x > 0 && index[column] != index[column - 1] ) Connect( index[column - 1], index[column] - index[column - 1], index[column], open, 0, walkableHeight, walkableClimb );
-				if ( y > 0 && index[column - w + 1] != index[column - w] ) Connect( index[column - w], index[column - w + 1] - index[column - w], index[column], open, 3, walkableHeight, walkableClimb );
+				error = "A column has more than 255 walkable layers";
+				return false;
 			}
+
+			// The first span of the next row, the value it gets when that row is written
+			index[(y + 1) * w] = write;
+			ConnectRow( index, y * w, w, y > 0, walkableHeight, walkableClimb );
 		}
 
 		index[columns] = write;
@@ -117,6 +62,76 @@ internal sealed class FieldBuilder
 		field.Floor = floors;
 		field.Con = cons;
 		return true;
+	}
+
+	// Writes the open spans of a row from write on. Returns where the next row starts, or -1 for a column with more
+	// than 255 of them. A method of its own, as is ConnectRow: the JIT keeps more of each loop in registers.
+	[MethodImpl( MethodImplOptions.NoInlining )]
+	int WriteRow( SolidField solid, int[] index, int y, int write, int walkableHeight, int walkableClimb )
+	{
+		int w = solid.Width;
+		int capacity = solid.Capacity;
+		int stride = w * capacity;
+		var spans = solid.Spans;
+		var counts = solid.Counts;
+		var floors = this.floors;
+		var tops = this.tops;
+		var cons = this.cons;
+		bool rowInside = y > 0 && y + 1 < solid.Height;
+		for ( int x = 0, column = y * w, start = y * stride; x < w; x++, column++, start += capacity )
+		{
+			int first = write;
+			index[column] = first;
+			int count = counts[column];
+			if ( count == 0 ) continue;
+
+			// A column on the edge of the field has a neighbour missing, which makes everything in it a ledge
+			bool inside = rowInside && x > 0 && x + 1 < w;
+			bool previousWalkable = false;
+			int previousMax = 0;
+			ulong span = spans[start];
+			for ( int i = 1; i <= count; i++ )
+			{
+				ulong next = i < count ? spans[start + i] : BuildConfig.MaxSpanHeight;
+				int floor = SolidField.Max( span );
+				int ceiling = SolidField.Min( next );
+
+				// A low obstacle on top of walkable ground is walkable and skips the other two tests
+				bool wasWalkable = SolidField.Area( span ) != 0;
+				bool walkable;
+				if ( !wasWalkable )
+				{
+					walkable = previousWalkable && floor - previousMax <= walkableClimb;
+				}
+				else if ( !inside || ceiling - floor < walkableHeight )
+				{
+					walkable = false;
+				}
+				else
+				{
+					int lowest = floor, highest = floor;
+					walkable = (SameGap( spans, start + capacity, counts[column + 1], i, span, next ) || Reachable( spans, start + capacity, counts[column + 1], floor, ceiling, walkableHeight, walkableClimb, ref lowest, ref highest ))
+						&& (SameGap( spans, start + stride, counts[column + w], i, span, next ) || Reachable( spans, start + stride, counts[column + w], floor, ceiling, walkableHeight, walkableClimb, ref lowest, ref highest ))
+						&& (SameGap( spans, start - capacity, counts[column - 1], i, span, next ) || Reachable( spans, start - capacity, counts[column - 1], floor, ceiling, walkableHeight, walkableClimb, ref lowest, ref highest ))
+						&& (SameGap( spans, start - stride, counts[column - w], i, span, next ) || Reachable( spans, start - stride, counts[column - w], floor, ceiling, walkableHeight, walkableClimb, ref lowest, ref highest ))
+						&& highest - lowest <= walkableClimb;
+				}
+
+				previousWalkable = wasWalkable;
+				previousMax = floor;
+				span = next;
+				if ( !walkable ) continue;
+
+				floors[write] = (ushort)floor;
+				tops[write] = (ushort)ceiling;
+				cons[write] = 0xFFFFFF;
+				write++;
+			}
+
+			if ( write - first > 255 ) return -1;
+		}
+
+		return write;
 	}
 
 	// True when the neighbour column has, at the same place in its stack, a span with the same top and the
@@ -155,22 +170,37 @@ internal sealed class FieldBuilder
 		return true;
 	}
 
-	// Connects the spans of column a with those of the earlier column b: the first span in reach on each side.
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	void Connect( int b, int bCount, int a, int aCount, int direction, int height, int climb )
+	// Connects the spans of a row to those before them in the row and in the row below. Each span and direction is
+	// linked once, so the order does not matter.
+	[MethodImpl( MethodImplOptions.NoInlining )]
+	void ConnectRow( int[] index, int row, int w, bool south, int height, int climb )
 	{
-		if ( aCount != 1 || bCount != 1 )
+		for ( int column = row; column < row + w; column++ )
 		{
-			ConnectStacks( b, bCount, a, aCount, direction, height, climb );
-			return;
-		}
-
-		// One span on each side, the case of open ground: they connect as span 0 of each other or not at all
-		int floorA = floors[a], floorB = floors[b];
-		if ( Math.Abs( floorA - floorB ) <= climb && Math.Min( tops[a], tops[b] ) - Math.Max( floorA, floorB ) >= height )
-		{
-			cons[a] &= ~(63u << (direction * 6));
-			cons[b] &= ~(63u << (((direction + 2) & 3) * 6));
+			int a = index[column], open = index[column + 1] - a;
+			if ( open == 0 ) continue;
+			int west = column > row ? index[column - 1] : a, westCount = a - west;
+			int below = south ? index[column - w] : 0, belowCount = south ? index[column - w + 1] - below : 0;
+			if ( open == 1 && westCount <= 1 && belowCount <= 1 )
+			{
+				// One span with at most one beside it, the case of open ground: span 0 of each other or not linked
+				int floor = floors[a], top = tops[a];
+				uint con = 0xFFFFFF;
+				if ( westCount == 1 && Math.Abs( floor - floors[west] ) <= climb && Math.Min( top, tops[west] ) - Math.Max( floor, floors[west] ) >= height )
+				{
+					con &= ~63u;
+					cons[west] &= ~(63u << 12);
+				}
+				if ( belowCount == 1 && Math.Abs( floor - floors[below] ) <= climb && Math.Min( top, tops[below] ) - Math.Max( floor, floors[below] ) >= height )
+				{
+					con &= ~(63u << 18);
+					cons[below] &= ~(63u << 6);
+				}
+				cons[a] = con;
+				continue;
+			}
+			if ( westCount != 0 ) ConnectStacks( west, westCount, a, open, 0, height, climb );
+			if ( belowCount != 0 ) ConnectStacks( below, belowCount, a, open, 3, height, climb );
 		}
 	}
 
@@ -178,6 +208,19 @@ internal sealed class FieldBuilder
 	{
 		int shift = direction * 6;
 		int oppositeShift = ((direction + 2) & 3) * 6;
+
+		// The same stack on both sides: span i is in reach of span i alone, when it is tall enough
+		if ( aCount == bCount && floors.AsSpan( a, aCount ).SequenceEqual( floors.AsSpan( b, bCount ) ) && tops.AsSpan( a, aCount ).SequenceEqual( tops.AsSpan( b, bCount ) ) )
+		{
+			for ( int i = 0; i < aCount && i < BuildConfig.NotConnected; i++ )
+			{
+				if ( tops[a + i] - floors[a + i] < height ) continue;
+				cons[a + i] = (cons[a + i] & ~(63u << shift)) | ((uint)i << shift);
+				cons[b + i] = (cons[b + i] & ~(63u << oppositeShift)) | ((uint)i << oppositeShift);
+			}
+			return;
+		}
+
 		int first = 0;
 		for ( int i = 0; i < aCount; i++ )
 		{

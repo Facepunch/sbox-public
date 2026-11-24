@@ -4,8 +4,8 @@ namespace Nav;
 
 public sealed partial class NavCrowd
 {
-	// The mesh state the current Step works on, kept to notice the next change.
-	MeshState? pinned;
+	// Per agent type, the mesh state the current Step works on, kept to notice the next change.
+	MeshState?[] pinned = [];
 
 	uint step;
 	float dt;
@@ -71,14 +71,18 @@ public sealed partial class NavCrowd
 	// velocity is how far the caller has moved it since the last Step, unless the caller tells it.
 	void Sync( float delta )
 	{
-		var s = mesh.State;
-		bool changed = s != pinned;
-		pinned = s;
+		Span<bool> changed = stackalloc bool[types.Length];
+		for ( int k = 0; k < types.Length; k++ )
+		{
+			var s = types[k].State;
+			changed[k] = s != pinned[k];
+			pinned[k] = s;
+		}
 		for ( int i = 0; i < high; i++ )
 		{
 			ref var a = ref agents[i];
 			if ( !a.Has( AgentFlags.Active ) ) continue;
-			if ( changed )
+			if ( changed[parms[i].AgentType] )
 			{
 				a.Flags |= AgentFlags.Validate;
 				a.WallCount = -1;
@@ -117,8 +121,9 @@ public sealed partial class NavCrowd
 			Assign( worker );
 			return;
 		}
-		var query = queries[worker];
-		var s = pinned!;
+		// Agents of the first type, the only one of most meshes, use these; another type's are looked up.
+		var query0 = queries[worker];
+		var s0 = pinned[0]!;
 		bool pushed = false;
 		float reach = Reach;
 		Tally tally = default;
@@ -148,6 +153,8 @@ public sealed partial class NavCrowd
 					continue;
 				}
 				bool onLink = states[i].Link >= 0, external = parms[i].External;
+				int type = parms[i].AgentType;
+				var (s, query) = type == 0 ? (s0, query0) : (pinned[type]!, queries[type * workers + worker]);
 				switch ( stage )
 				{
 					// Agents on a link have nothing to plan: the move stage takes them across.

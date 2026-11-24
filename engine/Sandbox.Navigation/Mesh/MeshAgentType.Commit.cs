@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Nav;
 
-public sealed partial class NavMesh
+internal sealed partial class MeshAgentType
 {
 	readonly record struct Change( int X, int Y, Tile? Tile, TileJob? Job );
 
@@ -12,12 +12,8 @@ public sealed partial class NavMesh
 	// Tile removals and builds waiting for the next state swap, in order.
 	readonly List<Change> changes = new();
 
-	// Stamps every published build. Mesh-wide, so a reused slot never validates an old PolyRef. These
-	// are the 32 serial bits of a PolyRef. After four billion commits, more than two years at sixty a
-	// second, the count starts again at 1, 0 being no serial. A PolyRef kept through all of them could
-	// then name a later build of its slot, which is accepted: a wider serial would cost every PolyRef.
-	uint commits;
-	int slotCount;
+	// Every published build is stamped with a serial from the mesh's commit count (NavMesh.Serial).
+	internal int slotCount;
 	readonly PriorityQueue<int, int> freeSlots = new();
 
 	// Scratch of one commit.
@@ -57,21 +53,21 @@ public sealed partial class NavMesh
 		return Apply();
 	}
 
+	// Pages and index blocks are stamped with the serial of the commit that copied them. When the mesh's
+	// count starts again, none of the last round may pass for a copy of a later commit.
+	internal void ForgetStamps()
+	{
+		Array.Clear( pageStamps );
+		Array.Clear( linkPageStamps );
+		state.Index.ForgetStamps();
+	}
+
 	int Apply()
 	{
 		if ( changes.Count == 0 && linkQueue.Count == 0 && relink.Count == 0 && held.Count == 0 ) return 0;
 
+		uint serial = Mesh.Serial( Index );
 		var old = state;
-		if ( ++commits == 0 )
-		{
-			// Pages and index blocks are stamped with the serial of the commit that copied them. None of
-			// the last round may pass for a copy of this commit.
-			commits = 1;
-			Array.Clear( pageStamps );
-			Array.Clear( linkPageStamps );
-			old.Index.ForgetStamps();
-		}
-		uint serial = commits;
 		workPages = old.Pages;
 		workLinks = old.LinkPages;
 		workIndex = old.Index;
@@ -319,7 +315,7 @@ public sealed partial class NavMesh
 				bool dirty = status == LinkDirty;
 				if ( !dirty && !LinkTouched( entry ) ) continue;
 				linkStatus[id] = LinkUsed;
-				updated = Resolve( next, linkDefs[id] );
+				updated = Resolve( next, Mesh.LinkDefs[id] );
 				bool same = !dirty && entry.Serial != 0 && updated.StartPoly == entry.StartPoly && updated.EndPoly == entry.EndPoly
 					&& updated.StartPoint == entry.StartPoint && updated.EndPoint == entry.EndPoint
 					&& !SlotTouched( updated.StartPoly ) && !SlotTouched( updated.EndPoly );

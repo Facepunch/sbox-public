@@ -7,15 +7,18 @@ namespace Nav;
 /// One owner thread makes every call and no call may overlap a Step. Agent ids are plain indices,
 /// reused lowest first, and AgentState.Generation tells one owner of an id from the next; a call with
 /// an id that is not in use does nothing. Lengths are in the mesh's units, times in the unit of
-/// Step's delta.
+/// Step's delta. A crowd on a mesh of several agent types holds agents of every type, which avoid each
+/// other; each agent plans and moves on the tiles of the type its AgentParams name.
 /// </summary>
 public sealed partial class NavCrowd
 {
 	const int MaxCorners = 16, MaxWalls = 16, VisitedCapacity = 32, RepairExpansions = 64, Batch = 32;
 
 	NavMesh mesh;
+	MeshAgentType[] types = [];
 	readonly int workers;
-	readonly NavQuery[] queries;
+	// A query per worker for every agent type: those of type t from t x workers on.
+	NavQuery[] queries = [];
 
 	// Indexed by agent id. corners holds MaxCorners per agent, walls MaxWalls segments of two points.
 	AgentParams[] parms = [];
@@ -31,7 +34,8 @@ public sealed partial class NavCrowd
 	// SetPath joins a corridor to the agent here before it replaces the agent's own.
 	PolyRef[] joined = [];
 
-	// Tolerances, all from the mesh settings: eps is a tenth of a unit at a cell of 4.
+	// Tolerances, all from the mesh settings: eps is a tenth of a unit at a cell of 4. With several agent
+	// types, from the finest: the smallest cell and the lowest agent.
 	float eps, areaScale, floorGap, deadBand;
 
 	float substepTime = 0.05f, avoidHorizon = 0.75f;
@@ -104,19 +108,18 @@ public sealed partial class NavCrowd
 
 	/// <summary>
 	/// workers, at least 1, is the most bodies a Step hands to its run hook at a time. A small crowd
-	/// gets fewer.
+	/// gets fewer. PlacementExtents and TargetExtents start from the agent of the mesh's first agent type.
 	/// </summary>
 	public NavCrowd( NavMesh mesh, int workers )
 	{
 		if ( workers < 1 ) throw new ArgumentOutOfRangeException( nameof( workers ), $"workers {workers} is less than 1" );
 		this.workers = workers;
-		queries = new NavQuery[workers];
 		tallies = new Tally[workers];
 		bands = new int[workers];
 		work = Work;
 		this.mesh = null!;
 		SetMesh( mesh );
-		var settings = mesh.Settings;
+		var settings = types[0].Settings;
 		placementExtents = new Vector3( settings.AgentRadius * 2.1f, settings.AgentRadius * 2.1f, settings.AgentHeight * 1.51f );
 		targetExtents = new Vector3( settings.AgentRadius * 16f );
 	}
@@ -125,20 +128,32 @@ public sealed partial class NavCrowd
 	/// Moves the crowd to another mesh. Agents keep their targets and rest points, find their place on
 	/// the new mesh in the next Step and plan again. An agent on a link is taken off it.
 	/// PlacementExtents and TargetExtents stay as they are: a caller whose new mesh has another agent
-	/// or unit sets them again.
+	/// or unit sets them again. Throws, changing nothing, when an agent names an agent type the new
+	/// mesh does not have.
 	/// </summary>
 	public void SetMesh( NavMesh mesh )
 	{
+		for ( int i = 0; i < high; i++ )
+		{
+			if ( agents[i].Has( AgentFlags.Active ) && parms[i].AgentType >= mesh.AgentTypeCount ) throw new ArgumentException( $"Agent {i} is of agent type {parms[i].AgentType}, which the mesh does not have", nameof( mesh ) );
+		}
 		this.mesh = mesh;
-		pinned = null;
-		for ( int i = 0; i < workers; i++ ) queries[i] = new NavQuery( mesh );
+		types = mesh.Types.ToArray();
+		pinned = new MeshState?[types.Length];
+		queries = new NavQuery[workers * types.Length];
+		for ( int i = 0; i < queries.Length; i++ ) queries[i] = new NavQuery( types[i / workers] );
 
-		var settings = mesh.Settings;
-		eps = mesh.Epsilon;
-		areaScale = mesh.AreaScale;
-		deadBand = settings.CellSize / 4f;
+		float cell = float.PositiveInfinity, height = float.PositiveInfinity;
+		foreach ( var type in types )
+		{
+			cell = MathF.Min( cell, type.Settings.CellSize );
+			height = MathF.Min( height, type.Settings.AgentHeight );
+		}
+		eps = cell / 40f;
+		areaScale = cell * cell / 16f;
+		deadBand = cell / 4f;
 		// Two floors are never closer than this.
-		floorGap = settings.AgentHeight;
+		floorGap = height;
 
 		for ( int i = 0; i < high; i++ )
 		{
@@ -152,7 +167,7 @@ public sealed partial class NavCrowd
 
 	/// <summary>
 	/// Returns the lowest free id. The agent finds its polygon in the next Step. Throws for params that
-	/// are not valid, see AgentParams.IsValid.
+	/// are not valid, see AgentParams.IsValid, and for an agent type the mesh does not have.
 	/// </summary>
 	public int Add( Vector3 position, in AgentParams value )
 	{
@@ -167,7 +182,6 @@ public sealed partial class NavCrowd
 		do lowestFree++; while ( lowestFree < high && agents[lowestFree].Has( AgentFlags.Active ) );
 		return id;
 	}
-
 	public void Remove( int agent )
 	{
 		if ( !Live( agent ) ) return;
@@ -182,8 +196,9 @@ public sealed partial class NavCrowd
 	/// A changed filter plans the route again; a changed size or filter collects the walls again; an
 	/// agent that is off the mesh is looked for again whatever changed. Nothing else is planned
 	/// again: a new size or speed is simply used from the next Step on. Filters are compared by
-	/// value. Throws for params that are not valid, see AgentParams.IsValid, whether or not the id is
-	/// in use.
+	/// value. Another agent type is another mesh to the agent: it leaves a link and plans again from
+	/// where it stands. Throws for params that are not valid, see AgentParams.IsValid, and for an agent
+	/// type the mesh does not have, whether or not the id is in use.
 	/// </summary>
 	public void SetParams( int agent, in AgentParams value )
 	{
@@ -194,7 +209,13 @@ public sealed partial class NavCrowd
 		bool filter = !NavFilter.Same( stored.Filter, value.Filter );
 		bool size = stored.Radius != value.Radius || stored.Height != value.Height;
 		bool external = value.External && !stored.External;
+		bool type = stored.AgentType != value.AgentType;
 		stored = value;
+		if ( type )
+		{
+			LeaveLink( agent );
+			a.Unseat();
+		}
 		if ( filter ) a.Flags |= AgentFlags.Validate | AgentFlags.NeedsPlan;
 		if ( filter || size ) a.WallCount = -1;
 		// Off the mesh: the new size may find it.
@@ -209,10 +230,15 @@ public sealed partial class NavCrowd
 	Vector3 TargetBox( in AgentParams p ) => Vector3.Max( targetExtents, OwnBox( p ) );
 	static Vector3 OwnBox( in AgentParams p ) => new( p.Radius * 2.1f, p.Radius * 2.1f, p.Height * 1.51f );
 
-	static void Check( in AgentParams value )
+	void Check( in AgentParams value )
 	{
 		if ( !value.IsValid( out var reason ) ) throw new ArgumentException( reason, nameof( value ) );
+		if ( value.AgentType >= types.Length ) throw new ArgumentException( $"AgentType {value.AgentType} is not one of the mesh's {types.Length}", nameof( value ) );
 	}
+
+	// The published state of the agent's type, and worker 0's query of that type, for calls outside a Step.
+	MeshState StateOf( int agent ) => types[parms[agent].AgentType].State;
+	NavQuery QueryOf( int agent ) => queries[parms[agent].AgentType * workers];
 
 	/// <summary>
 	/// The params of every agent, indexed by id up to the highest id in use. Ids not in use hold
@@ -334,14 +360,14 @@ public sealed partial class NavCrowd
 		ref var a = ref agents[agent];
 		ref var state = ref states[agent];
 		ref readonly var p = ref parms[agent];
-		var s = mesh.State;
+		var s = StateOf( agent );
 		for ( int k = 0; k < corridor.Length; k++ )
 		{
 			if ( !s.IsValid( corridor[k], p.Filter ) ) return false;
 			if ( corridor[k].IsLink && (k == 0 || k == corridor.Length - 1 || corridor[k - 1].IsLink) ) return false;
 		}
 
-		var query = queries[0];
+		var query = QueryOf( agent );
 		if ( !query.Nearest( s, state.Position, PlacementBox( p ), p.Filter, null, 0, out uint id, out var point ) ) return false;
 		var poly = s.RefOf( id );
 
@@ -389,7 +415,7 @@ public sealed partial class NavCrowd
 		if ( path.corners.Length < corridor.Length * 2 + 2 ) path.corners = new Vector3[Math.Max( corridor.Length * 2 + 2, path.corners.Length * 2 )];
 		corridor.CopyTo( path.polys );
 
-		int count = queries[0].Funnel( mesh.State, corridor, states[agent].Position, a.RouteEnd, path.corners, default, false );
+		int count = QueryOf( agent ).Funnel( StateOf( agent ), corridor, states[agent].Position, a.RouteEnd, path.corners, default, false );
 		if ( count == 0 ) return PathStatus.NotFound;
 
 		float length = 0;

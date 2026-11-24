@@ -115,14 +115,13 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 		_linkedCollider = null;
 	}
 
-	// A blocker keeps agents one agent radius away, like a wall does
-	internal Nav.NavVolume CreateVolume( float agentRadius )
+	// A blocker removes exactly its shape: the walkable edge comes right up to it
+	internal Nav.NavVolume CreateVolume()
 	{
 		var shape = SceneVolume;
 		var result = new Nav.NavVolume
 		{
 			Area = (byte)(IsBlocker ? 0 : Scene.NavMesh.AreaDefinitionToId( Area )),
-			Margin = IsBlocker ? agentRadius : 0,
 			LocalToWorld = Matrix4x4.Identity
 		};
 

@@ -309,7 +309,7 @@ internal sealed class LinkBuilder
 	/// every tile they pass over. Over a tile whose spans are not held nothing is known and no link is
 	/// taken. What lands in the tile itself its build has seen.
 	/// </summary>
-	public void Judge( SeamTask task, MeshState state, NavMesh mesh, NavQuery query, in BuildConfig config )
+	public void Judge( SeamTask task, MeshState state, MeshAgentType mesh, NavQuery query, in BuildConfig config )
 	{
 		solid = apron = null;
 		field = null;

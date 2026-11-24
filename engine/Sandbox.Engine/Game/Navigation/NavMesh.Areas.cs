@@ -211,7 +211,7 @@ public sealed partial class NavMesh
 	{
 		foreach ( var area in areas )
 		{
-			var volume = area.CreateVolume( work.Mesh.Settings.AgentRadius );
+			var volume = area.CreateVolume();
 			bool added = !work.Areas.TryGetValue( area, out var given );
 			if ( !added && volume == given.Volume ) continue;
 

@@ -4,7 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Nav.Lib.Tests;
 
 [TestClass]
-public class LinkPageTests
+public partial class LinkPageTests
 {
 	const int Side = CommitMeasurement.LinkSide, PerTile = CommitMeasurement.LinksPerTile;
 
@@ -26,15 +26,17 @@ public class LinkPageTests
 			long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 			if ( i >= 4 ) most = Math.Max( most, bytes );
 		}
-		long table = (long)Side * Side * PerTile * System.Runtime.CompilerServices.Unsafe.SizeOf<LinkEntry>();
-		Console.WriteLine( $"{Side * Side * PerTile} links, table {table:N0} bytes, a one-tile commit allocates at most {most:N0} bytes" );
-		Assert.IsTrue( most * 20 < table, $"{most:N0} bytes per commit" );
+		CopiedLittle( most );
 
 		// The links of the rebuilt tile, and only those, were resolved again by the last commit.
 		var s = mesh.State;
 		uint serial = s.Find( middle + 3, middle )!.Serial;
 		Assert.AreEqual( PerTile, s.Links().Count( link => link.Serial == serial ) );
 	}
+
+	// That a commit allocated far less on the managed heap than the link table holds, which only the C# library can tell:
+	// LinkPageTests.Internals.cs.
+	static partial void CopiedLittle( long most );
 
 	static readonly int[] Cuts = [0, 10, 20, 32, 44, 54, 64];
 

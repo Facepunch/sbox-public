@@ -154,7 +154,7 @@ public class BakeVolumeTests
 	[TestMethod]
 	public void VolumesCompareByValue()
 	{
-		var volume = new NavVolume { Shape = VolumeShape.Capsule, Area = 3, LocalToWorld = Matrix4x4.CreateRotationZ( 0.5f ), A = new Vector3( 1, 2, 3 ), B = new Vector3( 4, 5, 6 ), Radius = 7, Margin = 8 };
+		var volume = new NavVolume { Shape = VolumeShape.Capsule, Area = 3, LocalToWorld = Matrix4x4.CreateRotationZ( 0.5f ), A = new Vector3( 1, 2, 3 ), B = new Vector3( 4, 5, 6 ), Radius = 7 };
 		var same = volume;
 		Assert.AreEqual( volume, same );
 		Assert.IsTrue( volume == same );
@@ -165,6 +165,5 @@ public class BakeVolumeTests
 		Assert.AreNotEqual( volume, volume with { A = new Vector3( 1, 2, 4 ) } );
 		Assert.AreNotEqual( volume, volume with { B = new Vector3( 4, 6, 6 ) } );
 		Assert.AreNotEqual( volume, volume with { Radius = 7.5f } );
-		Assert.AreNotEqual( volume, volume with { Margin = 0 } );
 	}
 }

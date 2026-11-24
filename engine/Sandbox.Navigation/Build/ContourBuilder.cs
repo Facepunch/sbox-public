@@ -82,12 +82,15 @@ internal sealed class ContourBuilder
 				{
 					int i = index[x + row];
 					int r = region[i];
+					int south = index[x + row - w], north = index[x + row + w];
 					if ( CompactField.All( region, i, r ) && region[i - 1] == r && region[i + blockSize] == r
-						&& CompactField.All( region, index[x + row - w], r ) && CompactField.All( region, index[x + row + w], r ) )
+						&& CompactField.All( region, south, r ) && CompactField.All( region, north, r ) )
 					{
 						Array.Clear( flags, i, blockSize );
 						continue;
 					}
+					FlagOpenColumns( region, x + row, i, south, north );
+					continue;
 				}
 
 				FlagColumns( field, x + row, end + row );
@@ -172,6 +175,36 @@ internal sealed class ContourBuilder
 				starts[startCount * 2 + 1] = column;
 				startCount++;
 			}
+		}
+	}
+
+	// FlagColumns over an open block, whose spans have their neighbours just before and after them and at the same
+	// place in the rows south and north.
+	void FlagOpenColumns( ushort[] region, int column, int first, int south, int north )
+	{
+		for ( int k = 0; k < CompactField.BlockSize; k++ )
+		{
+			int i = first + k;
+			int r = region[i];
+			if ( r == 0 || (r & RegionBuilder.Border) != 0 )
+			{
+				flags[i] = 0;
+				continue;
+			}
+
+			int same = 0;
+			if ( region[i - 1] == r ) same |= 1;
+			if ( region[north + k] == r ) same |= 2;
+			if ( region[i + 1] == r ) same |= 4;
+			if ( region[south + k] == r ) same |= 8;
+
+			flags[i] = same == 0 ? (byte)0 : (byte)(same ^ 0xF);
+			if ( same == 0 || same == 0xF ) continue;
+
+			if ( startCount * 2 == starts.Length ) Array.Resize( ref starts, starts.Length * 2 );
+			starts[startCount * 2] = i;
+			starts[startCount * 2 + 1] = column + k;
+			startCount++;
 		}
 	}
 

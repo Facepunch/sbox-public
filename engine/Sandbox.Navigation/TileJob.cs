@@ -18,6 +18,11 @@ public sealed partial class TileJob
 	{
 	}
 
+	/// <summary>
+	/// The agent type the job builds a tile of. X, Y and the bounds are in that type's tile grid.
+	/// </summary>
+	public int AgentType => Owner!.Index;
+
 	public int X { get; internal set; }
 	public int Y { get; internal set; }
 
@@ -46,7 +51,7 @@ public sealed partial class TileJob
 	/// </summary>
 	public string? Error { get; internal set; }
 
-	internal NavMesh? Mesh;
+	internal MeshAgentType? Owner;
 
 	// The triangles changed since the tile was last built, so what the mesh kept cannot serve.
 	internal bool GeometryChanged;

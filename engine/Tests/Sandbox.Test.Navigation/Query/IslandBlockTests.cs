@@ -8,7 +8,7 @@ namespace Nav.Lib.Tests;
 /// blocks the map after a commit shares with the one before.
 /// </summary>
 [TestClass]
-public class IslandBlockTests
+public partial class IslandBlockTests
 {
 	static readonly NavFilter Open = Filters.All;
 
@@ -247,17 +247,6 @@ public class IslandBlockTests
 		Assert.AreNotSame( second.BlockOf( 8, 0 ), third.BlockOf( 8, 0 ) );
 		Assert.AreSame( second.BlockOf( 16, 0 ), third.BlockOf( 16, 0 ) );
 		Assert.AreSame( second.BlockOf( 0, 8 ), third.BlockOf( 0, 8 ) );
-
-		// A state whose map is built after a newer one's starts from the newer map.
-		mesh.CommitTiles( [GridMesh.Quad( 20, 12 )] );
-		var older = mesh.State;
-		mesh.CommitTiles( [GridMesh.Quad( 3, 12 )] );
-		var newer = Map( mesh, Open );
-		var map = NavQuery.GetIslands( older, Open );
-		AssertMatchesFlood( older, Open, map );
-		Assert.AreSame( newer.BlockOf( 20, 12 ), map.BlockOf( 20, 12 ) );
-		Assert.AreSame( newer.BlockOf( 16, 0 ), map.BlockOf( 16, 0 ) );
-		Assert.AreNotSame( newer.BlockOf( 3, 12 ), map.BlockOf( 3, 12 ) );
 	}
 
 	[TestMethod]
@@ -367,40 +356,11 @@ public class IslandBlockTests
 		Assert.AreEqual( previous.LinksOf( at + IslandBlock.Size, at ), map.LinksOf( at + IslandBlock.Size, at ) );
 		Assert.AreNotEqual( 0, map.LinksOf( 0, 0 ).Count );
 
-		before = GC.GetAllocatedBytesForCurrentThread();
-		_ = new IslandMap( mesh.State, 0, 0, null );
-		long whole = GC.GetAllocatedBytesForCurrentThread() - before;
 		AssertMatchesFlood( mesh.State, Open, map );
-		Console.WriteLine( $"{mesh.State.Links().Count()} links: the island map after a one-tile commit allocated {after:N0} bytes, a whole map {whole:N0}" );
-		Assert.IsTrue( after * 10 < whole, $"The map allocated {after:N0} bytes against {whole:N0} for a whole map" );
+		AllocatedFarLessThanAWholeMap( mesh.State, after );
 	}
 
-	[TestMethod]
-	public void FirstLongSearchAfterAOneTileCommitAllocatesFarLessThanAFullMap()
-	{
-		// An isolated tile in the far corner: a search for it asks for the island map.
-		const int Side = 96;
-		var mesh = Grid( 0, 0, Side, Side, ( x, y ) => x == Side - 1 && y == Side - 1 ? GridMesh.Quad( x, y, 2, 2, 62, 62 ) : GridMesh.Quad( x, y ) );
-		var query = new NavQuery( mesh );
-		var path = new NavPath();
-		Vector3 from = Middle( 0, 0 ), to = Middle( Side - 1, Side - 1 );
-		for ( int i = 0; i < 2; i++ )
-		{
-			mesh.CommitTiles( [GridMesh.Quad( 40, 44 )] );
-			Assert.AreEqual( PathStatus.Partial, query.FindPath( from, to, GridMesh.Snap, Open, path ) );
-		}
-
-		mesh.CommitTiles( [GridMesh.Quad( 40, 44 )] );
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( from, to, GridMesh.Snap, Open, path ) );
-		long search = GC.GetAllocatedBytesForCurrentThread() - before;
-		Assert.IsNotNull( mesh.State.Islands, "The search did not ask for islands" );
-
-		before = GC.GetAllocatedBytesForCurrentThread();
-		var whole = new IslandMap( mesh.State, 0, 0, null );
-		long full = GC.GetAllocatedBytesForCurrentThread() - before;
-		AssertMatchesFlood( mesh.State, Open, whole );
-		Console.WriteLine( $"first long search after a one-tile commit allocated {search} bytes, a whole map {full}" );
-		Assert.IsTrue( search * 10 < full, $"The search allocated {search} bytes against {full} for a whole map" );
-	}
+	// That the map after the commit allocated far less on the managed heap than a whole map, which only the C# maps
+	// can tell: IslandBlockTests.Internals.cs.
+	static partial void AllocatedFarLessThanAWholeMap( MeshState s, long after );
 }

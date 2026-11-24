@@ -27,15 +27,22 @@ public struct AgentParams
 	/// </summary>
 	public bool External;
 
+	/// <summary>
+	/// The agent type of the mesh whose tiles the agent plans and moves on. Create sets 0, the first;
+	/// the crowd refuses a type its mesh does not have.
+	/// </summary>
+	public byte AgentType;
+
 	// Last, so that the fields a step reads share a cache line.
 	public NavFilter Filter;
 
 	/// <summary>
-	/// The fields of desc, Filter from NavFilter.Create, Separation 0.25, AutoLinks true, External false.
+	/// The fields of desc, Filter from NavFilter.Create, Separation 0.25, AutoLinks true, External false,
+	/// AgentType 0.
 	/// </summary>
 	public static AgentParams Create( in AgentDesc desc )
 	{
-		return new AgentParams { Radius = desc.Radius, Height = desc.Height, MaxSpeed = desc.MaxSpeed, Acceleration = desc.Acceleration, Separation = 0.25f, Filter = NavFilter.Create(), AutoLinks = true, External = false };
+		return new AgentParams { Radius = desc.Radius, Height = desc.Height, MaxSpeed = desc.MaxSpeed, Acceleration = desc.Acceleration, Separation = 0.25f, Filter = NavFilter.Create(), AutoLinks = true, External = false, AgentType = 0 };
 	}
 
 	/// <summary>

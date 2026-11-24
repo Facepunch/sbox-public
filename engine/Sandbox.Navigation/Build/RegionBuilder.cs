@@ -3,6 +3,8 @@ namespace Nav.Build;
 /// <summary>
 /// Layer regions: every row is swept into runs, runs join the region below them when they match it
 /// exactly, then touching regions merge as long as no two spans of one region end up in one column.
+/// Ground of fewer than minRegionCells cells that is joined to no other and does not reach the border
+/// of the tile is dropped.
 /// </summary>
 internal sealed class RegionBuilder
 {
@@ -20,6 +22,7 @@ internal sealed class RegionBuilder
 	int[] spanCounts = [];
 	byte[] regionArea = [];
 	bool[] touchesBorder = [];
+	bool[] grouped = [];
 	ushort[] layer = [];
 	int[] remap = [];
 	int[] queue = [];
@@ -118,7 +121,11 @@ internal sealed class RegionBuilder
 			for ( int x = x0; x < x1; x += blockSize, block++ )
 			{
 				int end = Math.Min( x + blockSize, x1 );
-				if ( end - x == blockSize && open.Open[block] && SweepOpenBlock( field, x + row ) ) continue;
+				if ( end - x == blockSize && open.Open[block] )
+				{
+					if ( !SweepOpenBlock( field, x + row ) && !SweepOpenColumns( field, x + row ) ) return false;
+					continue;
+				}
 				if ( !SweepColumns( field, x + row, end + row ) ) return false;
 			}
 
@@ -189,6 +196,37 @@ internal sealed class RegionBuilder
 		return true;
 	}
 
+	// SweepColumns over an open block, whose spans have their western neighbour just before them and their southern
+	// one at the same place in the row before.
+	bool SweepOpenColumns( CompactField field, int column )
+	{
+		var area = field.Area;
+		var region = field.Region;
+		int first = field.Index[column], south = field.Index[column - field.Width];
+		for ( int k = 0; k < CompactField.BlockSize; k++ )
+		{
+			int i = first + k;
+			int spanArea = area[i];
+			if ( spanArea == 0 ) continue;
+
+			int current = 0;
+			int neighbourRun = region[i - 1];
+			if ( (neighbourRun & Border) == 0 && spanArea == area[i - 1] ) current = neighbourRun;
+			if ( current == 0 )
+			{
+				if ( run >= Border ) return false;
+				current = run++;
+				runSamples[current] = 0;
+				runNeighbour[current] = 0;
+			}
+
+			int below = region[south + k];
+			if ( below != 0 && (below & Border) == 0 && spanArea == area[south + k] ) Sample( current, below, 1 );
+			region[i] = (ushort)current;
+		}
+		return true;
+	}
+
 	// A block of level open ground of one area whose southern neighbours all belong to one region simply
 	// continues the run to its west: sixteen spans in one step. False leaves the block to SweepColumns.
 	bool SweepOpenBlock( CompactField field, int column )
@@ -230,6 +268,7 @@ internal sealed class RegionBuilder
 		Array.Resize( ref spanCounts, size );
 		Array.Resize( ref regionArea, size );
 		Array.Resize( ref touchesBorder, size );
+		grouped = new bool[size];
 		layer = new ushort[size];
 		remap = new int[size];
 		queue = new int[size];
@@ -274,14 +313,17 @@ internal sealed class RegionBuilder
 				{
 					int i = index[x + row];
 					int r = region[i];
+					int south = index[x + row - w], north = index[x + row + w];
 					if ( CompactField.All( region, i, r ) && region[i - 1] == r && region[i + blockSize] == r
-						&& CompactField.All( region, index[x + row - w], r ) && CompactField.All( region, index[x + row + w], r ) )
+						&& CompactField.All( region, south, r ) && CompactField.All( region, north, r ) )
 					{
 						if ( r == 0 ) continue;
 						spanCounts[r] += blockSize;
 						regionArea[r] = area[i];
 						continue;
 					}
+					CollectOpenBlock( area, region, i, south, north, regionCount );
+					continue;
 				}
 
 				for ( int column = x + row; column < end + row; column++ )
@@ -323,6 +365,25 @@ internal sealed class RegionBuilder
 		}
 	}
 
+	// The columns of an open block hold one span each, and the neighbours of span i are i - 1, i + 1 and the spans at
+	// the same place in the rows south and north, so they need no connections. One span a column overlaps nothing.
+	void CollectOpenBlock( byte[] area, ushort[] region, int first, int south, int north, int regionCount )
+	{
+		for ( int k = 0; k < CompactField.BlockSize; k++ )
+		{
+			int i = first + k;
+			int r = region[i];
+			if ( r == 0 || r >= regionCount ) continue;
+
+			spanCounts[r]++;
+			regionArea[r] = area[i];
+			Neighbour( r, region[i - 1], regionCount );
+			Neighbour( r, region[north + k], regionCount );
+			Neighbour( r, region[i + 1], regionCount );
+			Neighbour( r, region[south + k], regionCount );
+		}
+	}
+
 	void Neighbour( int r, int other, int regionCount )
 	{
 		if ( other == r ) return;
@@ -331,8 +392,8 @@ internal sealed class RegionBuilder
 	}
 
 	// Floods from each unassigned region over neighbours of the same area that do not overlap what the
-	// flood has taken so far, drops small layers that do not reach the border and numbers the rest from 1.
-	// Afterwards layer[region] is the final id.
+	// flood has taken so far, drops the layers of ground that is small and isolated and numbers the rest
+	// from 1. Afterwards layer[region] is the final id.
 	void MergeLayers( int regionCount, int minRegionCells, CompactField field )
 	{
 		Array.Clear( layer, 0, regionCount );
@@ -365,10 +426,32 @@ internal sealed class RegionBuilder
 			layerId++;
 		}
 
+		// Ground is dropped only with all the ground it is joined to: the regions that reach each other
+		// through neighbours of any area and layer. So what an area border or a layer cuts off stays.
 		Array.Clear( remap, 0, layerId );
-		for ( int i = 0; i < regionCount; i++ )
+		Array.Clear( grouped, 0, regionCount );
+		for ( int first = 1; first < regionCount; first++ )
 		{
-			if ( layer[i] != 0 && spanCounts[i] > 0 && spanCounts[i] < minRegionCells && !touchesBorder[i] ) remap[layer[i]] = -1;
+			if ( grouped[first] ) continue;
+			grouped[first] = true;
+			queue[0] = first;
+			int queued = 1, cells = 0;
+			bool border = false;
+			for ( int head = 0; head < queued; head++ )
+			{
+				int current = queue[head];
+				cells += spanCounts[current];
+				border |= touchesBorder[current];
+				for ( int k = 0, n = connections.Count( current ); k < n; k++ )
+				{
+					int neighbour = connections.Item( current, k );
+					if ( grouped[neighbour] ) continue;
+					grouped[neighbour] = true;
+					queue[queued++] = neighbour;
+				}
+			}
+			if ( cells == 0 || cells >= minRegionCells || border ) continue;
+			for ( int i = 0; i < queued; i++ ) remap[layer[queue[i]]] = -1;
 		}
 
 		int kept = 0;

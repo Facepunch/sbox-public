@@ -4,7 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Nav.Lib.Tests;
 
 [TestClass]
-public class CommitTests
+public partial class CommitTests
 {
 	static readonly Vector3 Snap = GridMesh.Snap;
 
@@ -217,20 +217,6 @@ public class CommitTests
 				mesh.Commit();
 			}
 		}
-	}
-
-	[TestMethod]
-	public void CommittingTheSameTileObjectAgainPublishesANewBuild()
-	{
-		var mesh = GridMesh.Create();
-		var tile = GridMesh.Flat( 0, 0 );
-		mesh.CommitTiles( [tile] );
-		var first = mesh.State.Find( 0, 0 )!;
-		mesh.CommitTiles( [tile] );
-		var second = mesh.State.Find( 0, 0 )!;
-		Assert.AreNotSame( first, second );
-		Assert.AreNotEqual( first.Serial, second.Serial );
-		Assert.AreSame( tile, first );
 	}
 
 	[TestMethod]

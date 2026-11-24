@@ -18,10 +18,10 @@ navigation system and knows nothing of s&box: the engine layer lives in
 | Step a crowd: planning, avoidance, wall steering, separation, links, agents moved by the game | Raise events. Callers compare states between steps |
 
 Z is up, always; a Y-up engine swaps at its boundary. Every distance is in the caller's units and every tolerance
-derives from `NavSettings`, the agent or a time horizon. One mesh has one agent radius, height and climb; agents of
-very different sizes need a mesh each.
+derives from `NavSettings`, the agent or a time horizon. Agents of very different sizes are agent types of one mesh, each
+with settings and tiles of its own (the last example).
 
-How the engine uses it is in `docs/reference/simulation.md`. The four examples below are compiled and run as
+How the engine uses it is in `docs/reference/simulation.md`. The examples below are compiled and run as
 tests in `engine/Tests/Sandbox.Test.Navigation/Docs/ReadmeExamples.cs`; change one, change the other.
 
 ## Example: a static level and a path
@@ -142,15 +142,14 @@ var streamer = new TileStreamer( mesh, vertices, indices );   // the level of th
 mesh.MarkDirty( new Vector3( 0, 0, -10 ), new Vector3( 50, 30, 10 ) );
 while ( streamer.Pump() > 0 ) { }
 
-// A crate lands in the way. Area NoArea blocks; Margin keeps agents an agent radius away from it.
+// A crate lands in the way. Area NoArea blocks exactly the box: the walkable edge comes right up to it.
 int crate = mesh.AddVolume( new NavVolume
 {
 	Shape = VolumeShape.Box,
 	Area = NavFilter.NoArea,
 	LocalToWorld = Matrix4x4.CreateTranslation( 10, 10, 0 ),
 	A = new Vector3( -1, -1, -0.5f ),
-	B = new Vector3( 1, 1, 2 ),
-	Margin = settings.AgentRadius
+	B = new Vector3( 1, 1, 2 )
 } );
 while ( streamer.Pump() > 0 ) { }   // the first volume over a tile asks for its triangles once
 
@@ -311,6 +310,44 @@ the same mesh: compare old and new by value, as above. A tile that is built agai
 reported as changed. Links the caller adds are never counted as a way on foot, so adding the reported links back
 does not make the generator drop them.
 
+## Example: people and cars in one mesh
+
+Each agent type has settings, tiles, jobs and generated links of its own; the types share the triangles, the volumes,
+the links placed by the caller, the commit and the bake.
+
+```csharp
+using System.Numerics;
+using Nav;
+
+// The level of the first example, for people and for cars.
+var people = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+var cars = NavSettings.Create( new NavSettingsDesc { AgentHeight = 2, AgentRadius = 1.5f, AgentClimb = 0.2f, AgentMaxSlope = 15, CellSize = 0.25f, CellHeight = 0.1f, TileSize = 128 } );
+var mesh = new NavMesh( [
+	new NavAgentTypeDesc { Settings = people, Options = NavMeshOptions.Create( people ) },
+	new NavAgentTypeDesc { Settings = cars, Options = NavMeshOptions.Create( cars ) },
+] );
+var failures = new List<(int AgentType, int X, int Y, string Error)>();
+mesh.Build( new NavBuilder(), vertices, indices, failures );
+
+// A query, and an agent, name their type: 0 for people, 1 for cars.
+var carQuery = new NavQuery( mesh, 1 );
+var path = new NavPath();
+var carBox = new Vector3( 2.1f * cars.AgentRadius, 2.1f * cars.AgentRadius, 1.51f * cars.AgentHeight );
+var status = carQuery.FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), carBox, NavFilter.Create(), path );
+
+var crowd = new NavCrowd( mesh, workers: Environment.ProcessorCount );
+var car = AgentParams.Create( new AgentDesc { Radius = 1.5f, Height = 2, MaxSpeed = 8, Acceleration = 6 } ) with { AgentType = 1 };
+int id = crowd.Add( new Vector3( 5, 5, 0 ), car );
+crowd.MoveTo( id, new Vector3( 45, 5, 0 ) );
+```
+
+The car's path keeps its own radius from the wall. People and cars in one crowd avoid each other. A call about one
+type's tiles or links (`GetPolygons`, `MarkDirty( x, y )`, `GetLinkEnds`, `new NavQuery( mesh )`, ...) has a form that
+names the type; the form without one throws on a mesh of several types, so no type is ever picked for the caller.
+`AddLink( link )` adds a link to every type, each resolving it on its own tiles; `AddLink( agentType, link )` to one.
+A mesh of several types saves a bake of format version 4, which `Load( data, options )` with one options entry per type
+reads; a mesh of one type writes version 3, as before.
+
 ## Things that are easy to miss
 
 **Geometry**
@@ -350,7 +387,8 @@ does not make the generator drop them.
 - `new AgentParams { ... }` without `Create` has no filter, and `Add` throws. `Add` and `SetParams` also throw for
   a size of 0, a negative speed or a separation outside 0 to 1.
 - `SubstepTime = 0.05` and `AvoidHorizon = 0.75` are seconds. A caller stepping in milliseconds sets 50 and 750.
-- Blockers do not re-erode the mesh: without `Margin` the walkable edge comes right up to the volume.
+- Blockers do not re-erode the mesh: the walkable edge comes right up to the volume. A volume that should keep
+  agents further away is made that much bigger.
 - `NavMeshOptions.KeepFields` (true from `Create`) keeps a tile's eroded field only once a volume overlaps the tile,
   so the first volume over a tile asks for its triangles again. With it false every volume change asks for them.
   `GetStats().CacheBytes` is what is kept.
@@ -430,7 +468,7 @@ does not make the generator drop them.
   generation takes seconds even on many threads.
 - A bake holds each tile's polygons (a byte each plus their corners) and the cells of its vertices, as small
   varints: about 12 bytes a polygon, about 7 after LZ4. Neighbours, the tree and the portal edges are rebuilt at
-  load. Layout: the class comment of `Mesh/NavMesh.Bake.cs`.
+  load. Layout: the class comment of `NavMesh.Bake.cs`.
 - `Save` belongs on the owner thread. Its writer must hand out the header as one span and each tile as one span
   (`ArrayBufferWriter<byte>` does).
 - A bake holds tiles only, not volumes, links or the rebuild cache. After `Load`, add the scene's volumes and links
@@ -444,6 +482,7 @@ does not make the generator drop them.
 
 | What | Limit |
 |------|-------|
+| Agent types | 16 per mesh |
 | Tile size | 32 to 1,024 cells, a multiple of 16 |
 | Agent | radius up to 127 cells; height and climb up to 32,767 cell heights |
 | One tile | 16,383 polygons, 65,535 vertices, geometry up to 65,533 cell heights tall |

@@ -5,7 +5,7 @@ using Nav.Build;
 
 namespace Nav;
 
-public sealed partial class NavMesh
+internal sealed partial class MeshAgentType
 {
 	// What the owner keeps about the links of a tile built from triangles. Own: found on the tile's own
 	// field. Seam: into other tiles, found by this tile's build over its apron, by a build of the tile
@@ -310,7 +310,7 @@ public sealed partial class NavMesh
 
 	void Unmake( TileLinks t )
 	{
-		foreach ( int id in t.Ids ) FreeLink( id );
+		foreach ( int id in t.Ids ) Mesh.FreeLink( id );
 		linksRefused -= t.Refused;
 		t.Made = [];
 		t.Ids = [];
@@ -538,7 +538,7 @@ public sealed partial class NavMesh
 		t.Ids = new int[span.Length];
 		for ( int i = 0; i < span.Length; i++ )
 		{
-			t.Ids[i] = AddLink( ToLink( span[i] ) with { Generated = true } );
+			t.Ids[i] = Mesh.AddLink( Index, ToLink( span[i] ) with { Generated = true } );
 			if ( t.Ids[i] < 0 ) t.Refused++;
 		}
 		linksRefused += t.Refused;
@@ -561,10 +561,11 @@ public sealed partial class NavMesh
 		var min = Vector3.Min( start, end ) - new Vector3( settings.AgentRadius, settings.AgentRadius, height + links.MaxJumpUp );
 		var max = Vector3.Max( start, end ) + new Vector3( settings.AgentRadius, settings.AgentRadius, height + links.MaxJumpUp );
 
-		for ( int id = 0; id < volumeHigh; id++ )
+		var mesh = Mesh;
+		for ( int id = 0; id < mesh.VolumeHigh; id++ )
 		{
-			if ( !volumeUsed[id] || volumeDefs[id].Area != NavFilter.NoArea ) continue;
-			ref readonly var volume = ref volumeDefs[id];
+			if ( !mesh.VolumeUsed[id] || mesh.VolumeDefs[id].Area != NavFilter.NoArea ) continue;
+			ref readonly var volume = ref mesh.VolumeDefs[id];
 			if ( !VolumeMarker.WorldBounds( volume, out var volumeMin, out var volumeMax ) ) continue;
 			if ( volumeMin.X > max.X || volumeMax.X < min.X || volumeMin.Y > max.Y || volumeMax.Y < min.Y || volumeMin.Z > max.Z || volumeMax.Z < min.Z ) continue;
 

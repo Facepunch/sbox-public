@@ -9,7 +9,7 @@ namespace Nav.Lib.Tests;
 /// The split of a polygon id into tile slot and polygon, chosen per mesh by NavSettings.MaxTilePolygons.
 /// </summary>
 [TestClass]
-public class SplitTests
+public partial class SplitTests
 {
 	static NavSettings Limited( int polygons ) => GridMesh.Settings with { MaxTilePolygons = polygons };
 
@@ -18,7 +18,7 @@ public class SplitTests
 	static NavMesh? Load( byte[] data ) => NavMesh.TryReadSettings( data, out var settings ) ? NavMesh.Load( data, NavMeshOptions.Create( settings ) ) : null;
 
 	// The next new tile goes into this slot, as if the ones below were taken.
-	static void SkipSlots( NavMesh mesh, int slot ) => typeof( NavMesh ).GetField( "slotCount", BindingFlags.NonPublic | BindingFlags.Instance )!.SetValue( mesh, slot );
+	static void SkipSlots( NavMesh mesh, int slot ) => mesh.SkipSlots( slot );
 
 	[TestMethod]
 	public void SboxSettingsKeepTodaysLimits()
@@ -180,9 +180,8 @@ public class SplitTests
 		Assert.AreEqual( topRef.Id, path.Polys[^1].Id, "Same slot and polygon, new serial" );
 		Assert.IsTrue( query.IsValid( path.Polys[^1], Filters.All ) );
 
-		// One polygon more does not build under this limit.
-		Assert.IsNull( new TileAssembler().Create( 0, 0, tile.Verts, new Poly[limit + 1], Limited( limit ), out var error ) );
-		StringAssert.Contains( error, $"the limit is {limit}" );
+		// One polygon more does not build under this limit. SplitTests.Internals.cs has what the message says.
+		Assert.IsNull( new TileAssembler().Create( 0, 0, tile.Verts, new Poly[limit + 1], Limited( limit ), out _ ) );
 	}
 
 	[TestMethod]

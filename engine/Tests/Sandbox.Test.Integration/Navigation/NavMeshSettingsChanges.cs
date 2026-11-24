@@ -78,7 +78,7 @@ public class NavMeshSettingsChanges
 		Assert.IsTrue( scene.NavMesh.OnMesh( new Vector3( 300, 0, 0 ), 6 ) );
 		Assert.IsTrue( scene.NavMesh.OnMesh( new Vector3( -250, -250, 0 ) ), "The blocker is no longer where it was" );
 		Assert.IsFalse( scene.NavMesh.OnMesh( new Vector3( -120, -120, 0 ) ), "The blocker cuts where it was moved to" );
-		Assert.IsFalse( scene.NavMesh.OnMesh( new Vector3( -200, -120, 0 ) ), "And keeps the new radius away" );
+		Assert.IsTrue( scene.NavMesh.OnMesh( new Vector3( -200, -120, 0 ) ), "And no wider than its box" );
 		Assert.IsNotNull( link.WorldStartPositionOnNavmesh, "The link added meanwhile is in the new mesh" );
 		Assert.IsNotNull( link.WorldEndPositionOnNavmesh );
 

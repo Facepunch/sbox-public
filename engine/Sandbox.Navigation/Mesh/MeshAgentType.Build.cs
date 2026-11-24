@@ -3,7 +3,7 @@ using Nav.Build;
 
 namespace Nav;
 
-public sealed partial class NavMesh
+internal sealed partial class MeshAgentType
 {
 	// What the owner keeps about a tile for rebuilds. A tile has a record while it has a kept field or
 	// stands for a set of volumes. Field is set the first time the tile is built from triangles with a
@@ -26,45 +26,11 @@ public sealed partial class NavMesh
 	(int Y, int X, ulong Hash)[] tileHashes = [];
 	bool hashesChanged;
 
+	internal (int Y, int X, ulong Hash)[] TileHashes => Volatile.Read( ref tileHashes );
+
 	// Set by a load that brought tiles built with volumes, until TakeJobs has compared them with the
 	// volumes there are now.
 	bool loadedUnchecked;
-
-	/// <summary>
-	/// The whole level in one call: sorts the triangles into tiles, builds every tile they reach on this
-	/// thread and commits in batches. Nothing of the input is kept. A triangle is ground when the cross
-	/// product of v1 - v0 and v2 - v0 points up, within the slope limit. A triangle with an index out of
-	/// range or a coordinate that is not finite is left out and counted as rejected. Tiles that were
-	/// already dirty are built too, and one of those that no triangle reaches any more is removed.
-	/// Returns the number of failed tiles; failures, when given, gets each of them with its reason.
-	/// </summary>
-	public int Build( NavBuilder builder, ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, List<(int X, int Y, string Error)>? failures = null )
-	{
-		var bins = new TriangleBins( settings, vertices, indices );
-		Interlocked.Add( ref TrianglesRejected, bins.Invalid );
-		foreach ( var (x, y) in bins.Tiles ) MarkDirty( x, y );
-
-		var jobs = new TileJob[64];
-		TriangleBins? wide = null;
-		int failed = 0;
-		while ( true )
-		{
-			int count = TakeJobs( jobs );
-			if ( count == 0 ) break;
-			for ( int i = 0; i < count; i++ )
-			{
-				// A tile built beside one that is not looks further for its links.
-				var sorted = jobs[i].Apron ? wide ??= new TriangleBins( settings, vertices, indices, BuildConfig.ApronCells( settings, links ) ) : bins;
-				builder.Build( jobs[i], vertices, sorted.Indices( jobs[i].X, jobs[i].Y ).Span );
-			}
-			failed += Commit( jobs.AsSpan( 0, count ) );
-			for ( int i = 0; i < count && failures != null; i++ )
-			{
-				if ( jobs[i].Status == TileJobStatus.Failed ) failures.Add( (jobs[i].X, jobs[i].Y, jobs[i].Error ?? "") );
-			}
-		}
-		return failed + Commit();
-	}
 
 	// The volume set a tile stands for. Owner thread.
 	internal ulong VolumeHashOf( int tileX, int tileY ) => records.TryGetValue( (tileX, tileY), out var record ) ? record.VolumeHash : 0;
