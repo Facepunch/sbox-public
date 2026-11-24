@@ -1,6 +1,5 @@
 public sealed class PhygunViewmodel : Component, Component.ExecuteInEditor
 {
-	[Property] public List<SpriteRenderer> TipSprites { get; set; }
 	[Property] public ParticleEffect GlowEffect { get; set; }
 	[Property] public ParticleEffect SparksEffect { get; set; }
 	[Property] public Material TubeFxMaterial { get; set; }
@@ -14,7 +13,7 @@ public sealed class PhygunViewmodel : Component, Component.ExecuteInEditor
 	[Property] public Color PhysTint { get; set; }
 
 	/// <summary>
-	/// Strength of the glow particles and tip sprites in grav (yellow) mode relative to phys (blue).
+	/// Strength of the glow particles in grav (yellow) mode relative to phys (blue).
 	/// Yellow at full strength saturates into flat, hard-edged blooming discs.
 	/// </summary>
 	[Property, Range( 0, 1 )] public float GravGlowScale { get; set; } = 0.55f;
@@ -52,7 +51,6 @@ public sealed class PhygunViewmodel : Component, Component.ExecuteInEditor
 		}
 
 		UpdateGlowEffect();
-		UpdateTipSprites();
 		UpdateTubeFx();
 		UpdateSparks();
 		UpdateBottleGlow();
@@ -85,19 +83,6 @@ public sealed class PhygunViewmodel : Component, Component.ExecuteInEditor
 
 		BottleMaterial.Set( "g_vSelfIllumTint", _effectsTint );
 		BottleMaterial.Set( "g_flSelfIllumBrightness", (BeamActive ? 6.0f : 1.5f) + bounce );
-	}
-
-	void UpdateTipSprites()
-	{
-		var mul = BeamActive ? 0.6f : 0.3f;
-
-		foreach ( var sprite in TipSprites )
-		{
-			sprite.Enabled = true;
-			sprite.Color = _effectsTint.WithAlpha( mul * _glowScale * Random.Shared.Float( 0.4f, 0.9f ) );
-			var targetSize = Random.Shared.Float( 3, 4f );
-			sprite.Size = Vector2.Lerp( sprite.Size, targetSize, 1f - MathF.Exp( -Time.Delta * 12f ) );
-		}
 	}
 
 	void UpdateGlowEffect()
