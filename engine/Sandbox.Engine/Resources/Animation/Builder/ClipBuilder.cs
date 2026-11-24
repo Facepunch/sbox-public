@@ -89,6 +89,20 @@ public sealed class ClipBuilder
 	/// </summary>
 	public ClipBuilder AddMorphTrack( string name, ReadOnlySpan<float> weights ) => AddFloatChannelTrack( "MorphChannel", name, weights );
 
+	readonly List<(float Time, float Duration, string Type, string Json)> managedEvents = new();
+
+	/// <summary>Add a game-defined animation event with normalized start time and duration.</summary>
+	public ClipBuilder AddEvent( float time, AnimationEvent payload, float duration = 0f )
+	{
+		ArgumentNullException.ThrowIfNull( payload );
+		if ( !float.IsFinite( time ) || time < 0 || time > 1 )
+			throw new ArgumentOutOfRangeException( nameof( time ) );
+		if ( !float.IsFinite( duration ) || duration < 0 || time + duration > 1 )
+			throw new ArgumentOutOfRangeException( nameof( duration ) );
+		managedEvents.Add( (time, duration, payload.GetType().FullName, Json.Serialize( payload )) );
+		return this;
+	}
+
 	public ClipBuilder AddSyncEvent( float time, string name = "" )
 	{
 		if ( !float.IsFinite( time ) || time < 0f || time >= 1f )
@@ -143,6 +157,8 @@ public sealed class ClipBuilder
 						throw new InvalidOperationException( $"Failed to add float channel '{track.Channel}' in set '{track.Set}' to animation clip '{name}'." );
 				}
 			}
+			foreach ( var e in managedEvents.OrderBy( x => x.Time ) )
+				builder.AddManagedEvent( e.Time, e.Duration, e.Type, e.Json );
 			foreach ( var marker in syncEvents )
 				builder.AddSyncEvent( marker.Time, marker.Name );
 
