@@ -72,7 +72,11 @@ partial class StandaloneWizard
 						{
 							menu.AddOption( preset.Name, action: () =>
 							{
-								PublishConfig = preset.Config;
+								PublishConfig.TargetDir = preset.Config.TargetDir;
+								PublishConfig.ExecutableName = preset.Config.ExecutableName;
+								PublishConfig.TargetIcon = preset.Config.TargetIcon;
+								PublishConfig.StartupImage = preset.Config.StartupImage;
+								PublishConfig.AppId = preset.Config.AppId;
 								CreateLayout();
 							} );
 						}
