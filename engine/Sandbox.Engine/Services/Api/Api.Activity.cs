@@ -120,9 +120,9 @@ internal static partial class Api
 				data.Add( "gameversion", gameVersion );
 				data.Add( "map", map );
 				data.Add( "content", lastAddons );
-				if ( gameWorkshopId != 0 ) data.Add( "gameWorkshopId", gameWorkshopId );
-				if ( mapWorkshopId != 0 ) data.Add( "mapWorkshopId", mapWorkshopId );
-				data.Add( "addonWorkshopIds", addonWorkshopIds );
+				if ( gameWorkshopId != 0 ) data.Add( "gameId", gameWorkshopId );
+				if ( mapWorkshopId != 0 ) data.Add( "mapId", mapWorkshopId );
+				data.Add( "addonIds", addonWorkshopIds );
 				data.Add( "st", SessionSeconds.FloorToInt() );
 				data.Add( "sh", SessionId.ToString() );
 				data.Add( "performance", performanceData );
@@ -204,7 +204,7 @@ internal static partial class Api
 			data.Add( "sh", SessionId.ToString() );
 			data.Add( "i", ActivityCount++ );
 			data.Add( "content", lastAddons );
-			data.Add( "addonWorkshopIds", lastAddonWorkshopIds );
+			data.Add( "addonIds", lastAddonWorkshopIds );
 			data.Add( "performance", performanceData );
 			data.Add( "config", GetConfig() );
 			data.Add( "hardware", Engine.SystemInfo.AsObject() );
