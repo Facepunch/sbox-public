@@ -398,6 +398,42 @@ public partial class SoundFile : Resource, IValid
 		return Create( filename, pcmData, soundData.Channels, soundData.SampleRate, format, soundData.SampleCount, soundData.Duration, loopStart, loopEnd );
 	}
 
+	/// <summary>Decode a mono or stereo stream of raw Opus packets at 48 kHz.</summary>
+	public static unsafe SoundFile FromOpusPackets( string filename, int channels, IReadOnlyList<ReadOnlyMemory<byte>> packets )
+	{
+		ThreadSafe.AssertIsMainThread();
+		ArgumentNullException.ThrowIfNull( packets );
+		if ( channels is not (1 or 2) ) throw new ArgumentOutOfRangeException( nameof( channels ) );
+		if ( packets.Count == 0 ) throw new ArgumentException( "Expected at least one audio packet.", nameof( packets ) );
+		filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
+		if ( Loaded.TryGetValue( filename, out var cached ) ) return cached;
+		var decoder = NativeEngine.OpusDecoder.Open( channels );
+		if ( decoder.IsNull ) throw new InvalidOperationException( "Could not allocate an Opus decoder." );
+		try
+		{
+			var pcm = new System.Buffers.ArrayBufferWriter<byte>();
+			foreach ( var packet in packets )
+			{
+				if ( packet.IsEmpty ) throw new ArgumentException( "Empty Opus packet.", nameof( packets ) );
+				const int maxFrames = 5760; // 120 ms at 48 kHz
+				var buffer = pcm.GetSpan( maxFrames * channels * sizeof( short ) );
+				fixed ( byte* input = packet.Span, output = buffer )
+				{
+					int frames = decoder.Decode( (IntPtr)input, packet.Length, (IntPtr)output, maxFrames );
+					if ( frames <= 0 ) throw new ArgumentException( "Invalid Opus packet.", nameof( packets ) );
+					pcm.Advance( frames * channels * sizeof( short ) );
+				}
+			}
+			uint count = (uint)(pcm.WrittenCount / (sizeof( short ) * channels));
+			return Create( filename, System.Runtime.InteropServices.MemoryMarshal.AsMemory( pcm.WrittenMemory ).Span,
+				channels, 48000, 0, count, count / 48000f, -1, 0 );
+		}
+		finally
+		{
+			decoder.Close();
+		}
+	}
+
 	/// <summary>
 	/// Load sound from OGG vorbis.
 	/// </summary>
