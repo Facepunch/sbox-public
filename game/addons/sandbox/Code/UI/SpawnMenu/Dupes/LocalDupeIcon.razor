@@ -63,6 +63,7 @@
     void Publish()
     {
         var options = new Modals.WorkshopPublishOptions();
+        options.KeyValues = new() { ["protocol"] = DupesWorkshop.ProtocolVersion };
         options.Title = Game.Language.GetPhrase( "spawnmenu.dupes.publish_title" );
         AddLocalizedCategory<DupeCategory>( options, "Category", "spawnmenu.dupes.publish_category" );
         AddLocalizedCategory<DupeMovement>( options, "Movement", "spawnmenu.dupes.publish_movement" );

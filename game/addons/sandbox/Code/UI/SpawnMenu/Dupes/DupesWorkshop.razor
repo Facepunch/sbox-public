@@ -45,6 +45,8 @@
 
 @code
 {
+    internal const string ProtocolVersion = "1";
+
     List<UIDropdown.Item> SortItems => UIDropdown.ForEnum<WorkshopSortMode>();
 
     void OnSortChanged( object value )
@@ -99,6 +101,7 @@
         var query = new Storage.Query();
         query.KeyValues["package"] = "facepunch.sandbox";
         query.KeyValues["type"] = "dupe";
+        query.KeyValues["protocol"] = ProtocolVersion;
         query.SortOrder = SortOrder.ToSortOrder();
 
         if ( !string.IsNullOrWhiteSpace( Filter ) ) query.SearchText = Filter;
