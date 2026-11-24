@@ -167,6 +167,20 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 	internal HashSet<SkinnedModelRenderer> SkinnedChildren => _skinnedChildren;
 
+	/// <summary>
+	/// The skinned renderer this one is animated after: the first one among its ancestors.
+	/// </summary>
+	internal SkinnedModelRenderer SkinnedParent => _skinnedParent;
+
+	/// <summary>
+	/// The bone merge children, which <see cref="MergeDescendants"/> merges onto this one.
+	/// </summary>
+	internal HashSet<SkinnedModelRenderer> BoneMergeChildren => _mergeChildren;
+
+	// The animation pass's grouping (SceneAnimationSystem), written on the main thread before the pass each frame
+	internal int AnimationUnitFrame;
+	internal SkinnedModelRenderer AnimationUnitHead, NextAttachedRoot, FirstAttachedRoot, NextUnitMerge, FirstUnitMerge;
+
 	private void UpdateSkinnedRendererParent()
 	{
 		// Get the first ancestor skinned model renderer
