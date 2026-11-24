@@ -25,9 +25,9 @@ public abstract class HudSection
 	public abstract void GetCompositeRegions( List<Rect> regions );
 
 	/// <summary>
-	/// The canvas's scale to the screen times the player's HUD scale. Size everything painted by this.
+	/// Scale from canvas units to screen pixels.
 	/// </summary>
-	protected float ScaleToScreen => Canvas.ScaleToScreen * GamePreferences.HudScale;
+	protected float ScaleToScreen => Canvas.ScaleToScreen;
 
 	protected Rect CanvasRect => Canvas.Box.Rect;
 
