@@ -267,12 +267,7 @@ public static partial class Directory
 			return;
 		}
 
-		await SetMountState( ident, mount );
-
-		if ( !Application.IsEditor )
-		{
-			SaveConfig();
-		}
+		await SetMountState( ident, mount, savePreference: !Application.IsEditor );
 
 		if ( source.IsMounted != mount )
 		{
@@ -286,7 +281,7 @@ public static partial class Directory
 	/// <summary>
 	/// Set mounted or not mounted.
 	/// </summary>
-	internal static async Task SetMountState( string name, bool state )
+	internal static async Task SetMountState( string name, bool state, bool savePreference = false )
 	{
 		var source = _system.GetSource( name );
 		if ( source is null ) return;
@@ -300,6 +295,12 @@ public static partial class Directory
 		else
 		{
 			await _system.Mount( name );
+		}
+
+		if ( savePreference && source.IsMounted == state )
+		{
+			source.Config.Enabled = state;
+			WriteConfig();
 		}
 
 		if ( source.IsMounted )

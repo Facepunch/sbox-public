@@ -87,34 +87,25 @@ public static partial class Directory
 	}
 
 	/// <summary>
-	/// Mount everything enabled in mounts.json.
+	/// Mount installed games at startup unless the user has disabled them.
 	/// </summary>
 	internal static async Task MountFromConfig()
 	{
 		if ( _system is null ) return;
 
-		var idents = _system.Settings.Where( x => x.Value.Enabled ).Select( x => x.Key ).ToArray();
+		var mounts = _system.All.Where( x => x.IsInstalled && x.Config.Enabled != false ).ToArray();
 
-		foreach ( var ident in idents )
+		foreach ( var mount in mounts )
 		{
-			await Mount( ident );
+			try
+			{
+				await Mount( mount.Ident );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( e, $"Couldn't mount '{mount.Ident}' at startup" );
+			}
 		}
-	}
-
-	/// <summary>
-	/// Write which mounts are enabled to mounts.json, keeping every other setting.
-	/// </summary>
-	internal static void SaveConfig()
-	{
-		if ( _system is null ) return;
-
-		// Loaded mounts share their entries with the host, the rest are kept as they were
-		foreach ( var mount in _system.All )
-		{
-			mount.Config.Enabled = mount.IsMounted;
-		}
-
-		WriteConfig();
 	}
 
 	static void WriteConfig()

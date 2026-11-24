@@ -515,14 +515,12 @@ public static partial class MenuUtility
 		return services.Select( x => new LinkedService( x.Type, x.Id, x.Name, x.Avatar ) ).ToList();
 	}
 
-	public static async Task SetMountState( string name, bool state )
+	/// <summary>
+	/// Mount or unmount a game and save the player's preference outside the editor.
+	/// </summary>
+	public static Task SetMountState( string name, bool state )
 	{
-		await Sandbox.Mounting.Directory.SetMountState( name, state );
-
-		if ( !Application.IsEditor )
-		{
-			Sandbox.Mounting.Directory.SaveConfig();
-		}
+		return Sandbox.Mounting.Directory.SetMountState( name, state, savePreference: !Application.IsEditor );
 	}
 
 	/// <summary>
