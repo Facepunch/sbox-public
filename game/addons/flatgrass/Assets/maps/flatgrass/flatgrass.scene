@@ -194,7 +194,7 @@
                   "ShadowCascadeSplitRatio": 0.6346749,
                   "ShadowHardness": 0.65,
                   "Shadows": true,
-                  "SkyColor": "0.06047,0.05878,0.05625,1",
+                  "SkyColor": "0.4,0.54509806,0.67058825,1",
                   "Temperature": 6500,
                   "Visualizer": {}
                 }
