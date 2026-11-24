@@ -9,25 +9,43 @@
 		flex-shrink: 0;
 		flex-grow: 0;
 
-		> .tabbar > .search-toggle { margin-left: auto; }
-
-		&.hide-search > .tabbar > .search-toggle { display: none; }
-		&.hide-search > .tabbar > .theme-toggle { margin-left: auto; }
-
-		> .tabbar > .search-toggle,
-		> .tabbar > .theme-toggle,
-		> .tabbar > .pin-toggle
+		> .tabbar
 		{
-			@include ui-header-button;
-			width: $ui-menu-tab-height;
-			pointer-events: all;
-
-			> .icon
+			> .search-toggle
 			{
-				font-size: 18px;
-				pointer-events: none;
+				margin-left: auto;
 			}
-			&.selected { @include ui-selected( $ui-catalog-selected-bg ); }
+
+			> .button
+			{
+				@include ui-header-button;
+				width: $ui-menu-tab-height;
+				pointer-events: all;
+
+				> .icon
+				{
+					font-size: 18px;
+					pointer-events: none;
+				}
+
+				&.selected
+				{
+					@include ui-selected( $ui-catalog-selected-bg );
+				}
+			}
+		}
+
+		&.hide-search > .tabbar
+		{
+			> .search-toggle
+			{
+				display: none;
+			}
+
+			> .theme-toggle
+			{
+				margin-left: auto;
+			}
 		}
 
 		> ToolMenuSearch

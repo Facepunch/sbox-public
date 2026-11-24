@@ -28,7 +28,7 @@
                     <div class="save-card @(!s.IsCompatible ? "outdated" : "")"
                          @onclick="@(() => ConfirmLoad( s ))"
                          @onmousedown="@((PanelEvent e) => OnCardMouseDown( s, e ))">
-                        <div class="save-preview">
+                        <div class="save-preview save-detail">
                             @if ( s.Thumbnail != null )
                             {
                                 <Image class="save-thumb" Texture="@s.Thumbnail" />
@@ -39,11 +39,11 @@
                             }
                         </div>
                         <div class="save-info">
-                            <label class="save-name">@s.DisplayName</label>
+                            <label class="save-name save-detail">@s.DisplayName</label>
                             <div class="save-meta">
                                 @if ( !string.IsNullOrEmpty( s.Timestamp ) )
                                 {
-                                    <label class="save-timestamp">@s.Timestamp</label>
+                                    <label class="save-timestamp save-detail">@s.Timestamp</label>
                                 }
                                 @if ( !s.IsCompatible )
                                 {

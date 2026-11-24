@@ -58,8 +58,12 @@ public class UIDropdown : Panel
 	bool _wasOpen;
 	bool _closedByThisPress;
 
+	/// <summary>
+	/// Builds the selected value label and the arrow that opens the list.
+	/// </summary>
 	public UIDropdown()
 	{
+		AddClass( "menu-control" );
 		_label = Add.Label( "", "value" );
 		_chevron = Add.Icon( "expand_more", "chevron" );
 	}

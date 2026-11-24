@@ -178,7 +178,7 @@
 		}
 	}
 
-	SpawnMenu UISettingsPane, ToolsMenu UISettingsPane
+	.menu-panel UISettingsPane
 	{
 		padding: 0;
 		border: 0;
@@ -236,7 +236,7 @@
 				}
 			}
 
-			UIButton.button:not(.active), UIDropdown, EnumControl > .button.popupbutton.dropdown
+			.menu-control:not(.active), EnumControl > .button.popupbutton.dropdown
 			{
 				border-radius: $ui-menu-radius;
 				@include ui-control-surface;

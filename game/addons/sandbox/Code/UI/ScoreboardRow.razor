@@ -10,20 +10,20 @@
 		var data = PlayerData.For( Connection );
 		bool isMuted = SandboxVoice.IsMuted( steamId );
 
-		<img class="avatar" src="avatar:@steamId" />
+		<img class="avatar-column" src="avatar:@steamId" />
 		<label class="name">@Connection.DisplayName</label>
 		<label class="stat">@(data?.Kills ?? 0)</label>
 		<label class="stat">@(data?.Deaths ?? 0)</label>
 		<label class="stat">@(Connection.Ping.CeilToInt())</label>
 		@if ( Connection != Connection.Local )
 		{
-			<div class="mute-btn @(isMuted ? "muted" : "")" onclick="@( () => SandboxVoice.Mute( steamId ) )">
+			<div class="mute-column mute-btn @(isMuted ? "muted" : "")" onclick="@( () => SandboxVoice.Mute( steamId ) )">
 				<i>@(isMuted ? "volume_off" : "volume_up")</i>
 			</div>
 		}
 		else
 		{
-			<div class="mute-spacer"></div>
+			<div class="mute-column"></div>
 		}
 	}
 

@@ -62,7 +62,7 @@
 
     MixedVirtualGrid
     {
-        .cell.full-row, .cell.full-row:hover, .cell.full-row:active
+        .cell.full-row
         {
             pointer-events: none;
             cursor: default;
@@ -74,7 +74,7 @@
             cursor: pointer;
         }
 
-        .cell.drop-before::before, .cell.drop-after::after
+        .cell.drop-target::after
         {
             position: absolute;
             content: "";
@@ -92,7 +92,7 @@
             right: -3px;
         }
 
-        .cell.full-row.drop-before::before, .cell.full-row.drop-after::after
+        .cell.full-row.drop-target::after
         {
             left: 8px;
             right: 8px;

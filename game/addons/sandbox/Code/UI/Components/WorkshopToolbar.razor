@@ -1,0 +1,33 @@
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<SpawnMenuToolbar>
+    <Left>
+        <SpawnMenuSearchEntry Value:bind=@Filter />
+    </Left>
+    <Right>
+        <UIDropdown class="big" Items=@SortItems Value=@SortOrder ValueChanged=@OnSortChanged />
+    </Right>
+</SpawnMenuToolbar>
+
+@code
+{
+    /// <summary>
+    /// Search text bound to the workshop page's filter.
+    /// </summary>
+    [Parameter] public string Filter { get; set; }
+
+    /// <summary>
+    /// Sort order bound to the workshop page's query.
+    /// </summary>
+    [Parameter] public WorkshopSortMode SortOrder { get; set; }
+
+    List<UIDropdown.Item> SortItems => UIDropdown.ForEnum<WorkshopSortMode>();
+
+    void OnSortChanged( object value )
+    {
+        if ( value is WorkshopSortMode mode )
+            SortOrder = mode;
+    }
+}

@@ -8,7 +8,7 @@
     <Header>
         <SpawnMenuToolbar>
             <Left>
-                <TextEntry Placeholder="#spawnmenu.common.search" class="filter menu-input" Value:bind=@Filter />
+                <SpawnMenuSearchEntry Value:bind=@Filter />
             </Left>
 
             <Right>
@@ -137,9 +137,7 @@
         StateHasChanged();
     }
 
-    List<UIDropdown.Item> SortItems => DisplayInfo.ForEnumValues<PackageSortMode>()
-        .Select( entry => new UIDropdown.Item( entry.info.Name, entry.value ) )
-        .ToList();
+    List<UIDropdown.Item> SortItems => UIDropdown.ForEnum<PackageSortMode>();
 
     void OnSortChanged( object value )
     {

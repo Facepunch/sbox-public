@@ -28,7 +28,7 @@
 			opacity: 1;
 		}
 
-		.thumb, BuilderThumbnail
+		.thumbnail
 		{
 			transition: opacity 0.15s ease-out, transform 0.08s ease-out;
 		}
@@ -88,7 +88,7 @@
 		&:hover
 		{
 			sound-in: ui.hover;
-			.thumb, BuilderThumbnail
+			.thumbnail
 			{
 				transform: translateY( -2px );
 				filter: brightness( 1.08 );
@@ -104,7 +104,10 @@
 		{
 			sound-in: ui.select;
 
-			.thumb, BuilderThumbnail { transform: scale( 0.94 ); }
+			.thumbnail
+			{
+				transform: scale( 0.94 );
+			}
 		}
 	}
 

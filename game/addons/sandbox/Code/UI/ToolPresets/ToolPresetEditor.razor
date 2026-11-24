@@ -50,7 +50,7 @@
                 <label>@(Dirty ? "#ui.tool_presets.unsaved" : "#ui.tool_presets.local_only")</label>
             }
         </div>
-        <div class="editor-footer">
+        <div class="button-row">
             <UIButton Text="#ui.tool_presets.delete" Icon="delete" Disabled=@(SelectedId == Guid.Empty) @onclick=@RequestDelete />
             <div class="spacer"></div>
             <UIButton Text="#ui.tool_presets.save_changes" Icon="save" Disabled=@(Draft is null || string.IsNullOrWhiteSpace( DraftName )) @onclick=@(() => Save()) />
@@ -64,7 +64,7 @@
             <div class="confirmation">
                 <label class="confirmation-title">@(ConfirmDelete ? "#ui.tool_presets.delete_title" : "#ui.tool_presets.unsaved_title")</label>
                 <Label Tokenize=@false Text=@ConfirmationText />
-                <div class="confirmation-buttons">
+                <div class="button-row">
                     @if ( ConfirmDelete )
                     {
                         <UIButton Text="#ui.tool_presets.delete" Icon="delete" @onclick=@DeleteSelected />

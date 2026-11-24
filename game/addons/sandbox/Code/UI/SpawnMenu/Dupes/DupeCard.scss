@@ -2,7 +2,7 @@
 
 @mixin component-theme
 {
-    LocalDupeIcon
+    .dupe-card
     {
         @include ui-dupe-card;
     }

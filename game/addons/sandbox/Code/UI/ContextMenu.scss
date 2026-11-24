@@ -48,13 +48,13 @@
 				height: 18px;
 				flex-shrink: 0;
 				overflow: hidden;
+				color: $ui-text-label;
 
-				> .icon, > .check
+				> .iconpanel
 				{
 					font-family: $ui-icon;
 					font-variation-settings: $ui-icon-filled-axes;
 					font-size: 17px;
-					color: $ui-text-label;
 					opacity: 1;
 				}
 			}
@@ -92,7 +92,7 @@
 					background-color: $ui-blue-soft;
 					color: $ui-text-strong;
 
-					> .gutter > .icon, > .gutter > .check, > .chevron, > .shortcut
+					> .part
 					{
 						color: $ui-text-strong;
 					}
@@ -105,7 +105,10 @@
 					@include ui-selected( $ui-catalog-selected-bg );
 					font-weight: 600;
 
-					> .gutter > .icon, > .gutter > .check, > .chevron, > .shortcut { color: $ui-selected-text; }
+					> .part
+					{
+						color: $ui-selected-text;
+					}
 					&.active, &.open { border-color: $ui-hover-border; }
 				}
 

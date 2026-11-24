@@ -57,12 +57,9 @@
         }
 
         // made by an older version, it can't be loaded
-        &.outdated
+        &.outdated .save-detail
         {
-            .save-preview, .save-name, .save-timestamp
-            {
-                opacity: 0.5;
-            }
+            opacity: 0.5;
         }
 
         .save-preview

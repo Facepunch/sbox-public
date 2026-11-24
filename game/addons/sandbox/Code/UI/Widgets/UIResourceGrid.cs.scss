@@ -89,7 +89,7 @@
 		}
 	}
 
-	SpawnMenu UIResourceGrid .resource-cell, ToolsMenu UIResourceGrid .resource-cell
+	.menu-panel UIResourceGrid .resource-cell
 	{
 		border-radius: $ui-menu-radius;
 		overflow: hidden;

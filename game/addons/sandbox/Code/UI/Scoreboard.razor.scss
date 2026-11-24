@@ -71,7 +71,7 @@
 		@include ui-scroll;
 	}
 
-	Scoreboard .avatar, Scoreboard .avatar-spacer
+	Scoreboard .avatar-column
 	{
 		width: 32px;
 		flex-shrink: 0;
@@ -93,7 +93,7 @@
 		text-align: center;
 	}
 
-	Scoreboard .mute-btn, Scoreboard .mute-spacer
+	Scoreboard .mute-column
 	{
 		width: 28px;
 		flex-shrink: 0;
@@ -115,7 +115,7 @@
 			background-color: $ui-blue-soft;
 		}
 
-		.avatar
+		.avatar-column
 		{
 			height: 32px;
 			border-radius: 2px;

@@ -19,7 +19,7 @@ public sealed class ToolsMenu : TabPanel
 	/// </summary>
 	public ToolsMenu()
 	{
-		AddClass( "spawnmenuright" );
+		AddClass( "spawnmenuright menu-panel" );
 		BuildTabs();
 		_savesTab = TabBar.Tabs.FirstOrDefault( tab => tab.UserData is SaveMenu );
 		UpdateSavesVisibility();
@@ -36,7 +36,6 @@ public sealed class ToolsMenu : TabPanel
 		UpdateThemeButton();
 
 		_pinToggle = TabBar.AddChild( new Button( null, "push_pin", () => Scene?.Get<SpawnMenuHost>()?.TogglePin() ) );
-		_pinToggle.AddClass( "pin-toggle" );
 	}
 
 	internal void SetPinned( bool pinned )

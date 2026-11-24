@@ -22,21 +22,30 @@
 		}
 	}
 
-	SpawnMenu ToolPresetBar .preset-controls, ToolsMenu ToolPresetBar .preset-controls
+	.menu-panel ToolPresetBar
 	{
-		gap: 6px;
-
-		UIDropdown, UIButton.button
+		.preset-controls
 		{
-			height: $ui-menu-control-height;
+			gap: 6px;
+
+			> *
+			{
+				height: $ui-menu-control-height;
+			}
+
+			UIButton.button.icon-only
+			{
+				width: $ui-menu-control-height;
+			}
 		}
 
-		UIButton.button.icon-only { width: $ui-menu-control-height; }
+		.preset-error
+		{
+			color: $ui-danger;
+		}
 	}
 
-	SpawnMenu ToolPresetBar .preset-error, ToolsMenu ToolPresetBar .preset-error { color: $ui-danger; }
-
-	ToolPresetBar .preset-error, UIModal.tool-preset-prompt .preset-error
+	.preset-error
 	{
 		color: #edac92;
 		font-size: 11px;

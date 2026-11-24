@@ -7,14 +7,7 @@
 <SpawnMenuContent>
 
     <Header>
-        <SpawnMenuToolbar>
-            <Left>
-                <TextEntry Placeholder="#spawnmenu.common.search" class="filter menu-input" Value:bind=@Filter />
-            </Left>
-            <Right>
-                <UIDropdown class="big" Items=@SortItems Value=@SortOrder ValueChanged=@OnSortChanged />
-            </Right>
-        </SpawnMenuToolbar>
+        <WorkshopToolbar Filter:bind=@Filter SortOrder:bind=@SortOrder />
     </Header>
 
     <Body>
@@ -46,13 +39,6 @@
 @code
 {
     internal const string ProtocolVersion = "1";
-
-    List<UIDropdown.Item> SortItems => UIDropdown.ForEnum<WorkshopSortMode>();
-
-    void OnSortChanged( object value )
-    {
-        if ( value is WorkshopSortMode mode ) SortOrder = mode;
-    }
 
     string _filter;
     public string Filter
