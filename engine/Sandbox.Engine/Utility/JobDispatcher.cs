@@ -13,7 +13,8 @@ namespace Sandbox;
 /// <para>
 /// Jobs run in the calling thread's execution context, so async locals such as the current
 /// <see cref="Engine.GlobalContext"/> are the caller's on every thread, and what a job changes in it doesn't leak back to
-/// the caller or into later jobs. When a job throws, no more are claimed, every running job is joined, and the first
+/// the caller or into later jobs. They run in the caller's <see cref="FloatingPointMode"/> too, so their results are the
+/// same whichever thread runs them, and however many there are. When a job throws, no more are claimed, every running job is joined, and the first
 /// exception is rethrown.
 /// </para>
 /// <para>
@@ -166,6 +167,7 @@ internal static class JobDispatcher
 		volatile bool failed;
 		Exception error;
 		ExecutionContext context;
+		uint floatingPointMode;
 		readonly object gate = new();
 
 		/// <summary>
@@ -197,6 +199,9 @@ internal static class JobDispatcher
 
 			// The caller's context as it stands, no copy, or an empty one when it suppressed flow
 			context = ExecutionContext.Capture() ?? EmptyContext.Value;
+
+			// Workers flush denormals exactly as the caller does, or bits of a result would depend on the thread
+			floatingPointMode = FloatingPointMode.Current;
 		}
 
 		bool Complete => Volatile.Read( ref done ) >= total || (failed && Volatile.Read( ref inside ) == 0);
@@ -258,6 +263,7 @@ internal static class JobDispatcher
 		{
 			try
 			{
+				FloatingPointMode.Set( floatingPointMode );
 				ExecutionContext.Run( context, WorkIn, this );
 			}
 			finally
