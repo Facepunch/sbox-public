@@ -266,6 +266,93 @@ public class FieldInitializerTest : HotloadFixtureTestBase
 	}
 
 	[TestMethod]
+	public async Task ExistingGenericBaseTypeFields()
+	{
+		// Fields of a generic base type aren't new to types deriving from a construction of it, even though their
+		// types are substituted with the type argument
+
+		var result = await HotloadFixtureAsync(
+			"""
+			using System.Collections.Generic;
+
+			public class GenericBase<T>
+			{
+				public T Value = Make();
+				public List<T> Items = new();
+
+				private static T Make() => default;
+			}
+
+			public class IntDerived : GenericBase<int>
+			{
+			+	public int Added = 1;
+			}
+
+			public class StringDerived : GenericBase<string>
+			{
+			+	public int Added = 2;
+			}
+
+			public class ExistingGenericBaseTypeFields : IHotloadTestFixture
+			{
+				public IntDerived Int = new();
+				public StringDerived String = new();
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		Assert.AreEqual( 1, Int.Added );
+			+		Assert.AreEqual( 2, String.Added );
+			+		Assert.IsNotNull( Int.Items );
+			+		Assert.IsNotNull( String.Items );
+			+	}
+			}
+			""" );
+
+		Assert.IsFalse( result.HasWarnings );
+	}
+
+	[TestMethod]
+	public async Task AddedGenericBaseTypeInitializer()
+	{
+		// Fields of a new generic base type get one initializer method in the generic definition, shared by
+		// every construction of it
+
+		var result = await HotloadFixtureAsync(
+			"""
+			using System.Collections.Generic;
+
+			+public class AddedGenericBase<T>
+			+{
+			+	public List<T> Items = new() { default };
+			+}
+			+
+			-public class IntPlayer
+			+public class IntPlayer : AddedGenericBase<int>
+			{
+			}
+
+			-public class StringPlayer
+			+public class StringPlayer : AddedGenericBase<string>
+			{
+			}
+
+			public class AddedGenericBaseTypeInitializer : IHotloadTestFixture
+			{
+				public IntPlayer Int = new();
+				public StringPlayer String = new();
+			+
+			+	void IHotloadTestFixture.Test()
+			+	{
+			+		Assert.AreEqual( 1, Int.Items?.Count );
+			+		Assert.AreEqual( 1, String.Items?.Count );
+			+	}
+			}
+			""" );
+
+		Assert.IsFalse( result.HasWarnings );
+	}
+
+	[TestMethod]
 	public async Task AddedStructFieldAssignedInConstructor()
 	{
 		// Struct constructors don't call a base constructor, so body statements

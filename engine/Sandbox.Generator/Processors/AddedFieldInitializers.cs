@@ -145,7 +145,11 @@ partial class HotloadProcessor
 				? GetInstanceFields( oldBase ).ToDictionary( x => x.Name, x => x.Type.ToDisplayString( FieldTypeFormat ) )
 				: new Dictionary<string, string>();
 
-			foreach ( var field in GetInstanceFields( baseType ) )
+			// Compare and generate from a generic base type's definition, like the old type we compare against. The
+			// constructed type's fields have its type arguments substituted, so their types wouldn't match the old
+			// ones, and every construction would generate its own method into the definition.
+
+			foreach ( var field in GetInstanceFields( baseType.OriginalDefinition ) )
 			{
 				// A field that changed type is treated as new too
 
