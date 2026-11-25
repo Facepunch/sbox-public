@@ -44,6 +44,17 @@ public abstract class GpuMaterial : IDisposable
 	/// </summary>
 	public virtual bool DepthOnlyNow => false;
 
+	static int depthOnlyEpoch;
+
+	/// <summary>
+	/// Moves on whenever any material's <see cref="DepthOnlyNow"/> may have changed, so what's made from every material's
+	/// answer is only made again then.
+	/// </summary>
+	internal static int DepthOnlyEpoch => System.Threading.Volatile.Read( ref depthOnlyEpoch );
+
+	/// <summary>Called when something <see cref="DepthOnlyNow"/> reads changes: a material's render state or program.</summary>
+	internal static void DepthOnlyMayHaveChanged() => System.Threading.Interlocked.Increment( ref depthOnlyEpoch );
+
 	/// <summary>
 	/// Whether <see cref="DepthOnlyNow"/> may still change by itself (a surface whose program is still compiling): what is
 	/// made once from it is made again until it settles.

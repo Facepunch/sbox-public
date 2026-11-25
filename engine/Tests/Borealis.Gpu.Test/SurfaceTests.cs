@@ -295,21 +295,34 @@ public class SurfaceTests : GpuTest
 		Assert.IsFalse( rock.DepthOnlyNow, "no program yet" );
 		Assert.IsTrue( rock.DepthOnlyPending );
 
+		// Lists made from every material's answer ask again only when the epoch moves, so each change moves it
+		var epoch = GpuMaterial.DepthOnlyEpoch;
+		void Moved( string what )
+		{
+			Assert.AreNotEqual( epoch, GpuMaterial.DepthOnlyEpoch, what );
+			epoch = GpuMaterial.DepthOnlyEpoch;
+		}
+
 		rock.Program = program;
 		Assert.IsTrue( rock.DepthOnlyNow );
 		Assert.IsFalse( rock.DepthOnlyPending );
+		Moved( "program found" );
 
 		rock.AlphaTest = true;
 		Assert.IsFalse( rock.DepthOnlyNow, "alpha tested" );
+		Moved( "alpha test" );
 		rock.AlphaTest = false;
 
 		rock.TwoSided = true;
 		Assert.IsFalse( rock.DepthOnlyNow, "two-sided" );
+		Moved( "two-sided" );
 		rock.TwoSided = false;
 
+		epoch = GpuMaterial.DepthOnlyEpoch;
 		program.Stale = true;
 		Assert.IsFalse( rock.DepthOnlyNow, "dropped by a hotload" );
 		Assert.IsTrue( rock.DepthOnlyPending );
+		Moved( "hotload" );
 	}
 
 	/// <summary>

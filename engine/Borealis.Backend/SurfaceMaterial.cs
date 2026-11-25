@@ -169,7 +169,17 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	internal SpecializedFor Specialization { get; set; }
 
 	/// <summary>Its compiled program, once a device found it (<see cref="SurfaceShaders"/>).</summary>
-	internal SurfaceProgram Program { get; set; }
+	internal SurfaceProgram Program
+	{
+		get => program;
+		set
+		{
+			program = value;
+			DepthOnlyMayHaveChanged();
+		}
+	}
+
+	SurfaceProgram program;
 
 	/// <summary>Whether it noted the passes it draws with (<see cref="SurfaceShaders.NoteMaterial"/>): a model's draw calls, or its first draw.</summary>
 	internal bool PassesNoted { get; set; }
@@ -211,6 +221,7 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	void Changed()
 	{
 		Interlocked.Increment( ref stateVersion );
+		DepthOnlyMayHaveChanged();
 		Interlocked.Increment( ref version );
 	}
 
@@ -220,6 +231,7 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 		{
 			if ( !AffectsState( offset + i * 4 ) ) continue;
 			Interlocked.Increment( ref stateVersion );
+			DepthOnlyMayHaveChanged();
 			break;
 		}
 

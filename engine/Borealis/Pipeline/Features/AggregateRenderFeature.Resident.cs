@@ -67,6 +67,9 @@ internal sealed partial class AggregateRenderFeature
 		public readonly int[] DeviceInstances = new int[4];
 		public readonly GpuMaterial[] DeviceDepthOnly = new GpuMaterial[4];
 
+		/// <summary>Per depth kind, <see cref="GpuMaterial.DepthOnlyEpoch"/> when its batches' materials were last asked.</summary>
+		public readonly int[] DeviceDepthEpoch = [-1, -1, -1, -1];
+
 		/// <summary>
 		/// Per depth kind, arrays that start with <see cref="Device"/>'s batches, for calls that hand the device more batches
 		/// after them (<see cref="TakeCombined"/>): the list is copied into one when it changes, not into every call's.
@@ -1645,6 +1648,8 @@ internal sealed partial class AggregateRenderFeature
 
 		lock ( list )
 		{
+			// Read before the materials are asked: a change while they are is asked again next frame
+			var epoch = GpuMaterial.DepthOnlyEpoch;
 			var made = list.Device[kind];
 			if ( list.DeviceGeneration[kind] == argGeneration && made is not null ) return made.AsSpan( 0, list.DeviceCount );
 
@@ -1676,7 +1681,7 @@ internal sealed partial class AggregateRenderFeature
 			{
 				// Made for this list before: only what can have changed since (DeviceBatch with the rest as it was)
 				var instances = list.DeviceInstances[kind] != residentInstances;
-				var materials = depth && !forceDepthOnly;
+				var materials = depth && !forceDepthOnly && list.DeviceDepthEpoch[kind] != epoch;
 				if ( instances || materials )
 				{
 					for ( int i = 0; i < batches.Length; i++ )
@@ -1698,6 +1703,7 @@ internal sealed partial class AggregateRenderFeature
 			}
 
 			list.DeviceInstances[kind] = residentInstances;
+			list.DeviceDepthEpoch[kind] = epoch;
 
 			// Mesh groups' batches name no frame's instances: made once their materials have settled
 			if ( !list.DeviceMeshes[kind] )

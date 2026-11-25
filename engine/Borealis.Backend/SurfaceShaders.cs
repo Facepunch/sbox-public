@@ -911,7 +911,11 @@ internal sealed class SurfaceProgram : IDisposable
 	public bool Stale
 	{
 		get => System.Threading.Volatile.Read( ref stale );
-		set => System.Threading.Volatile.Write( ref stale, value );
+		set
+		{
+			System.Threading.Volatile.Write( ref stale, value );
+			GpuMaterial.DepthOnlyMayHaveChanged(); // Its materials' depth-only answer reads it
+		}
 	}
 
 	bool stale;
