@@ -644,8 +644,10 @@ namespace Sandbox
 
 			for ( int i = 0; i < len; i++ )
 			{
-				if ( !Is( v[i], i, ignorecase ) )
+				if ( !Is( v[i], offset + i, ignorecase ) )
+				{
 					return false;
+				}
 			}
 
 			return true;
@@ -660,8 +662,10 @@ namespace Sandbox
 
 			for ( int i = 0; i < len; i++ )
 			{
-				if ( !Is( v[i], i, ignorecase ) )
+				if ( !Is( v[i], offset + i, ignorecase ) )
+				{
 					return false;
+				}
 			}
 
 			Pointer += len;
