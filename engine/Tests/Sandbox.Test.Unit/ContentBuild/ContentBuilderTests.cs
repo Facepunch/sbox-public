@@ -1757,9 +1757,12 @@ public class ContentBuilderTests
 	public void OneBuildOfARootAtATime()
 	{
 		using var fx = new Fixture();
-		fx.Write( "a.vtex", "red", "sleep 600" );
+		fx.Write( "a.vtex", "red", "sleep 2000" );
 		var first = Task.Run( () => fx.Build() );
-		Thread.Sleep( 200 );
+		// Wait until the first build holds the root, not a guessed time: a loaded machine can start it late
+		var lockFile = Path.Combine( fx.State, "lock" );
+		var waited = System.Diagnostics.Stopwatch.StartNew();
+		while ( !Held( lockFile ) && waited.Elapsed < TimeSpan.FromSeconds( 10 ) ) Thread.Sleep( 10 );
 
 		var second = fx.Build( lockTimeout: TimeSpan.FromMilliseconds( 100 ) );
 
@@ -1767,6 +1770,14 @@ public class ContentBuilderTests
 		StringAssert.Contains( second.Error, "running" );
 		Assert.IsTrue( first.Result.Success, first.Result.Log.ToString() );
 		AssertJobs( fx.Build() );
+	}
+
+	// Whether another handle holds the file exclusively, as a running build holds its root's lock
+	static bool Held( string path )
+	{
+		if ( !File.Exists( path ) ) return false;
+		try { using var probe = new FileStream( path, FileMode.Open, FileAccess.ReadWrite, FileShare.None ); return false; }
+		catch ( IOException ) { return true; }
 	}
 
 	[TestMethod]
