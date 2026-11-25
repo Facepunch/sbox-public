@@ -1,7 +1,7 @@
 namespace Sandbox.SceneLab;
 
 /// <summary>
-/// Maps, loaded the way a game loads them: a <see cref="MapInstance"/> with a package ident, fetched from the cloud and
+/// Maps, loaded the way a game loads them: a <see cref="MapInstance"/> with a Workshop item ID, installed and
 /// mounted, its world geometry streamed in by native's world renderer and its entities made into GameObjects.
 /// </summary>
 internal static class MapScenes
@@ -36,37 +36,37 @@ internal static class MapScenes
 	/// <summary>
 	/// facepunch.flatgrass: a big flat grass map from the cloud.
 	/// </summary>
-	public static Scene Flatgrass() => Map( "facepunch.flatgrass", new Vector3( -600, -600, 300 ), new Vector3( 0, 0, 30 ) );
+	public static Scene Flatgrass() => Map( "3819030036", new Vector3( -600, -600, 300 ), new Vector3( 0, 0, 30 ) );
 
 	/// <summary>
 	/// facepunch.flatgrass from out on the grass, looking past the building to the horizon: the map's 3D skybox, its
 	/// sky world drawn at 16 times its size behind the main world.
 	/// </summary>
-	public static Scene FlatgrassSkyline() => Map( "facepunch.flatgrass", new Vector3( 3000, 2000, 200 ), new Vector3( 0, 0, 30 ) );
+	public static Scene FlatgrassSkyline() => Map( "3819030036", new Vector3( 3000, 2000, 200 ), new Vector3( 0, 0, 30 ) );
 
 	/// <summary>
 	/// facepunch.flatgrass from low over the grass clumps at its edge: props, which have no lightmaps, so they're lit from the
 	/// map's light probe volumes (<c>SCENEOBJECTFLAG_NEEDS_LIGHT_PROBE</c>).
 	/// </summary>
-	public static Scene FlatgrassProps() => Map( "facepunch.flatgrass", new Vector3( 1500, 1000, 70 ), new Vector3( 1300, 770, 0 ) );
+	public static Scene FlatgrassProps() => Map( "3819030036", new Vector3( 1500, 1000, 70 ), new Vector3( 1300, 770, 0 ) );
 
 	/// <summary>
 	/// facepunch.flatgrass inside the building, where the sun comes through its skylights in patches on the floor: their shadows
 	/// are the lightmaps', since the baked sun's cascades leave the static building out.
 	/// </summary>
-	public static Scene FlatgrassInterior() => Map( "facepunch.flatgrass", new Vector3( -200, -100, 40 ), new Vector3( 150, 150, 0 ) );
+	public static Scene FlatgrassInterior() => Map( "3819030036", new Vector3( -200, -100, 40 ), new Vector3( 150, 150, 0 ) );
 
 	/// <summary>
 	/// facepunch.construct from the sandbox game's spawn, looking west over the field to the vista trees: cards and clumps in
 	/// the map's 3D skybox.
 	/// </summary>
-	public static Scene ConstructSkyline() => Map( "facepunch.construct", new Vector3( 864, -608, 67 ), new Vector3( -136, -608, 67 ) );
+	public static Scene ConstructSkyline() => Map( "3819060209", new Vector3( 864, -608, 67 ), new Vector3( -136, -608, 67 ) );
 
 	/// <summary>
 	/// facepunch.construct from high over its north-east corner, looking across the whole map: its most expensive view to
 	/// draw found so far (2026-10-28: ~665 depth prepass draws, 4.8 ms a frame natively).
 	/// </summary>
-	public static Scene ConstructOverview() => Map( "facepunch.construct", new Vector3( 3000, 2500, 1200 ), new Vector3( 0, 0, 30 ) );
+	public static Scene ConstructOverview() => Map( "3819060209", new Vector3( 3000, 2500, 1200 ), new Vector3( 0, 0, 30 ) );
 
 	/// <summary>
 	/// The skyline through volumetric fog: a fog volume between the camera and the 3D skybox, which the skybox is fogged by too -
@@ -94,6 +94,7 @@ internal static class MapScenes
 		if ( !PanelAppSystem.ApiReady.IsCompleted ) return;
 
 		EnableDownloads();
+		WorkshopItems.Current ??= new WorkshopItems();
 
 		foreach ( var map in scene.GetAllComponents<MapInstance>() )
 		{

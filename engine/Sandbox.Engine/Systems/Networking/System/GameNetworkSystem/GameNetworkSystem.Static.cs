@@ -325,7 +325,7 @@ internal static class DedicatedServer
 		await Task.Delay( 1000 );
 
 		var gameTitle = Application.GamePackage?.Title ?? "s&box";
-		var mapName = Application.MapPackage?.Title ?? GameNetworkSystem.CurrentSceneName ?? gameTitle;
+		var mapName = Application.Map?.Title ?? GameNetworkSystem.CurrentSceneName ?? gameTitle;
 
 		try
 		{
@@ -342,7 +342,7 @@ internal static class DedicatedServer
 				{ "revision", Application.GamePackage?.Revision?.VersionId.ToString() ?? string.Empty },
 				{ "protocol", Protocol.Network.ToString() },
 				{ "gameident", Application.GameIdent },
-				{ "mapident", Application.MapPackage?.Ident ?? string.Empty },
+				{ "mapident", Application.Map?.ServerTag ?? string.Empty },
 				{ "buildid", Application.Version },
 				{ "hdn", config.Hidden ? "1" : "0" },
 				{ "api", Protocol.Api.ToString() }

@@ -38,14 +38,14 @@ public static partial class Game
 		}
 
 		/// <summary>
-		/// Opens a modal for the specified map package
+		/// Opens the details of a Workshop map or local map project.
 		/// </summary>
-		/// <param name="packageIdent"></param>
-		public static void ShowMapModal( string packageIdent )
+		/// <param name="map">The Workshop item ID or local project's primary asset path.</param>
+		public static void ShowMapModal( string map )
 		{
 			using var scope = GlobalContext.MenuScope();
 
-			IModalSystem.Current?.Map( packageIdent );
+			IModalSystem.Current?.Map( map );
 		}
 
 		/// <summary>

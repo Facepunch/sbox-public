@@ -7,8 +7,6 @@ class PreviewRenderTexture : AssetPreview
 {
 	private RenderTextureAsset renderTexture;
 
-	public override bool IsAnimatedPreview => false;
-
 	public PreviewRenderTexture( Asset asset ) : base( asset )
 	{
 		if ( asset.TryLoadResource<RenderTextureAsset>( out var resource ) )

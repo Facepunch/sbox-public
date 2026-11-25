@@ -407,8 +407,6 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 	{
 		switch ( extension )
 		{
-			case "vmap":
-				return "map";
 			case "vmdl":
 				return "model";
 			case "vmat":

@@ -3,7 +3,6 @@
 [AssetPreview( "prefab" )]
 class PreviewPrefab : AssetPreview
 {
-	public override bool IsAnimatedPreview => true;
 	public override float PreviewWidgetCycleSpeed => 0.2f;
 
 	public PreviewPrefab( Asset asset ) : base( asset )

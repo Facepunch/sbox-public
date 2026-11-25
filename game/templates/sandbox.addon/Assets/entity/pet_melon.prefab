@@ -3,7 +3,7 @@
     "__guid": "49fb5efb-54aa-4669-990e-5851fc5dd218",
     "__version": 2,
     "Flags": 0,
-    "Name": "my_entity",
+    "Name": "pet_melon",
     "Position": "0,0,0",
     "Rotation": "0,0,0,1",
     "Scale": "1,1,1",
@@ -16,7 +16,7 @@
     "OwnerTransfer": 1,
     "Components": [
       {
-        "__type": "MyEntity",
+        "__type": "PetMelon",
         "__guid": "1115b598-1f40-47d6-a922-397260cbec73",
         "__enabled": true,
         "Flags": 0,

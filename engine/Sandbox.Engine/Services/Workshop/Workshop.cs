@@ -275,4 +275,23 @@ internal static partial class Workshop
 	/// An item's page on the Steam Workshop
 	/// </summary>
 	internal static string GetUrl( ulong id ) => $"https://steamcommunity.com/sharedfiles/filedetails/?id={id}";
+
+	/// <summary>
+	/// Ask the backend which item an ident is linked to. 0 if there isn't one, or we couldn't ask.
+	/// </summary>
+	internal static async Task<ulong> LookupAsync( string ident )
+	{
+		if ( string.IsNullOrWhiteSpace( ident ) ) return 0;
+		if ( Backend.Workshop is null ) return 0;
+
+		try
+		{
+			var result = await Backend.Workshop.Lookup( ident );
+			return result.WorkshopId;
+		}
+		catch ( Exception e ) when ( e is System.Net.Http.HttpRequestException or TaskCanceledException or Refit.ApiException )
+		{
+			return 0;
+		}
+	}
 }

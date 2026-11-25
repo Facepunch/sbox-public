@@ -171,7 +171,7 @@ public sealed partial class WorkshopPublisher : Panel
 		try
 		{
 			await LoadAddonTypesAsync();
-			var publishedItems = await ProjectPublisher.GetPublishedWorkshopItemsAsync( "addon" ).WaitAsync( lifetime.Token );
+			var publishedItems = await ProjectPublisher.GetPublishedWorkshopItemsAsync( project.Config.Type ).WaitAsync( lifetime.Token );
 			items.Options = [new( "Create new item", "add", 0UL ), .. publishedItems.Select( x => new Sandbox.UI.Option( x.Title, WorkshopIcon( x.Thumb ), x.Id ) )];
 			EnsureSelectedItem();
 			await LoadItemAsync();

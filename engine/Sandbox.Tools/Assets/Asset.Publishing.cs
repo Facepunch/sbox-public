@@ -99,7 +99,6 @@ public partial class Asset
 			// erroring or regenerating it from the name.
 			ProjectConfig.Title = TruncateTitle( ProjectConfig.Title );
 			ProjectConfig.Type = PackageType();
-			ProjectConfig.SetMeta( "SingleAssetSource", asset.RelativePath );
 
 			var project = Project.Current;
 

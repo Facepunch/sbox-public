@@ -36,6 +36,7 @@ public partial class ProjectPublisher
 		public bool IsPreview { get; private set; }
 
 		PublishOptions publishingOptions;
+		string mapGameRoot;
 		IProgress progress;
 		readonly HashSet<string> previewFileNames = new( StringComparer.OrdinalIgnoreCase );
 
@@ -63,6 +64,7 @@ public partial class ProjectPublisher
 		void ClearAssets()
 		{
 			Assets.Clear();
+			mapGameRoot = null;
 			previewFileNames.Clear();
 			SceneWarnings.Clear();
 			ExcludedAssets.Clear();
@@ -86,8 +88,8 @@ public partial class ProjectPublisher
 		{
 			ClearAssets();
 
+			if ( project.Config.Type == "map" ) mapGameRoot = EngineFileSystem.Root?.GetFullPath( "/" );
 			var rootFolder = project.RootDirectory.FullName;
-
 
 			this.progress = progress;
 			IsPreview = previewOnly;
@@ -181,6 +183,8 @@ public partial class ProjectPublisher
 		{
 			IsPreview = false;
 			ClearAssets();
+
+			if ( IsWorkshopAsset( singleAsset ) ) mapGameRoot = EngineFileSystem.Root?.GetFullPath( "/" );
 
 			var assetList = new List<Asset>
 			{
@@ -357,7 +361,7 @@ public partial class ProjectPublisher
 
 		async Task<bool> AddAsset( Asset asset )
 		{
-			if ( !CanPublishFile( asset ) )
+			if ( mapGameRoot is null ? !CanPublishFile( asset ) : IsShippedMapContent( mapGameRoot, asset.AbsolutePath ) )
 				return false;
 
 			// Uncompiled resources always ship their source, independently of IncludeSourceFiles.
@@ -445,8 +449,19 @@ public partial class ProjectPublisher
 			await AddFile( png, thumbName );
 		}
 
+		internal static bool IsShippedMapContent( string gameRoot, string absolutePath )
+		{
+			if ( gameRoot is null || string.IsNullOrEmpty( absolutePath ) ) return false;
+
+			var path = Path.GetRelativePath( gameRoot, absolutePath ).Replace( '\\', '/' );
+			return path.StartsWith( "core/", StringComparison.OrdinalIgnoreCase )
+				|| path.StartsWith( "addons/content/", StringComparison.OrdinalIgnoreCase );
+		}
+
 		private async Task AddFile( string absPath, string relativePath )
 		{
+			if ( IsShippedMapContent( mapGameRoot, absPath ) ) return;
+
 			await YieldPreview();
 			if ( !System.IO.File.Exists( absPath ) )
 			{

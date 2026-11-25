@@ -83,7 +83,7 @@ public class ModalSystem : IModalSystem
 	/// </summary>
 	void Shelve( BaseModal modal )
 	{
-		if ( Root is not { } root || root.ShelfModal is not null || PlatformShelf.IsGame( root.Shelf ) )
+		if ( Root is not { } root || root.ShelfModal is not null || PlatformShelf.IsDetail( root.Shelf ) )
 		{
 			Push( modal );
 			return;
@@ -135,10 +135,13 @@ public class ModalSystem : IModalSystem
 		Root?.ShowGame( packageIdent );
 	}
 
-	public void Map( string packageIdent ) => Package( packageIdent );
+	/// <summary>
+	/// Opens the map's Workshop or local project details.
+	/// </summary>
+	public void Map( string map ) => Root?.ShowMap( map );
 
 	/// <summary>
-	/// A package's page, up out of the dock - a game's, a map's, anything's - on <paramref name="page"/> of it
+	/// A package's page, up out of the dock - on <paramref name="page"/> of it
 	/// ("changes", "achievements") if given
 	/// </summary>
 	public void Package( string packageIdent, string page = "" )

@@ -53,6 +53,9 @@ internal static partial class PackageManager
 		if ( package is null )
 			throw new FileNotFoundException( $"Unable to find package '{options.PackageIdent}'" );
 
+		if ( package.IsRemoteMap )
+			throw new InvalidOperationException( $"Load map '{package.FullIdent}' by Workshop item ID or asset path." );
+
 		if ( package is LocalPackage local )
 		{
 			if ( local.Project.Broken )

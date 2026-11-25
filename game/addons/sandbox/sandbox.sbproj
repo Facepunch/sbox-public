@@ -23,7 +23,7 @@
       "UseCreateGameModal": true,
       "NeedsMap": true,
       "ShowChangeMap": true,
-      "DefaultMap": "facepunch.flatgrass",
+      "DefaultMap": "3819030036",
       "MapTarget": "*"
     },
     "MaxPlayers": 64,

@@ -60,9 +60,8 @@ public struct WorkshopItemMetaData
 	}
 
 	/// <summary>
-	/// What an item's Steam metadata says it is, for an item that has no <see cref="FileName"/> (maps published before
-	/// items shipped one). Its <see cref="Meta"/> is left out: Steam's holds only part of the package's meta, and the
-	/// backend's whole meta stays in use. Null if it has none.
+	/// Reads Steam metadata for items that predate metadata.json. Maps use its primary asset.
+	/// Package-backed items keep their full package metadata.
 	/// </summary>
 	internal static WorkshopItemMetaData? FromItemMetadata( string metadata )
 	{
@@ -73,7 +72,8 @@ public struct WorkshopItemMetaData
 			var value = Json.Deserialize<WorkshopItemMetaData>( metadata );
 			if ( string.IsNullOrEmpty( value.TypeName ) ) return null;
 
-			value.Meta = null;
+			if ( !string.Equals( value.TypeName, "map", System.StringComparison.OrdinalIgnoreCase ) )
+				value.Meta = null;
 			return value;
 		}
 		catch ( System.Exception e )

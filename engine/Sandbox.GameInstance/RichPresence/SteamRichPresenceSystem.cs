@@ -109,17 +109,17 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 		}
 		else if ( IGameInstance.Current.Package is Package gamePackage )
 		{
-			if ( Application.MapPackage is Package mapPackage )
+			if ( Application.Map?.Title is { } mapTitle )
 			{
 				// Playing Sandbox - Construct
 				SetValue( "steam_display", "#StatusGameMap" );
-				SetValue( "maptitle", mapPackage.Title );
+				SetValue( "maptitle", mapTitle );
 			}
-			else if ( !string.IsNullOrEmpty( Application.Map ) && Application.Map.EndsWith( ".scene" ) )
+			else if ( Application.Map?.ShortName is { } mapName )
 			{
 				// Playing Sandbox - gm_construct
 				SetValue( "steam_display", "#StatusGameMap" );
-				SetValue( "maptitle", System.IO.Path.GetFileName( Application.Map.Split( '.' )[0] ) );
+				SetValue( "maptitle", mapName );
 			}
 			else
 			{

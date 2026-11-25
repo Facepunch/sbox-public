@@ -254,8 +254,7 @@ public partial class Package
 	public static async Task<Package> MountAsync( string identString, bool partial )
 	{
 		var pack = await FetchAsync( identString, partial, false );
-		await pack.MountAsync();
-		return pack;
+		return pack is not null && await pack.MountAsync() is not null ? pack : null;
 	}
 
 	/// <summary>

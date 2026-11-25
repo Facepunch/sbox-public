@@ -69,7 +69,7 @@ public sealed class EntitySpawnerEntity : Component, IPlayerControllable
 	[Rpc.Host]
 	private void DoSpawn()
 	{
-		if ( !Entity.IsValid() || Entity.Prefab is null ) return;
+		if ( !Entity.IsValid() || Entity.IsRemote || Entity.Prefab is null ) return;
 
 		// Prune destroyed entities from the tracking list
 		_spawnedEntities.RemoveAll( wr => !wr.TryGetTarget( out var go ) || !go.IsValid() );

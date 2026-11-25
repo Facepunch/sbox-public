@@ -203,6 +203,9 @@ public partial class ProjectPublisher
 	void FinishAddingFiles()
 	{
 		Meta["CodePackageReferences"] = Manifest.CodePackageReferences.ToArray();
+
+		if ( WorkshopType == "map" )
+			Meta.Remove( "PackageReferences" );
 	}
 
 	/// <summary>

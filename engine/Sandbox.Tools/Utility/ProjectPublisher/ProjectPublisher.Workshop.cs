@@ -70,7 +70,7 @@ public partial class ProjectPublisher
 		if ( project.ProjectSourceObject is Asset asset )
 			return IsWorkshopAsset( asset ) ? asset.Publishing.PackageType() : null;
 
-		return project.Config.Type is "game" or "addon" && !project.Config.IsStandaloneOnly
+		return project.Config.Type is "game" or "addon" or "map" && !project.Config.IsStandaloneOnly
 			? project.Config.Type
 			: null;
 	}
@@ -499,7 +499,7 @@ public partial class ProjectPublisher
 	/// <summary>
 	/// Addons are identified and published entirely through Steam Workshop, without a backend package.
 	/// </summary>
-	public static bool PublishesOnlyToWorkshop( Project project ) => project.Config.Type == "addon";
+	public static bool PublishesOnlyToWorkshop( Project project ) => project.Config.Type is "addon" or "map";
 
 	/// <summary>
 	/// The workshop item this publishes to, or 0 if it'll create a new one

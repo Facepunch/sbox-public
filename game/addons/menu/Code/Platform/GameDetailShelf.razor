@@ -5,7 +5,7 @@
 @using Sandbox.UI;
 @using MenuProject.Modals.PackageModalComponents;
 @namespace MenuProject.Platform
-@page "/shelf/game/{Ident}"
+@page "/shelf/details/{Kind}/{Ident}"
 @inherits ShelfPage
 
 @*
@@ -58,7 +58,7 @@
             }
             else if ( WorkshopItem is null && Local is null )
             {
-                <div class="status">Couldn't load this Workshop item.</div>
+                <div class="status">@(Kind == "map" ? "Couldn't find this map on the Workshop or in your local projects." : "Couldn't load this Workshop item.")</div>
             }
             else if ( Page == "achievements" )
             {
@@ -287,6 +287,14 @@
 
 @code
 {
+    /// <summary>
+    /// The kind of detail page requested by the menu.
+    /// </summary>
+    public string Kind { get; set; }
+
+    /// <summary>
+    /// The URL-encoded item ID, local map path, or game ident.
+    /// </summary>
     public string Ident { get; set; }
 
     /// <summary>
@@ -305,7 +313,7 @@
     string summary;
     string previewIdent;
     WorkshopItemDetails WorkshopItem => load?.WorkshopItem;
-    Package Local => load?.Local is { WorkshopId: 0 } project ? project : null;
+    Package Local => Kind == "map" || load?.Local?.WorkshopId == 0 ? load?.Local : null;
     ulong WorkshopId => WorkshopItem?.Id ?? 0;
 
     string loadedIdent;
@@ -382,7 +390,7 @@
     {
         get
         {
-            var key = $"{WorkshopId}|{Local?.FullIdent}";
+            var key = $"{WorkshopId}|{Ident}";
             if ( key != tagListOf )
             {
                 tagListOf = key;
@@ -455,7 +463,7 @@
     /// <summary>
     /// A game - played, switched to. Anything else only shows what applies to it.
     /// </summary>
-    bool IsGame => WorkshopItem?.Tags.Contains( "game", StringComparer.OrdinalIgnoreCase ) ?? (Local?.TypeName == "game");
+    bool IsGame => !IsMap && (WorkshopItem?.Tags.Contains( "game", StringComparer.OrdinalIgnoreCase ) ?? (Local?.TypeName == "game"));
     bool IsMap => WorkshopItem?.Tags.Contains( "map", StringComparer.OrdinalIgnoreCase ) ?? (Local?.TypeName == "map");
 
     bool ModeMismatch => IsGame && Modes is { IsUnknown: false } modes && modes.FitFor( MenuProject.PlayerModes.PartySize ).Fit == MenuProject.PlayerModes.FitKind.Poor;
@@ -498,7 +506,7 @@
         else MenuUtility.Subscribe( WorkshopId );
     }
 
-    bool IsCurrent => (WorkshopId != 0 && WorkshopId == PlatformMenu.CurrentId) || PlatformMenu.IsCurrent( load?.Local );
+    bool IsCurrent => IsGame && ((WorkshopId != 0 && WorkshopId == PlatformMenu.CurrentId) || PlatformMenu.IsCurrent( load?.Local ));
 
     void Open()
     {
@@ -527,20 +535,23 @@
 
         if ( Body.IsValid() ) Body.ScrollOffset = Vector2.Zero;
 
-        _ = Load( Ident );
+        _ = Load( Uri.UnescapeDataString( Ident ) );
     }
 
     async Task Load( string ident )
     {
         // A local project can open its page directly from Your Games.
-        var start = PlatformRoot.Instance?.ShownPackage;
-        var current = load = new GamePageLoad( ident, start?.FullIdent == ident ? start : null );
+        var start = Kind == "map" ? null : PlatformRoot.Instance?.ShownPackage;
+        var current = load = new GamePageLoad( ident, start?.FullIdent == ident ? start : null, map: Kind == "map" );
 
         await current.Run();
         if ( !IsValid || current != load ) return;
 
-        previewIdent = WorkshopItem?.KeyValues.GetValueOrDefault( "package" ) ?? current.Local?.FullIdent;
-        Discovery.PreviewOpened( "page", previewIdent );
+        if ( Kind != "map" && !IsMap )
+        {
+            previewIdent = WorkshopItem?.KeyValues.GetValueOrDefault( "package" ) ?? current.Local?.FullIdent;
+            Discovery.PreviewOpened( "page", previewIdent );
+        }
         summary = WorkshopItem is null ? Local?.Summary : SummaryOf( WorkshopItem.Description );
         StateHasChanged();
 

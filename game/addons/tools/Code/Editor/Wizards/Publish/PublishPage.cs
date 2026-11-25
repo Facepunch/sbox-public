@@ -38,7 +38,6 @@ partial class PublishWizard : BaseWizard
 			AddStep( new AssetReviewWizardPage() { Project = Project, PublishConfig = Config } );
 		}
 
-		// Maps and games go to the workshop - the backend only gets the thumb and code, and no video
 		if ( ProjectPublisher.PublishesToWorkshop( Project ) )
 		{
 			AddStep( new WorkshopUploadPage() { Project = Project, PublishConfig = Config } );    // files to the item picked on the first page, then make live
@@ -46,7 +45,6 @@ partial class PublishWizard : BaseWizard
 		else
 		{
 			AddStep( new UploadWizardPage() { Project = Project, PublishConfig = Config } );       // upload files
-			AddStep( new UploadMediaPage() { Project = Project, PublishConfig = Config } );        // upload files
 			AddStep( new FinalizeWizardPage() { Project = Project, PublishConfig = Config } );     // make live
 		}
 

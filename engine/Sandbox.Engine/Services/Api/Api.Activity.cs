@@ -11,7 +11,6 @@ internal static partial class Api
 	public static partial class Activity
 	{
 		static int ActivityCount;
-		static string[] lastAddons;
 		static ulong[] lastAddonWorkshopIds;
 		static string sessionGame;
 		static Dictionary<string, object> sessionLoad;
@@ -39,12 +38,14 @@ internal static partial class Api
 		public static float SessionSeconds => IsSessionActive ? (float)SessionTimer.ElapsedSeconds : 0.0f;
 		public static FastTimer SessionTimer;
 
-		/// <summary>Keep main-thread snapshots in order, including a close followed by a fast reload.</summary>
+		/// <summary>
+		/// Keep main-thread snapshots in order, including a close followed by a fast reload.
+		/// </summary>
 		internal static void QueueUpdate( string game, string gameVersion, string map, string[] addons, object net = null )
 		{
 			var (load, origin) = PeekCompletedLoad( game );
 			var gameWorkshopId = Application.GamePackage?.WorkshopId ?? 0;
-			var mapWorkshopId = Application.MapPackage?.WorkshopId ?? 0;
+			var mapWorkshopId = Application.Map?.WorkshopId ?? 0;
 			var addonWorkshopIds = WorkshopItems.Current?.GetMountedAddonIds() ?? [];
 
 			lock ( updateLock )
@@ -101,7 +102,6 @@ internal static partial class Api
 					WriteOpenSession( game );
 				}
 
-				lastAddons = addons;
 				lastAddonWorkshopIds = addonWorkshopIds;
 				if ( load is not null )
 				{
@@ -113,13 +113,8 @@ internal static partial class Api
 				if ( !IsSessionActive )
 					return;
 
-				if ( game != null ) game = game.Trim().ToLower();
-
 				var data = new Dictionary<string, object>();
-				data.Add( "game", game );
 				data.Add( "gameversion", gameVersion );
-				data.Add( "map", map );
-				data.Add( "content", lastAddons );
 				if ( gameWorkshopId != 0 ) data.Add( "gameId", gameWorkshopId );
 				if ( mapWorkshopId != 0 ) data.Add( "mapId", mapWorkshopId );
 				data.Add( "addonIds", addonWorkshopIds );
@@ -199,11 +194,9 @@ internal static partial class Api
 			await Stats.ForceFlushAsync().ConfigureAwait( false );
 
 			var data = new Dictionary<string, object>();
-			data.Add( "game", "" );
 			data.Add( "st", SessionSeconds.FloorToInt() );
 			data.Add( "sh", SessionId.ToString() );
 			data.Add( "i", ActivityCount++ );
-			data.Add( "content", lastAddons );
 			data.Add( "addonIds", lastAddonWorkshopIds );
 			data.Add( "performance", performanceData );
 			data.Add( "config", GetConfig() );
@@ -229,7 +222,6 @@ internal static partial class Api
 			SessionId = Guid.Empty;
 			SessionTimer = default;
 			ActivityCount = -1;
-			lastAddons = null;
 			lastAddonWorkshopIds = null;
 			sessionLoad = null;
 			sessionOrigin = null;

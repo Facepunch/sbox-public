@@ -4,7 +4,6 @@ namespace Editor.Assets;
 class PreviewPhysics( Asset asset ) : AssetPreview( asset )
 {
 	public override float PreviewWidgetCycleSpeed => 0.2f;
-	public override bool IsAnimatedPreview => true;
 
 	BBox _bounds;
 	Material _material;

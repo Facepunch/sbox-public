@@ -5,9 +5,9 @@ public class NpcsPage : BaseSpawnMenu
 {
 	protected override void Rebuild()
 	{
-		AddOption( "apps", "#spawnmenu.entity.all", () => new EntityListCloud { LocalCategory = "Npc", Query = "+npc" } );
-		AddOption( "person", "#spawnmenu.npc.humanoid", () => new EntityListCloud { LocalCategory = "Npc/Humanoid", Query = "+npc +humanoid" } );
-		AddOption( "smart_toy", "#spawnmenu.npc.other", () => new EntityListCloud { LocalCategory = "Npc/Other", Query = "+npc -humanoid" } );
+		AddOption( "apps", "#spawnmenu.entity.all", () => new EntityListLocal { Category = "Npc" } );
+		AddOption( "person", "#spawnmenu.npc.humanoid", () => new EntityListLocal { Category = "Npc/Humanoid" } );
+		AddOption( "smart_toy", "#spawnmenu.npc.other", () => new EntityListLocal { Category = "Npc/Other" } );
 
 		AddMountedSections( MountedPrefabs.NpcTag, entity => SpawnMenuCategory.Matches( entity.Category, "Npc" ) );
 	}

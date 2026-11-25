@@ -102,7 +102,8 @@ public static partial class SandboxMenuExtensions
 
 		if ( package.TypeName == "map" )
 		{
-			Game.Overlay.ShowMapModal( package.FullIdent );
+			if ( !package.IsRemote ) Game.Overlay.ShowMapModal( package.PrimaryAsset );
+			else if ( package.WorkshopId != 0 ) Game.Overlay.ShowMapModal( package.WorkshopId.ToString() );
 			return;
 		}
 

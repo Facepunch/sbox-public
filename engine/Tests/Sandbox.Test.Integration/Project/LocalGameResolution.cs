@@ -7,6 +7,7 @@ using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Network;
 using Sandbox.Tasks;
+using Sandbox.Utility;
 
 namespace ProjectTests;
 
@@ -318,38 +319,39 @@ public class LocalGameResolutionTest
 	[DataRow( true, true )]
 	public void JoiningClientResolvesServerPackages( bool liveUpdate, bool missingRequired )
 	{
-		using var scope = GlobalContext.GameScope();
-		var root = Path.Combine( Environment.CurrentDirectory, "core", $"test_join_packages_{Guid.NewGuid():N}" );
-		var previousSystem = Networking.System;
-		var dll = (GameInstanceDll)IGameInstanceDll.Current;
+		using var game = new TestGame();
 		const string localGame = "local.joinprobe";
 		const string hostAddon = "LOCAL.hostonlyaddon";
+		const ulong mapId = 4321;
 		const string sandbox = "facepunch.sandbox#2147483647";
-
-		if ( GameInstanceDll.Current is null )
-			dll.Bootstrap();
-
-		Project.Clear();
 
 		try
 		{
-			WriteProject( root, "joinprobe", "game", ".sbproj" );
-			Project.AddAddonPath( root );
-			var system = Networking.System = new NetworkSystem( "joining client", dll.TypeLibrary );
+			WriteProject( game.Root, "joinprobe", "game", ".sbproj" );
+			Project.AddAddonPath( game.Root );
+
+			var mapFolder = Directory.CreateDirectory( Path.Combine( game.Root, "map" ) ).FullName;
+			File.WriteAllText( Path.Combine( mapFolder, "join-map-content.txt" ), "bundled asset" );
+			Directory.CreateDirectory( Path.Combine( mapFolder, "maps" ) );
+			File.Copy( Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), "core/maps/error.vpk" ), Path.Combine( mapFolder, "maps/error.vpk" ) );
+			using var installed = OpenWorkshopMap( mapFolder, mapId, "maps/error.vpk" );
+
+			var system = Networking.System = new NetworkSystem( "joining client", game.Dll.TypeLibrary );
 			system.Connect( new TestConnection( Guid.NewGuid(), isHost: true ) );
-			Assert.IsTrue( SyncContext.RunBlocking( dll.LoadGamePackageAsync( localGame, GameLoadingFlags.Remote | GameLoadingFlags.Reload, default ) ) );
-			dll.InstallNetworkTables( system );
+			Assert.IsTrue( SyncContext.RunBlocking( game.Dll.LoadGamePackageAsync( localGame, GameLoadingFlags.Remote | GameLoadingFlags.Reload, default ) ) );
+			game.Dll.InstallNetworkTables( system );
 
 			// Cached metadata without downloadable files makes the required mount fail offline.
 			if ( missingRequired )
 				Package.Cache( new RemotePackage { Org = new Package.Organization { Ident = "facepunch" }, Ident = "sandbox" }, false, int.MaxValue );
 
-			var table = dll.ServerPackages.StringTable;
+			var table = game.Dll.ServerPackages.StringTable;
 			var ready = new ServerPackages.PackageInfo { ResourcesReady = true };
 			table.Set( localGame, liveUpdate ? default : ready );
+			game.Dll.WorkshopItems.StringTable.Set( mapId.ToString(), new WorkshopItems.ItemInfo { Id = mapId, Type = Workshop.ItemType.Map, ResourcesReady = true } );
 
 			// With a live update the registered game keeps the join waiting until the host marks it ready.
-			var join = liveUpdate ? dll.LoadNetworkTables( system ) : null;
+			var join = liveUpdate ? game.Dll.LoadNetworkTables( system ) : null;
 			var addonEntry = table.Set( hostAddon, new ServerPackages.PackageInfo() );
 			var requiredEntry = missingRequired ? table.Set( sandbox, ready ) : null;
 			if ( liveUpdate )
@@ -361,7 +363,7 @@ public class LocalGameResolutionTest
 			}
 			else
 			{
-				join = dll.LoadNetworkTables( system );
+				join = game.Dll.LoadNetworkTables( system );
 			}
 
 			Assert.AreEqual( !missingRequired, SyncContext.RunBlocking( join.WaitAsync( TimeSpan.FromSeconds( 10 ) ) ) );
@@ -373,29 +375,322 @@ public class LocalGameResolutionTest
 			else
 			{
 				Assert.IsTrue( ServerPackages.Get( localGame ).IsMounted );
+				Assert.IsTrue( FileSystem.Mounted.FileExists( "join-map-content.txt" ) );
+				var map = SyncContext.RunBlocking( game.Dll.WorkshopItems.OpenMapAsync( mapId, default ) );
+				Assert.AreEqual( "maps/error.vpk", map.Asset );
+				Assert.IsNull( map.Release );
 			}
 		}
 		finally
 		{
-			dll.CloseGame();
-			Networking.System = previousSystem;
 			if ( missingRequired ) Package.ClearCache( sandbox );
-			Project.Clear();
-			Directory.Delete( root, true );
 		}
 	}
 
-	static void WriteProject( string root, string folder, string type, string filename, string org = "local" )
+	/// <summary>
+	/// A host loads selected maps by Workshop ID, map package ident, game asset path, or mounted scene URI.
+	/// A bundled map project stands in for its Workshop item, and its ident becomes that item's ID.
+	/// A map project's primary asset path doesn't load it, nor does a package ident that isn't a map.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "local" )]
+	[DataRow( "local-ident" )]
+	[DataRow( "bundled" )]
+	[DataRow( "bundled-ident" )]
+	[DataRow( "workshop" )]
+	[DataRow( "game" )]
+	[DataRow( "workshop-vpk" )]
+	[DataRow( "workshop-missing-asset" )]
+	[DataRow( "workshop-no-asset" )]
+	[DataRow( "package-ident" )]
+	[DataRow( "mounted-uri" )]
+	public void LaunchSelectedSceneMap( string source )
+	{
+		using var game = new TestGame();
+		const string primaryAsset = "maps/launch_probe.scene";
+		const ulong itemId = 54321;
+		var workshop = source.StartsWith( "workshop" );
+		var mounted = source == "mounted-uri";
+		var bundled = source.StartsWith( "bundled" );
+		var byIdent = source.EndsWith( "-ident" ) && source != "package-ident";
+		var selectedAsset = source switch
+		{
+			"workshop-vpk" => "maps/error.vmap",
+			"workshop-missing-asset" => "maps/missing.scene",
+			"workshop-no-asset" => null,
+			_ => primaryAsset
+		};
+
+		using var testMount = mounted ? RegisterTestMount() : null;
+		WriteProject( game.Root, "launchgame", "game", ".sbproj", configure: config =>
+		{
+			config.Metadata["StartupScene"] = mounted ? primaryAsset : "missing.scene";
+			config.Metadata["MapStartupScene"] = source == "workshop-vpk" ? primaryAsset : "missing.scene";
+		} );
+		if ( source.StartsWith( "local" ) || bundled )
+		{
+			game.WriteMap( primaryAsset, bundled ? itemId : 0 );
+		}
+
+		var folder = source == "game" || mounted ? "launchgame" : "map";
+		var assets = game.CopyAsset( folder, primaryAsset + "_c" );
+		if ( source == "workshop-vpk" ) game.CopyAsset( folder, "maps/error.vpk", "core/maps/error.vpk" );
+		Project.AddAddonPath( game.Root );
+
+		using var installed = workshop ? OpenWorkshopMap( assets, itemId, selectedAsset ) : null;
+		LaunchArguments.Map = source switch
+		{
+			"package-ident" => "local.launchgame",
+			"mounted-uri" => "mount://testgame/maps/testlevel.scene",
+			_ => byIdent ? "local.map" : workshop || bundled ? itemId.ToString() : primaryAsset
+		};
+
+		var loaded = SyncContext.RunBlocking( game.Dll.LoadGamePackageAsync( "local.launchgame", GameLoadingFlags.Host | GameLoadingFlags.Reload, default ) );
+		if ( source is "local" or "package-ident" or "workshop-missing-asset" )
+		{
+			Assert.IsFalse( loaded );
+			Assert.AreEqual( 0, game.Dll.WorkshopItems.StringTable.Entries.Count );
+			return;
+		}
+
+		Assert.IsTrue( loaded );
+		Assert.AreEqual( workshop ? 1 : 0, game.Dll.WorkshopItems.StringTable.Entries.Count );
+		Assert.AreEqual( workshop || bundled ? itemId : 0, Application.Map.WorkshopId );
+		if ( bundled ) Assert.AreEqual( "map", Application.Map.Title );
+
+		// The launch map's project isn't required of clients. They mount their own copy when they launch.
+		if ( bundled ) Assert.IsFalse( game.Dll.ServerPackages.StringTable.Entries.Keys.Any( x => x.StartsWith( "local.map", StringComparison.OrdinalIgnoreCase ) ) );
+		if ( byIdent ) Assert.AreEqual( bundled ? itemId.ToString() : "local.map", LaunchArguments.Map );
+		Assert.IsNotNull( Game.ActiveScene );
+		Assert.IsTrue( FileSystem.Mounted.FileExists( primaryAsset + "_c" ) );
+
+		if ( source is "workshop-vpk" or "mounted-uri" )
+		{
+			var scene = new Scene();
+			using var cleanup = new DisposeAction( () => scene.Destroy() );
+			using var sceneScope = scene.Push();
+			var component = OpenMap( scene, fromLaunch: true );
+			Assert.AreEqual( LaunchArguments.Map, component.MapName );
+			if ( mounted )
+			{
+				Assert.IsTrue( component.GameObject.Children.Any( x => x.Name == "MountedRoot" ) );
+			}
+			else
+			{
+				Assert.AreEqual( "maps/error.vpk", component.LoadedVpkPath );
+
+				// The launch map stays required after the component that loaded it lets go.
+				component.UnloadMap();
+				Assert.AreEqual( 1, game.Dll.WorkshopItems.StringTable.Entries.Count );
+			}
+		}
+	}
+
+	/// <summary>
+	/// A menu launch opens the configured menu before the selected map and records its scene source.
+	/// </summary>
+	[TestMethod]
+	public void MenuSceneTakesPrecedenceOverLaunchMap()
+	{
+		using var game = new TestGame();
+		WriteProject( game.Root, "menugame", "game", ".sbproj", configure: config => config.Metadata["MenuScene"] = "menu.scene" );
+		game.CopyAsset( "menugame", "menu.scene_c" );
+		game.CopyAsset( "menugame", "level.scene_c" );
+		Project.AddAddonPath( game.Root );
+		LaunchArguments.Map = "level.scene";
+
+		Assert.IsTrue( SyncContext.RunBlocking( game.Dll.LoadGamePackageAsync( "local.menugame", GameLoadingFlags.Host | GameLoadingFlags.Menu | GameLoadingFlags.Reload, default ) ) );
+		Assert.IsTrue( Game.IsOnMenu );
+	}
+
+	/// <summary>
+	/// A scene's map Workshop ID mounts the bundled map project published as it, without installing the Workshop item.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void SceneMapMountsBundledProject( bool hasPrimaryAsset )
+	{
+		using var game = new TestGame();
+		const string primaryAsset = "maps/scene_probe.scene";
+		const ulong itemId = 65432;
+
+		game.WriteMap( hasPrimaryAsset ? primaryAsset : "maps/missing.scene", itemId );
+		game.CopyAsset( "map", primaryAsset + "_c", "unittest/addons/glass_test/Assets/scenes/glass_test.scene_c" );
+		Project.AddAddonPath( game.Root );
+		Assert.IsFalse( FileSystem.Mounted.FileExists( primaryAsset + "_c" ) );
+
+		// A menu names the map after its project, without mounting it.
+		var info = SyncContext.RunBlocking( new MapReference( itemId.ToString() ).GetInfoAsync() );
+		Assert.AreEqual( "map", info.Title );
+		Assert.IsFalse( FileSystem.Mounted.FileExists( primaryAsset + "_c" ) );
+
+		var scene = new Scene();
+		using var cleanup = new DisposeAction( () => scene.Destroy() );
+		using var sceneScope = scene.Push();
+		var first = OpenMap( scene, itemId.ToString(), expected: hasPrimaryAsset );
+		if ( !hasPrimaryAsset )
+		{
+			Assert.IsFalse( IsRequired(), "A failed scene load must release its package immediately." );
+			return;
+		}
+
+		var second = OpenMap( scene, itemId.ToString() );
+		Assert.IsTrue( FileSystem.Mounted.FileExists( primaryAsset + "_c" ) );
+		Assert.AreEqual( 0, game.Dll.WorkshopItems.StringTable.Entries.Count );
+
+		// A map that isn't the launch map is required of clients for as long as it's loaded.
+		Assert.IsTrue( IsRequired() );
+		first.UnloadMap();
+		Assert.IsTrue( IsRequired() );
+		second.UnloadMap();
+		Assert.IsFalse( IsRequired() );
+
+		var reopened = OpenMap( scene, itemId.ToString() );
+		Assert.IsTrue( IsRequired() );
+		reopened.UnloadMap();
+		Assert.IsFalse( IsRequired() );
+
+		bool IsRequired() => game.Dll.ServerPackages.StringTable.Entries.Keys.Any( x => x.StartsWith( "local.map", StringComparison.OrdinalIgnoreCase ) );
+	}
+
+	/// <summary>
+	/// A scene's map in a mounted game mounts that game itself, without a launch having done it.
+	/// </summary>
+	[TestMethod]
+	public void SceneMapMountsItsGame()
+	{
+		using var game = new TestGame();
+		using var testMount = RegisterTestMount();
+		SyncContext.RunBlocking( Sandbox.Mounting.Directory.SetMountState( "testgame", false ) );
+		Assert.IsFalse( Sandbox.Mounting.Directory.Get( "testgame" ).IsMounted );
+
+		var scene = new Scene();
+		using var cleanup = new DisposeAction( () => scene.Destroy() );
+		using var sceneScope = scene.Push();
+		var component = OpenMap( scene, "mount://testgame/maps/testlevel.scene" );
+
+		Assert.IsTrue( Sandbox.Mounting.Directory.Get( "testgame" ).IsMounted );
+
+		var info = SyncContext.RunBlocking( new MapReference( component.MapName ).GetInfoAsync() );
+		Assert.IsFalse( string.IsNullOrEmpty( info.Title ) );
+		Assert.IsTrue( component.GameObject.Children.Any( x => x.Name == "MountedRoot" ) );
+	}
+
+	/// <summary>
+	/// A joining client needs its bundled map's assets before it can deserialize the host's scene.
+	/// A host running the bundled map advertises no Workshop download for that ID.
+	/// </summary>
+	[TestMethod]
+	public void JoiningClientMountsBundledSceneMap()
+	{
+		using var game = new TestGame();
+		const ulong itemId = 87654;
+		const string asset = "maps/bundled_join_probe.scene";
+
+		WriteProject( game.Root, "joingame", "game", ".sbproj" );
+		game.WriteMap( asset, itemId );
+		game.CopyAsset( "map", asset + "_c" );
+		Project.AddAddonPath( game.Root );
+		Assert.IsFalse( FileSystem.Mounted.FileExists( asset + "_c" ) );
+
+		var system = Networking.System = new NetworkSystem( "joining client", game.Dll.TypeLibrary );
+		system.Connect( new TestConnection( Guid.NewGuid(), isHost: true ) );
+		LaunchArguments.Map = itemId.ToString();
+
+		Assert.IsTrue( SyncContext.RunBlocking( game.Dll.LoadGamePackageAsync( "local.joingame", GameLoadingFlags.Remote | GameLoadingFlags.Reload, default ) ) );
+		game.Dll.InstallNetworkTables( system );
+		Assert.IsTrue( SyncContext.RunBlocking( game.Dll.LoadNetworkTables( system ).WaitAsync( TimeSpan.FromSeconds( 10 ) ) ) );
+
+		Assert.AreEqual( 0, game.Dll.WorkshopItems.StringTable.Entries.Count );
+		Assert.IsTrue( FileSystem.Mounted.FileExists( asset + "_c" ), "The client must be able to resolve assets from its bundled map." );
+	}
+
+	static MapInstance OpenMap( Scene scene, string map = null, bool fromLaunch = false, bool expected = true )
+	{
+		var component = scene.CreateObject().Components.Create<MapInstance>();
+		component.MapName = map;
+		component.UseMapFromLaunch = fromLaunch;
+		using ( CallbackBatch.Batch() ) component.OnLoadInternal();
+		SyncContext.RunBlocking( scene.WaitForLoading() );
+		Assert.AreEqual( expected, component.IsLoaded );
+		return component;
+	}
+
+	static IDisposable RegisterTestMount()
+	{
+		var assembly = typeof( TestGameMount ).Assembly;
+		Sandbox.Mounting.Directory.AddAssembly( assembly );
+		return new DisposeAction( () => Sandbox.Mounting.Directory.RemoveAssembly( assembly ) );
+	}
+
+	sealed class TestGame : IDisposable
+	{
+		readonly GlobalContext.GlobalContextScope scope = GlobalContext.GameScope();
+		readonly NetworkSystem previousSystem = Networking.System;
+		readonly string previousMap = LaunchArguments.Map;
+		internal readonly GameInstanceDll Dll = (GameInstanceDll)IGameInstanceDll.Current;
+		internal readonly string Root = Directory.CreateDirectory( Path.Combine( Environment.CurrentDirectory, "core", $"test_maps_{Guid.NewGuid():N}" ) ).FullName;
+
+		internal TestGame()
+		{
+			if ( GameInstanceDll.Current is null ) Dll.Bootstrap();
+			Project.Clear();
+		}
+
+		internal void WriteMap( string asset, ulong workshopId )
+		{
+			WriteProject( Root, "map", "map", ".sbproj", configure: config =>
+			{
+				config.Metadata["PrimaryAsset"] = asset;
+				config.Metadata["WorkshopId"] = workshopId;
+			} );
+		}
+
+		internal string CopyAsset( string folder, string asset, string fixture = "unittest/addons/resources/Assets/test.scene_c" )
+		{
+			var assets = Path.Combine( Root, folder, "Assets" );
+			var destination = Path.Combine( assets, asset );
+			Directory.CreateDirectory( Path.GetDirectoryName( destination ) );
+			File.Copy( Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), fixture ), destination );
+			return assets;
+		}
+
+		void IDisposable.Dispose()
+		{
+			Dll.CloseGame();
+			LaunchArguments.Map = previousMap;
+			Networking.System = previousSystem;
+			Project.Clear();
+			Directory.Delete( Root, true );
+			scope.Dispose();
+		}
+	}
+
+	static WorkshopFileSystem OpenWorkshopMap( string folder, ulong id, string asset )
+	{
+		Directory.CreateDirectory( folder );
+		File.WriteAllText( Path.Combine( folder, WorkshopItemMetaData.FileName ), Json.Serialize( new WorkshopItemMetaData
+		{
+			TypeName = "map",
+			Meta = Json.Serialize( new { PrimaryAsset = asset } )
+		} ) );
+		return SyncContext.RunBlocking( WorkshopFileSystem.OpenInstalledAsync( id, folder, default ) );
+	}
+
+	static void WriteProject( string root, string folder, string type, string filename, string org = "local", Action<ProjectConfig> configure = null )
 	{
 		var directory = Path.Combine( root, folder );
 		Directory.CreateDirectory( Path.Combine( directory, "Code" ) );
-		File.WriteAllText( Path.Combine( directory, filename ), JsonSerializer.Serialize( new ProjectConfig
+		var config = new ProjectConfig
 		{
 			Title = folder,
 			Org = org,
 			Ident = Path.GetFileName( folder ),
 			Type = type,
 			Schema = 1
-		} ) );
+		};
+		configure?.Invoke( config );
+		File.WriteAllText( Path.Combine( directory, filename ), JsonSerializer.Serialize( config ) );
 	}
 }

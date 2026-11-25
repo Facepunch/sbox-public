@@ -350,7 +350,7 @@
         var query = search?.Trim();
         if ( string.IsNullOrEmpty( query ) ) return true;
 
-        var text = $"{server.Name} {server.Map} {MenuHelpers.CachedTitle( server.Map )} {server.Game} {MenuHelpers.CachedTitle( server.Game )}";
+        var text = $"{server.Name} {server.Map} {MenuHelpers.MapTitle( server.Map )} {server.Game} {MenuHelpers.CachedTitle( server.Game )}";
         return text.Contains( query, StringComparison.OrdinalIgnoreCase );
     }
 
@@ -394,7 +394,7 @@
             var found = await Networking.QueryLobbies( new Dictionary<string, string> { { "game", null }, { "map", null } }, true, true ) ?? new();
 
             // Their games' and maps' names and art, before they're shown
-            await MenuHelpers.FetchPackages( found.SelectMany( x => new[] { x.Game, x.Map } ) );
+            await Task.WhenAll( MenuHelpers.FetchPackages( found.Select( x => x.Game ) ), MenuHelpers.FetchMaps( found.Select( x => x.Map ) ) );
             if ( !IsValid ) return;
 
             lobbies = found;

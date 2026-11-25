@@ -47,11 +47,11 @@
 
     async void FetchMap()
     {
-        var pkg = await Package.FetchAsync( Networking.MapName, false );
-        if ( pkg is not null )
-        {
-            _mapTitle = pkg.Title;
-        }
+        if ( !ulong.TryParse( Networking.MapName, out var id ) || id == 0 )
+            return;
+
+        var result = await new Storage.Query { FileIds = [id] }.Run();
+        _mapTitle = result?.Items?.FirstOrDefault()?.Title;
     }
 
     protected override void OnUpdate()

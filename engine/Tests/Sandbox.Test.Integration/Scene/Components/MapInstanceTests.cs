@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
 
 namespace SceneTests.Components;
 
@@ -37,15 +36,51 @@ public class MapInstanceTests
 		var method = typeof( MapInstance ).GetMethod( "LoadMapAsync", BindingFlags.NonPublic | BindingFlags.Instance, [typeof( string ), typeof( LoadingContext )] );
 		var task = (Task<bool>)method.Invoke( instance, [mapName, null] );
 
-		var deadline = System.Diagnostics.Stopwatch.StartNew();
-		while ( !task.IsCompleted && deadline.ElapsedMilliseconds < 5000 )
-		{
-			Sandbox.Tasks.SyncContext.MainThread.ProcessQueue();
-			Thread.Sleep( 1 );
-		}
+		return Sandbox.Tasks.SyncContext.RunBlocking( task.WaitAsync( TimeSpan.FromSeconds( 5 ) ) );
+	}
 
-		Assert.IsTrue( task.IsCompleted, "map load should finish" );
-		return task.Result;
+	/// <summary>
+	/// A map component accepts either Hammer extension, honors a launch override, and falls back to
+	/// its configured map when the override cannot load. Only a loaded world belongs in a snapshot.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "maps/error.vpk", null, true, "maps/error.vpk" )]
+	[DataRow( "maps/error.vmap", null, true, "maps/error.vmap" )]
+	[DataRow( "maps/missing.scene", "maps/error.vmap", true, "maps/error.vmap" )]
+	[DataRow( "maps/error.vpk", "maps/missing.scene", false, "maps/error.vpk" )]
+	[DataRow( "maps/error.vpk", "maps/missing.vpk", true, "maps/error.vpk" )]
+	[DataRow( "maps/missing.vpk", null, true, null )]
+	public void LoadsConfiguredOrLaunchHammerMap( string configured, string launch, bool useLaunch, string expected )
+	{
+		var previousMap = LaunchArguments.Map;
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		try
+		{
+			LaunchArguments.Map = launch;
+			var instance = scene.CreateObject().Components.Create<MapInstance>();
+			instance.MapName = configured;
+			instance.UseMapFromLaunch = useLaunch;
+			int loads = 0;
+			instance.OnMapLoaded += () => loads++;
+
+			using ( CallbackBatch.Batch() )
+			{
+				instance.OnLoadInternal();
+			}
+
+			Sandbox.Tasks.SyncContext.RunBlocking( scene.WaitForLoading().WaitAsync( TimeSpan.FromSeconds( 10 ) ) );
+			Assert.AreEqual( expected ?? configured, instance.MapName );
+			Assert.AreEqual( expected is not null, instance.IsLoaded );
+			Assert.AreEqual( expected is null ? 0 : 1, loads );
+			Assert.AreEqual( expected is null ? null : "maps/error.vpk", instance.LoadedVpkPath );
+		}
+		finally
+		{
+			scene.Destroy();
+			LaunchArguments.Map = previousMap;
+		}
 	}
 
 	/// <summary>

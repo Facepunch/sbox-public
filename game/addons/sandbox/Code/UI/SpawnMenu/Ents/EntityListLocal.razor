@@ -3,25 +3,41 @@
 @inherits Panel
 @namespace Sandbox
 
-
-@if ( Entities.Count == 0 )
-{
-    <SpawnMenuEmptyState Icon="search_off" Title="#spawnmenu.entity.no_results" Subtitle="#spawnmenu.empty.try_another_category" />
-    return;
-}
-
-<VirtualGrid Items=@Entities ItemSize=@(new Vector2( 123, 123 ))>
-    <Item Context="item">
-        @if (item is ScriptedEntity entry)
+<SpawnMenuContent>
+    <Header>
+        <SpawnMenuToolbar>
+            <Left><SpawnMenuSearchEntry Value:bind=@Filter /></Left>
+        </SpawnMenuToolbar>
+    </Header>
+    <Body>
+        @if ( Entities.Count == 0 )
         {
-            <SpawnMenuIcon Ident=@($"entity:{entry.ResourcePath}") Title=@entry.Title Developer=@entry.Developer></SpawnMenuIcon>
+            <SpawnMenuEmptyState Icon="search_off" Title="#spawnmenu.entity.no_results" Subtitle="#spawnmenu.empty.try_another_category" />
         }
-    </Item>
-</VirtualGrid>
+        else
+        {
+            <VirtualGrid @key=IconSize Items=@Entities ItemSize=@IconSize.ItemSize() class=@($"{IconSize.CssClass()} labeled-grid")>
+                <Item Context="item">
+                    @if ( item is ScriptedEntity entry )
+                    {
+                        <SpawnMenuIcon Ident=@($"entity:{entry.ResourcePath}") Title=@entry.Title Developer=@entry.Developer HideText=@(IconSize == SpawnMenuIconSize.Small) Tooltip=@(IconSize == SpawnMenuIconSize.Small ? entry.Title : "") />
+                    }
+                </Item>
+            </VirtualGrid>
+        }
+    </Body>
+</SpawnMenuContent>
 
 @code
 {
+    /// <summary>
+    /// The category to list, or null for all categories.
+    /// </summary>
     public string Category { get; set; }
+
+    /// <summary>
+    /// Include nested categories when filtering by category.
+    /// </summary>
     public bool IncludeSubcategories { get; set; } = true;
 
     /// <summary>
@@ -31,10 +47,27 @@
 
     List<ScriptedEntity> Entities = [];
 
-    protected override void OnParametersSet()
-    {
-        base.OnParametersSet();
+    SpawnMenuIconSize IconSize => SpawnMenuIconSizeExtensions.Current;
 
+    string Filter
+    {
+        get;
+        set { field = value; Rebuild(); }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Entities, IconSize );
+
+    protected override void OnParametersSet() => Rebuild();
+
+    /// <inheritdoc/>
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
+        Rebuild();
+    }
+
+    void Rebuild()
+    {
         var all = ResourceLibrary.GetAll<ScriptedEntity>()
             .Where( e => !e.IsRemote && e.IsMountAvailable && ( !e.Developer || ServerSettings.ShowDeveloperEntities ) );
 
@@ -43,6 +76,10 @@
 
         if ( Where is not null )
             all = all.Where( Where );
+
+        if ( !string.IsNullOrWhiteSpace( Filter ) )
+            all = all.Where( e => (LocalizedText.Resolve( e.Title ) ?? "").Contains( Filter, StringComparison.CurrentCultureIgnoreCase )
+                || e.ResourcePath.Contains( Filter, StringComparison.OrdinalIgnoreCase ) );
 
         Entities = all.OrderBy( e => LocalizedText.Resolve( e.Title ), StringComparer.CurrentCultureIgnoreCase ).ToList();
     }

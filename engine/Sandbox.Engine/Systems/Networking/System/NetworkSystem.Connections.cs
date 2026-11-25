@@ -99,7 +99,7 @@ internal partial class NetworkSystem
 			GamePackage = Application.GamePackage?.GetVersionedIdent() ?? Application.GameIdent ?? "",
 			GameWorkshopId = gameWorkshopId,
 			GameWorkshopVersion = gameWorkshopId != 0 ? Workshop.GetInstalledVersion( gameWorkshopId ) : 0,
-			Map = Application.Map,
+			Map = Application.Map?.Text,
 			Host = new ChannelInfo { Id = Connection.Local.Id },
 			HostSteamId = Connection.Local.SteamId,
 			Assigned = new ChannelInfo { Id = channel.Id },

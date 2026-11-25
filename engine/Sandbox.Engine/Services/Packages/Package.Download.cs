@@ -15,6 +15,8 @@ public partial class Package
 	/// </summary>
 	internal const int MaxParallelDownloads = 64;
 
+	internal bool IsRemoteMap => IsRemote && string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase );
+
 	struct FileDownloadEntry
 	{
 		public ManifestSchema.File File;
@@ -113,11 +115,7 @@ public partial class Package
 	{
 		// TODO - if we have a download in progress then return, or wait for it (?)
 		// The filesystem is technically immutable other than disposing and adding more shit to it
-		if ( Revision == null )
-			return false;
-
-		var rev = Revision;
-		if ( rev == null ) return false;
+		if ( Revision is not { } rev ) return false;
 		using var textureDownload = TextureWebStreaming.BeginDownload();
 
 		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Fetching '{Title}' Information" ) );

@@ -3,7 +3,6 @@
 [AssetPreview( "sprite" )]
 class PreviewSprite : AssetPreview
 {
-	public override bool IsAnimatedPreview => false;
 	public Sandbox.Rendering.FilterMode FilterMode { get; set; } = Sandbox.Rendering.FilterMode.Bilinear;
 
 	private Sprite spriteResource;

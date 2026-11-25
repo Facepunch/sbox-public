@@ -1,6 +1,6 @@
 
 /// <summary>
-/// This component has a kill icon that can be used in the killfeed, or somewhere else.
+/// Lists local Sandbox entities by category and installed game.
 /// </summary>
 [Title( "#spawnmenu.tab.entity" ), Order( 2000 ), Icon( "category" )]
 public class EntityPage : BaseSpawnMenu
@@ -34,7 +34,7 @@ public class EntityPage : BaseSpawnMenu
 
 	protected override void Rebuild()
 	{
-		AddOption( "apps", "#spawnmenu.entity.all", () => new EntityListCloud { IncludeLocalEntities = true, ExcludedLocalCategoryRoots = new[] { "Weapon", "Npc" }, Query = "-cat:weapon -cat:npc" } );
+		AddOption( "apps", "#spawnmenu.entity.all", () => new EntityListLocal { Where = e => !IsWeaponOrNpc( SpawnMenuCategory.Root( e.Category ) ) } );
 
 		var categories = ResourceLibrary.GetAll<ScriptedEntity>()
 			.Where( e => !e.IsRemote && e.IsMountAvailable && (!e.Developer || ServerSettings.ShowDeveloperEntities) )
@@ -44,26 +44,10 @@ public class EntityPage : BaseSpawnMenu
 			.OrderBy( c => string.Equals( c, "Other", StringComparison.OrdinalIgnoreCase ) )
 			.ThenBy( c => LocalizedText.Resolve( CategoryTitle( c ) ), StringComparer.CurrentCultureIgnoreCase );
 
-		var addedCategories = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var category in categories )
 		{
-			addedCategories.Add( category );
-			AddOption( CategoryIcon( category ), CategoryTitle( category ), () => new EntityListCloud { LocalCategory = category, Query = $"cat:{category.ToLowerInvariant()}" } );
+			AddOption( CategoryIcon( category ), CategoryTitle( category ), () => new EntityListLocal { Category = category } );
 		}
-
-		void AddCloudCategory( string name, string category )
-		{
-			if ( !addedCategories.Add( category ) ) return;
-			AddOption( CategoryIcon( category ), name, () => new EntityListCloud { Query = $"cat:{category}" } );
-		}
-
-		AddCloudCategory( "#spawnmenu.entity.animals", "animal" );
-		AddCloudCategory( "#spawnmenu.entity.audio", "audio" );
-		AddCloudCategory( "#spawnmenu.entity.effect", "effect" );
-		AddCloudCategory( "#spawnmenu.entity.other", "other" );
-		AddCloudCategory( "#spawnmenu.entity.showcase", "showcase" );
-		AddCloudCategory( "#spawnmenu.entity.toys_and_fun", "toyfun" );
-		AddCloudCategory( "#spawnmenu.entity.vehicle", "vehicle" );
 
 		AddMountedSections( MountedPrefabs.ItemTag, entity => !IsWeaponOrNpc( SpawnMenuCategory.Root( entity.Category ) ) );
 	}

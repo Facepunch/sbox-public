@@ -4,7 +4,6 @@
 public sealed class EntitySpawner : ISpawner
 {
 	public string DisplayName { get; private set; }
-	public string FullIdent => ListedPrefab is null && Path is not null && !Path.EndsWith( ".sent" ) ? Path : null;
 	public string Icon => Path;
 	public string Data => Path;
 	public BBox Bounds { get; private set; }
@@ -56,10 +55,12 @@ public sealed class EntitySpawner : ISpawner
 
 	private async Task<bool> LoadAsync()
 	{
-		Entity = await ResourceLibrary.LoadAsync<ScriptedEntity>( Path );
-		Entity ??= await Cloud.Load<ScriptedEntity>( Path, true );
+		var entity = await ResourceLibrary.LoadAsync<ScriptedEntity>( Path );
+		if ( entity is not { IsRemote: false } ) return false;
 
-		if ( Entity is not null && !string.IsNullOrEmpty( Entity.RequiredMount ) )
+		Entity = entity;
+
+		if ( !string.IsNullOrEmpty( Entity.RequiredMount ) )
 		{
 			var mount = await Sandbox.Mounting.Directory.Mount( Entity.RequiredMount );
 			if ( mount?.IsMounted != true )
@@ -70,15 +71,12 @@ public sealed class EntitySpawner : ISpawner
 			}
 		}
 
-		if ( Entity is not null )
-		{
-			DisplayName = Entity.Title ?? DisplayName;
-			var prefabScene = SceneUtility.GetPrefabScene( Entity.Prefab );
-			Bounds = prefabScene.GetLocalBounds();
+		DisplayName = Entity.Title ?? DisplayName;
+		var prefabScene = SceneUtility.GetPrefabScene( Entity.Prefab );
+		Bounds = prefabScene.GetLocalBounds();
 
-			if ( await Entity.LoadPreviewModelAsync() is { } model )
-				Bounds = MountedBounds( prefabScene, model );
-		}
+		if ( await Entity.LoadPreviewModelAsync() is { } model )
+			Bounds = MountedBounds( prefabScene, model );
 
 		return IsReady;
 	}

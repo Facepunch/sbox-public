@@ -59,9 +59,4 @@ public sealed class ResourcePublishContext
 	/// who want to download and add it to their project, but make their own changes.
 	/// </summary>
 	public bool CanIncludeSourceFiles { get; set; } = true;
-
-	//
-	// TODO: CreateVideoFunction. Need to make a class to wrap the video writer in a nicer way.
-	//
-
 }

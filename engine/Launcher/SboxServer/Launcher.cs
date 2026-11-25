@@ -76,7 +76,7 @@ public class DedicatedServerAppSystem : AppSystem
 	{
 		Log.Error( "Server is idle. Start a game to start hosting:" );
 		Log.Info( "game <gameident> - load a game" );
-		Log.Info( "game <gameident> <mapident> - load a game with a map" );
+		Log.Info( "game <gameident> <map> - load a game with a map, by Workshop ID, ident or path" );
 		Log.Info( "find <text> - find a concommand or convar" );
 		Log.Info( "kick <id> - kick a player by name or steam id" );
 		Log.Info( "status - current game status" );

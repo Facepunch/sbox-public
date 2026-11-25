@@ -16,6 +16,8 @@ public class ResourceStringControlWidget : ControlWidget
 
 	public string WarningText { get; set; }
 
+	string _workshopTitle;
+
 	public ResourceStringControlWidget( SerializedProperty property ) : base( property )
 	{
 		property.TryGetAttribute<AssetPathAttribute>( out var attr );
@@ -39,9 +41,13 @@ public class ResourceStringControlWidget : ControlWidget
 	{
 		base.OnValueChanged();
 
+		_workshopTitle = null;
+
 		if ( AssetType == AssetType.MapFile )
 		{
 			var resource = SerializedProperty.GetValue<string>( null );
+			if ( IsWorkshopMap( resource, out var workshopId ) ) FetchWorkshopTitle( workshopId );
+
 			var asset = resource != null ? AssetSystem.FindByPath( resource ) : null;
 			if ( asset is not null )
 			{
@@ -108,8 +114,10 @@ public class ResourceStringControlWidget : ControlWidget
 		{
 			var textRect = rect.Shrink( 0, 3 );
 
-			bool isPackage = !resource.Contains( ".vmap" ) && Package.TryParseIdentParts( resource, out _ );
-			if ( !isPackage )
+			bool isMap = AssetType == AssetType.MapFile;
+			bool isWorkshopMap = IsWorkshopMap( resource, out _ );
+			bool isPackage = !isMap && Package.TryParseIdentParts( resource, out _ );
+			if ( !isPackage && !isWorkshopMap )
 			{
 				Paint.SetBrush( Theme.Red.Darken( 0.8f ) );
 				Paint.DrawRect( iconRect, 2 );
@@ -121,7 +129,11 @@ public class ResourceStringControlWidget : ControlWidget
 
 			Paint.SetPen( Theme.Text.WithAlpha( 0.9f ) );
 			Paint.SetHeadingFont( 8, 450 );
-			var t = Paint.DrawText( textRect, isPackage ? (Package.TryGetCached( resource, out Package package ) ? $"{package.Title} ☁️" : $"Cloud {pickerName}") : $"Missing {pickerName}", TextFlag.LeftTop );
+			var title = $"Missing {pickerName}";
+			if ( isWorkshopMap ) title = _workshopTitle ?? $"Workshop {pickerName}";
+			else if ( isPackage ) title = Package.TryGetCached( resource, out Package package ) ? $"{package.Title} ☁️" : $"Cloud {pickerName}";
+
+			var t = Paint.DrawText( textRect, title, TextFlag.LeftTop );
 
 			textRect.Left = t.Right + 6;
 			Paint.SetDefaultFont( 7 );
@@ -164,33 +176,26 @@ public class ResourceStringControlWidget : ControlWidget
 		if ( ReadOnly ) return;
 
 		var resource = SerializedProperty.GetValue<string>( null );
-		var asset = resource != null ? AssetSystem.FindByPath( resource ) : null;
 
 		var picker = AssetPicker.Create( null, AssetType );
 		PropertyStartEdit();
 
 		picker.SetSelection( resource );
 		picker.Title = $"Select {SerializedProperty.DisplayName}";
-		if ( AssetType == AssetType.MapFile )
+		picker.OnAssetHighlighted = ( o ) =>
 		{
-			picker.OnPackagePicked = ( o ) =>
-			{
-				SerializedProperty.SetValue( o.FullIdent );
-				PropertyFinishEdit();
-			};
-		}
-		else
-		{
-			picker.OnAssetHighlighted = ( o ) =>
-			{
-				UpdateFromAsset( o.FirstOrDefault() );
-				PropertyFinishEdit();
-			};
-		}
+			UpdateFromAsset( o.FirstOrDefault() );
+			PropertyFinishEdit();
+		};
 		picker.OnAssetPicked = ( o ) => UpdateFromAsset( o.FirstOrDefault() );
+		picker.OnWorkshopItemPicked = ( id ) =>
+		{
+			SetResource( id.ToString() );
+			PropertyFinishEdit();
+		};
 		picker.Show();
 
-		picker.SetSelection( asset );
+		picker.SetSelection( resource );
 
 		if ( SerializedProperty.TryGetAttribute<AssetHintAttribute>( out var hint ) )
 		{
@@ -202,19 +207,39 @@ public class ResourceStringControlWidget : ControlWidget
 	{
 		if ( asset is null ) return;
 
+		SetResource( asset.RelativePath );
+	}
+
+	private void SetResource( string resource )
+	{
 		SerializedProperty.Parent?.NoteStartEdit( SerializedProperty );
-		SerializedProperty.SetValue( asset.RelativePath );
+		SerializedProperty.SetValue( resource );
 		SerializedProperty.Parent?.NoteFinishEdit( SerializedProperty );
+	}
+
+	/// <summary>
+	/// Is this a map property holding a Workshop item ID?
+	/// </summary>
+	private bool IsWorkshopMap( string resource, out ulong id )
+	{
+		id = 0;
+		return AssetType == AssetType.MapFile && ulong.TryParse( resource, out id ) && id != 0;
+	}
+
+	private async void FetchWorkshopTitle( ulong id )
+	{
+		var result = await new Storage.Query { FileIds = [id] }.Run();
+		if ( !IsValid ) return;
+
+		// The value can change while Steam is being asked
+		if ( !IsWorkshopMap( SerializedProperty.GetValue<string>( null ), out var current ) || current != id ) return;
+
+		_workshopTitle = result?.Items?.FirstOrDefault()?.Title;
+		Update();
 	}
 
 	public override void OnDragHover( DragEvent ev )
 	{
-		if ( AssetType == AssetType.MapFile && ev.Data.Url?.Scheme == "https" )
-		{
-			ev.Action = DropAction.Link;
-			return;
-		}
-
 		if ( !ev.Data.HasFileOrFolder )
 			return;
 
@@ -228,18 +253,6 @@ public class ResourceStringControlWidget : ControlWidget
 
 	public override void OnDragDrop( DragEvent ev )
 	{
-		if ( AssetType == AssetType.MapFile && ev.Data.Url?.Scheme == "https" )
-		{
-			if ( !Package.TryParseIdentParts( ev.Data.Url.ToString(), out var ident ) )
-				return;
-
-			PropertyStartEdit();
-			SerializedProperty.SetValue( $"{ident.org}.{ident.package}" );
-			PropertyFinishEdit();
-			ev.Action = DropAction.Link;
-			return;
-		}
-
 		if ( !ev.Data.HasFileOrFolder )
 			return;
 
@@ -282,6 +295,13 @@ public class ResourceStringControlWidget : ControlWidget
 	void Paste()
 	{
 		var path = EditorUtility.Clipboard.Paste();
+
+		if ( IsWorkshopMap( path?.Trim(), out var id ) )
+		{
+			SetResource( id.ToString() );
+			return;
+		}
+
 		var asset = AssetSystem.FindByPath( path );
 		UpdateFromAsset( asset );
 	}

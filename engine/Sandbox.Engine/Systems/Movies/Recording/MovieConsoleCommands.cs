@@ -79,7 +79,7 @@ internal static class MovieConsoleCommands
 	}
 
 	/// <summary>
-	/// Generate a default movie file name including a timestamp, game ident, map ident (if available),
+	/// Generate a default movie file name including a timestamp, game ident, map name (if it has one),
 	/// and clip index if the recording is split into multiple parts. Does not include a file extension
 	/// or directory.
 	/// </summary>
@@ -87,9 +87,9 @@ internal static class MovieConsoleCommands
 	{
 		var fileName = $"{_recordingStartTime:yyyy.MM.dd.HH.mm.ss}";
 
-		if ( Package.TryParseIdentParts( Networking.MapName, out var parsedMap ) )
+		if ( new MapReference( Networking.MapName ).ShortName is { } mapName )
 		{
-			fileName = $"{parsedMap.package}.{fileName}";
+			fileName = $"{mapName}.{fileName}";
 		}
 
 		if ( Package.TryParseIdentParts( Game.Ident, out var parsedGame ) )

@@ -157,7 +157,7 @@
         {
             Extension = extension,
             CurrentValue = currentValue,
-            AllowPackages = allowPackages,
+            AllowPackages = allowPackages && !string.Equals( extension, "sent", StringComparison.OrdinalIgnoreCase ),
             Category = category,
             OnSelectedFile = onSelected
         };

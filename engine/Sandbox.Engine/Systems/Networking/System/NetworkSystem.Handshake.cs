@@ -143,7 +143,8 @@ internal partial class NetworkSystem
 		//
 		// Check any required mount for this map
 		//
-		if ( Mounting.MountUtility.TryParse( msg.Map, out string ident ) )
+		var mountedMap = Mounting.MountUtility.IsMountPath( msg.MapName ) ? msg.MapName : msg.Map;
+		if ( Mounting.MountUtility.TryParse( mountedMap, out string ident ) )
 		{
 			// make sure the mount exists and is mounted
 			var mount = Mounting.Directory.Get( ident );
@@ -159,10 +160,10 @@ internal partial class NetworkSystem
 
 			// load the scene now so that it's ready by the time we get to snapshot
 			// which may/will reference procedural resources and could be out of order from the MapInstance doing it's thing (woof)
-			var scenefile = SceneFile.Load( msg.MapName );
+			var scenefile = SceneFile.Load( mountedMap );
 			if ( scenefile is null )
 			{
-				IGameInstanceDll.Current.Disconnect( $"Map not found: {msg.MapName}" );
+				IGameInstanceDll.Current.Disconnect( $"Map not found: {mountedMap}" );
 				Networking.Disconnect();
 				return;
 			}

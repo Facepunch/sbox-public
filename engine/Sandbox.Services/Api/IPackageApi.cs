@@ -19,9 +19,6 @@ public partial class ServiceApi
 		[Post( "/package/upload/file" )]
 		Task<FileUploadResult> UploadFile( [Body] FileUploadRequest file );
 
-		[Post( "/package/upload/video" )]
-		Task<FileUploadResult> UploadVideo( [Body] VideoUploadRequest file );
-
 		[Get( "/package/find/2" )]
 		Task<PackageFindResult> Find( [Query] string q, int take = 100, int skip = 0 );
 
@@ -123,45 +120,10 @@ public struct FileUploadRequest
 	public int Size { get; set; }
 }
 
-public struct VideoUploadRequest
-{
-	/// <summary>
-	/// Package ident
-	/// </summary>
-	public string Package { get; set; }
-
-	/// <summary>
-	/// Optional video tag. If a video with this tag is found we'll replace it instead of creating a new one.
-	/// </summary>
-	public string Tag { get; set; }
-
-	/// <summary>
-	/// A base64 embed of the file - or a blob name 
-	/// </summary>
-	public string File { get; set; }
-
-	/// <summary>
-	/// Is this a thumb - will replace any existing thumbs
-	/// </summary>
-	public bool Thumb { get; set; }
-
-	/// <summary>
-	/// True for this video to start hidden
-	/// </summary>
-	public bool Hidden { get; set; }
-}
-
-
 public struct FileUploadResult
 {
 	public string Status { get; set; }
 }
-
-public struct VideoUploadResult
-{
-	public string Status { get; set; }
-}
-
 
 public struct PublishManifest
 {

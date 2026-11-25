@@ -99,9 +99,9 @@ public class ScriptedEntity : GameResource, IDefinitionResource
 		return CreateSimpleAssetTypeIcon( "📦", width, height, "#f54248" );
 	}
 
+	/// <inheritdoc/>
 	public override void ConfigurePublishing( ResourcePublishContext context )
 	{
-		if ( Prefab is null )
-			context.SetPublishingDisabled( "Invalid: missing a prefab" );
+		context.SetPublishingDisabled( "Scripted entities must be included in a game or addon." );
 	}
 }

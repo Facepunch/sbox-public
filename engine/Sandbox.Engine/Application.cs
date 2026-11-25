@@ -150,19 +150,14 @@ public static class Application
 	internal static Package GamePackage { get; set; }
 
 	/// <summary>
-	/// The currently loaded map package
-	/// </summary>
-	internal static Package MapPackage { get; set; }
-
-	/// <summary>
 	/// The currently loaded game package's ident - if applicable.
 	/// </summary>
 	internal static string GameIdent { get; set; }
 
 	/// <summary>
-	/// The currently loaded map, can be an ident or a path.
+	/// The map the running game launched on, or null if it launched without one.
 	/// </summary>
-	internal static string Map { get; set; }
+	internal static MapReference Map { get; set; }
 
 #if DEBUG
 	public static bool IsDebug => true;
@@ -203,7 +198,6 @@ public static class Application
 		GameIdent = default;
 		GamePackage = default;
 		ExceptionCount = default;
-		MapPackage = default;
 		Map = default;
 
 		// Cheats, and anything they allowed, shouldn't carry over into the next game
@@ -258,9 +252,9 @@ public static class Application
 			Log.Info( $"Game: {game.GetVersionedIdent()} ({game.Revision?.Created})" );
 		}
 
-		if ( MapPackage is { } map )
+		if ( Map is { } map )
 		{
-			Log.Info( $"Map: {map.GetVersionedIdent()} ({map.Revision?.Created})" );
+			Log.Info( $"Map: {map.Title ?? map.Text} ({map.Text})" );
 		}
 	}
 }

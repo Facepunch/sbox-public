@@ -1,7 +1,4 @@
-﻿using System.Diagnostics;
-
-namespace Editor.Assets;
-
+﻿namespace Editor.Assets;
 
 public class AssetPreview : IDisposable
 {
@@ -42,17 +39,24 @@ public class AssetPreview : IDisposable
 	public virtual bool UsePixelEvaluatorForThumbs => false;
 
 	/// <summary>
-	/// Is this preview animated? If it's not animated then it's a waste of time rendering a video.
+	/// Legacy publishing hint. The base preview returns false.
 	/// </summary>
+	[Obsolete( "Asset publishing no longer renders preview videos." )]
 	public virtual bool IsAnimatedPreview => false;
 
 	/// <summary>
-	/// How long should the video be
+	/// Legacy preview video duration in seconds. The base preview returns zero.
 	/// </summary>
-	public virtual float VideoLength => 3.0f;
+	[Obsolete( "Asset publishing no longer renders preview videos." )]
+	public virtual float VideoLength => 0.0f;
 
 	protected bool IsRenderingThumbnail { get; private set; }
-	protected bool IsRenderingVideo { get; private set; }
+
+	/// <summary>
+	/// Retained for preview subclasses. Always returns false.
+	/// </summary>
+	[Obsolete( "Asset previews no longer render videos." )]
+	protected bool IsRenderingVideo => false;
 
 	public AssetPreview( Asset asset )
 	{
@@ -182,52 +186,13 @@ public class AssetPreview : IDisposable
 		}
 	}
 
-	public async Task<byte[]> CreateVideo( float secondsLength, VideoWriter.Config config )
+	/// <summary>
+	/// Returns a completed task containing an empty byte array.
+	/// </summary>
+	[Obsolete( "Asset previews no longer render videos." )]
+	public Task<byte[]> CreateVideo( float secondsLength, VideoWriter.Config config )
 	{
-		var path = System.IO.Path.GetTempFileName();
-
-		//Camera.Size = new Vector2( config.Width, config.Height );
-		Camera.BackgroundColor = "#32415e";
-
-		var writer = EditorUtility.CreateVideoWriter( path, config );
-
-		var frameRate = config.FrameRate;
-		var frameStep = 1.0f / frameRate;
-		var frames = secondsLength * frameRate;
-
-		var timeTaken = Stopwatch.StartNew();
-		using var bitmap = new Bitmap( config.Width, config.Height );
-		IsRenderingVideo = true;
-
-		// Update ScreenSize so FrameScene() calculates correct camera distance
-		ScreenSize = new Vector2Int( config.Width, config.Height );
-
-		for ( float i = 0; i < frames; i += 1.0f )
-		{
-			float delta = i / frames;
-			UpdateScene( delta, frameStep );
-
-			Camera.RenderToBitmap( bitmap );
-			writer.AddFrame( bitmap );
-
-			if ( timeTaken.Elapsed.TotalMilliseconds > 1.5f )
-			{
-				await Task.Delay( 1 );
-				timeTaken.Restart();
-			}
-		}
-
-		await writer.FinishAsync();
-		writer.Dispose();
-
-		IsRenderingVideo = false;
-
-		var bytes = await System.IO.File.ReadAllBytesAsync( path );
-
-		// delete temporary file
-		System.IO.File.Delete( path );
-
-		return bytes;
+		return Task.FromResult( Array.Empty<byte>() );
 	}
 
 	public virtual Task RenderToPixmap( Pixmap pixmap )

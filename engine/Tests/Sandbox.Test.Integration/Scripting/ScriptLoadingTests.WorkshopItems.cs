@@ -15,7 +15,7 @@ public partial class ScriptLoadingTests
 	[TestMethod]
 	public void WorkshopMountsSharePackageFilesAndPreserveCodeOnlyViews()
 	{
-		var folder = CreateWorkshopContent( "map" );
+		var folder = CreateWorkshopContent( "addon" );
 		WorkshopFileSystem first = null;
 		BaseFileSystem packageFiles = null;
 		WorkshopFileSystem code = null;
@@ -24,7 +24,7 @@ public partial class ScriptLoadingTests
 			AsyncPump.RunSynchronously( async () =>
 			{
 				first = await WorkshopFileSystem.OpenInstalledAsync( 4321, folder, default );
-				var package = new RemotePackage { Org = new Package.Organization { Ident = "test" }, Ident = "workshop-map", TypeName = "map", Version = new PackageRevision { Meta = "{\"WorkshopId\":4321}" } };
+				var package = new RemotePackage { Org = new Package.Organization { Ident = "test" }, Ident = "workshop-addon", TypeName = "addon", Version = new PackageRevision { Meta = "{\"WorkshopId\":4321}" } };
 				packageFiles = await package.Download();
 				code = await WorkshopFileSystem.OpenInstalledAsync( 4321, folder, default, codeOnly: true );
 			} );
@@ -52,7 +52,7 @@ public partial class ScriptLoadingTests
 	}
 
 	/// <summary>
-	/// A map package registers its Workshop ID instead of becoming a server package requirement.
+	/// Loading a map registers its item ID in the Workshop table.
 	/// </summary>
 	[TestMethod]
 	public void WorkshopMapUsesItemTable()
@@ -69,10 +69,8 @@ public partial class ScriptLoadingTests
 			context.FileMount = mounted;
 			AsyncPump.RunSynchronously( async () =>
 			{
-				using var installed = await WorkshopFileSystem.OpenInstalledAsync( 4321, folder, default );
-				var package = new RemotePackage { Org = new Package.Organization { Ident = "test" }, Ident = "workshop-map", TypeName = "map", Version = new PackageRevision { Meta = "{\"WorkshopId\":4321}" } };
-				Assert.IsNotNull( await package.MountAsync() );
-				Assert.IsTrue( package.IsMounted() );
+				Assert.IsNotNull( await items.LoadAsync( 4321, Workshop.ItemType.Map ) );
+				Assert.IsNotNull( items.Get( 4321 ) );
 				Assert.AreEqual( Workshop.ItemType.Map, items.StringTable.Entries["4321"].Read<WorkshopItems.ItemInfo>().Type );
 				items.RemoveRequirement( 4321 );
 				Assert.AreEqual( 0, items.StringTable.Entries.Count );
@@ -119,7 +117,7 @@ public partial class ScriptLoadingTests
 			if ( hasSteamMetadata )
 			{
 				Assert.AreEqual( "Old map", content.Title );
-				Assert.IsNull( content.Metadata.Value.Meta, "Steam's partial meta must not stand in for the package's." );
+				Assert.AreEqual( "{\"PrimaryAsset\":\"maps/old.vmap\"}", content.Metadata.Value.Meta );
 				Assert.AreEqual( "old map", mounted.ReadAllText( "content.txt" ) );
 			}
 		}

@@ -285,7 +285,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		// loading. Mount the final list before the snapshot creates objects that use files in them.
 		// Mount before releasing the old list, so a VPK in both stays mounted.
 		var previousVPKs = MountedVPKs;
-		MountedVPKs = await MountMaps( msg.MountedVPKs );
+		MountedVPKs = MountMaps( msg.MountedVPKs );
 		previousVPKs?.Dispose();
 
 		await SetSnapshotAsync( msg.Snapshot );
@@ -344,7 +344,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// <summary>
 	/// Called when the host has told us to load a new scene.
 	/// </summary>
-	private async Task OnLoadSceneMsg( LoadSceneBeginMsg msg, Connection connection, Guid msgId )
+	private void OnLoadSceneMsg( LoadSceneBeginMsg msg, Connection connection, Guid msgId )
 	{
 		if ( !connection.IsHost )
 			return;
@@ -365,7 +365,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		MountedVPKs?.Dispose();
-		MountedVPKs = await MountMaps( msg.MountedVPKs );
+		MountedVPKs = MountMaps( msg.MountedVPKs );
 
 		// Let them know we would like a snapshot now.
 		var loadedMsg = new LoadSceneRequestSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id };
@@ -405,18 +405,19 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private static List<string> GetMapNames()
 	{
-		return Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.MapName ).ToList();
+		return Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.LoadedVpkPath ).Where( path => path is not null ).ToList();
 	}
 
 	/// <summary>
-	/// Asynchronously load and mount any VPKs from the provided server response.
+	/// Mount the VPKs from the provided server response.
 	/// </summary>
-	public override async Task MountVPKs( Connection source, MountedVPKsResponse msg )
+	public override Task MountVPKs( Connection source, MountedVPKsResponse msg )
 	{
 		// Mount any vpks early because snapshotted or networked objects can use resources within
 		// This removes it's refcount at the end because the MapInstance should take over
 		MountedVPKs?.Dispose();
-		MountedVPKs = await MountMaps( msg.MountedVPKs );
+		MountedVPKs = MountMaps( msg.MountedVPKs );
+		return Task.CompletedTask;
 	}
 
 	private static readonly GameObject.SerializeOptions _snapshotSerializeOptions = new() { SceneForNetwork = true, SkipNulls = true };
@@ -600,43 +601,15 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	}
 
 	private IDisposable MountedVPKs { get; set; }
-	private async Task<IDisposable> MountMaps( List<string> maps )
+	private static IDisposable MountMaps( List<string> maps )
 	{
-		List<string> vpks = [];
-
-		// Some safety here in-case the input list if null
-		if ( maps is not null )
-		{
-			// Let's see if any are cloud maps and mount those first
-			foreach ( var map in maps )
-			{
-				// Ignore any entries that are null or empty
-				if ( string.IsNullOrEmpty( map ) )
-					continue;
-
-				if ( map.EndsWith( ".vpk" ) )
-				{
-					vpks.Add( map );
-					continue;
-				}
-
-				if ( !Package.TryParseIdentParts( map, out var parts ) )
-					continue;
-
-				var package = await Package.Fetch( map, false );
-				if ( package is null )
-					continue;
-
-				var fs = await package.MountAsync();
-				if ( fs is null ) continue;
-
-				var mapFileName = package.PrimaryAsset;
-				vpks.Add( mapFileName );
-			}
-		}
+		var vpks = (maps ?? [])
+			.Where( path => MapReference.IsAssetPath( path ) && !path.EndsWith( ".scene", StringComparison.OrdinalIgnoreCase ) )
+			.Select( path => Path.ChangeExtension( path, ".vpk" ) )
+			.ToArray();
 
 		foreach ( var vpk in vpks )
-			g_pWorldRendererMgr.MountWorldVPK( Path.GetFileNameWithoutExtension( vpk ), Path.ChangeExtension( vpk, ".vpk" ) );
+			g_pWorldRendererMgr.MountWorldVPK( Path.GetFileNameWithoutExtension( vpk ), vpk );
 
 		return new DisposeAction( () =>
 		{

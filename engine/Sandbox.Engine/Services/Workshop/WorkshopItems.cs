@@ -2,6 +2,7 @@ using Sandbox.Internal;
 using Sandbox.Network;
 using System.Globalization;
 using System.IO;
+using System.Text.Json.Nodes;
 using System.Threading;
 
 namespace Sandbox;
@@ -13,11 +14,6 @@ internal sealed class WorkshopItems
 {
 	internal static WorkshopItems Current { get; set; }
 	internal readonly StringTable StringTable = new( "WorkshopItems", true );
-
-	/// <summary>
-	/// Cancels preparatory work when this game's Workshop requirements are cleared.
-	/// </summary>
-	internal CancellationToken LifetimeToken => cancellation.Token;
 
 	internal struct ItemInfo
 	{
@@ -70,6 +66,69 @@ internal sealed class WorkshopItems
 	internal async Task<WorkshopFileSystem> LoadAsync( ulong id, Workshop.ItemType type, CancellationToken token = default )
 	{
 		return await InstallAsync( id, type, publish: Networking.IsHost, loadResources: !Networking.IsClient, token ) ? Get( id ) : null;
+	}
+
+	/// <summary>
+	/// Hosts acquire a requirement for the Workshop map. Clients open the item from their host's table.
+	/// </summary>
+	internal async Task<(string Asset, Action Release)> OpenMapAsync( ulong id, CancellationToken token )
+	{
+		var client = Networking.IsClient;
+
+		WorkshopFileSystem mount;
+		if ( client )
+		{
+			if ( !items.TryGetValue( id, out var item ) || item.Type != Workshop.ItemType.Map ) return default;
+			mount = await item.Install.WaitAsync( token );
+		}
+		else
+		{
+			mount = await LoadAsync( id, Workshop.ItemType.Map, token );
+		}
+		if ( mount is null || Get( id ) != mount ) return default;
+
+		// Only a host holds a requirement. A client uses the item its host required.
+		Action release = client ? null : () =>
+		{
+			if ( Get( id ) == mount ) RemoveRequirement( id );
+		};
+
+		try
+		{
+			var asset = FindPrimaryAsset( mount, mount.Metadata?.Meta )
+				?? throw new InvalidDataException( $"Workshop map {id} has no loadable primary asset." );
+
+			return (asset, release);
+		}
+		catch ( Exception e )
+		{
+			release?.Invoke();
+			Log.Warning( e, $"Couldn't resolve Workshop map {id}" );
+			return default;
+		}
+	}
+
+	/// <summary>
+	/// The map in an item's files: the primary asset its metadata names, or failing that the one <see cref="FindMapFile"/> picks.
+	/// Null if that isn't a map the item has.
+	/// </summary>
+	internal static string FindPrimaryAsset( BaseFileSystem files, string meta )
+	{
+		var asset = Json.Deserialize<JsonObject>( meta ?? "{}" )?["PrimaryAsset"]?.GetValue<string>() ?? FindMapFile( files );
+
+		return MapReference.IsAssetPath( asset ) && MapReference.Contains( files, asset ) ? asset : null;
+	}
+
+	/// <summary>
+	/// The map in an item that doesn't name its primary asset. Prefers a scene, then the shortest-named VPK so a skybox VPK is skipped.
+	/// </summary>
+	static string FindMapFile( BaseFileSystem files )
+	{
+		var scene = files.FindFile( "/", "*.scene_c", true ).Select( x => x[..^2] )
+			.Concat( files.FindFile( "/", "*.scene", true ) )
+			.OrderBy( x => x.Length ).FirstOrDefault();
+
+		return scene ?? files.FindFile( "/", "*.vpk", true ).OrderBy( x => x.Length ).FirstOrDefault();
 	}
 
 	/// <summary>
@@ -316,11 +375,6 @@ internal sealed class WorkshopItems
 	}
 
 	/// <summary>
-	/// Whether this item's installation has finished and its files are mounted into the game.
-	/// </summary>
-	internal bool IsMounted( ulong id ) => Get( id ) is not null;
-
-	/// <summary>
 	/// Workshop IDs of addons mounted in the current game.
 	/// </summary>
 	internal ulong[] GetMountedAddonIds()
@@ -334,7 +388,7 @@ internal sealed class WorkshopItems
 	/// <summary>
 	/// Finds the mounted content without fetching a package or starting another download.
 	/// </summary>
-	WorkshopFileSystem Get( ulong id ) => items.GetValueOrDefault( id )?.Mount;
+	internal WorkshopFileSystem Get( ulong id ) => items.GetValueOrDefault( id )?.Mount;
 
 	/// <summary>
 	/// Removes one requirement. Files remain available to existing resources until the game closes.

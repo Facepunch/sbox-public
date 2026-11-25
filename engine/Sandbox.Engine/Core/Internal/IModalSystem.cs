@@ -10,7 +10,7 @@ public interface IModalSystem
 	public bool HasModalsOpen();
 	public void CloseAll( bool immediate = false );
 	public void Game( string packageIdent );
-	public void Map( string packageIdent );
+	public void Map( string map );
 	public void Package( string packageIdent, string page );
 	/// <summary>
 	/// Legacy entry point for the retired review form.
