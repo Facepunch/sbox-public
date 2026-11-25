@@ -414,13 +414,22 @@ public abstract partial class SerializedProperty : IValid
 	/// </summary>
 	public bool ShouldShow()
 	{
-		if ( HasAttribute<HideAttribute>() ) return false;
-		if ( Parent is null ) return true;
+		// One pass over the attributes, without LINQ: inspectors ask this of every property several times a second.
+		// Hidden by [Hide], or when it has conditions and every one of them says hide.
+		var parent = Parent;
+		var conditional = false;
+		var allHide = true;
 
-		var conditionals = GetAttributes<InspectorVisibilityAttribute>();
-		if ( !conditionals.Any() ) return true;
+		foreach ( var attribute in GetAttributes() )
+		{
+			if ( attribute is HideAttribute ) return false;
+			if ( parent is null || attribute is not InspectorVisibilityAttribute condition ) continue;
 
-		return !conditionals.All( x => x.TestCondition( Parent ) );
+			conditional = true;
+			if ( allHide && !condition.TestCondition( parent ) ) allHide = false;
+		}
+
+		return !conditional || !allHide;
 	}
 
 	/// <summary>
