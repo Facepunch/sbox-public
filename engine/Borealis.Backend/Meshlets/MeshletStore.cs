@@ -136,6 +136,12 @@ internal sealed class MeshletStore : IDisposable
 	// thread while it waits (a map's thousands of ranges starved the pool, so the load's own work on it waited seconds)
 	readonly TaskScheduler workers;
 	readonly Action<object> build;
+
+	// Builds in flight, so Dispose waits for them before destroying what they write to: a build still making its staging
+	// buffer as the device went crashed the GPU tests' host (2026-11-25). Monitor.Wait gives the lock up while it waits
+	readonly object flight = new();
+	int building;
+	volatile bool disposed;
 	readonly List<BufferHandle> pages = new();
 
 	// Records of ranges forgotten with their geometry page (page index, first, count), sorted and never adjacent: taken before
@@ -198,7 +204,20 @@ internal sealed class MeshletStore : IDisposable
 		this.gpu = gpu;
 		Config = config;
 		workers = new ConcurrentExclusiveSchedulerPair( TaskScheduler.Default, Math.Max( threads, 1 ) ).ConcurrentScheduler;
-		build = entry => BuildOn( (Entry)entry );
+		build = entry =>
+		{
+			try
+			{
+				if ( !disposed ) BuildOn( (Entry)entry );
+			}
+			finally
+			{
+				lock ( flight )
+				{
+					if ( --building == 0 ) Monitor.PulseAll( flight );
+				}
+			}
+		};
 		GrowRuns( 1 << 16 );
 	}
 
@@ -278,6 +297,7 @@ internal sealed class MeshletStore : IDisposable
 			}
 
 			Requested++;
+			lock ( flight ) building++;
 			Task.Factory.StartNew( build, entry, CancellationToken.None, TaskCreationOptions.DenyChildAttach, workers );
 		}
 	}
@@ -989,6 +1009,15 @@ internal sealed class MeshletStore : IDisposable
 
 	public void Dispose()
 	{
+		// Builds not started yet do nothing; running ones finish first (bounded, so a build stuck on the device can't hold up
+		// the shutdown for good)
+		disposed = true;
+		lock ( flight )
+		{
+			var until = Environment.TickCount64 + 10_000;
+			while ( building > 0 && Environment.TickCount64 < until ) Monitor.Wait( flight, 100 );
+		}
+
 		while ( built.TryDequeue( out var entry ) )
 		{
 			if ( entry.Staging.IsValid ) gpu.Destroy( entry.Staging );
