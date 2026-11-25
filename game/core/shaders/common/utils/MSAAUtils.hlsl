@@ -37,7 +37,13 @@ struct MSAAUtils
         if ( g_nMSAASampleCount == 1 )
             return tTex.SampleLevel( g_sPointClamp, uv, 0 ).r;
 
-        return tTex.GatherRed( g_sBilinearClamp, uv )[ GetSampleIndex( vPositionSs, uv ) ];
+        // Where the four texels agree (away from the texture's edges: nearly everywhere in a mask) the lane doesn't matter, so the depth
+        // gather that picks it is only taken where they don't
+        float4 values = tTex.GatherRed( g_sBilinearClamp, uv );
+        [branch]
+        if ( all( values.xzw == values.yyy ) )
+            return values.y;
+        return values[ GetSampleIndex( vPositionSs, uv ) ];
     }
 };
 

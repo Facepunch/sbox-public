@@ -1,0 +1,152 @@
+#ifndef COMMON_VIEW_ENVIRONMENT_HLSL
+#define COMMON_VIEW_ENVIRONMENT_HLSL
+
+#include "common.fxc"
+
+// don't have more than this for fucks sake
+#define MAX_CASCADE_COUNT 4
+
+//
+// The view's environment: what used to be five cbuffers, back to back in one, the view set's b0. One descriptor instead of
+// five: AMD's compiler loads every descriptor of the set at entry and keeps them live, so the set holds as few as it can.
+// Each block keeps its members' names, so shaders that read them compile unchanged, and starts on a register, so its
+// members sit where its own cbuffer had them. The renderers fill it from the five blocks they set by name
+// (docs/reference/borealis-static-descriptor-sets.md, scenesystem/viewdescriptorset.h):
+//
+//   PerViewConstantBufferVR_t   fog, wind and volumetric fog        0, 592 bytes
+//   ViewLightingConfigV2        light counts and ambient light      592, 4128 bytes
+//   DirectionalLightCB          the sun and its cascades            4720, 416 bytes
+//   ClusteredLightingConstants  the cluster grid                    5136, 80 bytes
+//   FogConstants                camera fog                          5216, 304 bytes
+//
+// then the bindless indices of the view's lookup textures (SheetTexture, BlueNoise), at 5520.
+//
+cbuffer ViewEnvironment EXTERNAL_DESC_SET( b, g_viewSet, 0 )
+{
+	//
+	// PerViewConstantBufferVR_t (vr_common.fxc)
+	//
+	bool4		g_bFogTypeEnabled;
+	bool4		g_bOtherFxEnabled;
+
+	float4		g_vAoProxyDownres; // Unused
+
+	float4		g_vXenAnimation; // Unused
+
+	// wind
+	float4		g_vWindDirection;
+	float4		g_vWindStrengthFreqMulHighStrength;
+
+	// environmental interaction
+	float4		g_vInteractionProjectionOrigin;
+	float4		g_vInteractionVolumeInvExtents;
+	float4		g_vInteractionTriggerVolumeInvMins;
+	float4		g_vInteractionTriggerVolumeWorldToVolumeScale;
+
+	// gradient fog
+	float4 g_vGradientFogBiasAndScale;
+	float4 m_vGradientFogExponents;
+	float4 g_vGradientFogColor_Opacity;
+	float4 g_vGradientFogCullingParams;		// [dist^2, min z, _, _]
+
+	// cubemap fog
+	float4 g_vCubeFog_Offset_Scale_Bias_Exponent;
+	float4 g_vCubeFog_Height_Offset_Scale_Exponent_Log2Mip;
+	float4x4 g_matvCubeFogSkyWsToOs;
+	float4 g_vCubeFogCullingParams;		// [dist^2, min z, _, _]
+
+	// spherical vignete
+	float4 g_vSphericalVignetteBiasAndScale;
+	float4 g_vSphericalVignetteOrigin_Exponent;
+	float4 g_vSphericalVignetteColor_Opacity;
+
+	// volumetric fog
+	float4 g_vVolFog_VolumeScale_Shift_Near_Range;
+	float4 g_vVolFogDitherScaleBias;
+	float4 g_vVolFogPostWorldToFrustumScale;
+	float4 g_vVolFogPostWorldToFrustumBias;
+	float4x4 g_mVolFogFromWorld[ 2 ];
+
+	// high precision lighting
+	float4 g_vHighPrecisionLightingOffsetWs;
+
+	//
+	// ViewLightingConfigV2 (common/lightbinner.hlsl)
+	//
+	int4 NumLights;                     // x - num dynamic lights, y - num baked lights, z - num envmaps, w - num decals
+
+	int4 BakedLightIndexMapping[256];   // Remaps baked light index to the light pool list for fast
+	                                    // query on the shader, we have a hard limit of 256 baked lights
+
+	float4 AmbientLightColor;           // w = lerp between IBL and flat ambient light
+
+	//
+	// DirectionalLightCB (Shadows/DirectionalLightShadow.hlsl)
+	//
+	float4 g_DirectionalLightColor; // w fogstrength
+	float4 g_DirectionalLightDirection; // w blank
+
+	float4x4 g_DirectionalLightWorldToShadowViewMatrices[MAX_CASCADE_COUNT];
+	uint4 g_DirectionalLightShadowMapTextureIndex;
+	uint g_DirectionalLightCascadeCount;
+	float g_DirectionalLightInverseShadowMapSize;
+	// Bindless index of the screen-space (contact) shadow mask, 0 if none.
+	uint g_DirectionalLightScreenSpaceShadowIndex;
+	// Bit 0: the sun lights the view. Borealis's beside it (0 from native): bits 1-4, which cascades drew nothing; above
+	// them, the bindless index of the cascades' min/max tiles (Shadows/DirectionalLightShadow.hlsl)
+	uint g_DirectionalLightFlags;
+	float4 g_DirectionalLightCascadeHardness;
+	float4 g_DirectionalLightCascadeSpheres[MAX_CASCADE_COUNT]; // xyz = world center, w = radius squared
+	float4 g_DirectionalLightShadowBias; // per-cascade depth bias, scaled by cascade size
+
+	//
+	// ClusteredLightingConstants (common/classes/ClusterCulling.hlsl)
+	//
+	float4 ClusterCounts;        // xyz = tile counts, w = total
+	float4 ClusterInvCounts;     // xyz = 1/counts, w = unused
+	float4 ClusterZParams;       // x = log scale, y = log bias, z = near, w = far
+	float4 ClusterScreenParams;  // xy = size, zw = 1/size
+	float4 ClusterCapacitiesVec; // xyz = capacity per type
+
+	//
+	// FogConstants (common/classes/Fog.hlsl), laid out as Sandbox.Rendering.FogConstants
+	//
+	// Weight, maximum opacity, distance mode (0 = ramp, 1 = exponential), height contribution.
+	float4 FogControl;
+	// Start distance, end distance, ramp exponent, exponential attenuation distance.
+	float4 FogDistance;
+	// Base height, signed gradient length, sky ray length, sky opacity scale.
+	float4 FogHeight;
+	float3 FogColor;
+	float FogOpacityScale;
+	float4 FogHeightColor;
+	// Distance enable contribution, independent height exponent; sky contribution and mip level.
+	float2 FogLayerParams;
+	float2 FogSky;
+	// Blur start distance, inverse distance range, far mip and maximum valid mip.
+	float4 FogSkyBlurRamp;
+	// Sun intensity and peak-normalized HG shape; height sky contribution and mip level.
+	float2 FogSun;
+	float2 FogHeightSky;
+	// Sun start distance, saturation, fade distance, padding.
+	float4 FogSunSettings;
+	// Encoding (0 = RGB, 1 = YCoCg, 2 = RGBM) and cube-array flag, per layer.
+	float2 FogSkyFormat;
+	float2 FogHeightSkyFormat;
+	int FogSkyTextureIndex;
+	int FogHeightSkyTextureIndex;
+	float FogHeightSkyShared;
+	float FogDistanceMetric;
+	float4x4 FogSkyTransform;
+	float4x4 FogHeightSkyTransform;
+
+	//
+	// The lookup textures' bindless indices (2D, linear): x SheetTexture, y BlueNoise
+	//
+	uint4 g_vViewLookupIndices;
+};
+
+// The sun lights the view: bit 0 of its flags, which native's bool fills alone
+#define g_DirectionalLightEnabled ( ( g_DirectionalLightFlags & 1 ) != 0 )
+
+#endif

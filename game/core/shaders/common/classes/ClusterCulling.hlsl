@@ -3,27 +3,19 @@
 
 #include "common.fxc"
 
+// The view's cluster lists, one buffer of counts and one of indices, a section per item type (lights, envmaps, decals)
+// over every cluster: as few descriptors as the view set can hold. The culling shader writes them, so binds them
+// itself; everything else reads them from the view's descriptor set (common.fxc).
 #ifdef CLUSTERED_LIGHT_CULLING_CS
-    #define ClusteredBuffer RWStructuredBuffer
+RWStructuredBuffer<uint> ClusterItemCounts  < Attribute( "ClusterItemCounts" ); >;
+RWStructuredBuffer<uint> ClusterItemIndices < Attribute( "ClusterItemIndices" ); >;
 #else
-    #define ClusteredBuffer StructuredBuffer
+StructuredBuffer<uint> ClusterItemCounts      EXTERNAL_DESC_SET( t, g_viewSet, 6 );
+StructuredBuffer<uint> ClusterItemIndices     EXTERNAL_DESC_SET( t, g_viewSet, 7 );
 #endif
 
-ClusteredBuffer<uint> ClusterLightCounts   < Attribute( "ClusterLightCounts" ); >;
-ClusteredBuffer<uint> ClusterEnvMapCounts  < Attribute( "ClusterEnvMapCounts" ); >;
-ClusteredBuffer<uint> ClusterDecalCounts   < Attribute( "ClusterDecalCounts" ); >;
-ClusteredBuffer<uint> ClusterLightIndices  < Attribute( "ClusterLightIndices" ); >;
-ClusteredBuffer<uint> ClusterEnvMapIndices < Attribute( "ClusterEnvMapIndices" ); >;
-ClusteredBuffer<uint> ClusterDecalIndices  < Attribute( "ClusterDecalIndices" ); >;
-
-cbuffer ClusteredLightingConstants
-{
-    float4 ClusterCounts;        // xyz = tile counts, w = total
-    float4 ClusterInvCounts;     // xyz = 1/counts, w = unused
-    float4 ClusterZParams;       // x = log scale, y = log bias, z = near, w = far
-    float4 ClusterScreenParams;  // xy = size, zw = 1/size
-    float4 ClusterCapacitiesVec; // xyz = capacity per type
-};
+// The view's cluster grid: ClusteredLightingConstants' block of its environment
+#include "common/ViewEnvironment.hlsl"
 
 enum ClusterItemType
 {
@@ -46,17 +38,48 @@ struct ClusterRange
     uint BaseOffset;
     uint Features; // ClusterFeature bits, lights only
 
-    // ClusterForEach state
-    uint Taken;     // Items this lane has taken
+    // ClusterForEach state. Where this lane's next item and its cluster's run end are in ClusterItemIndices, rather than
+    // a count taken against Count and BaseOffset: one register less through the loops' bodies
+    uint Next;      // Where this lane's next item is
+    uint End;       // BaseOffset + Count
     uint Pending;   // This lane's next item, ~0 when done
     uint Item;      // The wave's current item
 };
+
+// The last cluster index a shader took, and where (Cluster::Index)
+static uint s_nClusterIndex = 0;
+static uint4 s_vClusterIndexPosition = 0;
+static bool s_bClusterIndexTaken = false;
 
 struct Cluster
 {
     static float SliceToDepth( float slice ) { return exp( ( slice - ClusterZParams.y ) / ClusterZParams.x ); }
     static float DepthToSlice( float depth ) { return ClusterZParams.x * log( depth ) + ClusterZParams.y; }
-    static uint Capacity( ClusterItemType type ) { return uint( ClusterCapacitiesVec[uint( type )] ); }
+    // A grid constant (a whole number below 2^24) as an integer, as uint( value ), from its bits with integer
+    // instructions: the float conversion is a vector instruction, and the compiler held its result in a vector register
+    // from the first query to the last
+    static uint Constant( float value )
+    {
+        uint bits = asuint( value );
+        uint exponent = ( bits >> 23 ) & 0xFF;
+        return exponent < 127 ? 0 : ( ( bits & 0x7FFFFF ) | 0x800000 ) >> ( 150 - exponent );
+    }
+
+    static uint Capacity( ClusterItemType type ) { return Constant( ClusterCapacitiesVec[uint( type )] ); }
+
+    // Where a cluster's count of a type is in ClusterItemCounts: the type's section, then the cluster
+    static uint CountSlot( ClusterItemType type, uint flatIndex ) { return uint( type ) * Constant( ClusterCounts.w ) + flatIndex; }
+
+    // Where a cluster's items of a type start in ClusterItemIndices: the sections before the type's, then the
+    // cluster's capacity-sized run
+    static uint IndexBase( ClusterItemType type, uint flatIndex )
+    {
+        uint total = Constant( ClusterCounts.w );
+        uint section = 0;
+        if ( type != ClusterItemType_Light ) section += total * Capacity( ClusterItemType_Light );
+        if ( type == ClusterItemType_Decal ) section += total * Capacity( ClusterItemType_EnvMap );
+        return section + flatIndex * Capacity( type );
+    }
 
     static uint Flatten( uint3 coord )
     {
@@ -64,9 +87,21 @@ struct Cluster
         return coord.x + d.x * ( coord.y + d.y * coord.z );
     }
 
-    // The flattened cluster a pixel falls in. A shader that queries more than one item type should take this once
-    // and pass it to each query: otherwise the pieces of the coordinate stay live from the first query to the last
+    // The flattened cluster a pixel falls in. A shader's later calls at the same position return the first call's index:
+    // otherwise the pieces of the coordinate stay live from the first query (decals) to the last
     static uint Index( float4 positionSs )
+    {
+        if ( s_bClusterIndexTaken && all( s_vClusterIndexPosition == asuint( positionSs ) ) )
+            return s_nClusterIndex;
+
+        uint index = ComputeIndex( positionSs );
+        s_bClusterIndexTaken = true;
+        s_vClusterIndexPosition = asuint( positionSs );
+        s_nClusterIndex = index;
+        return index;
+    }
+
+    static uint ComputeIndex( float4 positionSs )
     {
         // Snap positionSs to the top-left pixel of the 2x2 quad to avoid cluster divergence
         // Todo: Z still diverges within the quad and cant derive it without reading from neighbour lanes
@@ -116,29 +151,16 @@ struct Cluster
     static ClusterRange Query( ClusterItemType type, uint flatIndex )
     {
         // Build range
-        uint capacity = Capacity( type );
-        uint count = 0;
-        uint features = 0;
-        switch ( type )
-        {
-            case ClusterItemType_Light:
-            {
-                uint packed = ClusterLightCounts[flatIndex];
-                count = packed & ClusterCountMask;
-                features = packed >> ClusterFeatureShift;
-                break;
-            }
-            case ClusterItemType_EnvMap: count = ClusterEnvMapCounts[flatIndex]; break;
-            case ClusterItemType_Decal:  count = ClusterDecalCounts[flatIndex];  break;
-            default: break;
-        }
+        // A light count carries its cluster's features above the count; the others' high bits are zero
+        uint packed = ClusterItemCounts[CountSlot( type, flatIndex )];
 
         ClusterRange range;
         range.Type = type;
-        range.Count = min( count, capacity );
-        range.BaseOffset = flatIndex * capacity;
-        range.Features = features;
-        range.Taken = 0;
+        range.Count = min( packed & ClusterCountMask, Capacity( type ) );
+        range.BaseOffset = IndexBase( type, flatIndex );
+        range.Features = packed >> ClusterFeatureShift;
+        range.Next = range.BaseOffset;
+        range.End = range.BaseOffset + range.Count;
         range.Pending = LoadPending( range );
         range.Item = 0xFFFFFFFF;
 
@@ -154,22 +176,15 @@ struct Cluster
 
     static uint LoadItem( ClusterRange range, uint index )
     {
-        uint offset = range.BaseOffset + index;
-        switch ( range.Type )
-        {
-            case ClusterItemType_Light:  return ClusterLightIndices[offset];
-            case ClusterItemType_EnvMap: return ClusterEnvMapIndices[offset];
-            case ClusterItemType_Decal:  return ClusterDecalIndices[offset];
-            default: return 0;
-        }
+        return ClusterItemIndices[range.BaseOffset + index];
     }
 
     // This lane's next item, ~0 once it has taken them all. Branch, not ?:, so a full cluster never loads past its end
     static uint LoadPending( ClusterRange range )
     {
-        if ( range.Taken >= range.Count )
+        if ( range.Next >= range.End )
             return 0xFFFFFFFF;
-        return LoadItem( range, range.Taken );
+        return ClusterItemIndices[range.Next];
     }
 
     // Wave steps to the lowest item any lane still has pending, false once none do
@@ -185,7 +200,7 @@ struct Cluster
         if ( range.Pending > range.Item )
             return false;
 
-        range.Taken++;
+        range.Next++;
         range.Pending = LoadPending( range );
         return true;
     }

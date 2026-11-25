@@ -85,11 +85,16 @@ float3 CubeMapBoxProjection(float3 vReflectionCubemapLocal, float3 vPositionCube
     // Clamp the position within the box extents
     vPositionCubemapLocal = clamp(vPositionCubemapLocal, vBoxMins + flClamp, vBoxMaxs - flClamp);
 
-    // Calculate intersection distances along each axis
-    float3 vIntersectA = (vBoxMaxs - vPositionCubemapLocal) / vReflectionCubemapLocal;
-    float3 vIntersectB = (vBoxMins - vPositionCubemapLocal) / vReflectionCubemapLocal;
-
-    float3 vIntersect = max(vIntersectA, vIntersectB);
+    // Calculate intersection distances along each axis, one axis at a time: written as vectors, every axis's two
+    // distances were in flight at once, the peak of the env-probe loop's registers. The same sums
+    float3 vIntersect;
+    [unroll]
+    for ( int i = 0; i < 3; i++ )
+    {
+        float flIntersectA = (vBoxMaxs[i] - vPositionCubemapLocal[i]) / vReflectionCubemapLocal[i];
+        float flIntersectB = (vBoxMins[i] - vPositionCubemapLocal[i]) / vReflectionCubemapLocal[i];
+        vIntersect[i] = max(flIntersectA, flIntersectB);
+    }
 
     // Axes parallel to the reflection never exit, a position on that face would otherwise give 0/0
     vIntersect = select(vReflectionCubemapLocal != 0.0f, vIntersect, 3.402823466e+38f);

@@ -1,6 +1,7 @@
 #ifndef LIGHTBINNER_HLSL
 #define LIGHTBINNER_HLSL
 
+#include "common.fxc"
 #include "common/Bindless.hlsl"
 #include "math_general.fxc"
 #include "common_samplers.fxc"
@@ -32,7 +33,8 @@ enum LightFlags
     TransmissiveEnabled = 0x8,    // transmissive enabled
     LightCookieEnabled = 0x40,    // light cookie enabled
     IndexedLight = 0x100,         // indexed baked lighting
-    NoFogShadows = 0x200          // skip shadow sampling in volumetric fog
+    NoFogShadows = 0x200,         // skip shadow sampling in volumetric fog
+    ExtraSun = 0x400              // a directional light besides the sun, shadowed by its own map (ShadowMapIndex)
 };
 
 enum LightShape
@@ -45,20 +47,13 @@ enum LightShape
 
 //-----------------------------------------------------------------------------
 
-cbuffer ViewLightingConfigV2
-{
-    int4 NumLights;                     // x - num dynamic lights, y - num baked lights, z - num envmaps, w - num decals
+// The view's light counts, baked light mapping and ambient light: ViewLightingConfigV2's block of its environment
+#include "common/ViewEnvironment.hlsl"
 
-    int4 BakedLightIndexMapping[256];   // Remaps baked light index to the light pool list for fast
-                                        // query on the shader, we have a hard limit of 256 baked lights
-
-    float4 AmbientLightColor;           // w = lerp between IBL and flat ambient light
-
-    #define NumDynamicLights        NumLights.x
-    #define NumBakedIndexedLights   NumLights.y
-    #define NumEnvironmentMaps      NumLights.z
-    #define NumDecals               NumLights.w
-};
+#define NumDynamicLights        NumLights.x
+#define NumBakedIndexedLights   NumLights.y
+#define NumEnvironmentMaps      NumLights.z
+#define NumDecals               NumLights.w
 
 //
 // matt: I could spend all day refactoring this struct/file
@@ -117,6 +112,7 @@ struct BinnedLight
     bool HasLightCookie()               { return ( Flags & LightFlags::LightCookieEnabled ) != 0; }
 	bool HasFogShadows()                { return ( Flags & LightFlags::NoFogShadows ) == 0; }
     bool IsIndexedLight()               { return ( Flags & LightFlags::IndexedLight ) != 0; }
+    bool IsExtraSun()                   { return ( Flags & LightFlags::ExtraSun ) != 0; }
 
     Texture2D GetLightCookieTexture()   { return Bindless::GetTexture2D( LightCookieTextureIndex ); }
 
@@ -151,8 +147,9 @@ struct BinnedEnvMap
 
 //-----------------------------------------------------------------------------
 
-StructuredBuffer<BinnedLight>    BinnedLightBufferV2    < Attribute( "BinnedLightBufferV2" );  > ;
-StructuredBuffer<BinnedEnvMap>   BinnedEnvMapBuffer   < Attribute( "BinnedEnvMapBuffer" ); > ;
+// The view's lights and environment maps, in its descriptor set
+StructuredBuffer<BinnedLight>    BinnedLightBufferV2    EXTERNAL_DESC_SET( t, g_viewSet, 0 );
+StructuredBuffer<BinnedEnvMap>   BinnedEnvMapBuffer     EXTERNAL_DESC_SET( t, g_viewSet, 1 );
 
 BinnedLight DynamicLightConstantByIndex( int index )
 {
@@ -167,6 +164,18 @@ BinnedLight BakedIndexedLightConstantByIndex( int index )
 BinnedEnvMap EnvironmentMapConstantByIndex( int index )
 {
     return BinnedEnvMapBuffer[ index ];
+}
+
+// The view's directional lights besides the sun: every pixel's short list, right after the binned lights. Their count rides
+// in the sun's direction's spare w (Borealis's; native leaves it 0), so the loop over them is uniform
+uint ExtraSunCount()
+{
+    return (uint)g_DirectionalLightDirection.w;
+}
+
+BinnedLight ExtraSunByIndex( uint index )
+{
+    return BinnedLightBufferV2[ NumDynamicLights + NumBakedIndexedLights + index ];
 }
 
 //-----------------------------------------------------------------------------

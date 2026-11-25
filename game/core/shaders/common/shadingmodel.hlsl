@@ -127,6 +127,17 @@ struct ShadingModelStandard
         // Do our magic alpha to coverage adjustment
         AdjustAlphaToCoverage( m );
 
+        // Depth mode writes only normals and roughness, or nothing but alpha to coverage. Before lighting: its cluster walks
+        // are wave ops, which the compiler keeps even when their result is dead
+        if( DepthNormals::WantsDepthNormals() )
+            return DepthNormals::Output( m.Normal, m.Roughness, m.Opacity );
+
+        // A lit pass module's normal and roughness for Borealis's screen-space reflections, as the depth-normals pass writes
+        // them: the forward entry the compiler wraps round its MainPs defines this and writes them (sbox/forward_normals.slangh)
+        #ifdef FORWARD_NORMALS_KEEP
+            ForwardNormalsKeep( m.Normal, m.Roughness );
+        #endif
+
         LightingTerms_t lightingTerms = InitLightingTerms();
         CombinerInput combinerInput = MaterialToCombinerInput( m );
 
@@ -149,13 +160,15 @@ struct ShadingModelStandard
             
             float3 vDiffuse = ( ( lightingTerms.vDiffuse.rgb + lightingTerms.vIndirectDiffuse.rgb ) * combinerInput.vDiffuseColor.rgb ) + combinerInput.vEmissive.rgb;
             float3 vSpecular = lightingTerms.vSpecular.rgb + lightingTerms.vIndirectSpecular.rgb;
+
+            // A surface's own per-light terms, summed by the light loop (sbox/surface_passes.slangh), as emission
+            #ifdef SURFACE_LIGHT_HOOK
+                vDiffuse += SurfaceLightTotal();
+            #endif
             
             color = float4( vDiffuse + vSpecular, m.Opacity );
         }
 
-        //
-        if( DepthNormals::WantsDepthNormals() )
-            return DepthNormals::Output( m.Normal, m.Roughness, color.a );
 
         if ( g_bWireframeMode )
             return g_vWireframeColor;
