@@ -200,7 +200,9 @@ public static class SceneEditorExtensions
 		}
 		else
 		{
-			canvas.Cursor = CursorShape.None;
+			// Setting it every frame would reset the cursor in Qt every frame
+			if ( canvas.Cursor != CursorShape.None )
+				canvas.Cursor = CursorShape.None;
 
 			if ( self.ControlMode != "mouse" )
 			{
