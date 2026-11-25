@@ -1,0 +1,217 @@
+using Borealis;
+using Borealis.Features;
+using Borealis.Gpu;
+using System.Linq;
+using System.Runtime.InteropServices;
+using static BorealisTests.TestScenes;
+
+namespace BorealisTests;
+
+/// <summary>
+/// Custom objects (sprites, particles, world panels) sorting with the meshes, and decals binned in their sort order.
+/// </summary>
+// Frames go through Borealis's ShadowMapper, whose cache and frame counter are static
+[TestClass]
+[DoNotParallelize]
+public class EffectsTests
+{
+	/// <summary>
+	/// A custom object that draws nothing: preparing a frame never calls it.
+	/// </summary>
+	internal sealed class TestCustom : CustomObject
+	{
+		public TestCustom( Vector3 position, float size = 1 )
+		{
+			LocalBounds = new BBox( new Vector3( -size ), new Vector3( size ) );
+			Transform = new Transform( position );
+		}
+
+		internal override void Render( GpuContext context, ViewPass view, MeshLayer layer ) { }
+	}
+
+	[TestMethod]
+	public void CustomObjectsSortWithTranslucentMeshes()
+	{
+		var world = new RenderWorld();
+		var translucent = TestMesh( true );
+		var near = new MeshObject( translucent, new Transform( new Vector3( 20, 0, 0 ) ) );
+		var far = new MeshObject( translucent, new Transform( new Vector3( 60, 0, 0 ) ) );
+		var custom = new TestCustom( new Vector3( 40, 0, 0 ) );
+		var opaque = new TestCustom( new Vector3( 30, 5, 0 ) ) { IsOpaque = true };
+		var hidden = new TestCustom( new Vector3( 50, 0, 0 ) ) { Visible = false };
+		world.Add( near );
+		world.Add( far );
+		world.Add( custom );
+		world.Add( opaque );
+		world.Add( hidden );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+		var layers = system.GetFeature<MeshRenderFeature>().RunsFor( system.MainPass );
+
+		// Back to front, the custom object between the meshes; the hidden one nowhere
+		Assert.AreEqual( 3, layers.Translucent.Count );
+		Assert.IsNull( layers.Translucent[0].Custom );
+		Assert.AreSame( custom, layers.Translucent[1].Custom );
+		Assert.IsNull( layers.Translucent[2].Custom );
+
+		// The opaque one in the opaque layer, alone in its run
+		Assert.AreEqual( 1, layers.Opaque.Count );
+		Assert.AreSame( opaque, layers.Opaque[0].Custom );
+		Assert.AreEqual( 1, layers.Opaque[0].Count );
+
+		Assert.IsFalse( layers.Opaque.Concat( layers.Faded ).Concat( layers.Translucent ).Any( r => r.Custom == hidden ) );
+	}
+
+	[TestMethod]
+	public void CustomObjectsAreNeverSizeCulled()
+	{
+		// A hundredth of a unit across at 900 units: far under the size cull threshold, but still drawn
+		var world = new RenderWorld();
+		var tiny = new TestCustom( new Vector3( 900, 0, 0 ), 0.01f );
+		world.Add( tiny );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+
+		var layers = system.GetFeature<MeshRenderFeature>().RunsFor( system.MainPass );
+		Assert.AreEqual( 1, layers.Translucent.Count );
+		Assert.AreSame( tiny, layers.Translucent[0].Custom );
+	}
+
+	/// <summary>
+	/// Custom readers keep the shared copy and stencil alive, and release both when refraction is disabled.
+	/// </summary>
+	[TestMethod]
+	public void CustomRefractionUsesSharedFrameResources()
+	{
+		var world = new RenderWorld();
+		var custom = new TestCustom( new Vector3( 40, 0, 0 ) ) { WantsFrameBufferCopy = true };
+		world.Add( custom );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+		var feature = system.GetFeature<MeshRenderFeature>();
+		var layers = feature.RunsFor( system.MainPass );
+
+		Assert.AreEqual( MeshRuns.Translucent, layers.FrameBufferReads );
+		Assert.IsTrue( layers.Translucent.Single().ReadsFrameBuffer );
+		Assert.AreSame( custom, layers.Refraction.Single().Custom );
+		Assert.IsTrue( (layers.Custom & MeshRuns.Refraction) != 0, "The stencil must record custom draws on the main thread." );
+		Assert.IsTrue( new RefractionStencilLayer().DrawsCustomObjects );
+
+		custom.WantsFrameBufferCopy = false;
+		CollectAndPrepare( system, world, LookingDownX() );
+		layers = feature.RunsFor( system.MainPass );
+		Assert.AreEqual( (MeshRuns)0, layers.FrameBufferReads );
+		Assert.IsFalse( layers.Translucent.Single().ReadsFrameBuffer );
+		Assert.AreEqual( 0, layers.Refraction.Count );
+
+		custom.WantsFrameBufferCopy = true;
+		custom.IsOpaque = true;
+		CollectAndPrepare( system, world, LookingDownX() );
+		layers = feature.RunsFor( system.MainPass );
+		Assert.AreEqual( (MeshRuns)0, layers.FrameBufferReads, "Opaque layers do not copy the framebuffer." );
+		Assert.AreEqual( 0, layers.Refraction.Count );
+	}
+
+	/// <summary>
+	/// A renderer that draws views of two sizes in turn (a camera's window-sized view and its 128 px cube faces) keeps a
+	/// frame-buffer copy of each. Before, it made a new 10 MiB copy, the driver's allocation, at every turn.
+	/// </summary>
+	[TestMethod]
+	public void FrameBufferCopiesOfTwoSizesAreKept()
+	{
+		using var system = new RenderSystem();
+		var window = system.FrameBufferCopy( new Rect( 0, 0, 1280, 720 ) );
+		var face = system.FrameBufferCopy( new Rect( 0, 0, 128, 128 ) );
+		Assert.AreNotSame( window, face );
+		Assert.AreSame( window, system.FrameBufferCopy( new Rect( 0, 0, 1280, 720 ) ), "the window's copy is kept" );
+		Assert.AreSame( face, system.FrameBufferCopy( new Rect( 0, 0, 128, 128 ) ), "and the face's" );
+		Assert.AreEqual( 1280, window.Width );
+
+		// A third size takes the place of the one not used last
+		var other = system.FrameBufferCopy( new Rect( 0, 0, 640, 360 ) );
+		Assert.AreSame( face, system.FrameBufferCopy( new Rect( 0, 0, 128, 128 ) ) );
+		Assert.AreSame( other, system.FrameBufferCopy( new Rect( 0, 0, 640, 360 ) ) );
+	}
+
+	[TestMethod]
+	public void DecalsBinInSortOrder()
+	{
+		var world = new RenderWorld();
+		DecalObject Add( float x, uint sortOrder, bool visible = true )
+		{
+			var decal = new DecalObject( new Transform( new Vector3( x, 0, 0 ), Rotation.Identity, 10 ) ) { SortOrder = sortOrder, Visible = visible };
+			world.Add( decal );
+			return decal;
+		}
+
+		var third = Add( 20, 3 );
+		var first = Add( 40, 1 );
+		var second = Add( 60, 2 );
+		var fourth = Add( 80, 7 );
+		Add( 100, 0, visible: false );
+		Add( -100, 0 ); // behind the view
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+		var binner = system.GetFeature<LightBinnerFeature>();
+
+		// By sort order, the hidden decal and the one behind the view left out. Ties keep the visible list's order, which is
+		// the tree's; the Decal component makes every sort order unique
+		Assert.AreEqual( 4, binner.DecalCount );
+		CollectionAssert.AreEqual( new[] { first, second, third, fourth }, binner.Decals.ToArray() );
+
+		// Decals aren't lights or probes
+		Assert.AreEqual( 0, binner.Count );
+	}
+
+	/// <summary>
+	/// A decal with a colour map and no normal or RMO map packs 0 for those, as native's invalid handles do, not the missing
+	/// texture's slot: Decals.hlsl applies every map whose index isn't 0, and S&amp;DUTY's graffiti (colour only) drew black
+	/// with the missing texture as its occlusion.
+	/// </summary>
+	[TestMethod]
+	public void DecalWithoutNormalOrRmoMapPacksNoIndexForThem()
+	{
+		var device = HeadlessRenderHost.Headless;
+		var colour = device.CreateTexture( new TextureDesc { Width = 4, Height = 4, Depth = 1, Format = TextureFormat.RGBA8888, Samples = 1, Mips = 1 }, "decal colour" );
+		var world = new RenderWorld();
+		world.Add( new DecalObject( new Transform( new Vector3( 40, 0, 0 ), Rotation.Identity, 10 ) ) { Color = colour } );
+
+		var missing = device.MissingIndex;
+		device.MissingIndex = 6;
+		try
+		{
+			using var system = new RenderSystem();
+			CollectAndPrepare( system, world, LookingDownX() );
+			var binner = system.GetFeature<LightBinnerFeature>();
+			binner.PackDecals();
+
+			var packed = binner.PackedDecals[0].PackedTextureIndex;
+			Assert.AreEqual( (ulong)(uint)colour.ViewIndex( true, TextureViewDimension.Texture2D ), packed & 0xFFFF, "the colour map's sRGB view" );
+			Assert.AreEqual( 0ul, (packed >> 16) & 0xFFFF, "no normal map" );
+			Assert.AreEqual( 0ul, (packed >> 32) & 0xFFFF, "no RMO map" );
+		}
+		finally
+		{
+			device.MissingIndex = missing;
+		}
+	}
+
+	[TestMethod]
+	public void DecalLayoutMatchesNative()
+	{
+		// GPUDecal (lightbinner_standard.h), as Decals.hlsl reads it
+		LightBinnerFeature.GpuDecal.ValidateLayout();
+		Assert.AreEqual( 0, (int)Marshal.OffsetOf<LightBinnerFeature.GpuDecal>( nameof( LightBinnerFeature.GpuDecal.Position ) ) );
+		Assert.AreEqual( 12, (int)Marshal.OffsetOf<LightBinnerFeature.GpuDecal>( nameof( LightBinnerFeature.GpuDecal.Rotation ) ) );
+		Assert.AreEqual( 28, (int)Marshal.OffsetOf<LightBinnerFeature.GpuDecal>( nameof( LightBinnerFeature.GpuDecal.Scale ) ) );
+		Assert.AreEqual( 40, (int)Marshal.OffsetOf<LightBinnerFeature.GpuDecal>( nameof( LightBinnerFeature.GpuDecal.PackedTextureIndex ) ) );
+		Assert.AreEqual( 48, (int)Marshal.OffsetOf<LightBinnerFeature.GpuDecal>( nameof( LightBinnerFeature.GpuDecal.SortOrder ) ) );
+		Assert.AreEqual( 52, (int)Marshal.OffsetOf<LightBinnerFeature.GpuDecal>( nameof( LightBinnerFeature.GpuDecal.ExclusionBitMask ) ) );
+		Assert.AreEqual( 56, (int)Marshal.OffsetOf<LightBinnerFeature.GpuDecal>( nameof( LightBinnerFeature.GpuDecal.ColorTint ) ) );
+		Assert.AreEqual( 60, (int)Marshal.OffsetOf<LightBinnerFeature.GpuDecal>( nameof( LightBinnerFeature.GpuDecal.ExtraDataOffset ) ) );
+	}
+}
