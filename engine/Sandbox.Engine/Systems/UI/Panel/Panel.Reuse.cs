@@ -36,6 +36,12 @@ public partial class Panel
 	}
 
 	/// <summary>
+	/// Whether <see cref="TryGetDrawKey"/> would give <paramref name="drawn"/> now. Recordings ask this of every keyed panel
+	/// they keep each frame, so panel types with many instances answer it without building the key.
+	/// </summary>
+	internal virtual bool DrawKeyHolds( in DrawKey drawn ) => TryGetDrawKey( out var now ) && now == drawn;
+
+	/// <summary>
 	/// Where this panel's subtree was recorded last frame and what it was recorded under, so it can be replayed while unchanged.
 	/// </summary>
 	internal PanelRecording.Subtree SubtreeRecording;

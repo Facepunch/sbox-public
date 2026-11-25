@@ -518,6 +518,15 @@ namespace Sandbox.UI
 			return _textBlock.TryGetDrawKey( TextLayoutRect, out key );
 		}
 
+		internal override bool DrawKeyHolds( in DrawKey drawn )
+		{
+			// A label drawing its text block, as TryGetDrawKey has it: compared in place
+			if ( drawn.Source is not null && _textBlock is { } block && !clipsBackgroundToText && IsDrawnBy( typeof( Label ) ) && LayoutTree?.IsInlineParticipant != true )
+				return block.DrawKeyHolds( TextLayoutRect, in drawn );
+
+			return base.DrawKeyHolds( in drawn );
+		}
+
 		internal override bool TryGetContentBounds( out Rect bounds )
 		{
 			bounds = Box.Rect;

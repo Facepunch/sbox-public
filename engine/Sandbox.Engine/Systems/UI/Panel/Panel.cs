@@ -284,28 +284,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	/// <summary>
 	/// Returns true if this panel would like the mouse cursor to be visible.
 	/// </summary>
-	public virtual bool WantsMouseInput()
-	{
-		if ( ComputedStyle == null )
-			return false;
-
-		if ( !IsVisibleSelf )
-			return false;
-
-		if ( ComputedStyle.PointerEvents == PointerEvents.All )
-			return true;
-
-		if ( _children is null )
-			return false;
-
-		foreach ( var child in _children )
-		{
-			if ( child?.WantsMouseInput() ?? false )
-				return true;
-		}
-
-		return false;
-	}
+	public virtual bool WantsMouseInput() => WantsMouseInputCached( out _ );
 
 	internal void TickInternal() => TickInternal( FindRootPanel()?.TickStack ?? [] );
 

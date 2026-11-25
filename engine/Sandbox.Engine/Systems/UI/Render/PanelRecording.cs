@@ -190,7 +190,7 @@ internal sealed class PanelRecording
 
 		foreach ( var (keyed, drawn) in kept.Keys )
 		{
-			if ( !keyed.TryGetDrawKey( out var now ) || now != drawn ) return false;
+			if ( !keyed.DrawKeyHolds( in drawn ) ) return false;
 		}
 
 		if ( !kept.Context.Batcher.TexturesUnchanged() ) return false;
@@ -254,7 +254,7 @@ internal sealed class PanelRecording
 		var keys = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _previousKeys ).Slice( subtree.Keys, subtree.KeyCount );
 		foreach ( ref readonly var entry in keys )
 		{
-			if ( !entry.Panel.TryGetDrawKey( out var now ) || now != entry.Key ) return false;
+			if ( !entry.Panel.DrawKeyHolds( in entry.Key ) ) return false;
 		}
 
 		subtree.Keys = _keys.Count;
@@ -332,7 +332,7 @@ internal sealed class PanelRecording
 
 		foreach ( var (panel, drawn) in _keys )
 		{
-			if ( !panel.TryGetDrawKey( out var now ) || now != drawn ) return false;
+			if ( !panel.DrawKeyHolds( in drawn ) ) return false;
 		}
 
 		if ( batcher is null || !batcher.TexturesUnchanged() ) return false;

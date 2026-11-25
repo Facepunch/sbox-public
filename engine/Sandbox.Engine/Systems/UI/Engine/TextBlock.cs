@@ -223,6 +223,41 @@ internal sealed partial class TextBlock : IDisposable
 	}
 
 	/// <summary>
+	/// Whether <see cref="TryGetDrawKey"/> would give <paramref name="drawn"/>, a key naming a block, without building one.
+	/// </summary>
+	internal bool DrawKeyHolds( Rect textrect, in Panel.DrawKey drawn )
+	{
+		if ( !ReferenceEquals( drawn.Source, Block ) || Block is null ) return false;
+		if ( BlockSize == 0 || !ui_rendertext || string.IsNullOrEmpty( Text ) ) return false;
+		return drawn.Version == Block.LayoutVersion && drawn.Rect == textrect && OptionsAre( drawn.Options );
+	}
+
+	/// <summary>
+	/// Whether <see cref="GetOptions"/> would give <paramref name="options"/>.
+	/// </summary>
+	bool OptionsAre( in GpuFontText.Options options )
+	{
+		if ( options.Aliased != (Smooth == FontSmooth.Never) || options.HasGradient != HasGradient || options.SelectionColor != SelectionColor )
+			return false;
+
+		var selectionStart = -1;
+		var selectionEnd = -1;
+		if ( ShouldDrawSelection && (SelectionStart > 0 || SelectionEnd > 0) )
+		{
+			selectionStart = CaretToCodePointIndex( SelectionStart );
+			selectionEnd = CaretToCodePointIndex( SelectionEnd );
+		}
+
+		var expected = GpuFontText.Options.Default;
+		expected.Aliased = options.Aliased;
+		expected.SelectionColor = options.SelectionColor;
+		expected.HasGradient = options.HasGradient;
+		expected.SelectionStart = selectionStart;
+		expected.SelectionEnd = selectionEnd;
+		return expected == options;
+	}
+
+	/// <summary>
 	/// Emit only the text's shadows and outlines, for background-clip: text, which fills the glyphs with the background instead.
 	/// </summary>
 	internal void DrawEffects( Painter painter, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
