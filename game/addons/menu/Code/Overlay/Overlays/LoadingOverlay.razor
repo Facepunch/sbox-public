@@ -13,7 +13,7 @@
 *@
 <root>
 
-    @if ( Background is { } background )
+    @if ( Art is { } background )
     {
         <div class="background" style="background-image: url( @background );"></div>
     }
@@ -453,6 +453,18 @@
         : Package is { } package ? PackageArt.Background( package ) : null;
 
     /// <summary>
+    /// The art while the screen's up and while it fades out, then none: put away, the overlay stays, and its art (a game's
+    /// screenshot at full size, 20 MB at 2560x1440 with its mips) was kept for the whole game.
+    /// </summary>
+    string Art => _artGone ? null : Background;
+
+    /// <summary>How long after it's put away the art goes: once the fade (0.35 s) is over.</summary>
+    const float ArtSeconds = 1;
+
+    RealTimeSince _sinceVisible;
+    bool _artGone;
+
+    /// <summary>
     /// What's happening - "Downloading Sandbox", "Downloading 12 packages", "Loading Resources".
     /// While a batch is coming down it says so itself: the engine's title names whichever download
     /// reported last, which jumps about when several come down at once. The game or its map has the
@@ -573,6 +585,13 @@
                 return _hash = HashCode.Combine( _hash, _builtLoad );
             }
 
+            // Faded out: built once more without the art, which goes with its panel
+            if ( !_artGone && _sinceVisible > ArtSeconds )
+            {
+                _artGone = true;
+                return _hash = HashCode.Combine( _hash, _artGone );
+            }
+
             return _hash;
         }
 
@@ -592,6 +611,12 @@
 
     public override void Tick()
     {
+        if ( LoadingView.IsVisible )
+        {
+            _sinceVisible = 0;
+            _artGone = false;
+        }
+
         // Not while the platform menu's switching games - that shows under its own blur
         SetClass( "visible", LoadingView.IsVisible && !MenuProject.Platform.PlatformMenu.IsSwitching );        TickCompletion();
         TickSpeed();
