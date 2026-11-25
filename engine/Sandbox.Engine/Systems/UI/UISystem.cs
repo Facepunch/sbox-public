@@ -453,7 +453,7 @@ internal partial class UISystem
 	}
 
 	/// <summary>
-	/// Delete all panels that were deferred and are no longer playing outro transitions
+	/// Delete all panels that were deferred and are no longer playing outro transitions, or whose parent isn't drawn
 	/// </summary>
 	internal void RunDeferredDeletion( bool force = false )
 	{
@@ -469,7 +469,10 @@ internal partial class UISystem
 				continue;
 			}
 
-			if ( !force && p.HasActiveTransitions ) continue;
+			// An outro under a parent that isn't drawn can't be seen, and never ends: hidden panels don't lay out their
+			// children, so its transitions don't advance. Waiting on it would keep the panel, and what it draws (a background
+			// image's texture), for as long as the parent stays hidden.
+			if ( !force && p.HasActiveTransitions && (p.Parent?.IsVisible ?? false) ) continue;
 
 			try
 			{
