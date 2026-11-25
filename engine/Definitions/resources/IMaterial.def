@@ -11,17 +11,7 @@ native class IMaterial2 as NativeEngine.IMaterial
 
 	bool IsLoaded();
 
-	IMaterialMode GetMode( StringToken token );
-	IMaterialMode GetMode();
-
-	inline IMaterialMode GetMode( ISceneLayer layer )
-	{
-		return self->GetMode( layer->GetShaderMode() );
-	}
-
 	CRenderAttributes GetRenderAttributes();
-
-	void RecreateAllStaticConstantAndCommandBuffers();
 
 	ITexture GetFirstTextureAttribute();
 
@@ -36,6 +26,22 @@ native class IMaterial2 as NativeEngine.IMaterial
 	}
 
 	ITexture GetTextureAttributeOrDefault( StringToken name );
+
+	// The semantics of the vertex inputs the material reports to code that builds vertex buffers for it, comma separated
+	inline string GetVertexInputSemantics()
+	{
+		CUtlString value;
+		const CVsInputSignatureVector *pSignature = self->GetVertexShaderInputSignature();
+		if ( pSignature )
+		{
+			for ( const VsInputSignatureElement_t &element : *pSignature )
+			{
+				if ( !value.IsEmpty() ) value += ",";
+				value += element.m_pSemantic;
+			}
+		}
+		return value;
+	}
 
 	bool HasParam( string name );
 

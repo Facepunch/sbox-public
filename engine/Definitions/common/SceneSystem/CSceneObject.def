@@ -28,8 +28,6 @@ native class CSceneObject as NativeEngine.CSceneObject
 	Vector3 GetLightingOrigin();
 	bool HasLightingOrigin();
 
-	void SetTintRGBA( Vector4 color );
-
 	Vector4 GetTintRGBA();
 
 	void SetAlphaFade( float nAlpha );
@@ -51,28 +49,15 @@ native class CSceneObject as NativeEngine.CSceneObject
 
 	void SetTransform( Transform tx );
 
-	Transform GetCTransform();
+	// The transform as kept, a scale per axis (a prop scaled along one axis in Hammer): GetCTransform keeps the largest
+	Transform GetCTransformUnaligned();
 
 	void SetBounds( BBox box );
 
 	BBox GetBounds();
 
-	void SetBoundsInfinite();
-
-	inline void SetBufferIndexRange( int start, int count )
-	{
-		CMeshInstance *pMesh = self->GetMeshInstanceData();
-		CSceneObjectData *pData = new CSceneObjectData( pMesh->GetSceneObjectData() );
-		pData->m_drawCalls[0].m_nStartIndex = start;
-		pData->m_drawCalls[0].m_nIndexCount = count;
-		pMesh->SetAndOwnDrawDataOverride( pData );
-	}
-
 	CSceneObject GetParent();
-	void AddChildObject( StringToken nId, CSceneObject pChild, uint nChildUpdateFlags );
 	void RemoveChild( CSceneObject obj );
-
-	CRenderAttributes GetAttributesPtrForModify();
 
 	void EnableMeshGroups( ulong nMask );
 	void DisableMeshGroups( ulong nMask );
@@ -81,7 +66,6 @@ native class CSceneObject as NativeEngine.CSceneObject
 
 	ISceneWorld GetWorld();
 
-	void SetLOD( int nLOD );
 	void DisableLOD();
 	ulong GetCurrentLODGroupMask();
 	int GetCurrentLODLevel();
@@ -107,7 +91,6 @@ native class CSceneObject as NativeEngine.CSceneObject
 	void SetForceLayerID( StringToken nTok );
 
 	// draw only on this layer
-	void SetLayerMatchID( StringToken nTok );
 	inline uint GetLayerMatchIDValue()
 	{
 		return self->GetLayerMatchID().GetHashCode();

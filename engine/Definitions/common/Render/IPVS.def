@@ -1,9 +1,0 @@
-﻿
-native class IPVS
-{
-	bool IsEmptyPVS();
-	bool IsInPVS( int numSources, CastTo[Vector*] void* sources, Vector position );
-	bool IsAbsBoxInPVS( int numSources, CastTo[Vector*] void* sources, Vector mins, Vector maxs );
-	bool IsSkyVisibleFromPosition( Vector position );
-	bool IsSunVisibleFromPosition( Vector position );
-}

@@ -1,4 +1,0 @@
-
-native class IMaterialMode as NativeEngine.IMaterialMode
-{
-}

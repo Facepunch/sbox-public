@@ -2,6 +2,7 @@
 #include "qcontrols/qutils.h"
 #include "sbox_widgets.h"
 #include "qtinputbridge.h"
+#include "qtoolframeworkapplication.h"
 
 native accessor qApp as Native.QApp
 {
@@ -37,6 +38,13 @@ native accessor qApp as Native.QApp
 	inline qstring GetClipboardText()
 	{
 		return qApp->clipboard()->text();
+	}
+
+	// The tool framework's timer that calls Editor.ManagedTools.OnQtHeartbeat every 8 ms
+	inline void SetHeartbeat( bool enabled )
+	{
+		if ( auto *app = qobject_cast<CQToolFrameworkApplication *>( qApp ) )
+			app->EnableQtFrameTimer( enabled );
 	}
 
 	inline void redrawActiveWindow()

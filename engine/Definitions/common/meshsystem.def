@@ -3,6 +3,5 @@ include "meshsystem/imeshsystem.h"
 
 native accessor g_pMeshSystem as NativeEngine.MeshSystem
 {
-	CSceneObject CreateSceneObject( IModel model, Transform modelToWorld, string pDescName, ESceneObjectFlags nFlags, ESceneObjectTypeFlags nObjectTypeFlags, ISceneWorld pWorld, int creationFlags );
 	void ChangeModel( CSceneObject obj, IModel model );
 }

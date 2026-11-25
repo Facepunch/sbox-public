@@ -34,18 +34,18 @@ native class CVideoPlayer as NativeEngine.CVideoPlayer
 	int GetPacketQueueDepth();
 	int GetFrameQueueDepth();
 
-	ITexture GetTexture();
 	CAudioStreamManaged GetAudioStream();
 }
 
 managed class Sandbox.VideoPlayer
 {
-	void OnTextureCreatedInternal();
 	void OnInitAudioInternal( int sampleRate, int channels );
 	void OnFreeAudioInternal();
 	void OnTextureDataInternal( void* data, int width, int height );
 	void OnLoadedInternal();
 	bool WantsTextureData();
+	bool WantsPlanes();
+	void OnPlanesInternal( void* y, void* u, void* v, void* alpha, int width, int height, int strideY, int strideU, int strideV, int strideAlpha, bool fullRange, bool bt709 );
 	void OnFinishedInternal();
 	void OnRepeatedInternal();
 }

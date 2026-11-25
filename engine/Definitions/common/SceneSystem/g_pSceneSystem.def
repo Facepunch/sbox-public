@@ -5,9 +5,6 @@ native enum SceneSystemWellKnownMaterialObjectID_t as NativeEngine.SceneSystemWe
 native enum SceneSystemWellKnownTextureObjectID_t as NativeEngine.SceneSystemWellKnownTextureObjectID;
 
 native struct SceneVolumetricFogVolume_t is NativeEngine.SceneVolumetricFogVolume;
-native struct SceneSystemTimestampEventData_t is NativeEngine.GpuTimestampEventData;
-
-native enum SceneSystemGPUProfilerMode_t as NativeEngine.SceneSystemGPUProfilerMode;
 
 native class SceneSystemPerFrameStats_t
 {
@@ -48,11 +45,7 @@ native class SceneSystemPerFrameStats_t
 	uint m_nNumDisplayListsSubmitted;
 	int m_nNumViewsRendered;
 	uint m_nNumResolves;
-	uint m_nNumCullBoxes;
-	ulong m_nCullingBoxCycleCount;
-	uint m_nNumObjectsTestedAgainstCullingBoxes;
 	uint m_nNumObjectsRejectedByBoundsIndex;
-	uint m_nNumObjectsRejectedByCullBoxes;
 	uint m_nNumObjectsRejectedByVis;
 	uint m_nNumObjectsRejectedByBackfaceCulling;
 	uint m_nNumObjectsRejectedByScreenSizeCulling;
@@ -75,23 +68,8 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     void DeleteSceneObject( CSceneObject pObj );
     void DeleteSceneObjectAtFrameEnd( CSceneObject pObj );
 
-	inline CSceneObject CreateSceneObjectFromBuffers( ISceneWorld world, VertexBufferHandle_t vertices, IndexBufferHandle_t indices, IMaterial material, int vertexCount, int indexCount, BBox bounds, RenderPrimitiveType primitiveType )
-	{
-		return g_pSceneSystem->CreateSceneObjectFromBuffers( world, vertices, indices, material, vertexCount, indexCount, bounds.m_vMinBounds, bounds.m_vMaxBounds, primitiveType, nullptr, true );
-	}
-
     CSceneSkyBoxObject CreateSkyBox( IMaterial skyMaterial, ISceneWorld world );
-    CDecalSceneObject CreateDecal( ISceneWorld world );
 
-    void BeginRenderingDynamicView( ISceneView pView );
-    //ISceneView AddDynamicView( string pszDebugName, ISceneView pParentView, CFrustum frustum, void* hSwapChain, ISceneWorld pWorld, RenderViewport mainViewport, void* pVis, int nPriority, int nViewProducerIndex );
-
-	ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias, ITexture cachedShadowTexture );
-
-	inline ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias )
-	{
-		return g_pSceneSystem->AddShadowView( debugName, pParentView, frustum, mainViewport, rt, rtIdx, requiredFlags, excludedFlags, depthBias, slopeScaledDepthBias, RENDER_TEXTURE_HANDLE_INVALID );
-	}
     
 	ITexture GetWellKnownTexture( SceneSystemWellKnownTextureObjectID a );
     IMaterial GetWellKnownMaterialHandle( SceneSystemWellKnownMaterialObjectID a );
@@ -108,41 +86,10 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
     void PerformEndOfFrameDeletes();
 
-    // Frame-level view bracket. Opened once per frame around client output so every
-    // camera / scene panel / overlay render joins one submission window and the main
-    // thread waits once, instead of each render opening its own blocking bracket.
-    inline void BeginRenderingViews( bool bUpdateStats )
-    {
-        g_pSceneSystem->BeginRenderingViews( g_pRenderDevice, bUpdateStats );
-    }
+    // End a frame that renders no views: deletes, dirty objects, the frame counter and render time
+    void FinishFrameWithoutViews();
 
-    void FinishRenderingViews();
     bool WaitForRenderingToComplete();
-    bool IsRenderingBusy();
-    bool IsRenderingViews();
-
-    inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject, ISceneLayer pSceneLayerInterface )
-    {
-        g_pSceneSystem->SetupPerObjectLighting( *renderAttributes, pSceneObject, pSceneLayerInterface );
-    }
-
-    inline CSceneLightObject CreatePointLight( ISceneWorld pWorld )
-    {
-        LightDesc_t desc;
-		desc.Clear();
-		desc.InitPoint( vec3_origin, Vector( 100, 0, 100 ) );
-        desc.m_Attenuation0 = 0; // if this is 1 then the light has no falloff
-		return g_pSceneSystem->CreateLight( desc, pWorld, false );
-    }
-
-    inline CSceneLightObject CreateSpotLight( ISceneWorld pWorld )
-    {
-        LightDesc_t desc;
-		desc.Clear();
-		desc.InitSpot( vec3_origin, Vector( 100, 0, 100 ), Vector( 10, 0, 0 ), 15, 30 );
-        desc.m_Attenuation0 = 0; // if this is 1 then the light has no falloff
-		return g_pSceneSystem->CreateLight( desc, pWorld, false );
-    }
 
     inline CSceneLightObject CreateOrthoLight( ISceneWorld pWorld )
     {
@@ -153,135 +100,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
         return g_pSceneSystem->CreateLight( desc, pWorld, false );
     }
 
-    inline CSceneLightObject CreateDirectionalLight( ISceneWorld pWorld, Vector3 direction )
-    {
-        LightDesc_t desc;
-		desc.Clear();
-		desc.InitDirectional( direction, Vector( 100, 0, 100 ) );
-        desc.m_nShadowCascadeCount = 3;
-
-		return g_pSceneSystem->CreateLight( desc, pWorld, false );
-    }
-
-    inline CSceneLightObject CreateEnvMap( ISceneWorld pWorld, int nProjectionMode )
-    {
-        LightDesc_t desc;
-        desc.InitEnvironmentProbe( vec3_origin, 512 );
-        desc.m_nEnvProbeId = 0;
-        desc.RecalculateDerivedValues();
-        CEnvMapSceneObject* pSceneObject = ( CEnvMapSceneObject* )g_pSceneSystem->CreateLight( desc, pWorld, false );
-        pSceneObject->m_nProjectionMode = ( CubemapProjectionMode_t )nProjectionMode;
-        return pSceneObject;
-    }
-
-    CSceneLightProbeVolumeObject CreateLightProbeVolume( ISceneWorld pWorld );
-
-    void MarkEnvironmentMapObjectUpdated( CEnvMapSceneObject pEnvMap );
-    void MarkLightProbeVolumeObjectUpdated( CSceneLightProbeVolumeObject pLightProbe );
-
-    inline uint AddCullingBox( ISceneWorld pWorld, bool nCullMode, Vector3 vOrigin, Angles vAngles, Vector3 vExtents )
-    {
-        return g_pSceneSystem->AddCullingBox( pWorld, nCullMode ? SCENESYSTEM_BOX_CULL_INSIDE : SCENESYSTEM_BOX_CULL_OUTSIDE, vOrigin, vAngles, vExtents );
-    }
-
-    void RemoveCullingBox( ISceneWorld pWorld, uint nBoxId );
-
-    uint AddVolumetricFogVolume( ISceneWorld pWorld, SceneVolumetricFogVolume_t volume );
-    void RemoveVolumetricFogVolume( ISceneWorld pWorld, uint nId );
-
-	inline void DownsampleTexture( IRenderContext ctx, ITexture src, byte nDownsampleType )
-	{
-		return g_pSceneSystem->DownsampleTexture( ctx, src, nullptr, nDownsampleType );
-	}
-
-	void BindTransformSlot( IRenderContext pCtx, int nVBSlot, int nTransformSlotIndex );
-
-	int AllocatePipelineTextureIndices();
-	void SetPipelineTextureIndex( int nViewOffset, int nSlot, int nBindlessIndex );
-	void UpdateGlobalPerFrameDescriptorBindings();
-
-	// Ray Tracing
-	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
-	void DestroyRayTraceWorld( IRayTraceSceneWorld pRayTraceSceneWorld );
-
-	// GPU Profiler
-	void SetGPUProfilerMode( SceneSystemGPUProfilerMode_t eProfilerMode );
-	SceneSystemGPUProfilerMode_t GetGPUProfilerMode();
-
-	inline void RefreshGpuTimestampSnapshot()
-	{
-		g_pSceneSystem->RefreshTimestampSnapshot( SWAP_CHAIN_HANDLE_INVALID );
-	}
-
-	inline int GetGpuTimestampCount()
-	{
-		return g_pSceneSystem->GetTimestampSnapshotCount();
-	}
-
-	inline int GetGpuTimestampRenderer()
-	{
-		return g_pSceneSystem->GetTimestampSnapshotRenderer();
-	}
-
-	inline ulong GetGpuTimestampFrameId()
-	{
-		return g_pSceneSystem->GetTimestampSnapshotFrameId();
-	}
-
-	inline float GetGpuTimestampDuration( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotDurationMs( index );
-	}
-
-	inline string GetGpuTimestampName( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotName( index );
-	}
-
-	inline int GetGpuTimestampParent( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotParent( index );
-	}
-
-	inline uint GetGpuTimestampStableId( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotStableId( index );
-	}
-
-	inline bool GetGpuTimestampMeasured( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotMeasured( index );
-	}
-
-	inline bool GetGpuTimestampUnparented( int index )
-	{
-		return g_pSceneSystem->GetTimestampSnapshotUnparented( index );
-	}
-
-	inline int GetGpuTimestampEventCount()
-	{
-		return g_pSceneSystem->GetTimestampEventCount();
-	}
-
-	inline string GetGpuTimestampEvent( int index, out GpuTimestampEventData data )
-	{
-		const auto *pEvent = g_pSceneSystem->GetTimestampEvent( index );
-		if ( !pEvent )
-		{
-			*data = {};
-			return nullptr;
-		}
-
-		*data = *pEvent;
-		return pEvent->m_sName.Get();
-	}
-
-	// begin returns a scope handle to pass to end
-	inline void* BeginManagedPerfMarker( IRenderContext ctx, void* markerName, bool pass, bool managedRenderer )
-	{
-		return g_pSceneSystem->BeginManagedPerfMarker( (IRenderContext*)ctx, (const char*)markerName, pass, managedRenderer );
-	}
-	void EndManagedPerfMarker( IRenderContext ctx, void* scope );
 
 	inline void SetNextRenderTime( float flNextTime )
 	{

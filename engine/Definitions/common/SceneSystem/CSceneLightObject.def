@@ -14,59 +14,37 @@ native class CSceneLightObject as NativeEngine.CSceneLightObject : CSceneObject
 	Vector3 GetColor();
 
 	void SetRadius( float radius );
-	float GetRadius();	
 	
-	void SetTheta( float f );
 	float GetTheta();
 
 	void SetPhi( float f );
 	float GetPhi();
 
-	void SetFallOff( float f );
 	float GetFallOff();
 
 	int GetShadowTextureResolution();
-	void SetShadowTextureResolution( int v );
 
 	bool GetShadows();
-	void SetShadows( bool v );
-
-	void SetConstantAttn(float f);
 
 	float GetConstantAttn();
 
-	void SetLinearAttn( float f );
 	float GetLinearAttn();
 
-	void SetQuadraticAttn( float f );
 	float GetQuadraticAttn();
 
-	void SetLightCookie( ITexture f );
 	ITexture GetLightCookie();
 
-	void SetLightModulatorRange( uint offset, uint count );
-
 	int GetShadowCascades();
-	void SetShadowCascades( int v );
 
 	float GetShadowCascadeSplitRatio();
-	void SetShadowCascadeSplitRatio( float v );
 
 	float GetCascadeDistanceScale();
 	void SetCascadeDistanceScale( float dist );
 
 	float GetFogContributionStength();
-	void SetFogContributionStength( float v );
 
 	int GetFogLightingMode();
-	void SetFogLightingMode( int v );
 
-	void SetBakeLightIndex( int v );
-	void SetBakeLightIndexScale( float v );
-	void SetUsesIndexedBakedLighting( bool v );
-	void SetRenderDiffuse( bool v );
-	void SetRenderSpecular( bool v );
-	void SetRenderTransmissive( bool v );
 	void SetLightSourceSize0( float v );
 	void SetLightSourceSize1( float v );
 	void SetShadowTextureWidth( int v );
@@ -75,7 +53,6 @@ native class CSceneLightObject as NativeEngine.CSceneLightObject : CSceneObject
 	int GetShadowTextureHeight();
 
 	uint GetLightFlags();
-	void SetLightFlags( uint flags );
 
 	LightSourceShape_t GetLightShape();
 	void SetLightShape( LightSourceShape_t shape );

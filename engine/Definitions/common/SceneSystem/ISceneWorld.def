@@ -15,16 +15,6 @@ native class ISceneWorld as NativeEngine.ISceneWorld
 
 	void DeleteEndOfFrameObjects();
 
-	inline bool MeshTrace( MeshTraceInput input, ref MeshTraceOutput output )
-	{
-		return self->MeshTrace( input, *output );
-	}
-
-	bool MeshTraceAll(MeshTraceInput input, CUtlVectorMeshTraceOutput results );
-
-	IPVS GetPVS();
-	void SetPVS( IPVS pPVS );
-
 	void Add3DSkyboxWorld( ISceneWorld world );
 	void Remove3DSkyboxWorld( ISceneWorld world );
 	void Set3DSkyboxParameters( Vector3 origin, Angles angle, float scale );

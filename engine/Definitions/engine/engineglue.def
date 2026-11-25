@@ -12,6 +12,8 @@ native static class EngineGlue as NativeEngine.EngineGlue
 
 	void AddSearchPath( string path, string groupid, bool head );
 	bool RemoveSearchPath( string path, string groupid );
+	bool MountWorldVPK( string pWorldName, string pVpkPath );
+	bool UnmountWorldVPK( string pWorldName );
 
 	ulong ApproximateProcessMemoryUsage();
 

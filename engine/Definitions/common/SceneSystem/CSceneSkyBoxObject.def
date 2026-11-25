@@ -3,19 +3,12 @@
 [Handle:Sandbox.SceneSkyBox]
 native class CSceneSkyBoxObject as NativeEngine.CSceneSkyBoxObject : CSceneObject
 {
-	void SetLighting_ConstantColorHemisphere( Vector3 vSkyColor );
-	void SetLighting_Samples( CastTo[Vector*] void* pSkyColors, CastTo[Vector*] void* pSkyDirections, int nSkyColors );
-
 	IMaterial GetMaterial();
 	void SetMaterial( IMaterial hMaterial );
 
-	void SetSkyTint( Vector3 vTint );
 	Vector3 GetSkyTint();
 
-	void SetFogType( CastTo[ESkyboxFogType_t] int nType );
 	int GetFogType();
-
-	void SetAngularFogParams( float flFogMinStart, float flFogMinEnd, float flFogMaxStart, float flFogMaxEnd );
 
 	float GetFogMinStart();
 	float GetFogMinEnd();

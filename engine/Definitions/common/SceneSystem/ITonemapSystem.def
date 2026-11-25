@@ -4,12 +4,3 @@
 
 native struct SceneTonemapParameters_t;
 
-native class ITonemapSystem
-{
-	void SetTonemapParameters( ref SceneTonemapParameters_t pParams );
-
-	inline void ResetTonemapParameters()
-	{
-		this->SetTonemapParameters( NULL );
-	}
-}
