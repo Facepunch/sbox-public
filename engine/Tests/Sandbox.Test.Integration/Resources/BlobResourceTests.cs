@@ -132,7 +132,10 @@ public class BlobResourceTest
 		writer.SetDataBlock( Encoding.UTF8.GetBytes( json ) );
 		var compiled = writer.ToArray();
 
-		var path = Path.Combine( Path.GetTempPath(), $"{Guid.NewGuid()}.blobres" );
+		// A resource path, relative to the game folder, which the loose sidecar fallback reads from disk. An absolute temp
+		// path only worked on Windows: a resource path loses its leading slash, so /tmp/... became tmp/...
+		Directory.CreateDirectory( Path.Combine( ".source2", "temp" ) );
+		var path = $".source2/temp/{Guid.NewGuid()}.blobres";
 		try
 		{
 			File.WriteAllBytes( path + "_d", source.BinaryData );
