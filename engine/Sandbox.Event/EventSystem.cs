@@ -208,9 +208,25 @@ internal class EventSystem : IDisposable
 
 	EventDelegate BuildDelegate( MethodInfo info )
 	{
-		// TODO - handle arguments
-
 		var parameters = info.GetParameters();
+
+		// Events without arguments run every frame, so call them directly rather than through reflection
+		if ( parameters.Length == 0 && info.ReturnType == typeof( void ) && !info.ContainsGenericParameters && info.DeclaringType is { IsValueType: false, ContainsGenericParameters: false } )
+		{
+			try
+			{
+				if ( info.IsStatic )
+					return Direct( info.CreateDelegate<Action>() );
+
+				return (EventDelegate)DirectInstanceMethod.MakeGenericMethod( info.DeclaringType ).Invoke( null, [info] );
+			}
+			catch ( Exception e ) when ( e is ArgumentException or TargetInvocationException { InnerException: ArgumentException } )
+			{
+				// Can't bind it, reflection still works
+			}
+		}
+
+		// TODO - handle arguments
 		object[] args = default;
 		if ( parameters.Length > 0 )
 		{
@@ -243,6 +259,33 @@ internal class EventSystem : IDisposable
 
 		return d;
 	}
+
+	static readonly MethodInfo DirectInstanceMethod = typeof( EventSystem ).GetMethod( nameof( DirectInstance ), BindingFlags.Static | BindingFlags.NonPublic );
+
+	static EventDelegate DirectInstance<T>( MethodInfo info ) where T : class
+	{
+		var call = info.CreateDelegate<Action<T>>();
+		return Direct( call, info.Name );
+	}
+
+	static EventDelegate Direct<T>( Action<T> call, string name ) where T : class => ( o, p ) =>
+	{
+		if ( p != null && p.Length != 0 )
+			throw new ArgumentException( $"Event passed {p.Length} arguments but {name} expects none" );
+
+		// Wrapped like MethodInfo.Invoke wraps it, as the callers unwrap it
+		try { call( (T)o ); }
+		catch ( Exception e ) { throw new TargetInvocationException( e ); }
+	};
+
+	static EventDelegate Direct( Action call ) => ( o, p ) =>
+	{
+		if ( p != null && p.Length != 0 )
+			throw new ArgumentException( $"Event passed {p.Length} arguments but {call.Method.Name} expects none" );
+
+		try { call(); }
+		catch ( Exception e ) { throw new TargetInvocationException( e ); }
+	};
 
 	internal EventList GetGroup( string name, bool create )
 	{
@@ -368,9 +411,10 @@ internal class EventSystem : IDisposable
 
 	internal void RunInterface<T>( Action<T> t )
 	{
-		foreach ( var e in AllTargets.OfType<T>().ToArray() )
+		// A snapshot: registering or unregistering makes a new array rather than changing this one
+		foreach ( var e in AllTargets.GetLiveItems() )
 		{
-			t.Invoke( e );
+			if ( e is T target ) t.Invoke( target );
 		}
 	}
 

@@ -119,6 +119,73 @@ public class EventSystemTest
 		Console.WriteLine( $"Collected after {attempts} attempt(s)" );
 	}
 
+	/// <summary>
+	/// Attributed handlers run whether static, on an instance, private on a base class, or taking arguments.
+	/// </summary>
+	[TestMethod]
+	public void AttributedHandlersRun()
+	{
+		using var system = CreateEventSystem();
+		system.RegisterAssembly( typeof( AttributedHandler ).Assembly );
+
+		var handler = new AttributedHandler();
+		system.Register( handler );
+		AttributedHandler.StaticCalls = 0;
+
+		system.Run( "eventsystemtest.static" );
+		system.Run( "eventsystemtest.instance" );
+		system.Run( "eventsystemtest.base" );
+		system.Run( "eventsystemtest.argument", 5 );
+
+		Assert.AreEqual( 1, AttributedHandler.StaticCalls );
+		Assert.AreEqual( 1, handler.InstanceCalls );
+		Assert.AreEqual( 1, handler.BaseCalls );
+		Assert.AreEqual( 5, handler.Argument );
+	}
+
+	/// <summary>
+	/// A handler's exception is reported as itself, not as the exception inside it.
+	/// </summary>
+	[TestMethod]
+	public void HandlerExceptionIsReportedAsItself()
+	{
+		using var system = CreateEventSystem();
+		system.RegisterAssembly( typeof( AttributedHandler ).Assembly );
+		system.Register( new AttributedHandler() );
+
+		var thrown = Assert.ThrowsException<System.Reflection.TargetInvocationException>( () => system.GetGroup( "eventsystemtest.throws", false ).Run( "eventsystemtest.throws" ) );
+
+		Assert.IsInstanceOfType<InvalidOperationException>( thrown.InnerException );
+		Assert.AreEqual( "handler", thrown.InnerException.Message );
+	}
+
+	private class AttributedHandlerBase
+	{
+		public int BaseCalls;
+
+		[Event( "eventsystemtest.base" )]
+		void OnBase() => BaseCalls++;
+	}
+
+	private sealed class AttributedHandler : AttributedHandlerBase
+	{
+		public static int StaticCalls;
+		public int InstanceCalls;
+		public int Argument;
+
+		[Event( "eventsystemtest.static" )]
+		static void OnStatic() => StaticCalls++;
+
+		[Event( "eventsystemtest.instance" )]
+		public void OnInstance() => InstanceCalls++;
+
+		[Event( "eventsystemtest.argument" )]
+		public void OnArgument( int value ) => Argument = value;
+
+		[Event( "eventsystemtest.throws" )]
+		public void OnThrows() => throw new InvalidOperationException( "handler", new FormatException( "inner" ) );
+	}
+
 	private interface IEventInterface
 	{
 		void EventMethod();
