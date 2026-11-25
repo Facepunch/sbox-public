@@ -39,7 +39,7 @@ internal static unsafe class FloatingPointMode
 	// _controlfp is called through a pointer bound on first use, not a P/Invoke: a P/Invoke without a GC transition is bound
 	// when its caller is compiled, so precompiling the callers (PreJIT, on every start) failed on Linux, where there's no
 	// ucrtbase.dll, even though nothing calls them there.
-	static delegate* unmanaged[Cdecl, SuppressGCTransition]<uint, uint, uint> controlFp;
+	static delegate* unmanaged[Cdecl, SuppressGCTransition]< uint, uint, uint > controlFp;
 
 	static uint Read() => ControlFp( 0, 0 );
 
@@ -51,7 +51,7 @@ internal static unsafe class FloatingPointMode
 		if ( fn == null )
 		{
 			var library = NativeLibrary.Load( "ucrtbase.dll", typeof( FloatingPointMode ).Assembly, null );
-			controlFp = fn = (delegate* unmanaged[Cdecl, SuppressGCTransition]<uint, uint, uint>)NativeLibrary.GetExport( library, "_controlfp" );
+			controlFp = fn = (delegate* unmanaged[Cdecl, SuppressGCTransition]< uint, uint, uint >)NativeLibrary.GetExport( library, "_controlfp" );
 		}
 
 		return fn( value, mask );
