@@ -476,6 +476,7 @@ internal sealed class StateMachineCanvas : CanvasWidget
 			conduit.Graph.AddNode( node );
 		}
 		conduit.Graph.RegisterParametersFromNodes( conduit.Graph.AllNodes );
+		Editor.OnTransitionsPasted( conduit, nodes );
 		Changed();
 		Editor.PushGraphRedo();
 		Select( conduit );
