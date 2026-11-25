@@ -164,10 +164,20 @@ public partial class ComponentSheet : Widget
 	List<Func<bool>> hideShowConditions = new();
 
 	int lastHash;
+	RealTimeSince timeSinceHashed;
 
+	/// <summary>
+	/// Rebuilds the content when what it's built from changes. Looked at once every 0.1 s, not every frame: reading
+	/// <see cref="ShowAdvanced"/> walks the targets (and allocates), and an inspector has a sheet per component.
+	/// </summary>
 	[EditorEvent.Frame]
 	public void Frame()
 	{
+		if ( timeSinceHashed < 0.1f )
+			return;
+
+		timeSinceHashed = 0;
+
 		var hash = BuildHashCode();
 
 		if ( lastHash != hash )

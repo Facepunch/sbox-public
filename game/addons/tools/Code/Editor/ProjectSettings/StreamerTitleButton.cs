@@ -129,12 +129,15 @@ file class StreamerTitleButton : Widget
 		titleBarButtons.Add( new StreamerTitleButton( Project.Current ) );
 	}
 
+	// Made once: passing the method itself would make a delegate each call
+	Func<int> contentHash;
+
 	int ContentHash() => HashCode.Combine( Streamer.ViewerCount, Streamer.IsActive );
 
 	[EditorEvent.Frame]
 	public void FrameUpdate()
 	{
-		if ( SetContentHash( ContentHash, 0.5f ) )
+		if ( SetContentHash( contentHash ??= ContentHash, 0.5f ) )
 		{
 			Update();
 			AdjustSize();

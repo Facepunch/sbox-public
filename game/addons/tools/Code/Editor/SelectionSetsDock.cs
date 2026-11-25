@@ -89,7 +89,7 @@ public sealed class SelectionSetsDock : Widget
 
 		RefreshDataForActiveSession();
 
-		if ( _session is not null && !_dataDirty && SetContentHash( SceneStateHash, 0.2f ) )
+		if ( _session is not null && !_dataDirty && SetContentHash( sceneStateHash ??= SceneStateHash, 0.2f ) )
 		{
 			_dataDirty = true;
 		}
@@ -197,6 +197,9 @@ public sealed class SelectionSetsDock : Widget
 		_rowStats[set] = stats;
 		return stats;
 	}
+
+	// Made once: passing the method itself would make a delegate each call
+	Func<int> sceneStateHash;
 
 	private int SceneStateHash()
 	{

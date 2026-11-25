@@ -15,7 +15,7 @@ public class MixerTree : TreeView
 	[EditorEvent.Frame]
 	public void Frame()
 	{
-		if ( SetContentHash( ContentHash, 0.1f ) )
+		if ( SetContentHash( contentHash ??= ContentHash, 0.1f ) )
 		{
 			Clear();
 
@@ -24,6 +24,9 @@ public class MixerTree : TreeView
 			Open( root );
 		}
 	}
+
+	// Made once: passing the method itself would make a delegate each call
+	Func<int> contentHash;
 
 	int ContentHash() => HashCode.Combine( Mixer.Master );
 

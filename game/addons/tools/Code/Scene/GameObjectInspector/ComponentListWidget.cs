@@ -466,9 +466,12 @@ public class ComponentListWidget : Widget
 		}
 	}
 
+	// Made once: passing the method itself would make a delegate every frame
+	Func<int> componentHash;
+
 	public void Frame()
 	{
-		if ( SetContentHash( BuildComponentHash, 0.2f ) )
+		if ( SetContentHash( componentHash ??= BuildComponentHash, 0.2f ) )
 		{
 			Rebuild();
 		}
