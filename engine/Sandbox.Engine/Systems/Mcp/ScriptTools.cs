@@ -54,7 +54,8 @@ internal static class ScriptTools
 		cancellation.ThrowIfCancellationRequested();
 		using var gameScope = GlobalContext.GameScope();
 		var context = new AssemblyLoadContext( $"MCP script {Guid.NewGuid():N}", isCollectible: true );
-		context.Resolving += ( _, name ) => assemblies.FirstOrDefault( assembly => AssemblyName.ReferenceMatchesDefinition( assembly.GetName(), name ) );
+		Func<AssemblyLoadContext, AssemblyName, Assembly> resolve = ( _, name ) => assemblies.FirstOrDefault( assembly => AssemblyName.ReferenceMatchesDefinition( assembly.GetName(), name ) );
+		context.Resolving += resolve;
 
 		try
 		{
@@ -65,6 +66,8 @@ internal static class ScriptTools
 		}
 		finally
 		{
+			// The resolver names every assembly loaded when the script ran: kept by the unloading context, it held closed games' code
+			context.Resolving -= resolve;
 			context.Unload();
 		}
 	}
