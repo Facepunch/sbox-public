@@ -1,0 +1,1174 @@
+﻿using System.Diagnostics;
+using System.Threading;
+
+namespace Borealis;
+
+/// <summary>
+/// Plans, records and submits frame segments, following native's <c>CRenderBatchList</c>.
+/// Mesh work can record in parallel; custom objects and engine stages stay on the main thread.
+/// Segments own their writable state and submit in order. Small frames without async work share one context.
+/// </summary>
+internal sealed partial class FrameRecorder : IDisposable
+{
+	/// <summary>
+	/// The most pool threads a frame records on at once.
+	/// </summary>
+	static readonly int MaxRecordThreads = Math.Clamp( Environment.ProcessorCount - 1, 1, 8 );
+
+	/// <summary>
+	/// Minimum total draws (runs as <see cref="RenderFeature.RunWeights"/> weighs them) needed to justify worker recording:
+	/// a GPU-driven run of hundreds of draws is one run but not one draw's work.
+	/// </summary>
+	const int ParallelRunThreshold = 64;
+
+	/// <summary>
+	/// The fewest draws worth a segment of their own (<see cref="RenderFeature.RunWeights"/>).
+	/// </summary>
+	const int MinDrawsPerSegment = 32;
+
+	enum SegmentKind : byte
+	{
+		/// <summary>Drawing: <see cref="Segment.Count"/> of the <see cref="work"/> from <see cref="Segment.Index"/>.</summary>
+		Draw,
+		/// <summary>Consecutive layers from one frame that record on the same kind of thread.</summary>
+		Layers,
+	}
+
+	struct Segment
+	{
+		public SegmentKind Kind;
+		public RenderFrame Frame;
+		public int Index;
+		public int Count;
+
+		/// <summary>Draw segments: the first work's first run, and the last work's end run.</summary>
+		public int First, End;
+
+		/// <summary>Estimated draw count; heaviest segments are claimed first.</summary>
+		public int Weight;
+
+		public bool OnMainThread;
+
+		/// <summary>Layers recorded on the async compute queue, after their graphics handoff.</summary>
+		public bool Async;
+
+		/// <summary>Compute segments whose results this graphics segment acquires, or -1 when it doesn't wait.</summary>
+		public int TakeBackFrom, WaitFor;
+
+		/// <summary>Graphics preparation for the first compute segment in a batch, or -1.</summary>
+		public int HandOff;
+		public bool Signal;
+		public GpuSemaphore Completion;
+
+		public GpuContext Context;
+		public RenderStats Stats;
+		public double Ms;
+
+		/// <summary>When it was recorded, and on which thread.</summary>
+		public long StartedAt, EndedAt;
+		public int Thread;
+
+		/// <summary>The frame's shape up to and including this segment, for the device's layout plan (<see cref="GpuContext.PlanLayouts"/>).</summary>
+		public int Shape;
+
+		/// <summary>
+		/// The main-thread segment whose list it records into after that segment's own (<see cref="PlanSharedLists"/>), or -1
+		/// when it has a list of its own.
+		/// </summary>
+		public int Borrows;
+	}
+
+	/// <summary>
+	/// Whether main-thread segments that follow one another record into one list when recording beside workers (on unless
+	/// <c>-separate-main-lists</c>): each list costs its beginning, end, submission and a pool reset when it's recycled.
+	/// </summary>
+	internal static bool ShareMainLists { get; set; } = !Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-separate-main-lists", StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>Segments the last plan has recording into another's list, for tests.</summary>
+	internal int SharedLists { get; private set; }
+
+	/// <summary>
+	/// With lists of their own (<see cref="SeparateContexts"/>), a main-thread segment straight after another records into
+	/// that one's list (the first of a run of them), as a serial frame's segments share the frame's list: unless either is
+	/// async compute, it waits for or hands off compute work, or either signals, which needs a submission of its own.
+	/// </summary>
+	void PlanSharedLists()
+	{
+		SharedLists = 0;
+		for ( int i = 0; i < segmentCount; i++ )
+		{
+			ref var segment = ref segments[i];
+			segment.Borrows = -1;
+			if ( i == 0 || !SeparateContexts || !ShareMainLists ) continue;
+
+			ref var before = ref segments[i - 1];
+			var bothMain = (!Parallel || segment.OnMainThread) && (!Parallel || before.OnMainThread);
+			if ( !bothMain || segment.Async || before.Async || segment.HandOff >= 0 || segment.WaitFor >= 0 || segment.Signal || before.Signal ) continue;
+
+			segment.Borrows = before.Borrows >= 0 ? before.Borrows : i - 1;
+			SharedLists++;
+		}
+	}
+
+	/// <summary>
+	/// Scheduled layer, its frame and draw-work range.
+	/// </summary>
+	struct PlannedLayer
+	{
+		public RenderFrame Frame;
+		public RenderLayer Layer;
+		public int WorkFrom, WorkTo;
+		public FrameResources Reads, Writes;
+		public int WaitForLayer, Segment;
+		public bool SplitAfter;
+	}
+
+	/// <summary>
+	/// One view's layer, split into segments by estimated draw count.
+	/// </summary>
+	struct DrawWork
+	{
+		public ViewPass View;
+		public MeshLayer Layer;
+		public int Runs;
+
+		/// <summary>Where its runs' draws start in <see cref="draws"/>: <see cref="Runs"/> + 1 running totals, from 0.</summary>
+		public int DrawsFrom;
+
+		/// <summary>The planned layer it's the work of, in <see cref="layers"/>.</summary>
+		public int Owner;
+	}
+
+	/// <summary>
+	/// What recording one layer's share of a segment cost, while <see cref="Measuring"/>.
+	/// </summary>
+	struct LayerCost
+	{
+		public int Layer;
+		public long Ticks;
+		public int Draws, Binds, SimilarBinds;
+		public long Triangles;
+	}
+
+	/// <summary>
+	/// Each segment's layer costs, by segment slot. The lists are kept frame to frame.
+	/// </summary>
+	readonly List<List<LayerCost>> costs = new();
+
+	/// <summary>
+	/// Time each layer's recording and count what it recorded, for a plan's <see cref="FillTimes"/>.
+	/// </summary>
+	public bool Measuring { get; set; }
+
+	/// <summary>
+	/// Where each planned layer is in the last <see cref="Snapshot"/>'s frames and layers.
+	/// </summary>
+	(int Frame, int Layer)[] snapshotLayers = [];
+
+	// Per-work prefix sums of draw counts.
+	int[] draws = new int[256];
+	int drawCount;
+
+	// Per-work runs that must record on the main thread, at the same offsets as their draws' totals
+	bool[] mainRuns = new bool[256];
+
+	readonly List<GpuContext> contexts = new();
+	Segment[] segments = new Segment[16];
+	int segmentCount;
+
+	// Each segment's recording: 0 not begun, 1 claimed by a thread, 2 done (Interlocked), so a prefix submitted early
+	// (SubmitThrough) can record what no worker has claimed yet and wait for the rest
+	int[] segmentStates = new int[16];
+	const int Unclaimed = 0, Claimed = 1, Recorded = 2;
+
+	// A segment whose recording threw: nothing is submitted early after it
+	volatile bool segmentFailed;
+
+	// The segment the main thread is recording, -1 when none
+	int mainSlot = -1;
+
+	// Segments submitted before Submit (SubmitThrough), and whether the frames' setup went with them
+	int submittedSegments;
+	bool setupSubmitted;
+
+	PlannedLayer[] layers = new PlannedLayer[32];
+	int layerCount;
+
+	/// <summary>
+	/// Why a layer is in the plan or isn't (<see cref="Snapshot"/>).
+	/// </summary>
+	internal enum LayerDecision : byte
+	{
+		/// <summary>Scheduled.</summary>
+		Kept,
+		/// <summary>It can't run this frame (<see cref="RenderLayer.IsNeeded"/>): nothing to draw, or what it needs is off.</summary>
+		NotNeeded,
+		/// <summary>It makes something (<see cref="RenderLayer.Writes"/>) no later kept layer reads.</summary>
+		Unread,
+	}
+
+	/// <summary>
+	/// Every layer of every planned frame, in order, and what became of it.
+	/// </summary>
+	struct LayerRecord
+	{
+		public RenderFrame Frame;
+		public RenderLayer Layer;
+		public LayerDecision Decision;
+		public FrameResources Reads;
+
+		/// <summary>What it reads that no earlier kept layer of its frame makes this frame - bloom's input without bloom objects,
+		/// which reads as black, as native's does; the depth chain without a prepass.</summary>
+		public FrameResources Missing;
+
+		/// <summary>Its index in <see cref="layers"/> when kept, or -1.</summary>
+		public int Planned;
+	}
+
+	LayerRecord[] records = new LayerRecord[64];
+	int recordCount;
+
+	DrawWork[] work = new DrawWork[16];
+	int workCount;
+
+	// Setup contexts submit in frame order, before segments.
+	readonly List<RenderFrame> frames = new();
+
+	/// <summary>
+	/// Segments recorded on the thread pool: <see cref="workerSegments"/>, claimed heaviest first.
+	/// </summary>
+	int[] workerSegments = new int[16];
+
+	/// <summary>
+	/// Whether workers record segments. Async GPU work may still use separate contexts without CPU workers.
+	/// </summary>
+	public bool Parallel { get; private set; }
+
+	/// <summary>Async GPU work needs separate contexts even when CPU recording stays on the main thread.</summary>
+	public bool SeparateContexts => Parallel || _computeBatchCount > 0;
+
+	/// <summary>
+	/// Plan active layers, child frames and segments before setup. Enable workers when enough work exists.
+	/// </summary>
+	public void Plan( RenderFrame frame, bool parallel, bool asyncCompute = false )
+	{
+		segmentCount = 0;
+		layerCount = 0;
+		recordCount = 0;
+		workCount = 0;
+		drawCount = 0;
+		frames.Clear();
+
+		AddFrame( frame );
+
+		PlanSegments( parallel, asyncCompute );
+		PlanSharedLists();
+	}
+
+	// The last plan's structure (GraphMeasure): the segments' shapes and how their lists are shared
+	int measuredShape;
+
+	/// <summary>The render <see cref="GraphMeasure"/> lists this recorder's uses under.</summary>
+	internal int MeasureRender { get; set; }
+
+	/// <summary>
+	/// For <see cref="GraphMeasure"/>: whether this plan's structure differs from the last one's, as a plan kept from frame
+	/// to frame would have to be made again; the segments' shapes (<see cref="ShapeOf"/>), not their draw counts.
+	/// </summary>
+	internal bool PlanChanged()
+	{
+		var shape = HashCode.Combine( segmentCount, Parallel, layerCount, workCount );
+		for ( int i = 0; i < segmentCount; i++ )
+			shape = HashCode.Combine( shape, ShapeOf( i ), segments[i].Borrows, segments[i].OnMainThread );
+
+		var changed = shape != measuredShape;
+		measuredShape = shape;
+		return changed;
+	}
+
+	internal int SegmentCount => segmentCount;
+
+	/// <summary>
+	/// Short names of <see cref="FrameResources"/>, by bit, for the plan overlay.
+	/// </summary>
+	static readonly string[] ResourceNames = ["chain", "qdepth", "bloom", "bloom in", "refract", "depth", "normals", "ao", "contact", "reflections", "shadows", "", "", "", "", "untracked"];
+
+	/// <summary>
+	/// The last plan, for the dev tools's frame plan: each frame's layers, whether each ran and why not, what it made and read
+	/// (and of that, what nothing earlier made), its draw work and the segment it recorded in, and the segments.
+	/// </summary>
+	internal FramePlan Snapshot( string camera )
+	{
+		var plan = new FramePlan { Camera = camera, Parallel = Parallel, Resources = ResourceNames };
+
+		// The segment each planned layer and each draw work starts in
+		var layerSegment = new int[layerCount];
+		var workSegment = new int[workCount];
+		Array.Fill( layerSegment, -1 );
+		Array.Fill( workSegment, -1 );
+
+		for ( int i = 0; i < segmentCount; i++ )
+		{
+			ref var segment = ref segments[i];
+			var first = segment.Kind == SegmentKind.Layers
+				? segment.Count > 0 ? layers[segment.Index].Layer.Name : "Async compute results"
+				: work[segment.Index].Layer.Name;
+			plan.Segments.Add( new FramePlan.Segment { Worker = Parallel && !segment.OnMainThread, Async = segment.Async, Draws = segment.Weight, First = first } );
+
+			var owners = segment.Kind == SegmentKind.Layers ? layerSegment : workSegment;
+			for ( int n = segment.Index; n < segment.Index + segment.Count && n < owners.Length; n++ )
+				if ( owners[n] < 0 ) owners[n] = i;
+		}
+
+		if ( snapshotLayers.Length < layerCount ) snapshotLayers = new (int, int)[Math.Max( layerCount, snapshotLayers.Length * 2 )];
+		Array.Fill( snapshotLayers, (-1, -1) );
+
+		// A frame's records are together: a child frame's come after its parent's
+		FramePlan.Frame current = null;
+		RenderFrame currentFrame = null;
+		var frameIndex = new Dictionary<RenderFrame, int>();
+		var hosts = new List<(int Frame, int Layer, RenderFrame Child)>();
+		for ( int i = 0; i < recordCount; i++ )
+		{
+			ref var record = ref records[i];
+			if ( record.Frame != currentFrame )
+			{
+				currentFrame = record.Frame;
+				current = new FramePlan.Frame { Name = record.Frame.View?.Name ?? "", Skybox = record.Frame.IsSkybox };
+				frameIndex[currentFrame] = plan.Frames.Count;
+				plan.Frames.Add( current );
+			}
+
+			var layer = new FramePlan.Layer
+			{
+				Name = record.Layer.Name,
+				State = record.Decision switch
+				{
+					LayerDecision.Kept => FramePlan.LayerState.Runs,
+					LayerDecision.NotNeeded => FramePlan.LayerState.NotNeeded,
+					_ => FramePlan.LayerState.Culled,
+				},
+				Makes = (uint)record.Layer.Writes,
+				Reads = (uint)record.Reads,
+				NotMade = (uint)record.Missing,
+				Segment = -1,
+				Order = record.Decision == LayerDecision.Kept ? record.Planned : -1,
+				ChildFrame = -1,
+			};
+
+			if ( record.Planned >= 0 && record.Planned < layerCount && layers[record.Planned].Layer == record.Layer )
+			{
+				ref var planned = ref layers[record.Planned];
+				if ( planned.Layer.IsShared )
+				{
+					layer.Views = planned.WorkTo - planned.WorkFrom;
+					for ( int w = planned.WorkFrom; w < planned.WorkTo; w++ )
+					{
+						layer.Runs += work[w].Runs;
+						layer.Draws += DrawsIn( w, 0, work[w].Runs );
+					}
+
+					if ( planned.WorkTo > planned.WorkFrom ) layer.Segment = workSegment[planned.WorkFrom];
+				}
+				else
+				{
+					layer.Segment = layerSegment[record.Planned];
+				}
+
+				snapshotLayers[record.Planned] = (plan.Frames.Count - 1, current.Layers.Count);
+			}
+			else if ( record.Decision == LayerDecision.Kept && record.Planned >= 0 && record.Planned < layerCount && layers[record.Planned].Frame != record.Frame )
+			{
+				// It planned a child frame's layers in its place
+				hosts.Add( (plan.Frames.Count - 1, current.Layers.Count, layers[record.Planned].Frame) );
+			}
+
+			current.Layers.Add( layer );
+		}
+
+		foreach ( var (f, l, child) in hosts )
+		{
+			if ( !frameIndex.TryGetValue( child, out var index ) ) continue;
+			var host = plan.Frames[f].Layers[l];
+			host.ChildFrame = index;
+			plan.Frames[f].Layers[l] = host;
+		}
+
+		return plan;
+	}
+
+	/// <summary>
+	/// Each segment's recording time, once recorded, into a plan <see cref="Snapshot"/> made of this frame.
+	/// </summary>
+	internal void FillTimes( FramePlan plan )
+	{
+		for ( int i = 0; i < segmentCount && i < plan.Segments.Count; i++ )
+		{
+			var segment = plan.Segments[i];
+			segment.Ms = segments[i].Ms;
+			segment.StartTicks = segments[i].StartedAt;
+			segment.EndTicks = segments[i].EndedAt;
+			segment.Thread = segments[i].Thread;
+			plan.Segments[i] = segment;
+
+			if ( !Measuring || i >= costs.Count ) continue;
+
+			// Each layer's pieces, added up
+			foreach ( var cost in costs[i] )
+			{
+				if ( cost.Layer < 0 || cost.Layer >= layerCount ) continue;
+				var (f, l) = snapshotLayers[cost.Layer];
+				if ( f < 0 ) continue;
+
+				var layer = plan.Frames[f].Layers[l];
+				layer.CpuMs += cost.Ticks * 1000.0 / Stopwatch.Frequency;
+				layer.Pieces++;
+				layer.Recorded += cost.Draws;
+				layer.Triangles += cost.Triangles;
+				layer.Binds += cost.Binds;
+				layer.SimilarBinds += cost.SimilarBinds;
+				plan.Frames[f].Layers[l] = layer;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Scheduled layers in order, for tests.
+	/// </summary>
+	internal (RenderFrame Frame, RenderLayer Layer)[] Planned
+	{
+		get
+		{
+			var planned = new (RenderFrame, RenderLayer)[layerCount];
+			for ( int l = 0; l < layerCount; l++ )
+				planned[l] = (layers[l].Frame, layers[l].Layer);
+			return planned;
+		}
+	}
+
+	/// <summary>
+	/// Schedule a frame's layers, expanding child frames in place. A layer that can't run is left out, and so is one that
+	/// makes something no later kept layer of the frame reads - worked out backwards, as Unity's render graph culls passes.
+	/// </summary>
+	public void AddFrame( RenderFrame frame )
+	{
+		frames.Add( frame );
+		frame.AsyncCompute = false;
+
+		var first = recordCount;
+		foreach ( var layer in frame.System.Layers )
+		{
+			if ( recordCount == records.Length ) Array.Resize( ref records, records.Length * 2 );
+			records[recordCount++] = new LayerRecord { Frame = frame, Layer = layer, Decision = layer.IsNeeded( frame ) ? LayerDecision.Kept : LayerDecision.NotNeeded, Planned = -1 };
+		}
+
+		var end = recordCount;
+
+		// Backwards: a producer stays while something after it that stays reads what it makes
+		var read = FrameResources.None;
+		for ( int i = end - 1; i >= first; i-- )
+		{
+			ref var record = ref records[i];
+			if ( record.Decision != LayerDecision.Kept ) continue;
+
+			var writes = record.Layer.Writes;
+			if ( !record.Layer.HasSideEffects && (writes & read) == 0 )
+			{
+				record.Decision = LayerDecision.Unread;
+				continue;
+			}
+
+			record.Reads = record.Layer.Reads( frame );
+			read |= record.Reads;
+		}
+
+		// Forwards: what each reads that nothing before it makes - a prepass that's off takes the depth chain with it
+		var made = FrameResources.None;
+		for ( int i = first; i < end; i++ )
+		{
+			ref var record = ref records[i];
+			if ( record.Decision != LayerDecision.Kept ) continue;
+
+			record.Missing = record.Reads & ~made & ~FrameResources.Untracked;
+			made |= record.Layer.Writes;
+		}
+
+		// A child frame's layers go in its place, appending records past this frame's
+		for ( int i = first; i < end; i++ )
+		{
+			if ( records[i].Decision != LayerDecision.Kept ) continue;
+
+			records[i].Planned = layerCount;
+			records[i].Layer.AddTo( this, frame );
+		}
+	}
+
+	/// <summary>
+	/// Schedule a layer and its draw work.
+	/// </summary>
+	public void AddLayer( RenderFrame frame, RenderLayer layer )
+	{
+		if ( layerCount == layers.Length ) Array.Resize( ref layers, layers.Length * 2 );
+
+		var from = workCount;
+		layer.AddWork( this, frame );
+		layers[layerCount++] = new PlannedLayer
+		{
+			Frame = frame,
+			Layer = layer,
+			WorkFrom = from,
+			WorkTo = workCount,
+			Reads = layer.Reads( frame ),
+			Writes = layer.Writes
+		};
+	}
+
+	/// <summary>
+	/// Add a shared layer's view and run weights.
+	/// </summary>
+	public void AddWork( RenderFrame frame, ViewPass view, MeshLayer layer )
+	{
+		if ( workCount == work.Length ) Array.Resize( ref work, work.Length * 2 );
+		var runs = frame.System.RunCount( view, layer );
+		// The layer adding its work is planned next (AddLayer)
+		work[workCount++] = new DrawWork { View = view, Layer = layer, Runs = runs, DrawsFrom = drawCount, Owner = layerCount };
+
+		// Prefix sums give constant-time draw counts for any range.
+		if ( drawCount + runs + 1 > draws.Length ) Array.Resize( ref draws, Math.Max( drawCount + runs + 1, draws.Length * 2 ) );
+		var totals = draws.AsSpan( drawCount, runs + 1 );
+		frame.System.RunWeights( view, layer, totals[1..] );
+		totals[0] = 0;
+		for ( int r = 1; r <= runs; r++ )
+			totals[r] += totals[r - 1];
+
+		if ( mainRuns.Length < draws.Length ) Array.Resize( ref mainRuns, draws.Length );
+		var main = mainRuns.AsSpan( drawCount, runs );
+		main.Clear();
+		frame.System.MainThreadRuns( view, layer, main );
+		KeepShortStretchesOnMain( main, totals );
+
+		drawCount += runs + 1;
+	}
+
+	/// <summary>
+	/// Leave a stretch of worker runs between main-thread ones on the main thread when it's too short to be worth a segment of
+	/// its own, so custom objects sorted among meshes don't split a layer into many small segments.
+	/// </summary>
+	static void KeepShortStretchesOnMain( Span<bool> main, ReadOnlySpan<int> totals )
+	{
+		var start = -1;
+		for ( int r = 0; r <= main.Length; r++ )
+		{
+			if ( r < main.Length && !main[r] )
+			{
+				if ( start < 0 ) start = r;
+				continue;
+			}
+
+			// A stretch [start, r) of worker runs, bounded by main-thread runs or the work's ends
+			var bounded = start > 0 || (start == 0 && r < main.Length);
+			if ( start >= 0 && bounded && totals[r] - totals[start] < MinDrawsPerSegment )
+				main[start..r].Fill( true );
+
+			start = -1;
+		}
+	}
+
+	/// <summary>
+	/// Roughly how many draws work <paramref name="w"/>'s runs <paramref name="from"/> to <paramref name="to"/> (exclusive) record.
+	/// </summary>
+	int DrawsIn( int w, int from, int to ) => draws[work[w].DrawsFrom + to] - draws[work[w].DrawsFrom + from];
+
+	void AddSegment( SegmentKind kind, RenderFrame frame, int index, bool onMainThread, int count = 1 )
+	{
+		if ( segmentCount == segments.Length ) Array.Resize( ref segments, segments.Length * 2 );
+		if ( segmentCount == contexts.Count ) contexts.Add( RenderHost.Current.Device.CreateContext( frame.System.FrameContext ) );
+		if ( segmentCount == costs.Count ) costs.Add( new List<LayerCost>() );
+		contexts[segmentCount].AsyncCompute = false;
+		segments[segmentCount] = new Segment
+		{
+			Kind = kind,
+			Frame = frame,
+			Index = index,
+			Count = count,
+			OnMainThread = onMainThread,
+			WaitFor = -1,
+			TakeBackFrom = -1,
+			HandOff = -1,
+			Context = contexts[segmentCount]
+		};
+		segmentCount++;
+	}
+
+	/// <summary>
+	/// Split work by draw count, allowing splits within views. Empty work still clears its target;
+	/// segments containing custom objects stay on the main thread.
+	/// </summary>
+	void AddDrawSegments( RenderFrame frame, int from, int to, int maxSegments )
+	{
+		if ( from >= to ) return;
+
+		var total = 0;
+		for ( int w = from; w < to; w++ )
+			total += DrawsIn( w, 0, work[w].Runs );
+
+		var share = maxSegments <= 1 ? int.MaxValue : Math.Max( MinDrawsPerSegment, (total + maxSegments - 1) / maxSegments );
+		var firstSegment = segmentCount;
+		int segWork = from, segFirst = 0, taken = 0;
+		var onMain = false;
+
+		for ( int w = from; w < to; w++ )
+		{
+			var runs = work[w].Runs;
+
+			// Work without runs still clears its target; the layer decides where
+			if ( runs == 0 ) onMain |= !frame.System.CanRecordOffMainThread( work[w].View, work[w].Layer );
+
+			for ( int r = w == segWork ? segFirst : 0; r < runs; r++ )
+			{
+				// A run that must record on the main thread doesn't take worker runs before it there, nor the other way round
+				var runOnMain = mainRuns[work[w].DrawsFrom + r];
+				if ( taken > 0 && runOnMain != onMain )
+				{
+					var lastWork = r > 0 ? w : w - 1;
+					AddDrawSegment( frame, segWork, lastWork, segFirst, r > 0 ? r : work[lastWork].Runs, onMain, taken );
+					taken = 0;
+					onMain = false;
+					segWork = w;
+					segFirst = r;
+				}
+
+				onMain |= runOnMain;
+				taken += DrawsIn( w, r, r + 1 );
+				if ( taken < share ) continue;
+
+				// End the segment at this run boundary.
+				AddDrawSegment( frame, segWork, w, segFirst, r + 1, onMain, taken );
+				taken = 0;
+				onMain = false;
+
+				if ( r + 1 == runs )
+				{
+					segWork = w + 1;
+					segFirst = 0;
+				}
+				else
+				{
+					segWork = w;
+					segFirst = r + 1;
+				}
+			}
+		}
+
+		if ( segWork >= to ) return;
+
+		// Merge small remainders unless that would move worker work to the main thread.
+		if ( segmentCount > firstSegment && taken < share / 2 && (!onMain || segments[segmentCount - 1].OnMainThread) )
+		{
+			ref var last = ref segments[segmentCount - 1];
+			last.Count = to - last.Index;
+			last.End = work[to - 1].Runs;
+			last.Weight += taken;
+			return;
+		}
+
+		AddDrawSegment( frame, segWork, to - 1, segFirst, work[to - 1].Runs, onMain, taken );
+	}
+
+	/// <summary>
+	/// Add an inclusive work range with an exclusive final run bound.
+	/// </summary>
+	void AddDrawSegment( RenderFrame frame, int firstWork, int lastWork, int firstRun, int endRun, bool onMainThread, int weight )
+	{
+		AddSegment( SegmentKind.Draw, frame, firstWork, onMainThread, lastWork - firstWork + 1 );
+		ref var segment = ref segments[segmentCount - 1];
+		segment.First = firstRun;
+		segment.End = endRun;
+		segment.Weight = weight;
+	}
+
+	/// <summary>
+	/// Run layer prerequisites, then record segments. Accumulate counts per frame and timings in <paramref name="stats"/>.
+	/// </summary>
+	public void Record( ref RenderStats stats )
+	{
+		BeginRecording();
+		EndRecording( ref stats );
+	}
+
+	// The workers' recording started by BeginRecording, which EndRecording joins, and when
+	JobHandle recording;
+	long recordStart, mainDone;
+
+	/// <summary>Whether <see cref="BeginRecording"/> started a recording <see cref="EndRecording"/> hasn't joined yet.</summary>
+	public bool Recording { get; private set; }
+
+	/// <summary>
+	/// Run layer prerequisites, hand the workers their segments and record this thread's: what <see cref="Record"/> does
+	/// before it waits for the workers. <see cref="EndRecording"/> waits for them; until then this thread may do other work.
+	/// </summary>
+	public void BeginRecording()
+	{
+		for ( int l = 0; l < layerCount; l++ )
+			layers[l].Layer.BeforeSegments( layers[l].Frame, layers[l].Frame.System.FrameContext );
+
+		var shaped = GraphMeasure.Now();
+		using ( Zones.PlanShapes.Start() )
+		{
+			var shape = 0;
+			for ( int i = 0; i < segmentCount; i++ )
+				segments[i].Shape = shape = HashCode.Combine( shape, ShapeOf( i ) );
+		}
+
+		if ( GraphMeasure.Enabled ) GraphMeasure.AddShapes( GraphMeasure.Now() - shaped );
+
+		var start = Stopwatch.GetTimestamp();
+		var workers = 0;
+		for ( int i = 0; i < segmentCount; i++ )
+			if ( Parallel && !segments[i].OnMainThread ) workers++;
+
+		if ( workerSegments.Length < workers ) Array.Resize( ref workerSegments, Math.Max( workers, workerSegments.Length * 2 ) );
+		var claimable = 0;
+		for ( int i = 0; i < segmentCount && workers > 0; i++ )
+			if ( !segments[i].OnMainThread ) workerSegments[claimable++] = i;
+
+		// Claim heaviest work first to balance completion times. Submission order is unchanged.
+		for ( int i = 1; i < claimable; i++ )
+		{
+			var slot = workerSegments[i];
+			var j = i - 1;
+			for ( ; j >= 0 && segments[workerSegments[j]].Weight < segments[slot].Weight; j-- )
+				workerSegments[j + 1] = workerSegments[j];
+			workerSegments[j + 1] = slot;
+		}
+
+		if ( segmentStates.Length < segmentCount ) segmentStates = new int[segments.Length];
+		Array.Clear( segmentStates, 0, segmentCount );
+		segmentFailed = false;
+
+		// Heaviest first, one at a time, on up to MaxRecordThreads workers beside this thread
+		recording = JobDispatcher.Begin( workers, this, static ( recorder, claim ) => recorder.RecordClaimed( recorder.workerSegments[claim] ), itemsPerBatch: 1, maxDegreeOfParallelism: MaxRecordThreads + 1 );
+		recordStart = start;
+		mainDone = start;
+		Recording = true;
+
+		// Record main-thread work, then help workers. Always join before accessing their output.
+		foreach ( var frame in frames )
+			frame.StagesMs = 0;
+
+		try
+		{
+			for ( int i = 0; i < segmentCount; i++ )
+			{
+				if ( !Parallel || segments[i].OnMainThread )
+				{
+					mainSlot = i;
+					RecordClaimed( i );
+				}
+			}
+
+			mainDone = Stopwatch.GetTimestamp();
+		}
+		catch
+		{
+			mainSlot = -1;
+			Join();
+			throw;
+		}
+
+		mainSlot = -1;
+	}
+
+	// Joining records whatever workers haven't claimed yet on this thread
+	void Join()
+	{
+		if ( !Recording ) return;
+		Recording = false;
+		using ( Zones.RecordWait.Start() ) recording.Join();
+		recording = default;
+	}
+
+	/// <summary>
+	/// Wait for the workers' segments of <see cref="BeginRecording"/>, recording on this thread what they haven't taken yet,
+	/// and accumulate counts per frame and timings in <paramref name="stats"/>.
+	/// </summary>
+	public void EndRecording( ref RenderStats stats )
+	{
+		Join();
+		var start = recordStart;
+		stats.RecordMs = Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
+		stats.RecordWaitMs = Stopwatch.GetElapsedTime( mainDone ).TotalMilliseconds;
+
+
+		for ( int i = 0; i < segmentCount; i++ )
+		{
+			ref var segment = ref segments[i];
+			RenderStats.AddCounts( ref segment.Frame.Recorded, segment.Stats );
+			if ( !segment.OnMainThread && Parallel ) stats.WorkerRecordMs += segment.Ms;
+		}
+
+		foreach ( var frame in frames )
+			stats.StagesMs += frame.StagesMs;
+	}
+
+	/// <summary>
+	/// Record a segment unless another thread has claimed it (a prefix submitted early records what no worker has yet).
+	/// </summary>
+	void RecordClaimed( int slot )
+	{
+		if ( Interlocked.CompareExchange( ref segmentStates[slot], Claimed, Unclaimed ) != Unclaimed ) return;
+
+		var recorded = false;
+		try
+		{
+			RecordSegment( slot );
+			recorded = true;
+		}
+		finally
+		{
+			if ( !recorded ) segmentFailed = true;
+			Volatile.Write( ref segmentStates[slot], Recorded );
+		}
+	}
+
+	/// <summary>
+	/// Submit the frames' setup and segments up to and including <paramref name="last"/> now, from the main thread while it
+	/// records a later segment (a child view rendered from it): what workers haven't claimed of them is recorded here, and
+	/// what they're recording is waited for. The rest go at <see cref="Submit"/>. False, submitting nothing, where they
+	/// can't go on their own: recording serially, from a segment at or before <paramref name="last"/>, or where the next
+	/// segment shares a list or a rendering scope with them.
+	/// </summary>
+	public bool SubmitThrough( int last )
+	{
+		if ( submittedSegments > 0 || last < 0 || last + 1 >= segmentCount || mainSlot <= last || !SeparateContexts ) return false;
+		if ( segments[last + 1].Borrows >= 0 || Carries( last + 1 ) || segmentFailed ) return false;
+
+		for ( int i = 0; i <= last; i++ )
+		{
+			RecordClaimed( i );
+
+			var spin = new SpinWait();
+			while ( Volatile.Read( ref segmentStates[i] ) != Recorded ) spin.SpinOnce();
+		}
+
+		if ( segmentFailed ) return false;
+
+		SubmitSetup();
+		SubmitSegments( 0, last + 1 );
+		submittedSegments = last + 1;
+		return true;
+	}
+
+	/// <summary>The last segment recording one of <paramref name="frame"/>'s non-mesh layers of type <typeparamref name="T"/>, or -1.</summary>
+	public int LastSegmentOf<T>( RenderFrame frame ) where T : RenderLayer
+	{
+		for ( int i = segmentCount - 1; i >= 0; i-- )
+		{
+			ref var segment = ref segments[i];
+			if ( segment.Kind != SegmentKind.Layers || segment.Frame != frame ) continue;
+			for ( int l = segment.Index; l < segment.Index + segment.Count; l++ )
+			{
+				if ( layers[l].Layer is T ) return i;
+			}
+		}
+
+		return -1;
+	}
+
+	void RecordSegment( int slot )
+	{
+		using var rendererAllocations = Borealis.RendererAllocations.Measure();
+		using var zone = Zones.Segment.Start();
+		ref var segment = ref segments[slot];
+		var start = Stopwatch.GetTimestamp();
+		var stats = new RenderStats();
+		var layerCosts = Measuring ? costs[slot] : null;
+		layerCosts?.Clear();
+		var rc = segment.Context;
+		var frame = segment.Frame;
+
+		var recording = GpuContext.Recording;
+		try
+		{
+			// The async segment's graphics work first, into a context submitted just before it
+			if ( segment.HandOff >= 0 )
+			{
+				var batch = _computeBatches[segment.HandOff];
+				var handOff = batch.Context;
+				handOff.BeginSegment( frame.System.FrameContext, null );
+				handOff.InheritViewConstants( frame.ConstantsKey );
+				GpuContext.Recording = handOff;
+
+				// The graphics-side handoff lives outside the compute layers' own timing scopes.
+				var handOffScope = handOff.BeginGpuScope( "Async compute handoff" );
+				for ( int l = batch.From; l < batch.From + batch.Count; l++ )
+				{
+					frame.UseFrameConstants( handOff );
+					layers[l].Layer.HandOff( frame, handOff );
+					handOff.EndPass();
+				}
+				handOff.EndGpuScope( handOffScope );
+			}
+
+			// Context command memory is thread-owned (CRenderBatchList::Start). Only fully serial frames share the first context.
+			// or, recording beside workers, a main-thread segment straight after another shares that one's (PlanSharedLists)
+			rc.BeginSegment( frame.System.FrameContext, !SeparateContexts ? frames[0].System.FrameContext : segment.Borrows >= 0 ? segments[segment.Borrows].Context : null );
+			rc.InheritViewConstants( frame.ConstantsKey );
+			if ( SeparateContexts )
+			{
+				rc.CarryRendering( Carries( slot ), Carries( slot + 1 ) );
+				rc.PlanLayouts( segment.Shape );
+			}
+			GpuContext.Recording = rc;
+
+			// What the async layers left for graphics, now they're done
+			if ( segment.WaitFor >= 0 )
+			{
+				var takeBackScope = rc.BeginGpuScope( "Async compute results" );
+				for ( int i = segment.TakeBackFrom; i <= segment.WaitFor; i++ )
+				{
+					ref var compute = ref segments[i];
+					for ( int l = compute.Index; l < compute.Index + compute.Count; l++ )
+						layers[l].Layer.TakeBack( compute.Frame, rc );
+				}
+				rc.EndGpuScope( takeBackScope );
+			}
+
+			RecordSegment( ref segment, rc, frame, ref stats, layerCosts );
+		}
+		finally
+		{
+			GpuContext.Recording = recording;
+		}
+
+		segment.Stats = stats;
+		segment.StartedAt = start;
+		segment.EndedAt = Stopwatch.GetTimestamp();
+		segment.Thread = Environment.CurrentManagedThreadId;
+		segment.Ms = Stopwatch.GetElapsedTime( start, segment.EndedAt ).TotalMilliseconds;
+	}
+
+	/// <summary>
+	/// Whether segment <paramref name="i"/> carries on the draws of the one before it: both draw segments of one frame, split
+	/// inside one view's layer work, neither waiting for nor signalling other work. Their draws go to the same targets, so
+	/// their lists can keep one rendering scope (<see cref="GpuContext.CarryRendering"/>).
+	/// </summary>
+	bool Carries( int i )
+	{
+		if ( i <= 0 || i >= segmentCount ) return false;
+		ref var segment = ref segments[i];
+		ref var before = ref segments[i - 1];
+		return segment.Kind == SegmentKind.Draw && before.Kind == SegmentKind.Draw && segment.Frame == before.Frame
+			&& segment.First > 0 && before.Index + before.Count - 1 == segment.Index && before.End == segment.First
+			&& segment.HandOff < 0 && segment.WaitFor < 0 && !before.Signal && !segment.Async && !before.Async
+			&& segment.Borrows < 0 && before.Borrows < 0;
+	}
+
+	/// <summary>
+	/// What segment <paramref name="i"/> records, for the frame's shape: its kind, frame and the layers and views it starts
+	/// and ends with (<see cref="ViewShape"/>), and what it waits for. Not its draw counts, which change from frame to frame.
+	/// </summary>
+	int ShapeOf( int i )
+	{
+		ref var segment = ref segments[i];
+		var last = segment.Index + segment.Count - 1;
+		var (first, end) = segment.Kind == SegmentKind.Draw
+			? (HashCode.Combine( work[segment.Index].Layer, ViewShape( work[segment.Index].View ) ), HashCode.Combine( work[last].Layer, ViewShape( work[last].View ) ))
+			: segment.Count > 0 ? (HashCode.Combine( layers[segment.Index].Layer ), HashCode.Combine( layers[last].Layer )) : (0, 0);
+		return HashCode.Combine( segment.Kind, segment.Frame, first, end, segment.Count, segment.HandOff, segment.WaitFor, segment.Async );
+	}
+
+	/// <summary>
+	/// A view in the frame's shape: a main view itself, a shadow view by what it draws (its filter, and whether it starts
+	/// from a static cache or a blank tile). The pooled shadow views take whichever lights' maps are drawn this frame, which
+	/// rotate as point lights update a few a frame, and keyed by which view they are the layout plan never held. A plan
+	/// that guessed a layout wrong costs a fix-up, as having none does (<c>BackendContext.SubmitLayoutFixUps</c>).
+	/// </summary>
+	static int ViewShape( ViewPass view ) => view is { IsShadow: true } ? HashCode.Combine( view.StaticFilter, view.CachedStatic is not null, view.Blank is not null ) : view?.GetHashCode() ?? 0;
+
+	/// <summary>
+	/// Where a layer's recording started: the time, and the counts it's measured against.
+	/// </summary>
+	readonly record struct CostMark( long Ticks, int Draws, long Triangles, int Binds, int SimilarBinds )
+	{
+		public static CostMark Of( GpuContext rc, in RenderStats stats )
+		{
+			var (full, similar) = rc.MaterialBinds;
+			return new( Stopwatch.GetTimestamp(), stats.Draws + stats.DepthDraws + stats.ShadowDraws + stats.CustomDraws, stats.DrawnTriangles, full, similar );
+		}
+
+		/// <summary>
+		/// What recording <paramref name="layer"/> since this mark cost.
+		/// </summary>
+		public LayerCost Since( int layer, GpuContext rc, in RenderStats stats )
+		{
+			var now = Of( rc, stats );
+			return new LayerCost
+			{
+				Layer = layer,
+				Ticks = now.Ticks - Ticks,
+				Draws = now.Draws - Draws,
+				Triangles = now.Triangles - Triangles,
+				Binds = now.Binds - Binds,
+				SimilarBinds = now.SimilarBinds - SimilarBinds,
+			};
+		}
+	}
+
+	void RecordSegment( ref Segment segment, GpuContext rc, RenderFrame frame, ref RenderStats stats, List<LayerCost> layerCosts )
+	{
+		switch ( segment.Kind )
+		{
+			case SegmentKind.Draw:
+				{
+					var last = segment.Index + segment.Count - 1;
+					for ( int w = segment.Index; w <= last; w++ )
+					{
+						ref var item = ref work[w];
+						var from = w == segment.Index ? segment.First : 0;
+						var to = w == last ? segment.End : item.Runs;
+
+						var mark = layerCosts is null ? default : CostMark.Of( rc, stats );
+						var started = item.Layer is DepthPrepassLayer ? Stopwatch.GetTimestamp() : 0;
+						var scope = rc.BeginGpuScope( rc.Census ? CensusScope( item.View.View?.Name, item.View.IsShadow, item.Layer.Name ) : item.Layer.Name );
+						if ( GraphMeasure.Listing ) GraphMeasure.Pass( MeasureRender, item.Layer.Name );
+						item.Layer.Begin( frame, rc, item.View, start: from == 0 );
+						frame.DrawRange( rc, item.View, item.Layer, from, to - from, ref stats );
+						rc.EndPass();
+						rc.EndGpuScope( scope );
+						if ( started != 0 ) stats.PrepassRecordMs += Stopwatch.GetElapsedTime( started ).TotalMilliseconds;
+						if ( from == 0 && item.View.IsShadow ) stats.ShadowViews++;
+						layerCosts?.Add( mark.Since( item.Owner, rc, stats ) );
+					}
+					break;
+				}
+
+			case SegmentKind.Layers:
+				{
+					// Reset constants per layer; each layer binds its own targets.
+					for ( int l = segment.Index; l < segment.Index + segment.Count; l++ )
+					{
+						var mark = layerCosts is null ? default : CostMark.Of( rc, stats );
+						var scope = rc.BeginGpuScope( rc.Census ? CensusScope( layers[l].Frame?.View?.Name, false, layers[l].Layer.Name ) : layers[l].Layer.Name );
+						if ( GraphMeasure.Listing ) GraphMeasure.Pass( MeasureRender, layers[l].Layer.Name );
+						frame.UseFrameConstants( rc );
+						layers[l].Layer.Record( frame, rc, ref stats );
+						rc.EndPass();
+						rc.EndGpuScope( scope );
+						layerCosts?.Add( mark.Since( l, rc, stats ) );
+					}
+					break;
+				}
+		}
+	}
+
+	/// <summary>A layer's scope named by its view too, for a draw census (<see cref="GpuContext.Census"/>).</summary>
+	static string CensusScope( string view, bool shadow, string layer ) => $"{view ?? "(view)"}{(shadow ? " shadow" : "")}: {layer}";
+
+	/// <summary>
+	/// Submit setup and segments in order. Each compute batch waits for its graphics preparation. Graphics acquires
+	/// declared dependencies before their consumers or untracked work. Each signal has exactly one consumer.
+	/// </summary>
+	public void Submit()
+	{
+		if ( !setupSubmitted ) SubmitSetup();
+		SubmitSegments( submittedSegments, segmentCount );
+		submittedSegments = segmentCount;
+	}
+
+	/// <summary>Each setup context, then the work its features left for workers (skinning), before anything draws.</summary>
+	void SubmitSetup()
+	{
+		foreach ( var f in frames )
+		{
+			f.System.FrameContext.Submit();
+			f.System.EndSetupWork( true );
+		}
+
+		setupSubmitted = true;
+	}
+
+	void SubmitSegments( int from, int to )
+	{
+		for ( int i = from; i < to; i++ )
+		{
+			ref var segment = ref segments[i];
+			if ( segment.HandOff >= 0 )
+			{
+				var handOff = _computeBatches[segment.HandOff].Context;
+				var handedOff = handOff.SignalAtEnd();
+				handOff.Submit();
+				segment.Context.WaitAtBegin( handedOff );
+			}
+			else if ( segment.WaitFor >= 0 )
+			{
+				segment.Context.WaitAtBegin( segments[segment.WaitFor].Completion );
+			}
+
+			// Binary semaphores have one consumer. A later compute submission is already ordered on its own queue.
+			if ( segment.Signal ) segment.Completion = segment.Context.SignalAtEnd();
+
+			segment.Context.Submit();
+		}
+	}
+
+	/// <summary>
+	/// Discard all recordings after a failure.
+	/// </summary>
+	public void End()
+	{
+		Join();
+
+		// Not what was submitted early
+		for ( int i = 0; i < _computeBatchCount; i++ )
+		{
+			if ( !HandedOffBefore( i, submittedSegments ) ) _computeBatches[i].Context.End();
+		}
+
+		for ( int i = submittedSegments; i < segmentCount; i++ )
+			segments[i].Context.End();
+
+		if ( setupSubmitted ) return;
+		for ( int f = frames.Count - 1; f >= 0; f-- )
+			frames[f].System.FrameContext.End();
+	}
+
+	/// <summary>Whether compute batch <paramref name="batch"/> is handed off by one of the first <paramref name="count"/> segments.</summary>
+	bool HandedOffBefore( int batch, int count )
+	{
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( segments[i].HandOff == batch ) return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Release submitted frame references.
+	/// </summary>
+	public void Clear()
+	{
+		submittedSegments = 0;
+		setupSubmitted = false;
+		for ( int i = 0; i < segmentCount; i++ )
+			segments[i].Frame = null;
+		for ( int l = 0; l < layerCount; l++ )
+			layers[l].Frame = null;
+		frames.Clear();
+	}
+
+	/// <summary>
+	/// Release segment contexts and their native attributes.
+	/// </summary>
+	public void Dispose()
+	{
+		foreach ( var context in contexts )
+			context.Dispose();
+		contexts.Clear();
+		foreach ( var batch in _computeBatches )
+			batch.Dispose();
+
+		_computeBatches.Clear();
+	}
+}
