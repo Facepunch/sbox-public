@@ -1,4 +1,5 @@
 using NativeEngine;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox.UI;
 
@@ -54,6 +55,45 @@ class InputEventQueue
 		return button;
 	}
 
+	/// <summary>
+	/// Whether anything from <paramref name="focused"/> up overrides the handler the event goes to (the base handlers only
+	/// pass it to the parent): when nothing does, as with keys going to a root with nothing focused while playing, no
+	/// <see cref="ButtonEvent"/> is made. The root's own typed handler only takes Tab.
+	/// </summary>
+	static bool Handled( Panel focused, in QueuedButton e, bool typed )
+	{
+		for ( var panel = focused; panel is not null; panel = panel.Parent )
+		{
+			var declaring = Handler( panel.GetType(), typed );
+			if ( declaring == typeof( Panel ) ) continue;
+			if ( typed && declaring == typeof( RootPanel ) )
+			{
+				if ( e.Name is null ? e.Code == ButtonCode.KEY_TAB : NormalizeButtonName( e.Name ) == "tab" ) return true;
+				continue;
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	// Per panel type: the types declaring the OnButtonEvent and OnButtonTyped it runs. Weak, so a closed game's types can unload
+	static readonly ConditionalWeakTable<Type, Tuple<Type, Type>> handlers = new();
+
+	static Type Handler( Type type, bool typed )
+	{
+		if ( !handlers.TryGetValue( type, out var found ) )
+		{
+			found = Tuple.Create( Declaring( type, nameof( Panel.OnButtonEvent ) ), Declaring( type, nameof( Panel.OnButtonTyped ) ) );
+			handlers.AddOrUpdate( type, found );
+		}
+
+		return typed ? found.Item2 : found.Item1;
+
+		static Type Declaring( Type type, string name ) => type.GetMethod( name, [typeof( ButtonEvent )] )?.DeclaringType ?? typeof( Panel );
+	}
+
 	internal void TickFocused( Panel focused )
 	{
 		if ( !focused.IsValid() )
@@ -67,7 +107,7 @@ class InputEventQueue
 
 		while ( ButtonEvents.TryDequeue( out var e ) )
 		{
-			focused.OnButtonEvent( e.ToEvent() );
+			if ( Handled( focused, e, typed: false ) ) focused.OnButtonEvent( e.ToEvent() );
 		}
 
 		while ( KeyTyped.TryDequeue( out var e ) )
@@ -77,7 +117,7 @@ class InputEventQueue
 
 		while ( ButtonTyped.TryDequeue( out var e ) )
 		{
-			focused?.OnButtonTyped( e.ToEvent() );
+			if ( Handled( focused, e, typed: true ) ) focused.OnButtonTyped( e.ToEvent() );
 		}
 
 		while ( PanelEvents.TryDequeue( out var e ) )
