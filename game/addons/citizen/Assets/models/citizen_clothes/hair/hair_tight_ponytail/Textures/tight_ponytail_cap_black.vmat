@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_TRANSLUCENT"		"1"
 	"g_flAmbientOcclusionDirectDiffuse"		"0.000000"
 	"g_flAmbientOcclusionDirectSpecular"		"0.000000"

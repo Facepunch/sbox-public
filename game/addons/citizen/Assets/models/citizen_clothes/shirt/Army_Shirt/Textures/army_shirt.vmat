@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"g_flAmbientOcclusionDirectDiffuse"		"0.405000"
 	"g_flAmbientOcclusionDirectSpecular"		"0.256000"
 	"TextureAmbientOcclusion"		"models/citizen_clothes/shirt/army_shirt/textures/army_shirt_ao.png"
