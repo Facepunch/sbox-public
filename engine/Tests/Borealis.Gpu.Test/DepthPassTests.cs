@@ -1,0 +1,186 @@
+using Borealis;
+using Borealis.Backend;
+using Borealis.Gpu;
+using Sandbox;
+
+namespace BorealisGpuTests;
+
+/// <summary>
+/// Depth passes on Borealis.Gpu keep the pixel shader of an alpha-tested material, and any that discards: its depth is what
+/// it clips (alpha test, alpha to coverage, <c>clip</c>), so a prepass without it would hide what's behind the cut-out parts.
+/// </summary>
+[TestClass]
+[DoNotParallelize]
+public class DepthPassTests : GpuTest
+{
+	const int Width = 320, Height = 200;
+
+	/// <summary>
+	/// An alpha-tested box in front of a white one, multisampled, draws the same frame with the depth prepass as without it.
+	/// </summary>
+	[TestMethod]
+	public void AlphaTestedDrawsMatchWithAndWithoutThePrepass()
+	{
+		using var backend = new BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			var cutOut = backend.LoadMaterial( "materials/dev/simple/simple_rail_32.vmat" );
+			if ( backend.Content.Find( "materials/dev/simple/simple_rail_32.vmat" ) is null ) Assert.Inconclusive( "No compiled alpha-tested material" );
+			Assert.IsInstanceOfType<SurfaceMaterial>( cutOut, "simple_rail_32 draws as the standard surface" );
+			Assert.IsTrue( cutOut.IsAlphaTest, "simple_rail_32 is alpha-tested" );
+
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 4, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Depth pass test" );
+			var world = new RenderWorld();
+			world.Lighting.SunShadowCascades = 0;
+
+			// Flagged alpha-tested as a compiled model's draws are (BackendModel), so Borealis doesn't strip its pixel shader
+			var box = ObjectAttributeTests.BoxMesh( backend, cutOut );
+			var draw = box.DrawsForLod( 0 )[0] with { AlphaTest = true };
+			world.Add( new MeshObject( new RenderMesh( box.Geometry, box.Bounds, [[draw]] ), Transform.Zero ) );
+			world.Add( new MeshObject( ObjectAttributeTests.BoxMesh( backend, backend.CreateMaterial( "Behind", Color.White ) ), new Transform( new Vector3( 300, 0, 0 ), Rotation.Identity, 3 ) ) );
+
+			var view = new RenderView { Name = "Depth pass test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = Color.Black, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -200, 0, 0 );
+			view.Rotation = Rotation.LookAt( Vector3.Forward );
+
+			byte[] Frame( bool prepass )
+			{
+				system.DepthPrepass = prepass;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Resolved );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Resolved, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var without = Frame( false );
+			var with = Frame( true );
+
+			// Pixels (RGBA16F) that differ by more than a little in red
+			var different = 0;
+			for ( int i = 0; i + 8 <= with.Length; i += 8 )
+			{
+				if ( MathF.Abs( (float)BitConverter.ToHalf( with, i ) - (float)BitConverter.ToHalf( without, i ) ) > 0.02f ) different++;
+			}
+
+			Assert.IsTrue( different < Width * Height / 200, $"{different} pixels differ with the prepass" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A depth draw keeps a pixel shader that discards even when it was asked to go without (its draw isn't flagged
+	/// alpha-tested, as a package shader's that cuts holes with <c>clip</c> isn't): depth_only's alpha-tested variant
+	/// discards and keeps it, its plain one doesn't and goes without.
+	/// </summary>
+	[TestMethod]
+	public void DepthDrawsKeepAPixelShaderThatDiscards()
+	{
+		using var backend = new BackendDevice( Device, Fixtures.WithCompiledShaders() );
+		var shader = backend.Shaders.Load( "shaders/depth_only.shader" );
+		var features = new int[shader.Features.StaticCombos.Length];
+		var plain = backend.Shaders.Variant( shader, "Depth", features );
+		features[shader.FeatureIndex( "F_ALPHA_TEST" )] = 1;
+		var cutOut = backend.Shaders.Variant( shader, "Depth", features );
+		Assert.IsFalse( plain.Pixel?.Reflection is { Discards: true }, "depth_only's plain variant doesn't discard" );
+		Assert.IsTrue( cutOut.Pixel?.Reflection is { Discards: true }, "its alpha-tested one does" );
+
+		// An opaque .shader material: what this decides for
+		using var opaque = new BackendMaterial( "Opaque", backend.Shaders.Load( "shaders/surface_test_rock.shader" ), null, null );
+		Assert.IsFalse( opaque.IsAlphaTest || opaque.IsTranslucent );
+		Assert.IsTrue( BackendContext.StripsPixelShader( opaque, plain, noColor: true, stripPixelShader: true ) );
+		Assert.IsFalse( BackendContext.StripsPixelShader( opaque, cutOut, noColor: true, stripPixelShader: true ), "asked to strip, it keeps a pixel shader that discards" );
+		Assert.IsTrue( BackendContext.StripsPixelShader( opaque, plain, noColor: true, stripPixelShader: false ), "a prepass of an opaque material goes without" );
+		Assert.IsFalse( BackendContext.StripsPixelShader( opaque, plain, noColor: false, stripPixelShader: false ), "a colour pass keeps it" );
+	}
+
+	/// <summary>
+	/// A fading object (tint alpha under 1) casts a dithered shadow: its shadow-map draws take the depth-only material with
+	/// <c>D_OPAQUE_FADE</c>, whose pixel stage dithers, so a half-faded box shades the floor less than an opaque one does.
+	/// On both routes, classic and GPU-driven.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void AFadingObjectCastsADitheredShadow( bool gpuDriven )
+	{
+		using var backend = new BackendDevice( Device ) { GpuDriven = gpuDriven };
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Faded shadow test" );
+			var white = backend.CreateMaterial( "Faded shadow test", Color.White );
+			var floor = ObjectAttributeTests.BoxMesh( backend, white );
+
+			// The caster's draws on the depth-only material in the shadow map, as a compiled model's fast-path draws are
+			var box = ObjectAttributeTests.BoxMesh( backend, white );
+			var caster = new RenderMesh( box.Geometry, box.Bounds, [[box.DrawsForLod( 0 )[0] with { ShadowFastPath = true }]] );
+
+			// The sun from above at 45 degrees along x: the caster's shadow lands 200 units along x from under it, where the view
+			// looks straight down without seeing the caster
+			var view = new RenderView { Name = "Faded shadow test", FieldOfView = 30, ZNear = 4, ZFar = 4000, ClearColor = Color.Black, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( 200, 0, 150 );
+			view.Rotation = Rotation.LookAt( Vector3.Down, Vector3.Forward );
+
+			float Floor( float? alpha )
+			{
+				var world = new RenderWorld();
+				world.Lighting.SunDirection = new Vector3( 1, 0, -1 ).Normal;
+				world.Lighting.SunColor = Color.White;
+				world.Lighting.AmbientColor = new Color( 0.05f, 0.05f, 0.05f, 1 );
+				world.Lighting.SunShadowCascades = 1;
+				world.Add( new MeshObject( floor, new Transform( new Vector3( 0, 0, -50 ), Rotation.Identity, new Vector3( 10, 10, 1 ) ) ) );
+				if ( alpha is { } a ) world.Add( new MeshObject( caster, new Transform( new Vector3( 0, 0, 200 ) ) ) { Tint = Color.White.WithAlpha( a ) } );
+
+				for ( int frame = 0; frame < 3; frame++ )
+				{
+					backend.BeginFrame();
+					RenderHost.Current.NextFrame();
+					system.Render( world, view, target );
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+
+				// The mean red of the middle of the frame, inside the caster's shadow
+				var sum = 0.0;
+				var count = 0;
+				for ( int y = Height / 2 - 20; y < Height / 2 + 20; y++ )
+				{
+					for ( int x = Width / 2 - 20; x < Width / 2 + 20; x++ )
+					{
+						sum += (float)BitConverter.ToHalf( pixels, (y * Width + x) * 8 );
+						count++;
+					}
+				}
+
+				return (float)(sum / count);
+			}
+
+			var lit = Floor( null );
+			var opaque = Floor( 1 );
+			var faded = Floor( 0.5f );
+			Assert.IsTrue( opaque < lit * 0.5f, $"the opaque box shadows the floor (lit {lit}, shadowed {opaque})" );
+			Assert.IsTrue( faded > opaque + (lit - opaque) * 0.2f && faded < lit - (lit - opaque) * 0.2f, $"the half-faded box's shadow is partial (lit {lit}, opaque {opaque}, faded {faded})" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+}
