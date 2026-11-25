@@ -1,10 +1,10 @@
-MODES
-{
-    Default();
-}
+// cmaa2_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 
-CS
-{
+#include "sbox/pass.slangh"
+
+Mode( Default );
+
+#if ( PROGRAM == VFX_PROGRAM_CS )
     #include "postprocess/shared.hlsl"
 
     DynamicCombo( D_PASS, 0..3, Sys( All ) );
@@ -59,27 +59,29 @@ CS
 
     #if D_PASS == 0
         [numthreads( 16, 16, 1 )]
-        void MainCs( uint3 groupID : SV_GroupID, uint3 groupThreadID : SV_GroupThreadID )
+        [shader( "compute" )] void MainCs( uint3 groupID : SV_GroupID, uint3 groupThreadID : SV_GroupThreadID )
         {
             EdgesColor2x2CS( groupID, groupThreadID );
         }
     #elif D_PASS == 1
         [numthreads( 1, 1, 1 )]
-        void MainCs( uint3 groupID : SV_GroupID )
+        [shader( "compute" )] void MainCs( uint3 groupID : SV_GroupID )
         {
             ComputeDispatchArgsCS( groupID );
         }
     #elif D_PASS == 2
         [numthreads( 128, 1, 1 )]
-        void MainCs( uint3 dispatchThreadID : SV_DispatchThreadID, uint3 groupThreadID : SV_GroupThreadID )
+        [shader( "compute" )] void MainCs( uint3 dispatchThreadID : SV_DispatchThreadID, uint3 groupThreadID : SV_GroupThreadID )
         {
             ProcessCandidatesCS( dispatchThreadID, groupThreadID );
         }
     #else
         [numthreads( 4, 32, 1 )]
-        void MainCs( uint3 dispatchThreadID : SV_DispatchThreadID, uint3 groupThreadID : SV_GroupThreadID )
+        [shader( "compute" )] void MainCs( uint3 dispatchThreadID : SV_DispatchThreadID, uint3 groupThreadID : SV_GroupThreadID )
         {
             DeferredColorApply2x2CS( dispatchThreadID, groupThreadID );
         }
     #endif
-}
+
+#endif // CS
+

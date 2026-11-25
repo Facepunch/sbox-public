@@ -1,23 +1,13 @@
-HEADER
-{
-    Description = "Bloom post-process shader";
-    DevShader = true;
-}
+// postprocess_bloom: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
+// HEADER: Description = "Bloom post-process shader";
+// HEADER: DevShader = true;
 
-MODES
-{
-    Default();
-    Forward();
-}
+#include "sbox/pass.slangh"
 
-FEATURES
-{
-}
+Mode( Default );
+Mode( Forward );
 
-COMMON
-{
     #include "postprocess/shared.hlsl"
-}
 
 struct VertexInput
 {
@@ -40,9 +30,8 @@ struct PixelInput
 	#endif
 };
 
-VS
-{
-    PixelInput MainVs( VertexInput i )
+#if ( PROGRAM == VFX_PROGRAM_VS )
+    [shader( "vertex" )] PixelInput MainVs( VertexInput i )
     {
         PixelInput o;
         
@@ -50,10 +39,10 @@ VS
         o.vTexCoord = i.vTexCoord;
         return o;
     }
-}
 
-PS
-{
+#endif // VS
+
+#if ( PROGRAM == VFX_PROGRAM_PS )
     #include "postprocess/common.hlsl"
 
     Texture2D ColorBuffer < Attribute( "ColorBuffer" ); >;
@@ -72,7 +61,7 @@ PS
         return screenTerm + excessBase + excessBlend;
     }
 
-    float4 MainPs(PixelInput input) : SV_Target0
+    [shader( "pixel" )] float4 MainPs(PixelInput input) : SV_Target0
     {
         float2 vScreenUv = (input.vPositionSs.xy + g_vViewportOffset) / g_vViewportSize;
 
@@ -101,4 +90,5 @@ PS
         return float4(finalColor, alpha);
     }
 
-}
+#endif // PS
+

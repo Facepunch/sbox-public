@@ -1,18 +1,12 @@
-HEADER
-{
-    DevShader = true;
-}
+// pp_chromaticaberration: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
+// HEADER: DevShader = true;
 
-MODES
-{
-    Default();
-    Forward();
-}
+#include "sbox/pass.slangh"
 
-COMMON
-{
+Mode( Default );
+Mode( Forward );
+
     #include "postprocess/shared.hlsl"
-}
 
 struct VertexInput
 {
@@ -35,9 +29,8 @@ struct PixelInput
 	#endif
 };
 
-VS
-{
-    PixelInput MainVs( VertexInput i )
+#if ( PROGRAM == VFX_PROGRAM_VS )
+    [shader( "vertex" )] PixelInput MainVs( VertexInput i )
     {
         PixelInput o;
         
@@ -45,10 +38,10 @@ VS
         o.uv = i.vTexCoord;
         return o;
     }
-}
 
-PS
-{
+#endif // VS
+
+#if ( PROGRAM == VFX_PROGRAM_PS )
     #include "postprocess/common.hlsl"
     #include "postprocess/functions.hlsl"
     #include "procedural.hlsl"
@@ -70,7 +63,7 @@ PS
         return float4( r.r, g.g, b.b, ( r.a + g.a + b.a ) / 3.0f );
     }
 
-    float4 MainPs( PixelInput i ) : SV_Target0
+    [shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
     {
         float4 color = 1;
         float2 vScreenUv = CalculateViewportUv( i.vPositionSs.xy );
@@ -79,4 +72,6 @@ PS
 
         return color;
     }
-}
+
+#endif // PS
+

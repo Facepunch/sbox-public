@@ -1,23 +1,13 @@
-HEADER
-{
-    Description = "Depth of Field";
-    DevShader = true;
-}
+// postprocess_standard_dof: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
+// HEADER: Description = "Depth of Field";
+// HEADER: DevShader = true;
 
-MODES
-{
-    Default();
-    Forward();
-}
+#include "sbox/pass.slangh"
 
-FEATURES
-{
-}
+Mode( Default );
+Mode( Forward );
 
-COMMON
-{
     #include "postprocess/shared.hlsl"
-}
 
 struct VertexInput
 {
@@ -31,8 +21,7 @@ struct PixelInput
     float4 vPositionPs		: SV_Position;
 };
  
-VS
-{
+#if ( PROGRAM == VFX_PROGRAM_VS )
     float FocusPlane < Attribute( "FocusPlane" ); Default(1.0f); >;
     
     float GetProjected( float linearDepth )
@@ -42,7 +31,7 @@ VS
         return b / linearDepth + a;
     }
 
-    PixelInput MainVs( VertexInput i )
+    [shader( "vertex" )] PixelInput MainVs( VertexInput i )
     {
         PixelInput o;
         o.vPositionPs = float4(i.vPositionOs.xyz, 1.0f);
@@ -53,10 +42,10 @@ VS
         o.vTexCoord = i.vTexCoord;
         return o;
     }
-}
 
-PS
-{
+#endif // VS
+
+#if ( PROGRAM == VFX_PROGRAM_PS )
     #include "common/classes/Depth.hlsl"
 
     #define DOF_PASS_COMBINE_BACK 0
@@ -83,7 +72,7 @@ PS
     
     // --------------------------------------------------------------------------------------------------------------------------------------------------------
 
-    float4 MainPs( PixelInput i ) : SV_Target0
+    [shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
     {       
         int2 dimensions;
         int levels;
@@ -104,4 +93,6 @@ PS
         
         return vColor;
     }
-}
+
+#endif // PS
+

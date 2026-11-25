@@ -1,10 +1,10 @@
-MODES
-{
-    Default();
-}
+// postprocess_standard_dof_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
 
-CS
-{
+#include "sbox/pass.slangh"
+
+Mode( Default );
+
+#if ( PROGRAM == VFX_PROGRAM_CS )
     #include "postprocess/shared.hlsl"
     #include "common/classes/Depth.hlsl"
 
@@ -106,14 +106,12 @@ CS
             depth = DepthTexture.Load( int3( screenPos, 0 ) ).r;
         #endif
 
-
         // Viewmodels have a different depth range than the world, so we remap them to the same range for DoF.
         const float DEPTH_RANGE_GAME_OVERLAYS = 1.0 - 0.01f;
         if( depth > DEPTH_RANGE_GAME_OVERLAYS )
             depth = 1.0 - RemapValClamped( depth, DEPTH_RANGE_GAME_OVERLAYS, 1.0, 0.0, 1.0 );
         else
             depth = 1.0 - Depth::Normalize( depth );
-
 
         float a = g_flFarPlane / (g_flFarPlane - g_flNearPlane);
         float b = g_flFarPlane * g_flNearPlane / (g_flNearPlane - g_flFarPlane);
@@ -388,7 +386,7 @@ CS
     #else
     [numthreads(TILE_SIZE, TILE_SIZE, 1)]
     #endif
-    void MainCs( uint3 vDispatch : SV_DispatchThreadID, uint3 vGroupThread : SV_GroupThreadID, uint3 vGroup : SV_GroupID, uint nGroupIndex : SV_GroupIndex )
+    [shader( "compute" )] void MainCs( uint3 vDispatch : SV_DispatchThreadID, uint3 vGroupThread : SV_GroupThreadID, uint3 vGroup : SV_GroupID, uint nGroupIndex : SV_GroupIndex )
     {
         float blurSize = BlurSize * g_vViewportSize.y * ( 1.0f / 1080.0f );
         Radius = blurSize < 0.5f ? 0 : max( 1, (int)( blurSize / StepScale ) );
@@ -403,4 +401,6 @@ CS
             HexagonalBlurPass( vGroup.xy, vGroupThread.xy );
         #endif
     }
-}
+
+#endif // CS
+

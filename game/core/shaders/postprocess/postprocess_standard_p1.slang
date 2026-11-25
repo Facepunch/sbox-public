@@ -1,23 +1,13 @@
-HEADER
-{
-    Description = "Standard post processing shader, Pass 1";
-    DevShader = true;
-}
+// postprocess_standard_p1: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
+// HEADER: Description = "Standard post processing shader, Pass 1";
+// HEADER: DevShader = true;
 
-MODES
-{
-    Default();
-    Forward();
-}
+#include "sbox/pass.slangh"
 
-FEATURES
-{
-}
+Mode( Default );
+Mode( Forward );
 
-COMMON
-{
     #include "postprocess/shared.hlsl"
-}
 
 struct VertexInput
 {
@@ -40,9 +30,8 @@ struct PixelInput
 	#endif
 };
 
-VS
-{
-    PixelInput MainVs( VertexInput i )
+#if ( PROGRAM == VFX_PROGRAM_VS )
+    [shader( "vertex" )] PixelInput MainVs( VertexInput i )
     {
         PixelInput o;
         
@@ -50,10 +39,10 @@ VS
         o.uv = i.vTexCoord;
         return o;
     }
-}
 
-PS
-{
+#endif // VS
+
+#if ( PROGRAM == VFX_PROGRAM_PS )
     #include "postprocess/common.hlsl"
     #include "postprocess/functions.hlsl"
     #include "procedural.hlsl"
@@ -113,7 +102,7 @@ PS
         return color;
     }
 
-    float4 MainPs( PixelInput i ) : SV_Target0
+    [shader( "pixel" )] float4 MainPs( PixelInput i ) : SV_Target0
     {
         float4 color = 1;
 
@@ -128,4 +117,6 @@ PS
 
         return color;
     }
-}
+
+#endif // PS
+

@@ -1,24 +1,17 @@
-HEADER
-{
-    DevShader = true;
-    Description = "Bloom downsample/upsample compute";
-}
+// postprocess_bloom_cs: a standalone module, the whole shader for Borealis.Gpu (docs/reference/borealis-standalone-modules.md).
+// HEADER: DevShader = true;
+// HEADER: Description = "Bloom downsample/upsample compute";
 
-MODES
-{
-    Default();
-}
+#include "sbox/pass.slangh"
 
-COMMON
-{
+Mode( Default );
+
     #include "postprocess/shared.hlsl"
 
     // 0 = Prefilter (threshold + karis average), 1 = Downsample, 2 = Upsample (accumulate)
     DynamicCombo( D_STAGE, 0..2, Sys( ALL ) );
-}
 
-CS
-{
+#if ( PROGRAM == VFX_PROGRAM_CS )
     SamplerState BilinearClamp < Filter(BILINEAR); AddressU(CLAMP); AddressV(CLAMP); >;
 
     Texture2D InputTexture < Attribute("InputTexture"); >;
@@ -126,7 +119,7 @@ CS
     }
 
     [numthreads(8, 8, 1)]
-    void MainCs( uint3 id : SV_DispatchThreadID )
+    [shader( "compute" )] void MainCs( uint3 id : SV_DispatchThreadID )
     {
         uint2 dims;
         BloomOut.GetDimensions( dims.x, dims.y );
@@ -153,4 +146,6 @@ CS
             BloomOut[id.xy] = float4( BloomOut[id.xy].rgb + UpsampleTent( uv, texel ), 1 );
         #endif
     }
-}
+
+#endif // CS
+
