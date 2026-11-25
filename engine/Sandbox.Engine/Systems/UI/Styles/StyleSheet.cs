@@ -30,6 +30,8 @@ public class StyleSheet
 			sheet.Release();
 			AllLoaded.RemoveAt( i );
 		}
+
+		Panel.ForgetPackageInlineStyleSheets();
 	}
 
 	public List<StyleBlock> Nodes { get; set; } = new List<StyleBlock>();
