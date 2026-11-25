@@ -7,6 +7,12 @@ public readonly ref partial struct Painter
 {
 	PainterBatcher Output => GetActiveContext().Batcher;
 
+	/// <summary>The context this painter records through, without starting its drawing state.</summary>
+	internal Context RecordingContext => GetActiveContext();
+
+	/// <summary>The batch this painter records into, without starting its drawing state.</summary>
+	internal PainterBatcher Batcher => Output;
+
 	internal Scissoring DestinationClip => Output.Destination.Scissor;
 	internal float InheritedOpacity => GetActiveContext().InheritedOpacity;
 	internal BlendMode InheritedBlendMode => GetActiveContext().InitialBlendMode;

@@ -1,13 +1,10 @@
-using NativeEngine;
-
 namespace Sandbox.Rendering;
 
 public sealed unsafe partial class CommandList
 {
 	/// <summary>
-	/// Times a section of this command list on the GPU. Shows up as a PIX/RenderDoc event and as a row in
-	/// the GPU profiler overlay when profiling is enabled. Bound with a <c>using</c> block,
-	/// which is what decides where the section ends.
+	/// Marks a section of this command list for graphics debuggers (a RenderDoc label on Borealis.Gpu, whose passes its own
+	/// pass timer times). Bound with a <c>using</c> block, which is what decides where the section ends.
 	/// </summary>
 	public ProfilingScope ProfileScope( ProfilingSampler sampler )
 	{
@@ -20,7 +17,7 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
-	/// A GPU timing section in a command list. Closes at the end of its <c>using</c> block.
+	/// A marked section in a command list. Closes at the end of its <c>using</c> block.
 	/// </summary>
 	public ref struct ProfilingScope
 	{
@@ -42,30 +39,13 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
-	/// A scope open during this execution. Carries what was actually begun, since the profiler or a debugger
-	/// can be toggled between a scope opening and closing.
+	/// A scope open during this execution: the Borealis.Gpu list a debug label was begun on, for graphics debuggers, and its
+	/// GPU timer scope while GPU passes are shown (-1 when there's none).
 	/// </summary>
 	internal struct OpenScope
 	{
-		public IntPtr Marker;
-		public bool Pix;
-	}
-
-	private static bool _debugMarkers;
-	private static bool _debugMarkersQueried;
-
-	private static bool DebugMarkersEnabled
-	{
-		get
-		{
-			if ( !_debugMarkersQueried )
-			{
-				_debugMarkers = g_pRenderDevice.AreDebugMarkersEnabled();
-				_debugMarkersQueried = true;
-			}
-
-			return _debugMarkers;
-		}
+		public Borealis.Gpu.CommandList Label;
+		public int Timer;
 	}
 
 	/// <summary>
@@ -73,20 +53,17 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	internal static OpenScope OpenScopeFor( ProfilingSampler sampler )
 	{
-		var context = Graphics.Context;
+		// On Borealis.Gpu a debug label around the scope (its passes are timed by Borealis's own pass timer)
+		if ( Graphics.Backend is BorealisGpuRenderBackend { Context.List: { } list } backend )
+		{
+			list.BeginLabel( sampler.Name );
 
-		var pix = DebugMarkersEnabled;
-		if ( pix ) context.BeginPixEvent( sampler.NamePtr );
+			// Timed as a scope of its own while something shows GPU passes, so effects inside the engine's blocks have rows
+			var timer = Diagnostics.GpuProfilerStats.Enabled ? backend.ScopeTimer : null;
+			return new OpenScope { Label = list, Timer = timer?.Begin( list, sampler.Name, Borealis.Backend.PassTimer.ScopeKind.Own, count: false ) ?? -1 };
+		}
 
-		// Native selects the actual queue and rejects unsupported timestamp clock domains.
-		var marker = Diagnostics.GpuProfilerStats.Enabled
-			? CSceneSystem.BeginManagedPerfMarker( context, sampler.NamePtr, false, false )
-			: IntPtr.Zero;
-
-		// Native copies the name during those calls, so the sampler only has to survive until here.
-		GC.KeepAlive( sampler );
-
-		return new OpenScope { Marker = marker, Pix = pix };
+		return default;
 	}
 
 	static void ExecuteBeginScope( ref Entry entry, CommandList commandList )
@@ -101,17 +78,17 @@ public sealed unsafe partial class CommandList
 		if ( !commandList.state.openScopes.TryPop( out var open ) )
 			return;
 
-		CloseScope( Graphics.Context, open );
+		CloseScope( open );
 	}
 
-	static void CloseScope( IRenderContext context, OpenScope open )
+	static void CloseScope( OpenScope open )
 	{
-		// End the timing marker first so its timestamp lands inside the PIX event that brackets it
-		if ( open.Marker != IntPtr.Zero )
-			CSceneSystem.EndManagedPerfMarker( context, open.Marker );
-
-		if ( open.Pix )
-			context.EndPixEvent();
+		// Ended on the list it began on, while that's still the one recording (a block that ended took its labels with it)
+		if ( open.Label is not null && Graphics.Backend is BorealisGpuRenderBackend { Context.List: { } list } backend && list == open.Label )
+		{
+			if ( open.Timer >= 0 ) backend.ScopeTimer?.End( list, open.Timer );
+			list.EndLabel();
+		}
 	}
 
 	/// <summary>
@@ -119,11 +96,9 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	void CloseLeakedScopes()
 	{
-		var context = Graphics.Context;
-
 		while ( state.openScopes.TryPop( out var open ) )
 		{
-			CloseScope( context, open );
+			CloseScope( open );
 		}
 	}
 }

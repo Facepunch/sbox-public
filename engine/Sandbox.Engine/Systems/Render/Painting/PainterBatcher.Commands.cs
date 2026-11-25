@@ -13,8 +13,10 @@ internal partial class PainterBatcher
 	internal CommandList CommandList => _commands;
 	[ConVar( "ui_visualize_batches", Help = "Visualize UI draw batches with colored overlays" )]
 	internal static bool DebugVisualizeBatches { get; set; }
-	readonly record struct TextureUse( Texture Texture, bool Presented );
-	readonly List<TextureUse> _textures = [];
+	// The index is the bindless slot the recorded instances name, which a texture reloaded in place can move off
+	readonly record struct TextureUse( Texture Texture, bool Presented, int Index );
+	List<TextureUse> _textures = [];
+	List<TextureUse> _previousTextures = [];
 	internal readonly List<ClipEntry> DrawClips = [];
 	static readonly List<string> _layerNames = [];
 	int _layerIndex;
@@ -102,6 +104,18 @@ internal partial class PainterBatcher
 			}
 			return new( _resolvedTransform, _scissorIndex.Value, _transformIndex.Value );
 		}
+		/// <summary>
+		/// Whether drawing into <paramref name="other"/> lands where drawing into this does: the same transform, viewport,
+		/// clip and output settings.
+		/// </summary>
+		internal readonly bool DrawsLike( in Target other )
+		{
+			return _transform == other._transform && Viewport == other.Viewport && Scissor.Equals( in other.Scissor )
+				&& LayerMatrix == other.LayerMatrix && MapScreenPixels == other.MapScreenPixels && PlaybackPaused == other.PlaybackPaused
+				&& Layered == other.Layered && GammaOutput == other.GammaOutput && WorldPanelCombo == other.WorldPanelCombo
+				&& WorldMatrix == other.WorldMatrix;
+		}
+
 		internal Matrix LayerMatrix = Matrix.Identity;
 		internal bool MapScreenPixels;
 		internal bool? PlaybackPaused;
@@ -144,6 +158,7 @@ internal partial class PainterBatcher
 	internal void ApplyDestinationAttributes( bool objectSpace = false )
 	{
 		ref readonly var target = ref Destination;
+		Unreplayable++; // Commands of its own between the batches
 		var attributes = _commands.Attributes;
 		attributes.Set( "LayerMat", target.LayerMatrix );
 		attributes.Set( "TransformMat", target.Transform );
@@ -154,22 +169,47 @@ internal partial class PainterBatcher
 		SetScissorAttributes( _commands, target.Scissor );
 	}
 
-	internal void RetainTexture( Texture texture, bool presented )
+	internal void RetainTexture( Texture texture, bool presented, int index )
 	{
-		_textures.Add( new( texture, presented ) );
+		_textures.Add( new( texture, presented, index ) );
+		if ( texture.ParentObject is VideoPlayer ) Unreplayable++; // Whether a video is presented is worked out each frame
 		if ( _hash.Layers > 0 ) _hash.Extra += texture.DirtyVersion; // A texture rewritten in place keeps its index, so its version is content
 		if ( _hash.Layers > 0 && (texture.IsAnimated || texture.ParentObject is VideoPlayer || texture.IsRenderTarget) ) Volatile++;
 	}
 
 	internal void BeginExecute()
 	{
-		foreach ( var usage in _textures )
+		// Over the list's storage as it is now: on the render thread the main thread may be painting the next frame into it
+		var textures = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _textures );
+		for ( int i = 0; i < textures.Length; i++ )
 		{
+			var usage = textures[i];
+			if ( usage.Texture is null ) continue;
 			if ( usage.Texture.ParentObject is VideoPlayer player )
 				player.TrackPresentation( usage.Presented );
 			if ( usage.Presented ) usage.Texture.MarkUsed();
 		}
 	}
+
+	/// <summary>
+	/// Whether every texture the recorded draws name is still at the bindless index they name it by. A recording that a
+	/// reloaded texture moved off has to be made again before it's replayed.
+	/// </summary>
+	internal bool TexturesUnchanged()
+	{
+		foreach ( var usage in _textures )
+		{
+			if ( usage.Texture is not { } texture || !texture.IsValid() ) return false;
+			if ( usage.Index != BoundByReference && texture.Index != usage.Index ) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// The index a retained texture has when draws bind it as an attribute, which resolves it at playback, not by its slot.
+	/// </summary>
+	internal const int BoundByReference = int.MinValue;
 
 	internal readonly record struct Checkpoint( int Instances, int Textures, int DrawCalls, int FrameGrabs, int Layers, int Targets, int Clips );
 
@@ -198,6 +238,7 @@ internal partial class PainterBatcher
 			Array.Resize( ref _targetStack, Math.Max( 4, _targetDepth * 2 ) );
 
 		_targetStack[_targetDepth] = Destination;
+		TargetsPushed++;
 		_hash.Layers++;
 		_hash.Ordinal = 0;
 		return _targetDepth++;
@@ -240,6 +281,8 @@ internal partial class PainterBatcher
 
 	internal void Flush()
 	{
+		// An explicit flush comes before commands of the caller's own (targets, backdrops, native draws), which replay can't repeat
+		Unreplayable++;
 		FlushBatch();
 		InvalidateBackdrop();
 	}
@@ -268,6 +311,8 @@ internal partial class PainterBatcher
 
 	void Append( in UICssBoxBatched.BoxInstance instance, BlendMode blendMode )
 	{
+		// Shapes that reach into the path tables or other shapes can't be replayed by value
+		if ( instance.ShapeIndex >= 0 && !IsSelfContained( _shapeTable[instance.ShapeIndex] ) ) Unreplayable++;
 		SetBlendMode( blendMode );
 		Add( instance );
 		TrackBackdropWrite( instance );
@@ -325,6 +370,8 @@ internal partial class PainterBatcher
 	{
 		InvalidateBackdrop();
 		_layerIndex = 0;
+		TargetsPushed = 0;
+		(_previousTextures, _textures) = (_textures, _previousTextures);
 		_textures.Clear();
 		AdvanceFrame();
 		_batchStart = 0;

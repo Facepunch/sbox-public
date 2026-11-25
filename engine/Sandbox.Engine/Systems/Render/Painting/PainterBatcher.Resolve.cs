@@ -16,8 +16,8 @@ internal partial class PainterBatcher
 		if ( desc.HasTextMask )
 		{
 			desc.TextMask.MarkUsed();
-			RetainTexture( desc.TextMask, true );
 			gpu.TextMaskIndex = desc.TextMask.Index;
+			RetainTexture( desc.TextMask, true, gpu.TextMaskIndex );
 		}
 
 		var rect = new Rect( gpu.Rect.x, gpu.Rect.y, gpu.Rect.z, gpu.Rect.w );
@@ -36,14 +36,16 @@ internal partial class PainterBatcher
 		if ( backgroundImage is not null )
 		{
 			var presented = MarkPresented( backgroundImage, rect, spatial.Transform, Destination.Scissor, ref isOnScreen, Destination.PlaybackPaused );
-			RetainTexture( backgroundImage, presented );
-			gpu.TextureIndex = backgroundImage.Index > 0 ? backgroundImage.Index : Texture.Transparent.Index;
+			var index = backgroundImage.Index;
+			RetainTexture( backgroundImage, presented, index );
+			gpu.TextureIndex = index > 0 ? index : Texture.Transparent.Index;
 		}
 		if ( borderImage is not null )
 		{
 			var presented = MarkPresented( borderImage, rect, spatial.Transform, Destination.Scissor, ref isOnScreen );
-			RetainTexture( borderImage, presented );
-			gpu.BorderImageIndex = borderImage.Index > 0 ? borderImage.Index : Texture.Transparent.Index;
+			var index = borderImage.Index;
+			RetainTexture( borderImage, presented, index );
+			gpu.BorderImageIndex = index > 0 ? index : Texture.Transparent.Index;
 		}
 
 		// Gradient, shape, transform and scissor indices are resolved afresh each frame.

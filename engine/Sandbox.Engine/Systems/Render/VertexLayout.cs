@@ -24,10 +24,34 @@ public static class VertexLayout
 		return entries.GetOrAdd( t, Create );
 	}
 
+	static readonly ConcurrentDictionary<Type, Borealis.Source2.Models.VertexField[]> fields = new();
+
+	/// <summary>
+	/// A vertex struct's fields as its layout names them (semantic, index, format, offset), without Source 2's render
+	/// device: what a mesh's vertex buffer keeps to read its bytes back.
+	/// </summary>
+	internal static Borealis.Source2.Models.VertexField[] FieldsOf( Type t )
+	{
+		return fields.GetOrAdd( t, Describe );
+	}
+
 	private static NativeEngine.VertexLayout Create( Type t )
 	{
 		var layout = NativeEngine.VertexLayout.Create( t.Name, Marshal.SizeOf( t ) );
 
+		foreach ( var field in FieldsOf( t ) )
+		{
+			layout.Add( field.Semantic, field.SemanticIndex, (uint)field.Format, field.Offset );
+		}
+
+		layout.Build();
+
+		return layout;
+	}
+
+	private static Borealis.Source2.Models.VertexField[] Describe( Type t )
+	{
+		var described = new List<Borealis.Source2.Models.VertexField>();
 		List<string> slots = new();
 
 		int offset = 0;
@@ -84,15 +108,13 @@ public static class VertexLayout
 
 			//Log.Info( $"{t.FullName} {attr.Semantic} {index}" );
 
-			layout.Add( attr.Semantic, index, (uint)format, offset );
+			described.Add( new Borealis.Source2.Models.VertexField( attr.Semantic, index, (Borealis.Source2.Models.ColorFormat)format, offset, 0, false, 0 ) );
 
 			slots.Add( str );
 			offset += size;
 		}
 
-		layout.Build();
-
-		return layout;
+		return [.. described];
 	}
 
 
@@ -103,6 +125,9 @@ public static class VertexLayout
 	/// </summary>
 	internal static void FreeAll()
 	{
+		BorealisGpuRenderBackend.ForgetVertexLayouts();
+		fields.Clear();
+
 		foreach ( var key in entries.Keys )
 		{
 			if ( entries.TryRemove( key, out var value ) )

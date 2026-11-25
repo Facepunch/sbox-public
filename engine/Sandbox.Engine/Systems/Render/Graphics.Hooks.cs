@@ -7,47 +7,18 @@ namespace Sandbox;
 public static partial class Graphics
 {
 	/// <summary>
-	/// Called by the engine during pipeline. This could be rendering the scene from any camera.
-	/// That means you can't assume this is the game view. This might be a tools view, or another view
+	/// The platform overlay, over the window's cameras: the menu's UI, the debug overlay, frame capture and the dev tools
+	/// dock, drawn in a Borealis.Gpu game window's last block.
 	/// </summary>
-	internal static void OnLayer( int stageenum, ManagedRenderSetup_t setup )
+	internal static void RenderOverlay()
 	{
-		//
-		// Special circumstances for the game UI
-		//
-		if ( stageenum == -1 )
-		{
-			using ( new Graphics.Scope( in setup ) )
-			{
-				RenderUiOverlay();
-				DebugOverlay.Render();
-				ScreenCaptureUtility.CaptureFrame();
-				ScreenCaptureUtility.DrawRecordingBorder();
+		RenderUiOverlay();
+		DebugOverlay.Render();
+		ScreenCaptureUtility.CaptureFrame();
+		ScreenCaptureUtility.DrawRecordingBorder();
 
-				// Over everything, and after the capture so recordings don't have it in
-				Sandbox.Diagnostics.DevTools.RenderGameDock();
-			}
-
-			return;
-		}
-
-		Rendering.Stage renderStage = (Rendering.Stage)stageenum;
-
-		// find our cameralur
-		var cameraId = setup.sceneView.m_ManagedCameraId;
-		if ( cameraId == 0 )
-			return;
-
-		var currentCamera = IManagedCamera.FindById( cameraId );
-		if ( currentCamera is null )
-			return;
-
-		// Log.Info( $"cameraReference: \"{currentCamera}\" -> {renderStage}" );
-
-		using ( new Graphics.Scope( in setup ) )
-		{
-			currentCamera.OnRenderStage( renderStage );
-		}
+		// Over everything, and after the capture so recordings don't have it in
+		Sandbox.Diagnostics.DevTools.RenderGameDock();
 	}
 
 	static void RenderUiOverlay()
@@ -58,6 +29,11 @@ public static partial class Graphics
 			StandaloneLoadingScreen.Render();
 			return;
 		}
+
+		// Wanted again after a pause: simulate it next frame, rather than draw what it built before
+		EngineLoop.MenuUIOverlayWanted = EngineLoop.LoopFrames;
+		if ( !EngineLoop.MenuUISimulated )
+			return;
 
 		using var _ = GlobalContext.MenuScope();
 		GlobalContext.Current.UISystem.Render();

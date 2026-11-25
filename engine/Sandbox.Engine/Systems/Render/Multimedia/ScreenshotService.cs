@@ -30,60 +30,78 @@ internal static class ScreenshotService
 		return filePath;
 	}
 
-	internal static void ProcessFrame( IRenderContext context, ITexture nativeTexture )
+	/// <summary>
+	/// Take the screenshots asked for from a Borealis.Gpu window's finished frame, <paramref name="frame"/> (RGBA8, as the window
+	/// presents it), read back once its last block has been submitted.
+	/// </summary>
+	internal static void ProcessFrame( BorealisGpuRenderBackend backend, Texture frame )
 	{
-		if ( nativeTexture.IsNull || !nativeTexture.IsStrongHandleValid() )
+		if ( _pendingRequests.IsEmpty ) return;
+
+		byte[] pixels;
+		try
+		{
+			pixels = System.Runtime.InteropServices.MemoryMarshal.AsBytes( backend.ReadPixels( frame ).AsSpan() ).ToArray();
+		}
+		catch ( Exception ex )
+		{
+			_pendingRequests.Clear();
+			Log.Error( $"Error capturing screenshot: {ex.Message}" );
 			return;
+		}
 
 		while ( _pendingRequests.TryDequeue( out var request ) )
 		{
-			CaptureRenderTexture( context, nativeTexture, request.FilePath );
+			SaveInBackground( pixels, ImageFormat.RGBA8888, frame.Width, frame.Height, request.FilePath );
 		}
 	}
 
 	/// <summary>
-	/// Captures the current render target and saves it to the specified file.
+	/// Convert, encode and write a screenshot on a worker: that takes hundreds of milliseconds at 1080p, which the frame it
+	/// was taken in (drawn on the render thread) would otherwise wait for. Steam's library gets it on the main thread.
 	/// </summary>
-	private static void CaptureRenderTexture( IRenderContext context, ITexture nativeTexture, string filePath )
+	internal static Task SaveInBackground( byte[] pixels, ImageFormat format, int width, int height, string filePath )
 	{
+		return Task.Run( () =>
+		{
+			if ( Save( pixels, format, width, height, filePath ) is { } rgbData )
+				MainThread.Queue( () => Services.Screenshots.AddScreenshotToLibrary( rgbData, width, height ) );
+		} );
+	}
+
+	/// <summary>The managed thread the last screenshot was saved on, for tests.</summary>
+	internal static int SavedOnThread { get; private set; }
+
+	// The RGB pixels for Steam's library, or null when it couldn't be saved
+	static byte[] Save( ReadOnlySpan<byte> data, ImageFormat format, int width, int height, string filePath )
+	{
+		SavedOnThread = Environment.CurrentManagedThreadId;
 		try
 		{
-			Bitmap bitmap = null;
+			using var bitmap = new Bitmap( width, height );
 
-			context.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) =>
+			if ( !CopyReadbackToBitmap( data, format, width, height, bitmap ) )
 			{
-				try
-				{
-					bitmap = new Bitmap( width, height );
+				Log.Warning( $"Can't save screenshot, unsupported render target format {format}" );
+				return null;
+			}
 
-					if ( !CopyReadbackToBitmap( pData, format, width, height, bitmap ) )
-					{
-						Log.Warning( $"Can't save screenshot, unsupported render target format {format}" );
-						return;
-					}
+			var rgbData = bitmap.ToFormat( ImageFormat.RGB888 );
 
-					var rgbData = bitmap.ToFormat( ImageFormat.RGB888 );
-					Services.Screenshots.AddScreenshotToLibrary( rgbData, width, height );
-
-					var dir = Path.GetDirectoryName( filePath );
-					if ( dir != null )
-					{
-						Directory.CreateDirectory( dir );
-					}
-					var encodedBytes = bitmap.ToPng();
-					File.WriteAllBytes( filePath, encodedBytes );
-				}
-				catch ( Exception ex )
-				{
-					Log.Error( $"Error creating bitmap from texture: {ex.Message}" );
-				}
-			} );
-
+			var dir = Path.GetDirectoryName( filePath );
+			if ( dir != null )
+			{
+				Directory.CreateDirectory( dir );
+			}
+			var encodedBytes = bitmap.ToPng();
+			File.WriteAllBytes( filePath, encodedBytes );
 			Log.Info( $"Screenshot saved to: {filePath}" );
+			return rgbData;
 		}
 		catch ( Exception ex )
 		{
-			Log.Error( $"Error capturing screenshot: {ex.Message}" );
+			Log.Error( $"Error creating bitmap from texture: {ex.Message}" );
+			return null;
 		}
 	}
 

@@ -17,28 +17,11 @@ public sealed unsafe partial class CommandList
 			if ( !renderer.IsValid() )
 				return;
 
-			var setup = new RendererSetup { Material = (Material)entry.Object2 };
-			if ( (entry.Count & 1) != 0 ) setup.Transform = new Transform( new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ), new Rotation( entry.Data2.x, entry.Data2.y, entry.Data2.z, entry.Data2.w ), new Vector3( entry.Data3.x, entry.Data3.y, entry.Data3.z ) );
-			if ( (entry.Count & 2) != 0 ) setup.Color = new Color( entry.Data4.x, entry.Data4.y, entry.Data4.z, entry.Data4.w );
-			renderer.RenderSceneObject( setup );
+			// The engine's drawing of the renderer's scene object (no game code), so it replays on the render thread too
+			renderer.RenderSceneObject( commandList.PlayedRendererSetup( entry ) );
 		}
 
-		// The setup's fields go into the entry: boxing it allocated on every call
-		var entry = new Entry { Object1 = renderer, Object2 = rendererSetup.Material };
-		if ( rendererSetup.Transform is { } tx )
-		{
-			entry.Count |= 1;
-			entry.Data1 = new Vector4( tx.Position, 0 );
-			entry.Data2 = new Vector4( tx.Rotation.x, tx.Rotation.y, tx.Rotation.z, tx.Rotation.w );
-			entry.Data3 = new Vector4( tx.Scale, 0 );
-		}
-		if ( rendererSetup.Color is { } color )
-		{
-			entry.Count |= 2;
-			entry.Data4 = new Vector4( color.r, color.g, color.b, color.a );
-		}
-
-		AddEntry( &Execute, entry );
+		AddEntry( &Execute, new Entry { Object1 = renderer }, RendererSetupStore, rendererSetup );
 	}
 
 	/// <summary>
@@ -64,11 +47,11 @@ public sealed unsafe partial class CommandList
 			// or we'll end up with an infinite loop!
 			if ( Graphics.IsChildView ) return;
 
-			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, (ViewSetup)entry.Object2, out var result );
+			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, commandList.PlayedViewSetup( entry ), out var result );
 			commandList.state.views[entry.ViewId] = result;
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object5 = target.Name, Object2 = viewSetup, ViewId = view.Id } );
+		AddEntry( &Execute, new Entry { Object1 = camera, Object5 = target.Name, ViewId = view.Id }, ViewSetupStore, viewSetup );
 		return view;
 	}
 
@@ -88,7 +71,7 @@ public sealed unsafe partial class CommandList
 			var camera = (CameraComponent)entry.Object1;
 			if ( !camera.IsValid() ) return;
 
-			var setup = (ReflectionSetup)entry.Object2;
+			var setup = commandList.PlayedReflectionSetup( entry );
 			var plane = new Plane( new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ), entry.Data2.x );
 
 			var rt = commandList.GetRenderTarget( (string)entry.Object5 );
@@ -114,7 +97,7 @@ public sealed unsafe partial class CommandList
 			commandList.state.views[entry.ViewId] = RenderReflection( camera, plane, rt, setup );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object2 = reflectionSetup, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = camera, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) }, ReflectionSetupStore, reflectionSetup );
 		return view;
 	}
 
@@ -132,16 +115,28 @@ public sealed unsafe partial class CommandList
 	internal static ViewData RenderReflection( CameraComponent camera, Plane plane, RenderTarget rt, ReflectionSetup setup )
 	{
 		var viewport = Graphics.Viewport;
-		return RenderReflection( camera.SceneCamera, Graphics.SceneView, Graphics.CameraTransform, Graphics.FieldOfView, viewport.Width / viewport.Height,
+		return RenderReflection( camera.SceneCamera, Graphics.CameraTransform, Graphics.FieldOfView, viewport.Width / viewport.Height,
 			camera.ZNear, camera.ZFar, plane, rt, setup, $"{camera.GameObject.Name}.Reflection" );
 	}
 
 	/// <summary>
 	/// Render a view seen from <paramref name="eye"/> mirrored in a plane into a render target, clipped to the plane's
-	/// far side, as a child of <paramref name="parent"/>, or a top-level view when it isn't valid.
+	/// far side: a child of the frame being drawn, or a top-level view outside one.
 	/// </summary>
-	internal static ViewData RenderReflection( SceneCamera camera, NativeEngine.ISceneView parent, Transform eye, float fieldOfView, float aspect,
+	internal static ViewData RenderReflection( SceneCamera camera, Transform eye, float fieldOfView, float aspect,
 		float zNear, float zFar, Plane plane, RenderTarget rt, ReflectionSetup setup, string name )
+	{
+		var view = ReflectionView( eye, fieldOfView, aspect, zNear, zFar, plane, setup );
+		camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, view, name, out var result );
+		return result;
+	}
+
+	/// <summary>
+	/// The view <see cref="RenderReflection(SceneCamera, Transform, float, float, float, float, Plane, RenderTarget, ReflectionSetup, string)"/>
+	/// renders: the eye mirrored in the plane, an oblique projection clipped to the plane's far side, flipped, with the
+	/// reflection flag. Borealis renders a top-level view's planar reflection from it itself.
+	/// </summary>
+	internal static ViewSetup ReflectionView( Transform eye, float fieldOfView, float aspect, float zNear, float zFar, Plane plane, ReflectionSetup setup )
 	{
 		var reflectedTransform = eye.Mirror( plane );
 		var projection = Matrix.CreateProjection( zNear, zFar, fieldOfView, aspect, setup.ViewSetup.ClipSpaceBounds ?? new Vector4( -1, -1, 1, 1 ) );
@@ -158,9 +153,7 @@ public sealed unsafe partial class CommandList
 		setup.ViewSetup.ProjectionMatrix ??= oblique;
 		setup.ViewSetup.FlipX ??= true; // we're mirroring!
 		setup.ViewSetup.Reflection = true;
-
-		camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, parent, setup.ViewSetup, name, out var result );
-		return result;
+		return setup.ViewSetup;
 	}
 
 	/// <summary>
@@ -180,7 +173,7 @@ public sealed unsafe partial class CommandList
 			var camera = (CameraComponent)entry.Object1;
 			if ( !camera.IsValid() ) return;
 
-			var setup = (RefractionSetup)entry.Object2;
+			var setup = commandList.PlayedRefractionSetup( entry );
 			var plane = new Plane( new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ), entry.Data2.x );
 
 			var rt = commandList.GetRenderTarget( (string)entry.Object5 );
@@ -215,13 +208,16 @@ public sealed unsafe partial class CommandList
 
 			setup.ViewSetup.Transform ??= transform;
 			setup.ViewSetup.FieldOfView ??= Graphics.FieldOfView;
+
+			// The oblique projection's plane, which the view's 3D skybox is clipped at too; a caller's own projection has none
+			if ( setup.ViewSetup.ProjectionMatrix is null ) setup.ViewSetup.ClipPlane = clipPlane;
 			setup.ViewSetup.ProjectionMatrix ??= oblique;
 
 			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, setup.ViewSetup, out var result );
 			commandList.state.views[entry.ViewId] = result;
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object2 = refractionSetup, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = camera, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) }, RefractionSetupStore, refractionSetup );
 		return view;
 	}
 

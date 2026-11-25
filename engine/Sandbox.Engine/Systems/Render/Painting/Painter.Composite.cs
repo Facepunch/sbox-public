@@ -101,7 +101,7 @@ public readonly ref partial struct Painter
 		attributes.SetCombo( "D_MASK_IMAGE", mask.HasValue ? 1 : 0 );
 		if ( mask is Mask m )
 		{
-			Output.RetainTexture( m.Texture, true );
+			Output.RetainTexture( m.Texture, true, PainterBatcher.BoundByReference );
 			attributes.Set( "MaskTexture", m.Texture );
 			attributes.Set( "MaskPos", new Vector4( m.Rect.Left - bounds.Left, m.Rect.Top - bounds.Top, m.Rect.Width, m.Rect.Height ) );
 			attributes.Set( "MaskMode", (int)m.Mode );

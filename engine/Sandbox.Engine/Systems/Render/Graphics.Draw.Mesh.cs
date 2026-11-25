@@ -42,11 +42,7 @@ public static partial class Graphics
 
 		attributes ??= Attributes;
 
-		var clampedLod = Math.Max( lodLevel, 0 );
-		fixed ( Transform* pTransforms = transforms )
-		{
-			RenderTools.DrawModel( Context, SceneLayer, DrawShaderMode, model.native, (IntPtr)pTransforms, transforms.Length, attributes.Get(), clampedLod );
-		}
+		Backend.DrawModel( model, transforms, Math.Max( lodLevel, 0 ), attributes );
 	}
 
 	/// <summary>
@@ -71,10 +67,7 @@ public static partial class Graphics
 
 		attributes ??= Attributes;
 
-		fixed ( Transform* pTransforms = transforms )
-		{
-			RenderTools.DrawModel( Context, SceneLayer, DrawShaderMode, model.native, (IntPtr)pTransforms, transforms.Length, attributes.Get() );
-		}
+		Backend.DrawModel( model, transforms, null, attributes );
 	}
 
 	/// <summary>
@@ -94,7 +87,7 @@ public static partial class Graphics
 
 		attributes ??= Attributes;
 
-		RenderTools.DrawModel( Context, SceneLayer, DrawShaderMode, model.native, buffer.native, bufferOffset, attributes.Get() );
+		Backend.DrawModelIndirect( model, buffer, bufferOffset, attributes );
 	}
 
 	/// <summary>
@@ -123,7 +116,7 @@ public static partial class Graphics
 
 		attributes ??= Attributes;
 
-		RenderTools.DrawModel( Context, SceneLayer, DrawShaderMode, model.native, transformBuffer.native, indirectArgs.native, argsOffset, attributes.Get(), lodLevel );
+		Backend.DrawModelIndirect( model, transformBuffer, indirectArgs, argsOffset, lodLevel, attributes );
 	}
 
 	/// <summary>
@@ -148,6 +141,6 @@ public static partial class Graphics
 
 		attributes ??= Attributes;
 
-		RenderTools.DrawModel( Context, SceneLayer, DrawShaderMode, model.native, IntPtr.Zero, count, attributes.Get() );
+		Backend.DrawModel( model, count, attributes );
 	}
 }

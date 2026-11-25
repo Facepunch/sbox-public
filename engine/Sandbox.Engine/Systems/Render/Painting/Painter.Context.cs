@@ -111,6 +111,38 @@ public readonly ref partial struct Painter
 			}
 		}
 
+		/// <summary>
+		/// Starts recording into this context's list as if it went on where <paramref name="parent"/> is painting now: the
+		/// same destination, clip, opacity and blend mode. For a panel subtree kept in a list of its own, which the parent's
+		/// list inserts. Call on a list just reset.
+		/// </summary>
+		internal Painter BeginInherited( Context parent )
+		{
+			lock ( CommandList.SyncRoot )
+			{
+				if ( IsPainting ) throw new InvalidOperationException( "Finish painting before starting again." );
+
+				_start = Batcher.GetCheckpoint();
+				_target = Batcher.Destination;
+				Batcher.Destination = parent.Batcher.Destination;
+				Batcher.Destination.ForgetSpatial(); // Its row indices are the parent's tables'
+				_commandStart = CommandList.GetCheckpoint();
+				ResetDrawingState( parent.InitialBlendMode );
+				InitializeState();
+				Recording++;
+				ScaleToScreen = parent.ScaleToScreen;
+				InheritedOpacity = parent.InheritedOpacity;
+				Bounds = parent.Bounds;
+				BaseTransform = parent.BaseTransform;
+				DestinationDepth = parent.DestinationDepth;
+				LegacyTransform = parent.LegacyTransform;
+				LegacyBlendMode = parent.LegacyBlendMode;
+				_thread = Environment.CurrentManagedThreadId;
+				_active = true;
+				return new Painter( this, ownsContext: true );
+			}
+		}
+
 		internal Painter Painter => IsActive ? new Painter( this ) : throw new ObjectDisposedException( nameof( Painter ), "The paint context has ended." );
 		internal bool IsActive => _active && _thread == Environment.CurrentManagedThreadId;
 		internal bool IsPainting => _active;
@@ -158,7 +190,8 @@ public readonly ref partial struct Painter
 
 		void CommandList.IResource.BeginExecute()
 		{
-			for ( var context = this; context is not null; context = context._nested )
+			// The render thread replays the list as its frame was handed over, while the main thread may paint the next one
+			for ( var context = this; context is not null && !RenderSync.OnRenderThread; context = context._nested )
 			{
 				if ( context.IsPainting )
 					throw new InvalidOperationException( "Finish painting before executing the command list." );

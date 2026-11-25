@@ -33,6 +33,9 @@ internal sealed class Cmaa2Renderer : IDisposable
 		{
 			if ( IsAvailable ) return;
 
+			// Its shaders are Slang modules, which only Borealis.Gpu draws: none on Source 2's device
+			if ( RenderBackend.Default is not BorealisGpuRenderBackend ) return;
+
 			var compute = new ComputeShader( ComputeShaderPath );
 			ValidateShaderPath( compute.ComputeMaterial, ComputeShaderPath );
 
@@ -54,17 +57,17 @@ internal sealed class Cmaa2Renderer : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// The material names the shader: Borealis.Gpu draws it from that name's module, which Source 2's material system has no
+	/// shader for (its native material has none), so the check is by name.
+	/// </summary>
 	private static void ValidateShaderPath( Material material, string expectedPath )
 	{
 		var materialShaderPath = material is { IsValid: true } ? material.ShaderName : null;
-		var normalizedMaterialPath = NormalizeShaderPath( materialShaderPath );
-		var shader = string.IsNullOrEmpty( normalizedMaterialPath ) ? null : Shader.Load( $"shaders/{normalizedMaterialPath}.shader" );
-		var actualPath = shader?.native.GetFilename();
-		if ( material is { IsValid: true } && PathsMatch( materialShaderPath, expectedPath )
-			&& shader is { IsValid: true } && !shader.native.IsError() && PathsMatch( actualPath, expectedPath ) )
+		if ( PathsMatch( materialShaderPath, expectedPath ) )
 			return;
 
-		var message = $"CMAA2 failed to load shader '{expectedPath}' (resolved '{actualPath ?? "<null>"}').";
+		var message = $"CMAA2 failed to load shader '{expectedPath}' (resolved '{materialShaderPath ?? "<null>"}').";
 		Log.Error( message );
 		throw new InvalidOperationException( message );
 	}
@@ -139,7 +142,8 @@ internal sealed class Cmaa2Renderer : IDisposable
 				return;
 			}
 
-			RenderTools.ResolveFrameBuffer( Graphics.Context, colorTarget.ColorTarget.native, viewport );
+			// The backend's resolve: Source 2's native call only has a context on its own device
+			Graphics.Backend.ResolveColor( colorTarget.ColorTarget, viewport );
 
 			Graphics.ResourceBarrierTransition( colorTarget.ColorTarget, ResourceState.NonPixelShaderResource );
 			Graphics.ResourceBarrierTransition( edgesTarget.ColorTarget, ResourceState.UnorderedAccess );

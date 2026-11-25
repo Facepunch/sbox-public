@@ -91,7 +91,7 @@ public class ComputeShader
 		if ( threadsY < 1 ) throw new ArgumentException( $"Cannot be less than 1", nameof( threadsY ) );
 		if ( threadsZ < 1 ) throw new ArgumentException( $"Cannot be less than 1", nameof( threadsZ ) );
 
-		RenderTools.Compute( Graphics.Context, attributes.Get(), ComputeMaterial.native.GetMode(), threadsX, threadsY, threadsZ );
+		Graphics.Backend.Dispatch( ComputeMaterial, attributes, threadsX, threadsY, threadsZ );
 	}
 
 	/// <inheritdoc cref="DispatchIndirect"/>
@@ -109,6 +109,6 @@ public class ComputeShader
 		if ( !indirectBuffer.Usage.Contains( GpuBuffer.UsageFlags.IndirectDrawArguments ) )
 			throw new ArgumentException( $"Buffer must have the required usage flag '{GpuBuffer.UsageFlags.IndirectDrawArguments}'", nameof( indirectBuffer ) );
 
-		RenderTools.ComputeIndirect( Graphics.Context, attributes.Get(), ComputeMaterial.native.GetMode(), indirectBuffer.native, indirectElementOffset * 12 );
+		Graphics.Backend.DispatchIndirect( ComputeMaterial, attributes, indirectBuffer, indirectElementOffset * 12 );
 	}
 }

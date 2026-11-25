@@ -474,6 +474,9 @@ internal static class GpuFontText
 	{
 		using var perfScope = Performance.Scope( "GpuFontText.Render" );
 
+		// The dispatches below wait for the render thread's frame when it's drawing, and its text takes this lock: wait first
+		if ( ThreadSafe.IsMainThread && !ThreadSafe.IsRenderThread ) Graphics.Backend.FinishDrawing();
+
 		lock ( _lock )
 		{
 			// PreloadShader has run by now on any live frame; a render thread caller that beats it waits one frame

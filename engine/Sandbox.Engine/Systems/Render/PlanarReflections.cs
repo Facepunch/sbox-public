@@ -26,11 +26,6 @@ internal static class PlanarReflections
 	static int _captureCount;
 
 	/// <summary>
-	/// The view whose reflection is being set up on this thread, while it is.
-	/// </summary>
-	[ThreadStatic] static ISceneView _reflecting;
-
-	/// <summary>
 	/// Number of planar reflections rendered, for tests.
 	/// </summary>
 	internal static int CaptureCount => System.Threading.Volatile.Read( ref _captureCount );
@@ -46,39 +41,40 @@ internal static class PlanarReflections
 	internal static Plane LastPlane { get; private set; }
 
 	/// <summary>
-	/// Plan and start the view's planar reflection, and publish it in the view's attributes. Called as the view's
-	/// layers are set up, on the thread setting up views.
+	/// A view's planar reflection, planned (<see cref="Plan{T}"/>): the plane it mirrors in, its setup for
+	/// <c>CommandList.RenderReflection</c>, the target it renders into, and how many planes share it.
 	/// </summary>
-	internal static void AddToView( ISceneView view, SceneCamera camera )
+	internal struct Reflection
 	{
-		var attributes = view.GetRenderAttributesPtr();
-		bool reflection = attributes.GetBoolValue( "IsReflection", false );
-		attributes.SetBoolValue( "HasPlanarReflection", false );
+		public Plane Plane;
+		public ReflectionSetup Setup;
+		public RenderTarget Target;
+		public int Shared;
+	}
 
-		// Our reflection depends on nothing else this frame: issue it before every view and submit it before its own
-		if ( reflection && _reflecting.IsValid )
-		{
-			view.SetIssueSortIndex( int.MinValue );
-			view.SetPriority( _reflecting.GetPriority() - 1 );
-		}
+	/// <summary>
+	/// Whether a plane's reflecting area is in the view (its frustum, whichever renderer has it).
+	/// </summary>
+	internal interface IVisibility
+	{
+		bool Sees( in BBox bounds );
+	}
 
-		// Reflections and child views (shadows, monitors) never render reflections of their own
-		if ( camera?.World is null || reflection || view.GetParent().IsValid )
-			return;
-
-		var frustum = view.GetFrustum();
-		if ( frustum.IsOrthographic() )
-			return;
-
+	/// <summary>
+	/// Choose a top-level view's planar reflection, seen from <paramref name="eye"/>: the plane whose reflecting area covers the
+	/// most of the screen (planes lying on one plane share it), and none for areas outside the view, behind it, or under
+	/// <see cref="MinScreenCoverage"/>. Then set it up and take its target, sized from the view's viewport. False for none.
+	/// </summary>
+	internal static bool Plan<T>( SceneCamera camera, Transform eye, float fieldOfView, float aspect, float zNear, float zFar, Vector2 viewportSize, T visibility, out Reflection reflection )
+		where T : IVisibility
+	{
+		reflection = default;
 		var planes = _planes ??= [];
 		planes.Clear();
 		camera.World.GetReflectionPlanes( planes );
 		if ( planes.Count == 0 )
-			return;
+			return false;
 
-		var eye = new Transform( frustum.GetCameraPosition(), frustum.GetCameraAngles() );
-		float fieldOfView = frustum.GetCameraFOV();
-		float aspect = frustum.GetCameraAspect();
 		try
 		{
 			// Planes the eye is beneath or can't see don't count
@@ -86,7 +82,7 @@ internal static class PlanarReflections
 			{
 				var plane = planes[i];
 				if ( Vector3.Dot( eye.Position - plane.Position, plane.Normal ) <= 0
-					|| (!plane.Infinite && !frustum.BoundingVolumeIntersectsFrustum( Bounds( plane ) )) )
+					|| (!plane.Infinite && !visibility.Sees( Bounds( plane ) )) )
 					planes.RemoveAt( i );
 			}
 
@@ -117,9 +113,10 @@ internal static class PlanarReflections
 			}
 
 			if ( best is null )
-				return;
+				return false;
 
-			Render( view, camera, best, eye, fieldOfView, aspect, frustum.GetCameraNearPlane(), frustum.GetCameraFarPlane() );
+			reflection = Setup( camera, best, eye, fieldOfView, aspect, zNear, zFar, viewportSize );
+			return true;
 		}
 		finally
 		{
@@ -128,9 +125,9 @@ internal static class PlanarReflections
 	}
 
 	/// <summary>
-	/// Render the reflection for every plane lying on the anchor's into a temporary target, and publish it.
+	/// Set up the reflection for every plane lying on the anchor's, and take a temporary target for it.
 	/// </summary>
-	static void Render( ISceneView view, SceneCamera camera, SceneReflectionPlane.State anchor, Transform eye, float fieldOfView, float aspect, float zNear, float zFar )
+	static Reflection Setup( SceneCamera camera, SceneReflectionPlane.State anchor, Transform eye, float fieldOfView, float aspect, float zNear, float zFar, Vector2 viewportSize )
 	{
 		var group = _group ??= [];
 		group.Clear();
@@ -161,53 +158,53 @@ internal static class PlanarReflections
 		// Up close the oblique clip plane is unstable, and an ordinary projection clips nothing that matters
 		bool unclipped = eyeHeight <= MathF.Max( 0.5f, clipOffset ) + zNear * 2;
 
-		var viewport = view.GetMainViewport().Rect;
-		var (width, height) = RenderTarget.ScaleDownSize( new Vector2( viewport.Width, viewport.Height ), downsample );
+		var (width, height) = RenderTarget.ScaleDownSize( viewportSize, downsample );
 		var target = RenderTarget.GetTemporary( width, height, ImageFormat.RGBA16161616F, ImageFormat.Default, numMips: 1, targetName: "Planar reflection" );
 
-		var setup = new ReflectionSetup
+		return new Reflection
 		{
-			ClipOffset = clipOffset + 0.5f,
-			RenderBehind = true,
-			ViewSetup = new ViewSetup
+			Plane = reflectionPlane,
+			Target = target,
+			Shared = shared,
+			Setup = new ReflectionSetup
 			{
-				ProjectionMatrix = unclipped ? Matrix.CreateProjection( zNear, zFar, fieldOfView, aspect, new Vector4( -1, -1, 1, 1 ) ) : null,
-				FlipX = true,
-				EnablePostprocessing = false,
-				EnableUI = false,
-				EnableDebugOverlays = false,
-				ViewHash = HashCode.Combine( "Planar reflection", anchor.ExcludeTag ),
-				ExcludeTags = exclusions
+				ClipOffset = clipOffset + 0.5f,
+				RenderBehind = true,
+				ViewSetup = new ViewSetup
+				{
+					ProjectionMatrix = unclipped ? Matrix.CreateProjection( zNear, zFar, fieldOfView, aspect, new Vector4( -1, -1, 1, 1 ) ) : null,
+					FlipX = true,
+					EnablePostprocessing = false,
+					EnableUI = false,
+					EnableDebugOverlays = false,
+					ViewHash = HashCode.Combine( "Planar reflection", anchor.ExcludeTag ),
+					ExcludeTags = exclusions
+				}
 			}
 		};
+	}
 
-		ViewData data;
-		_reflecting = view;
-		try
-		{
-			data = CommandList.RenderReflection( camera, default, eye, fieldOfView, aspect, zNear, zFar, reflectionPlane, target, setup, "Planar reflection" );
-		}
-		finally
-		{
-			_reflecting = default;
-		}
-
+	/// <summary>
+	/// Publish a rendered reflection in the attributes of the view it was rendered for: materials on its plane sample it.
+	/// </summary>
+	internal static void Publish( RenderAttributes attributes, in Reflection reflection, in ViewData data )
+	{
 		if ( !data.IsValid )
 			return;
 
 		System.Threading.Interlocked.Increment( ref _captureCount );
-		LastSharedCount = shared;
-		LastPlane = reflectionPlane;
+		LastSharedCount = reflection.Shared;
+		LastPlane = reflection.Plane;
 
-		var attributes = view.GetRenderAttributesPtr();
-		attributes.SetTextureValue( "PlanarReflectionTexture", target.ColorTarget.native, -1 );
-		attributes.SetTextureValue( "PlanarReflectionDepthTexture", target.DepthTarget.native, -1 );
-		attributes.SetVMatrixValue( "PlanarReflectionProjectionToView", data.ProjectionToView );
-		attributes.SetVector4DValue( "PlanarReflectionDepthUvScaleBias", data.DepthUvScaleBias );
-		attributes.SetVector4DValue( "PlanarReflectionViewport", data.Viewport );
-		attributes.SetVector2DValue( "PlanarReflectionDepthRange", data.DepthRange );
-		attributes.SetVector4DValue( "PlanarReflectionPlane", new Vector4( normal, reflectionPlane.Distance ) );
-		attributes.SetBoolValue( "HasPlanarReflection", true );
+		var target = reflection.Target;
+		attributes.Set( "PlanarReflectionTexture", target.ColorTarget );
+		attributes.Set( "PlanarReflectionDepthTexture", target.DepthTarget );
+		attributes.Set( "PlanarReflectionProjectionToView", data.ProjectionToView );
+		attributes.Set( "PlanarReflectionDepthUvScaleBias", data.DepthUvScaleBias );
+		attributes.Set( "PlanarReflectionViewport", data.Viewport );
+		attributes.Set( "PlanarReflectionDepthRange", data.DepthRange );
+		attributes.Set( "PlanarReflectionPlane", new Vector4( reflection.Plane.Normal, reflection.Plane.Distance ) );
+		attributes.Set( "HasPlanarReflection", true );
 	}
 
 	/// <summary>

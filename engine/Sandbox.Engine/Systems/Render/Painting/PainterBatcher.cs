@@ -15,9 +15,9 @@ internal partial class PainterBatcher
 	int _frameIndex;
 	readonly GpuTable<GPUBoxInstance> _textTable = new( "PainterTextInstances" );
 	readonly GpuTable<UICssBoxBatched.BoxInstance> _boxTable = new( "BoxInstances" );
-	readonly GpuTable<(Painter.Scissoring Scissor, int Next), UICssBoxBatched.ScissorInstance> _scissorTable = new( "ScissorBuffer" );
+	readonly GpuTable<(Painter.Scissoring Scissor, int Next), UICssBoxBatched.ScissorInstance> _scissorTable = new( "ScissorBuffer", keepKeys: true );
 	readonly GpuTable<Matrix, UICssBoxBatched.TransformInstance> _transformTable = new( "TransformBuffer" );
-	readonly GpuTable<GradientInfo, UICssBoxBatched.GradientInstance> _gradientTable = new( "GradientBuffer" );
+	readonly GpuTable<GradientInfo, UICssBoxBatched.GradientInstance> _gradientTable = new( "GradientBuffer", keepKeys: true );
 	readonly GpuTable<UICssBoxBatched.BorderShape, UICssBoxBatched.BorderShape> _shapeTable = new( "BorderShapeBuffer" );
 	readonly GpuTable<UICssBoxBatched.PathPrimitive> _pathTable = new( "PathBuffer" );
 	readonly GpuTable<UICssBoxBatched.PathNode> _pathNodeTable = new( "PathNodeBuffer" );
@@ -33,10 +33,19 @@ internal partial class PainterBatcher
 	internal IReadOnlyList<UICssBoxBatched.BorderShape> Shapes => _shapeTable.Items;
 	internal IReadOnlyList<UICssBoxBatched.PathPrimitive> Paths => _pathTable.Items;
 	internal IReadOnlyList<UICssBoxBatched.PathNode> PathNodes => _pathNodeTable.Items;
+	internal IReadOnlyList<GPUBoxInstance> TextRows => _textTable.Items;
 
-	internal void Add( in UICssBoxBatched.BoxInstance instance ) => _boxTable.Add( instance );
+	internal void Add( in UICssBoxBatched.BoxInstance instance )
+	{
+		_boxTable.Add( instance );
+		_boxMeta.Add( (byte)_blendMode );
+	}
 
-	internal void Rewind( int count ) => _boxTable.Rewind( count );
+	internal void Rewind( int count )
+	{
+		_boxTable.Rewind( count );
+		_boxMeta.RemoveRange( count, _boxMeta.Count - count );
+	}
 
 	internal void Tint( int first, int count, Color color )
 	{
@@ -62,6 +71,10 @@ internal partial class PainterBatcher
 
 	internal void AdvanceFrame()
 	{
+		_previousGeneration = _generation;
+		_generation = NextGeneration();
+		(_previousBoxMeta, _boxMeta) = (_boxMeta, _previousBoxMeta);
+		_boxMeta.Clear();
 		_hash.Layers = 0;
 		_frameIndex = (_frameIndex + 1) % FrameCount;
 		foreach ( var table in _tables ) table.Clear();
@@ -240,17 +253,31 @@ internal partial class PainterBatcher
 	/// </summary>
 	internal class GpuTable<T>( string attribute ) : IGpuTable where T : unmanaged
 	{
-		readonly List<T> _items = [];
+		List<T> _items = [];
+
+		// Last frame's entries, which recordings of unchanged panels are replayed from (PainterBatcher.Replay)
+		List<T> _previous = [];
 		readonly GpuBuffer<T>[] _buffers = new GpuBuffer<T>[FrameCount];
 		int _uploaded;
 
 		// The buffer recorded draws read, which entries since _uploaded still have to be written to
 		GpuBuffer<T> _bound;
 
-		internal IReadOnlyList<T> Items => _items;
+		// The current frame's rows whichever list holds them, so a reference kept across a new frame sees the new rows
+		ItemsView _view;
+		internal IReadOnlyList<T> Items => _view ??= new ItemsView( this );
 		internal int Count => _items.Count;
 		internal T this[int index] => _items[index];
+
+		sealed class ItemsView( GpuTable<T> table ) : IReadOnlyList<T>
+		{
+			public T this[int index] => table._items[index];
+			public int Count => table._items.Count;
+			public IEnumerator<T> GetEnumerator() => table._items.GetEnumerator();
+			System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+		}
 		internal Span<T> AsSpan() => CollectionsMarshal.AsSpan( _items );
+		internal ReadOnlySpan<T> Previous => CollectionsMarshal.AsSpan( _previous );
 		public int BufferCount => _buffers.Count( b => b != null );
 		public int Sum { get; private set; }
 		public HashState Hash { get; set; }
@@ -291,8 +318,12 @@ internal partial class PainterBatcher
 			_uploaded = Math.Min( _uploaded, count );
 		}
 
+		/// <summary>
+		/// Starts the next frame's entries, keeping this frame's as <see cref="Previous"/>.
+		/// </summary>
 		public virtual void Clear()
 		{
+			(_previous, _items) = (_items, _previous);
 			_items.Clear();
 			_uploaded = 0;
 			_bound = null;
@@ -308,6 +339,7 @@ internal partial class PainterBatcher
 				// Draws already recorded read the old buffer, so it gets what fits before being replaced.
 				// Don't Dispose it here — may be called off the main thread. It's cleaned up by the GC finalizer.
 				Upload();
+				// The UI draws these on the device it records on; Source 2's copy (kept by the editor) is never read
 				buffer = new GpuBuffer<T>( GetBufferCapacity<T>( _items.Count ) );
 				_uploaded = 0;
 			}
@@ -342,9 +374,16 @@ internal partial class PainterBatcher
 	/// <summary>
 	/// A GpuTable that also remembers which key produced each entry, so equal keys share one entry.
 	/// </summary>
-	internal sealed class GpuTable<TKey, T>( string attribute ) : GpuTable<T>( attribute ) where T : unmanaged
+	internal sealed class GpuTable<TKey, T>( string attribute, bool keepKeys = false ) : GpuTable<T>( attribute ) where T : unmanaged
 	{
 		readonly Dictionary<TKey, int> _lookup = [];
+
+		// The key of each entry, this frame's and last frame's, for entries that can't be made again from their value alone
+		List<TKey> _keys = keepKeys ? [] : null;
+		List<TKey> _previousKeys = keepKeys ? [] : null;
+
+		/// <summary>The key last frame's entry at <paramref name="index"/> was added with. Only for tables that keep keys.</summary>
+		internal ref readonly TKey PreviousKey( int index ) => ref CollectionsMarshal.AsSpan( _previousKeys )[index];
 
 		internal bool TryGet( in TKey key, out int index )
 		{
@@ -359,7 +398,11 @@ internal partial class PainterBatcher
 		internal int GetOrAdd( in TKey key, in T item )
 		{
 			ref int index = ref CollectionsMarshal.GetValueRefOrAddDefault( _lookup, key, out bool exists );
-			if ( !exists ) index = Add( item );
+			if ( !exists )
+			{
+				index = Add( item );
+				_keys?.Add( key );
+			}
 			return index;
 		}
 
@@ -367,6 +410,7 @@ internal partial class PainterBatcher
 		{
 			var index = Add( item );
 			_lookup.Add( key, index );
+			_keys?.Add( key );
 			return index;
 		}
 
@@ -374,6 +418,9 @@ internal partial class PainterBatcher
 		{
 			base.Clear();
 			_lookup.Clear();
+			if ( _keys is null ) return;
+			(_previousKeys, _keys) = (_keys, _previousKeys);
+			_keys.Clear();
 		}
 	}
 

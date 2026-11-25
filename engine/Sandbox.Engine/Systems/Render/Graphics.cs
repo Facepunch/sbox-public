@@ -18,23 +18,88 @@ public static partial class Graphics
 	/// </summary>
 	public static bool IsAvailable { get; private set; }
 
+	/// <summary>
+	/// Whether the process draws on a Borealis.Gpu device of its own (<c>-borealisgpu</c>, which the game and the editor add
+	/// themselves: <c>AppSystem.DrawOnBorealisGpu</c>).
+	/// </summary>
+	internal static bool BorealisGpuRequested => Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu" );
+
 	internal static void Initialize()
 	{
-		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
+		// With -borealisgpu the process renders even on Source 2's empty render device: Borealis.Gpu draws
+		var borealisGpu = BorealisGpuRequested;
+		// Source 2's device only describes resources: what draws is Borealis.Gpu, or nothing (HeadlessRenderBackend, the default:
+		// buffers keep their bytes and textures read back from their files)
+		IsAvailable = borealisGpu;
 
-		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
-		_spdShader = IsAvailable ? new ComputeShader( "downsample_spd" ) : null;
+		// -borealisgpu: the process draws on a Borealis.Gpu device of its own (docs/reference/borealis-gpu-path.md, stage 2)
+		if ( IsAvailable && RenderBackend.Default is HeadlessRenderBackend )
+		{
+			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-validation" );
+			// With GPU-assisted validation as well (buffer bounds checked in the shaders; slow), for out-of-range reads that hang the GPU
+			var gpuAssisted = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-gpuav" );
+			// With the layer's descriptor checks too (each descriptor a shader reads: in range, written, the image in the layout
+			// it's read in), the only check of what bindless arrays read. They reset RDNA4, and lost the A10 with layer 1.4.309
+			// (1.4.363 runs)
+			var gpuAssistedDescriptors = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-gpuav-descriptors" );
+			// With synchronization validation as well (hazards between passes the barriers miss; slow)
+			var syncValidation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-syncvalidation" );
+			// Progress markers for the device-loss report, unless -borealisgpu-nomarkers. Not with synchronization validation:
+			// markers write their words unordered on purpose (only read after a loss), and the layer reports every one
+			var markers = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nomarkers" ) && !syncValidation;
+			// The device's pipeline cache in game/.source2/borealispipelines, apart from native's, unless -borealisgpu-nopipelinecache
+			var pipelineCache = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nopipelinecache" ) ? null : System.IO.Path.Combine( EngineFileSystem.Root.GetFullPath( "/" ), ".source2", "borealispipelines" );
+
+			// Slang surfaces compile on workers while their materials draw as their .shader, and the engine's start warming at
+			// once, unless -wait-for-shaders (draws wait for each, as tests and captures do)
+			Borealis.Backend.SurfaceShaders.CompileInBackgroundByDefault = !Sandbox.Utility.CommandLine.HasSwitch( "-wait-for-shaders" );
+			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers, pipelineCacheFolder: pipelineCache, gpuAssisted: gpuAssisted, syncValidation: syncValidation, gpuAssistedDescriptors: gpuAssistedDescriptors );
+
+			// Models load in the background, as Source 2 streams them, unless -borealisgpu-syncload
+			_borealisGpu.Services.AsyncModels = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-syncload" );
+
+			// Material textures stream with them, tails first, unless -borealisgpu-nostream; -borealisgpu-texturebudget <MiB> caps them
+			_borealisGpu.Services.StreamTextures = _borealisGpu.Services.AsyncModels && !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nostream" );
+			if ( Sandbox.Utility.CommandLine.GetSwitchInt( "-borealisgpu-texturebudget", 0 ) is > 0 and var budget ) _borealisGpu.Services.TextureBudgetBytes = (long)budget << 20;
+			_borealisGpu.Services.Surfaces.Warm();
+			_borealisGpu.Services.Passes.Warm();
+
+			// The pass module stages the last runs' draws asked for, read ahead (or compiled, after an update) on workers
+			_borealisGpu.Services.Passes.Prewarm();
+			RenderBackend.SetDefault( _borealisGpu );
+			var adapter = _borealisGpu.Device.Adapter;
+			SystemInfo.SetBorealisGpu( adapter.Name, adapter.DriverVersion, adapter.DeviceLocalBytes, adapter.Integrated );
+			Log.Info( $"Rendering on Borealis.Gpu ({_borealisGpu.Device.Adapter.Name}){(gpuAssisted ? ", GPU-assisted validation on" : validation ? ", validation on" : "")}; memory: {_borealisGpu.Device.DescribeMemory()}" );
+		}
 
 		if ( IsAvailable )
 			Cmaa2Renderer.Initialize();
 	}
 
+	// The process's Borealis.Gpu device, with -borealisgpu
+	static BorealisGpuRenderBackend _borealisGpu;
+
+	/// <summary>The compiled content the process's Borealis.Gpu device reads, or null without one.</summary>
+	internal static Borealis.Source2.ContentFiles BorealisGpuContent => _borealisGpu?.Services.Content;
+
+	/// <summary>
+	/// No more frames: what the process's Borealis.Gpu device kept of the last one's draws (their attributes and material)
+	/// goes, ahead of the shutdown leak check, though the device itself stays until <see cref="Shutdown"/>.
+	/// </summary>
+	internal static void ReleaseFrameState() => _borealisGpu?.ReleaseFrameState();
+
 	internal static void Shutdown()
 	{
 		Cmaa2Renderer.Shutdown();
+
+		if ( _borealisGpu is not null )
+		{
+			RenderBackend.SetDefault( null );
+			_borealisGpu.Dispose();
+			_borealisGpu = null;
+		}
+
 		IsAvailable = false;
-		_mipMapGeneratorShader = null;
-		_spdShader = null;
 	}
 
 	public enum PrimitiveType
@@ -65,51 +130,40 @@ public static partial class Graphics
 	struct RenderState
 	{
 		public bool active;
-		public IRenderContext renderContext;
 		public IFrameView view;
 		public SceneLayerType layerType;
 		public RenderAttributes attributes;
-		internal SceneSystemPerFrameStats_t stats;
 		public ImageFormat colorFormat;
 		public MultisampleAmount msaaLevel;
 		public Transform cameraTransform;
 		internal RenderTarget renderTarget;
 		internal float defaultMinZ;
 		internal float defaultMaxZ;
-		internal bool computeQueue;
+		internal RenderBackend backend;
 	}
 
 	[ThreadStatic]
 	private static RenderState _state;
 
 	/// <summary>
-	/// Wait for the scene's render jobs. The calling thread runs jobs while it waits, so the wait goes without a
-	/// sync context: a job's contended lock would otherwise pump the main thread's queue, and a continuation that
-	/// syncs the resource system waits for rendering from inside the job it interrupted.
+	/// The device the block draws on, or the process's outside one.
 	/// </summary>
-	internal static void WaitForRenderingToComplete()
-	{
-		var syncContext = System.Threading.SynchronizationContext.Current;
-		try
-		{
-			System.Threading.SynchronizationContext.SetSynchronizationContext( null );
-			CSceneSystem.WaitForRenderingToComplete();
-		}
-		finally
-		{
-			System.Threading.SynchronizationContext.SetSynchronizationContext( syncContext );
-		}
-	}
-
-	internal static IRenderContext Context => _state.renderContext;
+	internal static RenderBackend Backend => _state.backend ?? RenderBackend.Default;
 
 	/// <summary>
-	/// Whether the block records into an async compute context: compute and copies only.
+	/// Make <paramref name="backend"/> the device outside render blocks on this thread - where a recording that will draw
+	/// on it uploads its buffers and resolves its bindless indices - until the returned one is put back. Null is the
+	/// process's.
 	/// </summary>
-	internal static bool OnComputeQueue => _state.computeQueue;
+	internal static RenderBackend SetRecordingBackend( RenderBackend backend )
+	{
+		var previous = _state.backend;
+		_state.backend = backend;
+		return previous;
+	}
+
 	internal static ImageFormat IdealColorFormat => _state.colorFormat;
 	internal static MultisampleAmount IdealMsaaLevel => _state.msaaLevel;
-	internal static SceneSystemPerFrameStats_t Stats => _state.stats;
 
 	/// <summary>
 	/// When Frame grabbing, we store the result in this pooled render target. It stays checked out
@@ -123,8 +177,8 @@ public static partial class Graphics
 	/// </summary>
 	public static Rect Viewport
 	{
-		get => Context.GetViewport().Rect;
-		set => Context.SetViewport( value );
+		get => Backend.GetViewport().Rect;
+		set => Backend.SetViewport( value );
 	}
 
 	/// <summary>
@@ -162,9 +216,7 @@ public static partial class Graphics
 	{
 		get
 		{
-			if ( !Graphics.IsAvailable ) return 0;
-			g_pRenderDevice.GetVideoMemoryInfo( out var budget, out _, out _ );
-			return budget;
+			return Graphics.IsAvailable ? BorealisGpuMemory().Budget : 0;
 		}
 	}
 
@@ -176,10 +228,19 @@ public static partial class Graphics
 	{
 		get
 		{
-			if ( !Graphics.IsAvailable ) return 0;
-			g_pRenderDevice.GetVideoMemoryInfo( out _, out _, out var rsUsage );
-			return rsUsage;
+			return Graphics.IsAvailable ? BorealisGpuMemory().Used : 0;
 		}
+	}
+
+	/// <summary>
+	/// Without Source 2's device (its empty one reports nothing), the drawing device's largest device-local heap: what the
+	/// process uses of it and the budget the OS gives it.
+	/// </summary>
+	static (ulong Used, ulong Budget) BorealisGpuMemory()
+	{
+		if ( RenderBackend.Default is not BorealisGpuRenderBackend borealis ) return default;
+		var (used, budget) = borealis.Device.DeviceLocalMemory();
+		return ((ulong)Math.Max( used, 0 ), (ulong)Math.Max( budget, 0 ));
 	}
 
 
@@ -196,29 +257,39 @@ public static partial class Graphics
 		get
 		{
 			AssertRenderBlock();
-
-			var cf = ViewFrustum;
-
-			// Native planes are camera-relative.
-			cf.GetPlane( 0, out var rn, out var rd );
-			cf.GetPlane( 1, out var ln, out var ld );
-			cf.GetPlane( 2, out var tn, out var td );
-			cf.GetPlane( 3, out var bn, out var bd );
-			cf.GetPlane( 4, out var nn, out var nd );
-			cf.GetPlane( 5, out var fn, out var fd );
-
-			var origin = cf.GetCameraPosition();
-			return new Frustum(
-				right: new Plane( rn, rd + origin.Dot( rn ) ),
-				left: new Plane( ln, ld + origin.Dot( ln ) ),
-				top: new Plane( tn, td + origin.Dot( tn ) ),
-				bottom: new Plane( bn, bd + origin.Dot( bn ) ),
-				near: new Plane( nn, nd + origin.Dot( nn ) ),
-				far: new Plane( fn, fd + origin.Dot( fn ) )
-			);
+			return FrustumOf( ViewFrustum );
 		}
 	}
 
+	/// <summary>A native frustum's planes in world space, as <see cref="Frustum"/> gives a view's.</summary>
+	internal static Frustum FrustumOf( CFrustum cf )
+	{
+		// Native planes are camera-relative.
+		cf.GetPlane( 0, out var rn, out var rd );
+		cf.GetPlane( 1, out var ln, out var ld );
+		cf.GetPlane( 2, out var tn, out var td );
+		cf.GetPlane( 3, out var bn, out var bd );
+		cf.GetPlane( 4, out var nn, out var nd );
+		cf.GetPlane( 5, out var fn, out var fd );
+
+		var origin = cf.GetCameraPosition();
+		return new Frustum(
+			right: new Plane( rn, rd + origin.Dot( rn ) ),
+			left: new Plane( ln, ld + origin.Dot( ln ) ),
+			top: new Plane( tn, td + origin.Dot( tn ) ),
+			bottom: new Plane( bn, bd + origin.Dot( bn ) ),
+			near: new Plane( nn, nd + origin.Dot( nn ) ),
+			far: new Plane( fn, fd + origin.Dot( fn ) )
+		);
+	}
+
+
+	/// <summary>
+	/// The most multisampling up to <paramref name="wanted"/> the device renders with: Borealis.Gpu's answer when it's the
+	/// device, else Source 2's.
+	/// </summary>
+	internal static RenderMultisampleType BestMultisampleType( RenderMultisampleType wanted )
+		=> RenderBackend.Default is BorealisGpuRenderBackend borealis ? borealis.BestMultisampleType( wanted ) : RenderDeviceManager.GetBestMultisampleType( wanted );
 
 	internal static int RenderMultiSampleToNum( RenderMultisampleType msaaLevel )
 	{
@@ -247,126 +318,69 @@ public static partial class Graphics
 	internal ref struct Scope
 	{
 		RenderState _previous;
-		bool standalone;
-		IRenderContext _context;
 		RenderAttributes _attributes;
+		RenderBackend _backend;
 
 		/// <summary>
-		/// Begins rendering with no scene view: a fresh render context and attributes with the frame's bindless
-		/// texture set bound, as CSceneSystem::InitializeRenderAttributes does for a view. Disposal submits the context.
+		/// Begins rendering with no scene view on the process's device: a block of its own with managed attributes, submitted
+		/// on disposal.
 		/// </summary>
-		internal static Scope Create()
+		internal static Scope Create() => CreateOn( RenderBackend.Default );
+
+		/// <summary>
+		/// Begins rendering with no scene view on <paramref name="backend"/>'s device: the block records into its own list, with
+		/// managed attributes, and disposal submits it.
+		/// </summary>
+		internal static Scope CreateOn( RenderBackend backend ) => CreateOnView( backend, null );
+
+		/// <summary>
+		/// A block on <paramref name="backend"/>'s device drawing into a camera's frame: what the code drawing in it asks a view
+		/// (post processing on, the frustum, binding a render target and going back to the frame's) is <paramref name="view"/>'s.
+		/// </summary>
+		internal static Scope CreateOnView( RenderBackend backend, BorealisGpuView view )
 		{
 			ThreadSafe.AssertIsMainThread();
 
-			if ( !IsAvailable )
-				throw new InvalidOperationException( "Graphics is unavailable." );
+			if ( IsActive )
+				throw new InvalidOperationException( "Standalone rendering cannot overlap another render scope." );
 
-			if ( IsActive || CSceneSystem.IsRenderingBusy() )
-				throw new InvalidOperationException(
-					"Standalone rendering cannot overlap another render scope or scene recording." );
-
-			// The global descriptor ring relies on present throttling. Standalone
-			// submissions must finish previous GPU work before reusing a slot.
-			g_pRenderDevice.ForceFlushGPU( default );
-
-			var context = g_pRenderDevice.CreateRenderContext( 0 );
-			var attributes = new RenderAttributes();
-			attributes.Get().SetGlobalBindlessDescriptorSet();
-
-			var scope = new Scope { _previous = _state, standalone = true, _context = context, _attributes = attributes };
-			_state = new RenderState { active = true, renderContext = context, attributes = attributes };
-			return scope;
-		}
-
-		/// <summary>The standalone render context, or default inside a scene view.</summary>
-		internal IRenderContext Context => _context;
-
-		/// <summary>The standalone attributes, or null inside a scene view.</summary>
-		internal RenderAttributes Attributes => _attributes;
-
-		/// <summary>
-		/// A render block over a managed frame (<see cref="ManagedView"/>): <paramref name="context"/> is recording it, and
-		/// its own attributes are the block's, as a native view's are - draws fall back to them for what they don't set.
-		/// The view's targets are bound.
-		/// </summary>
-		internal Scope( IRenderContext context, ManagedView view )
-		{
-			_previous = _state;
-			_state = new RenderState
+			var managed = backend.BeginBlock();
+			var block = new Scope { _previous = _state, _attributes = managed, _backend = backend };
+			// Its targets are single-sampled (a Borealis.Gpu frame hands over its resolved colour), unless the view says
+			_state = new RenderState { active = true, attributes = managed, backend = backend, msaaLevel = view?.Msaa ?? MultisampleAmount.MultisampleNone };
+			if ( view is not null )
 			{
-				active = true,
-				renderContext = context,
-				view = view,
-				layerType = view.LayerType,
-				colorFormat = view.ColorFormat,
-				msaaLevel = view.Msaa,
-				cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() ),
-				computeQueue = view.ComputeQueue,
-			};
+				_state.view = view;
+				_state.layerType = view.LayerType;
 
-			_state.attributes = ObjectPool<RenderAttributes>.Get();
-			_state.attributes.Set( context.GetAttributesPtrForModify() );
+				// What a frame grab or a temporary target of the default format is made with
+				if ( view.Target?.ColorTarget is { } color ) _state.colorFormat = color.ImageFormat;
+				_state.cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() );
+			}
 
-			view.Bind( context );
+			return block;
 		}
 
-		public Scope( in ManagedRenderSetup_t setup )
-		{
-			_previous = _state;
-
-			_state = new RenderState();
-
-			var frustum = setup.sceneView.GetFrustum();
-
-			_state.active = true;
-			_state.view = NativeFrameView.Get( setup.sceneView, setup.sceneLayer );
-			_state.renderContext = setup.renderContext;
-			_state.layerType = setup.sceneLayer.LayerEnum;
-			_state.colorFormat = setup.colorImageFormat;
-			_state.msaaLevel = setup.msaaLevel.FromEngine();
-			_state.cameraTransform = new Transform( frustum.GetCameraPosition(), frustum.GetCameraAngles() );
-			_state.stats = setup.stats;
-			_state.computeQueue = (setup.sceneLayer.m_nLayerFlags & Rendering.LayerFlags.AsyncComputeContext) != 0;
-
-			_state.attributes = ObjectPool<RenderAttributes>.Get();
-			_state.attributes.Set( setup.renderContext.GetAttributesPtrForModify() );
-		}
+		/// <summary>The block's attributes.</summary>
+		internal RenderAttributes Attributes => _attributes;
 
 		public void Dispose()
 		{
-			if ( standalone )
+			if ( _backend is null ) return;
+
+			try
 			{
-				try
-				{
-					g_pRenderDevice.BeginSubmittingDisplayLists();
-					_context.Submit();
-				}
-				finally
-				{
-					try
-					{
-						g_pRenderDevice.ReleaseRenderContext( _context );
-						_attributes.Clear();
-					}
-					finally
-					{
-						_state = _previous;
-					}
-				}
-				return;
+				_backend.EndBlock();
 			}
-
-			if ( _state.attributes is not null )
+			finally
 			{
-				_state.attributes.Set( default( CRenderAttributes ) );
-				ObjectPool<RenderAttributes>.Return( _state.attributes );
+				_state = _previous;
+				ReturnGrabbedTextures();
 			}
+		}
 
-			if ( _state.view is NativeFrameView native ) native.Return();
-
-			_state = _previous;
-
+		static void ReturnGrabbedTextures()
+		{
 			if ( grabbedTextures is not null )
 			{
 				// return to the pool
@@ -378,6 +392,59 @@ public static partial class Graphics
 			}
 		}
 	}
+
+	/// <summary>
+	/// A block in which a game's drawing is recorded rather than drawn (<see cref="Rendering.GameDrawExtract"/>): <see cref="Backend"/>
+	/// is the recording backend, which keeps every call in the recording, the view is a camera's (as its block was when last
+	/// drawn), the attributes are the recording's own, and a temporary target the drawing grabs or gives back stays with the
+	/// recording until it's replayed.
+	/// </summary>
+	internal ref struct RecordingScope
+	{
+		RenderState _previous;
+		HashSet<RenderTarget> _grabbed;
+		Rendering.DrawRecording _recording;
+		bool _active;
+
+		internal static RecordingScope Create( Rendering.RecordingRenderBackend backend, Rendering.RecordingFrameView view, Rendering.DrawRecording into, SceneLayerType layerType, ImageFormat colorFormat, MultisampleAmount msaa )
+		{
+			ThreadSafe.AssertIsMainThread();
+
+			if ( IsActive )
+				throw new InvalidOperationException( "A recorded drawing cannot overlap another render scope." );
+
+			var scope = new RecordingScope { _previous = _state, _grabbed = grabbedTextures, _recording = recording, _active = true };
+			grabbedTextures = into.Grabbed;
+			recording = into;
+			_state = new RenderState
+			{
+				active = true,
+				view = view,
+				layerType = layerType,
+				attributes = into.BlockAttributes,
+				backend = backend,
+				colorFormat = colorFormat,
+				msaaLevel = msaa,
+				cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() ),
+			};
+
+			return scope;
+		}
+
+		public void Dispose()
+		{
+			if ( !_active ) return;
+			_state = _previous;
+			grabbedTextures = _grabbed;
+			recording = _recording;
+		}
+	}
+
+	[ThreadStatic]
+	static Rendering.DrawRecording recording;
+
+	/// <summary>The recording a game's drawing on this thread goes into (<see cref="RecordingScope"/>), or null.</summary>
+	internal static Rendering.DrawRecording Recording => recording;
 
 	/// <summary>Uses private attributes for a drawing pass, preserving its caller's attributes.</summary>
 	internal readonly ref struct AttributeScope
@@ -408,14 +475,9 @@ public static partial class Graphics
 		Assert.NotNull( targetAttributes );
 		Assert.IsValid( obj );
 
+		// A standalone block has no view to light from
 		if ( _state.view is { } view )
-		{
 			view.SetupLighting( obj, targetAttributes );
-			return;
-		}
-
-		// A standalone block has no layer to light from
-		NativeEngine.CSceneSystem.SetupPerObjectLighting( targetAttributes.Get(), obj, default );
 	}
 
 	/// <summary>
@@ -446,7 +508,7 @@ public static partial class Graphics
 			? RenderTarget.GetEngineTemporary( 1, ImageFormat.Default, ImageFormat.None, MultisampleAmount.MultisampleNone, numMips, targetName )
 			: RenderTarget.GetTemporary( 1, ImageFormat.Default, ImageFormat.None, msaa: MultisampleAmount.MultisampleNone, numMips: numMips, targetName );
 
-		RenderTools.ResolveFrameBuffer( Context, frameTexture.ColorTarget.native, Viewport );
+		Backend.ResolveColor( frameTexture.ColorTarget, Viewport );
 
 		// Generate a mip chain if we want one
 		if ( withMips ) GenerateMipMaps( frameTexture.ColorTarget, downsampleMethod );
@@ -477,7 +539,7 @@ public static partial class Graphics
 		// Grab a new one - which may very well be the one we just returned
 		var grabbedTexture = RenderTarget.GetTemporary( 1, ImageFormat.None, ImageFormat.Default, msaa: MultisampleAmount.MultisampleScreen, targetName: targetName );
 
-		RenderTools.ResolveDepthBuffer( Context, grabbedTexture.DepthTarget.native, Viewport );
+		Backend.ResolveDepth( grabbedTexture.DepthTarget, Viewport );
 
 		grabbedTextures ??= new();
 		grabbedTextures.Add( grabbedTexture );
@@ -503,13 +565,15 @@ public static partial class Graphics
 				return;
 
 			var view = _state.view;
-			if ( view is null && (value?.ColorTarget is null || value.DepthTarget is not null) )
-				throw new InvalidOperationException( "Standalone rendering requires a color target without a depth target." );
+			// A standalone block takes a depth target with its colour (a Borealis frame's, which post processing reads); it
+			// draws to the colour
+			if ( view is null && value?.ColorTarget is null )
+				throw new InvalidOperationException( "Standalone rendering requires a color target." );
 
 			// Going from default render target to custom render target
 			if ( _state.renderTarget == null )
 			{
-				var viewport = Context.GetViewport();
+				var viewport = Backend.GetViewport();
 				// Save off min/max Z values here, so we can restore them later.
 				_state.defaultMinZ = viewport.MinZ;
 				_state.defaultMaxZ = viewport.MaxZ;
@@ -520,18 +584,18 @@ public static partial class Graphics
 			// Resetting to default render target
 			if ( _state.renderTarget == null )
 			{
-				view?.RestoreTargets( Context, _state.defaultMinZ, _state.defaultMaxZ );
+				view?.RestoreTargets( _state.defaultMinZ, _state.defaultMaxZ );
 				return;
 			}
 
 			if ( view is not null )
 			{
-				view.BindTarget( Context, _state.renderTarget );
+				view.BindTarget( _state.renderTarget );
 			}
 			else
 			{
 				_state.colorFormat = _state.renderTarget.ColorTarget.ImageFormat;
-				Context.BindRenderTargets( _state.renderTarget.ColorTarget.native );
+				Backend.BindRenderTarget( _state.renderTarget );
 			}
 			Viewport = new Rect( 0, 0, _state.renderTarget.Width, _state.renderTarget.Height );
 		}
@@ -546,7 +610,7 @@ public static partial class Graphics
 	/// <param name="clearStencil">Whether to clear the stencil buffer.</param>
 	public static void Clear( Color color, bool clearColor = true, bool clearDepth = true, bool clearStencil = true )
 	{
-		Context.Clear( color, clearColor, clearDepth, clearStencil );
+		Backend.Clear( color, clearColor, clearDepth, clearStencil );
 	}
 
 	/// <summary>
@@ -579,7 +643,7 @@ public static partial class Graphics
 		if ( srcTexture.ImageFormat != dstTexture.ImageFormat ) throw new ArgumentException( "Source and destination texture format must match!" );
 		if ( srcTexture.Size != dstTexture.Size ) throw new ArgumentException( "Source and destination texture size must match!" );
 
-		RenderTools.CopyTexture( Context, srcTexture.native, dstTexture.native, default, 0, 0, 0, 0, 0, 0 );
+		Backend.CopyTexture( srcTexture, dstTexture, 0, 0, 0, 0 );
 	}
 
 	[Obsolete( "Use the CopyTexture overload without 'srcMipLevels' and 'dstMipLevels' parameters instead." )]
@@ -617,9 +681,7 @@ public static partial class Graphics
 		if ( srcMipWidth != dstMipWidth || srcMipHeight != dstMipHeight )
 			throw new ArgumentException( "Source and destination texture mip level sizes must match!" );
 
-		RenderTools.CopyTexture( Context, srcTexture.native, dstTexture.native, default, 0, 0,
-			(uint)srcMipSlice, (uint)srcArraySlice,
-			(uint)dstMipSlice, (uint)dstArraySlice );
+		Backend.CopyTexture( srcTexture, dstTexture, srcMipSlice, srcArraySlice, dstMipSlice, dstArraySlice );
 	}
 
 	/// <summary>
@@ -632,6 +694,6 @@ public static partial class Graphics
 		if ( !Graphics.IsAvailable )
 			return;
 
-		g_pRenderDevice.ForceFlushGPU( default );
+		(RenderBackend.Default as BorealisGpuRenderBackend)?.WaitIdle();
 	}
 }

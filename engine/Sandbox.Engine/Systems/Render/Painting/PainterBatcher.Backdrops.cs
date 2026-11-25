@@ -36,6 +36,7 @@ internal partial class PainterBatcher
 	// Explicit Painter backdrops always see all preceding drawing.
 	internal void AddBackdrop( in Painter.BackdropData data, Matrix localTransform, int localClip, BlendMode blendMode )
 	{
+		Unreplayable++;
 		Flush();
 		Volatile++;
 		var target = Destination;
@@ -62,6 +63,7 @@ internal partial class PainterBatcher
 	internal void AddBackdrop( in Painter.BackdropData data, BlendMode blendMode )
 	{
 		Volatile++;
+		Unreplayable++; // The grab and quad are commands of their own, and whether to share a capture is worked out each frame
 		var reuseGrab = PrepareBackdrop( data );
 		ApplyDestinationAttributes( objectSpace: true );
 		var attributes = _commands.BeginDrawAttributes();

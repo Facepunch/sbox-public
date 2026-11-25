@@ -21,13 +21,16 @@ public sealed unsafe partial class CommandList
 	internal int GetCheckpoint()
 	{
 		lock ( _lock )
-			return _entries.Count;
+			return _recorded.Entries.Count;
 	}
 
 	internal void Rewind( int checkpoint )
 	{
 		lock ( _lock )
-			_entries.RemoveRange( checkpoint, _entries.Count - checkpoint );
+		{
+			Writing();
+			_recorded.Entries.RemoveRange( checkpoint, _recorded.Entries.Count - checkpoint );
+		}
 	}
 
 	internal T FindResource<T>() where T : class, IResource
@@ -62,36 +65,57 @@ public sealed unsafe partial class CommandList
 		{
 			_resources ??= [];
 			_resources.Add( resource );
+			Volatile.Write( ref _replayedResources, _resources.ToArray() );
 		}
 	}
+
+	// The resources as a replay reads them, without the lock (BeginResources); made again as one registers
+	IResource[] _replayedResources;
 
 	/// <summary>
 	/// Executes commands on the current graphics context without requiring a scene view.
 	/// </summary>
 	internal void Execute()
 	{
-		lock ( _lock )
+		lock ( _playLock )
 			ExecuteEntries();
 	}
 
 	/// <summary>
-	/// Runs every recorded entry against a fresh state. The caller holds the lock.
+	/// Held by a replay of this list, so one replays it at a time (its playback state is the list's); recording takes
+	/// <see cref="_lock"/> and isn't held up by a replay.
+	/// </summary>
+	readonly Lock _playLock = new Lock();
+
+	/// <summary>Prepare the list's resources for a replay (a painter's textures marked used).</summary>
+	void BeginResources()
+	{
+		if ( Volatile.Read( ref _replayedResources ) is not { } resources ) return;
+		foreach ( var resource in resources )
+			resource.BeginExecute();
+	}
+
+	/// <summary>
+	/// Runs every entry of the set this thread replays (<see cref="Playback"/>) against a fresh state. The caller holds
+	/// <see cref="_playLock"/>.
 	/// </summary>
 	void ExecuteEntries()
 	{
 		var previous = state;
+		var previousPlaying = _playing;
 		state = ObjectPool<State>.Get();
 		try
 		{
-			if ( _resources is not null )
-			{
-				foreach ( var resource in _resources )
-					resource.BeginExecute();
-			}
+			var played = _playing = Playback();
+			BeginResources();
 
-			var entries = CollectionsMarshal.AsSpan( _entries );
+			// A copy of each entry, as an inserted list's are: an entry that patches itself (a grab's mips) writes the copy
+			var entries = CollectionsMarshal.AsSpan( played.Entries );
 			for ( int i = 0; i < entries.Length; i++ )
-				entries[i].Execute( ref entries[i], this );
+			{
+				var e = entries[i];
+				e.Execute( ref e, this );
+			}
 		}
 		finally
 		{
@@ -100,6 +124,7 @@ public sealed unsafe partial class CommandList
 			state.Reset();
 			ObjectPool<State>.Return( state );
 			state = previous;
+			_playing = previousPlaying;
 		}
 	}
 }

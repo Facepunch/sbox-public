@@ -130,6 +130,12 @@ public struct ViewSetup
 	/// <c>r.reflections.shadows</c> is on.
 	/// </summary>
 	internal bool Reflection;
+
+	/// <summary>
+	/// The world-space plane an oblique <see cref="ProjectionMatrix"/> clips at, keeping the side its normal faces: a planar
+	/// refraction's surface. The renderer clips the view's 3D skybox at it too, so nothing on the near side draws.
+	/// </summary>
+	internal Plane? ClipPlane;
 }
 
 /// <summary>

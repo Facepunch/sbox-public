@@ -6,7 +6,7 @@ namespace Sandbox;
 /// <summary>
 /// Enables video playback and access to the video texture and audio.
 /// </summary>
-public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
+public sealed partial class VideoPlayer : IDisposable, IWeakInteropHandle
 {
 	internal CVideoPlayer native;
 
@@ -364,16 +364,6 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 		} );
 	}
 
-	internal void OnTextureCreatedInternal()
-	{
-		if ( !native.IsValid )
-			return;
-
-		using var tex = Texture.FromNative( native.GetTexture() );
-		Texture.CopyFrom( tex );
-		Texture.IsLoaded = true;
-	}
-
 	internal bool WantsTextureData() => OnTextureData != null;
 
 	internal unsafe void OnTextureDataInternal( IntPtr data, int width, int height )
@@ -405,6 +395,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 			native = IntPtr.Zero;
 		}
 
+		DisposePlanes();
 		InteropSystem.FreeWeak( this );
 		GC.SuppressFinalize( this );
 	}

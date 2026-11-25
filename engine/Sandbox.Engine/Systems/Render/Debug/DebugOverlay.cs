@@ -29,10 +29,9 @@ internal static partial class DebugOverlay
 		using var painter = Painter.Begin( CommandList );
 		Vector2 pos = new Vector2( 64, 64 );
 
-		// First, since its image covers the view
-		if ( OcclusionDebug.View != OcclusionDebugView.Off )
+		if ( ManagedViews.Showing )
 		{
-			DebugOverlay.OcclusionCulling.Draw( painter, ref pos );
+			DebugOverlay.ManagedViews.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
@@ -47,9 +46,6 @@ internal static partial class DebugOverlay
 		// Allocation tracking counts GC pauses frame by frame, so it samples every game frame rather than the dev tools'
 		if ( Diagnostics.DevTools.IsCollecting( "memory" ) ) DebugOverlay.Allocations.Sample();
 		else DebugOverlay.Allocations.Disabled();
-
-		if ( ShadowMapper.DebugEnabled )
-			ShadowMapper.Draw( ref pos, painter );
 
 		// The panel the dev tools' UI inspector has picked
 		if ( Diagnostics.DevTools.IsShowing( "ui" ) ) Diagnostics.DevToolsUiTab.DrawHighlight( painter );

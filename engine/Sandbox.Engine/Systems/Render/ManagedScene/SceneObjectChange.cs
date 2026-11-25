@@ -1,22 +1,13 @@
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// What changed on a <see cref="SceneObject"/>, for an <see cref="ISceneObjectListener"/>.
+/// What changed on a <see cref="SceneObject"/>: what it writes into its render object on Borealis
+/// (<see cref="SceneObject.WriteRender"/>), at once or when its world next prepares a frame.
 /// </summary>
 [Flags]
 internal enum SceneObjectChange
 {
 	None = 0,
-
-	/// <summary>
-	/// Created in the world. Its subclass may still be setting itself up, so read it later, not in the call.
-	/// </summary>
-	Added = 1 << 0,
-
-	/// <summary>
-	/// Destroyed. Its native side is going: don't read it.
-	/// </summary>
-	Removed = 1 << 1,
 
 	Transform = 1 << 2,
 	Model = 1 << 3,
@@ -61,15 +52,3 @@ internal enum SceneObjectChange
 	Bounds = 1 << 12,
 }
 
-/// <summary>
-/// Told about every change to a <see cref="SceneWorld"/>'s scene objects, as the change is made - so a renderer
-/// that isn't native (Sandbox.SceneRenderer, with <c>r_managed_scene</c>) can keep its own objects in step without
-/// polling. A world has at most one, in <see cref="SceneWorld.ChangeListener"/>.
-///
-/// Changes come from any thread - animation updates run in parallel - so an implementation should only record
-/// them, and act on them later on the main thread.
-/// </summary>
-internal interface ISceneObjectListener
-{
-	void OnChanged( SceneObject sceneObject, SceneObjectChange change );
-}

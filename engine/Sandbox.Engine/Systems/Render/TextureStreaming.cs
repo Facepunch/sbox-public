@@ -5,24 +5,9 @@
 /// </summary>
 public static class TextureStreaming
 {
-	static bool disabledStreaming;
-
 	/// <summary>
-	/// Run a block of code with texture streaming disabled
+	/// Run a block of code with texture streaming disabled. The drawing device loads every texture whole, so this just runs
+	/// it (Source 2's empty device streams nothing).
 	/// </summary>
-	public static void ExecuteWithDisabled( Action action )
-	{
-		var prev = disabledStreaming;
-		disabledStreaming = true;
-		g_pRenderDevice.SetForcePreloadStreamingData( true );
-		try
-		{
-			action();
-		}
-		finally
-		{
-			disabledStreaming = prev;
-			g_pRenderDevice.SetForcePreloadStreamingData( prev );
-		}
-	}
+	public static void ExecuteWithDisabled( Action action ) => action();
 }

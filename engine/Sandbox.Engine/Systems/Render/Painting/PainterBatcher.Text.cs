@@ -54,6 +54,8 @@ internal partial class PainterBatcher
 
 		SetBlendMode( blendMode );
 		var boxes = _boxTable.Append( text.Length );
+		_boxMeta.Add( (byte)((int)_blendMode | TextRunStart) );
+		for ( int i = 1; i < text.Length; i++ ) _boxMeta.Add( (byte)_blendMode );
 		var min = new Vector2( float.MaxValue );
 		var max = new Vector2( float.MinValue );
 		for ( int i = 0; i < text.Length; i++ )
