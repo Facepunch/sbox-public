@@ -280,7 +280,12 @@ public sealed unsafe partial class Device
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		using ( Zone( ZonePipeline ) )
 		{
-			if ( UsesLibraries( info ) )
+			if ( MakesWholeAtOnce( info, layout ) )
+			{
+				pipeline = MakeWholeAtOnce( info, layout );
+				optimised = true;
+			}
+			else if ( UsesLibraries( info ) )
 			{
 				parts = AcquireParts( info, layout );
 				optimised = LinksOptimisedAtOnce( info );
@@ -877,6 +882,32 @@ public sealed unsafe partial class Device
 
 	/// <summary>Every pipeline linked optimised at once, never fast linked (<c>BOREALIS_LINK_OPTIMISED=1</c>), to tell a driver's fast links from its optimised ones.</summary>
 	static readonly bool linksAllOptimised = Environment.GetEnvironmentVariable( "BOREALIS_LINK_OPTIMISED" ) == "1";
+
+	/// <summary>
+	/// Whether a pipeline linked optimised at once (<see cref="LinksDiscardsOptimised"/>) is made whole instead, as its parts
+	/// aren't all made: an optimised link compiles the whole pipeline again after its parts were compiled, so making it
+	/// whole takes one compile where making the parts and linking them took two (each 3-10 s for a map's pixel shaders on an
+	/// RX 5700 XT with empty caches). Its parts are made only for pipelines that fast link them. <c>BOREALIS_DISCARD_WHOLE=0</c>
+	/// links it from parts, to compare.
+	/// </summary>
+	bool MakesWholeAtOnce( in GraphicsPipelineInfo info, ulong layout ) => makesWholeAtOnce && UsesLibraries( info ) && !linksAllOptimised && LinksOptimisedAtOnce( info ) && !PartsReady( info, layout );
+
+	static readonly bool makesWholeAtOnce = Environment.GetEnvironmentVariable( "BOREALIS_DISCARD_WHOLE" ) != "0";
+
+	int wholeMade;
+	long wholeTicks;
+
+	/// <summary>Pipelines made whole instead of linked optimised at once from parts not made yet (<see cref="LinksDiscardsOptimised"/>), and the milliseconds making them.</summary>
+	public (int Made, double Ms) WholeAtOnceCreation => (Volatile.Read( ref wholeMade ), Volatile.Read( ref wholeTicks ) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+
+	ulong MakeWholeAtOnce( in GraphicsPipelineInfo info, ulong layout )
+	{
+		var started = System.Diagnostics.Stopwatch.GetTimestamp();
+		var pipeline = MakeGraphics( info, PipelineParts.All, library: false, layout, null, 0, 0 );
+		Interlocked.Add( ref wholeTicks, System.Diagnostics.Stopwatch.GetTimestamp() - started );
+		Interlocked.Increment( ref wholeMade );
+		return pipeline;
+	}
 
 	/// <summary>Whether SPIR-V has an instruction that discards: OpKill, OpTerminateInvocation or OpDemoteToHelperInvocation.</summary>
 	internal static bool Discards( ReadOnlySpan<byte> spirv )

@@ -106,8 +106,9 @@ public sealed unsafe partial class Device
 		var handle = new PipelineHandle( index, generation );
 		lock ( buildQueue )
 		{
-			// Its fragment part, the slowest, on another builder while this one makes the others; the link waits for it
-			if ( splitParts && UsesLibraries( info ) && info.FragmentShader.IsValid ) urgentQueue.Enqueue( (info, PipelineParts.FragmentShader, null) );
+			// Its fragment part, the slowest, on another builder while this one makes the others; the link waits for it. None
+			// for one made whole (MakesWholeAtOnce)
+			if ( splitParts && UsesLibraries( info ) && info.FragmentShader.IsValid && !MakesWholeAtOnce( info, layout ) ) urgentQueue.Enqueue( (info, PipelineParts.FragmentShader, null) );
 			buildQueue.Enqueue( (handle, info, layout, FrameNumber, System.Diagnostics.Stopwatch.GetTimestamp()) );
 			StartBuilders();
 			Monitor.Pulse( buildQueue );
@@ -455,6 +456,25 @@ public sealed unsafe partial class Device
 		return true;
 	}
 
+	bool holdBuilders;
+
+	/// <summary>Whether the builder threads take nothing from their queues, for tests that queue work and then watch the order it's taken in.</summary>
+	internal bool HoldBuilders
+	{
+		get => holdBuilders;
+		set
+		{
+			lock ( buildQueue )
+			{
+				holdBuilders = value;
+				Monitor.PulseAll( buildQueue );
+			}
+		}
+	}
+
+	/// <summary>Called as a builder takes work, under the queues' lock: true for a pipeline a draw skips, false for a part. For tests.</summary>
+	internal Action<bool> BuilderTook { get; set; }
+
 	// Builders making parts ahead (the manifest's, guesses), and how many are kept for what draws wait for
 	int buildingAhead;
 	const int ReservedBuilders = 2;
@@ -485,10 +505,16 @@ public sealed unsafe partial class Device
 			lock ( buildQueue )
 			{
 				// Parts made ahead never take the last builders: a draw's pipeline asked for meanwhile starts at once
-				while ( urgentQueue.Count == 0 && buildQueue.Count == 0 && (prepareQueue.Count == 0 && speculativeQueue.Count == 0 || buildingAhead >= Math.Max( builders.Length - ReservedBuilders, 1 )) && !stopBuilding ) Monitor.Wait( buildQueue );
+				while ( (holdBuilders || urgentQueue.Count == 0 && buildQueue.Count == 0 && (prepareQueue.Count == 0 && speculativeQueue.Count == 0 || buildingAhead >= Math.Max( builders.Length - ReservedBuilders, 1 ))) && !stopBuilding ) Monitor.Wait( buildQueue );
 				if ( stopBuilding ) return;
-				var urgent = urgentQueue.TryDequeue( out prepare );
-				isJob = !urgent && buildQueue.TryDequeue( out job );
+
+				// Pipelines draws skip first, in the order asked for, each made by one builder; a fragment part split off for one
+				// (Defer) only by a builder with no pipeline to start, so it shortens one being made. Taken first, a backlog's
+				// split parts (each a compile of seconds with empty caches) all went before any pipeline: none of a hundred was
+				// made in the 10 s after a cold Construct load
+				isJob = buildQueue.TryDequeue( out job );
+				var urgent = !isJob && urgentQueue.TryDequeue( out prepare );
+				BuilderTook?.Invoke( isJob );
 				ahead = !urgent && !isJob;
 				if ( ahead && !prepareQueue.TryDequeue( out prepare, out _ ) )
 				{
@@ -549,7 +575,12 @@ public sealed unsafe partial class Device
 		var started = System.Diagnostics.Stopwatch.GetTimestamp();
 		using ( Zone( ZonePipeline ) )
 		{
-			if ( UsesLibraries( info ) )
+			if ( MakesWholeAtOnce( info, layout ) )
+			{
+				pipeline = MakeWholeAtOnce( info, layout );
+				optimised = true;
+			}
+			else if ( UsesLibraries( info ) )
 			{
 				parts = AcquireParts( info, layout );
 				optimised = LinksOptimisedAtOnce( info );

@@ -290,6 +290,21 @@ public sealed class SurfaceShaders : IDisposable
 	public bool SpecializeInBackground { get; set; } = true;
 
 	/// <summary>
+	/// Specialised pipelines made on workers at once, at most (<see cref="SpecializeInBackground"/>): a quarter of the logical
+	/// processors, one at least. Each starts once no pipeline a draw skips is pending (<see cref="Device.DeferredPipelines"/>),
+	/// since the unspecialised one draws meanwhile and the skipped draws draw nothing. With empty caches a map's first frames
+	/// asked for dozens at once, each a compile of seconds on a thread-pool thread of its own, and the pipelines its draws
+	/// skipped for got so little of the processors that over a hundred were still pending 10 s after the loading screen went
+	/// (Construct on an RX 5700 XT).
+	/// </summary>
+	internal System.Threading.SemaphoreSlim SpecializeSlots { get; } = new( Math.Max( Environment.ProcessorCount / 4, 1 ) );
+
+	/// <summary>Whether specialised pipelines wait to start (<see cref="SpecializeSlots"/>); null: while a pipeline a draw skips is pending. For tests.</summary>
+	internal Func<bool> SpecializeHeld { get; set; }
+
+	internal bool HoldsSpecializing => SpecializeHeld?.Invoke() ?? device.Gpu.DeferredPipelines.Pending > 0;
+
+	/// <summary>
 	/// The single switch between the surface tier and the <c>.shader</c> route for the core shaders that have a surface:
 	/// on (the default), their materials load as surfaces; off, as their <c>.shader</c>, for comparisons. Read by each
 	/// device as it's made (<see cref="ConvertShaders"/>).
@@ -1264,20 +1279,7 @@ internal sealed class SurfaceProgram : IDisposable
 				if ( !disposed && building.Add( key ) )
 				{
 					builds.RemoveAll( b => b.IsCompleted );
-					builds.Add( System.Threading.Tasks.Task.Run( () =>
-					{
-						if ( BackendDevice.DumpSurfaceShaders is { } dump ) Dump( dump, pass, info.FragmentConstants, specialized );
-
-						// Made here, on a worker: the unspecialised one draws until then
-						var whole = info with { SkipUntilReady = false };
-						var made = device.Gpu.CreateGraphicsPipeline( whole );
-						lock ( pipelines )
-						{
-							building.Remove( key );
-							if ( disposed ) device.Gpu.Destroy( made );
-							else pipelines[key] = made;
-						}
-					} ) );
+					builds.Add( Specialize( key, pass, info, specialized ) );
 				}
 
 				return unspecialized;
@@ -1289,6 +1291,34 @@ internal sealed class SurfaceProgram : IDisposable
 			// A miss, never a frame's every draw: kept for the next run to make ahead
 			device.Surfaces.Manifest?.Record( SourceFile, new SurfaceManifestRequest( pass, layout, color, depth, samples, vertexConstants, pixelConstants, constantsKey, state, ids, opaqueFade, depthEqual, normals ) );
 			return pipeline;
+		}
+	}
+
+	// A specialised pipeline, made on a worker while the unspecialised one draws: in one of the device's slots for them, once
+	// no pipeline a draw skips is pending (SurfaceShaders.SpecializeSlots)
+	async Task Specialize( PipelineKey key, PassObjects pass, GraphicsPipelineInfo info, SurfaceFeatures specialized )
+	{
+		var slots = device.Surfaces.SpecializeSlots;
+		await slots.WaitAsync().ConfigureAwait( false );
+		PipelineHandle made;
+		try
+		{
+			while ( device.Surfaces.HoldsSpecializing && !System.Threading.Volatile.Read( ref disposed ) ) await Task.Delay( 20 ).ConfigureAwait( false );
+			if ( System.Threading.Volatile.Read( ref disposed ) ) return;
+			if ( BackendDevice.DumpSurfaceShaders is { } dump ) Dump( dump, pass, info.FragmentConstants, specialized );
+			made = device.Gpu.CreateGraphicsPipeline( info with { SkipUntilReady = false } );
+		}
+		finally
+		{
+			slots.Release();
+		}
+
+		// One that failed stays building: the unspecialised one draws on
+		lock ( pipelines )
+		{
+			building.Remove( key );
+			if ( disposed ) device.Gpu.Destroy( made );
+			else pipelines[key] = made;
 		}
 	}
 

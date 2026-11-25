@@ -228,6 +228,47 @@ public class PipelineLibraryTests : GpuTest
 	}
 
 	/// <summary>
+	/// The builders start pipelines draws skip before the fragment parts split off for them: with a backlog each builder
+	/// makes a pipeline, rather than all of them making split parts before any pipeline is linked.
+	/// </summary>
+	[TestMethod]
+	public void BuildersStartSkippedDrawsPipelinesBeforeTheirSplitParts()
+	{
+		RequireLibraries();
+		var taken = new List<bool>();
+		Device.SkipDrawsUntilReady = true;
+		Device.HoldBuilders = true;
+		Device.BuilderTook = taken.Add;
+		try
+		{
+			var vs = Shader( "triangle.vs.spv" );
+			var ps = Shader( "triangle.ps.spv" );
+			var pipelines = new List<PipelineHandle>();
+			foreach ( var format in new[] { Format.RGBA8Unorm, Format.BGRA8Unorm, Format.RGBA16Float } )
+			{
+				var info = Triangle( vs, ps );
+				info.DepthFormat = Format.Unknown;
+				info.ColorFormats = [format];
+				info.SkipUntilReady = true;
+				pipelines.Add( Device.CreateGraphicsPipeline( info ) );
+			}
+
+			Assert.IsFalse( pipelines.Any( Device.IsReady ), "nothing made while held" );
+			Device.HoldBuilders = false;
+			Assert.IsTrue( Device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+			Assert.IsTrue( pipelines.All( Device.IsReady ), "all made" );
+			var order = string.Join( ", ", taken.Select( t => t ? "pipeline" : "part" ) );
+			Assert.AreEqual( 6, taken.Count, $"three pipelines and their split parts: {order}" );
+			Assert.IsTrue( taken.Take( 3 ).All( t => t ), $"the pipelines first: {order}" );
+		}
+		finally
+		{
+			Device.HoldBuilders = false;
+			Device.BuilderTook = null;
+		}
+	}
+
+	/// <summary>
 	/// Parts made on the builder threads, ahead or for a pipeline being linked, aren't pipelines a draw is waiting for: the
 	/// deferred pipelines' pending count leaves them out however far they've got (a test of a draw's deferred pipeline read
 	/// two while its fragment part was still being made).
@@ -410,6 +451,41 @@ public class PipelineLibraryTests : GpuTest
 		Assert.AreEqual( 0, optimisedDiscarded, "the optimised link drew no discarded pixel" );
 		Assert.AreEqual( optimisedKept, firstKept, "the first link drew the same pixels" );
 		Assert.AreEqual( 0, firstDiscarded, "the first link drew no discarded pixel" );
+	}
+
+	/// <summary>
+	/// A pipeline linked optimised at once (<c>Device.LinksDiscardsOptimised</c>) whose parts aren't made is made whole, with
+	/// no parts: the optimised link compiled it again after its parts. One whose parts are made is linked from them. Both
+	/// draw what a fast link of a pixel shader that doesn't discard would.
+	/// </summary>
+	[TestMethod]
+	public void PipelinesLinkedOptimisedAtOnceWithoutPartsAreMadeWhole()
+	{
+		RequireLibraries();
+		var links = Device.LinksDiscardsOptimised;
+		Device.LinksDiscardsOptimised = true;
+		try
+		{
+			// Whether a shader discards is read as its module is made
+			var info = NoDepth( Triangle( Shader( "triangle.vs.spv" ), Shader( "discard.ps.spv" ) ) );
+			var parts = Device.PartCount;
+			var whole = Device.WholeAtOnceCreation.Made;
+			var first = Device.CreateGraphicsPipeline( info );
+			Assert.AreEqual( parts, Device.PartCount, "no part made" );
+			Assert.AreEqual( whole + 1, Device.WholeAtOnceCreation.Made, "made whole" );
+			Assert.IsTrue( Device.IsOptimised( first ), "as optimised as an optimised link" );
+			var drawn = DrawTriangle( Device, first, false );
+
+			Device.PreparePipelineParts( info );
+			var linked = Device.CreateGraphicsPipeline( info );
+			Assert.AreEqual( whole + 1, Device.WholeAtOnceCreation.Made, "linked from the parts made" );
+			Assert.IsTrue( Device.IsOptimised( linked ), "linked optimised" );
+			AssertSame( DrawTriangle( Device, linked, false ), drawn, "the link and the whole pipeline" );
+		}
+		finally
+		{
+			Device.LinksDiscardsOptimised = links;
+		}
 	}
 
 	static GraphicsPipelineInfo NoDepth( GraphicsPipelineInfo info )
