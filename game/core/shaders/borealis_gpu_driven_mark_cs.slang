@@ -42,29 +42,28 @@ cbuffer BorealisGpuDrivenMark_t
 	uint g_nMarkPad3;
 };
 
-// Sets the lanes' bits. Neighbouring pixels mostly name the same triangle, and an atomic each serialises them on its
-// mask word, so the wave's lowest words go first with one atomic each; lanes with a word beyond those take their own.
+// Sets the bits of each lane's words (a lane's ids merged by mask word, at most 8). Neighbouring pixels mostly name the
+// same triangles, and an atomic each serialises them on its mask word, so the wave's lowest words go first with one atomic
+// each, a lane's next word in the round after its last went; words left after those rounds take an atomic of their own.
 // Called by the whole wave: the wave operations stay in uniform control flow.
-void MarkBits( bool bMark, uint nBit )
+void MarkWords( uint nWords, uint words[8], uint bits[8] )
 {
-	uint nWord = bMark ? nBit >> 5 : 0xffffffffu;
-	uint nMine = 1u << ( nBit & 31 );
-	[unroll] for ( uint nRound = 0; nRound < 4; nRound++ )
+	uint k = 0;
+	[loop] for ( uint nRound = 0; nRound < 6; nRound++ )
 	{
+		uint nWord = k < nWords ? words[k] : 0xffffffffu;
 		uint nLowest = WaveActiveMin( nWord );
 		if ( nLowest == 0xffffffffu )
 			break;   // uniform: the wave has nothing left
-
 		bool bLowest = nWord == nLowest;
-		uint nBits = WaveActiveBitOr( bLowest ? nMine : 0u );
+		uint nBits = WaveActiveBitOr( bLowest ? bits[k] : 0u );
 		if ( WaveIsFirstLane() )
 			g_Mask.InterlockedOr( nLowest * 4, nBits );
 		if ( bLowest )
-			nWord = 0xffffffffu;
+			k++;
 	}
-
-	if ( nWord != 0xffffffffu )
-		g_Mask.InterlockedOr( nWord * 4, nMine );
+	for ( ; k < nWords; k++ )
+		g_Mask.InterlockedOr( words[k] * 4, bits[k] );
 }
 
 // Every distinct id of a pixel's samples sets its bit: the first vertex's bit + 1, 0 for nothing
@@ -73,8 +72,8 @@ void MarkBits( bool bMark, uint nBit )
 {
 	bool bInside = vThreadId.x < g_nMarkWidth && vThreadId.y < g_nMarkHeight;
 	int2 vPixel = int2( min( vThreadId.xy, uint2( g_nMarkWidth, g_nMarkHeight ) - 1 ) );
-
-	uint ids[8];
+	uint words[8], bits[8];
+	uint nWords = 0;
 	uint nSamples = min( g_nMarkSamples, 8u );
 	for ( uint s = 0; s < nSamples; s++ )
 	{
@@ -90,15 +89,30 @@ void MarkBits( bool bMark, uint nBit )
 		bool bRecord = vId.y != 0 && vId.y != 0xffffffffu;
 		if ( g_nMarkCallInstances != 0 && bRecord && ( ( vId.y >> 22 ) != g_nMarkCallSlot || ( vId.y & 0x3fffff ) - g_nMarkCallFirst >= g_nMarkCallInstances ) )
 			v = 0;
-
-		ids[s] = v;
-		bool bSeen = v == 0;
-		for ( uint j = 0; j < s; j++ )
-			bSeen = bSeen || ids[j] == v;
-
 		uint nBit = v - 1;
-		MarkBits( bInside && !bSeen && nBit < g_nMarkBits, nBit );
+		if ( !bInside || v == 0 || nBit >= g_nMarkBits )
+			continue;
+
+		// Into the lane's word for it: a sample's id is mostly its pixel's first sample's
+		uint nWord = nBit >> 5;
+		uint nMine = 1u << ( nBit & 31 );
+		bool bMerged = false;
+		for ( uint j = 0; j < nWords; j++ )
+		{
+			if ( words[j] == nWord )
+			{
+				bits[j] |= nMine;
+				bMerged = true;
+			}
+		}
+		if ( !bMerged )
+		{
+			words[nWords] = nWord;
+			bits[nWords] = nMine;
+			nWords++;
+		}
 	}
+	MarkWords( nWords, words, bits );
 }
 
 #endif // CS

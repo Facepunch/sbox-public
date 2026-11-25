@@ -1214,7 +1214,33 @@ internal sealed partial class BackendContext
 			if ( dispatch ) r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 			var compactScope = timer?.Begin( r.List, "GPU-driven compact", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 			r.List.Marker( "GPU-driven compact" );
+
+			// The view's list of large fragments: none listed, then a group a fragment (the cull's arguments), each large one
+			// listed instead; then a group a part of each listed, to count, decide and copy
+			var largeList = visibility is not null ? device.CompactLargeFor( visibility ) : default;
+			var large = largeList.IsValid;
+			cullAttributes.Set( "BorealisCompactLarge", large ? largeList : compacted );
+			if ( large )
+			{
+				r.List.Barrier( PipelineStage.ComputeShader | PipelineStage.DrawIndirect, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite | MemoryAccess.IndirectRead, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+				r.List.UpdateBuffer<uint>( largeList, [0u, 1u, 1u, (uint)visibility.CompactParts, 0u, 1u, 1u, 0u, (uint)visibility.CompactLargeFragments, 0u, 0u, 0u] );
+				r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+			}
+
+			cullAttributes.SetComboById( CompactParts, large ? 1 : 0 );
 			cullDrawer.DispatchIndirect( r.List, shaders.Compact, cullAttributes, frameBuffer, frameOffset + listedOffset );
+			if ( large )
+			{
+				for ( int mode = 2; mode <= 4; mode++ )
+				{
+					r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader | PipelineStage.DrawIndirect, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite | MemoryAccess.IndirectRead );
+					cullAttributes.SetComboById( CompactParts, mode );
+					cullDrawer.DispatchIndirect( r.List, shaders.Compact, cullAttributes, largeList, mode == 3 ? 16 : 0 );
+				}
+
+				cullAttributes.SetComboById( CompactParts, 0 );
+			}
+
 			r.List.Marker( "end GPU-driven compact" );
 			timer?.End( r.List, compactScope );
 		}
@@ -2064,6 +2090,15 @@ internal sealed partial class BackendContext
 		/// <summary>The faces the pipeline culls, which the mesh shader culls first: 0 none, 1 front, 2 back.</summary>
 		public uint CullMode;
 	}
+
+	/// <summary>
+	/// Bytes of a compaction's list of large fragments (<c>borealis_gpu_driven_compact_cs</c>'s, <see cref="BackendDevice.CompactLargeFor"/>):
+	/// 48 of dispatch arguments and capacities, a word a part and 68 words a fragment. A fragment of more triangles than a
+	/// group scans at once is counted and copied by up to <see cref="CompactMaxParts"/> groups.
+	/// </summary>
+	internal static long CompactLargeBytes( int parts, int fragments ) => 48 + parts * 4L + fragments * (4 + CompactMaxParts) * 4L;
+	internal const uint CompactMaxParts = 64;
+	static readonly int CompactParts = AttributeIds.Of( "D_PARTS" );
 
 	/// <summary>A batch record's sixth word's bit for a bucket drawn with task and mesh shaders: the rest is its task run.</summary>
 	const uint TaskRunBit = 0x80000000u;

@@ -2711,13 +2711,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		/// <summary>Every buffer it made.</summary>
 		public int Buffers( Span<BufferHandle> into )
 		{
-			ReadOnlySpan<BufferHandle> all = [Mask, Stamps, Compacted, PrepassCompacted, PrepassCompacted16, MeshletStamps, MeshletJobs, HiZVisible[0], HiZVisible[1], HiZ, IdsCalls];
+			ReadOnlySpan<BufferHandle> all = [Mask, Stamps, Compacted, PrepassCompacted, PrepassCompacted16, MeshletStamps, MeshletJobs, HiZVisible[0], HiZVisible[1], HiZ, IdsCalls, CompactLarge];
 			all.CopyTo( into );
 			return all.Length;
 		}
 
 		/// <summary>How many <see cref="Buffers"/> gives.</summary>
-		public const int BufferCount = 11;
+		public const int BufferCount = 12;
 
 		/// <summary>
 		/// The ids target and the id prepass's scratch target, at <see cref="Width"/> by <see cref="Height"/>: made when a
@@ -2752,6 +2752,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		/// and drawn within a frame, after barriers on the frames before, so one is enough. Its cursor is its first word.
 		/// </summary>
 		public BufferHandle PrepassCompacted;
+
+		/// <summary>
+		/// Forward's compaction's list of large fragments (<see cref="CompactLargeFor"/>), made the first time the view's forward
+		/// pass compacts, sized to its compacted indices: parts and fragments it has room for.
+		/// </summary>
+		public BufferHandle CompactLarge;
+		public int CompactParts, CompactLargeFragments;
 
 		/// <summary>The same for ranges with 16-bit indices, two to a word.</summary>
 		public BufferHandle PrepassCompacted16;
@@ -2975,6 +2982,32 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
+	/// A view's compaction list of large fragments (<see cref="VisibilityView.CompactLarge"/>, <c>borealis_gpu_driven_compact_cs</c>),
+	/// made the first time its forward pass compacts: a part per 512 of its compacted indices (64 to 8192, so a 64x32 view's is
+	/// 9 KiB and a 1920x1080 4x view's 590 KiB) and a fragment per four parts. Its arguments are written by each compaction.
+	/// </summary>
+	internal BufferHandle CompactLargeFor( VisibilityView state )
+	{
+		if ( state.CompactLarge.IsValid ) return state.CompactLarge;
+		var parts = Math.Clamp( state.CompactedCapacity / 512, 64, 8192 );
+		var fragments = parts / 4;
+		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = BackendContext.CompactLargeBytes( parts, fragments ), Usage = BufferUsage.Storage | BufferUsage.Indirect | BufferUsage.CopyDestination, Name = "Borealis compaction's large fragments" } );
+		lock ( visibilityViews )
+		{
+			if ( state.CompactLarge.IsValid )
+			{
+				Gpu.Destroy( buffer );
+				return state.CompactLarge;
+			}
+
+			visibilityBuffers.Add( buffer );
+			(state.CompactParts, state.CompactLargeFragments) = (parts, fragments);
+			state.CompactLarge = buffer;
+			return buffer;
+		}
+	}
+
+	/// <summary>
 	/// A view's prepass compacted buffer (<see cref="VisibilityView.PrepassCompacted"/>), with its meshlet stamps, made the
 	/// first time.
 	/// </summary>
@@ -3140,7 +3173,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		state.HiZWidth = state.HiZHeight = state.HiZLevels = 0;
 		state.HiZWrote = state.HiZReadValid = false;
 		(state.HiZBuiltFrame, state.HiZBuiltBy) = (0, null);
-		state.Compacted = default;
+		state.Compacted = state.CompactLarge = default;
+		(state.CompactParts, state.CompactLargeFragments) = (0, 0);
 		state.Ids = state.Scratch = state.PendingIds = state.PendingScratch = default;
 		state.IdsWanted = false;
 		state.IdsCalls = default;
@@ -3299,6 +3333,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	BufferHandle VisibilityIdsCalls() => Gpu.CreateBuffer( new BufferInfo { Size = VisibilityView.MaxIdsCalls * VisibilityView.IdsCallBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility ids calls" } );
 
+	// With the compaction's list of large fragments past the indices (BackendContext.CompactLargeBytes), its parts' dispatch arguments first
 	BufferHandle VisibilityCompacted( int indices ) => Gpu.CreateBuffer( new BufferInfo { Size = indices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Borealis visibility triangles" } );
 
 	// Views whose ids targets are being made on a worker
