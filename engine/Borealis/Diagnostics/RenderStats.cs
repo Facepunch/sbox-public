@@ -1,0 +1,162 @@
+namespace Borealis;
+
+/// <summary>
+/// Counts and timings from the last render.
+/// </summary>
+public struct RenderStats
+{
+	/// <summary>
+	/// Objects in the world.
+	/// </summary>
+	public int Objects;
+	/// <summary>
+	/// Objects submitted after CPU culling - in the main view's frustum and big enough on screen. Lights and probes count.
+	/// </summary>
+	public int ObjectsVisible;
+
+	/// <summary>
+	/// In the frustum, but too small on screen to draw.
+	/// </summary>
+	public int ObjectsSizeCulled;
+
+	/// <summary>
+	/// Hidden behind other objects and skipped on the GPU. Read back a frame or two late.
+	/// </summary>
+	public int ObjectsOcclusionCulled;
+
+	/// <summary>
+	/// Left out by the main view's render or exclude tags.
+	/// </summary>
+	public int ObjectsTagCulled;
+
+	/// <summary>
+	/// Hidden by the world's culling boxes (<see cref="RenderWorld.CullingBoxes"/>).
+	/// </summary>
+	public int ObjectsBoxCulled;
+
+	/// <summary>
+	/// Outside the main view. Counted only while <see cref="DebugViews.CullReasons"/> is on, as the spatial tree otherwise
+	/// skips small objects without telling them apart from off-screen ones.
+	/// </summary>
+	public int ObjectsFrustumCulled;
+
+	/// <summary>
+	/// Forward draws, including instanced runs.
+	/// </summary>
+	public int Draws;
+
+	/// <summary>
+	/// Draws in the depth prepass, counted apart from the forward ones.
+	/// </summary>
+	public int DepthDraws;
+
+	/// <summary>
+	/// Draws in the translucent pass. They're counted in <see cref="Draws"/> too.
+	/// </summary>
+	public int TranslucentDraws;
+
+	/// <summary>
+	/// Custom-object draws.
+	/// </summary>
+	public int CustomDraws;
+
+	/// <summary>
+	/// Objects drawn, counting every instance of an instanced draw.
+	/// </summary>
+	public int Instances;
+
+	/// <summary>
+	/// Triangles the forward pass drew, after LODs.
+	/// </summary>
+	public long Triangles;
+
+	/// <summary>
+	/// Triangles every pass drew - depth and shadow too, not only the forward pass's <see cref="Triangles"/>.
+	/// </summary>
+	public long DrawnTriangles;
+
+	/// <summary>
+	/// Lights binned for the view.
+	/// </summary>
+	public int Lights;
+
+	/// <summary>
+	/// Rendered shadow views and their draw counts.
+	/// </summary>
+	public int ShadowViews, ShadowDraws;
+
+	/// <summary>
+	/// Managed memory each phase allocated on the render thread. Steady state should be zero.
+	/// </summary>
+	public long CollectAllocBytes, PrepareAllocBytes, DrawAllocBytes;
+
+	/// <summary>
+	/// Main thread time in each phase: culling, preparing (shadows included), and recording and submitting.
+	/// </summary>
+	public double CollectMs, PrepareMs, DrawMs;
+
+	/// <summary>
+	/// Draw-phase timings. Recording includes worker waits and camera stages.
+	/// </summary>
+	public double SetupMs, RecordMs, RecordWaitMs, StagesMs, SubmitMs;
+
+	/// <summary>
+	/// Main-thread scene-mirror sync time; zero outside the GameObject bridge.
+	/// </summary>
+	public double SyncMs;
+
+	/// <summary>
+	/// Sum of worker-segment recording times.
+	/// </summary>
+	public double WorkerRecordMs;
+
+	/// <summary>
+	/// Time recording the depth prepass layers, summed over the threads that recorded them.
+	/// </summary>
+	public double PrepassRecordMs;
+
+	/// <summary>
+	/// Accumulate segment or skybox draw counts.
+	/// </summary>
+	internal static void AddCounts( ref RenderStats into, in RenderStats from )
+	{
+		into.PrepassRecordMs += from.PrepassRecordMs;
+		into.Draws += from.Draws;
+		into.DepthDraws += from.DepthDraws;
+		into.TranslucentDraws += from.TranslucentDraws;
+		into.CustomDraws += from.CustomDraws;
+		into.Instances += from.Instances;
+		into.Triangles += from.Triangles;
+		into.DrawnTriangles += from.DrawnTriangles;
+		into.ShadowViews += from.ShadowViews;
+		into.ShadowDraws += from.ShadowDraws;
+		into.Lights = Math.Max( into.Lights, from.Lights );
+	}
+
+	/// <summary>
+	/// Everything on one line, for logs.
+	/// </summary>
+	public override readonly string ToString()
+		=> $"{ObjectsVisible}/{Objects} visible ({ObjectsSizeCulled} too small), {Draws} draws ({TranslucentDraws} translucent, {Instances} instances, {CustomDraws} custom, {Triangles / 1000000.0:0.0}M tris) + {DepthDraws} depth, {Lights} lights, {ShadowViews} shadow views ({ShadowDraws} draws), collect {CollectMs:0.000}ms, prepare {PrepareMs:0.000}ms, draw {DrawMs:0.000}ms, alloc {CollectAllocBytes}/{PrepareAllocBytes}/{DrawAllocBytes} B";
+}
+
+/// <summary>
+/// What a render system's GPU culls let through in a frame, read back a few frames late (<see cref="GpuDevice.CullCounts"/>):
+/// batches with a surviving fragment by pass kind, the forward pass's surviving fragments and triangles, and every pass's triangles.
+/// </summary>
+internal struct CulledCounts
+{
+	public int Draws, DepthDraws, ShadowDraws, Instances;
+	public long Triangles, DrawnTriangles;
+
+	/// <summary>Add them to the stats of the batches the GPU counted.</summary>
+	public readonly void AddTo( ref RenderStats stats )
+	{
+		stats.Draws += Draws;
+		stats.DepthDraws += DepthDraws;
+		stats.ShadowDraws += ShadowDraws;
+		stats.Instances += Instances;
+		stats.Triangles += Triangles;
+		stats.DrawnTriangles += DrawnTriangles;
+	}
+}
