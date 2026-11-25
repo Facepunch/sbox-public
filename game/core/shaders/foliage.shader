@@ -178,6 +178,7 @@ PS
 	StaticCombo( S_ALPHA_TEST, F_ALPHA_TEST, Sys( ALL ) );
 	StaticCombo( S_TRANSMISSIVE, F_TRANSMISSIVE, Sys( ALL ) );
 	StaticCombo( S_GRAZING_FADE, F_GRAZING_FADE, Sys( ALL ) );
+	StaticCombo( S_RENDER_BACKFACES, F_RENDER_BACKFACES, Sys( ALL ) ); // i.face, so Material::Init flips the back face's normal
 
 	RenderState( CullMode, F_RENDER_BACKFACES ? NONE : DEFAULT );
 
@@ -368,7 +369,7 @@ PS
 				[branch]
 				if ( LightModulators::Active() )
 					sunColor *= LightModulators::EvaluateSun( m.WorldPosition, sunDir );
-				float sunVis = DirectionalLightShadow::GetVisibilityWithOffset( m.WorldPositionWithOffset, m.ScreenPosition );
+				float sunVis = DirectionalLightShadow::GetVisibilityWithOffset( m.WorldPositionWithOffset, NormalizeSafe( m.GeometricNormal ), m.ScreenPosition );
 				ApplyFoliageLighting( m, sunDir, sunColor, 1.0, sunVis, viewDir, transmissiveColor, true );
 			}
 		#endif

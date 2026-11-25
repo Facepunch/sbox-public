@@ -192,6 +192,7 @@ struct FinalCombinerInput_t
 
 	float3		vPositionWs;
 	float3		vPositionWithOffsetWs;
+	float3		vGeometricNormalWs;	// Interpolated vertex normal, offsets the shadow lookup
 
 	float3		vNormalTs;		// Only necessary for baked lighting
 	float3		vTangentUWs;	// Only necessary for baked lighting and/or anisotropic lighting

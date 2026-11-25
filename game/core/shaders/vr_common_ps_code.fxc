@@ -137,6 +137,7 @@ FinalCombinerInput_t PS_InitFinalCombiner()
 	o.vPositionSs					= float4( 0.0, 0.0, 0.0, 0.0 );
 	o.vPositionWs					= float3( 0.0, 0.0, 0.0 );
 	o.vPositionWithOffsetWs			= float3( 0.0, 0.0, 0.0 );
+	o.vGeometricNormalWs			= float3( 0.0, 0.0, 0.0 );
 	o.bUseBentNormalsForIndirect	= false;
 	o.vBentNormalWs					= float3( 1.0, 1.0, 1.0 );
 	o.vBentDiffuseNormalWs			= float3( 1.0, 1.0, 1.0 );
@@ -178,6 +179,7 @@ FinalCombinerInput_t PS_CommonProcessing( const PS_INPUT i )
 	#endif
 
 	o.vNormalWs = normalize( vNormalWs );
+	o.vGeometricNormalWs = o.vNormalWs;
 
 	#if ( S_USE_PER_VERTEX_CURVATURE )
 	{

@@ -503,10 +503,7 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	o.vSpecular 	= float3( 0.0, 0.0, 0.0 );
 	o.vTransmissive = vTransmissiveStart;
 
-	// Receiver normal for the shadow normal offset. It comes from screen-space derivatives, which are only
-	// defined in uniform control flow: take it once here, never inside the per-light loop below, where the
-	// lanes of a quad diverge whenever neighbouring pixels sit in different clusters.
-	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWithOffsetWs.xyz );
+	const float3 vReceiverNormalWs = f.vGeometricNormalWs;
 
 	// Directional light fast path — skip for baked surfaces since they get the
 	// directional light through the indexed baked light loop with per-texel strength
@@ -585,8 +582,7 @@ void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f
 		SampleLightProbeVolumeIndexedDirectLighting( vLightIndices, vLightStrengths, f.vPositionWs.xyz );
 	}
 
-	// Derivatives must be evaluated before the per-light branch diverges.
-	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
+	const float3 vReceiverNormalWs = f.vGeometricNormalWs;
 
 	// Slots this lane still has to add, a bit each
 	uint nPending = 0;

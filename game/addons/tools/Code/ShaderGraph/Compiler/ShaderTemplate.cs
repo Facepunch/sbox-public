@@ -76,6 +76,7 @@ PS
 
 	public static string Material_init => @"
 Material m = Material::Init( i );
+m.GeometricNormal *= i.vFrontFacing ? 1.0f : -1.0f;
 m.Albedo = float3( 1, 1, 1 );
 m.Normal = float3( 0, 0, 1 );
 m.Roughness = 1;
