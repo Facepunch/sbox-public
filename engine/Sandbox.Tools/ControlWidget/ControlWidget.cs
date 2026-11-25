@@ -262,7 +262,8 @@ public abstract class ControlWidget : Widget
 	[EditorEvent.Frame]
 	public virtual void Think()
 	{
-		if ( !Visible )
+		// The debounce first: asking Qt whether it's visible is a native call, and an inspector has dozens of these
+		if ( !ContentHashDue( 0.1f ) || !Visible )
 			return;
 
 		if ( SetContentHash( valueHash ??= () => ValueHash, 0.1f ) )

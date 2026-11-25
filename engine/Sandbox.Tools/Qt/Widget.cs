@@ -1175,6 +1175,11 @@ namespace Editor
 		RealTimeSince timeSinceUpdate = 10;
 
 		/// <summary>
+		/// Whether <see cref="SetContentHash(Func{int}, float)"/> would look at the hash now, without asking Qt anything.
+		/// </summary>
+		internal bool ContentHashDue( float secondsDebounce ) => timeSinceUpdate >= secondsDebounce;
+
+		/// <summary>
 		/// Call every frame/tick to redraw this Widget on content change
 		/// </summary>
 		public bool SetContentHash( int hash, float secondsDebounce = 0.1f )
