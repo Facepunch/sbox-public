@@ -121,14 +121,15 @@ public partial class RootPanel : Panel
 	{
 		base.AddToLists();
 
-		Sandbox.Internal.IPanel.InspectablePanels.Add( this );
+		// Root panels are made on more than one thread (tests run in parallel), so the shared set is changed under a lock
+		lock ( Sandbox.Internal.IPanel.InspectablePanels ) Sandbox.Internal.IPanel.InspectablePanels.Add( this );
 	}
 
 	internal override void RemoveFromLists()
 	{
 		base.RemoveFromLists();
 
-		Sandbox.Internal.IPanel.InspectablePanels.Remove( this );
+		lock ( Sandbox.Internal.IPanel.InspectablePanels ) Sandbox.Internal.IPanel.InspectablePanels.Remove( this );
 	}
 
 	/// <summary>
