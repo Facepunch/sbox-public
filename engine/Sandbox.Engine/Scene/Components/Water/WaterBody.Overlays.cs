@@ -6,6 +6,7 @@ public sealed partial class WaterBody
 	readonly List<WaterOverlay> _overlays = [];
 	WaterOverlay.Data[] _overlayData = [];
 	GpuBuffer<WaterOverlay.Data> _overlayBuffer;
+	int _overlaysUploaded;
 
 	/// <summary>
 	/// Find the nearest active water surface whose footprint contains a world position.
@@ -37,10 +38,11 @@ public sealed partial class WaterBody
 	}
 
 	/// <summary>
-	/// Bind only this body's overlays. Reuse staging storage and sort without per-frame allocations.
+	/// Bind only this body's overlays. Reuse staging storage and sort without per-frame allocations; upload them only
+	/// when they change.
 	/// The shader rejects pixels outside each footprint before sampling its texture.
 	/// </summary>
-	void SetOverlayAttributes( RenderAttributes attributes )
+	void SetOverlayAttributes( SurfaceAttributes attributes )
 	{
 		_overlays.Clear();
 		Scene.GetAll( _overlays );
@@ -67,18 +69,31 @@ public sealed partial class WaterBody
 			int capacity = (int)MathF.Pow( 2, MathF.Ceiling( MathF.Log2( count ) ) );
 			_overlayData = new WaterOverlay.Data[capacity];
 			_overlayBuffer = new GpuBuffer<WaterOverlay.Data>( capacity );
+			_overlaysUploaded = 0;
 		}
 
+		bool changed = count != _overlaysUploaded;
 		for ( int i = 0; i < count; i++ )
 		{
 			// Bindless indices do not automatically notify texture streaming.
 			_overlays[i].Texture.MarkUsed();
-			_overlayData[i] = _overlays[i].GetData( this );
+			var data = _overlays[i].GetData( this );
+			if ( !changed && !SameOverlay( data, _overlayData[i] ) )
+				changed = true;
+			_overlayData[i] = data;
 		}
 
-		_overlayBuffer.SetData( _overlayData.AsSpan( 0, count ) );
+		if ( changed )
+		{
+			_overlayBuffer.SetData( _overlayData.AsSpan( 0, count ) );
+			_overlaysUploaded = count;
+		}
 		attributes.Set( "WaterOverlays", _overlayBuffer );
 	}
+
+	static bool SameOverlay( in WaterOverlay.Data a, in WaterOverlay.Data b )
+		=> System.Runtime.InteropServices.MemoryMarshal.AsBytes( new ReadOnlySpan<WaterOverlay.Data>( in a ) )
+			.SequenceEqual( System.Runtime.InteropServices.MemoryMarshal.AsBytes( new ReadOnlySpan<WaterOverlay.Data>( in b ) ) );
 
 	static int CompareOverlays( WaterOverlay a, WaterOverlay b )
 	{
@@ -94,6 +109,7 @@ public sealed partial class WaterBody
 		_overlayBuffer?.Dispose();
 		_overlayBuffer = null;
 		_overlayData = [];
+		_overlaysUploaded = 0;
 		_overlays.Clear();
 	}
 }

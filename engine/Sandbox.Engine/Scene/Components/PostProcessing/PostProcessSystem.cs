@@ -233,6 +233,6 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 				stage <= Rendering.Stage.AfterPostProcess )
 			return;
 
-		camera.PostProcess.OnRenderStage( stage );
+		camera.DrawnPostProcess.OnRenderStage( stage );
 	}
 }

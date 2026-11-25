@@ -617,12 +617,12 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			.ToArray();
 
 		foreach ( var vpk in vpks )
-			g_pWorldRendererMgr.MountWorldVPK( Path.GetFileNameWithoutExtension( vpk ), vpk );
+			NativeEngine.EngineGlue.MountWorldVPK( Path.GetFileNameWithoutExtension( vpk ), vpk );
 
 		return new DisposeAction( () =>
 		{
 			foreach ( var vpk in vpks )
-				g_pWorldRendererMgr.UnmountWorldVPK( Path.GetFileNameWithoutExtension( vpk ) );
+				NativeEngine.EngineGlue.UnmountWorldVPK( Path.GetFileNameWithoutExtension( vpk ) );
 		} );
 	}
 

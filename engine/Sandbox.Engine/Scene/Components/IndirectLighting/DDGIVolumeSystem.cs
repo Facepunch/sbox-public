@@ -89,11 +89,10 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 			return;
 		}
 
-		// No valid volumes: clear renderer attributes to avoid stale data.
-		ReleaseBuffer();
+		// No valid volumes: DDGI off. The buffer stays until the system goes: cameras keep the scene's attributes they merged
+		// (a value cleared here isn't cleared there), so a buffer freed now would still be bound by their views
 		Scene.RenderAttributes.Set( "DDGI_VolumeCount", 0 );
 		Scene.RenderAttributes.Set( "DDGI_Enabled", 0 );
-		Scene.RenderAttributes.Set( "DDGI_Volumes", (GpuBuffer)null );
 	}
 
 	private void EnsureBufferCapacity( int count )

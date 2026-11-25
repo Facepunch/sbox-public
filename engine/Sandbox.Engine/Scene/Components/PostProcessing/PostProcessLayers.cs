@@ -16,8 +16,12 @@ internal class PostProcessLayers
 
 	public bool HasLayers => _poolUsed > 0;
 
+	/// <summary>Cleared to be built again since the camera last took these for drawing (<c>CameraComponent.TakePostProcess</c>).</summary>
+	internal bool Rebuilt;
+
 	public void Clear()
 	{
+		Rebuilt = true;
 		foreach ( var list in Layers.Values )
 			list.Clear();
 

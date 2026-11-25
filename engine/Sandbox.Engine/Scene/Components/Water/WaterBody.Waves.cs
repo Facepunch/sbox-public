@@ -168,4 +168,17 @@ public sealed partial class WaterBody
 		for ( int i = 0; i < WaveBands; i++ )
 			attributes.Set( WaveAttributeNames[i], _waves[i] );
 	}
+
+	/// <summary>
+	/// The same, on the surface's attributes, writing only what changed.
+	/// </summary>
+	void SetWaveAttributes( SurfaceAttributes attributes )
+	{
+		UpdateWaves();
+		attributes.Set( "WaveTime", WaveTime );
+		attributes.Set( "WaveHeight", RenderWaves ? WaveHeight : 0 );
+		attributes.Set( "WaveSteepness", WaveSteepness );
+		for ( int i = 0; i < WaveBands; i++ )
+			attributes.Set( WaveAttributeNames[i], _waves[i] );
+	}
 }

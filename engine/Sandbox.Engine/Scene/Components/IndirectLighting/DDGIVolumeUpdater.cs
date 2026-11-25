@@ -33,8 +33,10 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 	Vector3Int _renderedIndex = 0;
 
-	static ComputeShader DepthCopyShader = new ComputeShader( "common/DDGI/ddgi_depth_copy_cs" );
-	static ComputeShader IntegrateShader = new ComputeShader( "common/DDGI/ddgi_integrate_cs" );
+	// Made by the constructor, on the main thread. As static initializers they were first reached from the camera's stage hook,
+	// on a thread recording a face, where Material.Create throws: the type failed to initialize, and the bake integrated nothing.
+	static ComputeShader DepthCopyShader;
+	static ComputeShader IntegrateShader;
 
 	/// <summary>
 	/// Creates the capture camera and temporary textures for one volume bake.
@@ -43,6 +45,9 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	{
 		_volume = volume;
 		_pendingProbes = new List<Vector3Int>();
+
+		DepthCopyShader ??= new ComputeShader( "common/DDGI/ddgi_depth_copy_cs" );
+		IntegrateShader ??= new ComputeShader( "common/DDGI/ddgi_integrate_cs" );
 
 		// Initialize camera for probe captures
 		_camera = new SceneCamera
@@ -68,16 +73,24 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			if ( stage != Stage.AfterTransparent )
 				return;
 
-			// We don't render depth to cubemap, so we copy it manually using a compute shader
-			int face = Graphics.SceneView.GetRenderTargetArrayIndex();
-			var depth = Graphics.GetDepthTarget( out var owned );
-			try
+			// We don't render depth to cubemap, so we copy it manually using a compute shader. A face on Borealis.Gpu has its
+			// depth as an engine texture; a native view's is a native one
+			int face = Graphics.CubeFace;
+			if ( Graphics.DepthTexture is { } depthTexture )
 			{
-				CopyDepthToColor( depth, _captureDepth, face );
+				CopyDepthToColor( depthTexture, _captureDepth, face );
 			}
-			finally
+			else
 			{
-				if ( owned && !depth.IsNull ) depth.DestroyStrongHandle();
+				var depth = Graphics.GetDepthTarget( out var owned );
+				try
+				{
+					CopyDepthToColor( depth, _captureDepth, face );
+				}
+				finally
+				{
+					if ( owned && !depth.IsNull ) depth.DestroyStrongHandle();
+				}
 			}
 
 			// Recording order is arbitrary; GPU submission follows the face order.
@@ -101,6 +114,21 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	{
 		var attrs = RenderAttributes.Pool.Get();
 		attrs.Set( "SourceDepth", srcDepth );
+		CopyDepthToColor( attrs, dstColor, dstArraySlice );
+	}
+
+	/// <summary>
+	/// <see cref="CopyDepthToColor(ITexture, Texture, int)"/> from an engine texture's depth (a face drawn on Borealis.Gpu).
+	/// </summary>
+	void CopyDepthToColor( Texture srcDepth, Texture dstColor, int dstArraySlice )
+	{
+		var attrs = RenderAttributes.Pool.Get();
+		attrs.Set( "SourceDepth", srcDepth );
+		CopyDepthToColor( attrs, dstColor, dstArraySlice );
+	}
+
+	void CopyDepthToColor( RenderAttributes attrs, Texture dstColor, int dstArraySlice )
+	{
 		attrs.Set( "DestTextureArray", dstColor );
 		attrs.Set( "TextureSize", new Vector2Int( CaptureSize, CaptureSize ) );
 		attrs.Set( "DestArraySlice", dstArraySlice );
@@ -153,17 +181,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 		for ( _pass = 0; _pass < 2; _pass++ )
 		{
-			if ( _pass == 1 )
-			{
-				// The volume preview keeps the completed first pass as a frozen bounce source.
-				var irradiance = CreateVolumeTexture(
-					new Vector3Int( GeneratedIrradianceTexture.Width, GeneratedIrradianceTexture.Height, GeneratedIrradianceTexture.Depth ),
-					ImageFormat.RGBA16161616F, "Irradiance" );
-				_firstPassIrradiance = GeneratedIrradianceTexture;
-				GeneratedIrradianceTexture = irradiance;
-			}
-
-			UpdateCaptureVolumes();
+			BeginPass();
 			foreach ( var probeIndex in _pendingProbes )
 			{
 				if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
@@ -189,6 +207,47 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		progress.Subtitle = $"Complete!";
 
 		return true;
+	}
+
+	/// <summary>
+	/// Start a pass: the second keeps the completed first as a frozen bounce source, and each captures with the volumes as they
+	/// are when it starts.
+	/// </summary>
+	void BeginPass()
+	{
+		if ( _pass == 1 )
+		{
+			// The volume preview keeps the completed first pass as a frozen bounce source.
+			var irradiance = CreateVolumeTexture(
+				new Vector3Int( GeneratedIrradianceTexture.Width, GeneratedIrradianceTexture.Height, GeneratedIrradianceTexture.Depth ),
+				ImageFormat.RGBA16161616F, "Irradiance" );
+			_firstPassIrradiance = GeneratedIrradianceTexture;
+			GeneratedIrradianceTexture = irradiance;
+		}
+
+		UpdateCaptureVolumes();
+	}
+
+	/// <summary>
+	/// The renderer probes capture through, rather than the frame's (<see cref="SceneRenderer.Current"/>): for tools that
+	/// compare them.
+	/// </summary>
+	internal ISceneRenderer Renderer { get; set; }
+
+	/// <summary>
+	/// Bake both passes now, without the editor's progress or yielding between probes: for tools and tests.
+	/// </summary>
+	internal void BakeNow()
+	{
+		for ( _pass = 0; _pass < 2; _pass++ )
+		{
+			BeginPass();
+			foreach ( var probeIndex in _pendingProbes )
+			{
+				PrepareProbe( probeIndex );
+				CaptureProbe();
+			}
+		}
 	}
 
 	/// <summary>
@@ -225,6 +284,15 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 	private void RenderProbe( Vector3Int probeIndex )
 	{
+		PrepareProbe( probeIndex );
+		CaptureProbe();
+	}
+
+	/// <summary>
+	/// Move the capture camera to a probe, with the scene's attributes and the volumes the pass captures with.
+	/// </summary>
+	void PrepareProbe( Vector3Int probeIndex )
+	{
 		_renderedIndex = probeIndex;
 
 		_camera.Position = _volume.GetRelocatedProbeWorldPosition( probeIndex );
@@ -234,11 +302,18 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		_volume.Scene.RenderAttributes.MergeTo( _camera.Attributes );
 		_camera.Attributes.Set( "DDGI_Volumes", _captureVolumes );
 		_camera.Attributes.Set( "DDGI_VolumeCount", _captureVolumeCount );
+	}
 
+	/// <summary>
+	/// Capture the probe's cube; the camera's stage hook copies each face's depth and integrates the probe after the sixth.
+	/// </summary>
+	void CaptureProbe()
+	{
 		foreach ( var texture in _captureTextures )
 			texture.MarkUsed( ushort.MaxValue );
 
-		_camera.RenderToCubeTexture( _captureTexture );
+		if ( Renderer is null ) _camera.RenderToCubeTexture( _captureTexture );
+		else Renderer.RenderToCube( _camera, _captureTexture, default );
 	}
 
 	private void InitializeProbeQueue()

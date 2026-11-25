@@ -109,7 +109,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 			for ( int i = 0; i < _materialAccessor.Count; i++ )
 			{
 				if ( _materialAccessor.GetOverride( i ) is { } material )
-					target.native.SetMaterialOverrideByIndex( i, material.native );
+					target.SetMaterialOverrideByIndex( i, material );
 			}
 		}
 		target.NotifyChanged( Rendering.SceneObjectChange.Material );
@@ -141,8 +141,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 		MaterialOverrideVersion++;
 		if ( !_sceneObject.IsValid() ) return;
 
-		_sceneObject.native.SetMaterialOverrideByIndex( index, material?.native ?? default );
-		_sceneObject.NotifyChanged( Rendering.SceneObjectChange.Material );
+		_sceneObject.SetMaterialOverrideByIndex( index, material );
 	}
 
 	void MaterialAccessor.ITarget.ClearOverrides()
@@ -150,8 +149,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 		MaterialOverrideVersion++;
 		if ( !_sceneObject.IsValid() ) return;
 
-		_sceneObject.native.ClearMaterialOverrideList();
-		_sceneObject.NotifyChanged( Rendering.SceneObjectChange.Material );
+		_sceneObject.ClearMaterialOverrideList();
 	}
 
 }

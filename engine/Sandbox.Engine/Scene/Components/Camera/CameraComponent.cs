@@ -223,6 +223,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		sceneCamera.OnAfterPostProcess = finalizePostProcessHook ??= FinalizePostProcessing;
 		sceneCamera.WantsDepthNormalsHook = WantsDepthNormals;
 		sceneCamera.HasEarlyPostProcessHook = HasEarlyPostProcess;
+		sceneCamera.HasCommandListsHook = HasCommandLists;
 		sceneCamera.ScheduleEarlyPostProcessHook = ScheduleEarlyPostProcess;
 		sceneCamera.RenderEarlyPostProcessHook = RenderEarlyPostProcess;
 	}
@@ -236,7 +237,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	protected override void OnDestroy()
 	{
 		Scene.Cameras.Remove( this );
-		Rendering.ManagedSceneRendering.Forget( this );
 		sceneCamera?.Dispose();
 		sceneCamera = null;
 		_hudCommandList.DisposePainter();
@@ -401,6 +401,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	Action finalizePostProcessHook;
 	Func<bool> wantsDepthNormalsHook;
 	Func<Stage, PostProcessQueue, bool> hasEarlyPostProcessHook;
+	Func<Stage, bool> hasCommandListsHook;
 	Action<Stage, bool> scheduleEarlyPostProcessHook;
 	Action<Stage, PostProcessQueue> renderEarlyPostProcessHook;
 
@@ -496,6 +497,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.OnRenderStageHook = executeCommandListsHook ??= ExecuteCommandLists;
 		camera.WantsDepthNormalsHook = wantsDepthNormalsHook ??= WantsDepthNormals;
 		camera.HasEarlyPostProcessHook = hasEarlyPostProcessHook ??= HasEarlyPostProcess;
+		camera.HasCommandListsHook = hasCommandListsHook ??= HasCommandLists;
 		camera.ScheduleEarlyPostProcessHook = scheduleEarlyPostProcessHook ??= ScheduleEarlyPostProcess;
 		camera.RenderEarlyPostProcessHook = renderEarlyPostProcessHook ??= RenderEarlyPostProcess;
 
@@ -652,18 +654,69 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		{
 			InitializeRendering();
 
-			// r_managed_scene: the managed scene renderer takes the whole frame
-			if ( Rendering.ManagedSceneRendering.TryRender( this, swapChain, CustomSize ?? size ) )
-				return;
+			RenderWith( Rendering.SceneRenderer.Current, swapChain, CustomSize ?? size );
+		}
+	}
 
-			if ( RenderTarget is not null && RenderTarget.native.IsValid )
+	/// <summary>
+	/// The camera's part of the frame's extract (<see cref="Scene.ExtractRender"/>), on the main thread: whether it draws, and
+	/// its scene camera prepared for it as <see cref="AddToRenderList"/> prepares it.
+	/// </summary>
+	internal bool PrepareForRenderList()
+	{
+		if ( !Active ) return false;
+		if ( Viewport.z <= 0 ) return false;
+		if ( Viewport.w <= 0 ) return false;
+
+		using ( Scene.PushScope() )
+		{
+			InitializeRendering();
+		}
+
+		// What the frame draws into: the game may replace the target (a resize) while the render thread draws
+		_preparedTarget = RenderTarget is { } target && target.native.IsValid ? target : null;
+		_preparedSize = CustomSize;
+		return true;
+	}
+
+	// The target and size the extract prepared the camera with (PrepareForRenderList), for the frame's drawing
+	Texture _preparedTarget;
+	Vector2? _preparedSize;
+
+	/// <summary>
+	/// Draw the camera <see cref="PrepareForRenderList"/> prepared: in the scene's scope on the main thread, without one on the
+	/// render thread, which runs no game code (the scope sets the game's statics).
+	/// </summary>
+	internal void DrawToRenderList( SwapChainHandle_t swapChain, Vector2? size )
+	{
+		if ( ThreadSafe.IsRenderThread )
+		{
+			// The target it was prepared with, never the window instead: one disposed since (replaced for the next frame) is skipped
+			if ( _preparedTarget is { } target )
 			{
-				SceneCamera.RenderToTexture( RenderTarget, CustomSize ?? size, default );
+				if ( target.native.IsValid ) Rendering.SceneRenderer.Current.RenderToTexture( SceneCamera, target, _preparedSize ?? size, default );
+				return;
 			}
-			else
-			{
-				SceneCamera.AddToRenderList( swapChain, CustomSize ?? size );
-			}
+
+			SceneCamera.AddToRenderList( Rendering.SceneRenderer.Current, swapChain, _preparedSize ?? size );
+			return;
+		}
+
+		using ( Scene.PushScope() )
+		{
+			RenderWith( Rendering.SceneRenderer.Current, swapChain, CustomSize ?? size );
+		}
+	}
+
+	void RenderWith( Rendering.ISceneRenderer renderer, SwapChainHandle_t swapChain, Vector2? size )
+	{
+		if ( RenderTarget is not null && RenderTarget.native.IsValid )
+		{
+			renderer.RenderToTexture( SceneCamera, RenderTarget, size, default );
+		}
+		else
+		{
+			SceneCamera.AddToRenderList( renderer, swapChain, size );
 		}
 	}
 
@@ -799,8 +852,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			if ( currentColor.IsNull )
 				return;
 
-			var currentColorIndex = g_pRenderDevice.GetTextureViewIndex( currentColor, 0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
-			if ( currentColorIndex != texture.Index )
+			// Only when the view drew into the texture itself
+			if ( currentColor.GetBindingPtr() != texture.native.GetBindingPtr() )
 				return;
 			Graphics.ResourceBarrierTransition( texture, ResourceState.NonPixelShaderResource, 0 );
 			Graphics.GenerateMipMaps( texture );
@@ -912,7 +965,17 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			InitializeRendering();
 		}
 
-		return sceneCamera.RenderToTexture( target, depthTarget, Graphics.SceneView, config, $"{GameObject.Name}.RenderToTexture", out viewData );
+		return sceneCamera.RenderToTexture( target, depthTarget, config, RenderToTextureName(), out viewData );
+	}
+
+	// The view's name for RenderToTexture, made again only when the object's name changes
+	(string Object, string View) _renderToTextureName;
+
+	string RenderToTextureName()
+	{
+		var name = GameObject.Name;
+		if ( !ReferenceEquals( _renderToTextureName.Object, name ) ) _renderToTextureName = (name, $"{name}.RenderToTexture");
+		return _renderToTextureName.View;
 	}
 
 	/// <summary>

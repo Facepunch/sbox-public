@@ -41,10 +41,16 @@ internal sealed class ParticleLightingSystem : GameObjectSystem<ParticleLighting
 	ComputeShader shader;
 	BBox? litBounds;
 
+	// What the frame's drawing reads (OnRenderStage), taken at its render preparation: the drawing may run on the render thread
+	// while the next frame's update changes the rest
+	readonly List<(CameraComponent Camera, Froxels Froxels)> drawn = [];
+	BBox? drawnBounds;
+
 	public ParticleLightingSystem( Scene scene ) : base( scene )
 	{
 		// After the sprites upload, which finds their bounds
 		Listen( Stage.FinishUpdate, 2, Update, "ParticleLighting" );
+		Listen( Stage.PrepareRender, 0, PrepareRender, "ParticleLighting" );
 	}
 
 	static Texture Volume( string name )
@@ -59,6 +65,7 @@ internal sealed class ParticleLightingSystem : GameObjectSystem<ParticleLighting
 		foreach ( var camera in froxels.Keys )
 			if ( !camera.IsValid() ) removed.Add( camera );
 
+		// Their textures go once a frame the render thread draws with them is done (the backend holds releases until then)
 		foreach ( var camera in removed )
 		{
 			froxels.Remove( camera, out var f );
@@ -73,26 +80,53 @@ internal sealed class ParticleLightingSystem : GameObjectSystem<ParticleLighting
 
 		shader ??= new ComputeShader( "shaders/particle_lighting_cs.shader" );
 
-		foreach ( var f in froxels.Values )
-			f.Current ^= 1;
-
-		foreach ( var camera in Scene.GetAllComponents<CameraComponent>() )
+		foreach ( var camera in Scene.Query<CameraComponent>() )
 		{
-			if ( camera.SceneCamera is not { } sceneCamera ) continue;
+			if ( camera.SceneCamera is null ) continue;
 
 			// The editor viewport runs the scene camera's stages, so it reads the scene camera's froxels
 			var owner = camera.IsSceneEditorCamera ? Scene.Camera ?? camera : camera;
-			if ( !froxels.TryGetValue( owner, out var f ) )
-				froxels[owner] = f = new Froxels();
-
-			sceneCamera.Attributes.Set( "ParticleLighting", f.History[f.Current] );
+			if ( !froxels.ContainsKey( owner ) )
+				froxels[owner] = new Froxels();
 		}
+	}
+
+	// At the frame's render preparation, on the main thread with nothing drawing: this frame's history, what each camera samples,
+	// and what the drawing lights
+	void PrepareRender()
+	{
+		drawn.Clear();
+		drawnBounds = litBounds;
+		if ( litBounds is null ) return;
+
+		foreach ( var (owner, f) in froxels )
+		{
+			f.Current ^= 1;
+			drawn.Add( (owner, f) );
+		}
+
+		foreach ( var camera in Scene.Query<CameraComponent>() )
+		{
+			if ( camera.SceneCamera is not { } sceneCamera ) continue;
+			var owner = camera.IsSceneEditorCamera ? Scene.Camera ?? camera : camera;
+			if ( froxels.TryGetValue( owner, out var f ) ) sceneCamera.Attributes.Set( "ParticleLighting", f.History[f.Current] );
+		}
+	}
+
+	Froxels DrawnFroxels( CameraComponent camera )
+	{
+		foreach ( var (owner, f) in drawn )
+		{
+			if ( owner == camera ) return f;
+		}
+
+		return null;
 	}
 
 	void Component.IRenderThread.OnRenderStage( CameraComponent camera, Sandbox.Rendering.Stage stage )
 	{
 		// After the shadow maps and light clusters, before translucency
-		if ( stage != Sandbox.Rendering.Stage.AfterOpaque || litBounds is not { } bounds || !froxels.TryGetValue( camera, out var f ) )
+		if ( stage != Sandbox.Rendering.Stage.AfterOpaque || drawnBounds is not { } bounds || DrawnFroxels( camera ) is not { } f )
 			return;
 
 		var frustum = Graphics.ViewFrustum;

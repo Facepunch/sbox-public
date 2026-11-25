@@ -35,12 +35,39 @@ public sealed partial class WaterBody
 	public Texture ReflectionEnvmap { get; set; }
 
 	/// <summary>
-	/// Bind a body-specific environment without changing the scene's probes or other materials.
-	/// Resolve the sky each frame so enabling, replacing or rotating it updates the water too.
+	/// What the surface reflects where its reflection has nothing: the cubemap (null for the scene's probes), its encoding and
+	/// orientation, and the reflection mode. The game side finds it each frame (enabling, replacing or rotating the sky updates
+	/// the water too); the capture commands that bind it are recorded again only when it changes (<see cref="BindEnvironment"/>).
 	/// </summary>
-	void SetReflectionAttributes( RenderAttributes attributes )
+	readonly struct EnvironmentBinding
 	{
-		var mode = ReflectionLevel;
+		public readonly Texture Texture;
+		public readonly int Format;
+		public readonly Rotation Rotation;
+		public readonly Color Tint;
+		public readonly ReflectionMode Mode;
+
+		public EnvironmentBinding( Texture texture, int format, Rotation rotation, Color tint, ReflectionMode mode )
+		{
+			Texture = texture;
+			Format = format;
+			Rotation = rotation;
+			Tint = tint;
+			Mode = mode;
+		}
+
+		/// <summary>Exactly the same binding: a sky turning slowly still records again.</summary>
+		public bool Same( in EnvironmentBinding other ) => ReferenceEquals( Texture, other.Texture ) && Format == other.Format
+			&& Rotation.x == other.Rotation.x && Rotation.y == other.Rotation.y && Rotation.z == other.Rotation.z && Rotation.w == other.Rotation.w
+			&& Tint.r == other.Tint.r && Tint.g == other.Tint.g && Tint.b == other.Tint.b && Tint.a == other.Tint.a && Mode == other.Mode;
+	}
+
+	/// <summary>
+	/// The body-specific environment, without changing the scene's probes or other materials: the custom cubemap, or the
+	/// scene's active 2D sky with its rotation and tint. Game state only: nothing here asks the renderer for anything.
+	/// </summary>
+	EnvironmentBinding CurrentEnvironment()
+	{
 		Texture texture = null;
 		var rotation = Rotation.Identity;
 		var tint = Color.White;
@@ -78,16 +105,25 @@ public sealed partial class WaterBody
 		}
 
 		bool hasEnvironment = texture is { IsValid: true, IsError: false } && texture.Desc.IsCube && !texture.Desc.IsArray;
-		attributes.Set( "HasEnvironment", hasEnvironment );
-		if ( hasEnvironment )
-		{
-			texture.MarkUsed( ushort.MaxValue );
-			attributes.Set( "EnvironmentTextureIndex", texture.Index );
-		}
-		attributes.Set( "EnvironmentTextureFormat", format );
+		return new EnvironmentBinding( hasEnvironment ? texture : null, format, rotation, tint, ReflectionLevel );
+	}
 
-		attributes.Set( "ReflectionMode", (int)mode );
-		attributes.Set( "EnvironmentTint", tint );
+	/// <summary>
+	/// Bind the environment for the surface's draws as the capture commands play back, where the renderer draws: the
+	/// cubemap's bindless index is looked up and its streaming touched there, not in game code.
+	/// </summary>
+	static void BindEnvironment( CommandList commands, in EnvironmentBinding environment )
+	{
+		var attributes = commands.Attributes;
+		attributes.Set( "HasEnvironment", environment.Texture is not null );
+		if ( environment.Texture is { } texture )
+			attributes.SetIndex( "EnvironmentTextureIndex", texture, ushort.MaxValue );
+		attributes.Set( "EnvironmentTextureFormat", environment.Format );
+
+		var tint = environment.Tint;
+		var rotation = environment.Rotation;
+		attributes.Set( "ReflectionMode", (int)environment.Mode );
+		attributes.Set( "EnvironmentTint", new Vector4( tint.r, tint.g, tint.b, tint.a ) );
 		attributes.Set( "EnvironmentAxisX", rotation.Forward );
 		attributes.Set( "EnvironmentAxisY", rotation.Left );
 		attributes.Set( "EnvironmentAxisZ", rotation.Up );
@@ -106,7 +142,7 @@ public sealed partial class WaterBody
 	/// Ask views for a planar reflection of the surface while planar reflections are on. Views decide whether to
 	/// render one and publish it; the surface's own footprint hides reflected objects poking through it.
 	/// </summary>
-	void UpdateReflectionPlane( RenderAttributes attributes )
+	void UpdateReflectionPlane( SurfaceAttributes attributes )
 	{
 		var size = new Vector2( MathF.Abs( Size.x * WorldScale.x ), MathF.Abs( Size.y * WorldScale.y ) );
 		attributes.Set( "ReflectionWaterHalfSize", size * 0.5f );

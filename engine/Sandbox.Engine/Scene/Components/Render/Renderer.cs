@@ -48,7 +48,7 @@ public abstract class Renderer : Component, SceneObjectCallbacks
 			{
 				return _sceneObject.Attributes;
 			}
-			_attributes ??= new RenderAttributes();
+			_attributes ??= RenderAttributes.CreateManaged();
 			return _attributes;
 		}
 	}
@@ -109,7 +109,7 @@ public abstract class Renderer : Component, SceneObjectCallbacks
 		if ( attributes is null || !_sceneObject.IsValid() )
 			return;
 
-		_attributes ??= new RenderAttributes();
+		_attributes ??= RenderAttributes.CreateManaged();
 		attributes.MergeTo( _attributes );
 	}
 

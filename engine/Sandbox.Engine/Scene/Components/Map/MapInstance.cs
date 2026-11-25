@@ -1,5 +1,4 @@
 ﻿using Facepunch.ActionGraphs;
-using NativeEngine;
 using Sandbox.Clutter;
 using Sentry;
 using System.Text.Json.Nodes;
@@ -180,7 +179,6 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		if ( hadMap )
 		{
 			OnMapUnloaded?.InvokeWithWarning();
-			g_pWorldRendererMgr.ServiceWorldRequests();
 		}
 
 		SceneMap.OnMapUpdated -= OnMapUpdated;
@@ -477,9 +475,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	}
 
 	/// <summary>
-	/// Get the PVS of the loaded map
+	/// The loaded map, whose visibility culls what's sent to each connection; null when none is loaded.
 	/// </summary>
-	internal IPVS GetNetworkPvs() => loadedMap?.PVS ?? default;
+	internal SceneMap GetNetworkMap() => loadedMap;
 }
 
 file class MapComponentMapLoader( MapInstance map, Vector3 origin ) : SceneMapLoader( map.Scene.SceneWorld, map.Scene.PhysicsWorld, origin )

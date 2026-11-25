@@ -40,7 +40,7 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	/// <summary>
 	/// The default attributes for this post process. This will be used by helper functions like Blit.
 	/// </summary>
-	protected readonly RenderAttributes Attributes = new();
+	protected readonly RenderAttributes Attributes = RenderAttributes.ForRecording();
 
 	internal void Build( PostProcessContext ctx )
 	{

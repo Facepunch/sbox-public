@@ -355,8 +355,8 @@ public sealed partial class PlayerController : Component, BaseCombatWeapon.IEven
 	bool IsFirstPersonViewer => UseCameraControls && Scene.Camera.IsValid() && !IsProxy
 		&& (!ThirdPerson || _cameraDistance < 20);
 
+	// This frame's renderers on the body, found once and shared by the visibility pass and the first person copies
 	readonly List<ModelRenderer> _bodyRenderers = new();
-	readonly List<ModelRenderer> _visibilityRenderers = new();
 	HashSet<ModelRenderer> _visibilityOverrides = new();
 	HashSet<ModelRenderer> _visibilityOverridesNext = new();
 
@@ -451,6 +451,7 @@ public sealed partial class PlayerController : Component, BaseCombatWeapon.IEven
 
 		if ( !IsFirstPersonViewer || !body.IsValid() )
 		{
+			_bodyRenderers.Clear();
 			if ( _viewerTagged.Count > 0 || _visibilityOverrides.Count > 0 || _firstPersonBodyCopies.Count > 0 || _firstPersonShadowCopies.Count > 0 )
 				RestoreBodyVisibility();
 			return false;
@@ -466,18 +467,18 @@ public sealed partial class PlayerController : Component, BaseCombatWeapon.IEven
 		else if ( firstPersonBody ) CollectFirstPersonViewerTagTargets( body );
 		ApplyViewerTags();
 
+		_bodyRenderers.Clear();
+		body.Components.GetAll( _bodyRenderers, FindMode.InSelf | FindMode.InDescendants | FindMode.Enabled );
+
 		if ( hideModels && CastShadowsInFirstPerson ) UpdateFirstPersonShadowCopies( body );
 		else ClearFirstPersonShadowCopies();
 
 		_visibilityOverridesNext.Clear();
-		_visibilityRenderers.Clear();
-		body.Components.GetAll( _visibilityRenderers, FindMode.InSelf | FindMode.InDescendants | FindMode.Enabled );
-		foreach ( var renderer in _visibilityRenderers )
+		foreach ( var renderer in _bodyRenderers )
 		{
 			if ( ApplyRendererVisibility( renderer, hideModels ) )
 				_visibilityOverridesNext.Add( renderer );
 		}
-		_visibilityRenderers.Clear();
 
 		// Anything we overrode last frame but not this frame (removed, reparented, disabled, setting changed).
 		foreach ( var renderer in _visibilityOverrides )

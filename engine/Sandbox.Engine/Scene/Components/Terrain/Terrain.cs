@@ -91,7 +91,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		if ( _normalBakeDirty && _normalBakeCs is not null )
 		{
 			_normalBakeDirty = false;
-			_so.PendingBake = RecordNormalBake();
+			_so.QueueBake( RecordNormalBake() );
 		}
 
 		_so.Attributes.Set( "VertexDisplacement", UseVertexDisplacement );

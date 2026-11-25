@@ -50,8 +50,6 @@ public sealed partial class SceneSpriteSystem : GameObjectSystem<SceneSpriteSyst
 
 	public override void Dispose()
 	{
-		foreach ( var group in _textBatches.Values ) group.Batch?.Destroy();
-		_textBatches.Clear();
 		if ( _sharedSprites != null )
 		{
 			ArrayPool<SpriteBatchSceneObject.SpriteData>.Shared.Return( _sharedSprites );
@@ -265,7 +263,9 @@ public sealed partial class SceneSpriteSystem : GameObjectSystem<SceneSpriteSyst
 
 		UpdateSpriteRenderers();
 		UpdateParticleSprites();
-		UpdateTextRenderers();
+
+		// What batches replaced or destroyed while a frame handed over could still draw with it
+		SpriteBatchSceneObject.DisposeRetired();
 
 		LitBounds = null;
 		foreach ( var rg in RenderGroups )
@@ -299,10 +299,16 @@ public sealed partial class SceneSpriteSystem : GameObjectSystem<SceneSpriteSyst
 		MemoryMarshal.Write( buf[5..], in isolatedComponent );
 		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[21..] );
 		int i = 0;
-		if ( tokens is HashSet<uint> tokenSet )
-			foreach ( var token in tokenSet ) tokenSlice[i++] = token;
-		else
+		if ( tokens is HashSet<uint> set )
+		{
+			// Every particle system every frame: the set's own enumerator, not a boxed one
+			foreach ( var token in set ) tokenSlice[i++] = token;
+		}
+		else if ( tokens.Count > 0 )
+		{
 			foreach ( var token in tokens ) tokenSlice[i++] = token;
+		}
+
 		MemoryExtensions.Sort( tokenSlice );
 
 		return XxHash3.HashToUInt64( buf );

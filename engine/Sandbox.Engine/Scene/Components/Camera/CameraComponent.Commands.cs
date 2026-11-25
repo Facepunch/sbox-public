@@ -103,6 +103,15 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		}
 	}
 
+	/// <summary>
+	/// Whether any command list is registered at <paramref name="stage"/>.
+	/// </summary>
+	internal bool HasCommandLists( Stage stage )
+	{
+		lock ( _commandListLock )
+			return commandlists.TryGetValue( stage, out var list ) && list.Count > 0;
+	}
+
 	static Superluminal _executeCommandList = new Superluminal( "ExecuteCommandList", Color.Cyan );
 
 	/// <summary>
