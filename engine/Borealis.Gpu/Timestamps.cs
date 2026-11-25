@@ -1,0 +1,100 @@
+using Borealis.Gpu.Vulkan;
+
+namespace Borealis.Gpu;
+
+/// <summary>
+/// A pool of GPU timestamps (<see cref="Device.CreateTimestamps"/>): reset them in a command list
+/// (<see cref="CommandList.ResetTimestamps"/>), write them as work passes a stage (<see cref="CommandList.WriteTimestamp"/>)
+/// and read them back once that work has finished. Ticks are <see cref="DeviceCapabilities.TimestampPeriod"/> nanoseconds.
+/// </summary>
+public sealed unsafe class TimestampQueries : IDisposable
+{
+	readonly Device device;
+	internal ulong Pool { get; private set; }
+
+	/// <summary>How many timestamps it holds.</summary>
+	public int Count { get; }
+
+	internal TimestampQueries( Device device, int count )
+	{
+		this.device = device;
+		Count = count;
+		var info = new VkQueryPoolCreateInfo { sType = VkStructureType.QueryPoolCreateInfo, queryType = 2, queryCount = (uint)count };
+		ulong pool;
+		device.Vk.vkCreateQueryPool( device.Vk.Device, &info, null, &pool ).Check( "vkCreateQueryPool" );
+		Pool = pool;
+	}
+
+	/// <summary>
+	/// Copy timestamps <paramref name="first"/> onwards into <paramref name="ticks"/> if the GPU has written them all; false,
+	/// without waiting, if it hasn't yet.
+	/// </summary>
+	public bool TryRead( int first, Span<ulong> ticks )
+	{
+		if ( first < 0 || first + ticks.Length > Count ) throw new ArgumentOutOfRangeException( nameof( first ) );
+		fixed ( ulong* data = ticks )
+		{
+			// 64-bit results
+			var result = device.Vk.vkGetQueryPoolResults( device.Vk.Device, Pool, (uint)first, (uint)ticks.Length, (nuint)(ticks.Length * 8), data, 8, 1 );
+			if ( result == VkResult.NotReady ) return false;
+			result.Check( "vkGetQueryPoolResults" );
+			return true;
+		}
+	}
+
+	/// <summary>
+	/// Reset timestamps <paramref name="first"/> to <paramref name="first"/> + <paramref name="count"/> on the CPU at once,
+	/// where <see cref="DeviceCapabilities.HostQueryReset"/> says it can: nothing submitted may still be writing them.
+	/// </summary>
+	public void ResetOnHost( int first, int count )
+	{
+		if ( first < 0 || count < 0 || first + count > Count ) throw new ArgumentOutOfRangeException( nameof( first ) );
+		if ( !device.Capabilities.HostQueryReset ) throw new InvalidOperationException( "The device can't reset queries on the CPU" );
+		device.Vk.vkResetQueryPool( device.Vk.Device, Pool, (uint)first, (uint)count );
+	}
+
+	/// <summary>Destroy the pool once the GPU is done with the work recorded so far, as resources are.</summary>
+	public void Dispose()
+	{
+		if ( Pool == 0 ) return;
+		var pool = Pool;
+		Pool = 0;
+		device.DestroyQueryPool( pool );
+	}
+}
+
+public sealed partial class Device
+{
+	/// <summary>
+	/// Make a pool of <paramref name="count"/> timestamps, where <see cref="DeviceCapabilities.Timestamps"/> says the
+	/// graphics queue writes them.
+	/// </summary>
+	public TimestampQueries CreateTimestamps( int count ) => KeepQueries( new TimestampQueries( this, count ) );
+
+	// Query pools still alive, destroyed with the device if their owners haven't: an owner disposed after the device (a
+	// window closed after the renderer shut down) finds its pool gone rather than destroying it on a destroyed device
+	readonly List<WeakReference<IDisposable>> queryPools = new();
+
+	T KeepQueries<T>( T pool ) where T : class, IDisposable
+	{
+		lock ( queryPools )
+		{
+			queryPools.RemoveAll( p => !p.TryGetTarget( out _ ) );
+			queryPools.Add( new WeakReference<IDisposable>( pool ) );
+		}
+
+		return pool;
+	}
+
+	/// <summary>Destroy a query pool once the GPU is done with the work recorded so far.</summary>
+	internal unsafe void DestroyQueryPool( ulong pool ) => Defer( () => Vk.vkDestroyQueryPool( Vk.Device, pool, null ) );
+
+	void DestroyQueryPools()
+	{
+		lock ( queryPools )
+		{
+			foreach ( var pool in queryPools ) if ( pool.TryGetTarget( out var alive ) ) alive.Dispose();
+			queryPools.Clear();
+		}
+	}
+}
