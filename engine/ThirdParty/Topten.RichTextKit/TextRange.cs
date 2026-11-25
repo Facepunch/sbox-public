@@ -208,9 +208,13 @@ namespace Topten.RichTextKit
 			if ( codePointIndex >= Minimum && codePointIndex + oldLength <= Maximum )
 			{
 				if ( Start < End )
+				{
 					return new TextRange( Start, End + delta, AltPosition );
+				}
 				else
-					return new TextRange( End, Start + delta, AltPosition );
+				{
+					return new TextRange( Start + delta, End, AltPosition );
+				}
 			}
 
 			// Overlap start of this range?
