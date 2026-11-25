@@ -81,6 +81,7 @@ partial class ViewportTools
 class ResolutionModeButton : Button
 {
 	private int _selectedIndex = 0;
+	private int _shownIndex = -1;
 	private List<Option> _options;
 
 	public string Suffix { get; set; } = "";
@@ -181,6 +182,11 @@ class ResolutionModeButton : Button
 		if ( _selectedIndex < 0 )
 			return;
 
+		// Called every frame: the button's text and icon only change with the selection
+		if ( _selectedIndex == _shownIndex )
+			return;
+
+		_shownIndex = _selectedIndex;
 		Text = _options[_selectedIndex].Text;
 		Icon = _options[_selectedIndex].Icon;
 	}
