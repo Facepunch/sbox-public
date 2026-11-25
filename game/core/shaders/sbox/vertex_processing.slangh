@@ -1,12 +1,13 @@
-// The classic vertex shader's processing: the instance's tint, the world position, normal and tangent frame (from the
-// animated vertex cache, or the decompressed object-space frame through the instance's transform), clip position, UVs and the
-// lightmap UV, then the camera-relative position (VS_CommonProcessing_Post). Ours, in place of the old vr_common_vs_code.fxc
-// in Slang compiles (SlangHeaders): the same names, material parameters (in the same order) and results. Shares the old
-// header's include guard.
+// The vertex shader frame of the classic shaders. VS_CommonProcessing turns a VS_INPUT into the PS_INPUT interpolants: the
+// instance's tint, the world position, normal and tangent frame (read from the animated vertex cache, or decompressed in
+// object space and carried through the instance's transform), the clip position, UVs and lightmap UV.
+// VS_CommonProcessing_Post comes last and makes the position camera-relative. Slang compiles read it in place of
+// vr_common_vs_code.fxc (SlangHeaders), so it keeps that header's names, material parameters (in their order), include guard
+// and results.
 #ifndef VR_COMMON_VS_CODE_FXC
 #define VR_COMMON_VS_CODE_FXC
 
-// What the old header included, in its order, which code that includes it may rely on
+// The old header's includes, in its order: shaders that include this one may use any of them
 #include "sbox/math.slangh"
 #include "common/utils/normal_transform.hlsl"
 #include "sbox/instancing.slangh"
@@ -22,26 +23,63 @@ float g_flWrinkleOverride < Default( 0.0 ); Range( -1.0, 1.0 ); UiGroup( "Wrinkl
 
 #ifdef COMMON_VS_INPUT_DEFINED
 
-/// The vertex's object-space normal and tangent (with the bitangent's sign in w), decompressed. An uncompressed frame takes
-/// its tangent from the input (or +Z without a tangent basis).
+/// The vertex's object-space normal, and its tangent with the bitangent's sign in w. A compressed frame packs both into the
+/// normal stream. An uncompressed one is marked by w = 1 on its normal and brings its tangent in a stream of its own, or
+/// takes +Z when the input has none.
 void VS_DecodeObjectSpaceNormalAndTangent( const VS_INPUT i, out float3 vNormalOs, out float4 vTangentUOs_flTangentVSign )
 {
-	float4 vPackedNormal = i.vNormalOs;
-	float4 vPackedTangent = float4( 0.0, 0.0, 1.0, 1.0 );
+	float4 vNormalStream = i.vNormalOs;
+	float4 vTangentStream = float4( 0.0, 0.0, 1.0, 1.0 );
 	if ( g_bUncompressedTangentFrame )
 	{
-		vPackedNormal.w = 1.0f;
+		vNormalStream.w = 1.0f;
 	#if ( VS_INPUT_HAS_TANGENT_BASIS )
-		vPackedTangent = i.vTangentUOs_flTangentVSign;
-	#else
-		vPackedTangent = float4( 0.0, 0.0, 1.0, 1.0 );
+		vTangentStream = i.vTangentUOs_flTangentVSign;
 	#endif
 	}
 
-	DecompressNormalTangent( vPackedNormal, vPackedTangent, vNormalOs, vTangentUOs_flTangentVSign );
+	DecompressNormalTangent( vNormalStream, vTangentStream, vNormalOs, vTangentUOs_flTangentVSign );
 }
 
-/// The interpolants from a classic vertex input.
+#if ( D_CS_VERTEX_ANIMATION )
+
+/// The vertex's world position and frame from the animated vertex cache, which compute skinning and morphing fill in world
+/// space.
+void VS_SboxWorldFrame( const VS_INPUT i, ExtraShaderData_t extra, out float3 vPositionWs, out float3 vNormalWs, out float3 vTangentUWs, out float3 vTangentVWs )
+{
+	CachedAnimatedVertex_t vertex = FetchCachedVertex( extra.nVertexCacheOffset + uint( i.nVertexCacheIndex ) );
+
+	float flBitangentSign;
+	DecodeCachedVertexTangentSpace( vertex, vNormalWs, vTangentUWs, flBitangentSign );
+	vPositionWs = vertex.vPosWs;
+	vTangentVWs = cross( vNormalWs, vTangentUWs ) * flBitangentSign;
+}
+
+#else
+
+/// The vertex's world position and frame through its instance's transform (and bone). The normal goes by the inverse
+/// transpose; the tangent is made perpendicular to it again (Gram-Schmidt), and the bitangent turns over for a mirrored
+/// transform as well as by its own sign.
+void VS_SboxWorldFrame( const VS_INPUT i, ExtraShaderData_t extra, out float3 vPositionWs, out float3 vNormalWs, out float3 vTangentUWs, out float3 vTangentVWs )
+{
+	float3 vNormalOs;
+	float4 vTangentOs;
+	VS_DecodeObjectSpaceNormalAndTangent( i, vNormalOs, vTangentOs );
+
+	float3x4 matObjectToWorld = GetTransformMatrix( i.nInstanceTransformID, i.nBoneIndex.x );
+	vPositionWs = mul( matObjectToWorld, float4( i.vPositionOs.xyz, 1.0 ) );
+
+	float flMirrorSign;
+	vNormalWs = TransformNormalInverseTranspose( vNormalOs, (float3x3)matObjectToWorld, flMirrorSign );
+
+	float3 vTangentWs = mul( matObjectToWorld, float4( vTangentOs.xyz, 0.0 ) );
+	vTangentUWs = normalize( vTangentWs - ( vNormalWs * dot( vTangentWs, vNormalWs ) ) );
+	vTangentVWs = cross( vNormalWs, vTangentUWs ) * vTangentOs.w * flMirrorSign;
+}
+
+#endif
+
+/// The interpolants from a classic vertex input, the position still in world space (VS_CommonProcessing_Post moves it).
 PS_INPUT VS_CommonProcessing( VS_INPUT i )
 {
 	PS_INPUT o;
@@ -49,51 +87,23 @@ PS_INPUT VS_CommonProcessing( VS_INPUT i )
 	ExtraShaderData_t extra = GetExtraPerInstanceShaderData( i.nInstanceTransformID );
 	o.vVertexColor = extra.vTint;
 
-#if ( D_CS_VERTEX_ANIMATION )
-	// Skinned or morphed by compute into the vertex cache, already in world space
-	uint nVertexId = extra.nVertexCacheOffset + uint( i.nVertexCacheIndex );
-	CachedAnimatedVertex_t vertex = FetchCachedVertex( nVertexId );
-
-	float3 vNormal;
-	float3 vTangent;
-	float flSign;
-	DecodeCachedVertexTangentSpace( vertex, vNormal, vTangent, flSign );
-
-	o.vPositionWs = vertex.vPosWs;
-	o.vNormalWs.xyz = vNormal;
-
-	#if ( PS_INPUT_HAS_TANGENT_BASIS )
-		o.vTangentUWs = vTangent;
-		o.vTangentVWs = cross( vNormal, vTangent ) * flSign;
-	#endif
-#else
-	float3 vNormalOs;
-	float4 vTangentUOs_flTangentVSign;
-	VS_DecodeObjectSpaceNormalAndTangent( i, vNormalOs, vTangentUOs_flTangentVSign );
-
-	float3 vPositionOs = i.vPositionOs.xyz;
-	float3x4 matObjectToWorld = GetTransformMatrix( i.nInstanceTransformID, i.nBoneIndex.x );
-	o.vPositionWs = mul( matObjectToWorld, float4( vPositionOs.xyz, 1.0 ) );
-
-	// The normal by the inverse transpose; its sign flips the bitangent of a mirrored transform
-	float flTransformSign;
-	o.vNormalWs.xyz = TransformNormalInverseTranspose( vNormalOs.xyz, (float3x3)matObjectToWorld, flTransformSign );
-
-	#if ( PS_INPUT_HAS_TANGENT_BASIS )
-		// The tangent made perpendicular to the normal (Gram-Schmidt), the bitangent from both
-		float3 vTangentUWs = mul( matObjectToWorld, float4( vTangentUOs_flTangentVSign.xyz, 0.0 ) );
-		vTangentUWs = normalize( vTangentUWs - ( o.vNormalWs.xyz * dot( vTangentUWs, o.vNormalWs.xyz ) ) );
-		o.vTangentUWs = vTangentUWs;
-		o.vTangentVWs = cross( o.vNormalWs.xyz, vTangentUWs ) * vTangentUOs_flTangentVSign.w * flTransformSign;
-	#endif
+	float3 vNormalWs;
+	float3 vTangentUWs;
+	float3 vTangentVWs;
+	VS_SboxWorldFrame( i, extra, o.vPositionWs, vNormalWs, vTangentUWs, vTangentVWs );
+	o.vNormalWs.xyz = vNormalWs;
+#if ( PS_INPUT_HAS_TANGENT_BASIS )
+	o.vTangentUWs = vTangentUWs;
+	o.vTangentVWs = vTangentVWs;
 #endif
 
-	o.vPositionPs = Position3WsToPs( o.vPositionWs.xyz );
+	o.vPositionPs = Position3WsToPs( o.vPositionWs );
 
 #if ( S_USE_PER_VERTEX_CURVATURE )
 	o.flSSSCurvature = i.flSSSCurvature;
 #endif
 
+	// The second UV set, when the material uses one, rides in zw
 	o.vTextureCoords.xy = i.vTexCoord.xy;
 #if ( S_UV2 )
 	o.vTextureCoords.zw = i.vTexCoord2.xy;
@@ -108,11 +118,12 @@ PS_INPUT VS_CommonProcessing( VS_INPUT i )
 	return o;
 }
 
-/// The world position made camera-relative (the high precision lighting offset), last in the vertex shader.
+/// The last step of the vertex shader: the position relative to the high precision lighting offset (near the camera), which
+/// keeps it precise through interpolation. PS_CommonProcessing adds the offset back.
 PS_INPUT VS_CommonProcessing_Post( const PS_INPUT i )
 {
 	PS_INPUT o = i;
-	o.vPositionWs.xyz -= g_vHighPrecisionLightingOffsetWs.xyz;
+	o.vPositionWs = i.vPositionWs.xyz - g_vHighPrecisionLightingOffsetWs.xyz;
 	return o;
 }
 

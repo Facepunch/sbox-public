@@ -1,11 +1,11 @@
-// The standard vertex shader's processing: the classic one (sbox/vertex_processing.slangh), then the detail texture's UVs,
-// the material's UV scale, offset and scroll, and its tint and fade. Ours, in place of the old vr_shared_standard_vs_code.fxc
-// in Slang compiles (SlangHeaders): the same names, combo, material parameters (in the same order) and results. Shares the
-// old header's include guard.
+// The vertex shader frame of the standard (material) shaders: the classic frame (sbox/vertex_processing.slangh), then the
+// detail texture's UVs, the material's UV transform (scale, offset and scroll) and its tint and fade on the vertex colour.
+// Slang compiles read it in place of vr_shared_standard_vs_code.fxc (SlangHeaders), so it keeps that header's names, combo,
+// material parameters (in their order), include guard and results.
 #ifndef VR_SHARED_VS_CODE_FXC
 #define VR_SHARED_VS_CODE_FXC
 
-// What the old header included, which code that includes it may rely on
+// The old header's includes: shaders that include this one may use either
 #include "sbox/vertex_processing.slangh"
 #include "sbox/detail_texture.slangh"
 
@@ -32,17 +32,19 @@ PS_INPUT VS_SharedStandardProcessing( const VS_INPUT i )
 	PS_INPUT o = VS_CommonProcessing( i );
 
 #if S_DETAIL_TEXTURE
-	float2 vDetailUv = GetUVDefault1( g_bUseSecondaryUvForDetailTexture, o.vTextureCoords );
-	o.vDetailTextureCoords = CalculateDetailTextureCoordinates( vDetailUv );
+	// From the first or second UV set as the mesh has them, before the material's own transform below
+	o.vDetailTextureCoords = CalculateDetailTextureCoordinates( GetUVDefault1( g_bUseSecondaryUvForDetailTexture, o.vTextureCoords ) );
 #endif
 
-	o.vTextureCoords.xy = o.vTextureCoords.xy * g_vTexCoordScale + g_vTexCoordOffset;
-	o.vTextureCoords.xy += g_vTexCoordScrollSpeed * g_flTime;
+	// Scaled, offset, then scrolled with time
+	float2 vPlacedUv = o.vTextureCoords.xy * g_vTexCoordScale + g_vTexCoordOffset;
+	o.vTextureCoords.xy = vPlacedUv + g_vTexCoordScrollSpeed * g_flTime;
 
 #if ( !S_LIQUID_SHADING && !D_NO_MODEL_TINT )
-	// How much the instance's tint applies, times the material's (sRGB) tint; alpha shaped by the fade exponent
-	o.vVertexColor.rgb = lerp( float3( 1.0, 1.0, 1.0 ), o.vVertexColor.rgb, g_flModelTintAmount );
-	o.vVertexColor.rgb *= SrgbGammaToLinear( g_vColorTint.rgb );
+	// The instance's tint, as far as the material lets it through, times the material's own (chosen in sRGB); the fade
+	// exponent shapes the instance's alpha
+	float3 vInstanceTint = lerp( float3( 1.0, 1.0, 1.0 ), o.vVertexColor.rgb, g_flModelTintAmount );
+	o.vVertexColor.rgb = vInstanceTint * SrgbGammaToLinear( g_vColorTint.rgb );
 	o.vVertexColor.a = pow( o.vVertexColor.a, g_flFadeExponent );
 #endif
 
