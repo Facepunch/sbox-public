@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The shader compiler for plain Slang modules: material shaders written as surfaces ([Material] structs) and raw
+    modules, compiled with the engine's slang.dll and reflected into what Borealis binds, plus a typed C# class per
+    material. References nothing of the engine. See docs/reference/borealis-slang-materials.md.
+  -->
+
+  <PropertyGroup>
+    <VersionPrefix>1.0.1</VersionPrefix>
+    <TargetFramework>net10.0</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>Sandbox.ShaderCompiler</AssemblyName>
+    <PackageId>Sandbox.ShaderCompiler</PackageId>
+    <OutputPath>..\..\game\bin\managed</OutputPath>
+    <!-- Keep CS1591 enabled for public API documentation. -->
+    <NoWarn>1701;1702</NoWarn>
+    <LangVersion>14</LangVersion>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>
