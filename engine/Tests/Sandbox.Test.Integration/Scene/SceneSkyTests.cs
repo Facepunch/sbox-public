@@ -9,27 +9,43 @@ namespace SceneTests;
 public class SceneSkyTests
 {
 	/// <summary>
-	/// Skies created through native interop must expose their material and subsequent native changes.
+	/// A sky's settings are kept in managed code: one native code made starts with its material and native's defaults, and
+	/// changes stay managed (nothing native draws it).
 	/// </summary>
 	[TestMethod]
-	public void MaterialTracksNativeCreationAndChanges()
+	public void SettingsAreManaged()
 	{
 		var world = new SceneWorld();
 		try
 		{
 			var material = Material.Load( "materials/skybox/skybox_day_01.vmat" );
 			var sky = NativeEngine.CSceneSystem.CreateSkyBox( material.native, world );
-			Assert.AreSame( material, sky.Material );
+			var nativeSky = (NativeEngine.CSceneSkyBoxObject)sky.native;
+			Assert.AreSame( material, sky.Material, "a sky native code made starts with its material" );
+			Assert.AreEqual( SceneSkyBox.FogType.Distance, sky.FogParams.FogType, "and native's defaults" );
+			Assert.AreEqual( -25.0f, sky.FogParams.FogMinStart );
 
 			var replacement = material.CreateCopy();
-			var nativeSky = (NativeEngine.CSceneSkyBoxObject)sky.native;
-			nativeSky.SetMaterial( replacement.native );
+			var fog = new SceneSkyBox.FogParamInfo { FogType = SceneSkyBox.FogType.Angular, FogMinStart = 1, FogMinEnd = 2, FogMaxStart = 3, FogMaxEnd = 4 };
+
+			sky.SkyMaterial = replacement;
+			sky.SkyTint = Color.Red;
+			sky.FogParams = fog;
 			Assert.AreSame( replacement, sky.Material );
-			nativeSky.SetMaterial( default );
-			Assert.IsNull( sky.Material );
+			Assert.AreEqual( Color.Red, sky.SkyTint );
+			Assert.AreEqual( fog, sky.FogParams );
+			Assert.AreSame( material, Material.FromNative( nativeSky.GetMaterial() ), "native's sky isn't written" );
 
 			sky.SkyMaterial = material;
+			sky.SkyTint = Color.Blue;
+			sky.FogParams = default;
 			Assert.AreSame( material, sky.Material );
+			Assert.AreEqual( Color.Blue, sky.SkyTint );
+			Assert.AreEqual( default, sky.FogParams );
+
+			sky.SkyMaterial = null;
+			Assert.IsNull( sky.Material );
+			sky.SkyMaterial = material;
 			sky.Delete();
 			Assert.IsNull( sky.Material );
 		}
@@ -125,10 +141,10 @@ public class SceneSkyTests
 	}
 
 	/// <summary>
-	/// The renderer refreshes sky selection for each camera, including native material changes without notifications.
+	/// The renderer refreshes sky selection for each camera.
 	/// </summary>
 	[TestMethod]
-	public void MirrorRefreshesSkyForEachView()
+	public void WorldRefreshesSkyForEachView()
 	{
 		var world = new SceneWorld();
 		try
@@ -138,31 +154,26 @@ public class SceneSkyTests
 			var last = new SceneSkyBox( world, material ) { SkyTint = Color.Blue };
 			last.Tags.Add( "last" );
 			using var camera = new SceneCamera { World = world };
-			var mirrorType = typeof( Sandbox.SceneRenderer.RenderWorld ).Assembly.GetType( "Sandbox.SceneRenderer.Bridge.SceneMirror", true );
-			using var mirror = (IDisposable)Activator.CreateInstance( mirrorType, [world] );
-			var renderWorld = (Sandbox.SceneRenderer.RenderWorld)mirrorType.GetProperty( "World" ).GetValue( mirror );
-			var sync = mirrorType.GetMethod( "Sync" );
+			var renderType = System.Type.GetType( "Sandbox.Rendering.Bridge.WorldRender, Sandbox.Rendering", true );
+			using var render = (IDisposable)Activator.CreateInstance( renderType, [world] );
+			var renderWorld = (Borealis.RenderWorld)renderType.GetProperty( "World" ).GetValue( render );
+			var prepare = renderType.GetMethod( "Prepare" );
 
-			sync.Invoke( mirror, [camera, false] );
+			prepare.Invoke( render, [camera, false] );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SkyTint );
 			camera.ExcludeTags.Add( "last" );
-			sync.Invoke( mirror, [camera, false] );
+			prepare.Invoke( render, [camera, false] );
 			Assert.AreEqual( Color.Red, renderWorld.Lighting.SkyTint );
-			sync.Invoke( mirror, [camera, true] );
+			prepare.Invoke( render, [camera, true] );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SkyTint );
 
-			var replacement = material.CreateCopy();
-			var nativeSky = (NativeEngine.CSceneSkyBoxObject)last.native;
-			nativeSky.SetMaterial( replacement.native );
 			camera.ExcludeTags.RemoveAll();
-			sync.Invoke( mirror, [camera, false] );
-			Assert.AreSame( replacement, renderWorld.Lighting.SkyMaterial );
-			nativeSky.SetMaterial( default );
-			sync.Invoke( mirror, [camera, false] );
+			last.SkyMaterial = null;
+			prepare.Invoke( render, [camera, false] );
 			Assert.IsNull( renderWorld.Lighting.SkyMaterial, "A null material on the newest sky must not reveal an older sky" );
 			first.RenderingEnabled = false;
 			last.RenderingEnabled = false;
-			sync.Invoke( mirror, [camera, false] );
+			prepare.Invoke( render, [camera, false] );
 			Assert.IsNull( renderWorld.Lighting.SkyMaterial );
 		}
 		finally

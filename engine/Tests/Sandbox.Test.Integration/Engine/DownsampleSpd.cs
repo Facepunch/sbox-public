@@ -1,5 +1,4 @@
 using System;
-using Sandbox.SceneRenderer.Gpu;
 
 namespace EngineTests;
 
@@ -35,84 +34,44 @@ public class DownsampleSpdTest
 	}
 
 	/// <summary>
-	/// The Hi-Z depth chain, resolved in the first downsample_spd dispatch or by depthresolve_cs before it, min/max reduced to the last mip.
+	/// The same methods through the engine's Borealis.Gpu backend: downsample_spd dispatched by Borealis.Backend's
+	/// GraphicsContext, read back mip by mip.
 	/// </summary>
 	[TestMethod]
-	[DataRow( 1366, 769, true )]
-	[DataRow( 1366, 769, false )]
-	[DataRow( 4500, 300, true )]
-	[DataRow( 1, 1, true )]
-	[DataRow( 1, 1, false )]
-	public void DepthChainMatchesCpuReduction( int width, int height, bool fuseResolve )
+	[DataRow( 1280, 720, Graphics.DownsampleMethod.MinMax )]
+	[DataRow( 4500, 300, Graphics.DownsampleMethod.MinMax )]
+	[DataRow( 1366, 769, Graphics.DownsampleMethod.Box )]
+	public void MatchesCpuReductionOnBorealisGpu( int width, int height, Graphics.DownsampleMethod method )
 	{
 		RequireVulkan();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
 
 		var random = new Random( width * height );
-		var depth = new float[width * height];
-		for ( int i = 0; i < depth.Length; i++ ) depth[i] = random.Float();
+		var source = new Vector2[width * height];
+		for ( int i = 0; i < source.Length; i++ ) source[i] = new Vector2( random.Float(), random.Float() );
 
-		using var source = Texture.Create( width, height, ImageFormat.R32F ).WithData<float>( depth ).Finish();
-		using var chain = SharedPasses.DepthChainTarget( width, height );
+		// Made after the Borealis.Gpu device, so the texture keeps its pixels for that device's copy
+		var mips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
+		using var texture = Texture.Create( width, height, ImageFormat.RG3232F ).WithMips( mips ).WithUAVBinding().WithData<Vector2>( source ).Finish();
 
-		using ( Graphics.Scope.Create() )
+		using ( Graphics.Scope.CreateOn( borealis ) )
 		{
-			SharedPasses.BuildDepthChain( Graphics.Context, source, chain.DepthTarget, false, width, height, fuseResolve: fuseResolve );
+			Graphics.GenerateMipMaps( texture, method );
 		}
 
-		AssertChain( chain.DepthTarget, depth.Select( d => new Vector2( d, d ) ).ToArray(), width, height, Graphics.DownsampleMethod.MinMax );
-	}
-
-	/// <summary>
-	/// The occlusion cull's depth chain: depthresolve_cs writing the min and max of each 4x4 block into a quarter size first mip.
-	/// </summary>
-	[TestMethod]
-	[DataRow( 1366, 769 )]
-	[DataRow( 64, 64 )]
-	public void ConservativeQuarterChainMatchesCpuReduction( int width, int height )
-	{
-		RequireVulkan();
-
-		var random = new Random( width * height );
-		var depth = new float[width * height];
-		for ( int i = 0; i < depth.Length; i++ ) depth[i] = random.Float();
-
-		int quarterWidth = (width + 3) / 4, quarterHeight = (height + 3) / 4;
-		using var source = Texture.Create( width, height, ImageFormat.R32F ).WithData<float>( depth ).Finish();
-		using var chain = SharedPasses.DepthChainTarget( quarterWidth, quarterHeight );
-
-		using ( Graphics.Scope.Create() )
-		{
-			SharedPasses.BuildDepthChain( Graphics.Context, source, chain.DepthTarget, false, width, height, DepthResolveMode.ConservativeQuarter );
-		}
-
-		// Edge blocks only cover the texels that exist
-		var expected = new Vector2[quarterWidth * quarterHeight];
-		for ( int y = 0; y < quarterHeight; y++ )
-		{
-			for ( int x = 0; x < quarterWidth; x++ )
-			{
-				var block = new Vector2( 1, 0 );
-				for ( int j = y * 4; j < Math.Min( y * 4 + 4, height ); j++ )
-					for ( int i = x * 4; i < Math.Min( x * 4 + 4, width ); i++ )
-						block = new Vector2( MathF.Min( block.x, depth[j * width + i] ), MathF.Max( block.y, depth[j * width + i] ) );
-
-				expected[y * quarterWidth + x] = block;
-			}
-		}
-
-		AssertChain( chain.DepthTarget, expected, quarterWidth, quarterHeight, Graphics.DownsampleMethod.MinMax );
+		AssertChain( texture, source, width, height, method, ( mip, actual ) => System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector2>( borealis.ReadBytes( texture, mip ) ).CopyTo( actual ) );
+		Assert.AreEqual( 0, borealis.ValidationErrors );
 	}
 
 	static void RequireVulkan()
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 	}
 
 	/// <summary>
 	/// Every mip of <paramref name="texture"/> against <paramref name="expected"/>, its first mip, reduced on the CPU.
 	/// </summary>
-	static void AssertChain( Texture texture, Vector2[] expected, int width, int height, Graphics.DownsampleMethod method )
+	static void AssertChain( Texture texture, Vector2[] expected, int width, int height, Graphics.DownsampleMethod method, Action<int, Vector2[]> read = null )
 	{
 		var mips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
 		for ( int mip = 0; mip < mips; mip++ )
@@ -121,7 +80,8 @@ public class DownsampleSpdTest
 				(expected, width, height) = (Reduce( expected, width, width >> 1, height >> 1, method ), width >> 1, height >> 1);
 
 			var actual = new Vector2[width * height];
-			texture.GetPixels<Vector2>( (0, 0, width, height), 0, mip, actual, ImageFormat.RG3232F );
+			if ( read is null ) texture.GetPixels<Vector2>( (0, 0, width, height), 0, mip, actual, ImageFormat.RG3232F );
+			else read( mip, actual );
 
 			for ( int i = 0; i < expected.Length; i++ )
 			{

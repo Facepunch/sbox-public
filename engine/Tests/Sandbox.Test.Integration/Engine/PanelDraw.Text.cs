@@ -133,10 +133,19 @@ public partial class PanelDrawTextTest : PainterTestBase
 		}
 	}
 
+	/// <summary>
+	/// A frame for texture usage: Source 2's device counts its resource system's frames, Borealis.Gpu the engine's.
+	/// </summary>
+	static void NextFrame()
+	{
+		Application.FrameCount++;
+		NativeEngine.g_pResourceSystem.UpdateSimple();
+	}
+
 	static void AgeTexture( Texture texture )
 	{
 		for ( var i = 0; i < 3; i++ )
-			NativeEngine.g_pResourceSystem.UpdateSimple();
+			NextFrame();
 
 		Assert.IsTrue( texture.LastUsed > 2, "The texture must be old enough for cache eviction." );
 	}
@@ -147,7 +156,7 @@ public partial class PanelDrawTextTest : PainterTestBase
 		// A nonzero mip size bypasses MarkUsed's initial frame-zero deduplication.
 		texture.MarkUsed( 1 );
 		if ( texture.LastUsed != 0 )
-			Assert.Inconclusive( "Requires native texture usage tracking; the empty renderer always reports LastUsed = 1000." );
+			Assert.Inconclusive( "Requires texture usage tracking." );
 	}
 
 	/// <summary>
@@ -287,16 +296,15 @@ public partial class PanelDrawTextTest : PainterTestBase
 			var texture = block.Texture;
 			Assert.IsNotNull( texture );
 			RequireTextureUsageTracking( texture );
-			Application.FrameCount += 3;
-			NativeEngine.g_pResourceSystem.UpdateSimple();
-			NativeEngine.g_pResourceSystem.UpdateSimple();
+			NextFrame();
+			NextFrame();
 			Assert.AreEqual( 2, texture.LastUsed );
 
 			TickTextCache();
 			Assert.AreSame( block, TextCache[block.CacheKey] );
 			Assert.AreSame( texture, block.Texture );
 
-			NativeEngine.g_pResourceSystem.UpdateSimple();
+			NextFrame();
 			Assert.AreEqual( 3, texture.LastUsed );
 			TickTextCache();
 			Assert.IsFalse( TextCache.ContainsKey( block.CacheKey ) );

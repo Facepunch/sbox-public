@@ -200,7 +200,7 @@ public class BoxSelectionTests
 		renderer.Model = Model.Load( "models/dev/box.vmdl" );
 		// Control the live animation bounds independently of the model's unchanged rest geometry.
 		var posedBounds = BBox.FromPositionAndSize( 0, contained ? new Vector3( 10, 36, 16 ) : new Vector3( 300 ) );
-		renderer.SceneModel.animNative.m_localBounds = posedBounds;
+		renderer.SceneModel.AnimatedLocalBounds = posedBounds;
 		var frustum = Region( contained ? 20 : 100, go.WorldRotation );
 		var worldBounds = posedBounds.Transform( go.WorldTransform );
 		Assert.IsTrue( frustum.IsInside( worldBounds, true ) );

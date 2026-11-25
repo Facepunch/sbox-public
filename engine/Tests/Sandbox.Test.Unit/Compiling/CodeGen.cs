@@ -57,7 +57,7 @@ namespace CompilingTests
 
 			var path = System.IO.Path.GetDirectoryName( typeof( System.Object ).Assembly.Location );
 			refs.Add( MetadataReference.CreateFromFile( typeof( System.Object ).Assembly.Location ) );
-			refs.Add( MetadataReference.CreateFromFile( $"{path}\\System.Runtime.dll" ) );
+			refs.Add( MetadataReference.CreateFromFile( System.IO.Path.Combine( path, "System.Runtime.dll" ) ) );
 
 			refs.Add( MetadataReference.CreateFromFile( typeof( Networking ).Assembly.Location ) );
 			refs.Add( MetadataReference.CreateFromFile( typeof( ConCmdAttribute ).Assembly.Location ) ); // Sandbox.System
@@ -129,7 +129,7 @@ namespace CompilingTests
 
 			var path = System.IO.Path.GetDirectoryName( typeof( System.Object ).Assembly.Location );
 			refs.Add( MetadataReference.CreateFromFile( typeof( System.Object ).Assembly.Location ) );
-			refs.Add( MetadataReference.CreateFromFile( $"{path}\\System.Runtime.dll" ) );
+			refs.Add( MetadataReference.CreateFromFile( System.IO.Path.Combine( path, "System.Runtime.dll" ) ) );
 
 			refs.Add( MetadataReference.CreateFromFile( typeof( Networking ).Assembly.Location ) );
 			refs.Add( MetadataReference.CreateFromFile( typeof( ConCmdAttribute ).Assembly.Location ) ); // Sandbox.System
@@ -193,7 +193,7 @@ namespace CompilingTests
 
 			var path = System.IO.Path.GetDirectoryName( typeof( System.Object ).Assembly.Location );
 			refs.Add( MetadataReference.CreateFromFile( typeof( System.Object ).Assembly.Location ) );
-			refs.Add( MetadataReference.CreateFromFile( $"{path}\\System.Runtime.dll" ) );
+			refs.Add( MetadataReference.CreateFromFile( System.IO.Path.Combine( path, "System.Runtime.dll" ) ) );
 
 			refs.Add( MetadataReference.CreateFromFile( typeof( Networking ).Assembly.Location ) );
 			refs.Add( MetadataReference.CreateFromFile( typeof( ConCmdAttribute ).Assembly.Location ) );

@@ -353,6 +353,44 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
+	/// Clipmap settings written to an enabled terrain that has no storage yet - as a scene's terrain deserializes, its
+	/// clipmap settings before its storage - are kept without making a clipmap (which threw reading the missing storage).
+	/// Once it has storage, a setting rebuilds the clipmap it made.
+	/// </summary>
+	[TestMethod]
+	public void ClipmapSettingsBeforeStorageMakeNoClipmap()
+	{
+		TestGraphics.Require();
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var baseline = scene.SceneWorld.SceneObjects.Count();
+		var go = scene.CreateObject();
+		var terrain = go.Components.Create<Terrain>();
+		Assert.IsTrue( terrain.Active );
+		Assert.IsNull( terrain.Storage );
+
+		terrain.ClipMapLodLevels = 4;
+		terrain.ClipMapLodExtentTexels = 128;
+		terrain.SubdivisionFactor = 2;
+
+		Assert.AreEqual( 4, terrain.ClipMapLodLevels );
+		Assert.AreEqual( 128, terrain.ClipMapLodExtentTexels );
+		Assert.AreEqual( 2, terrain.SubdivisionFactor );
+		Assert.AreEqual( baseline, scene.SceneWorld.SceneObjects.Count(), "no clipmap without storage" );
+
+		terrain.Storage = CreateSmallStorage();
+		Assert.AreEqual( baseline + 1, scene.SceneWorld.SceneObjects.Count(), "the clipmap, once there's storage" );
+
+		terrain.ClipMapLodLevels = 5;
+		Assert.AreEqual( baseline + 1, scene.SceneWorld.SceneObjects.Count(), "a setting rebuilds the one clipmap" );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
 	/// Terrain component configuration - collision switch, clipmap settings, shadow mode,
 	/// material override and inherited collider surface overrides - survives a GameObject
 	/// serialize/deserialize round trip, including the disabled state. The storage was
@@ -805,7 +843,7 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
-	/// The local frustum test should match testing the box's eight world-space corners against the world planes.
+	/// The local cull planes should classify a box the same way the world planes classify its eight world-space corners.
 	/// </summary>
 	[TestMethod]
 	[DataRow( "perspective" )]
@@ -819,9 +857,11 @@ public class TerrainComponentTest
 		Plane[] planes = [frustum.RightPlane, frustum.LeftPlane, frustum.TopPlane, frustum.BottomPlane, frustum.NearPlane, frustum.FarPlane];
 
 		int visible = 0, hidden = 0;
+		var localPlanes = new Plane[6];
 		foreach ( var transform in CullTransforms )
 		{
-			var local = TerrainClipmapSceneObject.ToLocal( frustum, transform );
+			TerrainClipmapCuller.ToLocalPlanes( frustum, transform, localPlanes );
+			var local = new Frustum( localPlanes[1], localPlanes[0], localPlanes[2], localPlanes[3], localPlanes[4], localPlanes[5] );
 
 			for ( int i = 0; i < 4000; i++ )
 			{

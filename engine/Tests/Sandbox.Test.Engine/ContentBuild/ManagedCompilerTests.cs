@@ -169,6 +169,47 @@ public class ManagedCompilerTests
 	}
 
 	[TestMethod]
+	public void CopiedCompiledTextureCompilesWithoutARenderDevice()
+	{
+		// An image file generator pointed at a compiled texture copies its pixels: read back on the CPU from its compiled
+		// file, in a worker with no render device. Before, it failed saying it needed one.
+		using var fx = new ContentFixture();
+		using var compilers = new CompilerFixture();
+		compilers.Compile();
+
+		Sources.WriteTga( fx, "textures/solid.tga", 8, 8, 0xFF4080C0 );
+		fx.Write( "textures/solid.vtex", Sources.Texture( "textures/solid.tga" ) );
+		fx.Write( "graphs/copy.fxg", """
+			{
+				"Copy": { "$compiler": "texture", "$source": "imagefile", "data": { "FilePath": "textures/solid.vtex" } }
+			}
+			""" );
+
+		var report = Built( fx, compilers );
+		var copies = Directory.GetFiles( Path.Combine( fx.Parent, "transient", "textures", "generated", "imagefile" ), "*.vtex_c" );
+		Assert.AreEqual( 1, copies.Length, report.Log.ToString() );
+
+		// The copy's top level, decoded, is the source's one colour (BGRA C0 80 40 FF as RGBA 40 80 C0 FF)
+		var copy = Borealis.Source2.Materials.TextureFile.Read( File.ReadAllBytes( copies[0] ) );
+		Assert.AreEqual( (8, 8), (copy.Width, copy.Height) );
+		var stored = Sandbox.BorealisGpuRenderBackend.ImageFormatOf( copy.Format ) ?? throw new AssertFailedException( $"copy is {copy.Format}" );
+		var top = new byte[8 * 8 * 4];
+		var src = System.Runtime.InteropServices.GCHandle.Alloc( copy.Mip( 0 ).ToArray(), System.Runtime.InteropServices.GCHandleType.Pinned );
+		var dst = System.Runtime.InteropServices.GCHandle.Alloc( top, System.Runtime.InteropServices.GCHandleType.Pinned );
+		try
+		{
+			Assert.IsTrue( NativeEngine.ImageLoader.ConvertImageFormat( src.AddrOfPinnedObject(), stored, dst.AddrOfPinnedObject(), ImageFormat.RGBA8888, 8, 8, 0, 8 * 4 ), $"decoding {stored}" );
+		}
+		finally
+		{
+			src.Free();
+			dst.Free();
+		}
+		for ( var i = 0; i < top.Length; i += 4 )
+			Assert.IsTrue( Math.Abs( top[i] - 0x40 ) <= 4 && Math.Abs( top[i + 1] - 0x80 ) <= 4 && Math.Abs( top[i + 2] - 0xC0 ) <= 4 && top[i + 3] == 0xFF, $"texel {i / 4} is {top[i]},{top[i + 1]},{top[i + 2]},{top[i + 3]}" );
+	}
+
+	[TestMethod]
 	public void GeneratedTexturesCompileWithoutARenderDevice()
 	{
 		// A game resource's image generators compile from the images they make on the CPU: an image file's pixels as they

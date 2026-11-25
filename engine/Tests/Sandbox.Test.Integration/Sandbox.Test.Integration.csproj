@@ -16,7 +16,8 @@
 		<ProjectReference Include="..\..\Sandbox.Generator\Sandbox.Generator.csproj" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" />
-		<ProjectReference Include="..\..\Sandbox.SceneRenderer\Sandbox.SceneRenderer.csproj" />
+		<ProjectReference Include="..\..\Borealis\Borealis.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Rendering\Sandbox.Rendering.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Menu\Sandbox.Menu.csproj" />
 		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" />
@@ -25,6 +26,7 @@
 	<ItemGroup>
 		<None Include="..\Sandbox.Test.Unit\Data\SourceMovement\reference.json" Link="Data\SourceMovement\reference.json" CopyToOutputDirectory="PreserveNewest" />
 		<None Update="Data\MovementReplay\**\*" CopyToOutputDirectory="PreserveNewest" />
+		<None Update="Data\NativeGoldens\*" CopyToOutputDirectory="PreserveNewest" />
 		<None Update="Resources\Audio\*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

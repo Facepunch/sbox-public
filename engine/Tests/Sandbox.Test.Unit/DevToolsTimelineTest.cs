@@ -304,4 +304,94 @@ public class DevToolsTimelineTest
 			Application.FrameCount = engineFrame;
 		}
 	}
+
+	/// <summary>
+	/// A list that starts inside another and ends past it (another queue's, or the next frame's submitted while the last
+	/// one ran) nests under what holds all of it, so the frame's timeline is still built rather than dropped.
+	/// </summary>
+	[TestMethod]
+	public void OverlappingListNestsUnderWhatHoldsIt()
+	{
+		var scopes = new List<GpuProfilerStats.GpuScope>
+		{
+			new( "Borealis segment", true, 0, 4 ),
+			new( "Depth Prepass", false, 0.5, 1.5 ),
+			new( "Async compute", true, 1, 5 ),
+			new( "Depth Chain", false, 1.2, 4.5 ),
+			new( "Opaque Forward", false, 2, 3.5 ),
+		};
+
+		var rows = new List<GpuProfilerStats.Row>();
+		GpuProfilerStats.BuildRows( scopes, rows, new List<int>(), new Dictionary<string, int>() );
+
+		int Row( string name ) => rows.FindIndex( x => x.Name == name );
+		Assert.AreEqual( -1, rows[Row( "Async compute" )].Parent, "not under the segment it outlasts" );
+		Assert.AreEqual( Row( "Async compute" ), rows[Row( "Depth Chain" )].Parent, "under the list that holds it" );
+		Assert.AreEqual( Row( "Borealis segment" ), rows[Row( "Depth Prepass" )].Parent );
+		for ( int i = 0; i < rows.Count; i++ )
+		{
+			if ( rows[i].Parent < 0 ) continue;
+			var parent = scopes[rows[i].Parent];
+			Assert.IsTrue( parent.Start <= scopes[i].Start && parent.End >= scopes[i].End, $"{rows[i].Name} inside {parent.Name}" );
+		}
+
+		var events = new GpuFrameTimeline.Event[rows.Count];
+		for ( int i = 0; i < rows.Count; i++ )
+			events[i] = Pass( rows[i].Name, rows[i].Parent, scopes[i].Start, scopes[i].End );
+		Assert.IsTrue( GpuFrameTimeline.BuildPaths( events ), "every pass inside its parent" );
+	}
+
+	/// <summary>
+	/// With the passes read every frame while the dev tools show them, building their rows allocates nothing once its
+	/// lists have grown.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	public void BuildingRowsAllocatesNothing()
+	{
+		var frame = new List<GpuProfilerStats.GpuScope>();
+		for ( int i = 0; i < 40; i++ )
+			frame.Add( new( i % 8 == 0 ? "List" : $"Pass {i % 5}", i % 8 == 0, i * 0.1, i * 0.1 + (i % 8 == 0 ? 0.75 : 0.05) ) );
+
+		var scopes = new List<GpuProfilerStats.GpuScope>();
+		var rows = new List<GpuProfilerStats.Row>();
+		var open = new List<int>();
+		var seen = new Dictionary<string, int>();
+		Allocations.AssertSettles( "building a frame's rows", () => GpuProfilerStats.BuildRows( scopes, rows, open, seen ), beforePass: () =>
+		{
+			scopes.Clear();
+			scopes.AddRange( frame );
+		} );
+		Assert.AreEqual( frame.Count, rows.Count );
+	}
+
+	/// <summary>
+	/// While the dev tools show the passes the backend reads every frame's timings; otherwise every few frames. A read that
+	/// fails leaves the next read where it was, so it's tried again the next frame.
+	/// </summary>
+	[TestMethod]
+	public void GpuTimingsReadEveryFrameWhileShown()
+	{
+		Assert.AreEqual( 101, BorealisGpuRenderBackend.NextBusyRead( 100, everyFrame: true ) );
+		Assert.AreEqual( 100 + BorealisGpuRenderBackend.BusyReadFrames, BorealisGpuRenderBackend.NextBusyRead( 100, everyFrame: false ) );
+	}
+
+	/// <summary>
+	/// A rebuilt layout with no passes (nothing captured in the window yet, or a frame that couldn't be read) keeps the last
+	/// good timeline on screen for a while instead of the waiting message; past that, or with nothing shown yet, it's shown.
+	/// </summary>
+	[TestMethod]
+	public void LastGoodTimelineHeldThroughGaps()
+	{
+		var good = new DevTools.GpuLayout();
+		good.Spans.Add( Span( "Opaque Forward", 1, 0, 1 ) );
+		var empty = new DevTools.GpuLayout();
+		var fresh = new DevTools.GpuLayout();
+		fresh.Spans.Add( Span( "Depth Prepass", 1, 0, 1 ) );
+
+		Assert.AreSame( good, DevTools.Shown( empty, good, now: 100, lastSample: 99 ), "held through a gap" );
+		Assert.AreSame( fresh, DevTools.Shown( fresh, good, now: 100, lastSample: 100 ), "replaced by a layout with passes" );
+		Assert.AreSame( empty, DevTools.Shown( empty, good, now: 100, lastSample: 100 - DevTools.GpuTimelineHoldSeconds - 1 ), "dropped once nothing's been captured for long" );
+		Assert.AreSame( empty, DevTools.Shown( empty, new DevTools.GpuLayout(), now: 100, lastSample: 99 ), "nothing to hold" );
+	}
 }

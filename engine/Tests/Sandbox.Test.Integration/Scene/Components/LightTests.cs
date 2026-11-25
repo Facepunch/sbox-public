@@ -1134,7 +1134,7 @@ public partial class LightComponentTest
 		light.LegacyData = new Light.LegacyLightData { DirectLight = directLight };
 		light.Enabled = true;
 
-		return (int)FindSceneObjectFor<ScenePointLight>( scene, light ).lightNative.GetLightFlags();
+		return (int)FindSceneObjectFor<ScenePointLight>( scene, light ).Description.Flags;
 	}
 
 	/// <summary>

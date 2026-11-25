@@ -141,15 +141,24 @@ public class TcpConnectionTest
 		tl.AddAssembly( typeof( Bootstrap ).Assembly, false );
 		tl.AddAssembly( GetType().Assembly, true );
 
+		// A port the system has free: the game's own (Networking.LocalPort, 55333) can be held by a game or another test run
+		int port;
+		using ( var probe = new System.Net.Sockets.TcpListener( System.Net.IPAddress.Loopback, 0 ) )
+		{
+			probe.Start();
+			port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+			probe.Stop();
+		}
+
 		var server = new NetworkSystem( "server", tl );
 		server.InitializeHost();
-		server.AddSocket( new TcpSocket( "127.0.0.1", 55333 ) );
+		server.AddSocket( new TcpSocket( "127.0.0.1", port ) );
 		var serverTable = InstallDataTables( server );
 
 		Assert.AreEqual( serverTable.Entries.Count, 4 );
 
 		var client = new NetworkSystem( "client", tl );
-		client.Connect( new TcpChannel( "127.0.0.1", 55333 ) );
+		client.Connect( new TcpChannel( "127.0.0.1", port ) );
 		var clientTable = InstallDataTables( client );
 		Assert.AreEqual( clientTable.Entries.Count, 0 );
 
@@ -208,5 +217,41 @@ public class TcpConnectionTest
 		server.Disconnect();
 	}
 
+	/// <summary>
+	/// The other end closing the socket is a player leaving: the channel closes without logging an exception (a dedicated
+	/// server logged an EndOfStreamException warning with a stack trace for every player who left).
+	/// </summary>
+	[TestMethod]
+	[DoNotParallelize]
+	public void Tcp_PeerClosingIsNotAWarning()
+	{
+		using var listener = new System.Net.Sockets.TcpListener( System.Net.IPAddress.Loopback, 0 );
+		listener.Start();
+		var peer = new System.Net.Sockets.TcpClient();
+		peer.Connect( (System.Net.IPEndPoint)listener.LocalEndpoint );
+		var channel = new TcpChannel( listener.AcceptTcpClient() );
 
+		var warnings = new System.Collections.Concurrent.ConcurrentQueue<string>();
+		void OnEmitted( LogEvent e ) { if ( e.Message.Contains( "TcpChannel" ) ) warnings.Enqueue( e.Message ); }
+		Logging.OnEmitted += OnEmitted;
+
+		try
+		{
+			var connected = System.Diagnostics.Stopwatch.StartNew();
+			while ( !channel.IsConnected && connected.Elapsed.TotalSeconds < 5 ) System.Threading.Thread.Sleep( 10 );
+			Assert.IsTrue( channel.IsConnected, "The channel never saw its socket connected" );
+
+			peer.Close();
+
+			var closed = System.Diagnostics.Stopwatch.StartNew();
+			while ( !channel.IsConnectionLost && closed.Elapsed.TotalSeconds < 5 ) System.Threading.Thread.Sleep( 10 );
+			Assert.IsTrue( channel.IsConnectionLost, "The channel didn't notice the peer closing" );
+			Assert.IsTrue( warnings.IsEmpty, string.Join( "\n", warnings ) );
+		}
+		finally
+		{
+			Logging.OnEmitted -= OnEmitted;
+			channel.InternalClose( 0, "test" );
+		}
+	}
 }

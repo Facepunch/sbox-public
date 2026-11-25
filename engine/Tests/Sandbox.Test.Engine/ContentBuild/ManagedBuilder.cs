@@ -19,7 +19,7 @@ public sealed class ManagedBuilder : IContentBuilder
 
 	internal static readonly AssetTypeTable Types = new( Path.Combine( ContentFixture.Engine, "bin", "assettypes.txt" ) );
 
-	internal static string Worker => Path.Combine( ContentFixture.Engine, "bin", "managed", "contentworker.exe" );
+	internal static string Worker => Path.Combine( ContentFixture.Engine, "bin", "managed", OperatingSystem.IsWindows() ? "contentworker.exe" : "contentworker" );
 
 	/// <summary>
 	/// A build with workers of its own, stopped when it's done. They have no render device, as on a build machine.

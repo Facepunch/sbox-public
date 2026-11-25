@@ -871,9 +871,9 @@ public class ManagedContentBuild : ContentBuildScenarios
 	{
 		fx.CopyShipped( "core/materials/default/default_normal.tga", "materials/n.tga" );
 		fx.CopyShipped( Sources.ImageA, "materials/c.tga" );
-		// The generic shader's normal map is DXT5 (the complex shader's is BC7), as core's dev materials have it
-		fx.Write( "materials/a.vmat", Sources.Material( "shaders/generic.shader", ["TextureNormal", "materials/n.tga"] ) );
-		fx.Write( "materials/b.vmat", Sources.Material( "shaders/generic.shader", ["TextureNormal", "materials/n.tga", "TextureColor", "materials/c.tga"] ) );
+		// Glass's overlay layer normal map is DXT5 (its others are BC7)
+		fx.Write( "materials/a.vmat", Sources.Material( "shaders/glass.shader", ["F_OVERLAY_LAYER", "1", "TextureNormalB", "materials/n.tga"] ) );
+		fx.Write( "materials/b.vmat", Sources.Material( "shaders/glass.shader", ["F_OVERLAY_LAYER", "1", "TextureNormalB", "materials/n.tga", "TextureColorB", "materials/c.tga"] ) );
 
 		var run = Build( fx );
 		AssertSucceeded( run );
@@ -1239,6 +1239,40 @@ public class ManagedContentBuild : ContentBuildScenarios
 		CollectionAssert.IsSubsetOf( new[] { "models/bonnet.vmdl_c" }, run.Changed, run.ToString() );
 		CollectionAssert.Contains( run.Result.Jobs.ToArray(), "models/bonnet_idle.vmdl", run.Result.Log );
 		AssertWroteExactly( fx.Build( Builder ) );
+	}
+
+	/// <summary>
+	/// A model made on a base model compiles with no meshes of its own, and native loads it as its base with its own
+	/// animation added. Borealis reads it the same way: the base's meshes, groups and skeleton under its own name. It read
+	/// no meshes, so such a model (Mow the Lawn's NPCs, made on the citizen) drew nothing.
+	/// </summary>
+	[TestMethod, TestCategory( "Slow" )]
+	public void AModelMadeOnABaseModelReadsAsItsBase()
+	{
+		using var fx = new ContentFixture();
+		MaterialWithTexture( fx, "materials/m.vmat", "materials/m_color.tga", Sources.ImageA );
+		fx.CopyShipped( $"{Sources.BonnetFolder}/easter_bonnet.fbx", "models/bonnet.fbx" );
+		fx.CopyShipped( $"{Sources.BonnetFolder}/easter_bonnet_citizen_idle_anim.fbx", "models/bonnet_idle.fbx" );
+		fx.Write( "models/bonnet.vmdl", Sources.Mesh( "models/bonnet.fbx", "materials/m.vmat" ) );
+		fx.Write( "models/bonnet_idle.vmdl", Sources.Animated( "models/bonnet.vmdl", "models/bonnet_idle.fbx" ) );
+
+		var run = fx.Build( Builder );
+		AssertSucceeded( run );
+
+		byte[] Compiled( string path ) => fx.Exists( path + "_c" ) ? fx.Read( path + "_c" ) : null;
+		var baseModel = Borealis.Source2.Models.ModelFile.Read( fx.Read( "models/bonnet.vmdl_c" ), Compiled );
+		var made = Borealis.Source2.Models.ModelFile.Read( fx.Read( "models/bonnet_idle.vmdl_c" ), Compiled );
+
+		Assert.IsTrue( baseModel.Meshes.Count > 0, "the base model has meshes" );
+		Assert.AreEqual( baseModel.Meshes.Count, made.Meshes.Count, "the model made on it draws the base's meshes" );
+		CollectionAssert.AreEqual( baseModel.Meshes.Select( x => x.DrawCalls.Count ).ToArray(), made.Meshes.Select( x => x.DrawCalls.Count ).ToArray() );
+		CollectionAssert.AreEqual( baseModel.Skeleton.Names.ToArray(), made.Skeleton.Names.ToArray(), "and is posed on the base's skeleton" );
+		Assert.AreEqual( baseModel.DefaultMeshGroupMask, made.DefaultMeshGroupMask );
+		Assert.AreEqual( "models/bonnet_idle.vmdl", made.Name, "under its own name" );
+		Assert.IsTrue( made.HasAnimation, "with its own animation" );
+
+		// Without the base there's nothing to draw it with
+		Assert.ThrowsException<FileNotFoundException>( () => Borealis.Source2.Models.ModelFile.Read( fx.Read( "models/bonnet_idle.vmdl_c" ), _ => null ) );
 	}
 
 	/// <summary>

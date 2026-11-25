@@ -11,8 +11,7 @@ public class PanelBackdropsTest
 	[DataRow( true )]
 	public void OffsetOverlappingBackdropsSampleTheirDestination( bool isolated )
 	{
-		if ( g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN )
-			Assert.Inconclusive( "Requires Vulkan rendering." );
+		TestGraphics.Require();
 
 		using var target = Texture.CreateRenderTarget().WithSize( 256, 256 ).Create();
 		var bounds = new Rect( 64, 64, 128, 128 );

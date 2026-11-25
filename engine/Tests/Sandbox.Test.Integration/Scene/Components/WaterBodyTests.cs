@@ -240,4 +240,104 @@ public class WaterBodyTests
 			scene.Destroy();
 		}
 	}
+
+	/// <summary>
+	/// Moving the camera changes the clipmap's detail without making the surface again: near, far and near again, an
+	/// ocean or a large pool keeps the model it made first, and only its attributes follow the camera.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void DetailChangesKeepTheSurfaceModel( bool ocean )
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var scene = Scene.CreateEditorScene();
+		using var scope = scene.Push();
+		int savedDetail = WaterBody.Detail;
+		try
+		{
+			WaterBody.Detail = 2;
+			var camera = scene.CreateObject().Components.Create<CameraComponent>();
+			camera.ZFar = 20000;
+			var water = scene.CreateObject().Components.Create<WaterBody>();
+			water.Ocean = ocean;
+			water.Size = new Vector2( 4096 );
+			water.Waves = true;
+			water.Underwater = false;
+			water.Effects = false;
+			var surface = water.GetComponentsInChildren<ModelRenderer>().Single();
+
+			(Model Model, float Cell, int Levels) At( float height )
+			{
+				camera.WorldPosition = new Vector3( 10, 20, height );
+				scene.EditorTick( 2, 1f / 60 );
+				scene.PreRender();
+				return (surface.Model, surface.Attributes.GetFloat( "ClipmapBaseCell" ), surface.Attributes.GetInt( "ClipmapLevels" ));
+			}
+
+			var near = At( 50 );
+			var far = At( 1500 );
+			Assert.IsTrue( far.Cell > near.Cell, $"The far camera must get coarser cells: {near.Cell} / {far.Cell}." );
+			Assert.AreNotEqual( near.Levels, far.Levels, "The far camera must need another number of levels." );
+			Assert.AreSame( near.Model, far.Model, "Moving away made the surface again." );
+			Assert.AreSame( near.Model, At( 50 ).Model, "Coming back made the surface again." );
+			Assert.AreSame( near.Model, At( 1500 ).Model );
+		}
+		finally
+		{
+			WaterBody.Detail = savedDetail;
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
+	/// The surface's capture commands (the environment it reflects and its refraction capture) are recorded once and played
+	/// back each frame where the surface draws; they're recorded again only when what they record changes.
+	/// </summary>
+	[TestMethod]
+	public void CapturesRecordOnlyWhenTheyChange()
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var scene = Scene.CreateEditorScene();
+		using var scope = scene.Push();
+		try
+		{
+			var camera = scene.CreateObject().Components.Create<CameraComponent>();
+			camera.WorldPosition = new Vector3( 0, -600, 200 );
+			camera.WorldRotation = Rotation.From( 20, 90, 0 );
+			var sky = scene.CreateObject().Components.Create<SkyBox2D>();
+			var water = scene.CreateObject().Components.Create<WaterBody>();
+			water.Size = new Vector2( 1024 );
+			water.Waves = false;
+			water.Underwater = false;
+			water.Effects = false;
+			var surface = water.GetComponentsInChildren<ModelRenderer>().Single();
+
+			scene.PreRender();
+			var captures = surface.ExecuteBefore;
+			Assert.IsNotNull( captures, "The surface must play its captures back where it draws." );
+			int recorded = water.CaptureRecords;
+			for ( int i = 0; i < 5; i++ )
+				scene.PreRender();
+			Assert.AreSame( captures, surface.ExecuteBefore );
+			Assert.AreEqual( recorded, water.CaptureRecords, "Frames that changed nothing recorded the captures again." );
+
+			camera.WorldPosition += Vector3.Up * 50;
+			scene.PreRender();
+			Assert.AreEqual( recorded, water.CaptureRecords, "Moving the camera well above the surface changes nothing recorded." );
+
+			sky.Tint = Color.Red;
+			scene.PreRender();
+			Assert.AreEqual( recorded + 1, water.CaptureRecords, "A sky change must record the environment again." );
+			Assert.AreSame( captures, surface.ExecuteBefore );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
 }

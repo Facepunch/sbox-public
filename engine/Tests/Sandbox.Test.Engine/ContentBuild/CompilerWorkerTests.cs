@@ -24,6 +24,12 @@ public class CompilerWorkerTests
 	static ContentRoot Root( ContentFixture fx ) => new( fx.Mod, fx.Root, Path.Combine( fx.Parent, "state" ) );
 
 	/// <summary>
+	/// A compiled vfx shader, relative to game/: core ships none now (its materials compile from Slang modules), so the
+	/// Borealis.Gpu tests' own unlit.shader, which build-shaders compiles beside itself.
+	/// </summary>
+	const string CompiledShader = "../engine/Tests/Borealis.Gpu.Test/Content/shaders/unlit.shader_c";
+
+	/// <summary>
 	/// A shader's version, which every material using it records, asked twice of one worker (as the editor keeps its
 	/// workers): the second answer is the shader as it is then, not as the worker first saw it (missing).
 	/// </summary>
@@ -37,11 +43,12 @@ public class CompilerWorkerTests
 		{
 			static SpecialDependency Shader( string name ) => new( "CompileMaterial", 0, name, 0 );
 			var missing = compiler.Fingerprints( [Shader( "shaders/cbt_fixture.shader" )] )[0];
-			var generic = compiler.Fingerprints( [Shader( "shaders/generic.shader" )] )[0];
-			Assert.AreNotEqual( missing, generic, "a missing shader has no version of its own" );
+			fx.CopyShipped( CompiledShader, "shaders/cbt_reference.shader_c" );
+			var compiled = compiler.Fingerprints( [Shader( "shaders/cbt_reference.shader" )] )[0];
+			Assert.AreNotEqual( missing, compiled, "a missing shader has no version of its own" );
 
-			fx.CopyShipped( "core/shaders/generic.shader_c", "shaders/cbt_fixture.shader_c" );
-			Assert.AreEqual( generic, compiler.Fingerprints( [Shader( "shaders/cbt_fixture.shader" )] )[0], "the shader compiled since it was first asked about" );
+			fx.CopyShipped( CompiledShader, "shaders/cbt_fixture.shader_c" );
+			Assert.AreEqual( compiled, compiler.Fingerprints( [Shader( "shaders/cbt_fixture.shader" )] )[0], "the shader compiled since it was first asked about" );
 		}
 		finally { compiler.Finished(); }
 	}

@@ -36,6 +36,33 @@ public class MaterialTest
 	}
 
 	/// <summary>
+	/// A material of a shader only a Slang module describes reports vertex inputs to code that builds vertex buffers for it
+	/// (Hammer's meshes): the standard position, uv and tangent frame, and the mesh streams its module reads (blendable's
+	/// vertex paint). With none, Hammer built no vertex layout and drew no map geometry.
+	/// </summary>
+	[TestMethod]
+	public void SlangModuleMaterialsReportVertexInputs()
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		var standard = Material.Create( "slang_inputs_complex", "shaders/complex.shader" );
+		try
+		{
+			var semantics = standard.native.GetVertexInputSemantics();
+			Assert.AreEqual( "PosXyz,LowPrecisionUv,OptionallyCompressedTangentFrame", semantics );
+		}
+		finally
+		{
+			standard.Destroy();
+		}
+
+		var blend = Material.Load( "materials/dev/simple/simple_blend.vmat" );
+		var blendSemantics = blend.native.GetVertexInputSemantics().Split( ',' );
+		CollectionAssert.IsSubsetOf( new[] { "PosXyz", "LowPrecisionUv", "OptionallyCompressedTangentFrame", "VertexPaintBlendParams", "VertexPaintTintColor" }, blendSemantics );
+	}
+
+	/// <summary>
 	/// Anonymous copies have distinct paths and leave the source lookup intact, including after destruction.
 	/// </summary>
 	[TestMethod]

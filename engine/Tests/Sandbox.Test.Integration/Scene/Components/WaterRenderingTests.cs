@@ -48,7 +48,8 @@ public class WaterRenderingTests
 			water.WaveSpeed = 0;
 			water.Waves = false;
 			var material = Material.FromShader( "shaders/water.shader" );
-			Assert.AreEqual( "shaders/water.shader", material.Shader.native.GetFilename(), "Water shader was replaced by a fallback." );
+			// water has no .shader (its module is the whole shader): the material keeps the shader's name
+			StringAssert.StartsWith( material.ShaderName.Replace( '\\', '/' ), "shaders/water.shader", "Water shader was replaced by a fallback." );
 
 			var camera = scene.CreateObject().Components.Create<CameraComponent>();
 			camera.CustomSize = new Vector2( width, height );
@@ -218,6 +219,134 @@ public class WaterRenderingTests
 					RenderTarget.EndOfFrame();
 					EngineLoop.RunAsyncTasks();
 				}
+			}
+		}
+		finally
+		{
+			WaterBody.Detail = previous;
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
+	/// A surface whose mesh has room for more levels than the camera needs (it was nearer before) draws as one made for the
+	/// levels it needs: the shader collapses the spare levels.
+	/// </summary>
+	[TestMethod, DoNotParallelize]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void SpareClipmapLevelsDrawNothing( bool ocean )
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1." );
+
+		const int width = 256, height = 128;
+		int previous = WaterBody.Detail;
+		var scene = new Scene();
+		using var scope = scene.Push();
+		using var target = Texture.CreateRenderTarget().WithSize( width, height )
+			.WithFormat( ImageFormat.RGBA16161616F ).Create( "water-spare-levels" );
+		try
+		{
+			WaterBody.Detail = 2;
+			var camera = scene.CreateObject().Components.Create<CameraComponent>();
+			camera.CustomSize = new Vector2( width, height );
+			camera.WorldRotation = Rotation.LookAt( new Vector3( 1, 0.2f, -0.6f ) );
+			camera.FieldOfView = 90;
+			camera.ZNear = 1;
+			camera.ZFar = 20000;
+			camera.BackgroundColor = Color.Black;
+			camera.SceneCamera.Attributes.Set( "msaa", 0 );
+			scene.CreateObject().Components.Create<AmbientLight>().Color = Color.White;
+			var near = new Vector3( 37.3f, -91.7f, 50 );
+			var far = new Vector3( 37.3f, -91.7f, 1500 );
+
+			WaterBody Make()
+			{
+				var water = scene.CreateObject().Components.Create<WaterBody>();
+				water.Ocean = ocean;
+				water.Size = new Vector2( 4096 );
+				water.SetCaustics( false );
+				water.Underwater = false;
+				water.Effects = false;
+				water.SetReflectionsEnabled( false );
+				water.DisableRefraction();
+				water.ClearDetail();
+				water.MaterialCopy().Set( "SurfaceColor", Color.White );
+				water.MaterialCopy().Set( "Opacity", (float)(1) );
+				water.MaterialCopy().Set( "g_fRoughness", 1 );
+				water.Waves = true;
+				water.WaveHeight = 40;
+				water.WaveLength = 384;
+				water.WaveWidth = 256;
+				water.WaveSteepness = 0.8f;
+				water.WaveSpeed = 0;
+				return water;
+			}
+
+			int Levels( WaterBody water ) => water.GetComponentsInChildren<ModelRenderer>().Single().Attributes.GetInt( "ClipmapLevels" );
+
+			// Made for the far camera
+			camera.WorldPosition = far;
+			var fresh = Make();
+			RenderFrames( 4 );
+			var expected = ReadPixels();
+			int farLevels = Levels( fresh );
+			fresh.GameObject.Destroy();
+
+			// Made for the near camera, then seen from far
+			camera.WorldPosition = near;
+			var grown = Make();
+			RenderFrames( 4 );
+			Assert.IsTrue( Levels( grown ) > farLevels, "The near camera must need more levels than the far one." );
+			camera.WorldPosition = far;
+			RenderFrames( 4 );
+			Assert.AreEqual( farLevels, Levels( grown ) );
+			var drawn = ReadPixels();
+			AssertVisible( expected );
+			float difference = Difference( expected, drawn );
+			Assert.IsTrue( difference < 0.0005f, $"The spare levels changed the picture by {difference}." );
+
+			void RenderFrames( int count )
+			{
+				for ( int frame = 0; frame < count; frame++ )
+				{
+					EngineGlobal.SourceEnginePanelAppFrame();
+					scene.GameTick( 1.0 / 60 );
+					scene.PreRender();
+					Assert.IsTrue( camera.RenderToTexture( target, new ViewSetup
+					{
+						EnablePostprocessing = false,
+						EnableUI = false,
+						EnableDebugOverlays = false
+					} ) );
+					g_pRenderDevice.Present( IntPtr.Zero );
+					g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+					EngineLoop.DrainFrameEndDisposables();
+					RenderTarget.EndOfFrame();
+					EngineLoop.RunAsyncTasks();
+				}
+			}
+
+			float[] ReadPixels()
+			{
+				var data = new ushort[width * height * 4];
+				target.GetPixels<ushort>( (0, 0, width, height), 0, 0, data, ImageFormat.RGBA16161616F );
+				var result = new float[data.Length];
+				for ( int i = 0; i < result.Length; i++ )
+					result[i] = (float)BitConverter.UInt16BitsToHalf( data[i] );
+				return result;
+			}
+
+			static void AssertVisible( float[] pixels )
+			{
+				int lit = 0;
+				for ( int i = 0; i < pixels.Length; i += 4 )
+				{
+					if ( MathF.Max( pixels[i], MathF.Max( pixels[i + 1], pixels[i + 2] ) ) > 0.0001f )
+						lit++;
+				}
+				Assert.IsTrue( lit > pixels.Length / 4 / 4, $"Water must cover a good part of the view: {lit} pixels." );
 			}
 		}
 		finally

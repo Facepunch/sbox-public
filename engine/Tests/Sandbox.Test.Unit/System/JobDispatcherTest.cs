@@ -12,6 +12,51 @@ public class JobDispatcherTest
 	// Workers only take part when there are some and parallelism isn't capped at 1 (SBOX_MAX_PARALLELISM)
 	static bool Parallel => JobDispatcher.Workers.Count > 0 && JobDispatcher.MaxDegreeOfParallelism > 1;
 
+	/// <summary>
+	/// A caller whose synchronization context hears of its waits (the main thread's) joins without it: the context hears of no
+	/// wait (it would run queued work mid-batch) and nothing is allocated (the runtime allocates a handle array for each wait
+	/// it forwards to a context).
+	/// </summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	[DoNotParallelize]
+	public void JoiningUnderAWaitNotifiedContextAllocatesNothing()
+	{
+		if ( !Parallel ) Assert.Inconclusive( "No workers to wait for." );
+
+		var previous = SynchronizationContext.Current;
+		var context = new WaitNotifiedContext();
+		SynchronizationContext.SetSynchronizationContext( context );
+		try
+		{
+			// Items a worker takes are slow and the caller's are quick, so the caller always runs out of its own and waits for a
+			// worker's, however late the workers wake (there are enough items for the caller to still be busy when they do)
+			callerThread = Environment.CurrentManagedThreadId;
+			var items = JobDispatcher.Workers.Count * 4 + 1;
+			Allocations.AssertSettles( "a join that waits", () => JobDispatcher.For( items, 0, static ( _, _ ) => Thread.Sleep( Environment.CurrentManagedThreadId == callerThread ? 1 : 20 ), itemsPerBatch: 1 ) );
+			Assert.AreEqual( 0, context.Waits, "the caller's context heard of a wait while joining" );
+		}
+		finally
+		{
+			SynchronizationContext.SetSynchronizationContext( previous );
+		}
+	}
+
+	static int callerThread;
+
+	sealed class WaitNotifiedContext : SynchronizationContext
+	{
+		public int Waits;
+
+		public WaitNotifiedContext() => SetWaitNotificationRequired();
+
+		public override int Wait( IntPtr[] waitHandles, bool waitAll, int millisecondsTimeout )
+		{
+			Waits++;
+			return base.Wait( waitHandles, waitAll, millisecondsTimeout );
+		}
+	}
+
 	[TestMethod]
 	public void RunsEveryItemOnce()
 	{

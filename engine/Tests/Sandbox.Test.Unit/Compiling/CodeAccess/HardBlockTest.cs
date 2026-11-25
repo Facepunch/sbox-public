@@ -113,7 +113,7 @@ public partial class HardBlockTest
 			syntaxTrees: [syntaxTree],
 			references: [
 				MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-				MetadataReference.CreateFromFile( $"{path}\\System.Runtime.dll" ),
+				MetadataReference.CreateFromFile( System.IO.Path.Combine( path, "System.Runtime.dll" ) ),
 				MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
 				MetadataReference.CreateFromFile(typeof(System.Runtime.InteropServices.MemoryMarshal).Assembly.Location),
 				MetadataReference.CreateFromFile(typeof(Networking).Assembly.Location),
