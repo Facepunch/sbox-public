@@ -1,0 +1,11 @@
+// The standard interpolants, included inside a shader's PS_INPUT: the detail texture's UVs ahead of the classic ones
+// (sbox/pixel_input.slangh), before any system value. Ours, in place of the old vr_shared_standard_ps_input.fxc in Slang
+// compiles (SlangHeaders). TEXCOORD14 and up are free for the shader's own.
+
+#if S_DETAIL_TEXTURE
+	float2 vDetailTextureCoords : TEXCOORD13;
+#endif
+
+#include "sbox/pixel_input.slangh"
+
+#define SHARED_STANDARD_PS_INPUT_DEFINED

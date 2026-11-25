@@ -1,0 +1,424 @@
+// The standard pixel stage's inputs and processing: color, translucency, normal and roughness, self-illumination, tint mask,
+// ambient occlusion, metalness, detail and wrinkle textures, their render states and material attributes, and
+// PS_SharedStandardProcessing, which fills a FinalCombinerInput_t from them for PS_FinalCombiner (sbox/final_combiner.slangh).
+// Ours, in place of the old vr_shared_standard_ps_code.fxc: the same globals in the same order (they make the constant
+// buffer and the compiled textures), the same results. Shares its include guard.
+#ifndef VR_SHARED_PS_CODE_FXC
+#define VR_SHARED_PS_CODE_FXC
+
+// Optional combos a shader doesn't declare are off. They stay language constants (ShaderConstant), so they're tested in
+// code, not #if.
+#ifndef S_SCALE_NORMAL_MAP
+#define S_SCALE_NORMAL_MAP 0
+#endif
+#ifndef S_USE_BENT_NORMALS
+#define S_USE_BENT_NORMALS 0
+#endif
+#ifndef S_DETAIL_TEXTURE
+#define S_DETAIL_TEXTURE 0
+#endif
+
+// Render states, unless the shader set its own: reversed depth test, depth written when opaque; alpha blending (additive
+// when asked) when translucent, alpha to coverage when alpha tested or fading
+#if !defined( DEPTH_STATE_ALREADY_SET )
+	#define DEPTH_STATE_ALREADY_SET
+	RenderState( DepthEnable, true );
+	RenderState( DepthFunc, GREATER_EQUAL );
+	#if ( S_TRANSLUCENT )
+		RenderState( DepthWriteEnable, false );
+	#else
+		RenderState( DepthWriteEnable, true );
+	#endif
+#endif
+
+#if !defined( BLEND_MODE_ALREADY_SET )
+	#define BLEND_MODE_ALREADY_SET
+	#if ( S_TRANSLUCENT )
+		RenderState( BlendEnable, true );
+		RenderState( SrcBlend, SRC_ALPHA );
+		#if ( S_ADDITIVE_BLEND )
+			RenderState( DstBlend, ONE );
+		#else
+			RenderState( DstBlend, INV_SRC_ALPHA );
+		#endif
+	#elif ( S_ALPHA_TEST )
+		RenderState( AlphaToCoverageEnable, true );
+	#endif
+#endif
+
+#if ( D_OPAQUE_FADE )
+	RenderState( AlphaToCoverageEnable, true );
+#endif
+
+#include "vr_common_ps_code.fxc"
+#include "common_samplers.fxc"
+#include "vr_detail_texture.fxc"
+
+#define MINIMAL_MATERIAL
+#include "common/classes/Decals.hlsl"
+
+// Color, with translucency in its alpha when translucent or alpha tested. Opaque materials name it g_tColor1 (specular
+// without a metalness texture, as older materials have) or g_tColor2; g_tColor stands for whichever it is.
+CreateInputTexture2D( TextureColor, Srgb, 8, "", "_color", "Color/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureTranslucency, Linear, 8, "", "_trans", "Translucent,15", Default3( 1.0, 1.0, 1.0 ) );
+#ifndef COLOR_SAMPLER_DEFINED
+	#if ( S_TRANSLUCENT )
+		Texture2D g_tColor < Channel( RGB, AlphaWeighted( TextureColor, TextureTranslucency ), Srgb ); Channel( A, Box( TextureTranslucency ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
+	#elif ( S_ALPHA_TEST )
+		Texture2D g_tColor < Channel( RGB, AlphaWeighted( TextureColor, TextureTranslucency ), Srgb ); Channel( A, PreserveCoverage( TextureTranslucency ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
+	#elif ( S_SPECULAR && !S_METALNESS_TEXTURE )
+		Texture2D g_tColor1 < Channel( RGB, Box( TextureColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+		#define g_tColor g_tColor1
+	#else
+		Texture2D g_tColor2 < Channel( RGB, Box( TextureColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+		#define g_tColor g_tColor2
+	#endif
+#endif
+
+// Normal and roughness: a hemi-octahedral normal with roughness beside it (anisotropic roughness in a texture of its own),
+// a bent normal, and scales for both
+#ifdef ENABLE_NORMAL_MAPS
+	CreateInputTexture2D( TextureNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal,20", Default3( 0.5, 0.5, 1.0 ) );
+	CreateInputTexture2D( TextureBentNormal, Linear, 8, "NormalizeNormals", "_bentnormal", "Normal/20", Default3( 0.5, 0.5, 1.0 ) );
+	CreateInputTexture2D( TextureRoughness, Linear, 8, "Inverse", "_rough", "Roughness,23/10", Default3( 0.5, 0.5, 0.5 ) );
+	#if ( S_ANISOTROPIC_GLOSS )
+		Texture2D g_tNormal < Channel( RG, HemiOctIsoRoughness_RG_B( TextureNormal, TextureRoughness ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); >;
+		Texture2D g_tAnisoGloss < Channel( RG, AnisoRoughness_RG( TextureNormal, TextureRoughness ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); >;
+	#else
+		Texture2D g_tNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormal, TextureRoughness ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+	#endif
+	#ifndef BENT_NORMAL_ACTIVE_IF
+	#define BENT_NORMAL_ACTIVE_IF
+	#endif
+	Texture2D g_tBentNormal < Channel( RG, HemiOctIsoRoughness_RG_B( TextureBentNormal ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); BENT_NORMAL_ACTIVE_IF >;
+	float g_flNormalMapScaleFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Normal" ); >;
+	float g_flRoughnessScaleFactor < Default( 1.0 ); Range( 0.0, 2.0 ); UiGroup( "Roughness" ); >;
+#endif
+
+// Self-illumination: a masked, tinted glow that can scroll, be offset and take on the albedo
+#if ( S_SELF_ILLUM )
+	CreateInputTexture2D( TextureSelfIllumMask, Srgb, 8, "", "_selfillum", "Self Illum,60/10", Default3( 0.0, 0.0, 0.0 ) );
+	Texture2D g_tSelfIllumMask < Channel( RGB, Box( TextureSelfIllumMask ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+	TextureAttribute( LightSim_SelfIllumMaskTexture, g_tSelfIllumMask );
+	Float3Attribute( LightSim_SelfIllumTint, g_vSelfIllumTint );
+	FloatAttribute( LightSim_SelfIllumScale, g_flSelfIllumScale );
+	float3 g_vSelfIllumTint < UiType( Color ); Default3( 1.0, 1.0, 1.0 ); UiGroup( "Self Illum/20" ); >;
+	float g_flSelfIllumBrightness < Default( 0.0 ); Range( -10.0, 10.0 ); UiGroup( "Self Illum" ); >;
+	float g_flSelfIllumScale < Default( 1.0 ); Range( 0.0, 16.0 ); UiGroup( "Self Illum/30" ); >;
+	float2 g_vSelfIllumOffset < Default2( 0.0, 0.0 ); UiGroup( "Self Illum/35" ); >;
+	float2 g_vSelfIllumScrollSpeed < Default2( 0.0, 0.0 ); Range2( -10.0, -10.0, 10.0, 10.0 ); UiGroup( "Self Illum/40" ); >;
+	float g_flSelfIllumAlbedoFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Self Illum/50" ); >;
+#endif
+
+// Tint mask: where the vertex color tints the albedo
+#if ( S_TINT_MASK )
+	CreateInputTexture2D( TextureTintMask, Linear, 8, "", "_mask", "Color", Default3( 1.0, 1.0, 1.0 ) );
+	Texture2D g_tTintMask < Channel( R, Box( TextureTintMask ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); Filter( TRILINEAR ); >;
+	TextureAttribute( LightSim_TintMaskTextureR, g_tTintMask );
+#endif
+
+// Ambient occlusion, unless the color's alpha holds it
+CreateInputTexture2D( TextureAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion,40/10", Default3( 1.0, 1.0, 1.0 ) );
+#if !defined( AMBIENT_OCCLUSION_IN_COLOR )
+	Texture2D g_tAmbientOcclusion < Channel( R, Box3( TextureAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+#endif
+
+// Which textures read the second uv set
+#if ( S_UV2_CONTROLS )
+	bool g_bUseSecondaryUvForSelfIllum < Default( 0.0 ); UiGroup( "Self Illum/100" ); >;
+	bool g_bUseSecondaryUvForTintMask < Default( 0.0 ); UiGroup( "Color/101" ); >;
+	bool g_bUseSecondaryUvForAmbientOcclusion < Default( 1.0 ); UiGroup( "Ambient Occlusion/100" ); >;
+	bool g_bUseSecondaryUvForDetailMask < Default( 1.0 ); UiGroup( "Detail Texture/180" ); >;
+#endif
+
+// Metalness (and retro-reflectivity) from a texture's green (and red), or from constants
+#if ( S_METALNESS_TEXTURE )
+	CreateInputTexture2D( TextureMetalness, Linear, 8, "", "_metal", "Metalness,27/10", Default3( 0.0, 0.0, 0.0 ) );
+	#if !defined( METALNESS_IN_COLOR )
+		CreateInputTexture2D( TextureRetroReflectiveMask, Linear, 8, "", "_mask", "Retro-Reflective,29/10", Default3( 1.0, 1.0, 1.0 ) );
+		Texture2D g_tMetalness < Channel( G, Box( TextureMetalness ), Linear );
+			#if ( S_RETRO_REFLECTIVE )
+				Channel( R, Box( TextureRetroReflectiveMask ), Linear );
+			#endif
+			OutputFormat( DXT1 ); SrgbRead( false ); >;
+	#endif
+#else
+	float g_flMetalness < Default( 0.0 ); Range( 0.0, 1.0 ); UiGroup( "Metalness,27/20" ); >;
+	float g_flRetroReflectivity < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Retro-Reflective,29/20" ); >;
+#endif
+
+// Detail: an albedo detail (mod2x or overlay) and a detail normal, masked
+#if S_DETAIL_TEXTURE
+	CreateInputTexture2D( TextureDetail, Linear, 8, "Mod2XCenter", "_detail", "Detail Texture,80/10", Default4( 1.0, 1.0, 1.0, 1.0 ) );
+	CreateInputTexture2D( TextureNormalDetail, Linear, 8, "NormalizeNormals", "_normal", "Detail Texture,80/10", Default3( 0.5, 0.5, 1.0 ) );
+	CreateInputTexture2D( TextureDetailMask, Linear, 8, "", "_detailmask", "Detail Texture,80/40", Default4( 1.0, 1.0, 1.0, 1.0 ) );
+	Texture2D g_tDetail < Channel( RGB, Box( TextureDetail ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+	Texture2D g_tNormalDetail < Channel( RG, HemiOctIsoRoughness_RG_B( TextureNormalDetail ), Linear ); OutputFormat( ATI2N ); SrgbRead( false ); >;
+	Texture2D g_tDetailMask < Channel( R, Box( TextureDetailMask ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+	float g_flDetailBlendFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Detail Texture,80/20" ); >;
+	float g_flDetailBlendToFull < Default( 0.0 ); Range( 0.0, 1.0 ); UiGroup( "Detail Texture,80/50" ); >;
+#endif
+
+// Wrinkles: color, normal and ambient occlusion for a squashed and a stretched face, blended in by the vertex's wrinkle
+CreateInputTexture2D( TextureSquishColor, Srgb, 8, "", "_color", "Color/11", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureStretchColor, Srgb, 8, "", "_color", "Color/12", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureSquishNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal/21", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureStretchNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal/22", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureSquishAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion/11", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureStretchAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion/12", Default3( 1.0, 1.0, 1.0 ) );
+Texture2D g_tSquishColor < Channel( RGB, Box( TextureSquishColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+Texture2D g_tStretchColor < Channel( RGB, Box( TextureStretchColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+Texture2D g_tSquishNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureSquishNormal, TextureRoughness ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+Texture2D g_tStretchNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureStretchNormal, TextureRoughness ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+Texture2D g_tSquishAmbientOcclusion < Channel( R, Box3( TextureSquishAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+Texture2D g_tStretchAmbientOcclusion < Channel( R, Box3( TextureStretchAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+
+// Opacity scale when translucent; reference and edge softness when alpha tested
+#if ( S_TRANSLUCENT )
+	BoolAttribute( translucent, true );
+	float g_flOpacityScale < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Translucent" ); >;
+#endif
+#if ( S_ALPHA_TEST )
+	BoolAttribute( alphatest, true );
+	float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); >;
+	float g_flAntiAliasedEdgeStrength < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Translucent" ); >;
+#endif
+
+BoolAttribute( DoNotCastShadows, F_DO_NOT_CAST_SHADOWS ? true : false );
+BoolAttribute( SupportsMappingDimensions, true );
+TextureAttribute( LightSim_DiffuseAlbedoTexture, g_tColor );
+TextureAttribute( RepresentativeTexture, g_tColor );
+BoolAttribute( renderbackfaces, F_RENDER_BACKFACES ? true : false );
+BoolAttribute( ShadowFastPath, true );
+
+/// The color texture at a uv, anisotropically filtered.
+float4 SampleColorTexture( float2 vTextureCoords )
+{
+	return Tex2DS( g_tColor, g_sAniso, vTextureCoords.xy );
+}
+
+#if ( S_TINT_MASK )
+/// How much the vertex color tints the albedo at a uv.
+float SampleTintMaskTexture( float2 vTextureCoords )
+{
+	return Tex2DS( g_tTintMask, g_sAniso, vTextureCoords.xy ).r;
+}
+#endif
+
+#ifdef SHARED_STANDARD_PS_INPUT_DEFINED
+
+/// The squashed face's texel where the wrinkle is negative, the stretched face's where it's positive. Both are sampled,
+/// so the samples' derivatives don't depend on the wrinkle.
+float4 WrinkleTexel( Texture2D tSquish, Texture2D tStretch, SamplerState s, float2 vUv, float flWrinkle )
+{
+	return ( flWrinkle < 0.0 ) ? Tex2DS( tSquish, s, vUv ) : Tex2DS( tStretch, s, vUv );
+}
+
+/// A FinalCombinerInput_t for PS_FinalCombiner from the standard textures: PS_CommonProcessing's interpolants, then
+/// opacity, albedo, emission, ambient occlusion, metalness, normal and roughness, detail and decals, and the diffuse and
+/// specular colors they make. A shader can change what it returns before combining.
+FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
+{
+	FinalCombinerInput_t o = PS_CommonProcessing( i );
+	float4 vColor = SampleColorTexture( i.vTextureCoords.xy );
+	const float flOneLevel = 1 / 255.0f;
+
+	// Alpha test: opacity sharpened for alpha to coverage; a pixel whose raw opacity is under one level, or whose sharpened
+	// opacity is nothing, is clipped. The clip comes after the derivatives the sharpening takes: a discard leaves them
+	// undefined in partly discarded quads, and the depth prepass and the color pass would cover different pixels.
+	#if ( S_ALPHA_TEST )
+	{
+		o.flOpacity = vColor.a * o.flOpacity;
+		float flRawOpacity = o.flOpacity;
+		o.flOpacity = AdjustOpacityForAlphaToCoverage( o.flOpacity, g_flAlphaTestReference, g_flAntiAliasedEdgeStrength, i.vTextureCoords.xy, float2( TextureDimensions2DS( g_tColor, 0 ) ) );
+		clip( min( flRawOpacity - flOneLevel, o.flOpacity - 0.000001 ) );
+	}
+	#endif
+
+	// Fading without MSAA: alpha to coverage stood in for by a dithered depth
+	#if ( D_OPAQUE_FADE )
+	{
+		if ( g_nMSAASampleCount == 1 )
+			OpaqueFadeDepth( ( o.flOpacity + 0.5f + flOneLevel ) * 0.5f, i.vPositionSs.xy );
+	}
+	#endif
+
+	#if ( S_WRINKLE )
+	{
+		float4 vWrinkleColor = WrinkleTexel( g_tSquishColor, g_tStretchColor, g_sAniso, i.vTextureCoords.xy, o.flWrinkle );
+		vColor.rgb = lerp( vColor.rgb, vWrinkleColor.rgb, abs( o.flWrinkle ) );
+	}
+	#endif
+
+	// Albedo: the color tinted by the vertex color, where the tint mask says
+	float3 vAlbedo;
+	#if ( S_TINT_MASK )
+	{
+		float flTint = SampleTintMaskTexture( GetUVDefault1( g_bUseSecondaryUvForTintMask, i.vTextureCoords ).xy );
+		vAlbedo = lerp( vColor.rgb, vColor.rgb * i.vVertexColor.rgb, flTint );
+	}
+	#else
+	{
+		vAlbedo = vColor.rgb * i.vVertexColor.rgb;
+	}
+	#endif
+
+	// Self-illumination: the mask tinted (brightness in stops, scale, the tint in linear), toward the albedo by its factor
+	#if ( S_SELF_ILLUM )
+	{
+		float2 vUv = g_vSelfIllumOffset.xy + GetUVDefault1( g_bUseSecondaryUvForSelfIllum, i.vTextureCoords ) + frac( g_flTime * g_vSelfIllumScrollSpeed.xy );
+		float3 vTint = pow( 2.0, g_flSelfIllumBrightness ).xxx * saturate( g_flSelfIllumScale.xxx ) * SrgbGammaToLinear( g_vSelfIllumTint.xyz );
+		o.vEmissive = Tex2DS( g_tSelfIllumMask, g_sTrilinearWrap, vUv.xy ).rgb * vTint.rgb;
+		o.vEmissive = lerp( o.vEmissive.rgb, o.vEmissive.rgb * vAlbedo.rgb, g_flSelfIllumAlbedoFactor );
+	}
+	#endif
+
+	// Ambient occlusion, from its texture (the second uv set by default where asked) or the color's alpha
+	float2 vOcclusionUv;
+	#if ( S_UV2_DEFAULT_FOR_AO )
+		vOcclusionUv.xy = GetUVDefault2( g_bUseSecondaryUvForAmbientOcclusion, i.vTextureCoords );
+	#else
+		vOcclusionUv.xy = i.vTextureCoords.xy;
+	#endif
+
+	#if defined( AMBIENT_OCCLUSION_IN_COLOR )
+		#if ( S_UV2_DEFAULT_FOR_AO ) || defined( METALNESS_IN_COLOR )
+			#error Invalid Combination
+		#endif
+		o.flAmbientOcclusion = vColor.a;
+	#else
+		o.flAmbientOcclusion = Tex2DS( g_tAmbientOcclusion, g_sTrilinearWrap, vOcclusionUv.xy ).r;
+	#endif
+
+	#if ( S_WRINKLE )
+	{
+		float flWrinkleOcclusion = WrinkleTexel( g_tSquishAmbientOcclusion, g_tStretchAmbientOcclusion, g_sTrilinearWrap, vOcclusionUv.xy, o.flWrinkle ).r;
+		o.flAmbientOcclusion = lerp( o.flAmbientOcclusion, flWrinkleOcclusion, abs( o.flWrinkle ) );
+	}
+	#endif
+
+	#if ( S_TRANSLUCENT )
+		o.flOpacity *= vColor.a * g_flOpacityScale;
+	#endif
+
+	// Metalness, and retro-reflectivity beside it
+	float flMetalness = 0.0f;
+	#if ( S_METALNESS_TEXTURE )
+		#ifdef METALNESS_IN_COLOR
+			flMetalness = vColor.a;
+		#else
+		{
+			float4 vMetalness = Tex2DS( g_tMetalness, g_sTrilinearWrap, i.vTextureCoords.xy );
+			flMetalness = vMetalness.g;
+			#if ( S_RETRO_REFLECTIVE )
+				o.flRetroReflectivity = vMetalness.r;
+			#endif
+		}
+		#endif
+	#else
+		flMetalness = g_flMetalness;
+		o.flRetroReflectivity = g_flRetroReflectivity;
+	#endif
+
+	// The detail mask, which both the detail normal and the detail albedo use
+	float flDetailMask = 0.0;
+	#if S_DETAIL_TEXTURE
+	if ( S_DETAIL_TEXTURE != 0 )
+	{
+		float2 vMaskUv = GetUVDefault2( g_bUseSecondaryUvForDetailMask, i.vTextureCoords );
+		flDetailMask = max( Tex2DS( g_tDetailMask, g_sAniso, vMaskUv.xy ).r, g_flDetailBlendToFull ) * g_flDetailBlendFactor;
+	}
+	#endif
+
+	// Normal and roughness
+	#if defined( ENABLE_NORMAL_MAPS )
+	{
+		float4 vNormalTexel = Tex2DS( g_tNormal, g_sAniso, i.vTextureCoords.xy );
+		#if ( S_WRINKLE )
+			vNormalTexel.rgba = lerp( vNormalTexel.rgba, WrinkleTexel( g_tSquishNormal, g_tStretchNormal, g_sAniso, i.vTextureCoords.xy, o.flWrinkle ).rgba, abs( o.flWrinkle ) );
+		#endif
+		float3 vNormalTs = DecodeHemiOctahedronNormal( vNormalTexel.rg );
+
+		#if ( S_ANISOTROPIC_GLOSS )
+			o.vRoughness = Tex2DS( g_tAnisoGloss, g_sAniso, i.vTextureCoords.xy ).rg;
+		#else
+			o.vRoughness = vNormalTexel.bb;
+		#endif
+		o.vRoughness = pow( o.vRoughness, g_flRoughnessScaleFactor );
+
+		// Flattened toward the surface by the scale
+		if ( S_SCALE_NORMAL_MAP != 0 )
+			vNormalTs = normalize( lerp( float3( 0.0f, 0.0f, 1.0f ), vNormalTs, g_flNormalMapScaleFactor ) );
+
+		#if ( !S_UNLIT )
+		{
+			// The detail normal, for detail modes 3 and 4
+			#if S_DETAIL_TEXTURE
+			if ( S_DETAIL_TEXTURE == 3 || S_DETAIL_TEXTURE == 4 )
+			{
+				float3 vDetailNormalTs = DecodeHemiOctahedronNormal( Tex2DS( g_tNormalDetail, g_sAniso, i.vDetailTextureCoords.xy ).rg );
+				vNormalTs.xyz = ApplyDetailNormal( vNormalTs.xyz, vDetailNormalTs.xyz, flDetailMask );
+			}
+			#endif
+			PS_CommonTransformNormal( i, o, vNormalTs );
+		}
+		#endif
+
+		// A bent normal for indirect light: the shading normal carried into the bent normal's frame. Tangent space here has y
+		// down, as the tools still make it, so both flip y going in.
+		if ( S_USE_BENT_NORMALS != 0 )
+		{
+			float3 vBentTs = DecodeHemiOctahedronNormal( Tex2DS( g_tBentNormal, g_sAniso, i.vTextureCoords.xy ).rg );
+			vBentTs.y = -vBentTs.y;
+			float3 vBentWs = normalize( Vec3TsToWs( vBentTs.xyz, i.vNormalWs.xyz, o.vTangentUWs.xyz, o.vTangentVWs.xyz ) );
+			float3 vShadingTs = float3( vNormalTs.x, -vNormalTs.y, vNormalTs.z );
+			o.vBentNormalWs.xyz = normalize( Vec3TsToWs( vShadingTs.xyz, vBentWs.xyz, o.vTangentUWs.xyz, o.vTangentVWs.xyz ) );
+			o.bUseBentNormalsForIndirect = true;
+		}
+	}
+	#endif
+
+	// Detail albedo: mod2x for mode 1, an overlay for modes 2 and 4
+	#if S_DETAIL_TEXTURE
+	if ( S_DETAIL_TEXTURE == 1 || S_DETAIL_TEXTURE == 2 || S_DETAIL_TEXTURE == 4 )
+	{
+		float3 vDetail = Tex2DS( g_tDetail, g_sAniso, i.vDetailTextureCoords.xy ).rgb;
+		if ( S_DETAIL_TEXTURE == 1 )
+			vAlbedo.rgb *= lerp( float3( 1.0, 1.0, 1.0 ), MOD2X_SCALAR * vDetail.rgb, flDetailMask );
+		if ( S_DETAIL_TEXTURE == 2 || S_DETAIL_TEXTURE == 4 )
+			vAlbedo.rgb = PhotoshopOverlay( vAlbedo.rgb, vDetail.rgb, flDetailMask );
+	}
+	#endif
+
+	// Decals, applied to the surface as it stands
+	{
+		Material material = Material::Init();
+		material.WorldPosition = o.vPositionWs;
+		material.ScreenPosition = i.vPositionSs;
+		material.Albedo = vAlbedo;
+		material.Normal = o.vNormalWs;
+		material.WorldTangentU = o.vTangentUWs;
+		material.WorldTangentV = o.vTangentVWs;
+		material.Roughness = o.vRoughness.x;
+		material.AmbientOcclusion = o.flAmbientOcclusion;
+		material.Emission = o.vEmissive;
+		material.Metalness = flMetalness;
+		Decals::Apply( o.vPositionWs, material );
+		vAlbedo = material.Albedo;
+		o.vNormalWs = material.Normal;
+		o.vRoughness.x = material.Roughness;
+		o.flAmbientOcclusion = material.AmbientOcclusion;
+		o.vEmissive = material.Emission;
+		flMetalness = material.Metalness;
+	}
+
+	o = CalculateDiffuseAndSpecularFromAlbedoAndMetalness( o, vAlbedo, flMetalness );
+
+	// For the tools' views
+	o.vTextureCoords = i.vTextureCoords.xy;
+	return o;
+}
+
+#endif // SHARED_STANDARD_PS_INPUT_DEFINED
+
+#endif // VR_SHARED_PS_CODE_FXC

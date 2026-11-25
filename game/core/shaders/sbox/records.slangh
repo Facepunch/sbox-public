@@ -1,0 +1,404 @@
+// The records Borealis writes into GPU buffers and its shaders read: the one place each layout is written. Each struct is
+// a record, its fields in order, each four-byte aligned with no padding (the layout ByteAddressBuffer.Load<T> reads):
+// float, int, uint, float2 to float4, or fixed arrays of those. Sandbox.ShaderCompiler reflects them and makes the C#
+// structs the engine writes them with (engine/Borealis.Backend/Records.g.cs) and borealis_records.fxc, the size and
+// byte offset of every field for shaders that read a word at a time (RecordName_FieldName); build-shaders and
+// ShaderCompiler -records write both. A record and its readers change together: a shader reads a field at its macro, or
+// loads the whole struct (Load<DrawRecord>( offset )) where it includes this file. The /// comments become the C#
+// structs' documentation. See docs/reference/borealis-records.md.
+#ifndef SBOX_RECORDS_SLANGH
+#define SBOX_RECORDS_SLANGH
+
+//
+// GPU-driven draws (docs/reference/borealis-gpu-driven.md "Tables")
+//
+
+/// A GPU-driven draw: what a fragment draws with, made once (GpuDrivenTables.Draw).
+struct DrawRecord
+{
+	/// Byte offset of its geometry record.
+	uint Geometry;
+	/// Byte offset of its vertex stage's material record.
+	uint VertexMaterial;
+	/// Byte offset of its pixel stage's material record.
+	uint PixelMaterial;
+	/// Bit 0: an uncompressed tangent frame; bit 1: 32-bit indices; from bit 8 its lighting record's index in 16 bytes (0 for none).
+	uint Flags;
+	/// Its first index in its index page.
+	uint FirstIndex;
+	/// Its index count.
+	uint IndexCount;
+	/// Its base vertex.
+	int BaseVertex;
+	/// Its index page's bindless slot.
+	int IndexPage;
+};
+
+/// A geometry record's head: a bit per semantic (usage * 16 + index) the mesh has. A GeometryStream per bit set follows it, in semantic order (GpuDrivenTables.Geometry).
+struct GeometryRecord
+{
+	/// The semantics' bits, 32 a word.
+	uint Semantics[8];
+};
+
+/// One semantic's stream in a geometry record. A semantic a mesh lacks reads ( 0, 0, 0, 1 ), as the default stream does.
+struct GeometryStream
+{
+	/// Its page's bindless slot plus 1.
+	uint Page;
+	/// The byte offset of element 0 in the page.
+	uint Offset;
+	/// Bits 0-5: component width; 6-8: count; 9-11: conversion (0 float, 1 unorm, 2 snorm, 3 uint, 4 sint); 12: BGRA; the stride in the top 16 bits.
+	uint Format;
+	/// Its element count, shifted up 1; bit 0: per instance.
+	uint Count;
+};
+
+/// A GPU-driven instance, indexed by the command's first instance (SV_VulkanInstanceID).
+struct InstanceRecord
+{
+	/// Its transform's slot in g_TransformBuffer.
+	uint Transform;
+	/// Its draw record's index.
+	uint Draw;
+};
+
+/// A draw's lighting, in the lighting table at its draw record's Flags >> 8 (in 16 bytes): the bytes of BakedLightingConstantBuffer_t, then of PerBatchLightProbeVolumeConstantBuffer_t, as vfx packs those constant buffers (GpuDrivenTables.Lighting copies them; a missing one is zeros). The constant buffers own this layout, which the native GPU-driven wrapper reads at their packoffsets: RecordTests checks it against their reflection.
+struct LightingRecord
+{
+	/// g_vLightmapUvScale.
+	float4 LightmapUvScale;
+	/// g_nLightmapTextureIndices (int4).
+	uint LightmapTextureIndices[4];
+	/// g_nLightmapTextureIndices2 (int4).
+	uint SecondLightmapTextureIndices[4];
+	/// MatLightProbeVolumeWorldToLocal (float4x3), as three registers.
+	float4 ProbeVolumeWorldToLocal[3];
+	/// LightProbeVolumeLayer0TextureMin.
+	float4 ProbeVolumeLayer0TextureMin;
+	/// LightProbeVolumeLayer0TextureMax.
+	float4 ProbeVolumeLayer0TextureMax;
+	/// LightProbeVolumeColor.
+	float4 ProbeVolumeColor;
+	/// LightProbeVolumeTextureIndices (int4).
+	uint ProbeVolumeTextureIndices[4];
+};
+
+/// A view of a GPU cull (borealis_gpu_driven_cull_cs, borealis_resident_cull_cs), at the start of its region.
+struct CullViewRecord
+{
+	/// The frustum's planes: left, right, bottom, top, near, far.
+	float4 Planes[6];
+	/// The camera's position, and the squared size threshold (negative: a sun cascade's squared radius by its texel size).
+	float4 CameraAndThreshold;
+	/// Bit 0: a shadow view; bits 1-2: its resident filter (GpuContext.ResidentFilter); bit 3: two-phase Hi-Z occlusion; bit 4: the culls count what they let through (CullStats); bit 5: a depth pass (no colour); bits 8-15: the stats slot.
+	uint Flags;
+	/// Non-zero: resident meshes skip the size test (a static shadow cache, kept while the camera moves).
+	uint KeepsSmallMeshes;
+	/// A resident filter's settled stamp; with Hi-Z, last frame's visible bits' bindless slot.
+	uint SettledStamp;
+	/// A resident filter's restless stamp; with Hi-Z, the candidates' byte offset in the region's buffer.
+	uint RestlessStamp;
+	/// The LOD camera's position, and the tangent of half its field of view.
+	float4 LodCamera;
+	/// The screen width resident meshes pick their LOD by, or texels per unit for a texel view.
+	float LodWidth;
+	/// Non-zero: LodWidth is texels per unit.
+	uint LodTexels;
+	/// How fragments pick generated levels: 0 not at all, 1 by distance, 2 by texels, 3 by distance with the level kept per visibility fragment (its view's slice in bits 8-15).
+	uint LodMode;
+	/// The generated levels' error units: pixels per unit at distance 1, or texels per unit, over the limit.
+	float LodUnits;
+};
+
+/// A fragment in the fragment table: a piece of an aggregate the GPU culls on its own (BackendContext.WriteFragments).
+struct FragmentRecord
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Its draw record.
+	uint Draw;
+	/// Bounds extents.
+	float3 Extents;
+	/// Its transform slot after its batch's first; bit 31: it casts no shadow.
+	uint Instance;
+};
+
+/// A resident mesh batch's group header in the fragment table, before its meshes' records (BackendContext.WriteResidentMeshes).
+struct ResidentMeshHeader
+{
+	/// The model's LOD count; bits 8-15: how many switch distances it has.
+	uint Lods;
+	/// LOD switch distances 1 to 7.
+	float SwitchDistances[7];
+};
+
+/// A resident mesh in the fragment table, after its group's header.
+struct ResidentMeshRecord
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Its LOD scale (the largest scale), or -1 - LOD for a fixed LOD.
+	float LodScale;
+	/// Bounds extents.
+	float3 Extents;
+	/// Its transform slot.
+	uint Transform;
+};
+
+/// A batch a GPU cull culls, after its view record: fragments, a mesh draw's instances or resident meshes.
+struct BatchRecord
+{
+	/// Its first fragment record; a mesh draw's instances: their draw record; resident meshes: their group's header.
+	uint First;
+	/// Its fragments, instances or meshes.
+	uint Count;
+	/// The first fragment's transform slot; instances: the frame region's byte offset of their transform slots; resident meshes: their draw record (bit 31: a list of a draw record per mesh in the fragment table instead).
+	uint Transform;
+	/// Its first command slot, or compacting, its multi-draw.
+	uint Run;
+	/// Its first visibility fragment, or none.
+	uint FirstVisibility;
+	/// A resident filter's moved words' byte offset; or its multi-draw of compacted triangles; or with bit 31, its meshlet task run.
+	uint Moved;
+	/// 1: the prepass draws its ids; 2: forward draws its triangles that own a sample; 4: a mesh draw's instances; 8: resident meshes, bits 4-7 their LOD; bits 8 and up: the vertex stride between its instances' vertex bits.
+	uint Flags;
+	/// Its first vertex bit, or none.
+	uint FirstVertexBit;
+};
+
+/// A multi-draw of a cull's region: its first command slot and how many the cull filled.
+struct MultiDraw
+{
+	/// Its first command slot.
+	uint FirstSlot;
+	/// Commands written, counted up by the cull.
+	uint Count;
+};
+
+/// The dispatch arguments before a cull's listed fragments, which forward's compaction or the meshlet pass runs a group each.
+struct ListedArguments
+{
+	/// Groups: the listed fragments.
+	uint GroupsX;
+	/// 1.
+	uint GroupsY;
+	/// 1.
+	uint GroupsZ;
+	/// Bytes from the end of the arguments to the first listed fragment (a Hi-Z prepass's second phase lists after its first's).
+	uint Entries;
+};
+
+/// A fragment a cull listed for forward's compaction or the meshlet pass.
+struct ListedFragment
+{
+	/// Its transform slot.
+	uint Transform;
+	/// Its draw record.
+	uint Draw;
+	/// Its first vertex bit (compaction: plus the draw's base vertex), or none.
+	uint VertexBase;
+	/// Its bucket's multi-draw.
+	uint Run;
+	/// Its bucket's multi-draws of compacted triangles.
+	uint CompactRun;
+	/// Unused, zero.
+	uint Reserved0;
+	/// Unused, zero.
+	uint Reserved1;
+	/// Its visibility fragment, or none.
+	uint Fragment;
+};
+
+/// A draw record's meshlets, in the meshlet run table at the draw record's index (MeshletStore).
+struct MeshletRun
+{
+	/// The bindless slot of its meshlets' page.
+	uint Page;
+	/// Its first meshlet in the page.
+	uint First;
+	/// Its meshlets: written last, so a cull reading in between sees none.
+	uint Count;
+	/// Its first meshlet's index among every meshlet (a view's meshlet bits).
+	uint Global;
+};
+
+/// A meshlet's bounds and triangles, in a meshlet page (MeshletSet, MeshletStore): its box's centre and half extents in the mesh's space, and its triangles, a run of the range's triangles in meshlet order.
+struct MeshletRecord
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Its first triangle in the range.
+	uint FirstTriangle;
+	/// Bounds half extents.
+	float3 Extents;
+	/// Its triangles.
+	uint TriangleCount;
+};
+
+/// What task and mesh shaders read of a meshlet besides its record, after its page's records (MeshletStore.PageRecords of them).
+struct MeshletLocalRecord
+{
+	/// The data page's bindless slot.
+	uint Data;
+	/// Where its triangles start in the data page, in bytes: a word each, its corners among the meshlet's vertices, a byte each.
+	uint Triangles;
+	/// Where its vertices start in the data page, in bytes: index values in the draw's index size.
+	uint Vertices;
+	/// Its vertex count.
+	uint VertexCount;
+};
+
+/// One generated level of a draw record (LodStore).
+struct LodLevel
+{
+	/// Its first index.
+	uint FirstIndex;
+	/// Its index count.
+	uint IndexCount;
+	/// Its draw record.
+	uint Draw;
+	/// Unused.
+	uint Reserved;
+};
+
+/// A draw record's generated levels, in the LOD table at the draw record's index (LodStore).
+struct LodRecord
+{
+	/// How many levels it has (at most 6).
+	uint Levels;
+	/// Unused.
+	uint Reserved;
+	/// Each level's error: a fraction of the fragment's bounds' half diagonal.
+	float Errors[6];
+	/// Each level.
+	LodLevel Level[6];
+};
+
+/// The second phase's candidates in a region's Hi-Z tail: the dispatch arguments over them, their count and the occluded count, then a HiZCandidate each.
+struct HiZCandidates
+{
+	/// Groups: a group per 256 candidates.
+	uint GroupsX;
+	/// 1.
+	uint GroupsY;
+	/// 1.
+	uint GroupsZ;
+	/// Candidates written.
+	uint Count;
+	/// Candidates the second phase found occluded.
+	uint Occluded;
+	/// Unused.
+	uint Reserved0;
+	/// Unused.
+	uint Reserved1;
+	/// Unused.
+	uint Reserved2;
+};
+
+/// A fragment two-phase Hi-Z occlusion left for its second phase (borealis_hiz_cs).
+struct HiZCandidate
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Its transform slot.
+	uint Transform;
+	/// Bounds extents.
+	float3 Extents;
+	/// Its draw record (its level's).
+	uint Draw;
+	/// The draw's first index.
+	uint FirstIndex;
+	/// The draw's index count.
+	uint IndexCount;
+	/// The draw's base vertex.
+	uint BaseVertex;
+	/// Its first vertex bit.
+	uint VertexBase;
+	/// Its visibility fragment.
+	uint Fragment;
+	/// Its bucket's multi-draw.
+	uint Run;
+	/// Its bucket's multi-draws of compacted triangles (the gpu-driven cull), or its batch's sixth word (the resident cull).
+	uint CompactRun;
+	/// 1: the first phase would have listed it for the meshlet pass.
+	uint Meshlets;
+};
+
+//
+// The resident cull (borealis_resident_cull_cs, BackendContext.ResidentCull.cs)
+//
+
+/// One plan's batches in the resident cull, in the frame's region: a thread per entry (an element of one of its batch records) loops over its views. Items are in order of FirstEntry, each starting on a multiple of 64 threads.
+struct ResidentCullItem
+{
+	/// Its first entry's thread in the dispatch.
+	uint FirstEntry;
+	/// Its entries: every element of its batch records.
+	uint Entries;
+	/// The bindless slot of its plan's records: its batch records (32 bytes each), then its entry map of ResidentCullEntry, then a resident filter's moved words, which a batch record's sixth word finds.
+	uint Records;
+	/// The entry map's byte offset in its plan's records.
+	uint EntryMap;
+	/// Its first view (ResidentCullView).
+	uint FirstView;
+	/// How many views cull it.
+	uint Views;
+	/// Byte offset in its plan's records of its entry records (ResidentCullEntryRecord).
+	uint EntryRecords;
+	/// Byte offset in its plan's records of its batches' headers.
+	uint Headers;
+};
+
+/// An entry of an item: its batch record and its place in the batch's fragments or meshes. A forward entry whose prepass draws ids for it has bit 31 set in Batch (ResidentCullEntry.PrepassIds).
+struct ResidentCullEntry
+{
+	/// Its batch record's index in its plan's records; bit 31: the view's prepass draws ids for it.
+	uint Batch;
+	/// Its place in the batch's fragments or meshes.
+	uint Element;
+};
+
+/// What the resident cull reads of an entry's fragment or resident mesh and draw, in its plan's records after the moved words: written by the expand dispatch (ResidentCullConstants.Expand) from the fragment and draw tables. Each resident mesh batch has a 32-byte header after them, its group's header record (LOD count and switch distances), at its batch's index.
+struct ResidentCullEntryRecord
+{
+	/// Bounds centre.
+	float3 Center;
+	/// Transform slot.
+	uint Transform;
+	/// Bounds extents.
+	float3 Extents;
+	/// Draw record.
+	uint Draw;
+	/// The draw record's first index.
+	uint FirstIndex;
+	/// The draw record's index count.
+	uint IndexCount;
+	/// The draw record's base vertex.
+	uint BaseVertex;
+	/// A resident mesh's LOD scale, or 1 for a fragment that casts no shadow.
+	uint Last;
+};
+
+/// One view that culls an item: where its view record is, and where the call that draws it reads what the cull writes (as a call's own region in borealis_gpu_driven_cull_cs). Byte offsets are in the frame's region.
+struct ResidentCullView
+{
+	/// Its view record (CullViewRecord).
+	uint View;
+	/// Its instance records (InstanceRecord a slot).
+	uint Instances;
+	/// Its commands (20 bytes a slot).
+	uint Commands;
+	/// Its multi-draws (first slot and count).
+	uint Runs;
+	/// Its first instance record's index in the region.
+	uint FirstInstance;
+	/// The byte offset of instance 0's fragment word (ids).
+	uint FragmentWords;
+	/// Its listed fragments for forward's compaction: dispatch arguments, then 32 bytes each.
+	uint Listed;
+	/// 1: it lists what its prepass draws ids for (ResidentCullEntry.PrepassIds), whose culling is in the same dispatch, instead of what the prepass's culling stamped. 2: a prepass that stamps what it keeps, for its forward pass. 4: a meshlet-culling view (its prepass lists fragments for the meshlet pass).
+	uint Flags;
+};
+
+#endif

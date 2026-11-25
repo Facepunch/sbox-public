@@ -1,0 +1,51 @@
+// Explicit descriptor sets and push constants, and sampling with a sampler passed in rather than a texture's own. On Vulkan
+// a binding can name its set (EXTERNAL_DESC_SET: the static sets and the view's) and push constants are a struct with
+// [[vk::push_constant]]; elsewhere sets are dropped and push constants become a constant buffer, so the same text compiles
+// on both. Included as descriptor_set_support.fxc too (SlangHeaders), under that header's include guard; the macro names
+// and what they expand to are what shaders are written against.
+#ifndef DESCRIPTOR_SET_SUPPORT_FXC
+#define DESCRIPTOR_SET_SUPPORT_FXC
+
+#if defined( VULKAN )
+	// : register( <regType><reg>, space<set_slot> )
+	#define EXTERNAL_DESC_SET( regType, set_slot, reg ) : register( TOKENPASTE2( regType, reg ), TOKENPASTE2( space, set_slot ) )
+
+	// BEGIN_PUSH_CONSTANT( P ) { members }; END_PUSH_CONSTANT( P ) declares struct P_t and the push constant P of it;
+	// PUSH_CONSTANT( P, member ) reads one
+	#define BEGIN_PUSH_CONSTANT( name ) struct TOKENPASTE2( name, _t )
+	#define END_PUSH_CONSTANT( name ) [[vk::push_constant]] TOKENPASTE2( name, _t ) name;
+	#define PUSH_CONSTANT( name, member ) name.member
+
+	#define CreateTextureCubeWithoutSampler( name ) TextureCube name
+#else
+	#define EXTERNAL_DESC_SET( regType, set_slot, reg )
+
+	// The members become globals of a constant buffer named P
+	#define BEGIN_PUSH_CONSTANT( name ) cbuffer name
+	#define END_PUSH_CONSTANT( name )
+	#define PUSH_CONSTANT( name, member ) member
+
+	#define CreateTextureCubeWithoutSampler( name ) CreateTextureCube( name )
+#endif
+
+// texture.method( sampler, coords[, a] )
+#define SBOX_SAMPLE_WITH( method, tex, sampler, coords ) tex.method( sampler, coords )
+#define SBOX_SAMPLE_WITH_1( method, tex, sampler, coords, a ) tex.method( sampler, coords, a )
+
+#define Tex2DS( tex, sampler, uv ) SBOX_SAMPLE_WITH( Sample, tex, sampler, ( uv ).xy )
+#define Tex2DLevelS( tex, sampler, uv, flLevel ) SBOX_SAMPLE_WITH_1( SampleLevel, tex, sampler, ( uv ).xy, flLevel )
+// Into result, at an integer texel offset (the inverse size arguments are unused)
+#define Tex2DLevelWithOffsetS( result, tex, sampler, uv, flLevel, flXOfs, flYOfs, flInvTexWidth, flInvTexHeight ) { result = tex.SampleLevel( sampler, ( uv ).xy, flLevel, int2( flXOfs, flYOfs ) ); }
+// A depth comparison's float1, as its x
+#define Tex2DCmpLevelZeroS( tex, sampler, uv, flCmp ) ( SBOX_SAMPLE_WITH_1( SampleCmpLevelZero, tex, sampler, ( uv ).xy, flCmp ).x )
+#define Tex2DArrayS( tex, sampler, uv ) SBOX_SAMPLE_WITH( Sample, tex, sampler, ( uv ).xyz )
+#define Tex2DArrayLevelS( tex, sampler, uv, flLevel ) SBOX_SAMPLE_WITH_1( SampleLevel, tex, sampler, ( uv ).xyz, flLevel )
+#define Tex3DS( tex, sampler, uv ) SBOX_SAMPLE_WITH( Sample, tex, sampler, ( uv ).xyz )
+#define Tex3DLevelS( tex, sampler, uv, flLevel ) SBOX_SAMPLE_WITH_1( SampleLevel, tex, sampler, ( uv ).xyz, flLevel )
+#define TexCubeS( tex, sampler, uv ) SBOX_SAMPLE_WITH( Sample, tex, sampler, ( uv ).xyz )
+
+// A texture and a sampler as the two arguments ArgTexture2D( name ) declares, sampler first
+#define PassToArgTexture2DS( name, sampler ) sampler, name
+#define PassToArgTexture2DCmpS( name, sampler ) sampler, name
+
+#endif // DESCRIPTOR_SET_SUPPORT_FXC

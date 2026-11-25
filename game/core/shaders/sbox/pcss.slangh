@@ -1,0 +1,74 @@
+// Percentage-closer filtering of a shadow map over a Poisson disc: the receiver's depth compared at 25 or 64 points
+// spread over a radius in shadow-map uv; points off the map's edge count as shadowed. Ours, in place of the old
+// pcss.fxc: the same disc points, structure and results. Shares its include guard.
+#ifndef PCSS_FXC
+#define PCSS_FXC
+
+// The discs' points, in [-1, 1]
+static const float2 g_vPoisson25[25] =
+{
+	float2( -0.978698, -0.0884121 ), float2( -0.841121, 0.521165 ), float2( -0.71746, -0.50322 ), float2( -0.702933, 0.903134 ),
+	float2( -0.663198, 0.15482 ), float2( -0.495102, -0.232887 ), float2( -0.364238, -0.961791 ), float2( -0.345866, -0.564379 ),
+	float2( -0.325663, 0.64037 ), float2( -0.182714, 0.321329 ), float2( -0.142613, -0.0227363 ), float2( -0.0564287, -0.36729 ),
+	float2( -0.0185858, 0.918882 ), float2( 0.0381787, -0.728996 ), float2( 0.16599, 0.093112 ), float2( 0.253639, 0.719535 ),
+	float2( 0.369549, -0.655019 ), float2( 0.423627, 0.429975 ), float2( 0.530747, -0.364971 ), float2( 0.566027, -0.940489 ),
+	float2( 0.639332, 0.0284127 ), float2( 0.652089, 0.669668 ), float2( 0.773797, 0.345012 ), float2( 0.968871, 0.840449 ),
+	float2( 0.991882, -0.657338 )
+};
+
+static const float2 g_vPoisson64[64] =
+{
+	float2( -0.934812, 0.366741 ), float2( -0.918943, -0.0941496 ), float2( -0.873226, 0.62389 ), float2( -0.8352, 0.937803 ),
+	float2( -0.822138, -0.281655 ), float2( -0.812983, 0.10416 ), float2( -0.786126, -0.767632 ), float2( -0.739494, -0.535813 ),
+	float2( -0.681692, 0.284707 ), float2( -0.61742, -0.234535 ), float2( -0.601184, 0.562426 ), float2( -0.607105, 0.847591 ),
+	float2( -0.581835, -0.00485244 ), float2( -0.554247, -0.771111 ), float2( -0.483383, -0.976928 ), float2( -0.476669, -0.395672 ),
+	float2( -0.439802, 0.362407 ), float2( -0.409772, -0.175695 ), float2( -0.367534, 0.102451 ), float2( -0.35313, 0.58153 ),
+	float2( -0.341594, -0.737541 ), float2( -0.275979, 0.981567 ), float2( -0.230811, 0.305094 ), float2( -0.221656, 0.751152 ),
+	float2( -0.214393, -0.0592364 ), float2( -0.204932, -0.483566 ), float2( -0.183569, -0.266274 ), float2( -0.123936, -0.754448 ),
+	float2( -0.0859096, 0.118625 ), float2( -0.0610675, 0.460555 ), float2( -0.0234687, -0.962523 ), float2( -0.00485244, -0.373394 ),
+	float2( 0.0213324, 0.760247 ), float2( 0.0359813, -0.0834071 ), float2( 0.0877407, -0.730766 ), float2( 0.14597, 0.281045 ),
+	float2( 0.18186, -0.529649 ), float2( 0.188208, -0.289529 ), float2( 0.212928, 0.063509 ), float2( 0.23661, 0.566027 ),
+	float2( 0.266579, 0.867061 ), float2( 0.320597, -0.883358 ), float2( 0.353557, 0.322733 ), float2( 0.404157, -0.651479 ),
+	float2( 0.410443, -0.413068 ), float2( 0.413556, 0.123325 ), float2( 0.46556, -0.176183 ), float2( 0.49266, 0.55388 ),
+	float2( 0.506333, 0.876888 ), float2( 0.535875, -0.885556 ), float2( 0.615894, 0.0703452 ), float2( 0.637135, -0.637623 ),
+	float2( 0.677236, -0.174291 ), float2( 0.67626, 0.7116 ), float2( 0.686331, -0.389935 ), float2( 0.691031, 0.330729 ),
+	float2( 0.715629, 0.999939 ), float2( 0.8493, -0.0485549 ), float2( 0.863582, -0.85229 ), float2( 0.890622, 0.850581 ),
+	float2( 0.898068, 0.633778 ), float2( 0.92053, -0.355693 ), float2( 0.933348, -0.62981 ), float2( 0.95294, 0.156896 )
+};
+
+/// What a soft shadow lookup is given about the light: projected to linear depth (x * d + y) / (z * d + w), the light's
+/// radius in shadow-map uv and in world units, and the near plane.
+struct PCSSParams_t
+{
+	float4 vProjectedDepthToLinearDepth;
+	float2 vLightRadiusUv;
+	float flLightRadiusWs;
+	float flNearPlane;
+};
+
+/// One disc point: the comparison's result (1 lit, 0 shadowed) on the map, 0 off its edge.
+float PcssTap( Texture2D tShadowMapCmp, SamplerComparisonState sShadowMapCmp, float2 vUv, float flProjectedDepth )
+{
+	if ( !all( vUv >= 0.0 ) || !all( vUv <= 1.0 ) ) return 0.0;
+	return Tex2DCmpLevelZeroS( tShadowMapCmp, sShadowMapCmp, vUv, flProjectedDepth );
+}
+
+/// The share of the 25-point disc around vUv (scaled by vFilterRadiusUv) that's lit.
+float PCSS_ShadowPCF_25( Texture2D tShadowMapCmp, SamplerComparisonState sShadowMapCmp, float2 vUv, float flProjectedDepth, float2 vFilterRadiusUv )
+{
+	float flLit = 0.0;
+	for ( int i = 0; i < 25; i++ )
+		flLit += PcssTap( tShadowMapCmp, sShadowMapCmp, vUv + g_vPoisson25[i] * vFilterRadiusUv, flProjectedDepth );
+	return flLit / 25.0;
+}
+
+/// The share of the 64-point disc around vUv (scaled by vFilterRadiusUv) that's lit.
+float PCSS_ShadowPCF_64( Texture2D tShadowMapCmp, SamplerComparisonState sShadowMapCmp, float2 vUv, float flProjectedDepth, float2 vFilterRadiusUv )
+{
+	float flLit = 0.0;
+	for ( int i = 0; i < 64; i++ )
+		flLit += PcssTap( tShadowMapCmp, sShadowMapCmp, vUv + g_vPoisson64[i] * vFilterRadiusUv, flProjectedDepth );
+	return flLit / 64.0;
+}
+
+#endif // PCSS_FXC

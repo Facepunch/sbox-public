@@ -1,0 +1,60 @@
+// What a pass module includes first: a fullscreen, UI, tools or compute shader on the raw tier, converted from a .shader.
+// It keeps the .shader's declarations, which compile to nothing here and which the shader compiler reads from the
+// module's text and its includes' (Sandbox.ShaderCompiler.PassModule): DynamicCombo and StaticCombo (each a define, set
+// per compile, as vfx compiles each combo), Feature, and RenderState (the pixel stage's pipeline state, evaluated with
+// the combos). Entry points are [shader( "vertex" )] MainVs, [shader( "pixel" )] MainPs and [shader( "compute" )] MainCs,
+// each in its program's #if block (PROGRAM is 1, 2 or 6, as in vfx). See docs/reference/borealis-pass-modules.md.
+#ifndef SBOX_PASS_SLANGH
+#define SBOX_PASS_SLANGH
+
+// The program numbers the #if blocks test, and the declarations' macros, as vfx gives every shader
+#include "sbox/system.slangh"
+
+// system.fxc makes render states and attributes string globals for vfx's parser to read; here they're nothing, so a state
+// set twice in different #if branches doesn't declare its global twice
+#undef RenderState
+#define RenderState( ... )
+#undef BoolAttribute
+#define BoolAttribute( ... )
+#undef FloatAttribute
+#define FloatAttribute( ... )
+#undef Float3Attribute
+#define Float3Attribute( ... )
+
+// What system.fxc doesn't declare: a FEATURES block's lines and the rarer attributes
+#ifndef Feature
+#define Feature( ... )
+#endif
+#ifndef ComboRule
+#define ComboRule( ... )
+#endif
+#ifndef IntAttribute
+#define IntAttribute( ... )
+#endif
+#ifndef StringAttribute
+#define StringAttribute( ... )
+#endif
+#ifndef Float2Attribute
+#define Float2Attribute( ... )
+#endif
+#ifndef Float4Attribute
+#define Float4Attribute( ... )
+#endif
+
+// A vertex stage that makes each primitive's geometry itself, where a .shader had a geometry stage:
+// ExpandPrimitives( POINTS | LINES | TRIANGLES | VERTICES, vertices, TRIANGLE_STRIP | LINE_LIST ). The draw runs that
+// many vertices (SV_VertexID) for each point, line, triangle or vertex it's given, with the primitive's vertices as
+// per-instance inputs: a line's second end and a triangle's second and third corners at their semantics' index plus 4
+// and plus 8. Read by the compiler with the vertex stage's combos, as RenderState is with the pixel stage's
+#define ExpandPrimitives( ... )
+
+// A standalone module describes the shader itself, with no .shader_c read for it on Borealis.Gpu (one beside it is only Source
+// 2's renderer's): Mode( Name [, S_MODE_X] [, "fallback.shader"] ); for each mode, in order. See docs/reference/borealis-standalone-modules.md
+#define Mode( ... )
+
+// GpuDrivenVariant( condition ): this stage also compiles with BOREALIS_GPU_DRIVEN 1 where the condition holds for its combos,
+// the form GPU-driven buckets draw with (vertices pulled by SV_VulkanVertexID, borealis_gpu_driven.fxc). Read by the compiler
+// with the stage's combos, as RenderState is
+#define GpuDrivenVariant( ... )
+
+#endif

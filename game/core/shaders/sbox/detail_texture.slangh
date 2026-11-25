@@ -1,0 +1,64 @@
+// Detail textures: a second, tiled texture's coordinates (scaled, rotated about the tile's centre, offset), its normal
+// blended into the base normal, and its colour applied as an overlay. Ours, in place of the old vr_detail_texture.fxc in
+// Slang compiles (SlangHeaders): the same material parameters, names and results. Shares the old header's include guard.
+#ifndef VR_DETAIL_TEXTURE_FXC
+#define VR_DETAIL_TEXTURE_FXC
+
+#include "sbox/math.slangh"
+
+float2 g_vDetailTexCoordScale < Default2( 1.0, 1.0 ); UiGroup( "Detail Texture,80/30" ); >;
+float g_flDetailTexCoordRotation < Default( 0.0 ); Range( 0.0, 360.0 ); UiGroup( "Detail Texture,80/35" ); >;
+float2 g_vDetailTexCoordOffset < Default2( 0.0, 0.0 ); Range2( -1.0, -1.0, 1.0, 1.0 ); UiGroup( "Detail Texture,80/40" ); >;
+
+static const float PI = 3.14159265359f;
+
+/// The offset that keeps a scaled and rotated tile centred where it was, plus `off`.
+float2 ComputeDetailTexCoordOffset( float2 off, float2 sc, float rotDegrees )
+{
+	float angle = rotDegrees * PI / 180.0;
+	float c = cos( angle );
+	float s = sin( angle );
+	return -0.5 * sc * float2( c - s, s + c ) + off + 0.5;
+}
+
+/// The scale and rotation as a 2x2 matrix's rows (xy, zw).
+float4 ComputeDetailTexCoordXform( float2 sc, float rotDegrees )
+{
+	float angle = rotDegrees * PI / 180.0;
+	float c = cos( angle );
+	float s = sin( angle );
+	return sc.xxyy * float4( c, -s, s, c );
+}
+
+// Declared here, after the coordinate parameters, as the old header did: the order sets the material constants' layout
+float g_flDetailNormalStrength < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Detail Texture,80/15" ); >;
+
+float2 CalculateDetailTextureCoordinates( float2 uv )
+{
+	float4 m = ComputeDetailTexCoordXform( g_vDetailTexCoordScale, g_flDetailTexCoordRotation );
+	return float2( dot( m.xy, uv ), dot( m.zw, uv ) ) + ComputeDetailTexCoordOffset( g_vDetailTexCoordOffset, g_vDetailTexCoordScale, g_flDetailTexCoordRotation );
+}
+
+/// The base tangent-space normal with the detail normal blended in (whiteout blend), faded by strength and mask.
+float3 ApplyDetailNormal( float3 vNormalTs, float3 vDetailNormalTs, float flDetailMask )
+{
+	float3 detail = float3( 0.0, 0.0, 1.0 - g_flDetailNormalStrength ) + g_flDetailNormalStrength.xxx * vDetailNormalTs;
+	detail = lerp( float3( 0.0, 0.0, 1.0 ), detail, flDetailMask );
+	vNormalTs *= detail.z;
+	vNormalTs.xy += vNormalTs.z * detail.xy;
+	return normalize( vNormalTs );
+}
+
+/// Photoshop's overlay blend, done in gamma 2.2 as Photoshop does: screen above mid-grey, multiply below. The detail's
+/// mid-grey (128) is exactly 0.5.
+float3 PhotoshopOverlay( float3 vAlbedo, float3 vDetailTexel, float flDetailMask )
+{
+	vDetailTexel *= MOD2X_SCALAR * 0.5;
+	float3 albedo = pow( vAlbedo, 1.0 / 2.2 );
+	float3 screen = float3( 1.0, 1.0, 1.0 ) - 2.0 * ( ( float3( 1.0, 1.0, 1.0 ) - albedo ) * ( float3( 1.0, 1.0, 1.0 ) - vDetailTexel ) );
+	float3 multiply = 2.0 * albedo * vDetailTexel;
+	float3 overlay = lerp( screen, multiply, step( albedo, float3( 0.5, 0.5, 0.5 ) ) );
+	return lerp( vAlbedo, pow( overlay, 2.2 ), flDetailMask );
+}
+
+#endif // VR_DETAIL_TEXTURE_FXC

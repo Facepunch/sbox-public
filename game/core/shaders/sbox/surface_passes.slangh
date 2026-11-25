@@ -1,0 +1,947 @@
+// The engine's passes for surfaces, generic over the material. The shader compiler writes a small instance file per
+// [Material] struct that includes this, imports the material's module and names the entry points; every pass calls the
+// same Evaluate. Vertex processing and lighting are today's (sbox/engine.slangh), so a surface shades exactly as a
+// .shader written with common/pixel.hlsl does. See docs/reference/borealis-slang-materials.md.
+#ifndef SBOX_SURFACE_PASSES_SLANGH
+#define SBOX_SURFACE_PASSES_SLANGH
+
+// The includes' Material (common/material.hlsl) is ClassicMaterial here: Material is the surface's
+#define Material ClassicMaterial
+// A material with an [Opacity] texture (the instance file defines SURFACE_OPACITY_TEXTURE) compensates its mips
+#ifdef SURFACE_OPACITY_TEXTURE
+#define MATERIAL_ALPHA_TEXTURE SurfaceOpacityTexture()
+#endif
+// The light hook is the pixel stage's (PROGRAM 1 is the vertex stage: system.fxc isn't included yet)
+#if defined( SURFACE_LIGHT_HOOK ) && ( PROGRAM == 1 )
+#undef SURFACE_LIGHT_HOOK
+#endif
+// A combiner surface's back-face transmission is the material's (vfx makes it a specialization constant per material;
+// here it's the material's flag, uniform per draw, read by the light loops)
+#ifdef SURFACE_FINAL_COMBINER
+static bool s_SurfaceBackfaceTransmission = false;
+#define S_TRANSMISSIVE_BACKFACE_NDOTL s_SurfaceBackfaceTransmission
+// Subsurface scattering's lookup texture is the material's (Material.SssFalloff), not a global the engine binds
+#define SURFACE_DIFFUSE_FALLOFF SurfaceDiffuseFalloffTexture()
+#endif
+#include "sbox/engine.slangh"
+#undef Material
+#include "sbox/forward_normals.slangh"
+
+import sbox.surface;
+
+#ifdef SURFACE_FINAL_COMBINER
+/// The bindless slot of subsurface scattering's lookup texture, set by the pass before shading.
+static uint s_SurfaceDiffuseFalloff = 0;
+
+Texture2D SurfaceDiffuseFalloffTexture()
+{
+	return g_bindless_Texture2D[NonUniformResourceIndex( s_SurfaceDiffuseFalloff )];
+}
+#endif
+
+#ifdef SURFACE_GPU_DRIVEN
+// GPU-driven passes (docs/reference/borealis-gpu-driven.md): the draw comes from the instance and draw records, the material
+// record from the materials table, at the draw record's offsets
+#include "borealis_gpu_driven.fxc"
+#include "sbox/baked_lighting.slangh"
+
+static uint s_SurfaceDrawRecord = 0;   // the draw's material record, set by the GPU-driven vertex entry
+uint SurfaceDrawRecord() { return s_SurfaceDrawRecord; }
+T SurfaceRecord<T>( uint offset ) { return g_bindless_VertexBuffers[g_nBorealisMaterials].Load<T>( offset ); }
+
+/// Where the draw's lighting record is (LightingRecord: its lightmap and light probe volume constants, as their constant
+/// buffers are packed), set per draw by SurfaceFetchBakedLighting. A draw's record is its flags' top 24 bits, in 16 bytes.
+static uint s_SurfaceLightingRecord = 0;
+
+/// Four words of the draw's lighting record: what the lightmap's and the probe volume's constants read under
+/// SURFACE_GPU_DRIVEN (sbox/baked_lighting.slangh, sbox/light_probe_volume.slangh). The record is the same across the wave,
+/// so these are scalar loads, made where each constant is used.
+uint4 SurfaceLightingWords( uint offset )
+{
+	return g_bindless_VertexBuffers[g_nBorealisLighting].Load4( s_SurfaceLightingRecord + offset );
+}
+
+/// The probe volume's world to texture space transform, from the draw's lighting record.
+float4x3 SurfaceLightProbeVolumeWorldToLocal()
+{
+	uint matrix = LightingRecord_ProbeVolumeWorldToLocal;
+	return transpose( float3x4( asfloat( SurfaceLightingWords( matrix ) ), asfloat( SurfaceLightingWords( matrix + LightingRecord_ProbeVolumeWorldToLocalStride ) ), asfloat( SurfaceLightingWords( matrix + 2 * LightingRecord_ProbeVolumeWorldToLocalStride ) ) ) );
+}
+
+/// The draw's lightmap constants: the vertex stage reads the uv scale, the pixel stage the texture indices.
+void SurfaceFetchBakedLighting( uint draw )
+{
+	s_SurfaceLightingRecord = ( BorealisGpuDrivenDraw( draw ).w >> 8 ) * 16;
+}
+#else
+uint SurfaceDrawRecord() { return DrawMaterialOffset(); }
+T SurfaceRecord<T>( uint offset ) { return LoadMaterial<T>( offset ); }
+#endif
+
+/// An interpolated surface's Varyings, named through IInterpolatedSurface: a layered one also declares them for
+/// IInterpolatedLayeredSurface, which makes `S.Varyings` ambiguous.
+typealias SurfaceVaryings<S : IInterpolatedSurface> = S.Varyings;
+
+/// What the vertex stage hands the pixel stage: the engine's interpolants and the draw's material record offset, flat.
+struct SurfaceVertexOutput
+{
+	PixelInput Pixel;
+	nointerpolation uint MaterialOffset : TEXCOORD15;
+};
+
+/// The same with an IInterpolatedSurface's Varyings. Varyings are matched by location (declaration order), as both
+/// stages compile this struct.
+struct SurfaceVertexOutputWith<V>
+{
+	PixelInput Pixel;
+	nointerpolation uint MaterialOffset : TEXCOORD15;
+	V Varyings;
+};
+
+/// An IInterpolatedSurface with its interpolated Varyings, as an ISurface for the passes.
+struct SurfaceWithVaryings<S : IInterpolatedSurface> : ISurface
+{
+	S Surface;
+	S.Varyings Values;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
+};
+
+/// The same for an IInterpolatedCombinerSurface, as an ICombinerSurface.
+struct SurfaceWithVaryingsCombiner<S : IInterpolatedCombinerSurface> : ICombinerSurface
+{
+	S Surface;
+	S.Varyings Values;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
+};
+
+/// The same for an IInterpolatedLayeredSurface, as an ILayeredSurface.
+struct SurfaceWithVaryingsLayered<S : IInterpolatedLayeredSurface> : ILayeredSurface
+{
+	S Surface;
+	S.Varyings Values;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values ); }
+	float3 Shade<L : ILayerLighting>( SurfaceInput i, L lighting, out Material m ) { return Surface.Shade( i, Values, lighting, m ); }
+};
+
+/// An IVertexStageSurface's Varyings and vertex input, named through it (a shaded one also declares Varyings).
+typealias SurfaceStageVaryings<S : IVertexStageSurface> = S.Varyings;
+// (the engine's includes define VertexInput as VS_INPUT)
+#undef VertexInput
+typealias SurfaceStageVertexInput<S : IVertexStageSurface> = S.VertexInput;
+#define VertexInput VS_INPUT
+
+// How many clip distances an IVertexStageSurface writes ([ClipDistances( n )]: the instance file defines it)
+#ifndef SURFACE_CLIP_DISTANCES
+#define SURFACE_CLIP_DISTANCES 0
+#endif
+#if ( SURFACE_CLIP_DISTANCES == 1 )
+typealias SurfaceClipDistances = float;
+SurfaceClipDistances SurfaceClip( float4 distances ) { return distances.x; }
+#elif ( SURFACE_CLIP_DISTANCES == 2 )
+typealias SurfaceClipDistances = float2;
+SurfaceClipDistances SurfaceClip( float4 distances ) { return distances.xy; }
+#elif ( SURFACE_CLIP_DISTANCES == 3 )
+typealias SurfaceClipDistances = float3;
+SurfaceClipDistances SurfaceClip( float4 distances ) { return distances.xyz; }
+#elif ( SURFACE_CLIP_DISTANCES == 4 )
+typealias SurfaceClipDistances = float4;
+SurfaceClipDistances SurfaceClip( float4 distances ) { return distances; }
+#endif
+
+/// What an author's vertex stage (IVertexStageSurface) hands the pixel stage: the engine's interpolants built from its
+/// SurfaceVertex, the record offset, and its Varyings, matched by location; the clip distances in the vertex stage alone.
+struct SurfaceStageOutput<V>
+{
+	PixelInput Pixel;
+	nointerpolation uint MaterialOffset : TEXCOORD15;
+	V Varyings;
+#if ( PROGRAM == VFX_PROGRAM_VS ) && ( SURFACE_CLIP_DISTANCES > 0 )
+	SurfaceClipDistances ClipDistance : SV_ClipDistance0;
+#endif
+};
+
+/// What an author's vertex stage hands opaque depth: the position, and the clip distances.
+struct SurfaceStageDepthOutput
+{
+	float4 Position : SV_Position;
+#if ( SURFACE_CLIP_DISTANCES > 0 )
+	SurfaceClipDistances ClipDistance : SV_ClipDistance0;
+#endif
+};
+
+/// An IVertexStageSurface with its interpolated Varyings and their derivatives, as an ISurface for the passes.
+struct SurfaceWithStage<S : IVertexStageSurface> : ISurface
+{
+	S Surface;
+	S.Varyings Values;
+	Derivatives<S.Varyings> Derivs;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values, Derivs ); }
+};
+
+/// The same for one that also shades itself (IShadedVertexStageSurface), as an IShadedSurface. S and T are the same type:
+/// each interface's Varyings is kept in its own field.
+struct SurfaceWithStageShaded<S : IVertexStageSurface, T : IShadedVertexStageSurface> : IShadedSurface
+{
+	S Surface;
+	T Shading;
+	S.Varyings Values;
+	Derivatives<S.Varyings> Derivs;
+	T.Varyings ShadeValues;
+	Derivatives<T.Varyings> ShadeDerivs;
+	Material Evaluate( SurfaceInput i ) { return Surface.Evaluate( i, Values, Derivs ); }
+	float4 Shade<L : ISurfaceLighting>( SurfaceInput i, L lighting, out Material m ) { return Shading.Shade( i, ShadeValues, ShadeDerivs, lighting, m ); }
+};
+
+#if ( PROGRAM == VFX_PROGRAM_VS )
+
+/// The vertex stage's output with the record offset passed on, and the surface's Varyings.
+SurfaceVertexOutputWith<S.Varyings> SurfaceOutputWith<S : IInterpolatedSurface>( PixelInput pixel, S.Varyings varyings )
+{
+	SurfaceVertexOutputWith<S.Varyings> o;
+	o.Pixel = pixel;
+	o.MaterialOffset = SurfaceDrawRecord();
+	o.Varyings = SurfaceRecord<S>( SurfaceDrawRecord() ).Vertex( varyings );
+	return o;
+}
+
+/// The vertex stage's output with the record offset passed on.
+SurfaceVertexOutput SurfaceOutput( PixelInput pixel )
+{
+	SurfaceVertexOutput o;
+	o.Pixel = pixel;
+	o.MaterialOffset = SurfaceDrawRecord();
+	return o;
+}
+
+/// The vertex stage: the engine's, as common/vertex.hlsl's shaders do it.
+PixelInput SurfaceVertex( VertexInput i )
+{
+	PixelInput o = ProcessVertex( i );
+	return FinalizeVertex( o );
+}
+
+/// The vertex stage of a surface that moves its vertices: Displace in object space, then the same transform.
+PixelInput SurfaceVertexDisplaced<S : IVertexSurface>( VertexInput i )
+{
+	float3 normalOs;
+	float4 tangentOs;
+	VS_DecodeObjectSpaceNormalAndTangent( i, normalOs, tangentOs );
+	float3x4 objectToWorld = GetTransformMatrix( i.nInstanceTransformID );
+
+	VertexSurfaceInput v;
+	v.Position = i.vPositionOs.xyz;
+	v.Normal = normalOs;
+	v.Color = i.vSurfaceColor;
+	v.ObjectOrigin = mul( objectToWorld, float4( 0, 0, 0, 1 ) );
+	v.Wind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
+	v.Time = g_flTime;
+
+	i.vPositionOs = SurfaceRecord<S>( SurfaceDrawRecord() ).Displace( v );
+	PixelInput o = ProcessVertex( i );
+	return FinalizeVertex( o );
+}
+
+/// The vertex stage of an interpolated surface that moves its vertices (IInterpolatedVertexSurface): the engine's transform,
+/// Vertex, then Displace in world space with the Varyings, as a .shader's VS moves vPositionWs; with the record offset.
+SurfaceVertexOutputWith<S.Varyings> SurfaceOutputDisplacedWith<S : IInterpolatedVertexSurface>( VertexInput i, S.Varyings varyings )
+{
+	PixelInput o = ProcessVertex( i );
+	S surface = SurfaceRecord<S>( SurfaceDrawRecord() );
+
+	WorldVertexInput v;
+	v.Position = o.vPositionWs;
+	v.Normal = o.vNormalWs;
+	v.Uv = o.vTextureCoords.xy;
+	v.ObjectOrigin = mul( GetTransformMatrix( i.nInstanceTransformID ), float4( 0, 0, 0, 1 ) );
+	v.Camera = g_vCameraPositionWs;
+	v.Wind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
+	v.Time = g_flTime;
+	v.BlueNoise.Slot = g_vViewLookupIndices.y;
+	v.TangentU = o.vTangentUWs;
+	v.TangentV = o.vTangentVWs;
+	VS_DecodeObjectSpaceNormalAndTangent( i, v.ObjectNormal, v.ObjectTangent );
+
+	SurfaceVertexOutputWith<S.Varyings> output;
+	output.Varyings = surface.Displace( v, surface.Vertex( varyings ) );
+	o.vPositionWs = v.Position;
+	o.vPositionPs = Position3WsToPs( o.vPositionWs );
+	output.Pixel = FinalizeVertex( o );
+	output.MaterialOffset = SurfaceDrawRecord();
+	return output;
+}
+
+/// What the engine hands an author's vertex stage.
+VertexStageInput SurfaceStageInput( uint transform, uint vertexId, uint instanceId )
+{
+	VertexStageInput s;
+	s.VertexId = vertexId;
+	s.InstanceId = instanceId;
+	s.ObjectToWorld = GetTransformMatrix( transform );
+	s.Camera = g_vCameraPositionWs;
+	s.CameraDirection = g_vCameraDirWs;
+	s.Wind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
+	s.Time = g_flTime;
+	return s;
+}
+
+/// An author's SurfaceVertex as the engine's interpolants, projected and offset as common/vertex.hlsl's shaders do.
+PixelInput SurfaceStagePixel( SurfaceVertex v )
+{
+	PixelInput o = {};
+	o.vPositionWs = v.Position;
+	o.vPositionPs = Position3WsToPs( v.Position );
+	o.vNormalWs = v.Normal;
+	o.vTangentUWs = v.TangentU;
+	o.vTangentVWs = v.TangentV;
+	o.vTextureCoords = float4( v.Uv, v.Uv2 );
+	o.vVertexColor = v.Color;
+	o.vLightmapUV = float2( 0, 0 );
+	return FinalizeVertex( o );
+}
+
+/// The vertex stage of a surface that owns it (IVertexStageSurface): its Vertex, then the engine's interpolants.
+SurfaceStageOutput<S.Varyings> SurfaceStageVertex<S : IVertexStageSurface>( SurfaceStageVertexInput<S> v, uint transform, uint vertexId, uint instanceId )
+{
+	S surface = SurfaceRecord<S>( SurfaceDrawRecord() );
+	SurfaceStageOutput<S.Varyings> o;
+	SurfaceVertex placed = surface.Vertex( v, SurfaceStageInput( transform, vertexId, instanceId ), o.Varyings );
+	o.Pixel = SurfaceStagePixel( placed );
+	o.MaterialOffset = SurfaceDrawRecord();
+#if ( SURFACE_CLIP_DISTANCES > 0 )
+	o.ClipDistance = SurfaceClip( placed.ClipDistance );
+#endif
+	return o;
+}
+
+/// Its opaque depth stage: the same Vertex, the position and clip distances alone.
+SurfaceStageDepthOutput SurfaceStageDepth<S : IVertexStageSurface>( SurfaceStageVertexInput<S> v, uint transform, uint vertexId, uint instanceId )
+{
+	S surface = SurfaceRecord<S>( SurfaceDrawRecord() );
+	S.Varyings varyings;
+	SurfaceVertex placed = surface.Vertex( v, SurfaceStageInput( transform, vertexId, instanceId ), varyings );
+	SurfaceStageDepthOutput o;
+	o.Position = Position3WsToPs( placed.Position );
+#if ( SURFACE_CLIP_DISTANCES > 0 )
+	o.ClipDistance = SurfaceClip( placed.ClipDistance );
+#endif
+	return o;
+}
+
+#else
+
+#ifdef SURFACE_GPU_DRIVEN
+/// The draw's lightmap and light probe volume constants: its lighting record, read where they're used (SurfaceLightingWords).
+void SurfaceFetchLighting( uint draw )
+{
+	SurfaceFetchBakedLighting( draw );
+}
+#endif
+
+/// The bindless slot of the texture Opacity comes from, for alpha to coverage's mip compensation (Shade reads it through
+/// MATERIAL_ALPHA_TEXTURE, as Material.CommonInputs.hlsl's shaders use g_tColor). Set by the pass before shading.
+static uint s_SurfaceOpacityTexture = 0;
+
+Texture2D SurfaceOpacityTexture()
+{
+	return g_bindless_Texture2D[NonUniformResourceIndex( s_SurfaceOpacityTexture )];
+}
+
+/// The draw is in the 3D skybox's view (today's D_SKYBOX combo), per pipeline.
+[vk::constant_id( 4 )] const bool kSurfaceSkybox = false;
+
+/// Whether the pixel is on a front face, set by the pixel entry: only a two-sided material's draws rasterize back faces.
+static bool s_SurfaceFrontFace = true;
+
+/// What the opaque forward entries write at target 1 for screen-space reflections (sbox/forward_normals.slangh), kept by
+/// SurfaceKeepNormals while the pipeline has that target; nothing written stays zero.
+static uint s_SurfaceNormals = 0;
+
+/// Keep the shaded normal and roughness for target 1.
+void SurfaceKeepNormals( float3 normal, float roughness )
+{
+	if ( kForwardNormalsOutput ) s_SurfaceNormals = ForwardNormalsPack( normal, roughness );
+}
+
+/// An opaque forward entry's outputs: the lit colour, and the normal and roughness kept for reflections.
+ForwardOutput SurfaceForwardOut( float4 color )
+{
+	return ForwardOut( color, s_SurfaceNormals );
+}
+
+/// What a raster pass hands Evaluate. A combiner surface's back face has its normal turned to the viewer, as complex.shader
+/// does for materials that render back faces; other surfaces keep the face's own, as common/pixel.hlsl's shaders do (their
+/// FrontFace says which side is seen). The tangents stay as they are.
+SurfaceInput MakeSurfaceInput( PixelInput i )
+{
+	SurfaceInput s;
+	s.Position = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
+#ifdef SURFACE_FINAL_COMBINER
+	s.Normal = normalize( s_SurfaceFrontFace ? i.vNormalWs.xyz : -i.vNormalWs.xyz );
+#else
+	s.Normal = normalize( i.vNormalWs.xyz );
+#endif
+	s.TangentU = i.vTangentUWs;
+	s.TangentV = i.vTangentVWs;
+	s.Uv = i.vTextureCoords.xy;
+	s.Uv2 = i.vTextureCoords.zw;
+	s.Color = i.vVertexColor;
+	s.Camera = g_vCameraPositionWs;
+	s.Time = g_flTime;
+	s.ScreenPosition = i.vPositionSs;
+	s.ScreenUv = i.vPositionSs.xy * g_vInvViewportSize;
+	s.View = normalize( g_vCameraPositionWs - s.Position );
+	// From the lighting origin (the main view's camera, also in its shadow views), so distance fades agree across passes
+	s.ViewDistance = length( i.vPositionWithOffsetWs.xyz );
+	// The triangle's normal from screen-space derivatives of the position: a resolve gets it from the triangle instead
+	s.FaceNormal = normalize( cross( ddx( i.vPositionWithOffsetWs.xyz ), ddy( i.vPositionWithOffsetWs.xyz ) ) );
+#if ( S_ALPHA_TEST )
+	s.AlphaReference = g_flAlphaTestReference;
+#else
+	s.AlphaReference = 0.5;
+#endif
+	// Taken here, in uniform control flow, for Light, which samples inside the light loop
+	s.UvDdx = ddx( s.Uv );
+	s.UvDdy = ddy( s.Uv );
+	s.Gradients = false;
+
+	s.FrontFace = s_SurfaceFrontFace;
+	s.PositionFromOrigin = i.vPositionWithOffsetWs.xyz;
+	s.CameraDirection = g_vCameraDirWs;
+	s.Orthographic = g_matViewToProjection[3].w != 0;
+	s.WorldToProjection = g_matWorldToProjection;
+	// As glass.shader finds it: the ray along the camera's forward in an orthographic view, through the pixel otherwise
+	float3 ray = s.Orthographic ? g_vCameraDirWs : normalize( i.vPositionWithOffsetWs.xyz );
+	s.ScenePosition = RecoverWorldPosFromProjectedDepthAndRay( 1.0 - Depth::GetNormalized( i.vPositionSs.xy ), ray );
+	s.FrameBufferUvScale = g_vFrameBufferCopyInvSizeAndUvScale.zw;
+	s.Skybox = kSurfaceSkybox;
+	s.ToneMapScale = g_flToneMapScalarLinear;
+	s.ViewportSize = g_vViewportSize;
+	return s;
+}
+
+/// The UV maps view (ToolsVis ShowUVs) for any surface: its albedo checkered by its uv at a nominal 512 texels and their 16s,
+/// mirrored across uv 0, as ShowUVs checkers a .shader's colour texture.
+void SurfaceShowUvs( inout float4 color, float3 albedo, float2 uv )
+{
+	if ( ToolsVisMode != ToolsVisModes::ShowUVs ) return;
+	uint mirrored = ( ( uv.x < 0 ) != ( uv.y < 0 ) ) ? 0 : 1;
+	uint2 texel = uint2( abs( uv ) * 512.0 );
+	color.rgb = albedo;
+	if ( ( ( texel.x + texel.y ) & 1 ) == mirrored ) color.rgb *= 0.8;
+	if ( ( ( texel.x / 16 + texel.y / 16 ) & 1 ) == mirrored ) color.rgb *= 0.5;
+}
+
+/// The tools' material and lighting views (ToolsVisMode; Borealis's ToolsViews) for a surface that shades itself or its
+/// layers, as the standard shading model's DoToolsVis shows them for the rest: each from the surface's Material and the
+/// lighting terms it was lit with (zero where it has none to give).
+void SurfaceToolsView( inout float4 color, Material s, SurfaceInput input, float3 diffuse, float3 indirectDiffuse, float3 specular, float3 indirectSpecular )
+{
+	ToolsVis toolVis = ToolsVis::Init( color, diffuse, specular, indirectDiffuse, indirectSpecular, float3( 0, 0, 0 ) );
+	toolVis.HandleFullbright( color, s.Albedo, input.Position, s.Normal );
+	toolVis.HandleDiffuseLighting( color );
+	toolVis.HandleSpecularLighting( color );
+	toolVis.HandleTransmissiveLighting( color );
+	toolVis.HandleLightingComplexity( color, input.Position, input.ScreenPosition, s.Normal );
+	toolVis.HandleAlbedo( color, s.Albedo );
+	toolVis.HandleReflectivity( color, s.Albedo );
+	toolVis.HandleRoughness( color, s.Roughness.xx );
+	toolVis.HandleDiffuseAmbientOcclusion( color, s.AmbientOcclusion.xxx );
+	toolVis.HandleSpecularAmbientOcclusion( color, s.AmbientOcclusion.xxx );
+	toolVis.HandleCubemapReflections( color, input.Position, input.ScreenPosition, s.Normal );
+	toolVis.HandleNormalWs( color, s.Normal );
+	toolVis.HandleTangentUWs( color, input.TangentU );
+	toolVis.HandleTangentVWs( color, input.TangentV );
+	toolVis.HandleGeometricRoughness( color, input.Normal );
+	toolVis.HandleTiledRenderingColors( color, s.Albedo, input.ScreenPosition );
+	SurfaceShowUvs( color, s.Albedo, input.Uv );
+	color.rgb = saturate( color.rgb );
+}
+
+/// The surface's properties as the lighting's Material.
+ClassicMaterial ToClassicMaterial( PixelInput i, Material s )
+{
+	ClassicMaterial m = ClassicMaterial::Init( i );
+	m.Albedo = s.Albedo;
+	m.Metalness = s.Metalness;
+	m.Roughness = s.Roughness;
+	m.Emission = s.Emission;
+	m.Normal = s.Normal;
+	m.AmbientOcclusion = s.AmbientOcclusion;
+	m.Opacity = s.Opacity;
+	m.Transmission = s.Transmission;
+	m.TintMask = s.TintMask;
+	return m;
+}
+
+/// Shade a surface's properties with the engine's standard shading model, as common/pixel.hlsl's shaders do. Alpha-tested
+/// passes are compiled with S_ALPHA_TEST, so Shade runs today's alpha to coverage: the sharpened cutoff, mip-compensated by
+/// the opacity texture's size, a hard cut without multisampling. Coverage fades whole triangles on top of it. In the
+/// alpha-tested depth pass (S_MODE_DEPTH) Shade returns that coverage before lighting, so prepass and colour agree exactly.
+float4 SurfaceShade( PixelInput i, Material s, uint opacityTexture, bool alphaTest )
+{
+	s_SurfaceOpacityTexture = opacityTexture;
+	bool spread = alphaTest && g_nMSAASampleCount > 1;
+	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
+#if ( S_MODE_DEPTH )
+	// The depth pass writes nothing but alpha to coverage: the shading model's depth path without its decals, which
+	// don't change opacity
+	ClassicMaterial m = ToClassicMaterial( i, s );
+	AdjustAlphaToCoverage( m );
+	float4 color = DepthNormals::Output( m.Normal, m.Roughness, m.Opacity );
+#else
+	// Before the decals, so their loop doesn't hold the derivatives it comes from
+	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
+	SurfaceKeepNormals( s.Normal, s.Roughness );
+	float4 color = ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+	SurfaceShowUvs( color, s.Albedo, i.vTextureCoords.xy );
+#endif
+	if ( spread ) color.a *= s.Coverage;
+	return color;
+}
+
+#ifdef SURFACE_LIGHT_HOOK
+// A lit surface (ILitSurface): the engine's light loop (vr_lighting.fxc) calls SurfaceLightHook for every light it shades
+// the pixel with, and the shading model adds the sum to the diffuse light. The instance file defines SurfaceLight, which
+// calls the material's Light with what the pass kept here.
+static SurfaceInput s_SurfaceLitInput;
+static Material s_SurfaceLitMaterial;
+static float3 s_SurfaceLight = 0;
+static float s_SurfaceLightStrength = 1;   // a baked light's per-texel strength, set around it by the baked loop
+
+SurfaceInput SurfaceLitInput() { return s_SurfaceLitInput; }
+Material SurfaceLitMaterial() { return s_SurfaceLitMaterial; }
+float3 SurfaceLightTotal() { return s_SurfaceLight; }
+void SurfaceLightScale( float strength ) { s_SurfaceLightStrength = strength; }
+
+void SurfaceLightHook( float3 direction, float3 color, float attenuation, float visibility, bool sun )
+{
+	LightSample light;
+	light.Direction = direction;
+	light.Color = color;
+	light.Attenuation = attenuation * s_SurfaceLightStrength;
+	light.Visibility = visibility;
+	light.Sun = sun;
+	s_SurfaceLight += SurfaceLight( light );
+}
+#endif
+
+/// Forward, and the alpha-tested depth pass: evaluate, then shade. A lit surface's Light runs inside Shade's light loop,
+/// on the input with the gradients taken here, since lanes diverge in the loop.
+float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+	SurfaceInput input = MakeSurfaceInput( i );
+	Material s = surface.Evaluate( input );
+#ifdef SURFACE_LIGHT_HOOK
+	input.Gradients = true;
+	s_SurfaceLitInput = input;
+	s_SurfaceLitMaterial = s;
+	s_SurfaceLight = 0;
+#endif
+	return SurfaceShade( i, s, opacityTexture, AlphaTest );
+}
+
+/// The depth and shadow passes of a surface with a shadow of its own (IShadowSurface): no colour, the depth dithered by its
+/// ShadowOpacity, as vr_lighting.fxc's OpaqueFadeDepth dithers a .shader's depth mode (glass.shader's).
+float4 SurfaceDepthDithered<S : IShadowSurface>( PixelInput i, S surface )
+{
+	OpaqueFadeDepth( surface.ShadowOpacity( MakeSurfaceInput( i ) ), i.vPositionSs.xy );
+	return 1.0;
+}
+
+/// Forward for a sun-lit surface (ISunLitSurface): its Light once, for the sun, outside the light loop, added to the
+/// emission before shading; as foliage.shader lights its translucency. Depth passes skip it.
+float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+	SurfaceInput input = MakeSurfaceInput( i );
+#if ( !S_MODE_DEPTH )
+	// The sun's shadow before the material: its cascade filter is then the peak of few registers, not of the material's
+	float sunVisibility = 1;
+	if ( g_DirectionalLightEnabled )
+		sunVisibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, i.vPositionSs );
+#endif
+	Material s = surface.Evaluate( input );
+#if ( !S_MODE_DEPTH )
+	if ( g_DirectionalLightEnabled )
+	{
+		LightSample sun;
+		sun.Direction = -normalize( g_DirectionalLightDirection.xyz );
+		sun.Color = g_DirectionalLightColor.rgb;
+		[branch]
+		if ( LightModulators::Active() )
+			sun.Color *= LightModulators::EvaluateSun( input.Position, sun.Direction );
+		sun.Attenuation = 1;
+		sun.Visibility = sunVisibility;
+		sun.Sun = true;
+		s.Emission += surface.Light( s, input, sun );
+	}
+#endif
+	return SurfaceShade( i, s, opacityTexture, AlphaTest );
+}
+
+#ifdef SURFACE_FINAL_COMBINER
+/// The draw is of a fading object (today's D_OPAQUE_FADE combo: an opaque object whose tint alpha is under 1), per pipeline.
+[vk::constant_id( 3 )] const bool kSurfaceOpaqueFade = false;
+
+/// Shade as complex.shader does (vr_shared_standard_ps_code.fxc, then the final combiner): decals, the alpha test with
+/// the material's cutoff, the lighting through PS_FinalCombinerDoLighting (emission and transmission after the light
+/// loops, the material's direct-light occlusion), then fog and tools visualisation.
+float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool alphaTest )
+{
+	s_SurfaceOpacityTexture = opacityTexture;
+	bool spread = alphaTest && g_nMSAASampleCount > 1;
+	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
+
+	ClassicMaterial m = ToClassicMaterial( i, s );
+#if ( !S_MODE_DEPTH )
+	// The light loops' receiver normal before the decals, so their loop doesn't hold the derivatives it comes from
+	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
+	// Not in the depth pass, which writes nothing but alpha to coverage: decals don't change opacity
+	Decals::Apply( m.WorldPosition, m );
+#endif
+
+#if ( S_ALPHA_TEST )
+	{
+		float raw = m.Opacity;
+	#ifdef MATERIAL_ALPHA_TEXTURE
+		float2 size = float2( TextureDimensions2DS( MATERIAL_ALPHA_TEXTURE, 0 ) );
+	#else
+		float2 size = float2( 1.0, 1.0 );
+	#endif
+		m.Opacity = AdjustOpacityForAlphaToCoverage( m.Opacity, s.AlphaTestReference, s.AntiAliasedEdgeStrength, m.TextureCoords.xy * s.OpacityUvScale, size );
+		// After the derivatives above, as the shading model does
+		clip( min( raw - 1.0 / 255.0, m.Opacity - 0.000001 ) );
+	}
+#elif ( !S_TRANSLUCENT )
+	// A fading object (D_OPAQUE_FADE): dithered by its opacity without multisampling, alpha to coverage with it
+	if ( kSurfaceOpaqueFade && g_nMSAASampleCount == 1 ) OpaqueFadeDepth( ( m.Opacity + 0.5 + 1.0 / 255.0 ) * 0.5, i.vPositionSs.xy );
+#endif
+
+	s_SurfaceBackfaceTransmission = s.BackfaceTransmission;
+	CombinerInput f = ShadingModelStandard::MaterialToCombinerInput( m );
+	f.vRoughness = m.Roughness.xx;   // the final combiner adjusts it by the geometric normal itself
+	// After the decals, as the depth-normals pass wrote the combiner's
+	SurfaceKeepNormals( f.vNormalWs.xyz, f.vRoughness.x );
+	f.flAmbientOcclusionDirectDiffuse = s.AmbientOcclusionDirectDiffuse;
+	f.flAmbientOcclusionDirectSpecular = s.AmbientOcclusionDirectSpecular;
+	f.vDiffuseColor *= s.DiffuseScale;
+	f.vSpecularColor *= s.SpecularScale;
+
+	// The surface's [Combiner( ... )] features, as skin.shader fills them
+#if ( S_SUBSURFACE_SCATTERING )
+	s_SurfaceDiffuseFalloff = s.SssFalloff.Slot;
+	f.vSSSNormalWs = any( s.SssNormal != 0 ) ? s.SssNormal : f.vNormalWs;
+	f.flSSSCurvature = length( fwidth( i.vNormalWs.xyz ) ) / length( fwidth( i.vPositionWithOffsetWs.xyz ) ) * s.SssCurvatureScale;
+	f.flSSSMask = s.SssMask;
+#endif
+#if ( S_TWO_LOBE_SPECULAR )
+	f.vRoughness.y *= s.SecondLobeRoughness;
+	f.flTwoLobeSpecularRatio = s.TwoLobeSpecularRatio;
+#endif
+#if ( S_AMBIENT_OCCLUSION_COLOR_BLEED )
+	f.vAmbientOcclusionColorBleed = s.AmbientOcclusionColorBleed;
+#endif
+#if ( S_TRANSMISSIVE )
+	f.vTransmissiveFalloff = s.TransmissiveFalloff;
+#endif
+	if ( s.UseBentNormals )
+	{
+		f.bUseBentNormalsForIndirect = true;
+		f.vBentNormalWs = s.BentNormal;
+		f.vBentDiffuseNormalWs = s.BentDiffuseNormal;
+	}
+
+	LightingTerms_t terms = InitLightingTerms();
+	PS_OUTPUT o;
+	[branch]
+	if ( s.Unlit && !DepthNormals::WantsDepthNormals() ) o.vColor = float4( f.vDiffuseColor + f.vEmissive, f.flOpacity );   // S_UNLIT's colour
+	else o = PS_FinalCombinerDoLighting( f, terms );
+	// Specular off (S_SPECULAR 0): its terms taken back out, and zero for the tools' views
+	if ( !s.Specular )
+	{
+		o.vColor.rgb -= terms.vSpecular.rgb + terms.vIndirectSpecular.rgb;
+		terms.vSpecular = 0;
+		terms.vIndirectSpecular = 0;
+	}
+	float4 lit = o.vColor;
+	[branch]
+	if ( s.OverlayMode != 0 && !ToolsVis::WantsToolsVis() )
+	{
+		// A multiplying overlay keeps its own fog blending per layer (static_overlay.shader)
+		if ( g_bFogEnabled && s.Fog ) o.vColor = Fog::ApplyOverlay( f.vPositionWs, f.vPositionSs.xy, o.vColor, s.OverlayMode );
+	}
+	else
+	{
+		if ( ToolsVis::WantsToolsVis() && s.OverlayMode == 6 ) f.vDiffuseColor.rgb = saturate( f.vDiffuseColor.rgb + f.vEmissive.rgb );
+		o = PS_FinalCombinerDoPostProcessing( f, terms, o );
+		// A material without fog (its g_bFogEnabled off) keeps the lit colour; an additive one (S_ADDITIVE_BLEND's fog) too,
+		// its alpha thinned by the fog
+		if ( ( s.Additive || !s.Fog ) && g_bFogEnabled && !DepthNormals::WantsDepthNormals() && !ToolsVis::WantsToolsVis() && !g_bWireframeMode )
+			o.vColor = float4( lit.rgb, s.Fog ? lit.a * Fog::Transmittance( f.vPositionWs, f.vPositionSs.xy ) : lit.a );
+	}
+
+	// Multiplying overlays fade to the colour that leaves what's behind them unchanged
+	if ( s.OverlayMode == 3 ) o.vColor.rgb = lerp( float3( 0.5, 0.5, 0.5 ), o.vColor.rgb, o.vColor.a );
+	else if ( s.OverlayMode == 5 ) o.vColor.rgb = lerp( float3( 1, 1, 1 ), o.vColor.rgb, o.vColor.a );
+	else if ( s.OverlayMode == 6 ) o.vColor.rgb *= o.vColor.a;
+	float4 color = o.vColor;
+#if ( !S_MODE_DEPTH )
+	SurfaceShowUvs( color, s.Albedo, i.vTextureCoords.xy );
+#endif
+	if ( spread ) color.a *= s.Coverage;
+	return color;
+}
+
+/// Forward, and the alpha-tested depth pass, for a combiner surface (ICombinerSurface).
+float4 SurfaceForwardCombiner<S : ICombinerSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+	SurfaceInput input = MakeSurfaceInput( i );
+	Material s = surface.Evaluate( input );
+	return SurfaceShadeCombiner( i, s, opacityTexture, AlphaTest );
+}
+
+
+/// Forward, and the alpha-tested depth pass, for a layered surface (ILayeredSurface): its Shade lights and mixes its layers,
+/// then the alpha test or a fading object's coverage, fog as eyeball.shader applies it (distance fog where enabled, then
+/// volumetric fog), the tools' views and wireframe. Depth passes evaluate and take the combiner's coverage.
+float4 SurfaceForwardLayered<S : ILayeredSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+#if ( S_MODE_DEPTH )
+	return SurfaceForwardCombiner<S, AlphaTest>( i, surface, opacityTexture );
+#else
+	SurfaceInput input = MakeSurfaceInput( i );
+	SurfaceLayerLighting lighting = SurfaceLayerLighting::Make( i, input );
+	Material s;
+	float3 lit = surface.Shade( input, lighting, s );
+	SurfaceKeepNormals( s.Normal, s.Roughness );
+
+	s_SurfaceOpacityTexture = opacityTexture;
+	bool spread = AlphaTest && g_nMSAASampleCount > 1;
+	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
+	float alpha = 1.0;
+#if ( S_ALPHA_TEST )
+	{
+	#ifdef MATERIAL_ALPHA_TEXTURE
+		float2 size = float2( TextureDimensions2DS( MATERIAL_ALPHA_TEXTURE, 0 ) );
+	#else
+		float2 size = float2( 1.0, 1.0 );
+	#endif
+		alpha = AdjustOpacityForAlphaToCoverage( s.Opacity, s.AlphaTestReference, s.AntiAliasedEdgeStrength, input.Uv * s.OpacityUvScale, size );
+		clip( min( s.Opacity - 1.0 / 255.0, alpha - 0.000001 ) );
+	}
+#elif ( S_TRANSLUCENT )
+	alpha = s.Opacity;
+#else
+	// A fading object (D_OPAQUE_FADE): dithered without multisampling, its noisy fade as alpha to coverage with it
+	if ( kSurfaceOpaqueFade )
+	{
+		if ( g_nMSAASampleCount == 1 ) OpaqueFadeDepth( s.Opacity, i.vPositionSs.xy );
+		else alpha = OpaqueFade( s.Opacity, i.vPositionSs );
+	}
+#endif
+
+	if ( g_bFogEnabled && s.Fog ) lit = Fog::Apply( input.Position, lit );
+	lit = ApplyVolumetricFog( lit, input.Position, i.vPositionSs.xy );
+	float4 color = float4( lit, alpha );
+
+	[branch]
+	if ( ToolsVis::WantsToolsVis() ) SurfaceToolsView( color, s, input, float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ), float3( 0, 0, 0 ) );
+
+	if ( g_bWireframeMode ) color = g_vWireframeColor;
+	if ( spread ) color.a *= s.Coverage;
+	return color;
+#endif
+}
+#endif
+
+/// A layered surface's lighting (ILayerLighting): one light layer through the final combiner's light loops at the pixel, as
+/// a .shader lighting its own FinalCombinerInput_t does (ComputeDirectLighting, then CalculateIndirectLighting).
+struct SurfaceLayerLighting : ILayerLighting
+{
+	float3 PositionWs;
+	float3 PositionWithOffsetWs;
+	float4 PositionSs;
+	float3 TangentU;
+	float3 TangentV;
+	float GeometricRoughness;   // CalculateGeometricRoughnessFactor of the geometric normal, taken in uniform control flow
+
+	static SurfaceLayerLighting Make( PixelInput i, SurfaceInput s )
+	{
+		SurfaceLayerLighting l;
+		l.PositionWs = s.Position;
+		l.PositionWithOffsetWs = i.vPositionWithOffsetWs.xyz;
+		l.PositionSs = i.vPositionSs;
+		l.TangentU = s.TangentU;
+		l.TangentV = s.TangentV;
+		l.GeometricRoughness = CalculateGeometricRoughnessFactor( s.Normal );
+		return l;
+	}
+
+	LayerLight Light( LightLayer layer )
+	{
+		FinalCombinerInput_t f = PS_InitFinalCombiner();
+		f.vPositionWs = PositionWs + layer.Offset;
+		f.vPositionWithOffsetWs = PositionWithOffsetWs + layer.Offset;
+		f.vPositionSs = PositionSs;
+		f.vNormalWs = layer.Normal;
+		f.vTangentUWs = TangentU;
+		f.vTangentVWs = TangentV;
+		f.vRoughness = layer.GeometricRoughness ? max( layer.Roughness, GeometricRoughness.xx ) : layer.Roughness;   // AdjustRoughnessByGeometricNormal
+		f.vSSSNormalWs = layer.DiffuseNormal;
+		f.vSSSWrapParameters = float4( layer.DiffuseWrap, layer.DiffuseWrapExponent, 1.0 / ( 1.0 + layer.DiffuseWrap ), ( 1.0 + layer.DiffuseWrapExponent ) / ( 2.0 + 2.0 * layer.DiffuseWrap ) );
+		f.vSpecularColor = layer.SpecularColor;
+
+		LightingTerms_t terms = InitLightingTerms();
+		if ( layer.Direct ) ComputeDirectLighting( terms, f );
+		else terms.vDiffuse = 0;   // InitLightingTerms starts it white, for unlit callers
+		if ( layer.Indirect ) CalculateIndirectLighting( terms, f );
+
+		LayerLight o;
+		o.Diffuse = terms.vDiffuse;
+		o.IndirectDiffuse = terms.vIndirectDiffuse;
+		o.Specular = terms.vSpecular;
+		o.IndirectSpecular = terms.vIndirectSpecular;
+		// As CalculateDiffuseAmbientOcclusion and CalculateSpecularAmbientOcclusion read them, with no material occlusion
+		o.DiffuseOcclusion = min( sqrt( terms.flBakedAmbientOcclusion ), terms.flDynamicAmbientOcclusion );
+		o.SpecularOcclusion = PowerSpecularOcclusion( f.vPositionWs, f.vNormalWs, min( terms.flBakedAmbientOcclusion, terms.flDynamicAmbientOcclusion ) );
+		return o;
+	}
+
+	float3 ScenePosition( float2 pixel )
+	{
+		return Depth::GetWorldPosition( pixel );
+	}
+};
+
+/// What a shaded surface (IShadedSurface) is handed: the engine's lighting, reflections, fog, decals and view at the pixel,
+/// as today's shaders call them.
+struct SurfaceLighting : ISurfaceLighting
+{
+	PixelInput Pixel;
+	SurfaceLayerLighting Layers;
+
+	static SurfaceLighting Make( PixelInput i, SurfaceInput s )
+	{
+		SurfaceLighting l;
+		l.Pixel = i;
+		l.Layers = SurfaceLayerLighting::Make( i, s );
+		return l;
+	}
+
+	float3 PositionWs() { return Pixel.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz; }
+
+	LayerLight Light( LightLayer layer ) { return Layers.Light( layer ); }
+	float3 ScenePosition( float2 pixel ) { return Layers.ScenePosition( pixel ); }
+
+	/// common/shadingmodel.hlsl's lighting: the material as the combiner's input, then the direct and indirect light and
+	/// the occlusion the standard shading model composites with.
+	SurfaceLight Lit( Material s, bool ownSpecular, float3 specularColor )
+	{
+		CombinerInput f = ShadingModelStandard::MaterialToCombinerInput( ToClassicMaterial( Pixel, s ) );
+		if ( ownSpecular ) f.vSpecularColor = specularColor;
+		LightingTerms_t terms = InitLightingTerms();
+		ComputeDirectLighting( terms, f );
+		CalculateIndirectLighting( terms, f );
+
+		SurfaceLight o;
+		o.Diffuse = terms.vDiffuse.rgb;
+		o.IndirectDiffuse = terms.vIndirectDiffuse.rgb;
+		o.Specular = terms.vSpecular.rgb;
+		o.IndirectSpecular = terms.vIndirectSpecular.rgb;
+		o.DiffuseOcclusion = CalculateDiffuseAmbientOcclusion( f, terms );
+		o.SpecularOcclusion = CalculateSpecularAmbientOcclusion( f, terms );
+		o.DirectDiffuseOcclusion = f.flAmbientOcclusionDirectDiffuse;
+		o.DirectSpecularOcclusion = f.flAmbientOcclusionDirectSpecular;
+		o.DiffuseColor = f.vDiffuseColor.rgb;
+		o.SpecularColor = f.vSpecularColor.rgb;
+		o.Roughness = f.vRoughness.xy;
+		return o;
+	}
+
+	SurfaceLight LightMaterial( Material m ) { return Lit( m, false, 0 ); }
+	SurfaceLight LightMaterialWithSpecular( Material m, float3 specularColor ) { return Lit( m, true, specularColor ); }
+
+	Material ApplyDecals( Material s )
+	{
+		ClassicMaterial m = ToClassicMaterial( Pixel, s );
+		Decals::Apply( m.WorldPosition, m );
+		s.Albedo = m.Albedo;
+		s.Metalness = m.Metalness;
+		s.Roughness = m.Roughness;
+		s.Emission = m.Emission;
+		s.Normal = m.Normal;
+		s.AmbientOcclusion = m.AmbientOcclusion;
+		s.Opacity = m.Opacity;
+		s.Transmission = m.Transmission;
+		s.TintMask = m.TintMask;
+		return s;
+	}
+
+	float4 ScreenReflection( float roughness ) { return DynamicReflections::Sample( Pixel.vPositionSs.xy - g_vViewportOffset.xy, sqrt( saturate( roughness ) ) ); }
+	float3 Environment( float3 normal, float roughness ) { return EnvMap::From( PositionWs(), Pixel.vPositionSs, normal, float2( roughness, roughness ) ); }
+	bool FogEnabled() { return g_bFogEnabled; }
+	float3 Fog( float3 color ) { return Fog::Apply( PositionWs(), color ); }
+	float3 VolumetricFog( float3 color ) { return ApplyVolumetricFog( color, PositionWs(), Pixel.vPositionSs.xy ); }
+	float4 ProjectPosition( float3 position ) { return Position3WsToPs( position ); }
+	float4 ProjectDirection( float3 direction ) { return Position4WsToPs( float4( direction, 0 ) ); }
+	float3 WorldToView( float3 direction ) { return Vector3WsToVs( direction ); }
+	float3 ViewToWorld( float3 direction ) { return Vector3VsToWs( direction ); }
+	float2 ViewportUv() { return CalculateViewportUv( Pixel.vPositionSs.xy ); }
+};
+
+/// Forward, and the alpha-tested depth pass, for a surface that shades itself (IShadedSurface): its Shade returns the lit,
+/// fogged colour; then the alpha test, the tools' views and wireframe. Depth passes evaluate and take the shaded coverage.
+float4 SurfaceForwardShaded<S : IShadedSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+	SurfaceInput input = MakeSurfaceInput( i );
+#if ( S_MODE_DEPTH )
+	return SurfaceShade( i, surface.Evaluate( input ), opacityTexture, AlphaTest );
+#else
+	// Before the material, so the decals' and lights' loops don't hold the derivatives it comes from
+	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
+	SurfaceLighting lighting = SurfaceLighting::Make( i, input );
+	Material s;
+	float4 color = surface.Shade( input, lighting, s );
+	SurfaceKeepNormals( s.Normal, s.Roughness );
+
+	s_SurfaceOpacityTexture = opacityTexture;
+	bool spread = AlphaTest && g_nMSAASampleCount > 1;
+	if ( s.Coverage < 1.0 ) clip( s.Coverage - ( spread ? 1.0 / 255.0 : 0.5 ) );
+#if ( S_ALPHA_TEST )
+	{
+		// Today's alpha to coverage on the material's opacity, as the shading model runs it
+		ClassicMaterial m = ToClassicMaterial( i, s );
+		AdjustAlphaToCoverage( m );
+		color.a = m.Opacity;
+	}
+#endif
+
+	[branch]
+	if ( ToolsVis::WantsToolsVis() )
+	{
+		// The lighting views: the material lit by the engine's standard lighting, as the surface's Shade calls it
+		SurfaceLight light = (SurfaceLight)0;
+		if ( ToolsVisMode == ToolsVisModes::DiffuseLighting || ToolsVisMode == ToolsVisModes::SpecularLighting ) light = lighting.LightMaterial( s );
+		SurfaceToolsView( color, s, input, light.Diffuse, light.IndirectDiffuse * light.DiffuseOcclusion, light.Specular, light.IndirectSpecular * light.SpecularOcclusion );
+	}
+
+	if ( g_bWireframeMode ) color = g_vWireframeColor;
+	if ( spread ) color.a *= s.Coverage;
+	return color;
+#endif
+}
+
+/// Forward for a surface that works on its lit colour (ICompositeSurface): evaluate, shade, then Composite. Depth passes
+/// return the shaded coverage as it is.
+float4 SurfaceForwardComposite<S : ICompositeSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+{
+	SurfaceInput input = MakeSurfaceInput( i );
+	Material s = surface.Evaluate( input );
+	float4 color = SurfaceShade( i, s, opacityTexture, AlphaTest );
+#if ( !S_MODE_DEPTH )
+	color = surface.Composite( color, s, input );
+#endif
+	return color;
+}
+#endif
+
+#endif

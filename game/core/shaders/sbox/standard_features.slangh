@@ -1,0 +1,15 @@
+// The features standard-style scene shaders share: the common ones (sbox/features.slangh), then alpha test, translucency
+// and additive blending (each excluding the others as before) and a tint mask. Ours, in place of the old
+// vr_shared_standard_features.fxc: the same features, rules and messages, in the same order.
+
+#include "sbox/features.slangh"
+
+Feature( F_ALPHA_TEST, 0..1, "Translucent" );
+Feature( F_TRANSLUCENT, 0..1, "Translucent" );
+Feature( F_ADDITIVE_BLEND, 0..1, "Translucent" );
+
+FeatureRule( Allow1( F_ALPHA_TEST, F_TRANSLUCENT ), "Translucent and Alpha Test are not compatible" );
+FeatureRule( Requires1( F_ADDITIVE_BLEND, F_TRANSLUCENT ), "Requires translucency" );
+FeatureRule( Allow1( F_TRANSLUCENT, F_DO_NOT_CAST_SHADOWS ), "Translucent and Do Not Cast Shadows are not compatible" );
+
+Feature( F_TINT_MASK, 0..1, "Color" );

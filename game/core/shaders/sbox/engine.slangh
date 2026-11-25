@@ -1,0 +1,43 @@
+// The engine's vertex processing and lighting, from today's core includes, for new-tier shaders: what a .shader's
+// COMMON block, VertexInput and PixelInput structs and VS/PS includes give (bark.shader's set). Included, not imported:
+// the includes are HLSL with defines (PROGRAM is 1 for vertex entry points, 2 for pixel ones). The shader compiler reads
+// their vfx annotations to bind them by attribute, as vfx does.
+#ifndef SBOX_ENGINE_SLANGH
+#define SBOX_ENGINE_SLANGH
+
+#include "sbox/system.slangh"
+#include "common/shared.hlsl"
+
+struct VertexInput
+{
+	#include "common/vertexinput.hlsl"
+
+	// The mesh's vertex colour, for vertex surfaces (foliage); stripped from shaders that don't read it
+	float4 vSurfaceColor : COLOR0;
+};
+
+struct PixelInput
+{
+	#include "common/pixelinput.hlsl"
+};
+
+#if ( PROGRAM == VFX_PROGRAM_VS )
+	#include "common/vertex.hlsl"
+#else
+	#include "common/pixel.hlsl"
+#endif
+
+// vfx's annotation macros would swallow a [Material] struct's [Default( ... )] and [Range( ... )] attributes: new-tier
+// code after this doesn't write vfx annotations
+#undef Default
+#undef Default1
+#undef Default2
+#undef Default3
+#undef Default4
+#undef Range
+#undef Range1
+#undef Range2
+#undef Range3
+#undef Range4
+
+#endif

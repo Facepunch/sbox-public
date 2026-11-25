@@ -1,0 +1,329 @@
+// General shader maths: constants, remaps, colour space conversions, normal map unpacking and rotations. Ours, in place of
+// the old math_general.fxc: a Slang compile includes this wherever a file includes that (SlangHeaders), with the same names
+// and results, so the shared headers and older shader text that call them compile as before. It shares that header's
+// include guard, so text that has both gets one set of definitions.
+#ifndef MATH_GENERAL_FXC
+#define MATH_GENERAL_FXC
+#define SBOX_MATH_SLANGH
+
+#define M_PI ( 3.14159265358979323846 )
+#define M_2PI ( 6.28318530718 )
+// 254/255 * 2: a mid-grey 8-bit texel (128) becomes 1
+#define MOD2X_SCALAR ( 1.992156862745098 )
+#define SMALL_FLOAT 1e-12
+
+float MAX( float a, float b ) { return max( a, b ); }
+float MIN( float a, float b ) { return min( a, b ); }
+
+/// The direction of a vector, or zero for a zero-length one. One exit, so it inlines as a plain branch.
+float3 NormalizeSafe( float3 v )
+{
+	float3 direction;
+	if ( length( v ) == 0.0 ) direction = float3( 0.0, 0.0, 0.0 );
+	else direction = normalize( v );
+	return direction;
+}
+
+float2 NormalizeSafe( float2 v )
+{
+	float2 direction;
+	if ( length( v ) == 0.0 ) direction = float2( 0.0, 0.0 );
+	else direction = normalize( v );
+	return direction;
+}
+
+float DotProduct( float3 a, float3 b ) { return dot( a, b ); }
+float DotClamp( float3 a, float3 b ) { return saturate( dot( a, b ) ); }
+
+float ClampToPositive( float v ) { return max( 0.0, v ); }
+float2 ClampToPositive( float2 v ) { return max( float2( 0.0, 0.0 ), v ); }
+float3 ClampToPositive( float3 v ) { return max( float3( 0.0, 0.0, 0.0 ), v ); }
+float4 ClampToPositive( float4 v ) { return max( float4( 0.0, 0.0, 0.0, 0.0 ), v ); }
+
+/// Where `x` lies between `low` and `high`, clamped to 0..1.
+float LinearRamp( float low, float high, float x ) { return saturate( ( x - low ) / ( high - low ) ); }
+
+/// `whenNotNegative` when `x >= 0`, else `whenNegative`.
+float fsel( float x, float whenNotNegative, float whenNegative ) { return ( x >= 0.0 ) ? whenNotNegative : whenNegative; }
+
+/// `x` mapped from the range `from0..from1` to `to0..to1`.
+float RemapVal( float x, float from0, float from1, float to0, float to1 )
+{
+	float t = ( x - from0 ) / ( from1 - from0 );
+	return ( t * ( to1 - to0 ) ) + to0;
+}
+
+/// RemapVal, held at the ends of the target range.
+float RemapValClamped( float x, float from0, float from1, float to0, float to1 )
+{
+	float t = saturate( ( x - from0 ) / ( from1 - from0 ) );
+	return ( t * ( to1 - to0 ) ) + to0;
+}
+
+/// Two unit vectors perpendicular to the unit vector `n` and each other, continuous everywhere but `n.z == 0` flips
+/// (Duff et al., "Building an Orthonormal Basis, Revisited", JCGT 2017).
+void MakeOrthonormalBasis( in float3 n, out float3 b1, out float3 b2 )
+{
+	const float s = n.z >= 0.0 ? 1.0 : -1.0;
+	const float a = -1.0 / ( s + n.z );
+	const float b = n.x * n.y * a;
+	b1 = float3( 1.0 + s * n.x * n.x * a, s * b, -s * n.x );
+	b2 = float3( b, s + n.y * n.y * a, -n.y );
+}
+
+/// Left and up vectors for a forward vector, with z up; straight up or down picks +y as left.
+void GenerateOrthonormalBasisFromForwardVector( float3 forward, out float3 left, out float3 up )
+{
+	if ( abs( forward.x ) < 1e-3 && abs( forward.y ) < 1e-3 )
+	{
+		left = float3( 0.0, 1.0, 0.0 );
+		up = float3( -forward.z, 0.0, 0.0 );
+	}
+	else
+	{
+		left = normalize( cross( float3( 0.0, 0.0, 1.0 ), forward ) );
+		up = normalize( cross( forward, left ) );
+	}
+}
+
+/// A unit vector perpendicular to `v`, with no discontinuity around the vertical.
+void VectorPerpendicularToVector( float3 v, out float3 perpendicular )
+{
+	perpendicular = normalize( float3( RemapVal( v.y * v.y, 0.0, 1.0, v.z, 1.0 ), 0.0, -v.x ) );
+	perpendicular -= DotProduct( perpendicular, v ) * v;
+	perpendicular = normalize( perpendicular );
+}
+
+/// Schlick's gain on 0..1: 0.5 leaves `x` as it is, lower flattens towards the middle, higher steepens towards a step.
+float Gain( float x, float sharpness )
+{
+	float k = 1.0 / sharpness - 2.0;
+	if ( x < 0.5 ) return x / ( k * ( 1.0 - 2.0 * x ) + 1.0 );
+	return ( k * ( 1.0 - 2.0 * x ) - x ) / ( k * ( 1.0 - 2.0 * x ) - 1.0 );
+}
+
+/// Schlick's bias on 0..1: 0.5 leaves `x` as it is, lower pulls it towards 0, higher towards 1.
+float Bias( float x, float bias ) { return x / ( ( ( 1.0 / bias ) - 2.0 ) * ( 1.0 - x ) + 1.0 ); }
+
+// -1..1 to 0..1 and back
+float4 PackToColor( float4 v ) { return ( v * 0.5 ) + 0.5; }
+float3 PackToColor( float3 v ) { return ( v * 0.5 ) + 0.5; }
+float2 PackToColor( float2 v ) { return ( v * 0.5 ) + 0.5; }
+float PackToColor( float v ) { return ( v * 0.5 ) + 0.5; }
+float4 UnpackFromColor( float4 c ) { return ( c * 2.0 ) - 1.0; }
+float3 UnpackFromColor( float3 c ) { return ( c * 2.0 ) - 1.0; }
+float2 UnpackFromColor( float2 c ) { return ( c * 2.0 ) - 1.0; }
+float UnpackFromColor( float c ) { return ( c * 2.0 ) - 1.0; }
+
+/// Relative luminance of a linear colour (Rec. 709 primaries).
+float Luminance( float3 c ) { return dot( c, float3( 0.2125, 0.7154, 0.0721 ) ); }
+
+/// `c` moved towards (below 1) or away from (above 1) its own grey.
+float3 SaturateColor( float3 c, float saturation )
+{
+	float grey = Luminance( c );
+	return lerp( float3( grey, grey, grey ), c, saturation.xxx );
+}
+
+/// Hue, saturation and value (each 0..1) of an RGB colour, branch-free (Sam Hocevar's formulation).
+float3 RgbToHsv( float3 c )
+{
+	float4 k = float4( 0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0 );
+	float4 p = c.g < c.b ? float4( c.bg, k.wz ) : float4( c.gb, k.xy );
+	float4 q = c.r < p.x ? float4( p.xyw, c.r ) : float4( c.r, p.yzx );
+	float chroma = q.x - min( q.w, q.y );
+	float epsilon = 1.0e-10;
+	return float3( abs( q.z + ( q.w - q.y ) / ( 6.0 * chroma + epsilon ) ), chroma / ( q.x + epsilon ), q.x );
+}
+
+/// The RGB colour of a hue, saturation and value (each 0..1): the hue's sixth picks which channel rises or falls.
+float3 HsvToRgb( float3 hsv )
+{
+	float3 rgb = hsv.zzz;
+	if ( hsv.y != 0 )
+	{
+		float h = hsv.x * 6;
+		float sector = floor( h );
+		float low = hsv.z * ( 1.0 - hsv.y );
+		float falling = hsv.z * ( 1.0 - hsv.y * ( h - sector ) );
+		float rising = hsv.z * ( 1.0 - hsv.y * ( 1 - ( h - sector ) ) );
+		if ( sector == 0 ) rgb = float3( hsv.z, rising, low );
+		else if ( sector == 1 ) rgb = float3( falling, hsv.z, low );
+		else if ( sector == 2 ) rgb = float3( low, hsv.z, rising );
+		else if ( sector == 3 ) rgb = float3( low, falling, hsv.z );
+		else if ( sector == 4 ) rgb = float3( rising, low, hsv.z );
+		else rgb = float3( hsv.z, low, falling );
+	}
+
+	return rgb;
+}
+
+// Plain power-law gammas, for the few places that want one instead of sRGB
+float LinearToGamma20( float v ) { return pow( v, 0.5 ); }
+float3 LinearToGamma20( float3 v ) { return pow( v, float3( 0.5, 0.5, 0.5 ) ); }
+float4 LinearToGamma20( float4 v ) { return float4( pow( v.rgb, float3( 0.5, 0.5, 0.5 ) ), v.a ); }
+float Gamma20ToLinear( float v ) { return v * v; }
+float3 Gamma20ToLinear( float3 v ) { return v * v; }
+float4 Gamma20ToLinear( float4 v ) { return float4( v.rgb * v.rgb, v.a ); }
+
+static const float3 kInverseGamma22 = { 0.454545454545455, 0.454545454545455, 0.454545454545455 };
+float LinearToGamma22( float v ) { return pow( v, 0.454545454545455 ); }
+float3 LinearToGamma22( float3 v ) { return pow( v, kInverseGamma22 ); }
+float4 LinearToGamma22( float4 v ) { return float4( pow( v.rgb, kInverseGamma22 ), v.a ); }
+float Gamma22ToLinear( float v ) { return pow( v, 2.2 ); }
+float3 Gamma22ToLinear( float3 v ) { return pow( v, float3( 2.2, 2.2, 2.2 ) ); }
+float4 Gamma22ToLinear( float4 v ) { return float4( pow( v.rgb, float3( 2.2, 2.2, 2.2 ) ), v.a ); }
+
+/// The sRGB transfer function (IEC 61966-2-1), encoded to linear, per channel.
+float3 SrgbGammaToLinear( float3 c )
+{
+	float3 toe = c / 12.92;
+	float3 curve = pow( ( c / 1.055 ) + ( 0.055 / 1.055 ), float3( 2.4, 2.4, 2.4 ) );
+	return float3( ( c.r <= 0.04045 ) ? toe.r : curve.r, ( c.g <= 0.04045 ) ? toe.g : curve.g, ( c.b <= 0.04045 ) ? toe.b : curve.b );
+}
+
+/// The sRGB transfer function, linear to encoded, per channel.
+float3 SrgbLinearToGamma( float3 c )
+{
+	float3 toe = c * 12.92;
+	float3 curve = ( 1.055 * pow( c, float3( 1.0 / 2.4, 1.0 / 2.4, 1.0 / 2.4 ) ) ) - 0.055;
+	return float3( ( c.r <= 0.0031308 ) ? toe.r : curve.r, ( c.g <= 0.0031308 ) ? toe.g : curve.g, ( c.b <= 0.0031308 ) ? toe.b : curve.b );
+}
+
+/// HDR colour in an 8-bit RGBA texel: sqrt-encoded, range 0..36 linear, the multiplier in alpha rounded up to a step of 1/255.
+float4 RGBMEncode( float3 linearColor )
+{
+	float3 c = saturate( sqrt( linearColor ) * ( 1.0 / 6.0 ) );
+	float m = max( max( c.r, c.g ), max( c.b, 1.0 / 6.0 ) );
+	m = ceil( m * 255.0 ) / 255.0;
+	return float4( c / m, m );
+}
+
+float3 RGBMDecode( float4 rgbm )
+{
+	float3 c = rgbm.rgb * 6.0 * rgbm.a;
+	return c * c;
+}
+
+// Normal map texels (0..1) to vectors (-1..1) and back. 2D ones are the xy of a unit normal
+float2 UnpackNormal2D( float2 n ) { return ( n * 2.0 ) - 1.0; }
+float2 PackNormal2D( float2 n ) { return ( n * 0.5 ) + 0.5; }
+float3 UnpackNormal3D( float3 n ) { return ( n * 2.0 ) - 1.0; }
+float3 PackNormal3D( float3 n ) { return ( n * 0.5 ) + 0.5; }
+
+/// A unit normal from its xy, z rebuilt as the positive root.
+float3 ComputeNormalFromXY( float2 xy ) { return float3( xy, sqrt( saturate( 1.0 - dot( xy, xy ) ) ) ); }
+
+/// A tangent-space normal from a two-channel normal map texel.
+float3 ComputeNormalFromRGTexture( float2 texel ) { return ComputeNormalFromXY( UnpackNormal2D( texel ) ); }
+
+/// A tangent-space normal from a DXT5nm texel (x in alpha, y in green).
+float3 ComputeNormalFromDXT5Texture( float4 texel ) { return ComputeNormalFromRGTexture( texel.ag ); }
+
+/// A unit normal from its azimuth (x, -1..1 as a fraction of pi) and z (y).
+float3 ConvertSphericalToNormal( float2 spherical )
+{
+	float2 azimuth;
+	sincos( spherical.x * M_PI, azimuth.x, azimuth.y );
+	float2 elevation = float2( sqrt( 1.0 - ( spherical.y * spherical.y ) ), spherical.y );
+	return float3( azimuth.y * elevation.x, azimuth.x * elevation.x, elevation.y );
+}
+
+float2 ConvertNormalToSphericalRGTexture( float3 n ) { return PackToColor( float2( atan2( n.y, n.x ) / M_PI, n.z ) ); }
+
+float3 ComputeNormalFromSphericalRGTexture( float2 texel ) { return ConvertSphericalToNormal( UnpackNormal2D( texel ) ); }
+
+/// The top mip of a texture filtered bicubically (B-spline weights) from four bilinear taps (GPU Gems 2, chapter 20).
+float4 Tex2DBicubic( Texture2D tex, float2 uv, float2 size, SamplerState linearSampler )
+{
+	float2 texel = 1.0 / size;
+	float2 position = uv * size - 0.5;
+	float2 cell = floor( position );
+	float2 f = position - cell;
+
+	float4x4 basis = float4x4( -1.0, 3.0, -3.0, 1.0,
+		3.0, -6.0, 3.0, 0.0,
+		-3.0, 0.0, 3.0, 0.0,
+		1.0, 4.0, 1.0, 0.0 );
+	basis /= 6.0;
+	float4 wx = mul( float4( f.x * f.x * f.x, f.x * f.x, f.x, 1 ), basis );
+	float4 wy = mul( float4( f.y * f.y * f.y, f.y * f.y, f.y, 1 ), basis );
+
+	float2 g0 = float2( wx.x, wy.x ) + float2( wx.y, wy.y );
+	float2 g1 = float2( wx.z, wy.z ) + float2( wx.w, wy.w );
+	float2 h0 = float2( wx.y, wy.y ) / g0 - 1;
+	float2 h1 = float2( wx.w, wy.w ) / g1 + 1;
+
+	float4 s00 = tex.SampleLevel( linearSampler, ( cell + h0 + 0.5 ) * texel, 0 );
+	float4 s10 = tex.SampleLevel( linearSampler, ( cell + float2( h1.x, h0.y ) + 0.5 ) * texel, 0 );
+	float4 s01 = tex.SampleLevel( linearSampler, ( cell + float2( h0.x, h1.y ) + 0.5 ) * texel, 0 );
+	float4 s11 = tex.SampleLevel( linearSampler, ( cell + h1 + 0.5 ) * texel, 0 );
+	return lerp( lerp( s11, s10, g0.y ), lerp( s01, s00, g0.y ), g0.x );
+}
+
+/// A latitude-longitude (equirectangular) map in a unit direction. The gradients are worked out from the direction, so the
+/// longitude seam where atan2 wraps doesn't drop to the smallest mip.
+float4 TexLatLong( SamplerState latLongSampler, Texture2D latLong, float3 direction )
+{
+	float2 uv = float2( atan2( direction.y, direction.x ) / ( 2.0 * M_PI ), acos( direction.z ) / M_PI );
+	float2 dx = float2( length( ddx( direction.xy ) ) / ( 2.0 * M_PI ), ddx( uv.y ) );
+	float2 dy = float2( length( ddy( direction.xy ) ) / ( 2.0 * M_PI ), ddy( uv.y ) );
+	return latLong.SampleGrad( latLongSampler, uv, dx, dy );
+}
+
+/// The bitangent from a normal, tangent and the tangent frame's handedness.
+float3 ComputeTangentVFromSign( float3 normal, float3 tangent, float flip ) { return normalize( cross( tangent, normal ) ) * flip; }
+
+/// A repeatable random 0..1 from two integer-valued floats (screen coordinates): two rounds of XTEA over them.
+float Random2D( float a, float b )
+{
+	uint key[4] = { 0xa341316cu, 0xc8013ea4u, 0xad90777du, 0x7e95761eu };
+	uint x = uint( a );
+	uint y = uint( b );
+	uint sum = 0u;
+	[unroll] for ( int i = 0; i < 2; i++ )
+	{
+		x += ( ( ( y << 4u ) ^ ( y >> 5u ) ) + y ) ^ ( sum + key[sum & 3u] );
+		sum += 0x9e3779b9u;
+		y += ( ( ( x << 4u ) ^ ( x >> 5u ) ) + x ) ^ ( sum + key[( sum >> 11u ) & 3u] );
+	}
+
+	return float( x & 0xffffu ) * ( 1.0 / 65535.0 );
+}
+
+/// `p` rotated clockwise by `angle` radians, then scaled.
+float2 RotateAndScale2D( float2 p, float angle, float2 scale )
+{
+	float c = cos( angle );
+	float s = sin( angle );
+	return float2( p.x * c + p.y * s, p.y * c - p.x * s ) * scale;
+}
+
+/// Rotation by `angle` radians about the unit axis `axis` (Rodrigues' formula as a matrix).
+float3x3 MatrixBuildRotationAboutAxisRadians( float3 axis, float angle )
+{
+	float s = sin( angle );
+	float c = cos( angle );
+	float t = 1.0 - c;
+	float3 square = axis * axis;
+	return float3x3(
+		square.x + ( 1.0 - square.x ) * c, axis.x * axis.y * t - axis.z * s, axis.z * axis.x * t + axis.y * s,
+		axis.x * axis.y * t + axis.z * s, square.y + ( 1.0 - square.y ) * c, axis.y * axis.z * t - axis.x * s,
+		axis.z * axis.x * t - axis.y * s, axis.y * axis.z * t + axis.x * s, square.z + ( 1.0 - square.z ) * c );
+}
+
+float3x3 MatrixBuildRotationAboutAxis( float3 axis, float degrees ) { return MatrixBuildRotationAboutAxisRadians( axis, degrees * ( M_PI / 180.0 ) ); }
+
+/// Rotation from pitch, yaw and roll in degrees.
+float3x3 RotationMatrixFromAngles( float3 angles )
+{
+	float3 r = radians( angles );
+	float3 c = cos( r );
+	float3 s = sin( r );
+	return float3x3(
+		c.y * c.z, c.y * s.z, -s.y,
+		s.x * s.y * c.z - c.x * s.z, s.x * s.y * s.z + c.x * c.z, s.x * c.y,
+		c.x * s.y * c.z + s.x * s.z, c.x * s.y * s.z - s.x * c.z, c.x * c.y );
+}
+
+#endif

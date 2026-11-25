@@ -1,0 +1,126 @@
+// The light probe volume: baked irradiance as an ambient cube per voxel, its six faces stacked along z in one 3D texture
+// (+X, +Y, +Z, -X, -Y, -Z), plus two volumes of the strongest direct lights' indices and their scales. Ours, in place of
+// the old light_probe_volume.fxc in Slang compiles (SlangHeaders): the same constant buffer, samplers, names and results.
+// Shares the old header's include guard.
+#ifndef LIGHT_PROBE_VOLUME_FXC
+#define LIGHT_PROBE_VOLUME_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "sbox/system.slangh"
+#include "sbox/math.slangh"
+#include "sbox/ambient_cube.slangh"
+#include "sbox/view.slangh"
+#include "common/classes/Bindless.hlsl"
+
+#ifdef SURFACE_GPU_DRIVEN
+#include "borealis_records.fxc"
+// A GPU-driven surface pass reads them from its draw's lighting record where they're used (SurfaceLightingWords,
+// sbox/surface_passes.slangh), as the lightmap's constants are
+#define MatLightProbeVolumeWorldToLocal SurfaceLightProbeVolumeWorldToLocal()
+#define LightProbeVolumeLayer0TextureMin asfloat( SurfaceLightingWords( LightingRecord_ProbeVolumeLayer0TextureMin ) )
+#define LightProbeVolumeLayer0TextureMax asfloat( SurfaceLightingWords( LightingRecord_ProbeVolumeLayer0TextureMax ) )
+#define LightProbeVolumeColor asfloat( SurfaceLightingWords( LightingRecord_ProbeVolumeColor ) )
+#define LightProbeVolumeTextureIndices asint( SurfaceLightingWords( LightingRecord_ProbeVolumeTextureIndices ) )
+#else
+cbuffer PerBatchLightProbeVolumeConstantBuffer_t : register( b2 )
+{
+	float4x3 MatLightProbeVolumeWorldToLocal;   // world to the volume's 0..1 texture space
+	float4 LightProbeVolumeLayer0TextureMin;     // the first face's texels, half a texel in from its edges
+	float4 LightProbeVolumeLayer0TextureMax;
+	float4 LightProbeVolumeColor;                // tint
+	int4 LightProbeVolumeTextureIndices;         // bindless: irradiance, direct light indices, direct light scales
+};
+#endif
+
+SamplerState g_sLightProbeVolumeSampler < Filter( BILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
+SamplerState g_sLightProbePointSampler < Filter( POINT ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
+
+#define g_tLightProbeVolumeTexture LightProbeVolumeTextureIndices.x
+#define g_tLightProbeVolumeTextureDirectLightIndices LightProbeVolumeTextureIndices.y
+#define g_tLightProbeVolumeTextureDirectLightScalars LightProbeVolumeTextureIndices.z
+
+// Atlas Z remap: when volumes share one 3D texture, each owns a part of its depth; the part's size (scale) and start
+// (offset) are in the texel range's w. Scale 1, offset 0 is a texture of its own. A scale of 0 (constants made before
+// the remap, or zeros) reads as 1.
+#define AtlasZScale ( LightProbeVolumeLayer0TextureMin.w > 0.0 ? LightProbeVolumeLayer0TextureMin.w : 1.0 )
+#define AtlasZOffset LightProbeVolumeLayer0TextureMax.w
+
+/// A texture-space position's z remapped into this volume's part of the atlas: z * scale + offset.
+float3 LightProbeVolumeAtlasZ( float3 p )
+{
+	p.z = p.z * AtlasZScale + AtlasZOffset;
+	return p;
+}
+
+#define SampleVolume( index, coord, level ) Bindless::GetTexture3D( index ).SampleLevel( g_sLightProbeVolumeSampler, coord, level )
+#define SampleVolumeWithSampler( index, samplerName, coord, level ) Bindless::GetTexture3D( index ).SampleLevel( samplerName, coord, level )
+
+/// A world position in the first face's part of the irradiance volume (of this volume's part of the atlas), clamped inside it.
+float3 LightProbeVolumeFirstFace( float3 vPositionWs )
+{
+	float3 p = mul( float4( vPositionWs, 1.0 ), MatLightProbeVolumeWorldToLocal ).xyz;
+	p.z = p.z * ( AtlasZScale / 6.0 ) + AtlasZOffset;
+	return clamp( p, LightProbeVolumeLayer0TextureMin.xyz, LightProbeVolumeLayer0TextureMax.xyz );
+}
+
+/// Irradiance towards a world normal: the three faces it looks at, weighted by its squared components.
+float3 SampleLightProbeVolume( float3 vPositionWs, float3 vNormalWs )
+{
+	float3 p = LightProbeVolumeFirstFace( vPositionWs );
+	float3 face = lerp( float3( 0.0, 1.0, 2.0 ), float3( 3.0, 4.0, 5.0 ), step( vNormalWs, float3( 0.0, 0.0, 0.0 ) ) ) * ( AtlasZScale / 6.0 );
+	float3 weight = vNormalWs * vNormalWs;
+	float3 x = SampleVolume( g_tLightProbeVolumeTexture, p + float3( 0.0, 0.0, face.x ), 0 ).rgb;
+	float3 y = SampleVolume( g_tLightProbeVolumeTexture, p + float3( 0.0, 0.0, face.y ), 0 ).rgb;
+	float3 z = SampleVolume( g_tLightProbeVolumeTexture, p + float3( 0.0, 0.0, face.z ), 0 ).rgb;
+	return ( weight.x * x + weight.y * y + weight.z * z ) * LightProbeVolumeColor.rgb;
+}
+
+/// All six faces' irradiance at a world position, tinted.
+void SampleLightProbeVolume( out float3 o_vIrradiance[6], float3 vPositionWs )
+{
+	float3 p = LightProbeVolumeFirstFace( vPositionWs );
+	float layerStep = AtlasZScale / 6.0;
+	[unroll] for ( int face = 0; face < 6; face++ )
+		o_vIrradiance[face] = SampleVolume( g_tLightProbeVolumeTexture, p + float3( 0.0, 0.0, face * layerStep ), 0 ).rgb * LightProbeVolumeColor.rgb;
+}
+
+/// Irradiance towards a world normal from six faces.
+float3 SampleIrradiance( float3 vIrradiance[6], float3 vNormalWs )
+{
+	float3 square = vNormalWs * vNormalWs;
+	float3 positive = step( -vNormalWs, float3( 0.0, 0.0, 0.0 ) ) * square;
+	float3 negative = step( vNormalWs, float3( 0.0, 0.0, 0.0 ) ) * square;
+	return positive.x * vIrradiance[0] + positive.y * vIrradiance[1] + positive.z * vIrradiance[2] +
+		negative.x * vIrradiance[3] + negative.y * vIrradiance[4] + negative.z * vIrradiance[5];
+}
+
+/// The four strongest direct lights at a world position (indices 0..255) and their scales (stored as square roots).
+void SampleLightProbeVolumeIndexedDirectLighting( out int4 o_vDirectLightIndices, out float4 o_vDirectLightScalars, float3 vPositionWs )
+{
+	float3 p = LightProbeVolumeAtlasZ( mul( float4( vPositionWs, 1.0 ), MatLightProbeVolumeWorldToLocal ).xyz );
+	float4 indices = SampleVolumeWithSampler( g_tLightProbeVolumeTextureDirectLightIndices, g_sLightProbePointSampler, p, 0.0 );
+	float4 scales = SampleVolumeWithSampler( g_tLightProbeVolumeTextureDirectLightScalars, g_sLightProbeVolumeSampler, p, 0.0 );
+	o_vDirectLightIndices = int4( 255.0 * indices );
+	o_vDirectLightScalars = scales * scales;
+}
+
+/// 0.8 or 1.2 in a voxel checkerboard, for the tools' probe volume view.
+float GetLightProbeUVWCheckerboard( float3 vPositionWs )
+{
+	float3 p = LightProbeVolumeAtlasZ( mul( float4( vPositionWs, 1.0 ), MatLightProbeVolumeWorldToLocal ).xyz );
+	int3 voxel = int3( p * TextureDimensions3D( Bindless::GetTexture3D( g_tLightProbeVolumeTextureDirectLightScalars ), 0 ) );
+	return ( ( voxel.x + voxel.y + voxel.z ) & 1 ) == 1 ? 0.8f : 1.2f;
+}
+
+/// The direction the probe volume's light mostly comes from at a world position (xyz), and its length (w, 1).
+float4 CalculateAmbientLightDirection( float3 vPositionWs )
+{
+	float3 irradiance[6];
+	SampleLightProbeVolume( irradiance, vPositionWs );
+	float3 direction = float3( length( irradiance[0] ) - length( irradiance[3] ), length( irradiance[1] ) - length( irradiance[4] ), length( irradiance[2] ) - length( irradiance[5] ) );
+	direction.z += 0.0001f;   // a flat ambient doesn't normalize zero
+	direction = normalize( direction );
+	return float4( direction, length( direction ) );
+}
+
+#endif // LIGHT_PROBE_VOLUME_FXC
