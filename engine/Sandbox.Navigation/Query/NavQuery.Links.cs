@@ -13,7 +13,7 @@ public sealed partial class NavQuery
 	readonly NavPath walk = new();
 
 	// The walk does not take links: one placed by hand must not hide the generated ones around it.
-	static readonly NavFilter onFoot = new( 0, null, ulong.MaxValue );
+	static readonly NavFilter onFoot = NavFilter.Create().WithForbiddenLinks( ulong.MaxValue );
 
 	// Marches outwards from a point on a boundary edge. The first mesh it comes over, when that is right
 	// below the edge, is a drop and from then on the ground. A jump is the first mesh after a stretch of
@@ -99,7 +99,7 @@ public sealed partial class NavQuery
 				int n = Gather( tile, in tile.Polys[p], v );
 				if ( !HeightOver( v[..n], point, out float height ) || height < low || height > high || (id != PolyRef.NoId && height <= z) ) continue;
 				z = height;
-				id = (uint)tile.Slot << PolyRef.PolyBits | (uint)p;
+				id = s.IdOf( tile, p );
 			}
 		}
 		return id != PolyRef.NoId;

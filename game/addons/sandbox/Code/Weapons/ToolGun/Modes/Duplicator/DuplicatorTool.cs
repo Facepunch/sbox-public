@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-[Icon( "✌️" )]
+[Icon( "content_copy" )]
 [Title( "#tool.name.duplicator" )]
 [ClassName( "duplicator" )]
 [Group( "#tool.group.building" )]
@@ -14,6 +14,11 @@ public sealed partial class DuplicatorTool : ToolMode
 	/// </summary>
 	[Sync( SyncFlags.FromHost ), Change( nameof( JsonChanged ) )]
 	public string CopiedJson { get; set; }
+
+	/// <summary>
+	/// Breaks ties between identical local saves in favor of the entry last loaded or saved.
+	/// </summary>
+	internal string PreferredDupeId { get; private set; }
 
 	DuplicatorSpawner spawner;
 	LinkedGameObjectBuilder builder = new() { RejectPlayers = true };
@@ -64,7 +69,7 @@ public sealed partial class DuplicatorTool : ToolMode
 
 		if ( _isRotating )
 		{
-			var look = Input.AnalogLook with { pitch = 0 };
+			var look = Toolgun.ToolLook with { pitch = 0 };
 
 			if ( _isSnapping )
 			{
@@ -140,11 +145,14 @@ public sealed partial class DuplicatorTool : ToolMode
 
 		var downscaled = bitmap.Resize( 512, 512 );
 		storage.SetThumbnail( downscaled );
+		PreferredDupeId = storage.Id;
 	}
 
 	[Rpc.Host]
 	public void Load( string json )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		CopiedJson = json;
 	}
 
@@ -163,6 +171,8 @@ public sealed partial class DuplicatorTool : ToolMode
 	[Rpc.Host]
 	public void Copy( GameObject obj, Transform selectionAngle, bool additive )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		if ( !additive )
 			builder.Clear();
 
@@ -176,8 +186,15 @@ public sealed partial class DuplicatorTool : ToolMode
 		PlayerData.For( Rpc.Caller )?.AddStat( "tool.duplicator.copy" );
 	}
 
+	// Refreshes of the toolgun resend the copy. Parsing it again is the expensive part, so only on a different one.
+	string _parsedJson;
+
 	void JsonChanged()
 	{
+		if ( spawner is not null && string.Equals( _parsedJson, CopiedJson, StringComparison.Ordinal ) )
+			return;
+
+		_parsedJson = CopiedJson;
 		spawner = null;
 
 		_rotationOffset = Rotation.Identity;
@@ -238,6 +255,8 @@ public sealed partial class DuplicatorTool : ToolMode
 	[Rpc.Host]
 	public async void Duplicate( Transform dest )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		if ( spawner is null )
 			return;
 
@@ -292,6 +311,7 @@ public sealed partial class DuplicatorTool : ToolMode
 		if ( toolmode is null ) return;
 
 		var json = item.Files.ReadAllText( "/dupe.json" );
+		toolmode.PreferredDupeId = item.Id;
 		toolmode.Load( json );
 	}
 

@@ -21,22 +21,15 @@
         "__enabled": true,
         "Flags": 0,
         "ADSInertiaScale": 0.3,
-        "AnimationSpeed": 1,
         "DeploySound": null,
         "EjectBrass": null,
-        "IncrementalAnimationSpeed": 1,
         "IncrementalReloadFinishSounds": [],
         "IncrementalReloadSoundEvents": [],
         "IncrementalReloadStartSounds": [],
-        "InertiaScale": "2,2",
         "IsIncremental": false,
-        "IsThrowable": false,
-        "LookInertia": false,
+        "LookInertia": true,
         "LookInertiaAmount": 1,
-        "LookInertiaDamping": 0.35,
-        "LookInertiaFrequency": 3,
-        "LookInertiaPivotDistance": 10,
-        "MaxInertia": 15,
+        "MovementBob": true,
         "MuzzleEffect": null,
         "MuzzleGameObject": null,
         "OnComponentDestroy": null,
@@ -53,7 +46,6 @@
           "component_type": "SkinnedModelRenderer"
         },
         "ShellEjectGameObject": null,
-        "ThrowableType": "HEGrenade",
         "TracerEffect": null
       }
     ],
@@ -80,10 +72,8 @@
             "__enabled": true,
             "Flags": 0,
             "Animation": {
-              "Graph": null,
-              "Parameters": {}
+              "Graph": "weapons/fists/animations/fists.ag"
             },
-            "AnimationGraph": null,
             "BodyGroups": 21,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
@@ -105,7 +95,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {},
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": false,

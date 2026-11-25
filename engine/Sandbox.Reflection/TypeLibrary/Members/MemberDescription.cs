@@ -260,7 +260,7 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	/// </summary>
 	public bool HasAttribute<T>() where T : System.Attribute
 	{
-		return Attributes?.OfType<T>().Any() ?? false;
+		return GetCustomAttribute<T>() is not null;
 	}
 
 	/// <summary>

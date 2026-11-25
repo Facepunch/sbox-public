@@ -146,7 +146,14 @@ public static partial class Input
 	/// Remove this action, so it's no longer being pressed.
 	/// </summary>
 	/// <param name="action"></param>
-	public static void Clear( string action ) => SetAction( action, false );
+	public static void Clear( string action )
+	{
+		var index = GetActionIndex( action );
+		if ( index == -1 ) return;
+
+		SetAction( index, false );
+		NetworkContext.PendingNetworkActions &= ~(1UL << index);
+	}
 
 	/// <summary>
 	/// Clears the current input actions, so that none of them are active.
@@ -155,21 +162,15 @@ public static partial class Input
 	{
 		Actions = default;
 		LastActions = default;
+		CurrentContext.ActionsCleared = ulong.MaxValue;
+		NetworkContext.PendingNetworkActions = 0;
 	}
 
 	/// <summary>
 	/// Clears the current input actions, so that none of them are active. Unlike ClearActions
 	/// this will unpress the buttons, so they won't be active again until they're pressed again.
 	/// </summary>
-	public static void ReleaseActions()
-	{
-		foreach ( var e in Contexts )
-		{
-			e.ActionsCurrent = default;
-			e.ActionsPrevious = default;
-			e.AccumActionsPressed = default;
-		}
-	}
+	public static void ReleaseActions() => ReleaseActions( ulong.MaxValue );
 
 	/// <summary>
 	/// Releases the action, and it won't be active again until it's pressed again.
@@ -177,12 +178,18 @@ public static partial class Input
 	public static void ReleaseAction( string name )
 	{
 		var index = GetActionIndex( name );
+		if ( index >= 0 )
+			ReleaseActions( 1UL << index );
+	}
 
+	private static void ReleaseActions( ulong mask )
+	{
 		foreach ( var e in Contexts )
 		{
-			e.ActionsCurrent &= ~(1UL << index);
-			e.ActionsPrevious &= ~(1UL << index);
-			e.AccumActionsPressed &= ~(1UL << index);
+			e.ActionsCurrent &= ~mask;
+			e.ActionsPrevious &= ~mask;
+			e.AccumActionsPressed &= ~mask;
+			e.PendingNetworkActions &= ~mask;
 		}
 	}
 
@@ -193,8 +200,23 @@ public static partial class Input
 	/// <param name="down"></param>
 	internal static void SetAction( int index, bool down )
 	{
-		if ( down ) Actions |= 1UL << index;
-		else Actions &= ~(1UL << index);
+		if ( index == -1 ) return;
+
+		var mask = 1UL << index;
+
+		if ( down )
+		{
+			Actions |= mask;
+			CurrentContext.ActionsCleared &= ~mask;
+
+			// Game-set actions last for this context, but their press must survive until the next send.
+			NetworkContext.PendingNetworkActions |= mask;
+		}
+		else
+		{
+			Actions &= ~mask;
+			CurrentContext.ActionsCleared |= mask;
+		}
 	}
 
 	/// <summary>
@@ -220,9 +242,31 @@ public static partial class Input
 	/// </summary>
 	internal static void OnButton( ButtonCode code, string button, bool down )
 	{
+		foreach ( var context in Contexts )
+		{
+			if ( down )
+			{
+				context.AccumKeysPressed.Add( code );
+				context.AccumKeysReleased.Remove( code );
+			}
+			else
+			{
+				context.AccumKeysReleased.Add( code );
+			}
+		}
+
 		if ( InputActions == null )
 		{
 			activeButtons.Clear();
+			return;
+		}
+
+		if ( down )
+		{
+			activeButtons.Add( button );
+		}
+		else if ( !activeButtons.Remove( button ) )
+		{
 			return;
 		}
 
@@ -231,27 +275,6 @@ public static partial class Input
 		if ( string.IsNullOrEmpty( loadedGame ) ) loadedGame = "common";
 
 		var collection = InputBinds.FindCollection( loadedGame );
-
-		if ( down )
-		{
-			activeButtons.Add( button );
-
-			foreach ( var e in Contexts )
-			{
-				e.AccumKeysPressed.Add( code );
-			}
-		}
-		else
-		{
-			foreach ( var e in Contexts )
-			{
-				e.AccumKeysReleased.Add( code );
-			}
-
-			// remove it but if it wasn't even active, ignore it
-			if ( !activeButtons.Remove( button ) )
-				return;
-		}
 
 		UsingController = false;
 
@@ -274,27 +297,12 @@ public static partial class Input
 			if ( !down && bind.Test( button, activeButtons ) )
 				continue;
 
-			var i = GetActionIndex( action );
+			var mask = 1UL << GetActionIndex( action );
 
-			if ( down )
+			foreach ( var context in Contexts )
 			{
-				foreach ( var e in Contexts )
-				{
-					if ( IsControllerContext( e ) )
-						continue;
-
-					e.AccumActionsPressed |= 1UL << i;
-				}
-			}
-			else
-			{
-				foreach ( var e in Contexts )
-				{
-					if ( IsControllerContext( e ) )
-						continue;
-
-					e.AccumActionsReleased |= 1UL << i;
-				}
+				if ( !IsControllerContext( context ) )
+					context.AccumulateAction( mask, down );
 			}
 
 			handled = true;

@@ -5,7 +5,7 @@ namespace Sandbox.Npcs.Schedules;
 /// <summary>
 /// Walk to a nearby prop, look at it, and maybe comment on it.
 /// </summary>
-public sealed class ScientistInspectPropSchedule : ScheduleBase
+public sealed class ScientistInspectPropSchedule : BaseSchedule
 {
 	public GameObject PropTarget { get; set; }
 
@@ -23,11 +23,11 @@ public sealed class ScientistInspectPropSchedule : ScheduleBase
 		Npc.Animation.SetLookTarget( PropTarget );
 
 		// Walk toward the prop — tracks it if it moves
-		AddTask( new MoveTo( PropTarget, 40f ) { Speed = Speed } );
+		AddTask( new MoveToTask( PropTarget, 40f ) { Speed = Speed } );
 
-		AddTask( new Wait( 1 ) );
+		AddTask( new WaitTask( 1 ) );
 
-		AddTask( new Wait( Game.Random.Float( 2f, 4f ) ) );
+		AddTask( new WaitTask( Game.Random.Float( 2f, 4f ) ) );
 	}
 
 	protected override void OnEnd()

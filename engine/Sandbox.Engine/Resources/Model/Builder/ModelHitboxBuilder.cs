@@ -9,7 +9,8 @@ public sealed class ModelHitboxBuilder
 	{
 		Box,
 		Sphere,
-		Capsule
+		Capsule,
+		Hull
 	}
 
 	/// <summary>
@@ -36,6 +37,7 @@ public sealed class ModelHitboxBuilder
 	internal Vector3 Min { get; set; }
 	internal Vector3 Max { get; set; }
 	internal float Radius { get; set; }
+	internal Vector3[] Points { get; set; }
 
 	private readonly List<string> _tags = [];
 

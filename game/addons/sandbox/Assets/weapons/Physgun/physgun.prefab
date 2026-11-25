@@ -146,7 +146,7 @@
         },
         "Handedness": "Both",
         "HoldBone": "hold_r",
-        "HoldType": "Physgun",
+        "HoldType": "tool",
         "IncrementalReloading": false,
         "Npc": {
           "MinRange": 0,
@@ -669,7 +669,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           },
           {
             "__type": "Sandbox.BaseWeaponModel",

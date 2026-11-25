@@ -107,15 +107,16 @@
 
 	protected override int BuildHash()
 	{
+		var info = Info;
 		var hash = new System.HashCode();
 		hash.Add( Driving );
-		hash.Add( Info?.Name );
-		hash.Add( Info?.Description );
+		hash.Add( info?.Name );
+		hash.Add( info?.Description );
 		hash.Add( Hud.IsVisible( HudElement.ToolInfo ) );
 		hash.Add( Game.Language.SelectedCode );
-		hash.Add( Status );
+		hash.Add( (info as ToolMode)?.Status );
 
-		foreach ( var hint in Info?.Hints ?? [] )
+		foreach ( var hint in info?.Hints ?? [] )
 		{
 			hash.Add( hint.Label );
 			foreach ( var action in hint.Actions ) hash.Add( action );

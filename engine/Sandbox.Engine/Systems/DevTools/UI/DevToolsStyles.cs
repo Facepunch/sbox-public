@@ -223,7 +223,7 @@ internal static class DevToolsStyles
 			text-align: center;
 			align-items: center;
 			color: $dim;
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 16px;
 			cursor: pointer;
 		}
@@ -349,7 +349,7 @@ internal static class DevToolsStyles
 			flex-shrink: 0;
 			width: 16px;
 			text-align: center;
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 14px;
 			color: $dim;
 		}
@@ -422,7 +422,7 @@ internal static class DevToolsStyles
 
 		.devtools .badge-icon
 		{
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 15px;
 		}
 
@@ -632,7 +632,7 @@ internal static class DevToolsStyles
 		// An icon in front of a button's text
 		.devtools .button-icon
 		{
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 14px;
 			font-weight: 400;
 			margin-right: 5px;
@@ -781,7 +781,7 @@ internal static class DevToolsStyles
 		.devtools .section-link
 		{
 			flex-shrink: 0;
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 16px;
 			color: $faint;
 			margin-right: -4px;
@@ -830,7 +830,7 @@ internal static class DevToolsStyles
 
 		.devtools .section-chevron
 		{
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 16px;
 			color: $dim;
 			margin-left: -4px;
@@ -1396,7 +1396,7 @@ internal static class DevToolsStyles
 
 		.devtools .net-select-icon, .devtools .net-icon
 		{
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			color: $dim;
 		}
 

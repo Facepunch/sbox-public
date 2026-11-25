@@ -9,6 +9,9 @@ native class CSceneLightProbeVolumeObject as NativeEngine.CSceneLightProbeVolume
 	int m_nHandshake;
 	int m_nRenderPriority;
 
+	float m_flAtlasZScale;
+	float m_flAtlasZOffset;
+
 	ITexture m_hLightProbeTexture;
 	ITexture m_hLightProbeDirectLightIndicesTexture;
 	ITexture m_hLightProbeDirectLightScalarsTexture;

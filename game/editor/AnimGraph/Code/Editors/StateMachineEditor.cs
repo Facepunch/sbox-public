@@ -351,7 +351,7 @@ internal sealed class StateMachineCanvas : CanvasWidget
 	{
 		var baseName = type == StateMachineNode.StateType.Off ? "Off" : "State";
 		var index = _node.States.Count + 1;
-		while ( _node.States.Any( s => s.Name == $"{baseName} {index}" ) )
+		while ( _node.States.Any( s => string.Equals( s.Name, $"{baseName} {index}", StringComparison.OrdinalIgnoreCase ) ) )
 			index++;
 
 		Editor.PushGraphUndo( "Add State" );
@@ -476,6 +476,7 @@ internal sealed class StateMachineCanvas : CanvasWidget
 			conduit.Graph.AddNode( node );
 		}
 		conduit.Graph.RegisterParametersFromNodes( conduit.Graph.AllNodes );
+		Editor.OnTransitionsPasted( conduit, nodes );
 		Changed();
 		Editor.PushGraphRedo();
 		Select( conduit );
@@ -522,7 +523,7 @@ internal sealed class StateMachineCanvas : CanvasWidget
 		state.LayerGraph ??= Data.CreateSubGraph<StateLayerDataNode>( GraphKind.LayerData );
 		state.Graph.RegenerateNodeIdentifiers();
 		state.LayerGraph.RegenerateNodeIdentifiers();
-		state.Name = UniqueStateName( state.Name );
+		state.Name = _node.UniqueStateName( state );
 		state.Position = Snap( position, true );
 
 		foreach ( var conduit in outgoingConduits )
@@ -557,19 +558,6 @@ internal sealed class StateMachineCanvas : CanvasWidget
 		Changed();
 		Editor.PushGraphRedo();
 		Select( state );
-	}
-
-	private string UniqueStateName( string name )
-	{
-		var baseName = string.IsNullOrWhiteSpace( name ) ? "State" : name;
-		if ( !_node.States.Any( state => state.Name.Equals( baseName, StringComparison.OrdinalIgnoreCase ) ) )
-			return baseName;
-
-		var index = 2;
-		while ( _node.States.Any( state => state.Name.Equals( $"{baseName} {index}", StringComparison.OrdinalIgnoreCase ) ) )
-			++index;
-
-		return $"{baseName} {index}";
 	}
 
 	// A state machine state's graph is a state machine wired to the output

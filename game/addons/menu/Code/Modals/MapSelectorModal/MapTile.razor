@@ -17,6 +17,10 @@
 
 		<div class="foot">
 			<label class="title">@Title</label>
+			@if ( !string.IsNullOrEmpty( File ) )
+			{
+				<label class="file">@File</label>
+			}
 		</div>
 	</div>
 </root>
@@ -25,6 +29,12 @@
 {
 	[Parameter]
 	public string Title { get; set; }
+
+	/// <summary>
+	/// Its file's name, shown beside the title when that's a display name (E1M1 beside Hangar)
+	/// </summary>
+	[Parameter]
+	public string File { get; set; }
 
 	[Parameter]
 	public Texture Thumbnail { get; set; }

@@ -140,10 +140,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 			_surface = value;
 
-			foreach ( var shape in Shapes )
-			{
-				shape.Surface = _surface;
-			}
+			ApplyShapeSurfaces();
 		}
 	}
 
@@ -461,12 +458,19 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		}
 	}
 
+	internal virtual void ApplyShapeSurfaces()
+	{
+		foreach ( var shape in Shapes )
+			shape.Surface = Surface;
+	}
+
 	/// <summary>
 	/// Apply any things that we an apply after they're created
 	/// </summary>
 	protected void ConfigureShapes()
 	{
 		ApplyColliderFlags();
+		if ( Surface.IsValid() ) ApplyShapeSurfaces();
 
 		BBox? bounds = null;
 		var invScale = 1.0f / Transform.World.SafeScale;
@@ -475,12 +479,6 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		{
 			shape.Collider = this;
 			shape.IsTrigger = IsTrigger;
-
-			// Only override with a valid surface, otherwise it will override the surface set by model collision!
-			if ( Surface.IsValid() )
-			{
-				shape.Surface = Surface;
-			}
 
 			if ( Friction.HasValue )
 			{
@@ -596,8 +594,16 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 	protected void CalculateLocalBounds()
 	{
 		var invScale = 1.0f / Transform.World.SafeScale;
-		LocalBounds = BBox.FromBoxes( Shapes.Where( x => x.IsValid() )
-			.Select( x => x.LocalBounds.Scale( invScale ) ) );
+		BBox bounds = default;
+		var first = true;
+		foreach ( var shape in Shapes )
+		{
+			if ( !shape.IsValid() ) continue;
+			var box = shape.LocalBounds.Scale( invScale );
+			bounds = first ? box : bounds.AddBBox( box );
+			first = false;
+		}
+		LocalBounds = bounds;
 	}
 
 	[AttributeUsage( AttributeTargets.Property )]

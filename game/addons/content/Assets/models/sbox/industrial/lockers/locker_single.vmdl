@@ -1,0 +1,177 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "models/sbox/industrial/lockers/materials/locker.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/sbox/industrial/lockers/locker.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Locker_Body_LOD0",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 9.441791, 7.101148, 3.154965 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.809017, 0.820883, 6.328687 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.452292, 7.101148, 3.154965 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.809017, 0.820883, 6.328687 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.452292, -7.069407, 3.154965 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.809017, 0.820883, 6.328687 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 9.441791, -7.069407, 3.154965 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.809017, 0.820883, 6.328687 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.000387, 6.968642, 39.564148 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.69182, 1.085894, 66.546463 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.000387, -7.031782, 39.564148 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.69182, 1.085894, 66.546463 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.426426, -0.073209, 39.660473 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.838192, 15.00304, 66.739113 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.011716, -0.042669, 72.477745 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.714476, 14.94196, 0.858322 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -0.386539, -0.042669, 7.279009 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.917965, 14.94196, 0.858322 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.01023, -0.042669, 6.730453 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.711498, 14.94196, 0.8367 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "shelf"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 0.0, 58.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.12, 13.0, 0.74 ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 35.0
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

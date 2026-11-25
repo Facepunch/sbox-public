@@ -1,5 +1,5 @@
 
-[Icon( "🥽" )]
+[Icon( "join" )]
 [Title( "#tool.name.weld" )]
 [ClassName( "weld" )]
 [Group( "#tool.group.constraints" )]
@@ -33,29 +33,12 @@ public sealed class WeldTool : BaseConstraintToolMode
 	public override string ReloadAction => "#tool.hint.weld.remove";
 	public override string SecondaryAction => Stage == 0 ? "#tool.hint.weld.easy" : "#tool.hint.weld.cancel";
 
-	/// <summary>
-	/// Overrides a SelectionPoint's local position to the nearest snap grid corner
-	/// </summary>
-	SelectionPoint SnapSelectionPoint( SelectionPoint select )
-	{
-		if ( !select.IsValid() || SnapGrid == null ) return select;
-
-		var snapPos = SnapGrid.LastSnapWorldPos;
-		var snappedLocalPos = select.GameObject.WorldTransform.ToLocal( new Transform( snapPos ) ).Position;
-		var lt = select.LocalTransform;
-		lt.Position = snappedLocalPos;
-		select.LocalTransform = lt;
-
-		return select;
-	}
-
 	public override void OnControl()
 	{
 		Toolgun.SetIsUsingJoystick( _easyMode && Stage == 2 );
 
 		if ( _easyMode && Stage == 2 )
 		{
-			SnapGrid?.Hide();
 			RotateStage();
 			return;
 		}
@@ -72,7 +55,7 @@ public sealed class WeldTool : BaseConstraintToolMode
 		int stageBefore = Stage;
 		base.OnControl();
 
-		// The base tool treats secondary as cancel; start Easy Weld after it updates the snap grid.
+		// The base tool treats secondary as cancel. Start Easy Weld after it handles that input.
 		if ( stageBefore == 0 && _easyMode )
 		{
 			var select = TraceSelect();
@@ -83,13 +66,9 @@ public sealed class WeldTool : BaseConstraintToolMode
 			ShootEffects( select );
 		}
 
-		if ( stageBefore == 0 && Stage == 1 && Point1.IsValid() && Input.Down( "snap" ) )
-			Point1 = SnapSelectionPoint( Point1 );
-
 		if ( _easyMode && Stage == 1 && IsValidState )
 		{
 			var select = TraceSelect();
-			select = Input.Down( "snap" ) ? SnapSelectionPoint( select ) : select;
 			if ( select.IsValid() )
 				DrawEasyModePreview( GetEasyModePlacement( Point1, select ) );
 		}
@@ -127,7 +106,6 @@ public sealed class WeldTool : BaseConstraintToolMode
 	bool TryEnterRotateStage()
 	{
 		var select = TraceSelect();
-		select = SnapSelectionPoint( select );
 		if ( !select.IsValid() || !Point1.GameObject.IsValid() || select.GameObject == Point1.GameObject )
 			return false;
 
@@ -147,7 +125,7 @@ public sealed class WeldTool : BaseConstraintToolMode
 		if ( !isSnapping && _isSnapping ) _rawAngle = _easyModeAngle;
 		_isSnapping = isSnapping;
 
-		var delta = Input.AnalogLook.yaw;
+		var delta = Toolgun.ToolLook.yaw;
 		_rawAngle += delta;
 
 		_easyModeAngle = _isSnapping
@@ -208,6 +186,7 @@ public sealed class WeldTool : BaseConstraintToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	private void CreateRotatedWeld( SelectionPoint point1, SelectionPoint point2, float angle )
 	{
+		if ( !CanTarget( point1 ) || !CanTarget( point2 ) ) return;
 		if ( !FireToolAction( ToolInput.Primary ) ) return;
 
 		if ( !point1.GameObject.IsValid() || !point2.GameObject.IsValid() )

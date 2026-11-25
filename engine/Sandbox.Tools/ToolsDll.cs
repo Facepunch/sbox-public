@@ -184,7 +184,7 @@ internal class ToolsDll : IToolsDll
 
 			EditorTypeLibrary.AddAssembly( assembly.Assembly, true );
 			GameData.AddAssembly( assembly.Assembly );
-			Sandbox.Mounting.Directory.AddAssembly( assembly.Assembly, (assembly.Package as LocalPackage)?.Project?.FileSystem );
+			Sandbox.Mounting.Directory.AddAssembly( assembly.Assembly, (assembly.Package as LocalPackage)?.Project?.FileSystem, exposeMountTypes: !assembly.IsEditorAssembly );
 
 			if ( !StartupLoadProject.IsLoading )
 			{
@@ -380,12 +380,7 @@ internal class ToolsDll : IToolsDll
 		var asset = AssetSystem.FindByPath( filename );
 		if ( asset is null ) return null;
 
-		var thumb = await AssetThumbnail.GetAssetThumbAsync( asset );
-		if ( thumb is null ) return null;
-
-		// Sorry - we have no fast GetPixels
-		var pixels = thumb.GetPng();
-		return Bitmap.CreateFromBytes( pixels );
+		return await AssetThumbnail.GetThumbnailBitmapAsync( asset, filename );
 	}
 
 	/// <summary>

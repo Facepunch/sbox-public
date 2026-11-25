@@ -11,7 +11,6 @@ class CloudTypeFilterNode : AssetFilterNode
 	[
 		("model",    "Models",    "chair"),
 		("material", "Materials", "broken_image"),
-		("map",      "Maps",      "map"),
 		("sound",    "Sound",     "volume_up"),
 		("prefab",   "Prefabs",   "ballot"),
 		("sprite",   "Sprites",   "image"),

@@ -61,7 +61,7 @@ public static class MenuHelpers
 	/// <paramref name="openSetup"/>, where that's somewhere else (the platform menu's own page).
 	/// </para>
 	/// </summary>
-	public static async void PlayGame( Package package, Package mapPackage = null, string via = null, Panel source = null, bool fitChecked = false, Action<Package> openSetup = null )
+	public static async void PlayGame( Package package, string map = null, string via = null, Panel source = null, bool fitChecked = false, Action<Package> openSetup = null )
 	{
 		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
 
@@ -75,7 +75,7 @@ public static class MenuHelpers
 		if ( !fitChecked && MenuProject.PlayerModes.PartySize > 1 )
 		{
 			var workshop = await MenuUtility.FetchWorkshopItemAsync( MenuUtility.KnownWorkshopId( package ) );
-			if ( !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true, openSetup ), workshop ) )
+			if ( !ConfirmPartyFit( package, () => PlayGame( package, map, via, source, fitChecked: true, openSetup ), workshop ) )
 				return;
 		}
 
@@ -117,12 +117,12 @@ public static class MenuHelpers
 		if ( NeedsSetup( package ) )
 		{
 			if ( openSetup is not null ) openSetup( package );
-			else ModalSystem.Instance?.SetUpGame( package, mapPackage?.FullIdent );
+			else ModalSystem.Instance?.SetUpGame( package, map );
 			return;
 		}
 
 		// Already on its own menu, with no map to load it with - it's started from there, by the game
-		if ( mapPackage is null && string.IsNullOrWhiteSpace( package.Info.DefaultMap ) && Game.IsOnMenu && MenuUtility.GamePackage?.FullIdent == package.FullIdent )
+		if ( map is null && string.IsNullOrWhiteSpace( package.Info.DefaultMap ) && Game.IsOnMenu && MenuUtility.GamePackage?.FullIdent == package.FullIdent )
 			return;
 
 		// Direct launch
@@ -130,22 +130,13 @@ public static class MenuHelpers
 
 		await PrepareForLoad();
 
-		if ( mapPackage is null )
-		{
-			// Fetch the default map if one is configured
-			var defaultMap = package.Info.DefaultMap;
-			if ( !string.IsNullOrWhiteSpace( defaultMap ) )
-			{
-				Log.Info( $"DefaultMap configured, launching game with map: {defaultMap}" );
-				mapPackage = await Package.FetchAsync( defaultMap, false );
-			}
-		}
+		map ??= package.Info.DefaultMap;
 
 		if ( PartyRoom.Current is { } currentParty ) LaunchArguments.ServerName = currentParty.Name;
 
-		if ( mapPackage is not null )
+		if ( !string.IsNullOrWhiteSpace( map ) )
 		{
-			MenuUtility.OpenGameWithMap( package.FullIdent, mapPackage.FullIdent );
+			MenuUtility.OpenGameWithMap( package.FullIdent, map );
 		}
 		else
 		{
@@ -297,25 +288,53 @@ public static class MenuHelpers
 	public static string CachedTitle( string ident ) => CachedPackage( ident )?.Title ?? ident;
 
 	/// <summary>
-	/// Fetches these packages for <see cref="CachedPackage"/> - published ones only: not a local project, nor a map
-	/// that's a game's own file rather than on the Workshop
+	/// Fetches these packages for <see cref="CachedPackage"/> - published ones only, not a local project
 	/// </summary>
-	public static async Task FetchPackages( IEnumerable<string> idents )
+	public static Task FetchPackages( IEnumerable<string> idents )
 	{
-		var fetches = idents
-			.Where( x => x is not null && x.Contains( '.' ) && !x.Contains( "local." ) && !x.EndsWith( ".vmap" ) )
-			.Distinct()
-			.Select( x => Package.FetchAsync( x, true ) )
-			.ToArray();
+		var published = idents.Where( x => x is not null && x.Contains( '.' ) && !x.Contains( "local." ) );
+		return FetchAll( published, ident => Package.FetchAsync( ident, true ) );
+	}
 
+	static readonly Dictionary<string, (string Title, string Thumb)> maps = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A map's title, or the map itself if it hasn't been fetched - <see cref="FetchMaps"/> fetches them
+	/// </summary>
+	public static string MapTitle( string map ) => CachedMap( map ).Title ?? map;
+
+	/// <summary>
+	/// A map's picture, if it's been fetched and has one
+	/// </summary>
+	public static string MapThumb( string map ) => CachedMap( map ).Thumb;
+
+	static (string Title, string Thumb) CachedMap( string map ) => !string.IsNullOrEmpty( map ) && maps.TryGetValue( map, out var found ) ? found : default;
+
+	/// <summary>
+	/// Fetches these maps' names and art for <see cref="MapTitle"/> and <see cref="MapThumb"/>
+	/// </summary>
+	public static Task FetchMaps( IEnumerable<string> mapsToFetch ) =>
+		FetchAll( mapsToFetch.Where( x => !string.IsNullOrEmpty( x ) && !maps.ContainsKey( x ) ), FetchMap );
+
+	static async Task FetchAll( IEnumerable<string> idents, Func<string, Task> fetch )
+	{
 		try
 		{
-			await Task.WhenAll( fetches );
+			await Task.WhenAll( idents.Distinct( StringComparer.OrdinalIgnoreCase ).Select( fetch ) );
 		}
 		catch ( Exception e )
 		{
-			Log.Warning( $"Couldn't fetch packages: {e.Message}" );
+			Log.Warning( $"Couldn't fetch server details: {e.Message}" );
 		}
+	}
+
+	static async Task FetchMap( string map )
+	{
+		var details = await MenuUtility.FetchMapDetailsAsync( map );
+
+		// A Workshop map Steam couldn't be asked about is tried again next time
+		if ( details.Title is not null || details.Thumb is not null )
+			maps[map] = (details.Title, details.Thumb);
 	}
 
 	/// <summary>

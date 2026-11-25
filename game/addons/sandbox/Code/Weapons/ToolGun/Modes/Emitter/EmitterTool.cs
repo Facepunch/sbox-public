@@ -2,13 +2,13 @@ using Sandbox.UI;
 
 [Hide]
 [Title( "#tool.name.emitter" )]
-[Icon( "💨" )]
+[Icon( "air" )]
 [ClassName( "emittertool" )]
 [Group( "#tool.group.building" )]
 public sealed class EmitterTool : ToolMode
 {
 	public override bool UseSnapGrid => true;
-	public override IEnumerable<string> TraceIgnoreTags => ["constraint", "collision"];
+	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 
 	/// <summary>
 	/// The physical emitter body to spawn (model + physics).
@@ -86,6 +86,7 @@ public sealed class EmitterTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Spawn( SelectionPoint point, PrefabFile emitterPrefab, ScriptedEmitter effect, Transform tx, bool noWeld )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( noWeld ? ToolInput.Secondary : ToolInput.Primary ) ) return;
 
 		if ( emitterPrefab == null )
@@ -122,7 +123,7 @@ public sealed class EmitterTool : ToolMode
 
 		var undo = Player.Undo.Create();
 		undo.Name = "#tool.name.emitter";
-		undo.Icon = "💨";
+		undo.Icon = "air";
 		undo.Add( go );
 
 		CheckContraptionStats( point.GameObject );

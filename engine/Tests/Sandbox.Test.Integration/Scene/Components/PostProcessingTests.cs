@@ -788,6 +788,61 @@ public class PostProcessingComponentTest
 	}
 
 	/// <summary>
+	/// A full-weight volume can turn Bloom on or off even when the camera has its own Bloom.
+	/// With graphics available, also verify the composite mode sent to the shader.
+	/// </summary>
+	[TestMethod]
+	public void VolumeOverridesCameraBloom()
+	{
+		var oldEnable = PostProcessSystem.EnablePostProcess;
+		var oldBloom = Bloom.UserEnabled;
+		PostProcessSystem.EnablePostProcess = true;
+		Bloom.UserEnabled = true;
+		try
+		{
+			var scene = new Scene();
+			using var scope = scene.Push();
+			var camera = scene.CreateObject().AddComponent<CameraComponent>();
+			var cameraBloom = camera.GameObject.AddComponent<Bloom>();
+			cameraBloom.Strength = 0;
+
+			var volume = scene.CreateObject().AddComponent<PostProcessVolume>();
+			volume.SceneVolume = new SceneVolume { Type = SceneVolume.VolumeTypes.Infinite };
+			var bloom = volume.GameObject.AddComponent<Bloom>();
+			bloom.Mode = SceneCamera.BloomAccessor.BloomMode.Blur;
+
+			scene.GameTick();
+			var layer = FindLayer( camera, Stage.BeforePostProcess, "Bloom" );
+			Assert.IsNotNull( layer );
+
+			if ( Graphics.IsAvailable )
+			{
+				int mode = -1;
+				layer.CommandList.AddAction( () => mode = Graphics.Attributes.GetInt( "CompositeMode" ) );
+				using var target = Texture.CreateRenderTarget().WithSize( 128, 128 ).Create( "Bloom volume test" );
+				scene.PreRender();
+				Assert.IsTrue( camera.RenderToTexture( target, new ViewSetup { EnablePostprocessing = true } ) );
+				g_pRenderDevice.ForceFlushGPU( System.IntPtr.Zero );
+				Assert.AreEqual( (int)bloom.Mode, mode );
+			}
+
+			cameraBloom.Strength = 1;
+			bloom.Strength = 0;
+			scene.GameTick();
+			Assert.IsNull( FindLayer( camera, Stage.BeforePostProcess, "Bloom" ) );
+
+			volume.GameObject.Enabled = false;
+			scene.GameTick();
+			Assert.IsNotNull( FindLayer( camera, Stage.BeforePostProcess, "Bloom" ) );
+		}
+		finally
+		{
+			Bloom.UserEnabled = oldBloom;
+			PostProcessSystem.EnablePostProcess = oldEnable;
+		}
+	}
+
+	/// <summary>
 	/// The Highlight camera effect only registers a command list while at least one
 	/// HighlightOutline exists in the scene. HighlightOutline.GetOutlineTargets returns the
 	/// enabled renderers on itself and its descendants by default; with OverrideTargets on

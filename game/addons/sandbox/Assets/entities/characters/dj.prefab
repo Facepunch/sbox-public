@@ -1,0 +1,599 @@
+{
+  "RootObject": {
+    "__guid": "0a2ea1e2-8bd9-4a31-8b57-6b7bb4f2aa4a",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "DJ",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.Prop",
+        "__guid": "f07900e5-b5a1-49d8-9d52-b586c5bf9453",
+        "__enabled": true,
+        "Flags": 0,
+        "BodyGroups": 36928,
+        "Health": 0,
+        "IsStatic": false,
+        "MaterialGroup": "female_skin_light",
+        "Model": {
+          "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+          "Path": "models/citizen_human/human.vmdl"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnGibsCreated": null,
+        "OnPropBreak": null,
+        "OnPropTakeDamage": null,
+        "StartAsleep": false,
+        "Tint": "1,1,1,1"
+      },
+      {
+        "__type": "Sandbox.SkinnedModelRenderer",
+        "__guid": "ada4e972-2aae-4732-941e-a48b18fcc23e",
+        "__enabled": true,
+        "Flags": 0,
+        "Animation": {
+          "Graph": null,
+          "Parameters": {}
+        },
+        "AnimationGraph": null,
+        "BodyGroups": 36928,
+        "BoneMergeTarget": null,
+        "CreateAttachments": false,
+        "CreateBoneObjects": false,
+        "DeformationMode": "Normal",
+        "LodOverride": null,
+        "LowDetailAnimation": false,
+        "MaterialGroup": "female_skin_light",
+        "MaterialOverride": null,
+        "Materials": null,
+        "Model": {
+          "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+          "Path": "models/citizen_human/human.vmdl"
+        },
+        "Morphs": {},
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Parameters": {
+          "floats": {
+            "scale_height": 1,
+            "scale_heel": 1
+          }
+        },
+        "PlaybackRate": 1,
+        "RenderOptions": {
+          "GameLayer": true,
+          "OverlayLayer": false,
+          "BloomLayer": false,
+          "AfterUILayer": false
+        },
+        "RenderType": "On",
+        "Sequence": {
+          "Name": null,
+          "Looping": true,
+          "Blending": false
+        },
+        "Tint": "1,1,1,1",
+        "UseAnimGraph": true
+      },
+      {
+        "__type": "Sandbox.ModelPhysics",
+        "__guid": "f1d05a35-f8fe-46df-bf3a-a3ceeb351b94",
+        "__enabled": true,
+        "Flags": 0,
+        "Bodies": [],
+        "IgnoreRoot": false,
+        "Joints": [],
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "Model": {
+          "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+          "Path": "models/citizen_human/human.vmdl"
+        },
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PhysicsWereCreated": false,
+        "Renderer": {
+          "_type": "component",
+          "component_id": "ada4e972-2aae-4732-941e-a48b18fcc23e",
+          "go": "0a2ea1e2-8bd9-4a31-8b57-6b7bb4f2aa4a",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "RigidbodyFlags": 0,
+        "StartAsleep": false
+      },
+      {
+        "__type": "Sandbox.Dresser",
+        "__guid": "ee6bc908-7e30-4db2-9056-43a875c1f0dd",
+        "__enabled": true,
+        "Flags": 0,
+        "ApplyHeightScale": false,
+        "BodyTarget": {
+          "_type": "component",
+          "component_id": "ada4e972-2aae-4732-941e-a48b18fcc23e",
+          "go": "0a2ea1e2-8bd9-4a31-8b57-6b7bb4f2aa4a",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "Clothing": [
+          {
+            "Clothing": {
+              "Id": "ea05298c-b048-4a8e-9be0-6280500dc474",
+              "Path": "models/citizen_clothes/body/human04.clothing"
+            }
+          },
+          {
+            "Clothing": {
+              "Id": "66d98770-3c49-4770-8880-98659a50b288",
+              "Path": "models/citizen_clothes/hat/headphones/models/headphones.clothing"
+            }
+          },
+          {
+            "Clothing": {
+              "Id": "528c6885-6ae4-404e-af01-8e6c00af09ab",
+              "Path": "models/citizen_clothes/shirt/loose_crop_top/loose_crop_top_pattern.clothing"
+            }
+          },
+          {
+            "Clothing": {
+              "Id": "fe185408-f378-4526-966a-4db63c691ee2",
+              "Path": "models/citizen_clothes/dress/denim_skirt/denim_skirt_black.clothing"
+            }
+          },
+          {
+            "Clothing": {
+              "Id": "bf981b9e-9893-4bc3-8ed1-386c32c30144",
+              "Path": "models/citizen_clothes/shoes/boot_heels/boot_heels_red.clothing"
+            }
+          },
+          {
+            "Clothing": {
+              "Id": "d56a9198-5e52-4e71-bc29-6b535a32d929",
+              "Path": "models/citizen_clothes/hair/hair_long_bangs/hair_long_bangs.clothing"
+            }
+          }
+        ],
+        "EyeColor": 0,
+        "ManualAge": 0.5,
+        "ManualHeight": 0.5,
+        "ManualTint": 0.5,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "RemoveUnownedItems": true,
+        "Source": "Manual",
+        "WorkshopItems": null
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "53ee05e6-605b-4138-9311-d686d427ccd3",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Clothing - headphones",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "clothing,firstperson-hidden",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "72318c21-de4d-417b-ab14-3b98e1b7c294",
+            "__enabled": true,
+            "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": {
+              "_type": "component",
+              "component_id": "ada4e972-2aae-4732-941e-a48b18fcc23e",
+              "go": "0a2ea1e2-8bd9-4a31-8b57-6b7bb4f2aa4a",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "LowDetailAnimation": false,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "1771ac8a-5ce0-4b2d-961d-6e14cc49eb39",
+              "Path": "models/citizen_clothes/hat/headphones/models/headphones_m_human.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "df02b905-725a-4db6-95c7-e1de882688cc",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Clothing - loose_crop_top_pattern",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "clothing",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "8901611e-d811-41eb-9dc2-77129890a96e",
+            "__enabled": true,
+            "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": {
+              "_type": "component",
+              "component_id": "ada4e972-2aae-4732-941e-a48b18fcc23e",
+              "go": "0a2ea1e2-8bd9-4a31-8b57-6b7bb4f2aa4a",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "LowDetailAnimation": false,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "ac8b2579-b5a8-4fff-9334-d3ddf33c2d0e",
+              "Path": "models/citizen_clothes/shirt/loose_crop_top/models/loose_crop_top_pattern_f_human.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "5fbe3a54-e56d-47ee-9d06-e1c8891ca85f",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Clothing - denim_skirt_black",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "clothing",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "d1b3d5df-2fe1-49c3-a3d7-c35d92808936",
+            "__enabled": true,
+            "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": {
+              "_type": "component",
+              "component_id": "ada4e972-2aae-4732-941e-a48b18fcc23e",
+              "go": "0a2ea1e2-8bd9-4a31-8b57-6b7bb4f2aa4a",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "LowDetailAnimation": false,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "e47fc062-7c1c-4aaf-85b9-b4621a6fc660",
+              "Path": "models/citizen_clothes/dress/denim_skirt/models/denim_skirt_m_human.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "9e818f32-5cc5-48c5-bb0e-73177fa67f72",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Clothing - boot_heels_red",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "clothing",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "6e74622b-656d-4c5b-90dd-16c2517229eb",
+            "__enabled": true,
+            "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": {
+              "_type": "component",
+              "component_id": "ada4e972-2aae-4732-941e-a48b18fcc23e",
+              "go": "0a2ea1e2-8bd9-4a31-8b57-6b7bb4f2aa4a",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "LowDetailAnimation": false,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "b0e30a31-a646-4a77-b2d2-e67e392a640a",
+              "Path": "models/citizen_clothes/shoes/boot_heels/models/boot_heels_red_f_human.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "ae94a14c-c50e-4ef6-8c52-999a87f68865",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Clothing - hair_long_bangs",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "clothing,firstperson-hidden",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "7ab07090-606d-45a4-bede-ed25a31e1b1f",
+            "__enabled": true,
+            "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": {
+              "_type": "component",
+              "component_id": "ada4e972-2aae-4732-941e-a48b18fcc23e",
+              "go": "0a2ea1e2-8bd9-4a31-8b57-6b7bb4f2aa4a",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "LowDetailAnimation": false,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "673e33ad-34cc-4409-ab9f-d5fb31684bc0",
+              "Path": "models/citizen_clothes/hair/hair_long_bangs/models/hair_long_bangs_m_human.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "0.64646,0.47219,0.38383,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "c7dda757-cb29-4d31-b2f3-910080c88f7e",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Portrait",
+        "Position": "68.9054565,-18.9999485,62.919754",
+        "Rotation": "-0.0105223469,0.00144241005,0.990678966,0.135802925",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "ThumbnailCamera",
+            "__guid": "94278902-6c86-4711-bb51-8b91d034952f",
+            "__enabled": true,
+            "Flags": 0,
+            "FieldOfView": 21,
+            "FitToBounds": false,
+            "Focus": "0,0",
+            "GizmoDistance": 120,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Padding": 0.1,
+            "Zoom": 1
+          }
+        ],
+        "Children": []
+      }
+    ]
+  },
+  "__version": 2
+}

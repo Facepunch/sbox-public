@@ -1,7 +1,7 @@
 {
   "Title": "Debris and Gibs",
   "Description": "",
-  "Icon": "link",
+  "Icon": "destruction",
   "RequiredMount": "gmod",
   "Parent": {
     "Id": "4a40a186-0eb7-4050-b196-73d05dfa2df9",

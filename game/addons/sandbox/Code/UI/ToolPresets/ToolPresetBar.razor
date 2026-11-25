@@ -113,7 +113,7 @@
         };
         modal = UIModal.Show( this, "#ui.tool_presets.add", properties );
         if ( modal is null ) return;
-        modal.AddClass( "prompt tool-preset-prompt" );
+        modal.AddClass( "prompt" );
         error = modal.Body.AddChild<Label>( "preset-error" );
         modal.OnSubmit = Save;
     }

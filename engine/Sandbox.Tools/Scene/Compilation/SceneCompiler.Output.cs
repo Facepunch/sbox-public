@@ -1,13 +1,35 @@
 using System;
-using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 
 namespace Editor;
 
 internal static partial class SceneCompiler
 {
+	/// <summary>
+	/// Invalidates the saved bake on the first geometry or collision write. An interrupted
+	/// compile can then leave files on disk without making them eligible for publishing.
+	/// </summary>
+	internal sealed class GeometryOutputFolder( SceneFolder folder, string sourcePath ) : SceneFolder
+	{
+		bool started;
+
+		/// <summary>
+		/// Writes a numbered output after retiring the previous bake header.
+		/// </summary>
+		public override string WriteFile( string filename, byte[] data )
+		{
+			if ( !started )
+			{
+				File.Delete( SceneResourceCompiler.GetBakePath( sourcePath ) );
+				started = true;
+			}
+
+			return folder.WriteFile( filename, data );
+		}
+	}
+
 	readonly record struct SourceRevision( long Length, DateTime LastWriteTimeUtc, byte[] Hash );
 
 	static SourceRevision CaptureSourceRevision( string sourcePath )
@@ -28,62 +50,68 @@ internal static partial class SceneCompiler
 			&& System.Security.Cryptography.CryptographicOperations.FixedTimeEquals( revision.Hash, hash );
 	}
 
-	static string GetGenerationPath( Asset asset, string generation )
+	// Geometry owns the numbered files it writes, including those in older GUID folders.
+	static IEnumerable<(string Path, int Index)> NumberedFiles( string folder, string prefix, string extension )
 	{
-		var sourcePath = asset.GetSourceFile( false );
-		var extension = Path.GetExtension( sourcePath ).Replace( ".", "_" );
-		var dataFolder = $"{Path.ChangeExtension( sourcePath, null )}{extension}_data";
-		return $"{dataFolder}/compiled/{generation}".NormalizeFilename( false );
-	}
-
-	static void CleanupGeneration( string path )
-	{
-		try
+		var options = new EnumerationOptions { AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = false };
+		foreach ( var file in Directory.EnumerateFiles( folder, $"{prefix}*{extension}", options ) )
 		{
-			if ( FileSystem.Mounted.DirectoryExists( path ) )
-				FileSystem.Mounted.DeleteDirectory( path, true );
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( $"Could not clean up staged scene resources at '{path}': {e.Message}" );
+			if ( int.TryParse( Path.GetFileNameWithoutExtension( file )[prefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var index ) )
+				yield return (file, index);
 		}
 	}
 
-	static void CleanupPreviousGenerations( string currentPath, object generationGate, HashSet<string> activeGenerations )
+	internal static IEnumerable<string> GetOutputFiles( string sourcePath )
 	{
-		var compiledFolder = currentPath[..currentPath.LastIndexOf( '/' )];
-		HashSet<string> active;
+		var bake = new FileInfo( SceneResourceCompiler.GetBakePath( sourcePath ) );
+		if ( !bake.Directory.Exists || (bake.Directory.Attributes & FileAttributes.ReparsePoint) != 0 )
+			yield break;
 
-		lock ( generationGate )
-			active = new HashSet<string>( activeGenerations, StringComparer.OrdinalIgnoreCase );
+		yield return bake.Name;
+		var folder = new DirectoryInfo( SceneResourceCompiler.GetCompiledFolder( sourcePath ) );
+		if ( !folder.Exists || (folder.Attributes & FileAttributes.ReparsePoint) != 0 )
+			yield break;
+
+		var legacy = folder.EnumerateDirectories().Where( d => (d.Attributes & FileAttributes.ReparsePoint) == 0 && Guid.TryParseExact( d.Name, "N", out _ ) );
+		foreach ( var directory in legacy.Prepend( folder ) )
+		{
+			foreach ( var (file, _) in NumberedFiles( directory.FullName, "aggregate_", ".vmdl_c" )
+				.Concat( NumberedFiles( directory.FullName, "mesh_", ".vmdl_c" ) )
+				.Concat( NumberedFiles( directory.FullName, "collision_", ".vphys_c" ) ) )
+				yield return Path.GetRelativePath( bake.DirectoryName, file );
+		}
+	}
+
+	internal static void CleanupCompiledFiles( string folder, int aggregates, int meshes, int collisions )
+	{
+		if ( !Directory.Exists( folder ) )
+			return;
 
 		try
 		{
-			foreach ( var directory in FileSystem.Mounted.FindDirectory( compiledFolder ).ToArray() )
-			{
-				var path = $"{compiledFolder}/{directory}".NormalizeFilename( false );
-				if ( path.Equals( currentPath, StringComparison.OrdinalIgnoreCase ) || active.Contains( path ) )
-					continue;
+			DeleteUnused( "aggregate_", ".vmdl_c", aggregates );
+			DeleteUnused( "mesh_", ".vmdl_c", meshes );
+			DeleteUnused( "collision_", ".vphys_c", collisions );
 
-				CleanupGeneration( path );
-			}
-
-			foreach ( var file in FileSystem.Mounted.FindFile( compiledFolder ).ToArray() )
+			foreach ( var directory in Directory.EnumerateDirectories( folder ) )
 			{
-				var path = $"{compiledFolder}/{file}".NormalizeFilename( false );
-				try
-				{
-					FileSystem.Mounted.DeleteFile( path );
-				}
-				catch ( Exception e )
-				{
-					Log.Warning( $"Could not clean up old scene resource '{path}': {e.Message}" );
-				}
+				if ( Guid.TryParseExact( Path.GetFileName( directory ), "N", out _ ) )
+					Directory.Delete( directory, recursive: true );
 			}
 		}
-		catch ( Exception e )
+		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
 		{
-			Log.Warning( $"Could not clean up old compiled scene resources in '{compiledFolder}': {e.Message}" );
+			Log.Warning( $"Could not clean up old compiled scene resources in '{folder}': {e.Message}" );
+		}
+
+		// Each writer numbers its outputs consecutively from zero.
+		void DeleteUnused( string prefix, string extension, int count )
+		{
+			foreach ( var (file, index) in NumberedFiles( folder, prefix, extension ) )
+			{
+				if ( index >= count )
+					File.Delete( file );
+			}
 		}
 	}
 
@@ -102,7 +130,8 @@ internal static partial class SceneCompiler
 		}
 	}
 
-	static void WriteScene( Asset asset, string sourcePath, SceneEditorSession editor, SourceRevision sourceRevision, SceneFile file, SceneCompilerSettings settings, string generation )
+	static void WriteScene( Asset asset, string sourcePath, SceneEditorSession editor, SourceRevision sourceRevision, SceneFile file, SceneCompilerSettings settings,
+		int aggregates, int meshes, int collisions )
 	{
 		if ( asset.IsDeleted || !File.Exists( sourcePath ) || sourcePath != asset.GetSourceFile( true ) )
 			throw new InvalidOperationException( "The source scene was moved or deleted during compilation." );
@@ -120,11 +149,18 @@ internal static partial class SceneCompiler
 
 		try
 		{
-			WriteBake( bakePath, System.Text.Encoding.UTF8.GetBytes( $"{System.Convert.ToHexString( sourceRevision.Hash )} {generation}\n{jsonText}" ) );
 			if ( !IResourceCompilerSystem.GenerateResourceFileForced( sourcePath, jsonText ) )
 				throw new InvalidOperationException( $"Could not write compiled scene '{asset.Path}'." );
 
 			var outputPath = asset.GetCompiledFile( true );
+			if ( string.IsNullOrEmpty( outputPath ) )
+			{
+				// After a clear, the file watcher hasn't registered the newly written scene yet.
+				var written = FileSystem.Mounted.GetFullPath( asset.Path + "_c" );
+				if ( File.Exists( written ) )
+					outputPath = AssetSystem.RegisterFile( written )?.GetCompiledFile( true );
+			}
+
 			if ( string.IsNullOrEmpty( outputPath ) )
 				throw new InvalidOperationException( $"Could not find the compiled output path for '{asset.Path}'." );
 
@@ -132,6 +168,9 @@ internal static partial class SceneCompiler
 			using var compiledJson = JsonDocument.Parse( Game.Resources.ReadCompiledResourceJson( bytes ), new JsonDocumentOptions { MaxDepth = 512 } );
 			if ( compiledJson.RootElement.TryGetProperty( "__blobdata", out _ ) )
 				throw new InvalidOperationException( $"The scene resource compiler did not process '{asset.Path}'." );
+
+			var header = FormattableString.Invariant( $"{System.Convert.ToHexString( sourceRevision.Hash )} {aggregates} {meshes} {collisions}" );
+			WriteBake( bakePath, System.Text.Encoding.UTF8.GetBytes( $"{header}\n{jsonText}" ) );
 
 			if ( !asset.Compile( false ) )
 				throw new InvalidOperationException( $"Could not refresh compiled scene '{asset.Path}'." );

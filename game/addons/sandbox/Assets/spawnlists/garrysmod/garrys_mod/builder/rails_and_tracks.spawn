@@ -1,7 +1,7 @@
 {
   "Title": "Rails and Tracks",
   "Description": "",
-  "Icon": "collections_bookmark",
+  "Icon": "train",
   "RequiredMount": "gmod",
   "Parent": {
     "Id": "881eeef9-7802-4ab2-b0a8-7a4335c15b87",

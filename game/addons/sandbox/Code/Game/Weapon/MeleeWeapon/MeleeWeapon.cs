@@ -36,6 +36,9 @@ public class MeleeWeapon : BaseSandboxWeapon
 	{
 		// Melee doesn't use ammo (the engine default is on, which would leave us dry-firing an empty clip).
 		UsesAmmo = false;
+
+		// A swing is not a bullet.
+		AttackDamageTags = [DamageTags.Melee];
 	}
 
 	public bool CanAttack() => NextPrimaryFire <= 0;
@@ -81,11 +84,19 @@ public class MeleeWeapon : BaseSandboxWeapon
 	{
 		if ( Application.IsDedicatedServer ) return;
 
-		// Swing sound, holder anim, the model's attack anim and the impact come from the base.
 		base.OnShootEffects( shot );
+		if ( shot.NoEvents ) return;
 
-		if ( shot.Hit && shot.HitObject.IsValid() && ViewModel.IsValid() )
-			ViewModel.RunEvent<ViewModel>( x => x.Renderer.Set( "b_attack_has_hit", true ) );
+		var hit = shot.Hit && shot.HitObject.IsValid();
+		ViewModel?.RunEvent<ViewModel>( model =>
+		{
+			if ( !model.Renderer.IsValid() ) return;
+
+			// The graph picks a hit or miss clip when the swing starts.
+			var parameters = model.Renderer.Animation.Parameters;
+			parameters.TrySet( "b_attack_has_hit", hit );
+			parameters.TryTrigger( "b_attack" );
+		} );
 	}
 
 	protected override void OnShootImpact( in ShotEffect shot )

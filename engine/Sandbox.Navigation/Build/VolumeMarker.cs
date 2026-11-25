@@ -102,28 +102,21 @@ internal static class VolumeMarker
 		return (offset - axis * along).LengthSquared() <= radius * radius;
 	}
 
-	// The local box around the shape, grown by the margin, and the grown radius of a sphere or capsule.
-	// False for a radius that is negative or not a number.
+	// The local box around the shape, and the radius of a sphere or capsule. False for a radius that is
+	// negative or not a number.
 	static bool Local( in NavVolume volume, out Vector3 min, out Vector3 max, out float radius )
 	{
-		var matrix = volume.LocalToWorld;
 		var a = volume.A;
 		var b = volume.B;
 		radius = 0;
 		if ( volume.Shape == VolumeShape.Box )
 		{
-			// The margin is horizontal in the world: each local axis grows by its horizontal share
-			var axisX = new Vector3( matrix.M11, matrix.M12, matrix.M13 );
-			var axisY = new Vector3( matrix.M21, matrix.M22, matrix.M23 );
-			var axisZ = new Vector3( matrix.M31, matrix.M32, matrix.M33 );
-			var grow = new Vector3( HorizontalShare( axisX ), HorizontalShare( axisY ), HorizontalShare( axisZ ) ) * volume.Margin;
-			min = Vector3.Min( a, b ) - grow;
-			max = Vector3.Max( a, b ) + grow;
+			min = Vector3.Min( a, b );
+			max = Vector3.Max( a, b );
 			return true;
 		}
 
-		float scale = MathF.Cbrt( MathF.Abs( matrix.GetDeterminant() ) );
-		radius = volume.Radius + (scale > 0 ? volume.Margin / scale : 0);
+		radius = volume.Radius;
 		if ( volume.Shape == VolumeShape.Sphere ) b = a;
 		min = Vector3.Min( a, b ) - new Vector3( radius );
 		max = Vector3.Max( a, b ) + new Vector3( radius );
@@ -156,12 +149,5 @@ internal static class VolumeMarker
 
 		// Also false for a transform with a NaN in it
 		return worldMin.X <= worldMax.X && worldMin.Y <= worldMax.Y;
-	}
-
-	// How much of a world unit along this local axis is horizontal, in local units.
-	static float HorizontalShare( Vector3 axis )
-	{
-		float lengthSquared = axis.LengthSquared();
-		return lengthSquared > 0 ? MathF.Sqrt( axis.X * axis.X + axis.Y * axis.Y ) / lengthSquared : 0;
 	}
 }

@@ -196,6 +196,18 @@ public partial class Package
 		}
 	}
 
+	/// <summary>
+	/// The package as the backend has it, even when a local project has its ident - what's published, for a
+	/// publish to go by. Null if it's never been published.
+	/// </summary>
+	internal static async Task<Package> FetchPublishedAsync( string identString )
+	{
+		if ( Backend.Package is null || !TryParseIdentParts( identString, out var ident ) )
+			return null;
+
+		return await FetchFromBackendAsync( identString, FormatIdent( ident.org, ident.package ), null ) as RemotePackage;
+	}
+
 	static readonly ConcurrentDictionary<string, Task<Package>> Fetching = new( StringComparer.OrdinalIgnoreCase );
 
 	static async Task<Package> FetchFromBackendAsync( string identString, string packageIdent, int? version )
@@ -242,8 +254,7 @@ public partial class Package
 	public static async Task<Package> MountAsync( string identString, bool partial )
 	{
 		var pack = await FetchAsync( identString, partial, false );
-		await pack.MountAsync();
-		return pack;
+		return pack is not null && await pack.MountAsync() is not null ? pack : null;
 	}
 
 	/// <summary>
@@ -362,16 +373,10 @@ public partial class Package
 	}
 
 	/// <summary>
-	/// Retrieve a list of packages, organised into groups, for discovery
+	/// Returns an empty discovery list for legacy callers.
 	/// </summary>
-	public static async Task<ListResult> ListAsync( string id, CancellationToken token = default )
-	{
-		var result = await Backend.Package.GetList( id );
-		if ( result.Groupings is null )
-			return null;
-
-		return ListResult.From( result );
-	}
+	[Obsolete( "Grouped discovery lists have been retired. Use Package.FindAsync for package search." )]
+	public static Task<ListResult> ListAsync( string id, CancellationToken token = default ) => Task.FromResult( new ListResult { Groupings = [] } );
 
 	/// <summary>
 	/// Sort the given list of packages so that referenced packages are ordered before the packages that reference them.

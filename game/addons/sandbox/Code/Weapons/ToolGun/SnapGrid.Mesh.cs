@@ -2,8 +2,13 @@ public sealed partial class SnapGrid
 {
 	private PhysicsBody _collisionBody;
 	private PhysicsShape[] _collisionShapes = Array.Empty<PhysicsShape>();
+	private readonly List<PhysicsShape> _shapeScratch = new();
 	private readonly List<Vertex> _surfaceVertices = new();
 	private readonly List<(Vector3 A, Vector3 B, Vector3 C, Vector3 Normal)> _surfaceTriangles = new();
+	// Reused while building the cached collision mesh of a newly hovered body
+	private readonly List<Vertex> _buildVertices = new();
+	private readonly List<uint> _buildIndices = new();
+
 	private bool BuildCollisionSurface( GameObject go, Vector3 normal )
 	{
 		_surfaceTriangles.Clear();
@@ -12,20 +17,28 @@ public sealed partial class SnapGrid
 		if ( !rigidbody.IsValid() ) rigidbody = go.GetComponentInChildren<Rigidbody>( false );
 		var body = rigidbody.IsValid() ? rigidbody.PhysicsBody : null;
 		if ( !body.IsValid() ) return false;
-		var shapes = body.Shapes.Where( s => !s.IsTrigger ).ToArray();
-		if ( _collisionBody != body || !_collisionShapes.SequenceEqual( shapes ) )
+		_shapeScratch.Clear();
+		foreach ( var s in body.Shapes )
+		{
+			if ( !s.IsTrigger ) _shapeScratch.Add( s );
+		}
+
+		if ( _collisionBody != body || !_collisionShapes.AsSpan().SequenceEqual( System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _shapeScratch ) ) )
 		{
 			_collisionBody = body;
-			_collisionShapes = shapes;
-			var vertices = new List<Vertex>();
-			var indices = new List<uint>();
+			_collisionShapes = _shapeScratch.ToArray();
+			var shapes = _collisionShapes;
+			var vertices = _buildVertices;
+			var indices = _buildIndices;
+			vertices.Clear();
+			indices.Clear();
 			foreach ( var shape in shapes )
 			{
 				shape.Triangulate( out var points, out var triangles );
 				if ( points is null || triangles is null ) continue;
 				var offset = (uint)vertices.Count;
-				vertices.AddRange( points.Select( p => new Vertex( p ) ) );
-				indices.AddRange( triangles.Select( i => i + offset ) );
+				foreach ( var p in points ) vertices.Add( new Vertex( p ) );
+				foreach ( var i in triangles ) indices.Add( i + offset );
 			}
 			_snapVertices = vertices.ToArray();
 			_snapIndices = indices.ToArray();

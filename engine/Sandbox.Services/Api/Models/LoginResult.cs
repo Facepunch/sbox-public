@@ -8,7 +8,7 @@ public struct LoginResult
 	/// <summary>
 	/// Initial AI credit balance. Subsequent AI responses provide updated snapshots; null means unavailable.
 	/// </summary>
-	public ServiceApi.CreditBalance? AiCredits { get; set; }
+	public AiCreditBalance? AiCredits { get; set; }
 
 	/// <summary>
 	/// Our steamid, redundant but here for verification

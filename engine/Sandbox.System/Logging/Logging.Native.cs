@@ -26,6 +26,7 @@ internal static partial class Logging
 
 		var logName = $"engine/{logger}";
 		nativeLogger ??= GetLogger( "Native" );
-		nativeLogger.WriteToTargets( level, null, $"{message}", logName );
+		// Native messages come from anywhere, often job threads, so a managed stack only helps for errors
+		nativeLogger.WriteToTargets( level, null, $"{message}", logName, captureStack: level >= NLog.LogLevel.Error );
 	}
 }

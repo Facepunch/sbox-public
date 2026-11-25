@@ -198,6 +198,7 @@ public sealed partial class PlayerController : Component
 	}
 
 	readonly List<SceneTraceResult> _lookHits = new();
+	readonly List<IPressable> _pressables = new();
 	GameObject _lookHitObject;
 	Component _lookFound;
 
@@ -242,8 +243,12 @@ public sealed partial class PlayerController : Component
 					return foundComponent;
 
 				// Check for IPressable components
-				foreach ( var c in hitObject.GetComponentsInParent<IPressable>( includeSelf: true ) )
+				// Into reusable storage: this runs every frame for every player
+				_pressables.Clear();
+				hitObject.Components.GetAll( _pressables, FindMode.InSelf | FindMode.InAncestors | FindMode.Enabled );
+				for ( int i = 0; i < _pressables.Count; i++ )
 				{
+					var c = _pressables[i];
 					var @event = new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this };
 
 					var canPress = c.CanPress( @event );

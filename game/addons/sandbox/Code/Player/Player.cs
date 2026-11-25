@@ -64,7 +64,7 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 				return HudElement.All;
 
 			var weapon = GetComponent<PlayerInventory>()?.ActiveWeapon;
-			var hidden = weapon.IsValid() && weapon.WantsHideHud ? weapon.HiddenHudElements : HudElement.None;
+			var hidden = weapon is BaseSandboxWeapon sandboxWeapon && sandboxWeapon.IsValid() && sandboxWeapon.WantsHideHud ? sandboxWeapon.HiddenHudElements : HudElement.None;
 
 			if ( IsDriving || IsDriveHolding || CameraViewSystem.Get( Scene )?.ActiveCamera.IsValid() == true )
 				hidden |= HudElement.Crosshair;
@@ -103,6 +103,21 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 	{
 		if ( IsLocalPlayer )
 			hidden |= HiddenHud;
+	}
+
+	protected override void OnEnabled() => UpdateControlSeat();
+
+	protected override void OnParentChanged( GameObject oldParent, GameObject newParent )
+	{
+		if ( Active ) UpdateControlSeat();
+	}
+
+	protected override void OnDisabled() => Scene?.GetSystem<ControlSystem>()?.SetSeat( this, null );
+
+	private void UpdateControlSeat()
+	{
+		var seat = GetComponentInParent<BaseChair>( true );
+		Scene.GetSystem<ControlSystem>()?.SetSeat( this, seat );
 	}
 
 	protected override void OnStart()
@@ -170,13 +185,14 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 		if ( Controller.IsValid() && Controller.Renderer.IsValid() )
 		{
 			var seated = GetComponentInParent<ISitTarget>( false ) is not null;
-			Controller.Renderer.Set( "b_noclip", IsNoclipping && !seated );
+			var parameters = Controller.Renderer.Animation.Parameters;
+			parameters.TrySet( "b_noclip", IsNoclipping && !seated );
 
 			// Weapons write their pose while active; empty hands need an explicit reset.
 			if ( GetComponent<PlayerInventory>()?.ActiveWeapon.IsValid() != true )
 			{
-				Controller.Renderer.Set( "holdtype", "none" );
-				Controller.Renderer.Set( "holdtype_handedness", 0 );
+				parameters.TrySet( "holdtype", "none" );
+				parameters.TrySet( "holdtype_handedness", 0 );
 			}
 		}
 
@@ -293,7 +309,7 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 		Local.IPlayerEvents.PostToGameObject( GameObject, x => x.OnDied( args ) );
 		Global.IPlayerEvents.Post( x => x.OnPlayerDied( this, args ) );
 
-		if ( args.Attacker == GameObject )
+		if ( args.Instigator == GameObject )
 		{
 			Local.IPlayerEvents.PostToGameObject( GameObject, x => x.OnSuicide() );
 			Global.IPlayerEvents.Post( x => x.OnPlayerSuicide( this ) );
@@ -314,7 +330,7 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 	/// <summary>
 	/// Called on the host when a player dies
 	/// </summary>
-	void Kill( in DamageInfo d, bool createRagdoll = true )
+	void Kill( in DamageInfo d, GameObject attacker, bool createRagdoll )
 	{
 		//
 		// Play the flatline sound on the owner
@@ -328,7 +344,7 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 		// Let everyone know about the death
 		//
 
-		NotifyDeath( new PlayerDiedParams() { Attacker = d.Attacker } );
+		NotifyDeath( new PlayerDiedParams() { Instigator = attacker } );
 
 		// Forced holster: death isn't a voluntary switch, so addons can't veto it
 		var inventory = GetComponent<PlayerInventory>();
@@ -347,12 +363,16 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 		// Ghost and say goodbye to the player
 		//
 		Ghost();
+		var died = new IDamageable.DeathEvent { Victim = GameObject, DamageInfo = d, Instigator = attacker };
+		Scene.RunEvent<IDamageable.IEvents>( x => x.OnDied( died ) );
 		GameObject.Destroy();
 	}
 
 	[Rpc.Host]
 	internal void EquipBestWeapon()
 	{
+		if ( Rpc.Caller != Network.Owner ) return;
+
 		var inventory = GetComponent<PlayerInventory>();
 
 		if ( inventory.IsValid() )
@@ -487,7 +507,7 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 
 		if ( IsLocalPlayer )
 		{
-			Scene.Camera?.AddShake( (args.Damage * 0.05f).Clamp( 0.5f, 3f ), 40f, 0.4f );
+			Scene.Camera?.AddShake( (args.DamageTaken * 0.05f).Clamp( 0.5f, 3f ), 40f, 0.4f );
 
 			_dmgSound?.Stop();
 
@@ -498,7 +518,7 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 			else if ( args.Tags.Contains( DamageTags.Fall ) )
 			{
 				// Only a really hard landing gets the hurt sound - small falls just shake the view
-				if ( args.Damage > 40f )
+				if ( args.DamageTaken > 40f )
 					_dmgSound = Sound.Play( "damage_taken_fall" );
 				else
 					_dmgSound = Sound.Play( "damage_taken_fall_low" );
@@ -540,12 +560,14 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 			ApplyKnockback( GetExplosionKnockback( dmg ) );
 	}
 
+	bool _dying;
+
 	public void OnDamage( in DamageInfo dmg )
 	{
 		// only the host changes health, impacts can also report damage on clients
 		if ( !Networking.IsHost ) return;
 
-		if ( Health < 1 ) return;
+		if ( Health < 1 || _dying ) return;
 		if ( !PlayerData.IsValid() ) return;
 		if ( IsSpawnProtected ) return;
 
@@ -584,10 +606,13 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 		}
 
 		// Fire pre-damage events — listeners can modify damage or cancel
-		var e = new DamageEvent { Victim = GameObject, DamageInfo = dmg, Attacker = blamed?.GameObject ?? dmg.Attacker, Damage = dmg.Damage, Cancelled = pvpBlocked };
-		Scene.RunEvent<Global.IDamageEvents>( x => x.OnDamaging( e ) );
+		var e = new IDamageable.DamageEvent { Victim = GameObject, DamageInfo = dmg, Instigator = blamed?.GameObject ?? dmg.Attacker, AcceptedDamage = dmg.Damage, Cancelled = pvpBlocked };
+		Scene.RunEvent<IDamageable.IEvents>( x => x.OnDamaging( e ) );
 
-		var damageEvent = new PlayerDamageEvent { Player = this, DamageInfo = dmg, Damage = e.Damage, BlamedPlayer = blamed, Cancelled = e.Cancelled };
+		// Settled: listeners changing the event after this are ignored
+		var attacker = e.Instigator;
+
+		var damageEvent = new PlayerDamageEvent { Player = this, DamageInfo = dmg, AcceptedDamage = e.AcceptedDamage, Instigator = attacker, Cancelled = e.Cancelled };
 		Local.IPlayerEvents.PostToGameObject( GameObject, x => x.OnDamaging( damageEvent ) );
 #pragma warning disable CS0618
 		Global.IPlayerEvents.Post( x => x.OnPlayerDamaging( damageEvent ) );
@@ -598,9 +623,11 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 
 		ApplyExplosionKnockback( dmg );
 
-		var damage = damageEvent.Damage;
+		var damage = float.IsNaN( damageEvent.AcceptedDamage ) ? 0f : MathF.Max( damageEvent.AcceptedDamage, 0f );
 		if ( dmg.Tags.Contains( DamageTags.Headshot ) )
 			damage *= 2;
+
+		e.AcceptedDamage = damage;
 
 		if ( Armour > 0 )
 		{
@@ -611,38 +638,45 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 
 		Health -= damage;
 
-		e.Damage = damageEvent.Damage;
-		e.HealthLost = damage;
-		Scene.RunEvent<Global.IDamageEvents>( x => x.OnDamaged( e ) );
+		Scene.RunEvent<IDamageable.IEvents>( x => x.OnDamaged( e ) );
 
 		NotifyOnDamage( new PlayerDamageParams()
 		{
-			Damage = damage,
-			Attacker = dmg.Attacker,
+			DamageTaken = damage,
+			Instigator = attacker,
 			Weapon = dmg.Weapon,
 			Tags = dmg.Tags,
 			Position = dmg.Position,
-			Origin = dmg.Origin,
+			Origin = dmg.Origin == Vector3.Zero && dmg.Attacker.IsValid() ? dmg.Attacker.WorldPosition : dmg.Origin,
 		} );
 
 		// We didn't die
 		if ( Health >= 1 ) return;
 
-		var death = new DeathEvent { Victim = GameObject, DamageInfo = dmg, Attacker = e.Attacker };
-		Scene.RunEvent<Global.IDeathEvents>( x => x.OnDying( death ) );
+		var death = new IDamageable.DyingEvent { Victim = GameObject, DamageInfo = dmg, Instigator = attacker };
+		_dying = true;
+		try
+		{
+			Scene.RunEvent<IDamageable.IEvents>( x => x.OnDying( death ) );
+		}
+		finally
+		{
+			_dying = false;
+		}
+
+		if ( !IsValid || GameObject.IsDestroyed ) return;
 
 		if ( death.Cancelled )
 		{
 			Health = MathF.Max( Health, 1 );
 			return;
 		}
+		if ( Health >= 1 ) return;
 
-		GameManager.Current.OnDeath( this, dmg );
+		GameManager.Current.OnDeath( this, dmg, attacker );
 
 		Health = 0;
-		Kill( dmg, death.CreateRagdoll );
-
-		Scene.RunEvent<Global.IDeathEvents>( x => x.OnDied( death ) );
+		Kill( dmg, attacker, death.CreateRagdoll );
 	}
 
 	void PlayerController.IEvents.OnLanded( float distance, Vector3 impactVelocity )
@@ -650,22 +684,14 @@ public sealed partial class Player : Component, Component.IDamageable, PlayerCon
 		Local.IPlayerEvents.PostToGameObject( GameObject, x => x.OnLand( distance, impactVelocity ) );
 		Global.IPlayerEvents.Post( x => x.OnPlayerLanded( this, distance, impactVelocity ) );
 
-		var player = Components.Get<Player>();
-		if ( !player.IsValid() ) return;
-
-		if ( Controller.ThirdPerson || !player.IsLocalPlayer ) return;
-
-		Scene.Camera?.AddPunch( new Angles( 0.105f * distance, Random.Shared.Float( -0.35f, 0.35f ), Random.Shared.Float( -0.35f, 0.35f ) ), 0.5f, 0.75f );
+		if ( IsValid && IsLocalPlayer && Health > 0f )
+			StartLandingRoll();
 	}
 
 	void PlayerController.IEvents.OnJumped()
 	{
 		Local.IPlayerEvents.PostToGameObject( GameObject, x => x.OnJump() );
 		Global.IPlayerEvents.Post( x => x.OnPlayerJumped( this ) );
-
-		if ( Controller.ThirdPerson || !IsLocalPlayer ) return;
-
-		Scene.Camera?.AddPunch( new Angles( -10f, 0f, 0f ), 0.25f, 1f );
 	}
 
 	public T GetWeapon<T>() where T : BaseSandboxWeapon

@@ -96,4 +96,21 @@ public class AnglesTest
 			Assert.IsFalse( Angles.TryParse( "1.1, 2.2", out _ ) );
 		}
 	}
+
+	[TestMethod]
+	public void ForwardMatchesTheRotationAndDoesNotAllocate()
+	{
+		foreach ( var angles in new[] { new Angles( 0, 0, 0 ), new Angles( 30, 45, 0 ), new Angles( -80, 170, 10 ), new Angles( 89, -90, 0 ) } )
+		{
+			var forward = angles.Forward;
+			var expected = angles.ToRotation().Forward;
+			Assert.IsTrue( forward.Distance( expected ) < 0.0001f, $"{angles}: {forward} vs {expected}" );
+		}
+
+		var a = new Angles( 12, 34, 0 );
+		_ = a.Forward;
+		var before = System.GC.GetAllocatedBytesForCurrentThread();
+		for ( int i = 0; i < 100; i++ ) _ = a.Forward;
+		Assert.AreEqual( 0, System.GC.GetAllocatedBytesForCurrentThread() - before );
+	}
 }

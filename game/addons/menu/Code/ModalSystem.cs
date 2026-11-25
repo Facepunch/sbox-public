@@ -5,7 +5,7 @@ using Sandbox.Modals;
 
 /// <summary>
 /// What games and the menu open over themselves. Pages - a map, a server list, a player - come up out of the dock as
-/// pages of the shelf (<see cref="PlatformRoot.ShowModal"/>). Questions and forms - a review, a report, a password -
+/// pages of the shelf (<see cref="PlatformRoot.ShowModal"/>). Questions and forms - a report, a password -
 /// pop up over everything on the overlay, the loading screen too.
 /// </summary>
 public class ModalSystem : IModalSystem
@@ -37,14 +37,24 @@ public class ModalSystem : IModalSystem
 	/// </summary>
 	internal bool HasOverlayModalsOpen => OpenModals.Any( x => x.IsValid() && x.WantsMouseInput() && !x.HasClass( "anchored" ) );
 
-	public void CloseAll( bool immediate = false )
+	public void CloseAll( bool immediate = false ) => CloseAll( immediate, keepNotice: false );
+
+	/// <summary>
+	/// Close every modal. With <paramref name="keepNotice"/>, a <see cref="Notice"/> the player hasn't read yet stays
+	/// up. Use this when the menu moves on by itself rather than because the player did something.
+	/// </summary>
+	public void CloseAll( bool immediate, bool keepNotice )
 	{
+		var kept = keepNotice && _notice.IsValid() ? _notice : null;
+
 		foreach ( var modal in OpenModals )
 		{
+			if ( modal == kept ) continue;
 			modal.Delete( immediate );
 		}
 
 		OpenModals.Clear();
+		if ( kept is not null ) OpenModals.Add( kept );
 
 		Root?.CloseModal( Root.ShelfModal );
 	}
@@ -73,7 +83,7 @@ public class ModalSystem : IModalSystem
 	/// </summary>
 	void Shelve( BaseModal modal )
 	{
-		if ( Root is not { } root || root.ShelfModal is not null || PlatformShelf.IsGame( root.Shelf ) )
+		if ( Root is not { } root || root.ShelfModal is not null || PlatformShelf.IsDetail( root.Shelf ) )
 		{
 			Push( modal );
 			return;
@@ -125,10 +135,13 @@ public class ModalSystem : IModalSystem
 		Root?.ShowGame( packageIdent );
 	}
 
-	public void Map( string packageIdent ) => Package( packageIdent );
+	/// <summary>
+	/// Opens the map's Workshop or local project details.
+	/// </summary>
+	public void Map( string map ) => Root?.ShowMap( map );
 
 	/// <summary>
-	/// A package's page, up out of the dock - a game's, a map's, anything's - on <paramref name="page"/> of it
+	/// A package's page, up out of the dock - on <paramref name="page"/> of it
 	/// ("changes", "achievements") if given
 	/// </summary>
 	public void Package( string packageIdent, string page = "" )
@@ -156,9 +169,12 @@ public class ModalSystem : IModalSystem
 		Shelve( SetupModal.Map( selected, onSelected ) );
 	}
 
+	/// <summary>
+	/// Retained for callers that opened the former review form.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public void Review( Package package )
 	{
-		Push( new ReviewModal { Package = package } );
 	}
 
 	/// <summary>

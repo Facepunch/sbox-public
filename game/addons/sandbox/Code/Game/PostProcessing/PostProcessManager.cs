@@ -1,18 +1,20 @@
-public sealed class PostProcessManager : GameObjectSystem<PostProcessManager>
+/// <summary>
+/// Discovers menu effects and manages the player's local post-process volume.
+/// </summary>
+public sealed partial class PostProcessManager : GameObjectSystem<PostProcessManager>
 {
 	private readonly Dictionary<string, GameObject> _active = new();
 	private readonly HashSet<string> _enabled = new();
+	private PostProcessVolume _volume;
 
+	/// <summary>
+	/// Class name of the effect selected in the menu.
+	/// </summary>
 	public string SelectedPath { get; private set; }
 
-	public IReadOnlyList<Component> GetComponents( string resourcePath )
-	{
-		if ( !_active.TryGetValue( resourcePath, out var go ) || !go.IsValid() )
-			return [];
-
-		return [.. go.GetComponentsInChildren<Component>( true )];
-	}
-
+	/// <summary>
+	/// Returns the selected effect's editable components.
+	/// </summary>
 	public IReadOnlyList<Component> GetSelectedComponents()
 	{
 		if ( SelectedPath == null ) return [];
@@ -23,9 +25,18 @@ public sealed class PostProcessManager : GameObjectSystem<PostProcessManager>
 		return [.. go.GetComponentsInChildren<Component>( true )];
 	}
 
-	public PostProcessManager( Scene scene ) : base( scene ) { }
+	/// <summary>
+	/// Creates the local menu effect system for a scene.
+	/// </summary>
+	public PostProcessManager( Scene scene ) : base( scene )
+	{
+		Listen( Stage.StartUpdate, 0, RefreshCatalog, "Post-process menu types" );
+	}
 
-	public bool IsEnabled( string resourcePath ) => _enabled.Contains( resourcePath );
+	/// <summary>
+	/// Whether the player enabled this effect.
+	/// </summary>
+	public bool IsEnabled( string id ) => _enabled.Contains( id );
 
 	bool _suppressed;
 
@@ -48,110 +59,128 @@ public sealed class PostProcessManager : GameObjectSystem<PostProcessManager>
 		}
 	}
 
-	private void SetEnabled( string resourcePath, bool enabled )
+	private void SetEnabled( string id, bool enabled )
 	{
-		if ( !_active.TryGetValue( resourcePath, out var go ) ) return;
+		if ( !_active.TryGetValue( id, out var go ) ) return;
 
 		go.Enabled = enabled && !_suppressed;
 
-		if ( enabled ) _enabled.Add( resourcePath );
-		else _enabled.Remove( resourcePath );
+		if ( enabled ) _enabled.Add( id );
+		else _enabled.Remove( id );
 	}
 
-	private void SpawnGo( string resourcePath, bool startEnabled )
+	private PostProcessVolume GetLocalVolume()
 	{
-		var resource = ResourceLibrary.Get<PostProcessResource>( resourcePath );
-		if ( resource?.Prefab is null ) return;
+		if ( _volume.IsValid() ) return _volume;
 
-		var camera = Scene.Camera?.GameObject;
-		if ( camera is null ) return;
-
-		// Spawn enabled so components initialize, then disable if not wanted
-		var go = GameObject.Clone( resource.Prefab, new CloneConfig { StartEnabled = true, Parent = camera } );
-		go.Flags |= GameObjectFlags.NotNetworked;
-
-		_active[resourcePath] = go;
-
-		if ( !startEnabled || _suppressed )
-			go.Enabled = false;
+		var root = Scene.CreateObject();
+		root.Name = "Local Post Processing";
+		root.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
+		_volume = root.AddComponent<PostProcessVolume>();
+		_volume.SceneVolume = new Sandbox.Volumes.SceneVolume { Type = Sandbox.Volumes.SceneVolume.VolumeTypes.Infinite };
+		_volume.Priority = int.MaxValue;
+		return _volume;
 	}
 
-	public void Select( string resourcePath )
+	private void SpawnGo( string id, bool startEnabled )
 	{
-		SelectedPath = resourcePath;
-		if ( !_active.ContainsKey( resourcePath ) )
-			SpawnGo( resourcePath, startEnabled: false );
+		var go = CreateEffect( GetLocalVolume().GameObject, id, startEnabled && !_suppressed );
+		if ( go.IsValid() ) _active[id] = go;
+	}
+
+	/// <summary>
+	/// Selects an effect for editing.
+	/// </summary>
+	public void Select( string id )
+	{
+		SelectedPath = id;
+		if ( !_active.ContainsKey( id ) )
+			SpawnGo( id, startEnabled: false );
 	}
 
 	private string _previewPath;
 
-	public void Preview( string resourcePath )
+	/// <summary>
+	/// Temporarily applies an effect while hovering over it.
+	/// </summary>
+	public void Preview( string id )
 	{
-		if ( _previewPath == resourcePath ) return;
+		if ( _previewPath == id ) return;
 		Unpreview();
 
-		_previewPath = resourcePath;
-		if ( IsEnabled( resourcePath ) ) return;
+		_previewPath = id;
+		if ( IsEnabled( id ) ) return;
 
-		if ( !_active.ContainsKey( resourcePath ) )
-			SpawnGo( resourcePath, startEnabled: true );
+		if ( _active.TryGetValue( id, out var go ) )
+		{
+			go.Enabled = !_suppressed;
+		}
 		else
-			SetEnabled( resourcePath, true );
+		{
+			SpawnGo( id, startEnabled: true );
+		}
 	}
 
+	/// <summary>
+	/// Ends the hover preview.
+	/// </summary>
 	public void Unpreview()
 	{
 		if ( _previewPath is null ) return;
 
-		if ( !IsEnabled( _previewPath ) )
-			SetEnabled( _previewPath, false );
+		if ( !IsEnabled( _previewPath ) && _active.TryGetValue( _previewPath, out var go ) )
+			go.Enabled = false;
 
 		_previewPath = null;
 	}
 
+	/// <summary>
+	/// Clears the menu selection.
+	/// </summary>
 	public void Deselect()
 	{
 		SelectedPath = null;
 	}
 
-	public void Toggle( string resourcePath )
+	/// <summary>
+	/// Toggles the selected effect on the player's camera.
+	/// </summary>
+	public void Toggle( string id )
 	{
-		SelectedPath = resourcePath;
+		if ( FindEffect( id ) is null ) return;
 
-		if ( IsEnabled( resourcePath ) )
-		{
-			_enabled.Remove( resourcePath );
-			SetEnabled( resourcePath, false );
-			return;
-		}
-
-		_enabled.Add( resourcePath );
-
-		if ( !_active.ContainsKey( resourcePath ) )
-			SpawnGo( resourcePath, startEnabled: true );
-		else
-			SetEnabled( resourcePath, true );
+		Select( id );
+		SetEnabled( id, !IsEnabled( id ) );
 	}
 
 
-	public void Set( string resourcePath, bool state )
+	/// <summary>
+	/// Changes the enabled state of an instantiated effect.
+	/// </summary>
+	public void Set( string id, bool state )
 	{
-		if ( state == IsEnabled( resourcePath ) ) return;
+		if ( state == IsEnabled( id ) || FindEffect( id ) is null ) return;
 
-		SetEnabled( resourcePath, state );
+		if ( !_active.ContainsKey( id ) ) SpawnGo( id, startEnabled: false );
+
+		SetEnabled( id, state );
 	}
 
-	public void Remove( string resourcePath )
+	/// <summary>
+	/// Destroys the local effect and clears its selection.
+	/// </summary>
+	public void Remove( string id )
 	{
-		if ( _active.TryGetValue( resourcePath, out var go ) )
+		if ( _active.TryGetValue( id, out var go ) )
 		{
-			go.Destroy();
-			_active.Remove( resourcePath );
+			if ( go.IsValid() ) go.Destroy();
+			_active.Remove( id );
 		}
 
-		_enabled.Remove( resourcePath );
+		_enabled.Remove( id );
 
-		if ( SelectedPath == resourcePath )
+		if ( _previewPath == id ) _previewPath = null;
+		if ( SelectedPath == id )
 			SelectedPath = null;
 	}
 }

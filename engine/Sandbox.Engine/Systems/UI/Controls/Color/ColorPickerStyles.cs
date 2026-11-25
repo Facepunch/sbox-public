@@ -16,7 +16,7 @@ internal static class ColorPickerStyles
 			height: 14px;
 			border-radius: 50%;
 			border: 2px solid #fff;
-			box-shadow: 0 0 0 1px #0008;
+			outline: 1px solid #0009;
 			transform: translateX( -50% ) translateY( -50% );
 			pointer-events: none;
 			z-index: 2;

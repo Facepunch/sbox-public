@@ -3,6 +3,12 @@
 [Title( "Ashford R-7" )]
 public sealed class RpgWeapon : BaseSandboxWeapon
 {
+	public RpgWeapon()
+	{
+		// Not a gun: the rocket it launches does the damage.
+		AttackDamageTags = [];
+	}
+
 	[Property] public GameObject ProjectilePrefab { get; set; }
 	[Property] public float ProjectileSpeed { get; set; } = 1024f;
 
@@ -88,6 +94,8 @@ public sealed class RpgWeapon : BaseSandboxWeapon
 	[Rpc.Host]
 	private void ToggleTrackedAim()
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		IsTrackedAim = !IsTrackedAim;
 	}
 
@@ -160,6 +168,8 @@ public sealed class RpgWeapon : BaseSandboxWeapon
 	[Rpc.Host]
 	void CreateProjectile( Vector3 start, Vector3 direction, float speed )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		var go = ProjectilePrefab?.Clone( start );
 
 		var projectile = go.GetComponent<RpgProjectile>();

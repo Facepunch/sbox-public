@@ -1,0 +1,19 @@
+#include "sbox/sourcepolygonmesh.h"
+
+native class CSourcePolygonMesh
+{
+	void DeleteThis(); [delete]
+	static CSourcePolygonMesh Create(); [new]
+	bool LoadMeshFile( string path );
+
+	int GetNumVertices();
+	int GetNumFaces();
+	int GetNumFaceVertices();
+	int GetNumFaceGroups();
+	string GetFaceGroupMaterial( int group );
+
+	bool HasTexCoords();
+	bool HasNormals();
+	bool HasColors();
+	bool CopyPolygons( CastTo[Vector*] void* positions, CastTo[int*] void* faceSizes, CastTo[int*] void* groups, CastTo[int*] void* indices, CastTo[Vector2D*] void* texcoords, CastTo[Vector*] void* normals, CastTo[Color*] void* colors );
+}

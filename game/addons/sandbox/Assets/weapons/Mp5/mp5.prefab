@@ -101,7 +101,7 @@
         "GrenadeSpeed": 1500,
         "Handedness": "Both",
         "HoldBone": "hold_r",
-        "HoldType": "Rifle",
+        "HoldType": "smg",
         "IncrementalReloading": false,
         "Npc": {
           "MinRange": 0,

@@ -47,6 +47,8 @@ namespace Topten.RichTextKit
 			s.WordSpacing = WordSpacing;
 			s.FontVariant = FontVariant;
 			s.FontVariantNumeric = FontVariantNumeric;
+			s.FontVariationSettings = FontVariationSettings;
+			s.FontOpticalSizing = FontOpticalSizing;
 			s.TextDirection = TextDirection;
 			s.ReplacementCharacter = ReplacementCharacter;
 			s._textEffects = _textEffects?.ToList();
@@ -153,6 +155,16 @@ namespace Topten.RichTextKit
 		/// Numeric variant selection (eg: tabular-width numerals).
 		/// </summary>
 		public FontVariantNumeric FontVariantNumeric { get; set; } = FontVariantNumeric.Normal;
+
+		/// <summary>
+		/// Explicit OpenType axis values for this run.
+		/// </summary>
+		public FontVariationSettings FontVariationSettings { get; set; }
+
+		/// <summary>
+		/// Controls automatic optical sizing for this run.
+		/// </summary>
+		public FontOpticalSizing FontOpticalSizing { get; set; }
 
 		/// <summary>
 		/// Text direction override for this span

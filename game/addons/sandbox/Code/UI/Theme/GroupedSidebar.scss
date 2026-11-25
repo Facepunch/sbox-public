@@ -1,0 +1,85 @@
+@mixin ui-grouped-sidebar
+{
+	@include ui-sidebar;
+	width: 30%;
+	min-width: 168px;
+	max-width: 200px;
+	height: 100%;
+	padding: 0;
+	font-family: $body-font;
+
+	.list
+	{
+		@include ui-scroll-column;
+		flex-grow: 1;
+		min-height: 0px;
+		padding: 6px 8px 8px;
+	}
+
+	.group
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		margin-bottom: 16px;
+
+		&:last-child
+		{
+			margin-bottom: 0px;
+		}
+	}
+
+	.group-header
+	{
+		@include ui-sidebar-heading;
+		align-items: center;
+		min-height: 24px;
+		padding: 0 8px;
+		margin-bottom: 4px;
+		background-color: $ui-blue-soft;
+		border-radius: 4px;
+
+		> label
+		{
+			min-width: 0;
+			flex-shrink: 1;
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 0.7px;
+			text-transform: uppercase;
+		}
+	}
+
+	.group-items
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+	}
+
+	.item
+	{
+		@include ui-sidebar-row;
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		height: 26px;
+		padding: 0 8px;
+		white-space: nowrap;
+
+		> label
+		{
+			flex-grow: 1;
+			min-width: 0;
+			word-break: break-all;
+			text-overflow: ellipsis;
+			overflow: hidden;
+			pointer-events: none;
+		}
+
+		&.selected
+		{
+			@include ui-selected( $ui-catalog-selected-bg );
+			font-weight: 600;
+		}
+		&:focus { box-shadow: inset 0 0 0 1px $ui-hover-border; }
+	}
+}

@@ -6,16 +6,32 @@ namespace Nav;
 /// <summary>
 /// Query context for one thread. Any number of them may run at once, also while the mesh commits:
 /// each call reads the mesh state once and works on that snapshot. Heights are polygon-plane heights.
+/// Every call that takes a filter throws for one not made with NavFilter.Create.
 /// </summary>
 public sealed partial class NavQuery
 {
-	readonly NavMesh mesh;
+	readonly MeshAgentType mesh;
 	readonly float tileWorld, climb;
 
 	// Lengths: epsilon is a tenth of a unit at a cell of 4. Area-like terms scale with the cell squared.
 	readonly float epsilon, areaScale;
 
-	public NavQuery( NavMesh mesh )
+	/// <summary>
+	/// A query of a mesh of one agent type. Throws for a mesh of several: name the type.
+	/// </summary>
+	public NavQuery( NavMesh mesh ) : this( mesh.Single )
+	{
+	}
+
+	/// <summary>
+	/// A query of one agent type of the mesh, for as long as it lives. A PolyRef of another type fails in
+	/// it like a stale one. Throws for a type the mesh does not have.
+	/// </summary>
+	public NavQuery( NavMesh mesh, int agentType ) : this( mesh.TypeAt( agentType ) )
+	{
+	}
+
+	internal NavQuery( MeshAgentType mesh )
 	{
 		this.mesh = mesh;
 		var settings = mesh.Settings;
@@ -25,12 +41,15 @@ public sealed partial class NavQuery
 		areaScale = mesh.AreaScale;
 	}
 
+	public int AgentType => mesh.Index;
+
 	/// <summary>
 	/// The nearest polygon among those whose bounds touch the box. A polygon directly above or below
 	/// within the agent climb beats a nearer one sideways. Infinite half extents search the whole mesh.
 	/// </summary>
 	public bool FindNearest( Vector3 point, Vector3 halfExtents, in NavFilter filter, out PolyRef poly, out Vector3 nearest )
 	{
+		filter.Check();
 		var s = mesh.State;
 		bool found = Nearest( s, point, halfExtents, filter, null, 0, out uint id, out nearest );
 		poly = found ? s.RefOf( id ) : default;
@@ -67,6 +86,7 @@ public sealed partial class NavQuery
 	/// </summary>
 	public bool IsValid( PolyRef poly, in NavFilter filter )
 	{
+		filter.Check();
 		return mesh.State.IsValid( poly, filter );
 	}
 
@@ -78,10 +98,7 @@ public sealed partial class NavQuery
 	public bool GetLink( PolyRef link, Vector3 from, out Vector3 entry, out Vector3 exit )
 	{
 		entry = exit = default;
-		var links = mesh.State.Links;
-		int id = link.Link;
-		if ( (uint)id >= (uint)links.Length ) return false;
-		ref readonly var found = ref links[id];
+		ref readonly var found = ref mesh.State.LinkAt( link.Link );
 		if ( found.Serial != link.Serial || !found.Connected ) return false;
 		bool reverse = found.Def.Bidirectional && Vector3.DistanceSquared( from, found.EndPoint ) < Vector3.DistanceSquared( from, found.StartPoint );
 		entry = reverse ? found.EndPoint : found.StartPoint;
@@ -96,6 +113,7 @@ public sealed partial class NavQuery
 	/// </summary>
 	public PathStatus FindPath( Vector3 start, Vector3 end, Vector3 halfExtents, in NavFilter filter, NavPath path )
 	{
+		filter.Check();
 		var s = mesh.State;
 		if ( !Nearest( s, start, halfExtents, filter, null, 0, out uint from, out var fromPoint ) )
 		{
@@ -115,6 +133,7 @@ public sealed partial class NavQuery
 	/// </summary>
 	public PathStatus FindPath( PolyRef startPoly, Vector3 start, PolyRef endPoly, Vector3 end, in NavFilter filter, NavPath path )
 	{
+		filter.Check();
 		var s = mesh.State;
 		if ( !s.TryGet( startPoly, out _, out _ ) || !s.TryGet( endPoly, out _, out _ ) || !Geo.IsFinite( start ) || !Geo.IsFinite( end ) )
 		{
@@ -160,7 +179,7 @@ public sealed partial class NavQuery
 		if ( count == 0 ) return PathStatus.NotFound;
 		uint last = corridor[count - 1].Id;
 		if ( last == to ) return PathStatus.Complete;
-		end = ClosestOnPoly( s.Get( last ), (int)(last & PolyRef.PolyMask), end, out _ );
+		end = ClosestOnPoly( s.Get( last ), (int)(last & s.PolyMask), end, out _ );
 		return PathStatus.Partial;
 	}
 
@@ -192,6 +211,7 @@ public sealed partial class NavQuery
 	/// </summary>
 	public bool Move( ref PolyRef poly, ref Vector3 position, Vector3 delta, in NavFilter filter, Span<PolyRef> visited, out int visitedCount )
 	{
+		filter.Check();
 		return MoveOnSurface( mesh.State, ref poly, ref position, delta, filter, visited, out visitedCount );
 	}
 
@@ -199,11 +219,12 @@ public sealed partial class NavQuery
 	/// Collects the nearest wall segments of the locally connected surface, nearest first, two points
 	/// each. Closed parts of tile borders count as walls. Returns the number of segments.
 	/// </summary>
-	public int FindWalls( PolyRef poly, Vector3 center, float radius, float height, in NavFilter filter, Span<Vector3> segments )
+	public int FindWalls( in WallRequest request, in NavFilter filter, Span<Vector3> segments )
 	{
+		filter.Check();
 		var s = mesh.State;
-		if ( !s.TryGet( poly, out var tile, out int index ) || !filter.Allows( tile.Polys[index].Area ) || !Geo.IsFinite( center ) ) return 0;
-		return Walls( s, poly.Id, center, radius, height, filter, segments, false );
+		if ( !s.TryGet( request.Poly, out var tile, out int index ) || !filter.Allows( tile.Polys[index].Area ) || !Geo.IsFinite( request.Center ) ) return 0;
+		return Walls( s, request.Poly.Id, request.Center, request.Radius, request.Height, filter, segments, false );
 	}
 
 	/// <summary>
@@ -211,6 +232,7 @@ public sealed partial class NavQuery
 	/// </summary>
 	public bool FindNearestWall( PolyRef poly, Vector3 point, float maxDistance, in NavFilter filter, out Vector3 wallPoint )
 	{
+		filter.Check();
 		wallPoint = point;
 		var s = mesh.State;
 		if ( !s.TryGet( poly, out var tile, out int index ) || !filter.Allows( tile.Polys[index].Area ) || !Geo.IsFinite( point ) || !(maxDistance >= 0) ) return false;

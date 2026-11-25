@@ -4,7 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Nav.Lib.Tests.Docs;
 
 /// <summary>
-/// The four examples of the library's README.md, compiled and run. The example code is kept as the README has
+/// The examples of the library's README.md, compiled and run. The example code is kept as the README has
 /// it; what is added around it are the checks. Change one, change the other.
 /// </summary>
 [TestClass]
@@ -25,8 +25,8 @@ public class ReadmeExamples
 	// The mesh "built as in the first example".
 	static NavMesh BuildLevel()
 	{
-		var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
-		var mesh = new NavMesh( settings );
+		var settings = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+		var mesh = new NavMesh( settings, NavMeshOptions.Create( settings ) );
 		Assert.AreEqual( 0, mesh.Build( new NavBuilder(), vertices, indices ) );
 		return mesh;
 	}
@@ -35,7 +35,7 @@ public class ReadmeExamples
 	{
 		var settings = mesh.Settings;
 		var halfExtents = new Vector3( 2.1f * settings.AgentRadius, 2.1f * settings.AgentRadius, 1.51f * settings.AgentHeight );
-		return new NavQuery( mesh ).FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), halfExtents, default, path );
+		return new NavQuery( mesh ).FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), halfExtents, NavFilter.Create(), path );
 	}
 
 	[TestMethod]
@@ -52,9 +52,9 @@ public class ReadmeExamples
 
 		// The link types are the caller's numbers: what a filter forbids or prices generated links by.
 		const byte drop = 1, jump = 2;
-		var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
-		var links = new NavLinkSettings { MaxDrop = 3, MaxJumpDistance = 2, MaxJumpUp = 0.5f, DropType = drop, JumpType = jump, Insert = true };
-		var mesh = new NavMesh( settings, links: links );
+		var settings = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+		var links = NavLinkSettings.Create( settings ) with { MaxDrop = 3, MaxJumpDistance = 2, MaxJumpUp = 0.5f, DropType = drop, JumpType = jump, Insert = true };
+		var mesh = new NavMesh( settings, NavMeshOptions.Create( settings ) with { Links = links } );
 		mesh.Build( new NavBuilder(), dockVertices, dockIndices );
 
 		// For drawing: the generated links, apart from those placed by hand.
@@ -71,9 +71,10 @@ public class ReadmeExamples
 		var path = new NavPath();
 		var halfExtents = new Vector3( 2.1f * settings.AgentRadius, 2.1f * settings.AgentRadius, 1.51f * settings.AgentHeight );
 		Vector3 onTheDock = new( 4, 10, 2 ), inTheYard = new( 15, 10, 0 );
-		var down = query.FindPath( onTheDock, inTheYard, halfExtents, default, path );
-		var careful = query.FindPath( onTheDock, inTheYard, halfExtents, new NavFilter( 0, forbiddenLinks: 1ul << drop ), path );
-		var up = query.FindPath( inTheYard, onTheDock, halfExtents, default, path );
+		var anyone = NavFilter.Create();
+		var down = query.FindPath( onTheDock, inTheYard, halfExtents, anyone, path );
+		var careful = query.FindPath( onTheDock, inTheYard, halfExtents, anyone.WithForbiddenLinks( 1ul << drop ), path );
+		var up = query.FindPath( inTheYard, onTheDock, halfExtents, anyone, path );
 
 		Assert.AreEqual( PathStatus.Complete, down );
 		Assert.AreEqual( PathStatus.Partial, careful );
@@ -90,7 +91,7 @@ public class ReadmeExamples
 		Assert.IsTrue( jump != drop );
 
 		// Example: generated links an engine keeps as its own objects.
-		var reported = new NavMesh( settings, links: links with { Insert = false } );
+		var reported = new NavMesh( settings, NavMeshOptions.Create( settings ) with { Links = links with { Insert = false } } );
 		reported.Build( new NavBuilder(), dockVertices, dockIndices );
 
 		// Per tile, the link objects the engine made and the id each got from AddLink.
@@ -124,16 +125,16 @@ public class ReadmeExamples
 		Assert.AreEqual( ids.Count, objects.Values.Sum( o => o.Count ) );
 		Assert.AreEqual( 0, reported.GetGeneratedLinks( new List<int>() ) );
 		var theirs = new NavQuery( reported );
-		Assert.AreEqual( PathStatus.Complete, theirs.FindPath( onTheDock, inTheYard, halfExtents, default, path ) );
-		Assert.AreEqual( PathStatus.Partial, theirs.FindPath( onTheDock, inTheYard, halfExtents, new NavFilter( 0, forbiddenLinks: 1ul << drop ), path ) );
+		Assert.AreEqual( PathStatus.Complete, theirs.FindPath( onTheDock, inTheYard, halfExtents, anyone, path ) );
+		Assert.AreEqual( PathStatus.Partial, theirs.FindPath( onTheDock, inTheYard, halfExtents, anyone.WithForbiddenLinks( 1ul << drop ), path ) );
 		Assert.AreEqual( 0, reported.TakeLinkChanges( changed ) );
 	}
 
 	[TestMethod]
 	public void StaticLevelAndPath()
 	{
-		var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
-		var mesh = new NavMesh( settings );
+		var settings = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+		var mesh = new NavMesh( settings, NavMeshOptions.Create( settings ) );
 
 		var failures = new List<(int X, int Y, string Error)>();
 		mesh.Build( new NavBuilder(), vertices, indices, failures );
@@ -143,7 +144,8 @@ public class ReadmeExamples
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
 		var halfExtents = new Vector3( 2.1f * settings.AgentRadius, 2.1f * settings.AgentRadius, 1.51f * settings.AgentHeight );
-		var status = query.FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), halfExtents, default, path );
+		var anyone = NavFilter.Create();   // every area at cost 1, nothing forbidden; change it with its With methods
+		var status = query.FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), halfExtents, anyone, path );
 		Console.WriteLine( $"{status}, {path.Length:0.0} long" );
 		foreach ( var corner in path.Corners ) Console.WriteLine( corner );
 
@@ -227,8 +229,8 @@ public class ReadmeExamples
 	[TestMethod]
 	public void JobLoopWithBlocker()
 	{
-		var settings = NavSettings.Create( agentHeight: 1.8f, agentRadius: 0.4f, agentClimb: 0.4f, agentMaxSlope: 45, cellSize: 0.1f, cellHeight: 0.1f );
-		var mesh = new NavMesh( settings );
+		var settings = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+		var mesh = new NavMesh( settings, NavMeshOptions.Create( settings ) );
 		var streamer = new TileStreamer( mesh, vertices, indices );   // the level of the first example
 
 		mesh.MarkDirty( new Vector3( 0, 0, -10 ), new Vector3( 50, 30, 10 ) );
@@ -243,15 +245,14 @@ public class ReadmeExamples
 		// Only builds from triangles add to the triangle counter
 		long triangles = mesh.GetStats().TrianglesUsed;
 
-		// A crate lands in the way. Area NoArea blocks; Margin keeps agents an agent radius away from it.
+		// A crate lands in the way. Area NoArea blocks exactly the box: the walkable edge comes right up to it.
 		int crate = mesh.AddVolume( new NavVolume
 		{
 			Shape = VolumeShape.Box,
 			Area = NavFilter.NoArea,
 			LocalToWorld = Matrix4x4.CreateTranslation( 10, 10, 0 ),
 			A = new Vector3( -1, -1, -0.5f ),
-			B = new Vector3( 1, 1, 2 ),
-			Margin = settings.AgentRadius
+			B = new Vector3( 1, 1, 2 )
 		} );
 		while ( streamer.Pump() > 0 ) { }   // the first volume over a tile asks for its triangles once
 
@@ -282,7 +283,7 @@ public class ReadmeExamples
 		var crowd = new NavCrowd( mesh, workers: Environment.ProcessorCount );
 
 		// The player: the game moves it, the crowd plans its route and makes others avoid it.
-		var player = AgentParams.Create( radius: 0.4f, height: 1.8f, maxSpeed: 5, acceleration: 20 );
+		var player = AgentParams.Create( new AgentDesc { Radius = 0.4f, Height = 1.8f, MaxSpeed = 5, Acceleration = 20 } );
 		player.External = true;
 		var position = new Vector3( 5, 5, 0 );
 		int id = crowd.Add( position, player );
@@ -290,7 +291,7 @@ public class ReadmeExamples
 		crowd.MoveTo( id, new Vector3( 45, 5, 0 ) );
 
 		// Four agents the crowd moves, coming the other way.
-		var walker = AgentParams.Create( radius: 0.4f, height: 1.8f, maxSpeed: 3, acceleration: 10 );
+		var walker = AgentParams.Create( new AgentDesc { Radius = 0.4f, Height = 1.8f, MaxSpeed = 3, Acceleration = 10 } );
 		for ( int i = 0; i < 4; i++ )
 		{
 			int other = crowd.Add( new Vector3( 45, 3 + i * 1.5f, 0 ), walker );
@@ -328,5 +329,42 @@ public class ReadmeExamples
 			Assert.IsTrue( Vector2.Distance( new( state.Position.X, state.Position.Y ), goal ) < player.Radius, $"agent {i} at {state.Position}" );
 		}
 		Assert.AreEqual( position, crowd.States[id].Position, "An External agent stays where the game put it" );
+	}
+
+	[TestMethod]
+	public void PeopleAndCars()
+	{
+		// The level of the first example, for people and for cars.
+		var people = NavSettings.Create( new NavSettingsDesc { AgentHeight = 1.8f, AgentRadius = 0.4f, AgentClimb = 0.4f, AgentMaxSlope = 45, CellSize = 0.1f, CellHeight = 0.1f, TileSize = 256 } );
+		var cars = NavSettings.Create( new NavSettingsDesc { AgentHeight = 2, AgentRadius = 1.5f, AgentClimb = 0.2f, AgentMaxSlope = 15, CellSize = 0.25f, CellHeight = 0.1f, TileSize = 128 } );
+		var mesh = new NavMesh( [
+			new NavAgentTypeDesc { Settings = people, Options = NavMeshOptions.Create( people ) },
+			new NavAgentTypeDesc { Settings = cars, Options = NavMeshOptions.Create( cars ) },
+		] );
+		var failures = new List<(int AgentType, int X, int Y, string Error)>();
+		mesh.Build( new NavBuilder(), vertices, indices, failures );
+
+		// A query, and an agent, name their type: 0 for people, 1 for cars.
+		var carQuery = new NavQuery( mesh, 1 );
+		var path = new NavPath();
+		var carBox = new Vector3( 2.1f * cars.AgentRadius, 2.1f * cars.AgentRadius, 1.51f * cars.AgentHeight );
+		var status = carQuery.FindPath( new Vector3( 5, 5, 0 ), new Vector3( 45, 5, 0 ), carBox, NavFilter.Create(), path );
+
+		var crowd = new NavCrowd( mesh, workers: Environment.ProcessorCount );
+		var car = AgentParams.Create( new AgentDesc { Radius = 1.5f, Height = 2, MaxSpeed = 8, Acceleration = 6 } ) with { AgentType = 1 };
+		int id = crowd.Add( new Vector3( 5, 5, 0 ), car );
+		crowd.MoveTo( id, new Vector3( 45, 5, 0 ) );
+
+		Assert.AreEqual( 0, failures.Count );
+		Assert.AreEqual( PathStatus.Complete, status );
+		// Round the end of the wall, a car's radius clear of it: the wall runs along x 25 from y 0 to 20.
+		static float FromWall( Vector3 c ) => Vector2.Distance( new( c.X, c.Y ), new( 25, Math.Clamp( c.Y, 0, 20 ) ) );
+		Assert.IsTrue( path.Corners.ToArray().All( c => FromWall( c ) >= cars.AgentRadius - cars.CellSize ), string.Join( " ", path.Corners.ToArray() ) );
+		var walk = new NavPath();
+		Assert.AreEqual( PathStatus.Complete, FindPath( BuildLevel(), walk ) );
+		Assert.IsTrue( path.Length > walk.Length );
+		for ( int frame = 0; frame < 60 * 30 && crowd.States[id].Status != AgentStatus.Arrived; frame++ ) crowd.Step( 1 / 60f );
+		Assert.AreEqual( AgentStatus.Arrived, crowd.States[id].Status );
+		Assert.ThrowsException<InvalidOperationException>( () => new NavQuery( mesh ) );
 	}
 }

@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Hide, Title( "#tool.name.camera" ), Icon( "📷" ), ClassName( "cameratool" ), Group( "#tool.group.render" )]
+[Hide, Title( "#tool.name.camera" ), Icon( "videocam" ), ClassName( "cameratool" ), Group( "#tool.group.render" )]
 public sealed class CameraTool : ToolMode
 {
 	public const string CameraPrefab = "entities/camera/camera_entity.prefab";
@@ -73,7 +73,7 @@ public sealed class CameraTool : ToolMode
 		Track( go );
 		var undo = Player.Undo.Create();
 		undo.Name = "#tool.name.camera";
-		undo.Icon = "📷";
+		undo.Icon = "videocam";
 		undo.Add( go );
 		FirePostToolAction( ToolInput.Primary );
 	}

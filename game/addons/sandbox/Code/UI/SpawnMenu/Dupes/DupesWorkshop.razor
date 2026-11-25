@@ -7,14 +7,7 @@
 <SpawnMenuContent>
 
     <Header>
-        <SpawnMenuToolbar>
-            <Left>
-                <TextEntry Placeholder="#spawnmenu.common.search" class="filter menu-input" Value:bind=@Filter />
-            </Left>
-            <Right>
-                <UIDropdown class="big" Items=@SortItems Value=@SortOrder ValueChanged=@OnSortChanged />
-            </Right>
-        </SpawnMenuToolbar>
+        <WorkshopToolbar Filter:bind=@Filter SortOrder:bind=@SortOrder />
     </Header>
 
     <Body>
@@ -45,12 +38,7 @@
 
 @code
 {
-    List<UIDropdown.Item> SortItems => UIDropdown.ForEnum<WorkshopSortMode>();
-
-    void OnSortChanged( object value )
-    {
-        if ( value is WorkshopSortMode mode ) SortOrder = mode;
-    }
+    internal const string ProtocolVersion = "1";
 
     string _filter;
     public string Filter
@@ -64,7 +52,7 @@
         }
     }
 
-    WorkshopSortMode _sortOrder = WorkshopSortMode.Popular;
+    WorkshopSortMode _sortOrder = WorkshopSortMode.Newest;
     public WorkshopSortMode SortOrder
     {
         get => _sortOrder;
@@ -99,6 +87,7 @@
         var query = new Storage.Query();
         query.KeyValues["package"] = "facepunch.sandbox";
         query.KeyValues["type"] = "dupe";
+        query.KeyValues["protocol"] = ProtocolVersion;
         query.SortOrder = SortOrder.ToSortOrder();
 
         if ( !string.IsNullOrWhiteSpace( Filter ) ) query.SearchText = Filter;

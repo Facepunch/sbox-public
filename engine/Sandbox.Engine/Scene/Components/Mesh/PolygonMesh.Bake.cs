@@ -13,7 +13,7 @@ partial class PolygonMesh
 	internal readonly record struct BakedSubmesh( Material Material, MeshVertex[] Vertices, int[] Indices );
 
 	/// <summary>
-	/// Triangulate this mesh into standalone geometry in local space. Unlike <see cref="Rebuild"/>
+	/// Triangulate this mesh into standalone geometry in local space. Unlike <see cref="Rebuild(MeshComponent.CollisionType)"/>
 	/// this owns everything it produces and leaves the mesh's own render data, submeshes and dirty
 	/// state alone, so it's safe to bake from a live mesh. Hidden faces are included - hiding is an
 	/// editor convenience that isn't saved, so leaving them out would compile a scene that doesn't
@@ -127,7 +127,7 @@ partial class PolygonMesh
 			.Select( x => Positions[x] )
 			.ToArray();
 
-		var faceIndices = Mesh.TriangulatePolygon( positions );
+		var faceIndices = TriangulateLocalFace( positions );
 
 		if ( faceIndices.Length < 3 || faceIndices.Length % 3 != 0 )
 			return;
@@ -151,10 +151,14 @@ partial class PolygonMesh
 				Tangent = tangent,
 				Texcoord = TextureCoord[faceEdge],
 				Blend = Blends[faceEdge],
+				SecondaryBlend = SecondaryBlends?[faceEdge] ?? default,
 				Color = Colors[faceEdge],
 			} );
 		}
 
+		// Imported faces use the same area cutoff as the Hammer mesh preview.
+		// Existing scene meshes compare the length of the cross product directly.
+		float areaScale = TriangulationTransform.HasValue ? 0.5f : 1f;
 		for ( int i = 0; i < faceIndices.Length; i += 3 )
 		{
 			var a = startVertex + faceIndices[i];
@@ -165,7 +169,7 @@ partial class PolygonMesh
 			var ac = vertices[c].Position - vertices[a].Position;
 
 			// Nothing to draw, and they'd only confuse the normals of anything that shares them
-			if ( Vector3.Cross( ab, ac ).Length.AlmostEqual( 0.0f ) )
+			if ( (Vector3.Cross( ab, ac ).Length * areaScale).AlmostEqual( 0.0f ) )
 				continue;
 
 			indices.Add( a );

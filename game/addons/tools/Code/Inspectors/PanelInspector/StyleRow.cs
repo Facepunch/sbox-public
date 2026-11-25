@@ -29,13 +29,13 @@ partial class StyleRow : Widget
 			widget.Layout.Spacing = 4;
 
 			saveButton = widget.Layout.Add( new Button( this ) { Text = "save" } );
-			saveButton.SetStyles( $"Button {{ font-family: 'Material Icons'; padding: 0; border: 0; font-size: 13px; color: {Theme.Blue.Hex}; }}\n Button:hover {{ color: white; }}" );
+			saveButton.SetStyles( $"Button {{ font-family: 'Material Symbols Outlined'; padding: 0; border: 0; font-size: 13px; color: {Theme.Blue.Hex}; }}\n Button:hover {{ color: white; }}" );
 			saveButton.Visible = Entry.Value != Entry.OriginalValue;
 			saveButton.Clicked = SaveChanges;
 			saveButton.ToolTip = $"Save changes to {Block.FileName}";
 
 			restoreButton = widget.Layout.Add( new Button( this ) { Text = "restore" } );
-			restoreButton.SetStyles( $"Button {{ font-family: 'Material Icons'; padding: 0; border: 0; font-size: 13px; color: {Theme.Red.Hex}; }}\n Button:hover {{ color: white; }}" );
+			restoreButton.SetStyles( $"Button {{ font-family: 'Material Symbols Outlined'; padding: 0; border: 0; font-size: 13px; color: {Theme.Red.Hex}; }}\n Button:hover {{ color: white; }}" );
 			restoreButton.Visible = Entry.Value != Entry.OriginalValue;
 			restoreButton.Clicked = RestoreValue;
 			restoreButton.ToolTip = $"Restore To Default";

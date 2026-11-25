@@ -451,9 +451,35 @@
         Side = SidePanel.None;
     }
 
+    /// <summary>
+    /// Opens the details page for a Steam Workshop item.
+    /// </summary>
+    public void ShowWorkshopItem( WorkshopItemDetails item )
+    {
+        if ( item is null ) return;
+
+        if ( item.Tags.Contains( "map", StringComparer.OrdinalIgnoreCase ) ) ShowMap( item.Id.ToString() );
+        else ShowGame( item.Id.ToString() );
+    }
+
+    /// <summary>
+    /// Opens the details page for a local project or published package.
+    /// </summary>
     public void ShowGame( Package package )
     {
         if ( package is null ) return;
+
+        if ( package.TypeName == "map" )
+        {
+            package.OpenModal();
+            return;
+        }
+
+        if ( package.IsRemote && package.WorkshopId != 0 )
+        {
+            ShowGame( package.WorkshopId.ToString() );
+            return;
+        }
 
         ShowGame( package.FullIdent, package );
     }
@@ -467,13 +493,26 @@
     {
         if ( string.IsNullOrEmpty( ident ) ) return;
 
+        ShowDetails( PlatformShelf.Game( ident, page ), package );
+    }
+
+    /// <summary>
+    /// Opens a map's details by Workshop item ID.
+    /// </summary>
+    public void ShowMap( string map )
+    {
+        if ( !string.IsNullOrWhiteSpace( map ) ) ShowDetails( PlatformShelf.Map( map ) );
+    }
+
+    void ShowDetails( string url, Package package = null )
+    {
         var from = SettingsPage is null ? null : SettingsPanel.IsValid() ? SettingsPanel.CurrentCategory : SettingsPage;
 
         LeaveSettings( () =>
         {
             ShownPackage = package;
             PutAway();
-            Shelves?.Show( PlatformShelf.Game( ident, page ) );
+            Shelves?.Show( url );
             backToSettings = from;
         } );
 
@@ -529,15 +568,9 @@
     {
         if ( item is null ) return;
 
-        if ( item.Id == PlatformMenu.CurrentId )
+        if ( item.Id == PlatformMenu.CurrentId || !PlatformMenu.CanChangeGame )
         {
-            ShowGame( item.KeyValues.GetValueOrDefault( "package" ) ?? PlatformMenu.Ident, PlatformMenu.Current );
-            return;
-        }
-
-        if ( !PlatformMenu.CanChangeGame )
-        {
-            ShowGame( item.KeyValues.GetValueOrDefault( "package" ) );
+            ShowWorkshopItem( item );
             return;
         }
 

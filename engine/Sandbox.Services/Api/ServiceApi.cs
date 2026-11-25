@@ -19,6 +19,7 @@ public partial class ServiceApi : IDisposable
 	public ICodeApi Code { get; }
 	public IForumApi Forum { get; }
 	public IPlatformApi Platform { get; }
+	public IWorkshopApi Workshop { get; }
 
 	/// <summary>
 	/// AI queries and cached conversations using the caller's game session.
@@ -56,6 +57,7 @@ public partial class ServiceApi : IDisposable
 		Code = RestService.For<ICodeApi>( client, refitSettings );
 		Forum = RestService.For<IForumApi>( client, refitSettings );
 		Platform = RestService.For<IPlatformApi>( client, refitSettings );
+		Workshop = RestService.For<IWorkshopApi>( client, refitSettings );
 		Ai = RestService.For<IAiApi>( client, refitSettings );
 	}
 

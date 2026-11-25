@@ -15,7 +15,7 @@ public partial class ScriptLoadingTests
 	[TestMethod]
 	public void WorkshopMountsSharePackageFilesAndPreserveCodeOnlyViews()
 	{
-		var folder = CreateWorkshopContent( "map" );
+		var folder = CreateWorkshopContent( "addon" );
 		WorkshopFileSystem first = null;
 		BaseFileSystem packageFiles = null;
 		WorkshopFileSystem code = null;
@@ -24,7 +24,7 @@ public partial class ScriptLoadingTests
 			AsyncPump.RunSynchronously( async () =>
 			{
 				first = await WorkshopFileSystem.OpenInstalledAsync( 4321, folder, default );
-				var package = new RemotePackage { Org = new Package.Organization { Ident = "test" }, Ident = "workshop-map", TypeName = "map", Version = new PackageRevision { Meta = "{\"WorkshopId\":4321}" } };
+				var package = new RemotePackage { Org = new Package.Organization { Ident = "test" }, Ident = "workshop-addon", TypeName = "addon", Version = new PackageRevision { Meta = "{\"WorkshopId\":4321}" } };
 				packageFiles = await package.Download();
 				code = await WorkshopFileSystem.OpenInstalledAsync( 4321, folder, default, codeOnly: true );
 			} );
@@ -52,7 +52,7 @@ public partial class ScriptLoadingTests
 	}
 
 	/// <summary>
-	/// A map package registers its Workshop ID instead of becoming a server package requirement.
+	/// Loading a map registers its item ID in the Workshop table.
 	/// </summary>
 	[TestMethod]
 	public void WorkshopMapUsesItemTable()
@@ -69,14 +69,57 @@ public partial class ScriptLoadingTests
 			context.FileMount = mounted;
 			AsyncPump.RunSynchronously( async () =>
 			{
-				using var installed = await WorkshopFileSystem.OpenInstalledAsync( 4321, folder, default );
-				var package = new RemotePackage { Org = new Package.Organization { Ident = "test" }, Ident = "workshop-map", TypeName = "map", Version = new PackageRevision { Meta = "{\"WorkshopId\":4321}" } };
-				Assert.IsNotNull( await package.MountAsync() );
-				Assert.IsTrue( package.IsMounted() );
+				Assert.IsNotNull( await items.LoadAsync( 4321, Workshop.ItemType.Map ) );
+				Assert.IsNotNull( items.Get( 4321 ) );
 				Assert.AreEqual( Workshop.ItemType.Map, items.StringTable.Entries["4321"].Read<WorkshopItems.ItemInfo>().Type );
 				items.RemoveRequirement( 4321 );
 				Assert.AreEqual( 0, items.StringTable.Entries.Count );
 			} );
+		}
+		finally
+		{
+			items.Clear();
+			context.FileMount = files;
+			mounted.Dispose();
+			WorkshopItems.Current = previousItems;
+			Networking.System = previousSystem;
+			Directory.Delete( folder, true );
+		}
+	}
+
+	/// <summary>
+	/// A map published before items shipped a metadata.json is known by its Steam metadata, and loads as a map. With
+	/// neither it's still turned down.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void WorkshopMapWithoutMetadataFileUsesSteamMetadata( bool hasSteamMetadata )
+	{
+		var folder = Directory.CreateTempSubdirectory( "sbox-workshop-old-map-" ).FullName;
+		File.WriteAllText( Path.Combine( folder, "content.txt" ), "old map" );
+		var steamMetadata = hasSteamMetadata
+			? Json.Serialize( new WorkshopItemMetaData { Title = "Old map", PackageIdent = "test.old-map", TypeName = "map", Meta = "{\"PrimaryAsset\":\"maps/old.vmap\"}", ApiVersion = 1 } )
+			: null;
+		var previousItems = WorkshopItems.Current;
+		var previousSystem = Networking.System;
+		var mounted = new AggregateFileSystem();
+		var items = new WorkshopItems( ( id, token ) => WorkshopFileSystem.OpenInstalledAsync( id, folder, token, itemMetadata: steamMetadata ) );
+		try
+		{
+			Networking.System = null;
+			WorkshopItems.Current = items;
+			context.FileMount = mounted;
+			WorkshopFileSystem content = null;
+			AsyncPump.RunSynchronously( async () => content = await items.LoadAsync( 4322, Workshop.ItemType.Map ) );
+
+			Assert.AreEqual( hasSteamMetadata, content is not null );
+			if ( hasSteamMetadata )
+			{
+				Assert.AreEqual( "Old map", content.Title );
+				Assert.AreEqual( "{\"PrimaryAsset\":\"maps/old.vmap\"}", content.Metadata.Value.Meta );
+				Assert.AreEqual( "old map", mounted.ReadAllText( "content.txt" ) );
+			}
 		}
 		finally
 		{

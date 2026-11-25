@@ -169,7 +169,15 @@ public partial class GpuBuffer : IValid, IDisposable
 	public void Dispose()
 	{
 		ThreadSafe.AssertIsMainThread();
+		DisposeFromAnyThread();
+	}
 
+	/// <summary>
+	/// <see cref="Dispose()"/> for engine code off the main thread, such as render jobs. The native buffer is still
+	/// destroyed on the main thread.
+	/// </summary>
+	internal void DisposeFromAnyThread()
+	{
 		Dispose( true );
 		GC.SuppressFinalize( this );
 	}

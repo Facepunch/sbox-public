@@ -7,6 +7,17 @@ internal static class GridGeometry
 {
 	public static int Area( int ax, int ay, int bx, int by, int cx, int cy ) => (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
 
+	/// <summary>
+	/// Zero when d lies on the circle through a, b and c, else positive when it lies inside and a, b, c have
+	/// a positive area, or outside and they have a negative one. Exact for coordinates up to 2^14 apart.
+	/// </summary>
+	public static long InCircle( long ax, long ay, long bx, long by, long cx, long cy, long dx, long dy )
+	{
+		long adx = ax - dx, ady = ay - dy, bdx = bx - dx, bdy = by - dy, cdx = cx - dx, cdy = cy - dy;
+		long ad = adx * adx + ady * ady, bd = bdx * bdx + bdy * bdy, cd = cdx * cdx + cdy * cdy;
+		return adx * (bdy * cd - bd * cdy) - ady * (bdx * cd - bd * cdx) + ad * (bdx * cdy - bdy * cdx);
+	}
+
 	public static bool Left( int ax, int ay, int bx, int by, int cx, int cy ) => Area( ax, ay, bx, by, cx, cy ) < 0;
 
 	public static bool LeftOn( int ax, int ay, int bx, int by, int cx, int cy ) => Area( ax, ay, bx, by, cx, cy ) <= 0;

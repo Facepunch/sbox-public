@@ -3,7 +3,7 @@
 @inherits Panel
 @namespace Sandbox
 @attribute [SpawnMenuHost.SpawnMenuMode]
-@attribute [Icon("🔍")]
+@attribute [Icon("search")]
 @attribute [Title("#spawnmenu.mode.inspect")]
 @attribute [Order( 500 )]
 
@@ -15,26 +15,26 @@
 
     </div>
 
-    <InspectWindow />
-    <InspectWindow Placement=@(InspectWindow.Corner.BottomRight) />
+    <div class="tools-menu-slot" @ref="ToolsParent" @onmousedown=@MenuPress></div>
 
-    <div class="settings-bar" @ref="SettingsBar" @onmousedown=@SettingsBarPress></div>
+    <div class="settings-bar" @ref="SettingsBar" @onmousedown=@MenuPress></div>
 
 </root>
 
 @code
 {
     public Inspector Inspector { get; private set; }
+    internal Panel ToolsParent { get; private set; }
     Panel SettingsBar = default;
 
     public GameObject Hovered => Inspector?.Hovered;
 
-    public HighlightOutline SelectedOutline;
     public HighlightOutline HoveredOutline;
 
     protected override void OnAfterTreeRender(bool firstTime)
     {
         base.OnAfterTreeRender(firstTime);
+        Scene?.Get<SpawnMenuHost>()?.MoveToolsMenu();
 
         // built here rather than on first render so it comes back after a hotload
         if ( SettingsBar.IsValid() && !SettingsBar.Children.Any() )
@@ -42,7 +42,6 @@
             BuildMenuBar();
         }
 
-        SelectedOutline ??= ObjectHighlight.Create( GameObject );
         HoveredOutline ??= ObjectHighlight.Create( GameObject );
     }
 
@@ -63,8 +62,8 @@
         SettingsBar.AddChild( bar );
     }
 
-    // keep clicks on the bar from selecting whatever is in the world behind it
-    void SettingsBarPress( PanelEvent e )
+    // Keep clicks on menu controls from selecting or dragging the object behind them.
+    void MenuPress( PanelEvent e )
     {
         Sandbox.UI.InputFocus.Clear();
         e.StopPropagation();
@@ -96,17 +95,12 @@
 
         if ( e.MouseButton == MouseButtons.Right )
         {
-            // right click while dragging with the physgun freezes instead
-            if ( InspectCursor.RequestFreeze() ) return;
-
-            Inspector?.WorldMouseRightDown( e );
-            return;
+            InspectCursor.RequestFreeze();
         }
-
-        Inspector?.WorldMouseDown( e );
-
-        if ( e.MouseButton == MouseButtons.Left && Inspector?.Hovered.IsValid() == true )
+        else if ( e.MouseButton == MouseButtons.Left )
+        {
             InspectCursor.Press();
+        }
     }
 
     protected override void OnMouseUp(MousePanelEvent e)
@@ -122,7 +116,16 @@
 		if ( Scene?.Camera is not { IsValid: true } )
 			return;
 
-        // things with nothing to click on in the world, like hidden speakers, get an icon instead
+        if ( !InspectCursor.IsOpen || InspectCursor.ActiveSelectTool is null )
+        {
+            foreach ( var handle in _handles.Values )
+                handle.Delete( true );
+
+            _handles.Clear();
+            return;
+        }
+
+        // Give registered components a clickable icon at their world position.
         foreach ( var component in InspectHandles.GetVisible( Scene ) )
         {
             if ( _handles.TryGetValue( component, out var existing ) && existing.IsValid() )

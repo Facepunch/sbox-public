@@ -20,19 +20,15 @@
         "__guid": "a1b2c3d4-2222-4aaa-b222-222222222222",
         "__enabled": true,
         "Flags": 0,
-        "AnimationSpeed": 1,
         "DeploySound": null,
         "ShellEjectGameObject": {
           "_type": "gameobject",
           "go": "a1b2c3d4-2223-4aaa-b223-222222222223"
         },
-        "IncrementalAnimationSpeed": 3,
         "IncrementalReloadFinishSounds": [],
         "IncrementalReloadSoundEvents": [],
         "IncrementalReloadStartSounds": [],
-        "InertiaScale": "2,2",
         "IsIncremental": false,
-        "IsThrowable": false,
         "MuzzleGameObject": {
           "_type": "gameobject",
           "go": "a1b2c3d4-2224-4aaa-b224-222222222224"
@@ -59,7 +55,9 @@
           "go": "a1b2c3d4-2226-4aaa-b226-222222222226",
           "component_type": "SkinnedModelRenderer"
         },
-        "ThrowableType": "HEGrenade"
+        "MovementBob": true,
+        "LookInertia": true,
+        "LookInertiaAmount": 1
       },
       {
         "__type": "SniperViewModel",
@@ -98,7 +96,6 @@
             "__guid": "a1b2c3d4-2225-4aaa-b225-222222222225",
             "__enabled": true,
             "Flags": 0,
-            "AnimationGraph": null,
             "BodyGroups": 83,
             "BoneMergeTarget": null,
             "CreateAttachments": true,
@@ -115,13 +112,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {
-              "bools": {},
-              "ints": {},
-              "floats": {},
-              "vectors": {},
-              "rotations": {}
-            },
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": false,
@@ -136,7 +126,10 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "weapons/sniper/animations/sniper.ag"
+            }
           }
         ],
         "Children": [
@@ -1802,7 +1795,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []

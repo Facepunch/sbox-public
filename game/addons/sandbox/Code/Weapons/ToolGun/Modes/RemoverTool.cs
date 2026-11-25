@@ -1,4 +1,4 @@
-﻿﻿[Icon( "🧨" )]
+﻿﻿[Icon( "ink_eraser" )]
 [Title( "#tool.name.remover" )]
 [ClassName( "remover" )]
 [Group( "#tool.group.tools" )]
@@ -19,9 +19,9 @@ public sealed class RemoverTool : ToolMode
 		if ( !go.IsValid() ) return false;
 
 		// gibs can always go
-		if ( go.Tags.Contains( "debris" ) ) return true;
+		if ( go.Tags.Has( "debris" ) ) return true;
 
-		if ( !go.Tags.Contains( "removable" ) ) return false;
+		if ( !go.Tags.Has( "removable" ) ) return false;
 
 		return true;
 	}
@@ -42,6 +42,7 @@ public sealed class RemoverTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Remove( GameObject go )
 	{
+		if ( !CanTarget( go ) ) return;
 		if ( !FireToolAction( ToolInput.Primary ) ) return;
 
 		go = go?.Network?.RootGameObject;

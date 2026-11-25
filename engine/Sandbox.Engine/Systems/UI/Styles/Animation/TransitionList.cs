@@ -24,14 +24,21 @@ public class TransitionList
 
 	internal void Add( TransitionDesc t )
 	{
-		var n = List.FirstOrDefault( x => x.Property == t.Property );
+		// Merge into the first entry for this property and drop the rest
+		TransitionDesc n = default;
+		var found = false;
+		for ( int i = 0; i < List.Count; i++ )
+		{
+			if ( List[i].Property != t.Property ) continue;
+			if ( !found ) { n = List[i]; found = true; }
+			List.RemoveAt( i-- );
+		}
 
 		if ( t.Delay.HasValue ) n.Delay = t.Delay;
 		if ( t.TimingFunction != null ) n.TimingFunction = t.TimingFunction;
 		if ( t.Property != null ) n.Property = t.Property;
 		if ( t.Duration.HasValue ) n.Duration = t.Duration;
 
-		List.RemoveAll( x => x.Property == t.Property );
 		List.Add( n );
 	}
 

@@ -20,16 +20,12 @@
         "__guid": "d2153b92-8823-4600-a598-b7bbf1f33f4c",
         "__enabled": true,
         "Flags": 0,
-        "AnimationSpeed": 1,
         "EjectBrass": null,
         "ShellEjectGameObject": {
           "_type": "gameobject",
           "go": "33f8c517-fd02-4032-ac3c-367ab3411139"
         },
-        "IncrementalAnimationSpeed": 3,
-        "InertiaScale": "2,2",
         "IsIncremental": false,
-        "IsThrowable": false,
         "MuzzleGameObject": {
           "_type": "gameobject",
           "go": "d26f7c72-b26a-4f4e-a41d-d06b54cd5050"
@@ -46,8 +42,10 @@
           "go": "6428b8a6-72af-4fe3-b74d-e4e039ffadaf",
           "component_type": "SkinnedModelRenderer"
         },
-        "ThrowableType": "HEGrenade",
-        "TracerEffect": null
+        "TracerEffect": null,
+        "LookInertia": true,
+        "LookInertiaAmount": 1,
+        "MovementBob": true
       }
     ],
     "Children": [
@@ -72,7 +70,6 @@
             "__guid": "f53dd8cf-dc6a-4d32-ba6e-e7de48ce9fef",
             "__enabled": true,
             "Flags": 0,
-            "AnimationGraph": null,
             "BodyGroups": 18446744073709551615,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
@@ -89,13 +86,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {
-              "bools": {},
-              "ints": {},
-              "floats": {},
-              "vectors": {},
-              "rotations": {}
-            },
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": false,
@@ -110,7 +100,10 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "weapons/grenade/animations/grenade.ag"
+            }
           }
         ],
         "Children": [
@@ -1758,7 +1751,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []

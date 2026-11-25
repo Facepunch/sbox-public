@@ -517,7 +517,7 @@ public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInte
 	{
 		normal = normal.Normal;
 
-		var axis = new Vector3[6];
+		Span<Vector3> axis = stackalloc Vector3[6];
 		axis[0] = Forward;
 		axis[1] = Left;
 		axis[2] = Up;

@@ -47,8 +47,14 @@ public sealed partial class WorkshopPublisher
 			.notes-row .field-label { padding-top: 10px; }
 			.notes-row .textentry { height: 100%; min-height: 110px; }
 			.message { color: #efba82; flex-shrink: 0; white-space: normal; }
-			.progress { height: 3px; background-color: #414141; flex-shrink: 0; }
-			.progress-fill { height: 100%; background-color: #3479ed; }
+			.progress
+			{
+				height: 3px; background-color: #414141;
+				.progress-fill
+				{
+					background-color: #3479ed;
+				}
+			}
 			.footer { padding: 16px 24px; gap: 9px; align-items: center; background-color: #242424; border-top: 1px solid #414141; flex-shrink: 0; }
 			.status { flex-grow: 1; color: #aaa; font-size: 12px; }
 			.primary { background-color: #3479ed; border-color: #3479ed; color: white; }
@@ -87,7 +93,7 @@ public sealed partial class WorkshopPublisher
 			> .button:hover, > .button.active { background-color: #393939; color: white; }
 			> .button.selected { background-color: #253e60; color: white; }
 			> .button.selected:hover, > .button.selected.active { background-color: #2e4c73; }
-			> .button.selected::after { content: "check"; font-family: Material Icons; font-size: 16px; color: #90baff; }
+			> .button.selected::after { content: "check"; font-family: Material Symbols Outlined; font-size: 16px; color: #90baff; }
 			> .button .icon { font-size: 18px; width: 20px; flex-shrink: 0; color: #aaa; }
 			> .button.selected .icon { color: #90baff; }
 			> .button .button-right-column { flex-direction: row; flex-grow: 1; min-width: 0; text-align: left; }

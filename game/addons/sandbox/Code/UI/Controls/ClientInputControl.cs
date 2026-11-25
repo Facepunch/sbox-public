@@ -3,69 +3,52 @@ namespace Sandbox.UI;
 [CustomEditor( typeof( ClientInput ) )]
 public partial class ClientInputControl : BaseControl
 {
-	Panel _preview;
 	InputHint _inputHint;
 	IconPanel _fallbackIcon;
 	Label _bindLabel;
+	bool _capturing;
 
+	/// <inheritdoc/>
 	public override bool SupportsMultiEdit => true;
 
+	/// <summary>
+	/// Shows the bound action and the number of wired outputs.
+	/// </summary>
 	public ClientInputControl()
 	{
-		_preview = AddChild<Panel>( "preview" );
-		_inputHint = _preview.AddChild<InputHint>( "hint" );
-		_fallbackIcon = _preview.AddChild<IconPanel>( "fallback" );
+		var preview = AddChild<Panel>( "preview" );
+		_inputHint = preview.AddChild<InputHint>( "hint" );
+		_fallbackIcon = preview.AddChild<IconPanel>( "fallback" );
 		_fallbackIcon.Text = "keyboard";
 		_bindLabel = AddChild<Label>( "bind-label" );
 	}
 
+	/// <inheritdoc/>
 	public override void Rebuild()
 	{
-		if ( Property == null ) return;
-		if ( _capturing ) return;
+		if ( Property == null || _capturing ) return;
 
-		var input = Property.GetValue<ClientInput>();
-		var action = input.Action;
-		var keys = input.Keys;
-		var outputCount = GetLinkedOutputs().Count( IsConnected );
+		var binding = Property.GetValue<ClientInput>();
+		var outputCount = GetLinkedOutputs().Count( link => link.Connected );
+		_inputHint.Action = binding.Action;
+		_inputHint.Key = binding.HasKey ? binding.Keys[^1] : null;
+		_inputHint.SetClass( "hidden", !binding.IsEnabled );
+		_fallbackIcon.SetClass( "hidden", binding.IsEnabled );
 
-		// A raw key, glyph for the last key of a combo (ctrl + k shows k)
-		if ( keys.Length > 0 )
+		if ( !binding.IsEnabled )
 		{
-			_inputHint.Action = null;
-			_inputHint.Key = keys[^1];
-			_inputHint.SetClass( "hidden", false );
-			_fallbackIcon.SetClass( "hidden", true );
-			SetClass( "no-binding", false );
-
-			var keyLabel = KeyLabel( keys );
-			_bindLabel.Text = outputCount > 0
-				? Game.Language.GetPhrase( "ui.input.binding_with_outputs", new() { { "binding", keyLabel }, { "count", outputCount } } )
-				: keyLabel;
-			return;
-		}
-
-		_inputHint.Key = null;
-
-		if ( string.IsNullOrWhiteSpace( action ) )
-		{
-			_inputHint.Action = null;
-			_inputHint.SetClass( "hidden", true );
-			_fallbackIcon.SetClass( "hidden", false );
 			_bindLabel.Text = outputCount > 0
 				? Game.Language.GetPhrase( outputCount == 1 ? "ui.input.one_connected_output" : "ui.input.connected_outputs", new() { { "count", outputCount } } )
 				: "#ui.input.no_binding";
-			SetClass( "no-binding", outputCount == 0 );
 			return;
 		}
 
-		_inputHint.Action = action;
-		_inputHint.SetClass( "hidden", false );
-		_fallbackIcon.SetClass( "hidden", true );
-		SetClass( "no-binding", false );
-
-		var match = Input.GetActions().FirstOrDefault( a => a.Name == action );
-		var label = match != null ? LocalizedText.InputTitle( match ) : action;
+		var label = binding.Key?.Replace( "+", " + " ).ToUpperInvariant();
+		if ( label is null )
+		{
+			var match = Input.GetActions().FirstOrDefault( a => a.Name == binding.Action );
+			label = match != null ? LocalizedText.InputTitle( match ) : binding.Action;
+		}
 		_bindLabel.Text = outputCount > 0
 			? Game.Language.GetPhrase( "ui.input.binding_with_outputs", new() { { "binding", label }, { "count", outputCount } } )
 			: label;
@@ -80,75 +63,72 @@ public partial class ClientInputControl : BaseControl
 		Rebuild();
 	}
 
-	bool _capturing;
-
-	/// <summary>
-	/// Left click listens for a key, or combo, and binds it. Mouse buttons are captured too, so clicking
-	/// again binds mouse1 - escape backs out.
-	/// </summary>
 	protected override void OnClick( MousePanelEvent e )
 	{
 		base.OnClick( e );
 
+		if ( _capturing || Property is null ) return;
 		_capturing = true;
 		SetClass( "capturing", true );
 		_inputHint.SetClass( "hidden", true );
 		_fallbackIcon.SetClass( "hidden", false );
 		_bindLabel.Text = "#ui.input.press_key";
-
 		Input.Keyboard.Capture( OnCaptured );
 	}
 
-	/// <summary>
-	/// Right click opens the menu: clearing the key, and linked outputs.
-	/// </summary>
-	protected override void OnRightClick( MousePanelEvent e )
-	{
-		base.OnRightClick( e );
-		OpenMenu();
-	}
-
+	/// <inheritdoc/>
 	public override void OnDeleted()
 	{
-		base.OnDeleted();
-
 		if ( _capturing ) Input.Keyboard.CancelCapture();
+		base.OnDeleted();
 	}
 
 	void OnCaptured( IReadOnlyList<string> buttons )
 	{
-		if ( !_capturing ) return;
-
 		_capturing = false;
+		if ( !IsValid || Property is null ) return;
+
 		SetClass( "capturing", false );
-
-		if ( !IsValid || Property == null ) return;
-
-		// Cancelled
 		if ( buttons.Count == 0 )
 		{
 			Rebuild();
 			return;
 		}
 
-		OnBindChanged( string.Join( "+", buttons ) );
+		var matches = Input.Keyboard.GetBoundActions( buttons );
+
+		if ( matches.Count == 1 )
+		{
+			OnBindChanged( matches[0].Name );
+			return;
+		}
+
+		if ( matches.Count == 0 )
+		{
+			SetBinding( new ClientInput { Key = string.Join( "+", buttons ).ToLowerInvariant() } );
+			return;
+		}
+
+		Rebuild();
+		var menu = new Menu();
+		foreach ( var action in matches )
+			menu.AddOption( ActionLabel( action ), "", () => OnBindChanged( action.Name ) );
+		menu.Open( this, Popup.PositionMode.UnderMouse );
 	}
 
-	static string KeyLabel( string[] keys ) => string.Join( " + ", keys ).ToUpperInvariant();
-
-	void OpenMenu()
+	protected override void OnRightClick( MousePanelEvent e )
 	{
-		var menu = new Sandbox.UI.Menu();
+		base.OnRightClick( e );
+
+		var menu = new Menu();
 		menu.AddOption( "#ui.input.no_key_binding", "", () => OnBindChanged( "" ) );
 
 		var outputs = GetLinkedOutputs().ToArray();
 		if ( outputs.Length > 0 )
 		{
 			var sub = menu.AddMenu( "#ui.input.linked_outputs", "cable" );
-			foreach ( var output in outputs )
+			foreach ( var (output, connected) in outputs )
 			{
-				var connected = IsConnected( output );
-				var source = output;
 				sub.AddOption(
 					Game.Language.GetPhrase( "ui.input.linked_output", new()
 					{
@@ -156,58 +136,53 @@ public partial class ClientInputControl : BaseControl
 						{ "output", LocalizedText.Resolve( output.Title ) }
 					} ),
 					connected ? "check_box" : "check_box_outline_blank",
-					() => SetConnected( source, !connected )
+					() => SetConnected( output, !connected )
 				);
+			}
+		}
+
+		menu.AddSeparator();
+
+		var grouped = Input.GetActions()
+			.GroupBy( a => a.GroupName ?? "" )
+			.OrderBy( g => LocalizedText.InputGroup( g.Key ), StringComparer.CurrentCultureIgnoreCase );
+
+		foreach ( var group in grouped )
+		{
+			var actionMenu = string.IsNullOrWhiteSpace( group.Key ) ? menu : menu.AddMenu( LocalizedText.InputGroup( group.Key ) );
+			foreach ( var action in group )
+			{
+				actionMenu.AddOption( ActionLabel( action ), "", () => OnBindChanged( action.Name ) );
 			}
 		}
 
 		menu.Open( this, Popup.PositionMode.UnderMouse );
 	}
 
-	IEnumerable<SignalOutputDescription> GetLinkedOutputs()
+	IEnumerable<(SignalOutputDescription Output, bool Connected)> GetLinkedOutputs()
 	{
-		var visitedRoots = new HashSet<GameObject>();
+		var inputs = GetTargetInputs().ToArray();
+		if ( inputs.Length == 0 ) yield break;
 
-		foreach ( var target in GetTargetComponents() )
+		foreach ( var root in GetTargetComponents().Select( target => target.GameObject.Root ).Distinct() )
 		{
-			if ( !visitedRoots.Add( target.GameObject.Root ) ) continue;
-
-			foreach ( var output in SignalSystem.GetContraptionOutputs( target.GameObject ) )
+			foreach ( var output in SignalSystem.GetContraptionOutputs( root ) )
 			{
-				if ( CanConnect( output ) ) yield return output;
+				if ( inputs.Any( input => SignalSystem.AreCompatible( output, input ) ) )
+					yield return (output, inputs.Any( input => SignalSystem.IsConnected( output, input ) ));
 			}
 		}
-	}
-
-	bool CanConnect( SignalOutputDescription output )
-	{
-		return GetTargetInputs().Any( input => SignalSystem.AreCompatible( output, input ) );
 	}
 
 	IEnumerable<SignalInputDescription> GetTargetInputs()
 	{
-		foreach ( var target in GetTargetComponents() )
-		{
-			foreach ( var input in SignalSystem.GetInputs( target ) )
-			{
-				if ( string.Equals( input.Id, Property.Name, StringComparison.OrdinalIgnoreCase ) )
-					yield return input;
-			}
-		}
+		return GetTargetComponents().SelectMany( SignalSystem.GetInputs )
+			.Where( input => string.Equals( input.Id, Property.Name, StringComparison.OrdinalIgnoreCase ) );
 	}
 
 	IEnumerable<Component> GetTargetComponents()
 	{
-		foreach ( var target in Property.Parent?.Targets ?? Enumerable.Empty<object>() )
-		{
-			if ( target is Component component && component.IsValid() )
-				yield return component;
-		}
-	}
-
-	bool IsConnected( SignalOutputDescription output )
-	{
-		return GetTargetInputs().Any( input => SignalSystem.IsConnected( output, input ) );
+		return Property.Parent?.Targets.OfType<Component>().Where( component => component.IsValid() ) ?? [];
 	}
 
 	void SetConnected( SignalOutputDescription output, bool connected )
@@ -218,21 +193,23 @@ public partial class ClientInputControl : BaseControl
 		Rebuild();
 	}
 
-	/// <summary>
-	/// Bind a raw key combo, or nothing. Clears any action from before raw keys.
-	/// </summary>
-	void OnBindChanged( string keys )
+	string ActionLabel( InputAction a )
 	{
-		var current = Property.GetValue<ClientInput>();
-		current.Key = keys;
-		current.Action = "";
+		var title = LocalizedText.InputTitle( a );
+		var origin = Input.GetButtonOrigin( a.Name );
+		return origin != null
+			? Game.Language.GetPhrase( "ui.input.binding_with_key", new() { { "binding", title }, { "key", origin } } )
+			: title;
+	}
+
+	void OnBindChanged( string value ) => SetBinding( new ClientInput { Action = value } );
+
+	void SetBinding( ClientInput current )
+	{
 		Property.SetValue( current );
 
-		foreach ( var target in Property.Parent?.Targets ?? Enumerable.Empty<object>() )
-		{
-			if ( target is Component component )
-				GameManager.ChangeProperty( component, Property.Name, current );
-		}
+		foreach ( var component in GetTargetComponents() )
+			GameManager.ChangeProperty( component, Property.Name, current );
 
 		Rebuild();
 	}

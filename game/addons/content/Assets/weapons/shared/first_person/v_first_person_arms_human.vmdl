@@ -96,20 +96,37 @@
 						reverse = false
 					},
 					{
-						_class = "Prefab"
-						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_adjustmentlayers.vmdl_prefab"
-					},
-					{
-						_class = "Prefab"
-						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_punching.vmdl_prefab"
+						_class = "AnimFile"
+						name = "Punching_Pose"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = true
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						enable_scale = false
+						source_filename = "weapons/shared/first_person/animations/FPArms@Punching_Pose.fbx"
+						start_frame = 0
+						end_frame = -1
+						framerate = -1.0
+						take = 0
+						reverse = false
+						anim_hold_list =
+						[
+							{
+								frame = 0
+								frame_count = 30
+							},
+						]
 					},
 					{
 						_class = "Prefab"
 						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_debug.vmdl_prefab"
-					},
-					{
-						_class = "Prefab"
-						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_shared.vmdl_prefab"
 					},
 				]
 				default_root_bone_name = ""
@@ -195,7 +212,7 @@
 		]
 		model_archetype = ""
 		primary_associated_entity = ""
-		anim_graph_name = "weapons/shared/first_person/v_first_person_arms_punching.vanmgrph"
+		anim_graph_name = ""
 		base_model_name = ""
 	}
 }

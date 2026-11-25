@@ -39,6 +39,8 @@ PS
 	// Texture Samplers ---------------------------------------------------------------------------------------------------------------------------------------
 	Texture2D g_tColor < Attribute( "Texture" ); SrgbRead( true ); Default( 1.0 ); >;
 	float4 g_vInvTextureDim < Source( InvTextureDim ); SourceArg( g_tColor ); >;
+	// Layer targets are rounded up in size; the content covers this much of them, from the top left
+	float2 LayerUVScale < Default2( 1.0f, 1.0f ); Attribute( "LayerUVScale" ); >;
 
 	//
 	// Filter
@@ -91,7 +93,7 @@ PS
 		UI_CommonProcessing_Pre( i );
 
 		// The layer is padded by at least the border width, so the quad and the layer line up one to one
-		float edge = GetBorder( i.vTexCoord.xy );
+		float edge = GetBorder( i.vTexCoord.xy * LayerUVScale );
 
 		// For smooth edges, we want to blend nothing with the border color
 		float4 colorTransparent = FilterBorderWrapColor;

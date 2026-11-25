@@ -150,7 +150,7 @@ public sealed class HudCanvas : Panel, IPanelDraw
 
 		_glowMaterial ??= Material.FromShader( "shaders/hud_glow.shader" );
 
-		var reach = Layer.GlowRadius * ScaleToScreen * GamePreferences.HudScale * 0.5f;
+		var reach = Layer.GlowRadius * ScaleToScreen * 0.5f;
 		_paintCommands.Attributes.Set( "GlowReach", reach );
 
 		_paintCommands.SetRenderTarget( _glowATarget );
@@ -177,8 +177,7 @@ public sealed class HudCanvas : Panel, IPanelDraw
 		attributes.Set( "HudTexture", _target );
 		attributes.Set( "HudInvSize", new Vector2( 1f / _target.Width, 1f / _target.Height ) );
 		attributes.Set( "GlowTexture", _glowB );
-		attributes.Set( "GlowStrength", Layer.GlowStrength * GamePreferences.HudGlow );
-		attributes.Set( "HudOpacity", Layer.Opacity );
+		attributes.Set( "GlowStrength", Layer.GlowStrength );
 		attributes.Set( "ScanlineIntensity", Layer.ScanlineIntensity );
 		attributes.Set( "ScanlinePeriod", MathF.Max( 2, MathF.Round( Layer.ScanlinePeriod * scale ) ) );
 		attributes.Set( "ScanlineThickness", Layer.ScanlineThickness );

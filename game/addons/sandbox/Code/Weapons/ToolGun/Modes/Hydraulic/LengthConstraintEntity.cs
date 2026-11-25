@@ -198,6 +198,7 @@ public sealed class LengthConstraintEntity : Component, IPlayerControllable
 	}
 
 	float _animTime = 0;
+	CapsuleCollider _configuredCapsule;
 
 	protected override void OnUpdate()
 	{
@@ -208,7 +209,7 @@ public sealed class LengthConstraintEntity : Component, IPlayerControllable
 		var line = Joint.Body.WorldPosition - Joint.GameObject.WorldPosition;
 		var line_rot = Rotation.LookAt( line, WorldRotation.Up );
 
-		DebugOverlay.Line( Joint.GameObject.WorldPosition, Joint.Body.WorldPosition, Color.Green );
+		var renderer = GetComponent<SkinnedModelRenderer>();
 
 		if ( Animated )
 		{
@@ -236,15 +237,20 @@ public sealed class LengthConstraintEntity : Component, IPlayerControllable
 
 		if ( GetComponent<CapsuleCollider>() is CapsuleCollider capsule )
 		{
-			capsule.Static = false;
+			if ( capsule != _configuredCapsule )
+			{
+				_configuredCapsule = capsule;
+				capsule.Static = false;
+				capsule.Radius = 1.0f;
+				capsule.ColliderFlags = ColliderFlags.IgnoreMass;
+				capsule.Tags.Set( "trigger", true );
+			}
+
 			capsule.Start = capsule.WorldTransform.PointToLocal( Joint.GameObject.WorldPosition );
 			capsule.End = capsule.WorldTransform.PointToLocal( Joint.Body.WorldPosition );
-			capsule.Radius = 1.0f;
-			capsule.ColliderFlags = ColliderFlags.IgnoreMass;
-			capsule.Tags.Set( "trigger", true );
 		}
 
-		if ( GetComponent<SkinnedModelRenderer>() is SkinnedModelRenderer renderer )
+		if ( renderer.IsValid() )
 		{
 			renderer.CreateBoneObjects = true;
 

@@ -21,8 +21,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/crowbar/materials/v_crowbar.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/crowbar/materials/v_crowbar.vmat"
       }
     }
   }

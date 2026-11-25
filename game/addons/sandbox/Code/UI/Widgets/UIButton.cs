@@ -10,6 +10,14 @@ public class UIButton : Button
 	SerializedProperty _method;
 
 	/// <summary>
+	/// Creates a button that uses the shared menu control styles.
+	/// </summary>
+	public UIButton()
+	{
+		AddClass( "menu-control" );
+	}
+
+	/// <summary>
 	/// The method this runs when pressed, set by a sheet. It takes the title and icon from [Button], or the name of the method.
 	/// </summary>
 	public SerializedProperty Method

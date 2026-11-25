@@ -22,7 +22,7 @@ public static partial class SandboxSystemExtensions
 		{
 			try
 			{
-				return node.Deserialize<T>();
+				return node.ReadAs<T>();
 			}
 			catch
 			{
@@ -39,5 +39,17 @@ public static partial class SandboxSystemExtensions
 			return defaultvalue;
 		}
 
+	}
+
+	/// <summary>
+	/// <see cref="JsonSerializer.Deserialize{TValue}(JsonNode, JsonSerializerOptions)"/>, but a parsed value is read from
+	/// its text instead of being written out to a buffer and parsed again.
+	/// </summary>
+	internal static T ReadAs<T>( this JsonNode node, JsonSerializerOptions options = null )
+	{
+		if ( node is JsonValue value && value.TryGetValue( out JsonElement element ) )
+			return element.Deserialize<T>( options );
+
+		return node.Deserialize<T>( options );
 	}
 }

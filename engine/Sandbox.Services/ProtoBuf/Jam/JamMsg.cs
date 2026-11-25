@@ -6,8 +6,8 @@ namespace Sandbox.Protobuf;
 public static class JamMsg
 {
 	/// <summary>
-	/// Updates one package's vote count in a category and round after a vote is added, moved or removed.
-	/// Contains public counts only, with the same eligibility filtering as the voting API.
+	/// Updates one package's weighted votes after a vote is added, moved or removed.
+	/// Contains public tallies only, with the same eligibility filtering as the voting API.
 	/// </summary>
 	[ProtoContract]
 	public class VotesChanged : IMessage
@@ -42,15 +42,17 @@ public static class JamMsg
 		public string PackageIdent { get; set; }
 
 		/// <summary>
-		/// Total votes in this category and round, rather than the number of distinct voters.
+		/// Sum of captured trust scores across all eligible votes in this category and round, rounded down to a whole number.
 		/// </summary>
 		[ProtoMember( 5 )]
 		public int TotalVotes { get; set; }
 
 		/// <summary>
-		/// Current vote count for this package in the category and round, including zero after removal.
+		/// Sum of captured trust scores for this package's eligible votes, rounded down to a whole number.
+		/// Includes zero after removal.
 		/// </summary>
 		[ProtoMember( 6 )]
 		public int Votes { get; set; }
+
 	}
 }

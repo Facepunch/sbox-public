@@ -500,32 +500,28 @@ public sealed partial class Player
 	}
 
 	/// <summary>
-	/// Show the player's arms in first person while seated, so hands IK'd to a steering wheel
-	/// or controls are visible. The head stays hidden.
+	/// When the first-person body is visible, show the seated player's hands on the controls.
 	/// </summary>
 	private void UpdateSeatedBodyVisibility()
 	{
 		if ( !Controller.IsValid() ) return;
 
-		if ( IsSeated )
+		if ( IsSeated && !Controller.HideBodyInFirstPerson )
 		{
-			if ( _hideBodyBeforeSeat is null )
+			if ( _showArmsBeforeSeat is null )
 			{
-				_hideBodyBeforeSeat = Controller.HideBodyInFirstPerson;
 				_showArmsBeforeSeat = Controller.ShowArmsInFirstPerson;
 				_firstPersonAnimBeforeSeat = Controller.UseFirstPersonAnimation;
 			}
 
-			Controller.HideBodyInFirstPerson = false;
 			Controller.ShowArmsInFirstPerson = true;
 			Controller.UseFirstPersonAnimation = false;
 		}
-		else if ( _hideBodyBeforeSeat is { } hideBody )
+		else if ( _showArmsBeforeSeat is { } showArms )
 		{
-			Controller.HideBodyInFirstPerson = hideBody;
-			Controller.ShowArmsInFirstPerson = _showArmsBeforeSeat;
+			Controller.ShowArmsInFirstPerson = showArms;
 			Controller.UseFirstPersonAnimation = _firstPersonAnimBeforeSeat;
-			_hideBodyBeforeSeat = null;
+			_showArmsBeforeSeat = null;
 		}
 	}
 

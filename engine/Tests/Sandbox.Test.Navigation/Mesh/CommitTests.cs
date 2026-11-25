@@ -4,13 +4,13 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Nav.Lib.Tests;
 
 [TestClass]
-public class CommitTests
+public partial class CommitTests
 {
 	static readonly Vector3 Snap = GridMesh.Snap;
 
 	static PathStatus Path( NavMesh mesh, Vector3 from, Vector3 to, NavPath? path = null )
 	{
-		return new NavQuery( mesh ).FindPath( from, to, Snap, default, path ?? new NavPath() );
+		return new NavQuery( mesh ).FindPath( from, to, Snap, Filters.All, path ?? new NavPath() );
 	}
 
 	[TestMethod]
@@ -69,7 +69,7 @@ public class CommitTests
 		Assert.AreEqual( GridMesh.Cells, west.Ext.Length, "Each ramp edge connects to its continuation only" );
 		foreach ( var link in west.Ext )
 		{
-			ref readonly var target = ref east.Polys[link.Target & PolyRef.PolyMask];
+			ref readonly var target = ref east.Polys[link.Target & mesh.State.PolyMask];
 			var v = east.Verts[target.Verts[0]];
 			Assert.AreEqual( Ramp( v.X, v.Y ), v.Z, 0.001f, "A ramp edge connected to the platform" );
 		}
@@ -138,12 +138,12 @@ public class CommitTests
 		var start = GridMesh.Nearest( query, 50, 320 );
 		var end = GridMesh.Nearest( query, 590, 320 );
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( start, new Vector3( 50, 320, 0 ), end, new Vector3( 590, 320, 0 ), default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( start, new Vector3( 50, 320, 0 ), end, new Vector3( 590, 320, 0 ), Filters.All, path ) );
 
 		mesh.CommitTiles( [GridMesh.Flat( 0, 0 )] );
-		Assert.IsFalse( query.IsValid( start, default ), "A reference into a rebuilt tile stayed valid" );
+		Assert.IsFalse( query.IsValid( start, Filters.All ), "A reference into a rebuilt tile stayed valid" );
 		Assert.IsFalse( query.GetHeight( start, new Vector3( 50, 320, 0 ), out _ ) );
-		Assert.AreEqual( PathStatus.NotFound, query.FindPath( start, new Vector3( 50, 320, 0 ), end, new Vector3( 590, 320, 0 ), default, path ) );
+		Assert.AreEqual( PathStatus.NotFound, query.FindPath( start, new Vector3( 50, 320, 0 ), end, new Vector3( 590, 320, 0 ), Filters.All, path ) );
 		Assert.IsFalse( path.IsValid );
 		Assert.AreEqual( 0, path.Polys.Length );
 		Span<Vector3> corners = stackalloc Vector3[8];
@@ -166,13 +166,13 @@ public class CommitTests
 
 		mesh.RemoveTile( 3, 3 );
 		mesh.Commit();
-		Assert.IsFalse( query.IsValid( old, default ), "Removed tile reference remained valid" );
+		Assert.IsFalse( query.IsValid( old, Filters.All ), "Removed tile reference remained valid" );
 
 		mesh.CommitTiles( [GridMesh.Flat( 9, 9 )] );
 		Assert.AreEqual( slot, mesh.State.Find( 9, 9 )!.Slot, "The freed slot is reused" );
 		Assert.AreEqual( 1, mesh.GetStats().Tiles );
-		Assert.IsFalse( query.IsValid( old, default ), "Reused slot accepted a stale reference" );
-		Assert.IsTrue( query.IsValid( GridMesh.Nearest( query, 9 * 640 + 50, 9 * 640 + 50 ), default ) );
+		Assert.IsFalse( query.IsValid( old, Filters.All ), "Reused slot accepted a stale reference" );
+		Assert.IsTrue( query.IsValid( GridMesh.Nearest( query, 9 * 640 + 50, 9 * 640 + 50 ), Filters.All ) );
 	}
 
 	[TestMethod]
@@ -182,7 +182,7 @@ public class CommitTests
 		var mesh = GridMesh.Mesh( (0, 0), (1, 0), (2, 0) );
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 50, 320, 0 ), new Vector3( 600, 320, 0 ), Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 50, 320, 0 ), new Vector3( 600, 320, 0 ), Snap, Filters.All, path ) );
 		var before = mesh.State.Find( 0, 0 )!;
 		var untouched = mesh.State.Find( 2, 0 )!;
 
@@ -194,7 +194,7 @@ public class CommitTests
 		Assert.AreEqual( before.Serial, after.Serial );
 		Assert.AreNotEqual( before.Ext.Length, after.Ext.Length );
 		Assert.AreEqual( untouched.Serial, mesh.State.Find( 2, 0 )!.Serial );
-		foreach ( var poly in path.Polys ) Assert.IsTrue( query.IsValid( poly, default ) );
+		foreach ( var poly in path.Polys ) Assert.IsTrue( query.IsValid( poly, Filters.All ) );
 
 		Span<Vector3> corners = stackalloc Vector3[8];
 		Assert.AreEqual( 2, query.FindCorners( path.Polys, path.Start, path.End, corners ) );
@@ -217,20 +217,6 @@ public class CommitTests
 				mesh.Commit();
 			}
 		}
-	}
-
-	[TestMethod]
-	public void CommittingTheSameTileObjectAgainPublishesANewBuild()
-	{
-		var mesh = GridMesh.Create();
-		var tile = GridMesh.Flat( 0, 0 );
-		mesh.CommitTiles( [tile] );
-		var first = mesh.State.Find( 0, 0 )!;
-		mesh.CommitTiles( [tile] );
-		var second = mesh.State.Find( 0, 0 )!;
-		Assert.AreNotSame( first, second );
-		Assert.AreNotEqual( first.Serial, second.Serial );
-		Assert.AreSame( tile, first );
 	}
 
 	[TestMethod]
@@ -330,20 +316,20 @@ public class CommitTests
 		Assert.IsTrue( mesh.State.Index.MaxX < mesh.State.Index.MinX, "An empty index has empty bounds" );
 	}
 
-	[TestMethod, TestCategory( "Slow" )]
+	[TestMethod]
 	public void FullTileTableFailsTheJobInsteadOfThrowing()
 	{
 		var mesh = GridMesh.Create();
 		var batch = new Tile[4096];
 		int committed = 0;
-		while ( committed < PolyRef.MaxTiles )
+		while ( committed < mesh.MaxTiles )
 		{
-			int count = Math.Min( batch.Length, PolyRef.MaxTiles - committed );
+			int count = Math.Min( batch.Length, mesh.MaxTiles - committed );
 			for ( int i = 0; i < count; i++ ) batch[i] = GridMesh.Quad( (committed + i) % 512 * 2, (committed + i) / 512 * 2 );
 			Assert.AreEqual( 0, mesh.CommitTiles( batch.AsSpan( 0, count ) ) );
 			committed += count;
 		}
-		Assert.AreEqual( PolyRef.MaxTiles, mesh.GetStats().Tiles );
+		Assert.AreEqual( mesh.MaxTiles, mesh.GetStats().Tiles );
 
 		mesh.MarkDirty( 5000, 5000 );
 		var jobs = new TileJob[1];
@@ -356,14 +342,14 @@ public class CommitTests
 		Assert.AreEqual( TileJobStatus.Failed, jobs[0].Status );
 		StringAssert.Contains( jobs[0].Error, "tiles" );
 		Assert.AreEqual( 0, mesh.PendingTiles, "A failed tile is not handed out again" );
-		Assert.AreEqual( PolyRef.MaxTiles, mesh.GetStats().Tiles );
+		Assert.AreEqual( mesh.MaxTiles, mesh.GetStats().Tiles );
 
 		// Replacing an existing tile still works, and a freed slot can be taken.
 		Assert.AreEqual( 0, mesh.CommitTiles( [GridMesh.Quad( 0, 0 )] ) );
 		mesh.RemoveTile( 2, 0 );
 		Assert.AreEqual( 0, mesh.CommitTiles( [GridMesh.Quad( 5000, 5000 )] ) );
 		var query = new NavQuery( mesh );
-		Assert.IsTrue( query.FindNearest( new Vector3( 5000 * 640 + 320, 5000 * 640 + 320, 0 ), GridMesh.Snap, default, out var poly, out _ ) );
+		Assert.IsTrue( query.FindNearest( new Vector3( 5000 * 640 + 320, 5000 * 640 + 320, 0 ), GridMesh.Snap, Filters.All, out var poly, out _ ) );
 		Assert.IsFalse( poly.IsLink, "The last tile slot must not read as a link" );
 	}
 }

@@ -63,6 +63,19 @@ public sealed class HitboxSetBuilder
 		return AddHitbox( name, boneName, ModelHitboxBuilder.ShapeType.Capsule, capsule.CenterA, capsule.CenterB, capsule.Radius );
 	}
 
+	/// <summary>
+	/// Adds a convex hull hitbox from at least four non-coplanar points in bone-local space.
+	/// </summary>
+	public ModelHitboxBuilder AddHull( string name, string boneName, ReadOnlySpan<Vector3> points )
+	{
+		if ( points.Length < 4 )
+			throw new ArgumentException( "A convex hull needs at least four points.", nameof( points ) );
+
+		var hitbox = AddHitbox( name, boneName, ModelHitboxBuilder.ShapeType.Hull, default, default, 0 );
+		hitbox.Points = points.ToArray();
+		return hitbox;
+	}
+
 	private ModelHitboxBuilder AddHitbox( string name, string boneName, ModelHitboxBuilder.ShapeType shape, Vector3 min, Vector3 max, float radius )
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace( name );

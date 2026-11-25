@@ -1,17 +1,17 @@
 <!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
-	rootNode = 
+	rootNode =
 	{
 		_class = "RootNode"
-		children = 
+		children =
 		[
 			{
 				_class = "MaterialGroupList"
-				children = 
+				children =
 				[
 					{
 						_class = "DefaultMaterialGroup"
-						remaps = 
+						remaps =
 						[
 							{
 								from = "models/sbox/home/saw_blade/saw_blade.vmat"
@@ -29,7 +29,7 @@
 			},
 			{
 				_class = "RenderMeshList"
-				children = 
+				children =
 				[
 					{
 						_class = "RenderMeshFile"
@@ -42,10 +42,10 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"saw_blade_lod0",
 							]
@@ -62,10 +62,10 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"saw_blade_lod3",
 								"saw_blade_lod1",
@@ -76,12 +76,12 @@
 			},
 			{
 				_class = "GameDataList"
-				children = 
+				children =
 				[
 					{
 						_class = "GenericGameData"
 						game_class = "prop_data"
-						game_keys = 
+						game_keys =
 						{
 							bakelighting = true
 							health = 200.0
@@ -98,7 +98,7 @@
 			},
 			{
 				_class = "PhysicsShapeList"
-				children = 
+				children =
 				[
 					{
 						_class = "PhysicsShapeCylinder"
@@ -113,7 +113,7 @@
 			},
 			{
 				_class = "LODGroupList"
-				children = 
+				children =
 				[
 					{
 						_class = "LODGroup"
@@ -128,7 +128,7 @@
 						auto_prune_isolated_components = false
 						auto_strip_vertex_color = false
 						auto_material_culling_enabled = false
-						meshes = 
+						meshes =
 						[
 							"saw_blade_lod0",
 						]
@@ -136,7 +136,26 @@
 					},
 					{
 						_class = "LODGroup"
-						switch_threshold = 10.0
+						switch_threshold = 20.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"saw_blade_lod0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 50.0
 						auto_simplify_mode = 0
 						auto_reduction = 0.5
 						auto_max_error = 0.0
@@ -147,7 +166,7 @@
 						auto_prune_isolated_components = false
 						auto_strip_vertex_color = false
 						auto_material_culling_enabled = false
-						meshes = 
+						meshes =
 						[
 							"saw_blade_lod1",
 						]
@@ -157,7 +176,7 @@
 			},
 			{
 				_class = "BreakPieceList"
-				children = 
+				children =
 				[
 					{
 						_class = "BreakPieceExternal"
@@ -189,7 +208,7 @@
 			},
 			{
 				_class = "PhysicsBodyMarkupList"
-				children = 
+				children =
 				[
 					{
 						_class = "PhysicsBodyMarkup"

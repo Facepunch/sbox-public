@@ -1,4 +1,4 @@
-[Icon( "🔗" )]
+[Icon( "cable" )]
 [Title( "#tool.name.wire" )]
 [ClassName( "wire" )]
 [Group( "#tool.group.tools" )]

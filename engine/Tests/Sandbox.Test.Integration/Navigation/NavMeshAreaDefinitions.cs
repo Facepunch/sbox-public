@@ -128,6 +128,44 @@ public class NavMeshAreaDefinitions
 		Assert.IsTrue( keptOut.Points[^1].Position.Distance( overlap.WithZ( 4 ) ) < 1 );
 	}
 
+	// A door as an area that switches between two definitions, in a doorway in the middle of a tile. The
+	// door's few cells of ground are fewer than the minimum region size and are there under either definition.
+	[TestMethod]
+	public async Task DoorThatSwitchesDefinitionsOpensAndCloses()
+	{
+		var open = Define( priority: 1 );
+		var closed = Define( priority: 2 );
+		var scene = new Scene();
+		using var scope = scene.Push();
+		scene.NavMesh.UpdateAreaIds();
+		var centre = new Vector3( 512, 512, 0 );
+		scene.Floor( centre, 700 );
+
+		// A wall across the floor with a doorway 48 wide, and the door over the doorway
+		scene.Box( centre + new Vector3( 0, -187, 64 ), new Vector3( 16, 326, 128 ) );
+		scene.Box( centre + new Vector3( 0, 187, 64 ), new Vector3( 16, 326, 128 ) );
+		var door = Area( scene, BBox.FromPositionAndSize( centre, new Vector3( 32, 64, 100 ) ), open );
+		await scene.NavMesh.Generate( scene.PhysicsWorld );
+
+		var guest = scene.Agent( centre + new Vector3( -200, 0, 0 ) );
+		guest.ForbiddenAreas.Add( closed );
+		var host = scene.Agent( centre + new Vector3( -200, 40, 0 ) );
+		var through = new CalculatePathRequest { Start = centre + new Vector3( -200, 0, 0 ), Target = centre + new Vector3( 200, 0, 0 ), Agent = guest };
+		Assert.AreEqual( NavMeshPathStatus.Complete, scene.NavMesh.CalculatePath( through ).Status );
+
+		for ( int round = 0; round < 3; round++ )
+		{
+			door.Area = closed;
+			await scene.Settle();
+			Assert.AreEqual( NavMeshPathStatus.Partial, scene.NavMesh.CalculatePath( through ).Status, "The closed door keeps the guest out" );
+			Assert.AreEqual( NavMeshPathStatus.Complete, scene.NavMesh.CalculatePath( through with { Agent = host } ).Status, "and lets the host through" );
+
+			door.Area = open;
+			await scene.Settle();
+			Assert.AreEqual( NavMeshPathStatus.Complete, scene.NavMesh.CalculatePath( through ).Status );
+		}
+	}
+
 	[TestMethod]
 	public async Task LinksCarryAnAreaAndTheDefaultAreaIsAboutTheGround()
 	{

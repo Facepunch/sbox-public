@@ -33,12 +33,6 @@ public struct FindPackageQuery
 	public string InCollection;
 
 	/// <summary>
-	/// Only return games players of this one also played, strongest first. Reads the nightly co-play
-	/// table, so it is a behavioural "more like this" rather than a text or tag match.
-	/// </summary>
-	public string SimilarToPackage;
-
-	/// <summary>
 	/// True if we want the total
 	/// </summary>
 	public bool GetTotalCount;
@@ -94,13 +88,18 @@ public struct FindPackageQuery
 	public string TargetPackage;
 
 	/// <summary>
+	/// Only games that can be played with this many players. Set by the "players:N" query token.
+	/// </summary>
+	public int? Players;
+
+	/// <summary>
 	/// Only show packages that we haven't played
 	/// </summary>
 	public bool Unplayed;
 
 	/// <summary>
 	/// Hide games/maps tagged "incomplete" in the index (low-effort, near-empty storefront).
-	/// Set by the "is:complete" query token, used by curated shelves like Up and Coming.
+	/// Set by the "is:complete" query token.
 	/// </summary>
 	public bool RequireComplete;
 
@@ -152,26 +151,26 @@ public struct FindPackageQuery
 		/// </summary>
 		None,
 
-		/// <summary>Sort by Wilson lower bound on review proportion.</summary>
+		/// <summary>
+		/// Sort by the Wilson lower bound on positive thumb votes.
+		/// </summary>
 		BestRated,
 
-		/// <summary>Sort by total review count.</summary>
-		MostReviewed,
+		/// <summary>
+		/// Sort by the composite quality score.
+		/// </summary>
+		Quality = 22,
 
-		/// <summary>Composite quality score.</summary>
-		Quality,
-
-		/// <summary>Well-reviewed but low-traffic packages.</summary>
+		/// <summary>
+		/// Highly rated packages with low traffic.
+		/// </summary>
 		HiddenGem,
-
-		/// <summary>Packages co-played by users with similar history.</summary>
-		Recommended,
 
 		/// <summary>
 		/// Games/maps the user has played that have been published since they last played,
 		/// ranked by likely interest (playtime × recency). Needs SteamId.
 		/// </summary>
-		UpdatedSincePlayed,
+		UpdatedSincePlayed = 25,
 	}
 
 	public static FindPackageQuery Parse( string query, long steamid )
@@ -272,16 +271,17 @@ public struct FindPackageQuery
 				find.InCollection = value;
 				return true;
 
-			case "similar":
-				find.SimilarToPackage = value;
-				return true;
-
 			case "target":
 				find.TargetPackage = value;
 				return true;
 
 			case "org":
 				find.Org = value;
+				return true;
+
+			case "players":
+				if ( int.TryParse( value, out var players ) && players > 0 )
+					find.Players = players;
 				return true;
 
 			case "is":
@@ -351,7 +351,6 @@ public struct FindPackageQuery
 			"spawnsmonth" => SortMode.SpawnsMonth,
 			"playersnow" => SortMode.PlayersNow,
 			"bestrated" or "rated" => SortMode.BestRated,
-			"mostreviewed" or "reviewed" => SortMode.MostReviewed,
 			"quality" => SortMode.Quality,
 			"hiddengem" or "underrated" => SortMode.HiddenGem,
 			// "spawns*" enum values exist for binary compat but have no Kusto-side

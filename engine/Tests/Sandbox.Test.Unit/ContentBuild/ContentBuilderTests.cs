@@ -379,7 +379,7 @@ public class ContentBuilderTests
 		{
 			Roots = [new( "first", first.Root, first.State ), new( "second", second.Root, second.State )],
 			MaxJobs = 3,
-			CompileProgress = ( finished, roots ) => updates.Add( (finished, roots) ),
+			CompileProgress = progress => updates.Add( (progress.Finished, progress.Compiling) ),
 		}, first.Compiler );
 
 		Assert.IsTrue( report.Success, report.Log.ToString() );
@@ -388,6 +388,30 @@ public class ContentBuilderTests
 		CollectionAssert.AreEqual( new[] { "first", "second" }, updates[2].Roots.ToArray() );
 		Assert.AreEqual( 1, updates[^2].Roots.Count );
 		Assert.AreEqual( 0, updates[^1].Roots.Count );
+	}
+
+	/// <summary>
+	/// A first build counts what waits on another compile from the start; a source with a record only once what it
+	/// reads turns out changed.
+	/// </summary>
+	[TestMethod]
+	public void CompileProgressCountsWaitingSources()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		fx.Write( "b.vmat", "reads a.vtex" );
+		List<BuildProgress> Build()
+		{
+			var updates = new List<BuildProgress>();
+			var report = ContentBuilder.Build( new BuildRequest { Roots = [new ContentRoot( "unit", fx.Root, fx.State )], MaxJobs = 1, CompileProgress = updates.Add }, fx.Compiler );
+			Assert.IsTrue( report.Success, report.Log.ToString() );
+			return updates;
+		}
+
+		CollectionAssert.AreEqual( new[] { (0, 2, (string)null), (1, 2, "a.vtex"), (1, 2, null), (2, 2, "b.vmat") }, Build().Select( x => (x.Finished, x.Total, x.Compiled) ).ToArray() );
+
+		fx.Write( "a.vtex", "blue" );
+		CollectionAssert.AreEqual( new[] { (0, 1), (1, 1), (1, 2), (2, 2) }, Build().Select( x => (x.Finished, x.Total) ).ToArray() );
 	}
 
 	[TestMethod]

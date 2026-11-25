@@ -6,11 +6,6 @@ namespace Sandbox.UI;
 /// </summary>
 internal abstract class ColorDragPanel : Panel
 {
-	/// <summary>
-	/// Called when the button comes up after a drag, for things that only want the settled value.
-	/// </summary>
-	public Action DragEnded { get; set; }
-
 	bool _dragging;
 
 	/// <summary>
@@ -49,7 +44,6 @@ internal abstract class ColorDragPanel : Panel
 		if ( !_dragging ) return;
 
 		_dragging = false;
-		DragEnded?.Invoke();
 		e.StopPropagation();
 	}
 

@@ -233,19 +233,15 @@ public struct Angles : IEquatable<Angles>, IParsable<Angles>, IInterpolator<Angl
 	{
 		const float piOver180 = (float)(Math.PI / 180.0);
 
-		float[] vAngles = { ang.yaw, ang.pitch };
-		float[] vSines = new float[2];
-		float[] vCosines = new float[2];
+		// Locals, not arrays: this runs for every Angles.Forward
+		var sinYaw = (float)Math.Sin( ang.yaw * piOver180 );
+		var sinPitch = (float)Math.Sin( ang.pitch * piOver180 );
+		var cosYaw = (float)Math.Cos( ang.yaw * piOver180 );
+		var cosPitch = (float)Math.Cos( ang.pitch * piOver180 );
 
-		vSines[0] = (float)Math.Sin( vAngles[0] * piOver180 );
-		vSines[1] = (float)Math.Sin( vAngles[1] * piOver180 );
-
-		vCosines[0] = (float)Math.Cos( vAngles[0] * piOver180 );
-		vCosines[1] = (float)Math.Cos( vAngles[1] * piOver180 );
-
-		return new Vector3( vCosines[1] * vCosines[0],
-							vCosines[1] * vSines[0],
-							-vSines[1] );
+		return new Vector3( cosPitch * cosYaw,
+							cosPitch * sinYaw,
+							-sinPitch );
 	}
 
 	/// <summary>

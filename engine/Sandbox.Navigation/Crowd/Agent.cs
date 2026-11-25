@@ -74,9 +74,6 @@ internal struct Agent
 	// The Step in which the agent last entered or left a link. One link transition per Step.
 	public uint LinkStep;
 
-	// The contents of the filter's cost and penalty arrays as SetParams last saw them.
-	public uint CostKey;
-
 	// External only: where the agent was at the last Step, to tell its velocity.
 	public Vector3 Seen;
 
@@ -105,25 +102,29 @@ internal struct Agent
 }
 
 // What neighbours see of the agents in the grid during a substep, one array per value so that eight
-// neighbours can be tested at once.
+// neighbours can be tested at once. Each array has eight more entries than Capacity, for the eight-wide
+// pass to read past the end.
 internal readonly struct Frame
 {
 	public readonly float[] X, Y, Z, Top, Radius, VelocityX, VelocityY;
 	public readonly int[] Id;
-	public readonly bool[] Yields;
+
+	// The part of an overlap with this agent that separation moves the other by: half, or all when
+	// this one is External and does not yield.
+	public readonly float[] Part;
 
 	public Frame( int capacity )
 	{
-		X = new float[capacity];
-		Y = new float[capacity];
-		Z = new float[capacity];
-		Top = new float[capacity];
-		Radius = new float[capacity];
-		VelocityX = new float[capacity];
-		VelocityY = new float[capacity];
-		Id = new int[capacity];
-		Yields = new bool[capacity];
+		X = new float[capacity + 8];
+		Y = new float[capacity + 8];
+		Z = new float[capacity + 8];
+		Top = new float[capacity + 8];
+		Radius = new float[capacity + 8];
+		VelocityX = new float[capacity + 8];
+		VelocityY = new float[capacity + 8];
+		Id = new int[capacity + 8];
+		Part = new float[capacity + 8];
 	}
 
-	public int Capacity => X?.Length ?? 0;
+	public int Capacity => X == null ? 0 : X.Length - 8;
 }

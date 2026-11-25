@@ -72,7 +72,8 @@ public sealed partial class GameManager
 		{
 			Spawner = spawner,
 			Transform = transform,
-			Player = player?.Network.Owner
+			// The player can die while the spawner loads
+			Player = player.IsValid() ? player.Network.Owner : null
 		};
 
 		scene.RunEvent<Global.ISpawnEvents>( x => x.OnSpawn( spawnData ) );
@@ -87,7 +88,7 @@ public sealed partial class GameManager
 		if ( !forceWorld )
 		{
 			var prefab = spawner.Prefab;
-			if ( prefab is not null && prefab.GetComponent<BaseSandboxWeapon>( true ) is not null )
+			if ( prefab is not null && prefab.GetComponent<BaseCombatWeapon>( true ) is not null )
 			{
 				var inventory = player.GetComponent<PlayerInventory>();
 				inventory.Pickup( prefab, true );

@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "c3174761-fdb0-4701-8041-95c092f62973",
+    "Path": "decals/graffiti/graffiti_king.decal"
+  },
+  "Title": "#asset.decal.king.title",
+  "__references": [],
+  "__version": 0
+}

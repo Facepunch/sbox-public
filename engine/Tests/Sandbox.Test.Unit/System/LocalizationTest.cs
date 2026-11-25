@@ -62,6 +62,11 @@ public class LocalizationTest
 
 		Assert.AreEqual( "Hello World!", lang.GetPhrase( "hello.world" ) );
 		Assert.AreEqual( "hello", lang.GetPhrase( "hello" ) );
+
+		var menu = new PhraseCollection();
+		Assert.AreEqual( "Hello World!", PhraseCollection.Resolve( "hello.world", menu, lang ) );
+		menu.Set( "hello.world", "hello.world" );
+		Assert.AreEqual( "hello.world", PhraseCollection.Resolve( "hello.world", menu, lang ) );
 	}
 
 	[TestMethod]

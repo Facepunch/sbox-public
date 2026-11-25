@@ -1,0 +1,365 @@
+{
+  "RootObject": {
+    "__guid": "97804283-d10c-4b47-b2f1-8cc41249116d",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "Knight",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.Prop",
+        "__guid": "ea95e522-82d8-4ccb-ac80-613dcf6d28dc",
+        "__enabled": true,
+        "Flags": 0,
+        "BodyGroups": 258,
+        "Health": 0,
+        "IsStatic": false,
+        "MaterialGroup": "body_02",
+        "Model": {
+          "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+          "Path": "models/citizen_human/human.vmdl"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnGibsCreated": null,
+        "OnPropBreak": null,
+        "OnPropTakeDamage": null,
+        "StartAsleep": false,
+        "Tint": "1,1,1,1"
+      },
+      {
+        "__type": "Sandbox.SkinnedModelRenderer",
+        "__guid": "04761753-0977-468e-accd-253e4c511fc4",
+        "__enabled": true,
+        "Flags": 0,
+        "Animation": {
+          "Graph": null,
+          "Parameters": {}
+        },
+        "AnimationGraph": null,
+        "BodyGroups": 258,
+        "BoneMergeTarget": null,
+        "CreateAttachments": false,
+        "CreateBoneObjects": false,
+        "DeformationMode": "Normal",
+        "LodOverride": null,
+        "LowDetailAnimation": false,
+        "MaterialGroup": "body_02",
+        "MaterialOverride": null,
+        "Materials": null,
+        "Model": {
+          "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+          "Path": "models/citizen_human/human.vmdl"
+        },
+        "Morphs": {},
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Parameters": {
+          "floats": {
+            "scale_height": 1,
+            "scale_heel": 0
+          }
+        },
+        "PlaybackRate": 1,
+        "RenderOptions": {
+          "GameLayer": true,
+          "OverlayLayer": false,
+          "BloomLayer": false,
+          "AfterUILayer": false
+        },
+        "RenderType": "On",
+        "Sequence": {
+          "Name": null,
+          "Looping": true,
+          "Blending": false
+        },
+        "Tint": "1,1,1,1",
+        "UseAnimGraph": true
+      },
+      {
+        "__type": "Sandbox.ModelPhysics",
+        "__guid": "a6e8489d-7bac-4a6f-a7a1-78b45ed01ee5",
+        "__enabled": true,
+        "Flags": 0,
+        "Bodies": [],
+        "IgnoreRoot": false,
+        "Joints": [],
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "Model": {
+          "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+          "Path": "models/citizen_human/human.vmdl"
+        },
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PhysicsWereCreated": false,
+        "Renderer": {
+          "_type": "component",
+          "component_id": "04761753-0977-468e-accd-253e4c511fc4",
+          "go": "97804283-d10c-4b47-b2f1-8cc41249116d",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "RigidbodyFlags": 0,
+        "StartAsleep": false
+      },
+      {
+        "__type": "Sandbox.Dresser",
+        "__guid": "811eb76f-dc50-41b1-baad-999d7b040721",
+        "__enabled": true,
+        "Flags": 0,
+        "ApplyHeightScale": false,
+        "BodyTarget": {
+          "_type": "component",
+          "component_id": "04761753-0977-468e-accd-253e4c511fc4",
+          "go": "97804283-d10c-4b47-b2f1-8cc41249116d",
+          "component_type": "SkinnedModelRenderer"
+        },
+        "Clothing": [
+          {
+            "Clothing": {
+              "Id": "996e506d-fa15-4c30-8d05-ce21b818bd4d",
+              "Path": "models/citizen_clothes/body/human03.clothing"
+            }
+          },
+          {
+            "Clothing": {
+              "Id": "6756b978-eda1-4161-b1a5-daa5940a6e0f",
+              "Path": "models/citizen_clothes/full_outfit/medieval_armour/medieval_armour.clothing"
+            }
+          },
+          {
+            "Clothing": {
+              "Id": "1c98c2d5-434b-4155-86ca-518840151dea",
+              "Path": "models/citizen_clothes/hair/hair_short_braids/hair_short_braids.clothing"
+            }
+          }
+        ],
+        "EyeColor": 0,
+        "ManualAge": 0.5,
+        "ManualHeight": 0.5,
+        "ManualTint": 0.5,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "RemoveUnownedItems": true,
+        "Source": "Manual",
+        "WorkshopItems": null
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "9d09a977-f2e7-471d-b075-132353d35199",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Clothing - medieval_armour",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "clothing",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "f4062231-9438-44ec-a818-0e9be540be08",
+            "__enabled": true,
+            "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": {
+              "_type": "component",
+              "component_id": "04761753-0977-468e-accd-253e4c511fc4",
+              "go": "97804283-d10c-4b47-b2f1-8cc41249116d",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "LowDetailAnimation": false,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "9f03f1eb-45ca-48e1-a916-1def984307f8",
+              "Path": "models/citizen_clothes/full_outfit/medieval_armour/models/medieval_armour_human_male.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "f0448a69-fa13-44ea-be4b-78aa61302eab",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Clothing - hair_short_braids",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "clothing,firstperson-hidden",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "3f9569d5-4008-46c0-8fe4-29a85aa1a354",
+            "__enabled": true,
+            "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
+            "AnimationGraph": null,
+            "BodyGroups": 18446744073709551615,
+            "BoneMergeTarget": {
+              "_type": "component",
+              "component_id": "04761753-0977-468e-accd-253e4c511fc4",
+              "go": "97804283-d10c-4b47-b2f1-8cc41249116d",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "CreateAttachments": false,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "LowDetailAnimation": false,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "9db3ce75-4358-4365-b8d2-f6f75f6acda9",
+              "Path": "models/citizen_clothes/hair/hair_short_braids/models/hair_short_braids_m_human.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "0.17851,0.12669,0.08967,1",
+            "UseAnimGraph": true
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "1bb2c2a9-63e2-4092-b853-6e60551357db",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Portrait",
+        "Position": "68.9054565,-18.9999485,62.919754",
+        "Rotation": "-0.0105223469,0.00144241005,0.990678966,0.135802925",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "ThumbnailCamera",
+            "__guid": "9f8c2505-e7da-4f43-9e1e-eba435ad038e",
+            "__enabled": true,
+            "Flags": 0,
+            "FieldOfView": 21,
+            "FitToBounds": false,
+            "Focus": "0,0",
+            "GizmoDistance": 120,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Padding": 0.1,
+            "Zoom": 1
+          }
+        ],
+        "Children": []
+      }
+    ]
+  },
+  "__version": 2
+}

@@ -1,4 +1,7 @@
+using System.Buffers;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
 
 namespace Sandbox.Animation;
 
@@ -89,6 +92,70 @@ public sealed class ClipBuilder
 	/// </summary>
 	public ClipBuilder AddMorphTrack( string name, ReadOnlySpan<float> weights ) => AddFloatChannelTrack( "MorphChannel", name, weights );
 
+	const int MaxEvents = 1024;
+	const int MaxEventBytes = 1024 * 1024;
+	readonly List<(float Time, float Duration, string Type, string Json)> managedEvents = new();
+	int eventBytes;
+
+	/// <summary>Add a registered game-defined animation event with normalized start time and duration.
+	/// Each clip accepts 1024 events and 1 MiB of event data, with up to 64 KiB of JSON per event.</summary>
+	public ClipBuilder AddEvent( float time, AnimationEvent payload, float duration = 0f )
+	{
+		ArgumentNullException.ThrowIfNull( payload );
+		if ( !float.IsFinite( time ) || time < 0 || time > 1 )
+			throw new ArgumentOutOfRangeException( nameof( time ) );
+		if ( !float.IsFinite( duration ) || duration < 0 || duration > 1f - time )
+			throw new ArgumentOutOfRangeException( nameof( duration ) );
+
+		var type = payload.GetType();
+		var name = type.FullName;
+		if ( name is null || name.Length > AnimationEvent.MaxTypeNameLength || AnimationEvent.ResolveType( name )?.TargetType != type )
+			throw new ArgumentException( "The event must have a registered, unambiguous animation event type.", nameof( payload ) );
+
+		var buffer = new EventBuffer();
+		using ( var writer = new Utf8JsonWriter( buffer, new JsonWriterOptions { MaxDepth = 64 } ) )
+		{
+			Json.Serialize( writer, payload, type );
+		}
+
+		// A converter or property getter may have added another event during serialization.
+		lock ( managedEvents )
+		{
+			int size = Encoding.UTF8.GetByteCount( name ) + buffer.Length;
+			if ( managedEvents.Count >= MaxEvents || size > MaxEventBytes - eventBytes )
+				throw new InvalidOperationException( "Clip event limit exceeded." );
+			managedEvents.Add( (time, duration, name, buffer.ToString()) );
+			eventBytes += size;
+		}
+		return this;
+	}
+
+	// Writer reservations can be larger than the final UTF-8 payload.
+	sealed class EventBuffer : IBufferWriter<byte>
+	{
+		readonly ArrayBufferWriter<byte> writer = new();
+		public int Length => writer.WrittenCount;
+
+		public Memory<byte> GetMemory( int sizeHint = 0 )
+		{
+			// UTF-16 transcoding reserves up to three bytes per character plus token overhead.
+			if ( sizeHint > 3 * AnimationEvent.MaxJsonBytes + 4096 )
+				throw new ArgumentException( "Animation event payload exceeds its byte budget." );
+			return writer.GetMemory( sizeHint );
+		}
+
+		public Span<byte> GetSpan( int sizeHint = 0 ) => GetMemory( sizeHint ).Span;
+
+		public void Advance( int count )
+		{
+			if ( count > AnimationEvent.MaxJsonBytes - Length )
+				throw new ArgumentException( "Animation event payload exceeds its byte budget." );
+			writer.Advance( count );
+		}
+
+		public override string ToString() => Encoding.UTF8.GetString( writer.WrittenSpan );
+	}
+
 	public ClipBuilder AddSyncEvent( float time, string name = "" )
 	{
 		if ( !float.IsFinite( time ) || time < 0f || time >= 1f )
@@ -142,6 +209,11 @@ public sealed class ClipBuilder
 					if ( !builder.AddFloatChannelTrack( track.Set, track.Channel, (IntPtr)data, track.Values.Length ) )
 						throw new InvalidOperationException( $"Failed to add float channel '{track.Channel}' in set '{track.Set}' to animation clip '{name}'." );
 				}
+			}
+			lock ( managedEvents )
+			{
+				foreach ( var e in managedEvents.OrderBy( x => x.Time ) )
+					builder.AddManagedEvent( e.Time, e.Duration, e.Type, e.Json );
 			}
 			foreach ( var marker in syncEvents )
 				builder.AddSyncEvent( marker.Time, marker.Name );

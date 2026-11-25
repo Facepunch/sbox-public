@@ -89,6 +89,7 @@ public class ManagedCompilerTests
 			fx.Path( "textures/t.vtex" ), // by absolute path
 			generated, // by absolute path, in the output root generated resources go to
 			"models/missing.vmdl", // a known type that isn't there (yet): as named
+			"prop:models/wheel.vmdl", // a spawn ident, not a model dependency
 			"models/gone.vmdl_c", // the same, compiled
 			"textures/missing.png", // missing, and not its type's main extension (an image's is jpg): nothing
 			"sounds/missing.wav", // the same for a sound (vsnd): nothing

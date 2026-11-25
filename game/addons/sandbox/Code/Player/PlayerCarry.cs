@@ -85,7 +85,7 @@ public sealed class PlayerCarry : Component, Local.IPlayerEvents
 	/// <summary>
 	/// What we had out before picking something up, to take it back out when we let go.
 	/// </summary>
-	BaseSandboxWeapon _weaponBeforeCarry;
+	BaseCombatWeapon _weaponBeforeCarry;
 
 	/// <summary>
 	/// How long a client waits for the host to put away <see cref="_weaponBeforeCarry"/> before taking it as refused.
@@ -124,7 +124,10 @@ public sealed class PlayerCarry : Component, Local.IPlayerEvents
 
 		if ( Player.Controller.Hovered.IsValid() || Player.Controller.Pressed.IsValid() ) return;
 
-		if ( !TryPickup( FindTarget() ) ) return;
+		var target = FindTarget();
+		if ( !target.IsValid() ) return;
+		if ( Player.GetComponent<PlayerInventory>()?.ActiveWeapon is Toolgun toolgun && toolgun.GetCurrentMode()?.ReservesUseFor( target.GameObject ) == true ) return;
+		if ( !TryPickup( target ) ) return;
 
 		Input.Clear( "use" );
 	}
@@ -384,7 +387,7 @@ public sealed class PlayerCarry : Component, Local.IPlayerEvents
 
 		var inventory = Player.GetComponent<PlayerInventory>();
 		if ( !inventory.IsValid() || inventory.ActiveWeapon.IsValid() ) return;
-		if ( !weapon.IsValid() || weapon.Owner != Player || Player.IsSeated ) return;
+		if ( !weapon.IsValid() || weapon.Owner != Player.Controller || Player.IsSeated ) return;
 
 		inventory.SwitchWeapon( weapon );
 	}
@@ -403,6 +406,8 @@ public sealed class PlayerCarry : Component, Local.IPlayerEvents
 	[Rpc.Host]
 	void ThrowBody( Rigidbody body, Vector3 velocity )
 	{
+		if ( !Rpc.Caller.IsHost && Rpc.Caller != Network.Owner ) return;
+
 		// Only what we accepted and are moving for them, not a pickup we refused or haven't got to yet
 		if ( !body.IsValid() || body.IsProxy || _simulated != body.GameObject ) return;
 

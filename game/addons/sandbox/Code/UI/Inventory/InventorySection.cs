@@ -11,7 +11,7 @@ public sealed class InventorySection : HudSection
 
 	public PlayerInventory Inventory { get; set; }
 
-	public BaseSandboxWeapon Selected { get; set; }
+	public BaseCombatWeapon Selected { get; set; }
 
 	/// <summary>
 	/// Should the menu be open right now?
@@ -50,10 +50,10 @@ public sealed class InventorySection : HudSection
 	float[] _contentFade = Array.Empty<float>();
 
 	int _expandedBucket = -1;
-	BaseSandboxWeapon _shownSelection;
+	BaseCombatWeapon _shownSelection;
 
 	readonly Dictionary<string, Texture> _iconCache = new();
-	readonly List<List<BaseSandboxWeapon>> _columns = new();
+	readonly List<List<BaseCombatWeapon>> _columns = new();
 	readonly Dictionary<string, string> _nameLabels = new();
 
 	Rect _menuRect;
@@ -196,9 +196,9 @@ public sealed class InventorySection : HudSection
 		}
 	}
 
-	bool IsHighlighted( BaseSandboxWeapon weapon ) => weapon.IsValid() && weapon == _shownSelection;
+	bool IsHighlighted( BaseCombatWeapon weapon ) => weapon.IsValid() && weapon == _shownSelection;
 
-	void DrawTile( Painter painter, Rect rect, BaseSandboxWeapon weapon, int index, bool highlighted, float contentAlpha, float scale )
+	void DrawTile( Painter painter, Rect rect, BaseCombatWeapon weapon, int index, bool highlighted, float contentAlpha, float scale )
 	{
 		var empty = !weapon.IsValid();
 		Color Shade( Color color ) => empty ? color.WithAlpha( color.a * EmptyOpacity ) : color;
@@ -252,9 +252,9 @@ public sealed class InventorySection : HudSection
 
 	const string WeaponFallbackIcon = "ui/hud/weapon_icon_test.png";
 
-	Texture GetIcon( BaseSandboxWeapon weapon )
+	Texture GetIcon( BaseCombatWeapon weapon )
 	{
-		if ( !string.IsNullOrEmpty( weapon.InventoryIconOverride ) ) return LoadIcon( weapon.InventoryIconOverride );
+		if ( weapon is BaseSandboxWeapon { InventoryIconOverride: { Length: > 0 } icon } ) return LoadIcon( icon );
 		return weapon.DisplayIcon ?? LoadIcon( WeaponFallbackIcon );
 	}
 
@@ -279,7 +279,7 @@ public sealed class InventorySection : HudSection
 	/// <summary>
 	/// Cached uppercase display name for the inventory weapon
 	/// </summary>
-	string NameLabel( BaseSandboxWeapon weapon )
+	string NameLabel( BaseCombatWeapon weapon )
 	{
 		var raw = weapon.DisplayName ?? "";
 		if ( !_nameLabels.TryGetValue( raw, out var label ) )

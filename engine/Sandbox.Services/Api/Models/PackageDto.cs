@@ -15,7 +15,6 @@ public class PackageDto
 	public DateTimeOffset Created { get; set; }
 	public PackageUsageStats UsageStats { get; set; }
 	public long UsersNow { get; set; }
-	public PackageReviewStats ReviewStats { get; set; }
 	public string[] Tags { get; set; }
 	public int Favourited { get; set; }
 	public int VotesUp { get; set; }
@@ -66,12 +65,6 @@ public class PackageDto
 	public NewsPostDto LatestNews { get; set; }
 
 	/// <summary>
-	/// The 5 most recent visible changelists (summary only: id/title/version/date). Full detail is
-	/// available via the package/changelists API.
-	/// </summary>
-	public ChangeListSummary[] Changelists { get; set; } = [];
-
-	/// <summary>
 	/// What fraction of users got errors in the last day
 	/// </summary>
 	public float ErrorRate { get; set; }
@@ -104,6 +97,17 @@ public class PackageDto
 	public string DevLink( string append = "/" )
 	{
 		return $"{Org.Ident}/{Ident}{append}";
+	}
+
+	/// <summary>
+	/// A shallow copy with its own <see cref="Flair"/> list, so per-viewer fields can be set
+	/// without touching a cached instance that other requests are reading.
+	/// </summary>
+	public PackageDto CopyForViewer()
+	{
+		var copy = (PackageDto)MemberwiseClone();
+		copy.Flair = Flair is null ? new() : new( Flair );
+		return copy;
 	}
 }
 

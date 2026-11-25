@@ -211,6 +211,7 @@ public class JamCategoryVotingDto
 
 	/// <summary>
 	/// Live weighted votes for the open round, or the grand final once decided. Highest score first.
+	/// Between nominations closing and finals starting, contains the nomination results.
 	/// A nominee with no votes isn't listed; a withdrawn one can be (see <see cref="JamNomineeDto.Withdrawn"/>).
 	/// </summary>
 	public JamTallyDto[] Tally { get; set; } = [];

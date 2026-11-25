@@ -2,13 +2,13 @@ using Sandbox.UI;
 
 [Hide]
 [Title( "#tool.name.wheel" )]
-[Icon( "🛞" )]
+[Icon( "tire_repair" )]
 [ClassName( "wheeltool" )]
 [Group( "#tool.group.building" )]
 public sealed class WheelTool : ToolMode
 {
 	public override bool UseSnapGrid => true;
-	public override IEnumerable<string> TraceIgnoreTags => ["constraint", "collision"];
+	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 	[Property, ResourceSelect( Extension = "wdef", AllowPackages = true ), Title( "#tool.name.wheel" )]
 	public string Definition { get; set; } = "entities/wheel/basic.wdef";
 
@@ -107,6 +107,7 @@ public sealed class WheelTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void SpawnWheel( SelectionPoint point, WheelDefinition def, Transform tx, string configuration )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( ToolInput.Primary ) ) return;
 
 		if ( def == null || def.Prefab?.GetScene() is not Scene scene ) return;

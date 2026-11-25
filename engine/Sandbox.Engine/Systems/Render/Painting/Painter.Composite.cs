@@ -12,6 +12,7 @@ public readonly ref partial struct Painter
 		var commands = NativeCommands( objectSpace: true );
 		var attributes = commands.Attributes;
 		attributes.Set( "Texture", source.ColorTexture );
+		attributes.Set( "LayerUVScale", LayerUVScale( (int)bounds.Width, (int)bounds.Height ) );
 		attributes.Set( "BoxPosition", bounds.Position );
 		attributes.Set( "BoxSize", bounds.Size );
 
@@ -58,6 +59,7 @@ public readonly ref partial struct Painter
 		output.BindScissor( attributes, clip );
 		attributes.Set( "HasScissor", 0 );
 		attributes.Set( "Texture", source.ColorTexture );
+		attributes.Set( "LayerUVScale", LayerUVScale( (int)MathF.Ceiling( bounds.Width ), (int)MathF.Ceiling( bounds.Height ) ) );
 		attributes.Set( "PainterSourceGamma", true );
 		attributes.Set( "LayerMat", target.LayerMatrix );
 		attributes.Set( "TransformMat", transform );
@@ -74,6 +76,17 @@ public readonly ref partial struct Painter
 		commands.DrawQuad( bounds, Material.UI.Filter, Color.White, attributes );
 		output.CountDraw();
 	}
+
+	const int LayerTargetStep = 64;
+
+	/// <summary>
+	/// Layer targets are pooled by size, so they're rounded up to whole steps: a layer that changes size a little every
+	/// frame, like a world panel scaling with distance, keeps reusing one texture. The content fills its top left.
+	/// </summary>
+	internal static int LayerTargetSize( int size ) => Math.Max( 1, (size + LayerTargetStep - 1) / LayerTargetStep ) * LayerTargetStep;
+
+	// The part of a rounded up layer target its content covers
+	static Vector2 LayerUVScale( int width, int height ) => new( width / (float)LayerTargetSize( width ), height / (float)LayerTargetSize( height ) );
 
 	void SetFilterAttributes( CommandList.AttributeAccess attributes, Rect bounds, Filter filter, Mask? mask, MaskScope maskScope )
 	{

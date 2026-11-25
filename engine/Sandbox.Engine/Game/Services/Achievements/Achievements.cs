@@ -1,8 +1,14 @@
 ﻿
 namespace Sandbox.Services;
 
+/// <summary>
+/// Provides access to achievements for the current game.
+/// </summary>
 public static partial class Achievements
 {
+	/// <summary>
+	/// Unlocks a named achievement for the current game.
+	/// </summary>
 	public static void Unlock( string name )
 	{
 		// Achievements belong to the local player — a dedicated server has no
@@ -18,6 +24,9 @@ public static partial class Achievements
 		collection.ManualUnlock( name );
 	}
 
+	/// <summary>
+	/// The achievements available for the current game.
+	/// </summary>
 	public static IEnumerable<Achievement> All => Application.GamePackage?.GetCachedAchievements()?.All ?? Enumerable.Empty<Achievement>();
 
 	/// <summary>
@@ -37,7 +46,6 @@ public static partial class Achievements
 		timeSinceTest = Random.Shared.Float( 0, 0.5f );
 
 		Application.GamePackage?.GetCachedAchievements()?.TestAchivementsForUnlock();
-		Application.MapPackage?.GetCachedAchievements()?.TestAchivementsForUnlock();
 	}
 }
 

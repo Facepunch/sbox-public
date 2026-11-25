@@ -16,6 +16,12 @@ public sealed record ContentRoot( string Mod, string Path, string StateDirectory
 	public bool PublishTransientsWithAssets { get; init; }
 }
 
+/// <param name="Finished">Compiles finished.</param>
+/// <param name="Total">Compiles known so far, finished, running or to come. Sources are checked as what they read settles, so it grows when a compile changes what others read.</param>
+/// <param name="Compiling">Mount names of the roots compiling.</param>
+/// <param name="Compiled">The source whose compile just finished, if one did.</param>
+public readonly record struct BuildProgress( int Finished, int Total, IReadOnlyList<string> Compiling, string Compiled );
+
 public sealed class BuildRequest
 {
 	/// <summary>
@@ -77,10 +83,9 @@ public sealed class BuildRequest
 	public Func<bool> CanStartJob { get; init; }
 
 	/// <summary>
-	/// Reports the number of finished compile jobs and the mount names of roots currently compiling.
 	/// Called on the scheduling thread when a compile starts or finishes.
 	/// </summary>
-	public Action<int, IReadOnlyList<string>> CompileProgress { get; init; }
+	public Action<BuildProgress> CompileProgress { get; init; }
 
 	public Action<string> JobFinished { get; init; }
 
@@ -194,6 +199,7 @@ public static class ContentBuilder
 		public long Started, Committed;
 		public DateTime Launched;
 		public int Misses;
+		public (AssetRecord Record, int Settled, string Reason)? Own;
 		public bool Final => State is State.Clean or State.Committed or State.Failed or State.Blocked;
 	}
 
@@ -323,6 +329,7 @@ public static class ContentBuilder
 		readonly List<(string Source, string Visible)> hidden = [];
 		long clock;
 		int jobs;
+		int settled;
 		readonly ConcurrentBag<int> freeStaging = [];
 
 		public async Task<BuildReport> Execute()
@@ -355,6 +362,7 @@ public static class ContentBuilder
 					}
 				}
 
+				var deleted = new Dictionary<RootState, List<AssetRecord>>();
 				void Load()
 				{
 					foreach ( var root in roots )
@@ -362,6 +370,7 @@ public static class ContentBuilder
 						root.Store = new RecordStore( root.Resolve, root.Def.StateDirectory );
 						DeleteStaging( Path.Combine( root.Def.StateDirectory, "staging" ) );
 						Inventory( root );
+						if ( request.Select is null ) deleted[root] = root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList();
 					}
 				}
 
@@ -371,7 +380,7 @@ public static class ContentBuilder
 
 				if ( request.Select is null )
 				{
-					foreach ( var root in roots ) RemoveDeletedSources( root );
+					foreach ( var root in roots ) RemoveDeletedSources( root, deleted[root] );
 				}
 
 				// A source whose output a later root also builds is hidden (sounds/x.wav under sounds/x.mp3 too):
@@ -543,7 +552,7 @@ public static class ContentBuilder
 				LoadFingerprints( pending );
 
 				var describable = pending.Where( x => x.Kind == AssetKind.Described ).ToList();
-				var self = await CheckAll( describable, x => SelfDirty( x ) ?? Shadowed( x ) );
+				var self = await CheckAll( describable, OwnDirty );
 				var describe = describable.Where( x => self[x] is not null ).ToList();
 				var results = await RunJobs( describe, node => Compile( Job( node, JobMode.Describe ) ) );
 				var described = new Dictionary<Node, IReadOnlyList<PrerequisiteRead>>();
@@ -619,6 +628,9 @@ public static class ContentBuilder
 				var checkedReads = result.Inputs.Where( x => x.Game ).Select( x => Path.GetFullPath( x.Path ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 				if ( reads.Any( x => !x.OrderOnly && !checkedReads.Contains( x.File ) ) ) continue;
 
+				// A read the output checked is one of its contents, even where its description only orders it
+				reads = reads.Select( x => x.OrderOnly && checkedReads.Contains( x.File ) ? x with { OrderOnly = false } : x ).ToList();
+
 				// Whatever else the output says it read (more than its description lists) is a read too, built first
 				reads.AddRange( checkedReads.Where( x => !reads.Any( r => string.Equals( r.File, x, StringComparison.OrdinalIgnoreCase ) ) && !outputs.Contains( AdoptedKey( root, x ), StringComparer.OrdinalIgnoreCase ) ).Select( x => (ProducerOfOutput( x ), x, false) ) );
 				foreach ( var producer in reads.Select( x => x.Producer ).Where( x => x is not null && x != node ) ) node.Prerequisites.Add( producer );
@@ -668,7 +680,18 @@ public static class ContentBuilder
 		/// built from changed since, so another compile may have rebuilt it. Changed bytes with nothing else changed
 		/// are damage, which the record's hash catches and a compile repairs.
 		/// </summary>
-		bool RebuiltOutside( Node node ) => (SelfDirty( node ) ?? Shadowed( node ) ?? ReadChanged( node, Producers( node ) )) is not null;
+		bool RebuiltOutside( Node node ) => (OwnDirty( node ) ?? ReadChanged( node, Producers( node ) )) is not null;
+
+		/// <summary>
+		/// Why its own inputs or reads' roots no longer match its record, checked again once a job has settled.
+		/// </summary>
+		string OwnDirty( Node node )
+		{
+			if ( node.Own is { } own && own.Record == node.Record && own.Settled == settled ) return own.Reason;
+			var reason = SelfDirty( node ) ?? Shadowed( node );
+			node.Own = (node.Record, settled, reason);
+			return reason;
+		}
 
 		/// <summary>
 		/// An output it owns has other bytes than its record says (see <see cref="RebuiltOutside"/>).
@@ -700,10 +723,12 @@ public static class ContentBuilder
 		/// Removes what was built from sources that no longer exist. A source this build doesn't compile (a
 		/// shader, a map) still exists, and its outputs stay.
 		/// </summary>
-		void RemoveDeletedSources( RootState root )
+		void RemoveDeletedSources( RootState root, List<AssetRecord> deleted )
 		{
-			foreach ( var record in root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList() )
+			foreach ( var record in deleted )
 			{
+				if ( File.Exists( Path.Combine( root.Def.Path, record.Source ) ) ) continue;
+
 				var outputs = Unshared( root, record.Outputs.Keys, record.Source ).ToList();
 				try
 				{
@@ -769,19 +794,21 @@ public static class ContentBuilder
 
 		async Task ScheduleUntilDone( Dictionary<Task<CompileResult>, (Node Node, CompileJob Job)> running )
 		{
-			void ReportProgress( Node starting = null )
+			var queue = new List<Node>();
+			void ReportProgress( Node starting = null, Node compiled = null )
 			{
 				if ( request.CompileProgress is null ) return;
 
 				var activeRoots = running.Values.Select( x => x.Node.Root.Def.Mod );
 				if ( starting is not null ) activeRoots = activeRoots.Append( starting.Root.Def.Mod );
 
-				var finished = report.Jobs.Count - running.Count;
+				// A source still waiting on what it reads compiles once that settles if it has no record, one with a record only if that changed
+				var started = report.Jobs.Count + (starting is null ? 0 : 1);
+				var total = started + queue.Count + nodes.Values.Count( x => x.State == State.Waiting && x.Record is null );
 				var names = activeRoots.Distinct( StringComparer.OrdinalIgnoreCase ).Order( StringComparer.OrdinalIgnoreCase );
-				request.CompileProgress( finished, [.. names] );
+				request.CompileProgress( new BuildProgress( report.Jobs.Count - running.Count, total, [.. names], compiled?.Name ) );
 			}
 
-			var queue = new List<Node>();
 			while ( true )
 			{
 				// Producers a compile turned out to read are planned like the rest before they run
@@ -827,7 +854,7 @@ public static class ContentBuilder
 					node.State = State.Running;
 					node.Started = ++clock;
 					node.Launched = DateTime.UtcNow;
-					ReportProgress( node );
+					ReportProgress( starting: node );
 					report.Jobs.Add( node.Name );
 
 					// A thread of its own, not the pool's, as it waits for the whole compile
@@ -854,11 +881,12 @@ public static class ContentBuilder
 				var (finished, finishedJob) = running[done];
 				running.Remove( done );
 
+				settled++;
 				try { Finish( finished, done.Result, finishedJob.Staging ); }
 				finally { ReleaseStaging( finishedJob.Staging ); }
 
 				request.JobFinished?.Invoke( finished.Name );
-				ReportProgress();
+				ReportProgress( compiled: finished );
 			}
 		}
 
@@ -1145,7 +1173,7 @@ public static class ContentBuilder
 		{
 			if ( request.Force ) return nodes.ToDictionary( x => x, _ => ("forced", (List<(string Key, FileStamp Stamp)>)null) );
 
-			var own = await CheckAll( nodes, x => (SelfDirty( x ) ?? Shadowed( x )) is { } reason ? (reason, null) : ChangedOutput( x ) );
+			var own = await CheckAll( nodes, x => OwnDirty( x ) is { } reason ? (reason, null) : ChangedOutput( x ) );
 			var current = nodes.Where( x => own[x].Reason is null ).ToList();
 			var producers = current.ToDictionary( x => x, Producers );
 			var reads = await CheckAll( current, x => ReadChanged( x, producers[x] ) );

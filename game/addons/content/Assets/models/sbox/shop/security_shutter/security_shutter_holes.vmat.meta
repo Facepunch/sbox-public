@@ -19,7 +19,6 @@
       },
       "Metadata": {
         "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter_holes.vmat",
-        "ParentPackage": "facepunch.sbox_content",
         "AssetLicense": "CC0"
       }
     }

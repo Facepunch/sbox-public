@@ -125,6 +125,16 @@ namespace Topten.RichTextKit
 		FontVariantNumeric FontVariantNumeric { get; }
 
 		/// <summary>
+		/// Explicit OpenType axis values for this run.
+		/// </summary>
+		FontVariationSettings FontVariationSettings => default;
+
+		/// <summary>
+		/// Controls automatic optical sizing for this run.
+		/// </summary>
+		FontOpticalSizing FontOpticalSizing => FontOpticalSizing.Auto;
+
+		/// <summary>
 		/// Text direction override for this span
 		/// </summary>
 		TextDirection TextDirection { get; }

@@ -241,7 +241,7 @@ public sealed class PanelStyle : Styles
 		return true;
 	}
 
-	internal Styles BuildFinal( ref LayoutCascade cascade, out bool changed )
+	internal Styles BuildFinal( ref LayoutCascade cascade, out bool changed, out bool paintOnly )
 	{
 		var time = panel.TimeNow;
 		var timeDelta = panel.TimeDelta;
@@ -280,6 +280,8 @@ public sealed class PanelStyle : Styles
 		if ( Final.HasCurrentColor )
 			Final.ResolveCurrentColor( cascade.ParentStyles );
 
+		// Check before Run removes finished transitions. Their last tick also applies the target value.
+		paintOnly = !changed && panel.Transitions.HasAny && panel.Transitions.Entries.TrueForAll( entry => entry.Property is "opacity" or "transform" );
 		if ( panel.Transitions.Run( Final, time ) )
 		{
 			changed = true;
@@ -287,6 +289,7 @@ public sealed class PanelStyle : Styles
 
 		if ( Final.ApplyAnimation( panel ) )
 		{
+			paintOnly = false;
 			changed = true;
 		}
 

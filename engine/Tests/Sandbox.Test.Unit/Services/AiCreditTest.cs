@@ -41,7 +41,7 @@ public class AiCreditTest
 	[DataRow( "refresh" )]
 	public async Task ResponsesRefreshTheCachedBalance( string kind )
 	{
-		var balance = new ServiceApi.CreditBalance { Available = 72.25m, RenewsAt = Renewal };
+		var balance = new AiCreditBalance { Available = 72.25m, RenewsAt = Renewal };
 		object response = kind switch
 		{
 			"query" => new AiQueryResponse { Credits = balance },
@@ -85,7 +85,7 @@ public class AiCreditTest
 			Code = "insufficient_credits",
 			Error = "No credits remaining",
 			RenewsAt = Renewal,
-			Credits = unavailable ? null : new ServiceApi.CreditBalance { Available = -0.25m, RenewsAt = Renewal }
+			Credits = unavailable ? null : new AiCreditBalance { Available = -0.25m, RenewsAt = Renewal }
 		};
 		using var request = new HttpRequestMessage( HttpMethod.Post, "https://example.com/ai/query" );
 		using var response = new HttpResponseMessage( HttpStatusCode.TooManyRequests )

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.Intrinsics;
 using Nav.Build;
 
 namespace Nav;
@@ -33,7 +34,7 @@ public sealed class NavBuilder
 
 	readonly CachedField unpacked = new();
 	NavQuery? seamQuery;
-	NavMesh? seamMesh;
+	MeshAgentType? seamMesh;
 	byte[] raw = [];
 	byte[] packed = [];
 
@@ -68,7 +69,7 @@ public sealed class NavBuilder
 	TileJobStatus Run( TileJob job, ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, bool hasGeometry, out Tile? tile, out string? error )
 	{
 		tile = null;
-		var mesh = job.Mesh;
+		var mesh = job.Owner;
 		if ( mesh == null )
 		{
 			error = "The job was not taken from a mesh";
@@ -339,7 +340,18 @@ public sealed class NavBuilder
 		if ( Field.Area.Length < Field.SpanCount ) Field.Area = new byte[Field.SpanCount + Field.SpanCount / 2];
 		var con = Field.Con;
 		var area = Field.Area;
-		for ( int i = 0, n = Field.SpanCount; i < n; i++ ) area[i] = (byte)(con[i] >> 24);
+		int n = Field.SpanCount, i = 0;
+		if ( Vector256.IsHardwareAccelerated )
+		{
+			for ( ; i + 32 <= n; i += 32 )
+			{
+				var c = con.AsSpan( i, 32 );
+				var low = Vector256.Narrow( Vector256.Create<uint>( c ) >> 24, Vector256.Create<uint>( c[8..] ) >> 24 );
+				var high = Vector256.Narrow( Vector256.Create<uint>( c[16..] ) >> 24, Vector256.Create<uint>( c[24..] ) >> 24 );
+				Vector256.Narrow( low, high ).CopyTo( area.AsSpan( i, 32 ) );
+			}
+		}
+		for ( ; i < n; i++ ) area[i] = (byte)(con[i] >> 24);
 		foreach ( ref readonly var volume in volumes ) VolumeMarker.Mark( Field, frame, cellHeight, volume );
 		return Fnv.Hash( area.AsSpan( 0, Field.SpanCount ) );
 	}

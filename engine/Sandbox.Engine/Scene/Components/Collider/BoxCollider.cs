@@ -13,6 +13,24 @@ public sealed class BoxCollider : Collider
 	private Vector3 _center = 0;
 	private Vector3 _scale = 50.0f;
 
+	internal override void OnEnabledInternal()
+	{
+		base.OnEnabledInternal();
+		Scene?.NavMesh?.UpdateLadderCandidate( this, Active );
+	}
+
+	internal override void OnDisabledInternal()
+	{
+		Scene?.NavMesh?.UpdateLadderCandidate( this, false );
+		base.OnDisabledInternal();
+	}
+
+	internal override void OnTagsUpdatedInternal()
+	{
+		base.OnTagsUpdatedInternal();
+		Scene?.NavMesh?.UpdateLadderCandidate( this, Active );
+	}
+
 	/// <summary>
 	/// The size of the box, from corner to corner.
 	/// </summary>

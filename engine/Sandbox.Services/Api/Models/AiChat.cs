@@ -304,7 +304,7 @@ public class AiChatToolResponse
 	/// <summary>
 	/// Account balance after this tool invocation. Null means unavailable; retain the last known balance.
 	/// </summary>
-	public ServiceApi.CreditBalance? Credits { get; set; }
+	public AiCreditBalance? Credits { get; set; }
 
 	/// <summary>
 	/// Result to append to the client's conversation history.

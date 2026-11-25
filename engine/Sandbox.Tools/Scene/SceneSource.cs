@@ -89,6 +89,10 @@ internal static class SceneSource
 			if ( !editor.IsMounted && FindAsset( source ) is { } asset )
 			{
 				var path = asset.GetCompiledFile( true );
+				// Clear all removes the runtime scene too. Materialize the ordinary resource when play next needs it.
+				if ( !File.Exists( path ) && asset.Compile( false ) )
+					path = asset.GetCompiledFile( true );
+
 				if ( string.IsNullOrEmpty( path ) )
 					throw new FileNotFoundException( $"No compiled file exists for '{asset.Path}'." );
 				return SceneFile.FromCompiled( asset.Path, asset.Guid, File.ReadAllBytes( path ) );

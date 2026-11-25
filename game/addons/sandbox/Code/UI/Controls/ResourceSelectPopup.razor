@@ -157,7 +157,7 @@
         {
             Extension = extension,
             CurrentValue = currentValue,
-            AllowPackages = allowPackages,
+            AllowPackages = allowPackages && !string.Equals( extension, "sent", StringComparison.OrdinalIgnoreCase ),
             Category = category,
             OnSelectedFile = onSelected
         };
@@ -182,7 +182,7 @@
 
     void OpenSizeMenu()
     {
-        SpawnMenuIconSizeExtensions.OpenMenu( this, size =>
+        SpawnMenuIconSizeExtensions.OpenMenu( this, ListView ? null : IconSize, size =>
         {
             IconSize = size;
             ListView = false;
@@ -444,7 +444,7 @@
     {
         SoundPreviewState.Loading => "sync",
         SoundPreviewState.Playing => "volume_up",
-        _ => "error_outline"
+        _ => "error"
     };
 
     static string PreviewTooltip( SoundPreviewState state ) => state switch

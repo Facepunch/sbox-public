@@ -26,5 +26,35 @@ internal static class MapMenu
 		{
 			PlayMapOption.Enabled = false;
 		}
+
+		e.Menu.AddOption( "Convert to Scene...", "account_tree", action: () => ConvertToScene( entry.Asset ) );
+	}
+
+	static async void ConvertToScene( Asset source )
+	{
+		var assets = Project.Current.GetAssetsPath();
+		var folder = assets;
+		if ( !string.IsNullOrEmpty( source.AbsolutePath ) && Path.IsPathFullyQualified( source.AbsolutePath ) )
+		{
+			var relative = Path.GetRelativePath( assets, source.AbsolutePath );
+			if ( !Path.IsPathRooted( relative ) && !relative.StartsWith( ".." + Path.DirectorySeparatorChar ) )
+				folder = Path.GetDirectoryName( source.AbsolutePath );
+		}
+
+		var dialog = new FileDialog( null ) { Title = "Convert VMAP to Scene", Directory = folder };
+		dialog.SetFindFile();
+		dialog.SetModeSave();
+		dialog.SetNameFilter( "Scene (*.scene)" );
+		dialog.SelectFile( Path.Combine( folder, Path.ChangeExtension( Path.GetFileName( source.AbsolutePath ?? source.RelativePath ), ".scene" ) ) );
+		if ( !dialog.Execute() ) return;
+		try
+		{
+			var scene = await EditorUtility.ImportVmapAsync( source, dialog.SelectedFile );
+			EditorScene.OpenScene( scene );
+		}
+		catch ( System.Exception exception )
+		{
+			Log.Error( exception, $"Could not convert {source.Path} to a scene." );
+		}
 	}
 }

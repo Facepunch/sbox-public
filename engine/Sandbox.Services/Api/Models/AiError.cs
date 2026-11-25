@@ -10,7 +10,7 @@ public readonly record struct AiError
 	/// Null means unavailable or unauthenticated; retain the last known balance.
 	/// </summary>
 	[System.Text.Json.Serialization.JsonIgnore( Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull )]
-	public ServiceApi.CreditBalance? Credits { get; init; }
+	public AiCreditBalance? Credits { get; init; }
 
 	/// <summary>
 	/// Stable machine-readable identifier, such as chat_busy or request_id_conflict.

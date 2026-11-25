@@ -45,12 +45,12 @@ static class CrowdMesh
 		public float Scale { get; init; }
 	}
 
-	public static NavSettings Settings( float scale = 1 ) => NavSettings.Create( 32 * scale, 8 * scale, 8 * scale, 40, Cell * scale, 1 * scale, Cells );
+	public static NavSettings Settings( float scale = 1 ) => NavSettings.Create( new() { AgentHeight = 32 * scale, AgentRadius = 8 * scale, AgentClimb = 8 * scale, AgentMaxSlope = 40, CellSize = Cell * scale, CellHeight = 1 * scale, TileSize = Cells } );
 
 	public static NavMesh Create( Options options = default )
 	{
 		float scale = options.Scale > 0 ? options.Scale : 1;
-		var mesh = new NavMesh( Settings( scale ) );
+		var mesh = new NavMesh( Settings( scale ), NavMeshOptions.Create( Settings( scale ) ) );
 		mesh.CommitTiles( [Tile( options )] );
 		if ( options.Link ) AddLink( mesh, scale );
 		return mesh;
@@ -98,7 +98,7 @@ static class CrowdMesh
 			}
 		}
 		var tile = new TileAssembler().Create( 0, 0, verts, polys, Settings(), out var error ) ?? throw new InvalidOperationException( error );
-		var mesh = new NavMesh( Settings() );
+		var mesh = new NavMesh( Settings(), NavMeshOptions.Create( Settings() ) );
 		mesh.CommitTiles( [tile] );
 		return mesh;
 	}
@@ -211,7 +211,7 @@ sealed class Sim
 	/// <summary>Radius 8, height 32, speed 120, acceleration 240.</summary>
 	public static AgentParams Walker( bool autoLinks = true )
 	{
-		var value = AgentParams.Create( 8, 32, 120, 240 );
+		var value = AgentParams.Create( new() { Radius = 8, Height = 32, MaxSpeed = 120, Acceleration = 240 } );
 		value.AutoLinks = autoLinks;
 		return value;
 	}
@@ -247,7 +247,7 @@ sealed class Sim
 
 	public PolyRef PolyAt( Vector3 point )
 	{
-		Query.FindNearest( point, new Vector3( 8 ), default, out var poly, out _ );
+		Query.FindNearest( point, new Vector3( 8 ), Filters.All, out var poly, out _ );
 		return poly;
 	}
 

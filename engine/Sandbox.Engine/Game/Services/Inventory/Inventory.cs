@@ -40,22 +40,23 @@ public static partial class Inventory
 			if ( !result.IsOk() ) return Array.Empty<Item>();
 
 			var wasLoaded = HasLoaded;
-			var previousItems = _items.ToArray();
+			var previousItems = _items;
 
-			_items.Clear();
-
+			var items = new List<Item>();
 			for ( int i = 0; i < result.Count(); i++ )
 			{
-				_items.Add( new Item( result.Get( i ) ) );
+				items.Add( new Item( result.Get( i ) ) );
 			}
 
+			// This can run on the thread pool, so swap in a whole list rather than editing the one being read
+			_items = items;
 			CurrentBlob = SerializeResult( result );
 			HasLoaded = true;
 
 			// The initial load isn't a purchase, but an already loaded empty inventory can gain new items.
 			if ( !wasLoaded ) return Array.Empty<Item>();
 
-			return _items.Where( x => !previousItems.Any( y => y.ItemId == x.ItemId ) ).ToArray();
+			return items.Where( x => !previousItems.Any( y => y.ItemId == x.ItemId ) ).ToArray();
 		}
 		finally
 		{

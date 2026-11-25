@@ -84,6 +84,11 @@ struct ServerInfo
 	public bool HostMigration { get; set; }
 
 	/// <summary>
+	/// The host is a dedicated server rather than a player.
+	/// </summary>
+	public bool IsDedicatedServer { get; set; }
+
+	/// <summary>
 	/// The client has to send the server's password (sv_password) to get in.
 	/// </summary>
 	public bool PasswordRequired { get; set; }

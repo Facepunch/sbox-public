@@ -21,7 +21,6 @@
         "__enabled": true,
         "Flags": 0,
         "ADSInertiaScale": 0.3,
-        "AnimationSpeed": 1,
         "DeploySound": {
           "Id": "c5b093b4-f006-457c-bbd6-916200f842e1",
           "Path": "weapons/common/foley/foley_deploy_weapon_03.sound"
@@ -30,19 +29,12 @@
           "_type": "gameobject",
           "prefab": "prefabs/effects/default_brasseject.prefab"
         },
-        "IncrementalAnimationSpeed": 3,
         "IncrementalReloadFinishSounds": [],
         "IncrementalReloadSoundEvents": [],
         "IncrementalReloadStartSounds": [],
-        "InertiaScale": "2,2",
         "IsIncremental": false,
-        "IsThrowable": false,
-        "LookInertia": false,
+        "LookInertia": true,
         "LookInertiaAmount": 1,
-        "LookInertiaDamping": 0.35,
-        "LookInertiaFrequency": 3,
-        "LookInertiaPivotDistance": 10,
-        "MaxInertia": 15,
         "MuzzleEffect": {
           "_type": "gameobject",
           "prefab": "prefabs/effects/default_muzzleflash.prefab"
@@ -83,11 +75,11 @@
           "_type": "gameobject",
           "go": "dcc37bca-a959-4b1d-87ee-15eaa48af28d"
         },
-        "ThrowableType": "HEGrenade",
         "TracerEffect": {
           "_type": "gameobject",
           "prefab": "prefabs/effects/default_tracer.prefab"
-        }
+        },
+        "MovementBob": true
       }
     ],
     "Children": [
@@ -113,10 +105,8 @@
             "__enabled": true,
             "Flags": 0,
             "Animation": {
-              "Graph": null,
-              "Parameters": {}
+              "Graph": "weapons/usp/animations/usp.ag"
             },
-            "AnimationGraph": null,
             "BodyGroups": 291,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
@@ -138,7 +128,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {},
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": false,
@@ -1749,7 +1738,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []

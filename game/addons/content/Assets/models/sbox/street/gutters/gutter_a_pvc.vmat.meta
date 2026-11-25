@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/street/gutters/gutter_a_pvc.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_a_pvc.vmat"
       }
     },
     "HammerAutoPackageReferences": null

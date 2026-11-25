@@ -15,10 +15,11 @@ public sealed partial class NavMesh
 {
 	// Header, then blocks to the end: the library's bake, then the generated links. A tile inside the baked rectangle that the bake lacks is empty on purpose.
 	//   uint magic, uint version, int minTileX, minTileY, maxTileX, maxTileY
-	//   Per block: int rawLength, int storedLength, the LZ4 block. Version 1 had the library's bake only, without storedLength.
+	//   Per block: int rawLength, int storedLength, the LZ4 block
 	//   Links: float maxDrop, maxJumpDistance, maxJumpUp, spacing, int tiles, per tile int x, y, links, per link float start xyz, end xyz, radius, byte 1 two-way | 2 jump
+	// Versions 1 and 2 held a library bake of an older format.
 	private const uint BakeMagic = 0x56414E53;
-	private const uint BakeVersion = 2;
+	private const uint BakeVersion = 3;
 	private const int BakeHeaderSize = 24;
 
 	// The tiles the loaded bake covers
@@ -27,6 +28,7 @@ public sealed partial class NavMesh
 	// The scene refers to a baked file that held nothing the navmesh could use
 	private bool bakeMissing;
 	private CancellationTokenSource editorBake;
+	private Task<bool> editorBakeTask;
 
 	// Bakes waiting for the navmesh to finish. Auto update would mark every tile again each frame.
 	private int bakesWaiting;
@@ -60,38 +62,81 @@ public sealed partial class NavMesh
 	/// loads. Nothing is written unless unedited() still holds then: what was built would no longer
 	/// be the scene as it was saved. regenerate builds every tile from the world as it is now first.
 	/// </summary>
-	internal Task BakeInEditor( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate )
+	internal Task<bool> BakeInEditor( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate )
 	{
-		editorBake?.Cancel();
-		editorBake = null;
 		if ( !IsEnabled || folder is null )
 		{
+			editorBake?.Cancel();
 			_bakedDataPath = null;
-			return Task.CompletedTask;
+			return editorBakeTask = Task.FromResult( false );
 		}
 
-		_bakedDataPath = folder.WriteFile( _navDataFilename, [] );
-		editorBake = new CancellationTokenSource();
-		return WriteBake( world, folder, unedited, regenerate, editorBake.Token );
+		_bakedDataPath = folder.WriteFile( BakeFilename, [] );
+		return StartBake( world, folder, unedited, regenerate, default );
 	}
 
-	private async Task WriteBake( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate, CancellationToken cancelToken )
+	Task<bool> StartBake( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate, CancellationToken cancel )
 	{
+		editorBake?.Cancel();
+		editorBake = CancellationTokenSource.CreateLinkedTokenSource( cancel );
+		return editorBakeTask = WriteBake( world, folder, unedited, regenerate, editorBake );
+	}
+
+	internal void ClearBake( Scene scene )
+	{
+		editorBake?.Cancel();
+
+		if ( _bakedDataPath is null )
+			return;
+
+		_bakedDataPath = null;
+		scene.Editor.MarkBakeReferencesChanged();
+	}
+
+	internal async Task BakeForCompile( Scene scene, SceneFolder folder, CancellationToken cancel, bool clean )
+	{
+		var previousPath = _bakedDataPath;
+		if ( clean || editorBakeTask is not { IsCompleted: false } pending || !await pending.WaitAsync( cancel ) )
+		{
+			cancel.ThrowIfCancellationRequested();
+			if ( !await StartBake( scene.PhysicsWorld, folder, () => scene.IsValid() && IsEnabled, regenerate: true, cancel ) )
+			{
+				cancel.ThrowIfCancellationRequested();
+				throw new InvalidOperationException( "Navigation mesh bake produced no data." );
+			}
+		}
+
+		if ( previousPath != _bakedDataPath )
+			scene.Editor.MarkBakeReferencesChanged();
+	}
+
+	private async Task<bool> WriteBake( PhysicsWorld world, SceneFolder folder, Func<bool> unedited, bool regenerate, CancellationTokenSource cancellation )
+	{
+		var cancelToken = cancellation.Token;
 		try
 		{
 			if ( regenerate ) SetDirty();
 			var data = await BakeDataToBytes( cancelToken, world );
 			await GameTask.MainThread();
-			if ( data is null || cancelToken.IsCancellationRequested || !unedited() ) return;
+			if ( data is null || cancelToken.IsCancellationRequested || !unedited() ) return false;
 
-			folder.WriteFile( _navDataFilename, data );
+			_bakedDataPath = folder.WriteFile( BakeFilename, data );
+			return true;
 		}
 		catch ( OperationCanceledException )
 		{
+			return false;
 		}
 		catch ( Exception e )
 		{
 			Log.Warning( e, "NavMesh: Failed to bake" );
+			return false;
+		}
+		finally
+		{
+			if ( editorBake == cancellation )
+				editorBake = null;
+			cancellation.Dispose();
 		}
 	}
 
@@ -192,7 +237,7 @@ public sealed partial class NavMesh
 			return;
 
 		uint version = bakedData.Length >= BakeHeaderSize + 4 && BinaryPrimitives.ReadUInt32LittleEndian( bakedData ) == BakeMagic ? BinaryPrimitives.ReadUInt32LittleEndian( bakedData.AsSpan( 4 ) ) : 0;
-		if ( version is not (1 or BakeVersion) )
+		if ( version != BakeVersion )
 		{
 			Log.Warning( "NavMesh: Baked data is in an older format and is ignored. Saving the scene in the editor bakes it again." );
 			return;
@@ -203,22 +248,22 @@ public sealed partial class NavMesh
 
 		long generation = Generation;
 		var settings = CreateSettings();
-		var linkSettings = CreateLinkSettings( settings );
+		var options = CreateMeshOptions( settings );
 		string problem = null;
 		Dictionary<(int X, int Y), List<NavLink>> links = null;
 
 		var loaded = await Task.Run( () =>
 		{
 			int offset = BakeHeaderSize;
-			var raw = ReadBlock( bakedData, ref offset, version == 1 );
-			var linkRaw = version == 1 ? [] : ReadBlock( bakedData, ref offset, false );
+			var raw = ReadBlock( bakedData, ref offset );
+			var linkRaw = raw is null ? null : ReadBlock( bakedData, ref offset );
 			if ( raw is null || linkRaw is null ) problem = "is damaged";
 			else if ( !Nav.NavMesh.TryReadSettings( raw, out var baked ) ) problem = "is in an older format";
 			else if ( !baked.Equals( settings ) ) problem = "was made with other agent settings";
-			else problem = ReadGeneratedLinks( linkRaw, linkSettings, out links );
+			else problem = ReadGeneratedLinks( linkRaw, options.Links, out links );
 			if ( problem is not null ) return null;
 
-			var mesh = Nav.NavMesh.Load( raw, cacheCodec, links: linkSettings );
+			var mesh = Nav.NavMesh.Load( raw, options );
 			if ( mesh is null ) problem = "is damaged";
 			return mesh;
 		} );
@@ -243,14 +288,13 @@ public sealed partial class NavMesh
 		return 8 + stored;
 	}
 
-	// Null when damaged. A block of version 1 runs to the end.
-	internal static byte[] ReadBlock( byte[] data, ref int offset, bool toEnd )
+	// Null when damaged
+	internal static byte[] ReadBlock( byte[] data, ref int offset )
 	{
-		int head = toEnd ? 4 : 8;
-		if ( data.Length - offset < head ) return null;
+		if ( data.Length - offset < 8 ) return null;
 		int rawLength = BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( offset ) );
-		int stored = toEnd ? data.Length - offset - head : BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( offset + 4 ) );
-		offset += head;
+		int stored = BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( offset + 4 ) );
+		offset += 8;
 		if ( rawLength < 0 || stored < 0 || stored > data.Length - offset || rawLength / 255 > stored ) return null;
 
 		var raw = new byte[rawLength];
@@ -299,12 +343,10 @@ public sealed partial class NavMesh
 		return stream.ToArray();
 	}
 
-	// Null when the links were generated with these settings, as none were by a bake of version 1. Anything malformed rejects them all.
+	// Null when the links were generated with these settings. Anything malformed rejects them all.
 	static string ReadGeneratedLinks( byte[] raw, in NavLinkSettings settings, out Dictionary<(int X, int Y), List<NavLink>> links )
 	{
 		links = new();
-		if ( raw.Length == 0 ) return settings.Enabled ? "was made with other agent settings" : null;
-
 		string problem = null;
 		using var reader = new BinaryReader( new MemoryStream( raw ) );
 		try
@@ -334,11 +376,13 @@ public sealed partial class NavMesh
 			if ( count < 0 || count > (length - reader.BaseStream.Position) / 29 || !links.TryAdd( tile, new List<NavLink>( count ) ) ) return false;
 			for ( int i = 0; i < count; i++ )
 			{
+				// As the library reports them
 				var link = new NavLink
 				{
 					Start = new( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ),
 					End = new( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ),
-					Radius = reader.ReadSingle()
+					Radius = reader.ReadSingle(),
+					Area = NavFilter.DefaultArea
 				};
 				byte flags = reader.ReadByte();
 				if ( !float.IsFinite( link.Start.X + link.Start.Y + link.Start.Z + link.End.X + link.End.Y + link.End.Z ) || !(link.Radius > 0) || !float.IsFinite( link.Radius ) || (flags & ~3) != 0 ) return false;
@@ -353,10 +397,12 @@ public sealed partial class NavMesh
 	/// </summary>
 	private string _bakedDataPath;
 
+	internal bool HasBakedDataPath => !string.IsNullOrEmpty( _bakedDataPath );
+
 	/// <summary>
 	/// Get the navdata filename for this scene
 	/// </summary>
-	private readonly string _navDataFilename = "/navmesh/baked.navdata";
+	internal const string BakeFilename = "navmesh/baked.navdata";
 
 	/// <summary>
 	/// Data saved in a Scene file

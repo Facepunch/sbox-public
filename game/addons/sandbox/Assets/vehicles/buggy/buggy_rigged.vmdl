@@ -78,11 +78,11 @@
 						[
 							{
 								from = "beer_keg_a.vmat"
-								to = "models/props/beer_keg/beer_keg_a.vmat"
+								to = "models/sbox/kitchen/beer_keg/beer_keg_a.vmat"
 							},
 							{
 								from = "car_seat.vmat"
-								to = "models/sbox_props/car_seat/car_seat.vmat"
+								to = "models/sbox/vehicles/car_seat/car_seat.vmat"
 							},
 							{
 								from = "tyre.vmat"

@@ -118,10 +118,10 @@ internal class HotloadManager : IDisposable
 
 	/// <summary>
 	/// Runs pending hotload, invoking an optional callback after migration and before success notifications.
-	/// When a callback is supplied, failures prevent success notifications and exceptions propagate to the caller.
+	/// Individual upgrade errors are logged. A completed migration still runs the callbacks so the new types are registered.
 	/// </summary>
 	/// <param name="beforeSuccess">Called after reference migration and before normal hotload callbacks.</param>
-	/// <returns>False if hotload throws without a callback, or migration reports errors with a callback.</returns>
+	/// <returns>Returns false for a notification failure without a registration callback. An interrupted migration propagates to the caller.</returns>
 	public bool DoSwap( Action beforeSuccess = null )
 	{
 		log.Trace( "DoSwap Start" );
@@ -177,9 +177,9 @@ internal class HotloadManager : IDisposable
 				};
 			} );
 
+			HotloadResult info = null;
 			try
 			{
-				HotloadResult info = null;
 
 				using ( var t = eventRecord.ScopeTimer( "UpdateReferences" ) )
 				{
@@ -238,18 +238,17 @@ internal class HotloadManager : IDisposable
 
 				{
 					using var timerSuccess = eventRecord.ScopeTimer( "OnSuccess" );
-					if ( beforeSuccess is not null && !info.Success ) return false;
 					beforeSuccess?.Invoke();
 					OnSuccess?.Invoke();
 				}
 			}
-			catch ( System.Exception e )
+			catch ( System.Exception e ) when ( e is not OutOfMemoryException )
 			{
 				log.Warning( e, "Hotload exception" );
 				Sentry.SentrySdk.CaptureException( e );
 
 				OnFail?.Invoke();
-				if ( beforeSuccess is not null )
+				if ( info is null || beforeSuccess is not null )
 				{
 					throw;
 				}

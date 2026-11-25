@@ -1,0 +1,22 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Locker",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "locker",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/lockers/locker_single.vmdl"
+      }
+    }
+  },
+  "guid": "b63231a4-2075-40ca-b25d-d223d369ed9e"
+}

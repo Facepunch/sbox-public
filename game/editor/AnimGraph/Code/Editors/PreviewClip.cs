@@ -6,7 +6,6 @@ namespace Editor.Assets;
 public class PreviewClip( Asset asset ) : AssetPreview( asset )
 {
 	public override float PreviewWidgetCycleSpeed => _clip is not null && _clip.Duration > 0f ? 1f / _clip.Duration : 1f;
-	public override bool IsAnimatedPreview => true;
 
 	Clip _clip;
 	IReadOnlyList<Skeleton.Bone> _bones;

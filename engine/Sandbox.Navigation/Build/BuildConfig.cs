@@ -8,7 +8,6 @@ internal struct BuildConfig
 	public const int MaxSpanHeight = 0xFFFF;
 	public const int NotConnected = 63;
 	public const int VertsPerPoly = Poly.MaxVerts;
-	public const int MaxPolys = PolyRef.MaxPolys;
 
 	// The builder's polygons use the tile's encoding: NoIndex for no vertex and for a wall, BorderEdge
 	// plus the side for an edge on the tile border, sides as in Poly.

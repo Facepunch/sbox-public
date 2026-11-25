@@ -47,7 +47,7 @@ public partial class ScriptLoadingTests
 
 				download.SetResult( content );
 				Assert.AreSame( content, await second );
-				Assert.IsTrue( items.IsMounted( 7001 ) );
+				Assert.IsNotNull( items.Get( 7001 ) );
 				Assert.AreEqual( "content", mounted.ReadAllText( "content.txt" ) );
 				Assert.IsNull( await items.LoadAsync( 7001, Workshop.ItemType.Addon ) );
 				Assert.IsFalse( items.HasFailures );
@@ -106,7 +106,7 @@ public partial class ScriptLoadingTests
 
 				await AssertWorkshopRequestCancelled( loading );
 				Assert.IsTrue( installToken.IsCancellationRequested );
-				Assert.IsFalse( items.IsMounted( 7002 ) );
+				Assert.IsNull( items.Get( 7002 ) );
 				Assert.AreEqual( 0, items.StringTable.Entries.Count );
 
 				// The factory deliberately ignores cancellation, like a download completing at teardown.
@@ -150,13 +150,13 @@ public partial class ScriptLoadingTests
 				var installing = items.InstallAsync( items.StringTable.Entries["7003"] );
 				var waiting = items.WaitForDownloadsAsync();
 				Assert.IsFalse( waiting.IsCompleted );
-				Assert.IsFalse( items.IsMounted( 7003 ) );
+				Assert.IsNull( items.Get( 7003 ) );
 				Assert.IsTrue( items.HasPending );
 				Assert.IsFalse( mounted.FileExists( "content.txt" ) );
 
 				download.SetResult( content );
 				await waiting;
-				Assert.IsTrue( items.IsMounted( 7003 ) );
+				Assert.IsNotNull( items.Get( 7003 ) );
 				Assert.IsFalse( items.HasPending );
 				Assert.AreEqual( "content", mounted.ReadAllText( "content.txt" ) );
 				Assert.IsTrue( await installing );
@@ -193,7 +193,7 @@ public partial class ScriptLoadingTests
 			{
 				items.StringTable.Set( "7004", new WorkshopItems.ItemInfo { Id = 7004, Type = Workshop.ItemType.Map } );
 				Assert.IsTrue( await items.InstallAsync( items.StringTable.Entries["7004"] ) );
-				Assert.IsTrue( items.IsMounted( 7004 ) );
+				Assert.IsNotNull( items.Get( 7004 ) );
 
 				using var caller = new CancellationTokenSource();
 				await resourceLock.WaitAsync();
@@ -204,7 +204,7 @@ public partial class ScriptLoadingTests
 					caller.Cancel();
 					await AssertWorkshopRequestCancelled( loading );
 					Assert.AreEqual( 0, items.StringTable.Entries.Count );
-					Assert.IsTrue( items.IsMounted( 7004 ) );
+					Assert.IsNotNull( items.Get( 7004 ) );
 					Assert.IsTrue( WorkshopFileSystem.IsInUse( 7004 ) );
 					Assert.AreEqual( "content", mounted.ReadAllText( "content.txt" ) );
 				}

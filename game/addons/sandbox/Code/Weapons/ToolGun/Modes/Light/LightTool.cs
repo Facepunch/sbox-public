@@ -1,7 +1,7 @@
 using Sandbox.UI;
 
 /// <summary>Places the existing bulb light, either rope-mounted or as a loose physics object.</summary>
-[Hide, Title( "#tool.name.light" ), Icon( "💡" ), ClassName( "lighttool" ), Group( "#tool.group.building" )]
+[Hide, Title( "#tool.name.light" ), Icon( "lightbulb" ), ClassName( "lighttool" ), Group( "#tool.group.building" )]
 public sealed class LightTool : ToolMode
 {
 	public const string LightPrefab = "entities/sents/lights/bulblight.prefab";
@@ -96,6 +96,7 @@ public sealed class LightTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void PlaceOrUpdate( SelectionPoint point, bool withRope, float length, string configuration, bool forceNew = false )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !point.IsValid() || !Player.IsValid() ) return;
 		var input = withRope ? ToolInput.Primary : ToolInput.Secondary;
 
@@ -134,7 +135,7 @@ public sealed class LightTool : ToolMode
 		Track( go );
 		var undo = Player.Undo.Create();
 		undo.Name = "#tool.name.light";
-		undo.Icon = "💡";
+		undo.Icon = "lightbulb";
 		undo.Add( go );
 		if ( withRope && !point.IsWorld ) CheckContraptionStats( point.GameObject );
 		FirePostToolAction( input );

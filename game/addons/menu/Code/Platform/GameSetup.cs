@@ -17,16 +17,18 @@ public sealed partial class GameSetup
 {
 	public Package Package { get; }
 
+	string selectedMap;
+
 	/// <summary>
-	/// Where it starts - a package's ident, or a mounted scene's path.
+	/// Where it starts - a Workshop item ID, a map's package ident, or a scene's path.
 	/// </summary>
 	public string Map
 	{
-		get;
+		get => selectedMap;
 		set
 		{
-			if ( field == value ) return;
-			field = value;
+			if ( selectedMap == value ) return;
+			selectedMap = value;
 			_ = ResolveMap( value );
 		}
 	}
@@ -75,7 +77,7 @@ public sealed partial class GameSetup
 
 	public bool NeedsMap => Package.Info.NeedsMap || string.Equals( Package.Info.LaunchMode, "launcher", StringComparison.OrdinalIgnoreCase );
 
-	string CookieName => $"{Package.FullIdent}_create_game_config";
+	string CookieName => CookieNameOf( Package.FullIdent );
 
 	static string DefaultServerName => $"{Sandbox.Utility.Steam.PersonaName}'s game";
 
@@ -282,44 +284,20 @@ public sealed partial class GameSetup
 	};
 
 	/// <summary>
-	/// Look up the map's name and picture - a mounted scene's own, or its package's. Its short ident
-	/// meanwhile, and after if it can't be found.
+	/// Looks up the selected map's name and picture. A map picked by identifier is swapped for the Workshop item
+	/// it's published as.
 	/// </summary>
 	async Task ResolveMap( string map )
 	{
-		MapTitle = string.IsNullOrWhiteSpace( map ) ? "#menu.games.default_map" : MapName( map );
+		MapTitle = string.IsNullOrWhiteSpace( map ) ? "#menu.games.default_map" : map.Contains( '/' ) ? System.IO.Path.GetFileNameWithoutExtension( map ) : map;
 		MapThumb = null;
 
-		if ( string.IsNullOrWhiteSpace( map ) ) return;
+		var details = await MenuUtility.LookupMapAsync( map );
+		if ( Map != map ) return;
 
-		if ( Sandbox.Mounting.Directory.GetMetadata( map ) is { } meta )
-		{
-			MapTitle = meta.Name;
-			MapThumb = meta.Thumbnail;
-			return;
-		}
-
-		var package = await Package.Fetch( map, true );
-
-		// Picked another while it was looking
-		if ( package is null || map != Map ) return;
-
-		MapTitle = package.Title;
-		MapThumb = Texture.Load( package.ThumbWide );
-	}
-
-	/// <summary>
-	/// A map's short name - a package's name without its org, or a scene's file without its folders.
-	/// </summary>
-	static string MapName( string map )
-	{
-		map = map.Split( '#' )[0];
-
-		if ( map.Contains( '/' ) )
-			return System.IO.Path.GetFileNameWithoutExtension( map );
-
-		var dot = map.IndexOf( '.' );
-		return dot >= 0 ? map[(dot + 1)..] : map;
+		selectedMap = details.Map;
+		MapTitle = details.Title ?? MapTitle;
+		MapThumb = details.Thumbnail ?? (details.Thumb is null ? null : Texture.Load( details.Thumb ));
 	}
 
 	/// <summary>

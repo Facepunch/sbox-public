@@ -172,6 +172,7 @@ public partial class BaseInventoryComponent
 		// Don't let Touch pickup vacuum it straight back up.
 		_lastDropped = item;
 		_sinceDropped = 0;
+		OnItemDropped( item );
 
 		SwitchToBest();
 	}
@@ -298,6 +299,9 @@ public partial class BaseInventoryComponent
 		if ( item is not null && (!item.IsValid() || item.Inventory != this) )
 			return;
 
+		if ( !force && !OnSwitching( item ) )
+			return;
+
 		if ( item == ActiveItem )
 		{
 			if ( allowHolster )
@@ -371,9 +375,7 @@ public partial class BaseInventoryComponent
 	}
 
 	//
-	// Host-side hooks for games to veto and react to inventory changes - post events, play notices,
-	// apply rules. The On*ing gates run after validation, before anything changes; return false to
-	// refuse. Base allows everything and does nothing.
+	// Host-side hooks for inventory changes, except OnSwitching, which also runs during client queries.
 	//
 
 	/// <summary>An item is about to be added to <paramref name="slot"/>. Return false to refuse.</summary>
@@ -387,6 +389,15 @@ public partial class BaseInventoryComponent
 
 	/// <summary>An item is about to be dropped into the world. Return false to refuse.</summary>
 	protected virtual bool OnDropping( BaseInventoryItem item ) => true;
+
+	/// <summary>An item has left this inventory and been dropped into the world.</summary>
+	protected virtual void OnItemDropped( BaseInventoryItem item ) { }
+
+	/// <summary>
+	/// Whether an item may become active, or null to holster. Keep this free of side effects: selection queries
+	/// and predicted switches may call it repeatedly on clients and the host. Forced switches bypass it.
+	/// </summary>
+	protected virtual bool OnSwitching( BaseInventoryItem item ) => true;
 
 	/// <summary>The items in these slots are about to move/swap. Return false to refuse.</summary>
 	protected virtual bool OnMovingSlot( int fromSlot, int toSlot ) => true;

@@ -23,7 +23,7 @@
 				[
 					{
 						_class = "PhysicsHullFile"
-						name = "tyre"
+						name = "car_wheel"
 						parent_bone = ""
 						surface_prop = "rubber"
 						collision_tags = "solid"
@@ -54,33 +54,6 @@
 				_class = "RenderMeshList"
 				children =
 				[
-					{
-						_class = "RenderMeshFile"
-						name = "lod0"
-						filename = "models/sbox/vehicles/wheels/car_tyre/tyre.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter =
-						{
-							exclude_by_default = true
-							exception_list =
-							[
-								"Cylinder_001",
-								"Cylinder_002",
-								"Cylinder",
-								"Cylinder_004",
-								"tyre_lod0",
-								"Cylinder_014",
-								"Cylinder_015",
-								"Cylinder_016",
-							]
-						}
-					},
 					{
 						_class = "RenderMeshFile"
 						name = "lod1"
@@ -173,32 +146,17 @@
 						auto_protect_uv_seams = true
 						auto_regularize = 1
 						auto_prune_isolated_components = false
-						meshes =
-						[
-							"lod0",
-							"lod0_no_rim",
-						]
-					},
-					{
-						_class = "LODGroup"
-						switch_threshold = 58.006855
-						auto_simplify_mode = 0
-						auto_reduction = 0.5
-						auto_max_error = 0.0
-						auto_lock_border_vertices = true
-						auto_permissive_simplification = false
-						auto_protect_uv_seams = true
-						auto_regularize = 1
-						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes =
 						[
 							"lod1",
-							"lod1_no_rim",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
-						switch_threshold = 107.753395
+						switch_threshold = 35.0
 						auto_simplify_mode = 0
 						auto_reduction = 0.5
 						auto_max_error = 0.0
@@ -207,15 +165,17 @@
 						auto_protect_uv_seams = true
 						auto_regularize = 1
 						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes =
 						[
 							"lod2",
-							"lod2_no_rim",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
-						switch_threshold = 217.7686
+						switch_threshold = 170.0
 						auto_simplify_mode = 0
 						auto_reduction = 0.5
 						auto_max_error = 0.0
@@ -224,11 +184,13 @@
 						auto_protect_uv_seams = true
 						auto_regularize = 1
 						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes =
 						[
 							"lod3",
-							"lod3_no_rim",
 						]
+						material_culls = [  ]
 					},
 				]
 			},
@@ -241,8 +203,8 @@
 						target_body = ""
 						mass_override = 14.0
 						inertia_scale = 1.0
-						linear_damping = 0.0
-						angular_damping = 0.0
+						linear_damping = 0.04
+						angular_damping = 0.15
 						use_mass_center_override = false
 						mass_center_override = [ 0.0, 0.0, 0.0 ]
 						gravity_scale = 1.0
@@ -253,6 +215,8 @@
 		model_archetype = ""
 		primary_associated_entity = ""
 		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }

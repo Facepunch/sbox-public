@@ -9,10 +9,16 @@ public static partial class Directory
 	static MountHost _system;
 
 	/// <summary>
-	/// Mount assemblies loaded outside the package system (DLL mounts, and addon mounts compiled at startup).
-	/// Nothing else enrolls these in a type library, so we do, and <see cref="Game.InitTypeLibrary"/> adds them back on rebuild.
+	/// Mount assemblies whose exposed types are available without a game package dependency.
+	/// <see cref="Game.InitTypeLibrary"/> adds them back on rebuild, including addon mounts loaded by the editor.
 	/// </summary>
 	static readonly List<Assembly> _typeAssemblies = new();
+	static readonly HashSet<Assembly> _standaloneAssemblies = new();
+
+	/// <summary>
+	/// The mount assemblies whose console variables and commands are registered: those with a mount that is mounted.
+	/// </summary>
+	static readonly HashSet<Assembly> _consoleAssemblies = new();
 
 	internal static void LoadSources()
 	{
@@ -21,6 +27,7 @@ public static partial class Directory
 		config.SteamIntegration = new SteamIntegration();
 		config.IsDedicatedServer = Application.IsDedicatedServer;
 		_system = new MountHost( config );
+		_system.MountStateChanged = mount => UpdateConsoleMembers( mount.GetType().Assembly );
 
 		LoadConfig();
 
@@ -133,6 +140,11 @@ public static partial class Directory
 				using var scope = GlobalContext.MenuScope();
 				EngineFileSystem.AddAssetPath( $"mnt_{folderName}", assetsPath );
 			}
+
+			// Compiled thumbnails, loaded as {ident}/thumbs/{path}.vtex. Only native resource loads see them, not the managed filesystems.
+			var mountsPath = System.IO.Path.Combine( fullPath, "Mounts" );
+			if ( System.IO.Directory.Exists( mountsPath ) )
+				NativeEngine.EngineGlue.AddSearchPath( mountsPath, "GAME", false );
 
 			foreach ( var dll in assemblies )
 			{
@@ -255,12 +267,7 @@ public static partial class Directory
 			return;
 		}
 
-		await SetMountState( ident, mount );
-
-		if ( !Application.IsEditor )
-		{
-			SaveConfig();
-		}
+		await SetMountState( ident, mount, savePreference: !Application.IsEditor );
 
 		if ( source.IsMounted != mount )
 		{
@@ -274,7 +281,7 @@ public static partial class Directory
 	/// <summary>
 	/// Set mounted or not mounted.
 	/// </summary>
-	internal static async Task SetMountState( string name, bool state )
+	internal static async Task SetMountState( string name, bool state, bool savePreference = false )
 	{
 		var source = _system.GetSource( name );
 		if ( source is null ) return;
@@ -288,6 +295,12 @@ public static partial class Directory
 		else
 		{
 			await _system.Mount( name );
+		}
+
+		if ( savePreference && source.IsMounted == state )
+		{
+			source.Config.Enabled = state;
+			WriteConfig();
 		}
 
 		if ( source.IsMounted )
@@ -454,8 +467,13 @@ public static partial class Directory
 		ReflectionUtility.RunAllStaticConstructors( assembly );
 	}
 
-	internal static void AddAssembly( Assembly assembly, BaseFileSystem projectFileSystem = null )
+	internal static void AddAssembly( Assembly assembly, BaseFileSystem projectFileSystem = null, bool exposeMountTypes = false )
 	{
+		// The editor loads global mount addons through its package enroller, but a game with no dependency
+		// on that addon never enrolls it. Its mounted prefabs still need the mount's exposed components.
+		if ( exposeMountTypes && assembly.GetTypes().Any( x => !x.IsAbstract && typeof( BaseGameMount ).IsAssignableFrom( x ) ) )
+			AddTypeAssembly( assembly, registerConsoleMembers: false );
+
 		_system.RegisterTypes( assembly, projectFileSystem );
 	}
 
@@ -467,15 +485,16 @@ public static partial class Directory
 
 	/// <summary>
 	/// Enroll a mount assembly's exposed types in the menu and game type libraries, and keep them there across rebuilds.
-	/// Only for assemblies the package system doesn't already add. Those don't pass the whitelist, so game code
-	/// only gets the types the mount marks, such as components and [Library] types, not the rest of the assembly.
+	/// Game code only gets the types the mount marks, such as components and [Library] types, not the rest of the assembly.
+	/// Assemblies loaded by the package system keep their console members managed by their package.
 	/// </summary>
-	internal static void AddTypeAssembly( Assembly assembly )
+	internal static void AddTypeAssembly( Assembly assembly, bool registerConsoleMembers = true )
 	{
 		lock ( _typeAssemblies )
 		{
 			if ( _typeAssemblies.Contains( assembly ) ) return;
 			_typeAssemblies.Add( assembly );
+			if ( registerConsoleMembers ) _standaloneAssemblies.Add( assembly );
 		}
 
 		var libraries = ContextLibraries().ToArray();
@@ -490,7 +509,11 @@ public static partial class Directory
 		catch
 		{
 			// Left in the list, it would throw again on every type library rebuild
-			lock ( _typeAssemblies ) _typeAssemblies.Remove( assembly );
+			lock ( _typeAssemblies )
+			{
+				_typeAssemblies.Remove( assembly );
+				_standaloneAssemblies.Remove( assembly );
+			}
 
 			foreach ( var library in libraries )
 			{
@@ -501,6 +524,7 @@ public static partial class Directory
 		}
 
 		UpdateUpgraders();
+		UpdateConsoleMembers( assembly );
 	}
 
 	internal static void RemoveTypeAssembly( Assembly assembly )
@@ -508,6 +532,7 @@ public static partial class Directory
 		lock ( _typeAssemblies )
 		{
 			if ( !_typeAssemblies.Remove( assembly ) ) return;
+			_standaloneAssemblies.Remove( assembly );
 		}
 
 		foreach ( var library in ContextLibraries() )
@@ -516,6 +541,7 @@ public static partial class Directory
 		}
 
 		UpdateUpgraders();
+		UpdateConsoleMembers( assembly );
 	}
 
 	/// <summary>
@@ -529,6 +555,38 @@ public static partial class Directory
 		foreach ( var assembly in assemblies )
 		{
 			library.AddAssembly( assembly, false );
+		}
+	}
+
+	/// <summary>
+	/// Console variables and commands declared in a mount assembly exist while at least one mount it defines is
+	/// mounted, and are removed with the last of them or with the assembly. Only for the assemblies loaded here:
+	/// one that came through the package system has its own registered with it.
+	/// </summary>
+	static void UpdateConsoleMembers( Assembly assembly )
+	{
+		if ( !ThreadSafe.IsMainThread )
+		{
+			MainThread.Queue( () => UpdateConsoleMembers( assembly ) );
+			return;
+		}
+
+		bool loadedHere;
+		lock ( _typeAssemblies ) loadedHere = _standaloneAssemblies.Contains( assembly );
+
+		var mounted = loadedHere && _system is not null && _system.All.Any( x => x.IsMounted && x.GetType().Assembly == assembly );
+		if ( mounted == _consoleAssemblies.Contains( assembly ) )
+			return;
+
+		if ( mounted )
+		{
+			_consoleAssemblies.Add( assembly );
+			ConVarSystem.AddAssembly( assembly, "mount" );
+		}
+		else
+		{
+			_consoleAssemblies.Remove( assembly );
+			ConVarSystem.RemoveAssembly( assembly );
 		}
 	}
 

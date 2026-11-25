@@ -15,12 +15,12 @@
 
         <div class="section">
             <div class="title-bar">
-                <div class="avatar-spacer"></div>
+                <div class="avatar-column"></div>
                 <div class="name"></div>
                 <label class="stat">#ui.scoreboard.kills</label>
                 <label class="stat">#ui.scoreboard.deaths</label>
                 <label class="stat">#ui.scoreboard.ping</label>
-                <div class="mute-spacer"></div>
+                <div class="mute-column"></div>
             </div>
 
             <div class="rows">
@@ -47,11 +47,11 @@
 
     async void FetchMap()
     {
-        var pkg = await Package.FetchAsync( Networking.MapName, false );
-        if ( pkg is not null )
-        {
-            _mapTitle = pkg.Title;
-        }
+        if ( !ulong.TryParse( Networking.MapName, out var id ) || id == 0 )
+            return;
+
+        var result = await new Storage.Query { FileIds = [id] }.Run();
+        _mapTitle = result?.Items?.FirstOrDefault()?.Title;
     }
 
     protected override void OnUpdate()

@@ -5,8 +5,18 @@
   "OrgTitle": "Facepunch",
   "Ident": "flatgrass",
   "Schema": 1,
+  "IncludeSourceFiles": false,
   "Resources": "maps/flatgrass/flatgrass.scene",
+  "PublishUsedAssetsOnly": false,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
   "Metadata": {
+    "WorkshopId": 3819030036,
     "PrimaryAsset": "maps/flatgrass/flatgrass.scene"
   }
 }

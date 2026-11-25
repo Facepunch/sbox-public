@@ -266,12 +266,6 @@ Dock
 		}
 	}
 
-	// Highlighted until it's been opened once
-	.pill.new, .square.new
-	{
-		box-shadow: 0 0 14px 2px rgba( 99, 157, 255, 0.55 );
-	}
-
 	// Your avatar's face fills its button
 	.square.avatar
 	{

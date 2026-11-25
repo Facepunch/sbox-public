@@ -1,5 +1,5 @@
 ﻿
-[Icon( "⛔" )]
+[Icon( "block" )]
 [Title( "#tool.name.nocollide" )]
 [ClassName( "nocollide" )]
 [Group( "#tool.group.tools" )]

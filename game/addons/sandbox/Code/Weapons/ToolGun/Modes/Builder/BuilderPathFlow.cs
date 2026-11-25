@@ -133,7 +133,7 @@ internal sealed class BuilderPathFlow : BuilderFlow
 			return;
 		}
 
-		_mouseRadius = Math.Clamp( _mouseRadius - Input.AnalogLook.pitch * RadiusPerDegree * grid, MinRadius, MaxRadius );
+		_mouseRadius = Math.Clamp( _mouseRadius - Tool.Toolgun.ToolLook.pitch * RadiusPerDegree * grid, MinRadius, MaxRadius );
 		_drawRadius = Tool.OffGrid ? _mouseRadius : MathF.Max( grid, BuilderPlacement.Snap( _mouseRadius * 2, grid ) ) / 2;
 		Tool.ShowGrid( _endPlane, grid, _end, _end );
 

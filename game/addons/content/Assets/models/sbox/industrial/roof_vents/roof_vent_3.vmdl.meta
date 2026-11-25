@@ -20,7 +20,6 @@
       },
       "Metadata": {
         "SingleAssetSource": "models/sbox/industrial/roof_vents/roof_vent_3.vmdl",
-        "ParentPackage": "facepunch.sbox_content",
         "AssetLicense": "CC0"
       }
     },

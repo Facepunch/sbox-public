@@ -1,27 +1,4 @@
-@import "/styles/_formmodal.scss";
-
 ReviewModal
 {
-	@include front-form-modal;
-
-	// Three big choices side by side - each lit in its own colour once it's picked
-	.ratings
-	{
-		@include platform-choices;
-	}
-
-	.rating
-	{
-		@include platform-choice;
-
-		&:hover
-		{
-			sound-in: "ui.button.over";
-		}
-
-		&:active
-		{
-			sound-in: "ui.button.press";
-		}
-	}
+	display: none;
 }

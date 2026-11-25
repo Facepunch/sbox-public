@@ -10,9 +10,7 @@ public sealed partial class NavQuery
 	internal static bool LinkEnds( MeshState s, PolyRef link, uint from, uint to, out Vector3 entry, out Vector3 exit )
 	{
 		entry = exit = default;
-		int id = link.Link;
-		if ( (uint)id >= (uint)s.Links.Length ) return false;
-		ref readonly var found = ref s.Links[id];
+		ref readonly var found = ref s.LinkAt( link.Link );
 		if ( found.Serial != link.Serial || !found.Connected ) return false;
 
 		if ( (from == PolyRef.NoId || from == found.StartPoly) && (to == PolyRef.NoId || to == found.EndPoly) )

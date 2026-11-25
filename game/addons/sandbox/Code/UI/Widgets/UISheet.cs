@@ -4,6 +4,17 @@ using Sandbox.UI.Construct;
 
 namespace Sandbox;
 
+/// <summary>
+/// Supplies a custom editor in the settings sheet, including when editing a preset draft.
+/// </summary>
+public interface ICustomSettingsSheet
+{
+	/// <summary>
+	/// Adds the controls that edit this instance to the sheet body.
+	/// </summary>
+	void BuildSettingsSheet( Panel body );
+}
+
 public class UISheet : Panel, IControlSheet
 {
 	/// <summary>
@@ -47,6 +58,12 @@ public class UISheet : Panel, IControlSheet
 		_body = AddChild<Panel>( "body" );
 
 		if ( Target is null ) return;
+
+		if ( Target is ICustomSettingsSheet custom )
+		{
+			custom.BuildSettingsSheet( _body );
+			return;
+		}
 
 		if ( Target is List<SerializedProperty> properties )
 		{
@@ -123,11 +140,15 @@ public class UISheetGroup : Panel
 		{
 			_header = Add.Panel( "header" );
 
-			if ( _toggle is not null )
-				_header.AddChild( new UICheckbox { Property = _toggle } );
-
 			var label = _header.Add.Label( "", "title" );
 			label.Text = title ?? "";
+
+			if ( _toggle is not null )
+			{
+				_header.AddClass( "toggle-header" );
+				var toggleControl = _header.AddChild( new SwitchControl { Property = _toggle } );
+				label.AddEventListener( "onclick", () => toggleControl.Value = !toggleControl.Value );
+			}
 
 			foreach ( var method in headerButtons )
 			{
@@ -174,7 +195,7 @@ public class UISheetGroup : Panel
 }
 
 /// <summary>
-/// One property, its name on the left and its control on the right, wide controls like the resource grid go under the name instead.
+/// One property with its name on the left and its control on the right. Wide controls like resource grids go under the name.
 /// A button has no name and takes the row, and the buttons that follow with [SameLine] share it.
 /// </summary>
 public class UISheetRow : Panel
@@ -203,7 +224,7 @@ public class UISheetRow : Panel
 
 		var control = CreateControl( property, out var wide );
 		var isButton = control is UIButton;
-		var isToggle = control is UICheckbox;
+		var isToggle = control is SwitchControl;
 		var hasName = !isButton && !property.HasAttribute<HideLabelAttribute>();
 
 		SetClass( "wide", wide );
@@ -211,19 +232,18 @@ public class UISheetRow : Panel
 		SetClass( "buttons", isButton );
 		SetClass( "bare", !hasName );
 
-		// a checkbox goes in front of its name, every other control after it
-		if ( isToggle )
-			_holder = Add.Panel( "control" );
-
 		if ( hasName )
 		{
 			// only the name shows the description, not the control next to it
 			var label = AddChild( new UIHintLabel { Hint = property.Description } );
 			label.AddClass( "label" );
 			label.Text = property.DisplayName;
+
+			if ( control is SwitchControl toggle )
+				label.AddEventListener( "onclick", () => toggle.Value = !toggle.Value );
 		}
 
-		_holder ??= Add.Panel( "control" );
+		_holder = Add.Panel( "control" );
 		if ( control is not null )
 			_holder.AddChild( control );
 	}
@@ -290,14 +310,8 @@ public class UISheetRow : Panel
 		if ( type is null || Nullable.GetUnderlyingType( type ) is not null )
 			return BaseControl.CreateFor( property );
 
-		if ( type == typeof( bool ) )
-			return new UICheckbox { Property = property };
-
 		if ( type.IsEnum )
-			return new UIEnumControl { Property = property };
-
-		if ( type == typeof( Color ) )
-			return new UIColor { Property = property };
+			return new EnumControl { ButtonGroupOptionCount = 2, Property = property };
 
 		if ( UIVector.Supports( type ) )
 			return new UIVector { Property = property };
@@ -320,11 +334,22 @@ public class UISheetRow : Panel
 		if ( type == typeof( string ) && property.HasAttribute<FontNameAttribute>() )
 			return new UIFontControl { Property = property };
 
-		var isNumber = type == typeof( float ) || type == typeof( double ) || type == typeof( int );
-		if ( isNumber && property.HasAttribute<RangeAttribute>() )
-			return new UISlider { Property = property };
-
 		var control = BaseControl.CreateFor( property );
+
+		if ( control is ColorControl color )
+		{
+			// The swatch opens its popup in the root before the press bubbles up to the control.
+			color.AddEventListener( "onmousedown", () =>
+			{
+				var popup = color.FindPopupPanel()?.Children.OfType<Popup>()
+					.LastOrDefault( p => !p.IsDeleting && p.PopupSource?.Parent == color );
+
+				if ( popup is null ) return;
+
+				popup.CloseWhenParentIsHidden = true;
+				popup.StyleSheet.Load( "/UI/Theme/ColorPicker.scss" );
+			} );
+		}
 
 		// the engine's plain text box, in our look and with the placeholder of the property.
 		// The special strings (input actions, fonts, icons) have controls of their own and keep them

@@ -1,7 +1,7 @@
 {
   "Title": "Map Props",
   "Description": "",
-  "Icon": "collections_bookmark",
+  "Icon": "category",
   "RequiredMount": "gmod",
   "Parent": {
     "Id": "c5c6f06a-16b8-4f4a-b8ab-72ba0f48749e",

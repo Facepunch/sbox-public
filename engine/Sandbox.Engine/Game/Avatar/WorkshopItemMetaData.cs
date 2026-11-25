@@ -58,4 +58,28 @@ public struct WorkshopItemMetaData
 			return null;
 		}
 	}
+
+	/// <summary>
+	/// Reads Steam metadata for items that predate metadata.json. Maps use its primary asset.
+	/// Package-backed items keep their full package metadata.
+	/// </summary>
+	internal static WorkshopItemMetaData? FromItemMetadata( string metadata )
+	{
+		if ( string.IsNullOrWhiteSpace( metadata ) ) return null;
+
+		try
+		{
+			var value = Json.Deserialize<WorkshopItemMetaData>( metadata );
+			if ( string.IsNullOrEmpty( value.TypeName ) ) return null;
+
+			if ( !string.Equals( value.TypeName, "map", System.StringComparison.OrdinalIgnoreCase ) )
+				value.Meta = null;
+			return value;
+		}
+		catch ( System.Exception e )
+		{
+			Log.Warning( e, $"Couldn't read a Workshop item's Steam metadata ({e.Message})" );
+			return null;
+		}
+	}
 }

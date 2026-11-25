@@ -1,19 +1,24 @@
 @import "/UI/Theme.scss";
 
-UIHintPanel
+@mixin component-theme
 {
-	@include ui-hint;
-	position: absolute;
-	z-index: 10000;
-	pointer-events: none;
-	flex-direction: column;
-	gap: 2px;
-
-	// the property name
-	.name
+	UIHintPanel
 	{
-		font-weight: 800;
-		color: $ui-blue;
-		text-transform: uppercase;
+		@include ui-hint;
+		position: absolute;
+		z-index: 10000;
+		pointer-events: none;
+		flex-direction: column;
+		gap: 2px;
+
+		// the property name
+		.name
+		{
+			font-weight: 800;
+			color: $ui-blue;
+			text-transform: uppercase;
+		}
 	}
 }
+
+@import "/UI/Theme/Apply.scss";

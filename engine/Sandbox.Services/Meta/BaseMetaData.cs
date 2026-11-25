@@ -17,6 +17,7 @@ namespace Sandbox.Services;
 [JsonDerivedType( typeof( MaterialMetaData ), "material" )]
 [JsonDerivedType( typeof( ClothingMetaData ), "clothing" )]
 [JsonDerivedType( typeof( SoundMetaData ), "vsnd" )]
+[JsonDerivedType( typeof( GameMetaData ), "game" )]
 public class BaseMetaData
 {
 	/// <summary>

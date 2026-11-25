@@ -324,6 +324,25 @@ public class StateMachineNode : Node
 		EntryConditions?.SyncStates( names );
 	}
 
+	internal string UniqueStateName( State state )
+	{
+		var baseName = string.IsNullOrWhiteSpace( state.Name ) ? "State" : state.Name;
+		var name = baseName;
+		for ( int suffix = 2; States.Any( other => other != state && string.Equals( other.Name, name, StringComparison.OrdinalIgnoreCase ) ); ++suffix )
+			name = $"{baseName} {suffix}";
+
+		return name;
+	}
+
+	/// <summary>
+	/// Apply an edited state name and update its references once the name is unique.
+	/// </summary>
+	public void RenameState( string oldName, State state )
+	{
+		state.Name = UniqueStateName( state );
+		RenameState( oldName, state.Name );
+	}
+
 	/// <summary>
 	/// Renames a state everywhere it's referenced by name.
 	/// </summary>

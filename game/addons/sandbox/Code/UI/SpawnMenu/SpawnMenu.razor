@@ -3,169 +3,65 @@
 @namespace Sandbox
 @inherits Panel
 @attribute [SpawnMenuHost.SpawnMenuMode]
-@attribute [Icon( "📦" )]
+@attribute [Icon( "inventory_2" )]
 @attribute [Title( "#spawnmenu.tab.spawn" )]
 @attribute [Order( -100 )]
 
-<root>
-
+<root class="menu-panel">
     <div class="container">
-
-        <div class="spawnmenuleft">
-
-            <div class="tabs">
-
-                @foreach (var t in tabs)
-                {
-                    var type = Game.TypeLibrary.GetType(t.GetType());
-
-                    var c = activeTab == t ? "active" : "";
-
-                    <div class="@c" @onclick=@(() => SwitchTab(t))>
-                        <span>@type.Icon</span>
-                        <span>@type.Title</span>
-                    </div>
-                }
-
-            </div>
-
-            <div class="body" @ref="TabContainer">
-            </div>
-
-        </div>
-
-        <div class="spawnmenuright">
-
-            <div class="tabs">
-
-                @foreach (var t in utilityTabs)
-                {
-                    var type = Game.TypeLibrary.GetType(t.GetType());
-
-                    var c = activeUtilityTab == t ? "active" : "";
-
-                    <div class="@c" @onclick=@(() => SwitchUtilityTab(t))>
-                        <span>@type.Icon</span>
-                        <span>@type.Title</span>
-                    </div>
-                }
-
-            </div>
-
-            <div class="body" @ref="UtilityContainer">
-            </div>
-
-        </div>
-
+        <TabPanel class="spawnmenuleft" @ref="SpawnTabs" />
+        <div class="tools-menu-slot" @ref="ToolsParent"></div>
     </div>
-
 </root>
 
 @code
 {
-    Panel activeTab;
-    Panel TabContainer = default;
+    TabPanel SpawnTabs;
+    Button IconSizeButton;
+    internal Panel ToolsParent { get; private set; }
 
-    Panel activeUtilityTab;
-    Panel UtilityContainer = default;
-
-    List<Panel> tabs = new List<Panel>();
-    List<Panel> utilityTabs = new List<Panel>();
-
-    public void BuildTabs()
+    protected override void OnAfterTreeRender( bool firstTime )
     {
-        foreach (var p in Game.TypeLibrary.GetTypes<ISpawnMenuTab>().OrderBy(x => x.Order).ThenBy( x => LocalizedText.Resolve( x.Title ), StringComparer.CurrentCultureIgnoreCase ))
+        BuildTabs();
+
+        if ( !IconSizeButton.IsValid() )
         {
-            if (p.IsAbstract) continue;
-            if (p.TargetType == typeof(BaseSpawnMenu)) continue;
-
-            var panel = p.Create<Panel>();
-            TabContainer.AddChild(panel);
-
-            tabs.Add(panel);
+            IconSizeButton = SpawnTabs.TabBar.AddChild( new Button( null, SpawnMenuIconSizeExtensions.Current.Icon(), OpenIconSizeMenu ) );
+            IconSizeButton.AddClass( "icon-size-button" );
+            IconSizeButton.Tooltip = "#ui.icon_size.title";
         }
 
-        SwitchTab( RestoreTab( tabs, "spawnmenu.tab" ) );
+        Scene?.Get<SpawnMenuHost>()?.MoveToolsMenu();
     }
 
-    public void BuildUtilityTabs()
+    void OpenIconSizeMenu()
     {
-        foreach (var p in Game.TypeLibrary.GetTypes<IUtilityTab>().OrderBy(x => x.Order).ThenBy( x => LocalizedText.Resolve( x.Title ), StringComparer.CurrentCultureIgnoreCase ))
+        SpawnMenuIconSizeExtensions.OpenMenu( IconSizeButton, size =>
         {
-            if (p.IsAbstract) continue;
-
-            var panel = p.Create<Panel>();
-            UtilityContainer.AddChild(panel);
-
-            utilityTabs.Add(panel);
-        }
-
-        SwitchUtilityTab( RestoreTab( utilityTabs, "spawnmenu.utilitytab" ) );
+            SpawnMenuIconSizeExtensions.Current = size;
+            IconSizeButton.Icon = size.Icon();
+        } );
     }
 
-    Panel RestoreTab( List<Panel> panels, string cookieKey )
-    {
-        var saved = Game.Cookies.Get<string>( cookieKey, null );
-        if ( !string.IsNullOrEmpty( saved ) )
-        {
-            var match = panels.FirstOrDefault( p => p.GetType().Name == saved );
-            if ( match is not null ) return match;
-        }
-        return panels.FirstOrDefault();
-    }
+    /// <summary>
+    /// Builds the spawn tabs registered by the game and addons.
+    /// </summary>
+    public void BuildTabs() => SpawnTabs.PopulateTabs<ISpawnMenuTab>( "spawnmenu.tab" );
 
-    protected override void OnAfterTreeRender(bool firstTime)
-    {
-        if (firstTime && TabContainer.IsValid())
-        {
-            BuildTabs();
-        }
+    /// <summary>
+    /// Builds the tabs in the shared tools menu.
+    /// </summary>
+    public void BuildUtilityTabs() => Scene?.Get<SpawnMenuHost>()?.ToolsMenu?.BuildTabs();
 
-        if (firstTime && UtilityContainer.IsValid())
-        {
-            BuildUtilityTabs();
-        }
-    }
-
+    /// <summary>
+    /// Opens a stored spawnlist in the props tab.
+    /// </summary>
     public void OpenSpawnlist( Storage.Entry entry )
     {
-        var page = tabs.OfType<PropsPage>().FirstOrDefault();
-        if ( page is null ) return;
+        var tab = SpawnTabs?.TabBar.Tabs.FirstOrDefault( tab => tab.UserData is PropsPage );
+        if ( tab?.UserData is not PropsPage page ) return;
 
-        SwitchTab( page );
+        SpawnTabs.TabBar.SelectTab( tab );
         page.SelectSpawnlist( entry );
-    }
-
-    void SwitchTab(Panel tab)
-    {
-        activeTab = tab;
-        Game.Cookies.Set( "spawnmenu.tab", tab?.GetType().Name );
-        StateHasChanged();
-
-        foreach (var t in tabs)
-        {
-            t.SetClass("active", t == tab);
-            t.SetClass("hidden", t != tab);
-        }
-    }
-
-    void SwitchUtilityTab(Panel tab)
-    {
-        activeUtilityTab = tab;
-        Game.Cookies.Set( "spawnmenu.utilitytab", tab?.GetType().Name );
-        StateHasChanged();
-
-        foreach (var t in utilityTabs)
-        {
-            t.SetClass("active", t == tab);
-            t.SetClass("hidden", t != tab);
-        }
-    }
-
-    // When clicking anywhere in the spawn menu, blur any focused text inputs
-    // so we can close the menu by pressing the spawnmenu key.
-    void OnMenuClicked()
-    {
-        Sandbox.UI.InputFocus.Clear();
     }
 }

@@ -70,6 +70,9 @@ public partial class Scene : GameObject
 
 		SharedTick();
 
+		if ( !IsValid )
+			return;
+
 		using ( PerformanceStats.Timings.NavMesh.Scope() )
 		{
 			Nav_Update();
@@ -222,6 +225,9 @@ public partial class Scene : GameObject
 			FixedUpdate();
 		}
 
+		if ( !IsValid )
+			return;
+
 		{
 			ProcessDeletes();
 
@@ -314,7 +320,7 @@ public partial class Scene : GameObject
 
 	public void GameTick( double timeDelta = 0.1 )
 	{
-		if ( IsSuspended ) return;
+		if ( !IsValid || IsSuspended ) return;
 
 		UpdateTime( timeDelta );
 
@@ -333,7 +339,8 @@ public partial class Scene : GameObject
 			SyncContext.FrameStage.Update.Trigger();
 		}
 
-		if ( IsLoading )
+		// A frame continuation can close a ScenePanel and destroy the scene we're ticking.
+		if ( !IsValid || IsLoading )
 			return;
 
 		if ( Game.IsPaused )
@@ -358,11 +365,15 @@ public partial class Scene : GameObject
 
 	internal void InternalFixedUpdate()
 	{
+		if ( !IsValid )
+			return;
+
 		FixedUpdateInputContext.Flip();
 		using var _ = FixedUpdateInputContext.Push();
 
-		using ( _fixedUpdateTimer.Start() )
+		try
 		{
+			using var timing = _fixedUpdateTimer.Start();
 			Signal( GameObjectSystem.Stage.StartFixedUpdate );
 
 			// All components that have not had OnStart() called yet
@@ -382,6 +393,9 @@ public partial class Scene : GameObject
 			}
 
 			Signal( GameObjectSystem.Stage.PhysicsStep );
+
+			if ( !IsValid )
+				return;
 
 			if ( !IsEditor )
 			{
@@ -403,7 +417,9 @@ public partial class Scene : GameObject
 
 			Signal( GameObjectSystem.Stage.FinishFixedUpdate );
 		}
-
-		Connection.ClearFixedUpdateContextInput();
+		finally
+		{
+			Connection.ClearFixedUpdateContextInput();
+		}
 	}
 }

@@ -48,10 +48,7 @@ public sealed class SniperWeapon : BaseBulletWeapon
 		_isScoped = scoped;
 
 		// Trigger ironsights animation
-		ViewModel?.RunEvent<ViewModel>( x =>
-		{
-			x.Renderer?.Set( "ironsights", _isScoped ? 1 : 0 );
-		} );
+		ViewModel?.RunEvent<ViewModel>( x => x.Renderer?.Animation.Parameters.TrySet( "ironsights", _isScoped ) );
 
 		if ( _isScoped )
 		{
@@ -137,11 +134,7 @@ public sealed class SniperWeapon : BaseBulletWeapon
 			if ( BoltPullSound is not null )
 				Sound.Play( BoltPullSound, WorldPosition );
 
-			ViewModel?.RunEvent<ViewModel>( x =>
-			{
-				x.Renderer?.Set( "speed_reload", 1 );
-				x.Renderer?.Set( "b_reload_bolt", true );
-			} );
+			ViewModel?.RunEvent<ViewModel>( x => x.TriggerAnimation( "b_reload_bolt" ) );
 		}
 	}
 

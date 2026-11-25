@@ -13,7 +13,7 @@ public class FixerTest<T, TFix> : IFixerTest where T : DiagnosticAnalyzer, new()
 	{
 		var test = new CSharpCodeFixTest<T, TFix, DefaultVerifier>
 		{
-			ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard20,
+			ReferenceAssemblies = TestReferences.None,
 			TestCode = oldcode.ReplaceLineEndings( "\r\n" ),
 			FixedCode = fixedcode.ReplaceLineEndings( "\r\n" ),
 		};
@@ -22,9 +22,7 @@ public class FixerTest<T, TFix> : IFixerTest where T : DiagnosticAnalyzer, new()
 		// independent of the checkout's line endings and the test host's defaults.
 		test.TestState.AnalyzerConfigFiles.Add( ("/.editorconfig", "root = true\n\n[*.cs]\nend_of_line = crlf\n") );
 
-		test.TestState.AdditionalReferences.Add( MetadataReference.CreateFromFile( typeof( Sandbox.Internal.GlobalGameNamespace ).Assembly.Location ) );
-		test.TestState.AdditionalReferences.Add( MetadataReference.CreateFromFile( typeof( Sandbox.ConCmdAttribute ).Assembly.Location ) );
-		test.TestState.AdditionalReferences.Add( MetadataReference.CreateFromFile( typeof( NetFlags ).Assembly.Location ) );
+		TestReferences.AddTo( test.TestState );
 
 		await test.RunAsync();
 	}

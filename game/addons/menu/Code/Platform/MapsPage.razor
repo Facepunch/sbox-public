@@ -65,19 +65,22 @@
                     <Item Context="item">
                         @if ( item is Package local )
                         {
-                            <MapTile class="@(IsSelected( local.FullIdent ) ? "selected" : "")" Title=@local.Title Thumb=@local.ThumbWide
-                                     OnSelect=@( () => Pick( local.FullIdent ) ) />
+                            var id = local.WorkshopId.ToString();
+                            <MapTile class="@(IsSelected( id ) ? "selected" : "")" Title=@local.Title Thumb=@local.ThumbWide
+                                     OnSelect=@( () => Pick( id ) ) OnView=@( () => PlatformRoot.Instance?.ShowMap( id ) ) />
                         }
                         else if ( item is ResourceLoader scene )
                         {
-                            <MapTile class="@(scene.Path == Selected ? "selected" : "")" Title=@MapName( scene ) Thumbnail=@((scene as IThumbnailProvider)?.Thumbnail)
+                            var title = MapTitle( scene );
+                            <MapTile class="@(IsSelected( scene.Path ) ? "selected" : "")" Title=@(title ?? MapName( scene )) File=@(title is null ? null : MapName( scene ))
+                                     Thumbnail=@((scene as IThumbnailProvider)?.Thumbnail)
                                      OnSelect=@( () => Pick( scene.Path ) ) />
                         }
                         else if ( item is WorkshopItemDetails map )
                         {
                             <MapTile class="@(IsSelected( MenuUtility.LaunchMapOf( map ) ) ? "selected" : "")" Title=@map.Title Thumb=@map.Thumb
                                      Tooltip=@(map.OwnerName is { } owner ? $"By {owner}" : null) OnSelect=@( () => Pick( MenuUtility.LaunchMapOf( map ) ) )
-                                     OnView=@( () => PlatformRoot.Instance?.ShowGame( MenuUtility.LaunchMapOf( map ) ) ) />
+                                     OnView=@( () => PlatformRoot.Instance?.ShowWorkshopItem( map ) ) />
                         }
                     </Item>
                 </VirtualGrid>
@@ -109,7 +112,10 @@
     const string Workshop = "workshop";
     const string Subscribed = "subscribed";
 
-    readonly Package[] localMaps = MenuUtility.FindInstalledMaps();
+    /// <summary>
+    /// Local map projects that are published, so they can be loaded by Workshop item ID.
+    /// </summary>
+    readonly Package[] localMaps = MenuUtility.FindInstalledMaps().Where( x => x.WorkshopId != 0 ).ToArray();
 
     record Source( string Key, string Title, string Icon );
 
@@ -159,7 +165,8 @@
     IReadOnlyList<object> ShownMaps => source switch
     {
         null or Workshop or Subscribed => found,
-        _ => MountMaps( source ).Where( x => MapName( x ).Contains( search, StringComparison.OrdinalIgnoreCase ) )
+        _ => MountMaps( source ).Where( x => MapName( x ).Contains( search, StringComparison.OrdinalIgnoreCase )
+                || (MapTitle( x )?.Contains( search, StringComparison.OrdinalIgnoreCase ) ?? false) )
             .OrderBy( MapName ).ToArray(),
     };
 
@@ -167,6 +174,11 @@
     /// A mounted map's name, without its file's extension (gm_construct, not gm_construct.bsp)
     /// </summary>
     static string MapName( ResourceLoader scene ) => System.IO.Path.GetFileNameWithoutExtension( scene.Name );
+
+    /// <summary>
+    /// A mounted map's title from its loader (Hangar for E1M1), or null when it has none
+    /// </summary>
+    static string MapTitle( ResourceLoader scene ) => (scene as ITitleProvider)?.Title is { Length: > 0 } title ? title : null;
 
     List<object> found = new();
     WorkshopItemSearch pages;
@@ -177,7 +189,7 @@
     string typed;
     RealTimeSince sinceTyped;
 
-    bool IsSelected( string ident ) => !string.IsNullOrEmpty( Selected ) && string.Equals( ident, Selected.Split( '#' )[0], StringComparison.OrdinalIgnoreCase );
+    bool IsSelected( string map ) => !string.IsNullOrEmpty( Selected ) && string.Equals( map, Selected, StringComparison.OrdinalIgnoreCase );
 
     /// <summary>
     /// One of the front's pages - picking in place of the map its setup has
@@ -200,7 +212,7 @@
     /// </summary>
     void ShowSelected()
     {
-        if ( localMaps.Any( map => IsSelected( map.FullIdent ) ) )
+        if ( localMaps.Any( map => IsSelected( map.WorkshopId.ToString() ) ) )
             Show( Subscribed );
         else if ( MountUtility.TryParse( Selected, out string ident ) && MountDirectory.Get( ident ) is { IsMounted: true } )
             Show( ident );
@@ -249,13 +261,11 @@
         if ( asking != pages ) return;
 
         var shown = found.OfType<WorkshopItemDetails>().Select( x => x.Id ).ToHashSet();
-        var installed = found.OfType<Package>().Select( x => x.FullIdent ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+        shown.UnionWith( found.OfType<Package>().Select( x => x.WorkshopId ) );
+
         foreach ( var map in maps )
         {
-            var ident = MenuUtility.LaunchMapOf( map );
-            if ( string.IsNullOrEmpty( ident ) || !shown.Add( map.Id ) ) continue;
-            if ( installed.Count > 0 && Package.TryParseIdentParts( ident, out var parsed )
-                && installed.Contains( Package.FormatIdent( parsed.org, parsed.package ) ) ) continue;
+            if ( map.Id == 0 || !shown.Add( map.Id ) ) continue;
 
             found.Add( map );
         }

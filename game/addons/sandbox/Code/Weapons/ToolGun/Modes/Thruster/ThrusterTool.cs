@@ -2,13 +2,13 @@
 
 [Hide]
 [Title( "#tool.name.thruster" )]
-[Icon( "🚀" )]
+[Icon( "rocket_launch" )]
 [ClassName( "thrustertool" )]
 [Group( "#tool.group.building" )]
 public sealed class ThrusterTool : ToolMode
 {
 	public override bool UseSnapGrid => true;
-	public override IEnumerable<string> TraceIgnoreTags => ["constraint", "collision"];
+	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 
 	[Property, ResourceSelect( Extension = "tdef", AllowPackages = true ), Title( "#tool.name.thruster" )]
 	public string Definition { get; set; } = "entities/thruster/basic.tdef";
@@ -98,6 +98,7 @@ public sealed class ThrusterTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Spawn( SelectionPoint point, PrefabFile thrusterPrefab, Transform tx, bool noWeld, string configuration )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( noWeld ? ToolInput.Secondary : ToolInput.Primary ) ) return;
 
 		if ( thrusterPrefab == null )
@@ -111,7 +112,7 @@ public sealed class ThrusterTool : ToolMode
 		var thruster = go.GetComponent<ThrusterEntity>();
 		ApplyConfiguration( thruster, configuration );
 
-		if ( !noWeld && !point.GameObject.Tags.Contains( "world" ) )
+		if ( !noWeld && !point.GameObject.Tags.Has( "world" ) )
 		{
 			// attach it
 			var joint = thruster.AddComponent<FixedJoint>();
@@ -134,7 +135,7 @@ public sealed class ThrusterTool : ToolMode
 		{
 			var undo = Player.Undo.Create();
 			undo.Name = "#tool.name.thruster";
-			undo.Icon = "🚀";
+			undo.Icon = "rocket_launch";
 			undo.Add( go );
 		}
 

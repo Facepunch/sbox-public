@@ -197,7 +197,7 @@ internal sealed class LinkBuilder
 		Set( settings, links );
 		tileMin = new Vector2( tile.X, tile.Y ) * tileWorld;
 
-		float spacing = links.SpacingOf( settings );
+		float spacing = links.Spacing;
 		Span<Vector3> v = stackalloc Vector3[Poly.MaxVerts];
 		for ( int p = 0; p < tile.Polys.Length; p++ )
 		{
@@ -309,7 +309,7 @@ internal sealed class LinkBuilder
 	/// every tile they pass over. Over a tile whose spans are not held nothing is known and no link is
 	/// taken. What lands in the tile itself its build has seen.
 	/// </summary>
-	public void Judge( SeamTask task, MeshState state, NavMesh mesh, NavQuery query, in BuildConfig config )
+	public void Judge( SeamTask task, MeshState state, MeshAgentType mesh, NavQuery query, in BuildConfig config )
 	{
 		solid = apron = null;
 		field = null;

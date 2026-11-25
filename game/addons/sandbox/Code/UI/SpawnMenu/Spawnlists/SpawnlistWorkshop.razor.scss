@@ -1,276 +1,276 @@
 @import "/UI/Theme.scss";
 
 $info-height: 62px;
-$info-hover-color: $ui-card-hover-bg;
 
-SpawnlistWorkshop
+@mixin component-theme
 {
-	VirtualGrid
+	SpawnlistWorkshop
 	{
-		width: 100%;
-		flex-grow: 1;
-
-		.cell
+		VirtualGrid
 		{
-			padding: 0px;
-			background-color: transparent;
-			border: 0;
-			box-shadow: none;
-		}
-	}
+			width: 100%;
+			flex-grow: 1;
 
-	.workshop-spawnlist
-	{
-		@include ui-card;
-
-		&.no-thumbnail
-		{
-			background-color: rgba( 102, 102, 102, 0.5 );
-		}
-
-		&:hover
-		{
-			.info
+			.cell
 			{
-				background-color: $info-hover-color;
+				padding: 0px;
+				background-color: transparent;
+				border: 0;
+				box-shadow: none;
+			}
+		}
 
-				.title
+		.workshop-spawnlist
+		{
+			@include ui-card;
+
+			&.no-thumbnail
+			{
+				background-color: rgba( 102, 102, 102, 0.5 );
+			}
+
+			&:hover
+			{
+				.info
 				{
-					color: $ui-card-hover-text;
+					background-color: $ui-card-hover-bg;
+
+					.title
+					{
+						color: $ui-card-hover-text;
+					}
+
+					.meta
+					{
+						color: $ui-card-hover-subtext;
+					}
 				}
 
-				.meta
+				.install
 				{
-					color: $ui-card-hover-subtext;
+					opacity: 1;
+				}
+
+				// the description strip slides over it
+				&.has-description .likes
+				{
+					opacity: 0;
 				}
 			}
-
-			.install
-			{
-				opacity: 1;
-			}
-
-			// the description strip slides over it
-			&.has-description .likes
-			{
-				opacity: 0;
-			}
-		}
-	}
-
-	.no-preview
-	{
-		position: absolute;
-		left: 0px;
-		right: 0px;
-		top: 0px;
-		bottom: $info-height;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-
-		.no-preview-icon
-		{
-			width: 40px;
-			height: 48px;
-			background-image: url( /ui/no_preview.png );
-			background-size: contain;
-			background-position: center;
-			background-repeat: no-repeat;
-			opacity: 0.4;
 		}
 
-		label
-		{
-			font-size: 11px;
-			font-weight: 700;
-			color: rgba( white, 0.43 );
-		}
-	}
-
-	// the first items of the list, for when the workshop item has no thumbnail of its own
-	.preview-collage
-	{
-		position: absolute;
-		left: 3px;
-		right: 3px;
-		top: 3px;
-		bottom: $info-height + 3px;
-		gap: 3px;
-	}
-
-	.preview-item
-	{
-		width: 33%;
-		height: 100%;
-		flex-grow: 1;
-		position: relative;
-		background-color: $ui-tile-bg;
-		background-position: center;
-		background-repeat: no-repeat;
-		background-size: contain;
-		overflow: hidden;
-
-		.preview-title
-		{
-			position: absolute;
-			left: 5px;
-			right: 5px;
-			bottom: 4px;
-			color: white;
-			font-size: 9px;
-			font-weight: 700;
-			text-align: center;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
-		}
-
-		.more-count
+		.no-preview
 		{
 			position: absolute;
 			left: 0px;
 			right: 0px;
 			top: 0px;
-			bottom: 0px;
+			bottom: $info-height;
+			flex-direction: column;
 			align-items: center;
 			justify-content: center;
-			background-color: rgba( 0, 0, 0, 0.55 );
-			color: $ui-control-bg;
-			font-family: $title-font;
-			font-size: 18px;
-			font-weight: 800;
-		}
-	}
+			gap: 8px;
 
-	.likes
-	{
-		position: absolute;
-		left: 12px;
-		top: 12px;
-		height: 24px;
-		padding: 0 8px;
-		flex-direction: row;
-		align-items: center;
-		gap: 5px;
-		border-radius: 2px;
-		background-color: rgba( 0, 0, 0, 0.4 );
-		color: $ui-control-bg;
-		font-size: 12px;
-		font-weight: 700;
-		transition: opacity 0.1s ease;
-
-		i
-		{
-			font-size: 15px;
-		}
-	}
-
-	.info
-	{
-		position: absolute;
-		left: 0px;
-		right: 0px;
-		bottom: 0px;
-		height: $info-height;
-		padding: 0 12px;
-		flex-direction: column;
-		justify-content: center;
-		gap: 6px;
-		overflow: hidden;
-		background-color: rgba( 0, 0, 0, 0.25 );
-		transition: background-color 0.1s ease;
-
-		.title
-		{
-			color: white;
-			font-size: 14px;
-			font-weight: 700;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			transition: color 0.1s ease;
-		}
-
-		.meta
-		{
-			flex-direction: row;
-			align-items: center;
-			gap: 6px;
-			color: rgba( white, 0.72 );
-			font-size: 11px;
-			font-weight: 500;
-			white-space: nowrap;
-			overflow: hidden;
-			transition: color 0.1s ease;
-
-			.avatar
+			.no-preview-icon
 			{
-				width: 18px;
-				height: 18px;
-				flex-shrink: 0;
-				border-radius: 3px;
+				width: 40px;
+				height: 48px;
+				background-image: url( /ui/no_preview.png );
+				background-size: contain;
 				background-position: center;
-				background-size: cover;
+				background-repeat: no-repeat;
+				opacity: 0.4;
 			}
 
-			.author-name
+			label
 			{
-				max-width: 110px;
-				flex-shrink: 1;
-				min-width: 0px;
-				overflow: hidden;
-				text-overflow: ellipsis;
-			}
-
-			.meta-text
-			{
-				flex-direction: row;
-				gap: 4px;
-				flex-shrink: 0;
+				font-size: 11px;
+				font-weight: 700;
+				color: rgba( white, 0.43 );
 			}
 		}
-	}
 
-	// shows over the end of the info on hover, and fades out whatever is behind it
-	.install
-	{
-		position: absolute;
-		right: 0px;
-		top: 0px;
-		bottom: 0px;
-		padding: 0 12px 0 48px;
-		flex-direction: row;
-		align-items: center;
-		justify-content: flex-end;
-		background-image: linear-gradient( to right, rgba( $info-hover-color, 0 ), $info-hover-color 40px );
-		opacity: 0;
-		pointer-events: none;
-		transition: opacity 0.1s ease;
-
-		.install-button
+		// the first items of the list, for when the workshop item has no thumbnail of its own
+		.preview-collage
 		{
-			height: 28px;
-			padding: 0 12px;
+			position: absolute;
+			left: 3px;
+			right: 3px;
+			top: 3px;
+			bottom: $info-height + 3px;
+			gap: 3px;
+		}
+
+		.preview-item
+		{
+			width: 33%;
+			height: 100%;
+			flex-grow: 1;
+			position: relative;
+			background-color: $ui-spawn-preview-bg;
+			background-position: center;
+			background-repeat: no-repeat;
+			background-size: contain;
+			overflow: hidden;
+
+			.preview-title
+			{
+				position: absolute;
+				left: 5px;
+				right: 5px;
+				bottom: 4px;
+				color: white;
+				font-size: 9px;
+				font-weight: 700;
+				text-align: center;
+				@include ui-ellipsis;
+			}
+
+			.more-count
+			{
+				position: absolute;
+				left: 0px;
+				right: 0px;
+				top: 0px;
+				bottom: 0px;
+				align-items: center;
+				justify-content: center;
+				background-color: rgba( 0, 0, 0, 0.55 );
+				color: $ui-control-bg;
+				font-family: $title-font;
+				font-size: 18px;
+				font-weight: 800;
+			}
+		}
+
+		.likes
+		{
+			position: absolute;
+			left: 12px;
+			top: 12px;
+			height: 24px;
+			padding: 0 8px;
 			flex-direction: row;
 			align-items: center;
-			gap: 6px;
+			gap: 5px;
 			border-radius: 2px;
-			background-color: $ui-blue;
-			color: white;
-			font-size: 11px;
+			background-color: rgba( 0, 0, 0, 0.4 );
+			color: $ui-control-bg;
+			font-size: 12px;
 			font-weight: 700;
+			transition: opacity 0.1s ease;
 
 			i
 			{
 				font-size: 15px;
 			}
+		}
 
-			label
+		.info
+		{
+			position: absolute;
+			left: 0px;
+			right: 0px;
+			bottom: 0px;
+			height: $info-height;
+			padding: 0 12px;
+			flex-direction: column;
+			justify-content: center;
+			gap: 6px;
+			overflow: hidden;
+			background-color: rgba( 0, 0, 0, 0.25 );
+			transition: background-color 0.1s ease;
+
+			.title
 			{
-				text-transform: uppercase;
+				color: white;
+				font-size: 14px;
+				font-weight: 700;
+				@include ui-ellipsis;
+				transition: color 0.1s ease;
+			}
+
+			.meta
+			{
+				flex-direction: row;
+				align-items: center;
+				gap: 6px;
+				color: rgba( white, 0.72 );
+				font-size: 11px;
+				font-weight: 500;
+				white-space: nowrap;
+				overflow: hidden;
+				transition: color 0.1s ease;
+
+				.avatar
+				{
+					width: 18px;
+					height: 18px;
+					flex-shrink: 0;
+					border-radius: 3px;
+					background-position: center;
+					background-size: cover;
+				}
+
+				.author-name
+				{
+					max-width: 110px;
+					flex-shrink: 1;
+					min-width: 0px;
+					overflow: hidden;
+					text-overflow: ellipsis;
+				}
+
+				.meta-text
+				{
+					flex-direction: row;
+					gap: 4px;
+					flex-shrink: 0;
+				}
+			}
+		}
+
+		// shows over the end of the info on hover, and fades out whatever is behind it
+		.install
+		{
+			position: absolute;
+			right: 0px;
+			top: 0px;
+			bottom: 0px;
+			padding: 0 12px 0 48px;
+			flex-direction: row;
+			align-items: center;
+			justify-content: flex-end;
+			background-image: linear-gradient( to right, rgba( $ui-card-hover-bg, 0 ), $ui-card-hover-bg 40px );
+			opacity: 0;
+			pointer-events: none;
+			transition: opacity 0.1s ease;
+
+			.install-button
+			{
+				height: 28px;
+				padding: 0 12px;
+				flex-direction: row;
+				align-items: center;
+				gap: 6px;
+				border-radius: 2px;
+				background-color: $ui-blue;
+				color: white;
+				font-size: 11px;
+				font-weight: 700;
+
+				i
+				{
+					font-size: 15px;
+				}
+
+				label
+				{
+					text-transform: uppercase;
+				}
 			}
 		}
 	}
 }
+
+@import "/UI/Theme/Apply.scss";

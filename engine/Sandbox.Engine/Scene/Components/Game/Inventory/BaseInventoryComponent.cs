@@ -49,8 +49,38 @@ public partial class BaseInventoryComponent : Component
 	/// gone immediately, even though its GameObject lives until the end of the frame. Items inside a
 	/// nested inventory (a held backpack) belong to that inventory, not this one.
 	/// </summary>
-	public IEnumerable<BaseInventoryItem> Items =>
-		GetComponentsInChildren<BaseInventoryItem>( true ).Where( x => !x.GameObject.IsDestroyed && x.Inventory == this ).OrderBy( x => x.Slot ).ThenBy( x => x.SlotOrder );
+	public IEnumerable<BaseInventoryItem> Items
+	{
+		get
+		{
+			// HUDs read this every frame: one list, no LINQ ordering buffers
+			var items = new List<BaseInventoryItem>();
+			Components.GetAll( items, FindMode.EverythingInSelfAndDescendants );
+
+			// Insertion sort keeps equal items in hierarchy order, like OrderBy did
+			int count = 0;
+			for ( int i = 0; i < items.Count; i++ )
+			{
+				var item = items[i];
+				if ( item.GameObject.IsDestroyed || item.Inventory != this ) continue;
+
+				int j = count - 1;
+				for ( ; j >= 0 && CompareSlots( items[j], item ) > 0; j-- )
+					items[j + 1] = items[j];
+				items[j + 1] = item;
+				count++;
+			}
+
+			items.RemoveRange( count, items.Count - count );
+			return items;
+		}
+	}
+
+	static int CompareSlots( BaseInventoryItem a, BaseInventoryItem b )
+	{
+		var slot = a.Slot.CompareTo( b.Slot );
+		return slot != 0 ? slot : a.SlotOrder.CompareTo( b.SlotOrder );
+	}
 
 	/// <summary>
 	/// The item that is currently active (deployed), or null when nothing is held. Setting this is
@@ -67,7 +97,7 @@ public partial class BaseInventoryComponent : Component
 	BaseInventoryItem _equippedItem;
 
 	[Expose]
-	private void OnActiveItemChanged( BaseInventoryItem _, BaseInventoryItem newItem )
+	internal void OnActiveItemChanged( BaseInventoryItem _, BaseInventoryItem newItem )
 	{
 		// Initial snapshots don't run Change callbacks. Track what was actually equipped locally.
 		var oldItem = _equippedItem;
@@ -78,7 +108,10 @@ public partial class BaseInventoryComponent : Component
 
 		if ( oldItem.IsValid() )
 		{
-			oldItem.GameObject.Enabled = false;
+			// One that was dropped already has no slot and is the world's: it is put away but stays enabled
+			if ( oldItem.Slot >= 0 )
+				oldItem.GameObject.Enabled = false;
+
 			oldItem.Holster();
 		}
 

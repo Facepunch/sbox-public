@@ -23,7 +23,9 @@ public partial class PolygonMesh
 			{
 				if ( !hasTextureCoords )
 				{
-					mesh.ComputeFaceTextureCoordinatesFromParameters();
+					// Legacy files stored texture axes and offsets in units of the material's first texture.
+					var sizes = mesh.Materials.Select( MaterialTextureSize ).ToArray();
+					mesh.ComputeFaceTextureCoordinatesFromParameters( mesh.FaceHandles, mesh.Transform, sizes, 0.25f, MaterialTextureSize( mesh.DefaultMaterial ) );
 				}
 				else
 				{
@@ -52,6 +54,13 @@ public partial class PolygonMesh
 						hasTextureCoords = blob.TextureCoord.Length > 0;
 					}
 				}
+
+				// Earlier VMAP imports wrote these settings outside the mesh blob.
+				else if ( propertyName == "HammerCollisionError" )
+					mesh.CollisionTolerance = reader.GetSingle();
+
+				else if ( propertyName == "HammerTriangulationTransform" )
+					mesh.TriangulationTransform = Json.Deserialize<Transform>( ref reader );
 
 				// Legacy: Position/Rotation are no longer written. They were world-space values
 				// that got overwritten by MeshComponent on enable. Kept for backward compat with
@@ -154,7 +163,7 @@ public partial class PolygonMesh
 				}
 				else
 				{
-					throw new JsonException( $"Unrecognized property: {propertyName}" );
+					reader.Skip();
 				}
 			}
 		}
@@ -205,8 +214,13 @@ public partial class PolygonMesh
 	{
 		public override int Version => 1;
 
+		float CollisionTolerance;
+		Transform? TriangulationTransform;
+
 		public byte[] Topology { get; set; } = Array.Empty<byte>();
 		public Vector3[] Positions { get; set; } = Array.Empty<Vector3>();
+		public Vector3[] CornerNormals { get; set; } = [];
+		public Color32[] SecondaryBlends { get; set; } = Array.Empty<Color32>();
 		public Color32[] Blends { get; set; } = Array.Empty<Color32>();
 		public Color32[] Colors { get; set; } = Array.Empty<Color32>();
 		public Vector2[] TextureCoord { get; set; } = Array.Empty<Vector2>();
@@ -225,9 +239,13 @@ public partial class PolygonMesh
 
 		public static MeshBlob FromMesh( PolygonMesh mesh ) => new()
 		{
+			CollisionTolerance = mesh.CollisionTolerance,
+			TriangulationTransform = mesh.TriangulationTransform,
 			Topology = mesh.Topology.Serialize(),
 			Positions = mesh.Positions.ToArray(),
 			Blends = mesh.Blends.ToArray(),
+			CornerNormals = mesh.CornerNormals?.ToArray() ?? [],
+			SecondaryBlends = mesh.SecondaryBlends?.ToArray() ?? [],
 			Colors = mesh.Colors.ToArray(),
 			TextureCoord = mesh.TextureCoord.ToArray(),
 			MaterialIndex = mesh.MaterialIndex.ToArray(),
@@ -243,7 +261,11 @@ public partial class PolygonMesh
 			}
 
 			mesh.Positions.CopyFrom( Positions );
+			if ( CollisionTolerance > 0 ) mesh.CollisionTolerance = CollisionTolerance;
+			if ( TriangulationTransform.HasValue ) mesh.TriangulationTransform = TriangulationTransform;
 			mesh.Blends.CopyFrom( Blends );
+			if ( CornerNormals.Length > 0 ) mesh.EnsureCornerNormals().CopyFrom( CornerNormals );
+			if ( SecondaryBlends.Length > 0 ) mesh.EnsureSecondaryBlends().CopyFrom( SecondaryBlends );
 			mesh.Colors.CopyFrom( Colors );
 			mesh.TextureCoord.CopyFrom( TextureCoord );
 			mesh.MaterialIndex.CopyFrom( MaterialIndex );
@@ -254,7 +276,24 @@ public partial class PolygonMesh
 		{
 			ref var stream = ref writer.Stream;
 
-			stream.Write( SectionCount );
+			stream.Write( SectionCount + (SecondaryBlends.Length > 0 ? 1 : 0) + (CornerNormals.Length > 0 ? 1 : 0)
+				+ (CollisionTolerance > 0 ? 1 : 0) + (TriangulationTransform.HasValue ? 1 : 0) );
+			if ( CollisionTolerance > 0 )
+			{
+				stream.Write( "collisiontolerance" );
+				stream.Write( sizeof( float ) );
+				stream.Write( CollisionTolerance );
+			}
+			if ( TriangulationTransform is { } t )
+			{
+				stream.Write( "triangulationtransform" );
+				stream.Write( 10 * sizeof( float ) );
+				stream.Write( t.Position );
+				stream.Write( t.Rotation );
+				stream.Write( t.Scale );
+			}
+			if ( CornerNormals.Length > 0 ) WriteSection( ref stream, "cornernormals", CornerNormals );
+			if ( SecondaryBlends.Length > 0 ) WriteSection( ref stream, "secondaryblends", SecondaryBlends );
 
 			WriteSection( ref stream, SectionTopology, Topology );
 			WriteSection( ref stream, SectionPositions, Positions );
@@ -278,8 +317,16 @@ public partial class PolygonMesh
 
 				switch ( name )
 				{
+					case "collisiontolerance" or "hammercollisionerror" when byteLength == sizeof( float ):
+						CollisionTolerance = stream.Read<float>();
+						break;
+					case "triangulationtransform" or "hammertriangulationtransform" when byteLength == 10 * sizeof( float ):
+						TriangulationTransform = new Transform( stream.Read<Vector3>(), stream.Read<Rotation>(), stream.Read<Vector3>() );
+						break;
 					case SectionTopology: Topology = ReadBytes( ref stream, byteLength ); break;
 					case SectionPositions: Positions = ReadSection<Vector3>( ref stream, byteLength ); break;
+					case "cornernormals": CornerNormals = ReadSection<Vector3>( ref stream, byteLength ); break;
+					case "secondaryblends": SecondaryBlends = ReadSection<Color32>( ref stream, byteLength ); break;
 					case SectionBlends: Blends = ReadSection<Color32>( ref stream, byteLength ); break;
 					case SectionColors: Colors = ReadSection<Color32>( ref stream, byteLength ); break;
 					case SectionTextureCoord: TextureCoord = ReadSection<Vector2>( ref stream, byteLength ); break;

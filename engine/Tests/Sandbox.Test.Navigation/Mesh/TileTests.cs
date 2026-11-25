@@ -19,14 +19,10 @@ public class TileTests
 	}
 
 	[TestMethod]
-	public void PolyRefSplitsSlotAndPolygonAtOnePlace()
+	public void LinkIdsAreTheSameAtEverySplit()
 	{
-		Assert.AreEqual( 32, PolyRef.SlotBits + PolyRef.PolyBits );
-		Assert.AreEqual( 262140, PolyRef.MaxTiles );
 		Assert.AreEqual( 65535, PolyRef.MaxLinks );
-		Assert.AreEqual( 16383, PolyRef.MaxPolys );
-
-		var poly = new PolyRef( 7, 5u << PolyRef.PolyBits | 9 );
+		var poly = new PolyRef( 7, 5u << 14 | 9 );
 		Assert.IsFalse( poly.IsNone || poly.IsLink );
 		Assert.AreEqual( -1, poly.Link );
 		Assert.AreEqual( 7u, poly.Serial );
@@ -34,13 +30,10 @@ public class TileTests
 		var link = PolyRef.ForLink( 3, 12 );
 		Assert.IsTrue( link.IsLink );
 		Assert.AreEqual( 12, link.Link );
-		// The top four slots are links: 16 bits of id, and the last tile slot is not one.
 		var high = PolyRef.ForLink( 3, PolyRef.MaxLinks - 1 );
 		Assert.IsTrue( high.IsLink );
 		Assert.AreEqual( 65534, high.Link );
 		Assert.AreNotEqual( PolyRef.NoId, high.Id );
-		var lastTile = new PolyRef( 1, (uint)(PolyRef.MaxTiles - 1) << PolyRef.PolyBits | PolyRef.PolyMask );
-		Assert.IsFalse( lastTile.IsLink );
 		Assert.IsTrue( default( PolyRef ).IsNone );
 		Assert.IsFalse( default( PolyRef ).IsLink );
 	}
@@ -147,10 +140,10 @@ public class TileTests
 	[TestMethod]
 	public void TooManyPolygonsIsAnErrorNotAnException()
 	{
-		var polys = new Poly[PolyRef.MaxPolys + 1];
+		var polys = new Poly[GridMesh.Settings.MaxTilePolygons + 1];
 		var tile = new TileAssembler().Create( 0, 0, new Vector3[3], polys, GridMesh.Settings, out var error );
 		Assert.IsNull( tile );
-		StringAssert.Contains( error, "polygons" );
+		StringAssert.Contains( error, "MaxTilePolygons" );
 
 		Assert.IsNull( new TileAssembler().Create( 0, 0, [], [], GridMesh.Settings, out error ) );
 		Assert.IsNotNull( error );

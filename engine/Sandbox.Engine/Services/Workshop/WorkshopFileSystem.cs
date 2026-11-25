@@ -48,18 +48,24 @@ internal sealed class WorkshopFileSystem : AggregateFileSystem, IDisposable
 	/// </summary>
 	internal static Task<WorkshopFileSystem> OpenAsync( ulong id, string title, CancellationToken token, ILoadingInterface loading = null, bool codeOnly = false, string ident = null )
 	{
-		return OpenAsync( id, title, () => Workshop.InstallContentAsync( id, title, loading, token, ident: ident ), codeOnly, token );
+		return OpenAsync( id, title, () => Workshop.InstallContentAsync( id, title, loading, token, ident: ident ),
+			async () => (await Workshop.FetchAsync( id, token ))?.Metadata, codeOnly, token );
 	}
 
 	/// <summary>
-	/// Opens an already installed item through the same shared mount path.
+	/// Opens an already installed item through the same shared mount path. <paramref name="itemMetadata"/> stands in
+	/// for the item's Steam metadata.
 	/// </summary>
-	internal static Task<WorkshopFileSystem> OpenInstalledAsync( ulong id, string folder, CancellationToken token, bool codeOnly = false )
+	internal static Task<WorkshopFileSystem> OpenInstalledAsync( ulong id, string folder, CancellationToken token, bool codeOnly = false, string itemMetadata = null )
 	{
-		return OpenAsync( id, $"Workshop item {id}", () => Task.FromResult( folder ), codeOnly, token );
+		return OpenAsync( id, $"Workshop item {id}", () => Task.FromResult( folder ), () => Task.FromResult( itemMetadata ), codeOnly, token );
 	}
 
-	static async Task<WorkshopFileSystem> OpenAsync( ulong id, string title, Func<Task<string>> install, bool codeOnly, CancellationToken token )
+	/// <summary>
+	/// The item's metadata comes from its <see cref="WorkshopItemMetaData.FileName"/>, or from its Steam metadata
+	/// (<paramref name="itemMetadata"/>, only asked for then) when it has none: maps published before items shipped one.
+	/// </summary>
+	static async Task<WorkshopFileSystem> OpenAsync( ulong id, string title, Func<Task<string>> install, Func<Task<string>> itemMetadata, bool codeOnly, CancellationToken token )
 	{
 		ArgumentOutOfRangeException.ThrowIfZero( id );
 		var gate = locks.GetOrAdd( id, _ => new SemaphoreSlim( 1, 1 ) );
@@ -75,7 +81,10 @@ internal sealed class WorkshopFileSystem : AggregateFileSystem, IDisposable
 			token.ThrowIfCancellationRequested();
 			if ( folder is null ) throw new IOException( $"Couldn't install Workshop item {id}." );
 
-			var item = new MountedItem { Id = id, CodeOnly = codeOnly, Metadata = WorkshopItemMetaData.Read( folder ), Version = Workshop.GetInstalledVersion( id ), Files = new PackageFileSystem() };
+			var metadata = WorkshopItemMetaData.Read( folder ) ?? WorkshopItemMetaData.FromItemMetadata( await itemMetadata() );
+			token.ThrowIfCancellationRequested();
+
+			var item = new MountedItem { Id = id, CodeOnly = codeOnly, Metadata = metadata, Version = Workshop.GetInstalledVersion( id ), Files = new PackageFileSystem() };
 			var redirect = item.Files.Redirect;
 			lock ( mounted ) mounted.Add( (id, codeOnly), item );
 

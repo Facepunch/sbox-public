@@ -59,12 +59,12 @@ public class CrowdLinkTypeTests
 		sim.Run( 5 );
 		AssertHeadsForTheLink( sim, agent );
 
-		sim.Crowd.SetParams( agent, Walker( new NavFilter( 0, forbiddenLinks: 1ul << Jump ) ) );
+		sim.Crowd.SetParams( agent, Walker( Filters.All.WithForbiddenLinks( 1ul << Jump ) ) );
 		sim.Step();
 		AssertWalksAround( sim, agent );
 
 		// Another type forbidden is a changed filter too, and this link is open again.
-		sim.Crowd.SetParams( agent, Walker( new NavFilter( 0, forbiddenLinks: 1ul << Jump + 1 ) ) );
+		sim.Crowd.SetParams( agent, Walker( Filters.All.WithForbiddenLinks( 1ul << Jump + 1 ) ) );
 		sim.Step();
 		AssertHeadsForTheLink( sim, agent );
 
@@ -82,8 +82,7 @@ public class CrowdLinkTypeTests
 	public void LinkPenaltyAndCostChangedAtRuntimeReplan()
 	{
 		var sim = new Sim( new() { Ring = true } );
-		var penalties = new float[Jump + 1];
-		var walker = Walker( new NavFilter( 0, linkPenalties: penalties ) );
+		var walker = Walker( Filters.All );
 		int agent = sim.Add( Start, Target, walker );
 		sim.Run( 5 );
 		AssertWalksAround( sim, agent );
@@ -93,8 +92,8 @@ public class CrowdLinkTypeTests
 		sim.Step();
 		AssertWalksAround( sim, agent );
 
-		// The same rules in other arrays are no change: a search would take the link.
-		sim.Crowd.SetParams( agent, Walker( new NavFilter( 0, [], 0, [], (float[])penalties.Clone() ) ) );
+		// The same rules made again are no change: a search would take the link.
+		sim.Crowd.SetParams( agent, Walker( NavFilter.Create() ) );
 		sim.Step();
 		AssertWalksAround( sim, agent );
 		sim.Crowd.SetParams( agent, walker );
@@ -102,18 +101,18 @@ public class CrowdLinkTypeTests
 		AssertWalksAround( sim, agent );
 
 		// A small penalty is a change, and no reason to walk round the block.
-		sim.Crowd.SetParams( agent, Walker( new NavFilter( 0, linkPenalties: [0, 0, 0, 5] ) ) );
+		sim.Crowd.SetParams( agent, Walker( Filters.All.WithLinkPenalty( Jump, 5 ) ) );
 		sim.Step();
 		AssertHeadsForTheLink( sim, agent );
 
 		// A large one is.
-		penalties[Jump] = 1000;
+		walker = Walker( Filters.All.WithLinkPenalty( Jump, 1000 ) );
 		sim.Crowd.SetParams( agent, walker );
 		sim.Step();
 		AssertWalksAround( sim, agent );
 
-		// An array edited in place is not looked at until it is handed in.
-		penalties[Jump] = 0;
+		// A filter is a value: a changed one counts once it is handed in.
+		walker.Filter = walker.Filter.WithLinkPenalty( Jump, 0 );
 		sim.Step();
 		AssertWalksAround( sim, agent );
 		sim.Crowd.SetParams( agent, walker );
@@ -121,7 +120,7 @@ public class CrowdLinkTypeTests
 		AssertHeadsForTheLink( sim, agent );
 
 		// The multiplier, the same way.
-		sim.Crowd.SetParams( agent, Walker( new NavFilter( 0, linkCosts: [1, 1, 1, 50], linkPenalties: penalties ) ) );
+		sim.Crowd.SetParams( agent, Walker( Filters.All.WithLinkCost( Jump, 50 ) ) );
 		sim.Step();
 		AssertWalksAround( sim, agent );
 

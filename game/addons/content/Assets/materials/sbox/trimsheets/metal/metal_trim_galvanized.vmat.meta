@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "materials/sbox/trimsheets/metal/metal_trim_galvanized.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "materials/sbox/trimsheets/metal/metal_trim_galvanized.vmat"
       }
     },
     "HammerAutoPackageReferences": null

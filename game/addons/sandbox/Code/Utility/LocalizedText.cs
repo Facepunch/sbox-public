@@ -87,7 +87,6 @@ internal static class LocalizedText
 			"sent" => "#entity.property.entity",
 			"semit" => "#tool.setting.effect",
 			"smemit" => "#entity.name.emitter",
-			"spp" => "#tool.setting.effect",
 			"tdef" => "#tool.name.thruster",
 			"wdef" => "#tool.name.wheel",
 			_ => fallback

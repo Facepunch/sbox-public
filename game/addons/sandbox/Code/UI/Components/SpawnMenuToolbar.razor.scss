@@ -1,37 +1,117 @@
 @import "/UI/Theme.scss";
 
-SpawnMenuToolbar
+@mixin component-theme
 {
-	width: 100%;
-	flex-direction: row;
-	align-items: center;
-	height: 24px;
-	gap: 6px;
+	SpawnMenuToolbar
+	{
+		width: 100%;
+		flex-direction: row;
+		align-items: center;
+		min-height: $ui-menu-control-height;
+		gap: 8px;
+
+		> div
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 8px;
+		}
+
+		> .body
+		{
+			flex-grow: 1;
+		}
+
+		> .left
+		{
+			min-width: 0;
+			flex-shrink: 1;
+		}
+
+		> .right
+		{
+			flex-shrink: 0;
+		}
+
+		.menu-control:not(.active)
+		{
+			@include ui-control-surface;
+		}
+
+		.textentry.menu-input
+		{
+			@include ui-text-entry;
+			width: 240px;
+			min-width: 0;
+			flex-shrink: 1;
+			padding: 0 10px;
+			gap: 8px;
+			font-size: 13px;
+			border-color: $ui-control-border;
+
+			&::before
+			{
+				content: "search";
+				font-family: $ui-icon;
+				font-variation-settings: $ui-icon-filled-axes;
+				font-size: 17px;
+				color: $ui-text-muted;
+				flex-shrink: 0;
+				pointer-events: none;
+			}
+
+			&.has-icon { padding-right: 30px; }
+			.content-label.placeholder { color: $ui-text-muted; }
+
+			&:hover { border-color: $ui-control-border-hover; }
+			&:focus
+			{
+				border-color: $ui-blue;
+				box-shadow: 0 0 0 2px $ui-blue-soft;
+			}
+
+			&:focus::before { color: $ui-blue; }
+		}
+
+		.textentry.menu-input, .menu-control
+		{
+			height: $ui-menu-control-height;
+			border-radius: $ui-menu-radius;
+		}
+
+		UIButton.button.icon-only
+		{
+			width: $ui-menu-control-height;
+		}
+
+		UIDropdown
+		{
+			width: 166px;
+			flex-grow: 0;
+		}
+
+		.workshop-sort
+		{
+			@include ui-control-surface;
+			@include ui-menu-segments;
+			height: $ui-menu-control-height;
+			border: 1px solid $ui-control-border;
+
+			> .button
+			{
+				align-items: center;
+				justify-content: center;
+				padding: 0 10px;
+				font-size: 13px;
+				cursor: pointer;
+
+				&:hover:not(.active)
+				{
+					background-color: $ui-blue-soft;
+				}
+			}
+		}
+	}
 }
 
-SpawnMenuToolbar > .left,
-SpawnMenuToolbar > .right,
-SpawnMenuToolbar > .body
-{
-	flex-direction: row;
-	align-items: center;
-	gap: 6px;
-}
-
-SpawnMenuToolbar > .body
-{
-	flex-grow: 1;
-}
-
-SpawnMenuToolbar .textentry.menu-input
-{
-	@include ui-text-entry;
-	width: 205px;
-	min-width: 205px;
-}
-
-SpawnMenuToolbar UIDropdown
-{
-	width: 166px;
-	flex-grow: 0;
-}
+@import "/UI/Theme/Apply.scss";

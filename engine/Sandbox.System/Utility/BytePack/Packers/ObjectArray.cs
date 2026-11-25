@@ -44,7 +44,7 @@ internal partial class BytePack
 
 		public override object Read( ref ByteStream bs, int depth )
 		{
-			var len = bs.Read<int>();
+			var len = ReadCount( ref bs );
 			var type = bs.Read<byte>();
 
 			if ( type == 1 )
@@ -53,7 +53,9 @@ internal partial class BytePack
 
 				for ( int i = 0; i < len; i++ )
 				{
+					var position = bs.Position;
 					array.SetValue( Deserialize( ref bs, depth + 1 ), i );
+					AssertAdvanced( ref bs, position );
 				}
 
 				return array;
@@ -67,7 +69,9 @@ internal partial class BytePack
 
 				for ( int i = 0; i < len; i++ )
 				{
+					var position = bs.Position;
 					array.SetValue( handler.Deserialize( ref bs, depth + 1 ), i );
+					AssertAdvanced( ref bs, position );
 				}
 
 				return array;

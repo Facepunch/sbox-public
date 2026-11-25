@@ -1,5 +1,5 @@
 /// <summary>
-/// What the local player's HUD shows and how it looks, edited from the HUD tab of the inspect menu
+/// The local player's HUD visibility and menu controls.
 /// </summary>
 internal static partial class GamePreferences
 {
@@ -21,33 +21,6 @@ internal static partial class GamePreferences
 	[ConVar( "sandbox.hud_hotbar", ConVarFlags.Saved )]
 	[Group( "HUD" )]
 	public static bool DrawHotbar { get; set; } = true;
-
-	[ConVar( "sandbox.hud_color", ConVarFlags.Saved )]
-	[Group( "Appearance" )]
-	public static string HudColor { get; set; } = "";
-
-	public static Color? HudColorOverride => ParseColor( HudColor );
-
-	/// <summary>
-	/// Intensity of glow on HUD elements
-	/// </summary>
-	[ConVar( "sandbox.hud_glow", ConVarFlags.Saved )]
-	[Range( 0f, 1f ), Step( 0.05f ), Group( "Appearance" )]
-	public static float HudGlow { get; set; } = 1f;
-
-	/// <summary>
-	/// Controls how large your HUD on screen will be
-	/// </summary>
-	[ConVar( "sandbox.hud_scale", ConVarFlags.Saved )]
-	[Range( 0.5f, 1.5f ), Step( 0.05f ), Group( "Appearance" )]
-	public static float HudScale { get; set; } = 1f;
-
-	/// <summary>
-	/// Spacing between HUD elements and screen borders
-	/// </summary>
-	[ConVar( "sandbox.hud_margin", ConVarFlags.Saved )]
-	[Range( 0f, 10f ), Step( 0.25f ), Group( "Appearance" )]
-	public static float HudMargin { get; set; } = 2f;
 
 	/// <summary>
 	/// Tool panel shows current tool name, its description, and available key hints

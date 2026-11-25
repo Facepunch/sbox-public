@@ -1,4 +1,6 @@
-﻿.statcard
+﻿@import "/styles/_icons.scss";
+
+.statcard
 {
     display: flex;
     flex-direction: column;
@@ -16,7 +18,8 @@
 
 .icon
 {
-    font-family: "Material Icons";
+    font-family: "Material Symbols Outlined";
+    font-variation-settings: $menu-icon-filled;
     font-size: 80px;
     position: absolute;
     color: #3273ebaa;

@@ -1,5 +1,6 @@
 using CompilingTests.CodeAccess;
 using Mono.Cecil;
+using Sandbox.Upgraders;
 using Sandbox.Utility;
 using System;
 using System.Collections.Generic;
@@ -15,6 +16,45 @@ namespace HotloadTests;
 [TestClass]
 public class NonSwappedTest : HotloadFixtureTestBase
 {
+	[DisableAutoCreation]
+	private sealed class StartHook( Action start ) : SkipUpgrader
+	{
+		/// <summary>
+		/// Only the start hook participates in this test.
+		/// </summary>
+		public override bool ShouldProcessType( Type type ) => false;
+
+		protected override void OnHotloadStart() => start();
+	}
+
+	/// <summary>
+	/// A start hook that fails once leaves the outgoing roots in place for the next attempt.
+	/// </summary>
+	[TestMethod]
+	public async Task StartFailureCanRetryQueuedSwap()
+	{
+		using var fixture = await CreateFixtureAsync( "public class Marker : IHotloadTestFixture;" );
+		await fixture.BuildNewAsync();
+		var hotload = fixture.CreateHotload();
+		hotload.WatchAssembly( fixture.OldAssembly );
+		var starts = 0;
+		hotload.AddUpgrader( new StartHook( () =>
+		{
+			if ( ++starts == 1 ) throw new InvalidOperationException( "First start failed" );
+		} ) );
+
+		Assert.ThrowsException<InvalidOperationException>( () => hotload.UpdateReferences() );
+		Assert.IsTrue( hotload.WatchedAssemblies.Contains( fixture.OldAssembly ) );
+		Assert.AreSame( fixture.NewAssembly, hotload.GetQueuedAssemblyReplacements()[fixture.OldAssembly] );
+
+		var result = hotload.UpdateReferences();
+
+		Assert.IsTrue( result.Success );
+		Assert.AreSame( fixture.NewAssembly, fixture.Instance.GetType().Assembly );
+		Assert.IsTrue( hotload.WatchedAssemblies.Contains( fixture.NewAssembly ) );
+		Assert.IsFalse( hotload.WatchedAssemblies.Contains( fixture.OldAssembly ) );
+	}
+
 	private static class ObjectFieldRoots
 	{
 		public static object ObjectField;

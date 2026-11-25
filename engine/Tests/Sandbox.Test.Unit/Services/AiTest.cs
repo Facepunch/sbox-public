@@ -806,7 +806,7 @@ public class AiChatTest
 		public Func<AiChat, CancellationToken, Task<AiChatResponse>> OnChat { get; set; }
 		public Func<AiChatToolInput, CancellationToken, Task<AiChatToolResponse>> OnTool { get; set; }
 		public List<AiChatToolInput> ToolRequests { get; } = [];
-		public Task<ServiceApi.CreditBalance> GetCredits( CancellationToken cancellationToken = default ) => throw new NotSupportedException();
+		public Task<AiCreditBalance> GetCredits( CancellationToken cancellationToken = default ) => throw new NotSupportedException();
 		public Task<AiChatToolResponse> ExecuteChatTool( AiChatToolInput input, CancellationToken cancellationToken = default )
 		{
 			ToolRequests.Add( input );
@@ -936,7 +936,7 @@ public class AiQueryTest
 			return Task.FromResult( Reply );
 		}
 
-		public Task<ServiceApi.CreditBalance> GetCredits( CancellationToken cancellationToken = default ) => throw new NotSupportedException();
+		public Task<AiCreditBalance> GetCredits( CancellationToken cancellationToken = default ) => throw new NotSupportedException();
 		public Task<AiChatToolResponse> ExecuteChatTool( AiChatToolInput input, CancellationToken cancellationToken = default ) => throw new NotSupportedException();
 		public Task<AiChatResponse> QueryChat( AiChat input, CancellationToken cancellationToken = default ) => throw new NotSupportedException();
 	}

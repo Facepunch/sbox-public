@@ -18,6 +18,7 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 	private Dictionary<string, string> _metadata = new();
 	private readonly List<LoadedSceneEntry> _loadedScenes = new();
 	private bool _suppressSystemScene;
+	private bool _loadingSave;
 
 	/// <summary>
 	/// The path of the save file that was most recently loaded, if any.
@@ -214,11 +215,21 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 	/// <returns>True if the load was successful.</returns>
 	public async Task<bool> Load( string path )
 	{
-		//
-		// Host only
-		//
-		if ( !Networking.IsHost ) return false;
+		if ( !Networking.IsHost || _loadingSave ) return false;
 
+		_loadingSave = true;
+		try
+		{
+			return await LoadSave( path );
+		}
+		finally
+		{
+			_loadingSave = false;
+		}
+	}
+
+	private async Task<bool> LoadSave( string path )
+	{
 		if ( string.IsNullOrWhiteSpace( path ) )
 		{
 			Log.Warning( "SaveSystem: Cannot load — path is null or empty." );
@@ -306,8 +317,6 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 			await MountRequiredPackages( pkgArray );
 		}
 
-		Scene.RunEvent<Global.ISaveEvents>( x => x.BeforeLoad( path ) );
-
 		Json.Patch savedPatch = null;
 		if ( saveRoot["Patch"] is JsonObject patchNode )
 		{
@@ -328,68 +337,166 @@ internal sealed class SaveSystem : GameObjectSystem<SaveSystem>, ISceneLoadingEv
 			return false;
 		}
 
-		// Create a new SceneFile by applying the saved patch to the baseline, then load that
+		// Reconstruct the target world from the original sources and the saved patch.
 		var patched = Json.ApplyPatch( baseline, savedPatch, GameObject.DiffObjectDefinitions );
 		var primarySceneFile = sceneFiles[0];
 		var savedSceneProperties = saveRoot["SceneProperties"];
 		var patchedSceneFile = BuildPatchedSceneFile( primarySceneFile, patched, savedSceneProperties );
+		var metadata = saveRoot["Metadata"] is JsonObject metaNode
+			? JsonSerializer.Deserialize<Dictionary<string, string>>( metaNode )
+			: null;
 
-		// Show loading screen first
-		BroadcastShowLoadingScreen();
-		await Task.Delay( 50 );
-
-		_suppressSystemScene = true; // Make sure we don't load two system scenes.....
-
-		// Make sure the launch map is set to the one saved in the save file, if any (crap)
-		var savedMap = FindLaunchMapName( patchedSceneFile.GameObjects );
-		if ( !string.IsNullOrWhiteSpace( savedMap ) )
-		{
-			LaunchArguments.Map = savedMap;
-		}
-
-		CleanupSystem.PreserveBaselineForSaveLoad();
-
-		var options = new SceneLoadOptions();
-		options.SetScene( patchedSceneFile );
-		Game.ChangeScene( options );
-
-		var newSystem = SaveSystem.Current;
-		if ( newSystem is null )
-		{
-			Log.Warning( "SaveSystem: Could not find new SaveSystem instance after ChangeScene." );
+		if ( !Scene.IsValid() || Scene != Game.ActiveScene || !Networking.IsHost )
 			return false;
-		}
 
-		// Keep track of the original scene sources so any subsequent re-save diffs correctly.
-		newSystem._loadedScenes.Clear();
-		foreach ( var sf in sceneFiles )
+		Scene.RunEvent<Global.ISaveEvents>( x => x.BeforeLoad( path ) );
+
+		bool restoredInPlace;
+		try
 		{
-			if ( string.IsNullOrEmpty( sf.ResourcePath ) ) continue;
-			newSystem._loadedScenes.Add( new LoadedSceneEntry
-			{
-				ResourcePath = sf.ResourcePath,
-				SceneFileId = sf.Id
-			} );
+			restoredInPlace = TryRestoreInPlace( patchedSceneFile, sceneSources );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"SaveSystem: In-place restore failed, reloading the saved scene. {e.Message}" );
+			restoredInPlace = false;
 		}
 
-		// Restore metadata onto the new instance so AfterLoad event handlers can read it.
-		newSystem._metadata = saveRoot["Metadata"] is JsonObject metaNode
-			? JsonSerializer.Deserialize<Dictionary<string, string>>( metaNode ) ?? new Dictionary<string, string>()
-			: new Dictionary<string, string>();
-		newSystem.LoadedSavePath = path;
+		var system = this;
+		if ( !restoredInPlace )
+		{
+			BroadcastShowLoadingScreen();
+			await Task.Delay( 50 );
+
+			var savedMap = FindLaunchMapName( patchedSceneFile.GameObjects );
+			if ( !string.IsNullOrWhiteSpace( savedMap ) )
+			{
+				LaunchArguments.Map = savedMap;
+			}
+
+			_suppressSystemScene = true;
+			CleanupSystem.PreserveBaselineForSaveLoad();
+
+			var options = new SceneLoadOptions();
+			options.SetScene( patchedSceneFile );
+			if ( !Game.ChangeScene( options ) || Current is null )
+				return false;
+
+			system = Current;
+			system._loadedScenes.Clear();
+			foreach ( var sf in sceneFiles )
+			{
+				if ( string.IsNullOrEmpty( sf.ResourcePath ) ) continue;
+
+				system._loadedScenes.Add( new LoadedSceneEntry { ResourcePath = sf.ResourcePath, SceneFileId = sf.Id } );
+			}
+		}
+
+		// Restore metadata before AfterLoad event handlers read it.
+		system._metadata = metadata ?? new();
+		system.LoadedSavePath = path;
 
 		// Restore [Sync] property values before network ownership so everything is populated BEFORE any ownership-change callbacks fire.
 		if ( saveRoot["SyncState"] is JsonObject syncNode )
 		{
-			RestoreSyncState( newSystem.Scene, syncNode );
+			RestoreSyncState( system.Scene, syncNode );
 		}
 
 		if ( saveRoot["NetworkOwnership"] is JsonObject ownershipNode )
 		{
-			RestoreNetworkOwnership( newSystem.Scene, ownershipNode );
+			RestoreNetworkOwnership( system.Scene, ownershipNode );
 		}
 
-		newSystem.Scene.RunEvent<Global.ISaveEvents>( x => x.AfterLoad( path ) );
+		system.Scene.RunEvent<Global.ISaveEvents>( x => x.AfterLoad( path ) );
+		return true;
+	}
+
+	/// <summary>
+	/// Restore the saved objects around the existing map. Remote clients need a scene snapshot
+	/// to restore snapshot-only objects, scene properties and references together.
+	/// </summary>
+	private bool TryRestoreInPlace( SceneFile saved, List<string> sceneSources )
+	{
+		if ( Scene.IsLoading || Connection.All.Any( x => x != Connection.Local ) )
+			return false;
+
+		if ( !_loadedScenes.Select( x => x.ResourcePath ).SequenceEqual( sceneSources, StringComparer.OrdinalIgnoreCase ) )
+			return false;
+
+		var map = Scene.GetAllComponents<MapInstance>().FirstOrDefault( x => x.UseMapFromLaunch && x.IsLoaded );
+		if ( !map.IsValid() || map.GameObject.Parent != Scene )
+			return false;
+
+		var savedMap = saved.GameObjects.FirstOrDefault( x => (Guid)x["__guid"] == map.GameObject.Id );
+		if ( !JsonNode.DeepEquals( savedMap, map.GameObject.Serialize() ) )
+			return false;
+
+		// Navmesh and system overrides need the scene loader if they've changed.
+		var properties = Scene.SerializeProperties();
+		foreach ( var (name, value) in saved.SceneProperties )
+		{
+			if ( name is nameof( Scene.TimeScale ) or nameof( Scene.NetworkInterpolation ) or nameof( Scene.WantsSystemScene ) )
+				continue;
+
+			if ( !JsonNode.DeepEquals( value, properties[name] ) )
+				return false;
+		}
+
+		// Let the scene loader promote nested persistent objects before it replaces their parents.
+		if ( Scene.GetAllObjects( false ).Any( x => x.Parent != Scene && x.Flags.Contains( GameObjectFlags.DontDestroyOnLoad ) ) )
+			return false;
+
+		using var scope = Scene.Push();
+		var retained = Scene.Children.Where( go => go == map.GameObject
+			|| go.Flags.Contains( GameObjectFlags.DontDestroyOnLoad )
+			|| go.Flags.Contains( GameObjectFlags.NotSaved ) ).ToHashSet();
+
+		foreach ( var root in saved.GameObjects )
+		{
+			if ( root == savedMap ) continue;
+
+			var existing = Scene.Directory.FindByGuid( (Guid)root["__guid"] );
+			if ( existing.IsValid() && retained.Contains( existing.Root ) )
+				return false;
+		}
+
+		foreach ( var go in Scene.Children.Where( x => !retained.Contains( x ) ).ToArray() )
+		{
+			go.Destroy();
+		}
+
+		// Release the old GUIDs before deserializing their replacements.
+		Scene.ProcessDeletes();
+
+		// A seated player can detach itself when its parent is destroyed.
+		foreach ( var orphan in Scene.Children.Where( x => !retained.Contains( x ) ).ToArray() )
+		{
+			orphan.DestroyImmediate();
+		}
+
+		using var batch = Scene.BatchGroup();
+		var restored = new List<GameObject>();
+		foreach ( var root in saved.GameObjects )
+		{
+			if ( root == savedMap ) continue;
+
+			var go = Scene.CreateObject( false );
+			go.Deserialize( root );
+			if ( go.IsValid() ) restored.Add( go );
+		}
+
+		if ( saved.SceneProperties[nameof( Scene.TimeScale )] is JsonValue timeScale )
+			Scene.TimeScale = timeScale.GetValue<float>();
+
+		if ( saved.SceneProperties[nameof( Scene.NetworkInterpolation )] is JsonValue interpolation )
+			Scene.NetworkInterpolation = interpolation.GetValue<bool>();
+
+		foreach ( var go in restored.SelectMany( x => x.GetAllObjects( false ) ).ToArray() )
+		{
+			if ( go.NetworkMode == NetworkMode.Object && !go.IsNetworkRoot )
+				go.NetworkSpawn( go.Enabled, null );
+		}
+
 		return true;
 	}
 

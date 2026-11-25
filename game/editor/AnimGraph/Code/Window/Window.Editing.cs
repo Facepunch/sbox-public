@@ -261,6 +261,15 @@ public partial class Window
 		_properties.Target = _primarySelectionItem ?? _primarySelectionContext ?? (object)_graph;
 	}
 
+	internal void OnTransitionsPasted( StateMachineNode.Conduit conduit, Node[] nodes )
+	{
+		if ( _workspace?.SecondaryView is { } view && view.Graph == conduit.Graph )
+			view.BuildFromNodes( nodes, insert: true );
+
+		if ( _properties?.Target == conduit )
+			_properties.Refresh();
+	}
+
 	internal void SelectTransition( TransitionNode transition )
 	{
 		if ( StateMachineCanvas is { } canvas )
@@ -395,7 +404,7 @@ public partial class Window
 		if ( target is StateMachineNode.State state && state == _selectedState
 			&& _selectedStateMachine is { } machine && _selectedStateName != state.Name )
 		{
-			machine.RenameState( _selectedStateName, state.Name );
+			machine.RenameState( _selectedStateName, state );
 			_selectedStateName = state.Name;
 		}
 

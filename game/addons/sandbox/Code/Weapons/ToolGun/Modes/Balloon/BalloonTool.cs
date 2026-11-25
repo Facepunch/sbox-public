@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Icon( "🎈" )]
+[Icon( "bubble_chart" )]
 [Title( "#tool.name.balloon" )]
 [ClassName( "balloon" )]
 [Group( "#tool.group.building" )]
@@ -106,6 +106,7 @@ public sealed class BalloonTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Spawn( SelectionPoint point, PrefabFile thrusterPrefab, Transform tx, bool withRope, Color spawnTint )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( withRope ? ToolInput.Primary : ToolInput.Secondary ) ) return;
 
 		var go = thrusterPrefab.GetScene().Clone( global::Transform.Zero, startEnabled: false );

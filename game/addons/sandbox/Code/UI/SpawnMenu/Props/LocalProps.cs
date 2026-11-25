@@ -32,7 +32,6 @@ public static class LocalProps
 	{
 		// Humans
 		new( "models/citizen_mannequin/mannequin.vmdl", "human", "#ui.prop.mannequin" ),
-		new( "models/citizen_human/citizen_human_male.vmdl", "human", "#ui.prop.citizen_male" ),
-		new( "models/citizen_human/citizen_human_female.vmdl", "human", "#ui.prop.citizen_female" ),
+		new( "models/citizen_human/human.vmdl", "human", "#ui.prop.citizen" ),
 	};
 }

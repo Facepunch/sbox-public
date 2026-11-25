@@ -22,12 +22,14 @@ ToolInfoPanel
 		opacity: 1;
 	}
 
-	&.driving
+	> div
 	{
-		.header, .hints
-		{
-			background-image: linear-gradient( to right, rgba( 0, 0, 0, 0.4 ), rgba( 0, 0, 0, 0 ) );
-		}
+		background-image: linear-gradient( to right, $bg, $bg-clear );
+	}
+
+	&.driving > div
+	{
+		background-image: linear-gradient( to right, rgba( 0, 0, 0, 0.4 ), rgba( 0, 0, 0, 0 ) );
 	}
 
 	.header
@@ -35,7 +37,6 @@ ToolInfoPanel
 		position: relative;
 		flex-direction: column;
 		padding: 17px 52px 20px;
-		background-image: linear-gradient( to right, $bg, $bg-clear );
 	}
 
 	.accent
@@ -100,7 +101,6 @@ ToolInfoPanel
 		align-items: center;
 		gap: 50px;
 		padding: 6px 52px;
-		background-image: linear-gradient( to right, $bg, $bg-clear );
 
 		align-self: flex-start;
 		min-width: 100%;
@@ -119,7 +119,6 @@ ToolInfoPanel
 		flex-direction: column;
 		gap: 1px;
 		padding: 6px 52px;
-		background-image: linear-gradient( to right, $bg, $bg-clear );
 		align-self: flex-start;
 		min-width: 100%;
 		color: rgba( white, 0.92 );

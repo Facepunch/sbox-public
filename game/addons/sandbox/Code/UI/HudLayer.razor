@@ -20,14 +20,9 @@
     [Property] public Color Tint { get; set; } = DefaultTint;
 
     /// <summary>
-    /// The colour the HUD paints with: the player's HUD colour if they picked one, otherwise <see cref="Tint"/>. Always opaque, see <see cref="Opacity"/>.
+    /// The opaque tint used when painting HUD elements.
     /// </summary>
-    public Color CurrentTint => (GamePreferences.HudColorOverride ?? Tint).WithAlpha( 1 );
-
-    /// <summary>
-    /// How opaque the HUD and its glow are, the alpha of the player's HUD colour
-    /// </summary>
-    public float Opacity => GamePreferences.HudColorOverride?.a ?? 1f;
+    public Color CurrentTint => Tint.WithAlpha( 1 );
 
     /// <summary>
     /// HDR color exponent for highlighted HUD elements like digits or selected hotbar slots

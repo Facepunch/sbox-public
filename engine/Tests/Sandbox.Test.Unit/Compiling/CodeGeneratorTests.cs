@@ -53,6 +53,28 @@ public class CodeGeneratorTests
 	}
 
 	/// <summary>
+	/// Wrapped getters keep throw and cast expressions valid in the compiler tree and the generated source.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public async Task GeneratesExpressionBodiedSyncGetters( bool forScriptRuntime )
+	{
+		var generator = CreateGenerator();
+		generator.ForScriptRuntime = forScriptRuntime;
+		generator.AddFile( "Tool.cs", """
+			public class Tool : Component
+			{
+				object saved;
+				[Sync] public string Label { get => saved as string; set => saved = value; }
+				[Sync] public int Value { get => throw new Exception( "getter offline" ); set {} }
+			}
+			""" );
+
+		Emit( await generator.GenerateAsync() );
+	}
+
+	/// <summary>
 	/// Resolves cross-file attributes and bases, generating the existing Sync and RPC contracts.
 	/// </summary>
 	[TestMethod]

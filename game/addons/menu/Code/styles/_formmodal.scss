@@ -1,7 +1,7 @@
 @import "/styles/_theme.scss";
 @import "/Platform/_platform.scss";
 
-// A form in a window of the menu's own look - the review and the report modals. The rail's paper and
+// A form in a window of the menu's own look - the report modal. The rail's paper and
 // outline, a header saying what it's for with a close button, the form scrolling under it, and the
 // buttons along the bottom. Markup: .window (.head (.text (.eyebrow, .title), .grow, .close), .body,
 // .footer (.note, .grow, .button.cancel, .button.post)). In the body, .section-label headings,

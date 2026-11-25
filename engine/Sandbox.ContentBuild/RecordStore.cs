@@ -70,11 +70,10 @@ sealed class RecordStore
 		foreach ( var partial in Directory.GetFiles( journals, "*.tmp" ) ) File.Delete( partial );
 		foreach ( var journal in Directory.GetFiles( journals, "*.json" ) ) Recover( journal );
 
-		foreach ( var file in Directory.GetFiles( records, "*.json" ) )
-		{
-			var record = JsonSerializer.Deserialize<AssetRecord>( File.ReadAllText( file ) );
-			All[record.Source] = record;
-		}
+		var files = Directory.GetFiles( records, "*.json" );
+		var loaded = new AssetRecord[files.Length];
+		Parallel.For( 0, files.Length, i => loaded[i] = JsonSerializer.Deserialize<AssetRecord>( File.ReadAllText( files[i] ) ) );
+		foreach ( var record in loaded ) All[record.Source] = record;
 	}
 
 	public IEnumerable<string> Owners( string output ) => All.Values.Where( x => x.Outputs.ContainsKey( output ) ).Select( x => x.Source );

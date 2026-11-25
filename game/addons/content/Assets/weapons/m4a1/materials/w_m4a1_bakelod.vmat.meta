@@ -21,8 +21,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "weapons/m4a1/materials/w_m4a1_bakelod.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "weapons/m4a1/materials/w_m4a1_bakelod.vmat"
       }
     }
   }

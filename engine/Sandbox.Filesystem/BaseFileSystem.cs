@@ -642,6 +642,8 @@ public class BaseFileSystem
 		}
 	}
 
+	internal DateTime GetLastWriteTime( string path ) => system.GetLastWriteTime( FixPath( path ) );
+
 	/// <summary>
 	/// Returns file size of given file.
 	/// </summary>

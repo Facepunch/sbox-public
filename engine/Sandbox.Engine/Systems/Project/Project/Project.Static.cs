@@ -86,6 +86,7 @@ public partial class Project
 
 	static void OnCompileStarted()
 	{
+		TakeCacheFingerprints();
 		IToolsDll.Current?.RunEvent( "compile.started", CompileGroup );
 	}
 

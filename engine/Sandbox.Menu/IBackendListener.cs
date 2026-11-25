@@ -25,6 +25,7 @@ public interface IBackendListener
 	/// <param name="Score">The review's score.</param>
 	/// <param name="SteamId">The reviewer's Steam ID.</param>
 	/// <param name="DisplayName">The reviewer's display name.</param>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public readonly record struct PackageReview( string PackageIdent, long Score, long SteamId, string DisplayName );
 
 	/// <summary>
@@ -211,6 +212,7 @@ public interface IBackendListener
 	/// <summary>
 	/// A review was posted for a package.
 	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	void OnPackageReviewPosted( PackageReview review ) { }
 
 	/// <summary>

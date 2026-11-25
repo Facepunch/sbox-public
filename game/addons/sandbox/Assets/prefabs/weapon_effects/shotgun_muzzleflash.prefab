@@ -4,6 +4,17 @@
     "Flags": 0,
     "Name": "shotgun_muzzleflash",
     "Enabled": true,
+    "Components": [
+      {
+        "__type": "TemporaryEffect",
+        "__guid": "3471a57f-7894-4c1d-bedd-83cef0581eb0",
+        "__enabled": true,
+        "Flags": 0,
+        "BecomeOrphan": false,
+        "DestroyAfterSeconds": 0.5,
+        "WaitForChildEffects": true
+      }
+    ],
     "Children": [
       {
         "__guid": "45bddd47-e37c-401a-a80c-cb7a07278fd7",

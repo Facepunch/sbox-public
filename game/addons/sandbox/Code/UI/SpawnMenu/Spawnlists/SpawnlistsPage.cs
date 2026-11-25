@@ -91,6 +91,7 @@ public abstract class SpawnlistsPage : BaseSpawnMenu
 			var option = AddOption( parent, new SpawnMenuOption
 			{
 				Icon = resource.Icon ?? "collections_bookmark",
+				IconTexture = resource.IconImage,
 				Name = resource.DisplayName,
 				Key = resource.ResourcePath,
 				Tokenize = false,

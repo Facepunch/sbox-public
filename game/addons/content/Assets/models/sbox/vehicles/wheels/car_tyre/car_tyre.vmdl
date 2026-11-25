@@ -1,13 +1,13 @@
 <!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
-	rootNode = 
+	rootNode =
 	{
 		_class = "RootNode"
-		children = 
+		children =
 		[
 			{
 				_class = "MaterialGroupList"
-				children = 
+				children =
 				[
 					{
 						_class = "DefaultMaterialGroup"
@@ -18,7 +18,7 @@
 					{
 						_class = "MaterialGroup"
 						name = "white"
-						remaps = 
+						remaps =
 						[
 							{
 								from = "models/sbox/vehicles/wheels/car_tyre/tyre.vmat"
@@ -29,7 +29,7 @@
 					{
 						_class = "MaterialGroup"
 						name = "steel"
-						remaps = 
+						remaps =
 						[
 							{
 								from = "models/sbox/vehicles/wheels/car_tyre/tyre.vmat"
@@ -41,11 +41,11 @@
 			},
 			{
 				_class = "PhysicsShapeList"
-				children = 
+				children =
 				[
 					{
 						_class = "PhysicsHullFile"
-						name = "tyre"
+						name = "car_wheel"
 						parent_bone = ""
 						surface_prop = "rubber"
 						collision_tags = "solid"
@@ -61,10 +61,10 @@
 						maxHullVertices = 0
 						import_mode = "HullPerElement"
 						optimization_algorithm = "QEM"
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"tyre_phys",
 							]
@@ -73,7 +73,7 @@
 					{
 						_class = "PhysicsShapeCylinder"
 						parent_bone = ""
-						surface_prop = "metal.sheet"
+						surface_prop = "metal"
 						collision_tags = "solid"
 						radius = 9.20716
 						point0 = [ 0.053988, -3.38081, 0.0 ]
@@ -83,7 +83,7 @@
 			},
 			{
 				_class = "RenderMeshList"
-				children = 
+				children =
 				[
 					{
 						_class = "RenderMeshFile"
@@ -96,20 +96,20 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"Cylinder_001",
 								"Cylinder_002",
 								"Cylinder",
 								"Cylinder_004",
-								"tyre_lod0",
 								"Cylinder_014",
 								"Cylinder_015",
 								"Cylinder_016",
-								"rim_lod0",
+								"tyre_lod1",
+								"rim_lod1",
 							]
 						}
 					},
@@ -124,18 +124,18 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"Cylinder_001",
 								"Cylinder_002",
 								"Cylinder",
 								"Cylinder_004",
-								"tyre_lod1",
 								"Cylinder_014",
-								"rim_lod1",
+								"tyre_lod2",
+								"rim_lod2",
 							]
 						}
 					},
@@ -150,44 +150,18 @@
 						align_origin_y_type = "None"
 						align_origin_z_type = "None"
 						parent_bone = ""
-						import_filter = 
+						import_filter =
 						{
 							exclude_by_default = true
-							exception_list = 
+							exception_list =
 							[
 								"Cylinder_001",
 								"Cylinder_002",
 								"Cylinder",
 								"Cylinder_004",
-								"tyre_lod2",
-								"Cylinder_014",
-								"rim_lod2",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "lod3"
-						filename = "models/sbox/vehicles/wheels/car_tyre/tyre.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"Cylinder_001",
-								"Cylinder_002",
-								"Cylinder",
-								"Cylinder_004",
-								"tyre_lod3",
 								"Cylinder_014",
 								"rim_lod3",
+								"tyre_lod3",
 							]
 						}
 					},
@@ -195,7 +169,7 @@
 			},
 			{
 				_class = "LODGroupList"
-				children = 
+				children =
 				[
 					{
 						_class = "LODGroup"
@@ -208,15 +182,38 @@
 						auto_protect_uv_seams = true
 						auto_regularize = 1
 						auto_prune_isolated_components = false
-						meshes = 
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
 						[
 							"lod0",
 							"lod0_no_rim",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
-						switch_threshold = 58.006855
+						switch_threshold = 25.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.6242
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"lod0",
+							"lod0_no_rim",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 70.0
 						auto_simplify_mode = 0
 						auto_reduction = 0.5
 						auto_max_error = 0.0
@@ -225,15 +222,38 @@
 						auto_protect_uv_seams = true
 						auto_regularize = 1
 						auto_prune_isolated_components = false
-						meshes = 
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
 						[
 							"lod1",
 							"lod1_no_rim",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
-						switch_threshold = 107.753395
+						switch_threshold = 100.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.365
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = true
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"lod0",
+							"lod0_no_rim",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 217.770004
 						auto_simplify_mode = 0
 						auto_reduction = 0.5
 						auto_max_error = 0.0
@@ -242,42 +262,28 @@
 						auto_protect_uv_seams = true
 						auto_regularize = 1
 						auto_prune_isolated_components = false
-						meshes = 
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
 						[
 							"lod2",
 							"lod2_no_rim",
 						]
-					},
-					{
-						_class = "LODGroup"
-						switch_threshold = 217.7686
-						auto_simplify_mode = 0
-						auto_reduction = 0.5
-						auto_max_error = 0.0
-						auto_lock_border_vertices = true
-						auto_permissive_simplification = false
-						auto_protect_uv_seams = true
-						auto_regularize = 1
-						auto_prune_isolated_components = false
-						meshes = 
-						[
-							"lod3",
-							"lod3_no_rim",
-						]
+						material_culls = [  ]
 					},
 				]
 			},
 			{
 				_class = "PhysicsBodyMarkupList"
-				children = 
+				children =
 				[
 					{
 						_class = "PhysicsBodyMarkup"
 						target_body = ""
 						mass_override = 23.0
 						inertia_scale = 1.0
-						linear_damping = 0.0
-						angular_damping = 0.0
+						linear_damping = 0.04
+						angular_damping = 0.15
 						use_mass_center_override = false
 						mass_center_override = [ 0.0, 0.0, 0.0 ]
 						gravity_scale = 1.0
@@ -288,6 +294,8 @@
 		model_archetype = ""
 		primary_associated_entity = ""
 		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }

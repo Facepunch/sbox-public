@@ -88,6 +88,7 @@ public partial class UndoSystem : IUndoSystem
 		public Object Image { get; set; }
 		public DateTime Timestamp { get; set; }
 		public bool Locked { get; set; }
+		internal bool ChangesDocument { get; init; } = true;
 	}
 
 	/// <summary>
@@ -109,6 +110,13 @@ public partial class UndoSystem : IUndoSystem
 	/// Forwards stack, gets cleared when a new undo is added
 	/// </summary>
 	public Stack<Entry> Forward { get; } = new();
+
+	/// <summary>
+	/// Tracks content edits, including undo and redo, independently of selection history.
+	/// </summary>
+	internal long DocumentRevision { get; private set; }
+
+	internal void MarkDocumentChanged() => DocumentRevision++;
 
 	DateTime? IUndoSystem.UndoTimestamp => Back.TryPeek( out var prev ) ? prev.Timestamp : null;
 
@@ -142,6 +150,7 @@ public partial class UndoSystem : IUndoSystem
 		}
 
 		Forward.Push( entry );
+		if ( entry.ChangesDocument ) DocumentRevision++;
 		OnUndo?.Invoke( entry );
 
 		return true;
@@ -158,6 +167,7 @@ public partial class UndoSystem : IUndoSystem
 		next = entry.Redo;
 		Back.Push( entry );
 		entry.Redo?.Invoke();
+		if ( entry.ChangesDocument ) DocumentRevision++;
 		OnRedo?.Invoke( entry );
 
 		return true;
@@ -166,7 +176,9 @@ public partial class UndoSystem : IUndoSystem
 	/// <summary>
 	/// Insert a new undo entry
 	/// </summary>
-	public Entry Insert( string title, Action undo, Action redo = null )
+	public Entry Insert( string title, Action undo, Action redo = null ) => Insert( title, undo, redo, changesDocument: true );
+
+	internal Entry Insert( string title, Action undo, Action redo, bool changesDocument )
 	{
 		var e = new Entry
 		{
@@ -174,9 +186,11 @@ public partial class UndoSystem : IUndoSystem
 			Undo = undo,
 			Redo = redo,
 			Timestamp = DateTime.UtcNow,
+			ChangesDocument = changesDocument,
 		};
 
 		Back.Push( e );
+		if ( changesDocument ) DocumentRevision++;
 
 		Forward.Clear();
 
@@ -237,6 +251,7 @@ public partial class UndoSystem : IUndoSystem
 	/// </summary>
 	public void Initialize()
 	{
+		DocumentRevision++;
 		Back.Clear();
 		Forward.Clear();
 

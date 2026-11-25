@@ -10,11 +10,12 @@ static class GridMesh
 	public const int Cells = 64;
 	public const float Cell = 10, TileWorld = Cells * Cell;
 
-	public static readonly NavSettings Settings = NavSettings.Create( agentHeight: 32, agentRadius: 8, agentClimb: 8, agentMaxSlope: 40, cellSize: Cell, cellHeight: 1, tileSize: Cells );
+	// A polygon per cell is denser than built tiles get, so these tiles take today's s&box limit.
+	public static readonly NavSettings Settings = NavSettings.Create( new() { AgentHeight = 32, AgentRadius = 8, AgentClimb = 8, AgentMaxSlope = 40, CellSize = Cell, CellHeight = 1, TileSize = Cells } ) with { MaxTilePolygons = 16383 };
 
 	public readonly record struct Layer( float Z, Func<int, int, bool>? Walkable = null, Func<int, int, byte>? Area = null, Func<float, float, float>? Height = null );
 
-	public static NavMesh Create() => new( Settings );
+	public static NavMesh Create() => new( Settings, NavMeshOptions.Create( Settings ) );
 
 	/// <summary>
 	/// A tile from layers of cells. Cell coordinates are local to the tile. Height, when given, replaces
@@ -133,7 +134,7 @@ static class GridMesh
 	/// <summary>
 	/// The same mesh dimensions in another unit: every length of the settings times scale.
 	/// </summary>
-	public static NavSettings Scaled( float scale ) => NavSettings.Create( 32 * scale, 8 * scale, 8 * scale, 40, Cell * scale, 1 * scale, Cells );
+	public static NavSettings Scaled( float scale ) => NavSettings.Create( new() { AgentHeight = 32 * scale, AgentRadius = 8 * scale, AgentClimb = 8 * scale, AgentMaxSlope = 40, CellSize = Cell * scale, CellHeight = 1 * scale, TileSize = Cells } ) with { MaxTilePolygons = 16383 };
 
 	/// <summary>
 	/// A mesh of flat tiles, committed in one go.
@@ -152,9 +153,14 @@ static class GridMesh
 		return mesh;
 	}
 
+	/// <summary>
+	/// The link entries of a state that are in use, in id order.
+	/// </summary>
+	internal static IEnumerable<LinkEntry> Links( this MeshState s ) => s.LinkPages.SelectMany( page => page ?? [] ).Where( link => link.Serial != 0 );
+
 	public static readonly Vector3 Snap = new( 20, 20, 20 );
 
-	public static PolyRef Nearest( NavQuery query, float x, float y, float z = 1 ) => Nearest( query, x, y, z, default );
+	public static PolyRef Nearest( NavQuery query, float x, float y, float z = 1 ) => Nearest( query, x, y, z, Filters.All );
 
 	public static PolyRef Nearest( NavQuery query, float x, float y, float z, NavFilter filter )
 	{

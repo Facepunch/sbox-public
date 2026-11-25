@@ -301,6 +301,8 @@ SettingsView .scroll.custom Storage
 	.storage-empty { @include platform-empty; padding: 32px 20px; }
 	.storage-error { align-items: center; gap: 12px; padding: 16px 20px; border-radius: $platform-radius; background-color: rgba( $platform-danger, 0.08 ); color: $platform-danger; }
 
+	.storage-error i { font-variation-settings: $menu-icon-outlined; }
+
 	.file-type-textures { background-color: #608bc1; }
 	.file-type-models { background-color: #9180bf; }
 	.file-type-sounds { background-color: #56a18b; }

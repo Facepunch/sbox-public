@@ -200,16 +200,20 @@ public static class PlatformMenu
 	{
 		// Switched on in the middle of a game - on the one being played, rather than out of it for the one picked last
 		// time
-		if ( Game.InGame && !Game.IsOnMenu && MenuUtility.GamePackage is { } playing )
+		if ( AdoptPlaying() )
 		{
-			Current = playing;
-			_ = AdoptAsync( playing );
 			RefreshShelves();
 			return;
 		}
 
 		Run( async () =>
 		{
+			// Launched into a join - a local instance joining the editor, or a friend's invite.
+			// Wait for the connection to finish / fail, then try to adopt that game.
+			await WaitUntil( () => !MenuUtility.IsJoining, float.PositiveInfinity );
+
+			if ( AdoptPlaying() ) return;
+
 			var startup = MenuUtility.StartupGameIdent;
 
 			// A local project, or a game by its ident - on the command line
@@ -241,6 +245,22 @@ public static class PlatformMenu
 	}
 
 	/// <summary>
+	/// On the game being played, if there is one, instead of switching to another
+	/// </summary>
+	static bool AdoptPlaying()
+	{
+		if ( !Game.InGame || Game.IsOnMenu ) return false;
+
+		if ( MenuUtility.GamePackage is { } playing )
+		{
+			Current = playing;
+			_ = AdoptAsync( playing );
+		}
+
+		return true;
+	}
+
+	/// <summary>
 	/// The game being played when the platform came on - its Workshop item, to show it by
 	/// </summary>
 	static async Task AdoptAsync( Package playing )
@@ -260,9 +280,8 @@ public static class PlatformMenu
 	/// </summary>
 	static void RefreshShelves()
 	{
-		foreach ( var row in Discover.Prepend( Favourites ).Prepend( YourGames ) )
-			_ = row.RefreshAsync();
-
+		_ = YourGames.RefreshAsync();
+		_ = Favourites.RefreshAsync();
 		_ = RefreshFavouriteIdsAsync();
 	}
 
@@ -478,7 +497,13 @@ public static class PlatformMenu
 	/// </summary>
 	static async Task OpenOwnMenu( Package package )
 	{
-		await MenuUtility.OpenGameMenu( package.FullIdent );
+		// Not over a join that's started meanwhile
+		if ( MenuUtility.IsJoining ) return;
+
+		// A notice stays up, such as why a join at launch failed
+		ModalSystem.Instance?.CloseAll( false, keepNotice: true );
+
+		if ( !await MenuUtility.OpenGameMenu( package.FullIdent ) ) return;
 		await WaitUntil( () => !LoadingScreen.IsVisible );
 	}
 
@@ -595,14 +620,4 @@ public static class PlatformMenu
 			x.KeyValues.GetValueOrDefault( "package" ), StringComparison.OrdinalIgnoreCase ) ) ).ToArray();
 	}
 
-	/// <summary>
-	/// Discover's rows, top to bottom - just the first until View all
-	/// </summary>
-	public static GameRow[] Discover { get; } =
-	[
-		new( "Featured", "star", () => MenuUtility.FindFeaturedWorkshopGamesAsync(), 300 ),
-		new( "Most played", "sports_esports", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByTotalPlaytime ), 300, Storage.SortOrder.RankedByTotalPlaytime ),
-		new( "Trending", "trending_up", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByTrend ), 300, Storage.SortOrder.RankedByTrend ),
-		new( "Newest", "new_releases", () => MenuUtility.FindWorkshopGamesAsync( sort: Storage.SortOrder.RankedByPublicationDate ), 300, Storage.SortOrder.RankedByPublicationDate ),
-	];
 }

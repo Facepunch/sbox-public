@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/street/trash_pile_a/trash_pile_a.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/street/trash_pile_a/trash_pile_a.vmat"
       }
     },
     "HammerAutoPackageReferences": null

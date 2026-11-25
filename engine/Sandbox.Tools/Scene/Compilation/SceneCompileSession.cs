@@ -7,14 +7,14 @@ using System.Threading;
 
 namespace Editor;
 
-public sealed class SceneCompileSession : AssetSystem.IEventListener
+public sealed partial class SceneCompileSession : AssetSystem.IEventListener
 {
 	public static SceneCompileSession Current { get; } = new();
 
 	static readonly ConditionalWeakTable<Asset, SourceStatus> SourceStatuses = new();
 	sealed record SourceStatus( string Path,
 		(long Length, DateTime Modified) Source, (long Length, DateTime Modified) Binary, (long Length, DateTime Modified) Bake,
-		DateTime Generations, bool IsCompiled );
+		string OutputFolder, DateTime FolderModified, bool IsCompiled );
 
 	SceneCompiler.Sources _sources;
 	SceneCompilerSettings _settings = new();
@@ -48,15 +48,22 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 	string _status = "";
 	public float Fraction { get; private set; }
 	public IReadOnlyList<string> Lines => _lines;
+	/// <summary>
+	/// Completed job and geometry stage timings for this compile.
+	/// </summary>
+	public IReadOnlyList<SceneCompileStage> Stages => _stages;
 	public IReadOnlyList<SceneCompileWarning> Warnings => _warnings;
-	public string[] Summary { get; private set; }
+	/// <summary>
+	/// Geometry results and output totals from the most recent compile.
+	/// </summary>
+	public string[] Summary { get; internal set; }
 	public SceneCompileStatistics Statistics { get; internal set; }
 	internal CancellationToken Cancel => _cancel.Token;
 	public event Action Changed;
 
 	public bool CanCompile => !Running && !Game.IsPlaying && _sources?.Asset is not null
 		&& _scanError is null && _settingsError is null
-		&& SceneEditorSession.Active is { IsPrefabSession: false, HasUnsavedChanges: false } editor
+		&& SceneEditorSession.Active is { IsPrefabSession: false, IsMounted: false, HasUnsavedChanges: false } editor
 		&& editor.Scene == Scene;
 
 	public float AggregateCost
@@ -99,12 +106,13 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 		var binary = FileStamp( path + "_d" );
 		var bakePath = SceneResourceCompiler.GetBakePath( path );
 		var bake = FileStamp( bakePath );
-		var generations = Directory.GetLastWriteTimeUtc( Path.Combine( Path.GetDirectoryName( bakePath ), "compiled" ) );
 		if ( SourceStatuses.TryGetValue( asset, out var cached ) && cached.Path == path
-			&& cached.Source == source && cached.Binary == binary && cached.Bake == bake && cached.Generations == generations )
+			&& cached.Source == source && cached.Binary == binary && cached.Bake == bake
+			&& cached.FolderModified == Directory.GetLastWriteTimeUtc( cached.OutputFolder ) )
 			return cached.IsCompiled;
 
-		var status = new SourceStatus( path, source, binary, bake, generations, SceneResourceCompiler.IsBakeCurrent( path ) );
+		var current = SceneResourceCompiler.IsBakeCurrent( path, out var folder );
+		var status = new SourceStatus( path, source, binary, bake, folder, Directory.GetLastWriteTimeUtc( folder ), current );
 		SourceStatuses.AddOrUpdate( asset, status );
 		return status.IsCompiled;
 	}
@@ -125,6 +133,8 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 	void FollowActiveScene()
 	{
 		var scene = SceneEditorSession.Active?.Scene;
+		if ( Running && (scene != Scene || Game.IsPlaying) )
+			RequestCancel();
 		if ( scene != Scene || scene?.Source?.ResourcePath != _path
 			|| (scene?.Editor?.HasUnsavedChanges ?? false) != _unsaved || Game.IsPlaying != _playing )
 			Refresh();
@@ -154,7 +164,7 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 		_stages.Clear();
 	}
 
-	void RefreshSources()
+	void RefreshSources( bool clean = false )
 	{
 		var editor = SceneEditorSession.Active;
 		var scene = editor?.Scene;
@@ -180,6 +190,11 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 		_unsaved = editor?.HasUnsavedChanges ?? false;
 		_playing = Game.IsPlaying;
 		_sources = null;
+		_jobs.Clear();
+		_runtimeWork = null;
+		_outputs = null;
+		WorkGroups = new Dictionary<string, int>();
+		ClearableGroups = new HashSet<string>();
 		_scanError = null;
 		IsCompiled = false;
 		if ( Game.IsPlaying || editor is not { IsPrefabSession: false } || !scene.IsValid() )
@@ -191,16 +206,49 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 		try
 		{
 			_sources = SceneCompiler.Scan( scene, out _scanError );
+			DiscoverWork( clean );
 			IsCompiled = !_unsaved && HasCurrentBake( _sources?.Asset );
 		}
-		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException )
+		catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException )
 		{
 			Log.Error( e, "Could not scan scene for compilation" );
 			_scanError = e.Message;
 		}
 	}
 
-	public async Task StartAsync()
+	/// <summary>
+	/// Runs all available work for the active saved scene.
+	/// </summary>
+	public Task StartAsync() => StartAsync( null );
+
+	/// <summary>
+	/// Runs the selected groups in order and streams their status to the compile window.
+	/// </summary>
+	public Task StartAsync( IReadOnlySet<string> selected ) => StartAsync( selected, CompileAction.Compile );
+
+	/// <summary>
+	/// Runs every available job in the selected stage.
+	/// </summary>
+	public Task RunStageAsync( string group ) => StartAsync( new HashSet<string> { group } );
+
+	/// <summary>
+	/// Deletes the scene's generated outputs and rebuilds every available stage.
+	/// </summary>
+	public Task CleanCompileAsync() => StartAsync( null, CompileAction.CleanCompile );
+
+	/// <summary>
+	/// Clears all generated scene work, including disabled components, without running any bake jobs.
+	/// </summary>
+	public Task ClearAsync() => StartAsync( null, CompileAction.Clear );
+
+	/// <summary>
+	/// Clears the named stage's declared outputs and bake references, including those on disabled components.
+	/// </summary>
+	public Task ClearAsync( string group ) => StartAsync( new HashSet<string> { group }, CompileAction.Clear );
+
+	enum CompileAction { Compile, CleanCompile, Clear }
+
+	async Task StartAsync( IReadOnlySet<string> selected, CompileAction action )
 	{
 		if ( Running )
 			return;
@@ -211,14 +259,18 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 		_elapsed = FastTimer.StartNew();
 		try
 		{
-			RefreshSources();
+			RefreshSources( action == CompileAction.CleanCompile );
 			ClearResult();
 			if ( Error is { } error )
 				throw new InvalidOperationException( error );
-			if ( _sources?.Asset is null || _unsaved )
+			if ( _sources?.Asset is null || _unsaved || SceneEditorSession.Active.IsMounted )
 				throw new InvalidOperationException( "Save the scene before compiling." );
 
-			if ( !HasCompileGeometry )
+			var jobs = _jobs.Where( x => selected is null || selected.Contains( x.Work.Group ) ).ToArray();
+			RunningGroups = WorkGroups.Keys.Where( g => (selected is null || selected.Contains( g ))
+				&& ((action != CompileAction.Clear && WorkGroups[g] > 0)
+					|| ((action is CompileAction.Clear or CompileAction.CleanCompile) && ClearableGroups.Contains( g ))) ).ToHashSet();
+			if ( action != CompileAction.Clear && !jobs.Any( job => job.CanRun ) )
 			{
 				_status = "Nothing to compile";
 				Running = false;
@@ -228,11 +280,10 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 
 			_status = "Preparing";
 			Fraction = -1;
-			Line( $"{Report.MeshCount} meshes, {Report.PropCount} props to compile" );
+			Line( action == CompileAction.Clear ? $"Clearing {Name}" : $"Compiling {Name}" );
 			Cancel.ThrowIfCancellationRequested();
-			var summary = await SceneCompiler.Compile( _sources, _settings, this );
-			IsCompiled = true;
-			Finish( "Done", summary );
+			var summary = await RunWork( jobs, action, selected );
+			Finish( action == CompileAction.Clear ? "Cleared" : "Done", summary );
 		}
 		catch ( OperationCanceledException )
 		{
@@ -244,6 +295,11 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 			_failure = e.Message;
 			Line( e.Message );
 			Finish( "Failed" );
+		}
+		finally
+		{
+			if ( action == CompileAction.Clear )
+				Refresh();
 		}
 	}
 
@@ -267,7 +323,7 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 		_phaseElapsed = FastTimer.StartNew();
 		_status = title;
 		Fraction = -1;
-		Notify();
+		Line( title );
 	}
 
 	void EndPhase()
@@ -302,6 +358,9 @@ public sealed class SceneCompileSession : AssetSystem.IEventListener
 
 	void Finish( string title, string[] summary = null )
 	{
+		if ( summary is null && IsCompiled && _sources?.Asset?.GetSourceFile( true ) is { Length: > 0 } sourcePath )
+			IsCompiled = File.Exists( SceneResourceCompiler.GetBakePath( sourcePath ) );
+
 		EndPhase();
 		_status = title;
 		Summary = summary;

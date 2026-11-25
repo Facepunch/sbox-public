@@ -17,7 +17,7 @@ public class UIFontControl : BaseControl
 
 		if ( Property is null ) return;
 
-		_dropdown = AddChild( new UIDropdown() );
+		_dropdown = AddChild<UIDropdown>( "inspector-field" );
 		_dropdown.Tokenize = false;
 		_dropdown.Items = GameFonts.Families.Select( x => new UIDropdown.Item( x, x, x ) ).ToList();
 		_dropdown.Value = Property.GetValue<string>();

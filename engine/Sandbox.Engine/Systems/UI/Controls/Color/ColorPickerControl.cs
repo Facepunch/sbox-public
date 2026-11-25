@@ -17,7 +17,7 @@ public partial class ColorPickerControl : BaseControl
 	internal enum PickerLayout
 	{
 		/// <summary>
-		/// A saturation and value square with hue up one side and alpha up the other.
+		/// A saturation and value square with hue and optional alpha strips on the right.
 		/// </summary>
 		ColorSquare,
 
@@ -347,12 +347,9 @@ public partial class ColorPickerControl : BaseControl
 		};
 
 		//
-		// Body - the square, ring or disc with strips up the sides
+		// Body - the square, ring or disc, followed by its strips on the right
 		//
 		_body = Add.Panel( "body" );
-
-		_hueSide = _body.AddChild( new ColorStrip( true ) );
-		_hueSide.ValueChanged = v => SetHue( v * 360.0f );
 
 		_square = _body.AddChild( new ColorSquare() );
 		_square.Changed = SetSaturationValue;
@@ -363,6 +360,9 @@ public partial class ColorPickerControl : BaseControl
 
 		_disc = _body.AddChild( new HueDisc() );
 		_disc.Changed = SetHueSaturation;
+
+		_hueSide = _body.AddChild( new ColorStrip( true ) );
+		_hueSide.ValueChanged = v => SetHue( v * 360.0f );
 
 		_valueSide = _body.AddChild( new ColorStrip( true ) );
 		_valueSide.ValueChanged = SetValue;
@@ -400,9 +400,6 @@ public partial class ColorPickerControl : BaseControl
 		var hueStops = Enumerable.Range( 0, 7 ).Select( i => new ColorHsv( i * 60.0f, 1.0f, 1.0f ).ToColor() ).ToArray();
 		foreach ( var strip in _hueStrips ) strip.SetGradient( hueStops );
 
-		foreach ( var panel in new ColorDragPanel[] { _hueSide, _square, _ring, _ring.Square, _disc, _valueSide, _alphaSide, hueStrip, saturationStrip, valueStrip, alphaStrip, _redStrip, _greenStrip, _blueStrip } )
-			panel.DragEnded = Commit;
-
 		//
 		// Brightness - always underneath, it's exposure rather than a colour axis. The slider
 		// works in doublings so each tick is a stop, and the number beside it shows the multiplier
@@ -415,15 +412,13 @@ public partial class ColorPickerControl : BaseControl
 			UISystem.CurrentFocus?.Blur();
 			SetBrightness( MathF.Pow( 2, stops ) );
 		};
-		_brightness.AddEventListener( "onmouseup", Commit );
 		_brightnessEntry = _brightnessRow.Add.Panel( "entry" ).AddChild( new NumberEntry() );
 		_brightnessEntry.Prefix = "×";
 		_brightnessEntry.NumberFormat = "0.##";
 		_brightnessEntry.MinValue = 1;
 		_brightnessEntry.MaxValue = MathF.Pow( 2, MaxStops );
 		_brightnessEntry.OnTextEdited = text => { if ( TryParseNumber( text, out var v ) ) SetBrightness( v ); };
-		_brightnessEntry.AddEventListener( "onblur", OnTextBlurred );
-		_brightnessEntry.ScrubEnded += Commit;
+		_brightnessEntry.AddEventListener( "onblur", Sync );
 
 		BuildNumbers();
 		BuildPalette();
@@ -571,14 +566,12 @@ public partial class ColorPickerControl : BaseControl
 	}
 
 	/// <summary>
-	/// A swatch takes over from text editing. Blur after the click, so committing the text
-	/// doesn't rebuild the recent row while the clicked swatch is still being pressed.
+	/// Finish editing the focused field before applying a swatch.
 	/// </summary>
 	void PickColor( PickerColor color )
 	{
 		UISystem.CurrentFocus?.Blur();
 		SetColor( color );
-		Commit();
 	}
 
 	/// <summary>

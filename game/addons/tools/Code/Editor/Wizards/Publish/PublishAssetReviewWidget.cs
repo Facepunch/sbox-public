@@ -679,7 +679,7 @@ internal sealed class PublishAssetReviewWidget : Widget
 			icon = item.Rect.Shrink( 12, 0 );
 			icon.Left = icon.Right - 20;
 			Paint.SetPen( Theme.TextLight );
-			Paint.DrawIcon( icon, configured ? "lock" : "info_outline", 16 );
+			Paint.DrawIcon( icon, configured ? "lock" : "info", 16 );
 		}
 
 		protected override bool OnItemPressed( VirtualWidget item, MouseEvent e )

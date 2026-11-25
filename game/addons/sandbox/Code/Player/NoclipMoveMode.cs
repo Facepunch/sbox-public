@@ -28,8 +28,8 @@ public sealed class NoclipMoveMode : Sandbox.Movement.MoveMode
 		if ( GetComponentInParent<ISitTarget>( false ) is not null )
 			return;
 
-		renderer.Set( "b_noclip", true );
-		renderer.Set( "duck", 0f );
+		renderer.Animation.Parameters.TrySet( "b_noclip", true );
+		renderer.Animation.Parameters.TrySet( "duck", 0f );
 	}
 
 	public override int Score( PlayerController controller )

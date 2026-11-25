@@ -21,12 +21,12 @@ public class LinkTests
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
 		Vector3 below = new( 100, 320, 0 ), above = new( 500, 320, 200 );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, Filters.All, path ) );
 
 		int id = mesh.AddLink( Ladder() );
 		Assert.AreEqual( 0, id );
 		Assert.IsFalse( mesh.GetLinkEnds( id, out _, out _, out _, out _ ), "Not resolved before the commit" );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, Filters.All, path ) );
 
 		uint version = mesh.Version;
 		Assert.AreEqual( 0, mesh.PendingTiles );
@@ -37,7 +37,7 @@ public class LinkTests
 		Assert.AreEqual( new Vector3( 320, 320, 0 ), start );
 		Assert.AreEqual( new Vector3( 320, 320, 200 ), end );
 
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, Filters.All, path ) );
 		Assert.AreEqual( 220 + 200 + 180, path.Length, 0.01f );
 		Assert.AreEqual( 4, path.Corners.Length );
 		Assert.AreEqual( start, path.Corners[1] );
@@ -48,8 +48,8 @@ public class LinkTests
 		for ( int i = 0; i < path.Polys.Length; i++ ) if ( path.Polys[i].IsLink ) at = i;
 		Assert.IsTrue( at > 0 && at < path.Polys.Length - 1 );
 		Assert.AreEqual( id, path.Polys[at].Link );
-		Assert.IsTrue( query.IsValid( path.Polys[at - 1], default ) && query.IsValid( path.Polys[at + 1], default ) );
-		Assert.IsTrue( query.IsValid( path.Polys[at], default ), "A link in a corridor is as valid as the polygons around it" );
+		Assert.IsTrue( query.IsValid( path.Polys[at - 1], Filters.All ) && query.IsValid( path.Polys[at + 1], Filters.All ) );
+		Assert.IsTrue( query.IsValid( path.Polys[at], Filters.All ), "A link in a corridor is as valid as the polygons around it" );
 	}
 
 	[TestMethod]
@@ -63,8 +63,8 @@ public class LinkTests
 			var query = new NavQuery( mesh );
 			var path = new NavPath();
 			Vector3 below = new( 100, 320, 0 ), above = new( 500, 320, 200 );
-			Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, default, path ) );
-			Assert.AreEqual( bidirectional ? PathStatus.Complete : PathStatus.Partial, query.FindPath( above, below, Snap, default, path ) );
+			Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, Filters.All, path ) );
+			Assert.AreEqual( bidirectional ? PathStatus.Complete : PathStatus.Partial, query.FindPath( above, below, Snap, Filters.All, path ) );
 			if ( bidirectional ) Assert.AreEqual( new Vector3( 320, 320, 200 ), path.Corners[1], "Walking back enters the link at its end" );
 		}
 	}
@@ -80,8 +80,8 @@ public class LinkTests
 		mesh.Commit();
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 105, 325, 0 ), new Vector3( 505, 325, 200 ), Snap, default, path ) );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( new Vector3( 505, 325, 200 ), new Vector3( 105, 325, 0 ), Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 105, 325, 0 ), new Vector3( 505, 325, 200 ), Snap, Filters.All, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( new Vector3( 505, 325, 200 ), new Vector3( 105, 325, 0 ), Snap, Filters.All, path ) );
 		Assert.AreEqual( 200f, path.End.Z, "The partial path stays on the upper floor" );
 		Assert.IsFalse( path.Polys.ToArray().Any( p => p.IsLink ) );
 	}
@@ -97,8 +97,8 @@ public class LinkTests
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
 		Vector3 below = new( 100, 320, 0 ), above = new( 500, 320, 200 );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, new NavFilter( 1ul << 5 ), path ) );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, Filters.All.WithForbiddenAreas( 1ul << 5 ), path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, Filters.All, path ) );
 	}
 
 	[TestMethod]
@@ -110,7 +110,7 @@ public class LinkTests
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
 		Vector3 below = new( 100, 320, 0 ), above = new( 500, 320, 200 );
-		query.FindPath( below, above, Snap, default, path );
+		query.FindPath( below, above, Snap, Filters.All, path );
 		var linkRef = path.Polys.ToArray().Single( p => p.IsLink );
 		Assert.IsTrue( query.GetLink( linkRef, below, out var entry, out var exit ) );
 		Assert.AreEqual( 0f, entry.Z );
@@ -125,13 +125,13 @@ public class LinkTests
 		Assert.IsTrue( query.GetLink( linkRef, below, out _, out _ ), "Nothing changes before the commit" );
 		mesh.Commit();
 		Assert.IsFalse( query.GetLink( linkRef, below, out _, out _ ), "A changed link invalidates references to it" );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, Filters.All, path ) );
 		Assert.AreEqual( 20 + 200 + 380, path.Length, 0.01f );
 
 		mesh.RemoveLink( id );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, Filters.All, path ) );
 		mesh.Commit();
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, Filters.All, path ) );
 		Assert.IsFalse( mesh.GetLinkEnds( id, out _, out _, out _, out _ ) );
 		Assert.AreEqual( 0, mesh.State.Find( 0, 0 )!.Attach.Length );
 		Assert.AreEqual( id, mesh.AddLink( Ladder() ), "A freed id is reused" );
@@ -171,30 +171,30 @@ public class LinkTests
 		mesh.Commit();
 		Assert.IsTrue( mesh.GetLinkEnds( id, out var start, out _, out bool connected, out _ ) && connected );
 		Assert.AreEqual( 640f, start.X, "The start snapped across the border into the east tile" );
-		var before = mesh.State.Links[id];
-		Assert.AreEqual( mesh.State.Find( 1, 0 )!.Slot, (int)(before.StartPoly >> PolyRef.PolyBits) );
+		var before = mesh.State.LinkAt( id );
+		Assert.AreEqual( mesh.State.Find( 1, 0 )!.Slot, (int)(before.StartPoly >> mesh.State.PolyBits) );
 
 		// The rebuilt tile has other polygons: the old polygon index means something else, or nothing.
 		mesh.CommitTiles( [GridMesh.Tile( 1, 0, new GridMesh.Layer( 0, ( x, y ) => y is >= 30 and < 34 ) )] );
-		var after = mesh.State.Links[id];
+		var after = mesh.State.LinkAt( id );
 		var east = mesh.State.Find( 1, 0 )!;
 		Assert.IsTrue( after.Connected );
 		Assert.AreNotEqual( before.Serial, after.Serial, "The link changed with its tile" );
-		Assert.IsTrue( (int)(after.StartPoly & PolyRef.PolyMask) < east.Polys.Length );
+		Assert.IsTrue( (int)(after.StartPoly & mesh.State.PolyMask) < east.Polys.Length );
 		Assert.AreEqual( 1, east.Attach.Length );
-		Assert.AreEqual( (int)(after.StartPoly & PolyRef.PolyMask), east.Attach[0].Poly );
+		Assert.AreEqual( (int)(after.StartPoly & mesh.State.PolyMask), east.Attach[0].Poly );
 
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 900, 320, 0 ), new Vector3( 320, 1000, 200 ), GridMesh.Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 900, 320, 0 ), new Vector3( 320, 1000, 200 ), GridMesh.Snap, Filters.All, path ) );
 
 		// Removing the tile disconnects the link, bringing it back connects it again.
 		mesh.RemoveTile( 1, 0 );
 		mesh.Commit();
-		Assert.IsFalse( mesh.State.Links[id].Connected );
+		Assert.IsFalse( mesh.State.LinkAt( id ).Connected );
 		Assert.AreEqual( 0, mesh.State.Find( 0, 1 )!.Attach.Length );
 		mesh.CommitTiles( [GridMesh.Flat( 1, 0 )] );
-		Assert.IsTrue( mesh.State.Links[id].Connected );
+		Assert.IsTrue( mesh.State.LinkAt( id ).Connected );
 		Assert.AreEqual( 1, mesh.State.Find( 0, 1 )!.Attach.Length );
 	}
 
@@ -206,18 +206,18 @@ public class LinkTests
 		mesh.Commit();
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
-		query.FindPath( new Vector3( 100, 320, 0 ), new Vector3( 500, 320, 200 ), Snap, default, path );
+		query.FindPath( new Vector3( 100, 320, 0 ), new Vector3( 500, 320, 200 ), Snap, Filters.All, path );
 		var linkRef = path.Polys.ToArray().Single( p => p.IsLink );
-		uint serial = mesh.State.Links[id].Serial;
+		uint serial = mesh.State.LinkAt( id ).Serial;
 
 		// The neighbour changes: the link's tile gets a new object, the link stays as it is.
 		mesh.CommitTiles( [GridMesh.Flat( 1, 0 )] );
-		Assert.AreEqual( serial, mesh.State.Links[id].Serial );
+		Assert.AreEqual( serial, mesh.State.LinkAt( id ).Serial );
 		Assert.AreEqual( 2, mesh.State.Find( 0, 0 )!.Attach.Length, "The attach table survives the relink" );
 		Assert.IsTrue( query.GetLink( linkRef, Vector3.Zero, out _, out _ ) );
 
 		mesh.CommitTiles( [GridMesh.Flat( 2, 0 )] );
-		Assert.AreEqual( serial, mesh.State.Links[id].Serial );
+		Assert.AreEqual( serial, mesh.State.LinkAt( id ).Serial );
 	}
 
 	[TestMethod]
@@ -228,8 +228,8 @@ public class LinkTests
 		mesh.Commit();
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 100, 320, 0 ), new Vector3( 5 * 640 + 300, 320, 0 ), Snap, default, path ) );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( new Vector3( 5 * 640 + 300, 320, 0 ), new Vector3( 100, 320, 0 ), Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 100, 320, 0 ), new Vector3( 5 * 640 + 300, 320, 0 ), Snap, Filters.All, path ) );
+		Assert.AreEqual( PathStatus.Partial, query.FindPath( new Vector3( 5 * 640 + 300, 320, 0 ), new Vector3( 100, 320, 0 ), Snap, Filters.All, path ) );
 	}
 
 	[TestMethod]

@@ -26,7 +26,7 @@ public partial class BaseCombatWeapon
 
 	// Set once the weapon has had its chance to seed the reserve - a dropped and re-taken gun
 	// doesn't grant its StartingAmmo again.
-	[Sync( SyncFlags.FromHost ), Expose] private bool ReserveSeeded { get; set; }
+	[Sync( SyncFlags.FromHost ), Expose] internal bool ReserveSeeded { get; set; }
 
 	/// <summary>
 	/// Magazine size for primary fire, or -1 when it feeds straight from reserve (GMod's Primary.ClipSize).
@@ -298,7 +298,8 @@ public partial class BaseCombatWeapon
 
 		// Seed the reserve at the first pickup only, and only when the pool for this ammo type is
 		// empty - two weapons sharing a type don't double-seed, and drop churn doesn't inflate it.
-		if ( !ReserveSeeded )
+		// An unlimited reserve leaves the grant available for a later pickup.
+		if ( !ReserveSeeded && inventory.GetAmmo( PrimaryAmmoType ) != int.MaxValue )
 		{
 			ReserveSeeded = true;
 

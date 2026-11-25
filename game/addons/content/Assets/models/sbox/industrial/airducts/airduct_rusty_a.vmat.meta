@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_rusty_a.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/industrial/airducts/airduct_rusty_a.vmat"
       }
     },
     "HammerAutoPackageReferences": null

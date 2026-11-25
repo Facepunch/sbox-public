@@ -2,30 +2,22 @@
 
 namespace Editor;
 
-[DropObject( "map", "vmap" )]
+[DropObject( null, "vmap" )]
 partial class MapDropObject : BaseDropObject
 {
 	private string MapName;
 
-	protected override async Task Initialize( string dragData, CancellationToken token )
+	protected override Task Initialize( string dragData, CancellationToken token )
 	{
-		var asset = await InstallAsset( dragData, token );
-		if ( asset is null )
-		{
-			if ( Package.TryParseIdentParts( dragData, out var ident ) )
-				MapName = $"{ident.org}.{ident.package}";
-
-			return;
-		}
-
-		if ( token.IsCancellationRequested )
-			return;
-
-		MapName = asset.Path;
+		MapName = AssetSystem.FindByPath( dragData )?.Path;
+		return Task.CompletedTask;
 	}
 
 	public override async Task OnDrop()
 	{
+		if ( string.IsNullOrEmpty( MapName ) )
+			return;
+
 		var mapInstance = SceneEditorSession.Active.Scene.GetAllComponents<MapInstance>()
 			.FirstOrDefault();
 

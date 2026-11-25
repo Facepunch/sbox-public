@@ -15,7 +15,6 @@
       "IsStandaloneOnly": false,
       "Metadata": {
         "SingleAssetSource": "models/sbox/shop/security_shutter/security_shutter_curtain_bottom.vmdl",
-        "ParentPackage": "facepunch.sbox_content",
         "AssetLicense": "CC0"
       }
     }

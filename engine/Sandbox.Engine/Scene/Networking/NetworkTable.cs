@@ -49,6 +49,8 @@ internal class NetworkTable : IDisposable
 		public bool IsReliableType;
 		public bool IsDirty;
 		public byte[] Serialized;
+		// The last serialized bytes, kept when the value changes so a same size value can reuse the array
+		public byte[] SerializedBuffer;
 		public INetworkProperty InitializedProperty;
 		public int Slot;
 		public ListHasher ListHasher;
@@ -136,7 +138,7 @@ internal class NetworkTable : IDisposable
 			hc.Add( items.Length );
 
 			foreach ( var item in items )
-				hc.Add( item );
+				hc.Add( PlainValue<T>.HashesBytes ? HashBytes( item ) : item?.GetHashCode() ?? 0 );
 
 			hash = hc.ToHashCode();
 			return true;
@@ -208,10 +210,21 @@ internal class NetworkTable : IDisposable
 		if ( !_entries.TryAdd( slot, entry ) )
 			return;
 
-		entry.Init( slot, _wakeParent );
+		var requestedQuery = entry.NeedsQuery;
+		try
+		{
+			entry.Init( slot, _wakeParent );
+			UpdateSlotHash( entry, entry.GetValue() );
+		}
+		catch
+		{
+			// The getter can look up its own slot. Release it if initialization fails so a refresh can retry.
+			entry.NeedsQuery = requestedQuery;
+			if ( _entries.TryGetValue( slot, out var registered ) && registered == entry )
+				_entries.Remove( slot );
 
-		var value = GetValue( slot );
-		UpdateSlotHash( slot, value );
+			throw;
+		}
 
 		entry.IsDirty = true;
 
@@ -320,7 +333,7 @@ internal class NetworkTable : IDisposable
 			return false;
 
 		// Same hash as ToHashCode gives the boxed value
-		return SetHash( v, HashCode.Combine( value ) );
+		return SetHash( v, HashValue( value ) );
 	}
 
 	/// <summary>
@@ -379,7 +392,7 @@ internal class NetworkTable : IDisposable
 				return;
 
 			// Same hash as ToHashCode gives the boxed value
-			SetHash( entry, HashCode.Combine( value ) );
+			SetHash( entry, HashValue( value ) );
 			_set( value );
 		}
 
@@ -396,6 +409,55 @@ internal class NetworkTable : IDisposable
 	private static class PlainValue<T>
 	{
 		public static readonly bool IsPlain = NetworkTable.IsPlain( typeof( T ) );
+		public static readonly bool HashesBytes = UsesDefaultHash( typeof( T ) );
+		public static readonly bool ReflectionEquality = IsPlain && HashesBytes && !typeof( T ).IsAssignableTo( typeof( IEquatable<T> ) )
+			&& typeof( T ).GetMethod( nameof( Equals ), [typeof( object )] )?.DeclaringType == typeof( ValueType );
+	}
+
+	/// <summary>
+	/// A struct compared field by field through reflection, which boxes both values. Its hash already tells
+	/// whether it changed, so setters can skip comparing.
+	/// </summary>
+	internal static bool HasReflectionEquality<T>() => PlainValue<T>.ReflectionEquality;
+
+	// The default struct hash only looks at the first field, so a change to any other field would go unnoticed
+	static bool UsesDefaultHash( Type type )
+	{
+		// A nullable struct hashes through its value
+		type = Nullable.GetUnderlyingType( type ) ?? type;
+		return type.IsValueType && type.GetMethod( nameof( GetHashCode ), Type.EmptyTypes )?.DeclaringType == typeof( ValueType );
+	}
+
+	[SkipHotload] static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Type, object> DefaultHashTypes = new();
+	static readonly object HashesBytes = new();
+	static readonly object HashesItself = new();
+
+	static int HashValue<T>( T value ) => PlainValue<T>.HashesBytes ? HashBytes( value ) : HashCode.Combine( value );
+
+	/// <summary>
+	/// Hash what would be sent, the same for a value and its box.
+	/// </summary>
+	static int HashBytes<T>( T value )
+	{
+		var bs = ByteStream.Create( 256 );
+
+		try
+		{
+			GlobalContext.Current.TypeLibrary.ToBytes( value, ref bs );
+
+			HashCode hc = default;
+			hc.AddBytes( bs.ToSpan() );
+			return hc.ToHashCode();
+		}
+		catch
+		{
+			// Can't be sent either, writing the snapshot reports it
+			return HashCode.Combine( value );
+		}
+		finally
+		{
+			bs.Dispose();
+		}
 	}
 
 	private static int ToHashCode( object value )
@@ -407,7 +469,7 @@ internal class NetworkTable : IDisposable
 			hc.Add( list.Count );
 			for ( var i = 0; i < list.Count; i++ )
 			{
-				hc.Add( list[i] );
+				hc.Add( HashElement( list[i] ) );
 			}
 
 			return hc.ToHashCode();
@@ -420,14 +482,23 @@ internal class NetworkTable : IDisposable
 			hc.Add( dictionary.Count );
 			foreach ( DictionaryEntry item in dictionary )
 			{
-				hc.Add( HashCode.Combine( item.Key, item.Value ) );
+				hc.Add( HashCode.Combine( HashElement( item.Key ), HashElement( item.Value ) ) );
 			}
 
 			return hc.ToHashCode();
 		}
 
+		if ( HashesItsBytes( value ) )
+			return HashBytes( value );
+
 		return HashCode.Combine( value );
 	}
+
+	static bool HashesItsBytes( object value ) => value is not null && value.GetType().IsValueType
+		&& DefaultHashTypes.GetValue( value.GetType(), static t => UsesDefaultHash( t ) ? HashesBytes : HashesItself ) == HashesBytes;
+
+	// Collection elements too: a struct with the default hash would miss changes after its first field
+	static int HashElement( object value ) => HashesItsBytes( value ) ? HashBytes( value ) : value?.GetHashCode() ?? 0;
 
 	/// <summary>
 	/// Set a variable from a slot id.
@@ -483,14 +554,25 @@ internal class NetworkTable : IDisposable
 			try
 			{
 				WriteEntryToStream( entry, ref bs );
-				entry.Serialized = bs.ToArray();
+				var span = bs.ToSpan();
+
+				// Most values keep their size: write over the previous bytes instead of allocating. The snapshot
+				// state holds this array and hashes the new bytes, sent packets only remember change numbers.
+				if ( entry.SerializedBuffer is not { } buffer || buffer.Length != span.Length )
+					entry.SerializedBuffer = buffer = new byte[span.Length];
+
+				span.CopyTo( buffer );
+				entry.Serialized = buffer;
 			}
 			catch ( Exception e )
 			{
 				Log.Warning( e, $"Error when getting value {entry.DebugName} - {e.Message}" );
+				continue;
 			}
-
-			bs.Dispose();
+			finally
+			{
+				bs.Dispose();
+			}
 
 			snapshot.AddSerialized( entry.Slot, entry.Serialized );
 

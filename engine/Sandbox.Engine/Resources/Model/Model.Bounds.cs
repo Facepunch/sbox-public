@@ -3,6 +3,8 @@ namespace Sandbox;
 
 public partial class Model
 {
+	Lazy<BBox> _physicsBounds;
+
 	/// <summary>
 	/// Total bounds of all the meshes.
 	/// </summary>
@@ -11,7 +13,7 @@ public partial class Model
 	/// <summary>
 	/// Total bounds of all the physics shapes.
 	/// </summary>
-	public BBox PhysicsBounds => native.GetPhysicsBounds();
+	public BBox PhysicsBounds => (_physicsBounds ??= new( () => native.GetPhysicsBounds() )).Value;
 
 	/// <summary>
 	/// Render view bounds.

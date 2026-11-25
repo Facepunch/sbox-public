@@ -98,17 +98,16 @@ namespace Topten.RichTextKit
 				// Do we need fallback for this character?
 				if ( glyphs[i] == 0 )
 				{
-					// Check if there's a fallback available, if not, might as well continue with the current top-level typeface
-					var subSpanTypeface = CharacterMatcher.MatchCharacter( typeface.FamilyName, typeface.FontWeight, typeface.FontWidth, typeface.FontSlant, null, codePoints[i] );
-					if ( subSpanTypeface == null )
-						continue;
-
 					// Don't fallback for whitespace characters
 					if ( UnicodeClasses.BoundaryGroup( codePoints[i] ) == WordBoundaryClass.Space )
 						continue;
 
 					// Must be a cluster boundary
 					if ( !GraphemeClusterAlgorithm.IsBoundary( codePoints, i ) )
+						continue;
+
+					var subSpanTypeface = CharacterMatcher.MatchCharacter( typeface.FamilyName, typeface.FontWeight, typeface.FontWidth, typeface.FontSlant, null, codePoints[i] );
+					if ( subSpanTypeface == null )
 						continue;
 
 					// We can do font fallback...
@@ -135,19 +134,11 @@ namespace Topten.RichTextKit
 					var unmatchedLength = unmatchedEnd - unmatchedStart;
 
 					// Match the missing characters
-					while ( unmatchedLength > 0 )
+					while ( true )
 					{
-						// Find the font fallback using the first character
-						subSpanTypeface = CharacterMatcher.MatchCharacter( typeface.FamilyName, typeface.FontWeight, typeface.FontWidth, typeface.FontSlant, null, codePoints[unmatchedStart] );
-						if ( subSpanTypeface == null )
-						{
-							unmatchedEnd = unmatchedStart;
-							break;
-						}
-						using var subSpanFont = new SKFont( subSpanTypeface );
-
 						// Get the glyphs over the current unmatched range
-						subSpanFont.GetGlyphs( codePoints.SubSlice( unmatchedStart, unmatchedLength ).AsSpan(), new Span<ushort>( glyphs, unmatchedStart, unmatchedLength ) );
+						font.Typeface = subSpanTypeface;
+						font.GetGlyphs( codePoints.SubSlice( unmatchedStart, unmatchedLength ).AsSpan(), glyphs.AsSpan( unmatchedStart, unmatchedLength ) );
 
 						// Count how many characters were matched
 						var fallbackStart = unmatchedStart;
@@ -167,6 +158,15 @@ namespace Topten.RichTextKit
 						// Continue selecting font fallbacks until the entire unmatched ranges has been matched
 						unmatchedStart += fallbackLength;
 						unmatchedLength -= fallbackLength;
+						if ( unmatchedLength == 0 )
+							break;
+
+						subSpanTypeface = CharacterMatcher.MatchCharacter( typeface.FamilyName, typeface.FontWeight, typeface.FontWidth, typeface.FontSlant, null, codePoints[unmatchedStart] );
+						if ( subSpanTypeface == null )
+						{
+							unmatchedEnd = unmatchedStart;
+							break;
+						}
 					}
 
 					// Move onto the next top level span

@@ -48,17 +48,41 @@ public class OverlayContextTests
 		var planted = new GamePackage { Org = org, Ident = "overlay" };
 		var engine = new RemotePackage { Org = org, Ident = "overlay" };
 
-		Game.Overlay.ShowReviewModal( planted );
 		Game.Overlay.CreateGame( new CreateGameOptions( planted, _ => { } ) );
 
 		Assert.AreEqual( 0, modals.Packages.Count, "The menu was handed the game's Package" );
 
-		Game.Overlay.ShowReviewModal( engine );
 		Game.Overlay.CreateGame( new CreateGameOptions( engine, _ => Observed.Add( GlobalContext.Current ) ) );
 
-		CollectionAssert.AreEqual( new[] { engine, engine }, modals.Packages );
+		CollectionAssert.AreEqual( new[] { engine }, modals.Packages );
 		Assert.AreEqual( 1, modals.CompletedGames );
 		AssertNeverRanInMenu();
+	}
+
+	/// <summary>
+	/// Existing addons can call the retired review APIs and still read package votes independently.
+	/// </summary>
+	[TestMethod]
+	public async Task LegacyReviewsReturnEmptyResultsWithoutOpeningAModal()
+	{
+		var package = new RemotePackage { VotesUp = 7, VotesDown = 2 };
+		const string ident = "regressiontest.overlay";
+
+#pragma warning disable CS0618 // Exercise the signatures used by existing addons.
+		Game.Overlay.ShowReviewModal( package );
+		await MenuUtility.PostReview( ident, Sandbox.Services.Review.ReviewScore.Positive, "test", default, default );
+
+		Assert.IsNull( await Sandbox.Services.Review.Get( ident, default ) );
+		Assert.AreEqual( 0, (await Sandbox.Services.Review.Fetch( ident )).Length );
+		Assert.AreEqual( 0, (await Sandbox.Services.Review.FetchEx( ident, 10, 0 )).Posts.Length );
+		Assert.AreEqual( 0, package.Reviews.Total );
+		Assert.AreEqual( 0, package.Reviews.PositiveTags.Count );
+		Assert.AreEqual( 0, package.Reviews.NegativeTags.Count );
+#pragma warning restore CS0618
+
+		Assert.AreEqual( 0, modals.Packages.Count );
+		Assert.AreEqual( 7, package.VotesUp );
+		Assert.AreEqual( 2, package.VotesDown );
 	}
 
 	[TestMethod]
@@ -216,6 +240,7 @@ sealed class RecordingModalSystem : IModalSystem
 		_ = package.Tags;
 	}
 
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public void Review( Package package ) => Use( package );
 
 	public void CreateGame( in CreateGameOptions options )

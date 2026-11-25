@@ -7,25 +7,33 @@ namespace Sandbox;
 internal static partial class DebugOverlay
 {
 	/// <summary>
-	/// Small labelled icons in the top right for problems the player can feel but not diagnose: packet loss and video
-	/// memory over budget. Orange is a warning, red is critical. The numbers behind them are in the dev tools.
+	/// Small labelled icons in the top right for problems the player can feel but not diagnose: packet loss, video
+	/// memory over budget and a silent host. Orange is a warning, red is critical. The numbers behind them are in the dev tools.
 	/// </summary>
 	internal static class Warnings
 	{
 		// Shared with the dev tools' issue list
 		internal const float QualityWarn = 0.95f, QualityBad = 0.8f; // Fraction of packets delivered
 
-		enum Kind { VideoMemory, Connection, Count }
+		enum Kind { VideoMemory, Connection, ConnectionProblem, Count }
 
-		static readonly string[] Icons = ["memory", "sync_problem"];
-		static readonly string[] Labels = ["Low VRAM", "Packet Loss"];
+		static readonly string[] Icons = ["memory", "sync_problem", "wifi_off"];
+		static readonly string[] Labels = ["Low VRAM", "Packet Loss", "Connection Problem"];
 		static readonly WarningState[] States = new WarningState[(int)Kind.Count];
+
+		// Not debounced: it has its own threshold, and clears as soon as the host is heard from
+		static bool _connectionProblem;
+		static int _tenthsUntilTimeout = -1;
+		static string _connectionProblemDetail;
+
+		// Sized for the widest countdown, so the cell doesn't change width as it ticks
+		const string DetailWidthSample = "Disconnecting in 00.0s";
 		static readonly Logger log = new( "VideoMemory" );
 		static double _nextSample;
 		static ulong _vramBudget, _vramUsage;
 
 		const double SampleInterval = 0.5;
-		const float CellHeight = 26, CellGap = 4, PadX = 8, IconSize = 16, IconGap = 5, LabelSize = 12, Margin = 16;
+		const float CellHeight = 26, CellGap = 4, PadX = 8, IconSize = 16, IconGap = 5, LabelSize = 12, DetailSize = 11, DetailHeight = 14, LineGap = 1, Margin = 16;
 		static readonly Color WarningColor = new( 1f, 0.62f, 0.15f );
 		static readonly Color CriticalColor = new( 1f, 0.27f, 0.23f );
 
@@ -35,6 +43,7 @@ internal static partial class DebugOverlay
 			{
 				Array.Clear( States );
 				_nextSample = 0;
+				_connectionProblem = false;
 				return;
 			}
 
@@ -45,6 +54,9 @@ internal static partial class DebugOverlay
 				Sample( now );
 			}
 
+			// Every frame, so the countdown ticks smoothly
+			SampleConnectionProblem();
+
 			if ( Screen.Width <= 64 || Screen.Height <= 64 )
 				return;
 
@@ -52,33 +64,64 @@ internal static partial class DebugOverlay
 			var scale = MathF.Max( Screen.Height / 1080f, 0.85f );
 			float cellHeight = CellHeight * scale, cellGap = CellGap * scale, padX = PadX * scale, iconSize = IconSize * scale, iconGap = IconGap * scale, margin = Margin * scale;
 			var labelStyle = new TextStyle( "Inter", LabelSize * scale, Color.White.WithAlpha( 0.85f ) ) { FontWeight = 600, Alignment = TextFlag.LeftCenter };
+			var detailStyle = new TextStyle( "Inter", DetailSize * scale, Color.White.WithAlpha( 0.6f ) ) { FontWeight = 500, Alignment = TextFlag.LeftCenter };
 
 			// One row, laid out from the right edge
 			var x = Screen.Width - margin;
 			for ( int i = States.Length - 1; i >= 0; i-- )
 			{
-				var state = States[i];
-				if ( state.Level == WarningLevel.None ) continue;
+				var isConnectionProblem = i == (int)Kind.ConnectionProblem;
+				var level = isConnectionProblem ? (_connectionProblem ? WarningLevel.Critical : WarningLevel.None) : States[i].Level;
+				if ( level == WarningLevel.None ) continue;
 
-				var color = state.Level == WarningLevel.Critical ? CriticalColor : WarningColor;
+				var color = level == WarningLevel.Critical ? CriticalColor : WarningColor;
+				var label = Labels[i];
+				var detail = isConnectionProblem ? _connectionProblemDetail : null;
 
 				painter.TextStyle = labelStyle;
-				var labelSize = painter.MeasureText( Labels[i] );
-				var cellWidth = MathF.Ceiling( padX + iconSize + iconGap + labelSize.x + padX );
+				var labelSize = painter.MeasureText( label );
+				var textWidth = labelSize.x;
+				var detailSize = Vector2.Zero;
+
+				if ( detail is not null )
+				{
+					painter.TextStyle = detailStyle;
+					detailSize = painter.MeasureText( detail );
+					textWidth = MathF.Max( textWidth, painter.MeasureText( DetailWidthSample ).x );
+				}
+
+				var height = detail is null ? cellHeight : cellHeight + DetailHeight * scale;
+				var cellWidth = MathF.Ceiling( padX + iconSize + iconGap + textWidth + padX );
 				x -= cellWidth;
-				var rect = new Rect( x, margin, cellWidth, cellHeight );
+				var rect = new Rect( x, margin, cellWidth, height );
 				x -= cellGap;
 
 				painter.Fill = Color.Black.WithAlpha( 0.45f );
 				painter.Stroke = Stroke.None;
 				painter.Rect( rect, 4 * scale );
 
-				var iconRect = new Rect( rect.Left + padX, rect.Top, iconSize, cellHeight );
-				DrawText( painter, new TextRendering.Scope( Icons[i], color, iconSize, "Material Icons", 400 ), iconRect, TextFlag.Center );
+				var iconRect = new Rect( rect.Left + padX, rect.Top, iconSize, height );
+				DrawText( painter, new TextRendering.Scope( Icons[i], color, iconSize, "Material Symbols Outlined", 400 ), iconRect, TextFlag.Center );
+
+				var textLeft = iconRect.Right + iconGap;
+
+				if ( detail is null )
+				{
+					painter.TextStyle = labelStyle;
+					var labelRect = new Rect( textLeft, rect.Top, labelSize.x, height );
+					painter.Text( label, labelRect.Align( labelSize, TextFlag.LeftCenter ).SnapToGrid() );
+					continue;
+				}
+
+				// Both lines centred together in the cell
+				var lineGap = LineGap * scale;
+				var top = rect.Top + (height - labelSize.y - lineGap - detailSize.y) / 2;
 
 				painter.TextStyle = labelStyle;
-				var labelRect = new Rect( iconRect.Right + iconGap, rect.Top, labelSize.x, cellHeight );
-				painter.Text( Labels[i], labelRect.Align( labelSize, TextFlag.LeftCenter ).SnapToGrid() );
+				painter.Text( label, new Rect( textLeft, top, labelSize.x, labelSize.y ).SnapToGrid() );
+
+				painter.TextStyle = detailStyle;
+				painter.Text( detail, new Rect( textLeft, top + labelSize.y + lineGap, detailSize.x, detailSize.y ).SnapToGrid() );
 			}
 		}
 
@@ -88,6 +131,19 @@ internal static partial class DebugOverlay
 
 			Update( Kind.VideoMemory, now, SampleVideoMemory() );
 			Update( Kind.Connection, now, stats is { } c ? Quality( c.ConnectionQuality ) : null );
+		}
+
+		static void SampleConnectionProblem()
+		{
+			_connectionProblem = Networking.System?.LastRecievedFromHost is { } since && since >= Networking.ConnectionProblemTime;
+			if ( !_connectionProblem || Networking.System.TimeoutCountdown is not { } left ) return;
+
+			// Rebuilt only when the shown value changes
+			var tenths = (int)Math.Ceiling( left * 10 );
+			if ( tenths == _tenthsUntilTimeout ) return;
+
+			_tenthsUntilTimeout = tenths;
+			_connectionProblemDetail = $"Disconnecting in {tenths / 10f:0.0}s";
 		}
 
 		/// <summary>

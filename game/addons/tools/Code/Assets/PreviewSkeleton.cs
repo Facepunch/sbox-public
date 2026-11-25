@@ -6,7 +6,6 @@ namespace Editor.Assets;
 public class PreviewSkeleton( Asset asset ) : AssetPreview( asset )
 {
 	public override float PreviewWidgetCycleSpeed => 0.2f;
-	public override bool IsAnimatedPreview => true;
 
 	IReadOnlyList<Skeleton.Bone> _bones;
 	private IReadOnlyDictionary<string, float> _weights;

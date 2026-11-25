@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "materials/sbox/terrain/grass/terrain_grass_a.tmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "materials/sbox/terrain/grass/terrain_grass_a.tmat"
       }
     }
   }

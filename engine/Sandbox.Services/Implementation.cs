@@ -25,6 +25,7 @@ public static class Backend
 	public static ICodeApi Code { get; private set; }
 	public static IForumApi Forum { get; private set; }
 	public static IPlatformApi Platform { get; private set; }
+	public static IWorkshopApi Workshop { get; private set; }
 
 	/// <summary>
 	/// AI queries and cached conversations using the current game session.
@@ -60,6 +61,7 @@ public static class Backend
 		Code = RestService.For<ICodeApi>( httpClient, refitSettings );
 		Forum = RestService.For<IForumApi>( httpClient, refitSettings );
 		Platform = RestService.For<IPlatformApi>( httpClient, refitSettings );
+		Workshop = RestService.For<IWorkshopApi>( httpClient, refitSettings );
 		Ai = RestService.For<IAiApi>( httpClient, refitSettings );
 	}
 

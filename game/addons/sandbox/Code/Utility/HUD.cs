@@ -4,17 +4,19 @@ namespace Sandbox;
 
 public static class Hud
 {
+	const float MarginPercent = 2f;
+
 	public static float Scale => Screen.Height / 1080.0f;
 
 	/// <summary>
-	/// Gap between the screen edges and the HUD in screen pixels, from the player's HUD margin
+	/// Gap between the screen edges and the HUD in screen pixels
 	/// </summary>
-	public static float Margin => Screen.Width * GamePreferences.HudMargin / 100f;
+	public static float Margin => Screen.Width * MarginPercent / 100f;
 
 	/// <summary>
 	/// <see cref="Margin"/> for panel styles, which scale it to the panel themselves
 	/// </summary>
-	public static Length? MarginLength => Length.ViewWidth( GamePreferences.HudMargin );
+	public static Length? MarginLength => Length.ViewWidth( MarginPercent );
 
 	/// <summary>
 	/// Space kept between the vitals and the HUD stacked above them (chat, notices, the voice list)
@@ -28,7 +30,7 @@ public static class Hud
 			var vitals = Game.ActiveScene?.Get<HudLayer>()?.Canvas?.Section<VitalsSection>( false );
 
 			// until the vitals have been painted, go by the size they usually are
-			var scale = (vitals?.Canvas.ScaleToScreen ?? Scale) * GamePreferences.HudScale;
+			var scale = vitals?.Canvas.ScaleToScreen ?? Scale;
 			var fromBottom = vitals is { BoxTop: > 0 } ? vitals.Canvas.PixelSize.y - vitals.BoxTop : Margin + 92 * scale;
 
 			return fromBottom + StackGap * scale;

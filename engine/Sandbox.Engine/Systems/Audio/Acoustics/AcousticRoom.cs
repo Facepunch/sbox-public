@@ -13,9 +13,11 @@ internal static class AcousticRoom
 	public const int MaxSourcesPerTick = 10;
 
 	const int RayBounces = 5;
-	const float MaxBounceLen = 8192f;
+	const float MaxBounceLen = 2048f;
 	const float UnitsPerMeter = 39.37f;
 	const float AccumHalfLife = 0.6f;
+	// Fewer wall hits per ray than this read as fading evidence, well under the sparsest real space (about 0.3).
+	const float MinHitsPerRay = 0.1f;
 
 	public struct Sample
 	{
@@ -35,8 +37,14 @@ internal static class AcousticRoom
 		public int LastUpdateTick = -1;
 
 		public float SmoothedOpenness = 1f;
-		public float SmoothedDecayDist;
-		public FrequencyBands SmoothedMaterialTone = FrequencyBands.One;
+
+		// Exponentially weighted sums, divided in BuildSnapshot: an update with few bounces counts for little and the first doesn't stick.
+		public float SmoothedDist;
+		public float SmoothedSegments;
+		public FrequencyBands SmoothedRefl;
+		public float SmoothedBounces;
+		public float SmoothedEscaped;
+		public float SmoothedRays;
 
 		public ReverbSnapshot Snapshot;
 
@@ -45,8 +53,12 @@ internal static class AcousticRoom
 			HasBurst = true;
 			LastUpdateTime = other.LastUpdateTime;
 			SmoothedOpenness = other.SmoothedOpenness;
-			SmoothedDecayDist = other.SmoothedDecayDist;
-			SmoothedMaterialTone = other.SmoothedMaterialTone;
+			SmoothedDist = other.SmoothedDist;
+			SmoothedSegments = other.SmoothedSegments;
+			SmoothedRefl = other.SmoothedRefl;
+			SmoothedBounces = other.SmoothedBounces;
+			SmoothedEscaped = other.SmoothedEscaped;
+			SmoothedRays = other.SmoothedRays;
 		}
 	}
 
@@ -76,6 +88,8 @@ internal static class AcousticRoom
 				if ( !tracer.Trace( pos, pos + dir * MaxBounceLen, AcousticIgnore.Source, out var hit ) )
 				{
 					s.EscapedWeight += EscapeWeight( rayBounces );
+					// Past the first wall an opening absorbs everything: a bounce that reflects nothing (Eyring with absorption 1).
+					if ( rayBounces > 0 ) s.BounceCount++;
 					break;
 				}
 
@@ -97,26 +111,16 @@ internal static class AcousticRoom
 
 	public static void ApplySample( Estimator est, in Sample s, float now )
 	{
-		float openness = s.EscapedWeight / s.RayCount;
-		float decayDist = s.SegmentCount > 0 ? s.TotalDist / s.SegmentCount : 0f;
-		// Eyring: the room's absorption is -ln of the mean reflectivity, not the mean of -ln (that over weights absorptive patches).
-		var tone = s.BounceCount > 0 ? s.TotalRefl / s.BounceCount : FrequencyBands.One;
-
-		float dt = est.LastUpdateTime < 0f ? 0f : now - est.LastUpdateTime;
+		float keep = MathF.Pow( 0.5f, MathF.Max( now - est.LastUpdateTime, 0f ) / AccumHalfLife );
 		est.LastUpdateTime = now;
 
-		if ( dt <= 0f )
-		{
-			est.SmoothedOpenness = openness;
-			est.SmoothedDecayDist = decayDist;
-			est.SmoothedMaterialTone = tone;
-		}
-		else
-		{
-			est.SmoothedOpenness = MathX.ExponentialDecay( est.SmoothedOpenness, openness, AccumHalfLife, dt );
-			est.SmoothedDecayDist = MathX.ExponentialDecay( est.SmoothedDecayDist, decayDist, AccumHalfLife, dt );
-			est.SmoothedMaterialTone = est.SmoothedMaterialTone.Decay( tone, AccumHalfLife, dt );
-		}
+		est.SmoothedEscaped = est.SmoothedEscaped * keep + s.EscapedWeight;
+		est.SmoothedRays = est.SmoothedRays * keep + s.RayCount;
+		est.SmoothedOpenness = est.SmoothedEscaped / est.SmoothedRays;
+		est.SmoothedDist = est.SmoothedDist * keep + s.TotalDist;
+		est.SmoothedSegments = est.SmoothedSegments * keep + s.SegmentCount;
+		est.SmoothedRefl = est.SmoothedRefl * keep + s.TotalRefl;
+		est.SmoothedBounces = est.SmoothedBounces * keep + s.BounceCount;
 	}
 
 	/// <summary>
@@ -125,7 +129,12 @@ internal static class AcousticRoom
 	/// </summary>
 	public static ReverbSnapshot BuildSnapshot( Estimator est, bool source, float listenerEnclosure )
 	{
-		var tone = est.SmoothedMaterialTone;
+		// Counted against rays traced, so a room that stops showing up (a sound moved outdoors) fades instead of holding its size.
+		float segments = MathF.Max( est.SmoothedSegments, MinHitsPerRay * est.SmoothedRays );
+		float bounces = MathF.Max( est.SmoothedBounces, MinHitsPerRay * est.SmoothedRays );
+
+		// Eyring: the room's absorption is -ln of the mean reflectivity, not the mean of -ln (that over weights absorptive patches).
+		var tone = bounces > 0f ? est.SmoothedRefl / bounces : FrequencyBands.One;
 		float toneLow = MathF.Max( tone.Low, 0.001f );
 		float toneMid = MathF.Max( tone.Mid, 0.001f );
 		float toneHigh = MathF.Max( tone.High, 0.001f );
@@ -133,7 +142,7 @@ internal static class AcousticRoom
 		float absMid = -MathF.Log( toneMid );
 		float absHigh = -MathF.Log( toneHigh );
 		float absEff = -MathF.Log( MathF.Cbrt( toneLow * toneMid * toneHigh ) );
-		float mfpMeters = est.SmoothedDecayDist / UnitsPerMeter;
+		float mfpMeters = segments > 0f ? est.SmoothedDist / segments / UnitsPerMeter : 0f;
 		float decayTime = absEff > 1e-6f ? 0.040f * mfpMeters / absEff : 0f;
 		float decayLow = mfpMeters > 0f && absLow > 0f ? 0.040f * mfpMeters / absLow : 0f;
 		float decayMid = mfpMeters > 0f && absMid > 0f ? 0.040f * mfpMeters / absMid : 0f;
@@ -152,7 +161,8 @@ internal static class AcousticRoom
 		};
 
 		// How loud the reverb is against the direct sound depends on distance, that's done per voice in the mixer.
-		if ( source ) snapshot.Mix = (1f - est.SmoothedOpenness) * listenerEnclosure;
+		// Amplitude of the lesser enclosure: the source room's openness is already in its decay time, so a shared room counts it once.
+		if ( source && decayTime > 0f ) snapshot.Mix = MathF.Sqrt( MathF.Min( 1f - est.SmoothedOpenness, listenerEnclosure ) );
 
 		return snapshot;
 	}

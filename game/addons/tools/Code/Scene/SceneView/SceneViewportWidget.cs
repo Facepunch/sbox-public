@@ -546,6 +546,12 @@ public partial class SceneViewportWidget : Widget
 					EditorScene.Selection.Add( go );
 				} );
 
+				menu.AddSeparator();
+
+				var playFromHere = GetPlayFromHereTransform( trace );
+				menu.AddOption( "Play From Here", "play_circle", () => EditorScene.PlayFromHere( playFromHere, Session ) )
+					.Enabled = !Game.IsPlaying && !Session.IsPrefabSession;
+
 				var ev = new EditorEvent.ShowContextMenuEvent( Session, menu, ray, trace );
 
 				EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.ShowContextMenu( ev ) );
@@ -557,6 +563,16 @@ public partial class SceneViewportWidget : Widget
 
 			menu.OpenAtCursor();
 		}
+	}
+
+	Transform GetPlayFromHereTransform( SceneTraceResult? trace )
+	{
+		var rotation = Rotation.FromYaw( _activeCamera.WorldRotation.Yaw() );
+
+		if ( trace is { } tr && tr.Normal.z > 0.7f )
+			return new Transform( tr.HitPosition, rotation );
+
+		return new Transform( _activeCamera.WorldPosition, rotation );
 	}
 
 	bool blockCamera;
@@ -811,7 +827,7 @@ public partial class SceneViewportWidget : Widget
 			var iconFontSize = 18 * scale;
 
 			Gizmo.Draw.Color = Color.White.WithAlpha( 2f - timeSinceCameraSpeedChange );
-			Gizmo.Draw.ScreenText( "speed", new Vector2( baseRect.Width - iconSize.x, iconSize.y ), "Material Icons", iconFontSize, TextFlag.Center );
+			Gizmo.Draw.ScreenText( "speed", new Vector2( baseRect.Width - iconSize.x, iconSize.y ), "Material Symbols Outlined", iconFontSize, TextFlag.Center );
 
 			var barSize = new Rect( 24, 64, 12, 100 ) * scale;
 

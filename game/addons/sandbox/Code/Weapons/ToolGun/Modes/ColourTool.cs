@@ -1,4 +1,4 @@
-[Icon( "🎨" )]
+[Icon( "palette" )]
 [Title( "#tool.name.colour" )]
 [ClassName( "colour" )]
 [Group( "#tool.group.render" )]
@@ -30,6 +30,7 @@ public sealed class ColourTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void SetColour( GameObject target, Color colour, ToolInput input )
 	{
+		if ( !CanTarget( target ) ) return;
 		if ( !FireToolAction( input ) ) return;
 
 		if ( !target.IsValid() ) return;

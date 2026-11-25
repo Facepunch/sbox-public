@@ -366,7 +366,7 @@
         "__guid": "646e2ab5-f09d-4a51-883c-6318853b12ef",
         "__enabled": true,
         "Flags": 0,
-        "EnableFootsteps": true,
+        "EnableFootstepSounds": true,
         "FootstepVolume": 1,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
@@ -374,6 +374,12 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null
+      },
+      {
+        "__type": "Sandbox.Npcs.CitizenNpcAnimator",
+        "__guid": "7ebfd936-55e7-4806-8216-3e3dee8b0ccf",
+        "__enabled": true,
+        "Flags": 0
       },
       {
         "__type": "Sandbox.Npcs.Layers.SpeechLayer",
@@ -446,8 +452,7 @@
             "__guid": "2d981081-c1b7-4be7-b39c-529e7f3fb0f2",
             "__enabled": true,
             "Flags": 0,
-            "AnimationGraph": null,
-            "BodyGroups": 3746,
+            "BodyGroups": 16386,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
             "CreateBoneObjects": true,
@@ -457,8 +462,8 @@
             "MaterialOverride": null,
             "Materials": null,
             "Model": {
-              "Id": "161d0b00-c517-4044-989d-b679dab75a28",
-              "Path": "models/citizen_human/citizen_human_male.vmdl"
+              "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+              "Path": "models/citizen_human/human.vmdl"
             },
             "Morphs": {},
             "OnComponentDestroy": null,
@@ -467,12 +472,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {
-              "floats": {
-                "scale_height": 1,
-                "scale_heel": 0
-              }
-            },
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": true,
@@ -487,7 +486,16 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "animations/sandbox_player.ag",
+              "Parameters": {
+                "floats": {
+                  "scale_height": 1,
+                  "scale_heel": 0
+                }
+              }
+            }
           },
           {
             "__type": "Sandbox.ModelHitboxes",

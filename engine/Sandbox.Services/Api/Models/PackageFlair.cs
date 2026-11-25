@@ -85,12 +85,13 @@ public class PackageFlair
 	/// Build the flair list to show a specific user: the intrinsic flair plus any
 	/// player-specific flair derived from how they've interacted with the package.
 	///
-	/// Safe to call on a cached/shared (and possibly already player-mutated) list —
-	/// it strips stale player-specific flair and returns a fresh list rather than
-	/// appending, so it can't accumulate or leak between users.
+	/// Mutates <paramref name="flair"/>, so never pass a list that's shared between requests.
+	/// Strips any player-specific flair already on it first, so it can't accumulate.
 	/// </summary>
 	public static void ForPlayer( List<PackageFlair> flair, DateTimeOffset updated, PackageInteraction interaction, string typeName )
 	{
+		flair.RemoveAll( IsPlayerSpecific );
+
 		// "New" is an intrinsic "nobody's played this yet" nudge — but if this viewer has played it, it's
 		// not new to them. Strip it here (the global TotalPlayerCount that sets it lags real plays anyway).
 		if ( interaction.Used )
@@ -111,4 +112,9 @@ public class PackageFlair
 			flair.Add( Favourite() );
 		}
 	}
+
+	/// <summary>
+	/// Flair that depends on who's asking, as added by <see cref="ForPlayer"/>.
+	/// </summary>
+	public static bool IsPlayerSpecific( PackageFlair flair ) => flair.Kind is "updated-since-played" or "favourited";
 }

@@ -63,6 +63,7 @@ public abstract partial class BaseStyles
 		["padding"] = new[] { "padding-left", "padding-top", "padding-right", "padding-bottom" },
 		["inset"] = new[] { "top", "right", "bottom", "left" },
 		["gap"] = new[] { "row-gap", "column-gap" },
+		["font"] = new[] { "font-family", "font-size", "font-weight", "font-style", "line-height", "font-variant-numeric", "font-variation-settings", "font-optical-sizing" },
 		["grid-column"] = new[] { "grid-column-start", "grid-column-end" },
 		["grid-row"] = new[] { "grid-row-start", "grid-row-end" },
 		["grid-area"] = new[] { "grid-row-start", "grid-column-start", "grid-row-end", "grid-column-end" },

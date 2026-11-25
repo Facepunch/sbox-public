@@ -20,7 +20,9 @@ internal class SceneLightProbe : SceneObject
 		BBox bounds,
 		Transform transform,
 		int handshake,
-		int renderPriority ) : base()
+		int renderPriority,
+		float atlasZScale = 1.0f,
+		float atlasZOffset = 0.0f ) : base()
 	{
 		Assert.IsValid( sceneWorld );
 
@@ -33,6 +35,8 @@ internal class SceneLightProbe : SceneObject
 		lightProbeVolume.m_vBoxMaxs = bounds.Maxs;
 		lightProbeVolume.m_nHandshake = handshake;
 		lightProbeVolume.m_nRenderPriority = renderPriority;
+		lightProbeVolume.m_flAtlasZScale = atlasZScale;
+		lightProbeVolume.m_flAtlasZOffset = atlasZOffset;
 
 		if ( texture != null )
 			lightProbeVolume.m_hLightProbeTexture = texture.native;

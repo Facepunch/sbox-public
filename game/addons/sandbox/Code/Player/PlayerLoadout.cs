@@ -144,6 +144,8 @@ public sealed class PlayerLoadout : Component, Local.IPlayerEvents, Global.IPlay
 	[Rpc.Host]
 	private async void HostRestoreLoadoutFromClient( string loadoutJson )
 	{
+		if ( Rpc.Caller != Player.Network.Owner ) return;
+
 		await ReplaceLoadoutAsync( loadoutJson );
 	}
 

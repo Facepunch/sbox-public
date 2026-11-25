@@ -1,4 +1,5 @@
-﻿using Sandbox.Network;
+﻿using System.Collections.ObjectModel;
+using Sandbox.Network;
 
 namespace Sandbox;
 
@@ -21,25 +22,58 @@ public abstract partial class Connection
 	{
 		get
 		{
-			var l = new List<Connection>( 32 );
+			var all = _all;
+			if ( !IsCurrent( all ) )
+				_all = all = BuildAll();
 
-			if ( Networking.System is not null )
-			{
-				foreach ( var c in Networking.System.ConnectionInfo.All )
-				{
-					var connection = Find( c.Key );
-					if ( connection is not null )
-						l.Add( connection );
-				}
-			}
-			else
-			{
-				if ( Local is not null )
-					l.Add( Local );
-			}
-
-			return l.AsReadOnly<Connection>();
+			return all;
 		}
+	}
+
+	// Replaced rather than changed, so callers can keep iterating a list they already have while connections change
+	[SkipHotload]
+	static ReadOnlyCollection<Connection> _all = ReadOnlyCollection<Connection>.Empty;
+
+	static bool IsCurrent( ReadOnlyCollection<Connection> all )
+	{
+		if ( Networking.System is null )
+			return Local is null ? all.Count == 0 : all.Count == 1 && ReferenceEquals( all[0], Local );
+
+		var i = 0;
+		foreach ( var c in Networking.System.ConnectionInfo.All )
+		{
+			var connection = Find( c.Key );
+			if ( connection is null ) continue;
+
+			if ( i >= all.Count || !ReferenceEquals( all[i], connection ) )
+				return false;
+
+			i++;
+		}
+
+		return i == all.Count;
+	}
+
+	static ReadOnlyCollection<Connection> BuildAll()
+	{
+		var l = new List<Connection>( 32 );
+
+		if ( Networking.System is not null )
+		{
+			foreach ( var c in Networking.System.ConnectionInfo.All )
+			{
+				var connection = Find( c.Key );
+				if ( connection is not null )
+					l.Add( connection );
+			}
+		}
+		else
+		{
+			if ( Local is not null )
+				l.Add( Local );
+		}
+
+		return l.AsReadOnly();
 	}
 
 	/// <summary>
@@ -101,6 +135,7 @@ public abstract partial class Connection
 	internal static void Reset()
 	{
 		Networking.System?.MockConnections.Clear();
+		_all = ReadOnlyCollection<Connection>.Empty;
 	}
 
 	private static Connection FindOrCreateMockConnection( ConnectionInfo info )

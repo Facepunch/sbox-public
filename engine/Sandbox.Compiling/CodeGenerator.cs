@@ -39,10 +39,9 @@ public sealed class CodeGenerator
 	public string[] Defines { get; set; } = ["SANDBOX"];
 
 	/// <summary>
-	/// Breen binds script bodies and their global functions itself. Its declaration pass still requires
-	/// parse and generator diagnostics, but cannot use ordinary C# body diagnostics as its validation.
+	/// Generates declarations for Breen, which binds script bodies and can invalidate callbacks on live instances.
 	/// </summary>
-	internal bool ValidateCompilation { get; set; } = true;
+	internal bool ForScriptRuntime { get; set; }
 
 	/// <summary>
 	/// Adds or replaces source at a project-relative path. No file is read from disk.
@@ -89,7 +88,7 @@ public sealed class CodeGenerator
 	{
 		var inputs = files.OrderBy( x => x.Key, StringComparer.Ordinal ).ToArray();
 		var rootNamespace = RootNamespace;
-		var validateCompilation = ValidateCompilation;
+		var forScriptRuntime = ForScriptRuntime;
 		var parseOptions = new CSharpParseOptions( LanguageVersion.Default, preprocessorSymbols: Defines.ToArray() );
 		var compilation = CSharpCompilation.Create( AssemblyName, references: references.ToArray(),
 			options: new CSharpCompilationOptions( OutputKind.DynamicallyLinkedLibrary ) );
@@ -101,11 +100,10 @@ public sealed class CodeGenerator
 				Generator.Processor.CompilerExtraPath, Encoding.UTF8, cancellationToken ) );
 		}
 
-		return Task.Run( () => Generate( compilation, inputs, rootNamespace, parseOptions, validateCompilation, cancellationToken ), cancellationToken );
+		return Task.Run( () => Generate( compilation, inputs, rootNamespace, parseOptions, forScriptRuntime, cancellationToken ), cancellationToken );
 	}
 
-	private static Result Generate( CSharpCompilation compilation, KeyValuePair<string, string>[] inputs,
-		string rootNamespace, CSharpParseOptions parseOptions, bool validateCompilation, CancellationToken cancellationToken )
+	private static Result Generate( CSharpCompilation compilation, KeyValuePair<string, string>[] inputs, string rootNamespace, CSharpParseOptions parseOptions, bool forScriptRuntime, CancellationToken cancellationToken )
 	{
 		var diagnostics = new List<Diagnostic>();
 		var sourcePaths = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
@@ -160,7 +158,8 @@ public sealed class CodeGenerator
 			var processor = new Generator.Processor
 			{
 				AddonName = compilation.AssemblyName,
-				AddonFileMap = sourcePaths
+				AddonFileMap = sourcePaths,
+				CachePropertyDelegates = !forScriptRuntime
 			};
 			processor.Run( compilation );
 			compilation = processor.Compilation;
@@ -172,7 +171,7 @@ public sealed class CodeGenerator
 		}
 
 		cancellationToken.ThrowIfCancellationRequested();
-		if ( validateCompilation ) diagnostics.AddRange( compilation.GetDiagnostics( cancellationToken ) );
+		if ( !forScriptRuntime ) diagnostics.AddRange( compilation.GetDiagnostics( cancellationToken ) );
 		foreach ( var duplicate in compilation.SyntaxTrees.GroupBy( x => x.FilePath, StringComparer.OrdinalIgnoreCase ).Where( group => group.Count() > 1 ) )
 		{
 			diagnostics.Add( Error( "SB6001", $"Duplicate generated path '{duplicate.Key}'." ) );

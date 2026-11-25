@@ -952,14 +952,20 @@ public sealed unsafe partial class CommandList
 	/// <param name="numMips">Number of mips you want in this texture. You probably don't want this unless you want to generate mips in a second pass.</param>
 	/// <returns>A RenderTarget that is ready to render to.</returns>
 	public RenderTargetHandle GetRenderTarget( string name, int width, int height, ImageFormat colorFormat = ImageFormat.Default, ImageFormat depthFormat = ImageFormat.Default, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1 )
+		=> GetRenderTarget( name, width, height, colorFormat, depthFormat, msaa, numMips, engineOwned: false );
+
+	/// <summary>
+	/// As above, from the engine's own pool. The UI painter's layers hold menu pixels.
+	/// </summary>
+	internal RenderTargetHandle GetRenderTarget( string name, int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa, int numMips, bool engineOwned )
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y, targetName: (string)entry.Object5 );
+			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y, (string)entry.Object5, 0, entry.Data2.z != 0 );
 			commandList.state.renderTargets[(string)entry.Object5] = temp;
 		}
 
-		AddEntry( &Execute, new Entry { Object5 = name, Data1 = new Vector4( width, height, (int)colorFormat, (int)depthFormat ), Data2 = new Vector4( (int)msaa, numMips, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object5 = name, Data1 = new Vector4( width, height, (int)colorFormat, (int)depthFormat ), Data2 = new Vector4( (int)msaa, numMips, engineOwned ? 1 : 0, 0 ) } );
 		return new RenderTargetHandle { Name = name };
 	}
 

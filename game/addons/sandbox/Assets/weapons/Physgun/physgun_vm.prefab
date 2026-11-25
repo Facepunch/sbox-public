@@ -21,25 +21,19 @@
         "__enabled": true,
         "Flags": 0,
         "ADSInertiaScale": 0.3,
-        "AnimationSpeed": 1,
         "DeploySound": {
           "Id": "cd40d880-a62f-4e55-93b7-5caad138cd31",
           "Path": "weapons/common/foley/foley_deploy_weapon_01.sound"
         },
         "EjectBrass": null,
-        "IncrementalAnimationSpeed": 3,
+        "FieldOfView": 77,
         "IncrementalReloadFinishSounds": [],
         "IncrementalReloadSoundEvents": [],
         "IncrementalReloadStartSounds": [],
-        "InertiaScale": "2,2",
         "IsIncremental": false,
-        "IsThrowable": false,
-        "LookInertia": false,
+        "LookInertia": true,
         "LookInertiaAmount": 1,
-        "LookInertiaDamping": 0.35,
-        "LookInertiaFrequency": 3,
-        "LookInertiaPivotDistance": 10,
-        "MaxInertia": 15,
+        "MovementBob": true,
         "MuzzleEffect": null,
         "MuzzleGameObject": {
           "_type": "gameobject",
@@ -62,7 +56,6 @@
           "_type": "gameobject",
           "go": "dcc37bca-a959-4b1d-87ee-15eaa48af28d"
         },
-        "ThrowableType": "HEGrenade",
         "TracerEffect": null
       },
       {
@@ -72,7 +65,7 @@
         "Flags": 0,
         "BeamActive": true,
         "BottleMaterial": {
-          "Id": "58900106-0e72-4e58-8248-7610d8aca9ba",
+          "Id": "9e51f58f-9f8f-454d-bf0c-b1e9923f048e",
           "Path": "weapons/physgun/v_physgun_d.vmat"
         },
         "GlowEffect": {
@@ -96,28 +89,8 @@
           "go": "7a2f543f-a785-4710-aba5-e6b92202956b",
           "component_type": "ParticleEffect"
         },
-        "TipSprites": [
-          {
-            "_type": "component",
-            "component_id": "db0ed248-5ae8-4cd5-8c02-24a2ab4d7a14",
-            "go": "f3089444-246a-47ab-bfa5-037ac9f9bb81",
-            "component_type": "SpriteRenderer"
-          },
-          {
-            "_type": "component",
-            "component_id": "82c091c0-882c-47eb-86d5-b2195ef661b5",
-            "go": "ee8f88b0-2dec-4db8-aa2d-a9493699a10f",
-            "component_type": "SpriteRenderer"
-          },
-          {
-            "_type": "component",
-            "component_id": "99de8adb-17b6-469f-9af5-d57a5bbde68f",
-            "go": "02128166-e28b-471d-aac1-f77a9acd475a",
-            "component_type": "SpriteRenderer"
-          }
-        ],
         "TubeFxMaterial": {
-          "Id": "a01345a8-c0d1-4bd9-80f2-28788f46e2fd",
+          "Id": "8d6b3485-c604-481b-8906-85990d95e0f5",
           "Path": "weapons/physgun/v_physgun_tube.vmat"
         }
       }
@@ -144,6 +117,13 @@
             "__guid": "0d315a8a-856e-49cb-b5d6-a16482eaf1be",
             "__enabled": true,
             "Flags": 0,
+            "Animation": {
+              "Graph": {
+                "Id": "2dee48c2-da02-49a5-a118-2024eb71c57a",
+                "Path": "weapons/physgun/animations/physgun.ag"
+              },
+              "Parameters": {}
+            },
             "AnimationGraph": null,
             "BodyGroups": 18446744073709551615,
             "BoneMergeTarget": null,
@@ -151,11 +131,12 @@
             "CreateBoneObjects": true,
             "DeformationMode": "Normal",
             "LodOverride": null,
+            "LowDetailAnimation": false,
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
             "Model": {
-              "Id": "1e85ece9-59ab-4fa6-ad46-0b448bd401c6",
+              "Id": "0fb6ee98-00fc-0000-b400-000000000000",
               "Path": "weapons/physgun/v_physgun.vmdl"
             },
             "Morphs": {},
@@ -458,6 +439,11 @@
                             "Flags": 0,
                             "__version": 3,
                             "Alpha": 1,
+                            "AngularVelocity": {
+                              "X": 0,
+                              "Y": 0,
+                              "Z": 0
+                            },
                             "ApplyAlpha": true,
                             "ApplyColor": true,
                             "ApplyRotation": true,
@@ -644,10 +630,15 @@
                                   }
                                 ]
                               },
-                              "CurveB": {
-                                "rangex": "0,0",
-                                "rangey": "0,0"
-                              }
+                              "CurveB": [
+                                {
+                                  "x": 0.5,
+                                  "y": 0.5,
+                                  "in": 0,
+                                  "out": 0,
+                                  "mode": "Mirrored"
+                                }
+                              ]
                             },
                             "SequenceFitToLifetime": false,
                             "SequenceId": 0,
@@ -740,7 +731,11 @@
                               "compiled": null
                             },
                             "StartingAnimationName": "Default",
-                            "TextureFilter": "Bilinear"
+                            "StretchFadeIn": 0,
+                            "StretchLengthLimits": "0,2000",
+                            "StretchTime": 0.1,
+                            "TextureFilter": "Bilinear",
+                            "VelocityStretch": false
                           },
                           {
                             "__type": "Sandbox.ParticleSphereEmitter",
@@ -752,7 +747,10 @@
                             "DestroyOnEnd": false,
                             "DistanceBias": "1,1,1",
                             "Duration": 5,
+                            "LocalDirection": false,
                             "Loop": true,
+                            "MinimumRadius": 0,
+                            "NormalizeBias": false,
                             "OnComponentDestroy": null,
                             "OnComponentDisabled": null,
                             "OnComponentEnabled": null,
@@ -761,6 +759,7 @@
                             "OnComponentUpdate": null,
                             "OnEdge": false,
                             "OneSidedAxes": "None",
+                            "RadialVelocity": 0,
                             "Radius": 2,
                             "Rate": 100,
                             "RateOverDistance": 0,
@@ -819,6 +818,11 @@
                                   "mode": "Mirrored"
                                 }
                               ]
+                            },
+                            "AngularVelocity": {
+                              "X": 0,
+                              "Y": 0,
+                              "Z": 0
                             },
                             "ApplyAlpha": false,
                             "ApplyColor": true,
@@ -1047,7 +1051,11 @@
                               "compiled": null
                             },
                             "StartingAnimationName": "Default",
-                            "TextureFilter": "Bilinear"
+                            "StretchFadeIn": 0,
+                            "StretchLengthLimits": "0,2000",
+                            "StretchTime": 0.1,
+                            "TextureFilter": "Bilinear",
+                            "VelocityStretch": false
                           }
                         ],
                         "Children": []
@@ -1070,98 +1078,7 @@
                     "NetworkTransmit": true,
                     "OwnerTransfer": 1,
                     "Components": [],
-                    "Children": [
-                      {
-                        "__guid": "f3089444-246a-47ab-bfa5-037ac9f9bb81",
-                        "__version": 2,
-                        "Flags": 0,
-                        "Name": "Sprite (1)",
-                        "Position": "6.14176512,2.82323694,-1.788139E-06",
-                        "Rotation": "0.707106709,1.49011612E-08,2.23517418E-08,0.70710665",
-                        "Scale": "3.40000105,3.40000105,3.40000105",
-                        "Tags": "",
-                        "Enabled": true,
-                        "NetworkMode": 2,
-                        "NetworkFlags": 0,
-                        "NetworkOrphaned": 0,
-                        "NetworkTransmit": true,
-                        "OwnerTransfer": 1,
-                        "Components": [
-                          {
-                            "__type": "Sandbox.SpriteRenderer",
-                            "__guid": "db0ed248-5ae8-4cd5-8c02-24a2ab4d7a14",
-                            "__enabled": true,
-                            "Flags": 0,
-                            "__version": 2,
-                            "Additive": true,
-                            "AlphaCutoff": 0.5,
-                            "Billboard": "Always",
-                            "CameraFadeFar": 0,
-                            "CameraFadeNear": 0,
-                            "Color": "0.16047,0.91953,1.5,0.44098",
-                            "DepthFeather": 3,
-                            "FlipHorizontal": false,
-                            "FlipVertical": false,
-                            "FogStrength": 1,
-                            "IsSorted": false,
-                            "Lighting": false,
-                            "NormalTexture": null,
-                            "OnAnimationEnd": null,
-                            "OnAnimationStart": null,
-                            "OnBroadcastMessage": null,
-                            "OnComponentDestroy": null,
-                            "OnComponentDisabled": null,
-                            "OnComponentEnabled": null,
-                            "OnComponentFixedUpdate": null,
-                            "OnComponentStart": null,
-                            "OnComponentUpdate": null,
-                            "Opaque": false,
-                            "OverlayColor": "1,1,1,0",
-                            "PlaybackSpeed": 1,
-                            "Refraction": false,
-                            "RefractionStrength": 8,
-                            "RenderOptions": {
-                              "GameLayer": false,
-                              "OverlayLayer": true,
-                              "BloomLayer": false,
-                              "AfterUILayer": false
-                            },
-                            "Shadows": false,
-                            "Size": "3.54457855,3.54457855",
-                            "Sprite": {
-                              "$compiler": "embed",
-                              "$source": null,
-                              "data": {
-                                "Animations": [
-                                  {
-                                    "Name": "Default",
-                                    "FrameRate": 15,
-                                    "Origin": "0.5,0.5",
-                                    "LoopMode": "Loop",
-                                    "LoopStart": -1,
-                                    "LoopEnd": -1,
-                                    "Frames": [
-                                      {
-                                        "Texture": {
-                                          "Id": "1e342e2a-8da3-4701-9c21-9a196b8b0fb0",
-                                          "Path": "textures/particles/flares/particle_flare_7b.vtex"
-                                        },
-                                        "BroadcastMessages": []
-                                      }
-                                    ]
-                                  }
-                                ],
-                                "__references": null
-                              },
-                              "compiled": null
-                            },
-                            "StartingAnimationName": "Default",
-                            "TextureFilter": "Bilinear"
-                          }
-                        ],
-                        "Children": []
-                      }
-                    ]
+                    "Children": []
                   },
                   {
                     "__guid": "d90af1e3-d184-408a-9d51-721868b4bdbc",
@@ -1179,98 +1096,7 @@
                     "NetworkTransmit": true,
                     "OwnerTransfer": 1,
                     "Components": [],
-                    "Children": [
-                      {
-                        "__guid": "ee8f88b0-2dec-4db8-aa2d-a9493699a10f",
-                        "__version": 2,
-                        "Flags": 0,
-                        "Name": "Sprite (2)",
-                        "Position": "6.14176512,2.82323694,-1.788139E-06",
-                        "Rotation": "-0.0908640921,3.7252903E-09,2.04890966E-08,0.99586314",
-                        "Scale": "3.40000105,3.40000105,3.40000105",
-                        "Tags": "",
-                        "Enabled": true,
-                        "NetworkMode": 2,
-                        "NetworkFlags": 0,
-                        "NetworkOrphaned": 0,
-                        "NetworkTransmit": true,
-                        "OwnerTransfer": 1,
-                        "Components": [
-                          {
-                            "__type": "Sandbox.SpriteRenderer",
-                            "__guid": "82c091c0-882c-47eb-86d5-b2195ef661b5",
-                            "__enabled": true,
-                            "Flags": 0,
-                            "__version": 2,
-                            "Additive": true,
-                            "AlphaCutoff": 0.5,
-                            "Billboard": "Always",
-                            "CameraFadeFar": 0,
-                            "CameraFadeNear": 0,
-                            "Color": "0.16047,0.91953,1.5,0.40556",
-                            "DepthFeather": 3,
-                            "FlipHorizontal": false,
-                            "FlipVertical": false,
-                            "FogStrength": 1,
-                            "IsSorted": false,
-                            "Lighting": false,
-                            "NormalTexture": null,
-                            "OnAnimationEnd": null,
-                            "OnAnimationStart": null,
-                            "OnBroadcastMessage": null,
-                            "OnComponentDestroy": null,
-                            "OnComponentDisabled": null,
-                            "OnComponentEnabled": null,
-                            "OnComponentFixedUpdate": null,
-                            "OnComponentStart": null,
-                            "OnComponentUpdate": null,
-                            "Opaque": false,
-                            "OverlayColor": "1,1,1,0",
-                            "PlaybackSpeed": 1,
-                            "Refraction": false,
-                            "RefractionStrength": 8,
-                            "RenderOptions": {
-                              "GameLayer": false,
-                              "OverlayLayer": true,
-                              "BloomLayer": false,
-                              "AfterUILayer": false
-                            },
-                            "Shadows": false,
-                            "Size": "3.61823678,3.61823678",
-                            "Sprite": {
-                              "$compiler": "embed",
-                              "$source": null,
-                              "data": {
-                                "Animations": [
-                                  {
-                                    "Name": "Default",
-                                    "FrameRate": 15,
-                                    "Origin": "0.5,0.5",
-                                    "LoopMode": "Loop",
-                                    "LoopStart": -1,
-                                    "LoopEnd": -1,
-                                    "Frames": [
-                                      {
-                                        "Texture": {
-                                          "Id": "1e342e2a-8da3-4701-9c21-9a196b8b0fb0",
-                                          "Path": "textures/particles/flares/particle_flare_7b.vtex"
-                                        },
-                                        "BroadcastMessages": []
-                                      }
-                                    ]
-                                  }
-                                ],
-                                "__references": null
-                              },
-                              "compiled": null
-                            },
-                            "StartingAnimationName": "Default",
-                            "TextureFilter": "Bilinear"
-                          }
-                        ],
-                        "Children": []
-                      }
-                    ]
+                    "Children": []
                   },
                   {
                     "__guid": "f59ef42d-be40-4512-bd8f-e53ec3a13f5a",
@@ -1288,98 +1114,7 @@
                     "NetworkTransmit": true,
                     "OwnerTransfer": 1,
                     "Components": [],
-                    "Children": [
-                      {
-                        "__guid": "02128166-e28b-471d-aac1-f77a9acd475a",
-                        "__version": 2,
-                        "Flags": 0,
-                        "Name": "Sprite (3)",
-                        "Position": "6.14176512,2.82323694,-1.788139E-06",
-                        "Rotation": "0.382683396,-2.23517418E-08,-7.4505806E-09,0.923879385",
-                        "Scale": "3.40000105,3.40000105,3.40000105",
-                        "Tags": "",
-                        "Enabled": true,
-                        "NetworkMode": 2,
-                        "NetworkFlags": 0,
-                        "NetworkOrphaned": 0,
-                        "NetworkTransmit": true,
-                        "OwnerTransfer": 1,
-                        "Components": [
-                          {
-                            "__type": "Sandbox.SpriteRenderer",
-                            "__guid": "99de8adb-17b6-469f-9af5-d57a5bbde68f",
-                            "__enabled": true,
-                            "Flags": 0,
-                            "__version": 2,
-                            "Additive": true,
-                            "AlphaCutoff": 0.5,
-                            "Billboard": "Always",
-                            "CameraFadeFar": 0,
-                            "CameraFadeNear": 0,
-                            "Color": "0.16047,0.91953,1.5,0.51805",
-                            "DepthFeather": 3,
-                            "FlipHorizontal": false,
-                            "FlipVertical": false,
-                            "FogStrength": 1,
-                            "IsSorted": false,
-                            "Lighting": false,
-                            "NormalTexture": null,
-                            "OnAnimationEnd": null,
-                            "OnAnimationStart": null,
-                            "OnBroadcastMessage": null,
-                            "OnComponentDestroy": null,
-                            "OnComponentDisabled": null,
-                            "OnComponentEnabled": null,
-                            "OnComponentFixedUpdate": null,
-                            "OnComponentStart": null,
-                            "OnComponentUpdate": null,
-                            "Opaque": false,
-                            "OverlayColor": "1,1,1,0",
-                            "PlaybackSpeed": 1,
-                            "Refraction": false,
-                            "RefractionStrength": 8,
-                            "RenderOptions": {
-                              "GameLayer": false,
-                              "OverlayLayer": true,
-                              "BloomLayer": false,
-                              "AfterUILayer": false
-                            },
-                            "Shadows": false,
-                            "Size": "3.48882246,3.48882246",
-                            "Sprite": {
-                              "$compiler": "embed",
-                              "$source": null,
-                              "data": {
-                                "Animations": [
-                                  {
-                                    "Name": "Default",
-                                    "FrameRate": 15,
-                                    "Origin": "0.5,0.5",
-                                    "LoopMode": "Loop",
-                                    "LoopStart": -1,
-                                    "LoopEnd": -1,
-                                    "Frames": [
-                                      {
-                                        "Texture": {
-                                          "Id": "1e342e2a-8da3-4701-9c21-9a196b8b0fb0",
-                                          "Path": "textures/particles/flares/particle_flare_7b.vtex"
-                                        },
-                                        "BroadcastMessages": []
-                                      }
-                                    ]
-                                  }
-                                ],
-                                "__references": null
-                              },
-                              "compiled": null
-                            },
-                            "StartingAnimationName": "Default",
-                            "TextureFilter": "Bilinear"
-                          }
-                        ],
-                        "Children": []
-                      }
-                    ]
+                    "Children": []
                   },
                   {
                     "__guid": "64d53d8e-5786-43a6-8cf9-64163ff6f62b",
@@ -1476,6 +1211,45 @@
                     "__guid": "decd05fa-bc8b-42b2-8c85-48e53942dfb5",
                     "__enabled": true,
                     "Flags": 0,
+                    "__version": 1,
+                    "AnimationCurve": [
+                      {
+                        "x": 0,
+                        "y": 0,
+                        "in": 0,
+                        "out": 0,
+                        "mode": "Mirrored"
+                      },
+                      {
+                        "x": 0.5,
+                        "y": 1,
+                        "in": 0,
+                        "out": 0,
+                        "mode": "Mirrored"
+                      },
+                      {
+                        "x": 1,
+                        "y": 0,
+                        "in": 0,
+                        "out": 0,
+                        "mode": "Mirrored"
+                      }
+                    ],
+                    "AnimationDuration": 2,
+                    "AnimationEnabled": false,
+                    "AnimationGradient": {
+                      "blend": "Linear",
+                      "color": [
+                        {
+                          "t": 0.5,
+                          "c": "1,1,1,1"
+                        }
+                      ],
+                      "alpha": []
+                    },
+                    "AnimationPattern": "Flicker",
+                    "AnimationSpeed": 1,
+                    "AnimationTimeOffset": 0,
                     "Attenuation": 10,
                     "BakeLightIndex": -1,
                     "ConeInner": 24.760765,
@@ -1484,6 +1258,7 @@
                     "Cookie": null,
                     "FogMode": "Enabled",
                     "FogStrength": 1,
+                    "Intensity": 1,
                     "LightColor": "2.77674,2.73283,2.11808,1",
                     "MixedShadows": false,
                     "OnComponentDestroy": null,
@@ -1495,7 +1270,8 @@
                     "Radius": 500,
                     "ShadowBias": 0.0005,
                     "ShadowHardness": 0,
-                    "Shadows": false
+                    "Shadows": false,
+                    "Temperature": 6500
                   }
                 ],
                 "Children": []
@@ -2810,6 +2586,10 @@
             "__guid": "ec5efdb4-bab7-4af2-85f7-4ab6c79eddb0",
             "__enabled": true,
             "Flags": 0,
+            "Animation": {
+              "Graph": null,
+              "Parameters": {}
+            },
             "AnimationGraph": null,
             "BodyGroups": 21,
             "BoneMergeTarget": {
@@ -2822,11 +2602,12 @@
             "CreateBoneObjects": false,
             "DeformationMode": "Normal",
             "LodOverride": null,
+            "LowDetailAnimation": false,
             "MaterialGroup": null,
             "MaterialOverride": null,
             "Materials": null,
             "Model": {
-              "Id": "1824a7ca-7a2d-4261-90e2-926dbeb87a72",
+              "Id": "0843ef28-00fc-0000-c400-000000000000",
               "Path": "weapons/shared/first_person/v_first_person_arms_human.vmdl"
             },
             "Morphs": {},
@@ -2851,7 +2632,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []
@@ -2872,6 +2653,10 @@
         "AgentRadius": 16,
         "AgentStepSize": 18,
         "AgentMaxSlope": 40,
+        "GenerateLinks": false,
+        "AgentMaxDrop": 192,
+        "AgentMaxJumpDistance": 250,
+        "AgentMaxJumpHeight": 80,
         "ExcludedBodies": "",
         "IncludedBodies": "",
         "DeferGeneration": false,

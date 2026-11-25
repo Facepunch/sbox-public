@@ -6,6 +6,11 @@ namespace Sandbox;
 
 public abstract partial class Connection
 {
+	/// <summary>
+	/// Time since any packet arrived from this connection, chunks included, or since it was created.
+	/// </summary>
+	internal RealTimeSince LastPacketReceived { get; private set; } = 0;
+
 	// Per-connection chunk reassembly buffer, grown on demand to the high-water mark.
 	// _chunkBufferLength == -1 signals "no assembly in progress".
 	byte[] _chunkBuffer;
@@ -18,6 +23,8 @@ public abstract partial class Connection
 	/// </summary>
 	internal void OnRawPacketReceived( ReadOnlySpan<byte> rawPacket, NetworkSystem.MessageHandler handler )
 	{
+		LastPacketReceived = 0;
+
 		try
 		{
 			if ( rawPacket.Length < 1 ) return;

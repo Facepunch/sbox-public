@@ -53,16 +53,7 @@ CS
 		float4 LightCoordinate;
 		int2 WaveOffset;
 		float2 InvDepthTextureSize;
-		float2 DepthBounds;
-		float SurfaceThickness;
-		float BilinearThreshold;
 		float ShadowContrast;
-		float FarDepthValue;
-		float NearDepthValue;
-		int IgnoreEdgePixels;
-		int UsePrecisionOffset;
-		int BilinearSamplingOffsetMode;
-		int UseEarlyOut;
 	};
 
 	cbuffer SssConstants
@@ -79,16 +70,12 @@ CS
 		p.LightCoordinate = g_Sss.LightCoordinate;
 		p.WaveOffset = g_Sss.WaveOffset;
 		p.InvDepthTextureSize = g_Sss.InvDepthTextureSize;
-		p.DepthBounds = g_Sss.DepthBounds;
-		p.SurfaceThickness = g_Sss.SurfaceThickness;
-		p.BilinearThreshold = g_Sss.BilinearThreshold;
 		p.ShadowContrast = g_Sss.ShadowContrast;
-		p.FarDepthValue = g_Sss.FarDepthValue;
-		p.NearDepthValue = g_Sss.NearDepthValue;
-		p.IgnoreEdgePixels = g_Sss.IgnoreEdgePixels != 0;
-		p.UsePrecisionOffset = g_Sss.UsePrecisionOffset != 0;
-		p.BilinearSamplingOffsetMode = g_Sss.BilinearSamplingOffsetMode != 0;
-		p.UseEarlyOut = g_Sss.UseEarlyOut != 0;
+
+		// Fixed tuning is set here, not in the constant buffer, so the compiler folds it
+		p.UseEarlyOut = true;
+		p.FarDepthValue = 0; // reverse-Z
+		p.NearDepthValue = 1;
 
 		p.DepthTexture = g_tSssDepth;
 		p.OutputTexture = g_outShadow;

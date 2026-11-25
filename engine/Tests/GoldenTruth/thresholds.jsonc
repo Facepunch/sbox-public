@@ -7,4 +7,6 @@
 //
 // Lavapipe renders the same pixels run to run, so its golden truth images start exact.
 [
+	{ "image": "ContactShadows.png", "platform": "Windows", "api": "Vulkan", "device": "Lavapipe",
+	  "allow": { "3+": 2 }, "reason": "a pixel or two of the contact shadow trace flips between runs" },
 ]

@@ -2,119 +2,116 @@
 
 $edit-bar-spacing: 4px;
 
-SpawnlistView
+@mixin component-theme
 {
-	.spawnlist-header
+	SpawnlistView
 	{
-		width: 100%;
-		flex-direction: column;
-		gap: 6px;
-
-		// the bar with the name of a list is taller than the others, so its buttons stay at the top
-		&.has-identity > SpawnMenuToolbar:first-child
+		.spawnlist-header
 		{
-			height: auto;
-			align-items: flex-start;
-		}
+			width: 100%;
+			flex-direction: column;
+			gap: 8px;
 
-		SpawnMenuToolbar
-		{
-			> .left
+			// the bar with the name of a list is taller than the others, so its buttons stay at the top
+			&.has-identity > SpawnMenuToolbar:first-child
+			{
+				align-items: flex-start;
+			}
+
+			SpawnMenuToolbar > .left
 			{
 				flex-grow: 1;
-				min-width: 0px;
 				justify-content: flex-start;
 			}
-
-			> .right
-			{
-				flex-shrink: 0;
-			}
 		}
-	}
 
-	.spawnlist-identity
-	{
-		flex-direction: column;
-		gap: 2px;
-		min-width: 0px;
-
-		.title-row
+		.spawnlist-identity
 		{
-			align-items: center;
-			gap: 10px;
+			flex-direction: column;
+			gap: 2px;
 			min-width: 0px;
-		}
 
-		.identity-icon
-		{
-			font-size: 28px;
-			color: $ui-heading-on-gray;
-			flex-shrink: 0;
-		}
-
-		.spawnlist-name
-		{
-			@include ui-display-heading;
-			min-width: 0px;
-		}
-
-		.meta
-		{
-			align-items: center;
-			gap: 16px;
-			font-size: 12px;
-			font-weight: 500;
-			color: $ui-subtext-on-gray;
-
-			span
+			.title-row
 			{
 				align-items: center;
-				gap: 4px;
+				gap: 10px;
+				min-width: 0px;
 			}
 
-			IconPanel { font-size: 14px; }
+			.identity-icon
+			{
+				font-size: 28px;
+				color: $ui-text-strong;
+				flex-shrink: 0;
+			}
+
+			.spawnlist-name
+			{
+				font-size: 20px;
+				font-weight: 600;
+				color: $ui-text-strong;
+				@include ui-ellipsis;
+				min-width: 0px;
+			}
+
+			.meta
+			{
+				align-items: center;
+				gap: 16px;
+				font-size: 12px;
+				font-weight: 500;
+				color: $ui-text-label;
+
+				span
+				{
+					align-items: center;
+					gap: 4px;
+				}
+
+				IconPanel { font-size: 14px; }
+			}
 		}
-	}
 
-	// editing bar
-	.edit-bar
-	{
-		align-items: stretch;
-		margin-top: 8px;
-		border: 1px solid rgba( 255, 255, 255, 0.5 );
-		border-radius: 2px;
-		font-size: 12px;
-
-		.edit-instructions
+		// editing bar
+		.edit-bar
 		{
-			align-items: center;
+			align-items: stretch;
+			border: 1px solid $ui-separator;
+			border-radius: 2px;
+			font-size: 12px;
+
+			.edit-instructions
+			{
+				align-items: center;
+				flex-grow: 1;
+				min-width: 0px;
+				padding: 0 12px;
+				color: $ui-text-strong;
+				font-weight: 600;
+			}
+
+			.edit-actions
+			{
+				align-items: center;
+				flex-shrink: 0;
+				gap: $edit-bar-spacing;
+				padding: $edit-bar-spacing;
+			}
+		}
+
+		SpawnMenuContent > .body
+		{
+			flex-direction: column;
+			min-height: 0px;
+		}
+
+		MixedVirtualGrid
+		{
+			height: 0px;
 			flex-grow: 1;
-			min-width: 0px;
-			padding: 0 12px;
-			color: $ui-heading-on-gray;
-			font-weight: 600;
+			min-height: 0px;
 		}
-
-		.edit-actions
-		{
-			align-items: center;
-			flex-shrink: 0;
-			gap: $edit-bar-spacing;
-			padding: $edit-bar-spacing;
-		}
-	}
-
-	SpawnMenuContent > .body
-	{
-		flex-direction: column;
-		min-height: 0px;
-	}
-
-	MixedVirtualGrid
-	{
-		height: 0px;
-		flex-grow: 1;
-		min-height: 0px;
 	}
 }
+
+@import "/UI/Theme/Apply.scss";

@@ -9,8 +9,8 @@ namespace Facepunch.Steps;
 /// </summary>
 internal class BuildMount
 {
-	/// <summary>Folders copied from the project to the output.</summary>
-	static readonly (string folderName, string pattern)[] CopiedFolders = [("Assets", "*_c"), ("Mounts", "*")];
+	/// <summary>Folders copied from the project to the output, and the files of them that aren't (sources of compiled ones).</summary>
+	static readonly (string folderName, string pattern)[] CopiedFolders = [("Assets", "*_c"), ("Mounts", "*_c")];
 
 	readonly string[] projects;
 	readonly string outputRoot;
@@ -97,8 +97,11 @@ internal class BuildMount
 		if ( Directory.Exists( assetsDir ) )
 		{
 			if ( !BuildShaders( gameDir, name, assetsDir ) ) return false;
-			if ( !BuildContent( gameDir, name, assetsDir ) ) return false;
+			if ( !BuildContent( gameDir, $"content of mount '{name}'", $"mnt_{name}", assetsDir ) ) return false;
 		}
+
+		var mountsDir = FindFolder( projectDir, "Mounts" );
+		if ( mountsDir is not null && !BuildThumbs( gameDir, name, mountsDir ) ) return false;
 
 		foreach ( (var folder, var pattern) in CopiedFolders )
 		{
@@ -111,6 +114,73 @@ internal class BuildMount
 		Log.Info( $"Mount '{name}' -> {outputDir}" );
 		return true;
 	}
+
+	/// <summary>
+	/// Compiles the project's thumbnails (<c>Mounts/{ident}/thumbs/{path}.png</c>) to <c>Mounts/{ident}/thumbs/{hash}.vtex_c</c>,
+	/// named by <see cref="ThumbHash"/> of the path; the pngs aren't shipped. The engine adds the shipped Mounts folder as a
+	/// native search path, so a thumb loads as <c>{ident}/thumbs/{hash}.vtex</c>.
+	/// </summary>
+	static bool BuildThumbs( string gameDir, string name, string mountsDir )
+	{
+		// The texture sources only exist for this build, the pngs are what's kept in the project
+		var sources = new List<string>();
+		try
+		{
+			foreach ( var thumbsDir in Directory.EnumerateDirectories( mountsDir ).Select( x => Path.Combine( x, "thumbs" ) ).Where( Directory.Exists ) )
+			{
+				// Every thumb is compiled afresh, so clear out the last build's, which may be named differently
+				foreach ( var old in Directory.EnumerateFiles( thumbsDir, "*.vtex_c", SearchOption.AllDirectories ) )
+					File.Delete( old );
+
+				foreach ( var image in Directory.EnumerateFiles( thumbsDir, "*.png", SearchOption.AllDirectories ) )
+				{
+					var thumbPath = Path.ChangeExtension( Path.GetRelativePath( thumbsDir, image ), null );
+					var source = Path.Combine( thumbsDir, $"{ThumbHash( thumbPath )}.vtex" );
+					File.WriteAllText( source, ThumbSource( Path.GetRelativePath( mountsDir, image ).Replace( '\\', '/' ) ) );
+					sources.Add( source );
+				}
+			}
+
+			if ( sources.Count == 0 ) return true;
+			if ( !BuildContent( gameDir, $"thumbnails of mount '{name}'", $"mnt_{name}_thumbs", mountsDir ) ) return false;
+		}
+		finally
+		{
+			foreach ( var source in sources )
+				File.Delete( source );
+		}
+
+		var missing = sources.Where( x => !File.Exists( $"{x}_c" ) ).ToArray();
+		if ( missing.Length > 0 )
+		{
+			Log.Error( $"Thumbnails of mount '{name}' weren't compiled: {string.Join( ", ", missing )}" );
+			return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// A thumb's file name: the first 16 hex digits of the MD5 of its path within the thumbs folder, without extension,
+	/// lowercased with forward slashes, as <c>string.Md5()</c> hashes it. ThumbLoader looks it up the same way.
+	/// </summary>
+	static string ThumbHash( string thumbPath )
+	{
+		var normalized = thumbPath.Replace( '\\', '/' ).ToLowerInvariant();
+		return Convert.ToHexString( System.Security.Cryptography.MD5.HashData( System.Text.Encoding.UTF8.GetBytes( normalized ) ) )[..16].ToLowerInvariant();
+	}
+
+	static string ThumbSource( string imagePath ) => $$"""
+		{
+		  "$compiler": "texture",
+		  "$source": "imagefile",
+		  "data": {
+		    "FilePath": "{{imagePath}}",
+		    "Lossless": false
+		  },
+		  "compiled": null
+		}
+		""";
 
 	/// <summary>
 	/// Compiles the shaders under the mount's assets, mounted as the engine mounts them so they find each other.
@@ -137,10 +207,10 @@ internal class BuildMount
 	}
 
 	/// <summary>
-	/// Compiles the mount's assets as an installed editor builds a project's: engine content is read, not built.
-	/// Generated textures go into the assets too, the only folder of a mount the engine mounts.
+	/// Compiles a content root of the mount as an installed editor builds a project's: engine content is read, not built.
+	/// Generated textures go into the root too, so they ship with it.
 	/// </summary>
-	static bool BuildContent( string gameDir, string name, string assetsDir )
+	static bool BuildContent( string gameDir, string what, string mod, string rootDir )
 	{
 		var worker = Path.Combine( gameDir, "bin", "managed", OperatingSystem.IsWindows() ? "contentworker.exe" : "contentworker" );
 		if ( !File.Exists( worker ) )
@@ -149,7 +219,7 @@ internal class BuildMount
 			return false;
 		}
 
-		Log.Info( $"Compiling content of mount '{name}'" );
+		Log.Info( $"Compiling {what}" );
 
 		// Records and the built-in projects' compilers are only for this build, kept out of the shipped folder
 		var temp = Directory.CreateTempSubdirectory( "sbox-mount" ).FullName;
@@ -161,9 +231,9 @@ internal class BuildMount
 		{
 			var request = new BuildRequest
 			{
-				Roots = [new ContentRoot( $"mnt_{name}", assetsDir, Path.Combine( temp, "state" ) )],
+				Roots = [new ContentRoot( mod, rootDir, Path.Combine( temp, "state" ) )],
 				ReadOnlyMounts = [.. ContentRoots.Engine( gameDir ).Select( x => (x.Mod, x.Path) )],
-				OutputRoots = new Dictionary<string, string> { ["transient"] = assetsDir },
+				OutputRoots = new Dictionary<string, string> { ["transient"] = rootDir },
 				OutputFallbacks = new Dictionary<string, string> { ["transient"] = Path.Combine( gameDir, "addons", "menu", "Transients" ) },
 				MaxJobs = ResourceCompiler.DefaultMaxJobs,
 			};
@@ -176,11 +246,11 @@ internal class BuildMount
 			if ( !report.Success )
 			{
 				Log.Error( report.Error ?? report.Log.ToString() );
-				Log.Error( $"Failed to compile content of mount '{name}': {string.Join( ", ", report.Failed.Concat( report.Blocked ) )}" );
+				Log.Error( $"Failed to compile {what}: {string.Join( ", ", report.Failed.Concat( report.Blocked ) )}" );
 				return false;
 			}
 
-			Log.Info( $"Mount '{name}': {report.Jobs.Count} compiled, {report.Unsupported.Count} unsupported" );
+			Log.Info( $"Compiled {what}: {report.Jobs.Count} compiled, {report.Unsupported.Count} unsupported" );
 			return true;
 		}
 		finally
@@ -210,6 +280,8 @@ internal class BuildMount
 			Directory.CreateDirectory( Path.Combine( destination, Path.GetRelativePath( source, dir ) ) );
 
 		foreach ( var file in Directory.EnumerateFiles( source, pattern, SearchOption.AllDirectories ) )
+		{
 			File.Copy( file, Path.Combine( destination, Path.GetRelativePath( source, file ) ), true );
+		}
 	}
 }

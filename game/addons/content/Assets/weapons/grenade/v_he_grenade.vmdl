@@ -6,6 +6,17 @@
 		children = 
 		[
 			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "SkeletonFile"
+						filename = "weapons/grenade/v_he_grenade.fbx"
+						import_scale = 1.0
+					},
+				]
+			},
+			{
 				_class = "MaterialGroupList"
 				children = 
 				[
@@ -150,33 +161,10 @@
 					},
 				]
 			},
-			{
-				_class = "AnimationList"
-				children = 
-				[
-					{
-						_class = "Prefab"
-						target_file = "weapons/grenade/prefabs/v_throwables_animationlist.vmdl_prefab"
-					},
-					{
-						_class = "Prefab"
-						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_adjustmentlayers.vmdl_prefab"
-					},
-					{
-						_class = "Prefab"
-						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_shared.vmdl_prefab"
-					},
-					{
-						_class = "Prefab"
-						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animationlist_punching.vmdl_prefab"
-					},
-				]
-				default_root_bone_name = ""
-			},
 		]
 		model_archetype = ""
 		primary_associated_entity = ""
-		anim_graph_name = "weapons/grenade/v_he_grenade.vanmgrph"
+		anim_graph_name = ""
 		base_model_name = ""
 	}
 }

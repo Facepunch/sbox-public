@@ -390,9 +390,6 @@
                             <div class="vote down @(VotedDown( picked ) ? "on" : "")" onclick=@( () => Vote( picked, false ) ) tooltip="Not for the shop">
                                 <i>thumb_down</i><label>@picked.VotesDown.KiloFormat()</label>
                             </div>
-                            <div class="vote" onclick=@( () => Game.Overlay.ShowReviewModal( picked ) ) tooltip="Write a review">
-                                <i>rate_review</i>
-                            </div>
                         </div>
                     </div>
                 </div>

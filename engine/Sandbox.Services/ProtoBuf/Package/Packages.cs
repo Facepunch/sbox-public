@@ -62,16 +62,4 @@ public static class PackageMsg
 		public long Value { get; set; }
 	}
 
-
-	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
-	public class ReviewPosted : IMessage
-	{
-		public static MessageId MessageIdent => MessageId.PackageReviewPosted;
-
-		public string PackageIdent { get; set; }
-		public long Score { get; set; }
-		public long SteamId { get; set; }
-		public string DisplayName { get; set; }
-	}
-
 }

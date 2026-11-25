@@ -133,7 +133,7 @@ public class BitmapGlyphTests
 	[TestMethod]
 	public void ByteCharactersFallBackToTheF000Range()
 	{
-		var icons = Font( "MaterialIcons-Regular.ttf" );
+		var icons = Font( "MaterialSymbolsOutlined-Regular.ttf" );
 		Assert.AreEqual( 0, GlyphId( icons, '!' ) );
 		Assert.AreNotEqual( 0, GlyphId( icons, 0xF021 ) );
 
@@ -179,7 +179,7 @@ public class BitmapGlyphTests
 	[TestMethod]
 	public void IconFontGlyphsDraw()
 	{
-		using var home = Bitmap.CreateFromGlyph( Font( "MaterialIcons-Regular.ttf" ), 0xE88A, 32 );
+		using var home = Bitmap.CreateFromGlyph( Font( "MaterialSymbolsOutlined-Regular.ttf" ), 0xE88A, 32 );
 
 		Assert.IsNotNull( home );
 		Assert.AreEqual( 32, home.Height );

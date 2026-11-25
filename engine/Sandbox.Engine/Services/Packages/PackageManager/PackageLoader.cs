@@ -18,7 +18,9 @@ internal sealed partial class PackageLoader : IDisposable
 	private List<LoadedAssembly> Loaded { get; set; } = new();
 	private LoadContext LoadContext { get; set; }
 	private ILHotload ILHotload { get; set; }
-	private HotloadManager HotloadManager { get; set; }
+	internal HotloadManager HotloadManager { get; private set; }
+	private bool retryPackageMigration;
+	private Assembly retainedScriptAssembly;
 	private List<LoadedAssembly> IncomingThisHotload { get; } = new();
 
 	/// <summary>
@@ -44,7 +46,7 @@ internal sealed partial class PackageLoader : IDisposable
 			ILHotload = new ILHotload( name );
 		}
 		HotloadManager = new HotloadManager( name );
-		HotloadManager.OnSuccess += OnFullHotloadSuccess;
+		HotloadManager.OnSuccess += OnHotloadSuccess;
 		HotloadManager.AssemblyResolver = PackageManager.AssemblyResolver;
 
 		loadedPackages.Clear();
@@ -73,6 +75,8 @@ internal sealed partial class PackageLoader : IDisposable
 		dllWatchers.Clear();
 
 		OnAfterHotload = null;
+		retryPackageMigration = false;
+		retainedScriptAssembly = null;
 
 		Loaded.Clear();
 		Loaded = null;
@@ -406,6 +410,7 @@ internal sealed partial class PackageLoader : IDisposable
 		{
 			PackageManager.AssemblyResolver.AddAssembly( dllBytes, assemblyName );
 			loaded.Assembly = LoadContext.LoadWithEmbeds( dllBytes, false );
+			PackageManager.AssemblyResolver.TrackLoadedImage( loaded.Assembly, dllBytes );
 			loaded.Version = loaded.Assembly?.GetName().Version;
 			loaded.Name = loaded.Assembly?.GetName().Name;
 		}
@@ -704,44 +709,44 @@ internal sealed partial class PackageLoader : IDisposable
 	internal static Func<bool> HoldHotload { get; set; }
 
 	/// <summary>
-	/// Replaces an emitted script assembly synchronously using the same roots and completion
-	/// callbacks as package hotload. Installs its catalog before notifying scenes and tools.
+	/// Migrates an emitted script assembly using the same roots and completion callbacks as package hotload.
+	/// A pending package replacement includes the script change in its next swap.
 	/// </summary>
-	internal void ReplaceScriptAssembly( Assembly previous, Assembly incoming, Action register )
+	/// <returns>The migration error if the replacement was queued but its reference walk was interrupted.</returns>
+	internal Exception ReplaceScriptAssembly( Assembly previous, Assembly incoming )
 	{
 		if ( HotloadManager is null )
 		{
 			// Context teardown can follow disposal of its package loader.
-			if ( incoming is null ) return;
+			if ( incoming is null ) return null;
 			throw new ObjectDisposedException( nameof( PackageLoader ) );
-		}
-
-		// A source edit must not migrate queued C# replacements without rebuilding their script dependents.
-		if ( previous is not null && incoming is not null && IncomingThisHotload.Count > 0 )
-		{
-			throw new InvalidOperationException( "Cannot replace script source while a C# assembly hotload is pending." );
 		}
 
 		HotloadManager.Replace( previous, incoming );
 
-		if ( previous is null || incoming is null )
+		// If a package is changing too, Tick rebuilds script dependencies and migrates both changes together.
+		if ( previous is null || incoming is null || IncomingThisHotload.Count > 0 || retryPackageMigration )
 		{
-			register?.Invoke();
-			return;
+			return null;
 		}
 
 		lock ( MixingThread.LockObject )
 		{
-			if ( !HotloadManager.DoSwap( register ) )
+			try
 			{
-				throw new InvalidOperationException( "Script assembly hotload failed." );
+				HotloadManager.DoSwap();
+				return null;
+			}
+			catch ( Exception e ) when ( e is not OutOfMemoryException )
+			{
+				return e;
 			}
 		}
 	}
 
 	public void Tick()
 	{
-		if ( !changedPackageDlls.Any() && IncomingThisHotload.Count == 0 )
+		if ( !changedPackageDlls.Any() && IncomingThisHotload.Count == 0 && !retryPackageMigration )
 		{
 			return;
 		}
@@ -749,42 +754,71 @@ internal sealed partial class PackageLoader : IDisposable
 		if ( HoldHotload?.Invoke() == true ) return;
 
 		LoadPendingChanges();
-
-		try
-		{
-			// We want to lock the mixing thread,
-			// so things don't get modified while it's using them
-			lock ( MixingThread.LockObject )
-			{
-				var incoming = IncomingThisHotload.Where( assembly => !assembly.IsEditorAssembly )
-					.Select( assembly => assembly.Assembly ).ToArray();
-				using var scripts = GlobalContext.Current?.PrepareScriptHotload( incoming, HotloadManager.Replace );
-				if ( !HotloadManager.DoSwap( scripts is null ? null : scripts.Register ) && scripts is not null )
-				{
-					throw new InvalidOperationException( "Script assembly hotload failed." );
-				}
-				scripts?.Complete();
-			}
-		}
-		finally
-		{
-			IncomingThisHotload.Clear();
-		}
+		SwapIncoming();
 	}
 
-	void OnFullHotloadSuccess()
+	// Separate from Tick so its closure isn't allocated on every frame
+	void SwapIncoming()
 	{
-		foreach ( var loadedAssembly in IncomingThisHotload )
+		lock ( MixingThread.LockObject )
 		{
-			TriggerRegisterEvent( loadedAssembly );
-		}
+			var batch = IncomingThisHotload.ToArray();
+			IncomingThisHotload.Clear();
+			var incoming = batch.Where( assembly => !assembly.IsEditorAssembly ).Select( assembly => assembly.Assembly ).ToArray();
+			using var scripts = GlobalContext.Current?.PrepareScriptHotload( incoming, HotloadManager );
 
-		OnHotloadSuccess();
+			// The old packages have already been unregistered. Publish the replacements even if migration stops partway.
+			var registered = false;
+			void RegisterPackages()
+			{
+				foreach ( var assembly in batch )
+				{
+					TriggerRegisterEvent( assembly );
+				}
+				registered = true;
+			}
+
+			var hotload = HotloadManager.Hotload;
+			if ( scripts is null ) hotload.RetainedAssembly = retainedScriptAssembly;
+			retainedScriptAssembly = null;
+			retryPackageMigration = false;
+
+			try
+			{
+				HotloadManager.DoSwap( batch.Length > 0 ? RegisterPackages : null );
+			}
+			catch ( Exception e ) when ( e is not OutOfMemoryException )
+			{
+				if ( batch.Length > 0 && !registered )
+				{
+					RegisterPackages();
+					OnHotloadSuccess();
+				}
+				// Retry an unconsumed batch once, with the same script generation retained during the walk.
+				if ( hotload.GetOutgoingAssemblies().Length > 0 )
+				{
+					retainedScriptAssembly = hotload.RetainedAssembly;
+					retryPackageMigration = batch.Length > 0;
+				}
+				log.Warning( e, "Package hotload was incomplete. The replacement packages are available." );
+			}
+			finally
+			{
+				hotload.RetainedAssembly = null;
+			}
+		}
 	}
 
 	void OnHotloadSuccess()
 	{
-		OnAfterHotload?.Invoke();
+		try
+		{
+			OnAfterHotload?.Invoke();
+		}
+		catch ( Exception e ) when ( e is not OutOfMemoryException )
+		{
+			log.Warning( e, "Error notifying the game about the completed hotload." );
+		}
 	}
 
 	public Action OnAfterHotload { get; set; }

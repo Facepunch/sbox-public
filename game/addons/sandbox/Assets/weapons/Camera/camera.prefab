@@ -85,6 +85,7 @@
         "FirstShellReloadTime": 0,
         "Handedness": "Both",
         "HoldBone": "head",
+        "HoldFallback": "item",
         "HoldType": "camera",
         "IncrementalReloading": false,
         "Npc": {

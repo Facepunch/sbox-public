@@ -1,9 +1,20 @@
 using System.Threading;
 
-public sealed partial class ViewModel : Sandbox.BaseWeaponModel
+/// <summary>
+/// Places and animates the local player's first-person weapon model.
+/// </summary>
+public partial class ViewModel : Sandbox.BaseWeaponModel
 {
 	[ConVar( "sandbox.hideviewmodel", ConVarFlags.Cheat )]
 	private static bool HideViewModel { get; set; } = false;
+
+	/// <summary>
+	/// Horizontal field of view at 16:9 used to frame this weapon in first person.
+	/// </summary>
+	[Property, Range( 60f, 120f )]
+	public float FieldOfView { get; set; } = 90f;
+
+	private Vector3? _unscaledWorldScale;
 
 	/// <summary>
 	/// A sound to play at a specific time during reload.
@@ -55,62 +66,13 @@ public sealed partial class ViewModel : Sandbox.BaseWeaponModel
 	public bool IsIncremental { get; set; } = false;
 
 	/// <summary>
-	/// Animation speed in general.
-	/// </summary>
-	[Property, Group( "Animation" )]
-	public float AnimationSpeed { get; set; } = 1.0f;
-
-	/// <summary>
-	/// Animation speed for incremental reload sections.
-	/// </summary>
-	[Property, Group( "Animation" )]
-	public float IncrementalAnimationSpeed { get; set; } = 1.0f;
-
-	/// <summary>
-	/// How much inertia should this weapon have?
-	/// </summary>
-	[Property, Group( "Inertia" )]
-	Vector2 InertiaScale { get; set; } = new Vector2( 2, 2 );
-
-	/// <summary>
-	/// Limit the inertia to avoid extreme swaying at lower framerate.
-	/// </summary>
-	[Property, Group( "Inertia" )]
-	public float MaxInertia { get; set; } = 15.0f;
-
-	const float InertiaLagTime = 0.0167f;
-	const float InertiaSmoothingTime = 0.03f;
-
-	/// <summary>
-	/// Swing the viewmodel around based on the player's look direction, with a springy lag. This is purely cosmetic and does not affect the actual camera.
+	/// Shifts the weapon as the player turns.
 	/// </summary>
 	[Property, Group( "Inertia" )]
 	public bool LookInertia { get; set; } = false;
 
 	/// <summary>
-	/// Spring stiffness - how quickly it pulls back towards your actual look direction.
-	/// </summary>
-	[Property, Group( "Inertia" ), ShowIf( nameof( LookInertia ), true )]
-	public float LookInertiaFrequency { get; set; } = 3.0f;
-
-	/// <summary>
-	/// Spring damping. 1 settles with no overshoot, below 1 wobbles before settling - lower
-	/// for a springier, bouncier feel.
-	/// </summary>
-	[Property, Group( "Inertia" ), ShowIf( nameof( LookInertia ), true )]
-	public float LookInertiaDamping { get; set; } = 0.35f;
-
-	/// <summary>
-	/// How far out in front of the eye the gun pivots from. Larger values make the same angle
-	/// lag produce a bigger visible swing, since the gun is swinging on a longer arm.
-	/// </summary>
-	[Property, Group( "Inertia" ), ShowIf( nameof( LookInertia ), true )]
-	public float LookInertiaPivotDistance { get; set; } = 10.0f;
-
-	/// <summary>
-	/// Overall strength of the effect, applied after the spring - 0 is off, 1 is the spring's
-	/// natural lag, above 1 exaggerates it. Use this to dial the whole thing up or down without
-	/// touching how snappy or bouncy it feels (that's Frequency/Damping).
+	/// Multiplies the distance the weapon sways. A value of 1 gives normal sway.
 	/// </summary>
 	[Property, Group( "Inertia" ), ShowIf( nameof( LookInertia ), true )]
 	public float LookInertiaAmount { get; set; } = 1.0f;
@@ -123,21 +85,6 @@ public sealed partial class ViewModel : Sandbox.BaseWeaponModel
 	[Property, Title( "ADS Inertia Scale" ), Group( "Inertia" ), ShowIf( nameof( LookInertia ), true )]
 	public float ADSInertiaScale { get; set; } = 0.3f;
 
-	public bool IsAttacking { get; set; }
-
-	TimeSince AttackDuration;
-
-	bool _reloadFinishing;
-	TimeSince _reloadFinishTimer;
-
-	Vector2 lastInertia;
-	Vector2 currentInertia;
-	bool isFirstUpdate = true;
-
-	Vector2 _lookAngles;
-	Vector2 _lookVelocity;
-	bool _lookInertiaFirstUpdate = true;
-
 	protected override void OnStart()
 	{
 		foreach ( var renderer in GetComponentsInChildren<ModelRenderer>() )
@@ -147,42 +94,8 @@ public sealed partial class ViewModel : Sandbox.BaseWeaponModel
 		}
 	}
 
-	protected override void OnUpdate()
-	{
-		UpdateAnimation();
-	}
-
-	void ApplyInertia( Rotation rotation )
-	{
-		var rot = rotation.Angles();
-
-		// Need to fetch data from the camera for the first frame
-		if ( isFirstUpdate )
-		{
-			lastInertia = new Vector2( rot.pitch, rot.yaw );
-			currentInertia = Vector2.Zero;
-			isFirstUpdate = false;
-		}
-
-		var newPitch = rot.pitch;
-		var newYaw = rot.yaw;
-
-		var frameDelta = new Vector2( Angles.NormalizeAngle( newPitch - lastInertia.x ), Angles.NormalizeAngle( lastInertia.y - newYaw ) );
-		lastInertia = new( newPitch, newYaw );
-
-		var dt = Time.Delta;
-		if ( dt <= 0f ) return;
-
-		var turnSpeed = frameDelta / MathF.Max( dt, 1f / 500f );
-		var target = (turnSpeed * InertiaLagTime).Clamp( -MaxInertia, MaxInertia );
-
-		currentInertia = new Vector2(
-			MathX.ExponentialDecay( currentInertia.x, target.x, InertiaSmoothingTime, dt ),
-			MathX.ExponentialDecay( currentInertia.y, target.y, InertiaSmoothingTime, dt ) );
-	}
-
 	/// <summary>
-	/// Called by the weapon while the camera composes - feeds the aim inertia and lets the
+	/// Called while the camera composes to let the
 	/// animation's camera bone drive the view (reload sway and kicks authored in the anim).
 	/// This mutates the real camera view, not the viewmodel - the viewmodel itself is placed
 	/// separately from the pre-bone snapshot, see <see cref="Place"/>.
@@ -193,14 +106,7 @@ public sealed partial class ViewModel : Sandbox.BaseWeaponModel
 
 		Renderer.Enabled = !HideViewModel;
 
-		if ( !GamePreferences.ViewBobbing )
-		{
-			currentInertia = Vector2.Zero;
-			isFirstUpdate = true;
-			return;
-		}
-
-		ApplyInertia( view.Rotation );
+		if ( !GamePreferences.ViewBobbing ) return;
 
 		if ( Renderer.TryGetBoneTransformLocal( "camera", out var bone ) )
 		{
@@ -217,120 +123,80 @@ public sealed partial class ViewModel : Sandbox.BaseWeaponModel
 	public void Place( in CameraView view )
 	{
 		var rotation = view.Rotation;
-		var pivotOffset = Vector3.Zero;
-
-		if ( LookInertia && GamePreferences.ViewBobbing )
-			rotation = ApplyLookInertia( view.Rotation, out pivotOffset );
-		else
+		var position = view.Position;
+		var player = GetComponentInParent<Player>();
+		if ( player.IsValid() )
 		{
-			_lookInertiaFirstUpdate = true;
-			_lookVelocity = Vector2.Zero;
+			if ( MovementBob && GamePreferences.ViewBobbing )
+				ApplyMovementBob( player, view.Rotation, ref position, ref rotation );
+
+			if ( LookInertia && GamePreferences.ViewBobbing )
+			{
+				var amount = LookInertiaAmount;
+				if ( GetComponentInParent<IronSightsWeapon>() is { IsAiming: true } )
+					amount *= ADSInertiaScale;
+
+				position += player.GetViewModelSway( rotation ) * amount;
+			}
+			else
+			{
+				player.ResetViewModelSway();
+			}
 		}
 
-		WorldPosition = view.Position + pivotOffset;
+		WorldPosition = position;
 		WorldRotation = rotation;
 	}
 
 	/// <summary>
-	/// Follow the render-only camera shake after placement, without feeding it into look inertia.
-	/// Use the final camera view as the pivot to preserve the camera bone and procedural bob offsets.
+	/// Follow camera shake and compensate for the rendered FOV around the final camera position.
 	/// </summary>
 	public void FollowCameraEffects( CameraComponent camera, in CameraView view )
 	{
-		var effects = CameraEffectSystem.Get( Scene );
-		if ( effects is null ) return;
+		var offset = Vector3.Zero;
+		var angles = Angles.Zero;
+		var fovOffset = 0f;
+		CameraEffectSystem.Get( Scene )?.QueryOffsets( camera, out offset, out angles, out fovOffset );
 
-		effects.QueryOffsets( camera, out var offset, out var angles, out _ );
-		var renderTransform = new Transform( view.Position + view.Rotation * offset, view.Rotation * angles );
-		WorldTransform = renderTransform.ToWorld( view.Transform.ToLocal( WorldTransform ) );
+		var depthScale = GetDepthScale( camera, view.FieldOfView + fovOffset );
+		var renderTransform = new Transform( view.Position + view.Rotation * offset, view.Rotation * angles, new Vector3( depthScale, 1f, 1f ) );
+
+		// Start from the original scale each frame so changing FOV never compounds.
+		_unscaledWorldScale ??= WorldScale;
+		var model = view.Transform.ToLocal( WorldTransform ).WithScale( _unscaledWorldScale.Value );
+		WorldTransform = renderTransform.ToWorld( model );
 	}
 
-	Rotation ApplyLookInertia( Rotation rotation, out Vector3 pivotOffset )
+	private float GetDepthScale( CameraComponent camera, float renderFov )
 	{
-		var angles = rotation.Angles();
-		var target = new Vector2( angles.pitch, angles.yaw );
+		if ( camera.Orthographic ) return 1f;
 
-		if ( _lookInertiaFirstUpdate )
+		// Match the player camera's vertical framing across aspect ratios.
+		var targetTan = MathF.Tan( FieldOfView.Clamp( 60f, 120f ).DegreeToRadian() * 0.5f ) * (9f / 16f);
+		if ( camera.FovAxis == CameraComponent.Axis.Horizontal )
 		{
-			_lookAngles = target;
-			_lookVelocity = Vector2.Zero;
-			_lookInertiaFirstUpdate = false;
-		}
-		else
-		{
-			// Follow yaw the short way round so crossing the -180/180 seam doesn't fling the spring.
-			target.y = _lookAngles.y + Angles.NormalizeAngle( target.y - _lookAngles.y );
+			var viewport = camera.ScreenRect;
+			if ( viewport.Width <= 0f || viewport.Height <= 0f ) return 1f;
+
+			targetTan *= viewport.Width / viewport.Height;
 		}
 
-		_lookAngles = Vector2.SpringDamp( _lookAngles, target, ref _lookVelocity, Time.Delta, LookInertiaFrequency, LookInertiaDamping );
-
-		var laggedFull = new Angles( _lookAngles.x, _lookAngles.y, angles.roll ).ToRotation();
-
-		// Scale the effect's strength here, separately from the spring's own timing/feel above.
-		var amount = LookInertiaAmount;
-
-		var ironSights = GetComponentInParent<IronSightsWeapon>();
-		if ( ironSights.IsValid() && ironSights.IsAiming )
-			amount *= ADSInertiaScale;
-
-		var delta = laggedFull * rotation.Inverse;
-		var lagged = Rotation.Slerp( Rotation.Identity, delta, amount, clamp: false ) * rotation;
-
-		var pivotLocal = Vector3.Forward * LookInertiaPivotDistance;
-		pivotOffset = (rotation * pivotLocal) - (lagged * pivotLocal);
-
-		return lagged;
+		return targetTan / MathF.Tan( renderFov.Clamp( 1f, 179f ).DegreeToRadian() * 0.5f );
 	}
 
-	void UpdateAnimation()
+	/// <summary>
+	/// Pulses a one-shot input on the viewmodel's active animation graph.
+	/// </summary>
+	internal void TriggerAnimation( string name )
 	{
-		var playerController = GetComponentInParent<PlayerController>();
-		if ( !playerController.IsValid() ) return;
+		if ( !Renderer.IsValid() ) return;
 
-		// Eye angles, not the camera - the camera's transform is composed later in the frame.
-		var rot = playerController.EyeAngles;
-
-		Renderer.Set( "b_twohanded", true );
-		Renderer.Set( "deploy_type", 1 );
-		Renderer.Set( "reload_type", 1 );
-
-		Renderer.Set( "b_grounded", playerController.IsOnGround );
-		Renderer.Set( "move_bob", GamePreferences.ViewBobbing ? playerController.Velocity.Length.Remap( 0, playerController.RunSpeed * 2f ) : 0 );
-
-		Renderer.Set( "aim_pitch", rot.pitch );
-		Renderer.Set( "aim_pitch_inertia", GamePreferences.ViewBobbing ? currentInertia.x * InertiaScale.x : 0 );
-
-		Renderer.Set( "aim_yaw", rot.yaw );
-		Renderer.Set( "aim_yaw_inertia", GamePreferences.ViewBobbing ? currentInertia.y * InertiaScale.y : 0 );
-
-		Renderer.Set( "attack_hold", IsAttacking ? AttackDuration.Relative.Clamp( 0f, 1f ) : 0f );
-
-		if ( _reloadFinishing && _reloadFinishTimer >= 0.5f )
-		{
-			_reloadFinishing = false;
-			Renderer.Set( "speed_reload", AnimationSpeed );
-			Renderer.Set( "b_reloading", false );
-		}
-
-		var velocity = playerController.Velocity;
-
-		var dir = velocity;
-		var eyeRotation = rot.ToRotation();
-		var forward = eyeRotation.Forward.Dot( dir );
-		var sideward = eyeRotation.Right.Dot( dir );
-
-		var angle = MathF.Atan2( sideward, forward ).RadianToDegree().NormalizeDegrees();
-
-		Renderer.Set( "move_direction", angle );
-		Renderer.Set( "move_speed", velocity.Length );
-		Renderer.Set( "move_groundspeed", velocity.WithZ( 0 ).Length );
-		Renderer.Set( "move_y", sideward );
-		Renderer.Set( "move_x", forward );
-		Renderer.Set( "move_z", velocity.z );
+		Renderer.Animation.Parameters.TryTrigger( name );
 	}
 
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
+		Renderer?.Animation.Parameters.TrySet( "b_empty", GetComponentInParent<BaseCombatWeapon>()?.Clip1 == 0 );
 		base.OnAttack( hitPoint, origin );
 
 		// The engine parents the flash to the muzzle, but its particles default to
@@ -340,27 +206,31 @@ public sealed partial class ViewModel : Sandbox.BaseWeaponModel
 			foreach ( var effect in MuzzleGameObject.GetComponentsInChildren<ParticleEffect>( true ) )
 				effect.LocalSpace = 1.0f;
 		}
-
-		if ( IsThrowable )
-		{
-			Renderer?.Set( "b_throw", true );
-
-			Invoke( 0.5f, () =>
-			{
-				Renderer?.Set( "b_deploy_new", true );
-				Renderer?.Set( "b_pull", false );
-			} );
-		}
 	}
+
+	/// <summary>
+	/// Plays the empty-trigger animation.
+	/// </summary>
+	public override void OnDryFire() => TriggerAnimation( "b_attack_dry" );
 
 	/// <summary>
 	/// Called when starting to reload a weapon.
 	/// </summary>
 	public override void OnReloadStart()
 	{
-		_reloadFinishing = false; // cancel any pending incremental finish from a previous reload
-		Renderer?.Set( "speed_reload", AnimationSpeed );
-		Renderer?.Set( IsIncremental ? "b_reloading" : "b_reload", true );
+		if ( Renderer?.Animation.Graph is not null )
+		{
+			var parameters = Renderer.Animation.Parameters;
+			var weapon = GetComponentInParent<BaseCombatWeapon>();
+			parameters.TrySet( "b_empty", weapon?.Clip1 == 0 );
+			if ( weapon is not null )
+			{
+				var duration = weapon.IncrementalReloading && weapon.ReloadStartTime > 0f ? weapon.ReloadStartTime : weapon.ReloadTime;
+				parameters.TrySet( "reload_duration", duration );
+			}
+
+			parameters.TryTrigger( "b_reload" );
+		}
 
 		if ( IsIncremental )
 			StartSounds( IncrementalReloadStartSounds, ref _reloadFinishSoundCts );
@@ -373,31 +243,34 @@ public sealed partial class ViewModel : Sandbox.BaseWeaponModel
 	/// </summary>
 	public override void OnIncrementalReload()
 	{
-		Renderer?.Set( "speed_reload", IncrementalAnimationSpeed );
-		Renderer?.Set( "b_reloading_shell", true );
+		if ( Renderer?.Animation.Graph is not null )
+		{
+			var parameters = Renderer.Animation.Parameters;
+			if ( GetComponentInParent<BaseCombatWeapon>() is { } weapon )
+				parameters.TrySet( "reload_duration", weapon.ReloadTime );
+
+			parameters.TryTrigger( "b_reloading_shell" );
+		}
 
 		StartSounds( IncrementalReloadSoundEvents, ref _reloadSoundCts );
 	}
 
+	/// <summary>
+	/// Plays the reload finish animation and its sounds.
+	/// </summary>
 	public override void OnReloadFinish()
 	{
 		CancelSounds( ref _reloadSoundCts );
 
 		if ( IsIncremental )
-		{
 			StartSounds( IncrementalReloadFinishSounds, ref _reloadFinishSoundCts );
 
-			_reloadFinishing = true;
-			_reloadFinishTimer = 0;
-		}
-		else
-		{
-			Renderer?.Set( "b_reload", false );
-		}
+		Renderer?.Animation.Parameters.TryTrigger( "b_reload_finish" );
 	}
 
 	public override void OnReloadCancel()
 	{
+		Renderer?.Animation.Parameters.TryTrigger( "b_reload_cancel" );
 		CancelSounds( ref _reloadSoundCts );
 		CancelSounds( ref _reloadFinishSoundCts );
 	}

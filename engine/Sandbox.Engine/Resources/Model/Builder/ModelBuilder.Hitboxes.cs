@@ -18,7 +18,7 @@ public sealed partial class ModelBuilder
 		return builder;
 	}
 
-	private void ApplyHitboxes( NativeEngine.ModelBuilder modelBuilder )
+	private unsafe void ApplyHitboxes( NativeEngine.ModelBuilder modelBuilder )
 	{
 		foreach ( var set in _hitboxSets )
 		{
@@ -35,6 +35,13 @@ public sealed partial class ModelBuilder
 
 				switch ( source.Shape )
 				{
+					case ModelHitboxBuilder.ShapeType.Hull:
+						fixed ( Vector3* points = source.Points )
+						{
+							destination.SetHull( (IntPtr)points, source.Points.Length );
+						}
+						break;
+
 					case ModelHitboxBuilder.ShapeType.Box:
 						destination.SetBox( source.Min, source.Max );
 						break;

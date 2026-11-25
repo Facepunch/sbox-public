@@ -136,7 +136,7 @@ public sealed partial class NavMesh
 		link.GameObject.Destroy();
 	}
 
-	private NavMeshLink CreateGeneratedLink( in NavLink link )
+	private NavMeshLink CreateGeneratedLink( in NavLink link, NavMeshLinkType type = null, Vector3? climbDirection = null, float climbExitLift = 0 )
 	{
 		if ( !generatedRoot.IsValid() || generatedRoot.IsDestroyed )
 		{
@@ -145,11 +145,13 @@ public sealed partial class NavMesh
 		}
 
 		bool jump = link.Type != live.Mesh.LinkSettings.DropType;
-		var go = new GameObject( generatedRoot, true, jump ? "Jump" : "Drop" ) { WorldPosition = link.Start };
+		var go = new GameObject( generatedRoot, true, type == NavMeshLinkType.Ladder && type is not null ? "Ladder" : jump ? "Jump" : "Drop" ) { WorldPosition = link.Start };
 		var component = go.Components.Create<NavMeshLink>( false );
-		component.Type = jump ? NavMeshLinkType.Jump : NavMeshLinkType.Drop;
+		component.Type = type ?? (jump ? NavMeshLinkType.Jump : NavMeshLinkType.Drop);
 		component.IsGenerated = true;
 		component.generated = link;
+		component.generatedClimbDirection = climbDirection ?? Vector3.Up;
+		component.generatedClimbExitLift = climbExitLift;
 		component.LocalEndPosition = link.End - link.Start;
 		component.IsBiDirectional = link.Bidirectional;
 		component.ConnectionRadius = link.Radius;
@@ -166,6 +168,10 @@ public sealed partial class NavMesh
 		{
 			for ( int i = 0; i < components.Count; i++ ) components[i] = CreateGeneratedLink( components[i].generated );
 		}
+		foreach ( var entry in ladders.Values )
+		{
+			for ( int i = 0; i < entry.Links.Count; i++ ) entry.Links[i] = CreateGeneratedLink( entry.Links[i].generated, NavMeshLinkType.Ladder, entry.Links[i].generatedClimbDirection, entry.Links[i].ClimbExitLift );
+		}
 		live.Mesh.Commit();
 	}
 
@@ -175,5 +181,7 @@ public sealed partial class NavMesh
 		generatedRoot = null;
 		generatedLinks.Clear();
 		spareLinks.Clear();
+		ladders.Clear();
+		ladderMesh = null;
 	}
 }

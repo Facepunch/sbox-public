@@ -215,24 +215,29 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	private Vector3? _lastSpawnPosition;
 
 	/// <summary>
-	/// Find a place to respawn: a floor-settled spawn point nobody is standing on, avoiding the
-	/// last one used.
+	/// Find a place to respawn: the highest priority floor-settled spawn point nobody is standing on,
+	/// avoiding the last one used.
 	/// </summary>
 	Transform FindSpawnLocation()
 	{
-		var spawnPoints = Scene.GetAllComponents<SpawnPoint>().ToArray();
+		var spawnPoints = SpawnPoint.GetAllByPriority( Scene );
 
 		// No spawn points — fall back to the world origin and warn. The map needs a SpawnPoint.
-		if ( spawnPoints.Length == 0 )
+		if ( spawnPoints.Count == 0 )
 		{
 			Log.Warning( "No SpawnPoint components in the scene — spawning at the world origin. Add a SpawnPoint to the map to fix this." );
 			return Transform.Zero;
 		}
 
-		var transform = SpawnPlacement.FindSpawnPosition(
-			spawnPoints.OrderBy( _ => Random.Shared.Next() ).Select( x => x.Transform.World ),
-			PlayerHull,
-			avoid: _lastSpawnPosition );
+		// Lower priorities are only used once every higher one is occupied. Within a priority, push the
+		// last one used to the back (stable sort, so the shuffle is kept).
+		var last = _lastSpawnPosition;
+		var seeds = spawnPoints
+			.OrderByDescending( x => x.Priority )
+			.ThenBy( x => last.HasValue && x.WorldPosition.Distance( last.Value ) < 16f ? 1 : 0 )
+			.Select( x => x.Transform.World );
+
+		var transform = SpawnPlacement.FindSpawnPosition( seeds, PlayerHull );
 
 		_lastSpawnPosition = transform.Position;
 		return transform;
@@ -247,21 +252,21 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	/// <summary>
 	/// Called on the host when a played is killed
 	/// </summary>
-	internal void OnDeath( Player player, DamageInfo dmg )
+	internal void OnDeath( Player player, DamageInfo dmg, GameObject attacker )
 	{
 		Assert.True( Networking.IsHost );
 
 		Assert.True( player.IsValid(), "Player invalid" );
 		Assert.True( player.PlayerData.IsValid(), $"{player.GameObject.Name}'s PlayerData invalid" );
 
-		// credit the player who threw the prop or drove the car
-		var source = DamageBlame.Find( dmg ) as IKillSource ?? dmg.Attacker?.GetComponentInParent<IKillSource>( true );
-		if ( source == null ) return;
+		var source = attacker?.GetComponentInParent<IKillSource>( true );
+		var npc = source is null ? attacker?.GetComponentInParent<BaseNpc>( true ) : null;
+		if ( source == null && npc == null ) return;
 
 		var isSuicide = source is Player p && p == player;
 
 		if ( !isSuicide )
-			source.OnKill( player.GameObject );
+			source?.OnKill( player.GameObject );
 
 		// Fire kill event on the killer if they're a player
 		if ( !isSuicide && source is Player killer )
@@ -274,14 +279,14 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 		player.PlayerData.Deaths++;
 
 		var weapon = dmg.Weapon;
-		var w = weapon.IsValid() ? weapon.GetComponentInChildren<IKillIcon>() : null;
+		var icon = KillIcon( weapon );
 		var damageTags = dmg.Tags.ToString() + ( isSuicide ? " suicide" : "" );
-		var attackerTags = isSuicide ? "" : source.Tags;
-		var attackerName = isSuicide ? null : source.DisplayName;
-		var attackerSteamId = isSuicide ? 0L : source.SteamId;
+		var attackerTags = isSuicide ? "" : source?.Tags ?? "npc";
+		var attackerName = isSuicide ? null : source?.DisplayName ?? npc.DisplayName;
+		var attackerSteamId = isSuicide ? 0L : source?.SteamId ?? 0L;
 		var playerName = player.Network.Owner?.DisplayName ?? "Unknown";
 		var playerSteamId = (long)(player.Network.Owner?.SteamId ?? default);
-		Scene.RunEvent<Feed>( x => x.NotifyKill( playerName, playerSteamId, attackerName, attackerSteamId, damageTags, attackerTags, "", w?.DisplayIcon ) );
+		Scene.RunEvent<Feed>( x => x.NotifyKill( playerName, playerSteamId, attackerName, attackerSteamId, damageTags, attackerTags, "", icon ) );
 
 		if ( string.IsNullOrEmpty( attackerName ) )
 		{
@@ -300,12 +305,13 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	/// <summary>
 	/// Called on the host when an NPC is killed. Credits the attacker and adds a kill feed entry.
 	/// </summary>
-	internal void OnNpcDeath( Npc victim, DamageInfo dmg )
+	internal void OnNpcDeath( BaseNpc victim, DamageInfo dmg, GameObject attacker )
 	{
 		Assert.True( Networking.IsHost );
 		Assert.True( victim.IsValid(), "NPC invalid" );
 
-		var source = DamageBlame.Find( dmg ) as IKillSource ?? dmg.Attacker?.GetComponent<IKillSource>();
+		var source = attacker?.GetComponentInParent<IKillSource>( true );
+		var npc = source is null ? attacker?.GetComponentInParent<BaseNpc>( true ) : null;
 		source?.OnKill( victim.GameObject );
 
 		if ( source is Player killer )
@@ -315,12 +321,21 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 			Global.IPlayerEvents.Post( x => x.OnPlayerKill( killEvent ) );
 		}
 
-		var w = dmg.Weapon.IsValid() ? dmg.Weapon.GetComponentInChildren<IKillIcon>() : null;
-		var attackerName = source?.DisplayName;
+		var icon = KillIcon( dmg.Weapon );
+		var attackerName = source?.DisplayName ?? npc?.DisplayName;
 		var attackerSteamId = source?.SteamId ?? 0L;
-		var attackerTags = source?.Tags ?? "";
+		var attackerTags = source?.Tags ?? (npc is null ? "" : "npc");
 
-		Scene.RunEvent<Feed>( x => x.NotifyKill( victim.DisplayName, 0, attackerName, attackerSteamId, dmg.Tags.ToString(), attackerTags, "npc", w?.DisplayIcon ) );
+		Scene.RunEvent<Feed>( x => x.NotifyKill( victim.DisplayName, 0, attackerName, attackerSteamId, dmg.Tags.ToString(), attackerTags, "npc", icon ) );
+	}
+
+	/// <summary>
+	/// The kill feed icon of what did the damage: its own kill icon, else the icon of the engine weapon it is.
+	/// </summary>
+	static Texture KillIcon( GameObject weapon )
+	{
+		if ( !weapon.IsValid() ) return null;
+		return weapon.GetComponentInChildren<IKillIcon>()?.DisplayIcon ?? weapon.GetComponentInChildren<BaseInventoryItem>()?.DisplayIcon;
 	}
 
 	/// <summary>
@@ -330,12 +345,17 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static void ChangeProperty( Component c, string propertyName, object value )
 	{
 		if ( !c.IsValid() ) return;
+		if ( !c.GameObject.HasAccess( Rpc.Caller ) ) return;
+
+		// Players are never edited this way, not even by themselves (health, godmode)
+		if ( !Rpc.Caller.IsHost && c.GameObject.FindPlayer().IsValid() ) return;
 
 		var tl = TypeLibrary.GetType( c.GetType() );
 		if ( tl is null ) return;
 
 		var prop = tl.GetProperty( propertyName );
 		if ( prop is null ) return;
+		if ( !prop.HasAttribute<PropertyAttribute>() ) return;
 
 		prop.SetValue( c, value );
 
@@ -347,33 +367,11 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 		c.GameObject.Network?.Refresh();
 	}
 
-	/// <summary>
-	/// Apply a debounced batch of morph changes to a <see cref="SkinnedModelRenderer"/>,
-	/// replicated to all clients. Only the morphs present in the batch are modified.
-	/// </summary>
-	[Rpc.Host]
-	internal static void ApplyMorphBatch( SkinnedModelRenderer smr, string morphsJson )
-	{
-		if ( !smr.IsValid() ) return;
-
-		smr.GameObject.GetOrAddComponent<MorphState>().ApplyBatch( morphsJson );
-	}
-
-	/// <summary>
-	/// Apply a full morph preset (as json), and captures with <see cref="MorphState"/> which replicates changes to other clients
-	/// </summary>
-	[Rpc.Host]
-	internal static void ApplyFacePosePreset( SkinnedModelRenderer smr, string morphsJson )
-	{
-		if ( !smr.IsValid() ) return;
-
-		smr.GameObject.GetOrAddComponent<MorphState>().ApplyPreset( morphsJson );
-	}
-
 	[Rpc.Host]
 	internal static async void ChangeMaterialOverride( ModelRenderer renderer, int materialIndex, string materialPath )
 	{
 		if ( !renderer.IsValid() ) return;
+		if ( !renderer.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		Material material = null;
 
@@ -397,6 +395,7 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static async void ChangeWholeMaterialOverride( ModelRenderer renderer, string materialPath )
 	{
 		if ( !renderer.IsValid() ) return;
+		if ( !renderer.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		Material material = null;
 
@@ -417,6 +416,7 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static void ChangeMaterialGroup( ModelRenderer renderer, string group )
 	{
 		if ( !renderer.IsValid() ) return;
+		if ( !renderer.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		renderer.MaterialGroup = group;
 
@@ -431,6 +431,7 @@ public sealed partial class GameManager : GameObjectSystem<GameManager>, Compone
 	internal static void ChangeBodyGroup( ModelRenderer renderer, string partName, int choice )
 	{
 		if ( !renderer.IsValid() ) return;
+		if ( !renderer.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		// several objects can be selected at once, skip the ones whose model doesn't have this choice
 		var part = renderer.Model?.Parts.Get( partName );

@@ -1,0 +1,297 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "models/sbox/industrial/lockers/materials/locker.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/sbox/industrial/lockers/locker.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Locker_Group_LOD0",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeBox"
+						name = "back"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.45, 22.440001, 39.595001 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.78, 59.84, 66.589996 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "top"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 22.440001, 72.459999 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.68, 59.84, 0.86 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "bottom"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 22.440001, 7.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.68, 59.84, 1.4 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "side_1"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, -6.99, 39.595001 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.68, 0.98, 66.589996 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "divider_1"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 7.48, 39.595001 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.68, 1.96, 66.589996 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "divider_2"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 22.434999, 39.595001 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.68, 1.97, 66.589996 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "divider_3"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 37.400002, 39.595001 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.68, 1.96, 66.589996 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "side_2"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 51.865002, 39.595001 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 19.68, 0.99, 66.589996 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "shelf_1"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 0.0, 58.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.120001, 13.0, 0.74 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "shelf_2"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 14.955, 58.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.120001, 12.99, 0.74 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "shelf_3"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 29.92, 58.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.120001, 13.0, 0.74 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "shelf_4"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 0.0, 44.875, 58.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 18.120001, 12.99, 0.74 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_1"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.445, -7.085, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.79, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_2"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 9.445, -7.085, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.79, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_3"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.445, 7.48, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.7, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_4"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 9.445, 7.48, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.7, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_5"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.445, 22.450001, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.76, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_6"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 9.445, 22.450001, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.76, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_7"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.445, 37.41, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.7, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_8"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 9.445, 37.41, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.7, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_9"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ -9.445, 51.965, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.75, 6.3 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "foot_10"
+						parent_bone = ""
+						surface_prop = "metal.sheet"
+						collision_tags = "solid"
+						origin = [ 9.445, 51.965, 3.15 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 0.79, 0.75, 6.3 ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 140.0
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

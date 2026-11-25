@@ -17,7 +17,25 @@
 	/// <summary>
 	/// Display name for the tool, defaults to the TypeDescription title.
 	/// </summary>
-	public virtual string Name => Game.Language.GetPhrase( (TypeDescription?.Title ?? GetType().Name).TrimStart( '#' ) );
+	public virtual string Name => Game.Language.GetPhrase( NameToken );
+
+	string _nameTitle, _nameToken;
+
+	// The HUD reads the name every frame, so the trimmed token is kept until the title changes
+	string NameToken
+	{
+		get
+		{
+			var title = TypeDescription?.Title ?? GetType().Name;
+			if ( !ReferenceEquals( title, _nameTitle ) )
+			{
+				_nameTitle = title;
+				_nameToken = title.TrimStart( '#' );
+			}
+
+			return _nameToken;
+		}
+	}
 
 	/// <summary>
 	/// Description of what this tool does.
@@ -29,6 +47,16 @@
 	/// Auto-populated from registered <see cref="ToolActionEntry"/> when not overridden.
 	/// </summary>
 	public virtual string PrimaryAction => GetActionName( ToolInput.Primary );
+
+	/// <summary>
+	/// The action for Use and primary fire together.
+	/// </summary>
+	public virtual string UsePrimaryAction => null;
+
+	/// <summary>
+	/// Whether pressing Use on this object should leave it under the crosshair for a tool action.
+	/// </summary>
+	public virtual bool ReservesUseFor( GameObject target ) => false;
 
 	/// <summary>
 	/// Label for the secondary action (attack2), or null if none.
@@ -61,16 +89,25 @@
 	{
 		get
 		{
-			if ( !string.IsNullOrEmpty( PrimaryAction ) ) yield return new( PrimaryAction, ["attack1"] );
-			if ( !string.IsNullOrEmpty( SecondaryAction ) ) yield return new( SecondaryAction, ["attack2"] );
-			if ( !string.IsNullOrEmpty( ReloadAction ) ) yield return new( ReloadAction, ["reload"] );
-			if ( !string.IsNullOrEmpty( ReloadSecondaryAction ) ) yield return new( ReloadSecondaryAction, ["reload", "attack2"] );
-			if ( !string.IsNullOrEmpty( SnapAction ) ) yield return new( SnapAction, ["snap"] );
-			if ( !string.IsNullOrEmpty( MenuAction ) ) yield return new( MenuAction, ["ToolMenu"] );
+			if ( !string.IsNullOrEmpty( PrimaryAction ) ) yield return new( PrimaryAction, PrimaryKeys );
+			if ( !string.IsNullOrEmpty( UsePrimaryAction ) ) yield return new( UsePrimaryAction, UsePrimaryKeys );
+			if ( !string.IsNullOrEmpty( SecondaryAction ) ) yield return new( SecondaryAction, SecondaryKeys );
+			if ( !string.IsNullOrEmpty( ReloadAction ) ) yield return new( ReloadAction, ReloadKeys );
+			if ( !string.IsNullOrEmpty( ReloadSecondaryAction ) ) yield return new( ReloadSecondaryAction, ReloadSecondaryKeys );
+			if ( !string.IsNullOrEmpty( SnapAction ) ) yield return new( SnapAction, SnapKeys );
+			if ( !string.IsNullOrEmpty( MenuAction ) ) yield return new( MenuAction, MenuKeys );
 
 			foreach ( var hint in ExtraHints ) yield return hint;
 		}
 	}
+
+	static readonly string[] PrimaryKeys = ["attack1"];
+	static readonly string[] UsePrimaryKeys = ["use", "attack1"];
+	static readonly string[] SecondaryKeys = ["attack2"];
+	static readonly string[] ReloadKeys = ["reload"];
+	static readonly string[] ReloadSecondaryKeys = ["reload", "attack2"];
+	static readonly string[] SnapKeys = ["snap"];
+	static readonly string[] MenuKeys = ["ToolMenu"];
 
 	protected virtual IEnumerable<ToolHint> ExtraHints => [];
 
@@ -78,7 +115,11 @@
 	/// Tags that TraceSelect will ignore. Override per-tool to filter out specific objects.
 	/// Defaults to "player" so tools cannot target players.
 	/// </summary>
-	public virtual IEnumerable<string> TraceIgnoreTags => ["player"];
+	public virtual IEnumerable<string> TraceIgnoreTags => IgnorePlayerTags;
+
+	// Shared so traces every frame don't allocate a new collection
+	protected static readonly string[] IgnorePlayerTags = ["player"];
+	protected static readonly string[] IgnoreConstraintTags = ["constraint", "collision"];
 
 	/// <summary>
 	/// When true, TraceSelect will also hit hitboxes.
@@ -93,6 +134,32 @@
 
 	private readonly List<ToolActionEntry> _actions = new();
 	private readonly List<GameObject> _createdObjects = new();
+	private UndoSystem.Entry _groupedUndo;
+	private int _undoGroup;
+
+	/// <summary>
+	/// Adds a spawned object to the player's undo history. Use the same nonzero group for objects
+	/// created by one continuous action, such as a spray of decals.
+	/// </summary>
+	protected void AddUndoObject( GameObject go, string name, int group = 0 )
+	{
+		var stack = Player.Undo;
+		var entry = _groupedUndo;
+
+		if ( group == 0 || group != _undoGroup || !stack.Contains( entry ) )
+		{
+			entry = stack.Create();
+			entry.Name = name;
+
+			if ( group != 0 )
+			{
+				_groupedUndo = entry;
+				_undoGroup = group;
+			}
+		}
+
+		entry.Add( go );
+	}
 
 	/// <summary>
 	/// Register a tool action that will be dispatched automatically by the base <see cref="OnControl"/>.
@@ -136,6 +203,10 @@
 	/// Fire <see cref="IToolActionEvents.OnToolAction"/> at the top of the host RPC that carries out an action,
 	/// so listeners can refuse it where it counts. Returns true if the action should proceed, false if cancelled.
 	/// </summary>
+	protected static bool CanTarget( GameObject go ) => !go.IsValid() || go.HasAccess( Rpc.Caller );
+
+	protected static bool CanTarget( SelectionPoint point ) => CanTarget( point.GameObject );
+
 	protected bool FireToolAction( ToolInput input )
 	{
 		_createdObjects.Clear();
@@ -210,12 +281,25 @@
 	}
 
 	/// <summary>
-	/// Scrolls the tool name across the viewmodel screen's dot matrix in <see cref="Toolgun.ScreenColor"/>.
+	/// Text shown on the toolgun screen. Accepts plain text or a localization key starting with #.
+	/// </summary>
+	protected virtual string ToolgunScreenText => Name;
+
+	/// <summary>
+	/// Scroll speed in screen pixels per second. Zero keeps the text centered and still.
+	/// </summary>
+	protected virtual float ToolgunScreenScrollSpeed => 10f;
+
+	/// <summary>
+	/// Draws the tool's text on the viewmodel screen's dot matrix in <see cref="Toolgun.ScreenColor"/>.
 	/// </summary>
 	public virtual void DrawScreen( Rect rect, Painter paint )
 	{
+		var text = ToolgunScreenText;
+		if ( string.IsNullOrEmpty( text ) ) return;
+		if ( text.StartsWith( '#' ) ) text = Game.Language.GetPhrase( text[1..] );
+
 		using var state = paint.Scope();
-		const float scrollSpeed = 5f;
 
 		// these settings are set for the 'at01' font specifically, you need to adjust these values if you are changing the font
 		const float nameSize = 16f;
@@ -223,21 +307,28 @@
 		const float capTop = 4.375f;
 
 		var color = Toolgun.IsValid() ? Toolgun.ScreenColor : Color.White;
-		var title = Game.Language.GetPhrase( TypeDescription.Title.TrimStart( '#' ) ).ToUpperInvariant();
 
 		paint.TextStyle = new TextStyle( "at01", nameSize, color ) { Alignment = TextFlag.LeftTop | TextFlag.SingleLine };
-		var textSize = paint.MeasureText( title );
+		var textSize = paint.MeasureText( text );
 
 		var top = rect.Top + MathF.Floor( (rect.Height - capHeight) * 0.5f ) - capTop;
 
 		paint.Translate( 0, top - MathF.Floor( top ) );
 		top = MathF.Floor( top );
 
+		var scrollSpeed = ToolgunScreenScrollSpeed;
+		if ( scrollSpeed <= 0f )
+		{
+			var left = MathF.Round( rect.Left + (rect.Width - textSize.x) * 0.5f );
+			paint.Text( text, new Rect( left, top, textSize.x, textSize.y ) );
+			return;
+		}
+
 		var cycle = MathF.Ceiling( textSize.x + rect.Width * 0.5f );
 		var x = MathF.Round( rect.Right - (Time.Now * scrollSpeed) % cycle );
 
 		for ( ; x > rect.Left - textSize.x; x -= cycle )
-			paint.Text( title, new Rect( x, top, textSize.x, textSize.y ) );
+			paint.Text( text, new Rect( x, top, textSize.x, textSize.y ) );
 	}
 
 	/// <summary>

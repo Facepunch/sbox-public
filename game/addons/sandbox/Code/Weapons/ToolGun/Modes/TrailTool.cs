@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Icon( "✨" )]
+[Icon( "motion_blur" )]
 [Title( "#tool.name.trail" )]
 [ClassName( "trail" )]
 [Group( "#tool.group.render" )]
@@ -66,6 +66,7 @@ public sealed class TrailTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	private void AddTrail( GameObject go, Color color, float startWidth, float endWidth, float lifetime, bool castShadows, LineDefinition lineDef )
 	{
+		if ( !CanTarget( go ) ) return;
 		if ( !go.IsValid() || !Player.IsValid() ) return;
 		if ( !FireToolAction( ToolInput.Primary ) ) return;
 
@@ -111,6 +112,7 @@ public sealed class TrailTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	private void RemoveTrail( GameObject go )
 	{
+		if ( !CanTarget( go ) ) return;
 		if ( !go.IsValid() ) return;
 		if ( !FireToolAction( ToolInput.Secondary ) ) return;
 

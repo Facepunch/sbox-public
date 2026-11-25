@@ -260,9 +260,9 @@ public class MixedVirtualGrid : BaseVirtualPanel
 		_dropIndex = index;
 
 		if ( index < _items.Count && _created.TryGetValue( index, out var before ) )
-			before.AddClass( "drop-before" );
+			before.AddClass( "drop-target" );
 		else if ( index > 0 && _created.TryGetValue( index - 1, out var after ) )
-			after.AddClass( "drop-after" );
+			after.AddClass( "drop-target drop-after" );
 	}
 
 	private void ClearDropIndex()
@@ -270,7 +270,7 @@ public class MixedVirtualGrid : BaseVirtualPanel
 		if ( _dropIndex < 0 ) return;
 		foreach ( var panel in _created.Values )
 		{
-			panel.RemoveClass( "drop-before" );
+			panel.RemoveClass( "drop-target" );
 			panel.RemoveClass( "drop-after" );
 		}
 		_dropIndex = -1;

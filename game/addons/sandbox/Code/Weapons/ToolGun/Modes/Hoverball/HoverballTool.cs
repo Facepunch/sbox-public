@@ -2,12 +2,12 @@ using Sandbox.UI;
 
 [Hide]
 [Title( "#tool.name.hoverball" )]
-[Icon( "🎱" )]
+[Icon( "orbit" )]
 [ClassName( "hoverballtool" )]
 [Group( "#tool.group.building" )]
 public sealed class HoverballTool : ToolMode
 {
-	public override IEnumerable<string> TraceIgnoreTags => ["constraint", "collision"];
+	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 
 	[Property, ResourceSelect( Extension = "hdef", AllowPackages = true ), Title( "#tool.name.hoverball" )]
 	public string Definition { get; set; } = "entities/hoverball/hoverball.hdef";
@@ -82,6 +82,7 @@ public sealed class HoverballTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Spawn( SelectionPoint point, PrefabFile hoverballPrefab, Transform tx, string configuration )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( ToolInput.Primary ) ) return;
 
 		if ( hoverballPrefab == null )
@@ -115,7 +116,7 @@ public sealed class HoverballTool : ToolMode
 
 		var undo = Player.Undo.Create();
 		undo.Name = "#tool.name.hoverball";
-		undo.Icon = "🎱";
+		undo.Icon = "orbit";
 		undo.Add( go );
 
 		CheckContraptionStats( point.GameObject );

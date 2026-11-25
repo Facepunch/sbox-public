@@ -4,102 +4,115 @@
 @namespace Sandbox
 
 <root>
-    <div class="label @(IsActive ? "active" : "")">@Title</div>
+    <div class="label @(Strength > 0f ? "active" : "")">@Title</div>
     <div class="sliders">
-        <UISlider Property=@_so?.GetProperty(nameof(Strength))></UISlider>
+        <SliderControl Property=@_so?.GetProperty(nameof(Strength)) />
         @if (IsPaired)
         {
-            <UISlider Property=@_so?.GetProperty(nameof(Side))></UISlider>
+            <SliderControl Property=@_so?.GetProperty(nameof(Side)) Fill=@SliderFill.Center />
         }
     </div>
 </root>
 
 @code
 {
+    /// <summary>
+    /// Renderer whose morph weights the sliders edit.
+    /// </summary>
     [Parameter] public SkinnedModelRenderer Target { get; set; }
+
+    /// <summary>
+    /// Morph to edit, or the left morph for a paired control.
+    /// </summary>
     [Parameter] public string NameA { get; set; }
+
+    /// <summary>
+    /// Right morph for a paired control.
+    /// </summary>
     [Parameter] public string NameB { get; set; }
+
+    /// <summary>
+    /// Label shown beside the sliders.
+    /// </summary>
     [Parameter] public string Title { get; set; }
+
+    /// <summary>
+    /// Reports each changed weight to the owning editor.
+    /// </summary>
     [Parameter] public Action<string, float> OnMorphChanged { get; set; }
 
     bool IsPaired => NameB != null;
-    bool IsActive => (Target?.SceneModel?.Morphs.Get(NameA) ?? 0f) > 0f || (IsPaired && (Target?.SceneModel?.Morphs.Get(NameB) ?? 0f) > 0f);
 
     SerializedObject _so;
 
-    // Live helpers — always read from the rendered mesh so sliders stay in sync
-    float LiveStrength()
-    {
-        if (!Target.IsValid()) return 0f;
-        var l = Target.SceneModel.Morphs.Get(NameA);
-        var r = IsPaired ? Target.SceneModel.Morphs.Get(NameB) : 0f;
-        return MathF.Max(l, r);
-    }
-
-    float LiveSide()
-    {
-        if (!Target.IsValid() || !IsPaired) return 0f;
-        var l = Target.SceneModel.Morphs.Get(NameA);
-        var r = Target.SceneModel.Morphs.Get(NameB);
-        if (r > l) return l == 0 ? -1f : -(1f - l / r);
-        if (l > r) return r == 0 ? 1f : 1f - r / l;
-        return 0f;
-    }
-
+    /// <summary>
+    /// Weight of the stronger side, or of the single morph.
+    /// </summary>
     [Range(0f, 1f), Step(0.01f)]
     public float Strength
     {
-        get => LiveStrength();
+        get
+        {
+            if ( !Target.IsValid() || !Target.SceneModel.IsValid() ) return 0f;
+
+            var morphs = Target.SceneModel.Morphs;
+            return MathF.Max( morphs.Get( NameA ), IsPaired ? morphs.Get( NameB ) : 0f );
+        }
         set
         {
-            if (!Target.IsValid()) return;
-            var side = LiveSide();
-            if (IsPaired)
+            if ( !Target.IsValid() ) return;
+
+            if ( IsPaired )
             {
-                var valA = value * side.Remap(0, -1, 1, 0).Clamp(0, 1);
-                var valB = value * side.Remap(0, 1, 1, 0).Clamp(0, 1);
-                Target.SceneModel.Morphs.Set(NameA, valA);
-                Target.SceneModel.Morphs.Set(NameB, valB);
-                OnMorphChanged?.Invoke(NameA, valA);
-                OnMorphChanged?.Invoke(NameB, valB);
+                SetPair( value, Side );
             }
             else
             {
-                Target.SceneModel.Morphs.Set(NameA, value);
-                OnMorphChanged?.Invoke(NameA, value);
+                SetMorph( NameA, value );
             }
         }
     }
 
+    /// <summary>
+    /// Balance of a paired morph, from fully right to fully left.
+    /// </summary>
     [Range(-1f, 1f), Step(0.01f)]
     public float Side
     {
-        get => LiveSide();
+        get
+        {
+            if ( !Target.IsValid() || !IsPaired ) return 0f;
+
+            var morphs = Target.SceneModel.Morphs;
+            var left = morphs.Get( NameA );
+            var right = morphs.Get( NameB );
+            if ( left > right ) return 1f - right / left;
+            if ( right > left ) return left / right - 1f;
+            return 0f;
+        }
         set
         {
-            if (!Target.IsValid() || !IsPaired) return;
-            var strength = LiveStrength();
-            var valA = strength * value.Remap(0, -1, 1, 0).Clamp(0, 1);
-            var valB = strength * value.Remap(0, 1, 1, 0).Clamp(0, 1);
-            Target.SceneModel.Morphs.Set(NameA, valA);
-            Target.SceneModel.Morphs.Set(NameB, valB);
-            OnMorphChanged?.Invoke(NameA, valA);
-            OnMorphChanged?.Invoke(NameB, valB);
+            if ( Target.IsValid() && IsPaired ) SetPair( Strength, value );
         }
+    }
+
+    void SetPair( float strength, float balance )
+    {
+        var (left, right) = FacePoseMorphs.SplitStrength( strength, balance );
+        SetMorph( NameA, left );
+        SetMorph( NameB, right );
+    }
+
+    void SetMorph( string name, float value )
+    {
+        Target.SceneModel.Morphs.Set( name, value, 0f );
+        OnMorphChanged?.Invoke( name, value );
     }
 
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
         _so ??= TypeLibrary.GetSerializedObject(this);
-    }
-
-    public void Clear()
-    {
-        if (!Target.IsValid()) return;
-        Target.Morphs.Clear(NameA);
-        if (IsPaired) Target.Morphs.Clear(NameB);
-        StateHasChanged();
     }
 
     protected override int BuildHash() => HashCode.Combine(Target, NameA, NameB);

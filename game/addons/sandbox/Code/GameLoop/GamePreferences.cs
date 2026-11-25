@@ -4,6 +4,14 @@
 internal static partial class GamePreferences
 {
 	/// <summary>
+	/// The palette used by this player's Sandbox interface.
+	/// </summary>
+	[ConVar( "sandbox.ui_theme", ConVarFlags.Saved )]
+	public static InterfaceTheme Theme { get; set; } = InterfaceTheme.Light;
+
+	internal static void SetTheme( InterfaceTheme theme ) => ConsoleSystem.SetValue( "sandbox.ui_theme", theme.ToString() );
+
+	/// <summary>
 	/// Enables automatic switching to better weapons on item pickup
 	/// </summary>
 	[ConVar( "sandbox.autoswitch", ConVarFlags.UserInfo | ConVarFlags.Saved )]
@@ -23,11 +31,11 @@ internal static partial class GamePreferences
 	public static bool ViewBobbing { get; set; } = true;
 
 	/// <summary>
-	/// Strength of the camera tilt when moving sideways
+	/// Maximum first-person camera roll in degrees when moving sideways.
 	/// </summary>
-	[ConVar( "sandbox.viewtilt", ConVarFlags.Saved, Help = "Sideways camera tilt strength. 0 disables tilt, 1 restores the original strength." )]
+	[ConVar( "sandbox.viewtilt", ConVarFlags.Saved, Help = "Maximum sideways camera tilt in degrees. Defaults to 0." )]
 	[Range( 0f, 1f ), Step( 0.05f ), Group( "Camera" )]
-	public static float ViewTilt { get; set; } = 0.35f;
+	public static float ViewTilt { get; set; } = 0f;
 
 	/// <summary>
 	/// Intensity of your camera's screenshake

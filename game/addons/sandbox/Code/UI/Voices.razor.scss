@@ -42,7 +42,8 @@ Voices
     .icon
     {
         flex-shrink: 0;
-        font-family: "Material Icons";
+        font-family: $ui-icon;
+        font-variation-settings: $ui-icon-filled-axes;
         font-size: 20px;
         color: white;
     }
@@ -55,8 +56,6 @@ Voices
         font-size: 16px;
         font-weight: 700;
         color: white;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        overflow: hidden;
+        @include ui-ellipsis;
     }
 }

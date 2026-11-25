@@ -423,15 +423,15 @@ public class NavMeshPublicMembers
 		var area = scene.Area( Vector3.Zero, new SceneVolume { Type = SceneVolume.VolumeTypes.Sphere, Sphere = new Sphere( 0, 100 ) } );
 		await scene.NavMesh.Generate( scene.PhysicsWorld );
 
-		// A corner of the box around the sphere is outside the sphere, also with the agent radius added
+		// A corner of the box around the sphere is outside the sphere
 		Assert.IsFalse( scene.NavMesh.OnMesh( Vector3.Zero ) );
-		Assert.IsFalse( scene.NavMesh.OnMesh( new Vector3( 100, 0, 0 ) ) );
+		Assert.IsFalse( scene.NavMesh.OnMesh( new Vector3( 85, 0, 0 ) ) );
 		Assert.IsTrue( scene.NavMesh.OnMesh( new Vector3( 95, 95, 0 ) ) );
 
 		area.SceneVolume = new SceneVolume { Type = SceneVolume.VolumeTypes.Capsule, Capsule = new Capsule( new Vector3( -150, 0, 0 ), new Vector3( 150, 0, 0 ), 30 ) };
 		await scene.Settle();
 		Assert.IsFalse( scene.NavMesh.OnMesh( new Vector3( 150, 0, 0 ) ) );
-		Assert.IsFalse( scene.NavMesh.OnMesh( new Vector3( -150, 30, 0 ) ) );
+		Assert.IsFalse( scene.NavMesh.OnMesh( new Vector3( -150, 15, 0 ) ) );
 		Assert.IsTrue( scene.NavMesh.OnMesh( new Vector3( 0, 70, 0 ) ) );
 
 		// The transform of the game object moves, turns and scales the shape

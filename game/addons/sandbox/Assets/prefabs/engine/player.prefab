@@ -78,13 +78,14 @@
         "EnableFootstepSounds": true,
         "EnableJumpBoost": false,
         "EnablePressing": true,
-        "EyeDistanceFromTop": 5,
+        "DuckedEyeDistanceFromTop": 8,
+        "EyeDistanceFromTop": 8,
         "FootstepMixer": {
           "Name": "game",
           "Id": "2d9828d0-7984-4843-b6b2-22d4336497d5"
         },
         "FootstepVolume": 2,
-        "HideBodyInFirstPerson": false,
+        "HideBodyInFirstPerson": true,
         "HoldToJump": false,
         "JumpSpeed": 300,
         "LookSensitivity": 1,
@@ -345,7 +346,7 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null,
-        "Priority": 5,
+        "Priority": 15,
         "Speed": 1
       },
       {
@@ -419,8 +420,7 @@
                 }
               }
             },
-            "AnimationGraph": null,
-            "BodyGroups": 20737,
+            "BodyGroups": 147713,
             "BoneMergeTarget": null,
             "CreateAttachments": true,
             "CreateBoneObjects": true,
@@ -431,8 +431,8 @@
             "MaterialOverride": null,
             "Materials": null,
             "Model": {
-              "Id": "161d0b00-c517-4044-989d-b679dab75a28",
-              "Path": "models/citizen_human/citizen_human_male.vmdl"
+              "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+              "Path": "models/citizen_human/human.vmdl"
             },
             "Morphs": {},
             "OnComponentDestroy": null,
@@ -441,12 +441,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {
-              "floats": {
-                "scale_height": 1,
-                "scale_heel": 0
-              }
-            },
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": true,

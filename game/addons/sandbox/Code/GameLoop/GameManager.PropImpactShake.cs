@@ -44,7 +44,6 @@ public sealed partial class GameManager : ISceneCollisionEvents
 		var speed = MathF.Abs( contact.NormalSpeed );
 		if ( speed < MinimumImpactSpeed ) return;
 
-		// Use the body's current mass so the mass tool and model physics both apply.
 		// A 50 kg prop hitting at 200 units/sec produces one unit of shake at the impact.
 		var amplitude = (source.Body.Mass * speed / 10000f).Clamp( 0f, MaximumAmplitude );
 

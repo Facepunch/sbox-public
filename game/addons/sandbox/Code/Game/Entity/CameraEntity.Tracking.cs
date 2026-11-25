@@ -164,7 +164,7 @@ public sealed partial class CameraEntity
 		if ( entities || TrackingTarget is CameraTrackingTarget.NearestPlayer or CameraTrackingTarget.NearestPlayerOrNpc )
 			foreach ( var player in Scene.GetAllComponents<Player>() ) Consider( player );
 		if ( entities || TrackingTarget is CameraTrackingTarget.NearestNpc or CameraTrackingTarget.NearestPlayerOrNpc )
-			foreach ( var npc in Scene.GetAllComponents<Npc>() ) Consider( npc );
+			foreach ( var npc in Scene.GetAllComponents<BaseNpc>() ) Consider( npc );
 
 		// anything else physical: props, vehicles, contraptions, other cameras. One body per object, not this camera
 		if ( entities )
@@ -174,7 +174,7 @@ public sealed partial class CameraEntity
 			{
 				var root = body.GameObject.Root;
 				if ( root == GameObject.Root || !seen.Add( root ) ) continue;
-				if ( root.GetComponent<Player>() is not null || root.GetComponent<Npc>() is not null ) continue;
+				if ( root.GetComponent<Player>() is not null || root.GetComponent<BaseNpc>() is not null ) continue;
 				Consider( body );
 			}
 		}
@@ -212,7 +212,7 @@ public sealed partial class CameraEntity
 				point = player.EyeTransform.Position;
 				radius = BoundsRadius( player.GameObject );
 				break;
-			case Npc npc when npc.Health > 0:
+			case BaseNpc npc when npc.Health > 0:
 				if ( npc.Renderer.IsValid() && npc.Renderer.GetAttachment( "eyes" ) is { } eyes )
 					point = eyes.Position;
 				else if ( npc.Renderer.IsValid() && npc.Renderer.Model is { } model && model.Bounds.Size.IsFinite )

@@ -1,0 +1,109 @@
+.finger-pose-editor
+{
+	flex-direction: column;
+	width: 100%;
+	flex-shrink: 0;
+	align-items: stretch;
+	overflow: hidden;
+	border-radius: 8px;
+
+	.hand-board
+	{
+		position: relative;
+		width: 100%;
+		aspect-ratio: 1;
+		flex-shrink: 0;
+		background-color: rgba(30, 47, 58, 0.94);
+		overflow: hidden;
+		pointer-events: all;
+
+		&.over-joint
+		{
+			cursor: grab;
+		}
+
+		.joint
+		{
+			position: absolute;
+			width: 8px;
+			height: 8px;
+			margin: -4px 0 0 -4px;
+			border-radius: 50%;
+			background-color: #263946;
+			border: 1px solid #c7d6de;
+			pointer-events: none;
+
+			&.posed
+			{
+				background-color: #65cec4;
+			}
+
+			&.in-finger
+			{
+				border-color: #68c6bd;
+			}
+
+			&.highlight
+			{
+				background-color: white;
+				border-color: #52e3ce;
+				box-shadow: 0 0 0 1px rgba(82, 227, 206, 0.4);
+			}
+
+			&.unavailable
+			{
+				display: none;
+			}
+		}
+	}
+
+	.bone-line
+	{
+		position: absolute;
+		pointer-events: none;
+		height: 1px;
+		margin-top: -0.5px;
+		background-color: rgba(219, 239, 238, 0.38);
+
+		&.hidden
+		{
+			display: none;
+		}
+	}
+
+	.hand-shortcuts
+	{
+		justify-content: center;
+		padding: 4px;
+		gap: 3px;
+		background-color: #1e2932;
+		border-top: 1px solid rgba(199, 214, 222, 0.1);
+
+		.hand-shortcut
+		{
+			width: 44px;
+			height: 38px;
+			justify-content: center;
+			align-items: center;
+			border-radius: 6px;
+			cursor: pointer;
+			pointer-events: all;
+
+			&:hover
+			{
+				background-color: rgba(199, 214, 222, 0.13);
+			}
+
+			&:active
+			{
+				background-color: rgba(101, 206, 196, 0.24);
+			}
+
+			label
+			{
+				font-size: 26px;
+				pointer-events: none;
+			}
+		}
+	}
+}

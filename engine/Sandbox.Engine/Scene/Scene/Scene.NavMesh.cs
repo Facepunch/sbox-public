@@ -7,6 +7,11 @@ public partial class Scene : GameObject
 	private Task _navMeshLoadTask;
 
 	/// <summary>
+	/// Set by a scene load that skipped the loading flow (ShowLoadingScreen = false), which is what loads the navmesh in game.
+	/// </summary>
+	private bool _navMeshLoadPending;
+
+	/// <summary>
 	/// In editor this gets called every frame
 	/// In game this gets called every fixed update
 	/// </summary>
@@ -14,10 +19,12 @@ public partial class Scene : GameObject
 	{
 		if ( !NavMesh.IsEnabled || this is PrefabScene ) return;
 
-		if ( !NavMesh.IsLoaded && IsEditor )
+		if ( NavMesh.IsLoaded ) _navMeshLoadPending = false;
+
+		if ( !NavMesh.IsLoaded && (IsEditor || _navMeshLoadPending) )
 		{
 			// Start loading if not already in progress
-			if ( _navMeshLoadTask is null || _navMeshLoadTask.IsCompleted )
+			if ( !NavMesh.IsGenerating && (_navMeshLoadTask is null || _navMeshLoadTask.IsCompleted) )
 			{
 				_navMeshLoadTask = NavMesh.Load( PhysicsWorld );
 				_navMeshLoadTask.ContinueWith( t =>
@@ -35,11 +42,7 @@ public partial class Scene : GameObject
 
 		if ( NavMesh.IsGenerating ) return;
 
-		// An editor scene that loaded without its bake has just generated, and bakes that
-		if ( IsEditor && NavMesh.TakeMissingBake() && Editor is { HasUnsavedChanges: false } editor && editor.GetSceneFolder() is { } folder )
-		{
-			_ = NavMesh.BakeInEditor( PhysicsWorld, folder, () => !editor.HasUnsavedChanges, regenerate: false );
-		}
+		if ( IsEditor ) BakeMissingInEditor();
 
 		if ( NavMesh.IsDirty || (NavMesh.AutoUpdates && IsEditor) )
 		{
@@ -49,5 +52,16 @@ public partial class Scene : GameObject
 		NavMesh.UpdateCache( PhysicsWorld );
 
 		NavMesh.Simulation.Update( Time.Delta );
+	}
+
+	/// <summary>
+	/// An editor scene that loaded without its bake has just generated, and bakes that.
+	/// </summary>
+	void BakeMissingInEditor()
+	{
+		if ( NavMesh.TakeMissingBake() && Editor is { HasUnsavedChanges: false } editor && editor.GetSceneFolder() is { } folder )
+		{
+			_ = NavMesh.BakeInEditor( PhysicsWorld, folder, () => !editor.HasUnsavedChanges, regenerate: false );
+		}
 	}
 }

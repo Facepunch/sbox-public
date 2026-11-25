@@ -27,9 +27,31 @@ static class AssetThumbnail
 	}
 
 	/// <summary>
-	/// Get an asset thumb. Will generate it if not immediately available, but will wait for it to be generated before returning.
+	/// Return the editor thumbnail as a bitmap, rendering it only after the caches miss.
 	/// </summary>
-	internal static async Task<Pixmap> GetAssetThumbAsync( Asset asset )
+	internal static async Task<Bitmap> GetThumbnailBitmapAsync( Asset asset, string filename )
+	{
+		var thumb = FindCachedThumbnail( asset );
+		if ( thumb is null )
+		{
+			// An authored preview override has priority over the generic model icon.
+			if ( asset.AssetType?.FileExtension == "vmdl" && asset.thumbnailOverride is null
+				&& new ThumbnailCache( filename ).LoadBitmap() is { } cached )
+				return cached;
+
+			QueueThumbBuild( asset );
+			while ( RenderQueue.Contains( asset ) || RenderingList.Contains( asset ) )
+			{
+				await Task.Delay( 100 );
+			}
+
+			thumb = asset.CachedThumbnail ??= asset.AssetType?.Icon256;
+		}
+
+		return thumb is null ? null : Bitmap.CreateFromBytes( thumb.GetPng() );
+	}
+
+	static Pixmap FindCachedThumbnail( Asset asset )
 	{
 		ArgumentNullException.ThrowIfNull( asset, nameof( asset ) );
 
@@ -39,44 +61,14 @@ static class AssetThumbnail
 		}
 
 		var fullPath = GetThumbnailFile( asset, false );
-		if ( System.IO.File.Exists( fullPath ) )
-		{
-			var pix = Pixmap.FromFile( fullPath );
-			asset.CachedThumbnail = pix;
-			return asset.CachedThumbnail;
-		}
+		if ( !System.IO.File.Exists( fullPath ) ) return null;
 
-		// start an async render
-		QueueThumbBuild( asset );
-
-		// wait for it to come out of the list
-		while ( RenderQueue.Contains( asset ) || RenderingList.Contains( asset ) )
-		{
-			await Task.Delay( 100 );
-		}
-
-		// If it was null still
-		asset.CachedThumbnail ??= asset.AssetType.Icon256;
-
-		return asset.CachedThumbnail;
+		return asset.CachedThumbnail = Pixmap.FromFile( fullPath );
 	}
 
 	internal static Pixmap GetAssetThumb( Asset asset, bool generateIfNotInCache = true )
 	{
-		ArgumentNullException.ThrowIfNull( asset, nameof( asset ) );
-
-		if ( asset.HasCachedThumbnail )
-		{
-			return asset.CachedThumbnail;
-		}
-
-		var fullPath = GetThumbnailFile( asset, false );
-		if ( System.IO.File.Exists( fullPath ) )
-		{
-			var pix = Pixmap.FromFile( fullPath );
-			asset.CachedThumbnail = pix;
-			return asset.CachedThumbnail;
-		}
+		if ( FindCachedThumbnail( asset ) is { } cached ) return cached;
 
 		if ( asset.AssetType != null )
 		{

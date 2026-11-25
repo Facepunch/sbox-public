@@ -48,14 +48,8 @@ PackageInformationPopup
 	{
 		gap: 0.5rem;
 		align-items: center;
-		cursor: pointer;
 		opacity: 0.8;
 		padding-bottom: 5px;
-
-		&:hover
-		{
-			opacity: 1;
-		}
 
 		img
 		{

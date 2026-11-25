@@ -1,7 +1,7 @@
 {
   "Title": "Comic Props",
   "Description": "",
-  "Icon": "collections_bookmark",
+  "Icon": "comic_bubble",
   "RequiredMount": "gmod",
   "Parent": {
     "Id": "a4bcdcf9-3ab1-4b92-9ac5-3cb900be512a",

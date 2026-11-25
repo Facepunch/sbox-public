@@ -1,0 +1,357 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "LODGroupList"
+				children =
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes =
+						[
+							"LOD0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 25.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 70.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 150.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.45
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children =
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys =
+						{
+							bakelighting = true
+							health = 60.0
+							flammable = false
+							explosive = false
+							explosive_damage = -1.0
+							explosive_radius = -1.0
+							explosive_force = -1.0
+							min_impact_damage_speed = 800.0
+							impact_damage = 20.0
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children =
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "front_leg_l"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ 9.12, 8.9, 0.1 ]
+						point1 = [ 6.4, 7.2, 15.3 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "back_leg_l"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.42
+						point0 = [ -9.0, 8.94, 0.0 ]
+						point1 = [ -6.38, 6.6, 16.09 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "seat_rail_l"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ 6.1, 7.15, 15.6 ]
+						point1 = [ -7.96474, 6.570686, 15.927908 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "back_upright_l"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ -7.724946, 6.62085, 15.884254 ]
+						point1 = [ -10.1, 5.6, 34.799999 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "top_corner_l"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ -10.1, 5.6, 34.799999 ]
+						point1 = [ -10.45, 2.5, 37.349998 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "front_leg_r"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ 9.12, -8.9, 0.1 ]
+						point1 = [ 6.4, -7.2, 15.3 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "back_leg_r"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.42
+						point0 = [ -9.0, -8.94, 0.0 ]
+						point1 = [ -6.38, -6.6, 16.09 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "seat_rail_r"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ 6.1, -7.15, 15.6 ]
+						point1 = [ -8.06287, -6.554264, 15.937201 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "back_upright_r"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ -7.631949, -6.62, 15.9 ]
+						point1 = [ -10.1, -5.6, 34.799999 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "top_corner_r"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ -10.1, -5.6, 34.799999 ]
+						point1 = [ -10.45, -2.5, 37.349998 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						name = "top_rail"
+						parent_bone = ""
+						surface_prop = "metal"
+						collision_tags = "solid"
+						radius = 0.45
+						point0 = [ -10.45, -2.5, 37.349998 ]
+						point1 = [ -10.45, 2.5, 37.349998 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "seat"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 0.786, 0.0, 17.283001 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 17.780001, 16.549999, 1.85 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						name = "backrest"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -8.995, -0.075, 34.509998 ]
+						angles = [ 0.0, 90.0, -4.9 ]
+						dimensions = [ 18.030001, 1.8, 7.53 ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children =
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 5.0
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children =
+				[
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ -9.0369, -0.0787, 34.487701 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/metal_chair/gibs/metal_chair_gib_01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/metal_chair/gibs/metal_chair_gib_02.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.7837, 0.0, 17.2848 ]
+						fadetime = 20.0
+						random_spawn_chance = 1.0
+						is_essential_piece = false
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/home/metal_chair/gibs/metal_chair_gib_03.vmdl"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children =
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/sbox/home/metal_chair/metal_chair.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 90.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"metal_chair_LOD0",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children =
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps =
+						[
+							{
+								from = "metal_chair.vmat"
+								to = "models/sbox/home/metal_chair/materials/metal_chair.vmat"
+							},
+							{
+								from = "models/sbox/home/metal_chair/metal_chair.vmat"
+								to = "models/sbox/home/metal_chair/materials/metal_chair.vmat"
+							},
+						]
+						use_global_default = true
+						global_default_material = "models/sbox/home/metal_chair/materials/metal_chair.vmat"
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = "prop_physics"
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

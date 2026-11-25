@@ -221,6 +221,8 @@
 	/// Find every wire around the camera: signal connections on outputs, and component
 	/// links (references and presence) on their ManualLink stamps.
 	/// </summary>
+	private readonly List<(Component Component, SignalOutput Output)> _wiredOutputs = new();
+
 	private void CollectConnectors( List<Connector> connectors )
 	{
 		connectors.Clear();
@@ -232,15 +234,15 @@
 		{
 			if ( root.Tags.Has( "world" ) || root.Tags.Has( "player" ) ) continue;
 
-			foreach ( var output in SignalSystem.GetOutputs( root ) )
+			// Component outputs have no connection list; their wires show from the stamps below.
+			_wiredOutputs.Clear();
+			SignalSystem.GetWiredOutputs( root, _wiredOutputs );
+			foreach ( var (component, output) in _wiredOutputs )
 			{
-				// Component outputs have no connection list; their wires show from the stamps below.
-				if ( output.Port is null ) continue;
-
-				foreach ( var connection in output.Port.Connections )
+				foreach ( var connection in output.Connections )
 				{
 					if ( connection?.Target.IsValid() == true )
-						connectors.Add( new Connector( output.Component.GameObject.Root, connection.Target.GameObject.Root ) );
+						connectors.Add( new Connector( component.GameObject.Root, connection.Target.GameObject.Root ) );
 				}
 			}
 

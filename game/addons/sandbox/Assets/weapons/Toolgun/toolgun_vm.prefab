@@ -20,17 +20,13 @@
         "__guid": "0d8179ee-f780-4aab-bed2-a1f42cc41e79",
         "__enabled": true,
         "Flags": 0,
-        "AnimationSpeed": 1,
         "DeploySound": "weapons/common/foley/foley_deploy_weapon_03.sound",
         "EjectBrass": null,
         "ShellEjectGameObject": {
           "_type": "gameobject",
           "go": "dcc37bca-a959-4b1d-87ee-15eaa48af28d"
         },
-        "IncrementalAnimationSpeed": 3,
-        "InertiaScale": "2,2",
         "IsIncremental": false,
-        "IsThrowable": false,
         "MuzzleEffect": null,
         "MuzzleGameObject": {
           "_type": "gameobject",
@@ -49,8 +45,10 @@
           "go": "2658361a-cbbf-4054-9dfc-7eafdd48f589",
           "component_type": "SkinnedModelRenderer"
         },
-        "ThrowableType": "HEGrenade",
-        "TracerEffect": null
+        "TracerEffect": null,
+        "MovementBob": true,
+        "LookInertia": true,
+        "LookInertiaAmount": 1
       }
     ],
     "Children": [
@@ -113,7 +111,10 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "weapons/toolgun/animations/toolgun.ag"
+            }
           }
         ],
         "Children": [
@@ -1760,7 +1761,7 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": false
           }
         ],
         "Children": []

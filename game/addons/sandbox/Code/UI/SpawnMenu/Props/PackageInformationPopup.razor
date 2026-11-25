@@ -5,7 +5,7 @@
 
 <root>
     <div class="title" onclick=@( () => Game.Overlay.ShowPackageModal( Package.FullIdent ) )>@Package.Title</div>
-    <div class="org" onclick=@( () => Game.Overlay.ShowOrganizationModal(Package.Org))>
+    <div class="org">
         <img src="@Package.Org.Thumb" />
         <label>@Package.Org.Title</label>
     </div>

@@ -1,30 +1,30 @@
 @using Sandbox;
 @using Sandbox.UI;
-@using Sandbox.Mounting;
 @inherits Panel
 @namespace Sandbox
 
 <root>
-    @if ( !string.IsNullOrWhiteSpace( Description ) )
+    @if ( Content.Thumbnail is { } thumbnail )
     {
-        <UICardDescription class="description" Text="@Description" />
+        <Image Texture=@thumbnail />
     }
-
-    <div class="footer">
-        <div class="name">@(Content.GetMeta<string>( "name" ) ?? "#ui.dupe.untitled")</div>
-    </div>
+    else
+    {
+        <IconPanel Text="content_copy" />
+    }
 </root>
 
 @code
 {
+    /// <summary>
+    /// The local dupe displayed by this card.
+    /// </summary>
     public Storage.Entry Content;
 
-    string Description => Content.GetMeta<string>( "description", "" );
-
-    protected override void OnParametersSet()
-    {
-        Style.SetBackgroundImage( Content.Thumbnail );
-    }
+    /// <summary>
+    /// Refreshes the local list after this dupe is deleted.
+    /// </summary>
+    [Parameter] public Action OnDupeDeleted { get; set; }
 
     protected override void OnMouseDown( MousePanelEvent e )
     {
@@ -32,14 +32,20 @@
         {
             var menu = new Sandbox.UI.Menu();
 
-            menu.AddOption( "#spawnmenu.common.delete", "delete", () => Content.Delete() );
-            menu.AddOption( "#spawnmenu.common.publish", "publish", Publish );
+            menu.AddOption( "#spawnmenu.dupes.publish_to_workshop", "publish", Publish );
 
             SpawnlistData.PopulateContextMenu( menu, this, new SpawnlistItem
             {
                 Ident = SpawnlistItem.MakeIdent( "dupe", Content.Id.ToString(), "local" ),
                 Title = Content.GetMeta<string>( "name" ) ?? Game.Language.GetPhrase( "ui.dupe.untitled" ),
                 Icon = null,
+            }, allowCreateSpawnlist: false );
+
+            menu.AddSeparator();
+            menu.AddOption( "#spawnmenu.common.delete", "delete", () =>
+            {
+                Content.Delete();
+                OnDupeDeleted?.Invoke();
             } );
 
             menu.Open( this, Popup.PositionMode.UnderMouse );
@@ -63,6 +69,7 @@
     void Publish()
     {
         var options = new Modals.WorkshopPublishOptions();
+        options.KeyValues = new() { ["protocol"] = DupesWorkshop.ProtocolVersion };
         options.Title = Game.Language.GetPhrase( "spawnmenu.dupes.publish_title" );
         AddLocalizedCategory<DupeCategory>( options, "Category", "spawnmenu.dupes.publish_category" );
         AddLocalizedCategory<DupeMovement>( options, "Movement", "spawnmenu.dupes.publish_movement" );

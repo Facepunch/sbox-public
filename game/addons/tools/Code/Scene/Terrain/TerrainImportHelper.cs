@@ -1,28 +1,36 @@
 using SkiaSharp;
-using System.Runtime.InteropServices;
 
 namespace Editor.TerrainEditor;
 
 internal static class TerrainImportHelper
 {
-	internal static ushort[] ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
+	internal static unsafe ushort[] ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
 	{
-		using var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
-		using ( var pixmap = bitmap.PeekPixels() )
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero( originalSize );
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero( newSize );
+		var sourceLength = checked(originalSize * originalSize);
+		if ( original.Length > sourceLength )
+			throw new ArgumentException( "Heightmap exceeds its resolution.", nameof( original ) );
+
+		// The old bitmap copy left missing samples at zero on incomplete maps.
+		if ( original.Length < sourceLength )
 		{
-			var dataBytes = MemoryMarshal.AsBytes( original );
-			unsafe
-			{
-				fixed ( byte* source = dataBytes )
-				{
-					Buffer.MemoryCopy( source, (void*)pixmap.GetPixels(), dataBytes.Length, dataBytes.Length );
-				}
-			}
+			var padded = new ushort[sourceLength];
+			original.CopyTo( padded );
+			original = padded;
 		}
 
-		using var newBitmap = bitmap.Resize( new SKSizeI( newSize, newSize ), new SKSamplingOptions( SKFilterMode.Linear, SKMipmapMode.None ) );
-		using var newPixmap = newBitmap.PeekPixels();
-		return newPixmap.GetPixelSpan<ushort>().ToArray();
+		var result = new ushort[checked(newSize * newSize)];
+		fixed ( ushort* input = original, output = result )
+		{
+			var info = new SKImageInfo( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
+			using var source = new SKPixmap( info, (IntPtr)input );
+			using var destination = new SKPixmap( info.WithSize( newSize, newSize ), (IntPtr)output );
+			if ( !source.ScalePixels( destination, new SKSamplingOptions( SKFilterMode.Linear ) ) )
+				throw new InvalidOperationException( "Couldn't resample the terrain heightmap." );
+		}
+
+		return result;
 	}
 
 	/// <summary>
@@ -53,15 +61,14 @@ internal static class TerrainImportHelper
 		if ( newResolution == storage.Resolution )
 			return;
 
-		var oldHeightMap = (ushort[])storage.HeightMap.Clone();
-		var oldControlMap = (UInt32[])storage.ControlMap.Clone();
-		int oldRes = storage.Resolution;
+		var heightMap = ResampleHeightmap( storage.HeightMap, storage.Resolution, newResolution );
+		var controlMap = ResampleControlMap( storage.ControlMap, storage.Resolution, newResolution );
 
 		// SetResolution allocates fresh arrays and fixes the Resolution property (private set)
 		storage.SetResolution( newResolution );
 
-		storage.HeightMap = ResampleHeightmap( oldHeightMap, oldRes, newResolution );
-		storage.ControlMap = ResampleControlMap( oldControlMap, oldRes, newResolution );
+		storage.HeightMap = heightMap;
+		storage.ControlMap = controlMap;
 	}
 
 	internal static int RoundDownToPowerOfTwo( int value )

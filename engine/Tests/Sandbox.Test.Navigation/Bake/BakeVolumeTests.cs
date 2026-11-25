@@ -12,7 +12,7 @@ namespace Nav.Lib.Tests;
 public class BakeVolumeTests
 {
 	// Four tiles of 256 units under one floor.
-	static readonly NavSettings Settings = NavSettings.Create( 64, 16, 18, 40, 4, 4, 64 );
+	static readonly NavSettings Settings = NavSettings.Create( new() { AgentHeight = 64, AgentRadius = 16, AgentClimb = 18, AgentMaxSlope = 40, CellSize = 4, CellHeight = 4, TileSize = 64 } );
 	static readonly Vector3[] Vertices = [new( 0, 0, 0 ), new( 512, 0, 0 ), new( 512, 512, 0 ), new( 0, 512, 0 )];
 	static readonly int[] Indices = [0, 1, 2, 0, 2, 3];
 
@@ -35,7 +35,7 @@ public class BakeVolumeTests
 
 	static NavMesh BakedAndLoaded( out NavVolume volume )
 	{
-		var mesh = new NavMesh( Settings );
+		var mesh = new NavMesh( Settings, NavMeshOptions.Create( Settings ) );
 		volume = Blocker( 128, 128 );
 		mesh.AddVolume( volume );
 		Assert.AreEqual( 0, mesh.Build( new NavBuilder(), Vertices, Indices ) );
@@ -46,7 +46,7 @@ public class BakeVolumeTests
 
 		var writer = new ArrayBufferWriter<byte>();
 		Assert.IsTrue( mesh.Save( writer ) );
-		var loaded = NavMesh.Load( writer.WrittenSpan )!;
+		var loaded = BakeTests.Load( writer.WrittenSpan )!;
 		Assert.IsNotNull( loaded );
 		Assert.AreEqual( 0, loaded.GetStats().CacheBytes, "A bake carries no rebuild cache" );
 		Assert.AreEqual( 0, loaded.PendingTiles );
@@ -146,7 +146,7 @@ public class BakeVolumeTests
 		// The loaded mesh bakes again, with the hashes of what its tiles are built with now.
 		var writer = new ArrayBufferWriter<byte>();
 		Assert.IsTrue( loaded.Save( writer ) );
-		var again = NavMesh.Load( writer.WrittenSpan )!;
+		var again = BakeTests.Load( writer.WrittenSpan )!;
 		again.AddVolume( volume );
 		Assert.AreEqual( 0, Take( again ).Length );
 	}
@@ -154,7 +154,7 @@ public class BakeVolumeTests
 	[TestMethod]
 	public void VolumesCompareByValue()
 	{
-		var volume = new NavVolume { Shape = VolumeShape.Capsule, Area = 3, LocalToWorld = Matrix4x4.CreateRotationZ( 0.5f ), A = new Vector3( 1, 2, 3 ), B = new Vector3( 4, 5, 6 ), Radius = 7, Margin = 8 };
+		var volume = new NavVolume { Shape = VolumeShape.Capsule, Area = 3, LocalToWorld = Matrix4x4.CreateRotationZ( 0.5f ), A = new Vector3( 1, 2, 3 ), B = new Vector3( 4, 5, 6 ), Radius = 7 };
 		var same = volume;
 		Assert.AreEqual( volume, same );
 		Assert.IsTrue( volume == same );
@@ -165,6 +165,5 @@ public class BakeVolumeTests
 		Assert.AreNotEqual( volume, volume with { A = new Vector3( 1, 2, 4 ) } );
 		Assert.AreNotEqual( volume, volume with { B = new Vector3( 4, 6, 6 ) } );
 		Assert.AreNotEqual( volume, volume with { Radius = 7.5f } );
-		Assert.AreNotEqual( volume, volume with { Margin = 0 } );
 	}
 }

@@ -98,11 +98,15 @@ public class AddonPublishingTests
 	}
 
 	/// <summary>
-	/// An addon without a package identity prepares all content for Steam without contacting the backend.
+	/// Workshop-only projects prepare their content without a backend package.
 	/// </summary>
 	[TestMethod]
-	public async Task AddonPreparationNeedsNoBackendPackage()
+	[DataRow( "addon" )]
+	[DataRow( "map" )]
+	public async Task PreparationNeedsNoBackendPackage( string type )
 	{
+		project.Config.Type = type;
+		project.Config.PackageReferences = ["test.content"];
 		project.Config.Org = null;
 		project.Config.Ident = null;
 		var publisher = await ProjectPublisher.FromProject( project );
@@ -113,13 +117,28 @@ public class AddonPublishingTests
 		Assert.AreEqual( 0, publisher.Manifest.Assets.Count );
 
 		var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+		var itemMeta = (Dictionary<string, object>)typeof( ProjectPublisher ).GetProperty( "Meta", flags ).GetValue( publisher );
+		Assert.IsFalse( itemMeta.ContainsKey( "PackageReferences" ) );
 		var metadata = (string)typeof( ProjectPublisher ).GetField( "WorkshopMetadata", flags ).GetValue( publisher );
 		Assert.IsNull( System.Text.Json.Nodes.JsonNode.Parse( metadata )["PackageIdent"] );
 
-		// Retrying an uploaded addon must finish without posting the empty backend manifest.
+		// Retrying an uploaded item must finish without posting the empty backend manifest.
 		var stage = typeof( ProjectPublisher ).GetField( "workshopStage", flags );
 		stage.SetValue( publisher, Enum.Parse( stage.FieldType, "Done" ) );
 		await publisher.Publish();
+	}
+
+	/// <summary>
+	/// Only files physically inside the shipped content roots are omitted from a map.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "core/materials/stone.vmat_c", true )]
+	[DataRow( "addons/content/Assets/materials/stone.vmat_c", true )]
+	[DataRow( "addons/content_pack/Assets/materials/stone.vmat_c", false )]
+	[DataRow( "addons/mymap/Assets/core/materials/stone.vmat_c", false )]
+	public void MapSkipsShippedContent( string path, bool shipped )
+	{
+		Assert.AreEqual( shipped, ProjectPublisher.PackageManifest.IsShippedMapContent( directory, Path.Combine( directory, path ) ) );
 	}
 
 }

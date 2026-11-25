@@ -34,7 +34,57 @@ public partial class Project
 	/// <summary>
 	/// Whether to save/load compiled assemblies to disk.
 	/// </summary>
-	bool CacheAssemblies => IsBuiltIn && Application.IsRetail && Application.IsEditor;
+	bool CacheAssemblies => IsBuiltIn && Application.IsEditor && !Application.IsUnitTest;
+
+	/// <summary>
+	/// What a cached assembly was compiled from: this project's compile settings and code files, the code files of
+	/// every project the engine ships (built-in ones reference each other), and the engine's managed assemblies this
+	/// process loaded. Any difference compiles it again.
+	/// </summary>
+	string CacheFingerprint( string engineCode )
+	{
+		var code = Stamps( [GetCodePath(), GetEditorPath()] );
+		var inputs = $"{Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString()}\n{Sandbox.Engine.Protocol.Api}\n{EngineAssemblies.Value}{engineCode}{code}";
+		return Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( inputs ) ) );
+	}
+
+	static readonly Lazy<string> EngineAssemblies = new( () => Stamps( [EngineFileSystem.Root.GetFullPath( "bin/managed" )], "*.dll" ) );
+
+	static string EngineCode() => Stamps( new[] { "addons", "editor" }.Select( x => EngineFileSystem.Root.GetFullPath( x ) ).Where( Directory.Exists )
+		.SelectMany( Directory.EnumerateDirectories ).SelectMany( x => new[] { Path.Combine( x, "Code" ), Path.Combine( x, "Editor" ) } ) );
+
+	static string Stamps( IEnumerable<string> folders, string pattern = "*" )
+	{
+		// The enumeration fills in each file's size and time, so nothing is opened or queried again per file
+		var stamps = new System.Text.StringBuilder();
+		var files = folders.Where( Directory.Exists ).SelectMany( x => new DirectoryInfo( x ).EnumerateFiles( pattern, SearchOption.AllDirectories ) )
+			.Where( x => pattern != "*" || x.Name.EndsWith( ".cs", StringComparison.OrdinalIgnoreCase ) || x.Name.EndsWith( ".razor", StringComparison.OrdinalIgnoreCase ) );
+
+		foreach ( var file in files.OrderBy( x => x.FullName, StringComparer.OrdinalIgnoreCase ) )
+			stamps.AppendLine( $"{file.FullName}|{file.Length}|{file.LastWriteTimeUtc.Ticks}" );
+		return stamps.ToString();
+	}
+
+	/// <summary>
+	/// The fingerprint of what the compile in progress reads, taken before it reads anything: whatever changes during
+	/// it fails the next startup's check.
+	/// </summary>
+	string compileFingerprint;
+
+	internal static void TakeCacheFingerprints()
+	{
+		var projects = All.Where( x => x.CacheAssemblies ).ToList();
+		if ( projects.Count == 0 ) return;
+
+		var engineCode = EngineCode();
+		foreach ( var project in projects ) project.compileFingerprint = project.CacheFingerprint( engineCode );
+	}
+
+	static void WriteCacheFile( string path, Action<string> write )
+	{
+		write( path + ".tmp" );
+		File.Move( path + ".tmp", path, true );
+	}
 
 	private void UpdateCompiler()
 	{
@@ -177,11 +227,12 @@ public partial class Project
 		if ( CacheAssemblies )
 		{
 			// see if we've got cached assemblies from a previous compile
+			var fingerprint = CacheFingerprint( EngineCode() );
 			foreach ( var compiler in new[] { Compiler, EditorCompiler } )
 			{
 				if ( compiler is null ) continue;
 
-				LoadCachedAssembly( compiler );
+				LoadCachedAssembly( compiler, fingerprint );
 
 				if ( compiler.BuildSuccess )
 					compiler.Group.ClearForRecompile( compiler );
@@ -189,13 +240,14 @@ public partial class Project
 		}
 	}
 
-	private bool LoadCachedAssembly( Compiler compiler )
+	private bool LoadCachedAssembly( Compiler compiler, string fingerprint )
 	{
 		try
 		{
 			string directory = Path.Combine( GetRootPath(), ".sbox", "bin" );
 			string binPath = Path.Combine( directory, $"{compiler.AssemblyName}.dll" );
-			if ( !File.Exists( binPath ) )
+			string fingerprintPath = Path.Combine( directory, $"{compiler.AssemblyName}.fingerprint" );
+			if ( !File.Exists( binPath ) || !File.Exists( fingerprintPath ) || File.ReadAllText( fingerprintPath ) != fingerprint )
 				return false;
 
 			byte[] bytes = File.ReadAllBytes( binPath );
@@ -422,8 +474,11 @@ public partial class Project
 						string binPath = Path.Combine( project.GetRootPath(), ".sbox", "bin" );
 						Directory.CreateDirectory( binPath );
 
-						File.WriteAllBytes( Path.Combine( binPath, $"{assembly.Compiler.AssemblyName}.dll" ), assembly.AssemblyData );
-						File.WriteAllBytes( Path.Combine( binPath, $"{assembly.Compiler.AssemblyName}.cll" ), cll );
+						var fingerprint = Path.Combine( binPath, $"{assembly.Compiler.AssemblyName}.fingerprint" );
+						File.Delete( fingerprint );
+						WriteCacheFile( Path.Combine( binPath, $"{assembly.Compiler.AssemblyName}.dll" ), x => File.WriteAllBytes( x, assembly.AssemblyData ) );
+						WriteCacheFile( Path.Combine( binPath, $"{assembly.Compiler.AssemblyName}.cll" ), x => File.WriteAllBytes( x, cll ) );
+						if ( project.compileFingerprint is not null ) WriteCacheFile( fingerprint, x => File.WriteAllText( x, project.compileFingerprint ) );
 					}
 					catch ( Exception ex )
 					{

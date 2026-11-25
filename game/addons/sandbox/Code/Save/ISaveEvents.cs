@@ -16,6 +16,9 @@ public static partial class Global
 	/// </summary>
 	public static string GetSaveData( string key, string defaultValue = null ) => SaveSystem.Current?.GetMetadata( key, defaultValue ) ?? defaultValue;
 
+	/// <summary>
+	/// Receives sandbox save and restore callbacks on the host.
+	/// </summary>
 	public interface ISaveEvents : ISceneEvent<ISaveEvents>
 	{
 		/// <summary>
@@ -31,7 +34,7 @@ public static partial class Global
 
 		/// <summary>
 		/// Called before a save file is loaded — the current scene is still active.
-		/// Use this to clean up any state that won't survive the scene reload.
+		/// Use this to release references to objects the save will replace.
 		/// </summary>
 		void BeforeLoad( string filename ) { }
 

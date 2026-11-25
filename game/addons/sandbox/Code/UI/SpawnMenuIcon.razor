@@ -8,16 +8,16 @@
 
     @if ( Type == "builder" )
     {
-        <BuilderThumbnail @ref="BuilderPanel" Data=@Path PreviewMaterial=@PreviewMaterial />
+        <BuilderThumbnail class="thumbnail" @ref="BuilderPanel" Data=@Path PreviewMaterial=@PreviewMaterial />
     }
     else
     {
-        <div class="thumb" @ref="ThumbPanel"></div>
+        <div class="thumb thumbnail" @ref="ThumbPanel"></div>
     }
 
     @if ( Developer )
     {
-        <div class="developer-badge">🪲</div>
+        <IconPanel class="developer-badge" Text="bug_report" />
     }
     @if ( !string.IsNullOrWhiteSpace( Title ) && !HideText )
     {

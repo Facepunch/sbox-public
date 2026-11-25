@@ -8,17 +8,18 @@ namespace Sandbox;
 /// </summary>
 public class UIDropdownList : Popup
 {
+	/// <summary>
+	/// Opens the list beneath its source and highlights the selected item.
+	/// </summary>
 	public UIDropdownList( Panel source, List<UIDropdown.Item> items, object selected, bool tokenize, Action<UIDropdown.Item> onPick )
 		: base( source, PositionMode.BelowStretch, 0f )
 	{
+		AddClass( "dropdown-popup" );
 		CloseWhenParentIsHidden = true;
 
-		for ( int i = 0; i < items.Count; i++ )
+		foreach ( var item in items )
 		{
-			var item = items[i];
-
 			var row = Add.Panel( "option" );
-			row.SetClass( "alt", i % 2 == 1 );
 			row.SetClass( "active", Equals( item.Value, selected ) );
 
 			var label = row.Add.Label( "", "label" );

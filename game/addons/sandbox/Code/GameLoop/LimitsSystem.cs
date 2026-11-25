@@ -1,6 +1,6 @@
 using Sandbox.Npcs;
 using Sandbox.UI;
-using System.Text.Json.Nodes;
+using System.Text.Json;
 
 /// <summary>
 /// Enforces configurable limits on spawning and tool usage.
@@ -50,16 +50,6 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 	[ConVar( "sandbox.limit.wheels", ConVarFlags.Replicated | ConVarFlags.Server | ConVarFlags.GameSetting, Help = "Maximum wheels per player. -1 = unlimited, 0 = none allowed." )]
 	public static int MaxWheels { get; set; } = -1;
 
-	[Range( -1, 256 )]
-	[Title( "Max Texts" ), Group( "Limits" ), Order( 8 )]
-	[ConVar( "sandbox.limit.texts", ConVarFlags.Replicated | ConVarFlags.Server | ConVarFlags.GameSetting, Help = "Maximum placed texts per player. -1 = unlimited, 0 = none allowed." )]
-	public static int MaxTexts { get; set; } = -1;
-
-	[Range( -1, 64 )]
-	[Title( "Max Speakers" ), Group( "Limits" ), Order( 9 )]
-	[ConVar( "sandbox.limit.speakers", ConVarFlags.Replicated | ConVarFlags.Server | ConVarFlags.GameSetting, Help = "Maximum speakers per player. -1 = unlimited, 0 = none allowed." )]
-	public static int MaxSpeakers { get; set; } = -1;
-
 	[Range( -1, 64 )]
 	[Title( "Max Cameras" ), Group( "Limits" ), Order( 10 )]
 	[ConVar( "sandbox.limit.cameras", ConVarFlags.Replicated | ConVarFlags.Server | ConVarFlags.GameSetting, Help = "Maximum cameras per player. -1 = unlimited, 0 = none allowed." )]
@@ -104,13 +94,16 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 	/// <summary>
 	/// One GameObject as far as the limits care: its own component types (not its children's), its prop's model, and
 	/// whether it's tagged as a constraint. The same whether it's a player's live object, a spawn menu entry or a node
-	/// of a dupe's saved JSON, so each limit only needs saying once.
+	/// of a dupe's saved JSON, so each limit only needs saying once. A dupe's models are only loaded by the limits that
+	/// look at them.
 	/// </summary>
-	private readonly record struct LimitedObject( HashSet<Type> Types, Model PropModel, bool IsConstraint )
+	private readonly record struct LimitedObject( HashSet<Type> Types, Model PropModel, bool IsConstraint, string PropModelPath = null )
 	{
 		public bool Has<T>() => Types.Any( x => x.IsAssignableTo( typeof( T ) ) );
-		public bool IsRagdoll => (PropModel?.Physics?.Parts?.Count ?? 0) > 1;
-		public bool IsExplosive => PropModel?.Data?.Explosive == true;
+		public bool IsRagdoll => (LoadModel()?.Physics?.Parts?.Count ?? 0) > 1;
+		public bool IsExplosive => LoadModel()?.Data?.Explosive == true;
+
+		Model LoadModel() => PropModel ?? (PropModelPath is null ? null : Model.Load( PropModelPath ));
 
 		public static LimitedObject Of( GameObject go ) => new(
 			go.Components.GetAll().Select( x => x.GetType() ).ToHashSet(),
@@ -134,18 +127,16 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 		new( () => MaxPropsPerPlayer, "#limit.props", x => x.Has<Prop>() ),
 		new( () => MaxExplosivesPerPlayer, "#limit.explosives", x => x.IsExplosive ),
 		new( () => MaxRagdolls, "#limit.ragdolls", x => x.IsRagdoll ),
-		new( () => MaxConstraints, "#limit.constraints", x => x.IsConstraint, tool => tool is BaseConstraintToolMode or KeepUprightTool ),
+		new( () => MaxConstraints, "#limit.constraints", x => x.IsConstraint, tool => tool is BaseConstraintToolMode ),
 		new( () => MaxBalloons, "#limit.balloons", x => x.Has<BalloonEntity>(), tool => tool is BalloonTool ),
 		new( () => MaxThrusters, "#limit.thrusters", x => x.Has<ThrusterEntity>(), tool => tool is ThrusterTool ),
 		new( () => MaxEmitters, "#limit.emitters", x => x.Has<EmitterEntity>(), tool => tool is EmitterTool ),
 		new( () => MaxHoverballs, "#limit.hoverballs", x => x.Has<HoverballEntity>(), tool => tool is HoverballTool ),
 		new( () => MaxWheels, "#limit.wheels", x => x.Has<WheelEntity>(), tool => tool is WheelTool ),
-		new( () => MaxTexts, "#limit.texts", x => x.Has<TextEntity>(), tool => tool is TextTool ),
-		new( () => MaxSpeakers, "#limit.speakers", x => x.Has<SpeakerEntity>(), tool => tool is SpeakerTool ),
 		new( () => MaxCameras, "#limit.cameras", x => x.Has<CameraEntity>(), tool => tool is CameraTool ),
 		new( () => MaxDynamite, "#limit.dynamite", x => x.Has<DynamiteEntity>() ),
 		new( () => MaxLights, "#limit.lights", x => x.Has<PointLightEntity>() || x.Has<SpotLightEntity>(), tool => tool is LightTool { PlacingNew: true } ),
-		new( () => MaxNpcs, "#limit.npcs", x => x.Has<Npc>() ),
+		new( () => MaxNpcs, "#limit.npcs", x => x.Has<BaseNpc>() ),
 		new( () => MaxVehicles, "#limit.vehicles", x => x.Has<FourWheelVehicle>() ),
 	];
 
@@ -229,7 +220,7 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 	/// </summary>
 	private static List<LimitedObject> ObjectsIn( ISpawner spawner ) => spawner switch
 	{
-		DuplicatorSpawner dupe => ObjectsInDupe( dupe ),
+		DuplicatorSpawner dupe => dupe.ReadObjects( ObjectsInDupe ),
 		PropSpawner prop => [LimitedObject.OfProp( prop.Model )],
 		MountSpawner mount => [LimitedObject.OfProp( mount.Model )],
 		BuilderSpawner => [new LimitedObject( [typeof( BuilderProp )], null, false )],
@@ -240,42 +231,51 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 	/// <summary>
 	/// Every GameObject in a dupe, read from its saved JSON before anything is spawned.
 	/// </summary>
-	private static List<LimitedObject> ObjectsInDupe( DuplicatorSpawner spawner )
+	private static List<LimitedObject> ObjectsInDupe( JsonElement dupeObjects )
 	{
 		var objects = new List<LimitedObject>();
 
-		void Read( JsonObject go )
+		void Read( JsonElement go )
 		{
-			var types = new HashSet<Type>();
-			Model model = null;
+			if ( go.ValueKind != JsonValueKind.Object ) return;
 
-			foreach ( var component in (go["Components"] as JsonArray)?.OfType<JsonObject>() ?? [] )
+			var types = new HashSet<Type>();
+			string model = null;
+
+			foreach ( var component in ArrayIn( go, "Components" ) )
 			{
-				var type = Text( component["__type"] ) is { } name ? TypeLibrary.GetType( name )?.TargetType : null;
+				var type = Text( component, "__type" ) is { } name ? TypeLibrary.GetType( name )?.TargetType : null;
 				if ( type is null ) continue;
 
 				types.Add( type );
-				if ( type.IsAssignableTo( typeof( Prop ) ) && ModelPath( component["Model"] ) is { } path )
-					model = Model.Load( path );
+				if ( type.IsAssignableTo( typeof( Prop ) ) && component.TryGetProperty( "Model", out var reference ) && ModelPath( reference ) is { } path )
+					model = path;
 			}
 
-			var constraint = Text( go["Tags"] )?.Split( ',' ).Any( x => x.Trim() == "constraint" ) == true;
-			objects.Add( new LimitedObject( types, model, constraint ) );
+			var constraint = Text( go, "Tags" )?.Split( ',' ).Any( x => x.Trim() == "constraint" ) == true;
+			objects.Add( new LimitedObject( types, null, constraint, model ) );
 
-			foreach ( var child in (go["Children"] as JsonArray)?.OfType<JsonObject>() ?? [] )
+			foreach ( var child in ArrayIn( go, "Children" ) )
 				Read( child );
 		}
 
-		foreach ( var root in spawner.Dupe?.Objects?.OfType<JsonObject>() ?? [] )
-			Read( root );
+		if ( dupeObjects.ValueKind == JsonValueKind.Array )
+		{
+			foreach ( var root in dupeObjects.EnumerateArray() )
+				Read( root );
+		}
 
 		return objects;
 	}
 
-	static string Text( JsonNode node ) => node is JsonValue value && value.TryGetValue<string>( out var text ) ? text : null;
+	static JsonElement.ArrayEnumerator ArrayIn( JsonElement json, string name ) =>
+		json.ValueKind == JsonValueKind.Object && json.TryGetProperty( name, out var array ) && array.ValueKind == JsonValueKind.Array ? array.EnumerateArray() : default;
+
+	static string Text( JsonElement json ) => json.ValueKind == JsonValueKind.String ? json.GetString() : null;
+	static string Text( JsonElement json, string name ) => json.ValueKind == JsonValueKind.Object && json.TryGetProperty( name, out var value ) ? Text( value ) : null;
 
 	// a model reference is saved either as its path or as an object holding it
-	static string ModelPath( JsonNode node ) => Text( node ) ?? Text( (node as JsonObject)?["Path"] );
+	static string ModelPath( JsonElement json ) => Text( json ) ?? Text( json, "Path" );
 
 	void Global.ISpawnEvents.OnSpawn( Global.ISpawnEvents.SpawnData e )
 	{
@@ -329,7 +329,7 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 
 	/// <summary>
 	/// True if <paramref name="player"/> can create <paramref name="adding"/> more building blocks, otherwise tells them.
-	/// Host only. For tools that copy blocks without going through the spawn or Builder tool events, like the Stacker.
+	/// Call on the host before creating the blocks.
 	/// </summary>
 	public bool CheckBuilderLimit( Connection player, int adding )
 	{
@@ -345,7 +345,7 @@ internal sealed class LimitsSystem : GameObjectSystem<LimitsSystem>, Global.ISpa
 	{
 		if ( player is null ) return true;
 
-		var spawning = ObjectsInDupe( dupe );
+		var spawning = dupe.ReadObjects( ObjectsInDupe );
 		return !WouldExceed( player, Limits, limit => spawning.Count( limit.Counts ) );
 	}
 

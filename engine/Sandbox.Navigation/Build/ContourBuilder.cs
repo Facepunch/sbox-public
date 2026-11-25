@@ -82,12 +82,15 @@ internal sealed class ContourBuilder
 				{
 					int i = index[x + row];
 					int r = region[i];
+					int south = index[x + row - w], north = index[x + row + w];
 					if ( CompactField.All( region, i, r ) && region[i - 1] == r && region[i + blockSize] == r
-						&& CompactField.All( region, index[x + row - w], r ) && CompactField.All( region, index[x + row + w], r ) )
+						&& CompactField.All( region, south, r ) && CompactField.All( region, north, r ) )
 					{
 						Array.Clear( flags, i, blockSize );
 						continue;
 					}
+					FlagOpenColumns( region, x + row, i, south, north );
+					continue;
 				}
 
 				FlagColumns( field, x + row, end + row );
@@ -172,6 +175,36 @@ internal sealed class ContourBuilder
 				starts[startCount * 2 + 1] = column;
 				startCount++;
 			}
+		}
+	}
+
+	// FlagColumns over an open block, whose spans have their neighbours just before and after them and at the same
+	// place in the rows south and north.
+	void FlagOpenColumns( ushort[] region, int column, int first, int south, int north )
+	{
+		for ( int k = 0; k < CompactField.BlockSize; k++ )
+		{
+			int i = first + k;
+			int r = region[i];
+			if ( r == 0 || (r & RegionBuilder.Border) != 0 )
+			{
+				flags[i] = 0;
+				continue;
+			}
+
+			int same = 0;
+			if ( region[i - 1] == r ) same |= 1;
+			if ( region[north + k] == r ) same |= 2;
+			if ( region[i + 1] == r ) same |= 4;
+			if ( region[south + k] == r ) same |= 8;
+
+			flags[i] = same == 0 ? (byte)0 : (byte)(same ^ 0xF);
+			if ( same == 0 || same == 0xF ) continue;
+
+			if ( startCount * 2 == starts.Length ) Array.Resize( ref starts, starts.Length * 2 );
+			starts[startCount * 2] = i;
+			starts[startCount * 2 + 1] = column + k;
+			startCount++;
 		}
 	}
 
@@ -449,34 +482,31 @@ internal sealed class ContourBuilder
 			else i++;
 		}
 
-		if ( maxEdgeLength > 0 )
+		for ( int i = 0; i < simpleCount / 4; )
 		{
-			for ( int i = 0; i < simpleCount / 4; )
-			{
-				int next = (i + 1) % (simpleCount / 4);
-				int ax = simple[i * 4], ay = simple[i * 4 + 1], a = simple[i * 4 + 3];
-				int bx = simple[next * 4], by = simple[next * 4 + 1], b = simple[next * 4 + 3];
+			int next = (i + 1) % (simpleCount / 4);
+			int ax = simple[i * 4], ay = simple[i * 4 + 1], a = simple[i * 4 + 3];
+			int bx = simple[next * 4], by = simple[next * 4 + 1], b = simple[next * 4 + 3];
 
-				int split = -1;
-				int current = (a + 1) % pointCount;
-				if ( (raw[current * 4 + 3] & RegionMask) == 0 )
+			int split = -1;
+			int current = (a + 1) % pointCount;
+			if ( (raw[current * 4 + 3] & RegionMask) == 0 )
+			{
+				int dx = bx - ax;
+				int dy = by - ay;
+				if ( dx * dx + dy * dy > (long)maxEdgeLength * maxEdgeLength )
 				{
-					int dx = bx - ax;
-					int dy = by - ay;
-					if ( dx * dx + dy * dy > maxEdgeLength * maxEdgeLength )
+					int n = b < a ? b + pointCount - a : b - a;
+					if ( n > 1 )
 					{
-						int n = b < a ? b + pointCount - a : b - a;
-						if ( n > 1 )
-						{
-							if ( bx > ax || (bx == ax && by > ay) ) split = (a + n / 2) % pointCount;
-							else split = (a + (n + 1) / 2) % pointCount;
-						}
+						if ( bx > ax || (bx == ax && by > ay) ) split = (a + n / 2) % pointCount;
+						else split = (a + (n + 1) / 2) % pointCount;
 					}
 				}
-
-				if ( split != -1 ) InsertSimple( i + 1, split );
-				else i++;
 			}
+
+			if ( split != -1 ) InsertSimple( i + 1, split );
+			else i++;
 		}
 
 		// The border flag comes from the point itself, the neighbour region from the point after it

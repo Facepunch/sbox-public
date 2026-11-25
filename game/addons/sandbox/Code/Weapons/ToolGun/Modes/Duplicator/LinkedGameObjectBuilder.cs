@@ -6,6 +6,11 @@ public class LinkedGameObjectBuilder
 	private readonly HashSet<GameObject> _visited = new();
 
 	/// <summary>
+	/// When supplied, collects each connected root's active components in discovery order.
+	/// </summary>
+	internal List<Component> ComponentSnapshot { get; init; }
+
+	/// <summary>
 	/// Reject players and any objects with players as descendants. This is used for the duplicator to avoid accidentally duping the player and all their attachments.
 	/// </summary>
 	public bool RejectPlayers { get; set; } = false;
@@ -16,7 +21,7 @@ public class LinkedGameObjectBuilder
 	public bool Add( GameObject obj )
 	{
 		if ( !obj.IsValid() ) return false;
-		if ( obj.Tags.Contains( "world" ) ) return false;
+		if ( obj.Tags.Has( "world" ) ) return false;
 		if ( _visited.Contains( obj ) ) return false;
 		if ( obj.GetComponent<MapInstance>() is not null ) return false;
 		if ( RejectPlayers && HasDescendantWithTag( obj, "player" ) ) return false;
@@ -52,6 +57,7 @@ public class LinkedGameObjectBuilder
 		var components = _componentLists[_depth];
 		components.Clear();
 		CollectComponents( source, components );
+		ComponentSnapshot?.AddRange( components );
 
 		_depth++;
 
@@ -153,5 +159,6 @@ public class LinkedGameObjectBuilder
 	{
 		Objects.Clear();
 		_visited.Clear();
+		ComponentSnapshot?.Clear();
 	}
 }

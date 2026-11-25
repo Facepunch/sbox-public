@@ -78,7 +78,6 @@ public class Properties : Widget
 		};
 
 		_scroller = _sheetPanel.Layout.Add( CreateScroller( _sheetPanel ), 1 );
-		_sheetCanvas = _scroller.Canvas;
 
 		_editor = Layout.AddColumn( 1 );
 		_editor.Add( _miniPreview );
@@ -196,10 +195,10 @@ public class Properties : Widget
 		if ( _scroller is null || _target is null )
 			return;
 
-		var previousCanvas = _scroller.Canvas;
+		var previousCanvas = _sheetCanvas;
 		var previousDebugBody = _debugBody;
 		_debugBody = null;
-		var nextCanvas = CreateSheetCanvas( _scroller );
+		var nextCanvas = CreateSheetCanvas( _scroller.Canvas );
 		nextCanvas.Visible = false;
 		var content = CreateSheetCanvas( nextCanvas );
 		content.Layout.Margin = 4;
@@ -211,9 +210,9 @@ public class Properties : Widget
 			var so = _target.GetSerialized();
 			so.OnPropertyChanged += property =>
 			{
+				PropertyUpdated?.Invoke( property );
 				UpdateHeader();
 				SyncPreview();
-				PropertyUpdated?.Invoke( property );
 			};
 			so.OnPropertyFinishEdit += p => _window.CommitChange(
 				p is null ? "Edit Properties" : $"Edit {p.Name}", _window.GetPropertyChangeScope( p ) );
@@ -274,8 +273,15 @@ public class Properties : Widget
 		_scroller.UpdatesEnabled = false;
 		try
 		{
+			// Replacing the scroll area's canvas immediately deletes the widget handling the click.
+			// Swap its contents instead so Qt can finish dispatching the event.
+			if ( previousCanvas is not null )
+			{
+				previousCanvas.Visible = false;
+				previousCanvas.Destroy();
+			}
+			_scroller.Canvas.Layout.Add( nextCanvas );
 			nextCanvas.Visible = true;
-			_scroller.Canvas = nextCanvas;
 		}
 		finally
 		{

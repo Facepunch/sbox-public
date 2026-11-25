@@ -1,0 +1,9 @@
+{
+  "Decal": {
+    "Id": "c73d1d95-f81b-42fe-9e1d-8997a984174b",
+    "Path": "decals/graffiti/graffiti_scribble03.decal"
+  },
+  "Title": "#asset.decal.scribble03.title",
+  "__references": [],
+  "__version": 0
+}

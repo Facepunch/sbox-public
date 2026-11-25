@@ -7,6 +7,26 @@ public static partial class Input
 	public static partial class Keyboard
 	{
 		/// <summary>
+		/// Finds project actions currently bound to this exact keyboard or mouse combination in either binding slot.
+		/// Button names are the ones returned by <see cref="Capture"/>. Their order does not matter.
+		/// </summary>
+		public static IReadOnlyList<InputAction> GetBoundActions( IReadOnlyList<string> buttons )
+		{
+			if ( buttons is not { Count: > 0 } || InputActions is null ) return [];
+
+			var game = string.IsNullOrEmpty( Application.GameIdent ) ? "common" : Application.GameIdent;
+			var matches = new List<InputAction>();
+			foreach ( var bind in Sandbox.Engine.InputBinds.FindCollection( game ).EnumerateWithButton( buttons[0] ) )
+			{
+				if ( !bind.Slots.Any( slot => slot.Matches( buttons ) ) ) continue;
+				if ( FindInputActionByName( bind.Name ) is { } action )
+					matches.Add( new InputAction( action ) );
+			}
+
+			return matches;
+		}
+
+		/// <summary>
 		/// Keyboard key is held down
 		/// </summary>
 		public static bool Down( string keyName )
@@ -46,6 +66,23 @@ public static partial class Input
 			if ( code == ButtonCode.BUTTON_CODE_INVALID ) return false;
 
 			return CurrentContext.KeysPrevious.Contains( code ) && !Down( keyName );
+		}
+
+		internal static (bool Down, bool Pressed, bool Released) ReadKeys( ReadOnlySpan<string> keys )
+		{
+			if ( keys.IsEmpty || Application.IsHeadless || Suppressed || CurrentPlayerScope > 0 ) return default;
+
+			bool down = true, wasDown = true;
+			foreach ( var key in keys )
+			{
+				var code = Sandbox.Engine.KeyTranslation.StringToButtonCode( key );
+				if ( code is <= ButtonCode.BUTTON_CODE_NONE or > ButtonCode.MOUSE_LAST ) return default;
+
+				down &= CurrentContext.KeysCurrent.Contains( code );
+				wasDown &= CurrentContext.KeysPrevious.Contains( code );
+			}
+
+			return (down, down && !wasDown, !down && wasDown);
 		}
 
 		/// <summary>

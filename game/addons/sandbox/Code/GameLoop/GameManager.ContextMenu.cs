@@ -52,6 +52,7 @@ public sealed partial class GameManager : IContextMenuEvent
 	internal static void DeleteInspectedObject( GameObject go )
 	{
 		if ( !go.IsValid() || go.IsProxy ) return;
+		if ( !go.HasAccess( Rpc.Caller ) ) return;
 		if ( go.Tags.Has( "player" ) ) return;
 
 		go.Destroy();
@@ -115,6 +116,7 @@ public sealed partial class GameManager : IContextMenuEvent
 	internal static void SetAxisLocks( GameObject go, bool pitch, bool yaw, bool roll )
 	{
 		if ( !go.IsValid() || go.IsProxy ) return;
+		if ( !go.HasAccess( Rpc.Caller ) ) return;
 
 		PhysicsLock Change( PhysicsLock locking )
 		{
@@ -195,6 +197,7 @@ public sealed partial class GameManager : IContextMenuEvent
 	internal static void SetCollisions( GameObject go, bool props, bool world )
 	{
 		if ( !go.IsValid() || go.IsProxy ) return;
+		if ( !go.HasAccess( Rpc.Caller ) ) return;
 
 		go.Tags.Set( NoPropCollisionsTag, !props );
 		go.Tags.Set( NoWorldCollisionsTag, !world );
@@ -212,6 +215,7 @@ public sealed partial class GameManager : IContextMenuEvent
 	internal static void BreakInspectedProp( Prop prop )
 	{
 		if ( !prop.IsValid() || prop.IsProxy ) return;
+		if ( !prop.GameObject.HasAccess( Rpc.Caller ) ) return;
 
 		var damageable = prop.GetComponent<Component.IDamageable>();
 		if ( damageable is null ) return;
@@ -230,6 +234,7 @@ public sealed partial class GameManager : IContextMenuEvent
 	internal static void IgniteInspectedObject( GameObject go )
 	{
 		if ( !go.IsValid() || go.IsProxy ) return;
+		if ( !go.HasAccess( Rpc.Caller ) ) return;
 		if ( go.Tags.Has( "player" ) ) return;
 		if ( IsOnFire( go ) ) return;
 
@@ -268,6 +273,7 @@ public sealed partial class GameManager : IContextMenuEvent
 	internal static void ExtinguishInspectedObject( GameObject go )
 	{
 		if ( !go.IsValid() || go.IsProxy ) return;
+		if ( !go.HasAccess( Rpc.Caller ) ) return;
 
 		foreach ( var fire in go.GetComponentsInChildren<FireDamage>( true ).ToArray() )
 		{

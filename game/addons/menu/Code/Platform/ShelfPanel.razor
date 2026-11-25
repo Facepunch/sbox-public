@@ -69,7 +69,7 @@
     public void Show( string url, bool fromDock = false )
     {
         if ( fromDock ) trail.Clear();
-        else if ( IsOpen && CurrentUrl is not null && !PlatformShelf.IsGame( CurrentUrl ) ) trail.Add( CurrentUrl );
+        else if ( IsOpen && CurrentUrl is not null && !PlatformShelf.IsDetail( CurrentUrl ) ) trail.Add( CurrentUrl );
 
         Go( url );
         (CurrentPanel as ShelfPage)?.OnShelfShown();
@@ -139,7 +139,7 @@
     /// A game's page, or a modal's - there's one for every one opened, so they're not kept once they're gone from. A
     /// modal's is while it's on the trail, to come back to - a map picker's, say, after looking at one of its maps.
     /// </summary>
-    static bool Forgotten( string url ) => PlatformShelf.IsGame( url ) || ModalShelf.IsModal( url );
+    static bool Forgotten( string url ) => PlatformShelf.IsDetail( url ) || ModalShelf.IsModal( url );
 
     /// <summary>
     /// The modal up on it, if it's one

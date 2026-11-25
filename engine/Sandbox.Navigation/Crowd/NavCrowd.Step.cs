@@ -1,16 +1,19 @@
+using System.Runtime.InteropServices;
+
 namespace Nav;
 
 public sealed partial class NavCrowd
 {
-	// The mesh state the current Step works on, kept to notice the next change.
-	MeshState? pinned;
+	// Per agent type, the mesh state the current Step works on, kept to notice the next change.
+	MeshState?[] pinned = [];
 
 	uint step;
 	float dt;
 	Action<int, Action<int>>? run;
 
-	// The stages that run through the run hook. Sync, the snapshot and binning run on the calling thread.
-	enum Stage { Plan, Move, Separate, Constrain }
+	// The stages that run through the run hook: Bucket, Count and Assign are binning. Sync, the snapshot and
+	// the prefix sum between Count and Assign run on the calling thread.
+	enum Stage { Plan, Move, Separate, Constrain, Bucket, Count, Assign }
 
 	// The fewest agents a body is worth starting for in the stages that look at neighbours. Planning
 	// and constraining do less per agent and take two shares. Results do not depend on it; tests set
@@ -18,7 +21,19 @@ public sealed partial class NavCrowd
 	internal int Share = 64;
 
 	Stage stage;
-	int cursor;
+	int bodies;
+
+	// Written by every body, so on a cache line of their own: the fields around them are read in the
+	// inner loops. A struct goes after the class's other fields, and its first 64 bytes keep them away.
+	[StructLayout( LayoutKind.Explicit, Size = 128 )]
+	struct Claims
+	{
+		[FieldOffset( 64 )] public int Cursor;
+		// Set by any body of the separate stage that pushed an agent.
+		[FieldOffset( 68 )] public int Overlapped;
+	}
+
+	Claims claims;
 	readonly Action<int> work;
 
 	/// <summary>
@@ -37,14 +52,8 @@ public sealed partial class NavCrowd
 		Sync( delta );
 
 		// Bound the movement of one substep, and of a step after a long pause.
-		int substeps = 1;
-		dt = delta;
-		if ( SubstepTime > 0 )
-		{
-			int most = Math.Max( 1, MaxSubsteps );
-			substeps = (int)Math.Clamp( MathF.Ceiling( delta / SubstepTime ), 1f, most );
-			dt = MathF.Min( delta, most * SubstepTime ) / substeps;
-		}
+		int substeps = (int)Math.Clamp( MathF.Ceiling( delta / substepTime ), 1f, maxSubsteps );
+		dt = MathF.Min( delta, maxSubsteps * substepTime ) / substeps;
 
 		for ( int n = 0; n < substeps; n++ )
 		{
@@ -62,14 +71,18 @@ public sealed partial class NavCrowd
 	// velocity is how far the caller has moved it since the last Step, unless the caller tells it.
 	void Sync( float delta )
 	{
-		var s = mesh.State;
-		bool changed = s != pinned;
-		pinned = s;
+		Span<bool> changed = stackalloc bool[types.Length];
+		for ( int k = 0; k < types.Length; k++ )
+		{
+			var s = types[k].State;
+			changed[k] = s != pinned[k];
+			pinned[k] = s;
+		}
 		for ( int i = 0; i < high; i++ )
 		{
 			ref var a = ref agents[i];
 			if ( !a.Has( AgentFlags.Active ) ) continue;
-			if ( changed )
+			if ( changed[parms[i].AgentType] )
 			{
 				a.Flags |= AgentFlags.Validate;
 				a.WallCount = -1;
@@ -85,10 +98,11 @@ public sealed partial class NavCrowd
 	void Run( Stage next )
 	{
 		stage = next;
-		cursor = 0;
-		int bodies = Math.Min( workers, high / (next is Stage.Move or Stage.Separate ? Share : Share * 2) );
-		if ( run == null || bodies <= 1 ) Work( 0 );
-		else run( bodies, work );
+		claims.Cursor = 0;
+		int count = Math.Min( workers, high / (next is Stage.Move or Stage.Separate ? Share : Share * 2) );
+		bodies = run == null ? 1 : Math.Max( count, 1 );
+		if ( run == null || count <= 1 ) Work( 0 );
+		else run( count, work );
 	}
 
 	// One body of a stage: claims batches of agent ids from one cursor until none are left, and does
@@ -96,24 +110,51 @@ public sealed partial class NavCrowd
 	// only the agent's own slots, so it does not matter which body gets which batch.
 	void Work( int worker )
 	{
-		var query = queries[worker];
-		var s = pinned!;
+		// The two halves of binning split the grid, not the agents.
+		if ( stage == Stage.Count )
+		{
+			Count( worker );
+			return;
+		}
+		if ( stage == Stage.Assign )
+		{
+			Assign( worker );
+			return;
+		}
+		// Agents of the first type, the only one of most meshes, use these; another type's are looked up.
+		var query0 = queries[worker];
+		var s0 = pinned[0]!;
 		bool pushed = false;
 		float reach = Reach;
 		Tally tally = default;
 		while ( true )
 		{
-			int start = Interlocked.Add( ref cursor, Batch ) - Batch;
+			int start = Interlocked.Add( ref claims.Cursor, Batch ) - Batch;
 			if ( start >= high || start < 0 ) break;
-			for ( int i = start, end = Math.Min( start + Batch, high ); i < end; i++ )
+			int end = Math.Min( start + Batch, high );
+			if ( stage == Stage.Bucket )
+			{
+				for ( int i = start; i < end; i++ )
+				{
+					if ( shown.Id[i] >= 0 ) buckets[i] = Bucket( i );
+				}
+				continue;
+			}
+			for ( int i = start; i < end; i++ )
 			{
 				ref readonly var a = ref agents[i];
 				if ( !a.Has( AgentFlags.Active ) )
 				{
-					if ( stage == Stage.Plan ) shown.Id[i] = -1;
+					if ( stage == Stage.Plan )
+					{
+						shown.Id[i] = -1;
+						slots[i] = -1;
+					}
 					continue;
 				}
 				bool onLink = states[i].Link >= 0, external = parms[i].External;
+				int type = parms[i].AgentType;
+				var (s, query) = type == 0 ? (s0, query0) : (pinned[type]!, queries[type * workers + worker]);
 				switch ( stage )
 				{
 					// Agents on a link have nothing to plan: the move stage takes them across.
@@ -141,6 +182,6 @@ public sealed partial class NavCrowd
 			}
 		}
 		if ( stage == Stage.Plan ) tallies[worker] = tally;
-		if ( pushed ) Volatile.Write( ref overlapped, 1 );
+		if ( pushed ) Volatile.Write( ref claims.Overlapped, 1 );
 	}
 }

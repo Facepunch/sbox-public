@@ -113,6 +113,16 @@ internal sealed class OpenBlocks
 	public bool[] Open = [];
 	public int PerRow;
 
+	// True when each of the 16 spans from first on connects to all four neighbours, as span 0 of each.
+	static bool Connected( uint[] con, int first )
+	{
+		var block = con.AsSpan( first, CompactField.BlockSize );
+		if ( Vector256.IsHardwareAccelerated ) return ((Vector256.Create<uint>( block ) | Vector256.Create<uint>( block[8..] )) & Vector256.Create( 0xFFFFFFu )) == Vector256<uint>.Zero;
+		uint all = 0;
+		foreach ( uint c in block ) all |= c;
+		return (all & 0xFFFFFF) == 0;
+	}
+
 	public void Find( CompactField field, int margin )
 	{
 		const int blockSize = CompactField.BlockSize;
@@ -135,12 +145,7 @@ internal sealed class OpenBlocks
 					&& index[column + blockSize + 1] - index[column - 1] == blockSize + 2
 					&& index[column + blockSize - w] - index[column - w] == blockSize
 					&& index[column + blockSize + w] - index[column + w] == blockSize;
-				if ( open )
-				{
-					uint all = 0;
-					for ( int i = index[column], end = i + blockSize; i < end; i++ ) all |= con[i];
-					open = (all & 0xFFFFFF) == 0;
-				}
+				if ( open ) open = Connected( con, index[column] );
 				Open[block] = open;
 			}
 		}

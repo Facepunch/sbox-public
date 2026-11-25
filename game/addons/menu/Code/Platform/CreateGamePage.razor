@@ -315,6 +315,17 @@
         }
     }
 
+    /// <summary>
+    /// The picked map couldn't be loaded, so the setup goes back to the game's default.
+    /// </summary>
+    [Event( "game.mapfailed" )]
+    void OnMapFailed( string ident, string map )
+    {
+        if ( Setup is null || Setup.Package.FullIdent != ident || Setup.Map != map ) return;
+
+        Setup.Map = Setup.Package.Info.DefaultMap;
+    }
+
     void Back() => FrontPages.Of( this )?.Leave();
 
     protected override int BuildHash() => HashCode.Combine( Setup, Error, download, busy, WhyNot, shownKey, Setup?.Map, Setup?.MapTitle );

@@ -44,6 +44,25 @@ public partial class BaseCombatWeapon
 	[Property, Feature( "Shooting" )] public BallisticConfig Ballistics { get; set; } = new();
 
 	/// <summary>
+	/// Tags on the damage of this weapon's hits, for whoever is hit to tell what hit them. They go on the default
+	/// <see cref="PrimaryAttack"/> and on every ShootBullet call that passes no tags of its own. A weapon that
+	/// isn't a gun sets its own, or clears them.
+	/// </summary>
+	[Property, Feature( "Shooting" )] public TagSet AttackDamageTags { get; set; } = ["bullet"];
+
+	/// <summary>
+	/// The tags for one attack: the caller's when it passed any, else a copy of <see cref="AttackDamageTags"/>,
+	/// so nothing that handles the damage can change the weapon's own.
+	/// </summary>
+	TagSet ResolveDamageTags( TagSet tags )
+	{
+		if ( tags is not null )
+			return tags;
+
+		return AttackDamageTags is { IsEmpty: false } own ? new TagSet( own.TryGetAll() ) : null;
+	}
+
+	/// <summary>
 	/// Time since the last shot - drives spread bloom.
 	/// </summary>
 	protected TimeSince TimeSinceShoot { get; set; }

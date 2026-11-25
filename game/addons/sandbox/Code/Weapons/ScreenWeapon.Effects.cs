@@ -10,7 +10,7 @@ public partial class ScreenWeapon
 	public void PlayFireAnimation()
 	{
 		SpinCoil();
-		ViewModel?.GetComponentInChildren<SkinnedModelRenderer>()?.Set( "b_attack", true );
+		ViewModel?.RunEvent<ViewModel>( x => x.TriggerAnimation( "b_attack" ) );
 	}
 
 	/// <summary>Play the shared tool beam (including its sound), impact and viewmodel animation.</summary>

@@ -52,10 +52,10 @@ internal sealed partial class TextBlock
 		}
 	}
 
-	private static (string, float, int, bool, FontVariantNumeric, SkiaSharp.SKColorF, UnderlineStyle,
+	private static (string, float, int, bool, FontVariantNumeric, FontVariationSettings, FontOpticalSizing, SkiaSharp.SKColorF, UnderlineStyle,
 		SkiaSharp.SKColorF?, StrikeThroughStyle, float, float, float, bool, float?, UnderlineType, float, float, float)
 		InlineStyleKey( Topten.RichTextKit.Style style ) =>
-		(style.FontFamily, style.FontSize, style.FontWeight, style.FontItalic, style.FontVariantNumeric,
+		(style.FontFamily, style.FontSize, style.FontWeight, style.FontItalic, style.FontVariantNumeric, style.FontVariationSettings, style.FontOpticalSizing,
 		style.TextColor, style.Underline, style.UnderlineColor, style.StrikeThrough, style.LineHeight,
 		style.LetterSpacing, style.WordSpacing, style.StrokeInkSkip, style.StrokeThickness, style.UnderlineStrokeType,
 		style.UnderlineOffset, style.OverlineOffset, style.StrikeThroughOffset);

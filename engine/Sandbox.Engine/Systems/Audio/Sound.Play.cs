@@ -69,6 +69,7 @@ public static unsafe partial class Sound
 			handle.AirAbsorption = soundEvent.AirAbsorption;
 			handle.OcclusionEnabled = soundEvent.OcclusionEnabled;
 			handle.ReverbEnabled = soundEvent.ReverbEnabled;
+			handle.DopplerScale = soundEvent.Doppler ? 1f : 0f;
 		}
 
 		return handle;

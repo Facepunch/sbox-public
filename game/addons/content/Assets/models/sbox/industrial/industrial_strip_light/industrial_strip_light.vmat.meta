@@ -19,8 +19,7 @@
         "EnableMcpCommunication": true
       },
       "Metadata": {
-        "SingleAssetSource": "models/sbox/industrial/industrial_strip_light/industrial_strip_light.vmat",
-        "ParentPackage": "facepunch.sbox_content"
+        "SingleAssetSource": "models/sbox/industrial/industrial_strip_light/industrial_strip_light.vmat"
       }
     },
     "HammerAutoPackageReferences": null

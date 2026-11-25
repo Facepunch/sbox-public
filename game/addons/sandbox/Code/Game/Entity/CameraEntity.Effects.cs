@@ -1,95 +1,45 @@
 public sealed partial class CameraEntity
 {
+	/// <summary>
+	/// Effects applied to the camera feed and to the player's view through it.
+	/// </summary>
 	[Property, Sync] public NetList<string> Effects { get; set; } = new();
+
+	/// <summary>
+	/// Saved property overrides for the camera's effects.
+	/// </summary>
 	[Property, Sync] public NetDictionary<string, string> EffectValues { get; set; } = new();
 
+	/// <summary>
+	/// Local effect components on the camera's lens.
+	/// </summary>
 	public CameraEffectStack LensEffects { get; } = new();
 
-	readonly Dictionary<string, string> _pendingValues = new();
-
+	/// <summary>
+	/// Effects to instantiate for this camera, in saved order.
+	/// </summary>
 	public IEnumerable<string> ActiveEffects => Effects ?? Enumerable.Empty<string>();
 
+	/// <summary>
+	/// Whether the camera has the given effect enabled.
+	/// </summary>
 	public bool HasEffect( string path ) => Effects?.Contains( path ) == true;
 
+	/// <summary>
+	/// Key used to store an effect's property override on the camera.
+	/// </summary>
 	public static string ValueKey( string path, string setting ) => $"{path}|{setting}";
 
-	string SyncedValue( string key ) => EffectValues is not null && EffectValues.TryGetValue( key, out var value ) ? value : null;
-
-	IEnumerable<string> SyncedKeys => EffectValues?.Keys ?? Enumerable.Empty<string>();
-
+	/// <summary>
+	/// Saved value of an effect property, or null to use its default.
+	/// </summary>
 	public string GetEffectValue( string path, string setting )
 	{
-		var key = ValueKey( path, setting );
-		return _pendingValues.TryGetValue( key, out var pending ) ? pending : SyncedValue( key );
-	}
-
-	public IEnumerable<string> ChangedSettings( string path )
-	{
-		var prefix = ValueKey( path, "" );
-		return SyncedKeys.Concat( _pendingValues.Keys )
-			.Where( key => key.StartsWith( prefix, StringComparison.Ordinal ) )
-			.Select( key => key[prefix.Length..] )
-			.Distinct()
-			.Where( setting => GetEffectValue( path, setting ) is not null )
-			.ToList();
-	}
-
-	public void EditEffectValue( string path, string setting, string json )
-	{
-		_pendingValues[ValueKey( path, setting )] = json;
-		SetEffectValue( path, setting, json );
-	}
-
-	[Rpc.Host]
-	public void SetEffectEnabled( string path, bool enabled )
-	{
-		if ( string.IsNullOrWhiteSpace( path ) ) return;
-
-		// the host owns these, so it's the one that makes them when a camera has none yet
-		Effects ??= new();
-
-		if ( enabled && !Effects.Contains( path ) ) Effects.Add( path );
-		else if ( !enabled && Effects.Remove( path ) ) RemoveValues( path );
-	}
-
-	[Rpc.Host]
-	void SetEffectValue( string path, string setting, string json )
-	{
-		if ( string.IsNullOrWhiteSpace( path ) || string.IsNullOrWhiteSpace( setting ) ) return;
-
-		var key = ValueKey( path, setting );
-		if ( json is null )
-		{
-			EffectValues?.Remove( key );
-			return;
-		}
-
-		EffectValues ??= new();
-		EffectValues[key] = json;
-	}
-
-	public void ResetEffect( string path )
-	{
-		foreach ( var setting in ChangedSettings( path ) )
-			_pendingValues[ValueKey( path, setting )] = null;
-
-		ResetEffectOnHost( path );
-	}
-
-	[Rpc.Host]
-	void ResetEffectOnHost( string path ) => RemoveValues( path );
-
-	void RemoveValues( string path )
-	{
-		if ( EffectValues is null ) return;
-
-		var prefix = ValueKey( path, "" );
-		foreach ( var key in EffectValues.Keys.Where( x => x.StartsWith( prefix, StringComparison.Ordinal ) ).ToList() )
-			EffectValues.Remove( key );
+		return EffectValues is not null && EffectValues.TryGetValue( ValueKey( path, setting ), out var value ) ? value : null;
 	}
 
 	/// <summary>
-	/// Changes whenever the effects properties do, so their copies only update then.
+	/// Changes whenever saved effects or their property overrides change.
 	/// </summary>
 	internal int EffectsVersion
 	{
@@ -97,21 +47,11 @@ public sealed partial class CameraEntity
 		{
 			var hash = new HashCode();
 			foreach ( var path in ActiveEffects ) hash.Add( path );
-			foreach ( var key in SyncedKeys ) hash.Add( HashCode.Combine( key, SyncedValue( key ) ) );
-			foreach ( var (key, value) in _pendingValues ) hash.Add( HashCode.Combine( key, value ) );
+			if ( EffectValues is not null )
+			{
+				foreach ( var (key, value) in EffectValues ) hash.Add( HashCode.Combine( key, value ) );
+			}
 			return hash.ToHashCode();
 		}
-	}
-
-	void UpdateEffects()
-	{
-		// an edit is done once the host's copy matches it
-		foreach ( var (key, value) in _pendingValues.ToList() )
-		{
-			if ( SyncedValue( key ) == value )
-				_pendingValues.Remove( key );
-		}
-
-		LensEffects.Apply( Feed?.Camera?.GameObject, this );
 	}
 }

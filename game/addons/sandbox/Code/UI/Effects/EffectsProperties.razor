@@ -6,7 +6,7 @@
 <root>
     <UISettingsPane Title=@GetTitle() Revision=@BuildHash()>
         <Body>
-        @if ( _selected.IsValid() )
+        @if ( _selected is not null )
         {
             @if ( _properties.Count > 0 )
             {
@@ -32,36 +32,38 @@
 @code
 {
     PostProcessManager _manager;
-    PostProcessResource _selected;
+    TypeDescription _selected;
+    int _revision = -1;
     List<SerializedProperty> _properties = new();
 
+    /// <summary>
+    /// Rebinds the settings when the selected effect or its type changes.
+    /// </summary>
     public override void Tick()
     {
         base.Tick();
 
         _manager ??= Game.ActiveScene.GetSystem<PostProcessManager>();
 
-        var selectedPath = _manager?.SelectedPath;
-        var resource = selectedPath != null
-            ? ResourceLibrary.Get<PostProcessResource>( selectedPath )
-            : null;
-
-        if ( resource != _selected )
+        var revision = _manager.CatalogRevision;
+        var selected = _manager.FindEffect( _manager.SelectedPath );
+        if ( selected != _selected || revision != _revision )
         {
-            _selected = resource;
+            _selected = selected;
+            _revision = revision;
             RebuildProperties();
             StateHasChanged();
         }
     }
 
-    string GetTitle() => _selected.IsValid() ? LocalizedText.Resolve( _selected.Title ) : Game.Language.GetPhrase( "spawnmenu.mode.effects" );
+    string GetTitle() => _selected is not null ? LocalizedText.Resolve( PostProcessManager.MenuTitle( _selected ) ) : Game.Language.GetPhrase( "spawnmenu.mode.effects" );
 
     // the settings of every component of the effect in one sheet, changes go through the game manager
     void RebuildProperties()
     {
         var props = new List<SerializedProperty>();
 
-        if ( _selected.IsValid() )
+        if ( _selected is not null )
         {
             foreach ( var component in _manager?.GetSelectedComponents() ?? [] )
             {
@@ -83,5 +85,5 @@
         }
     }
 
-    protected override int BuildHash() => HashCode.Combine( _selected, _properties.Count, Game.Language.SelectedCode );
+    protected override int BuildHash() => HashCode.Combine( _revision, _selected, _properties.Count, Game.Language.SelectedCode );
 }

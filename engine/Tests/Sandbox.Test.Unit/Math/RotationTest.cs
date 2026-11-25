@@ -235,4 +235,17 @@ public class RotationTest
 			Assert.IsFalse( Rotation.TryParse( "1.1, 2.2", out _ ) );
 		}
 	}
+
+	[TestMethod]
+	public void ClosestAxisPicksTheMostAlignedAxis()
+	{
+		var rotation = Rotation.FromYaw( 90 );
+		Assert.AreEqual( rotation.Up, rotation.ClosestAxis( new Vector3( 0.1f, 0.2f, 1 ) ) );
+		Assert.AreEqual( -rotation.Forward, rotation.ClosestAxis( -rotation.Forward + rotation.Left * 0.3f ) );
+
+		_ = rotation.ClosestAxis( Vector3.Up );
+		var before = System.GC.GetAllocatedBytesForCurrentThread();
+		_ = rotation.ClosestAxis( Vector3.Up );
+		Assert.AreEqual( 0, System.GC.GetAllocatedBytesForCurrentThread() - before );
+	}
 }

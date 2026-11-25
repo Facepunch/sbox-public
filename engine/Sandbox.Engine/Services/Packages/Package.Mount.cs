@@ -19,22 +19,13 @@ public partial class Package
 	public async Task<BaseFileSystem> MountAsync( bool withCode = false )
 	{
 		var source = GetMountSource() ?? await FetchAsync( FullIdent, false );
-		return source is null ? null : await source.MountResolvedAsync( withCode );
-	}
+		if ( source is null || source.IsRemoteMap ) return null;
 
-	/// <summary>
-	/// Mounts the selected source. Callers that release a mount retain this package as its owner.
-	/// </summary>
-	internal async Task<BaseFileSystem> MountResolvedAsync( bool withCode = false )
-	{
-		SentrySdk.AddBreadcrumb( $"Mounting {FullIdent}", "package.mount" );
+		SentrySdk.AddBreadcrumb( $"Mounting {source.FullIdent}", "package.mount" );
 
-		if ( IsWorkshopMap )
-			return await MountWorkshopMapAsync();
-
-		var fs = await ServerPackages.DownloadAndMount( GetVersionedIdent() );
+		var fs = await ServerPackages.DownloadAndMount( source.GetVersionedIdent() );
 		if ( fs is not null && withCode && IGameInstanceDll.Current is { } game )
-			await game.LoadPackageAssembliesAsync( this );
+			await game.LoadPackageAssembliesAsync( source );
 
 		return fs;
 	}
@@ -46,8 +37,6 @@ public partial class Package
 	{
 		var source = GetMountSource();
 		if ( source is null ) return false;
-		if ( source.IsWorkshopMap )
-			return WorkshopItems.Current?.IsMounted( source.WorkshopId ) == true;
 
 		var download = ServerPackages.Get( source.GetVersionedIdent() ) ?? ServerPackages.Get( source.FullIdent );
 		if ( download is not { IsMounted: true, activePackage.FileSystem: not null } ) return false;

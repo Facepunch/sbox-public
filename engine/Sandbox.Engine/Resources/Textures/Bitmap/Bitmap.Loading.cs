@@ -11,26 +11,42 @@ public partial class Bitmap
 	/// <returns>A new <see cref="Bitmap"/> instance.</returns>
 	public static Bitmap CreateFromBytes( byte[] data )
 	{
-		// load via skia
+		Bitmap bitmap;
+		using ( var stream = new SKMemoryStream( data ) )
+		using ( var codec = SKCodec.Create( stream ) )
 		{
-			using var stream = new SKMemoryStream( data );
-			using var codec = SKCodec.Create( stream );
-
-			if ( codec is not null )
-			{
-				var originalInfo = codec.Info;
-
-				var info = new SKImageInfo( codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul );
-
-				var skBitmap = SKBitmap.Decode( codec, info );
-
-				if ( skBitmap is not null )
-				{
-					return new Bitmap( skBitmap );
-				}
-			}
+			bitmap = DecodeSkia( codec );
 		}
 
+		return bitmap ?? DecodeOtherFormats( data );
+	}
+
+	internal static unsafe Bitmap CreateFromFile( BaseFileSystem files, string path )
+	{
+		// ReadAllBytes returns a fresh buffer. Skia only borrows it until the pixels are decoded.
+		var bytes = files.ReadAllBytes( path );
+		Bitmap bitmap;
+		fixed ( byte* encoded = bytes )
+		{
+			using var data = SKData.Create( (IntPtr)encoded, bytes.Length );
+			using var codec = SKCodec.Create( data );
+			bitmap = DecodeSkia( codec );
+		}
+
+		return bitmap ?? DecodeOtherFormats( bytes.ToArray() );
+	}
+
+	static Bitmap DecodeSkia( SKCodec codec )
+	{
+		if ( codec is null ) return null;
+		var source = codec.Info;
+		var info = new SKImageInfo( source.Width, source.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul );
+		var pixels = SKBitmap.Decode( codec, info );
+		return pixels is null ? null : new Bitmap( pixels );
+	}
+
+	static Bitmap DecodeOtherFormats( byte[] data )
+	{
 		return CreateFromTgaBytes( data )
 			?? CreateFromPsdBytes( data )
 			?? CreateFromTifBytes( data )

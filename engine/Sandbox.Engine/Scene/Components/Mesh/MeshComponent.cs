@@ -15,7 +15,9 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 	{
 		None,
 		Mesh,
-		Hull
+		Hull,
+		Sphere = 4,
+		Capsule
 	}
 
 	[Property, Hide]
@@ -125,6 +127,34 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		}
 	} = ShadowRenderType.On;
 
+	/// <summary>Draw order for overlapping overlay surfaces.</summary>
+	[Property, Category( "Rendering" )]
+	public int RenderOrder
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			if ( _sceneObject.IsValid() )
+				_sceneObject.Attributes.Set( "RenderOrder", value );
+		}
+	}
+
+	/// <summary>Hide this surface when rendering in low quality mode.</summary>
+	[Property, Category( "Rendering" )]
+	public bool DisabledInLowQuality
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			if ( _sceneObject.IsValid() )
+				_sceneObject.Flags.SetFlag( Rendering.SceneObjectFlags.DisabledInLowQuality, value );
+		}
+	}
+
 	[JsonIgnore, Hide]
 	public Model Model { get; private set; }
 
@@ -198,6 +228,8 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 
 	void UpdateMesh()
 	{
+		// In game only a collision type change does anything, and this runs every frame for every mesh
+		if ( Scene?.IsEditor != true && (_builtMesh is null || _builtCollision == Collision) ) return;
 		if ( !Active || !PhysicsBody.IsValid() ) return;
 
 		if ( Scene.IsEditor && (_builtMesh != Mesh || Mesh?.IsDirty == true) )
@@ -245,6 +277,24 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		base.TransformChanged( root );
 	}
 
+	internal override void ApplyShapeSurfaces()
+	{
+		if ( Shapes.Count == 0 ) return;
+
+		// PolygonMesh emits one shape per physics part, in model order.
+		var index = 0;
+		foreach ( var body in Model.Physics.Parts )
+		{
+			foreach ( var part in body.Parts )
+			{
+				var shape = Shapes[index++];
+				shape.Surface = Surface ?? part.Surface;
+				if ( part is PhysicsGroupDescription.BodyPart.MeshPart mesh && shape._shape is PhysicsShape3d physics )
+					physics.SetSurfaces( mesh.Surfaces, Surface );
+			}
+		}
+	}
+
 	protected override IEnumerable<PhysicsShape> CreatePhysicsShapes( PhysicsBody targetBody, Transform local )
 	{
 		if ( Collision == CollisionType.None )
@@ -270,6 +320,26 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 					}
 					Assert.NotNull( shape, "Mesh shape was null" );
 
+					yield return shape;
+				}
+			}
+			else if ( Collision == CollisionType.Sphere )
+			{
+				foreach ( var sphere in part.Spheres )
+				{
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( sphere.Surface ) )
+						shape = targetBody.AddSphereShape( bx.PointToWorld( sphere.Sphere.Center ), sphere.Sphere.Radius * MathF.Abs( bx.UniformScale ) );
+					yield return shape;
+				}
+			}
+			else if ( Collision == CollisionType.Capsule )
+			{
+				foreach ( var capsule in part.Capsules )
+				{
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( capsule.Surface ) )
+						shape = targetBody.AddCapsuleShape( bx.PointToWorld( capsule.Capsule.CenterA ), bx.PointToWorld( capsule.Capsule.CenterB ), capsule.Capsule.Radius * MathF.Abs( bx.UniformScale ) );
 					yield return shape;
 				}
 			}
@@ -360,6 +430,8 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		_sceneObject.Component = this;
 		UpdateSceneObjectTags();
 		_sceneObject.ColorTint = Color;
+		if ( RenderOrder != 0 ) _sceneObject.Attributes.Set( "RenderOrder", RenderOrder );
+		if ( DisabledInLowQuality ) _sceneObject.Flags.SetFlag( Rendering.SceneObjectFlags.DisabledInLowQuality, true );
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
 		_sceneObject.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
 		_sceneObject.Flags.IsStatic = GameObject.IsStatic;

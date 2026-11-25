@@ -38,9 +38,4 @@ public record struct NavVolume
 	/// Sphere and capsule radius in local units.
 	/// </summary>
 	public float Radius;
-
-	/// <summary>
-	/// World units the shape grows by horizontally.
-	/// </summary>
-	public float Margin;
 }

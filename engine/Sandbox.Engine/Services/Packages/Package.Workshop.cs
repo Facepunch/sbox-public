@@ -13,17 +13,11 @@ public partial class Package
 
 	/// <summary>
 	/// Are this package's files installed from its Steam Workshop item, rather than downloaded from the backend?
-	/// Only maps, games and addons - clothing has a workshop item too, but its files are on the backend.
+	/// Only games and addons - clothing has a workshop item too, but its files are on the backend.
 	/// </summary>
 	public bool InstallsFromWorkshop => IsRemote && WorkshopId != 0
-		&& (string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase )
-			|| string.Equals( TypeName, "game", StringComparison.OrdinalIgnoreCase )
+		&& (string.Equals( TypeName, "game", StringComparison.OrdinalIgnoreCase )
 			|| string.Equals( TypeName, "addon", StringComparison.OrdinalIgnoreCase ));
-
-	/// <summary>
-	/// Whether this map uses the session's Workshop item loader.
-	/// </summary>
-	internal bool IsWorkshopMap => IsRemote && WorkshopId != 0 && string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// The workshop item this package's files are installed from, or 0 if they aren't, or we can't tell. Search results
@@ -75,65 +69,6 @@ public partial class Package
 
 		json["WorkshopId"] = WorkshopId;
 		remote.UseMeta( json.ToJsonString() );
-	}
-
-	/// <summary>
-	/// Mounts a Workshop map after installing any packages its resources depend on.
-	/// </summary>
-	async Task<BaseFileSystem> MountWorkshopMapAsync()
-	{
-		var items = WorkshopItems.Current;
-		var token = items.LifetimeToken;
-		var owner = Networking.IsHost ? ServerPackages.Current : null;
-		using var files = await WorkshopFileSystem.OpenAsync( WorkshopId, Title, token );
-		UseWorkshopMetaJson( files.Metadata?.Meta );
-		var dependencies = new List<string>();
-		bool completed = false;
-
-		try
-		{
-			// Maps can depend on packages with assemblies. Keep those requirements on the package loader.
-			foreach ( var dependency in EnumerateInstallDependencies().Distinct( StringComparer.OrdinalIgnoreCase ) )
-			{
-				token.ThrowIfCancellationRequested();
-				if ( await ServerPackages.DownloadAndMount( dependency, token, reloadResources: !Networking.IsClient ) is null )
-					return null;
-				dependencies.Add( dependency );
-			}
-
-			token.ThrowIfCancellationRequested();
-			var content = await items.LoadAsync( WorkshopId, Workshop.ItemType.Map, token );
-			if ( content is null ) return null;
-			RememberForOffline();
-			completed = true;
-			return content;
-		}
-		finally
-		{
-			// A reset already released these requirements; don't remove references from the next game.
-			if ( !completed && token == items.LifetimeToken )
-			{
-				foreach ( var dependency in dependencies )
-					owner?.RemoveRequirement( dependency );
-			}
-		}
-	}
-
-	/// <summary>
-	/// Releases one mount requirement, including any package dependencies of a Workshop map.
-	/// </summary>
-	internal void RemoveMountRequirement()
-	{
-		if ( IsWorkshopMap )
-		{
-			WorkshopItems.Current?.RemoveRequirement( WorkshopId );
-			foreach ( var dependency in EnumerateInstallDependencies().Distinct( StringComparer.OrdinalIgnoreCase ) )
-				ServerPackages.Current?.RemoveRequirement( dependency );
-		}
-		else
-		{
-			ServerPackages.Current?.RemoveRequirement( this );
-		}
 	}
 
 	/// <summary>

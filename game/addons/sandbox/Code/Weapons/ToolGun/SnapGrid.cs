@@ -34,7 +34,9 @@ public sealed partial class SnapGrid
 
 		public void WriteSurface( List<Vertex> vertices )
 		{
-			Bounds = BBox.FromPoints( vertices.Select( v => v.Position ) );
+			var bounds = vertices.Count > 0 ? new BBox( vertices[0].Position, vertices[0].Position ) : default;
+			foreach ( var v in vertices ) bounds = bounds.AddPoint( v.Position );
+			Bounds = bounds;
 			Init( Graphics.PrimitiveType.Triangles );
 			AddVertex( System.Runtime.InteropServices.CollectionsMarshal.AsSpan( vertices ) );
 		}

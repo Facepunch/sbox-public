@@ -8,11 +8,10 @@
     <Header>
         <SpawnMenuToolbar>
             <Left>
-                <TextEntry Placeholder="#spawnmenu.common.search" class="filter menu-input" Value:bind=@Filter />
+                <SpawnMenuSearchEntry Value:bind=@Filter />
             </Left>
 
             <Right>
-                <UIButton Icon=@IconSize.Icon() Tooltip="#ui.icon_size.title" @onclick=@OpenIconSizeMenu />
                 <UIButton Icon="verified" Active=@VerifiedOnly Tooltip="#ui.verified_only" @onclick=@ToggleVerified />
                 <UIDropdown class="big sort" Items=@SortItems Value=@SortOrder ValueChanged=@OnSortChanged Tooltip="#ui.sort_order" />
             </Right>
@@ -37,7 +36,7 @@
         }
         else
         {
-            <MixedVirtualGrid @ref=Grid Items=@Entries ItemSize=@IconSize.ItemSize() class=@IconSize.CssClass()>
+            <MixedVirtualGrid @ref=Grid Items=@Entries ItemSize=@IconSize.ItemSize() class="@IconSize.CssClass() labeled-grid">
                 <Item Context="item">
                     @if ( item is Entry entry )
                     {
@@ -46,7 +45,7 @@
                     else if ( item is CommunitySection )
                     {
                         <div class="community-section">
-                            <label>#spawnmenu.section.community_items</label>
+                            <label class="section-title">#spawnmenu.section.community_items</label>
                         </div>
                     }
                 </Item>
@@ -66,7 +65,7 @@
     sealed record CommunitySection : IMixedVirtualGridFullRow
     {
         public bool IsFullRow => true;
-        public float Height => 72f;
+        public float Height => 48f;
     }
 
     protected string Filter
@@ -113,16 +112,7 @@
         Rebuild();
     }
 
-    SpawnMenuIconSize IconSize
-    {
-        get => SpawnMenuIconSizeExtensions.Current;
-        set
-        {
-            if ( value == IconSize ) return;
-            SpawnMenuIconSizeExtensions.Current = value;
-            OnIconSizeChanged();
-        }
-    }
+    SpawnMenuIconSize IconSize => SpawnMenuIconSizeExtensions.Current;
     SpawnMenuIconSize _lastIconSize = SpawnMenuIconSizeExtensions.Current;
     MixedVirtualGrid Grid;
 
@@ -137,9 +127,7 @@
         StateHasChanged();
     }
 
-    List<UIDropdown.Item> SortItems => DisplayInfo.ForEnumValues<PackageSortMode>()
-        .Select( entry => new UIDropdown.Item( entry.info.Name, entry.value ) )
-        .ToList();
+    List<UIDropdown.Item> SortItems => UIDropdown.ForEnum<PackageSortMode>();
 
     void OnSortChanged( object value )
     {
@@ -147,13 +135,10 @@
             SortOrder = mode;
     }
 
-    void OpenIconSizeMenu() => SpawnMenuIconSizeExtensions.OpenMenu( this, size => IconSize = size );
-
     public override void Tick()
     {
         base.Tick();
 
-        // Another list may have changed these while we weren't visible
         if ( _lastIconSize != IconSize )
             OnIconSizeChanged();
 
@@ -211,7 +196,7 @@
     Entry CreateEntry( Package package ) => new( PackageIdent( package ), package.Title, false, IsVerified( package ) );
 
     /// <summary>
-    /// Value of the "type:" term in the package search, e.g. "sent" or "model".
+    /// Value of the "type:" term in the package search, e.g. "model".
     /// </summary>
     protected virtual string PackageType => "";
 

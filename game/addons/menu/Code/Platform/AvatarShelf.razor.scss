@@ -527,7 +527,8 @@ AvatarShelf
 			text-align: center;
 			border-radius: 10px;
 			background-color: $platform-primary;
-			font-family: "Material Icons";
+			font-family: "Material Symbols Outlined";
+			font-variation-settings: $menu-icon-filled;
 			font-size: 14px;
 			color: $platform-primary-text;
 		}
@@ -1226,7 +1227,8 @@ AvatarShelf
 			text-align: center;
 			border-radius: 10px;
 			background-color: $platform-danger;
-			font-family: "Material Icons";
+			font-family: "Material Symbols Outlined";
+			font-variation-settings: $menu-icon-filled;
 			font-size: 14px;
 			color: white;
 		}

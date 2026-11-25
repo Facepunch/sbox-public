@@ -468,37 +468,32 @@ namespace Topten.RichTextKit
 			if ( Glyphs.Length == 0 )
 				return;
 
-			using ( var font = new SKFont() )
+			float glyphScale = 1;
+			if ( Style.FontVariant == FontVariant.SuperScript || Style.FontVariant == FontVariant.SubScript )
 			{
-				float glyphScale = 1;
-				if ( Style.FontVariant == FontVariant.SuperScript || Style.FontVariant == FontVariant.SubScript )
+				glyphScale = 0.65f;
+			}
+
+			using var font = new SKFont( Typeface, Style.FontSize * glyphScale )
+			{
+				Subpixel = true,
+				Edging = SKFontEdging.SubpixelAntialias
+			};
+
+			Span<SKRect> bounds = stackalloc SKRect[Math.Min( Glyphs.Length, 128 )];
+			var glyphs = Glyphs.AsSpan();
+			for ( int start = 0; start < glyphs.Length; start += bounds.Length )
+			{
+				int count = Math.Min( bounds.Length, glyphs.Length - start );
+				font.GetGlyphWidths( glyphs.Slice( start, count ), default, bounds[..count] );
+
+				for ( int i = 0; i < count; i++ )
 				{
-					glyphScale = 0.65f;
-				}
-
-				font.Typeface = Typeface;
-				font.Size = Style.FontSize * glyphScale;
-				font.Subpixel = true;
-				font.Edging = SKFontEdging.SubpixelAntialias;
-
-				unsafe
-				{
-					fixed ( ushort* pGlyphs = Glyphs.Underlying )
-					{
-						font.GetGlyphWidths( (IntPtr)(pGlyphs + Glyphs.Start), sizeof( ushort ) * Glyphs.Length, SKTextEncoding.GlyphId, out var bounds );
-						if ( bounds == null )
-							return;
-
-						for ( int i = 0; i < bounds.Length; i++ )
-						{
-							var pos = GlyphPositions[i];
-
-							overhang.Left = Math.Max( overhang.Left, textRect.Left - (pos.X + bounds[i].Left) );
-							overhang.Right = Math.Max( overhang.Right, (pos.X + bounds[i].Right) - textRect.Right );
-							overhang.Top = Math.Max( overhang.Top, textRect.Top - (pos.Y + bounds[i].Top) );
-							overhang.Bottom = Math.Max( overhang.Bottom, (pos.Y + bounds[i].Bottom) - textRect.Bottom );
-						}
-					}
+					var pos = GlyphPositions[start + i];
+					overhang.Left = Math.Max( overhang.Left, textRect.Left - (pos.X + bounds[i].Left) );
+					overhang.Right = Math.Max( overhang.Right, (pos.X + bounds[i].Right) - textRect.Right );
+					overhang.Top = Math.Max( overhang.Top, textRect.Top - (pos.Y + bounds[i].Top) );
+					overhang.Bottom = Math.Max( overhang.Bottom, (pos.Y + bounds[i].Bottom) - textRect.Bottom );
 				}
 			}
 		}

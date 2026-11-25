@@ -63,5 +63,6 @@
         return Math.Clamp( 1f + s * 0.6f, 1f, 1.6f ).ToString( "0.##" );
     }
 
-    protected override int BuildHash() => System.HashCode.Combine(Network.Owner, IsVoicePlaying, Hud.IsVisible( HudElement.Nameplates ), Time.Now);
+    // Only the speaking glow animates, so only rebuild every frame while it shows
+    protected override int BuildHash() => System.HashCode.Combine( Network.Owner, Player, Player?.Network.Owner?.DisplayName, Player?.Network.Owner?.SteamId, IsVoicePlaying, Hud.IsVisible( HudElement.Nameplates ), IsVoicePlaying ? Time.Now : 0 );
 }

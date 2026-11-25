@@ -45,9 +45,44 @@
         "Flags": 0,
         "AimSpreadScale": 1,
         "CalloutRange": 1500,
+        "IdleBehaviour": "HoldPost",
+        "PainLines": [
+          "#npc.speech.combat.pain.1",
+          "#npc.speech.combat.pain.2",
+          "#npc.speech.combat.pain.3",
+          "#npc.speech.combat.pain.4",
+          "#npc.speech.combat.pain.5"
+        ],
+        "PatrolLines": [
+          "#npc.speech.combat.patrol.1",
+          "#npc.speech.combat.patrol.2",
+          "#npc.speech.combat.patrol.3",
+          "#npc.speech.combat.patrol.4",
+          "#npc.speech.combat.patrol.5",
+          "#npc.speech.combat.patrol.6",
+          "#npc.speech.combat.patrol.7",
+          "#npc.speech.combat.patrol.8"
+        ],
+        "SpotLines": [
+          "#npc.speech.combat.spot.1",
+          "#npc.speech.combat.spot.2",
+          "#npc.speech.combat.spot.3",
+          "#npc.speech.combat.spot.4",
+          "#npc.speech.combat.spot.5",
+          "#npc.speech.combat.spot.6",
+          "#npc.speech.combat.spot.7"
+        ],
+        "TauntLines": [
+          "#npc.speech.combat.taunt.1",
+          "#npc.speech.combat.taunt.2",
+          "#npc.speech.combat.taunt.3",
+          "#npc.speech.combat.taunt.4",
+          "#npc.speech.combat.taunt.5",
+          "#npc.speech.combat.taunt.6",
+          "#npc.speech.combat.taunt.7",
+          "#npc.speech.combat.taunt.8"
+        ],
         "DisplayName": "Soldier",
-        "DroppedWeaponLifetime": 20,
-        "EngageSpeed": 150,
         "FollowDistance": 150,
         "Friendly": false,
         "Health": 100,
@@ -58,8 +93,6 @@
         "OnComponentStart": null,
         "OnComponentUpdate": null,
         "PatrolRadius": 2048,
-        "Patrols": false,
-        "PatrolSpeed": 85,
         "ReactionTimeAlert": "0.5,0.899999976",
         "ReactionTimeRelaxed": "1,1.60000002",
         "RelaxDelay": 5,
@@ -69,7 +102,6 @@
           "go": "20ebc983-bcde-4769-9dda-e8b4ae45a063",
           "component_type": "SkinnedModelRenderer"
         },
-        "SearchSpeed": 85,
         "SearchTimeout": 20,
         "ShowDebugOverlay": false,
         "SpeedVariation": 0.05,
@@ -324,16 +356,17 @@
         "OnComponentStart": null,
         "OnComponentUpdate": null,
         "RunDistance": 200,
-        "RunSpeed": 190,
+        "RunSpeed": 150,
         "StopDistance": 10,
-        "TurnSpeed": 4
+        "TurnSpeed": 4,
+        "WalkSpeed": 85
       },
       {
         "__type": "Sandbox.Npcs.Layers.AnimationLayer",
         "__guid": "e1a29173-65ce-4d8b-84d5-27c5503bbe38",
         "__enabled": true,
         "Flags": 0,
-        "EnableFootsteps": true,
+        "EnableFootstepSounds": true,
         "FootstepVolume": 1,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
@@ -341,6 +374,12 @@
         "OnComponentFixedUpdate": null,
         "OnComponentStart": null,
         "OnComponentUpdate": null
+      },
+      {
+        "__type": "Sandbox.Npcs.CitizenNpcAnimator",
+        "__guid": "771f23df-eb47-4d27-a749-a5049108703c",
+        "__enabled": true,
+        "Flags": 0
       },
       {
         "__type": "Sandbox.Npcs.Layers.SpeechLayer",
@@ -430,7 +469,6 @@
             "__guid": "2d981081-c1b7-4be7-b39c-529e7f3fb0f2",
             "__enabled": true,
             "Flags": 0,
-            "AnimationGraph": null,
             "BodyGroups": 1,
             "BoneMergeTarget": null,
             "CreateAttachments": false,
@@ -441,8 +479,8 @@
             "MaterialOverride": null,
             "Materials": null,
             "Model": {
-              "Id": "161d0b00-c517-4044-989d-b679dab75a28",
-              "Path": "models/citizen_human/citizen_human_male.vmdl"
+              "Id": "318496b2-dea3-4b17-af27-b0657ee2ab94",
+              "Path": "models/citizen_human/human.vmdl"
             },
             "Morphs": {},
             "OnComponentDestroy": null,
@@ -451,12 +489,6 @@
             "OnComponentFixedUpdate": null,
             "OnComponentStart": null,
             "OnComponentUpdate": null,
-            "Parameters": {
-              "floats": {
-                "scale_height": 1,
-                "scale_heel": 0
-              }
-            },
             "PlaybackRate": 1,
             "RenderOptions": {
               "GameLayer": true,
@@ -471,7 +503,16 @@
               "Blending": false
             },
             "Tint": "1,1,1,1",
-            "UseAnimGraph": true
+            "UseAnimGraph": true,
+            "Animation": {
+              "Graph": "animations/sandbox_player.ag",
+              "Parameters": {
+                "floats": {
+                  "scale_height": 1,
+                  "scale_heel": 0
+                }
+              }
+            }
           },
           {
             "__type": "Sandbox.ModelHitboxes",

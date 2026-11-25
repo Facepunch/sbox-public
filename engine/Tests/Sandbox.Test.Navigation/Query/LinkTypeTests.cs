@@ -29,16 +29,11 @@ public class LinkTypeTests
 		return mesh;
 	}
 
-	static NavFilter Barred( byte type ) => new( 0, forbiddenLinks: 1ul << type );
+	static NavFilter Barred( byte type ) => Filters.All.WithForbiddenLinks( 1ul << type );
 
 	static NavFilter Priced( float cost = 1, float penalty = 0, float[]? areaCosts = null )
 	{
-		var costs = new float[Jump + 1];
-		Array.Fill( costs, 1f );
-		costs[Jump] = cost;
-		var penalties = new float[Jump + 1];
-		penalties[Jump] = penalty;
-		return new NavFilter( 0, areaCosts, 0, costs, penalties );
+		return Filters.All.WithAreaCosts( areaCosts ).WithLinkCost( Jump, cost ).WithLinkPenalty( Jump, penalty );
 	}
 
 	static bool TakesLink( NavQuery query, in NavFilter filter )
@@ -53,9 +48,9 @@ public class LinkTypeTests
 	{
 		var mesh = Ridge( Tunnel(), out int id );
 		var query = new NavQuery( mesh );
-		Assert.IsTrue( TakesLink( query, default ) );
+		Assert.IsTrue( TakesLink( query, Filters.All ) );
 		Assert.IsFalse( TakesLink( query, Barred( Jump ) ) );
-		Assert.IsTrue( TakesLink( query, new NavFilter( 0, forbiddenLinks: ~(1ul << Jump) ) ), "Every other type is forbidden, this one is not" );
+		Assert.IsTrue( TakesLink( query, Filters.All.WithForbiddenLinks( ~(1ul << Jump) ) ), "Every other type is forbidden, this one is not" );
 
 		// The type is part of the link: changing it takes effect at the next commit.
 		mesh.SetLink( id, Tunnel() with { Type = 0 } );
@@ -70,7 +65,7 @@ public class LinkTypeTests
 	{
 		// Two floors, 200 apart, joined by nothing but the link.
 		var mesh = GridMesh.Mesh( GridMesh.Tile( 0, 0, new GridMesh.Layer( 0 ), new GridMesh.Layer( 200 ) ) );
-		mesh.AddLink( new NavLink { Start = new Vector3( 325, 325, 1 ), End = new Vector3( 325, 325, 201 ), Radius = 24, Bidirectional = true, Type = Jump } );
+		mesh.AddLink( new NavLink { Start = new Vector3( 325, 325, 1 ), End = new Vector3( 325, 325, 201 ), Radius = 24, Bidirectional = true, Type = Jump, Area = NavFilter.DefaultArea } );
 		mesh.Commit();
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
@@ -87,7 +82,7 @@ public class LinkTypeTests
 		// The island map is kept per link type mask as well: under this one the floors are apart.
 		var s = mesh.State;
 		uint from = GridMesh.Nearest( query, 105, 325 ).Id, to = GridMesh.Nearest( query, 505, 325, 201 ).Id;
-		var open = NavQuery.GetIslands( s, default );
+		var open = NavQuery.GetIslands( s, Filters.All );
 		var closed = NavQuery.GetIslands( s, barred );
 		Assert.AreNotSame( open, closed );
 		Assert.AreSame( closed, NavQuery.GetIslands( s, Barred( Jump ) ) );
@@ -107,8 +102,8 @@ public class LinkTypeTests
 		Assert.IsFalse( TakesLink( query, Priced( penalty: Saved + 1 ) ) );
 
 		// A penalty for another type, and one the array does not reach, change nothing.
-		Assert.IsTrue( TakesLink( query, new NavFilter( 0, linkPenalties: [1000, 1000, 1000] ) ) );
-		Assert.IsFalse( TakesLink( query, new NavFilter( 0, linkPenalties: [0, 0, 0, 1000] ) ) );
+		Assert.IsTrue( TakesLink( query, Filters.All.WithLinkPenalties( [1000, 1000, 1000] ) ) );
+		Assert.IsFalse( TakesLink( query, Filters.All.WithLinkPenalties( [0, 0, 0, 1000] ) ) );
 	}
 
 	[TestMethod]
@@ -135,7 +130,7 @@ public class LinkTypeTests
 		// An open floor of 4 by 3 tiles and a wall with one way round. A walk priced from portal
 		// midpoint to portal midpoint came out 723 too long here, on a real detour of 292.
 		var scene = new GeneratedLinkTests.Scene().Floor( 0, 0, 2048, 1536, 0 ).Box( 620, 380, 640, 1536, 0, 200 ).Generate( default );
-		scene.Mesh.AddLink( new NavLink { Start = new Vector3( 560, 700, 0 ), End = new Vector3( 700, 700, 0 ), Radius = 8, Bidirectional = true, Type = Jump } );
+		scene.Mesh.AddLink( new NavLink { Start = new Vector3( 560, 700, 0 ), End = new Vector3( 700, 700, 0 ), Radius = 8, Bidirectional = true, Type = Jump, Area = NavFilter.DefaultArea } );
 		scene.Mesh.Commit();
 		var query = new NavQuery( scene.Mesh );
 		var path = new NavPath();
@@ -143,7 +138,7 @@ public class LinkTypeTests
 
 		Assert.AreEqual( PathStatus.Complete, query.FindPath( start, goal, GeneratedLinkTests.Snap, Barred( Jump ), path ) );
 		float walk = path.Length;
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( start, goal, GeneratedLinkTests.Snap, default, path ) );
+		Assert.AreEqual( PathStatus.Complete, query.FindPath( start, goal, GeneratedLinkTests.Snap, Filters.All, path ) );
 		Assert.IsTrue( path.Polys.ToArray().Any( p => p.IsLink ) );
 		float detour = walk - path.Length;
 
@@ -159,7 +154,7 @@ public class LinkTypeTests
 		float even = Walk / Through;
 		Assert.IsTrue( TakesLink( query, Priced( cost: even - 0.01f ) ) );
 		Assert.IsFalse( TakesLink( query, Priced( cost: even + 0.01f ) ) );
-		Assert.IsTrue( TakesLink( query, new NavFilter( 0, linkCosts: [9, 9, 9] ) ), "A cost for another type changes nothing" );
+		Assert.IsTrue( TakesLink( query, Filters.All.WithLinkCosts( [9, 9, 9] ) ), "A cost for another type changes nothing" );
 
 		// Multiplier and penalty together: 430 * 1.2 = 516, which leaves 21.5 of the walk.
 		Assert.IsTrue( TakesLink( query, Priced( cost: 1.2f, penalty: 20 ) ) );
@@ -181,9 +176,9 @@ public class LinkTypeTests
 	{
 		var query = new NavQuery( Ridge( Tunnel(), out _ ) );
 		var path = new NavPath();
-		query.FindPath( West, East, Snap, default, path );
+		query.FindPath( West, East, Snap, Filters.All, path );
 		var link = path.Polys.ToArray().Single( p => p.IsLink );
-		Assert.IsTrue( query.IsValid( link, default ) );
+		Assert.IsTrue( query.IsValid( link, Filters.All ) );
 		Assert.IsFalse( query.IsValid( link, Barred( Jump ) ) );
 		Assert.IsTrue( query.IsValid( link, Barred( Jump + 1 ) ) );
 		Assert.IsTrue( query.IsValid( link, Priced( cost: 50, penalty: 5000 ) ), "A price forbids nothing" );
@@ -215,7 +210,7 @@ public class LinkTypeTests
 		// Allowed, the same repair goes straight through.
 		corridor = (PolyRef[])walked.Clone();
 		count = corridor.Length;
-		Assert.IsTrue( query.Repair( mesh.State, poly, moved, East, default, ref corridor, ref count, 64 ) );
+		Assert.IsTrue( query.Repair( mesh.State, poly, moved, East, Filters.All, ref corridor, ref count, 64 ) );
 		Assert.AreEqual( 3, count );
 		Assert.IsTrue( corridor[1].IsLink );
 		Assert.AreEqual( walked[^1], corridor[2] );
@@ -224,31 +219,32 @@ public class LinkTypeTests
 	[TestMethod]
 	public void FilterRefusesALinkCostBelowOneAndAPenaltyBelowZero()
 	{
+		var all = NavFilter.Create();
 		foreach ( float bad in new[] { 0.5f, 0f, -1f, 0.999f, float.NaN, float.PositiveInfinity, float.NegativeInfinity } )
 		{
-			Assert.ThrowsException<ArgumentOutOfRangeException>( () => new NavFilter( 0, linkCosts: [1, bad, 4] ), $"cost {bad}" );
+			Assert.ThrowsException<ArgumentOutOfRangeException>( () => all.WithLinkCost( 1, bad ), $"cost {bad}" );
 		}
 		foreach ( float bad in new[] { -0.001f, -1f, float.NaN, float.PositiveInfinity, float.NegativeInfinity } )
 		{
-			Assert.ThrowsException<ArgumentOutOfRangeException>( () => new NavFilter( 0, linkPenalties: [0, bad, 4] ), $"penalty {bad}" );
+			Assert.ThrowsException<ArgumentOutOfRangeException>( () => all.WithLinkPenalty( 1, bad ), $"penalty {bad}" );
 		}
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => all.WithLinkCost( 64, 2 ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => all.WithLinkPenalty( 64, 2 ) );
 
-		var filter = new NavFilter( 0, null, 1ul << 2, [1, 3], [0, 0.5f] );
-		Assert.AreEqual( 3f, filter.LinkCost( 1 ) );
-		Assert.AreEqual( 1f, filter.LinkCost( 7 ), "A type the array does not reach costs 1" );
-		Assert.AreEqual( 0.5f, filter.LinkPenalty( 1 ) );
-		Assert.AreEqual( 0f, filter.LinkPenalty( 7 ), "A type the array does not reach has no penalty" );
+		var filter = all.WithForbiddenLinks( 1ul << 2 ).WithLinkCost( 1, 3 ).WithLinkPenalty( 1, 0.5f );
+		Assert.AreEqual( 3f, filter.LinkCosts[1] );
+		Assert.AreEqual( 1f, filter.LinkCosts[7] );
+		Assert.AreEqual( 0.5f, filter.LinkPenalties[1] );
+		Assert.AreEqual( 0f, filter.LinkPenalties[7] );
 		Assert.IsFalse( filter.AllowsLink( 2 ) );
 		Assert.IsTrue( filter.AllowsLink( 1 ) && filter.Allows( 2 ) );
 
-		// Filters made the old way know no link rules.
-		foreach ( var plain in new[] { default, new NavFilter( 5 ), new NavFilter( 0, [1, 2] ) } )
+		// Filters that say nothing about links allow every type at cost 1 and no penalty.
+		foreach ( var plain in new[] { all, all.WithForbiddenAreas( 5 ), all.WithAreaCost( 1, 2 ) } )
 		{
 			Assert.AreEqual( 0ul, plain.ForbiddenLinks );
-			Assert.IsNull( plain.LinkCosts );
-			Assert.IsNull( plain.LinkPenalties );
-			Assert.AreEqual( 1f, plain.LinkCost( 0 ) );
-			Assert.AreEqual( 0f, plain.LinkPenalty( 0 ) );
+			Assert.AreEqual( 1f, plain.LinkCosts[0] );
+			Assert.AreEqual( 0f, plain.LinkPenalties[0] );
 		}
 	}
 
@@ -261,7 +257,7 @@ public class LinkTypeTests
 		Assert.AreEqual( 0, id, "A refused link takes no id" );
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () => mesh.SetLink( id, Tunnel() with { Type = 200 } ) );
 		mesh.Commit();
-		Assert.AreEqual( NavFilter.MaxLinkType, mesh.State.Links[id].Def.Type );
+		Assert.AreEqual( NavFilter.MaxLinkType, mesh.State.LinkAt( id ).Def.Type );
 		Assert.AreNotEqual( Tunnel(), Tunnel() with { Type = 0 }, "Links compare by type too" );
 	}
 }

@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Icon( "🧱" )]
+[Icon( "texture" )]
 [Title( "#tool.name.material" )]
 [ClassName( "material" )]
 [Group( "#tool.group.render" )]
@@ -75,6 +75,7 @@ public sealed class MaterialTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public async void SetMaterial( GameObject target, string materialPath, ToolInput input )
 	{
+		if ( !CanTarget( target ) ) return;
 		if ( !FireToolAction( input ) ) return;
 
 		if ( !target.IsValid() ) return;

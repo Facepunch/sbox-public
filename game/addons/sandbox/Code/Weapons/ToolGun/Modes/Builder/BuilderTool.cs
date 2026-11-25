@@ -1,6 +1,6 @@
 using Sandbox.UI;
 
-[Icon( "🧱" )]
+[Icon( "construction" )]
 [Title( "#tool.name.builder" )]
 [ClassName( "builder" )]
 [Group( "#tool.group.building" )]
@@ -242,7 +242,7 @@ public sealed class BuilderTool : ToolMode
 	void UpdatePlacement()
 	{
 		var grid = BuilderPlacement.ClampGrid( GridSize );
-		var eyes = Player.EyeTransform.ForwardRay;
+		var eyes = AimRay;
 		_hoverStart = null;
 
 		if ( _drawingFlow is not null )
@@ -549,7 +549,7 @@ public sealed class BuilderTool : ToolMode
 
 		var undo = player.Undo.Create();
 		undo.Name = "#tool.undo.builder";
-		undo.Icon = "🧱";
+		undo.Icon = "construction";
 		undo.Add( go );
 
 		PlaceEffects( transform );

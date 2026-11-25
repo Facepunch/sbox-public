@@ -70,6 +70,66 @@ public class PrefabBuilderTest
 	}
 
 	[TestMethod]
+	public void SceneInformationOnTheRootIsReadableAsMetadata()
+	{
+		var builder = new PrefabBuilder()
+			.WithName( "test/with_metadata.prefab" );
+
+		using ( builder.Scope() )
+		{
+			var root = new GameObject();
+			root.AddComponent<ModelRenderer>();
+
+			var information = root.AddComponent<SceneInformation>();
+			information.Title = "Crate";
+			information.Description = "A wooden crate";
+			information.Group = "Props";
+		}
+
+		var prefab = builder.Create();
+
+		Assert.AreEqual( "Crate", prefab.GetMetadata( "Title" ) );
+		Assert.AreEqual( "A wooden crate", prefab.GetMetadata( "Description" ) );
+		Assert.AreEqual( "Props", prefab.GetMetadata( "Group" ) );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var clone = SceneUtility.GetPrefabScene( prefab ).Clone( Vector3.Zero );
+
+		Assert.IsNotNull( clone );
+		Assert.IsNotNull( clone.Components.Get<ModelRenderer>() );
+		Assert.AreEqual( "Crate", clone.Components.Get<SceneInformation>().Title );
+
+		PrefabBuilder.Destroy( prefab );
+	}
+
+	[TestMethod]
+	public void APrefabWithoutSceneInformationHasNoMetadata()
+	{
+		var builder = new PrefabBuilder()
+			.WithName( "test/without_metadata.prefab" );
+
+		using ( builder.Scope() )
+		{
+			var root = new GameObject();
+			root.AddComponent<ModelRenderer>();
+		}
+
+		var prefab = builder.Create();
+
+		Assert.IsNull( prefab.GetMetadata( "Title" ) );
+		Assert.IsNull( prefab.GetMetadata( "Description" ) );
+		Assert.IsNull( prefab.GetMetadata( "Group" ) );
+		Assert.AreEqual( "Unnamed", prefab.GetMetadata( "Title", "Unnamed" ) );
+
+		// Only what a saved prefab has beside its root
+		Assert.IsFalse( prefab.RootObject["__properties"].AsObject().ContainsKey( "GameObjectSystems" ) );
+
+		PrefabBuilder.Destroy( prefab );
+	}
+
+	[TestMethod]
 	public void ChildObjectsArePresentInPrefabScene()
 	{
 		var builder = new PrefabBuilder()
@@ -179,5 +239,172 @@ public class PrefabBuilderTest
 		Assert.IsNotNull( prefabScene.Components.Get<ModelRenderer>(), "Updated prefab content should be reflected" );
 
 		PrefabBuilder.Destroy( prefab2 );
+	}
+
+	[TestMethod]
+	public void MetadataSetOnTheBuilderIsReadableAndWinsOverAComponents()
+	{
+		var builder = new PrefabBuilder()
+			.WithName( "test/builder_metadata.prefab" )
+			.WithMetadata( "Title", "Supply Crate" )
+			.WithMetadata( "Group", "Props" )
+			.WithMetadata( "Author", "someone" )
+			.WithMetadata( "Author", null )
+			.WithMetadata( "", "ignored" )
+			.WithMetadata( null, "ignored" );
+
+		using ( builder.Scope() )
+		{
+			var root = new GameObject();
+			var information = root.AddComponent<SceneInformation>();
+			information.Title = "Crate";
+			information.Description = "A wooden crate";
+		}
+
+		var prefab = builder.Create();
+
+		Assert.AreEqual( "Supply Crate", prefab.GetMetadata( "Title" ), "The builder's value wins over the component's" );
+		Assert.AreEqual( "A wooden crate", prefab.GetMetadata( "Description" ), "What only the component has is kept" );
+		Assert.AreEqual( "Props", prefab.GetMetadata( "Group" ) );
+		Assert.IsNull( prefab.GetMetadata( "Author" ), "A null value takes back one set earlier" );
+		Assert.AreEqual( 3, prefab.RootObject["__properties"]["Metadata"].AsObject().Count );
+
+		PrefabBuilder.Destroy( prefab );
+	}
+
+	[TestMethod]
+	public void MetadataSetOnTheBuilderWorksInADisabledBuilderScene()
+	{
+		var builder = new PrefabBuilder()
+			.WithName( "test/builder_metadata_disabled.prefab" )
+			.WithMetadata( "Title", "Health Kit" )
+			.WithMetadata( "Group", "Half-Life 2" );
+
+		using ( builder.Scope() )
+		{
+			// A mount builds in a disabled scene, so nothing it makes starts running
+			Game.ActiveScene.Enabled = false;
+
+			var root = new GameObject();
+			root.AddComponent<ModelRenderer>();
+			root.AddComponent<SceneInformation>().Description = "Not collected: its scene is disabled";
+		}
+
+		var prefab = builder.Create();
+
+		Assert.AreEqual( "Health Kit", prefab.GetMetadata( "Title" ) );
+		Assert.AreEqual( "Half-Life 2", prefab.GetMetadata( "Group" ) );
+		Assert.IsNull( prefab.GetMetadata( "Description" ), "Components are only collected from an enabled builder scene" );
+		Assert.IsNotNull( SceneUtility.GetPrefabScene( prefab ).Components.Get<ModelRenderer>() );
+
+		PrefabBuilder.Destroy( prefab );
+	}
+
+	static System.Text.Json.Nodes.JsonObject BodyAndAttachment( Color tint )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		var root = new GameObject();
+		var body = root.AddComponent<SkinnedModelRenderer>();
+		body.Tint = tint;
+
+		var attachment = new GameObject( root, true, "Attachment" );
+		attachment.AddComponent<SkinnedModelRenderer>().BoneMergeTarget = body;
+
+		var json = root.Serialize();
+		scene.Destroy();
+		return json;
+	}
+
+	// Built the way a mount builds one from a definition: the objects are read from text inside the scope
+	static PrefabFile BuildFromText( string path, Color tint, Action<GameObject> more = null )
+	{
+		var json = BodyAndAttachment( tint );
+		var builder = new PrefabBuilder().WithName( path );
+
+		using ( builder.Scope() )
+		{
+			var root = new GameObject();
+			root.Deserialize( json );
+			more?.Invoke( root );
+		}
+
+		return builder.Create();
+	}
+
+	static void AssertComplete( PrefabFile prefab, Color tint )
+	{
+		Assert.IsNotNull( prefab );
+
+		var root = SceneUtility.GetPrefabScene( prefab );
+		var body = root.Components.Get<SkinnedModelRenderer>();
+		Assert.IsNotNull( body );
+		Assert.AreEqual( tint, body.Tint );
+
+		var attachment = root.Children.First( x => x.Name == "Attachment" ).Components.Get<SkinnedModelRenderer>();
+		Assert.AreEqual( body, attachment.BoneMergeTarget );
+	}
+
+	[TestMethod]
+	public void BuiltInsideAnotherObjectsDeserializeItKeepsItsProperties()
+	{
+		var plain = BuildFromText( "test/from_text.prefab", Color.Red );
+		AssertComplete( plain, Color.Red );
+		PrefabBuilder.Destroy( plain );
+
+		// Leave another object's deserialize callback queued during the prefab build.
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var waiting = BodyAndAttachment( Color.Blue );
+
+		using ( CallbackBatch.Batch() )
+		{
+			var other = new GameObject();
+			other.Deserialize( waiting );
+			Assert.AreNotEqual( Color.Blue, other.Components.Get<SkinnedModelRenderer>().Tint, "The other object's properties are still waiting for the batch" );
+
+			var prefab = BuildFromText( "test/from_text_nested.prefab", Color.Green );
+			AssertComplete( prefab, Color.Green );
+
+			var clone = SceneUtility.GetPrefabScene( prefab ).Clone( Vector3.Zero );
+			Assert.AreEqual( Color.Green, clone.Components.Get<SkinnedModelRenderer>().Tint );
+
+			Assert.AreNotEqual( Color.Blue, other.Components.Get<SkinnedModelRenderer>().Tint, "Building it did not run the other object's callbacks early" );
+			PrefabBuilder.Destroy( prefab );
+		}
+
+		Assert.AreEqual( Color.Blue, scene.Children.First().Components.Get<SkinnedModelRenderer>().Tint );
+	}
+
+	[TestMethod]
+	public void ABuildThatTriggersAnotherBuildCompletesBoth()
+	{
+		foreach ( var insideBatch in new[] { false, true } )
+		{
+			var scene = new Scene();
+			using var scope = scene.Push();
+			var batch = insideBatch ? CallbackBatch.Batch() : null;
+
+			PrefabFile inner = null;
+			var outer = BuildFromText( "test/outer.prefab", Color.Red, root =>
+			{
+				// The outer prefab refers to another one that is built on demand, part way through its own build
+				inner = BuildFromText( "test/inner.prefab", Color.Yellow );
+				var instance = SceneUtility.GetPrefabScene( inner ).Clone( Vector3.Zero );
+				instance.Name = "Inner";
+				instance.Parent = root;
+			} );
+
+			AssertComplete( inner, Color.Yellow );
+			AssertComplete( outer, Color.Red );
+
+			var nested = SceneUtility.GetPrefabScene( outer ).Children.First( x => x.Name == "Inner" );
+			Assert.AreEqual( Color.Yellow, nested.Components.Get<SkinnedModelRenderer>().Tint, "The inner prefab's instance inside the outer one is whole" );
+
+			batch?.Dispose();
+			PrefabBuilder.Destroy( outer );
+			PrefabBuilder.Destroy( inner );
+		}
 	}
 }

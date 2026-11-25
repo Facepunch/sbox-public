@@ -37,7 +37,7 @@
 		height: 24px;
 		flex-shrink: 0;
 		background-color: $ui-tile-bg;
-		border-radius: 2px;
+		border-radius: $ui-menu-radius;
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
@@ -71,9 +71,7 @@
 			font-size: $ui-settings-font;
 			font-weight: 500;
 			color: $ui-text;
-			white-space: nowrap;
-			text-overflow: ellipsis;
-			overflow: hidden;
+			@include ui-ellipsis;
 
 			&.empty
 			{

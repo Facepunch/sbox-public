@@ -1,84 +1,83 @@
 @import "/UI/Theme.scss";
 
-ContextMenuHost
+@mixin component-theme
 {
-	position: absolute;
-	width: 100%;
-	height: 100%;
-	color: $ui-text;
-	justify-content: center;
-	font-family: $body-font;
-	font-size: $ui-settings-font;
-	font-weight: 500;
-	z-index: 500;
+	ContextMenuHost
+	{
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		color: $ui-text;
+		justify-content: center;
+		font-family: $body-font;
+		font-size: $ui-settings-font;
+		font-weight: 500;
+		z-index: 500;
 
-	> .container
+		> .container
+		{
+			position: absolute;
+			top: 0px;
+			bottom: 0px;
+			right: 0px;
+			left: 0px;
+			margin: 0px;
+			z-index: 100;
+			pointer-events: none;
+		}
+	}
+
+	ContextMenuHost > .tools-menu-slot
+	{
+		position: absolute;
+		top: calc( $context-menu-bar-height + $deadzone-y );
+		right: $deadzone-x;
+		bottom: $deadzone-y;
+		width: min( 583px, 96vw );
+		pointer-events: all;
+		cursor: default;
+		z-index: 200;
+	}
+
+	ContextMenuHost > .settings-bar
 	{
 		position: absolute;
 		top: 0px;
-		bottom: 0px;
-		right: 0px;
 		left: 0px;
-		margin: 0px;
-		z-index: 100;
-		pointer-events: none;
-	}
-}
+		right: 0px;
+		height: $context-menu-bar-height;
+		pointer-events: all;
+		z-index: 300;
 
-// the strip of settings along the top, like Garry's Mod's context menu bar
-$settings-bar-height: 26px;
+		background-color: $ui-catalog-surface;
+		backdrop-filter: blur( $ui-menu-blur );
+		border-bottom: 1px solid $ui-separator;
 
-ContextMenuHost > .settings-bar
-{
-	position: absolute;
-	top: 0px;
-	left: 0px;
-	right: 0px;
-	height: $settings-bar-height;
-	pointer-events: all;
-	z-index: 300;
-
-	background-image: linear-gradient( to bottom, $ui-section-top, $ui-section-bottom );
-	border-bottom: 1px solid $ui-section-border;
-
-	> .menubar
-	{
-		flex-grow: 1;
-		height: 100%;
-		flex-direction: row;
-		align-items: stretch;
-		padding: 0px 4px;
-		gap: 1px;
-
-		// a heading, its dropdown opens under it
-		> .menu
+		> .menubar
 		{
+			flex-grow: 1;
 			height: 100%;
-			padding: 0px 10px;
+			flex-direction: row;
 			align-items: center;
-			border: 1px solid transparent;
-			border-top: none;
-			border-bottom: none;
-			color: $ui-text-strong;
-			font-family: $body-font;
-			font-size: 12px;
-			font-weight: 600;
-			cursor: pointer;
-			sound-in: "sounds/kenney/ui/ui.navigate.forward.sound";
+			padding: 0 8px;
+			gap: 4px;
 
-			> .part, > .part *
+			// a heading, its dropdown opens under it
+			> .menu
 			{
-				pointer-events: none;
-			}
+				@include ui-tab-button;
+				sound-in: "sounds/kenney/ui/ui.navigate.forward.sound";
 
-			&.active, &.open
-			{
-				background-color: $ui-hover-fill;
-				border-color: $ui-hover-border;
-				color: $ui-hover-text;
-			}
+				> .part, > .part *
+				{
+					pointer-events: none;
+				}
 
-			&:hover { sound-in: ui.hover; }
+				&.active { background-color: $ui-blue-soft; color: $ui-text-strong; }
+				&.open { @include ui-selected( $ui-catalog-selected-bg ); }
+			}
 		}
 	}
 }
+
+@import "/UI/Theme/Apply.scss";

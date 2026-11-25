@@ -3,28 +3,48 @@
 @inherits Panel
 @namespace Sandbox
 @implements IUtilityTab
-@attribute [Icon( "🔧" )]
+@attribute [Icon( "build" )]
 @attribute [Title( "#spawnmenu.tab.tools" )]
 @attribute [Order( -100 )]
 
 <root class="tab">
 
-    <UIGroupedList Groups=@GetGroups() Selected=@(CurrentMode?.GetType()) OnSelect=@OnSelectTool />
+    <UIGroupedList Groups=@GetGroups() Selected=@(CurrentMode?.GetType()) OnSelect=@OnSelectTool>
+        <Header>
+            <div class="tool-shortcuts">
+                @foreach ( var type in ToolbarTools )
+                {
+                    var tool = Game.TypeLibrary.GetType( type );
+                    <Button class="tool-shortcut" Icon=@tool.Icon Tooltip=@tool.Title Active=@(CurrentMode?.GetType() == type) @onclick=@(() => SwitchMode( tool )) />
+                }
+            </div>
+        </Header>
+    </UIGroupedList>
 
-    <UISettingsPane Title=@GetTitle() Revision=@BuildHash()>
-        <Body>
-        @if ( PostProcessManager?.GetSelectedComponents().Count > 0 )
-        {
-            @foreach ( var component in PostProcessManager.GetSelectedComponents() )
+    @{
+        var mode = CurrentMode;
+        var hasToolSettings = mode is not null and not SelectTool && HasSettings( mode );
+    }
+    <UISettingsPane class="@(mode is DuplicatorTool ? "dupe-inspector" : null)" Title=@GetTitle() Revision=@BuildHash() PresetMode=@(hasToolSettings ? mode : null)>
+        <HeaderActions>
+            @if ( mode is DuplicatorTool duplicator )
             {
-                <UISheet Target="@component" PropertyFilter="@UISheet.PropertiesAndButtons"></UISheet>
+                <UIButton Icon="save" Text="#spawnmenu.dupes.save_button" Disabled=@(!CanSaveDupe( duplicator )) @onclick=@(() => SaveDupe( duplicator )) />
             }
-        }
-        else if ( CurrentMode is { } mode )
+        </HeaderActions>
+        <Body>
+        @if ( mode is SelectTool )
         {
-            @if ( HasSettings( mode ) )
+            <GameObjectInspector />
+        }
+        else if ( mode is DuplicatorTool dupeTool )
+        {
+            <DupesLocal Tool=@dupeTool @ref=LocalDupes />
+        }
+        else if ( mode is not null )
+        {
+            @if ( hasToolSettings )
             {
-                <ToolPresetBar Mode=@mode />
                 <UISheet PropertyFilter="@UISheet.PropertiesAndButtons" Target="@mode"></UISheet>
             }
             else
@@ -43,10 +63,30 @@
 
 @code
 {
-    ToolMode CurrentMode => Player.FindLocalPlayer()?.GetWeapon<Toolgun>()?.GetCurrentMode();
-    PostProcessManager PostProcessManager => Game.ActiveScene.GetSystem<PostProcessManager>();
+    [SkipHotload]
+    static readonly Type[] ToolbarTools = [typeof( SelectTool ), typeof( WireTool ), typeof( DuplicatorTool ), typeof( RemoverTool )];
 
-    protected override int BuildHash() => HashCode.Combine( CurrentMode, PostProcessManager?.SelectedPath, PostProcessManager?.GetSelectedComponents().Count, Game.Language.SelectedCode );
+    ToolMode CurrentMode => Player.FindLocalPlayer()?.GetWeapon<Toolgun>()?.GetCurrentMode();
+
+    int SelectionCount => CurrentMode is SelectTool ? Scene.Get<SpawnMenuHost>()?.SelectedObjects.Count ?? 0 : 0;
+
+    DupesLocal LocalDupes;
+
+    static bool CanSaveDupe( ToolMode mode ) => mode is DuplicatorTool { Active: true } duplicator && !string.IsNullOrWhiteSpace( duplicator.CopiedJson );
+
+    void SaveDupe( DuplicatorTool duplicator )
+    {
+        if ( !CanSaveDupe( duplicator ) ) return;
+
+        duplicator.Save();
+        LocalDupes?.StateHasChanged();
+    }
+
+    protected override int BuildHash()
+    {
+        var mode = CurrentMode;
+        return HashCode.Combine( mode, CanSaveDupe( mode ), SelectionCount, Game.Language.SelectedCode );
+    }
 
     /// <summary>
     /// Whether the sheet would have a single row for this tool.
@@ -54,12 +94,12 @@
     public static bool HasSettings( ToolMode mode ) => Game.TypeLibrary.GetSerializedObject( mode ).Any( UISheet.PropertiesAndButtons );
 
     /// <summary>
-    /// Every tool under its group, both sorted by what the player reads.
+    /// Groups the remaining tools and sorts them by their displayed names.
     /// </summary>
     List<UIGroupedList.ListGroup> GetGroups()
     {
         return Game.TypeLibrary.GetTypes<ToolMode>()
-			.Where(x => !x.IsAbstract && !x.HasAttribute<HiddenToolMode>() )
+            .Where( x => !x.IsAbstract && !x.HasAttribute<HiddenToolMode>() && !ToolbarTools.Contains( x.TargetType ) )
             .GroupBy( x => x.Group )
             .OrderBy( x => LocalizedText.Resolve( x.Key ), StringComparer.CurrentCultureIgnoreCase )
             .Select( group => new UIGroupedList.ListGroup( group.Key, group
@@ -71,11 +111,8 @@
 
     string GetTitle()
     {
-        if ( PostProcessManager?.SelectedPath is { } path && PostProcessManager.GetSelectedComponents().Count > 0 )
-        {
-            var effect = ResourceLibrary.Get<PostProcessResource>( path );
-            if ( effect is not null ) return LocalizedText.Resolve( effect.Title );
-        }
+        if ( SelectionCount > 1 )
+            return Game.Language.GetPhrase( "tool.select.selection_title", new() { { "count", SelectionCount } } );
 
         return CurrentMode?.Name ?? Game.Language.GetPhrase( "spawnmenu.tools.none_selected" );
     }
@@ -90,8 +127,6 @@
     {
         var localPlayer = Player.FindLocalPlayer();
         if ( localPlayer == null ) return;
-
-        PostProcessManager?.Deselect();
 
         var inventory = localPlayer.GetComponent<PlayerInventory>();
         if ( !inventory.IsValid() ) return;

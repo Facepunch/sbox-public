@@ -23,35 +23,6 @@
 				[
 					{
 						_class = "RenderMeshFile"
-						name = "lod0"
-						filename = "models/sbox/vehicles/wheels/tractor_wheel/tractor_wheel.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter =
-						{
-							exclude_by_default = true
-							exception_list =
-							[
-								"bolt_low_001",
-								"hub_low_001",
-								"tractor_tyre_body_low_001",
-								"tractor_tyre_tread_low_001",
-								"bolt_low_002",
-								"hub_low_002",
-								"tractor_tyre_body_low_002",
-								"tractor_tyre_tread_low_002",
-								"valve_low_001",
-								"tractor_wheel_lod0",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
 						name = "lod1"
 						filename = "models/sbox/vehicles/wheels/tractor_wheel/tractor_wheel.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
@@ -66,15 +37,6 @@
 							exclude_by_default = true
 							exception_list =
 							[
-								"bolt_low_001",
-								"hub_low_001",
-								"tractor_tyre_body_low_001",
-								"tractor_tyre_tread_low_001",
-								"bolt_low_002",
-								"hub_low_002",
-								"tractor_tyre_body_low_002",
-								"tractor_tyre_tread_low_002",
-								"valve_low_001",
 								"tractor_wheel_lod1",
 							]
 						}
@@ -95,15 +57,6 @@
 							exclude_by_default = true
 							exception_list =
 							[
-								"bolt_low_001",
-								"hub_low_001",
-								"tractor_tyre_body_low_001",
-								"tractor_tyre_tread_low_001",
-								"bolt_low_002",
-								"hub_low_002",
-								"tractor_tyre_body_low_002",
-								"tractor_tyre_tread_low_002",
-								"valve_low_001",
 								"tractor_wheel_lod2",
 							]
 						}
@@ -124,15 +77,6 @@
 							exclude_by_default = true
 							exception_list =
 							[
-								"bolt_low_001",
-								"hub_low_001",
-								"tractor_tyre_body_low_001",
-								"tractor_tyre_tread_low_001",
-								"bolt_low_002",
-								"hub_low_002",
-								"tractor_tyre_body_low_002",
-								"tractor_tyre_tread_low_002",
-								"valve_low_001",
 								"tractor_wheel_lod3",
 							]
 						}
@@ -163,20 +107,17 @@
 						optimization_algorithm = "QEM"
 						import_filter =
 						{
-							exclude_by_default = false
+							exclude_by_default = true
 							exception_list =
 							[
-								"tractor_wheel_lod0",
-								"tractor_wheel_lod1",
-								"tractor_wheel_lod2",
-								"tractor_wheel_lod3",
+								"tractor_wheel_phys",
 							]
 						}
 					},
 					{
 						_class = "PhysicsShapeCylinder"
 						parent_bone = ""
-						surface_prop = "metal.sheet"
+						surface_prop = "metal"
 						collision_tags = "solid"
 						radius = 20.0
 						point0 = [ 0.0, -6.0, 0.0 ]
@@ -190,11 +131,11 @@
 				[
 					{
 						_class = "PhysicsBodyMarkup"
-						target_body = "undefined"
+						target_body = ""
 						mass_override = 50.0
 						inertia_scale = 1.0
-						linear_damping = 0.0
-						angular_damping = 0.0
+						linear_damping = 0.04
+						angular_damping = 0.15
 						use_mass_center_override = false
 						mass_center_override = [ 0.0, 0.0, 0.0 ]
 						gravity_scale = 1.0
@@ -208,34 +149,59 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 0.0
-						meshes =
-						[
-							"lod0",
-						]
-					},
-					{
-						_class = "LODGroup"
-						switch_threshold = 14.834758
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes =
 						[
 							"lod1",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
-						switch_threshold = 50.210556
+						switch_threshold = 60.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes =
 						[
 							"lod2",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
-						switch_threshold = 122.901886
+						switch_threshold = 200.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes =
 						[
 							"lod3",
 						]
+						material_culls = [  ]
 					},
 				]
 			},
@@ -243,6 +209,8 @@
 		model_archetype = ""
 		primary_associated_entity = ""
 		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }

@@ -487,7 +487,7 @@ public static partial class McpTools
 					&& list[operation.Index] is StateMachineNode.State state
 					&& oldStateName != state.Name )
 				{
-					machine.RenameState( oldStateName, state.Name );
+					machine.RenameState( oldStateName, state );
 				}
 
 				break;

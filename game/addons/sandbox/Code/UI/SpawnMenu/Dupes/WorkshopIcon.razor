@@ -3,8 +3,9 @@
 @using Sandbox.Mounting;
 @inherits Panel
 @namespace Sandbox
+@attribute [StyleSheet( "DupeCard.scss" )]
 
-<root>
+<root class="dupe-card">
 
 	@if ( !string.IsNullOrWhiteSpace( Item.Description ) )
 	{

@@ -186,8 +186,8 @@ public sealed partial class FourWheelVehicle
 		{
 			if ( driver.IsLocalPlayer )
 			{
-				var forward = LocalAmount( Forward, driver );
-				var back = LocalAmount( Back, driver );
+				var forward = Forward.GetAnalog( driver, Connection.Local );
+				var back = Back.GetAnalog( driver, Connection.Local );
 
 				if ( forward > 0 )
 				{
@@ -223,16 +223,6 @@ public sealed partial class FourWheelVehicle
 		_gasPedal = _gasPedal.LerpTo( gas, ease );
 		_brakePedal = _brakePedal.LerpTo( brake, ease );
 		_clutchPedal = _clutchPedal.LerpTo( clutch, ease );
-	}
-
-	/// <summary>
-	/// How far the local driver's pressing an input, 0 to 1 - a gamepad's trigger part way (<see cref="Player.ActionAmounts"/>).
-	/// </summary>
-	private static float LocalAmount( ClientInput input, Player driver )
-	{
-		if ( !input.IsEnabled || !input.LocalDown() ) return 0f;
-		if ( input.HasKey ) return 1f;
-		return driver.ActionAmounts.TryGetValue( input.Action, out var amount ) ? amount : 1f;
 	}
 
 	/// <summary>

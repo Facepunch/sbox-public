@@ -6,7 +6,7 @@ public sealed class FistsWeapon : MeleeWeapon
 	public FistsWeapon()
 	{
 		DisplayName = "Fists";
-		HoldType = "melee_punch";
+		HoldType = WeaponHolds.Fists;
 		Handedness = WeaponHandedness.Both;
 		Range = 64f;
 		Damage = 12f;
@@ -63,23 +63,9 @@ public sealed class FistsWeapon : MeleeWeapon
 
 		// Send the hand with the swing, rather than racing a synced property against the effects RPC.
 		var attack = rightHand ? 1f : 0f;
-		if ( HolderRenderer is { } holder )
-		{
-			if ( holder.Animation.Graph is not null )
-				holder.Animation.Parameters.TrySet( "holdtype_attack", attack );
-			else
-				holder.Set( "holdtype_attack", attack );
-		}
+		HolderRenderer?.Animation.Parameters.TrySet( "holdtype_attack", attack );
 
-		if ( ViewModel.IsValid() )
-		{
-			ViewModel.RunEvent<ViewModel>( x =>
-			{
-				// The legacy viewmodel graph uses 0 for random, 1 for right and 2 for left.
-				x.Renderer.Set( "holdtype_attack", rightHand ? 1f : 2f );
-				x.Renderer.Set( "b_attack_has_hit", shot.Hit );
-			} );
-		}
+		ViewModel?.RunEvent<ViewModel>( model => model.Renderer?.Animation.Parameters.TrySet( "holdtype_attack", attack ) );
 
 		base.OnShootEffects( shot );
 	}

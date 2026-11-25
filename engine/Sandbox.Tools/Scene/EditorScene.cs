@@ -244,6 +244,24 @@ public static class EditorScene
 
 	public static void Play( SceneEditorSession session = null ) => Play( PlayMode, session );
 
+	static Transform? _playFromHere;
+	public static void PlayFromHere( Transform spawn, SceneEditorSession session = null )
+	{
+		if ( Game.IsPlaying )
+			Stop();
+
+		_playFromHere = spawn;
+
+		try
+		{
+			Play( false, session );
+		}
+		finally
+		{
+			_playFromHere = null;
+		}
+	}
+
 	public static void Play( bool playMode, SceneEditorSession playableSession = null )
 	{
 		playableSession ??= FindPlayableSession();
@@ -306,6 +324,19 @@ public static class EditorScene
 				LoadingScreen.IsVisible = false;
 				OnPlayRestore();
 				return;
+			}
+
+			if ( _playFromHere is { } spawn )
+			{
+				using var scope = Game.ActiveScene.Push();
+
+				var go = new GameObject();
+				go.Name = "Play From Here";
+				go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+				go.WorldTransform = spawn.WithScale( 1 );
+
+				var spawnPoint = go.Components.Create<SpawnPoint>();
+				spawnPoint.Priority = int.MaxValue;
 			}
 
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostInitialize() );

@@ -19,10 +19,11 @@ public class PhraseCollection
 	/// Get a simple phrase from the language
 	/// </summary>
 	public string GetPhrase( string phrase, Dictionary<string, object> data = null )
-	{
-		if ( !Phrases.TryGetValue( phrase, out var result ) )
-			return phrase;
+		=> Resolve( phrase, this, null, data );
 
-		return result.Render( data );
+	internal static string Resolve( string key, PhraseCollection primary, PhraseCollection fallback, Dictionary<string, object> data = null )
+	{
+		var phrase = primary?.Phrases.GetValueOrDefault( key ) ?? fallback?.Phrases.GetValueOrDefault( key );
+		return phrase?.Render( data ) ?? key;
 	}
 }

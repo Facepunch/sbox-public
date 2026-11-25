@@ -3,7 +3,7 @@
 @using Sandbox.Npcs;
 @inherits UtilityPage
 @namespace Sandbox
-@attribute [Icon( "🤖" )]
+@attribute [Icon( "smart_toy" )]
 @attribute [Title( "#spawnmenu.utility.npcs" )]
 @attribute [Group( "#spawnmenu.utility.group.world" )]
 @attribute [Order( 1 )]
@@ -15,7 +15,7 @@
     }
     else
     {
-        <Label class="note" Tokenize=@false Text=@( $"⚠️ {Game.Language.GetPhrase( "spawnmenu.common.admin_only" )}" ) />
+        <div class="note"><IconPanel Text="warning" /><Label Text="#spawnmenu.common.admin_only" /></div>
     }
 </root>
 
@@ -32,14 +32,14 @@
         public bool AiEnabled
         {
             get => NpcConVars.Enabled;
-            set => GameManager.SetConVar( "sandbox.ai.enabled", value );
+            set => GameManager.SetConVar( "npc_enabled", value );
         }
 
         [Property, Title( "#spawnmenu.utility.no_target" ), Description( "#spawnmenu.utility.no_target_description" ), Order( 1 )]
         public bool NoTarget
         {
             get => NpcConVars.NoTarget;
-            set => GameManager.SetConVar( "sandbox.ai.notarget", value );
+            set => GameManager.SetConVar( "npc_notarget", value );
         }
     }
 }

@@ -2,13 +2,13 @@ using Sandbox.UI;
 
 [Hide]
 [Title( "#tool.name.button" )]
-[Icon( "🔘" )]
+[Icon( "radio_button_checked" )]
 [ClassName( "buttontool" )]
 [Group( "#tool.group.building" )]
 public sealed class ButtonTool : ToolMode
 {
 	public override bool UseSnapGrid => true;
-	public override IEnumerable<string> TraceIgnoreTags => ["constraint", "collision"];
+	public override IEnumerable<string> TraceIgnoreTags => IgnoreConstraintTags;
 
 	[Property, ResourceSelect( Extension = "btndef", AllowPackages = true ), Title( "#tool.name.button" )]
 	public string Definition { get; set; } = "entities/button/basic.btndef";
@@ -64,6 +64,7 @@ public sealed class ButtonTool : ToolMode
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	public void Spawn( SelectionPoint point, PrefabFile buttonPrefab, Transform transform, bool noWeld, string configuration )
 	{
+		if ( !CanTarget( point ) ) return;
 		if ( !FireToolAction( noWeld ? ToolInput.Secondary : ToolInput.Primary ) ) return;
 
 		if ( buttonPrefab?.GetScene() is not Scene scene ) return;
@@ -93,7 +94,7 @@ public sealed class ButtonTool : ToolMode
 
 		var undo = Player.Undo.Create();
 		undo.Name = "#tool.name.button";
-		undo.Icon = "🔘";
+		undo.Icon = "radio_button_checked";
 		undo.Add( button );
 
 		CheckContraptionStats( point.GameObject );

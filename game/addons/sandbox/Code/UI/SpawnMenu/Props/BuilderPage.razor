@@ -6,7 +6,7 @@
     <SpawnMenuContent>
         <Header>
             <SpawnMenuToolbar>
-                <Left><TextEntry Placeholder="Search building props" class="filter menu-input" Value:bind=@Filter /></Left>
+                <Left><SpawnMenuSearchEntry Placeholder="Search building props" Value:bind=@Filter /></Left>
                 <Right>
                     <UIButton class="material-picker" Text="Material…" IconTexture=@MaterialThumbnail Tooltip=@MaterialStatus @onclick=@PickMaterial />
                     <UIButton Text="Reset" @onclick=@(() => SelectMaterial( BuilderCatalog.DefaultMaterial )) />

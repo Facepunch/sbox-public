@@ -1,60 +1,83 @@
-﻿@using Sandbox;
 @using Sandbox.UI;
-@using Sandbox.Mounting;
 @inherits Panel
 @namespace Sandbox
 
-<SpawnMenuContent>
-
-    <Body>
-        <VirtualGrid Items=@( GetData() ) ItemSize=@(new Vector2( 240, 180 ))>
+<root>
+    @{
+        var dupes = Storage.GetAll( "dupe" ).OrderByDescending( x => x.Created ).ToArray();
+        var selectedId = FindSelectedDupe( dupes );
+    }
+    @if ( dupes.Length == 0 )
+    {
+        <div class="note">#spawnmenu.dupes.empty_local</div>
+    }
+    else
+    {
+        <VirtualGrid @ref=Grid Items=@dupes>
             <Item Context="item">
-
-				@if (item is Storage.Entry content)
+                @if ( item is Storage.Entry content )
                 {
-					<LocalDupeIcon Content="@content" @onclick="@(() => SwitchToDupe(content))"></LocalDupeIcon>
+                    <LocalDupeIcon class="@(content.Id == selectedId ? "selected" : null)" Content=@content OnDupeDeleted=@StateHasChanged @onclick=@(() => DuplicatorTool.FromStorage( content )) />
                 }
-
             </Item>
         </VirtualGrid>
-    </Body>
-
-</SpawnMenuContent>
+    }
+</root>
 
 @code
 {
-    protected override async Task OnParametersSetAsync()
-    {
+    /// <summary>
+    /// The duplicator whose current copy is highlighted in this grid.
+    /// </summary>
+    [Parameter] public DuplicatorTool Tool { get; set; }
 
+    VirtualGrid Grid;
+    string _copiedJson;
+    ulong? _copiedHash;
+    readonly Dictionary<string, ulong?> _savedHashes = new();
+
+    /// <summary>
+    /// Fit three square tiles across the grid and track changes to the tool's synced copy.
+    /// </summary>
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( Grid.IsValid() )
+        {
+            var width = Grid.Box.RectInner.Width * Grid.ScaleFromScreen;
+            var gap = Grid.ComputedStyle.ColumnGap?.Value ?? 0;
+            var side = MathF.Max( 1, MathF.Floor( (width - 2 * gap) / 3 ) );
+            Grid.ItemSize = new Vector2( side, side );
+        }
+
+        var json = Tool?.CopiedJson;
+        if ( ReferenceEquals( _copiedJson, json ) ) return;
+
+        _copiedJson = json;
+        _copiedHash = string.IsNullOrEmpty( json ) ? null : json.FastHash64();
     }
 
-    void SwitchToDupe( Storage.Entry content )
+    protected override int BuildHash() => HashCode.Combine( _copiedHash, Tool?.PreferredDupeId );
+
+    string FindSelectedDupe( Storage.Entry[] dupes )
     {
-		var localPlayer = Player.FindLocalPlayer();
-		if ( localPlayer == null ) return;
+        if ( !_copiedHash.HasValue ) return null;
 
-		var inventory = localPlayer.GetComponent<PlayerInventory>();
-		if ( !inventory.IsValid() ) return;
+        var preferred = dupes.FirstOrDefault( x => x.Id == Tool?.PreferredDupeId );
+        if ( preferred is not null && MatchesCopy( preferred ) ) return preferred.Id;
 
-		inventory.SetToolMode( "Duplicator" );
-
-		var toolmode = localPlayer.GetComponentInChildren<DuplicatorTool>();
-
-		if ( toolmode is null )
-		{
-			// we are a client and didn't switch tools in time, we need to wait for the server to tell us we have the tool
-			// Some kind of async wait on an rpc would work, probably.
-			Log.Warning( "I thought this might happen. We are a client and didn't switch tools in time." );
-			return;
-		}
-
-		var json = content.Files.ReadAllText( "/dupe.json" );
-		toolmode.Load( json );
+        return dupes.FirstOrDefault( MatchesCopy )?.Id;
     }
 
-    IEnumerable<object> GetData()
+    bool MatchesCopy( Storage.Entry entry )
     {
-		return Storage.GetAll( "dupe" ).OrderByDescending( x => x.Created );
-    }
+        if ( !_savedHashes.TryGetValue( entry.Id, out var hash ) )
+        {
+            hash = entry.Files.ReadAllText( "/dupe.json" )?.FastHash64();
+            _savedHashes[entry.Id] = hash;
+        }
 
+        return hash == _copiedHash;
+    }
 }

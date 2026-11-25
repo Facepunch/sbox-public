@@ -126,14 +126,14 @@ public static class ThumbnailLoader
 		{
 			var path = Queue[i];
 
-			// not asked for lately, it scrolled off or the menu closed
 			if ( !Wanted.TryGetValue( path, out var lastWanted ) || _frame - lastWanted > StaleFrames || Loaded.ContainsKey( path ) || Failed.Contains( path ) )
 			{
 				Drop( i, path );
 				continue;
 			}
 
-			var sync = NeedsSync.Contains( path ) || SyncOnlySchemes.Contains( Scheme( path ) );
+			var mounted = MountedEntity( path );
+			var sync = mounted is null && (NeedsSync.Contains( path ) || SyncOnlySchemes.Contains( Scheme( path ) ));
 
 			// async loads only cost the time to kick them off, but don't flood the downloader
 			if ( !sync && InFlight.Count >= MaxInFlight )
@@ -148,7 +148,9 @@ public static class ThumbnailLoader
 			Queue.RemoveAt( i );
 			Wanted.Remove( path );
 
-			if ( sync )
+			if ( mounted is not null )
+				LoadMounted( path, mounted );
+			else if ( sync )
 				LoadNow( path );
 			else
 				LoadAsync( path );
@@ -214,6 +216,37 @@ public static class ThumbnailLoader
 		NeedsSync.Add( path );
 		if ( !Wanted.ContainsKey( path ) ) Queue.Insert( 0, path );
 		Wanted[path] = _frame;
+	}
+
+	/// <summary>
+	/// The entity a <c>thumb:</c> path is for when its art comes from a mounted game. Its prefab has nothing to render
+	/// until the mount loads it, so the entity makes its icon from the mount instead.
+	/// </summary>
+	static ScriptedEntity MountedEntity( string path )
+	{
+		if ( !path.StartsWith( "thumb:", StringComparison.OrdinalIgnoreCase ) || !path.EndsWith( ".sent", StringComparison.OrdinalIgnoreCase ) )
+			return null;
+
+		var entity = ResourceLibrary.Get<ScriptedEntity>( path[6..] );
+		return string.IsNullOrEmpty( entity?.RequiredMount ) ? null : entity;
+	}
+
+	static async void LoadMounted( string path, ScriptedEntity entity )
+	{
+		InFlight.Add( path );
+		Texture texture = null;
+
+		try
+		{
+			texture = await entity.LoadMountedIconAsync();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't load thumbnail '{path}': {e.Message}" );
+		}
+
+		InFlight.Remove( path );
+		Finish( path, texture );
 	}
 
 	static void Finish( string path, Texture texture )

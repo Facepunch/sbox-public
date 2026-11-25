@@ -336,4 +336,17 @@ native class CHitBox
 	bool		m_bSelected;
 
 	string GetTag( int index );
+	inline void* GetHullPlanes( out int count )
+	{
+		*count = self->m_HullPlanes.Count();
+		return self->m_HullPlanes.Base();
+	}
+	inline int GetHullPointCount()
+	{
+		return self->m_HullPoints.Count();
+	}
+	inline void* GetHullPoints()
+	{
+		return self->m_HullPoints.Base();
+	}
 }

@@ -1,0 +1,120 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "RandomFloatNode",
+      "Min": 0,
+      "Max": 2,
+      "Identifier": "d1db43e2-5dd6-4177-a228-ba11d5b779ee",
+      "Position": "0,-170",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "45bd7e05-a4d1-40c2-8525-e58f26b4bb81",
+          "Path": "weapons/usp/animations/fire_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "5e33f49a-a5c4-470d-b53c-eb0bca3ddd4d",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "9a666e62-1a4d-4dfa-a71b-6a79bf2a5d1d",
+          "Path": "weapons/usp/animations/fire_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "52243dba-bcfe-4b67-aaba-4c3cb9642a5f",
+      "Position": "0,140",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "d1db43e2-5dd6-4177-a228-ba11d5b779ee",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "fire 01",
+          "Pose": {
+            "Identifier": "5e33f49a-a5c4-470d-b53c-eb0bca3ddd4d",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "fire 02",
+          "Pose": {
+            "Identifier": "52243dba-bcfe-4b67-aaba-4c3cb9642a5f",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "f3378ef8-2737-49f8-bc8c-e55446bbc943",
+      "Position": "390,20",
+      "Title": "Shot variants",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "f3378ef8-2737-49f8-bc8c-e55446bbc943",
+        "Output": "Result"
+      },
+      "Identifier": "56e87232-2c82-4ac9-a041-132fe39fa32c",
+      "Position": "710,0",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "102eecd8-00fc-0000-b400-000000000000",
+    "Path": "weapons/usp/v_usp.vmdl"
+  },
+  "Skeleton": {
+    "Id": "06fd0bbb-bbbf-4671-9c7f-464dabf53a9e",
+    "Path": "weapons/usp/animations/usp.skel"
+  },
+  "parameters": [],
+  "virtualParameters": []
+}

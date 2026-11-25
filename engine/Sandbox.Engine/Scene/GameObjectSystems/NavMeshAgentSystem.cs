@@ -1,16 +1,34 @@
-﻿namespace Sandbox;
+﻿using Editor;
+using Sandbox.Navigation;
+
+namespace Sandbox;
 
 /// <summary>
-/// Updates NavMeshAgent ground positions in parallel during PrePhysicsStep.
+/// Updates agent ground positions and supplies the scene's editor navigation bake.
 /// </summary>
-internal sealed class NavMeshGameSystem : GameObjectSystem
+internal sealed class NavMeshGameSystem : GameObjectSystem, ISceneCompile
 {
+	private static readonly string[] NpcGroundExcludedTags = ["npc"];
 	private readonly List<NavMeshAgent> _agents = new();
 
+	/// <summary>
+	/// Hooks agent updates into the scene's fixed update.
+	/// </summary>
 	public NavMeshGameSystem( Scene scene ) : base( scene )
 	{
 		// Listen to StartFixedUpdate to run before physics
 		Listen( Stage.StartFixedUpdate, -100, UpdateAgentGoundZ, "UpdateAgentGroundZ" );
+	}
+
+	SceneCompileWork ISceneCompile.GetWork()
+	{
+		var nav = Scene.NavMesh;
+		return new( "Navigation mesh", "Bake navigation mesh",
+			nav.IsEnabled ? context => nav.BakeForCompile( Scene, Scene.Editor.GetSceneFolder(), context.CancellationToken, context.IsClean ) : null, Order: 30 )
+		{
+			Outputs = [NavMesh.BakeFilename],
+			Clear = nav.IsEnabled || nav.HasBakedDataPath ? _ => nav.ClearBake( Scene ) : null
+		};
 	}
 
 	void UpdateAgentGoundZ()
@@ -75,6 +93,10 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 				.WithAnyTags( Scene.NavMesh.IncludedBodies )
 				.WithCollisionRules( agent.Tags )
 				.WithoutTags( Scene.NavMesh.ExcludedBodies );
+
+		// Grounded NPCs are keyframed, so IgnoreDynamic alone still lets crowds climb each other.
+		if ( agent.Tags.Has( "npc" ) )
+			baseTrace = baseTrace.WithoutTags( NpcGroundExcludedTags );
 
 		if ( !Scene.NavMesh.IncludeStaticBodies )
 		{

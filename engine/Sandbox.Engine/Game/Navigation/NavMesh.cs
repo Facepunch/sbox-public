@@ -169,7 +169,7 @@ public sealed partial class NavMesh : IDisposable
 	public float AgentMaxSlope { get; set; } = 40.0f;
 
 	/// <summary>
-	/// Generate links for drops off ledges and jumps across gaps: <see cref="NavMeshLink"/> components of type <see cref="NavMeshLinkType.Drop"/> and <see cref="NavMeshLinkType.Jump"/> that are not saved with the scene.
+	/// Generate links for drops, jumps and box triggers tagged "ladder". These <see cref="NavMeshLink"/> components are not saved with the scene.
 	/// </summary>
 	[Header( "Generated Links" )]
 	public bool GenerateLinks { get; set; } = false;
@@ -184,13 +184,13 @@ public sealed partial class NavMesh : IDisposable
 	/// The widest gap an agent jumps across.
 	/// </summary>
 	[ShowIf( nameof( GenerateLinks ), true )]
-	public float AgentMaxJumpDistance { get; set; } = 128.0f;
+	public float AgentMaxJumpDistance { get; set; } = 250.0f;
 
 	/// <summary>
 	/// The highest an agent jumps up, onto a ledge or across a gap.
 	/// </summary>
 	[ShowIf( nameof( GenerateLinks ), true )]
-	public float AgentMaxJumpHeight { get; set; } = 48.0f;
+	public float AgentMaxJumpHeight { get; set; } = 80.0f;
 
 	// Tiling props not exposed until we are sure we want to expose them
 	private const float CellSize = 4.0f;
@@ -201,6 +201,9 @@ public sealed partial class NavMesh : IDisposable
 	// How far off the mesh a path end, an agent or its target may be: sideways, and in agent heights up or down
 	internal const float SnapDistance = 256f;
 	internal const float SnapHeights = 1.51f;
+
+	// The least radius and height an agent is given: the library refuses 0, the engine allows it
+	internal const float LeastAgentSize = CellSize / 400f;
 
 	internal Action OnInit;
 
@@ -228,6 +231,7 @@ public sealed partial class NavMesh : IDisposable
 		bakedTiles = null;
 		TakeOverLinks( bakedLinks ?? new() );
 		Publish();
+		if ( scene is not null ) UpdateLadderLinks( scene.PhysicsWorld );
 	}
 
 	// The first mesh brings the crowd, and with it the agents that waited for one
@@ -256,8 +260,11 @@ public sealed partial class NavMesh : IDisposable
 	private Nav.NavMesh CreateMesh()
 	{
 		var settings = CreateSettings();
-		return new Nav.NavMesh( settings, cacheCodec, links: CreateLinkSettings( settings ) );
+		return new Nav.NavMesh( settings, CreateMeshOptions( settings ) );
 	}
+
+	// The rebuild cache is compressed with the engine's LZ4
+	private NavMeshOptions CreateMeshOptions( in NavSettings settings ) => NavMeshOptions.Create( settings ) with { Links = CreateLinkSettings( settings ), Codec = cacheCodec };
 
 	private bool IsCurrent( Nav.NavMesh mesh )
 	{
@@ -270,27 +277,34 @@ public sealed partial class NavMesh : IDisposable
 	{
 		static float Clamp( float value, float min, float max ) => value >= min ? MathF.Min( value, max ) : min;
 
-		return NavSettings.Create(
-			Clamp( AgentHeight, CellHeight, 32767 * CellHeight ),
-			Clamp( AgentRadius, 0, 127 * CellSize ),
-			Clamp( AgentStepSize, 0, 32767 * CellHeight ),
-			Clamp( AgentMaxSlope, 0, 90 ),
-			CellSize, CellHeight, TileSizeXYVoxels );
+		return NavSettings.Create( new NavSettingsDesc
+		{
+			AgentHeight = Clamp( AgentHeight, CellHeight, 32767 * CellHeight ),
+			AgentRadius = Clamp( AgentRadius, 0, 127 * CellSize ),
+			AgentClimb = Clamp( AgentStepSize, 0, 32767 * CellHeight ),
+			AgentMaxSlope = Clamp( AgentMaxSlope, 0, 90 ),
+			CellSize = CellSize,
+			CellHeight = CellHeight,
+			TileSize = TileSizeXYVoxels
+		} );
 	}
 
-	// Off unless asked for. The library refuses a link reach that does not fit in a tile with two agent diameters.
+	// Off unless asked for. The library refuses a link reach that does not fit in a tile with two agent diameters,
+	// and links spaced closer than a cell.
 	private NavLinkSettings CreateLinkSettings( in NavSettings settings )
 	{
+		var none = NavLinkSettings.Create( settings );
 		float room = TileSizeXYWorldSpace - 4 * settings.AgentRadius - CellSize;
-		if ( !GenerateLinks || room < 2 * settings.AgentRadius + (2 * settings.MaxEdgeError + 2) * CellSize ) return default;
+		if ( !GenerateLinks || room < 2 * settings.AgentRadius + (2 * settings.MaxEdgeError + 2) * CellSize ) return none;
 
 		static float Clamp( float value, float max ) => value > 0 ? MathF.Min( value, max ) : 0;
 
-		return new NavLinkSettings
+		return none with
 		{
 			MaxDrop = Clamp( AgentMaxDrop, 32767 * CellHeight ),
 			MaxJumpDistance = Clamp( AgentMaxJumpDistance, room ),
 			MaxJumpUp = Clamp( AgentMaxJumpHeight, 32767 * CellHeight ),
+			Spacing = MathF.Max( none.Spacing, CellSize ),
 			DropType = (byte)LinkTypeToId( NavMeshLinkType.Drop ),
 			JumpType = (byte)LinkTypeToId( NavMeshLinkType.Jump )
 		};
@@ -439,6 +453,12 @@ public sealed partial class NavMesh : IDisposable
 		if ( navmeshBodyType == PhysicsBodyType.Dynamic ) return false; // never include dynamic bodies
 		if ( navmeshBodyType == PhysicsBodyType.Static && !IncludeStaticBodies ) return false;
 		if ( navmeshBodyType == PhysicsBodyType.Keyframed && !IncludeKeyframedBodies ) return false;
+
+		// Grounded characters use keyframed bodies, but are still actors rather than level geometry.
+		// Check the body's owner: child colliders sharing that body are actors too, but a separate
+		// body parented under a character can still be level geometry, such as a carried platform.
+		if ( body.GameObject is { } go && (go.GetComponent<Npcs.BaseNpc>( true ) is not null || go.GetComponent<PlayerController>( true ) is not null) )
+			return false;
 
 		// Excluded by tags
 		if ( ExcludedBodies is not null && !ExcludedBodies.IsEmpty && body.Shapes.Any( shape => shape.Tags.HasAny( ExcludedBodies ) ) )

@@ -24,6 +24,9 @@ public enum SpawnMenuIconSize
 	Large
 }
 
+/// <summary>
+/// Tile sizes and the picker used by spawn menu grids.
+/// </summary>
 public static class SpawnMenuIconSizeExtensions
 {
 	const string Cookie = "spawnmenu.icon_size";
@@ -73,14 +76,25 @@ public static class SpawnMenuIconSizeExtensions
 	/// </summary>
 	public static void OpenMenu( Panel source, Action<SpawnMenuIconSize> onPicked, Action onListPicked = null )
 	{
+		OpenMenu( source, Current, onPicked, onListPicked );
+	}
+
+	/// <summary>
+	/// Open the picker with the active tile size highlighted. A null size selects list view.
+	/// </summary>
+	public static void OpenMenu( Panel source, SpawnMenuIconSize? selectedSize, Action<SpawnMenuIconSize> onPicked, Action onListPicked = null )
+	{
 		var menu = new Sandbox.UI.Menu();
 		if ( onListPicked is not null )
-			menu.AddOption( "#ui.icon_size.list", "view_list", onListPicked );
+		{
+			var option = menu.AddOption( "#ui.icon_size.list", "view_list", onListPicked );
+			option.SetClass( "selected", selectedSize is null );
+		}
 
 		foreach ( var (size, info) in DisplayInfo.ForEnumValues<SpawnMenuIconSize>() )
 		{
-			var s = size;
-			menu.AddOption( info.Name, s.Icon(), () => onPicked( s ) );
+			var option = menu.AddOption( info.Name, size.Icon(), () => onPicked( size ) );
+			option.SetClass( "selected", size == selectedSize );
 		}
 
 		menu.Open( source, Popup.PositionMode.UnderMouse );

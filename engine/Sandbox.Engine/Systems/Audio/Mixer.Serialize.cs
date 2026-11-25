@@ -23,6 +23,7 @@ public partial class Mixer
 			js["Occlusion"] = Occlusion;
 			js["Reverb"] = Reverb;
 			js["AirAbsorption"] = AirAbsorption;
+			js["Doppler"] = Doppler;
 
 #pragma warning disable CS0618
 			js["OverrideOcclusion"] = OverrideOcclusion;
@@ -101,6 +102,7 @@ public partial class Mixer
 			Occlusion = (float)(js["Occlusion"] ?? (is2d ? 0.0f : 1.0f));
 			Reverb = (float)(js["Reverb"] ?? 1.0f);
 			AirAbsorption = (float)(js["AirAbsorption"] ?? (is2d ? 0.0f : 1.0f));
+			Doppler = (float)(js["Doppler"] ?? 1.0f);
 			// Legacy migration: drop deprecated Mixer.OcclusionEnabled/ReverbEnabled bools; if either was
 			// explicitly false in older resources, honour that by forcing the corresponding float to 0.
 			if ( !js.GetPropertyValue( "OcclusionEnabled", true ) ) Occlusion = 0f;

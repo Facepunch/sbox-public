@@ -424,11 +424,17 @@ public partial class RenderAttributes
 	{
 		if ( renderAttributes is null ) throw new ArgumentNullException( nameof( renderAttributes ) );
 		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
-		attributes.MergeToPtr( renderAttributes.attributes );
+
+		lock ( renderAttributes.usedTexturesLock )
+		{
+			attributes.MergeToPtr( renderAttributes.attributes );
+			MergeUsedTexturesTo( renderAttributes );
+		}
+
 		MergeUsedBuffersTo( renderAttributes );
 	}
 
-	// For attributes that only live for one draw, the source keeps its buffers bound
+	// For attributes that only live for one draw, the source keeps its textures alive and its buffers bound
 	internal void MergeToUntracked( RenderAttributes renderAttributes )
 	{
 		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;

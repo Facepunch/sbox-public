@@ -16,7 +16,7 @@ namespace Sandbox;
 public sealed partial class Decal : Component, Component.ExecuteInEditor, Component.ITemporaryEffect
 {
 	[Property, WideMode]
-	public List<DecalDefinition> Decals { get; set; } = [];
+	public List<DecalDefinition> Decals { get; set { field = value; _inputVersion++; } } = [];
 
 	[Obsolete] public Texture ColorTexture { get; set; }
 	[Obsolete] public Texture NormalTexture { get; set; }
@@ -29,11 +29,15 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	DecalDefinition _def;
 	bool _isActive;
 
+	// Bumped by the properties and the transform: what a static decal's per frame update reads that can change
+	int _inputVersion;
+	StaticInputs? _static;
+
 	/// <summary>
 	/// How long should this decal live for?
 	/// </summary>
 	[Property, Header( "Life" )]
-	public ParticleFloat LifeTime { get; set; } = 0;
+	public ParticleFloat LifeTime { get; set { field = value; _inputVersion++; } } = 0;
 
 	/// <summary>
 	/// If true then the decal will repeat itself forever
@@ -56,71 +60,71 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	/// A 2D size of the decal in world units.
 	/// </summary>
 	[Property, Header( "Dimensions" )]
-	public Vector2 Size { get; set; } = 1;
+	public Vector2 Size { get; set { field = value; _inputVersion++; } } = 1;
 
 	/// <summary>
 	/// Scale the width and height by this value
 	/// </summary>
 	[Property]
-	public ParticleFloat Scale { get; set; } = 1;
+	public ParticleFloat Scale { get; set { field = value; _inputVersion++; } } = 1;
 
 	/// <summary>
 	/// Rotation angle of the decal in degrees
 	/// </summary>
 	[Property]
-	public ParticleFloat Rotation { get; set; } = new ParticleFloat( 0, 360 );
+	public ParticleFloat Rotation { get; set { field = value; _inputVersion++; } } = new ParticleFloat( 0, 360 );
 
 	/// <summary>
 	/// The depth of the decal in world units. This is how far the decal extends into the surface it is projected onto.
 	/// </summary>
 	[Property]
-	public float Depth { get; set; } = 8;
+	public float Depth { get; set { field = value; _inputVersion++; } } = 8;
 
 	/// <summary>
 	/// Parallax depth strength of the decal
 	/// </summary>
 	[Property, Header( "Properties" )]
-	public ParticleFloat Parallax { get; set; } = 1;
+	public ParticleFloat Parallax { get; set { field = value; _inputVersion++; } } = 1;
 
 	/// <summary>
 	/// Tints the color of the decal's albedo and can be used to adjust the overall opacity of the decal.
 	/// </summary>
 	[Property]
-	public ParticleGradient ColorTint { get; set; } = Color.White;
+	public ParticleGradient ColorTint { get; set { field = value; _inputVersion++; } } = Color.White;
 
 	/// <summary>
 	/// Controls the opacity of the decal's color texture without reducing the impact of the normal or rmo texture.
 	/// Set to 0 to create a normal/rmo only decal masked by the color textures alpha.
 	/// </summary>
 	[Property, Range( 0, 1 )]
-	public ParticleFloat ColorMix { get; set; } = 1.0f;
+	public ParticleFloat ColorMix { get; set { field = value; _inputVersion++; } } = 1.0f;
 
 	/// <summary>
 	/// Attenuation angle controls how much the decal fades at an angle.
 	/// At 0 it does not fade at all. Up to 1 it fades the most.
 	/// </summary>
 	[Property, Range( 0, 1 )]
-	public float AttenuationAngle { get; set; } = 1.0f;
+	public float AttenuationAngle { get; set { field = value; _inputVersion++; } } = 1.0f;
 
 	/// <summary>
 	/// Adjusts the opacity mask based on the height map. At 1 decal is fully visible, and at 0 it goes invisible.
 	/// This setting requires a valid height map on your decals.
 	/// </summary>
 	[Property, Header( "Height Coverage Mask" ), Range( 0, 1 )]
-	public ParticleFloat CoverageAmount { get; set; } = 1.0f;
+	public ParticleFloat CoverageAmount { get; set { field = value; _inputVersion++; } } = 1.0f;
 
 	/// <summary>
 	/// Controls the smoothness of height coverage. No fade at 0, maximum fade at 0.5.
 	/// </summary>
 	[Property, Range( 0.0f, 0.5f )]
-	public float CoverageRange { get; set; } = 0.07f;
+	public float CoverageRange { get; set { field = value; _inputVersion++; } } = 0.07f;
 
 	/// <summary>
 	/// Duration of fade-in transition for this decal when it is spawned, based on height coverage and heightmap texture.
 	/// 0 will make the fade-in instant. You'll need a valid height map texture on the decal for this effect.
 	/// </summary>
 	[Property, Range( 0, 2 )]
-	public float CoverageFadeIn { get; set; } = 0.0f;
+	public float CoverageFadeIn { get; set { field = value; _inputVersion++; } } = 0.0f;
 
 	float CoverageFadeInDelta => CoverageFadeIn > 0 ? Math.Clamp( (float)(Time.NowDouble - _startTime) / CoverageFadeIn, 0, 1 ) : 1;
 
@@ -169,6 +173,9 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		Assert.IsNull( _sceneObject );
 
 		_sceneObject = new DecalSceneObject( Scene.SceneWorld );
+		_applied = null;
+		_static = null;
+		Transform.OnTransformChanged += OnDecalTransformChanged;
 
 		_seed = Random.Shared.Int( 10000 );
 		_startTime = Time.NowDouble;
@@ -185,6 +192,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 
 	protected override void OnDisabled()
 	{
+		Transform.OnTransformChanged -= OnDecalTransformChanged;
 		_sceneObject?.Delete();
 		_sceneObject = null;
 
@@ -250,13 +258,20 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		if ( !_sceneObject.IsValid() )
 			return;
 
+		// A static decal comes out the same until something it reads changes
+		if ( _static is { } inputs && inputs == CaptureStaticInputs() )
+			return;
+
 		var lt = LifeTime.Evaluate( 0.0f, Rand( 2531 ) );
 
 		if ( lt <= 0 )
 		{
 			UpdateToDelta( 0 );
+			_static = IsStatic() ? CaptureStaticInputs() : null;
 			return;
 		}
+
+		_static = null;
 
 		float d = (float)(Time.NowDouble - _startTime) / lt;
 
@@ -294,6 +309,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		if ( _def is null )
 		{
 			_sceneObject.RenderingEnabled = false;
+			_applied = null;
 			return;
 		}
 
@@ -302,24 +318,79 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		var tx = Transform.World.WithScale( Transform.World.Scale * size );
 		tx.Rotation = tx.Rotation * rotation;
 
-		_sceneObject.RenderingEnabled = _isActive;
-		_sceneObject.Color = _def.Tint * ColorTint.Evaluate( delta, Rand( 238 ) );
-		_sceneObject.ColorMix = _def.ColorMix * ColorMix.Evaluate( delta, Rand( 324 ) );
-		_sceneObject.BlendMode = _def.BlendMode;
-		_sceneObject.AttenuationAngle = AttenuationAngle;
-		_sceneObject.CoverageAmount = _def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) ) * CoverageFadeInDelta;
-		_sceneObject.CoverageRange = CoverageRange;
-		_sceneObject.ParallaxStrength = Parallax.Evaluate( delta, Rand( 245 ) ) * _def.ParallaxStrength * 0.25f;
-		_sceneObject.SamplerIndex = SamplerState.GetBindlessIndex( new SamplerState { AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp, Filter = _def.FilterMode } );
-		_sceneObject.Transform = tx;
+		var state = new AppliedState(
+			_isActive,
+			_def.Tint * ColorTint.Evaluate( delta, Rand( 238 ) ),
+			_def.ColorMix * ColorMix.Evaluate( delta, Rand( 324 ) ),
+			_def.BlendMode,
+			AttenuationAngle,
+			_def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) ) * CoverageFadeInDelta,
+			CoverageRange,
+			Parallax.Evaluate( delta, Rand( 245 ) ) * _def.ParallaxStrength * 0.25f,
+			_def.FilterMode,
+			tx,
+			_def.ColorTexture, _def.NormalTexture, _def.RoughMetalOcclusionTexture, _def.HeightTexture, _def.EmissiveTexture,
+			_def.EmissionEnergy,
+			_def.ColorTexture?.native ?? default, _def.NormalTexture?.native ?? default, _def.RoughMetalOcclusionTexture?.native ?? default,
+			_def.HeightTexture?.native ?? default, _def.EmissiveTexture?.native ?? default );
 
-		_sceneObject.ColorTexture = _def.ColorTexture;
-		_sceneObject.NormalTexture = _def.NormalTexture;
-		_sceneObject.RMOTexture = _def.RoughMetalOcclusionTexture;
-		_sceneObject.HeightTexture = _def.HeightTexture;
-		_sceneObject.EmissionTexture = _def.EmissiveTexture;
-		_sceneObject.EmissionEnergy = _def.EmissionEnergy;
+		// Most decals never change: every set is a native write and a change notification
+		if ( _applied == state ) return;
+		_applied = state;
+
+		_sceneObject.RenderingEnabled = state.Active;
+		_sceneObject.Color = state.Color;
+		_sceneObject.ColorMix = state.ColorMix;
+		_sceneObject.BlendMode = state.BlendMode;
+		_sceneObject.AttenuationAngle = state.AttenuationAngle;
+		_sceneObject.CoverageAmount = state.CoverageAmount;
+		_sceneObject.CoverageRange = state.CoverageRange;
+		_sceneObject.ParallaxStrength = state.ParallaxStrength;
+		_sceneObject.SamplerIndex = SamplerState.GetBindlessIndex( new SamplerState { AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp, Filter = state.Filter } );
+		_sceneObject.Transform = state.Transform;
+
+		_sceneObject.ColorTexture = state.ColorTexture;
+		_sceneObject.NormalTexture = state.NormalTexture;
+		_sceneObject.RMOTexture = state.RMOTexture;
+		_sceneObject.HeightTexture = state.HeightTexture;
+		_sceneObject.EmissionTexture = state.EmissionTexture;
+		_sceneObject.EmissionEnergy = state.EmissionEnergy;
 	}
+
+	AppliedState? _applied;
+
+	void OnDecalTransformChanged() => _inputVersion++;
+
+	// No lifetime and nothing evaluated per frame: every input is fixed until a property, the transform, the chosen definition or its textures change
+	bool IsStatic()
+	{
+		if ( CoverageFadeInDelta < 1 )
+			return false;
+
+		return LifeTime.Evaluation != ParticleFloat.EvaluationType.Frame && Scale.Evaluation != ParticleFloat.EvaluationType.Frame
+			&& Rotation.Evaluation != ParticleFloat.EvaluationType.Frame && Parallax.Evaluation != ParticleFloat.EvaluationType.Frame
+			&& ColorMix.Evaluation != ParticleFloat.EvaluationType.Frame && CoverageAmount.Evaluation != ParticleFloat.EvaluationType.Frame
+			&& ColorTint.Evaluation != ParticleGradient.EvaluationType.Frame;
+	}
+
+	StaticInputs CaptureStaticInputs()
+	{
+		UpdateCurrentDefinition();
+		var def = _def;
+
+		return new StaticInputs( _inputVersion, def, def?.ChangeVersion ?? 0,
+			def?.ColorTexture?.native ?? default, def?.NormalTexture?.native ?? default, def?.RoughMetalOcclusionTexture?.native ?? default,
+			def?.HeightTexture?.native ?? default, def?.EmissiveTexture?.native ?? default );
+	}
+
+	readonly record struct StaticInputs( int InputVersion, DecalDefinition Definition, int DefinitionVersion,
+		NativeEngine.ITexture ColorHandle, NativeEngine.ITexture NormalHandle, NativeEngine.ITexture RMOHandle, NativeEngine.ITexture HeightHandle, NativeEngine.ITexture EmissionHandle );
+
+	// Handles too: a texture can swap its native handle in place (video textures)
+	readonly record struct AppliedState( bool Active, Color Color, float ColorMix, DecalBlendMode BlendMode, float AttenuationAngle,
+		float CoverageAmount, float CoverageRange, float ParallaxStrength, FilterMode Filter, Transform Transform,
+		Texture ColorTexture, Texture NormalTexture, Texture RMOTexture, Texture HeightTexture, Texture EmissionTexture, float EmissionEnergy,
+		NativeEngine.ITexture ColorHandle, NativeEngine.ITexture NormalHandle, NativeEngine.ITexture RMOHandle, NativeEngine.ITexture HeightHandle, NativeEngine.ITexture EmissionHandle );
 
 	private void UpdateSequence()
 	{

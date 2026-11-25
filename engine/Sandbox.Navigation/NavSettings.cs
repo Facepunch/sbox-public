@@ -1,3 +1,4 @@
+using System.Numerics;
 using Nav.Build;
 
 namespace Nav;
@@ -28,7 +29,7 @@ public struct NavSettings
 	public float AgentMaxSlope;
 
 	/// <summary>
-	/// Longest outline edge, in cells.
+	/// Longest outline edge, in cells, at least 1. int.MaxValue for no limit.
 	/// </summary>
 	public int MaxEdgeCells;
 
@@ -42,20 +43,35 @@ public struct NavSettings
 	/// </summary>
 	public float MaxEdgeError;
 
-	public static NavSettings Create( float agentHeight, float agentRadius, float agentClimb, float agentMaxSlope, float cellSize, float cellHeight, int tileSize = 256 )
+	/// <summary>
+	/// The most polygons a tile may hold, from 1 to 65,520. Create allows one for every four cells of the
+	/// tile: 16,383 at 256 cells. A tile over the limit fails to build. The limit decides
+	/// how many tiles a mesh can hold at once: a polygon id has 32 bits, the polygons of a tile take as
+	/// many as the limit needs and the rest number tiles, less the top 65,536 ids, which name links.
+	/// 16,383 polygons leave room for 262,140 tiles, 1,023 for 4,194,240. Lower it for a large world
+	/// of small or simple tiles, raise it for tiles with many floors.
+	/// </summary>
+	public int MaxTilePolygons;
+
+	/// <summary>
+	/// The fields of desc, MaxEdgeCells 64, MinRegionCells 64, MaxEdgeError 2, and MaxTilePolygons one for
+	/// every four cells of a tile, at most 65,520.
+	/// </summary>
+	public static NavSettings Create( in NavSettingsDesc desc )
 	{
 		return new NavSettings
 		{
-			CellSize = cellSize,
-			CellHeight = cellHeight,
-			TileSize = tileSize,
-			AgentHeight = agentHeight,
-			AgentRadius = agentRadius,
-			AgentClimb = agentClimb,
-			AgentMaxSlope = agentMaxSlope,
+			CellSize = desc.CellSize,
+			CellHeight = desc.CellHeight,
+			TileSize = desc.TileSize,
+			AgentHeight = desc.AgentHeight,
+			AgentRadius = desc.AgentRadius,
+			AgentClimb = desc.AgentClimb,
+			AgentMaxSlope = desc.AgentMaxSlope,
 			MaxEdgeCells = 64,
 			MinRegionCells = 64,
-			MaxEdgeError = 2
+			MaxEdgeError = 2,
+			MaxTilePolygons = Math.Min( desc.TileSize * desc.TileSize / 4 - 1, Poly.MaxPerTile )
 		};
 	}
 
@@ -75,12 +91,17 @@ public struct NavSettings
 		else if ( !(AgentRadius >= 0) || !float.IsFinite( AgentRadius ) ) reason = "AgentRadius must not be negative";
 		else if ( !(AgentClimb >= 0) || !float.IsFinite( AgentClimb ) ) reason = "AgentClimb must not be negative";
 		else if ( !(AgentMaxSlope >= 0) || AgentMaxSlope > 90 ) reason = "AgentMaxSlope must be from 0 to 90 degrees";
-		else if ( MaxEdgeCells < 0 ) reason = "MaxEdgeCells must not be negative";
+		else if ( MaxEdgeCells < 1 ) reason = "MaxEdgeCells must be at least 1";
 		else if ( MinRegionCells < 0 ) reason = "MinRegionCells must not be negative";
 		else if ( !(MaxEdgeError >= 0) || !float.IsFinite( MaxEdgeError ) ) reason = "MaxEdgeError must be finite and not negative";
+		else if ( MaxTilePolygons < 1 || MaxTilePolygons > Poly.MaxPerTile ) reason = "MaxTilePolygons must be from 1 to 65,520";
 		else if ( BuildConfig.RadiusCells( this ) > BuildConfig.MaxRadiusCells ) reason = "AgentRadius is more than 127 cells";
 		else if ( BuildConfig.HeightCells( this ) > BuildConfig.MaxHeightCells ) reason = "AgentHeight is more than 32767 cells";
 		else if ( BuildConfig.ClimbCells( this ) > BuildConfig.MaxHeightCells ) reason = "AgentClimb is more than 32767 cells";
 		return reason == null;
 	}
+
+
+	// The bits of a polygon id that number the polygon in its tile. See PolyRef.
+	internal readonly int PolyBits => 32 - BitOperations.LeadingZeroCount( (uint)MaxTilePolygons );
 }

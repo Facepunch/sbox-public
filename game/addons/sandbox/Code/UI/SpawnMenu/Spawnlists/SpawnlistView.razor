@@ -31,11 +31,10 @@
 					}
 					else
 					{
-						<TextEntry Placeholder="#spawnmenu.common.search" class="filter menu-input" Value:bind=@Filter />
+						<SpawnMenuSearchEntry Value:bind=@Filter />
 					}
 				</Left>
 				<Right>
-					<UIButton Icon=@IconSize.Icon() Tooltip="#ui.icon_size.title" @onclick=@(() => SpawnMenuIconSizeExtensions.OpenMenu( this, size => SpawnMenuIconSizeExtensions.Current = size )) />
 					@if (Entry is not null)
 					{
 						@if (isPublished)
@@ -54,7 +53,7 @@
 						{
 							@if (_editMode && CanRename)
 							{
-								<UIButton Icon="drive_file_rename_outline" Text="#spawnmenu.spawnlist.rename" @onclick=@OnRename />
+								<UIButton Icon="text_fields" Text="#spawnmenu.spawnlist.rename" @onclick=@OnRename />
 							}
 							<UIButton Icon="edit" Tooltip="#spawnmenu.spawnlist.edit" Active=@_editMode @onclick=@ToggleEditMode />
 							<UIButton Icon="delete" Tooltip="#spawnmenu.spawnlist.delete" @onclick=@OnDelete />
