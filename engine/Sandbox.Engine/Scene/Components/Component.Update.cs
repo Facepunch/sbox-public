@@ -45,6 +45,9 @@ public abstract partial class Component
 		}
 	}
 
+	/// <summary>Whether this component goes on <paramref name="scene"/>'s update list; read once as it joins.</summary>
+	internal virtual bool UpdatesIn( Scene scene ) => true;
+
 	internal virtual void InternalUpdate()
 	{
 		if ( !Enabled ) return;

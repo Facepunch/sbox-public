@@ -212,6 +212,9 @@ public sealed partial class MeshComponent : Collider, ExecuteInEditor, ITintable
 		_sceneObject = null;
 	}
 
+	// Off the update list in play: a mesh edits only in the editor, and the collision setter rebuilds itself. A map has thousands
+	internal override bool UpdatesIn( Scene scene ) => scene.IsEditor;
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
