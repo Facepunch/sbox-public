@@ -14,7 +14,7 @@ public partial class CompilerTest
 	{
 		bool compileSuccessCallback = false;
 
-		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/base" );
 		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
@@ -52,7 +52,7 @@ public partial class CompilerTest
 	{
 		bool compileSuccessCallback = false;
 
-		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/base" );
 		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
@@ -81,7 +81,7 @@ public partial class CompilerTest
 	{
 		bool compileSuccessCallback = false;
 
-		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/base" );
 		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
@@ -126,7 +126,7 @@ public partial class CompilerTest
 	{
 		bool compileSuccessCallback = false;
 
-		var codePath = System.IO.Path.GetFullPath( "data/code/" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/" );
 		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
@@ -167,7 +167,7 @@ public partial class CompilerTest
 	{
 		bool compileSuccessCallback = false;
 
-		var codePath = System.IO.Path.GetFullPath( "data/code/" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/" );
 		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
@@ -197,7 +197,7 @@ public partial class CompilerTest
 	[TestMethod]
 	public async Task EditorFolders()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/with_editor_folders" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/with_editor_folders" );
 		using var group = new CompileGroup( "Test" );
 
 		//
@@ -215,7 +215,7 @@ public partial class CompilerTest
 		//
 		{
 			int editorFolderId = 0;
-			var editorFolders = System.IO.Directory.EnumerateDirectories( codePath, "editor", SearchOption.AllDirectories ).ToArray();
+			var editorFolders = System.IO.Directory.EnumerateDirectories( codePath, "editor", new EnumerationOptions { RecurseSubdirectories = true, MatchCasing = MatchCasing.CaseInsensitive, AttributesToSkip = 0 } ).ToArray();
 			if ( editorFolders.Count() > 0 )
 			{
 				var compilerSettings = new Compiler.Configuration { Whitelist = false };

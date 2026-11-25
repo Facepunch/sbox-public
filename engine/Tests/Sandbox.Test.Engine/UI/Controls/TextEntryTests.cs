@@ -1095,14 +1095,27 @@ public class TextEntryTests
 		overlay.Text = text.Replace( "\r\n", "\u2029" ).Replace( '\n', '\u2029' ).HtmlEncode().Replace( "var", "<span style=\"color: blue\">var</span>" );
 		entry.FindRootPanel().Layout();
 		for ( int i = 0; i <= entry.TextLength; i++ )
-			Assert.AreEqual( label.GetCaretRect( i ), overlay.GetCaretRect( i ), $"Caret {i}" );
+			AssertSameCaret( label.GetCaretRect( i ), overlay.GetCaretRect( i ), $"Caret {i}" );
 		entry.ScrollOffset = new Vector2( 40, 20 );
 		entry.SetNeedsFinalLayout();
 		entry.FindRootPanel().Layout();
 		Assert.IsTrue( entry.ScrollOffset.x > 0 && entry.ScrollOffset.y > 0 );
 		for ( int i = 0; i <= entry.TextLength; i++ )
-			Assert.AreEqual( label.GetCaretRect( i ), overlay.GetCaretRect( i ), $"Scrolled caret {i}" );
+			AssertSameCaret( label.GetCaretRect( i ), overlay.GetCaretRect( i ), $"Scrolled caret {i}" );
 		Assert.AreEqual( text, entry.Text );
+	}
+
+	/// <summary>
+	/// The same caret to a thousandth of a pixel: the two layouts add up a line's advances in different runs, so a float
+	/// can come out a last bit apart (FreeType's advances, on Linux).
+	/// </summary>
+	static void AssertSameCaret( Rect expected, Rect actual, string message )
+	{
+		const float Tolerance = 0.001f;
+		Assert.AreEqual( expected.Left, actual.Left, Tolerance, $"{message}: {expected} vs {actual}" );
+		Assert.AreEqual( expected.Top, actual.Top, Tolerance, $"{message}: {expected} vs {actual}" );
+		Assert.AreEqual( expected.Width, actual.Width, Tolerance, $"{message}: {expected} vs {actual}" );
+		Assert.AreEqual( expected.Height, actual.Height, Tolerance, $"{message}: {expected} vs {actual}" );
 	}
 
 	const string BS = "\n";

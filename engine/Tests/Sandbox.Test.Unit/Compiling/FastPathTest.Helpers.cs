@@ -72,7 +72,7 @@ internal class FastPathTestCompiler : IDisposable
 
 			for ( var fileVersion = version; fileVersion >= 1; fileVersion-- )
 			{
-				var srcFile = new FileInfo( Path.Combine( "data", "code", "fastpath", $"{sourceName}.{fileVersion}.cs" ) );
+				var srcFile = new FileInfo( Path.Combine( "Data", "code", "fastpath", $"{sourceName}.{fileVersion}.cs" ) );
 
 				if ( !srcFile.Exists ) continue;
 

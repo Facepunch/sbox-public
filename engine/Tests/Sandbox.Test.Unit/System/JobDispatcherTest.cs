@@ -255,6 +255,25 @@ public class JobDispatcherTest
 		if ( Parallel ) Assert.IsTrue( threads.Any( x => x != Environment.CurrentManagedThreadId ), "Workers took part" );
 	}
 
+	/// <summary>
+	/// Precompiling the floating-point mode's methods, as PreJIT does for every engine assembly at start, binds no native
+	/// library: on Linux there's no ucrtbase.dll, and nothing calls it there.
+	/// </summary>
+	[TestMethod]
+	public void FloatingPointModePrecompilesWithoutItsNativeLibrary()
+	{
+		const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+
+		foreach ( var method in typeof( FloatingPointMode ).GetMethods( flags ) )
+		{
+			if ( (method.Attributes & System.Reflection.MethodAttributes.PinvokeImpl) != 0 ) continue;
+
+			System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod( method.MethodHandle );
+		}
+
+		if ( !OperatingSystem.IsWindows() ) Assert.AreEqual( 0u, FloatingPointMode.Current );
+	}
+
 	[TestMethod]
 	public void JobsDoNotChangeTheCallersContext()
 	{

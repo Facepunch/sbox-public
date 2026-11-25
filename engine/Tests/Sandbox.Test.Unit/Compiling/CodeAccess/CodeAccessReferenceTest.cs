@@ -18,7 +18,7 @@ public class CodeAccessReferenceTest
 	[TestMethod]
 	public async Task WhitelistedAssembly_Binds()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/ref_boundary_ok" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/ref_boundary_ok" );
 		using var group = new CompileGroup( "RefBoundaryOk" );
 
 		var compiler = group.CreateCompiler( "test", codePath, new Compiler.Configuration() );
@@ -31,7 +31,7 @@ public class CodeAccessReferenceTest
 	[TestMethod]
 	public async Task NonWhitelistedAssembly_DoesNotBind()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/ref_boundary" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/ref_boundary" );
 		using var group = new CompileGroup( "RefBoundaryBad" );
 
 		var compiler = group.CreateCompiler( "test", codePath, new Compiler.Configuration() );

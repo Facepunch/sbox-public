@@ -14,7 +14,7 @@ public partial class HardBlockTest
 	[TestMethod]
 	public async Task DefaultCompilerFailsWhitelist()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/hard_block" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/hard_block" );
 		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compiler = group.GetOrCreateCompiler( "test" );
@@ -32,7 +32,7 @@ public partial class HardBlockTest
 	[TestMethod]
 	public async Task CompilerWithWhitelistFails()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/hard_block" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/hard_block" );
 		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compilerSettings = new Compiler.Configuration();
@@ -52,7 +52,7 @@ public partial class HardBlockTest
 	[TestMethod]
 	public async Task CompilerWithoutWhitelistSucceeds()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/hard_block" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/hard_block" );
 		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compilerSettings = new Compiler.Configuration();
@@ -74,7 +74,7 @@ public partial class HardBlockTest
 	{
 		bool compileSuccessCallback = false;
 
-		var codePath = System.IO.Path.GetFullPath( "data/code/hard_block" );
+		var codePath = System.IO.Path.GetFullPath( "Data/code/hard_block" );
 		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 

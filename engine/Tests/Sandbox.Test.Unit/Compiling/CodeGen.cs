@@ -44,7 +44,7 @@ namespace CompilingTests
 			List<SyntaxTree> SyntaxTree = new List<SyntaxTree>();
 
 			foreach ( var file in files )
-				AddTree( SyntaxTree, $"data/codegen/{file}", defines );
+				AddTree( SyntaxTree, $"Data/codegen/{file}", defines );
 
 			var optn = new CSharpCompilationOptions( OutputKind.DynamicallyLinkedLibrary )
 									.WithConcurrentBuild( true )
@@ -201,7 +201,7 @@ namespace CompilingTests
 			CSharpCompilation compiler = CSharpCompilation.Create( $"poopy.dll", SyntaxTree, refs, optn );
 
 			// Process Razor files using RazorProcessor before running the Processor
-			foreach ( var file in System.IO.Directory.EnumerateFiles( "data/codegen/", "*.razor" ) )
+			foreach ( var file in System.IO.Directory.EnumerateFiles( "Data/codegen/", "*.razor" ) )
 			{
 				var razorText = System.IO.File.ReadAllText( file );
 				var generatedCode = Sandbox.Razor.RazorProcessor.GenerateFromSource( razorText, file );

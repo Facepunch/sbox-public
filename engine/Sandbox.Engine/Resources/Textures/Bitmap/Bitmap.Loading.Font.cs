@@ -52,8 +52,9 @@ public partial class Bitmap
 		if ( !float.IsFinite( scale ) || !(scale > 0) )
 			return null;
 
-		// An edge that lands on a pixel boundary must not round up to an extra, empty pixel
-		const float Slack = 0.001f;
+		// An edge that lands on a pixel boundary must not round up to an extra, empty pixel. FreeType (Linux) gives Skia its
+		// outlines in fixed point, so such an edge can come out a hundredth of a pixel over
+		const float Slack = 1.0f / 16;
 		var width = Math.Clamp( (int)MathF.Ceiling( bounds.Width * scale - Slack ), 1, MaxGlyphSize );
 		height = Math.Clamp( (int)MathF.Ceiling( bounds.Height * scale - Slack ), 1, height );
 

@@ -13,7 +13,7 @@ public partial class CompilerTest
 	public async Task ParentPackageReference()
 	{
 		// First, compile the "parent" package to get its assembly bytes
-		var parentPath = System.IO.Path.GetFullPath( "data/code/parent_package" );
+		var parentPath = System.IO.Path.GetFullPath( "Data/code/parent_package" );
 		using var parentGroup = new CompileGroup( "ParentBuild" );
 
 		var parentSettings = new Compiler.Configuration();
@@ -27,7 +27,7 @@ public partial class CompilerTest
 		var parentOutput = parentGroup.BuildResult.Output.First();
 		Assert.IsNotNull( parentOutput );
 
-		var childPath = System.IO.Path.GetFullPath( "data/code/uses_parent_package" );
+		var childPath = System.IO.Path.GetFullPath( "Data/code/uses_parent_package" );
 		using var childGroup = new CompileGroup( "ChildBuild" );
 		childGroup.ReferenceProvider = new InMemoryReferenceProvider( "package.parent.game", parentOutput.AssemblyData );
 
@@ -50,7 +50,7 @@ public partial class CompilerTest
 	[TestMethod]
 	public async Task ParentPackageReference_FailsWithoutProvider()
 	{
-		var childPath = System.IO.Path.GetFullPath( "data/code/uses_parent_package" );
+		var childPath = System.IO.Path.GetFullPath( "Data/code/uses_parent_package" );
 		using var childGroup = new CompileGroup( "ChildBuild" );
 
 		var childSettings = new Compiler.Configuration();
@@ -73,7 +73,7 @@ public partial class CompilerTest
 	public async Task ParentPackageReference_ChildContainsExpectedType()
 	{
 		// Build parent
-		var parentPath = System.IO.Path.GetFullPath( "data/code/parent_package" );
+		var parentPath = System.IO.Path.GetFullPath( "Data/code/parent_package" );
 		using var parentGroup = new CompileGroup( "ParentBuild" );
 
 		var parentSettings = new Compiler.Configuration();
@@ -85,7 +85,7 @@ public partial class CompilerTest
 		var parentBytes = parentGroup.BuildResult.Output.First().AssemblyData;
 
 		// Build child with parent reference
-		var childPath = System.IO.Path.GetFullPath( "data/code/uses_parent_package" );
+		var childPath = System.IO.Path.GetFullPath( "Data/code/uses_parent_package" );
 		using var childGroup = new CompileGroup( "ChildBuild" );
 		childGroup.ReferenceProvider = new InMemoryReferenceProvider( "package.parent.game", parentBytes );
 

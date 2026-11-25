@@ -323,7 +323,8 @@ public class CompilerWorkerTests
 			Assert.IsTrue( Run( compiler, root, [root], "sounds/a.wav" ).Success );
 
 			using var worker = Process.GetProcessById( compiler.IdleProcessIds.Single() );
-			var modules = worker.Modules.Cast<ProcessModule>().Select( x => x.ModuleName.ToLowerInvariant() ).ToList();
+			// rendersystemempty.dll, librendersystemempty.so
+			var modules = worker.Modules.Cast<ProcessModule>().Select( x => x.ModuleName.ToLowerInvariant() ).Select( x => !OperatingSystem.IsWindows() && x.StartsWith( "lib" ) ? x[3..] : x ).ToList();
 			Assert.IsTrue( modules.Any( x => x.StartsWith( "rendersystemempty" ) ), string.Join( ", ", modules ) );
 			Assert.IsFalse( modules.Any( x => x.StartsWith( "rendersystemvulkan" ) ), string.Join( ", ", modules ) );
 		}

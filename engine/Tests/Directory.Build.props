@@ -32,4 +32,17 @@
 		</PackageReference>
 	</ItemGroup>
 
+	<!--
+		SkiaSharp's packages carry native libraries for Windows and macOS only; the game ships its own Linux builds in
+		game/bin/linuxsteamrt64 (and arm64). Test hosts load them from their output folder, so copy them there.
+	-->
+	<PropertyGroup Condition="'$(IsTestProject)' == 'true' And $([MSBuild]::IsOSPlatform('Linux'))">
+		<SboxLinuxNativeDir Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">$(MSBuildThisFileDirectory)..\..\game\bin\linuxsteamrtarm64\</SboxLinuxNativeDir>
+		<SboxLinuxNativeDir Condition="'$(SboxLinuxNativeDir)' == ''">$(MSBuildThisFileDirectory)..\..\game\bin\linuxsteamrt64\</SboxLinuxNativeDir>
+	</PropertyGroup>
+
+	<ItemGroup Condition="'$(SboxLinuxNativeDir)' != ''">
+		<None Include="$(SboxLinuxNativeDir)libSkiaSharp.so;$(SboxLinuxNativeDir)libHarfBuzzSharp.so" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+	</ItemGroup>
+
 </Project>

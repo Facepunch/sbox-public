@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Sandbox;
@@ -9,7 +8,7 @@ namespace Sandbox;
 /// <see cref="JobDispatcher"/> runs a job in its caller's mode, so a result doesn't depend on which thread worked it out.
 /// </summary>
 [SkipHotload]
-internal static partial class FloatingPointMode
+internal static unsafe class FloatingPointMode
 {
 	/// <summary>
 	/// Denormal inputs and results are flushed to zero (<c>_DN_FLUSH</c>).
@@ -37,15 +36,24 @@ internal static partial class FloatingPointMode
 		Write( mode, Mask );
 	}
 
-	// Out of line: a P/Invoke without a GC transition is inlined into its caller and bound when the caller is compiled,
-	// so calling it from Current or Set directly fails on Linux (no ucrtbase.dll) even though Supported is false there.
-	[MethodImpl( MethodImplOptions.NoInlining )]
+	// _controlfp is called through a pointer bound on first use, not a P/Invoke: a P/Invoke without a GC transition is bound
+	// when its caller is compiled, so precompiling the callers (PreJIT, on every start) failed on Linux, where there's no
+	// ucrtbase.dll, even though nothing calls them there.
+	static delegate* unmanaged[Cdecl, SuppressGCTransition]<uint, uint, uint> controlFp;
+
 	static uint Read() => ControlFp( 0, 0 );
 
-	[MethodImpl( MethodImplOptions.NoInlining )]
 	static void Write( uint value, uint mask ) => ControlFp( value, mask );
 
-	[LibraryImport( "ucrtbase.dll", EntryPoint = "_controlfp" )]
-	[SuppressGCTransition]
-	private static partial uint ControlFp( uint value, uint mask );
+	static uint ControlFp( uint value, uint mask )
+	{
+		var fn = controlFp;
+		if ( fn == null )
+		{
+			var library = NativeLibrary.Load( "ucrtbase.dll", typeof( FloatingPointMode ).Assembly, null );
+			controlFp = fn = (delegate* unmanaged[Cdecl, SuppressGCTransition]<uint, uint, uint>)NativeLibrary.GetExport( library, "_controlfp" );
+		}
+
+		return fn( value, mask );
+	}
 }

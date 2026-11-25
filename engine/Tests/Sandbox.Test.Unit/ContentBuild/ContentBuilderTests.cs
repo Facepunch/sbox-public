@@ -2280,31 +2280,66 @@ public class ContentBuilderTests
 	[TestMethod]
 	public void FileThatCantBeReplacedFailsOnlyItsAsset()
 	{
-		// Something has the old output open without sharing delete: that job is undone, the rest carries on
+		// Something has the old output open without sharing delete: that job is undone, the rest carries on. Only Windows
+		// refuses to replace an open file; elsewhere the asset's folder is made read-only instead.
 		using var fx = new Fixture();
-		fx.Write( "a.vtex", "red" );
-		fx.Write( "m.vmat", "reads a.vtex" );
+		var a = OperatingSystem.IsWindows() ? "a.vtex" : "locked/a.vtex";
+		fx.Write( a, "red" );
+		fx.Write( "m.vmat", $"reads {a}" );
 		fx.Write( "b.vtex", "red" );
 		Assert.IsTrue( fx.Build().Success );
-		fx.Write( "a.vtex", "blue" );
+		fx.Write( a, "blue" );
 		fx.Write( "b.vtex", "blue" );
-		var output = fx.Read( "a.vtex_c" );
-		var marker = fx.Read( "a.vtex.src_c" );
+		var output = fx.Read( $"{a}_c" );
+		var marker = fx.Read( $"{a}.src_c" );
 
 		BuildReport report;
-		using ( new FileStream( Path.Combine( fx.Root, "a.vtex_c" ), FileMode.Open, FileAccess.Read, FileShare.Read ) )
+		using ( CantReplace( Path.Combine( fx.Root, $"{a}_c" ) ) )
 			report = fx.Build();
 
-		CollectionAssert.AreEqual( new[] { "a.vtex" }, report.Failed.ToArray(), report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { a }, report.Failed.ToArray(), report.Log.ToString() );
 		CollectionAssert.AreEqual( new[] { "m.vmat" }, report.Blocked.ToArray(), report.Log.ToString() );
-		Assert.AreEqual( output, fx.Read( "a.vtex_c" ) );
-		Assert.AreEqual( marker, fx.Read( "a.vtex.src_c" ), "everything that job had moved is put back" );
+		Assert.AreEqual( output, fx.Read( $"{a}_c" ) );
+		Assert.AreEqual( marker, fx.Read( $"{a}.src_c" ), "everything that job had moved is put back" );
 		Assert.AreEqual( 0, Directory.GetFiles( Path.Combine( fx.State, "journal" ) ).Length );
 		Assert.IsFalse( Directory.Exists( Path.Combine( fx.State, "backup" ) ) && Directory.EnumerateFileSystemEntries( Path.Combine( fx.State, "backup" ) ).Any() );
 		CollectionAssert.Contains( report.Changed, Path.GetFullPath( Path.Combine( fx.Root, "b.vtex_c" ) ) );
 
-		AssertJobs( fx.Build(), "a.vtex", "m.vmat" );
+		AssertJobs( fx.Build(), a, "m.vmat" );
 		StringAssert.Contains( fx.Read( "m.vmat_c" ), "blue" );
+	}
+
+	/// <summary>
+	/// Keeps <paramref name="file"/> from being moved or replaced until disposed: held open without delete sharing on
+	/// Windows, its folder read-only elsewhere.
+	/// </summary>
+	static IDisposable CantReplace( string file )
+	{
+		if ( OperatingSystem.IsWindows() )
+			return new FileStream( file, FileMode.Open, FileAccess.Read, FileShare.Read );
+
+		return ReadOnlyFolder( Path.GetDirectoryName( file ) );
+	}
+
+	[System.Runtime.Versioning.UnsupportedOSPlatform( "windows" )]
+	static IDisposable ReadOnlyFolder( string folder )
+	{
+		var mode = File.GetUnixFileMode( folder );
+		File.SetUnixFileMode( folder, UnixFileMode.UserRead | UnixFileMode.UserExecute );
+		var restore = new Restore( () => File.SetUnixFileMode( folder, mode ) );
+
+		// Root ignores the folder's mode
+		try { File.WriteAllText( Path.Combine( folder, "probe" ), "" ); }
+		catch ( UnauthorizedAccessException ) { return restore; }
+
+		restore.Dispose();
+		Assert.Inconclusive( "Running as root: a read-only folder doesn't stop a replace." );
+		return null;
+	}
+
+	sealed class Restore( Action action ) : IDisposable
+	{
+		public void Dispose() => action();
 	}
 
 	[TestMethod]
