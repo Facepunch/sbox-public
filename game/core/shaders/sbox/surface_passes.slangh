@@ -617,6 +617,7 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 #endif
 
 	s_SurfaceBackfaceTransmission = s.BackfaceTransmission;
+	s_bSpecularDropped = !s.Specular;
 	CombinerInput f = ShadingModelStandard::MaterialToCombinerInput( m );
 	f.vRoughness = m.Roughness.xx;   // the final combiner adjusts it by the geometric normal itself
 	// After the decals, as the depth-normals pass wrote the combiner's

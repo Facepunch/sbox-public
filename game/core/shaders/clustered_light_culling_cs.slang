@@ -29,6 +29,7 @@ Mode( Default );
     groupshared float4 SharedAxis[GROUP_SIZE];   // spot axis in cluster space, w = outer cone cosine, below -1 for no cone
     groupshared uint SharedFeatures[GROUP_SIZE]; // ClusterFeature bits the light adds to every cluster it reaches
     groupshared uint SharedMask[2][2];           // survivors, double-buffered by batch parity
+    groupshared float4 SharedEnvMap[5][GROUP_SIZE]; // an envmap's EnvMapBounds (Store, Staged)
 
     //
     // Clusters are boxes in an orthonormal camera basis, x right, y up, z forward depth. Items are moved into the
@@ -88,6 +89,64 @@ Mode( Default );
         }
     };
 
+    // What the culling reads of an envmap, carried from cluster space into its own: where cluster space's origin (the
+    // camera) and its three axes land there (so a point there is Origin + Right * x + Up * y + Forward * z, the camera
+    // basis and the envmap's matrix composed once per envmap rather than once per cluster), its box there, its feathering,
+    // and its matrix's Frobenius norm (the most it can stretch a length). Staged in groupshared a batch at a time.
+    struct EnvMapBounds
+    {
+        float3 Origin;
+        float3 Right;
+        float3 Up;
+        float3 Forward;
+        float3 BoxMin;
+        float3 BoxMax;
+        float Feathering;
+        float Stretch;
+
+        static EnvMapBounds Load( ClusterSpace space, uint index )
+        {
+            float4x3 m = EnvMapWorldToLocal( index );
+            EnvMapBounds envMap;
+            envMap.Origin = mul( float4( g_vCameraPositionWs, 1.0f ), m ).xyz;
+            envMap.Right = mul( float4( space.Right, 0.0f ), m ).xyz;
+            envMap.Up = mul( float4( space.Up, 0.0f ), m ).xyz;
+            envMap.Forward = mul( float4( space.Forward, 0.0f ), m ).xyz;
+            envMap.BoxMin = EnvMapBoxMins( index );
+            envMap.BoxMax = EnvMapBoxMaxs( index );
+            envMap.Feathering = EnvMapFeathering( index );
+            envMap.Stretch = sqrt( dot( m[0], m[0] ) + dot( m[1], m[1] ) + dot( m[2], m[2] ) );
+            return envMap;
+        }
+
+        // A point in cluster space, in the envmap's
+        float3 ToLocal( float3 position ) { return Origin + Right * position.x + Up * position.y + Forward * position.z; }
+
+        void Store( uint slot )
+        {
+            SharedEnvMap[0][slot] = float4( Right, Feathering );
+            SharedEnvMap[1][slot] = float4( Up, Stretch );
+            SharedEnvMap[2][slot] = float4( Forward, BoxMax.z );
+            SharedEnvMap[3][slot] = float4( Origin, BoxMin.x );
+            SharedEnvMap[4][slot] = float4( BoxMin.yz, BoxMax.xy );
+        }
+
+        static EnvMapBounds Staged( uint slot )
+        {
+            float4 a = SharedEnvMap[0][slot], b = SharedEnvMap[1][slot], c = SharedEnvMap[2][slot], d = SharedEnvMap[3][slot], e = SharedEnvMap[4][slot];
+            EnvMapBounds envMap;
+            envMap.Right = a.xyz;
+            envMap.Up = b.xyz;
+            envMap.Forward = c.xyz;
+            envMap.Origin = d.xyz;
+            envMap.BoxMin = float3( d.w, e.xy );
+            envMap.BoxMax = float3( e.zw, c.w );
+            envMap.Feathering = a.w;
+            envMap.Stretch = b.w;
+            return envMap;
+        }
+    };
+
     struct ClusterBox
     {
         float3 Min;
@@ -133,16 +192,14 @@ Mode( Default );
 
         // An envmap's box, in its own space. The cluster's sphere moves into that space with the largest stretch
         // the matrix can give it (bounded by its Frobenius norm), so a scaled envmap is never missed.
-        bool TouchesEnvMap( ClusterSpace space, uint index )
+        bool TouchesEnvMap( EnvMapBounds envMap )
         {
-            float4x3 worldToLocal = EnvMapWorldToLocal( index );
-            float feather = max( EnvMapFeathering( index ), 0.0f );
-            float3 boxMin = EnvMapBoxMins( index ) - feather;
-            float3 boxMax = EnvMapBoxMaxs( index ) + feather;
+            float feather = max( envMap.Feathering, 0.0f );
+            float3 boxMin = envMap.BoxMin - feather;
+            float3 boxMax = envMap.BoxMax + feather;
 
-            float3 center = mul( float4( space.PointToWorld( Sphere.xyz ), 1.0f ), worldToLocal ).xyz;
-            float stretch = sqrt( dot( worldToLocal[0], worldToLocal[0] ) + dot( worldToLocal[1], worldToLocal[1] ) + dot( worldToLocal[2], worldToLocal[2] ) );
-            float radius = Sphere.w * stretch;
+            float3 center = envMap.ToLocal( Sphere.xyz );
+            float radius = Sphere.w * envMap.Stretch;
 
             float3 outside = max( 0.0f, max( boxMin - center, center - boxMax ) );
             return dot( outside, outside ) <= radius * radius;
@@ -152,18 +209,15 @@ Mode( Default );
         // the matrix's absolute values): far tighter than the sphere for the long clusters far away, whose spheres reach
         // envmaps none of their pixels is near. Grown as the pixel shader's cube loop takes an envmap: up to its
         // feathering and half a unit outside its box on each axis, plus a unit for rounding
-        bool TouchesEnvMapBox( ClusterSpace space, uint index )
+        bool TouchesEnvMapBox( EnvMapBounds envMap )
         {
-            float4x3 worldToLocal = EnvMapWorldToLocal( index );
-            float grow = max( EnvMapFeathering( index ), 0.0f ) + 1.5f;
-            float3 boxMin = EnvMapBoxMins( index ) - grow;
-            float3 boxMax = EnvMapBoxMaxs( index ) + grow;
+            float grow = max( envMap.Feathering, 0.0f ) + 1.5f;
+            float3 boxMin = envMap.BoxMin - grow;
+            float3 boxMax = envMap.BoxMax + grow;
 
             float3 halfSize = ( Max - Min ) * 0.5f;
-            float3 center = mul( float4( space.PointToWorld( ( Min + Max ) * 0.5f ), 1.0f ), worldToLocal ).xyz;
-            float3 extent = abs( mul( float4( space.Right, 0.0f ), worldToLocal ).xyz ) * halfSize.x
-                + abs( mul( float4( space.Up, 0.0f ), worldToLocal ).xyz ) * halfSize.y
-                + abs( mul( float4( space.Forward, 0.0f ), worldToLocal ).xyz ) * halfSize.z;
+            float3 center = envMap.ToLocal( ( Min + Max ) * 0.5f );
+            float3 extent = abs( envMap.Right ) * halfSize.x + abs( envMap.Up ) * halfSize.y + abs( envMap.Forward ) * halfSize.z;
 
             return all( center + extent >= boxMin ) && all( center - extent <= boxMax );
         }
@@ -278,6 +332,16 @@ Mode( Default );
             pixelBox.Sphere = 0;
         }
 
+        // The group's, padded the same: it holds every cluster's pixel box, so an envmap it misses no cluster of the group takes
+        ClusterBox groupPixelBox;
+        {
+            float2 pad = 2.0f * ClusterScreenParams.zw;
+            float2 uvMin = float2( groupFirst.xy ) * ClusterInvCounts.xy - pad;
+            float2 uvMax = float2( groupLast.xy + 1 ) * ClusterInvCounts.xy + pad;
+            space.Bounds( uvMin, uvMax, Cluster::SliceToDepth( groupFirst.z ) * 0.99f, Cluster::SliceToDepth( groupLast.z + 1 ) * 1.01f, groupPixelBox.Min, groupPixelBox.Max );
+            groupPixelBox.Sphere = 0;
+        }
+
         if ( nGroupIndex < 2 )
             SharedMask[0][nGroupIndex] = 0;
         GroupMemoryBarrierWithGroupSync();
@@ -373,9 +437,9 @@ Mode( Default );
         }
 
         //
-        // Envmaps: few, and too big to stage. The index is the same in every thread, so the reads are scalar.
+        // Envmaps, as the decals: each batch staged once per group and tested against the group's box, the survivors against
+        // each cluster's sphere and then its pixels' box, lowest index first so the list stays sorted
         //
-        if ( active )
         {
             const uint itemCount = NumEnvironmentMaps;
             const bool boxTest = ClusterCapacitiesVec.w != 0;
@@ -383,16 +447,40 @@ Mode( Default );
             const uint baseOffset = Cluster::IndexBase( ClusterItemType_EnvMap, flatIndex );
             uint count = 0;
 
-            for ( uint i = 0; i < itemCount && count < capacity; i++ )
+            for ( uint first = 0; first < itemCount; first += GROUP_SIZE, batch++ )
             {
-                if ( groupBox.TouchesEnvMap( space, i ) && clusterBox.TouchesEnvMap( space, i ) && ( !boxTest || pixelBox.TouchesEnvMapBox( space, i ) ) )
+                const uint item = first + nGroupIndex;
+                bool candidate = false;
+
+                if ( item < itemCount )
                 {
-                    ClusterItemIndices[baseOffset + count] = i;
-                    count++;
+                    EnvMapBounds envMap = EnvMapBounds::Load( space, item );
+                    envMap.Store( nGroupIndex );
+                    candidate = groupBox.TouchesEnvMap( envMap ) && ( !boxTest || groupPixelBox.TouchesEnvMapBox( envMap ) );
                 }
+
+                uint2 mask = PublishCandidates( batch, nGroupIndex, candidate );
+
+                [loop]
+                while ( any( mask != 0 ) )
+                {
+                    const uint slot = PopLowest( mask );
+                    if ( active && count < capacity )
+                    {
+                        EnvMapBounds envMap = EnvMapBounds::Staged( slot );
+                        if ( clusterBox.TouchesEnvMap( envMap ) && ( !boxTest || pixelBox.TouchesEnvMapBox( envMap ) ) )
+                        {
+                            ClusterItemIndices[baseOffset + count] = first + slot;
+                            count++;
+                        }
+                    }
+                }
+
+                EndBatch();
             }
 
-            ClusterItemCounts[Cluster::CountSlot( ClusterItemType_EnvMap, flatIndex )] = count;
+            if ( active )
+                ClusterItemCounts[Cluster::CountSlot( ClusterItemType_EnvMap, flatIndex )] = count;
         }
     }
 

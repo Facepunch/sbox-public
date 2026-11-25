@@ -141,6 +141,11 @@ void OpaqueFadeDepth( float flOpacity, float2 vPositionSs )
 	clip( mad( flOpacity, 2.0, -1.5 ) + flNoise );
 }
 
+// A surface whose specular light is dropped (Material.Specular off, the combiner's S_SPECULAR 0: a static overlay's): the
+// combiner takes the specular terms back out after lighting, so the lights' specular terms, the cube maps' specular and
+// dynamic reflections aren't computed for it. The combiner sets it before lighting; false for everything else.
+static bool s_bSpecularDropped = false;
+
 /// One light's diffuse, specular and back-face (transmission) terms at the surface, unshadowed and without its colour.
 /// flNDotL is N.L clamped to 0. Diffuse is the roughness-shaped pow( N.L ) (or skin's pre-integrated or wrapped term, or 1 for
 /// non-directional diffuse); specular is GGX (anisotropic, two-lobe or cloth's sheen as the shader asks) times N.L and
@@ -197,7 +202,7 @@ void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSp
 	}
 
 	o_vSpecularTerm = float3( 0.0, 0.0, 0.0 );
-	[branch] if ( bSpecular && ( !S_DIFFUSE_TWO_SIDED || flNDotL > 0.0 ) )
+	[branch] if ( bSpecular && !s_bSpecularDropped && ( !S_DIFFUSE_TWO_SIDED || flNDotL > 0.0 ) )
 	{
 		float3 vHalfWs = normalize( vPositionToLightDirWs + vPositionToCameraDirWs );
 
@@ -836,6 +841,10 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 	float flCovered = 0;
 
 	ClusterRange cubes = Cluster::Query( ClusterItemType_EnvMap, nClusterIndex );
+
+	// Specular dropped: the cubes are walked only for an unbaked surface's diffuse
+	if ( s_bSpecularDropped && bHasBakedLighting )
+		cubes.Pending = 0xFFFFFFFF;
 	ClusterForEach( cubes )
 	{
 		// Wave-uniform by construction (WaveActiveMin in Cluster::Next), which Slang can't prove: hence asDynamicUniform
@@ -925,7 +934,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			break;
 	}
 
-	if ( DynamicReflections::IsEnabled() )
+	if ( DynamicReflections::IsEnabled() && !s_bSpecularDropped )
 	{
 		float4 vReflection = DynamicReflections::Sample( vPositionSs.xy, vSqrtRoughness.x );
 		float flConfidence = vReflection.a;
