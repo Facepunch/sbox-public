@@ -2,6 +2,7 @@ using NativeEngine;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using MeshField = Borealis.Source2.Models.VertexField;
 
 namespace NativeEngine
 {
@@ -142,14 +143,25 @@ namespace Sandbox
 		}
 	}
 
+	/// <summary>
+	/// A mesh's vertex buffer. Its bytes and the fields each vertex carries live here, so the mesh reads back and saves
+	/// without a render device.
+	/// </summary>
 	internal struct VertexBufferHandle
 	{
-		public readonly bool IsValid => _native != IntPtr.Zero && _elementType != null;
+		public readonly bool IsValid => _data != null && _elementType != null;
 		public readonly int ElementCount => _elementCount;
 		public readonly int ElementSize => _elementSize;
 
+		/// <summary>The buffer's bytes: <see cref="ElementCount"/> vertices of <see cref="ElementSize"/> bytes.</summary>
+		internal readonly byte[] Data => _data;
+
+		/// <summary>The fields each vertex carries, as its layout names them.</summary>
+		internal readonly MeshField[] Fields => _fields;
+
 		private VertexBufferHandle_t _native;
-		private IntPtr _lockData;
+		private byte[] _data;
+		private MeshField[] _fields;
 		private int _elementCount;
 		private int _elementSize;
 		private Type _elementType;
@@ -158,6 +170,9 @@ namespace Sandbox
 		private bool _locked;
 
 		public static implicit operator VertexBufferHandle_t( VertexBufferHandle handle ) => handle._native;
+
+		/// <summary>Whether Source 2's device holds a copy (only with its device).</summary>
+		internal readonly bool HasNative => _native != IntPtr.Zero;
 
 		private static readonly int[] vertexAttributeFormatSizes = { 4, 2, 4, 4, 2, 2, 1, 1 };
 		private static readonly string[] vertexAttributeTypeNames = { "position", "normal", "tangent", "texcoord", "color", "blendindices", "blendweight" };
@@ -189,34 +204,34 @@ namespace Sandbox
 			if ( !SandboxedUnsafe.IsAcceptablePod( type ) )
 				throw new ArgumentException( $"{type} must be a POD type" );
 
-			var layout = VertexLayout.Get( type );
-			if ( !layout.IsValid )
-				throw new ArgumentException( $"{type} invalid vertex type" );
+			// The layout's fields, as VertexLayout builds Source 2's from them
+			var fields = VertexLayout.FieldsOf( type );
+			var vertexSize = Marshal.SizeOf( type );
 
-			if ( layout.m_Size <= 0 )
+			if ( vertexSize <= 0 )
 				throw new ArgumentException( "Creating vertex buffer with zero vertex size" );
 
-			if ( layout.m_Size > type.GetManagedSize() )
+			if ( vertexSize > type.GetManagedSize() )
 				throw new ArgumentException( $"{type} vertex layout is larger than the vertex type" );
 
-			var elementMax = int.MaxValue / layout.m_Size;
+			var elementMax = int.MaxValue / vertexSize;
 			if ( vertexCount > elementMax )
 				throw new ArgumentException( $"Too many elements for the vertex buffer. Maximum allowed is {elementMax}" );
 
-			var handle = MeshGlue.CreateVertexBuffer( vertexCount, layout, data );
-			if ( handle == IntPtr.Zero )
-				throw new Exception( $"Failed to create vertex buffer" );
+			var bytes = new byte[vertexCount * vertexSize];
+			if ( data != IntPtr.Zero )
+				new ReadOnlySpan<byte>( (void*)data, bytes.Length ).CopyTo( bytes );
+
+			var handle = default( VertexBufferHandle_t );
 
 			return new VertexBufferHandle()
 			{
 				_native = handle,
-				_lockData = IntPtr.Zero,
+				_data = bytes,
+				_fields = fields,
 				_elementCount = vertexCount,
-				_elementSize = layout.m_Size,
+				_elementSize = vertexSize,
 				_elementType = type,
-				_lockDataSize = 0,
-				_lockDataOffset = 0,
-				_locked = false,
 			};
 		}
 
@@ -249,6 +264,7 @@ namespace Sandbox
 			int fieldCount = 0;
 			var sb = new StringBuilder();
 			VertexField* vertexFields = stackalloc VertexField[16];
+			var fields = new MeshField[layout.Length];
 
 			foreach ( var attribute in layout )
 			{
@@ -274,6 +290,8 @@ namespace Sandbox
 					SemanticIndex = attribute.SemanticIndex
 				};
 
+				fields[fieldCount] = new MeshField( fieldName, attribute.SemanticIndex, (Borealis.Source2.Models.ColorFormat)format, layoutSize, 0, false, 0 );
+
 				sb.Append( fieldName );
 
 				layoutSize += fieldSize;
@@ -286,25 +304,25 @@ namespace Sandbox
 			if ( dataLength > vertexCount )
 				dataLength = vertexCount;
 
-			var handle = MeshGlue.CreateVertexBuffer( vertexSize, vertexCount, sb.ToString(), (IntPtr)vertexFields, fieldCount, data, dataLength );
-			if ( handle == IntPtr.Zero )
-				throw new Exception( $"Failed to create vertex buffer" );
+			var bytes = new byte[vertexCount * vertexSize];
+			if ( data != IntPtr.Zero && dataLength > 0 )
+				new ReadOnlySpan<byte>( (void*)data, dataLength * vertexSize ).CopyTo( bytes );
+
+			var handle = default( VertexBufferHandle_t );
 
 			return new VertexBufferHandle()
 			{
 				_native = handle,
-				_lockData = IntPtr.Zero,
+				_data = bytes,
+				_fields = fields,
 				_elementCount = vertexCount,
 				_elementSize = vertexSize,
 				_elementType = type,
-				_lockDataSize = 0,
-				_lockDataOffset = 0,
-				_locked = false,
 			};
 		}
 
 		/// <summary>
-		/// Resize the vertex buffer
+		/// Resize the vertex buffer. Its contents start again from zero, as a new buffer's do.
 		/// </summary>
 		public void SetSize( int elementCount )
 		{
@@ -324,8 +342,8 @@ namespace Sandbox
 			if ( _elementCount == elementCount )
 				return;
 
-			var handle = MeshGlue.SetVertexBufferSize( _native, elementCount );
-			_native = handle;
+			_data = new byte[elementCount * _elementSize];
+			if ( HasNative ) _native = MeshGlue.SetVertexBufferSize( _native, elementCount );
 			_elementCount = elementCount;
 		}
 
@@ -376,13 +394,20 @@ namespace Sandbox
 			if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
 				throw new ArgumentException( $"{nameof( T )} must be a POD type" );
 
+			// What the buffer holds is its element type's bytes, however big T is
+			var bytes = MemoryMarshal.AsBytes( data );
+			if ( bytes.Length > dataSize ) bytes = bytes[..(int)dataSize];
+			bytes.CopyTo( _data.AsSpan( (int)dataOffset ) );
+
+			if ( !HasNative ) return;
+
 			fixed ( T* data_ptr = data )
 			{
 				MeshGlue.SetVertexBufferData( _native, (IntPtr)data_ptr, (int)dataSize, (int)dataOffset );
 			}
 		}
 
-		private void Unlock()
+		private unsafe void Unlock()
 		{
 			if ( !IsValid )
 				return;
@@ -390,15 +415,21 @@ namespace Sandbox
 			if ( !_locked )
 				return;
 
-			MeshGlue.UnlockVertexBuffer( _native, _lockData, _lockDataSize, _lockDataOffset );
+			// Source 2's copy gets what was written
+			if ( HasNative )
+			{
+				fixed ( byte* pData = &_data[_lockDataOffset] )
+				{
+					MeshGlue.SetVertexBufferData( _native, (IntPtr)pData, _lockDataSize, _lockDataOffset );
+				}
+			}
 
-			_lockData = IntPtr.Zero;
 			_lockDataSize = 0;
 			_lockDataOffset = 0;
 			_locked = false;
 		}
 
-		private unsafe Span<T> Lock<T>( int elementCount, int elementOffset )
+		private Span<T> Lock<T>( int elementCount, int elementOffset )
 		{
 			if ( !IsValid )
 				throw new InvalidOperationException( "Vertex buffer has not been created" );
@@ -431,19 +462,13 @@ namespace Sandbox
 
 			_lockDataSize = (int)dataSize;
 			_lockDataOffset = (int)dataOffset;
-			_lockData = MeshGlue.LockVertexBuffer( _native, _lockDataSize, _lockDataOffset );
-
-			if ( _lockData == IntPtr.Zero )
-			{
-				_lockDataSize = 0;
-				_lockDataOffset = 0;
-
-				return null;
-			}
-
 			_locked = true;
 
-			return new Span<T>( _lockData.ToPointer(), elementCount );
+			// A locked region starts from zero, as Source 2's did
+			var region = _data.AsSpan( _lockDataOffset, _lockDataSize );
+			region.Clear();
+
+			return MemoryMarshal.CreateSpan( ref Unsafe.As<byte, T>( ref region[0] ), elementCount );
 		}
 
 		public delegate void LockHandler<T>( Span<T> data );
@@ -617,6 +642,7 @@ namespace Sandbox
 			if ( !vb.IsValid )
 				return;
 
+			// Without Source 2's device the handle is null: the mesh's draws still bind it, the bytes are ours
 			fixed ( T* data_ptr = data )
 			{
 				MeshGlue.SetMeshVertexBuffer( native, vb, (IntPtr)data_ptr, data.Length );
@@ -673,6 +699,7 @@ namespace Sandbox
 			if ( !vb.IsValid )
 				return;
 
+			// Without Source 2's device the handle is null: the mesh's draws still bind it, the bytes are ours
 			fixed ( T* data_ptr = data )
 			{
 				MeshGlue.SetMeshVertexBuffer( native, vb, (IntPtr)data_ptr, data.Length );

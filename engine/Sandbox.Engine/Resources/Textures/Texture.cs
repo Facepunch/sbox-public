@@ -1,3 +1,4 @@
+using Borealis.Source2.Materials;
 using NativeEngine;
 
 namespace Sandbox;
@@ -46,8 +47,6 @@ public partial class Texture : Resource, IDisposable
 	{
 		if ( native.IsNull ) throw new Exception( "Texture pointer cannot be null!" );
 		this.native = native;
-
-		UpdateSheetInfo();
 	}
 
 	~Texture()
@@ -58,7 +57,7 @@ public partial class Texture : Resource, IDisposable
 	/// <summary>
 	/// Texture index. Bit raw dog and needs a higher level abstraction.
 	/// </summary>
-	public int Index => g_pRenderDevice.GetTextureViewIndex( native, 0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
+	public int Index => Graphics.Backend.TextureIndex( this );
 
 	/// <summary>
 	/// Replace our strong handle with a copy of the strong handle of the passed texture
@@ -66,10 +65,51 @@ public partial class Texture : Resource, IDisposable
 	/// I suspect that there might be a decent way to do this in native using the resource system.
 	/// In which case we should change all this code to use that way instead of doing this.
 	/// </summary>
+	/// <summary>
+	/// What the texture was made with, kept when the process draws on a device other than Source 2's
+	/// (<see cref="RenderBackend.Default"/>) or has another device beside it, which makes its copy from them: the pixel
+	/// data, or the colour it was cleared to.
+	/// Null once the texture has been changed since.
+	/// </summary>
+	internal byte[] InitialPixels { get; set; }
+	internal Color? InitialColor { get; set; }
+
+	/// <summary>
+	/// Made in code (<see cref="Create(string, bool, TextureBuilder, IntPtr, int)"/>) rather than loaded from a file: its
+	/// name, if it has one, isn't a file another device could read it from.
+	/// </summary>
+	internal bool MadeAtRunTime { get; set; }
+
+	/// <summary>
+	/// A view Borealis rendered into a texture of its own drew this render target last (a command list's
+	/// <c>DrawReflection</c> or <c>DrawView</c> on Borealis.Gpu): what reads it through the engine reads that texture, until the
+	/// engine writes the target itself.
+	/// </summary>
+	internal bool DrawnByView
+	{
+		get;
+		set
+		{
+			if ( value && !field ) System.Threading.Interlocked.Increment( ref viewDraws );
+			field = value;
+		}
+	}
+
+	static int viewDraws;
+
+	/// <summary>Moves on each time a view draws into a texture (<see cref="DrawnByView"/> turns on): what a dispatch lowered before may bind a stale engine copy since.</summary>
+	internal static int ViewDraws => System.Threading.Volatile.Read( ref viewDraws );
+
 	internal void CopyFrom( Texture texture )
 	{
 		if ( !texture.IsValid() )
 			return;
+
+		// What other devices made of the old contents is stale
+		RenderBackend.ReleaseEverywhere( this );
+		MadeAtRunTime = texture.MadeAtRunTime;
+		InitialPixels = texture.InitialPixels;
+		InitialColor = texture.InitialColor;
 
 		if ( !native.IsNull )
 		{
@@ -79,6 +119,7 @@ public partial class Texture : Resource, IDisposable
 			// Evict from NativeResourceCache so a new wrapper can be created
 			// if the same native pointer is reused (e.g. RenderTarget pool, TextBlock rebuild).
 			NativeResourceCache.Remove( n.GetBindingPtr().ToInt64() );
+			ForgetNamed( n.GetBindingPtr().ToInt64() );
 
 			MainThread.Queue( () => n.DestroyStrongHandle() );
 		}
@@ -89,30 +130,71 @@ public partial class Texture : Resource, IDisposable
 		native = texture.native.CopyStrongHandle();
 
 		IsAnimated = texture.IsAnimated;
-		RefreshNativeDescription();
-	}
 
-	/// <summary>
-	/// Refreshes cached metadata when the texture behind a strong handle changes.
-	/// </summary>
-	internal void RefreshNativeDescription()
-	{
-		UpdateSheetInfo();
-
-		gotdesc = false;
-		_desc = default;
+		// Described again from the new handle: the same as the other texture's
+		gotdesc = texture.gotdesc;
+		_desc = texture._desc;
+		describedAtCreation = texture.describedAtCreation;
+		fileHeader = texture.fileHeader;
+		fileHeaderRead = texture.fileHeaderRead;
+		madeSheet = texture.madeSheet;
+		sheetRead = false;
 
 		DirtyVersion++;
 	}
 
+	/// <summary>
+	/// Refreshes cached metadata when the texture behind a strong handle changes: a baked texture written over its file and
+	/// reloaded in place. Its description, file header and sheet are read again when next used, and what every device made
+	/// of the old contents is released.
+	/// </summary>
+	internal void RefreshNativeDescription()
+	{
+		// One made at run time keeps what it was made with: its handle hasn't changed
+		if ( !describedAtCreation )
+		{
+			gotdesc = false;
+			_desc = default;
+			fileHeader = null;
+			fileHeaderRead = false;
+		}
+
+		sheetRead = false;
+
+		RenderBackend.Default.Release( this );
+		RenderBackend.ReleaseEverywhere( this );
+
+		DirtyVersion++;
+	}
+
+	/// <summary>How many textures were described from their files, and how many had no description to read, for diagnostics.</summary>
+	internal static int DescribedFromFiles, Undescribed;
+
+	/// <summary>The first textures that had no description to read.</summary>
+	internal static readonly System.Collections.Concurrent.ConcurrentQueue<string> UndescribedNames = new();
+
+	/// <summary>
+	/// Its description: what it was made with, or its compiled file's header as Source 2 describes a loaded texture. One
+	/// with neither (its file isn't found, or can't be read) has an empty description, which reads as a failed load.
+	/// </summary>
 	internal CTextureDesc Desc
 	{
 		get
 		{
 			if ( gotdesc ) return _desc;
 
+			if ( FileHeader is { } header && DescriptionOf( header ) is { } fromFile )
+			{
+				_desc = fromFile;
+				System.Threading.Interlocked.Increment( ref DescribedFromFiles );
+			}
+			else
+			{
+				_desc = default;
+				if ( System.Threading.Interlocked.Increment( ref Undescribed ) <= 64 ) UndescribedNames.Enqueue( ResourcePath ?? RenderTools.GetTextureResourceName( native ) );
+			}
+
 			gotdesc = true;
-			_desc = g_pRenderDevice.GetOnDiskTextureDesc( native );
 			return _desc;
 		}
 	}
@@ -160,7 +242,8 @@ public partial class Texture : Resource, IDisposable
 	/// <summary>
 	/// Returns how many frames ago this texture was last used by the renderer
 	/// </summary>
-	public int LastUsed => native.IsValid ? g_pRenderDevice.GetTextureLastUsed( native ).Clamp( 0, 1000 ) : 1000;
+	public int LastUsed => !native.IsValid ? 1000
+		: (int)Math.Clamp( (long)(Application.FrameCount - Math.Max( _markedUsedFrame, _deviceUsedFrame )), 0, 1000 ); // When the device last used it
 
 	/// <summary>
 	/// Gets if the texture has UAV access
@@ -171,9 +254,13 @@ public partial class Texture : Resource, IDisposable
 	{
 		get
 		{
-			return native.IsValid ? g_pRenderDevice.GetTextureMultisampleType( native ) : RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
+			if ( !native.IsValid ) return RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
+			return CreatedMultisample;
 		}
 	}
+
+	/// <summary>What the texture was made with: Source 2's empty device keeps no sample count.</summary>
+	internal RenderMultisampleType CreatedMultisample { get; set; }
 
 	internal override void Destroy()
 	{
@@ -185,6 +272,7 @@ public partial class Texture : Resource, IDisposable
 			// Evict from NativeResourceCache so a new wrapper can be created
 			// if the same native pointer is reused (e.g. RenderTarget pool, TextBlock rebuild).
 			NativeResourceCache.Remove( n.GetBindingPtr().ToInt64() );
+			ForgetNamed( n.GetBindingPtr().ToInt64() );
 
 			MainThread.Queue( () => n.DestroyStrongHandle() );
 		}
@@ -200,6 +288,7 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		RenderBackend.ReleaseEverywhere( this );
 		Destroy();
 	}
 
@@ -233,19 +322,21 @@ public partial class Texture : Resource, IDisposable
 	/// If this texture is a sprite sheet, will return information about the sheet, which
 	/// is generally used in the shader. You don't really need to think about the contents.
 	/// </summary>
-	public Vector4 SequenceData
-	{
-		get
-		{
-			// I think this would be safe to cache off, right?
-			return g_pRenderDevice.GetSheetInfo( native );
-		}
-	}
+	public Vector4 SequenceData => RenderBackend.Default.SheetData( this );
 
 	/// <summary>
 	/// The count of sequences in this texture, if any. The rest of the sequence data is encoded into the texture itself.
 	/// </summary>
-	public int SequenceCount { get; private set; }
+	public int SequenceCount
+	{
+		get
+		{
+			ReadSheet();
+			return sequenceCount;
+		}
+	}
+
+	int sequenceCount;
 
 	class SequenceInfo
 	{
@@ -261,6 +352,7 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	public int GetSequenceFrameCount( int sequenceId )
 	{
+		ReadSheet();
 		if ( sequences is null ) return 0;
 		if ( sequenceId < 0 ) return 0;
 		if ( sequenceId >= sequences.Length ) return 0;
@@ -273,6 +365,7 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	private float GetSequenceLength( int sequenceId )
 	{
+		ReadSheet();
 		if ( sequences is null ) return 0;
 		if ( sequenceId < 0 ) return 0;
 		if ( sequenceId >= sequences.Length ) return 0;
@@ -280,40 +373,73 @@ public partial class Texture : Resource, IDisposable
 		return sequences[sequenceId].Length;
 	}
 
-	/// <summary>
-	/// TODO: Fill this out, build a structure of Sequence[] for people to access
-	/// Then make it so we can actually preview them
-	/// </summary>
-	private void UpdateSheetInfo()
+	// Read on first use: what it was made with, else its file's (FileHeader)
+	bool sheetRead;
+	TextureSheet sheet;
+
+	/// <summary>Its sprite sheet, or null: its file's, or the sequences it was made with (<see cref="Texture2DBuilder.AddSequence"/>).</summary>
+	internal TextureSheet Sheet
 	{
-		HasAnimatedSequences = false;
-
-		SequenceCount = g_pRenderDevice.GetSequenceCount( native );
-		if ( SequenceCount <= 0 ) return;
-
-		var s = new List<SequenceInfo>();
-
-		for ( int i = 0; i < SequenceCount; i++ )
+		get
 		{
-			var info = new SequenceInfo();
-			s.Add( info );
-
-			SheetSequence_t seq = g_pRenderDevice.GetSequence( native, i );
-
-			info.Length = seq.m_flTotalTime;
-			info.FrameCount = seq.FrameCount();
-			info.Looped = !seq.m_bClamp;
-
-			HasAnimatedSequences = HasAnimatedSequences || info.FrameCount > 1;
+			ReadSheet();
+			return sheet;
 		}
-
-		sequences = s.ToArray();
 	}
 
-	public bool HasAnimatedSequences { get; private set; }
+	/// <summary>Made at run time with sequences: they're its sheet.</summary>
+	internal void MadeWithSheet( TextureSheet made )
+	{
+		madeSheet = made;
+		sheetRead = false;
+	}
+
+	TextureSheet madeSheet;
+
+	private void ReadSheet()
+	{
+		if ( sheetRead ) return;
+
+		var read = describedAtCreation ? madeSheet : TextureSheet.From( FileHeader?.Sheet );
+		var animated = false;
+		SequenceInfo[] infos = null;
+		if ( read is { Sequences.Length: > 0 } )
+		{
+			infos = new SequenceInfo[read.Sequences.Length];
+			for ( int i = 0; i < infos.Length; i++ )
+			{
+				var sequence = read.Sequences[i];
+				infos[i] = new SequenceInfo { Length = sequence.TotalTime, FrameCount = sequence.Frames.Length, Looped = !sequence.Clamp };
+				animated |= infos[i].FrameCount > 1;
+			}
+		}
+
+		sheet = read;
+		sequences = infos;
+		sequenceCount = infos?.Length ?? 0;
+		hasAnimatedSequences = animated;
+		sheetRead = true;
+	}
+
+	public bool HasAnimatedSequences
+	{
+		get
+		{
+			ReadSheet();
+			return hasAnimatedSequences;
+		}
+	}
+
+	bool hasAnimatedSequences;
 
 	ulong _markedUsedFrame;
 	int _markedUsedMipSize;
+
+	// The frame another device than Source 2's last used it, for LastUsed; set from any thread
+	ulong _deviceUsedFrame;
+
+	/// <summary>Used by the device drawing (when it isn't Source 2's, which keeps its own count) this frame.</summary>
+	internal void UsedOnDevice() => _deviceUsedFrame = Application.FrameCount;
 
 	/// <summary>
 	/// Tells texture streaming this texture is being used.
@@ -328,11 +454,9 @@ public partial class Texture : Resource, IDisposable
 
 		_markedUsedFrame = Application.FrameCount;
 		_markedUsedMipSize = requiredMipSize;
-
-		g_pRenderDevice.MarkTextureUsed( native, requiredMipSize );
 	}
 
-	internal bool IsRenderTarget => g_pRenderDevice.IsTextureRenderTarget( native );
+	internal bool IsRenderTarget => Desc.m_nFlags.Contains( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );
 
 	/// <summary>
 	/// Mark this texture as loading, create a texture in a task, replace this texture with it, mark it as loaded.

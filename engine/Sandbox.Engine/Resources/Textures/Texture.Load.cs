@@ -6,6 +6,12 @@ namespace Sandbox;
 
 public partial class Texture
 {
+	/// <summary>The material and parameter a texture with no path of its own came from (<see cref="Material.GetTexture"/>).</summary>
+	internal readonly record struct MaterialOrigin( string Material, string Parameter );
+
+	/// <summary>Where textures read from materials came from, for the Borealis.Gpu device, which reads them by path.</summary>
+	internal static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Texture, object> MaterialOrigins = new();
+
 	internal static Texture FromNative( ITexture native )
 	{
 		if ( !native.IsStrongHandleValid() )
@@ -31,6 +37,37 @@ public partial class Texture
 
 		var texture = new Texture( native );
 		NativeResourceCache.Add( instanceId, texture );
+		return texture;
+	}
+
+	/// <summary>
+	/// A texture native loaded (takes the strong handle), by its resource name where it has one, so a renderer that reads
+	/// textures by path (Borealis.Gpu) can read it: a map native loads for a tool's preview has its probes' textures so.
+	/// </summary>
+	internal static Texture FromNativeResource( ITexture native )
+	{
+		if ( native.IsNull ) return null;
+
+		var name = RenderTools.GetTextureResourceName( native );
+		if ( string.IsNullOrEmpty( name ) ) return FromNative( native );
+
+		native.DestroyStrongHandle();
+		return Load( name, false );
+	}
+
+	/// <summary>
+	/// A texture something native holds (a material's), knowing the compiled file it was loaded from by that file's path,
+	/// as <see cref="Load(string, bool)"/> would: a device that reads textures by path (Borealis.Gpu) can read it.
+	/// </summary>
+	internal static Texture FromNativeFile( ITexture native )
+	{
+		var texture = FromNative( native );
+		if ( texture is null || !string.IsNullOrEmpty( texture.ResourcePath ) ) return texture;
+
+		var name = RenderTools.GetTextureResourceName( texture.native );
+		if ( string.IsNullOrEmpty( name ) ) return texture;
+		if ( name.EndsWith( ".vtex_c", StringComparison.OrdinalIgnoreCase ) ) name = name[..^2];
+		if ( name.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) ) texture.RegisterWeakResourceId( name, texture.native.GetGuid() );
 		return texture;
 	}
 

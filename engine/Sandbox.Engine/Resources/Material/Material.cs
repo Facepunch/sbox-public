@@ -44,6 +44,10 @@ public sealed partial class Material : Resource
 
 		CRenderAttributes attributes = this.native.GetRenderAttributes();
 		Attributes = new RenderAttributes( attributes );
+
+		// Borealis.Gpu lowers attributes itself: it draws with a managed copy (a post process blits with its material's
+		// attributes: Unicycle Frenzy's speed lines)
+		Attributes.KeepManagedCopy();
 	}
 
 	internal override void Destroy()
@@ -79,9 +83,14 @@ public sealed partial class Material : Resource
 			copy.anonymousShader = anonymousShader;
 			copy.IsRuntime = true;
 			copy.IsCopy = true;
-			// The native copy merges raw buffer pointers, so the copy needs its own bindings
-			Attributes?.MergeUsedBuffersTo( copy.Attributes );
+			copy.FilePath = FilePath;
+			copy.MadeFromShader = MadeFromShader;
+			copy.ShaderSetInCode = ShaderSetInCode;
+			copy.SetInCode = SetInCode;
+			copy.FeaturesSetInCode = FeaturesSetInCode;
+			copy.SetInCodeVersion = SetInCodeVersion;
 		}
+
 		return copy;
 	}
 
@@ -90,15 +99,30 @@ public sealed partial class Material : Resource
 	/// </summary>
 	internal bool IsCopy { get; private set; }
 
+	/// <summary>The compiled file this material reads, a copy's being its original's.</summary>
+	internal string FilePath
+	{
+		get => filePath ?? ResourcePath;
+		private set => filePath = value;
+	}
+
+	string filePath;
+
+	/// <summary>
+	/// The shader a material made in code has (<see cref="Create(string, string, bool)"/>), with no file of its own; null for one
+	/// read from a file.
+	/// </summary>
+	internal string MadeFromShader { get; private set; }
+
 	bool releaseQueued;
 
 	/// <summary>
-	/// Free a copy made by <see cref="CreateCopy"/> at the end of this frame, once everything has rendered, rather than whenever
-	/// the GC finalizes it: its strong handle goes then, and with native's last reference its material and layers. What drew
-	/// it must have let go of it by then (its scene object deleted, or given another material). Does nothing for a material
-	/// that isn't a copy, which others share.
+	/// Free a copy made by <see cref="CreateCopy"/> now, rather than when the garbage collector finalizes it. It goes at the
+	/// end of this frame, after everything has rendered, so draws this frame may still use it; nothing should draw with it
+	/// after that (delete its scene object, or give it another material). Does nothing for a material that isn't a copy, such
+	/// as one from <see cref="Load(string)"/>, which others share.
 	/// </summary>
-	internal void ReleaseCopy()
+	public void ReleaseCopy()
 	{
 		if ( !IsCopy || releaseQueued || native.IsNull ) return;
 

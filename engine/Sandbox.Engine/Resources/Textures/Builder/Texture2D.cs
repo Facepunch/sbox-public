@@ -258,6 +258,11 @@ namespace Sandbox
 			if ( _sequences is not null )
 				return FinishWithSequences();
 
+			return FinishTexture();
+		}
+
+		private Texture FinishTexture()
+		{
 			if ( _dataPtr != IntPtr.Zero )
 			{
 				return Texture.Create( _name, _asAnonymous, config, _dataPtr, _dataLength );

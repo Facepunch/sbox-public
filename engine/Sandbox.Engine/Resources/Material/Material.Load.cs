@@ -7,9 +7,16 @@ public partial class Material
 {
 	internal override void OnReloaded()
 	{
+		ShaderVersion++;
 		_shaderName = null;
 		Attributes.Set( native.GetRenderAttributes() );
 	}
+
+	/// <summary>
+	/// Moves on whenever the material's shader may have changed (a reload, <see cref="Shader"/> set), so what a device
+	/// read of it (<c>"shader"</c>) is read again only then.
+	/// </summary>
+	internal int ShaderVersion { get; private set; }
 
 	/// <summary>
 	/// Load a material from disk. Has internal cache.

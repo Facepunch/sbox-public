@@ -11,7 +11,12 @@ public partial class Texture
 	/// </summary>
 	public void Clear( Color color )
 	{
-		g_pRenderDevice.ClearTexture( native, color );
+		DirtyVersion++; // Layer caches hash this
+
+		// Other devices clear their copies too, or make them from this colour when they next use it
+		RenderBackend.ClearEverywhere( this, color );
+		InitialPixels = null;
+		InitialColor = color;
 	}
 
 	/// <summary>
@@ -94,10 +99,10 @@ public partial class Texture
 			throw new Exception( $"{data.Length} bytes is not enough data to update texture! {memRequired} required." );
 		}
 
-		fixed ( byte* dataPtr = data )
-		{
-			g_pRenderDevice.AsyncSetTextureData2( native, (IntPtr)dataPtr, data.Length, new Rect3D( x, y, z, width, height, depth ) );
-		}
+		// The devices take the same bytes into their copies, or drop them
+		RenderBackend.UpdateEverywhere( this, data, x, y, z, width, height, depth );
+		InitialPixels = null;
+		InitialColor = null;
 	}
 
 	/// <summary>

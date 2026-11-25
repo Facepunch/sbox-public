@@ -23,6 +23,9 @@ public partial class Model
 			return model;
 		}
 
+		// Native code's models made in code (Hammer's meshes) have no file either
+		procedural |= NativeGlue.Resources.IsModelProcedural( native );
+
 		name ??= procedural ? native.GetModelName() : NativeGlue.Resources.GetModelResourceName( native );
 		model = new Model( native, name, procedural );
 		NativeResourceCache.Add( instanceId, model );

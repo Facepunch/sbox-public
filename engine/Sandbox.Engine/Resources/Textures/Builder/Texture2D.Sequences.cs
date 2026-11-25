@@ -1,5 +1,5 @@
+using Borealis.Source2.Materials;
 using NativeEngine;
-using System.IO;
 
 namespace Sandbox
 {
@@ -34,7 +34,7 @@ namespace Sandbox
 			return this;
 		}
 
-		private unsafe Texture FinishWithSequences()
+		private Texture FinishWithSequences()
 		{
 			if ( !HasData || config._config.m_nUsage != TextureUsage.TEXTURE_USAGE_STATIC
 				|| config._config.m_nMultisampleType != RenderMultisampleType.RENDER_MULTISAMPLE_NONE )
@@ -45,43 +45,39 @@ namespace Sandbox
 			if ( _dataLength != required )
 				throw new InvalidOperationException( "Sequences require data for every mip level." );
 
-			var nativeConfig = config._config.GetWithFixes();
-			nativeConfig.m_nImageFormat.ThrowIfInvalid();
-
-			// Native keys sequences by resource name, which anonymous textures don't have.
-			var hasName = !string.IsNullOrWhiteSpace( _name );
-			var nativeName = hasName && !_asAnonymous ? _name : $"runtime_sequences_{Guid.NewGuid():N}.vtex";
-			var sequences = SerializeSequences();
-
-			fixed ( byte* pixels = _data )
-			fixed ( byte* data = sequences )
+			// A texture found by its name is returned as it is, keeping its own sequences
+			var named = !string.IsNullOrWhiteSpace( _name ) && !_asAnonymous;
+			if ( named && Texture.Find( _name ) is Texture existing && existing.IsValid )
 			{
-				var native = g_pRenderDevice.FindOrCreateTextureWithSheet( nativeName, nativeConfig,
-					_dataPtr != IntPtr.Zero ? _dataPtr : (IntPtr)pixels, _dataLength, (IntPtr)data, sequences.Length );
-				var result = Texture.FromNative( native );
-				if ( hasName ) result?.RegisterWeakResourceId( _name );
-				return result;
+				Log.Warning( $"Texture '{_name}' already exists, keeping its sequences" );
+				return existing;
 			}
+
+			var result = FinishTexture();
+			result?.MadeWithSheet( MakeSheet() );
+			return result;
 		}
 
-		private byte[] SerializeSequences()
+		/// <summary>The sequences as a sheet: one image a frame, cropped to nothing.</summary>
+		private TextureSheet MakeSheet()
 		{
-			using var data = new MemoryStream();
-			using var writer = new BinaryWriter( data );
-			writer.Write( _sequences.Length );
-			foreach ( var sequence in _sequences )
+			var sequences = new TextureSheet.Sequence[_sequences.Length];
+			for ( int s = 0; s < sequences.Length; s++ )
 			{
-				writer.Write( sequence.Loop ? 0 : 1 );
-				writer.Write( sequence.Frames.Length );
-				foreach ( var frame in sequence.Frames )
+				var sequence = _sequences[s];
+				var time = 1 / sequence.FrameRate;
+				var frames = new TextureSheet.Frame[sequence.Frames.Length];
+				for ( int f = 0; f < frames.Length; f++ )
 				{
-					writer.Write( 1 / sequence.FrameRate );
-					writer.Write( frame.Left ); writer.Write( frame.Top );
-					writer.Write( frame.Right ); writer.Write( frame.Bottom );
+					var r = sequence.Frames[f];
+					var rect = new System.Numerics.Vector4( r.Left, r.Top, r.Right, r.Bottom );
+					frames[f] = new TextureSheet.Frame( time, [new TextureSheet.Image( rect, rect )] );
 				}
+
+				sequences[s] = new TextureSheet.Sequence( s, !sequence.Loop, false, time * frames.Length, frames );
 			}
 
-			return data.ToArray();
+			return new TextureSheet( sequences );
 		}
 	}
 }

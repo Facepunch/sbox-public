@@ -156,8 +156,9 @@ public partial class Texture
 	/// Asynchronously saves the current data to the VTEX platform and returns the resulting byte array.
 	/// </summary>
 	/// <param name="format">Optional format override. If null, the format is automatically determined based on texture properties.</param>
-	public async Task<byte[]> SaveToVtexAsync( ImageFormat? format = null )
+	public Task<byte[]> SaveToVtexAsync( ImageFormat? format = null )
 	{
-		return await Task.Run( () => SaveToVtex( format ) );
+		// The device reads its textures back through its own recording context, on the calling (main) thread
+		return Task.FromResult( SaveToVtex( format ) );
 	}
 }

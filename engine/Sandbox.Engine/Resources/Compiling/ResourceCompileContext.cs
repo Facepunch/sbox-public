@@ -87,6 +87,12 @@ public abstract class ResourceCompileContext
 	internal abstract void Fail( string error );
 
 	/// <summary>
+	/// A named string in the compiled resource's edit data, which tools read and the game doesn't load (a material's
+	/// <c>VSInputSignature</c>, which the model compiler lays meshes out by).
+	/// </summary>
+	internal virtual void AddEditData( string name, string value ) { }
+
+	/// <summary>
 	/// Get the streaming data to write to
 	/// </summary>
 	public DataStream StreamingData { get; internal set; }

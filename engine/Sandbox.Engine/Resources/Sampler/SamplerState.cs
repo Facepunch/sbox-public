@@ -1,7 +1,4 @@
-﻿using NativeEngine;
-using System.Collections.Concurrent;
-
-namespace Sandbox.Rendering;
+﻿namespace Sandbox.Rendering;
 
 /// <summary>
 /// Represents a sampler state used to control how textures are sampled in shaders.
@@ -72,24 +69,8 @@ public record struct SamplerState
 	/// </summary>
 	[Hide] public int Index => GetBindlessIndex( this );
 
-	static internal ConcurrentDictionary<SamplerState, int> _cachedSamplerIndex = [];
-
 	/// <summary>
-	/// Gets or creates a bindless sampler index for this <see cref="SamplerState"/>.
+	/// Gets or creates a bindless sampler index for this <see cref="SamplerState"/>, on the device being drawn on.
 	/// </summary>
-	internal static int GetBindlessIndex( SamplerState samplerState )
-	{
-		if ( _cachedSamplerIndex.TryGetValue( samplerState, out int value ) )
-		{
-			return value; // We already know the bindless index
-		}
-
-		CSamplerStateDesc samplerStateDesc = new( samplerState );
-		var handle = g_pRenderDevice.FindOrCreateSamplerState( samplerStateDesc );
-
-		int samplerIndex = g_pRenderDevice.GetSamplerIndex( handle );
-		_cachedSamplerIndex[samplerState] = samplerIndex;
-
-		return samplerIndex;
-	}
+	internal static int GetBindlessIndex( SamplerState samplerState ) => Graphics.Backend.SamplerIndex( samplerState );
 }
