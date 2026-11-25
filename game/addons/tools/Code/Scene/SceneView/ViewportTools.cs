@@ -97,26 +97,37 @@ public partial class ViewportTools : Widget
 	[EditorEvent.Frame]
 	public void OnViewportToolsFrame()
 	{
-		UpdateDimensions();
 		UpdateToolExtensionToolbar();
 	}
 
-	int lastGeometryHash = -1;
+	protected override void OnResize()
+	{
+		base.OnResize();
+		FitParent();
+	}
 
-	private void UpdateDimensions()
+	protected override void OnMoved()
+	{
+		base.OnMoved();
+		FitParent();
+	}
+
+	/// <summary>
+	/// Covers the whole parent. Called when the parent is resized and when this widget's own geometry changes (the parent's
+	/// layout places it again, after a resize or a move to another dock), not every frame: the parent's events alone missed
+	/// the layout placing it again.
+	/// </summary>
+	internal void FitParent()
 	{
 		if ( !Parent.IsValid() )
 			return;
 
-		// this wasn't always being triggered properly when relying on widget events from the parent (causing HUGE jank)
-		int geometryHash = HashCode.Combine( Parent.ScreenPosition, Parent.Size );
-		if ( lastGeometryHash != geometryHash )
-		{
+		var size = Parent.Size;
+		if ( Position != Vector2.Zero )
 			Position = Vector2.Zero;
-			Size = Parent.Size;
-		}
 
-		lastGeometryHash = geometryHash;
+		if ( Size != size )
+			Size = size;
 	}
 
 	private void UpdateChildren()

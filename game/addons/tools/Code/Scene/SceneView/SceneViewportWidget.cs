@@ -126,6 +126,14 @@ public partial class SceneViewportWidget : Widget
 		}
 	}
 
+	protected override void OnResize()
+	{
+		base.OnResize();
+
+		if ( SceneView.IsValid() && SceneView.GetGameTarget() == this )
+			SceneView.OnGameViewResized();
+	}
+
 	protected override void OnFocus( FocusChangeReason reason )
 	{
 		base.OnFocus( reason );

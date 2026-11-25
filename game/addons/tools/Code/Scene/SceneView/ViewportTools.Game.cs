@@ -71,11 +71,18 @@ partial class ViewportTools
 			FrameTimeLabel.Text = $"{frameAvg:0.00}ms";
 			FrameRateLabel.Text = $"{(1000.0f / frameAvg):0} FPS";
 		}
-
-		ResolutionComboBox.UpdateSuffix();
 	}
 
 	float lastFrameAvg = -1;
+
+	/// <summary>
+	/// The game view changed size: the resolution button shows the new size (read when it paints).
+	/// </summary>
+	internal void OnGameViewResized()
+	{
+		if ( ResolutionComboBox.IsValid() )
+			ResolutionComboBox.Update();
+	}
 }
 
 class ResolutionModeButton : Button
@@ -162,10 +169,14 @@ class ResolutionModeButton : Button
 	Vector2 suffixSize = new( -1 );
 
 	/// <summary>
-	/// Shows the game view's size in <see cref="Suffix"/>, made again only when it changes.
+	/// Shows the game view's size in <see cref="Suffix"/>, made again only when it changes. Read when the button paints: the
+	/// game view repaints it when it's resized (<see cref="ViewportTools.OnGameViewResized"/>), and a DPI change repaints it.
 	/// </summary>
 	internal void UpdateSuffix()
 	{
+		if ( !_sceneViewWidget.GetGameTarget().IsValid() )
+			return;
+
 		var size = GameSize();
 		if ( size == suffixSize )
 			return;
@@ -219,6 +230,8 @@ class ResolutionModeButton : Button
 
 	protected override void OnPaint()
 	{
+		UpdateSuffix();
+
 		Paint.Antialiasing = true;
 		Paint.ClearPen();
 		Paint.SetBrush( Theme.ControlBackground );

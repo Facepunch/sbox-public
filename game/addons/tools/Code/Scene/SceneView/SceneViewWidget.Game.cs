@@ -88,6 +88,23 @@ public partial class SceneViewWidget
 	}
 
 	/// <summary>
+	/// The game viewport changed size (its own resize event): the toolbar shows the new size.
+	/// </summary>
+	internal void OnGameViewResized()
+	{
+		if ( _viewportTools.IsValid() )
+			_viewportTools.OnGameViewResized();
+	}
+
+	protected override void OnResize()
+	{
+		base.OnResize();
+
+		if ( _viewportTools.IsValid() )
+			_viewportTools.FitParent();
+	}
+
+	/// <summary>
 	/// Set the game viewport to free sizing mode
 	/// </summary>
 	public void SetFreeSize()
