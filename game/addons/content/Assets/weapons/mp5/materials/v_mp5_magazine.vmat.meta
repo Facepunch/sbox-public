@@ -1,0 +1,28 @@
+{
+  "guid": "f2f10117-3cf2-419b-924d-1737c9f5b371",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Mp 5 Magazine",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_mp5_magazine",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/mp5/materials/v_mp5_magazine.vmat"
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+// Material Icons used regular-weight glyphs drawn on a 24px grid.
+$menu-icon-filled: 'FILL' 1, 'wght' 400, 'opsz' 24;
+$menu-icon-outlined: 'FILL' 0, 'wght' 400, 'opsz' 24;
+
+IconPanel, icon, i
+{
+	font-variation-settings: $menu-icon-filled;
+}

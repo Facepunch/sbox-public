@@ -139,10 +139,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// </summary>
 	public void UnloadMap()
 	{
-		if ( loadedMapPkg is not null )
-		{
-			ServerPackages.Current?.RemoveRequirement( loadedMapPkg );
-		}
+		loadedMapPkg?.RemoveMountRequirement();
 
 		loadedMapName = null;
 		loadedMapPkg = null;
@@ -270,7 +267,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			{
 				// can just load these directly
 			}
-			else if ( Package.TryParseIdent( mapName, out var parts ) )
+			else if ( Package.TryParseIdentParts( mapName, out var parts ) )
 			{
 				// If this looks like a package ident, then download it
 
@@ -291,10 +288,17 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 				context?.Title = $"Loading Map - {package.Title}";
 
-				var fs = await package.MountAsync();
+				// Fetch selected the source. Retain that same package to release its requirement on teardown.
+				var fs = await package.MountResolvedAsync();
 
-				if ( !IsValid || fs is null )
+				if ( fs is null )
 					return false;
+
+				if ( !IsValid || token.IsCancellationRequested )
+				{
+					package.RemoveMountRequirement();
+					return false;
+				}
 
 				loadedMapPkg = package;
 				mapFileName = package.PrimaryAsset;

@@ -227,6 +227,25 @@ public class ContentBuilderTests
 		CollectionAssert.AreEquivalent( expected, report.Jobs.ToArray(), $"Jobs: {string.Join( ", ", report.Jobs )}\n{report.Log}" );
 
 	[TestMethod]
+	public void StagingDirectoriesAreReusedAcrossJobs()
+	{
+		using var fx = new Fixture();
+		for ( var i = 0; i < 40; i++ )
+		{
+			fx.Write( $"t{i}.vtex", "red" );
+			fx.Write( $"m{i}.vmat", $"reads *t{i}.vtex" );
+		}
+
+		var staging = new ConcurrentDictionary<string, byte>( StringComparer.OrdinalIgnoreCase );
+		fx.Compiler.During = job => staging.TryAdd( job.Staging, 0 );
+		var report = fx.Build( maxJobs: 2 );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		Assert.AreEqual( 80, report.Jobs.Count );
+		Assert.IsTrue( staging.Count <= 4, $"{staging.Count} staging directories for 80 jobs" );
+	}
+
+	[TestMethod]
 	public void ShippedMountsNeedNoSourcesOrBuildStateAndProjectOverridesWin()
 	{
 		using var fx = new Fixture();
@@ -341,6 +360,58 @@ public class ContentBuilderTests
 			Assert.IsTrue( report.Success, report.Log.ToString() );
 			Assert.AreEqual( 1, calls );
 		} );
+	}
+
+	/// <summary>
+	/// Parallel jobs in one addon share a display entry until its last job finishes.
+	/// </summary>
+	[TestMethod]
+	public void CompileProgressShowsEachActiveRootOnce()
+	{
+		using var first = new Fixture();
+		using var second = new Fixture();
+		first.Write( "a.vtex", "red" );
+		first.Write( "b.vtex", "green" );
+		second.Write( "c.vtex", "blue" );
+
+		var updates = new List<(int Finished, IReadOnlyList<string> Roots)>();
+		var report = ContentBuilder.Build( new BuildRequest
+		{
+			Roots = [new( "first", first.Root, first.State ), new( "second", second.Root, second.State )],
+			MaxJobs = 3,
+			CompileProgress = progress => updates.Add( (progress.Finished, progress.Compiling) ),
+		}, first.Compiler );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { 0, 0, 0, 1, 2, 3 }, updates.Select( x => x.Finished ).ToArray() );
+		CollectionAssert.AreEqual( new[] { "first" }, updates[1].Roots.ToArray() );
+		CollectionAssert.AreEqual( new[] { "first", "second" }, updates[2].Roots.ToArray() );
+		Assert.AreEqual( 1, updates[^2].Roots.Count );
+		Assert.AreEqual( 0, updates[^1].Roots.Count );
+	}
+
+	/// <summary>
+	/// A first build counts what waits on another compile from the start; a source with a record only once what it
+	/// reads turns out changed.
+	/// </summary>
+	[TestMethod]
+	public void CompileProgressCountsWaitingSources()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		fx.Write( "b.vmat", "reads a.vtex" );
+		List<BuildProgress> Build()
+		{
+			var updates = new List<BuildProgress>();
+			var report = ContentBuilder.Build( new BuildRequest { Roots = [new ContentRoot( "unit", fx.Root, fx.State )], MaxJobs = 1, CompileProgress = updates.Add }, fx.Compiler );
+			Assert.IsTrue( report.Success, report.Log.ToString() );
+			return updates;
+		}
+
+		CollectionAssert.AreEqual( new[] { (0, 2, (string)null), (1, 2, "a.vtex"), (1, 2, null), (2, 2, "b.vmat") }, Build().Select( x => (x.Finished, x.Total, x.Compiled) ).ToArray() );
+
+		fx.Write( "a.vtex", "blue" );
+		CollectionAssert.AreEqual( new[] { (0, 1), (1, 1), (1, 2), (2, 2) }, Build().Select( x => (x.Finished, x.Total) ).ToArray() );
 	}
 
 	[TestMethod]
@@ -766,6 +837,44 @@ public class ContentBuilderTests
 		Assert.IsNull( fx.Build( lockTimeout: TimeSpan.Zero ).Error, "the roots are free again" );
 	}
 
+	/// <summary>
+	/// A previously built decal needs its own texture even when the old menu copy is still mounted.
+	/// Menu assets continue to generate into the shared folder.
+	/// </summary>
+	[TestMethod]
+	public void ShippedRootsPublishTheirOwnGeneratedTextures()
+	{
+		using var fx = new Fixture();
+		fx.Write( "graffiti.vtex", "generates gen/graffiti.vtex_c" );
+		var content = new ContentRoot( "content", fx.Root, fx.State );
+		var menu = new ContentRoot( "menu", Path.Combine( fx.Dir, "menu" ), Path.Combine( fx.Dir, "menu-state" ) );
+		Directory.CreateDirectory( menu.Path );
+		File.WriteAllText( Path.Combine( menu.Path, "icon.vtex" ), "generates gen/icon.vtex_c" );
+
+		var transients = Path.Combine( fx.Dir, "transients" );
+		BuildReport Build( ContentRoot decalRoot ) => ContentBuilder.Build( new BuildRequest
+		{
+			Roots = [decalRoot, menu],
+			OutputRoots = new Dictionary<string, string> { ["transient"] = transients }
+		}, fx.Compiler );
+
+		Assert.IsTrue( Build( content ).Success );
+		var oldTexture = Path.Combine( transients, "gen/graffiti.vtex_c" );
+		Assert.IsTrue( File.Exists( oldTexture ) );
+		File.WriteAllText( oldTexture, "old menu copy" );
+		fx.Write( "gen/graffiti.vtex_c", "stale local copy" );
+
+		content = content with { PublishTransientsWithAssets = true };
+		var rebuild = Build( content );
+		Assert.IsTrue( rebuild.Success, rebuild.Log.ToString() );
+		AssertJobs( rebuild, "content:graffiti.vtex" );
+		Assert.AreEqual( "generated by graffiti.vtex", fx.Read( "gen/graffiti.vtex_c" ) );
+		Assert.AreEqual( "old menu copy", File.ReadAllText( oldTexture ) );
+		Assert.IsTrue( File.Exists( Path.Combine( transients, "gen/icon.vtex_c" ) ) );
+		Assert.IsFalse( File.Exists( Path.Combine( menu.Path, "gen/icon.vtex_c" ) ) );
+		AssertJobs( Build( content ) );
+	}
+
 	[TestMethod]
 	public void GeneratedFileInTheFallbackIsPresentAndNothingIsWrittenThere()
 	{
@@ -1075,6 +1184,22 @@ public class ContentBuilderTests
 
 		Assert.IsTrue( report.Success, report.Log.ToString() );
 		Assert.AreEqual( 2, fx.Compiler.MaxConcurrent );
+	}
+
+	[TestMethod]
+	public void RefusedJobsStillRunOneAtATime()
+	{
+		using var fx = new Fixture();
+		for ( var i = 0; i < 4; i++ ) fx.Write( $"t{i}.vtex", "sleep 50" );
+
+		var asked = 0;
+		var request = new BuildRequest { Roots = [new ContentRoot( "unit", fx.Root, fx.State )], MaxJobs = 4, CanStartJob = () => { asked++; return false; } };
+		var report = ContentBuilder.Build( request, fx.Compiler );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		Assert.AreEqual( 4, report.Jobs.Count );
+		Assert.AreEqual( 1, fx.Compiler.MaxConcurrent );
+		Assert.IsTrue( asked > 0 );
 	}
 
 	[TestMethod]

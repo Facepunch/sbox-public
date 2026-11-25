@@ -6,5 +6,5 @@ QStatusBar>Button {
 }
 
 QLabel[is-icon="true"] {
-  font-family: "Material Icons";
+  font-family: "Material Symbols Outlined";
 }

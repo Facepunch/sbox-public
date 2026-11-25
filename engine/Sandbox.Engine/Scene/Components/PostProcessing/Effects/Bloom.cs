@@ -53,7 +53,10 @@ public class Bloom : BasePostProcess<Bloom>
 
 	public override void Render()
 	{
-		if ( Strength == 0.0f || !UserEnabled )
+		if ( !UserEnabled ) return;
+
+		var strength = GetWeighted( x => x.Strength, 0 );
+		if ( strength == 0.0f )
 			return;
 
 		command.Reset();
@@ -98,13 +101,26 @@ public class Bloom : BasePostProcess<Bloom>
 
 		// Composite: sample the bloom texture in PS and apply selected mode
 		command.Attributes.Set( "BloomTexture", Mip( 0 ).ColorTexture );
-		command.Attributes.Set( "CompositeMode", (int)Mode );
-		command.Attributes.Set( "BloomScale", GetWeighted( x => x.Strength, 0 ) / (2.0f * MipCount) );
+		command.Attributes.Set( "CompositeMode", (int)GetCompositeMode() );
+		command.Attributes.Set( "BloomScale", strength / (2.0f * MipCount) );
 		command.Attributes.Set( "Tint", GetWeighted( x => x.Tint, Color.White ) );
 
 		command.Blit( Shader );
 
 		InsertCommandList( command, Stage.BeforePostProcess, 100, "Bloom" );
+	}
+
+	private SceneCamera.BloomAccessor.BloomMode GetCompositeMode()
+	{
+		// Modes are discrete. Switch when the higher-priority volume reaches half weight.
+		var effects = context.Components;
+		for ( int i = effects.Count - 1; i >= 0; i-- )
+		{
+			if ( effects[i].Weight >= 0.5f )
+				return ((Bloom)effects[i].Effect).Mode;
+		}
+
+		return Mode;
 	}
 
 	public override int ComponentVersion => 1;

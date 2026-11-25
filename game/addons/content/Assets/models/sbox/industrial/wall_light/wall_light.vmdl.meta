@@ -1,0 +1,23 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Industrial Wall Light",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "industrial_wall_light",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/wall_light/wall_light.vmdl",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "17dc4728-43f9-4572-8b14-da2decc0f53f"
+}

@@ -1,0 +1,29 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "entities/sents/tv/materials/tv_crt_screen.shader"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- CRT Settings ----
+	ScanlineIntensity "0.3"
+	Curvature "0.02"
+	ChromaShift "0.003"
+	Brightness "1.0"
+	VignetteStrength "0.4"
+	FlickerSpeed "2.0"
+	PixelGridScale "128.0"
+
+	//---- Material ----
+	g_flTintColor "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusion "materials/default/default_ao.tga"
+	TextureBlendMask "materials/default/default_blend.tga"
+	TextureColor "[0.050000 0.050000 0.050000 0.000000]"
+	TextureMetalness "materials/default/default_metal.tga"
+	TextureNormal "materials/default/default_normal.tga"
+	TextureRoughness "[0.200000 0.200000 0.200000 0.000000]"
+	TextureTintMask "materials/default/default.tga"
+	TextureTranslucency "materials/default/default_trans.tga"
+}

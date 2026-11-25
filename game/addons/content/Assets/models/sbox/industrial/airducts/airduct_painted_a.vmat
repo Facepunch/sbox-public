@@ -1,0 +1,51 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- Color ----
+	F_TINT_MASK 1
+
+	//---- PBR ----
+	F_METALNESS_TEXTURE 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.000"
+	g_flAmbientOcclusionDirectSpecular "0.000"
+	TextureAmbientOcclusion "models/sbox/industrial/airducts/airduct_a_ao.tga"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "models/sbox/industrial/airducts/airduct_a_painted_color.tga"
+	TextureTintMask "models/sbox/industrial/airducts/airduct_a_painted_tint.tga"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	TextureMetalness "models/sbox/industrial/airducts/airduct_a_painted_metal.tga"
+
+	//---- Normal ----
+	g_flLightRangeForSelfShadowNormals "0.707"
+	g_flNormalMapScaleFactor "1.000"
+	TextureNormal "models/sbox/industrial/airducts/airduct_a_painted_normal.tga"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "models/sbox/industrial/airducts/airduct_a_painted_rough.tga"
+
+	//---- Texture Coordinates ----
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	SystemAttributes
+	{
+		PhysicsSurfaceProperties "metal.sheet"
+	}
+}

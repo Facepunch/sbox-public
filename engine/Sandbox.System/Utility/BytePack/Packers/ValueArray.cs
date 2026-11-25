@@ -26,9 +26,11 @@ internal partial class BytePack
 
 		public override object Read( ref ByteStream bs, int depth )
 		{
-			var len = bs.Read<int>();
+			var len = ReadCount( ref bs );
 
 			var handler = GetHandlerFor( ref bs );
+			if ( (long)len * handler.TargetType.GetManagedSize() > bs.ReadRemaining )
+				throw new System.IO.InvalidDataException( $"Array of {len} {handler.TargetType} doesn't fit in {bs.ReadRemaining} bytes" );
 
 			var array = Array.CreateInstance( handler.TargetType, len );
 			bs.ReadValueArray( array );

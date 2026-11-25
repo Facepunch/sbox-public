@@ -3,6 +3,29 @@ namespace SystemTests;
 [TestClass]
 public class StringExtensionsTest
 {
+	/// <summary>
+	/// Padding cannot overflow the snippet bounds or move the search backwards.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( "aaaa", "a", int.MaxValue, "aaaa" )]
+	[DataRow( "hello world", "world", 2, "o world" )]
+	[DataRow( "hello world", "missing", 2, "" )]
+	public void SnippetBounds( string source, string find, int padding, string expected )
+	{
+		Assert.AreEqual( expected, source.Snippet( find, padding ) );
+	}
+
+	/// <summary>
+	/// Negative padding is rejected instead of producing invalid bounds or a non-advancing search.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( -1 )]
+	[DataRow( int.MinValue )]
+	public void SnippetRejectsNegativePadding( int padding )
+	{
+		Assert.ThrowsException<System.ArgumentOutOfRangeException>( () => "aaaa".Snippet( "a", padding ) );
+	}
+
 	[TestMethod]
 	public void SplitQuotesStrings()
 	{

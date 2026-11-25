@@ -121,6 +121,7 @@ internal class GameInstance : IGameInstance
 		Game.Resources.Clear();
 
 		Sandbox.Engine.Shaders.GameShaders.Shutdown();
+		GameInstanceDll.Current.WorkshopItems.Clear();
 
 		if ( activePackage != null && !Application.IsStandalone )
 		{
@@ -190,7 +191,7 @@ internal class GameInstance : IGameInstance
 			}
 		}
 
-		Application.GameIdent = Package is null ? Ident : $"{_package.Org.Ident}.{_package.Ident}";
+		Application.GameIdent = Package?.FullIdent ?? Ident;
 		Application.GamePackage = _package;
 		Application.ExceptionCount = default;
 
@@ -252,7 +253,6 @@ internal class GameInstance : IGameInstance
 			Package = _package,
 			ContextTag = "gamemenu",
 			CancellationToken = token,
-			AllowLocalPackages = !_package.IsRemote,
 			Loading = loadingScreen
 		};
 
@@ -339,6 +339,27 @@ internal class GameInstance : IGameInstance
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
+		// Scan the game and map first so each addon runs once and can override their content.
+		// The host chooses the addons; joining clients install the same Workshop IDs.
+		if ( flags.Contains( GameLoadingFlags.Host ) && Package.TypeName == "game" && Package.Info.AllowsAddons )
+		{
+			LoadingScreen.Title = "Loading Workshop Addons";
+			Workshop.Item[] addons = [];
+			try
+			{
+				addons = await Workshop.GetEnabledAddonsAsync( Application.GameIdent, token );
+			}
+			catch ( Exception e ) when ( e is not OperationCanceledException )
+			{
+				Log.Warning( e, $"Couldn't query Workshop addons: {e.Message}" );
+			}
+
+			foreach ( var addon in addons )
+			{
+				await GameInstanceDll.Current.WorkshopItems.LoadAsync( addon.Id, Workshop.ItemType.Addon, token );
+			}
+		}
+
 		// Dedicated servers install packages that GameResources reference as they load, wait
 		// for them so their resources are registered before the game starts using them
 		if ( Application.IsDedicatedServer )
@@ -369,7 +390,7 @@ internal class GameInstance : IGameInstance
 
 		_packageAssembly = null;
 
-		if ( Package.TryParseIdent( Package.FullIdent, out var ident ) )
+		if ( Package.TryParseIdentParts( Package.FullIdent, out var ident ) )
 		{
 			var loaded = enroller.FindAssembly( Package, $"package.{ident.org}.{ident.package}" );
 			if ( loaded is not null )
@@ -392,7 +413,7 @@ internal class GameInstance : IGameInstance
 		var package = await Package.FetchAsync( map, false );
 
 		if ( package is { IsRemote: true } )
-			await PackageManager.PrefetchAsync( package, true, false, token );
+			await PackageManager.PrefetchAsync( package, true, token );
 
 		return package;
 	}

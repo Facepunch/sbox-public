@@ -63,6 +63,51 @@ public sealed class HitboxSetBuilder
 		return AddHitbox( name, boneName, ModelHitboxBuilder.ShapeType.Capsule, capsule.CenterA, capsule.CenterB, capsule.Radius );
 	}
 
+	/// <summary>
+	/// Adds a convex hull hitbox from at least four non-coplanar points in bone-local space.
+	/// </summary>
+	public ModelHitboxBuilder AddHull( string name, string boneName, ReadOnlySpan<Vector3> points )
+	{
+		if ( points.Length < 4 )
+			throw new ArgumentException( "A convex hull needs at least four points.", nameof( points ) );
+
+		if ( !HasVolume( points ) )
+			throw new ArgumentException( "A convex hull needs finite points that span a volume.", nameof( points ) );
+
+		var hitbox = AddHitbox( name, boneName, ModelHitboxBuilder.ShapeType.Hull, default, default, 0 );
+		hitbox.Points = points.ToArray();
+		return hitbox;
+	}
+
+	// Choose a long edge and a wide triangle so duplicate or nearly collinear
+	// leading points don't determine the plane used for the volume check.
+	private static bool HasVolume( ReadOnlySpan<Vector3> points )
+	{
+		var origin = points[0];
+		var edge = Vector3.Zero;
+		foreach ( var point in points )
+		{
+			if ( !point.IsFinite ) return false;
+			var offset = point - origin;
+			if ( offset.LengthSquared > edge.LengthSquared ) edge = offset;
+		}
+
+		var normal = Vector3.Zero;
+		foreach ( var point in points )
+		{
+			var cross = Vector3.Cross( edge, point - origin );
+			if ( cross.LengthSquared > normal.LengthSquared ) normal = cross;
+		}
+
+		float tolerance = normal.Length * edge.Length * 1e-6f;
+		foreach ( var point in points )
+		{
+			if ( MathF.Abs( Vector3.Dot( normal, point - origin ) ) > tolerance ) return true;
+		}
+
+		return false;
+	}
+
 	private ModelHitboxBuilder AddHitbox( string name, string boneName, ModelHitboxBuilder.ShapeType shape, Vector3 min, Vector3 max, float radius )
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace( name );

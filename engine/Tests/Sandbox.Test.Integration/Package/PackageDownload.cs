@@ -9,7 +9,7 @@ public class PackageDownloadTest
 	[TestMethod]
 	public async Task ReportsCompleteProgressIncludingCachedDownloads()
 	{
-		var package = await Package.FetchAsync( "facepunch.sandbox", false );
+		var package = await Package.FetchAsync( "facepunch.ss2", false );
 		Assert.IsNotNull( package );
 
 		for ( var attempt = 0; attempt < 2; attempt++ )
@@ -30,7 +30,7 @@ public class PackageDownloadTest
 	}
 
 	[TestMethod]
-	[DataRow( "facepunch.sandbox" )]
+	[DataRow( "facepunch.ss2" )]
 	[DataRow( "garry.grassworld" )]
 	public async Task SingleDownload( string packageIdent )
 	{
@@ -72,7 +72,7 @@ public class PackageDownloadTest
 	}
 
 	[TestMethod]
-	[DataRow( "facepunch.sandbox" )]
+	[DataRow( "facepunch.ss2" )]
 	[DataRow( "garry.grassworld" )]
 	public async Task MultipleDownload( string packageIdent )
 	{

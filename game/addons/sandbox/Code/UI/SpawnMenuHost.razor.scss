@@ -1,0 +1,110 @@
+@import "/UI/Theme.scss";
+
+$menu-transition-duration: 0.08s;
+
+SpawnMenuHost
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	color: $menu-color;
+	justify-content: center;
+	font-family: $body-font;
+	font-size: 14px;
+	font-weight: 600;
+	z-index: 1000;
+	pointer-events: none;
+}
+
+SpawnMenuHost .menu-wrapper
+{
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity $menu-transition-duration ease-out;
+}
+
+SpawnMenuHost.open .menu-wrapper
+{
+	opacity: 1;
+	pointer-events: all;
+}
+
+SpawnMenuHost.world-tool-input .menu-wrapper,
+SpawnMenuHost.world-tool-input Inspector > .canvas
+{
+	pointer-events: none;
+}
+
+// windows over the menu, they are the only thing in it that takes the mouse
+SpawnMenuHost .modal-layer
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	justify-content: center;
+	align-items: center;
+	pointer-events: none;
+	z-index: 10;
+}
+
+// nothing darkens the game behind the menu
+SpawnMenuHost .menu-backdrop
+{
+	display: none;
+}
+
+SpawnMenuHost .menu-slide
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+}
+
+SpawnMenuHost .spawnmenuleft
+{
+	transform: translateX( -100px );
+}
+
+SpawnMenuHost SpawnMenu:not(.hidden) .spawnmenuleft
+{
+	transition: transform $menu-transition-duration ease-out;
+}
+
+SpawnMenuHost ToolsMenu
+{
+	transform: translateX( 100px );
+	transition: transform $menu-transition-duration ease-out;
+}
+
+SpawnMenuHost.open SpawnMenu:not(.hidden) .spawnmenuleft:not(:intro),
+SpawnMenuHost.open SpawnMenu:not(.hidden) ToolsMenu:not(:intro),
+SpawnMenuHost.open ContextMenuHost:not(.hidden) ToolsMenu:not(:intro)
+{
+	transform: translateX( 0px );
+}
+
+// When switching live, only the browser fades. The shared tools stay up.
+SpawnMenuHost.switching-modes SpawnMenu.hidden .spawnmenuleft,
+SpawnMenuHost.switching-modes SpawnMenu:not(.hidden) .spawnmenuleft:not(:intro)
+{
+	transition: transform $menu-transition-duration ease-out, opacity $menu-transition-duration ease-out;
+}
+
+SpawnMenuHost SpawnMenu.hidden .spawnmenuleft
+{
+	opacity: 0;
+}
+
+// Let the browser reach its hidden state before the mode stops ticking its children.
+SpawnMenuHost.open PanelSwitcher > SpawnMenu.hidden
+{
+	transition: opacity $menu-transition-duration step-end;
+}

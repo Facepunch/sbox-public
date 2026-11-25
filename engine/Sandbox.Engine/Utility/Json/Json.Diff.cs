@@ -604,7 +604,7 @@ public static partial class Json
 	/// </summary>
 	/// <remarks>
 	/// A patch contains all the operations needed to transform one JSON structure into another
-	/// while preserving object identity and relationships.
+	/// while preserving object identity and relationships. The lists start empty, every prefab clone makes patches and most stay empty.
 	/// </remarks>
 	public class Patch
 	{
@@ -612,25 +612,25 @@ public static partial class Json
 		/// Objects that need to be added to the target structure.
 		/// </summary>
 		[JsonInclude]
-		public List<AddedObject> AddedObjects { get; set; } = new List<AddedObject>( 16 );
+		public List<AddedObject> AddedObjects { get; set; } = new();
 
 		/// <summary>
 		/// Objects that need to be removed from the target structure.
 		/// </summary>
 		[JsonInclude]
-		public List<RemovedObject> RemovedObjects { get; set; } = new List<RemovedObject>( 16 );
+		public List<RemovedObject> RemovedObjects { get; set; } = new();
 
 		/// <summary>
 		/// Property values that need to be changed on existing objects.
 		/// </summary>
 		[JsonInclude]
-		public List<PropertyOverride> PropertyOverrides { get; set; } = new List<PropertyOverride>( 32 );
+		public List<PropertyOverride> PropertyOverrides { get; set; } = new();
 
 		/// <summary>
 		/// Objects that need to be moved to a different location in the structure.
 		/// </summary>
 		[JsonInclude]
-		public List<MovedObject> MovedObjects { get; set; } = new List<MovedObject>( 16 );
+		public List<MovedObject> MovedObjects { get; set; } = new();
 	}
 
 	/// <summary>

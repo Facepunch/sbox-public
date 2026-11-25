@@ -9,7 +9,8 @@ public sealed class Compiler
 	private sealed record CompiledStateMachine(
 		GraphBuilder.Node Node,
 		IReadOnlyDictionary<StateMachineNode.State, int> StateNodes,
-		IReadOnlyDictionary<TransitionNode, GraphBuilder.Node> TransitionNodes );
+		IReadOnlyDictionary<TransitionNode, GraphBuilder.Node> TransitionNodes,
+		GraphBuilder.Node ExitCondition );
 	private sealed record CompiledLayer( GraphBuilder.Node Node, int LayerIndex );
 
 	public enum Severity
@@ -81,6 +82,7 @@ public sealed class Compiler
 
 	internal float TransitionDuration { get; set; }
 	internal GraphBuilder.StateMachineBuilder.State SourceState { get; set; }
+	internal GraphBuilder.Node SourceStateExitCondition { get; set; }
 	internal GraphBuilder.Node TransitionDurationOverride { get; set; }
 
 	private Compiler( Data graph, string variationID )
@@ -95,6 +97,7 @@ public sealed class Compiler
 	private Result Run()
 	{
 		BeginVariation();
+		WarnSharedPoseOutputs();
 
 		CollectParameters();
 		CollectVirtualParameters();
@@ -156,6 +159,19 @@ public sealed class Compiler
 			Error( $"Variation '{VariationID}' has no skeleton" );
 
 		_builder.SetSkeleton( variation.TargetSkeletonReference.IsEmpty ? ResourceId.FromPath( variation.TargetSkeletonPath ) : variation.TargetSkeletonReference );
+	}
+
+	private void WarnSharedPoseOutputs()
+	{
+		var outputs = _graph.AllNodes.SelectMany( node => node.Inputs )
+			.Select( input => input.ConnectedOutput )
+			.Where( output => output is AnimPlugOut { AllowMultipleConnections: false } )
+			.GroupBy( output => output );
+		foreach ( var output in outputs.Where( output => output.Count() > 1 ) )
+		{
+			var kind = output.Key.Type == typeof( LayerLink ) ? "Layer" : "Pose";
+			Warn( $"{kind} output '{output.Key.Identifier}' has multiple connections. Duplicate the pose branch and synchronize layers instead.", (Node)output.Key.Node );
+		}
 	}
 
 	private void CollectParameters()
@@ -573,8 +589,12 @@ public sealed class Compiler
 		StateMachineNode node,
 		GraphBuilder.Node emitted,
 		IReadOnlyDictionary<StateMachineNode.State, int> states,
-		IReadOnlyDictionary<TransitionNode, GraphBuilder.Node> transitions )
-		=> _stateMachines[node] = new( emitted, states, transitions );
+		IReadOnlyDictionary<TransitionNode, GraphBuilder.Node> transitions,
+		GraphBuilder.Node exitCondition )
+		=> _stateMachines[node] = new( emitted, states, transitions, exitCondition );
+
+	internal GraphBuilder.Node GetStateMachineExitCondition( StateMachineNode node )
+		=> _stateMachines.TryGetValue( node, out var machine ) ? machine.ExitCondition : default;
 
 	internal void Warn( string message, Node node = null ) => AddMessage( message, node, Severity.Warning );
 
@@ -582,7 +602,8 @@ public sealed class Compiler
 
 	private void AddMessage( string message, Node node, Severity severity )
 	{
-		if ( _warnings.All( w => w.Message != message || w.Severity != severity ) )
-			_warnings.Add( new Warning( message, node ?? (_compiling.Count > 0 ? _compiling[^1] : null), severity ) );
+		node ??= _compiling.Count > 0 ? _compiling[^1] : null;
+		if ( _warnings.All( w => w.Message != message || w.Severity != severity || w.Node != node ) )
+			_warnings.Add( new Warning( message, node, severity ) );
 	}
 }

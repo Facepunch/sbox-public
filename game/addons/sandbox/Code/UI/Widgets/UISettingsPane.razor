@@ -1,0 +1,59 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+<root>
+    @if ( !string.IsNullOrWhiteSpace( Title ) )
+    {
+        <div class="title-bar">
+            <Label Tokenize=@false Text="@Title" />
+            @if ( PresetMode is not null )
+            {
+                <Button class="preset-toggle" Icon="settings" Tooltip="#spawnmenu.common.presets" Active=@PresetsExpanded @onclick=@TogglePresets />
+            }
+        </div>
+    }
+
+    <div class="settings-body">
+        @if ( PresetMode is not null )
+        {
+            <ToolPresetBar Mode=@PresetMode class="@(PresetsExpanded ? "" : "collapsed")" />
+        }
+        @Body
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public string Title { get; set; }
+
+    /// <summary>
+    /// Bump this when the content changed in a way the title does not show, to make the pane build it again.
+    /// </summary>
+    [Parameter] public int Revision { get; set; }
+
+    [Parameter] public RenderFragment Body { get; set; }
+
+    /// <summary>
+    /// The tool whose presets can be opened from this pane's title bar.
+    /// </summary>
+    [Parameter] public ToolMode PresetMode { get; set; }
+
+    ToolMode ExpandedMode;
+    bool PresetsExpanded => ExpandedMode is not null && ExpandedMode == PresetMode;
+
+    protected override void OnParametersSet()
+    {
+        if ( ExpandedMode != PresetMode )
+            ExpandedMode = null;
+    }
+
+    void TogglePresets()
+    {
+        ExpandedMode = PresetsExpanded ? null : PresetMode;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Title, Revision, PresetMode, PresetsExpanded );
+}

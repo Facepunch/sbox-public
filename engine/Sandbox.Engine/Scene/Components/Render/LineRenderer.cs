@@ -216,7 +216,7 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 			if ( AutoCalculateNormals && Face != SceneLineObject.FaceMode.Camera )
 			{
 				rmfNormals = ArrayPool<Vector3>.Shared.Rent( _points.Count );
-				CalculateRMFNormals( _points.ToArray(), rmfNormals.AsSpan( 0, _points.Count ) );
+				CalculateRMFNormals( System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _points ), rmfNormals.AsSpan( 0, _points.Count ) );
 			}
 
 			int i = 0;
@@ -264,12 +264,13 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 			var points = ArrayPool<Vector3>.Shared.Rent( totalPoints );
 			var totalLength = 0.0f;
 
-			foreach ( var p in _points.TcbSpline( interpolation, SplineTension, SplineContinuity, SplineBias ) )
+			WriteTcbSpline( System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _points ), points.AsSpan( 0, totalPoints ), interpolation, SplineTension, SplineContinuity, SplineBias );
+			for ( ; i < totalPoints; i++ )
 			{
+				var p = points[i];
 				if ( previousPoint.HasValue )
 					totalLength += previousPoint.Value.Distance( p );
 
-				points[i++] = p;
 				previousPoint = p;
 			}
 
@@ -374,5 +375,40 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 	protected override void OnTagsChanged()
 	{
 		_so?.Tags.SetFrom( Tags );
+	}
+
+	/// <summary>
+	/// The same points as the TcbSpline extension for 3 or more control points, written into
+	/// <paramref name="output"/> ((count - 1) * interpolation + 1 of them) instead of yielded, so lines don't allocate every frame.
+	/// </summary>
+	static void WriteTcbSpline( ReadOnlySpan<Vector3> points, Span<Vector3> output, int interpolation, float tension, float continuity, float bias )
+	{
+		var o = 0;
+		var previous = points[0];
+		var current = points[0];
+		var next = points[1];
+		var nextNext = points[2];
+
+		for ( int i = 0; i < interpolation; i++ )
+			output[o++] = Vector3.TcbSpline( previous, current, next, nextNext, tension, continuity, bias, (float)i / interpolation );
+
+		for ( int p = 3; p < points.Length; p++ )
+		{
+			previous = current;
+			current = next;
+			next = nextNext;
+			nextNext = points[p];
+
+			for ( int i = 0; i < interpolation; i++ )
+				output[o++] = Vector3.TcbSpline( previous, current, next, nextNext, tension, continuity, bias, (float)i / interpolation );
+		}
+
+		previous = current;
+		current = next;
+		next = nextNext;
+		nextNext = nextNext + (nextNext - next);
+
+		for ( int i = 0; i <= interpolation; i++ )
+			output[o++] = Vector3.TcbSpline( previous, current, next, nextNext, tension, continuity, bias, (float)i / interpolation );
 	}
 }

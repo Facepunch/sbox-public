@@ -1,0 +1,435 @@
+{
+  "Title": "Vehicles",
+  "Description": "",
+  "Icon": "directions_car",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "4a40a186-0eb7-4050-b196-73d05dfa2df9",
+    "Path": "spawnlists/garrysmod/half_life_2.spawn"
+  },
+  "Order": 21,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Vehicles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_helicopter.mdl",
+      "Title": "combine_helicopter",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_apc_wheelcollision.mdl",
+      "Title": "combine_apc_wheelcollision",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/buggy.mdl",
+      "Title": "buggy",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/airboat.mdl",
+      "Title": "airboat",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/boat001a.mdl",
+      "Title": "boat001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/boat001b.mdl",
+      "Title": "boat001b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/boat002b.mdl",
+      "Title": "boat002b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/boat_01.mdl",
+      "Title": "boat_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/boat_fishing01a.mdl",
+      "Title": "boat_fishing01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/boat_fishing02a.mdl",
+      "Title": "boat_fishing02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/tugtop001.mdl",
+      "Title": "tugtop001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/tugtop002.mdl",
+      "Title": "tugtop002",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_train02a.mdl",
+      "Title": "combine_train02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combine_train02b.mdl",
+      "Title": "combine_train02b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_combine/combinetrain01a.mdl",
+      "Title": "combinetrain01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train005.mdl",
+      "Title": "train005",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train003.mdl",
+      "Title": "train003",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train002.mdl",
+      "Title": "train002",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train001.mdl",
+      "Title": "train001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_trainstation/train004.mdl",
+      "Title": "train004",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car002a_physics.mdl",
+      "Title": "car002a_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car001b_phy.mdl",
+      "Title": "car001b_phy",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car001b_hatchback.mdl",
+      "Title": "car001b_hatchback",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car001a_phy.mdl",
+      "Title": "car001a_phy",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car001a_hatchback.mdl",
+      "Title": "car001a_hatchback",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car002b_physics.mdl",
+      "Title": "car002b_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car003a_physics.mdl",
+      "Title": "car003a_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car003b_physics.mdl",
+      "Title": "car003b_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car004a_physics.mdl",
+      "Title": "car004a_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car004b_physics.mdl",
+      "Title": "car004b_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car005a_physics.mdl",
+      "Title": "car005a_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/car005b_physics.mdl",
+      "Title": "car005b_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/van001a_physics.mdl",
+      "Title": "van001a_physics",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/truck003a.mdl",
+      "Title": "truck003a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/truck001a.mdl",
+      "Title": "truck001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/truck002a_cab.mdl",
+      "Title": "truck002a_cab",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/apc001.mdl",
+      "Title": "apc001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/tanker001a.mdl",
+      "Title": "tanker001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/generatortrailer01.mdl",
+      "Title": "generatortrailer01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/trailer002a.mdl",
+      "Title": "trailer002a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/trailer001a.mdl",
+      "Title": "trailer001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/wagon001a.mdl",
+      "Title": "wagon001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/wagon001a_phy.mdl",
+      "Title": "wagon001a_phy",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_junk/wheebarrow01a.mdl",
+      "Title": "wheebarrow01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_junk/bicycle01a.mdl",
+      "Title": "bicycle01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Wheels and Bits",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/apc_tire001.mdl",
+      "Title": "apc_tire001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/carparts_tire01a.mdl",
+      "Title": "carparts_tire01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/carparts_wheel01a.mdl",
+      "Title": "carparts_wheel01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/tire001a_tractor.mdl",
+      "Title": "tire001a_tractor",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/tire001c_car.mdl",
+      "Title": "tire001c_car",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/tire001b_truck.mdl",
+      "Title": "tire001b_truck",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/combine_apc_destroyed_gib06.mdl",
+      "Title": "combine_apc_destroyed_gib06",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/wheel01.mdl",
+      "Title": "wheel01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/wheel01a.mdl",
+      "Title": "wheel01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/wheel02b.mdl",
+      "Title": "wheel02b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/wheel02a.mdl",
+      "Title": "wheel02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_citizen_tech/guillotine001a_wheel01.mdl",
+      "Title": "guillotine001a_wheel01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/wheel03b.mdl",
+      "Title": "wheel03b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/wheel03a.mdl",
+      "Title": "wheel03a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/pulleywheels_small01.mdl",
+      "Title": "pulleywheels_small01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/pulleywheels_large01.mdl",
+      "Title": "pulleywheels_large01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/gear01.mdl",
+      "Title": "gear01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/gear02.mdl",
+      "Title": "gear02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/carparts_door01a.mdl",
+      "Title": "carparts_door01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_c17/trappropeller_engine.mdl",
+      "Title": "trappropeller_engine",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/gibs/airboat_broken_engine.mdl",
+      "Title": "airboat_broken_engine",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/carparts_axel01a.mdl",
+      "Title": "carparts_axel01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_vehicles/carparts_muffler01a.mdl",
+      "Title": "carparts_muffler01a",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

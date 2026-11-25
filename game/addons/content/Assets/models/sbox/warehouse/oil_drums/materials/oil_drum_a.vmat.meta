@@ -1,0 +1,30 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "03205a2a-83a2-4d2d-8bd7-a2c9cdb0e892",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Oil Drum A",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "oil_drum_a",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/warehouse/oil_drums/materials/oil_drum_a.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

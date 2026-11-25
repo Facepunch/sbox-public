@@ -401,12 +401,13 @@ public class AssetType
 	{
 		var sw = Stopwatch.StartNew();
 
+		// Looked up once per extension: FromExtension searches every type for one that isn't an asset
+		var custom = new Dictionary<string, bool>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var file in FileSystem.Content.FindFile( "/", "*", true ) )
 		{
 			var ext = System.IO.Path.GetExtension( file );
-			var t = FromExtension( ext );
-			if ( t is null ) continue;
-			if ( t._assetTypeAttribute is null ) continue;
+			if ( !custom.TryGetValue( ext, out var isCustom ) ) custom[ext] = isCustom = FromExtension( ext )?._assetTypeAttribute is not null;
+			if ( !isCustom ) continue;
 
 			AssetSystem.RegisterFile( FileSystem.Content.GetFullPath( file ) );
 		}

@@ -1,0 +1,27 @@
+{
+  "guid": "2fcdaedb-2061-42e3-8f94-411defebdf33",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Radiator",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "radiator",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/home/radiator/radiator.vmdl"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

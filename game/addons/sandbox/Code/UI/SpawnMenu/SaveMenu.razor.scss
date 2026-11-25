@@ -1,0 +1,149 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+    SaveMenu
+    {
+        width: 100%;
+        height: 100%;
+        flex-direction: column;
+        color: $ui-text;
+        font-family: $body-font;
+        font-size: 13px;
+        font-weight: 500;
+
+        SpawnMenuContent > .header
+        {
+            background-color: $ui-catalog-surface;
+        }
+
+        .save-list
+        {
+            background-color: $ui-menu-body;
+            @include ui-scroll-column;
+            flex-grow: 1;
+            min-height: 0px;
+            padding: 12px $spawn-menu-content-inset;
+            gap: 8px;
+        }
+    }
+
+    SaveMenu .save-card
+    {
+        position: relative;
+        flex-direction: row;
+        align-items: center;
+        flex-shrink: 0;
+        background-color: $ui-catalog-surface;
+        border-radius: 6px;
+        overflow: hidden;
+        cursor: pointer;
+
+        // blue under the mouse, with the trash button
+        &:hover
+        {
+            background-color: $ui-blue-soft;
+            sound-in: ui.hover;
+
+            .save-delete
+            {
+                display: flex;
+            }
+        }
+
+        &:active
+        {
+            sound-in: ui.select;
+        }
+
+        // made by an older version, it can't be loaded
+        &.outdated
+        {
+            .save-preview, .save-name, .save-timestamp
+            {
+                opacity: 0.5;
+            }
+        }
+
+        .save-preview
+        {
+            width: 160px;
+            height: 90px;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background-color: $ui-tile-bg;
+        }
+
+        .save-thumb
+        {
+            width: 100%;
+            height: 100%;
+        }
+
+        .save-preview-placeholder
+        {
+            font-size: 28px;
+            color: $ui-text-muted;
+        }
+
+        .save-info
+        {
+            flex-direction: column;
+            flex-grow: 1;
+            min-width: 0px;
+            gap: 3px;
+            padding: 0px 40px 0px 20px;
+        }
+
+        .save-name
+        {
+            font-size: 14px;
+            font-weight: 700;
+            color: $ui-text-strong;
+            @include ui-ellipsis;
+        }
+
+        .save-meta
+        {
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .save-timestamp
+        {
+            font-size: 12px;
+            font-weight: 500;
+            color: $ui-text-muted;
+        }
+
+        .save-outdated-badge
+        {
+            padding: 0px 4px;
+            border: 1px solid $ui-danger;
+            border-radius: 2px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: $ui-danger;
+            background-color: white;
+        }
+
+        // icon for removing save files
+        .save-delete
+        {
+            display: none;
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            color: white;
+            background-image: none;
+            background-color: $ui-danger;
+            border-color: rgba( 0, 0, 0, 0.35 );
+        }
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

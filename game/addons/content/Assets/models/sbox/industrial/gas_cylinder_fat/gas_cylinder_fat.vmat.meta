@@ -1,0 +1,30 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "8bafd4d3-1a30-5202-86dd-30db603cafc1",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Gas Cylinder Fat Red",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "gas_cylinder_fat_red",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

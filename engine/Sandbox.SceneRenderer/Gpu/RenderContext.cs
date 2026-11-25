@@ -660,7 +660,12 @@ internal sealed class RenderContext : IDisposable
 		debugMarkers = borrowed ? shared.debugMarkers : g_pRenderDevice.AreDebugMarkersEnabled();
 
 		// The frame's bindless texture set, as CSceneSystem::InitializeRenderAttributes does for a view
-		if ( frame is null ) Attributes.Get().SetGlobalBindlessDescriptorSet();
+		if ( frame is null )
+		{
+			Attributes.Get().SetGlobalBindlessDescriptorSet();
+			var offset = CSceneSystem.AllocatePipelineTextureIndices();
+			Attributes.Set( "PipelineTextureOffset", offset );
+		}
 
 		// View constants resolve through context attributes, not draw parents (CRenderBatchList::Start).
 		context.GetAttributesPtrForModify().SetParent( nativeAttributes );
@@ -675,6 +680,7 @@ internal sealed class RenderContext : IDisposable
 
 		try
 		{
+			CSceneSystem.UpdateGlobalPerFrameDescriptorBindings();
 			BeginSubmitting( swapChain );
 			context.Submit();
 		}
@@ -1052,6 +1058,8 @@ internal sealed class RenderContext : IDisposable
 	/// Returns false when empty.
 	/// </summary>
 	internal bool DrawDynamicObject( SceneDynamicObject sceneObject, StringToken shaderMode ) => RenderTools.DrawDynamicSceneObject( context, sceneObject, shaderMode );
+
+	internal bool DrawBufferObject( SceneMeshObject sceneObject, StringToken shaderMode ) => RenderTools.DrawBufferSceneObject( context, sceneObject, shaderMode, drawAttributes );
 
 	/// <summary>
 	/// Bind instance IDs at <paramref name="firstInstance"/> (<c>CSceneSystem::BindTransformSlot</c>).

@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/monster_truck.prefab",
+  "Title": "#asset.wheel.monster_truck.title",
+  "Description": "#asset.wheel.monster_truck.description",
+  "__references": [],
+  "__version": 0
+}

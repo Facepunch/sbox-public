@@ -1,0 +1,131 @@
+@import "/UI/Theme.scss";
+
+$notice-bg: rgba( 14, 14, 14, 0.8 );
+$notice-text: rgb( 230, 230, 230 );
+
+NoticePanel
+{
+	position: relative;
+	flex-direction: column;
+	max-width: 513px;
+	background-color: $notice-bg;
+	backdrop-filter: blur( 16px );
+	border-radius: $hud-radius;
+	font-family: $body-font;
+	font-weight: 500;
+	font-size: 16px;
+	color: $notice-text;
+	overflow: hidden;
+	animation: notice-in 0.3s ease-in-out;
+
+	&.leaving
+	{
+		animation: notice-out 0.3s ease-in-out forwards;
+	}
+
+	.body
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 13px;
+		padding: 14px 20px;
+	}
+
+	.icon
+	{
+		flex-shrink: 0;
+		font-size: 25px;
+		position: relative;
+		top: 2px; 
+		line-height: 15px;
+		font-family: $ui-icon;
+		font-variation-settings: $ui-icon-filled-axes;
+	}
+
+	.text
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		font-size: 16px;
+		font-weight: 600;
+		line-height: 15px;
+	}
+
+	.bar
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 2px;
+		overflow: hidden;
+	}
+
+	// remaining time, anchored left so it drains right to left. Width is set from code
+	.fill
+	{
+		height: 100%;
+		background-color: $hud-accent;
+	}
+
+	&.manual .fill
+	{
+		width: 100%;
+		animation: progress-sweep 2s ease-in-out infinite;
+	}
+}
+
+$slide-distance: 600px;
+
+@keyframes notice-in
+{
+	from
+	{
+		transform: translateX( $slide-distance );
+	}
+
+	to
+	{
+		transform: translateX( 0px );
+	}
+}
+
+@keyframes notice-out
+{
+	from
+	{
+		transform: translateX( 0px );
+	}
+
+	to
+	{
+		transform: translateX( $slide-distance );
+	}
+}
+
+@keyframes progress-sweep
+{
+	0%
+	{
+		transform: translateX( -100% );
+		opacity: 1;
+	}
+
+	50%
+	{
+		transform: translateX( 0% );
+		opacity: 1;
+	}
+
+	85%
+	{
+		transform: translateX( 100% );
+		opacity: 1;
+	}
+
+	100%
+	{
+		transform: translateX( 100% );
+		opacity: 0;
+	}
+}

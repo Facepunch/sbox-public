@@ -1,4 +1,6 @@
 
+@import "/styles/_icons.scss";
+
 MicOverlay
 {
     position: absolute;
@@ -7,7 +9,8 @@ MicOverlay
     z-index: 11000;
     pointer-events: none;
     white-space: nowrap;
-    font-family: "Material Icons";
+    font-family: "Material Symbols Outlined";
+    font-variation-settings: $menu-icon-filled;
     font-size: 32px;
     padding: 8px;
     border-radius: 10px;

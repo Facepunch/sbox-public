@@ -33,18 +33,6 @@ public partial class PartyDeck
 	}
 	bool CanChangeSettings => Draft is not null ? !Draft.Creating : PartyView.OwnerIsMe;
 
-	internal static void OpenDraftWithGame( Package package, CreateGameResults settings )
-	{
-		if ( !Instance.IsValid() ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.party_settings_are_not_available_yet" ) );
-		if ( PartyView.Exists ) throw new InvalidOperationException( Language.GetPhrase( "menu.settings.you_are_already_in_a_party" ) );
-		if ( Instance.Draft?.Creating == true ) throw new InvalidOperationException( Language.GetPhrase( "menu.settings.your_party_is_being_created" ) );
-
-		var draft = Instance.Draft ?? new PartyDraft();
-		draft.Game = package;
-		draft.GameSettings = settings;
-		_ = Instance.BeginCreate( draft.IsPublic, draft );
-	}
-
 	async Task<bool> BeginCreate( bool isPublic, PartyDraft initialDraft = null, bool createImmediately = false )
 	{
 		if ( PartyRoom.Current is not null ) return true;
@@ -109,18 +97,11 @@ public partial class PartyDeck
 	/// </summary>
 	static void KeepPlatformGame()
 	{
-		if ( !OnPlatform || !PartyView.Exists || !PartyView.OwnerIsMe ) return;
+		if ( !PartyView.Exists || !PartyView.OwnerIsMe ) return;
 		if ( PartyView.LeaderState != PartyRoom.OwnerJoinState.None ) return;
 		if ( Platform.PlatformMenu.Current is not { IsRemote: true } current || PartyView.IsGameSelected( current ) ) return;
 
 		PartyView.SelectGame( current );
-	}
-
-	void OpenSettings()
-	{
-		if ( !CanChangeSettings ) return;
-		SettingsOpen = true;
-		SettingsError = null;
 	}
 
 	void ToggleSettings()

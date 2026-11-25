@@ -37,6 +37,7 @@ public struct NetDictionaryChangeEvent<TKey, TValue>
 /// </code>
 /// </para>
 /// </summary>
+[Expose]
 public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkReliable, INetworkProperty, IDisposable, IDictionary, IDictionary<TKey, TValue>, IReadOnlyDictionary<TKey, TValue>
 {
 	/// <summary>
@@ -451,7 +452,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		return (T)value;
 	}
 
-	private static void WriteValue( object value, ref ByteStream data )
+	private static void WriteValue<T>( T value, ref ByteStream data )
 	{
 		GlobalContext.Current.TypeLibrary.ToBytes( value, ref data );
 	}

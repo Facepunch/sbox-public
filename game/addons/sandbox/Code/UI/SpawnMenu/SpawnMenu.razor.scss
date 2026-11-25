@@ -1,0 +1,133 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+    SpawnMenu
+    {
+        width: 100%;
+        height: 100%;
+        flex-direction: row;
+        justify-content: center;
+        color: $ui-text;
+        font-family: $body-font;
+        font-size: 12px;
+        font-weight: 500;
+        z-index: 1000;
+    }
+
+    SpawnMenu .container
+    {
+        flex-direction: row;
+        width: 100%;
+        max-width: 80%;
+        min-width: 1280px;
+        height: 100%;
+        padding-top: 54px;
+        padding-bottom: 83px;
+        gap: 10px;
+    }
+
+    .spawnmenuleft
+    {
+        @include ui-menu-tab-panel;
+    }
+
+    // Reserve the tools column while the shared panel moves to the context menu.
+    SpawnMenu .tools-menu-slot
+    {
+        width: 583px;
+        flex-shrink: 0;
+    }
+
+    .menuinner
+    {
+        background-color: transparent;
+
+        h1, h2
+        {
+            @include ui-heading-text;
+            padding: 8px 4px 2px 4px;
+        }
+    }
+
+    VirtualGrid, MixedVirtualGrid
+    {
+        width: 100%;
+        height: 100%;
+        flex-grow: 1;
+        @include ui-scroll;
+        gap: 4px;
+        padding: 8px 18px 8px $spawn-menu-content-inset;
+    }
+
+    MixedVirtualGrid
+    {
+        .cell.full-row, .cell.full-row:hover, .cell.full-row:active
+        {
+            pointer-events: none;
+            cursor: default;
+        }
+
+        &.editing .cell.full-row
+        {
+            pointer-events: all;
+            cursor: pointer;
+        }
+
+        .cell.drop-before::before, .cell.drop-after::after
+        {
+            position: absolute;
+            content: "";
+            left: -3px;
+            top: 4px;
+            bottom: 4px;
+            width: 3px;
+            background-color: $ui-blue;
+            z-index: 10;
+        }
+
+        .cell.drop-after::after
+        {
+            left: auto;
+            right: -3px;
+        }
+
+        .cell.full-row.drop-before::before, .cell.full-row.drop-after::after
+        {
+            left: 8px;
+            right: 8px;
+            top: 0;
+            bottom: auto;
+            width: auto;
+            height: 3px;
+        }
+
+        .cell.full-row.drop-after::after
+        {
+            top: auto;
+            bottom: 0;
+        }
+    }
+
+    .community-section
+    {
+        width: 100%;
+        height: 100%;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: flex-start;
+        padding-bottom: 8px;
+        pointer-events: none;
+    }
+
+    .section-title
+    {
+        font-family: $body-font;
+        font-size: 20px;
+        font-weight: 600;
+        color: $ui-text-label;
+        @include ui-ellipsis;
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

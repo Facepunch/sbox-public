@@ -35,7 +35,8 @@ public static partial class McpTools
 	/// Later operations can reference an add_node, add_parameter or group_nodes alias as @alias, including
 	/// inside graph locators such as root/node:@machine/state:0.
 	/// For wire organisation, add_node with Type RerouteNode and Values (Position, Comment),
-	/// then connect through its Input and Result plugs. Fan out Result to share a route.
+	/// then connect through its Input and Result plugs. Fan out Result to share a value route.
+	/// Pose and layer outputs have one consumer: connecting again replaces the previous connection, including through reroutes.
 	/// Reconnect consumers before removing a reroute; set_node edits its position and comment.
 	/// </summary>
 	/// <param name="path">The .ag asset path.</param>
@@ -486,7 +487,7 @@ public static partial class McpTools
 					&& list[operation.Index] is StateMachineNode.State state
 					&& oldStateName != state.Name )
 				{
-					machine.RenameState( oldStateName, state.Name );
+					machine.RenameState( oldStateName, state );
 				}
 
 				break;

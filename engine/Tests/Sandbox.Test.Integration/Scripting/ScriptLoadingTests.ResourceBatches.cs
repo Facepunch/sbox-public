@@ -15,10 +15,10 @@ public partial class ScriptLoadingTests
 		files.WriteAllText( "z-art.csx", "class ResourceArt { public static int Old() { return 17; } }" );
 		var replace = context.ReplaceScriptAssembly;
 		int publications = 0;
-		context.ReplaceScriptAssembly = ( previous, incoming, register ) =>
+		context.ReplaceScriptAssembly = ( previous, incoming ) =>
 		{
 			publications++;
-			replace( previous, incoming, register );
+			return replace( previous, incoming );
 		};
 		try
 		{
@@ -47,8 +47,13 @@ public partial class ScriptLoadingTests
 	/// Invalid source keeps its accepted definitions while unrelated valid edits publish and run.
 	/// </summary>
 	[TestMethod]
-	public void ResourceBatchIsolatesRejectedReplacement()
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ResourceBatchIsolatesRejectedReplacement( bool networking )
 	{
+		if ( networking )
+			files.WriteAllText( "net.csx", "class NetworkMarker : Component { [Sync] public int Value { get; set; } }" );
+
 		files.WriteAllText( "a.csx", "class ResourceAccepted { public int Read() { return 3; } }" );
 		files.WriteAllText( "b.csx", "[Global] int ResourceValue = 0; ResourceValue = 1;" );
 		ResourceLoader.LoadAllGameResource( files );
@@ -59,6 +64,37 @@ public partial class ScriptLoadingTests
 		Assert.AreEqual( 3, Game.Scripting.Run<int>( "return new ResourceAccepted().Read();" ) );
 		Assert.AreEqual( 9, Game.Scripting.Globals.Get<int>( "ResourceValue" ) );
 		Assert.IsNull( Game.TypeLibrary.GetType( "Invalid" ) );
+	}
+
+	/// <summary>
+	/// Two related files that are both rejected, then fixed one at a time, end up fully published.
+	/// </summary>
+	[TestMethod]
+	public void ResourceWatcherPublishesFilesFixedOneAtATime()
+	{
+		const string brokenGate = "enum RepairOp { Add, Sub }\n[Title( Missing.Name )] class RepairGate : Component { [Sync] public RepairOp Op { get; set; } }";
+		const string fixedGate = "enum RepairOp { Add, Sub }\nclass RepairGate : Component { [Sync] public RepairOp Op { get; set; } }";
+		const string brokenTool = "class RepairTool : Component { [Rpc.Host( Missing.Flag )] public void Use() { } public int Read( RepairGate gate ) { return (int)gate.Op; } }";
+		const string fixedTool = "class RepairTool : Component { [Rpc.Host] public void Use() { } public int Read( RepairGate gate ) { return (int)gate.Op; } }";
+
+		ResourceLoader.LoadAllGameResource( files );
+		files.WriteAllText( "repair-gate.csx", brokenGate );
+		DispatchResourceChanges( "repair-gate.csx" );
+		files.WriteAllText( "repair-tool.csx", brokenTool );
+		DispatchResourceChanges( "repair-tool.csx" );
+		Assert.IsNull( Game.TypeLibrary.GetType( "RepairGate" ) );
+		Assert.IsNull( Game.TypeLibrary.GetType( "RepairTool" ) );
+
+		files.WriteAllText( "repair-gate.csx", fixedGate );
+		DispatchResourceChanges( "repair-gate.csx" );
+		files.WriteAllText( "repair-tool.csx", fixedTool );
+		DispatchResourceChanges( "repair-tool.csx" );
+
+		Assert.IsFalse( Game.Scripting.RequiresReload );
+		Assert.AreEqual( 0, Game.Scripting.Diagnostics.Count, string.Join( "\n", Game.Scripting.Diagnostics ) );
+		Assert.IsNotNull( Game.TypeLibrary.GetType( "RepairTool" ), "The tool is missing." );
+		Assert.IsNotNull( Game.TypeLibrary.GetType( "RepairGate" ), "The gate is missing." );
+		Assert.IsNotNull( Game.TypeLibrary.GetType( "RepairOp" ), "The gate's enum is missing." );
 	}
 
 	/// <summary>

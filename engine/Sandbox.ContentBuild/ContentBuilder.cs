@@ -8,7 +8,19 @@ namespace Sandbox.ContentBuild;
 /// <param name="Mod">Mount name; compiled outputs are staged under it.</param>
 /// <param name="Path">Content root; compiled outputs are published beside their sources.</param>
 /// <param name="StateDirectory">Records, journal and staging. Outside every root, on the same volume as this one.</param>
-public sealed record ContentRoot( string Mod, string Path, string StateDirectory );
+public sealed record ContentRoot( string Mod, string Path, string StateDirectory )
+{
+	/// <summary>
+	/// Publish staged transient files in this root with the resource that generated them.
+	/// </summary>
+	public bool PublishTransientsWithAssets { get; init; }
+}
+
+/// <param name="Finished">Compiles finished.</param>
+/// <param name="Total">Compiles known so far, finished, running or to come. Sources are checked as what they read settles, so it grows when a compile changes what others read.</param>
+/// <param name="Compiling">Mount names of the roots compiling.</param>
+/// <param name="Compiled">The source whose compile just finished, if one did.</param>
+public readonly record struct BuildProgress( int Finished, int Total, IReadOnlyList<string> Compiling, string Compiled );
 
 public sealed class BuildRequest
 {
@@ -64,6 +76,17 @@ public sealed class BuildRequest
 	/// Compiles at once. 1 hands them out one at a time, from the calling thread.
 	/// </summary>
 	public int MaxJobs { get; init; } = Environment.ProcessorCount;
+
+	/// <summary>
+	/// Whether another compile may start beside the ones running, asked again as each finishes; one always runs.
+	/// </summary>
+	public Func<bool> CanStartJob { get; init; }
+
+	/// <summary>
+	/// Called on the scheduling thread when a compile starts or finishes.
+	/// </summary>
+	public Action<BuildProgress> CompileProgress { get; init; }
+
 	public Action<string> JobFinished { get; init; }
 
 	/// <summary>
@@ -176,6 +199,7 @@ public static class ContentBuilder
 		public long Started, Committed;
 		public DateTime Launched;
 		public int Misses;
+		public (AssetRecord Record, int Settled, string Reason)? Own;
 		public bool Final => State is State.Clean or State.Committed or State.Failed or State.Blocked;
 	}
 
@@ -217,6 +241,9 @@ public static class ContentBuilder
 
 		public string Relative( string path ) => Path.GetRelativePath( Directory, path ).Replace( '\\', '/' );
 
+		bool IsLocalTransient( string mod ) =>
+			Def.PublishTransientsWithAssets && string.Equals( mod, "transient", StringComparison.OrdinalIgnoreCase );
+
 		public string InRoot( string path )
 		{
 			if ( string.IsNullOrEmpty( path ) ) return null;
@@ -232,7 +259,7 @@ public static class ContentBuilder
 		{
 			var parts = Path.GetRelativePath( staging, staged ).Replace( '\\', '/' ).Split( '/', 2 );
 			if ( parts.Length < 2 || parts[0] == ".." ) return null;
-			if ( string.Equals( parts[0], Def.Mod, StringComparison.OrdinalIgnoreCase ) ) return parts[1];
+			if ( string.Equals( parts[0], Def.Mod, StringComparison.OrdinalIgnoreCase ) || IsLocalTransient( parts[0] ) ) return parts[1];
 			return outputRoots.Keys.FirstOrDefault( x => string.Equals( x, parts[0], StringComparison.OrdinalIgnoreCase ) ) is { } mod ? $"{mod}:{parts[1]}" : null;
 		}
 
@@ -246,6 +273,8 @@ public static class ContentBuilder
 			var full = Path.GetFullPath( path );
 			foreach ( var (mod, dir) in outputRoots.Concat( fallbacks ) )
 			{
+				if ( IsLocalTransient( mod ) ) continue;
+
 				var root = Path.GetFullPath( dir ).TrimEnd( Path.DirectorySeparatorChar ) + Path.DirectorySeparatorChar;
 				if ( full.StartsWith( root, StringComparison.OrdinalIgnoreCase ) ) return $"{mod}:{Path.GetRelativePath( root, full ).Replace( '\\', '/' )}";
 			}
@@ -300,6 +329,8 @@ public static class ContentBuilder
 		readonly List<(string Source, string Visible)> hidden = [];
 		long clock;
 		int jobs;
+		int settled;
+		readonly ConcurrentBag<int> freeStaging = [];
 
 		public async Task<BuildReport> Execute()
 		{
@@ -331,6 +362,7 @@ public static class ContentBuilder
 					}
 				}
 
+				var deleted = new Dictionary<RootState, List<AssetRecord>>();
 				void Load()
 				{
 					foreach ( var root in roots )
@@ -338,6 +370,7 @@ public static class ContentBuilder
 						root.Store = new RecordStore( root.Resolve, root.Def.StateDirectory );
 						DeleteStaging( Path.Combine( root.Def.StateDirectory, "staging" ) );
 						Inventory( root );
+						if ( request.Select is null ) deleted[root] = root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList();
 					}
 				}
 
@@ -347,7 +380,7 @@ public static class ContentBuilder
 
 				if ( request.Select is null )
 				{
-					foreach ( var root in roots ) RemoveDeletedSources( root );
+					foreach ( var root in roots ) RemoveDeletedSources( root, deleted[root] );
 				}
 
 				// A source whose output a later root also builds is hidden (sounds/x.wav under sounds/x.mp3 too):
@@ -519,7 +552,7 @@ public static class ContentBuilder
 				LoadFingerprints( pending );
 
 				var describable = pending.Where( x => x.Kind == AssetKind.Described ).ToList();
-				var self = await CheckAll( describable, x => SelfDirty( x ) ?? Shadowed( x ) );
+				var self = await CheckAll( describable, OwnDirty );
 				var describe = describable.Where( x => self[x] is not null ).ToList();
 				var results = await RunJobs( describe, node => Compile( Job( node, JobMode.Describe ) ) );
 				var described = new Dictionary<Node, IReadOnlyList<PrerequisiteRead>>();
@@ -595,6 +628,9 @@ public static class ContentBuilder
 				var checkedReads = result.Inputs.Where( x => x.Game ).Select( x => Path.GetFullPath( x.Path ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 				if ( reads.Any( x => !x.OrderOnly && !checkedReads.Contains( x.File ) ) ) continue;
 
+				// A read the output checked is one of its contents, even where its description only orders it
+				reads = reads.Select( x => x.OrderOnly && checkedReads.Contains( x.File ) ? x with { OrderOnly = false } : x ).ToList();
+
 				// Whatever else the output says it read (more than its description lists) is a read too, built first
 				reads.AddRange( checkedReads.Where( x => !reads.Any( r => string.Equals( r.File, x, StringComparison.OrdinalIgnoreCase ) ) && !outputs.Contains( AdoptedKey( root, x ), StringComparer.OrdinalIgnoreCase ) ).Select( x => (ProducerOfOutput( x ), x, false) ) );
 				foreach ( var producer in reads.Select( x => x.Producer ).Where( x => x is not null && x != node ) ) node.Prerequisites.Add( producer );
@@ -644,7 +680,18 @@ public static class ContentBuilder
 		/// built from changed since, so another compile may have rebuilt it. Changed bytes with nothing else changed
 		/// are damage, which the record's hash catches and a compile repairs.
 		/// </summary>
-		bool RebuiltOutside( Node node ) => (SelfDirty( node ) ?? Shadowed( node ) ?? ReadChanged( node, Producers( node ) )) is not null;
+		bool RebuiltOutside( Node node ) => (OwnDirty( node ) ?? ReadChanged( node, Producers( node ) )) is not null;
+
+		/// <summary>
+		/// Why its own inputs or reads' roots no longer match its record, checked again once a job has settled.
+		/// </summary>
+		string OwnDirty( Node node )
+		{
+			if ( node.Own is { } own && own.Record == node.Record && own.Settled == settled ) return own.Reason;
+			var reason = SelfDirty( node ) ?? Shadowed( node );
+			node.Own = (node.Record, settled, reason);
+			return reason;
+		}
 
 		/// <summary>
 		/// An output it owns has other bytes than its record says (see <see cref="RebuiltOutside"/>).
@@ -676,10 +723,12 @@ public static class ContentBuilder
 		/// Removes what was built from sources that no longer exist. A source this build doesn't compile (a
 		/// shader, a map) still exists, and its outputs stay.
 		/// </summary>
-		void RemoveDeletedSources( RootState root )
+		void RemoveDeletedSources( RootState root, List<AssetRecord> deleted )
 		{
-			foreach ( var record in root.Store.All.Values.Where( x => !File.Exists( Path.Combine( root.Def.Path, x.Source ) ) ).ToList() )
+			foreach ( var record in deleted )
 			{
+				if ( File.Exists( Path.Combine( root.Def.Path, record.Source ) ) ) continue;
+
 				var outputs = Unshared( root, record.Outputs.Keys, record.Source ).ToList();
 				try
 				{
@@ -746,6 +795,20 @@ public static class ContentBuilder
 		async Task ScheduleUntilDone( Dictionary<Task<CompileResult>, (Node Node, CompileJob Job)> running )
 		{
 			var queue = new List<Node>();
+			void ReportProgress( Node starting = null, Node compiled = null )
+			{
+				if ( request.CompileProgress is null ) return;
+
+				var activeRoots = running.Values.Select( x => x.Node.Root.Def.Mod );
+				if ( starting is not null ) activeRoots = activeRoots.Append( starting.Root.Def.Mod );
+
+				// A source still waiting on what it reads compiles once that settles if it has no record, one with a record only if that changed
+				var started = report.Jobs.Count + (starting is null ? 0 : 1);
+				var total = started + queue.Count + nodes.Values.Count( x => x.State == State.Waiting && x.Record is null );
+				var names = activeRoots.Distinct( StringComparer.OrdinalIgnoreCase ).Order( StringComparer.OrdinalIgnoreCase );
+				request.CompileProgress( new BuildProgress( report.Jobs.Count - running.Count, total, [.. names], compiled?.Name ) );
+			}
+
 			while ( true )
 			{
 				// Producers a compile turned out to read are planned like the rest before they run
@@ -784,11 +847,14 @@ public static class ContentBuilder
 
 				while ( running.Count < Math.Max( 1, request.MaxJobs ) && queue.Count > 0 && !token.IsCancellationRequested )
 				{
+					if ( running.Count > 0 && request.CanStartJob?.Invoke() == false ) break;
+
 					var node = queue[0];
 					queue.RemoveAt( 0 );
 					node.State = State.Running;
 					node.Started = ++clock;
 					node.Launched = DateTime.UtcNow;
+					ReportProgress( starting: node );
 					report.Jobs.Add( node.Name );
 
 					// A thread of its own, not the pool's, as it waits for the whole compile
@@ -815,10 +881,12 @@ public static class ContentBuilder
 				var (finished, finishedJob) = running[done];
 				running.Remove( done );
 
+				settled++;
 				try { Finish( finished, done.Result, finishedJob.Staging ); }
-				finally { DeleteStaging( finishedJob.Staging ); }
+				finally { ReleaseStaging( finishedJob.Staging ); }
 
 				request.JobFinished?.Invoke( finished.Name );
+				ReportProgress( compiled: finished );
 			}
 		}
 
@@ -863,7 +931,9 @@ public static class ContentBuilder
 		CompileJob Job( Node node, JobMode mode )
 		{
 			// Short: compiled paths under it have to fit the native MAX_PATH. Unique while the root is locked.
-			var staging = Path.Combine( node.Root.Def.StateDirectory, "staging", $"{Interlocked.Increment( ref jobs ):x}" );
+			// Reused once free: native keeps every staging path a job mounts for good, in a table of 65535.
+			var slot = freeStaging.TryTake( out var free ) ? free : Interlocked.Increment( ref jobs );
+			var staging = Path.Combine( node.Root.Def.StateDirectory, "staging", $"{slot:x}" );
 			Directory.CreateDirectory( staging );
 			return new CompileJob( node.Root.Def, mounts, Path.Combine( node.Root.Def.Path, node.Source ), staging, request.CompilerArgs, mode );
 		}
@@ -879,7 +949,7 @@ public static class ContentBuilder
 			catch ( Exception e ) { return new CompileResult( false, e.ToString(), [], [], [], [], [] ); }
 			finally
 			{
-				if ( !keep ) DeleteStaging( job.Staging );
+				if ( !keep ) ReleaseStaging( job.Staging );
 
 				var key = $"{Path.GetExtension( job.Source ).ToLowerInvariant()} {job.Mode.ToString().ToLowerInvariant()}";
 				lock ( report.JobTime )
@@ -1103,7 +1173,7 @@ public static class ContentBuilder
 		{
 			if ( request.Force ) return nodes.ToDictionary( x => x, _ => ("forced", (List<(string Key, FileStamp Stamp)>)null) );
 
-			var own = await CheckAll( nodes, x => (SelfDirty( x ) ?? Shadowed( x )) is { } reason ? (reason, null) : ChangedOutput( x ) );
+			var own = await CheckAll( nodes, x => OwnDirty( x ) is { } reason ? (reason, null) : ChangedOutput( x ) );
 			var current = nodes.Where( x => own[x].Reason is null ).ToList();
 			var producers = current.ToDictionary( x => x, Producers );
 			var reads = await CheckAll( current, x => ReadChanged( x, producers[x] ) );
@@ -1118,6 +1188,10 @@ public static class ContentBuilder
 			List<(string Key, FileStamp Stamp)> restamp = null;
 			foreach ( var (key, stamp) in node.Record.Outputs )
 			{
+				// A shared output from an older build must be compiled and recorded in its owning root.
+				if ( node.Root.Def.PublishTransientsWithAssets && key.StartsWith( "transient:", StringComparison.OrdinalIgnoreCase ) )
+					return ($"{key} now belongs in the asset root", null);
+
 				// An output in a root this build doesn't mount can't be checked or rebuilt here
 				if ( node.Root.Resolve( key ) is not { } path ) continue;
 
@@ -1217,6 +1291,12 @@ public static class ContentBuilder
 			try { if ( Directory.Exists( dir ) ) Directory.Delete( dir, true ); }
 			catch ( IOException ) { }
 			catch ( UnauthorizedAccessException ) { }
+		}
+
+		void ReleaseStaging( string dir )
+		{
+			DeleteStaging( dir );
+			if ( !Directory.Exists( dir ) ) freeStaging.Add( Convert.ToInt32( Path.GetFileName( dir ), 16 ) );
 		}
 
 		sealed class NodeKey : IEqualityComparer<(RootState Root, string Source)>

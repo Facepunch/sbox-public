@@ -164,7 +164,7 @@ class RedirectFileSystem : Zio.FileSystems.PhysicalFileSystem
 
 	protected override DateTime GetLastWriteTimeImpl( UPath path )
 	{
-		throw new NotImplementedException();
+		return Files.TryGetValue( path, out var realPath ) ? base.GetLastWriteTimeImpl( realPath ) : default;
 	}
 
 	protected override void MoveDirectoryImpl( UPath srcPath, UPath destPath )

@@ -11,24 +11,25 @@ public static class SceneUtility
 	/// </summary>
 	public static Dictionary<Guid, Guid> MakeIdGuidsUnique( JsonObject json, Guid? rootGuid = null )
 	{
-		var translate = CreateUniqueGuidLookup( json, rootGuid );
+		// Every guid value is found while building the lookup, so the tree is only walked once
+		var found = new List<(JsonValue Node, Guid Guid)>();
+		var translate = CreateUniqueGuidLookup( json, rootGuid, found );
 
 		//
-		// Find every guid and translate them, but only if they're in our
-		// guid dictionary.
+		// Translate every guid, but only if it's in our guid dictionary.
 		//
-		Sandbox.Json.WalkJsonTree( json, ( k, v ) =>
+		foreach ( var (node, guid) in found )
 		{
-			if ( !v.TryGetValue<Guid>( out var guid ) ) return v;
-			if ( !translate.TryGetValue( guid, out var updatedGuid ) ) return v;
-
-			return updatedGuid;
-		} );
+			if ( translate.TryGetValue( guid, out var updatedGuid ) )
+				node.ReplaceWith( updatedGuid );
+		}
 
 		return translate;
 	}
 
-	internal static Dictionary<Guid, Guid> CreateUniqueGuidLookup( JsonObject json, Guid? rootGuid = null )
+	internal static Dictionary<Guid, Guid> CreateUniqueGuidLookup( JsonObject json, Guid? rootGuid = null ) => CreateUniqueGuidLookup( json, rootGuid, null );
+
+	static Dictionary<Guid, Guid> CreateUniqueGuidLookup( JsonObject json, Guid? rootGuid, List<(JsonValue Node, Guid Guid)> found )
 	{
 		Dictionary<Guid, Guid> translate = new();
 
@@ -58,40 +59,50 @@ public static class SceneUtility
 		}
 
 		//
-		// Find all guids with "__guid" as their name. Add them to translate 
+		// Find all guids with "__guid" as their name. Add them to translate
 		// with a new target value.
 		//
-		Sandbox.Json.WalkJsonTree( json, ( k, v ) =>
-		{
-			if ( k == GameObject.JsonKeys.Id )
-			{
-				if ( v.TryGetValue<Guid>( out var guid ) && !translate.ContainsKey( guid ) )
-				{
-					translate[guid] = Guid.NewGuid();
-				}
-			}
+		CollectGuids( json, null, translate, found );
 
-			return v;
-		},
-		( k, v ) =>
+		return translate;
+	}
+
+	static void CollectGuids( JsonNode node, string key, Dictionary<Guid, Guid> translate, List<(JsonValue Node, Guid Guid)> found )
+	{
+		if ( node is JsonObject obj )
 		{
 			// GameObjects & Components that are part of prefab instances have their id stored in the PrefabToInstanceId lookup in JSON.
 			// We need to remap those as well in addtion to __guid id's.
-			if ( k == GameObject.JsonKeys.PrefabIdToInstanceId )
+			if ( key == GameObject.JsonKeys.PrefabIdToInstanceId )
 			{
-				foreach ( var (prefabId, instanceID) in v )
+				foreach ( var (_, instanceId) in obj )
 				{
-					if ( instanceID.AsValue().TryGetValue<Guid>( out var guid ) && !translate.ContainsKey( guid ) )
-					{
-						translate[guid] = Guid.NewGuid();
-					}
+					if ( instanceId.AsValue().TryGetValue<Guid>( out var guid ) )
+						translate.TryAdd( guid, Guid.NewGuid() );
 				}
 			}
 
-			return v;
-		} );
+			foreach ( var (childKey, child) in obj )
+				CollectGuids( child, childKey, translate, found );
 
-		return translate;
+			return;
+		}
+
+		if ( node is JsonArray array )
+		{
+			for ( var i = 0; i < array.Count; i++ )
+				CollectGuids( array[i], null, translate, found );
+
+			return;
+		}
+
+		if ( node is JsonValue value && value.TryGetValue<Guid>( out var id ) )
+		{
+			found?.Add( (value, id) );
+
+			if ( key == GameObject.JsonKeys.Id )
+				translate.TryAdd( id, Guid.NewGuid() );
+		}
 	}
 
 	/// <summary>
@@ -290,6 +301,38 @@ public static class SceneUtility
 				return o;
 			} );
 		} );
+	}
+
+	/// <summary>
+	/// Studio lighting that follows the camera, so every thumbnail is lit the same way: a warm key
+	/// from above-left, a soft fill from beside the camera, and a cool rim from behind to pick out
+	/// the edges.
+	/// The rim is a point light - a scene only takes one directional light, a second replaces the first.
+	/// </summary>
+	internal static void AddThumbnailLights( Rotation view, BBox bounds )
+	{
+		var key = new GameObject( true, "key" ).Components.Create<DirectionalLight>();
+		key.WorldRotation = Rotation.LookAt( (view.Forward + view.Right * 0.7f - view.Up * 0.9f).Normal );
+		key.LightColor = new Color( 1f, 0.95f, 0.88f ) * 0.8f;
+		key.SkyColor = new Color( 0.55f, 0.6f, 0.7f ) * 0.55f;
+		key.Shadows = false;
+
+		var size = bounds.Size.Length;
+
+		// A soft fill from beside the camera, so dark metal facing us doesn't go black
+		var fill = new GameObject( true, "fill" ).Components.Create<PointLight>();
+		fill.WorldPosition = bounds.Center - view.Forward * size * 1.5f + view.Right * size * 0.6f;
+		fill.Radius = size * 4f;
+		fill.Attenuation = 0f;
+		fill.LightColor = new Color( 1f, 0.97f, 0.92f ) * 0.3f;
+		fill.Shadows = false;
+
+		var rim = new GameObject( true, "rim" ).Components.Create<PointLight>();
+		rim.WorldPosition = bounds.Center + view.Forward * size * 0.6f + view.Left * size * 0.5f + view.Up * size * 0.5f;
+		rim.Radius = size * 4f;
+		rim.Attenuation = 0f;
+		rim.LightColor = new Color( 0.7f, 0.85f, 1f ) * 6f;
+		rim.Shadows = false;
 	}
 
 	/// <summary>

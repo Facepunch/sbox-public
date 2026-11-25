@@ -192,6 +192,27 @@ internal partial class NetworkSystem
 		return default;
 	}
 
+	/// <summary>
+	/// A response to something we asked this connection, or a packed <see cref="UserInfo"/> or
+	/// <see cref="RestartHandshakeMsg"/>, judged from the type id before anything is deserialized.
+	/// </summary>
+	internal bool IsHandshakePayload( ref NetworkMessage msg, Guid responseTo )
+	{
+		if ( responseTo != Guid.Empty )
+			return msg.Source.IsAwaitingResponse( responseTo );
+
+		if ( msg.Data.ReadRemaining < 1 + sizeof( int ) )
+			return false;
+
+		var start = msg.Data.Position;
+		var header = msg.Data.Read<BytePack.Identifier>();
+		var identity = msg.Data.Read<int>();
+		msg.Data.Position = start;
+
+		return header == BytePack.Identifier.Runtime
+			&& (identity == TypeLibrary.GetType<UserInfo>()?.Identity || identity == TypeLibrary.GetType<RestartHandshakeMsg>()?.Identity);
+	}
+
 	// Outer catch so one bad message can't tear down the dispatch path.
 	internal void HandleIncomingMessage( NetworkMessage msg )
 	{
@@ -220,6 +241,12 @@ internal partial class NetworkSystem
 		using var scriptDisabledScope = DisableUntrustedScripts( msg.Source, msg.Depth );
 
 		var type = msg.Data.Read<InternalMessageType>();
+
+		// Until the host has let a connection in (password, privacy), it only takes handshake messages
+		var unadmitted = IsHost && !msg.Source.IsHost && msg.Source.State < Connection.ChannelState.Welcome;
+		if ( unadmitted && type is not (InternalMessageType.HeartbeatPing or InternalMessageType.HeartbeatPong
+			or InternalMessageType.Packed or InternalMessageType.Request or InternalMessageType.Response) )
+			return;
 
 		// Leaving host: only acknowledgements matter now, relayed ones included
 		if ( _isHandingOff && type is not (InternalMessageType.Packed or InternalMessageType.Multicast) )
@@ -291,6 +318,10 @@ internal partial class NetworkSystem
 
 		if ( type == InternalMessageType.Packed )
 		{
+			// Deserializing is enough to hurt, so from a connection we haven't let in only read the handshake
+			if ( unadmitted && !IsHandshakePayload( ref msg, responseTo ) )
+				return;
+
 			object obj = default;
 
 			//
@@ -321,6 +352,9 @@ internal partial class NetworkSystem
 				msg.Source.OnResponse( responseTo, obj );
 				return;
 			}
+
+			if ( unadmitted && obj is not (UserInfo or RestartHandshakeMsg) )
+				return;
 
 			if ( typeMessageHandlers.TryGetValue( obj.GetType(), out var h ) )
 			{

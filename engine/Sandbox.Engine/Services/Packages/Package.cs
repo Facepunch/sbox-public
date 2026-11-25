@@ -8,6 +8,7 @@ namespace Sandbox;
 /// <summary>
 /// Represents an asset on <a href="https://asset.party/">Asset Party</a>.
 /// </summary>
+[Expose]
 public partial class Package
 {
 	/// <summary>
@@ -36,7 +37,7 @@ public partial class Package
 
 			if ( _fullIdent is null || _fullIdentOrg != org || _fullIdentIdent != Ident )
 			{
-				_fullIdent = FormatIdent( org, Ident, local: !IsRemote );
+				_fullIdent = FormatIdent( org, Ident );
 				_fullIdentOrg = org;
 				_fullIdentIdent = Ident;
 			}
@@ -292,6 +293,7 @@ public partial class Package
 	/// </summary>
 	public int Referenced { get; set; }
 
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public readonly struct ReviewStats
 	{
 		/// <summary>
@@ -329,21 +331,22 @@ public partial class Package
 		/// </summary>
 		public readonly ImmutableDictionary<Review.NegativeTags, int> NegativeTags;
 
-		internal ReviewStats( PackageReviewStats reviews )
+		/// <summary>
+		/// Creates empty statistics for legacy callers.
+		/// </summary>
+		public ReviewStats()
 		{
-			Score = reviews?.ToPercentage() ?? 0;
-			PositiveRatings = reviews?.PositiveRatings ?? 0;
-			NegativeRatings = reviews?.NegativeRatings ?? 0;
-			PromiseRatings = reviews?.PromiseRatings ?? 0;
-			PositiveTags = reviews?.PositiveTags.ToImmutableDictionary( x => (Review.PositiveTags)x.Key, x => x.Value ) ?? ImmutableDictionary<Review.PositiveTags, int>.Empty;
-			NegativeTags = reviews?.NegativeTags.ToImmutableDictionary( x => (Review.NegativeTags)x.Key, x => x.Value ) ?? ImmutableDictionary<Review.NegativeTags, int>.Empty;
+			PositiveTags = ImmutableDictionary<Review.PositiveTags, int>.Empty;
+			NegativeTags = ImmutableDictionary<Review.NegativeTags, int>.Empty;
 		}
 	}
 
 	/// <summary>
-	/// Stats for the reviews. Gives the number of reviews, and the fraction of the total score.
+	/// Legacy review statistics. Fetched packages have empty counts.
 	/// </summary>
-	public ReviewStats Reviews { get; set; }
+	[Obsolete( "Written package reviews are no longer supported." )]
+	[JsonIgnore]
+	public ReviewStats Reviews { get; set; } = new();
 
 	/// <summary>
 	/// What fraction of users got errors from this package in the last day
@@ -491,7 +494,7 @@ public partial class Package
 	/// </summary>
 	internal bool IsNamed( string ident )
 	{
-		if ( !Package.TryParseIdent( ident, out var parsed ) )
+		if ( !Package.TryParseIdentParts( ident, out var parsed ) )
 			return false;
 
 		if ( !string.Equals( Org.Ident, parsed.org, System.StringComparison.OrdinalIgnoreCase ) )
@@ -543,7 +546,7 @@ public partial class Package
 		if ( !string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase ) )
 		{
 			var parent = Info.ParentPackage;
-			if ( TryParseIdent( parent, out _ ) )
+			if ( TryParseIdentParts( parent, out _ ) )
 				yield return parent;
 		}
 	}

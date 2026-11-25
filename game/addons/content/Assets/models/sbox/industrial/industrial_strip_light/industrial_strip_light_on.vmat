@@ -1,0 +1,61 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/complex.shader"
+
+	//---- Color ----
+	F_TINT_MASK 1
+
+	//---- PBR ----
+	F_METALNESS_TEXTURE 1
+	F_SELF_ILLUM 1
+	F_SPECULAR 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "0.580"
+	g_flAmbientOcclusionDirectSpecular "0.595"
+	TextureAmbientOcclusion "models/sbox/industrial/industrial_strip_light/industrial_strip_light_ao.png"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "models/sbox/industrial/industrial_strip_light/industrial_strip_light_color.png"
+	TextureTintMask "models/sbox/industrial/industrial_strip_light/industrial_strip_light_selfillum.png"
+
+	//---- Fade ----
+	g_flFadeExponent "1.000"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Metalness ----
+	TextureMetalness "models/sbox/industrial/industrial_strip_light/industrial_strip_light_metal.png"
+
+	//---- Normal ----
+	TextureNormal "models/sbox/industrial/industrial_strip_light/industrial_strip_light_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "models/sbox/industrial/industrial_strip_light/industrial_strip_light_rough.png"
+
+	//---- Self Illum ----
+	g_flSelfIllumAlbedoFactor "1.000"
+	g_flSelfIllumBrightness "1.000"
+	g_flSelfIllumScale "0.759"
+	g_vSelfIllumScrollSpeed "[0.000 0.000]"
+	g_vSelfIllumTint "[1.000000 1.000000 1.000000 1.000000]"
+	TextureSelfIllumMask "models/sbox/industrial/industrial_strip_light/industrial_strip_light_selfillum.png"
+
+	//---- Texture Coordinates ----
+	g_nScaleTexCoordUByModelScaleAxis "0"
+	g_nScaleTexCoordVByModelScaleAxis "0"
+	g_vTexCoordOffset "[0.000 0.000]"
+	g_vTexCoordScale "[1.000 1.000]"
+	g_vTexCoordScrollSpeed "[0.000 0.000]"
+
+	DynamicParams
+	{
+		g_flSelfIllumBrightness "5.5 + sin( Time * 120 ) * .035\n\n"
+	}
+}

@@ -1,0 +1,99 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	SpawnMenuToolbar
+	{
+		width: 100%;
+		flex-direction: row;
+		align-items: center;
+		min-height: $ui-menu-control-height;
+		gap: 8px;
+	}
+
+	SpawnMenuToolbar > .left,
+	SpawnMenuToolbar > .right,
+	SpawnMenuToolbar > .body
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+	}
+
+	SpawnMenuToolbar > .body
+	{
+		flex-grow: 1;
+	}
+
+	SpawnMenuToolbar > .left
+	{
+		min-width: 0;
+		flex-shrink: 1;
+	}
+
+	SpawnMenuToolbar > .right
+	{
+		flex-shrink: 0;
+	}
+
+	SpawnMenuToolbar .textentry.menu-input
+	{
+		@include ui-text-entry;
+		width: 240px;
+		min-width: 0;
+		flex-shrink: 1;
+		padding: 0 10px;
+		gap: 8px;
+		font-size: 13px;
+		border-color: $ui-control-border;
+
+		&::before
+		{
+			content: "search";
+			font-family: $ui-icon;
+			font-variation-settings: $ui-icon-filled-axes;
+			font-size: 17px;
+			color: $ui-text-muted;
+			flex-shrink: 0;
+			pointer-events: none;
+		}
+
+		&.has-icon { padding-right: 30px; }
+		.content-label.placeholder { color: $ui-text-muted; }
+
+		&:hover { border-color: $ui-control-border-hover; }
+		&:focus
+		{
+			border-color: $ui-blue;
+			box-shadow: 0 0 0 2px $ui-blue-soft;
+		}
+
+		&:focus::before { color: $ui-blue; }
+	}
+
+	SpawnMenuToolbar .textentry.menu-input,
+	SpawnMenuToolbar UIButton.button,
+	SpawnMenuToolbar UIDropdown
+	{
+		height: $ui-menu-control-height;
+		border-radius: $ui-menu-radius;
+	}
+
+	SpawnMenuToolbar UIButton.button.icon-only
+	{
+		width: $ui-menu-control-height;
+	}
+
+	SpawnMenuToolbar UIDropdown
+	{
+		width: 166px;
+		flex-grow: 0;
+	}
+
+	SpawnMenuToolbar UIButton.button:not(.active), SpawnMenuToolbar UIDropdown
+	{
+		@include ui-control-surface;
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

@@ -100,7 +100,7 @@ public abstract class BoneCollection
 		[Pure]
 		public bool IsNamed( string name )
 		{
-			return string.Compare( Name, name, true ) == 0;
+			return string.Equals( Name, name, StringComparison.OrdinalIgnoreCase );
 		}
 	}
 }

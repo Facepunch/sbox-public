@@ -127,6 +127,16 @@ public sealed partial class GraphBuilder
 	public Node ReferencedGraph( string graphPath, Node fallback = default ) => ReferencedGraph( (ResourceId)graphPath, fallback );
 
 	internal Node ReferencedGraph( ResourceId graphPath, Node fallback = default, string variation = "" )
+		=> ReferencedGraph( graphPath, null, fallback, variation );
+
+	public Node ReferencedGraph( Graph graph, Node fallback = default )
+	{
+		if ( !graph.IsValid() )
+			throw new ArgumentException( "A valid referenced graph is required.", nameof( graph ) );
+		return ReferencedGraph( ResourceId.Get( graph ), graph, fallback, "" );
+	}
+
+	private Node ReferencedGraph( ResourceId graphPath, Graph graph, Node fallback, string variation )
 	{
 		if ( graphPath.Guid == Guid.Empty )
 			graphPath.Guid = null;
@@ -141,7 +151,7 @@ public sealed partial class GraphBuilder
 			graphPath = ResourceId.FromPath( path[..(separator + 3)] );
 		}
 		// Every use gets its own slot - each runtime node needs a private child instance
-		referencedGraphs.Add( (graphPath, variation) );
+		referencedGraphs.Add( (graphPath, variation, graph) );
 		var slotIdx = referencedGraphs.Count - 1;
 		return AddNode( NodeKind.Pose, native =>
 		{

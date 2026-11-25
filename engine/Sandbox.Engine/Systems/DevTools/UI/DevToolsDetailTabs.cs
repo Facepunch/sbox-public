@@ -194,10 +194,13 @@ internal sealed class DevToolsMemoryTab : DevToolsTab
 
 	public DevToolsMemoryTab()
 	{
+		// The headline numbers, across the top. Video memory has its own tab
 		_facts = AddChild( new DevToolsFacts() );
+		_facts.AddClass( "span-all" );
 
-		// Set a baseline, do something, and see what grew
-		_sinceSection = AddChild( new DevToolsSection( "Since the baseline" ) );
+		// Side by side. Set a baseline, do something, and see what grew
+		var managed = AddChild( new Panel( null, "split span-all" ) );
+		_sinceSection = managed.AddChild( new DevToolsSection( "Since the baseline" ) );
 		_baselineButton = _sinceSection.Head.AddChild( new Label( "set baseline", "head-button" ) );
 		_baselineButton.AddEventListener( "onclick", SetBaseline );
 		_clearButton = _sinceSection.Head.AddChild( new Label( "clear", "head-button" ) );
@@ -205,7 +208,7 @@ internal sealed class DevToolsMemoryTab : DevToolsTab
 		_since = _sinceSection.Body.AddChild( new DevToolsFacts() );
 
 		// Generations are detail: folded away
-		_heapSection = AddChild( new DevToolsSection( "Managed heap, at the last GC" ) );
+		_heapSection = managed.AddChild( new DevToolsSection( "Managed heap, at the last GC" ) );
 		_heap = new DevToolsFacts();
 		_heapSection.Collapsible( body => body.AddChild( _heap ) );
 
@@ -293,14 +296,6 @@ internal sealed class DevToolsMemoryTab : DevToolsTab
 		_facts.Set( "Alloc", $"{DevToolsFormat.Bytes( second.ByteAlloc )}/s", second.ByteAlloc > 20 * 1024 * 1024 ? DevTools.Severity.Warning : null, "Managed allocations in the last second" );
 		_facts.Set( "GC pause", $"{gcMs:0.0} ms/s", gcMs > 2 || second.Gc2 > 0 ? DevTools.Severity.Warning : null );
 		_facts.Set( "GCs /s", $"{second.Gc0} / {second.Gc1} / {second.Gc2}", second.Gc2 > 0 ? DevTools.Severity.Warning : null, "gen0 / gen1 / gen2 collections in the last second" );
-		_facts.Set( "VRAM", GpuProfilerStats.VideoMemoryBudget > 0
-			? DevToolsFormat.BytesOf( GpuProfilerStats.VideoMemoryUsed, GpuProfilerStats.VideoMemoryBudget )
-			: "-" );
-		_facts.Set( "Texture pool", stats.TexturePoolLimitBytes > 0
-			? DevToolsFormat.BytesOf( stats.TexturePoolUsedBytes, stats.TexturePoolLimitBytes )
-			: DevToolsFormat.Bytes( stats.TexturePoolUsedBytes ) );
-		_facts.Set( "Pinned textures", DevToolsFormat.Bytes( stats.TexturePoolNonEvictableBytes ) );
-		_facts.Set( "Streaming", $"{stats.PendingStreamingRequests} pending", stats.PendingStreamingRequests > 32 ? DevTools.Severity.Warning : null );
 
 		RefreshSince( stats );
 

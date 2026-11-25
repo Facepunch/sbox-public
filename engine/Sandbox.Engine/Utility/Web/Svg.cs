@@ -246,7 +246,7 @@ public class SvgDocument
 	/// <param name="contents">SVG document contents.</param>
 	public static SvgDocument FromString( string contents )
 	{
-		var svgDoc = SvgLib.SvgDocument.FromSvg<SvgLib.SvgDocument>( contents );
+		var svgDoc = SvgSanitizer.Parse( contents );
 
 		using var svg = new SKSvg();
 

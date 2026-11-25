@@ -79,10 +79,10 @@ public sealed class NetworkHelper : Component, Component.INetworkListener
 		//
 		// If we have any SpawnPoint components in the scene, then use those
 		//
-		var spawnPoints = Scene.GetAllComponents<SpawnPoint>().ToArray();
-		if ( spawnPoints.Length > 0 )
+		var spawnPoints = SpawnPoint.GetAllByPriority( Scene );
+		if ( spawnPoints.Count > 0 )
 		{
-			return Random.Shared.FromArray( spawnPoints ).WorldTransform;
+			return spawnPoints[0].WorldTransform;
 		}
 
 		//

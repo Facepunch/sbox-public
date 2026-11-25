@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/thruster/beer_keg.prefab",
+  "Title": "#asset.beer_keg.title",
+  "Description": "",
+  "__references": [],
+  "__version": 0
+}

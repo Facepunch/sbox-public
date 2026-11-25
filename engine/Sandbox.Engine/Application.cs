@@ -35,7 +35,8 @@ public static class Application
 	public static bool IsConsoleApp => IsHeadless;
 
 	/// <summary>
-	/// True if this is a dedicated server
+	/// True if this process is a dedicated server.
+	/// To check if the current game is hosted on a dedicated server, use <seealso cref="Networking.IsDedicatedServer"/> instead.
 	/// </summary>
 	public static bool IsDedicatedServer { get; private set; }
 
@@ -203,6 +204,7 @@ public static class Application
 		GamePackage = default;
 		ExceptionCount = default;
 		MapPackage = default;
+		Map = default;
 
 		// Cheats, and anything they allowed, shouldn't carry over into the next game
 		ConVarSystem.ResetCheats();
@@ -227,19 +229,14 @@ public static class Application
 	}
 
 	/// <summary>
-	/// Gets the active scene. This could be in the menu system, or in the game. This is provided
-	/// for internal engine, and should never be accessible to the user code.
+	/// Gets the active scene - the game's, as the menu has none of its own. This is provided for internal engine, and
+	/// should never be accessible to the user code.
 	/// </summary>
 	internal static Scene GetActiveScene()
 	{
 		if ( IGameInstance.Current?.Scene is Scene gameScene && gameScene.IsValid() )
 		{
 			return gameScene;
-		}
-
-		if ( IMenuDll.Current?.Scene is Scene menuScene && menuScene.IsValid() )
-		{
-			return menuScene;
 		}
 
 		return null;
@@ -258,12 +255,12 @@ public static class Application
 
 		if ( GamePackage is { } game )
 		{
-			Log.Info( $"Game: {game.GetIdent( false, true )} ({game.Revision?.Created})" );
+			Log.Info( $"Game: {game.GetVersionedIdent()} ({game.Revision?.Created})" );
 		}
 
 		if ( MapPackage is { } map )
 		{
-			Log.Info( $"Map: {map.GetIdent( false, true )} ({map.Revision?.Created})" );
+			Log.Info( $"Map: {map.GetVersionedIdent()} ({map.Revision?.Created})" );
 		}
 	}
 }

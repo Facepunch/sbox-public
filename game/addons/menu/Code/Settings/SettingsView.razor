@@ -7,7 +7,7 @@
 @namespace MenuProject.Settings
 @inherits Panel
 
-<root>
+<root class="@(HasDetail ? "" : "no-detail")">
 
 	<div class="rail">
 
@@ -38,8 +38,8 @@
 
 	<div class="body">
 
-		<PanelHead Icon=@(Searching ? "search" : Current?.Icon) Title=@(Searching ? "#menu.common.search" : Current?.Title)
-		           Back=@(OnCancel is null ? null : (Action)Back) Search="#menu.settings.search_settings" OnSearch=@(SearchInBar ? (Action<string>)OnSearchEdited : null) />
+		<PanelHead Icon=@(Searching ? "search" : SubPage?.Icon ?? Current?.Icon) Title=@(Searching ? "#menu.common.search" : SubPage?.Title ?? Current?.Title)
+		           Back=@(SubPage is { } sub && !Searching ? sub.Back : OnCancel is null ? null : (Action)Back) Search="#menu.settings.search_settings" OnSearch=@(SearchInBar ? (Action<string>)OnSearchEdited : null) />
 
 		@if ( Searching )
 		{
@@ -112,12 +112,6 @@
 					</div>
 				}
 
-				@* What you've hidden, and the way to bring it back - after the game settings *@
-				@if ( Category == "game" )
-				{
-					<HiddenSettings />
-				}
-
 			</div>
 
 			<SettingsActions View=@this />
@@ -125,7 +119,7 @@
 
 	</div>
 
-	@if ( Searching || Category != "storage" )
+	@if ( HasDetail )
 	{
 		<SettingsDetail View=@this />
 	}
@@ -188,6 +182,12 @@
 
 	public bool Searching => !string.IsNullOrWhiteSpace( Query );
 
+	/// <summary>
+	/// Has what the setting being read about does beside it - Storage hasn't. A class on it as it's built, not :last-child,
+	/// which only catches up once the detail's gone - a frame late.
+	/// </summary>
+	bool HasDetail => Searching || Category != "storage";
+
 	SettingsCategory Current => Catalog.Categories.FirstOrDefault( x => x.Id == Category );
 
 	protected override void OnParametersSet()
@@ -230,11 +230,30 @@
 
 	void Back() => OnCancel?.Invoke();
 
+	/// <summary>
+	/// A page within a page with its own markup (Storage's Games) - its name and icon in the bar, and the bar's back
+	/// going back to the page. Null on the page itself; gone when another category's picked.
+	/// </summary>
+	public record SubPageInfo( string Title, string Icon, Action Back );
+
+	SubPageInfo _subPage;
+
+	public SubPageInfo SubPage
+	{
+		get => _subPage;
+		set
+		{
+			_subPage = value;
+			StateHasChanged();
+		}
+	}
+
 	void Select( string id )
 	{
 		Category = id;
 		Query = "";
 		Focused = null;
+		_subPage = null;
 
 		if ( SearchEntry.IsValid() )
 			SearchEntry.Text = "";

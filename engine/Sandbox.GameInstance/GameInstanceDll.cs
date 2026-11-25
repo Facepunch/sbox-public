@@ -39,6 +39,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	public void Bootstrap()
 	{
 		Current = this;
+		Sandbox.WorkshopItems.Current = WorkshopItems;
 
 		GlobalContext.Current.Reset();
 		GlobalContext.Current.LocalAssembly = GetType().Assembly;
@@ -92,9 +93,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		ResetEnvironment();
 		Networking.StartThread();
 
-		if ( !Application.IsStandalone )
+		if ( !Application.IsStandalone && !Application.IsEditor )
 		{
-			await Mounting.MountConfig.Mount();
+			await Mounting.Directory.MountFromConfig();
 		}
 	}
 
@@ -170,13 +171,14 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		}
 
 		if ( !menuResourcesCurrent ) ResourceLoader.Clear();
+		WorkshopItems.Clear();
 
 		if ( DidMountNetworkedFiles )
 		{
 			EngineFileSystem.Mounted.UnMount( NetworkedLargeFiles.Files );
 			EngineFileSystem.Mounted.UnMount( NetworkedSmallFiles.Files );
 			EngineFileSystem.ProjectSettings.UnMount( NetworkedConfigFiles.Files );
-			Game.Language.FileSystem.UnMount( NetworkedLangFiles.Files );
+			Game.Language?.FileSystem.UnMount( NetworkedLangFiles.Files );
 			DidMountNetworkedFiles = false;
 		}
 
@@ -284,7 +286,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			ConVarSystem.RemoveAssembly( a.Assembly );
 			JsonUpgrader.UpdateUpgraders( TypeLibrary );
 
-			CodeArchiveTable.Remove( a.Name );
+			// Replacing the client's local assembly can trigger this callback. Keep the archive received from the host.
+			if ( !Networking.IsClient )
+				CodeArchiveTable.Remove( a.Name );
 		};
 
 		AssemblyEnroller.OnAssemblyFastHotload += ( a ) =>
@@ -317,12 +321,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// <param name="a"></param>
 	private void AddArchiveToCodeArchiveTable( LoadedAssembly a )
 	{
-		if ( a?.CodeArchiveBytes is null )
-			return;
-
-		// Only send code archives if we're a developer host (editor) or a dedicated server
-		// started with a local project — clients can download remote packages from sbox.game.
-		if ( !Application.IsEditor && !(Application.IsDedicatedServer && Application.GamePackage is LocalPackage) )
+		if ( Networking.IsClient || a?.CodeArchiveBytes is null )
 			return;
 
 		//
@@ -627,7 +626,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		if ( !string.IsNullOrEmpty( message ) )
 		{
 			using var scope = GlobalContext.MenuScope();
-			IModalSystem.Current.Notice( "Disconnected", message, "wifi_off" );
+			IModalSystem.Current?.Notice( "Disconnected", message, "wifi_off" );
 		}
 
 		LoadingScreen.IsVisible = false;
@@ -739,12 +738,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	{
 		//
 		// We might not need to reload if this is the same package.
-		// Bit of extra dancing here because we want #local to be treated as released
 		//
 		if ( gameInstance is not null && !flags.Contains( GameLoadingFlags.Reload ) )
 		{
-			Package.TryParseIdent( ident, out var iparts );
-			Package.TryParseIdent( gameInstance?.Ident, out var oparts );
+			Package.TryParseIdentParts( ident, out var iparts );
+			Package.TryParseIdentParts( gameInstance?.Ident, out var oparts );
 
 			// No need to recreate - this is the same package (and the same version)
 			if ( iparts.package == oparts.package && iparts.org == oparts.org && iparts.version == oparts.version )
@@ -834,16 +832,14 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			GC.Collect( GC.MaxGeneration, GCCollectionMode.Optimized, false, false );
 			await Task.Yield();
 
-			if ( Package.TryParseIdent( ident, out var parsed ) )
+			if ( Package.TryParseIdentParts( ident, out var parsed ) )
 			{
 				EngineFileSystem.Data.CreateDirectory( parsed.org );
 
-				var package = parsed.local ? $"{parsed.package}#local" : parsed.package;
-
 				GlobalContext.Current.FileOrg = EngineFileSystem.Data.CreateSubSystem( parsed.org );
-				GlobalContext.Current.FileOrg.CreateDirectory( package );
+				GlobalContext.Current.FileOrg.CreateDirectory( parsed.package );
 
-				GlobalContext.Current.FileData = FileSystem.OrganizationData.CreateSubSystem( package );
+				GlobalContext.Current.FileData = FileSystem.OrganizationData.CreateSubSystem( parsed.package );
 			}
 			else if ( Application.IsStandalone && ident == Standalone.Manifest.Ident )
 			{

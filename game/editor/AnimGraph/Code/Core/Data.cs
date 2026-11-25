@@ -582,6 +582,9 @@ public class Data : IGraph
 				foreach ( var property in info.Properties.Where( property =>
 					property.AttributeProvider is PropertyInfo member && member.GetCustomAttribute<JsonIgnoreAttribute>() is not null ).ToArray() )
 					info.Properties.Remove( property );
+
+				if ( info.Properties.FirstOrDefault( property => property.Name == nameof( Node.Title ) ) is { } title )
+					title.ShouldSerialize = (_, value) => value is string text && !string.IsNullOrWhiteSpace( text );
 			}
 
 			if ( info.Type != typeof( Node ) )
@@ -908,7 +911,7 @@ public class Data : IGraph
 	{
 		var created = new List<Node>();
 		var bySavedId = new Dictionary<string, Node>();
-		var connections = new List<(IPlugIn Plug, NodeInput Connection)>();
+		var connections = new List<(AnimPlugIn Plug, NodeInput Connection)>();
 
 		foreach ( var element in elements.EnumerateArray() )
 		{
@@ -927,7 +930,7 @@ public class Data : IGraph
 			{
 				if ( input is AnimPlugIn animInput
 					&& animInput.Info.GetInput( node ) is { IsValid: true } connection )
-					connections.Add( (input, connection) );
+					connections.Add( (animInput, connection) );
 			}
 		}
 
@@ -938,9 +941,9 @@ public class Data : IGraph
 			var source = bySavedId.GetValueOrDefault( connection.Identifier ) ?? FindNode( connection.Identifier );
 
 			if ( source?.Outputs.FirstOrDefault( o => o.Identifier == connection.Output ) is { } output )
-				plug.ConnectedOutput = output;
+				plug.SetConnection( output, replaceExisting: freshIdentifiers && !bySavedId.ContainsKey( connection.Identifier ) );
 			else
-				plug.ConnectedOutput = null;
+				plug.SetConnection( null, replaceExisting: false );
 		}
 
 		return created;
@@ -957,7 +960,7 @@ public class Data : IGraph
 	/// Ensures every parameter node references a defined parameter, so pasted
 	/// graphs self-heal into the parameter list.
 	/// </summary>
-	private void RegisterParametersFromNodes( IEnumerable<INode> nodes )
+	internal void RegisterParametersFromNodes( IEnumerable<INode> nodes )
 	{
 		var parameters = Root.Parameters;
 

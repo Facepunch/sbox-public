@@ -70,6 +70,90 @@ public class ScriptSystemTests
 	}
 
 	/// <summary>
+	/// Network and console flags can be used as ordinary script values.
+	/// </summary>
+	[TestMethod]
+	public void NetworkAndConsoleFlagsAreAvailable()
+	{
+		Assert.AreEqual( NetFlags.Reliable, context.Scripting.Run<NetFlags>( "return NetFlags.Reliable;" ) );
+		Assert.AreEqual( ConVarFlags.Saved, context.Scripting.Run<ConVarFlags>( "return ConVarFlags.Saved;" ) );
+	}
+
+	/// <summary>
+	/// Networking attributes cannot publish without wrappers through the catalog's case-insensitive names.
+	/// Check both an ordinary file and a file that also contains a generated declaration.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "sync" )]
+	[DataRow( "SYNC" )]
+	[DataRow( "syncAttribute" )]
+	[DataRow( "Sandbox.sync" )]
+	[DataRow( "sandbox.SyncAttribute" )]
+	public void NetworkingAttributesRejectNonCSharpNames( string attribute )
+	{
+		foreach ( var companion in new[] { "", "[Sync] public int Generated { get; set; }" } )
+		{
+			var source = $$"""
+				class NetworkAttributeProbe : Component
+				{
+					{{companion}}
+					[{{attribute}}] public int Value { get; set; }
+				}
+				""";
+			var result = context.Scripting.LoadFile( "network.csx", source );
+			Assert.IsFalse( result.Published, attribute );
+			Assert.IsFalse( result.Success, attribute );
+			Assert.IsFalse( result.RequiresReload, attribute );
+			var error = result.Diagnostics.Single();
+			Assert.AreEqual( "SCR_TYPE", error.Code, error.ToString() );
+			Assert.AreEqual( "network.csx", error.FilePath );
+			StringAssert.Contains( error.Message, attribute );
+		}
+	}
+
+	/// <summary>
+	/// The generator's supported attribute types remain available through short and qualified C# names.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "SyncAttribute", typeof( SyncAttribute ) )]
+	[DataRow( "Sandbox.SyncAttribute", typeof( SyncAttribute ) )]
+	[DataRow( "global::Sandbox.SyncAttribute", typeof( SyncAttribute ) )]
+	[DataRow( "Rpc.BroadcastAttribute", typeof( Rpc.BroadcastAttribute ) )]
+	[DataRow( "Sandbox.Rpc.HostAttribute", typeof( Rpc.HostAttribute ) )]
+	[DataRow( "global::Sandbox.Rpc.OwnerAttribute", typeof( Rpc.OwnerAttribute ) )]
+	public void NetworkingAttributeTypesRemainAvailable( string name, Type expected )
+	{
+		var script = context.Scripting.CreateScript( $"return new {name}();" );
+		var attribute = script.RunAndReturn<object>();
+		Assert.IsNull( script.LastError, script.LastError?.ToString() );
+		Assert.IsNotNull( attribute );
+		Assert.AreEqual( expected, attribute.GetType() );
+	}
+
+	/// <summary>
+	/// The safe shared pool supports buffer operations through its returned runtime implementation.
+	/// </summary>
+	[TestMethod]
+	public void SafeArrayPoolSupportsRentAndReturn()
+	{
+		var script = context.Scripting.CreateScript( """
+			var pool = Sandbox.Internal.PublicArrayPool<int>.Shared;
+			var buffer = pool.Rent(4);
+			buffer[0] = 42;
+			var value = buffer[0];
+			pool.Return(buffer, true);
+			return value;
+			""" );
+		Assert.AreEqual( 42, script.RunAndReturn<int>(), script.LastError?.ToString() );
+		Assert.IsNull( script.LastError );
+		Assert.AreSame( PublicArrayPool<int>.Shared, context.Scripting.Run<object>( "return Sandbox.Internal.PublicArrayPool<int>.Shared;" ) );
+
+		var bclPool = context.Scripting.CreateScript( "return System.Buffers.ArrayPool<int>.Shared;" );
+		Assert.IsFalse( bclPool.Run() );
+		Assert.IsNotNull( bclPool.LastError );
+	}
+
+	/// <summary>
 	/// Familiar builder names construct the same safe wrapper used by compiled addon C#.
 	/// </summary>
 	[TestMethod]
@@ -632,9 +716,59 @@ public class ScriptSystemTests
 		Assert.AreEqual( typeof( Task ), resolver.ResolveType( "System.Threading.Tasks.Task" ) );
 		Assert.AreEqual( typeof( Task<> ), resolver.ResolveType( "Task`1" ) );
 		Assert.AreEqual( typeof( Task<> ), resolver.ResolveType( "System.Threading.Tasks.Task`1" ) );
+
+		foreach ( var type in new[] { typeof( Task ), typeof( Task<> ), typeof( Task<int> ) } )
+		{
+			var members = new System.Collections.Generic.List<MemberInfo>();
+			resolver.GetMembers( type, members );
+			Assert.IsFalse( members.Any( member => member is ConstructorInfo || member.Name is "Run" or "Start" or "Wait" ), type.ToString() );
+			Assert.IsTrue( members.Any( member => member.Name == nameof( Task.IsCompleted ) ), type.ToString() );
+		}
+	}
+
+	/// <summary>
+	/// Registering tasks for observation does not let scripts construct unscheduled native work.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "return new Task(() => {});" )]
+	[DataRow( "return new Task<int>(() => 42);" )]
+	public void TaskConstructionRequiresApproval( string source )
+	{
+		var script = context.Scripting.CreateScript( source );
+
+		Assert.IsFalse( script.Compile(), source );
+		Assert.IsNotNull( script.LastError );
+	}
+
+	/// <summary>
+	/// Explicitly approved constructors and ordinary generic collection constructors remain usable.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "return new Exception(\"expected\").Message == \"expected\";" )]
+	[DataRow( "return new AggregateException(new Exception(\"expected\")).GetBaseException().Message == \"expected\";" )]
+	[DataRow( "return new System.Threading.CancellationToken(true).IsCancellationRequested;" )]
+	[DataRow( "var source = new System.Threading.CancellationTokenSource(); source.Cancel(); var cancelled = source.Token.IsCancellationRequested; source.Dispose(); return cancelled;" )]
+	[DataRow( "var values = new List<int>(); values.Add(42); return values[0] == 42;" )]
+	public void ApprovedConstructorsRemainUsable( string source )
+	{
+		var script = context.Scripting.CreateScript( source );
+
+		Assert.IsTrue( script.RunAndReturn<bool>(), script.LastError?.ToString() );
+		Assert.IsNull( script.LastError );
+	}
+
+	/// <summary>
+	/// Base constructor lookup honors the same catalog approval as direct construction.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( Array ), false )]
+	[DataRow( typeof( Exception ), true )]
+	public void BaseConstructorsRequireCatalogApproval( Type type, bool expected )
+	{
 		var members = new System.Collections.Generic.List<MemberInfo>();
-		resolver.GetMembers( typeof( Task ), members );
-		Assert.IsFalse( members.Any( member => member is ConstructorInfo || member.Name is "Run" or "Start" or "Wait" ) );
+		new TypeLibraryScriptResolver( context.TypeLibrary ).GetBaseMembers( type, members );
+
+		Assert.AreEqual( expected, members.OfType<ConstructorInfo>().Any() );
 	}
 
 	static void AssertNoBreen( Type type )

@@ -94,11 +94,14 @@ GameCard
 
 		i
 		{
+			font-family: "Material Symbols Outlined";
+			font-variation-settings: $menu-icon-outlined;
 			font-size: 14px;
 			color: $platform-faint;
 
 			&.lit
 			{
+				font-variation-settings: $menu-icon-filled;
 				color: $platform-steam-blue;
 			}
 		}

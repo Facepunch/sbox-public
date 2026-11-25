@@ -1,0 +1,127 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox
+
+@if ( !Hud.IsVisible( HudElement.ToolInfo ) )
+    return;
+
+@if ( Info is null )
+    return;
+
+<root>
+ <div class="header">
+  @if ( !Driving )
+  {
+   <div class="accent" />
+
+   <div class="grid-mask">
+    <div class="grid" />
+   </div>
+  }
+
+  <Label class="title" Tokenize=@false Text=@LocalizedText.Resolve( Info.Name ) />
+
+  @if ( !string.IsNullOrEmpty( Info.Description ) )
+  {
+   <Label class="description" Tokenize=@false Text=@LocalizedText.Resolve( Info.Description ) />
+  }
+ </div>
+
+ @{ var hints = Info.Hints.ToList(); }
+ @if ( hints.Count > 0 )
+ {
+  <div class="hints">
+   @foreach ( var hint in hints )
+   {
+    <div class="hint">
+     @for ( int i = 0; i < hint.Actions.Length; i++ )
+     {
+      @if ( i > 0 )
+      {
+       <Label class="plus" Text="+" />
+      }
+      <InputHint Action=@hint.Actions[i] class="key" />
+     }
+     <Label class="text" Tokenize=@false Text=@LocalizedText.Resolve( hint.Label ) />
+    </div>
+   }
+  </div>
+ }
+
+ @if ( Status is { } status )
+ {
+  <div class="status">
+   <div class="readouts">
+    @if ( status.Primary is not null )
+    {
+     <Label class="readout" Tokenize=@false Text=@status.Primary />
+    }
+    @if ( status.Secondary is not null )
+    {
+     <Label class="readout" Tokenize=@false Text=@status.Secondary />
+    }
+   </div>
+
+   @if ( status.Hint is not null )
+   {
+    <Label class="status-hint" Tokenize=@false Text=@status.Hint />
+   }
+  </div>
+ }
+</root>
+
+@code
+{
+	IToolInfo CurrentToolInfo
+	{
+		get
+		{
+			var inv = Player?.GetComponent<PlayerInventory>();
+
+			if ( !inv.IsValid() || !inv.ActiveWeapon.IsValid() )
+				return null;
+
+			if ( inv.ActiveWeapon.GetComponentInChildren<IToolInfo>() is { IsValid: true } toolInfo )
+				return toolInfo;
+
+			return inv?.ActiveWeapon as IToolInfo;
+		}
+	}
+
+	Player Player => Player.FindLocalPlayer();
+
+	// Driving shows how to drive instead, in a plainer panel
+	bool Driving => Player?.IsDriving ?? false;
+
+	IToolInfo Info => Driving ? Player.DriveInfo : CurrentToolInfo;
+
+	/// <summary>The tool's live readouts, shown under its hints.</summary>
+	ToolStatus? Status => (Info as ToolMode)?.Status;
+
+	protected override void OnUpdate()
+	{
+		SetClass( "visible", Info is not null );
+		SetClass( "driving", Driving );
+	}
+
+	protected override int BuildHash()
+	{
+		var info = Info;
+		var hash = new System.HashCode();
+		hash.Add( Driving );
+		hash.Add( info?.Name );
+		hash.Add( info?.Description );
+		hash.Add( Hud.IsVisible( HudElement.ToolInfo ) );
+		hash.Add( Game.Language.SelectedCode );
+		hash.Add( (info as ToolMode)?.Status );
+
+		foreach ( var hint in info?.Hints ?? [] )
+		{
+			hash.Add( hint.Label );
+			foreach ( var action in hint.Actions ) hash.Add( action );
+		}
+
+		return hash.ToHashCode();
+	}
+}

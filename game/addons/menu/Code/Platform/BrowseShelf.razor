@@ -5,38 +5,21 @@
 @namespace MenuProject.Platform
 @page "/shelf/browse"
 @inherits ShelfPage
-@implements IShelfPage
 
 @*
     Browse the Workshop's games - search, put them in an order, narrow them down by tag (how it's played, what it is),
-    and page through what's found. From the dock's search, or a Discover row's See more.
+    and page through what's found. The search field lives in the dock.
 *@
 <root>
 
     <div class="side" @ref="Side">
 
-        <div class="search">
-            <i>search</i>
-            <TextEntry @ref="SearchEntry" Placeholder="Search the Workshop..." OnTextEdited=@Typed onsubmit=@Submit />
-            @if ( !string.IsNullOrEmpty( Query ) )
-            {
-                <i class="clear" onclick=@ClearSearch>close</i>
-            }
-        </div>
-
-        @* Under the search, scrolling without it *@
         <div class="options">
 
         @if ( Tags.Count > 0 || Mine || !string.IsNullOrEmpty( Query ) )
         {
             <div class="reset" onclick=@ClearAll><i>filter_alt_off</i><label>Clear filters</label></div>
         }
-
-        <label class="what">Show</label>
-        <div class="option check @(Mine ? "on" : "")" onclick=@ToggleMine>
-            <i>@(Mine ? "check_box" : "check_box_outline_blank")</i>
-            <label>My games</label>
-        </div>
 
         <label class="what">Order</label>
         @foreach ( var order in Orders )
@@ -48,6 +31,12 @@
                 <label>@order.Title</label>
             </div>
         }
+
+        <label class="what">Show</label>
+        <div class="option check @(Mine ? "on" : "")" onclick=@ToggleMine>
+            <i>@(Mine ? "check_box" : "check_box_outline_blank")</i>
+            <label>My games</label>
+        </div>
 
         <label class="what">Players</label>
         @foreach ( var tag in MenuUtility.WorkshopPlayerTags )
@@ -75,7 +64,7 @@
 
         <div class="header">
             <i class="icon">travel_explore</i>
-            <label class="title">Browse</label>
+            <label class="title">@(Query is null ? "Browse" : $"Results for \u201C{Query}\u201D")</label>
             <div class="spacer"></div>
             <div class="refresh @(loading ? "busy" : "")" onclick=@Search tooltip="Refresh"><i>refresh</i></div>
         </div>
@@ -103,7 +92,7 @@
                 <Item Context="item">
                     @if ( item is WorkshopItemDetails game )
                     {
-                        <GameCard Item=@game OnPicked=@Pressed />
+                        <GameCard Item=@game OnPickedItem=@Pressed />
                     }
                 </Item>
             </VirtualGrid>
@@ -125,16 +114,7 @@
     /// </summary>
     public string SortBy { get; set; }
 
-    void Pressed( Package package )
-    {
-        if ( package is not null && package.IsRemote )
-        {
-            PlatformRoot.Instance?.ShowGame( package );
-            return;
-        }
-
-        PlatformRoot.Instance?.Picked( package );
-    }
+    void Pressed( WorkshopItemDetails item ) => PlatformRoot.Instance?.ShowWorkshopItem( item );
 
     record Order( string Title, string Icon, Storage.SortOrder? Sort );
 
@@ -150,9 +130,9 @@
         new( "Recently updated", "update", Storage.SortOrder.RankedByLastUpdatedDate ),
     ];
 
-    TextEntry SearchEntry;
-
     string Query;
+
+    public string Searched => Query;
     Storage.SortOrder? Sort;
     readonly HashSet<string> Tags = new( StringComparer.OrdinalIgnoreCase );
 
@@ -163,28 +143,25 @@
 
     List<WorkshopItemDetails> Found = new();
 
-    WorkshopGameSearch pages;
+    WorkshopItemSearch pages;
     bool loading;
 
     VirtualGrid Grid;
     Panel Side;
 
     // Down to the dock's top, the sidebar fading off into it as the other shelves' panels do
-    bool IShelfPage.ToDock => true;
+    public override bool ToDock => true;
 
     /// <summary>
     /// A card's size at the least - the grid stretches as many columns as fit to fill its width, keeping this shape
     /// </summary>
     static readonly Vector2 CellSize = new( 244, 244 + GameCard.InfoHeight );
 
-    string typed;
-    RealTimeSince sinceTyped;
-
     /// <summary>
     /// Shown - it starts again, from what its url asked for. Taken off it as it's used: a url without a query leaves
     /// what the last one set.
     /// </summary>
-    void IShelfPage.OnShelfShown()
+    public override void OnShelfShown()
     {
         Query = string.IsNullOrWhiteSpace( SearchFor ) ? null : SearchFor;
         Sort = Enum.TryParse<Storage.SortOrder>( SortBy, out var sort ) ? sort : string.IsNullOrEmpty( Query ) ? Storage.SortOrder.RankedByVote : (Storage.SortOrder?)null;
@@ -193,27 +170,8 @@
 
         Tags.Clear();
         Mine = false;
-        typed = null;
-
-        // Ready to type in - it's opened to search
-        if ( SearchEntry.IsValid() )
-        {
-            SearchEntry.Text = Query ?? "";
-            SearchEntry.Focus();
-        }
 
         Search();
-    }
-
-    protected override void OnAfterTreeRender( bool firstTime )
-    {
-        base.OnAfterTreeRender( firstTime );
-
-        if ( firstTime && SearchEntry.IsValid() )
-        {
-            SearchEntry.Text = Query ?? "";
-            SearchEntry.Focus();
-        }
     }
 
     void Search()
@@ -244,22 +202,13 @@
         StateHasChanged();
     }
 
-    void Typed( string text )
-    {
-        typed = text?.Trim() ?? "";
-        sinceTyped = 0;
-    }
-
-    void Submit()
-    {
-        if ( typed is null ) return;
-        SetQuery( typed );
-    }
+    /// <summary>
+    /// Change the search text, keeping the current sort and tags
+    /// </summary>
+    public void Find( string text ) => SetQuery( text?.Trim() );
 
     void SetQuery( string text )
     {
-        typed = null;
-
         var query = string.IsNullOrEmpty( text ) ? null : text;
         if ( query == Query ) return;
 
@@ -269,12 +218,6 @@
 
         Query = query;
         Search();
-    }
-
-    void ClearSearch()
-    {
-        if ( SearchEntry.IsValid() ) SearchEntry.Text = "";
-        SetQuery( null );
     }
 
     void SetSort( Storage.SortOrder? sort )
@@ -304,7 +247,7 @@
 
         // Clearing a search searches again itself
         var searched = Query is not null;
-        ClearSearch();
+        SetQuery( null );
         if ( !searched ) Search();
     }
 
@@ -312,10 +255,6 @@
 
     protected override void TickShown()
     {
-        // Searched for once the typing stops for a moment
-        if ( typed is not null && sinceTyped > 0.4f )
-            SetQuery( typed );
-
         gridFade.Apply( Grid );
     }
 

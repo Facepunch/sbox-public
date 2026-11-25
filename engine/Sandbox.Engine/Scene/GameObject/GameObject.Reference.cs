@@ -103,7 +103,14 @@ internal readonly struct GameObjectReference : IEquatable<GameObjectReference>
 
 		if ( !string.IsNullOrWhiteSpace( PrefabPath ) )
 		{
-			var prefabFile = (PrefabFile)GameResource.GetPromise( typeof( PrefabFile ), PrefabPath );
+			// A prefab that can't be found is no reference, such as one from a game that isn't mounted
+			if ( GameResource.GetPromise( typeof( PrefabFile ), PrefabPath ) is not PrefabFile prefabFile )
+			{
+				if ( warn ) Log.Warning( $"Unknown prefab {PrefabPath}" );
+
+				return null;
+			}
+
 			return SceneUtility.GetPrefabScene( prefabFile );
 		}
 

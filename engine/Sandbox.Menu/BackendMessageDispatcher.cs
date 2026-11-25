@@ -84,11 +84,6 @@ internal static class BackendMessageDispatcher
 				events.RunInterface<IBackendListener>( x => x.OnPackageViewsChanged( views.PackageIdent, views.Value ) );
 				break;
 
-			case PackageMsg.ReviewPosted review:
-				events.RunInterface<IBackendListener>( x => x.OnPackageReviewPosted( new IBackendListener.PackageReview(
-					review.PackageIdent, review.Score, review.SteamId, review.DisplayName ) ) );
-				break;
-
 			case ForumMsg.ThreadPosted post:
 				events.RunInterface<IBackendListener>( x => x.OnForumThreadPosted( new IBackendListener.ForumPost(
 					post.ForumId, post.ThreadId, post.PostId, post.UserId ) ) );

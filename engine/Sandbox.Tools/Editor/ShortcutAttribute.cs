@@ -26,6 +26,7 @@ public class ShortcutAttribute : Attribute
 	public string Keys { get; }
 	public ShortcutType Type { internal set; get; }
 	public Type TargetOverride { get; set; }
+	public int Priority { get; set; }
 }
 
 public enum ShortcutType

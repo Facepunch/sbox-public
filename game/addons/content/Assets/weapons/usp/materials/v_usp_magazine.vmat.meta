@@ -1,0 +1,31 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "128d208c-fbc2-49bf-a62a-3594583cd800",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "V Usp Magazine",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "v_usp_magazine",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/usp/materials/v_usp_magazine.vmat"
+      }
+    }
+  }
+}

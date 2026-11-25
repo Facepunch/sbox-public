@@ -29,14 +29,27 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// Load a game onto its menu scene. It starts when it changes scene.
+	/// Joining someone else's game - see <see cref="OpenGameMenu"/>.
 	/// </summary>
-	public static Task OpenGameMenu( string ident )
+	public static bool IsJoining => Networking.IsJoining;
+
+	/// <summary>
+	/// Load a game onto its menu scene. It starts when it changes scene. Returns false without loading while
+	/// <see cref="IsJoining"/>, since loading would leave the session being joined. Leaves the modals to the caller,
+	/// which might want to keep a notice up, such as why a join failed.
+	/// </summary>
+	public static async Task<bool> OpenGameMenu( string ident )
 	{
-		CloseAllModals();
+		if ( IsJoining )
+		{
+			Log.Info( $"Not opening {ident}'s menu while joining a game" );
+			return false;
+		}
+
 		Api.Activity.GameRequested( new( "menu", ident ), replace: false );
 
-		return LoadAsync( ident, false, GameLoadingFlags.Menu );
+		await LoadAsync( ident, false, GameLoadingFlags.Menu );
+		return true;
 	}
 
 	static async Task LoadAsync( string ident, bool allowLaunchOverride, GameLoadingFlags extraFlags = default, CancellationToken ct = default )

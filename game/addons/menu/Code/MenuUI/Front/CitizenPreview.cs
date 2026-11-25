@@ -155,6 +155,7 @@ public sealed class CitizenPreview : Panel
 		UpdateHeadFraming();
 		UpdateFrame();
 		UpdateSettle();
+		UpdateStill();
 
 		SetClass( "interactive", Interactive );
 
@@ -331,6 +332,7 @@ public sealed class CitizenPreview : Panel
 	public void Wear( ClothingContainer shown, ClothingContainer committed = null )
 	{
 		Outfit = committed ?? shown;
+		Unstill();
 
 		// Not stood there yet - they'll be dressed in it when they are
 		if ( !_dressed || !_renderer.IsValid() || _scene is null )
@@ -423,6 +425,7 @@ public sealed class CitizenPreview : Panel
 		// Double size, scaled back down by half in the stylesheet - renders at 2x and the downscale
 		// anti-aliases the model
 		_scene = AddChild<ScenePanel>( "render" );
+		Unstill();
 
 		var clothing = Outfit is not null ? Copy( Outfit ) : LocalUser ? ClothingContainer.CreateFromLocalUser() : ClothingContainer.CreateFromJson( _avatarJson );
 		_yaw = Yaw;
@@ -736,6 +739,44 @@ public sealed class CitizenPreview : Panel
 
 		if ( GetsDizzy )
 			UpdateDizziness( MathF.Abs( _yaw - previousYaw ), dt );
+	}
+
+	/// <summary>
+	/// Stop rendering once they're posed and framed. Changing their outfit renders normally again until they've
+	/// settled. Meant for small portraits that are always on screen, like the dock's Avatar button.
+	/// </summary>
+	public bool Still { get; set; }
+
+	RealTimeUntil _stillAt;
+	bool _stillPending;
+	bool _stilled;
+
+	void UpdateStill()
+	{
+		if ( !Still || _stilled || _scene is null || !_dressed || _settling || !_headFramed ) return;
+
+		// Give the pose and textures a couple of seconds to settle before freezing. Rendering again later would catch
+		// the idle animation mid-blink or mid-gesture.
+		if ( !_stillPending )
+		{
+			_stillPending = true;
+			_stillAt = 2;
+			return;
+		}
+
+		if ( _stillAt > 0 ) return;
+
+		_stilled = true;
+		_scene.RenderOnce = true;
+		_scene.RenderNextFrame();
+	}
+
+	void Unstill()
+	{
+		_stilled = false;
+		_stillPending = false;
+
+		if ( _scene is not null ) _scene.RenderOnce = false;
 	}
 
 	/// <summary>

@@ -1,0 +1,47 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	ToolPresetBar
+	{
+		width: 100%;
+		flex-direction: column;
+		margin-bottom: 12px;
+		padding-bottom: 10px;
+		border-bottom: 1px solid $ui-separator;
+
+		&.collapsed { display: none; }
+
+		.preset-controls
+		{
+			width: 100%;
+			gap: 5px;
+			align-items: center;
+			UIDropdown { flex-grow: 1; min-width: 0px; }
+			UIButton { width: 24px; height: 24px; flex-shrink: 0; }
+		}
+	}
+
+	SpawnMenu ToolPresetBar .preset-controls, ToolsMenu ToolPresetBar .preset-controls
+	{
+		gap: 6px;
+
+		UIDropdown, UIButton.button
+		{
+			height: $ui-menu-control-height;
+		}
+
+		UIButton.button.icon-only { width: $ui-menu-control-height; }
+	}
+
+	SpawnMenu ToolPresetBar .preset-error, ToolsMenu ToolPresetBar .preset-error { color: $ui-danger; }
+
+	ToolPresetBar .preset-error, UIModal.tool-preset-prompt .preset-error
+	{
+		color: #edac92;
+		font-size: 11px;
+		margin-top: 5px;
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

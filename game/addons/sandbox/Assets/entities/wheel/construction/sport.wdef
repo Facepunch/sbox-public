@@ -1,0 +1,7 @@
+{
+  "Prefab": "entities/wheel/construction/sport.prefab",
+  "Title": "#asset.wheel.sport.title",
+  "Description": "#asset.wheel.sport.description",
+  "__references": [],
+  "__version": 0
+}

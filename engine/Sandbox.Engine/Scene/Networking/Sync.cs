@@ -3,6 +3,7 @@
 /// <summary>
 /// Automatically synchronize a property of a networked object from the owner to other clients.
 /// </summary>
+[Expose]
 [AttributeUsage( AttributeTargets.Property )]
 [CodeGenerator( CodeGeneratorFlags.Instance | CodeGeneratorFlags.WrapPropertySet, "__sync_SetValue" )]
 [CodeGenerator( CodeGeneratorFlags.Instance | CodeGeneratorFlags.WrapPropertyGet, "__sync_GetValue" )]
@@ -33,11 +34,17 @@ public class SyncAttribute : Attribute
 	/// </summary>
 	public SyncFlags Flags { get; set; }
 
+	/// <summary>
+	/// Synchronizes the property using the supplied flags.
+	/// </summary>
 	public SyncAttribute( SyncFlags flags )
 	{
 		Flags = flags;
 	}
 
+	/// <summary>
+	/// Synchronizes the property using the default behavior.
+	/// </summary>
 	public SyncAttribute()
 	{
 

@@ -18,6 +18,12 @@ public abstract class ITagSet : IEnumerable<string>
 	public abstract bool Has( string tag );
 
 	/// <summary>
+	/// Does this set have the specified tag? Same as <see cref="Has(string)"/>.
+	/// </summary>
+	[Pure]
+	public bool Contains( string tag ) => Has( tag );
+
+	/// <summary>
 	/// Add a tag to the set.
 	/// </summary>
 	/// <param name="tag"></param>

@@ -1,0 +1,467 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "SkeletonFile"
+						filename = "weapons/magnum/v_magnum.fbx"
+						import_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "357_bullet.vmat"
+								to = "weapons/magnum/materials/357_bullet.vmat"
+							},
+							{
+								from = "v_magnum.vmat"
+								to = "weapons/magnum/materials/v_magnum.vmat"
+							},
+							{
+								from = "v_magnum_speedloader.vmat"
+								to = "weapons/magnum/materials/v_magnum_speedloader.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/default.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						filename = "weapons/magnum/v_magnum.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = [  ]
+						}
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "BoneMarkup"
+						target_bone = ""
+						ignore_Translation = false
+						ignore_rotation = false
+						do_not_discard = false
+					},
+				]
+				bone_cull_type = "None"
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = "weapon_root"
+						relative_origin = [ 19.275, -0.000001, 4.56067 ]
+						relative_angles = [ -0.000005, 0.0, -0.000005 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+			{
+				_class = "AnimConstraintList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animconstraintlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "IKChain"
+						name = "Right_Arm_IK_Chain"
+						children = 
+						[
+							{
+								_class = "IKChainJoint"
+								name = "upper_arm_R"
+								children = 
+								[
+									{
+										_class = "IKChainJoint"
+										name = "lower_arm_R"
+										children = 
+										[
+											{
+												_class = "IKChainJoint"
+												name = "wrist_R"
+												bone = "hand_R"
+											},
+										]
+										bone = "arm_lower_R"
+									},
+								]
+								bone = "arm_upper_R"
+							},
+						]
+						m_bDoBonesOrientAlongPositiveX = true
+						"m_DefaultSolverSettings.m_nNumIterations" = 6
+						"m_DefaultSolverSettings.m_SolverType " = "IKSOLVER_TwoBone"
+						"m_DefaultTargetSettings.m_Bone" = 
+						{
+							m_Name = "hand_R"
+						}
+						"m_DefaultTargetSettings.m_TargetSource" = "Bone"
+						"m_Data.m_DefaultTargetSettings.m_AnimgraphParameterNamePosition" = 
+						{
+							m_id = 4294967295
+						}
+						"m_Data.m_EndEffectorFixedOffsetAttachment" = 
+						{
+							m_Name = ""
+						}
+						"m_Data.m_bParentJointRequiresAlignment" = true
+					},
+					{
+						_class = "IKChain"
+						name = "Left_Arm_IK_Chain"
+						children = 
+						[
+							{
+								_class = "IKChainJoint"
+								name = "upper_arm_L"
+								children = 
+								[
+									{
+										_class = "IKChainJoint"
+										name = "lower_arm_L"
+										children = 
+										[
+											{
+												_class = "IKChainJoint"
+												name = "wrist_L"
+												bone = "hand_L"
+											},
+										]
+										bone = "arm_lower_L"
+									},
+								]
+								bone = "arm_upper_L"
+							},
+						]
+						m_bDoBonesOrientAlongPositiveX = true
+						"m_DefaultSolverSettings.m_nNumIterations" = 6
+						"m_DefaultSolverSettings.m_SolverType " = "IKSOLVER_TwoBone"
+						"m_DefaultTargetSettings.m_Bone" = 
+						{
+							m_Name = "hand_L"
+						}
+						"m_DefaultTargetSettings.m_TargetSource" = "Bone"
+						"m_Data.m_DefaultTargetSettings.m_AnimgraphParameterNamePosition" = 
+						{
+							m_id = 4294967295
+						}
+						"m_Data.m_EndEffectorFixedOffsetAttachment" = 
+						{
+							m_Name = ""
+						}
+						"m_Data.m_bParentJointRequiresAlignment" = true
+					},
+				]
+			},
+			{
+				_class = "WeightListList"
+				children = 
+				[
+					{
+						_class = "WeightList"
+						name = "ExcludeArms"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "arm_lower_R_twistctrl1"
+								weight = 0.0
+							},
+							{
+								bone = "bullet_0"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_1"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_2"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_3"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_4"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_5"
+								weight = 1.0
+							},
+							{
+								bone = "camera"
+								weight = 1.0
+							},
+							{
+								bone = "cylinder"
+								weight = 1.0
+							},
+							{
+								bone = "cylinder_crane"
+								weight = 1.0
+							},
+							{
+								bone = "cylinder_hand"
+								weight = 1.0
+							},
+							{
+								bone = "cylinder_lock"
+								weight = 1.0
+							},
+							{
+								bone = "ejector"
+								weight = 1.0
+							},
+							{
+								bone = "finger_index_0_L"
+								weight = 1.0
+							},
+							{
+								bone = "finger_index_0_R"
+								weight = 1.0
+							},
+							{
+								bone = "finger_middle_0_L"
+								weight = 1.0
+							},
+							{
+								bone = "finger_middle_0_R"
+								weight = 1.0
+							},
+							{
+								bone = "finger_middle_1_R"
+								weight = 1.0
+							},
+							{
+								bone = "finger_pinky_0_L"
+								weight = 1.0
+							},
+							{
+								bone = "finger_pinky_0_R"
+								weight = 1.0
+							},
+							{
+								bone = "finger_ring_0_L"
+								weight = 1.0
+							},
+							{
+								bone = "finger_ring_0_R"
+								weight = 1.0
+							},
+							{
+								bone = "finger_thumb_1_L"
+								weight = 1.0
+							},
+							{
+								bone = "finger_thumb_1_R"
+								weight = 1.0
+							},
+							{
+								bone = "hammer"
+								weight = 1.0
+							},
+							{
+								bone = "hand_L_to_weapon_ikrule"
+								weight = 1.0
+							},
+							{
+								bone = "hand_R_to_weapon_ikrule"
+								weight = 1.0
+							},
+							{
+								bone = "latch"
+								weight = 1.0
+							},
+							{
+								bone = "speedloader"
+								weight = 1.0
+							},
+							{
+								bone = "speedloader_knob"
+								weight = 1.0
+							},
+							{
+								bone = "trigger"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_IK_hand_L"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_IK_hand_R"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_root"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_root_children"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+					{
+						_class = "WeightList"
+						name = "Jusk_IK_Targets"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "arm_upper_L"
+								weight = 0.0
+							},
+							{
+								bone = "clavicle_R"
+								weight = 0.0
+							},
+							{
+								bone = "hand_L_to_weapon_ikrule"
+								weight = 1.0
+							},
+							{
+								bone = "hand_R_to_weapon_ikrule"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_IK_hand_L"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_IK_hand_R"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+					{
+						_class = "WeightList"
+						name = "JustRevolverMag"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "bullet_0"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_1"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_2"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_3"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_4"
+								weight = 1.0
+							},
+							{
+								bone = "bullet_5"
+								weight = 1.0
+							},
+							{
+								bone = "cylinder"
+								weight = 1.0
+							},
+							{
+								bone = "cylinder_crane"
+								weight = 1.0
+							},
+							{
+								bone = "ejector"
+								weight = 1.0
+							},
+							{
+								bone = "hammer"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_root_children"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

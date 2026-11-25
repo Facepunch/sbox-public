@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 57125,
   "Icon": {
-    "Path": "models/citizen_clothes/jacket/labcoat/labcoat.clothing.png",
+    "Path": "models/citizen_clothes/jacket/labcoat/labcoat.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "-32.4000092,0,-6.29999685"

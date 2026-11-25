@@ -1,0 +1,501 @@
+{
+  "Title": "Foliage and Rocks",
+  "Description": "",
+  "Icon": "landscape",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "4a40a186-0eb7-4050-b196-73d05dfa2df9",
+    "Path": "spawnlists/garrysmod/half_life_2.spawn"
+  },
+  "Order": 22,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Foliage",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/bramble001a.mdl",
+      "Title": "bramble001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/cattails.mdl",
+      "Title": "cattails",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/driftwood_01a.mdl",
+      "Title": "driftwood_01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/driftwood_02a.mdl",
+      "Title": "driftwood_02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/driftwood_03a.mdl",
+      "Title": "driftwood_03a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/driftwood_clump_01a.mdl",
+      "Title": "driftwood_clump_01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/driftwood_clump_02a.mdl",
+      "Title": "driftwood_clump_02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/driftwood_clump_03a.mdl",
+      "Title": "driftwood_clump_03a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/ivy_01.mdl",
+      "Title": "ivy_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/oak_tree01.mdl",
+      "Title": "oak_tree01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/shrub_01a.mdl",
+      "Title": "shrub_01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_cliff_01a.mdl",
+      "Title": "tree_cliff_01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_cliff_02a.mdl",
+      "Title": "tree_cliff_02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_deciduous_01a-lod.mdl",
+      "Title": "tree_deciduous_01a-lod",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_deciduous_01a.mdl",
+      "Title": "tree_deciduous_01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_deciduous_02a.mdl",
+      "Title": "tree_deciduous_02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_deciduous_03a.mdl",
+      "Title": "tree_deciduous_03a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_deciduous_03b.mdl",
+      "Title": "tree_deciduous_03b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_poplar_01.mdl",
+      "Title": "tree_poplar_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_deciduous_card_01.mdl",
+      "Title": "tree_deciduous_card_01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_foliage/tree_deciduous_card_01_skybox.mdl",
+      "Title": "tree_deciduous_card_01_skybox",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/grass_tuft_001.mdl",
+      "Title": "grass_tuft_001",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/grass_tuft_001a.mdl",
+      "Title": "grass_tuft_001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/grass_tuft_001b.mdl",
+      "Title": "grass_tuft_001b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/grass_tuft_003a.mdl",
+      "Title": "grass_tuft_003a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/grass_tuft_004a.mdl",
+      "Title": "grass_tuft_004a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/grass_tuft_004b.mdl",
+      "Title": "grass_tuft_004b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/grass_tuft_004c.mdl",
+      "Title": "grass_tuft_004c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/grass_tuft_004d.mdl",
+      "Title": "grass_tuft_004d",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Rocks",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/rocksground01a.mdl",
+      "Title": "rocksground01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/rocksground01b.mdl",
+      "Title": "rocksground01b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_junk/rock001a.mdl",
+      "Title": "rock001a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_lab/bigrock.mdl",
+      "Title": "bigrock",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/rocksground01c.mdl",
+      "Title": "rocksground01c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/rocksground01d.mdl",
+      "Title": "rocksground01d",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/rocksground01e.mdl",
+      "Title": "rocksground01e",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/rocksground02a.mdl",
+      "Title": "rocksground02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/rocksground02b.mdl",
+      "Title": "rocksground02b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/perftest/rocksground02c.mdl",
+      "Title": "rocksground02c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff01b.mdl",
+      "Title": "rockcliff01b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff01c.mdl",
+      "Title": "rockcliff01c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff01e.mdl",
+      "Title": "rockcliff01e",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff01f.mdl",
+      "Title": "rockcliff01f",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff01g.mdl",
+      "Title": "rockcliff01g",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff01j.mdl",
+      "Title": "rockcliff01j",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff01k.mdl",
+      "Title": "rockcliff01k",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff05a.mdl",
+      "Title": "rockcliff05a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff05b.mdl",
+      "Title": "rockcliff05b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff05e.mdl",
+      "Title": "rockcliff05e",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff05f.mdl",
+      "Title": "rockcliff05f",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff06d.mdl",
+      "Title": "rockcliff06d",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff06i.mdl",
+      "Title": "rockcliff06i",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff07b.mdl",
+      "Title": "rockcliff07b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff_cluster01b.mdl",
+      "Title": "rockcliff_cluster01b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff_cluster02a.mdl",
+      "Title": "rockcliff_cluster02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff_cluster02b.mdl",
+      "Title": "rockcliff_cluster02b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff_cluster02c.mdl",
+      "Title": "rockcliff_cluster02c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff_cluster03a.mdl",
+      "Title": "rockcliff_cluster03a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff_cluster03b.mdl",
+      "Title": "rockcliff_cluster03b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockcliff_cluster03c.mdl",
+      "Title": "rockcliff_cluster03c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite01a.mdl",
+      "Title": "rockgranite01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite01b.mdl",
+      "Title": "rockgranite01b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite01c.mdl",
+      "Title": "rockgranite01c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite02a.mdl",
+      "Title": "rockgranite02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite02b.mdl",
+      "Title": "rockgranite02b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite02c.mdl",
+      "Title": "rockgranite02c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite03a.mdl",
+      "Title": "rockgranite03a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite03b.mdl",
+      "Title": "rockgranite03b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite03c.mdl",
+      "Title": "rockgranite03c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite04a.mdl",
+      "Title": "rockgranite04a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite04b.mdl",
+      "Title": "rockgranite04b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_wasteland/rockgranite04c.mdl",
+      "Title": "rockgranite04c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/rock_riverbed01a.mdl",
+      "Title": "rock_riverbed01a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/rock_riverbed01b.mdl",
+      "Title": "rock_riverbed01b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/rock_riverbed01c.mdl",
+      "Title": "rock_riverbed01c",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/rock_riverbed01d.mdl",
+      "Title": "rock_riverbed01d",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/rock_riverbed02a.mdl",
+      "Title": "rock_riverbed02a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/rock_riverbed02b.mdl",
+      "Title": "rock_riverbed02b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_canal/rock_riverbed02c.mdl",
+      "Title": "rock_riverbed02c",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

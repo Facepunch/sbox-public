@@ -2,18 +2,11 @@ namespace Editor;
 
 /// <summary>
 /// Editor for hold type strings (e.g. <see cref="Sandbox.BaseCombatWeapon.HoldType"/>) - a combo pre-filled
-/// with the hold types the citizen animgraph understands, editable so graphs with their own options
-/// can use anything.
+/// with the <see cref="Sandbox.WeaponHolds"/> names, editable so games can use their own.
 /// </summary>
 [CustomEditor( typeof( string ), NamedEditor = "holdtype" )]
 public class HoldTypeControlWidget : ControlWidget
 {
-	// The citizen animgraph's holdtype options.
-	static readonly string[] BuiltIn =
-	[
-		"none", "pistol", "rifle", "shotgun", "holditem", "melee_punch", "melee_weapons", "rpg", "physgun"
-	];
-
 	readonly ComboBox _combo;
 
 	public override bool IsControlActive => _combo.IsValid() && _combo.LineEdit.IsValid() && _combo.LineEdit.IsFocused;
@@ -25,7 +18,7 @@ public class HoldTypeControlWidget : ControlWidget
 		_combo = new ComboBox( this );
 		_combo.Editable = true;
 
-		foreach ( var name in BuiltIn )
+		foreach ( var name in Sandbox.WeaponHolds.All )
 		{
 			_combo.AddItem( name );
 		}

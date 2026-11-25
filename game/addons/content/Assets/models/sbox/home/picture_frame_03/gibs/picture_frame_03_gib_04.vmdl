@@ -55,30 +55,6 @@
 				children = 
 				[
 					{
-						_class = "PhysicsShapeHull"
-						name = "thin_frame_rail.001_0"
-						parent_bone = ""
-						surface_prop = "wood"
-						collision_tags = "solid"
-						recenter_on_parent_bone = false
-						offset_origin = [ 0.0, 0.0, 0.0 ]
-						offset_angles = [ 0.0, 0.0, 0.0 ]
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						hull_vertices = 
-						[
-							[ -0.528258, -6.070499, 0.375143 ],
-							[ -0.528257, 6.070499, 0.375143 ],
-							[ -0.32572, -6.070499, -0.375143 ],
-							[ -0.325718, 6.070499, -0.375143 ],
-							[ 0.325718, -6.070499, 0.375143 ],
-							[ 0.32572, 6.070499, 0.375143 ],
-							[ 0.528257, -6.070499, -0.375143 ],
-							[ 0.528258, 6.070499, -0.375143 ],
-						]
-					},
-					{
 						_class = "PhysicsHullFile"
 						name = "picture_frame_03_gibs"
 						parent_bone = ""

@@ -76,6 +76,7 @@ public partial class GameObject
 
 		// Restore prefab state, copy properties, then run load/validation callbacks.
 		clone.PostClone( context );
+		clone.Scene.CopyInstanceLinks( this, context.OriginalIdToCloneId );
 
 		// Legacy support for restoring prefab vars
 		if ( prefabVariablesOverride is not null && clone.IsPrefabInstanceRoot )
@@ -111,10 +112,11 @@ public partial class GameObject
 		Enabled = enabled;
 
 		NetworkMode = original.NetworkMode;
-		NetworkFlags = original.NetworkFlags;
-		NetworkOrphaned = original.NetworkOrphaned;
+		// Fresh clones usually already have these defaults. Avoid constructing sync accessors for no-op writes.
+		if ( NetworkFlags != original.NetworkFlags ) NetworkFlags = original.NetworkFlags;
+		if ( NetworkOrphaned != original.NetworkOrphaned ) NetworkOrphaned = original.NetworkOrphaned;
 		AlwaysTransmit = original.AlwaysTransmit;
-		OwnerTransfer = original.OwnerTransfer;
+		if ( OwnerTransfer != original.OwnerTransfer ) OwnerTransfer = original.OwnerTransfer;
 		Tags.CloneFrom( original.Tags );
 
 		if ( original.IsPrefabInstanceRoot || original is PrefabScene )

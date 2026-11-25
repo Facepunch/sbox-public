@@ -1,0 +1,1194 @@
+{
+  "Title": "Content",
+  "Description": "Models included with the game, grouped by category.",
+  "Icon": "inventory_2",
+  "RequiredMount": null,
+  "Parent": null,
+  "Order": -1,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Sandbox Favorites",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/cardboard_carton_01/cardboard_carton_01.vmdl",
+      "Title": "Cardboard Carton 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/cardboard_carton_02/cardboard_carton_02.vmdl",
+      "Title": "Cardboard Carton 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/cardboard_carton_03/cardboard_carton_03.vmdl",
+      "Title": "Cardboard Carton 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/cardboard_carton_04/cardboard_carton_04.vmdl",
+      "Title": "Cardboard Carton 04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/wooden_table_01/wooden_table_01.vmdl",
+      "Title": "Wooden Table 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/wooden_table_02/wooden_table_02.vmdl",
+      "Title": "Wooden Table 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/wooden_table_03/wooden_table_03.vmdl",
+      "Title": "Wooden Table 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/cafeteria_table/cafeteria_table.vmdl",
+      "Title": "Cafeteria Table",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/office/office_chair/office_chair.vmdl",
+      "Title": "Office Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/upholstered_armchair/upholstered_armchair.vmdl",
+      "Title": "Upholstered Armchair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/metal_bed_frame_01/metal_bed_frame_01.vmdl",
+      "Title": "Metal Bed Frame 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/metal_bed_frame_02/metal_bed_frame_02.vmdl",
+      "Title": "Metal Bed Frame 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/oil_drums/oil_drum_explosive.vmdl",
+      "Title": "Oil Drum Explosive",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/oil_drums/oil_drum_a.vmdl",
+      "Title": "Oil Drum",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/woodencrates/woodencrate_01.vmdl",
+      "Title": "Woodencrate 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/woodencrates/woodencrate_02.vmdl",
+      "Title": "Woodencrate 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/car_tyre/car_tyre.vmdl",
+      "Title": "Car Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/bike_wheel/bike_wheel.vmdl",
+      "Title": "Bike Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/trike_wheel/trike_wheel.vmdl",
+      "Title": "Trike Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/tractor_wheel/tractor_wheel.vmdl",
+      "Title": "Tractor Wheel",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/beach_ball/beachball_01.vmdl",
+      "Title": "Beachball 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/traffic_cone/traffic_cone.vmdl",
+      "Title": "traffic cone",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/park/timber_park_bench/timber_park_bench.vmdl",
+      "Title": "Timber Park Bench",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/bathtub/bathtub_01.vmdl",
+      "Title": "Bathtub 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/bathtub/bathtub_02.vmdl",
+      "Title": "Bathtub 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder/gas_cylinder_01a.vmdl",
+      "Title": "Gas Cylinder",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder/gas_cylinder_01b.vmdl",
+      "Title": "Gas Cylinder",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder/gas_cylinder_02a.vmdl",
+      "Title": "Gas Cylinder",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder/gas_cylinder_02b.vmdl",
+      "Title": "Gas Cylinder",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/saw_blade/saw_blade.vmdl",
+      "Title": "Saw Blade",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/sofa/sofa.vmdl",
+      "Title": "Couch",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/upholstered_sofa/upholstered_sofa.vmdl",
+      "Title": "Upholstered Sofa",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:weapons/crowbar/w_crowbar.vmdl",
+      "Title": "Crowbar",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon.vmdl",
+      "Title": "Balloon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon_circle.vmdl",
+      "Title": "Balloon Circle",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon_heart.vmdl",
+      "Title": "Balloon Heart",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon_speech.vmdl",
+      "Title": "Balloon Speech",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/balloon/balloon_star.vmdl",
+      "Title": "Balloon Star",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:weapons/camera/camera_film.vmdl",
+      "Title": "Film Camera",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Industrial",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/big_button/big_button.vmdl",
+      "Title": "big_button",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/big_button/big_button_2.vmdl",
+      "Title": "big_button_2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/warehouse/wooden_pallet/pallet.vmdl",
+      "Title": "Wooden Pallet",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/lockers/locker_single.vmdl",
+      "Title": "Single Locker",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/lockers/locker_group_01.vmdl",
+      "Title": "Locker Group 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/lockers/locker_group_02.vmdl",
+      "Title": "Locker Group 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/lockers/locker_door.vmdl",
+      "Title": "Locker Door",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/metal_ladder_01/metal_ladder_01.vmdl",
+      "Title": "Metal Ladder 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/metal_ladder_01/metal_ladder_02.vmdl",
+      "Title": "Metal Ladder 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/corrugated_metal_panel_01/corrugated_metal_panel_01.vmdl",
+      "Title": "Corrugated Metal Panel 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/corrugated_metal_panel_02/corrugated_metal_panel_02.vmdl",
+      "Title": "Corrugated Metal Panel 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/corrugated_metal_panel_03/corrugated_metal_panel_03.vmdl",
+      "Title": "Corrugated Metal Panel 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/aircon_unit_wall/aircon_unit_large_wall.vmdl",
+      "Title": "aircon_unit_large_wall",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/aircon_unit_wall/aircon_unit_medium_wall.vmdl",
+      "Title": "aircon_unit_medium_wall",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/aircon_unit_wall/aircon_unit_small_wall.vmdl",
+      "Title": "aircon_unit_small_wall",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/ceiling_light/ceiling_light.vmdl",
+      "Title": "Ceiling Light",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/industrial_strip_light/industrial_strip_light.vmdl",
+      "Title": "Industrial Strip Light",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/wall_light/wall_light.vmdl",
+      "Title": "Industrial Wall Light",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/wall_light/wall_light_mount.vmdl",
+      "Title": "Industrial Wall Light Mount",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/wiring/wiring_junction_small.vmdl",
+      "Title": "Wiring Junction Small",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/wiring/wiring_junction_wide.vmdl",
+      "Title": "Wiring Junction Wide",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_wheel.vmdl",
+      "Title": "Large Pipe Valve",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_wheelsmall.vmdl",
+      "Title": "Small Pipe Valve",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_valve_lever.vmdl",
+      "Title": "Large Pipe Lever",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat.vmdl",
+      "Title": "Gas Cylinder Medium",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder_fat/gas_cylinder_fat_02.vmdl",
+      "Title": "Propane Canister",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/gas_cylinder_tall/gas_cylinder_tall.vmdl",
+      "Title": "Gas Cylinder Tall",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/petrol_can/petrol_can_01.vmdl",
+      "Title": "Petrol Can 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/petrol_can/petrol_can_02.vmdl",
+      "Title": "Petrol Can 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/fire_extinguisher/fire_extinguisher.vmdl",
+      "Title": "Fire Extinguisher",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l.vmdl",
+      "Title": "Large Pipe 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l_90long.vmdl",
+      "Title": "Large Pipe Corner A",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_l_t.vmdl",
+      "Title": "Large Pipe Tee",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m.vmdl",
+      "Title": "Medium Pipe 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m_90.vmdl",
+      "Title": "Medium Pipe Corner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_m_t.vmdl",
+      "Title": "Medium Pipe Tee",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s.vmdl",
+      "Title": "Small Pipe 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s_90.vmdl",
+      "Title": "Small Pipe Corner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_s_t.vmdl",
+      "Title": "Small Pipe Tee",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin.vmdl",
+      "Title": "Thin Pipe 80",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin_90.vmdl",
+      "Title": "Thin Pipe Corner",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/modular_pipe_kit/m_pipe_thin_t.vmdl",
+      "Title": "Thin Pipe Tee",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/construction/step_ladder/step_ladder_01.vmdl",
+      "Title": "Step Ladder 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/construction/cement_mixer/cement_mixer.vmdl",
+      "Title": "Cement Mixer Drum",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/construction/scaffolding/scaffolding_tube_a.vmdl",
+      "Title": "Scaffolding Tube a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/construction/scaffolding/scaffolding_base_a.vmdl",
+      "Title": "Scaffolding Base a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/industrial/industrial_light/industrial_light.vmdl",
+      "Title": "Industrial Light",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Home & Office",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/shop/shopping_basket/shopping_basket.vmdl",
+      "Title": "Shopping Basket",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/shop/cash_register/cash_register.vmdl",
+      "Title": "Cash Register",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/alphabet_blocks/alphabet_blocks_01a.vmdl",
+      "Title": "Alphabet Blocks 01A",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/alphabet_blocks/alphabet_blocks_01b.vmdl",
+      "Title": "Alphabet Blocks 01B",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/alphabet_blocks/alphabet_blocks_01c.vmdl",
+      "Title": "Alphabet Blocks 01C",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/number_blocks/number_blocks_011.vmdl",
+      "Title": "Number Blocks 011",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/number_blocks/number_blocks_012.vmdl",
+      "Title": "Number Blocks 012",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/number_blocks/number_blocks_013.vmdl",
+      "Title": "Number Blocks 013",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/office/computer_monitor_01/computer_monitor_01.vmdl",
+      "Title": "Computer Monitor 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/office/computer_keyboard/computer_keyboard.vmdl",
+      "Title": "Computer Keyboard",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/office/computer_drive_unit/computer_drive_unit.vmdl",
+      "Title": "Computer Drive Unit",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/clock_01/clock_01.vmdl",
+      "Title": "Clock 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/picture_frame_01/picture_frame_01.vmdl",
+      "Title": "Picture Frame 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/picture_frame_02/picture_frame_02.vmdl",
+      "Title": "Picture Frame 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/picture_frame_03/picture_frame_03.vmdl",
+      "Title": "Picture Frame 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/book_01/books_01.vmdl",
+      "Title": "Books 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/book_01/books_02.vmdl",
+      "Title": "Books 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/book_01/books_03.vmdl",
+      "Title": "Books 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/book_01/books_04.vmdl",
+      "Title": "Books 04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/book_01/books_05.vmdl",
+      "Title": "Books 05",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/kitchen_work_counter_03/kitchen_work_counter_03.vmdl",
+      "Title": "Kitchen Work Counter 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/kitchen_work_counter_04/kitchen_work_counter_04.vmdl",
+      "Title": "Kitchen Work Counter 04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/watermelon/watermelon.vmdl",
+      "Title": "Watermelon",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/doors/door_a/door_a.vmdl",
+      "Title": "Door A",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/doors/door_b/door_b.vmdl",
+      "Title": "Door B",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/doors/door_b/door_b2.vmdl",
+      "Title": "Door B2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/doors/door_metal_a/door_metal_a.vmdl",
+      "Title": "Door Metal A",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/doors/door_metal_b/door_metal_b.vmdl",
+      "Title": "Door Metal B",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/door_03/door_03.vmdl",
+      "Title": "Door 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/umbrella_stand/umbrella_stand.vmdl",
+      "Title": "Umbrella Stand",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/radiator/radiator.vmdl",
+      "Title": "Radiator",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/toilet/toilet_01.vmdl",
+      "Title": "Toilet 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/toilet/toilet_02.vmdl",
+      "Title": "Toilet 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/sink/sink_01.vmdl",
+      "Title": "Sink 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/sink/sink_02.vmdl",
+      "Title": "Sink 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/sink/sink_03.vmdl",
+      "Title": "Sink 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/sink/sink_pedestal.vmdl",
+      "Title": "Sink Pedestal",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/bathroomprops/bathroom_scales/bathroom_scales.vmdl",
+      "Title": "Bathroom Scales",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/bathroomprops/hand_dryer/hand_dryer.vmdl",
+      "Title": "Hand Dryer",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/bathroomprops/soap_dispenser/soap_dispenser.vmdl",
+      "Title": "Soap Dispenser",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/bathroomprops/toilet_brush/toilet_brush_01.vmdl",
+      "Title": "Toilet Brush 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/bathroomprops/toilet_brush/toilet_brush_02.vmdl",
+      "Title": "Toilet Brush 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/beer_keg/beer_cask.vmdl",
+      "Title": "Beer Cask",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/beer_keg/beer_keg_a1.vmdl",
+      "Title": "Beer Keg a1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/beer_keg/beer_keg_a2.vmdl",
+      "Title": "Beer Keg a2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/bathroom/toilet_a/toilet_a.vmdl",
+      "Title": "Toilet",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/wooden_chair/wooden_chair_a.vmdl",
+      "Title": "Wooden Chair 1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/wooden_chair/wooden_chair.vmdl",
+      "Title": "Wooden Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/bentwood_chair/bentwood_chair.vmdl",
+      "Title": "Bentwood Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/metal_chair/metal_chair.vmdl",
+      "Title": "Metal Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/dentist_chair/dentist_chair.vmdl",
+      "Title": "Dentist Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/cola_can/cola_can.vmdl",
+      "Title": "Soda Can",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/shop/trolley/trolley.vmdl",
+      "Title": "Shopping Trolley",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/office/studio_light_projector/studio_light_projector.vmdl",
+      "Title": "Studio Light Projector",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/shop/kickstool/kickstool.vmdl",
+      "Title": "Kick Stool",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/kitchen/packaged_food/can_long.vmdl",
+      "Title": "Can Long",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Outdoors",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/playground/sandpit/sandpit.vmdl",
+      "Title": "Sandpit",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/cctv/cctv.vmdl",
+      "Title": "CCTV",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/cctv/cctv_mount.vmdl",
+      "Title": "CCTV Mount",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/cctv/cctv_rotating_mount.vmdl",
+      "Title": "CCTV Rotating Mount",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/security_light/security_light.vmdl",
+      "Title": "Security Light",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/security_light/security_light_mount.vmdl",
+      "Title": "Security Light Mount",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/intruder_alarm_1/intruder_alarm_1.vmdl",
+      "Title": "Intruder Alarm 1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/intruder_alarm_2/intruder_alarm_2.vmdl",
+      "Title": "Intruder Alarm 2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/intruder_alarm_3/intruder_alarm_3.vmdl",
+      "Title": "Intruder Alarm 3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/parking_bollard/parking_bollard.vmdl",
+      "Title": "Parking Bollard",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/chain_link_fence_panel_01/chain_link_fence_panel_01.vmdl",
+      "Title": "Chain Link Fence Panel 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/chain_link_fence_panel_02/chain_link_fence_panel_02.vmdl",
+      "Title": "Chain Link Fence Panel 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/chain_link_fence_panel_03/chain_link_fence_panel_03.vmdl",
+      "Title": "Chain Link Fence Panel 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/street_cabinets/street_cabinet_large.vmdl",
+      "Title": "Street Cabinet Large",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/ash_bin/ash_bin_b.vmdl",
+      "Title": "Ash Bin b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/ash_bin/ash_bin_base_a.vmdl",
+      "Title": "Ash Bin Base a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/binbags/binbag_flat_a2.vmdl",
+      "Title": "Binbag Flat A2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/binbags/binbag_pile_a1.vmdl",
+      "Title": "Binbag Pile a1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/binbags/binbag_pile_a2.vmdl",
+      "Title": "Binbag Pile a2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_a/trash_pile_a_01.vmdl",
+      "Title": "Trash Pile a1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_a/trash_pile_a_02.vmdl",
+      "Title": "Trash Pile a2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_a/trash_pile_a_03.vmdl",
+      "Title": "Trash Pile a3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_b/trash_pile_b_1.vmdl",
+      "Title": "Trash Pile b1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_b/trash_pile_b_2.vmdl",
+      "Title": "Trash Pile b2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_b/trash_pile_b_3.vmdl",
+      "Title": "Trash Pile b3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_c/trash_pile_c_01.vmdl",
+      "Title": "Trash Pile c 1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_c/trash_pile_c_02.vmdl",
+      "Title": "Trash Pile c 2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_c/trash_pile_c_03.vmdl",
+      "Title": "Trash Pile c 3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_c/trash_pile_c_04.vmdl",
+      "Title": "Trash Pile c 4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_c/trash_pile_c_05.vmdl",
+      "Title": "Trash Pile c 5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_c/trash_pile_c_cigs_01.vmdl",
+      "Title": "Trash Pile c Cigs 1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/trash_pile_c/trash_pile_c_cigs_02.vmdl",
+      "Title": "Trash Pile c Cigs 2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_01.vmdl",
+      "Title": "Dirt Pile 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_02.vmdl",
+      "Title": "Dirt Pile 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_03.vmdl",
+      "Title": "Dirt Pile 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_04.vmdl",
+      "Title": "Dirt Pile 04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_05.vmdl",
+      "Title": "Dirt Pile 05",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_crn_01.vmdl",
+      "Title": "Dirt Pile Corner 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_crn_02.vmdl",
+      "Title": "Dirt Pile Corner 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_crn_03.vmdl",
+      "Title": "Dirt Pile Corner 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_strt_01.vmdl",
+      "Title": "Dirt Pile Straight 01",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_strt_02.vmdl",
+      "Title": "Dirt Pile Straight 02",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_strt_03.vmdl",
+      "Title": "Dirt Pile Straight 03",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/street/dirt_pile/dirt_pile_strt_04.vmdl",
+      "Title": "Dirt Pile Straight 04",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/home/plastic_chair/plastic_chair.vmdl",
+      "Title": "Garden Chair",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/cemetery/watering_can/watering_can.vmdl",
+      "Title": "Watering Can",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/park/park_bin/park_bin.vmdl",
+      "Title": "Park Bin",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/car_tyre/tyre.vmdl",
+      "Title": "Old Tyre",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/car_tyre/tyre_with_rim.vmdl",
+      "Title": "Old Tyre",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/wheels/car_tyre/tyre_rim.vmdl",
+      "Title": "Tyre Rim",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "prop:models/sbox/vehicles/car_seat/car_seat.vmdl",
+      "Title": "Car Seat",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

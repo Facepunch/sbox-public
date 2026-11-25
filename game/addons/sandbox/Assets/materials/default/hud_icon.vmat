@@ -1,0 +1,18 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/hud_icon.shader"
+
+	//---- Edges ----
+	g_flBendStrength "0.834"
+	g_flBendThreshold "12.000"
+	g_flRimStrength "1.000"
+	g_flRimThreshold "0.740"
+
+	//---- Hatching ----
+	g_flHatchAngle "82.012"
+	g_flHatchSpacing "4.935"
+	g_flHatchStrength "0.408"
+	g_flHatchWidth "2.462"
+}

@@ -34,6 +34,9 @@ public static class Chat
 	/// </summary>
 	internal static event Action<ChatMessageEvent> OnMessage;
 
+	[ConCmd( "say", ConVarFlags.Protected, Help = "Send a message in the chat" )]
+	static void SayCmd( params string[] words ) => Say( string.Join( ' ', words ) );
+
 	/// <summary>
 	/// Says a message in chat. This will be sent to the host, validated, then filtered to clients.
 	/// </summary>

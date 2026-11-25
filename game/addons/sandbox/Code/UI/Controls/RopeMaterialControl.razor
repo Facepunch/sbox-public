@@ -1,0 +1,174 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits BaseControl
+@attribute [CustomEditor(typeof(string), WithAllAttributes = [typeof(RopeMaterialsAttribute)])]
+
+<root>
+    <div class="swatches" @ref="_row">
+        @* one render behind the whole row, the swatches on top are just the click targets and borders *@
+        <RopeMaterialPreview class="renders" @ref="_preview" />
+        @foreach ( var swatch in Swatches )
+        {
+            <div class="swatch @(IsSelected( swatch.Path ) ? "active" : "") @(swatch.Custom ? "custom" : "")" Tooltip=@swatch.Title @onclick=@(() => Select( swatch.Path ))></div>
+        }
+    </div>
+
+    <div class="footer">
+        <div class="current">@CurrentTitle</div>
+        <UIButton class="browse" Icon="apps" Text="#ui.material.browse" Tooltip="#ui.material.browse.tooltip" @onclick=@OpenBrowser />
+    </div>
+</root>
+
+@code
+{
+    record struct Swatch( string Path, string Title, bool Custom );
+
+    RopeMaterialsAttribute _attribute;
+    string _shownValue;
+    Panel _row;
+    RopeMaterialPreview _preview;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+        if ( !_preview.IsValid() || !_row.IsValid() ) return;
+
+        // the swatch cells come in the same order as Swatches
+        var cells = _row.Children.Where( c => c.HasClass( "swatch" ) ).ToList();
+        var swatches = Swatches.ToList();
+        var count = Math.Min( cells.Count, swatches.Count );
+
+        var list = new List<(Panel Cell, string Path, bool Glow)>( count );
+        for ( var i = 0; i < count; i++ )
+            list.Add( (cells[i], swatches[i].Path, IsGlow( swatches[i].Path )) );
+
+        _preview.SetSwatches( list );
+    }
+
+    // a pick from the browser that isn't one of the recommended ones gets its own swatch
+    string _customTitle;
+
+    string Value => Property?.As.String;
+    string[] Presets => _attribute?.Paths ?? [];
+
+    public override void Rebuild()
+    {
+        base.Rebuild();
+        Property.TryGetAttribute<RopeMaterialsAttribute>( out _attribute );
+        OnValueChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // the value can change from outside, like a preset or a copied setting
+        if ( Property is not null && Value != _shownValue )
+            OnValueChanged();
+
+        if ( _preview.IsValid() )
+            _preview.Tint = ReadTint();
+    }
+
+    /// <summary>
+    /// The sibling color property the attribute points at, white when there isn't one.
+    /// </summary>
+    Color ReadTint()
+    {
+        var name = _attribute?.TintProperty;
+        if ( string.IsNullOrEmpty( name ) || Property?.Parent is not { } parent ) return Color.White;
+        if ( !parent.TryGetProperty( name, out var tint ) ) return Color.White;
+
+        return tint.GetValue<Color>();
+    }
+
+    void OnValueChanged()
+    {
+        var path = Value;
+        _shownValue = path;
+        _customTitle = null;
+
+        if ( !string.IsNullOrWhiteSpace( path ) && PresetIndex( path ) < 0 )
+        {
+            if ( LineMaterial.IsPackageIdent( path ) ) ShowPackage( path );
+            else _customTitle = System.IO.Path.GetFileNameWithoutExtension( path );
+        }
+
+        StateHasChanged();
+    }
+
+    IEnumerable<Swatch> Swatches
+    {
+        get
+        {
+            var presets = Presets;
+            for ( var i = 0; i < presets.Length; i++ )
+                yield return new Swatch( presets[i], PresetTitle( i ), false );
+
+            if ( _customTitle != null )
+                yield return new Swatch( Value, _customTitle, true );
+        }
+    }
+
+    string CurrentTitle
+    {
+        get
+        {
+            var path = Value;
+            if ( string.IsNullOrWhiteSpace( path ) ) return "#ui.resource.none_selected";
+
+            var index = PresetIndex( path );
+            return index >= 0 ? PresetTitle( index ) : _customTitle ?? path;
+        }
+    }
+
+    int PresetIndex( string path ) => Array.FindIndex( Presets, p => string.Equals( p, path, StringComparison.OrdinalIgnoreCase ) );
+
+    string PresetTitle( int index )
+    {
+        var titles = _attribute?.Titles;
+        if ( titles != null && index < titles.Length && !string.IsNullOrEmpty( titles[index] ) ) return titles[index];
+        return System.IO.Path.GetFileNameWithoutExtension( Presets[index] );
+    }
+
+    bool IsGlow( string path ) => _attribute?.Glow?.Any( g => string.Equals( g, path, StringComparison.OrdinalIgnoreCase ) ) == true;
+
+    bool IsSelected( string path ) => string.Equals( path, Value, StringComparison.OrdinalIgnoreCase );
+
+    void Select( string path )
+    {
+        if ( Property is null ) return;
+        Property.As.String = path;
+        OnValueChanged();
+    }
+
+    void OpenBrowser()
+    {
+        // clearing in the picker goes back to the first recommendation rather than no material
+        ResourceSelectPopup.Open( this, "material", Value, path => Select( path ?? Presets.FirstOrDefault() ), allowPackages: true );
+    }
+
+    void ShowPackage( string ident )
+    {
+        if ( Package.TryGetCached( ident, out var package, false ) )
+        {
+            _customTitle = package.Title;
+            return;
+        }
+
+        _customTitle = ident;
+        _ = FetchPackage( ident );
+    }
+
+    async Task FetchPackage( string ident )
+    {
+        var package = await Package.FetchAsync( ident, true );
+        if ( package is null || !IsValid || Value != ident ) return;
+
+        _customTitle = package.Title;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Value, _customTitle );
+}

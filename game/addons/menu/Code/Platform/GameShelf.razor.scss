@@ -11,19 +11,6 @@ GameShelf
 	.header
 	{
 		@include platform-shelf-header;
-
-		.spacer
-		{
-			flex-grow: 1;
-		}
-
-		.see-more
-		{
-			@include platform-text-button( 30px, 12.5px, 16px );
-			padding: 0 10px;
-			gap: 4px;
-			pointer-events: all;
-		}
 	}
 
 	// Each card's in a cell with room round it to grow into, taken back off so they line up - the gap's what's left of

@@ -156,6 +156,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		}
 
 		Networking.MaxPlayers = config.MaxPlayers;
+		Networking.IsDedicatedServer = false;
 
 		steamlobby.Value.SetData( "lobby_type", "scene" );
 		steamlobby.Value.SetData( "dev", Application.IsEditor ? "1" : "0" );

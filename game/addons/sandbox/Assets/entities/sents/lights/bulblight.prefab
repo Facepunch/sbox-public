@@ -1,0 +1,276 @@
+{
+  "RootObject": {
+    "__guid": "b52ecd8b-1950-45b0-8674-ebbaba9e636c",
+    "__version": 1,
+    "Flags": 0,
+    "Name": "bulblight",
+    "Position": "0.2796153,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "light_spot,light",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkInterpolation": true,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "PointLightEntity",
+        "__guid": "5ac4796e-0e30-41ff-863e-638e0197528a",
+        "__enabled": true,
+        "Flags": 0,
+        "Attenuation": 2.0402684,
+        "Brightness": 1,
+        "Color": "1,0.91163,0.64651,1",
+        "OffGameObject": {
+          "_type": "gameobject",
+          "go": "8941838d-67d4-449a-9434-3cca7c3959bb"
+        },
+        "On": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnGameObject": {
+          "_type": "gameobject",
+          "go": "56cbcaf0-34af-4c50-9472-4f85559d3ffc"
+        },
+        "Radius": 442.95303,
+        "Shadows": true,
+        "Toggle": {
+          "IsEnabled": false,
+          "Action": null
+        },
+        "TurnOff": {
+          "IsEnabled": false,
+          "Action": null
+        },
+        "TurnOn": {
+          "IsEnabled": false,
+          "Action": null
+        }
+      },
+      {
+        "__type": "Sandbox.Rigidbody",
+        "__guid": "c4098134-0a51-4584-b67c-53daec3d82c4",
+        "__enabled": true,
+        "Flags": 0,
+        "AngularDamping": 0,
+        "EnableImpactDamage": false,
+        "EnhancedCcd": false,
+        "Gravity": true,
+        "GravityScale": 1,
+        "ImpactDamage": 0,
+        "LinearDamping": 0,
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "MassCenterOverride": "0,0,0",
+        "MassOverride": 0,
+        "MinImpactDamageSpeed": 500,
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideMassCenter": false,
+        "RigidbodyFlags": 0,
+        "StartAsleep": false
+      },
+      {
+        "__type": "Sandbox.BoxCollider",
+        "__guid": "845d26ca-1d41-476c-9283-32fdad7e58fb",
+        "__enabled": true,
+        "Flags": 0,
+        "Center": "0,0,3.989997",
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Scale": "5.849982,6.009973,8",
+        "Static": false,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "56cbcaf0-34af-4c50-9472-4f85559d3ffc",
+        "__version": 1,
+        "Flags": 0,
+        "Name": "on",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkInterpolation": true,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelRenderer",
+            "__guid": "74c6ba24-9417-4bc5-9a8d-b26bfca712a8",
+            "__enabled": true,
+            "Flags": 0,
+            "BodyGroups": 18446744073709551615,
+            "CreateAttachments": false,
+            "LodOverride": null,
+            "MaterialGroup": "plastic_on",
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": "models/sbox/industrial/light_bulb_fitting/light_bulb_fitting.vmdl",
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "Off",
+            "Tint": "1,1,1,1"
+          }
+        ],
+        "Children": [
+          {
+            "__guid": "f881d72c-87a2-448e-aa20-7066662a9460",
+            "__version": 1,
+            "Flags": 0,
+            "Name": "light",
+            "Position": "0,0,6.937418",
+            "Rotation": "0,0,0,1",
+            "Scale": "1,1,1",
+            "Tags": "light_point",
+            "Enabled": true,
+            "NetworkMode": 2,
+            "NetworkInterpolation": true,
+            "NetworkOrphaned": 0,
+            "NetworkTransmit": true,
+            "OwnerTransfer": 1,
+            "Components": [
+              {
+                "__type": "Sandbox.PointLight",
+                "__guid": "3e21070d-b689-48cf-ac2a-c1858a037ec2",
+                "__enabled": true,
+                "Flags": 0,
+                "Attenuation": 2.0402684,
+                "FogMode": "Enabled",
+                "FogStrength": 1,
+                "LightColor": "1,0.91163,0.64651,1",
+                "OnComponentDestroy": null,
+                "OnComponentDisabled": null,
+                "OnComponentEnabled": null,
+                "OnComponentFixedUpdate": null,
+                "OnComponentStart": null,
+                "OnComponentUpdate": null,
+                "Radius": 442.95303,
+                "Shadows": true
+              }
+            ],
+            "Children": []
+          }
+        ]
+      },
+      {
+        "__guid": "8941838d-67d4-449a-9434-3cca7c3959bb",
+        "__version": 1,
+        "Flags": 0,
+        "Name": "off",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": false,
+        "NetworkMode": 2,
+        "NetworkInterpolation": true,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelRenderer",
+            "__guid": "aa5654cb-a2d3-4342-976c-c0a2f5ce1823",
+            "__enabled": true,
+            "Flags": 0,
+            "BodyGroups": 18446744073709551615,
+            "CreateAttachments": false,
+            "LodOverride": null,
+            "MaterialGroup": "default",
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": "models/sbox/industrial/light_bulb_fitting/light_bulb_fitting.vmdl",
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Tint": "1,1,1,1"
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": true,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": ""
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

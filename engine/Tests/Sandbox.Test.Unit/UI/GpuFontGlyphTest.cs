@@ -1,6 +1,7 @@
 ﻿using Sandbox;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using SkiaSharp;
 
 namespace UITests;
@@ -18,6 +19,32 @@ public class GpuFontGlyphTest
 	{
 		using var font = new SKFont( Typeface, 100 );
 		return GpuFontGlyphCache.Get( Typeface, font.GetGlyph( ch ) );
+	}
+
+	/// <summary>
+	/// Concurrent first lookups must all see the same atlas entry for each glyph.
+	/// </summary>
+	[TestMethod]
+	public async Task ConcurrentColdLookupsPublishStableGlyphIndices()
+	{
+		using var stream = typeof( GpuFontGlyphTest ).Assembly.GetManifestResourceStream( "Roboto-Regular.ttf" );
+		using var face = SKTypeface.FromStream( stream );
+		using var font = new SKFont( face );
+		var glyphs = font.GetGlyphs( "ABCDEFGH" );
+
+		const int workers = 4;
+		using var start = new Barrier( workers );
+		var lookups = Enumerable.Range( 0, workers ).Select( _ => Task.Factory.StartNew( () =>
+		{
+			start.SignalAndWait();
+			return glyphs.Select( id => GpuFontGlyphCache.Get( face, id ).Index ).ToArray();
+		}, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default ) ).ToArray();
+
+		var results = await Task.WhenAll( lookups );
+		var cached = glyphs.Select( id => GpuFontGlyphCache.Get( face, id ).Index ).ToArray();
+		CollectionAssert.AllItemsAreUnique( cached );
+		foreach ( var indices in results )
+			CollectionAssert.AreEqual( cached, indices );
 	}
 
 	[TestMethod]

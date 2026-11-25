@@ -69,6 +69,7 @@ PlatformSettings
 			border-radius: 0;
 			border: 0px solid transparent;
 			background-color: transparent;
+			background-image: none;
 			backdrop-filter: none;
 			overflow: visible;
 			pointer-events: all;
@@ -110,13 +111,13 @@ PlatformSettings
 			gap: 18px;
 			backdrop-filter: none;
 			pointer-events: all;
+		}
 
-			// No detail beside it (Storage has none) - as much clear on its right as the categories take on its left,
-			// so it stays in the middle
-			&:last-child
-			{
-				margin-right: $settings-no-detail;
-			}
+		// No detail beside it (Storage has none) - as much clear on its right as the categories take on its left, so it
+		// stays in the middle
+		&.no-detail > .body
+		{
+			margin-right: $settings-no-detail;
 		}
 
 		// What the setting being read about does - out on the art just right of the card, as the categories are left
@@ -209,13 +210,6 @@ PlatformSettings
 				flex-grow: 1;
 				flex-shrink: 1;
 			}
-		}
-
-		.scroll.custom KeyBind
-		{
-			flex-grow: 1;
-			flex-basis: 0;
-			min-width: 0;
 		}
 	}
 }

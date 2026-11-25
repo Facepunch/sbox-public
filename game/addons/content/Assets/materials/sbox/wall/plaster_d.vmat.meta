@@ -21,6 +21,7 @@
       "Metadata": {
         "SingleAssetSource": "materials/sbox/wall/plaster_d.vmat"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

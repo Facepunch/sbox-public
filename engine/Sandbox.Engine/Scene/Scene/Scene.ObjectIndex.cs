@@ -206,13 +206,14 @@ public partial class Scene : GameObject
 }
 
 /// <summary>
-/// Struct query used by engine code so direct <c>foreach</c> iteration doesn't allocate.
+/// Struct query used by engine code so direct <c>foreach</c> iteration doesn't allocate. Not public: a copied
+/// enumerator disposed twice would release the index's enumeration lock twice.
 /// </summary>
 internal readonly struct SceneObjectQuery<T> : IEnumerable<T>
 {
 	private readonly Scene scene;
 
-	public SceneObjectQuery( Scene scene )
+	internal SceneObjectQuery( Scene scene )
 	{
 		this.scene = scene;
 	}
@@ -230,7 +231,7 @@ internal struct SceneObjectEnumerator<T> : IEnumerator<T>
 	private bool holdsLock;
 	private bool disposed;
 
-	public SceneObjectEnumerator( Scene scene )
+	internal SceneObjectEnumerator( Scene scene )
 	{
 		this.scene = scene;
 		inner = default;

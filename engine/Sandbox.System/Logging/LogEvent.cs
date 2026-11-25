@@ -33,7 +33,23 @@ namespace Sandbox
 		[Title( "Stack Trace" )]
 		[ReadOnly]
 		[Category( "Stack Trace" )]
-		public string Stack { get; set; }
+		public string Stack
+		{
+			readonly get => _stack ?? _deferredStack?.ToString();
+			set
+			{
+				_stack = value;
+				_deferredStack = null;
+			}
+		}
+
+		string _stack;
+		Sandbox.Diagnostics.LoggedStack _deferredStack;
+
+		/// <summary>
+		/// A stack that's only formatted when <see cref="Stack"/> is read.
+		/// </summary>
+		internal Sandbox.Diagnostics.LoggedStack DeferredStack { init => _deferredStack = value; }
 
 		[Category( "Meta Data" )]
 		[ReadOnly]

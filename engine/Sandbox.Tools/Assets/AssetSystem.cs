@@ -13,14 +13,15 @@ public static partial class AssetSystem
 	static Logger log = new Logger( "AssetSystem" );
 
 	[SkipHotload]
-	static Dictionary<ulong, Asset> allAssets = new();
+	static ConcurrentDictionary<ulong, Asset> allAssets = new();
 
 	[SkipHotload] static ConcurrentDictionary<string, Asset> assetsByPath = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// All the assets that are being tracked by the asset system. Does not include deleted assets.
+	/// Enumeration can overlap asset registration and may see assets added during the scan.
 	/// </summary>
-	public static IEnumerable<Asset> All => allAssets.Values.Where( x => !x.IsDeleted );
+	public static IEnumerable<Asset> All => allAssets.Select( x => x.Value ).Where( x => !x.IsDeleted );
 	static bool HasChanges;
 	static bool IsInitialized = false;
 
@@ -101,7 +102,7 @@ public static partial class AssetSystem
 
 		// Can it ever come back??
 		UpdateQueue.Remove( a );
-		allAssets.Remove( index );
+		allAssets.TryRemove( index, out _ );
 		a.OnRemoved();
 
 	}
@@ -171,6 +172,8 @@ public static partial class AssetSystem
 		// Thumbnails have their own queue, so do that all in main
 		foreach ( var asset in UpdateQueue )
 		{
+			AssetUpgrader.Upgrade( asset );
+
 			EditorEvent.RunInterface<IEventListener>( x => x.OnAssetChanged( asset ) );
 
 			// Only drop it: the next draw renders it. A scene's thumbnail loads the whole scene, so rendering it on every

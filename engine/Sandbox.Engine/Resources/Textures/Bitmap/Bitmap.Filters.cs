@@ -171,8 +171,10 @@ public partial class Bitmap
 		var targetRect = rect.ToSk();
 
 		using var copy = _bitmap.Copy();
+		// DrawBitmap can share the copy's pixels once it knows they won't change.
+		copy.SetImmutable();
 		_canvas.Clear( SKColors.Transparent );
-		_canvas.DrawBitmap( copy, targetRect );
+		_canvas.DrawBitmap( copy, targetRect, SKSamplingOptions.Default );
 	}
 
 	/// <summary>
@@ -223,11 +225,8 @@ public partial class Bitmap
 
 		int width = _bitmap.Width;
 		int height = _bitmap.Height;
-		var normalMap = Clone();
-
-		// Get raw pixel buffers
-		var heightmapPixels = _bitmap.Pixels;
-		var normalMapPixels = normalMap._bitmap.Pixels;
+		var heightmapPixels = GetPixels32();
+		var normalMapPixels = new SKColor[heightmapPixels.Length];
 
 		// Parallelize the pixel processing
 		Parallel.For( 0, height, y =>
@@ -258,6 +257,7 @@ public partial class Bitmap
 		} );
 
 		// Write the normal map buffer back to the bitmap
+		var normalMap = new Bitmap( new SKBitmap( _bitmap.Info ) );
 		normalMap._bitmap.Pixels = normalMapPixels;
 
 		return normalMap;
@@ -266,13 +266,12 @@ public partial class Bitmap
 	/// <summary>
 	/// Gets the height value from the pixel array, clamped to the edges.
 	/// </summary>
-	private static float GetHeight( SKColor[] pixels, int width, int height, int x, int y )
+	private static float GetHeight( Color32[] pixels, int width, int height, int x, int y )
 	{
 		x = Math.Clamp( x, 0, width - 1 );
 		y = Math.Clamp( y, 0, height - 1 );
 
-		SKColor color = pixels[y * width + x];
-		return color.Red / 255.0f; // Assuming grayscale input (Red channel as height)
+		return pixels[y * width + x].r / 255.0f; // Red channel as height
 	}
 
 	/// <summary>

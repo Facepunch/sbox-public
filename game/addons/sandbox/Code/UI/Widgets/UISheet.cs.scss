@@ -1,0 +1,431 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	UISheet
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		font-family: $body-font;
+		font-size: $ui-settings-font;
+		font-weight: 500;
+		color: $ui-text-label;
+
+		.switchcontrol
+		{
+			@include ui-switch;
+		}
+
+		.sheet-row > .control > .slidercontrol.property
+		{
+			@include ui-property-slider;
+			height: 34px;
+			padding: 0 3px 0 10px;
+			gap: 9px;
+			background-color: $ui-control-bg;
+			border: 1px solid $ui-field-border;
+			border-radius: 7px;
+
+			> .inner > .track
+			{
+				height: 5px;
+				margin: 9px 7px;
+
+				> .thumb
+				{
+					width: 15px;
+					height: 15px;
+					background-color: $ui-blue;
+					border: 2px solid white;
+					box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.2 );
+				}
+			}
+
+			> .entry
+			{
+				border-left: 1px solid $ui-separator;
+
+				> numberentry
+				{
+					background-color: transparent;
+					border-color: transparent;
+				}
+			}
+		}
+
+		EnumControl
+		{
+			min-width: 0;
+			height: 34px;
+
+			> ButtonGroup
+			{
+				border: 1px solid $ui-control-border;
+				border-radius: 0;
+				background-color: $ui-control-bg;
+
+				> .button
+				{
+					flex-basis: 0px;
+					min-width: 0;
+					gap: 0;
+					font-family: $body-font;
+					font-size: $ui-settings-font;
+					font-weight: 800;
+					text-transform: uppercase;
+					color: $ui-text-disabled;
+
+					&:hover
+					{
+						color: $ui-text-disabled-hover;
+						sound-in: ui.hover;
+					}
+
+					&:active
+					{
+						background-color: transparent;
+						transform: none;
+					}
+
+					&.active
+					{
+						@include ui-selected;
+					}
+				}
+			}
+
+			> .button.popupbutton.dropdown
+			{
+				@include ui-button-face;
+				min-width: 0;
+				height: 34px;
+				padding: 0 8px 0 10px;
+				gap: 4px;
+				border-radius: 7px;
+				background-color: rgba( 0, 0, 0, 0 );
+				font-family: $body-font;
+				font-size: $ui-settings-font;
+				font-weight: 500;
+				transition: all 0s;
+
+				.button-text
+				{
+					@include ui-ellipsis;
+					width: 100%;
+					text-align: left;
+				}
+
+				> .dropdown_indicator
+				{
+					position: relative;
+					right: auto;
+					font-size: 14px;
+					color: $ui-text-strong;
+				}
+
+				&.open
+				{
+					border-radius: 7px;
+
+					> .dropdown_indicator
+					{
+						content: "expand_less";
+					}
+				}
+			}
+		}
+
+		.colorcontrol
+		{
+			height: 34px;
+			min-width: 0;
+			padding: 3px;
+			gap: 3px;
+			background-color: $ui-control-bg;
+			border: 1px solid $ui-field-border;
+			border-radius: 7px;
+
+			> .colorswatch, > .colortextentry
+			{
+				width: 50%;
+				height: 24px;
+				min-width: 0;
+				flex-shrink: 1;
+			}
+
+			> .colorswatch
+			{
+				border: 1px solid $ui-control-border;
+				border-radius: 4px;
+
+				&:hover
+				{
+					border-color: $ui-control-border-hover;
+				}
+
+				// The engine shows the fill for transparent colors. Paint the sandbox checker
+				// beneath its tint, keeping the opaque swatch a single solid color.
+				> .fill
+				{
+					background-image: url( /UI/color_checker.svg );
+					background-size: 10px 10px;
+					background-repeat: repeat;
+
+					&::after
+					{
+						content: "";
+						width: 100%;
+						height: 100%;
+						background-color: inherit;
+						pointer-events: none;
+					}
+				}
+
+				> .hdr
+				{
+					opacity: 0;
+					pointer-events: none;
+				}
+			}
+
+			> .colortextentry
+			{
+				min-height: 24px;
+				flex-grow: 0;
+				padding: 0 7px;
+				justify-content: flex-start;
+				background-color: transparent;
+				border: 0;
+				border-left: 1px solid $ui-separator;
+				border-radius: 0;
+				font-family: $body-font;
+				font-size: $ui-settings-font;
+				font-weight: 500;
+				color: $ui-text;
+				@include ui-focus-ring;
+
+				.content-label
+				{
+					flex-grow: 1;
+					text-align: left;
+					color: $ui-text;
+				}
+
+				&.invalid .content-label
+				{
+					color: $ui-danger;
+				}
+
+				&:focus
+				{
+					border-color: $ui-blue;
+				}
+			}
+		}
+
+		> .body
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+		}
+
+		.sheet-group
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+
+			&.hidden
+			{
+				display: none;
+			}
+
+			> .header
+			{
+				flex-direction: row;
+				align-items: center;
+				flex-shrink: 0;
+				gap: 6px;
+				@include ui-section-header;
+				margin: 0 0 8px 0;
+				padding: 0;
+				border-bottom: 0;
+
+				.title
+				{
+					@include ui-heading-text;
+				}
+
+				.header-button
+				{
+					margin-left: auto;
+				}
+
+				&.toggle-header
+				{
+					gap: 0;
+					min-height: 34px;
+
+					.title
+					{
+						width: 32%;
+						padding-right: 6px;
+						cursor: pointer;
+						pointer-events: all;
+					}
+				}
+			}
+
+			// the first group stays against the top of the sheet
+			&:not(:first-child) > .header
+			{
+				margin-top: $ui-section-gap;
+				padding-top: 12px;
+				border-top: 1px solid $ui-separator;
+			}
+
+			> .rows
+			{
+				flex-direction: column;
+				flex-shrink: 0;
+				gap: 7px;
+
+				&.hidden
+				{
+					display: none;
+				}
+			}
+		}
+
+		.textentry.text-field
+		{
+			@include ui-text-entry;
+			width: 100%;
+			flex-shrink: 0;
+			min-height: 34px;
+			border-radius: 7px;
+			border-color: $ui-field-border;
+
+			&.text-area
+			{
+				height: auto;
+				min-height: 96px;
+				padding: 8px 10px;
+				align-items: flex-start;
+			}
+		}
+
+		// the empty gap of [Space]
+		.space
+		{
+			flex-shrink: 0;
+		}
+
+		.sheet-row
+		{
+			flex-direction: row;
+			align-items: center;
+			flex-shrink: 0;
+			min-height: 34px;
+
+			&.hidden
+			{
+				display: none;
+			}
+
+			&.disabled
+			{
+				opacity: 0.4;
+
+				// widgets turn pointer-events back on, so switch them off on every child too
+				> .label, > .control, > .control *
+				{
+					pointer-events: none;
+				}
+			}
+
+			> .label
+			{
+				width: 32%;
+				flex-shrink: 0;
+				padding-right: 6px;
+				@include ui-ellipsis;
+				font-size: $ui-settings-font;
+				font-weight: 500;
+				color: $ui-text-label;
+			}
+
+			> .control
+			{
+				flex-direction: row;
+				flex-grow: 1;
+				flex-shrink: 1;
+				min-width: 0px;
+			}
+
+			// a [SameLine] control whose condition hides it
+			> .control > .hidden
+			{
+				display: none;
+			}
+
+			// or greys it out, the way a disabled button and a disabled row look
+			> .control > .disabled
+			{
+				opacity: 0.4;
+			}
+
+			> .control > .disabled, > .control > .disabled *
+			{
+				pointer-events: none;
+			}
+
+			// control takes the whole row if it has no name
+			&.bare > .control
+			{
+				width: 100%;
+			}
+
+			// buttons share the row evenly
+			&.buttons > .control
+			{
+				gap: 6px;
+
+				> UIButton
+				{
+					flex-grow: 1;
+					flex-basis: 0px;
+				}
+			}
+
+			&.toggle > .label
+			{
+				white-space: normal;
+				cursor: pointer;
+				pointer-events: all;
+			}
+
+			&.toggle.disabled > .label { pointer-events: none; }
+
+			&.wide
+			{
+				flex-direction: column;
+				align-items: stretch;
+
+				> .label
+				{
+					width: auto;
+					height: 18px;
+					justify-content: center;
+				}
+
+				> .control
+				{
+					flex-grow: 0;
+					margin-top: 1px;
+				}
+			}
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

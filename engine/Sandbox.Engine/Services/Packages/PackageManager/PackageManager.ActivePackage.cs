@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using Sandbox.Menu;
+using System.IO;
 using Sandbox.Utility;
 using System.Net;
 using System.Threading;
@@ -16,7 +17,10 @@ internal static partial class PackageManager
 		public Package Package { get; private set; }
 		public BaseFileSystem FileSystem { get; private set; }
 
-		public PackageFileSystem PackageFileSystem { get; private set; }
+		/// <summary>
+		/// Downloaded files owned by this package, including a shared Workshop mount when appropriate.
+		/// </summary>
+		BaseFileSystem ContentFileSystem { get; set; }
 
 		public BaseFileSystem AssemblyFileSystem { get; private set; }
 
@@ -39,6 +43,9 @@ internal static partial class PackageManager
 
 			if ( package is LocalPackage localPackage )
 			{
+				if ( localPackage.TypeName == "map" )
+					NativeEngine.FullFileSystem.AddProjectPath( localPackage.Project.Config.FullIdent, localPackage.ContentPath );
+
 				// A local package mounts it's project's filesystems (don't use them directly!)
 				o.FileSystem = new AggregateFileSystem();
 				o.FileSystem.Mount( localPackage.Project.CodeFileSystem );
@@ -66,14 +73,58 @@ internal static partial class PackageManager
 			}
 			else
 			{
-				await o.DownloadAsync( token, options );
+				try
+				{
+					await o.DownloadAsync( token, options );
+					await o.PrepareAssemblies( options );
+					token.ThrowIfCancellationRequested();
+				}
+				catch
+				{
+					o.DisposeFileSystems();
+					throw;
+				}
 			}
 
-			ActivePackages.Add( o );
-
-			o.Mount( options.ReloadResources );
-
 			return o;
+		}
+
+		private async Task PrepareAssemblies( PackageLoadOptions options )
+		{
+			if ( HasPrecompiledDlls() ) return;
+
+			if ( HasCodeArchives() )
+			{
+				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {Package.Title}" ) );
+				Api.Activity.LoadStage( "compile" );
+				if ( !await CompileCodeArchive() )
+					Log.Warning( $"There were errors when compiling {Package.FullIdent}!" );
+			}
+			else if ( Package.TypeName == "game" )
+			{
+				throw new InvalidOperationException( $"'{Package.FullIdent}' has no precompiled assemblies or code archives." );
+			}
+		}
+
+		/// <summary>
+		/// Replace any superseded source before notifying its existing callers of the new mount.
+		/// </summary>
+		internal void Activate( PackageLoadOptions options )
+		{
+			var replaced = ActivePackages.Where( x => string.Equals( x.Package.FullIdent, Package.FullIdent, StringComparison.OrdinalIgnoreCase ) ).ToArray();
+			foreach ( var previous in replaced )
+			{
+				Tags.UnionWith( previous.Tags );
+				ActivePackages.Remove( previous );
+				previous.Delete( reloadResources: false );
+			}
+
+			ActivePackages.Add( this );
+			Mount( options.ReloadResources );
+
+			Tags.Add( options.ContextTag );
+			foreach ( var tag in Tags.ToArray() )
+				OnPackageInstalledToContext?.Invoke( this, tag );
 		}
 
 		public void AddContextTag( string tag )
@@ -96,21 +147,22 @@ internal static partial class PackageManager
 		{
 			Assert.True( Package.IsRemote );
 
-			PackageFileSystem = await Package.Download( token, options );
+			ContentFileSystem = await Package.Download( token, options );
 
-			if ( PackageFileSystem is null )
+			if ( ContentFileSystem is null )
 			{
 				throw new WebException( $"Unable to download package '{Package.FullIdent}'" );
 			}
 
 			// Before anything can load them: recompile shaders an older engine compiled
-			await Sandbox.Engine.Shaders.ShaderUpgrade.UpgradeAsync( PackageFileSystem.Redirect, Package.Title, token );
+			if ( ContentFileSystem is PackageFileSystem downloaded )
+				await Sandbox.Engine.Shaders.ShaderUpgrade.UpgradeAsync( downloaded.Redirect, Package.Title, token );
 
 			//
 			// Mount downloaded filesystem as our main filesystem
 			//
 			FileSystem = new AggregateFileSystem();
-			FileSystem.Mount( PackageFileSystem );
+			FileSystem.Mount( ContentFileSystem );
 
 			//
 			// Mount localization data from this package
@@ -452,7 +504,7 @@ internal static partial class PackageManager
 		/// <summary>
 		/// Called to unmount and remove this package from being active
 		/// </summary>
-		public void Delete()
+		public void Delete( bool reloadResources = true )
 		{
 			MountedFileSystem.UnMount( FileSystem );
 			Interlocked.Increment( ref MountGeneration );
@@ -460,13 +512,20 @@ internal static partial class PackageManager
 			// Make sure we unmount the package from the global filesystem, so that any other packages that might have been mounted on top of it don't get broken.
 			Sandbox.FileSystem.Mounted?.UnMount( FileSystem );
 
-			FileSystem.Dispose();
+			DisposeFileSystems();
+			if ( reloadResources )
+				NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+		}
+
+		internal void DisposeFileSystems()
+		{
+			FileSystem?.Dispose();
 			FileSystem = default;
 
-			PackageFileSystem?.Dispose();
-			PackageFileSystem = null;
+			ContentFileSystem?.Dispose();
+			ContentFileSystem = null;
 
-			AssemblyFileSystem.Dispose();
+			AssemblyFileSystem?.Dispose();
 			AssemblyFileSystem = null;
 
 			// Ours as well - for a local package these are wrappers around the project's
@@ -476,9 +535,6 @@ internal static partial class PackageManager
 
 			Localization?.Dispose();
 			Localization = null;
-
-			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
-			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 		}
 
 		/// <summary>

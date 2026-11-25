@@ -129,7 +129,7 @@ public sealed class WaterVolume : Component
 		var origin = WorldTransform.PointToWorld( collider.LocalBounds.Center );
 		var wave = _smoothAmplitude > 0f ? (MathF.Sin( _wavePhase ) - 1f) * 0.5f * _smoothAmplitude : 0f;
 
-		using ( Gizmo.Scope( "WaterSurface" ) )
+		using ( Gizmo.PushScope( "WaterSurface" ) )
 		{
 			Gizmo.Transform = global::Transform.Zero;
 

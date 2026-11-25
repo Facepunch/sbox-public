@@ -44,7 +44,7 @@
   "TintDefault": 0.79,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_short_dreadlocks/short_dreadlocks.clothing.png",
+    "Path": "models/citizen_clothes/hair/hair_short_dreadlocks/short_dreadlocks.clothing.vtex",
     "Mode": "Eyes",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

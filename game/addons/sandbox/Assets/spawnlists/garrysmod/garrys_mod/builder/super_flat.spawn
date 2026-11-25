@@ -1,0 +1,423 @@
+{
+  "Title": "Super Flat",
+  "Description": "",
+  "Icon": "layers",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "881eeef9-7802-4ab2-b0a8-7a4335c15b87",
+    "Path": "spawnlists/garrysmod/garrys_mod/builder.spawn"
+  },
+  "Order": 10,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Bars",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar1.mdl",
+      "Title": "sf_bar1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar2.mdl",
+      "Title": "sf_bar2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar3.mdl",
+      "Title": "sf_bar3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar4.mdl",
+      "Title": "sf_bar4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar5.mdl",
+      "Title": "sf_bar5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar6.mdl",
+      "Title": "sf_bar6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar7.mdl",
+      "Title": "sf_bar7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar8.mdl",
+      "Title": "sf_bar8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar25x25x1.mdl",
+      "Title": "sf_bar25x25x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar25x25x2.mdl",
+      "Title": "sf_bar25x25x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar25x25x3.mdl",
+      "Title": "sf_bar25x25x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar25x25x4.mdl",
+      "Title": "sf_bar25x25x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar25x25x5.mdl",
+      "Title": "sf_bar25x25x5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar25x25x6.mdl",
+      "Title": "sf_bar25x25x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar25x25x7.mdl",
+      "Title": "sf_bar25x25x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_bars/sf_bar25x25x8.mdl",
+      "Title": "sf_bar25x25x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Plates",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate1x1.mdl",
+      "Title": "sf_plate1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate1x2.mdl",
+      "Title": "sf_plate1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate1x3.mdl",
+      "Title": "sf_plate1x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate1x4.mdl",
+      "Title": "sf_plate1x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate1x5.mdl",
+      "Title": "sf_plate1x5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate1x6.mdl",
+      "Title": "sf_plate1x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate1x7.mdl",
+      "Title": "sf_plate1x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate1x8.mdl",
+      "Title": "sf_plate1x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate2x2.mdl",
+      "Title": "sf_plate2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate2x3.mdl",
+      "Title": "sf_plate2x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate2x4.mdl",
+      "Title": "sf_plate2x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate2x5.mdl",
+      "Title": "sf_plate2x5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate2x6.mdl",
+      "Title": "sf_plate2x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate2x7.mdl",
+      "Title": "sf_plate2x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate2x8.mdl",
+      "Title": "sf_plate2x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate3x3.mdl",
+      "Title": "sf_plate3x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate3x4.mdl",
+      "Title": "sf_plate3x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate3x5.mdl",
+      "Title": "sf_plate3x5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate3x6.mdl",
+      "Title": "sf_plate3x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate3x7.mdl",
+      "Title": "sf_plate3x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate3x8.mdl",
+      "Title": "sf_plate3x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate4x4.mdl",
+      "Title": "sf_plate4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate4x5.mdl",
+      "Title": "sf_plate4x5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate4x6.mdl",
+      "Title": "sf_plate4x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate4x7.mdl",
+      "Title": "sf_plate4x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate4x8.mdl",
+      "Title": "sf_plate4x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate5x5.mdl",
+      "Title": "sf_plate5x5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate5x6.mdl",
+      "Title": "sf_plate5x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate5x7.mdl",
+      "Title": "sf_plate5x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate5x8.mdl",
+      "Title": "sf_plate5x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate6x6.mdl",
+      "Title": "sf_plate6x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate6x7.mdl",
+      "Title": "sf_plate6x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate6x8.mdl",
+      "Title": "sf_plate6x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate7x7.mdl",
+      "Title": "sf_plate7x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate7x8.mdl",
+      "Title": "sf_plate7x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_plates/sf_plate8x8.mdl",
+      "Title": "sf_plate8x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Triangles",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tris/sf_tri1x1.mdl",
+      "Title": "sf_tri1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tris/sf_tri2x2.mdl",
+      "Title": "sf_tri2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tris/sf_tri3x3.mdl",
+      "Title": "sf_tri3x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tris/sf_tri4x4.mdl",
+      "Title": "sf_tri4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tris/sf_tri5x5.mdl",
+      "Title": "sf_tri5x5",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tris/sf_tri6x6.mdl",
+      "Title": "sf_tri6x6",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tris/sf_tri7x7.mdl",
+      "Title": "sf_tri7x7",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tris/sf_tri8x8.mdl",
+      "Title": "sf_tri8x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Tubes",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tubes/sf_tube1x360.mdl",
+      "Title": "sf_tube1x360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tubes/sf_tube1x270.mdl",
+      "Title": "sf_tube1x270",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tubes/sf_tube1x180.mdl",
+      "Title": "sf_tube1x180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/squad/sf_tubes/sf_tube1x90.mdl",
+      "Title": "sf_tube1x90",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

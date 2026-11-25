@@ -36,7 +36,7 @@ internal sealed partial class GameWindow
 		finally
 		{
 			CSceneSystem.FinishRenderingViews();
-			CSceneSystem.WaitForRenderingToComplete();
+			Graphics.WaitForRenderingToComplete();
 		}
 	}
 }

@@ -1,9 +1,3 @@
-using System;
-using System.Numerics;
-using Sandbox.Navigation.Pathfinding;
-using NativeEngine;
-using Sandbox.ModelEditor;
-
 namespace Sandbox.Navigation;
 
 public sealed partial class NavMesh
@@ -23,6 +17,7 @@ public sealed partial class NavMesh
 	private List<Line> debugInnerLines;
 
 	private Dictionary<Color, List<Triangle>> debugTriangles;
+	private Dictionary<Color, List<Line>> debugLinkLines;
 
 	internal void DebugDraw()
 	{
@@ -39,6 +34,7 @@ public sealed partial class NavMesh
 		debugTriangles ??= new( 4096 );
 		debugTileBorders ??= new( 4096 );
 		debugInnerLines ??= new( 4096 * 2 );
+		debugLinkLines ??= new();
 
 		var cameraRotation = Gizmo.Camera.Angles.ToRotation();
 		var cameraForward = cameraRotation.Forward;
@@ -66,18 +62,26 @@ public sealed partial class NavMesh
 				if ( tileWorldPosition.WithZ( 0 ).DistanceSquared( cameraPosition.WithZ( 0 ) ) < debugTileDrawDistance * debugTileDrawDistance )
 				{
 					DebugCollectTileNavmeshGeometry( new Vector2Int( x, y ) );
+					DebugCollectTileLinks( new Vector2Int( x, y ) );
 				}
 			}
 		}
 
+		foreach ( var entry in ladders.Values )
+		{
+			foreach ( var link in entry.Links )
+			{
+				if ( link.IsValid() && link.WorldPosition.WithZ( 0 ).DistanceSquared( cameraPosition.WithZ( 0 ) ) < debugTileDrawDistance * debugTileDrawDistance ) DebugCollectLink( link );
+			}
+		}
 		DebugFlushGeoemtry();
 	}
 
 	private void DebugFlushGeoemtry()
 	{
-		using ( Gizmo.Scope( "Navmesh" ) )
+		using ( Gizmo.PushScope( "Navmesh" ) )
 		{
-			using ( Gizmo.Scope( "Triangles" ) )
+			using ( Gizmo.PushScope( "Triangles" ) )
 			{
 				foreach ( var (color, triangles) in debugTriangles )
 				{
@@ -86,7 +90,7 @@ public sealed partial class NavMesh
 				}
 			}
 
-			using ( Gizmo.Scope( "Lines" ) )
+			using ( Gizmo.PushScope( "Lines" ) )
 			{
 				Gizmo.Draw.LineThickness = 1f;
 				Gizmo.Draw.Color = debugInnerLineColor;
@@ -96,6 +100,13 @@ public sealed partial class NavMesh
 				Gizmo.Draw.LineThickness = 1.5f;
 				Gizmo.Draw.Color = debugTileBorderColor;
 				Gizmo.Draw.Lines( debugTileBorders );
+
+				Gizmo.Draw.LineThickness = 2f;
+				foreach ( var (color, lines) in debugLinkLines )
+				{
+					Gizmo.Draw.Color = color;
+					Gizmo.Draw.Lines( lines );
+				}
 			}
 		}
 
@@ -103,88 +114,102 @@ public sealed partial class NavMesh
 		{
 			triangles.Clear();
 		}
+		foreach ( var (color, lines) in debugLinkLines )
+		{
+			lines.Clear();
+		}
 		debugTileBorders.Clear();
 		debugInnerLines.Clear();
 	}
-	private unsafe void DebugCollectTileNavmeshGeometry( Vector2Int tilePosition )
+
+	// Generated links as arcs in the color of their type, one way ones with a tick at the end they lead to
+	private void DebugCollectTileLinks( Vector2Int tilePosition )
 	{
-		var cameraToTileDistanceSquared = TilePositionToWorldPosition( tilePosition ).WithZ( 0 ).DistanceSquared( Gizmo.Camera.Position.WithZ( 0 ) );
+		if ( !generatedLinks.TryGetValue( (tilePosition.x, tilePosition.y), out var components ) ) return;
+		foreach ( var component in components ) DebugCollectLink( component );
+	}
 
-		if ( navmeshInternal == null )
+	private void DebugCollectLink( NavMeshLink component )
+	{
+		var color = (component.Type?.Color ?? debugTileBorderColor).WithAlpha( 1 );
+		if ( !debugLinkLines.TryGetValue( color, out var lines ) )
 		{
-			return;
+			debugLinkLines[color] = lines = new();
 		}
 
-		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
-		if ( tile == null || tile.data.header == null )
+		Vector3 start = (Vector3)component.generated.Start + debugDrawGroundOffset, end = (Vector3)component.generated.End + debugDrawGroundOffset;
+		if ( component.Type is not null && component.Type == Sandbox.Engine.Resources.NavMeshLinkType.Ladder )
 		{
+			var landing = end + Vector3.Up * component.ClimbExitLift;
+			var top = start + component.ClimbDirection * ((landing.z - start.z) / component.ClimbDirection.z);
+			lines.Add( new Line( start, top ) );
+			lines.Add( new Line( top, landing ) );
+			lines.Add( new Line( landing, end ) );
 			return;
 		}
-
-		Span<Vector3> polyVerts = stackalloc Vector3[navmeshInternal.GetMaxVertsPerPoly()];
-
-		for ( int iPoly = 0; iPoly < GetPolyCount( tilePosition ); ++iPoly )
+		var previous = start;
+		for ( int i = 1; i <= 4; i++ )
 		{
-			if ( iPoly >= tile.data.header.polyCount )
-				break;
+			float t = i / 4f;
+			var point = Vector3.Lerp( start, end, t ) + Vector3.Up * (MathF.Sin( t * MathF.PI ) * MathF.Abs( start.z - end.z ) * 0.5f);
+			lines.Add( new Line( previous, point ) );
+			previous = point;
+		}
+		if ( !component.generated.Bidirectional ) lines.Add( new Line( end, end + Vector3.Up * 8f ) );
+	}
 
-			var poly = tile.data.polys[iPoly];
+	private void DebugCollectTileNavmeshGeometry( Vector2Int tilePosition )
+	{
+		ReadPolygons( tilePosition );
 
-			if ( poly.type == PolyTypes.POLYTYPE_OFFMESH_CONNECTION )
-				continue;
+		var tileMins = new Vector2( tilePosition.x, tilePosition.y ) * TileSizeXYWorldSpace;
+		var tileMaxs = tileMins + TileSizeXYWorldSpace;
 
-			int polyVertexCount = poly.vertCount;
+		int first = 0;
+		for ( int iPoly = 0; iPoly < polyVertexCounts.Count; first += polyVertexCounts[iPoly], ++iPoly )
+		{
+			int polyVertexCount = polyVertexCounts[iPoly];
 
-			var polyAreaDefintion = AreaIdToDefinition( poly.area );
+			var polyAreaDefintion = AreaIdToDefinition( polyAreas[iPoly] );
 			var polyColor = polyAreaDefintion != null ? polyAreaDefintion.Color.WithAlpha( 0.6f ) : debugTriangleColor;
 
-			// Simple fan triangulation - create triangles from vertex 0 to all other vertices
-			if ( polyVertexCount >= 3 )
+			if ( !debugTriangles.TryGetValue( polyColor, out var triangles ) )
 			{
-				for ( int i = 0; i < polyVertexCount; i++ )
-				{
-					polyVerts[i] = FromNav( tile.data.verts[poly.verts[i]] ) + debugDrawGroundOffset;
-				}
+				debugTriangles[polyColor] = triangles = new();
+			}
 
-				// Create triangles using fan triangulation
-				for ( int j = 2; j < polyVertexCount; j++ )
+			// Simple fan triangulation - create triangles from vertex 0 to all other vertices
+			var v0 = (Vector3)polyVertices[first] + debugDrawGroundOffset;
+			for ( int j = 2; j < polyVertexCount; j++ )
+			{
+				triangles.Add( new Triangle
 				{
-					var triangle = new Triangle
-					{
-						A = polyVerts[0],
-						B = polyVerts[j - 1],
-						C = polyVerts[j]
-					};
-
-					if ( !debugTriangles.ContainsKey( polyColor ) )
-					{
-						debugTriangles[polyColor] = new();
-					}
-					debugTriangles[polyColor].Add( triangle );
-				}
+					A = v0,
+					B = (Vector3)polyVertices[first + j - 1] + debugDrawGroundOffset,
+					C = (Vector3)polyVertices[first + j] + debugDrawGroundOffset
+				} );
 			}
 
 			for ( int vertexIndex = 0; vertexIndex < polyVertexCount; ++vertexIndex )
 			{
-				bool bIsInterEdge = ((poly.neis[vertexIndex] & MeshConstants.EXT_LINK) != 0) && (poly.neis[vertexIndex] != 0);
+				var a = (Vector3)polyVertices[first + vertexIndex] + debugDrawGroundOffset;
+				var b = (Vector3)polyVertices[first + (vertexIndex + 1) % polyVertexCount] + debugDrawGroundOffset;
 
-				// Use the poly vertices directly because we don't use the detail mesh
-				// If we ever change that, we need more complex logic to align the poly boundaries with the detail mesh
-				int vertIndexV0 = poly.verts[vertexIndex];
-				int vertIndexV1 = poly.verts[(vertexIndex + 1) % polyVertexCount];
+				// An edge along the side of the tile is where the next tile joins
+				bool isTileBorder = OnSameLine( a.x, b.x, tileMins.x ) || OnSameLine( a.x, b.x, tileMaxs.x )
+					|| OnSameLine( a.y, b.y, tileMins.y ) || OnSameLine( a.y, b.y, tileMaxs.y );
 
-				Vector3 v0 = FromNav( tile.data.verts[vertIndexV0] ) + debugDrawGroundOffset;
-				Vector3 v1 = FromNav( tile.data.verts[vertIndexV1] ) + debugDrawGroundOffset;
-
-				if ( bIsInterEdge )
+				if ( isTileBorder )
 				{
-					debugTileBorders.Add( new Line( v0, v1 ) );
+					debugTileBorders.Add( new Line( a, b ) );
 				}
 				else
 				{
-					debugInnerLines.Add( new Line( v0, v1 ) );
+					debugInnerLines.Add( new Line( a, b ) );
 				}
 			}
 		}
+
+		static bool OnSameLine( float a, float b, float line ) => MathF.Abs( a - line ) < 0.01f && MathF.Abs( b - line ) < 0.01f;
 	}
 }

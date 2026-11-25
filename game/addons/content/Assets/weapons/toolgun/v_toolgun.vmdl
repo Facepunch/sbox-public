@@ -1,0 +1,254 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "SkeletonFile"
+						filename = "weapons/toolgun/v_toolgun.fbx"
+						import_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_bonemarkuplist.vmdl_prefab"
+					},
+				]
+				bone_cull_type = "None"
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "v_toolgun_a.vmat"
+								to = "weapons/toolgun/materials/v_toolgun_a.vmat"
+							},
+							{
+								from = "v_toolgun_b.vmat"
+								to = "weapons/toolgun/materials/v_toolgun_b.vmat"
+							},
+							{
+								from = "v_toolgun_c.vmat"
+								to = "weapons/toolgun/materials/v_toolgun_c.vmat"
+							},
+							{
+								from = "v_toolgun_glass.vmat"
+								to = "weapons/toolgun/materials/v_toolgun_glass.vmat"
+							},
+							{
+								from = "v_toolgun_screen.vmat"
+								to = "weapons/toolgun/materials/v_toolgun_screen.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "weapons/toolgun/v_toolgun.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"Cube_031",
+								"toolgun",
+								"Text001",
+								"Cube_034",
+								"v_toolgun",
+								"v_toolgun_flakes",
+								"Object105",
+								"v_toolgun_flakes2",
+								"v_toolgun_flakes1",
+								"v_toolgun_flakes_1",
+								"v_toolgun_flakes_2",
+								"v_toolgun_flakes_3",
+								"v_toolgun_coil",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "AnimConstraintList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animconstraintlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_ikdata.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "WeightListList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_weightlistlist.vmdl_prefab"
+					},
+					{
+						_class = "WeightList"
+						name = "Only_ModeSelect"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "root"
+								weight = 0.0
+							},
+							{
+								bone = "switch"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_root"
+								weight = 0.0
+							},
+							{
+								bone = "weapon_root_children"
+								weight = 0.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+					{
+						_class = "WeightList"
+						name = "Only_Joystick"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "joystick"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+					{
+						_class = "WeightList"
+						name = "Only_Trigger"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "joystick"
+								weight = 0.0
+							},
+							{
+								bone = "trigger"
+								weight = 1.0
+							},
+							{
+								bone = "weapon_root"
+								weight = 0.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+					{
+						_class = "WeightList"
+						name = "Only_Coil"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "coil"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+				]
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = "weapon_root_children"
+						relative_origin = [ 19.0, 0.0, 5.35 ]
+						relative_angles = [ -0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

@@ -70,6 +70,7 @@ internal class ToolsDll : IToolsDll
 	public void Exiting()
 	{
 		EditorEvent.Run( "app.exit" );
+		EditorScene.SaveState();
 		EditorCookie?.Save();
 		ProjectCookie?.Save();
 	}
@@ -179,11 +180,11 @@ internal class ToolsDll : IToolsDll
 			{
 				EditorEvent.RegisterAssembly( assembly.Assembly );
 				ConVarSystem.AddAssembly( assembly.Assembly, $"editor.{assembly.Name.Replace( ".editor", "" )}" );
-				Sandbox.Mounting.Directory.AddAssembly( assembly.Assembly );
 			}
 
 			EditorTypeLibrary.AddAssembly( assembly.Assembly, true );
 			GameData.AddAssembly( assembly.Assembly );
+			Sandbox.Mounting.Directory.AddAssembly( assembly.Assembly, (assembly.Package as LocalPackage)?.Project?.FileSystem, exposeMountTypes: !assembly.IsEditorAssembly );
 
 			if ( !StartupLoadProject.IsLoading )
 			{
@@ -203,11 +204,11 @@ internal class ToolsDll : IToolsDll
 			{
 				EditorEvent.UnregisterAssembly( outgoing.Assembly );
 				ConVarSystem.RemoveAssembly( outgoing.Assembly );
-				Sandbox.Mounting.Directory.RemoveAssembly( outgoing.Assembly );
 			}
 
 			EditorTypeLibrary.RemoveAssembly( outgoing.Assembly );
 			GameData.RemoveAssembly( outgoing.Assembly );
+			Sandbox.Mounting.Directory.RemoveAssembly( outgoing.Assembly );
 			ManagedTools.AssembliesDirty = true;
 		};
 
@@ -379,12 +380,7 @@ internal class ToolsDll : IToolsDll
 		var asset = AssetSystem.FindByPath( filename );
 		if ( asset is null ) return null;
 
-		var thumb = await AssetThumbnail.GetAssetThumbAsync( asset );
-		if ( thumb is null ) return null;
-
-		// Sorry - we have no fast GetPixels
-		var pixels = thumb.GetPng();
-		return Bitmap.CreateFromBytes( pixels );
+		return await AssetThumbnail.GetThumbnailBitmapAsync( asset, filename );
 	}
 
 	/// <summary>

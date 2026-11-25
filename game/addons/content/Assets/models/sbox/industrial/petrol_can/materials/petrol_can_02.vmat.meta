@@ -1,0 +1,32 @@
+{
+  "tags": [
+    "ModelMaterial"
+  ],
+  "guid": "0df143e3-7c25-4817-8670-2e9a2eeedb71",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Petrol Can",
+      "Type": "material",
+      "Org": "local",
+      "OrgTitle": null,
+      "Ident": "petrol_can",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/petrol_can/materials/petrol_can_02.vmat",
+        "ParentPackage": "facepunch.sandbox"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -122,7 +122,9 @@ public static class EditorShortcuts
 
 		// widgets first, then work up to app-level
 		bool hasInvoked = false;
-		var groups = Entries.OrderBy( x => x.Attribute.Type ).GroupBy( x => x.TargetKey );
+		var groups = Entries.OrderBy( x => x.Attribute.Type )
+			.ThenByDescending( x => x.Attribute.Priority )
+			.GroupBy( x => (x.TargetKey, x.Attribute.Priority) );
 		foreach ( var group in groups )
 		{
 			bool justInvoked = false;

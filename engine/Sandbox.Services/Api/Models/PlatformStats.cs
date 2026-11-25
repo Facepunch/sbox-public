@@ -45,6 +45,9 @@ public class PlatformStatsBucket
 
 	public long UniqueUsers { get; set; }
 
+	/// <summary>Distinct accounts logging into the editor in this bucket, not concurrent editor users.</summary>
+	public long EditorLoginUsers { get; set; }
+
 	/// <summary>Users whose first recorded gameplay was in this bucket.</summary>
 	public long NewUsers { get; set; }
 	public long ReturningUsers { get; set; }

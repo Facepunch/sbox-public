@@ -112,7 +112,7 @@ internal partial class PainterBatcher
 		}
 		else
 		{
-			attributes.GrabFrameTexture( "FrameBufferCopyTexture", Graphics.DownsampleMethod.GaussianBlur, mips, out _backdropGrab );
+			attributes.GrabFrameTexture( "FrameBufferCopyTexture", Graphics.DownsampleMethod.GaussianBlur, mips, out _backdropGrab, engineOwned: true );
 			_backdropGrabMips = mips;
 		}
 		_commands.DrawQuad( data.Rect.Grow( 1 ), Material.UI.BackdropFilter, data.Filter.Tint.WithAlphaMultiplied( data.Opacity ), attributes );

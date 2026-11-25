@@ -6,6 +6,7 @@ public sealed partial class PlayerController
 	BoneCollection.Bone _firstPersonChest;
 	BoneCollection.Bone _firstPersonNeck;
 	bool _firstPersonShowArms;
+	bool[] _firstPersonUpperBody;
 	readonly Dictionary<ModelRenderer, FirstPersonBodyCopy> _firstPersonBodyCopies = new();
 	readonly Dictionary<ModelRenderer, FirstPersonBodyCopy> _firstPersonShadowCopies = new();
 	readonly HashSet<GameObject> _firstPersonHiddenAttachments = new();
@@ -24,6 +25,11 @@ public sealed partial class PlayerController
 			var bones = _firstPersonBodyModel.Bones;
 			_firstPersonChest = bones.GetBone( "spine_2" );
 			_firstPersonNeck = bones.GetBone( "neck_0" ) ?? bones.GetBone( "neck_1" ) ?? bones.GetBone( "head" );
+
+			// Walking every bone's parents with name compares each frame is slow, the answer only changes with the model
+			_firstPersonUpperBody = new bool[bones.AllBones.Count];
+			for ( int i = 0; i < _firstPersonUpperBody.Length; i++ )
+				_firstPersonUpperBody[i] = WalkFirstPersonUpperBody( bones.AllBones[i] );
 		}
 
 		return FirstPersonHiddenRoot is not null;
@@ -92,8 +98,7 @@ public sealed partial class PlayerController
 			target.Transform = source.Transform;
 			target.RenderingEnabled = source.RenderingEnabled;
 			target.MeshGroupMask = source.MeshGroupMask;
-			target.Tags.SetFrom( renderer.GameObject.Tags );
-			target.Tags.Remove( "viewer" );
+			copy.ApplyTags( renderer.GameObject.Tags, removeViewer: true, firstPerson: false );
 
 			// Materials matter for alpha-tested shadows (hair, cloth). No RenderOptions: they'd re-include the game layer.
 			var materialState = HashCode.Combine( renderer.MaterialOverride, renderer.MaterialGroup, renderer.MaterialOverrideVersion );
@@ -106,10 +111,10 @@ public sealed partial class PlayerController
 			if ( source is SceneModel sourceModel && target is SceneModel targetModel )
 			{
 				sourceModel.GetBoneWorldTransforms( copy.Bones );
-				for ( int i = 0; i < copy.Bones.Length; i++ )
-					targetModel.SetBoneWorldTransform( i, copy.Bones[i] );
+				targetModel.SetBoneWorldTransforms( copy.Bones );
 
-				for ( int i = 0; i < source.Model.MorphCount; i++ )
+				var morphs = source.Model.MorphCount;
+				for ( int i = 0; i < morphs; i++ )
 					targetModel.Morphs.Set( i, sourceModel.Morphs.Get( i ), 0 );
 			}
 
@@ -119,6 +124,14 @@ public sealed partial class PlayerController
 	}
 
 	bool IsFirstPersonUpperBodyBone( BoneCollection.Bone bone )
+	{
+		if ( bone is null ) return false;
+		if ( _firstPersonUpperBody is { } upper && bone.Index >= 0 && bone.Index < upper.Length && _firstPersonBodyModel.Bones.AllBones[bone.Index] == bone )
+			return upper[bone.Index];
+		return WalkFirstPersonUpperBody( bone );
+	}
+
+	bool WalkFirstPersonUpperBody( BoneCollection.Bone bone )
 	{
 		var root = FirstPersonHiddenRoot;
 		for ( ; bone is not null; bone = bone.Parent )
@@ -134,8 +147,11 @@ public sealed partial class PlayerController
 	void CollectFirstPersonHiddenAttachments()
 	{
 		_firstPersonHiddenAttachments.Clear();
-		foreach ( var bone in _firstPersonBodyModel.Bones.AllBones )
+		// Indexed, every frame in first person: foreach over the interface boxes an enumerator
+		var bones = _firstPersonBodyModel.Bones.AllBones;
+		for ( int i = 0; i < bones.Count; i++ )
 		{
+			var bone = bones[i];
 			if ( !IsFirstPersonUpperBodyBone( bone ) ) continue;
 			var go = Renderer.GetBoneObject( bone );
 			if ( go.IsValid() ) _firstPersonHiddenAttachments.Add( go );
@@ -250,11 +266,9 @@ public sealed partial class PlayerController
 			// Collapsing its parent transform isn't sufficient when copying world-space bones.
 			// ShadowsOnly renderers are shadow proxies, the original still casts, and the copy (which never casts) has nothing to show.
 			target.RenderingEnabled = source.RenderingEnabled && renderer.RenderType != ModelRenderer.ShadowRenderType.ShadowsOnly && !IsFirstPersonHiddenAttachment( renderer.GameObject );
-			target.Tags.SetFrom( renderer.GameObject.Tags );
 			// The copy is what the viewer sees, so it drops the viewer tag inherited from the hidden body.
 			// It's tagged "firstperson" like view models, so other cameras (mirrors, render targets) can exclude the headless copy.
-			if ( !HasGameViewerTag( renderer.GameObject, body ) ) target.Tags.Remove( "viewer" );
-			target.Tags.Add( "firstperson" );
+			copy.ApplyTags( renderer.GameObject.Tags, removeViewer: !HasGameViewerTag( renderer.GameObject, body ), firstPerson: true );
 			target.ColorTint = source.ColorTint;
 			target.MeshGroupMask = source.MeshGroupMask;
 
@@ -280,10 +294,12 @@ public sealed partial class PlayerController
 				{
 					var (bodyBone, hidden) = copy.BoneMap[i];
 					var bone = mergePreview && bodyBone >= 0 ? preview.Bones[bodyBone] : copy.Bones[i];
-					targetModel.SetBoneWorldTransform( i, hidden ? collapsed : bone );
+					copy.Pose[i] = hidden ? collapsed : bone;
 				}
+				targetModel.SetBoneWorldTransforms( copy.Pose );
 
-				for ( int i = 0; i < source.Model.MorphCount; i++ )
+				var morphs = source.Model.MorphCount;
+				for ( int i = 0; i < morphs; i++ )
 					targetModel.Morphs.Set( i, sourceModel.Morphs.Get( i ), 0 );
 			}
 
@@ -296,8 +312,30 @@ public sealed partial class PlayerController
 	{
 		public SceneObject Object { get; }
 		public Transform[] Bones { get; }
+		public Transform[] Pose { get; }
 		public (int Index, bool Hidden)[] BoneMap { get; }
 		public int? MaterialState { get; set; }
+
+		HashSet<uint> _appliedTags;
+		bool _appliedRemoveViewer;
+
+		/// <summary>
+		/// Copy the source renderer's tags, adjusted. Only when they changed: rewriting them every frame churns the scene object.
+		/// </summary>
+		public void ApplyTags( GameTags source, bool removeViewer, bool firstPerson )
+		{
+			var tokens = source.GetTokens();
+			if ( _appliedTags is not null && _appliedRemoveViewer == removeViewer && _appliedTags.SetEquals( tokens ) )
+				return;
+
+			Object.Tags.SetFrom( source );
+			if ( removeViewer ) Object.Tags.Remove( "viewer" );
+			if ( firstPerson ) Object.Tags.Add( "firstperson" );
+
+			(_appliedTags ??= new()).Clear();
+			_appliedTags.UnionWith( tokens );
+			_appliedRemoveViewer = removeViewer;
+		}
 
 		public FirstPersonBodyCopy( SceneObject source, SceneWorld world )
 		{
@@ -307,6 +345,7 @@ public sealed partial class PlayerController
 			Object.Flags.CastShadows = false;
 			Object.Component = source.Component;
 			Bones = new Transform[source.Model.BoneCount];
+			Pose = new Transform[Bones.Length];
 			BoneMap = new (int, bool)[Bones.Length];
 		}
 	}

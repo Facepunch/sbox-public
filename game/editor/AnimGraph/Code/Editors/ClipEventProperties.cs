@@ -152,6 +152,9 @@ internal sealed class ClipEventProperties : Widget
 			fields.Add( frames );
 		}
 
+		if ( _eventClass == ClipEventTypes.Generic )
+			fields.Add( serialized.GetProperty( nameof( ClipDocument.Event.FireDuringTransitions ) ) );
+
 		IControlSheet.FilterSortAndAdd( properties, fields );
 		body.Layout.AddStretchCell();
 		foreach ( var group in body.GetDescendants<ControlSheetGroup>() )

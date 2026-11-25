@@ -13,6 +13,11 @@ public static partial class EditorUtility
 		}
 
 		/// <summary>
+		/// Release a game mounted temporarily for an editor operation, preserving the project's mount settings.
+		/// </summary>
+		public static Task UnmountForSession( string name ) => Sandbox.Mounting.Directory.SetMountState( name, false );
+
+		/// <summary>
 		/// Look at the current project's config and mount any mounts.
 		/// Complain if a mount is missing.
 		/// </summary>

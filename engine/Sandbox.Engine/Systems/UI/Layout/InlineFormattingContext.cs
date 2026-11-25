@@ -169,6 +169,8 @@ internal sealed class InlineFormattingContext : IInlineContent, IDisposable
 
 		// Only text changes should reshape the paragraph and clear its selection.
 		var style = _panel.ComputedStyle;
+		hash.Add( style.FontVariationSettings );
+		hash.Add( style.FontOpticalSizing );
 		hash.Add( HashCode.Combine( style.FontFamily, style.FontSize, style.FontWeight, style.FontStyle,
 			style.FontVariantNumeric, style.FontColor, style.WhiteSpace, style.WordBreak ) );
 		hash.Add( HashCode.Combine( style.LetterSpacing, style.WordSpacing, style.LineHeight, style.FontSmooth,

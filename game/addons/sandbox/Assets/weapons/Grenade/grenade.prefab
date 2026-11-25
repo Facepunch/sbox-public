@@ -1,0 +1,375 @@
+{
+  "RootObject": {
+    "__guid": "0eaf45e1-44b7-44dd-8b4f-252eba51a334",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "grenade",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 1,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 1,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "HandGrenadeWeapon",
+        "__guid": "ab522638-2fd4-40a8-b165-36922f5ec630",
+        "__enabled": true,
+        "Flags": 0,
+        "AttackSound": {
+          "Id": "6e966a76-0733-4d01-a74f-7adb2c300347",
+          "Path": "weapons/m4a1/sounds/reload/gun_grab_foley.sound"
+        },
+        "AutoReload": true,
+        "Ballistics": {
+          "Damage": 12,
+          "Pellets": 1,
+          "Range": 4096,
+          "Radius": 1,
+          "Force": 3000,
+          "SpreadBase": "0.200000003,0.200000003",
+          "SpreadGrowth": "1.5,1.5",
+          "SpreadRecovery": 0.2
+        },
+        "CanCancelReload": false,
+        "ClipMaxSize": 17,
+        "DeploySound": null,
+        "DeployTime": 0.2,
+        "DisplayIcon": {
+          "$compiler": "texture",
+          "$source": "imagefile",
+          "data": {
+            "FilePath": "ui/weapons/grenade_icon.png",
+            "MaxSize": 4096,
+            "ConvertHeightToNormals": false,
+            "NormalScale": 1,
+            "Rotate": 0,
+            "FlipVertical": false,
+            "FlipHorizontal": false,
+            "Cropping": {
+              "Left": 0,
+              "Top": 0,
+              "Right": 0,
+              "Bottom": 0
+            },
+            "Padding": {
+              "Left": 0,
+              "Top": 0,
+              "Right": 0,
+              "Bottom": 0
+            },
+            "InvertColor": false,
+            "Tint": "1,1,1,1",
+            "Blur": 0,
+            "Sharpen": 0,
+            "Brightness": 1,
+            "Contrast": 1,
+            "Saturation": 1,
+            "Hue": 0,
+            "Colorize": false,
+            "TargetColor": "1,1,1,1",
+            "CacheToDisk": true,
+            "FormatOverride": "RGBA8888"
+          },
+          "compiled": "textures/generated/imagefile/6196736081797a0b.vtex"
+        },
+        "DisplayName": "#asset.grenade.title",
+        "DroppedGameObject": {
+          "_type": "gameobject",
+          "go": "00edf338-ad8d-4472-9725-250b57efbaba"
+        },
+        "DryFireSound": null,
+        "FirstShellReloadTime": 0,
+        "Force": 1,
+        "Handedness": "Both",
+        "HoldBone": "hold_r",
+        "HoldType": "throwable",
+        "IncrementalReloading": false,
+        "Lifetime": 3,
+        "MaxDamage": 125,
+        "Npc": {
+          "MinRange": 0,
+          "MaxRange": 1400,
+          "BurstMin": 2,
+          "BurstMax": 5,
+          "RestMin": 0.3,
+          "RestMax": 0.6,
+          "SpreadScale": 3,
+          "CanBePickedUp": true
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "PinPullSound": {
+          "Id": "0dfac9c7-46f5-4353-ae8b-6313ce207775",
+          "Path": "weapons/grenade/sounds/grenade_pin_pull.sound"
+        },
+        "Prefab": {
+          "_type": "gameobject",
+          "prefab": "weapons/grenade/thrown_grenade.prefab"
+        },
+        "PreferredSlot": 4,
+        "PrimaryAmmoType": {
+          "Id": "cbc79196-3af3-4e66-bcf9-7439d1fd2322",
+          "Path": "ammo/grenade.ammo"
+        },
+        "PrimaryAutomatic": true,
+        "PrimaryDelay": 0.1,
+        "Radius": 512,
+        "ReloadStartTime": 0,
+        "ReloadTime": 1.5,
+        "SecondaryAmmoType": null,
+        "SecondaryAutomatic": false,
+        "SecondaryClipSize": -1,
+        "SecondaryDefaultClip": -1,
+        "SecondaryDelay": 0.5,
+        "SecondaryInput": {
+          "Action": null
+        },
+        "ShootInput": {
+          "Action": null
+        },
+        "SlotOrder": 0,
+        "StartingAmmo": 5,
+        "ThrowPower": 1200,
+        "UsableByNpcs": true,
+        "UsesAmmo": true,
+        "UsesClips": false,
+        "Value": 2,
+        "ViewModelPrefab": {
+          "_type": "gameobject",
+          "prefab": "weapons/grenade/grenade_vm.prefab"
+        },
+        "WorldModelPrefab": {
+          "_type": "gameobject",
+          "prefab": "weapons/grenade/grenade_wm.prefab"
+        }
+      },
+      {
+        "__type": "Sandbox.ModelCollider",
+        "__guid": "1cff94b3-d53f-4e31-968e-7783caeb8d36",
+        "__enabled": true,
+        "Flags": 0,
+        "ColliderFlags": 0,
+        "Elasticity": null,
+        "Friction": null,
+        "IsTrigger": false,
+        "Model": {
+          "Id": "3851eb6c-6a52-47e5-9252-d1ee61814710",
+          "Path": "weapons/grenade/w_he_grenade.vmdl"
+        },
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OnObjectTriggerEnter": null,
+        "OnObjectTriggerExit": null,
+        "OnTriggerEnter": null,
+        "OnTriggerExit": null,
+        "RollingResistance": null,
+        "Static": false,
+        "Surface": null,
+        "SurfaceVelocity": "0,0,0"
+      },
+      {
+        "__type": "Sandbox.Rigidbody",
+        "__guid": "05fe281b-17e8-464d-b061-c362b6bf4352",
+        "__enabled": true,
+        "Flags": 0,
+        "AngularDamping": 0,
+        "EnableImpactDamage": true,
+        "EnhancedCcd": false,
+        "Gravity": true,
+        "GravityScale": 1,
+        "ImpactDamage": 0,
+        "InertiaScale": 1,
+        "LinearDamping": 0,
+        "Locking": {
+          "X": false,
+          "Y": false,
+          "Z": false,
+          "Pitch": false,
+          "Yaw": false,
+          "Roll": false
+        },
+        "MassCenterOverride": "0,0,0",
+        "MassOverride": 0,
+        "MinImpactDamageSpeed": 500,
+        "MotionEnabled": true,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "OverrideMassCenter": false,
+        "RigidbodyFlags": 0,
+        "SleepThreshold": 2,
+        "StartAsleep": false
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "00edf338-ad8d-4472-9725-250b57efbaba",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "standalone_wm",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.BaseWeaponModel",
+            "__guid": "3dd2497e-bb05-416d-81fe-0c469d0ff591",
+            "__enabled": true,
+            "Flags": 0,
+            "DeploySound": null,
+            "EjectBrass": null,
+            "MuzzleEffect": null,
+            "MuzzleGameObject": null,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Renderer": {
+              "_type": "component",
+              "component_id": "836c4b2b-6b6c-4409-adc1-909a6fbfe8ba",
+              "go": "00edf338-ad8d-4472-9725-250b57efbaba",
+              "component_type": "SkinnedModelRenderer"
+            },
+            "ShellEjectGameObject": null,
+            "TracerEffect": null
+          },
+          {
+            "__type": "Sandbox.SkinnedModelRenderer",
+            "__guid": "836c4b2b-6b6c-4409-adc1-909a6fbfe8ba",
+            "__enabled": true,
+            "Flags": 0,
+            "AnimationGraph": null,
+            "BodyGroups": 9513,
+            "BoneMergeTarget": null,
+            "CreateAttachments": true,
+            "CreateBoneObjects": false,
+            "DeformationMode": "Normal",
+            "LodOverride": null,
+            "MaterialGroup": null,
+            "MaterialOverride": null,
+            "Materials": null,
+            "Model": {
+              "Id": "3851eb6c-6a52-47e5-9252-d1ee61814710",
+              "Path": "weapons/grenade/w_he_grenade.vmdl"
+            },
+            "Morphs": {},
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parameters": {},
+            "PlaybackRate": 1,
+            "RenderOptions": {
+              "GameLayer": true,
+              "OverlayLayer": false,
+              "BloomLayer": false,
+              "AfterUILayer": false
+            },
+            "RenderType": "On",
+            "Sequence": {
+              "Name": null,
+              "Looping": true,
+              "Blending": false
+            },
+            "Tint": "1,1,1,1",
+            "UseAnimGraph": false
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "987bbaa5-7d5c-4b3d-9ae6-fa9eed09c201",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Thumbnail Camera",
+        "Position": "27.552749,51.819184,12.474701",
+        "Rotation": "0.000708,-0.201048,0.830172,-0.519994",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "ThumbnailCamera",
+            "__guid": "1d4c3f4d-c6e8-4f4e-986a-1dab8a7ba3cf",
+            "__enabled": true,
+            "Flags": 0,
+            "FieldOfView": 12,
+            "FitToBounds": true,
+            "GizmoDistance": 60,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Focus": "0,0",
+            "Padding": 0.08,
+            "Zoom": 1.3
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

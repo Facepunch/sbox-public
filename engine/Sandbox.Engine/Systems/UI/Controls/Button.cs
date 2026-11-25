@@ -396,6 +396,9 @@ public class Button : Panel, INavigationEvent
 	protected override int BuildHash() => HashCode.Combine( HoverMenu, HasHovered );
 	protected override string GetRenderTreeChecksum() => $"{BuildHash()}";
 
+	// Asked every tick, and the checksum formats a string
+	internal override bool HasRenderTree => true;
+
 	void INavigationEvent.OnNavigated( string url )
 	{
 		UpdateActiveState();

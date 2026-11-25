@@ -303,6 +303,29 @@ public class PanelEventDispatchTest
 		Assert.AreEqual( 1, p.VetoCount );
 		Assert.IsFalse( rootSawEvent );
 	}
+
+	/// <summary>
+	/// Setting up events looks at every method of the panel type, but only [PanelEvent] methods allocate listeners.
+	/// </summary>
+	[TestMethod]
+	public void InitializeEventsWithoutEventMethodsDoesNotAllocate()
+	{
+		var p = new ReinitEventsPanel();
+		p.Reinit();
+
+		var before = System.GC.GetAllocatedBytesForCurrentThread();
+		p.Reinit();
+
+		Assert.AreEqual( 0L, System.GC.GetAllocatedBytesForCurrentThread() - before );
+	}
+}
+
+/// <summary>
+/// A panel without [PanelEvent] methods that can re-run its event setup.
+/// </summary>
+public class ReinitEventsPanel : Panel
+{
+	public void Reinit() => InitializeEvents();
 }
 
 /// <summary>

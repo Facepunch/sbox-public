@@ -443,7 +443,7 @@ public unsafe struct Curve
 			if ( reader.TokenType == JsonTokenType.StartArray )
 			{
 				Curve c = new Curve();
-				var keys = JsonSerializer.Deserialize<ImmutableList<Frame>>( ref reader, options );
+				var keys = JsonSerializer.Deserialize<ImmutableArray<Frame>>( ref reader, options );
 				c = c.WithFrames( keys );
 				c.Fix();
 				return c;
@@ -476,7 +476,7 @@ public unsafe struct Curve
 						{
 							if ( reader.TokenType == JsonTokenType.StartArray )
 							{
-								var keys = JsonSerializer.Deserialize<ImmutableList<Frame>>( ref reader, options );
+								var keys = JsonSerializer.Deserialize<ImmutableArray<Frame>>( ref reader, options );
 								c = c.WithFrames( keys );
 							}
 						}

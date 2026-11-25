@@ -22,6 +22,7 @@
         "SingleAssetSource": "materials/sbox/floor/wooden_flooring_c.vmat",
         "AssetLicense": "CC0"
       }
-    }
+    },
+    "HammerAutoPackageReferences": null
   }
 }

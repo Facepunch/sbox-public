@@ -1,0 +1,480 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "sofa_body.vmat"
+								to = "models/sbox/home/sofa/materials/sofa.vmat"
+							},
+							{
+								from = "sofa_cushions.vmat"
+								to = "models/sbox/home/sofa/materials/sofa_cushions.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "models/sbox/home/sofa/materials/sofa.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -15.686917, 1.315235, 16.0611 ]
+						angles = [ -0.0, 90.0, 0.0 ]
+						dimensions = [ 62.333725, 6.577812, 27.524084 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -1.830569, 0.628421, 6.548784 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 73.981873, 39.733482, 8.774676 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -14.115486, 34.236275, 0.890169 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 4.355644, 4.024633, 2.749779 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -13.976204, -33.073009, 0.890169 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 4.355644, 4.024633, 2.749779 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 18.603939, -33.178337, 0.890169 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 4.355644, 4.024633, 2.749779 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 18.430347, 34.216469, 0.890169 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 4.355644, 4.024633, 2.749779 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 2.470314, -33.617428, 15.896318 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 5.448171, 41.600784, 27.194515 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 2.377026, 34.707352, 15.744204 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 5.448171, 41.600784, 26.890285 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 8.483202, 28.976919, 22.340883 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 5.042629, 22.138897, 8.781863 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 9.000277, -28.336941, 22.340883 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 5.042629, 22.138897, 8.781863 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ 10.185826, 0.725084, 14.13497 ]
+						angles = [ 0.0, 90.0, 0.0 ]
+						dimensions = [ 62.258316, 29.07719, 8.580669 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "fabric"
+						collision_tags = "solid"
+						origin = [ -9.467161, 0.316808, 17.631615 ]
+						angles = [ -0.0, 90.0, 5.25294 ]
+						dimensions = [ 62.333725, 9.378141, 27.524084 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "lod0"
+						filename = "models/sbox/home/sofa/sofa.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"couch_body_lod0",
+								"left_back_cushion_lod0",
+								"left_side_cushion_lod0",
+								"right_back_cushion_lod0",
+								"right_side_cushion_lod0",
+								"seat_left_cushion_lod0",
+								"seat_right_cushion_lod0",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod1"
+						filename = "models/sbox/home/sofa/sofa.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"couch_body_lod1",
+								"left_back_cushion_lod1",
+								"left_side_cushion_lod1",
+								"right_back_cushion_lod1",
+								"right_side_cushion_lod1",
+								"seat_left_cushion_lod1",
+								"seat_right_cushion_lod1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod2"
+						filename = "models/sbox/home/sofa/sofa.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"couch_body_lod2",
+								"left_back_cushion_lod2",
+								"left_side_cushion_lod2",
+								"right_back_cushion_lod2",
+								"right_side_cushion_lod2",
+								"seat_left_cushion_lod2",
+								"seat_right_cushion_lod2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "lod3"
+						filename = "models/sbox/home/sofa/sofa.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"couch_body_lod3",
+								"left_back_cushion_lod3",
+								"left_side_cushion_lod3",
+								"right_back_cushion_lod3",
+								"right_side_cushion_lod3",
+								"seat_left_cushion_lod3",
+								"seat_right_cushion_lod3",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"lod0",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 12.678588
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"lod1",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 145.220108
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"lod2",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 294.52533
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"lod3",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children = 
+				[
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/sofa/gibs/side_cushion_right.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/sofa/gibs/side_cushion_left.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/sofa/gibs/seat_right.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/sofa/gibs/seat_left.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/sofa/gibs/sofa_body.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/sofa/gibs/back_cushion_right.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/sofa/gibs/back_cushion_left.vmdl"
+					},
+				]
+			},
+			{
+				_class = "GameDataList"
+				children = 
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys = 
+						{
+							bakelighting = true
+							health = 100.0
+							min_impact_damage_speed = 400.0
+							impact_damage = 25.0
+							flammable = false
+							explosive = false
+							explosive_damage = -1.0
+							explosive_radius = -1.0
+							explosive_force = -1.0
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 121.0002
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = "prop_physics"
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

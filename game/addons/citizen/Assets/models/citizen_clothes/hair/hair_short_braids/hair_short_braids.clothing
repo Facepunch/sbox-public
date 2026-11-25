@@ -44,7 +44,7 @@
   "TintDefault": 0.8,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_short_braids/hair_short_braids.clothing.png",
+    "Path": "models/citizen_clothes/hair/hair_short_braids/hair_short_braids.clothing.vtex",
     "Mode": "Eyes",
     "UsePositionOffset": false,
     "PositionOffset": "-12.8000002,0,-0.1000003"

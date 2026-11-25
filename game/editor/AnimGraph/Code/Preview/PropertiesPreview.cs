@@ -12,6 +12,11 @@ internal sealed class PropertiesPreview : PreviewSceneWidget
 
 	public Nodes.AnimationPoseNode Pose { get; set; }
 	public Data Graph { get; set; }
+	public float PlaybackRate
+	{
+		get => _clip.PlaybackRate;
+		set => _clip.PlaybackRate = value;
+	}
 
 	public PropertiesPreview( Widget parent, Data graph ) : base( parent, "Properties Preview" )
 	{

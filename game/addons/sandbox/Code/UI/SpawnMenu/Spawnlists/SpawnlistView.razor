@@ -1,0 +1,302 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace Sandbox
+
+@{
+    var data = GetData();
+    var workshopId = Entry?.GetMeta( "_workshopId", 0ul ) ?? 0;
+    var isPublished = workshopId > 0;
+    var isInstalled = Entry?.Files.IsReadOnly == true;
+    var items = VisibleItems( data );
+}
+
+<SpawnMenuContent>
+    <Header>
+        <div class="spawnlist-header @( Resource is null ? "has-identity" : "" )">
+			<SpawnMenuToolbar>
+				<Left>
+					@if ( Resource is null ) // workshop or local spawnlists show what they are, the built-in ones can be searched
+					{
+						<div class="spawnlist-identity">
+							<div class="title-row">
+								<IconPanel class="identity-icon" Text="collections_bookmark" />
+								<Label class="spawnlist-name" Tokenize=@false Text=@data.Name />
+							</div>
+							<div class="meta">
+								<span><IconPanel Text="widgets" /> @SpawnlistData.ItemCountText(data.Items.Count(item => item.IsContent))</span>
+								<span><IconPanel Text="@( isInstalled ? "cloud_done" : isPublished ? "public" : "lock" )" /> @Game.Language.GetPhrase(isInstalled ? "spawnmenu.spawnlist.installed" : isPublished ? "spawnmenu.spawnlist.published" : "spawnmenu.spawnlist.local")</span>
+							</div>
+						</div>
+					}
+					else
+					{
+						<TextEntry Placeholder="#spawnmenu.common.search" class="filter menu-input" Value:bind=@Filter />
+					}
+				</Left>
+				<Right>
+					<UIButton Icon=@IconSize.Icon() Tooltip="#ui.icon_size.title" @onclick=@(() => SpawnMenuIconSizeExtensions.OpenMenu( this, size => SpawnMenuIconSizeExtensions.Current = size )) />
+					@if (Entry is not null)
+					{
+						@if (isPublished)
+						{
+							<UIButton Icon="link" Tooltip="#spawnmenu.spawnlist.copy_url" @onclick=@( () => Clipboard.SetText( $"https://steamcommunity.com/sharedfiles/filedetails/?id={workshopId}" ) ) />
+							@if (!Entry.Files.IsReadOnly)
+							{
+								<UIButton Icon="sync" Tooltip="#spawnmenu.spawnlist.sync" @onclick=@OnPublish />
+							}
+						}
+						else if (!Entry.Files.IsReadOnly)
+						{
+							<UIButton Icon="cloud_upload" Text="#spawnmenu.spawnlist.publish" Tooltip="#spawnmenu.spawnlist.publish" @onclick=@OnPublish />
+						}
+						@if (!Entry.Files.IsReadOnly)
+						{
+							@if (_editMode && CanRename)
+							{
+								<UIButton Icon="text_fields" Text="#spawnmenu.spawnlist.rename" @onclick=@OnRename />
+							}
+							<UIButton Icon="edit" Tooltip="#spawnmenu.spawnlist.edit" Active=@_editMode @onclick=@ToggleEditMode />
+							<UIButton Icon="delete" Tooltip="#spawnmenu.spawnlist.delete" @onclick=@OnDelete />
+						}
+						else
+						{
+							<UIButton Icon="delete" Tooltip="#spawnmenu.spawnlist.remove" @onclick=@OnUninstall />
+						}
+					}
+				</Right>
+			</SpawnMenuToolbar>
+
+            @if ( _editMode )
+            {
+                <div class="edit-bar">
+                    <div class="edit-instructions">
+                        <label>@Game.Language.GetPhrase( "spawnmenu.spawnlist.edit_instructions" )</label>
+                    </div>
+                    <div class="edit-actions">
+                        <UIButton Icon="horizontal_rule" Text="#spawnmenu.spawnlist.add_divider" @onclick=@AddDivider />
+                        <UIButton Icon="label" Text="#spawnmenu.spawnlist.add_title" @onclick=@AddTitle />
+                    </div>
+                </div>
+            }
+        </div>
+    </Header>
+
+    <Body>
+        @if ( data.Items.Count == 0 )
+        {
+            <SpawnMenuEmptyState Icon="format_list_bulleted" Title="#spawnmenu.spawnlist.empty_title" Subtitle="#spawnmenu.spawnlist.empty_instructions" />
+        }
+        else if ( items.Count == 0 )
+        {
+            <SpawnMenuEmptyState Icon="search_off" />
+        }
+        else
+        {
+            <MixedVirtualGrid @ref=Grid class="@IconSize.CssClass() @( _editMode ? "editing" : "" )" Items=@items ItemSize=@IconSize.ItemSize() CanAcceptDrop=@CanAcceptDrop OnDropIndex=@OnDropIndex>
+                <Item Context="item">
+                    @if ( item is SpawnlistItem spawnItem )
+                    {
+                        @if ( spawnItem.IsContent )
+                        {
+                            <SpawnMenuIcon Ident="@spawnItem.Ident" Title="@spawnItem.Title" Icon="@spawnItem.Icon" SpawnlistItemId=@spawnItem.Id HideText=@(IconSize == SpawnMenuIconSize.Small) Tooltip=@(IconSize == SpawnMenuIconSize.Small ? spawnItem.Title : "") />
+                        }
+                        else
+                        {
+                            <SpawnlistLayoutItem Item=@spawnItem OnRename=@RenameItem OnRemove=@RemoveItem />
+                        }
+                    }
+                </Item>
+            </MixedVirtualGrid>
+        }
+    </Body>
+</SpawnMenuContent>
+
+@code
+{
+    /// <summary>
+    /// A player's spawnlist, local or installed from the workshop.
+    /// </summary>
+    public Storage.Entry Entry { get; set; }
+
+    /// <summary>
+    /// An authored spawnlist that ships with the game. Always read-only.
+    /// </summary>
+    public SpawnlistResource Resource { get; set; }
+
+    SpawnlistData _cachedData;
+    RealTimeSince _lastRefresh;
+    bool _editMode;
+    MixedVirtualGrid Grid;
+
+    /// <summary>
+    /// Search text, only the built-in lists have a box for it since editing can't reorder a filtered list.
+    /// </summary>
+    string Filter { get; set; }
+
+    SpawnMenuIconSize IconSize => SpawnMenuIconSizeExtensions.Current;
+    SpawnMenuIconSize _lastIconSize = SpawnMenuIconSizeExtensions.Current;
+
+    IReadOnlyList<SpawnlistItem> VisibleItems( SpawnlistData data )
+    {
+        if ( string.IsNullOrWhiteSpace( Filter ) ) return data.Items;
+
+        return data.Items.Where( item => item.IsContent && ((item.Title?.Contains( Filter, StringComparison.CurrentCultureIgnoreCase ) ?? false)
+            || item.Ident.Contains( Filter, StringComparison.OrdinalIgnoreCase )) ).ToList();
+    }
+
+    public bool CanReorder => _editMode && Entry?.Files.IsReadOnly == false;
+
+    bool CanRename => Entry?.Files.IsReadOnly == false && Entry.GetMeta( "_workshopId", 0ul ) == 0;
+
+    SpawnlistData LoadData() => Resource?.ToData() ?? SpawnlistData.Load( Entry );
+
+    SpawnlistData GetData()
+    {
+        if ( _cachedData == null )
+        {
+            _cachedData = LoadData();
+            _lastRefresh = 0;
+        }
+
+        return _cachedData;
+    }
+
+    public void RefreshCache()
+    {
+        _cachedData = LoadData();
+        _lastRefresh = 0;
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // picked here or in another list, the tiles' text depends on the size
+        if ( _lastIconSize != IconSize )
+        {
+            _lastIconSize = IconSize;
+            if ( Grid.IsValid() ) Grid.RecreateCells();
+        }
+
+        // Periodically check for changes from other tabs
+        if ( _lastRefresh > 1f )
+        {
+            var fresh = LoadData();
+            if ( fresh.Name != _cachedData?.Name || !ItemsMatch( fresh.Items, _cachedData?.Items, Entry?.Files.IsReadOnly == false ) )
+            {
+                _cachedData = fresh;
+                StateHasChanged();
+            }
+            _lastRefresh = 0;
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( _cachedData?.Items?.Count, _cachedData?.Name, _editMode, CanRename, Filter, IconSize );
+
+    void OnRename()
+    {
+        if ( !_editMode || !CanRename ) return;
+
+        UIModal.Prompt( this, "#spawnmenu.spawnlist.rename_title", GetData().Name, RenameSpawnlist,
+            placeholder: "#spawnmenu.spawnlist.name_placeholder", confirmText: "#spawnmenu.spawnlist.rename_button" );
+    }
+
+    void RenameSpawnlist( string name )
+    {
+        if ( !CanRename ) return;
+
+        SpawnlistData.Rename( Entry, name );
+        RefreshCache();
+        Ancestors.OfType<SpawnlistsPage>().FirstOrDefault()?.RefreshList();
+    }
+
+    void ToggleEditMode()
+    {
+        if ( Entry?.Files.IsReadOnly != false ) return;
+        _editMode = !_editMode;
+    }
+
+    void AddTitle()
+    {
+        SpawnlistData.AddMarker( Entry, SpawnlistItemKind.Title, Game.Language.GetPhrase( "spawnmenu.spawnlist.new_section" ) );
+        RefreshCache();
+    }
+
+    void AddDivider()
+    {
+        SpawnlistData.AddMarker( Entry, SpawnlistItemKind.Divider );
+        RefreshCache();
+    }
+
+    public bool CanAcceptDrop( PanelEvent e )
+    {
+        if ( !CanReorder ) return false;
+        var drag = DragHandler.Current ?? e?.Target?.UserData as DragData;
+        return drag is not null && drag.SpawnlistItemId != Guid.Empty;
+    }
+
+    void OnDropIndex( int index, PanelEvent e )
+    {
+        var drag = DragHandler.Current ?? e.Target?.UserData as DragData;
+        if ( drag is null || drag.SpawnlistItemId == Guid.Empty ) return;
+
+        drag.Handled = true;
+        if ( drag.Source is not null ) drag.Source.UserData = null;
+        SpawnlistData.MoveItem( Entry, drag.SpawnlistItemId, index );
+        RefreshCache();
+    }
+
+    void RenameItem( Guid id, string title )
+    {
+        title = title?.Trim() ?? "";
+        SpawnlistData.RenameItem( Entry, id, title );
+        var item = _cachedData?.Items.FirstOrDefault( item => item.Id == id );
+        if ( item is not null ) item.Title = title;
+        StateHasChanged();
+    }
+
+    static bool ItemsMatch( IReadOnlyList<SpawnlistItem> left, IReadOnlyList<SpawnlistItem> right, bool compareIds )
+    {
+        if ( left is null || right is null ) return left == right;
+        if ( left.Count != right.Count ) return false;
+
+        for ( var i = 0; i < left.Count; i++ )
+        {
+            var a = left[i];
+            var b = right[i];
+            if ( (compareIds && a.Id != b.Id) || a.Kind != b.Kind || a.Ident != b.Ident || a.Title != b.Title || a.Icon != b.Icon )
+                return false;
+        }
+
+        return true;
+    }
+
+    void RemoveItem( Guid id )
+    {
+        SpawnlistData.RemoveItem( Entry, id );
+        RefreshCache();
+    }
+
+    void OnPublish()
+    {
+        if ( Entry is null ) return;
+        SpawnlistData.Publish( Entry );
+    }
+
+    void OnDelete()
+    {
+        if ( Entry is null ) return;
+        var page = Ancestors.OfType<SpawnlistsPage>().FirstOrDefault();
+        page?.Collection.Delete( Entry );
+    }
+
+    void OnUninstall()
+    {
+        if ( Entry is null ) return;
+        var workshopId = Entry.GetMeta( "_workshopId", 0ul );
+        var page = Ancestors.OfType<SpawnlistsPage>().FirstOrDefault();
+        page?.Collection.Uninstall( workshopId );
+    }
+}

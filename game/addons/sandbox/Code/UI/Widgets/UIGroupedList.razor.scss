@@ -1,0 +1,19 @@
+@import "/UI/Theme.scss";
+@import "/UI/Theme/GroupedSidebar.scss";
+
+@mixin component-theme
+{
+	UIGroupedList
+	{
+		@include ui-grouped-sidebar;
+	}
+
+	UIGroupedList SpawnMenuEmptyState
+	{
+		height: auto;
+		padding: 16px 4px;
+		.iconpanel { width: 24px; height: 24px; font-size: 22px; }
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

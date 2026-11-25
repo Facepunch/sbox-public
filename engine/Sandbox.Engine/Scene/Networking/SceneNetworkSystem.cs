@@ -157,6 +157,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private void SendNetworkSpawnBatch()
 	{
+		// Late joiners get the current scene snapshot, not these transient spawn messages.
+		if ( BatchSpawnList.Count == 0 || !HasBroadcastRecipients() )
+		{
+			BatchSpawnList.Clear();
+			return;
+		}
+
 		// If we only have one, just send a normal message.
 		if ( BatchSpawnList.Count == 1 )
 		{
@@ -216,7 +223,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal void NetworkSpawnBroadcast( NetworkObject networkObject )
 	{
 		// We're not supposed to send spawn messages right now.
-		if ( IsSuppressingSpawnMessages )
+		if ( IsSuppressingSpawnMessages || !HasBroadcastRecipients() )
 			return;
 
 		if ( IsBatchNetworkSpawning )
@@ -267,6 +274,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
 	{
+		if ( !connection.IsHost )
+			return;
+
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
 		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, connection );
 
@@ -335,6 +345,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	private async Task OnLoadSceneMsg( LoadSceneBeginMsg msg, Connection connection, Guid msgId )
 	{
+		if ( !connection.IsHost )
+			return;
+
 		// Always show the loading screen on clients when the host changes scene,
 		// so they see feedback immediately instead of a frozen frame.
 		if ( !Game.IsEditor )
@@ -407,6 +420,32 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	private static readonly GameObject.SerializeOptions _snapshotSerializeOptions = new() { SceneForNetwork = true, SkipNulls = true };
 	private static readonly GameObject.SerializeOptions _handoffSerializeOptions = new() { SceneForNetwork = true, SkipNulls = true, IncludeLocalObjects = true };
+
+	static bool _snapshotWarmed;
+
+	/// <summary>
+	/// The first snapshot a host takes JITs the scene serialization path and fills its reflection caches: ~230 ms with
+	/// a few thousand objects, on the frame the first player joins. Take one that's thrown away while the first scene loads instead.
+	/// </summary>
+	internal void WarmSnapshot()
+	{
+		if ( _snapshotWarmed ) return;
+
+		var scene = Game.ActiveScene;
+		if ( !scene.IsValid() ) return;
+
+		_snapshotWarmed = true;
+
+		try
+		{
+			using var blobs = BlobDataSerializer.Capture();
+			scene.Serialize( _snapshotSerializeOptions ).ToJsonString();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't serialize the scene for network snapshots: {e.Message}" );
+		}
+	}
 
 	/// <summary>
 	/// A client has joined and wants a snapshot of the world.
@@ -580,7 +619,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 					continue;
 				}
 
-				if ( !Package.TryParseIdent( map, out var parts ) )
+				if ( !Package.TryParseIdentParts( map, out var parts ) )
 					continue;
 
 				var package = await Package.Fetch( map, false );
@@ -1574,7 +1613,7 @@ struct ObjectDestroyDescendantMsg
 [Expose]
 struct ObjectRefreshDescendantMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1589,7 +1628,7 @@ struct ObjectRefreshDescendantMsg
 [Expose]
 struct ObjectRefreshComponentMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1604,7 +1643,7 @@ struct ObjectRefreshComponentMsg
 [Expose]
 struct ObjectRefreshMsg
 {
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
@@ -1654,7 +1693,7 @@ struct ObjectCreateBatchMsg
 struct ObjectCreateMsg
 {
 	public ushort SnapshotVersion { get; set; }
-	public string JsonData { get; set; }
+	public byte[] JsonData { get; set; }
 	public byte[] BlobData { get; set; }
 	public Transform Transform { get; set; }
 	public Guid Guid { get; set; }

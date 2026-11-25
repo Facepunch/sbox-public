@@ -26,6 +26,11 @@
 			bool HasUnsavedChanges { get; set; }
 
 			/// <summary>
+			/// Marks generated references for saving during a compile without recording an authored edit.
+			/// </summary>
+			void MarkBakeReferencesChanged() => HasUnsavedChanges = true;
+
+			/// <summary>
 			/// Selection system for this session
 			/// </summary>
 			SelectionSystem Selection { get; }

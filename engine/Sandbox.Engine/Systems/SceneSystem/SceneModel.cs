@@ -83,6 +83,21 @@ public sealed partial class SceneModel : SceneObject
 	}
 
 	/// <summary>
+	/// Set the world space transforms of the first <c>bones.Length</c> bones, indexed by bone index, in a single interop
+	/// call. Bones past the model's bone count are ignored.
+	/// </summary>
+	internal unsafe void SetBoneWorldTransforms( ReadOnlySpan<Transform> bones )
+	{
+		if ( animNative.IsNull || bones.IsEmpty )
+			return;
+
+		fixed ( Transform* p = bones )
+			animNative.SetWorldSpaceRenderBoneTransforms( bones.Length, (IntPtr)p );
+
+		NotifyChanged( Rendering.SceneObjectChange.Bones );
+	}
+
+	/// <summary>
 	/// Returns the world space transform of a bone by its index.
 	/// </summary>
 	/// <param name="boneIndex">Index of the bone to calculate transform of.</param>

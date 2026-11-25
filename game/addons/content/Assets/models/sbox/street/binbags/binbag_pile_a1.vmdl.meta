@@ -1,0 +1,23 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Binbag Pile a1",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "binbag_pile_a1",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/binbags/binbag_pile_a1.vmdl",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "355c5909-01ca-4ca7-a29c-a561a85ee7bd"
+}

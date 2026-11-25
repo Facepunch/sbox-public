@@ -1184,12 +1184,33 @@ public class ManagedContentBuild : ContentBuildScenarios
 	{
 		// The graph names its model, but that's a reference: it compiles without it
 		using var fx = new ContentFixture();
-		fx.CopyShipped( $"{Sources.BonnetFolder}/easter_bonnet_anim.vanmgrph", "models/bonnet.vanmgrph" );
+		fx.Write( "models/idle.vanmgrph", """
+			<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+			{
+				_class = "CAnimationGraph"
+				m_previewModels = [ "models/preview.vmdl" ]
+				m_nodeManager = {
+					_class = "CAnimNodeManager"
+					m_nodes = [
+						{ key = { m_id = 1 } value = {
+							_class = "CRootAnimNode"
+							m_nNodeID = { m_id = 1 }
+							m_inputConnection = { m_nodeID = { m_id = 2 } m_outputID = { m_id = 4294967295 } }
+						} },
+						{ key = { m_id = 2 } value = {
+							_class = "CSequenceAnimNode"
+							m_nNodeID = { m_id = 2 }
+							m_sequenceName = "idle"
+						} }
+					]
+				}
+			}
+			""" );
 
 		var run = fx.Build( Builder );
 
 		AssertSucceeded( run );
-		CollectionAssert.AreEqual( new[] { "models/bonnet.vanmgrph_c" }, run.Written, run.ToString() );
+		CollectionAssert.AreEqual( new[] { "models/idle.vanmgrph_c" }, run.Written, run.ToString() );
 		Assert.AreEqual( 0, fx.Build( Builder ).Result.Jobs.Count );
 	}
 

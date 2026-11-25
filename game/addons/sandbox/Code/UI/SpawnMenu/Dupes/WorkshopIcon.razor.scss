@@ -1,0 +1,11 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+    WorkshopIcon
+    {
+        @include ui-dupe-card;
+    }
+}
+
+@import "/UI/Theme/Apply.scss";

@@ -1,0 +1,42 @@
+{
+  "UI": false,
+  "Volume": "0.5 1",
+  "Pitch": "0.7 1.3",
+  "Decibels": 70,
+  "SelectionMode": "Random",
+  "Sounds": [
+    "weapons/common/effects/shell_case_bounce.vsnd",
+    "weapons/common/effects/shell_case_bounce2.vsnd"
+  ],
+  "Occlusion": true,
+  "AirAbsorption": true,
+  "Transmission": true,
+  "OcclusionRadius": 3,
+  "DistanceAttenuation": true,
+  "Distance": 500,
+  "Falloff": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.13190185,
+      "y": 0.67287236,
+      "in": 2.0624993,
+      "out": -2.0624993,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    }
+  ],
+  "__references": [],
+  "__version": 1
+}

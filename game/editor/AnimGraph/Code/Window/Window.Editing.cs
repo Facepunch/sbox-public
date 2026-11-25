@@ -351,6 +351,17 @@ public partial class Window
 		}
 	}
 
+	internal bool StartNodeRename( Node node )
+	{
+		_properties.Target = node;
+		DockManager.OpenDock( "Properties", DockArea.Right );
+		return _properties.StartRename();
+	}
+
+	internal GraphChangeScope GetPropertyChangeScope( SerializedProperty property ) =>
+		_properties.Target is Node && property?.Name == nameof( Node.Title )
+			? GraphChangeScope.EditorOnly : GraphChangeScope.Runtime;
+
 	private void OnPropertyUpdated( SerializedProperty property )
 	{
 		_parameterReferences = null;
@@ -384,7 +395,7 @@ public partial class Window
 		if ( target is StateMachineNode.State state && state == _selectedState
 			&& _selectedStateMachine is { } machine && _selectedStateName != state.Name )
 		{
-			machine.RenameState( _selectedStateName, state.Name );
+			machine.RenameState( _selectedStateName, state );
 			_selectedStateName = state.Name;
 		}
 
@@ -417,6 +428,9 @@ public partial class Window
 		// Dragging a value fires this every frame - the preview compiles once the edit finishes,
 		// on the same signal that pushes the undo entry
 		MarkDirty( updatePreview: false );
-		_previewCompileStale = true;
+		if ( GetPropertyChangeScope( property ) == GraphChangeScope.Runtime )
+			_previewCompileStale = true;
+		else
+			RebuildBreadcrumb();
 	}
 }

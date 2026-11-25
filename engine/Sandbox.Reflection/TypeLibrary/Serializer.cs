@@ -94,6 +94,11 @@ public partial class TypeLibrary
 				var packerType = typeof( SerializerPacker<,> ).MakeGenericType( type, GetSerializerReadType( type ) );
 				return (BytePack.Packer)Activator.CreateInstance( packerType, new object[] { t } );
 			}
+			else if ( StructPacker.CanPack( type ) )
+			{
+				var packerType = typeof( StructPacker<> ).MakeGenericType( type );
+				return (BytePack.Packer)Activator.CreateInstance( packerType, new object[] { t } );
+			}
 			else
 			{
 				var packerType = typeof( TypePacker<> ).MakeGenericType( type );
@@ -332,4 +337,148 @@ file class TypePacker<T> : Packer where T : new()
 
 		return t;
 	}
+}
+
+file static class StructPacker
+{
+	public const BindingFlags Fields = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+	/// <summary>
+	/// A struct whose fields can all be generic arguments. Pointers and ref structs stay on the reflection packer.
+	/// </summary>
+	public static bool CanPack( Type type )
+	{
+		if ( !type.IsValueType || type.IsByRefLike || Nullable.GetUnderlyingType( type ) is not null )
+			return false;
+
+		return type.GetFields( Fields ).All( x => !x.FieldType.IsPointer && !x.FieldType.IsFunctionPointer && !x.FieldType.IsByRefLike && !x.FieldType.IsByRef );
+	}
+}
+
+/// <summary>
+/// Packs a struct field by field like <see cref="TypePacker{T}"/>, with the same bytes, but through compiled
+/// accessors so neither the struct nor its fields are boxed.
+/// </summary>
+file sealed class StructPacker<T> : Packer, IValuePacker<T> where T : struct
+{
+	public override Type TargetType => typeof( T );
+	internal override Identifier Header => Identifier.Runtime;
+	internal override int TypeIdentifier => ident;
+
+	readonly int ident;
+	readonly StructField<T>[] fields;
+
+	public StructPacker( TypeDescription ts )
+	{
+		ident = ts.Identity;
+		fields = StructFields<T>.All;
+	}
+
+	public override void WriteTypeIdentifier( ref ByteStream bs, Type targetType )
+	{
+		bs.Write( Header );
+		bs.Write( TypeIdentifier );
+	}
+
+	public override void Write( ref ByteStream bs, object obj )
+	{
+		// A struct can only lead back to itself through a box
+		var visited = _visited.Value!;
+		if ( !visited.Add( obj ) )
+			throw new SerializationException( $"Cycle detected when serializing {typeof( T ).Name}" );
+
+		try
+		{
+			var value = (T)obj;
+			WriteFields( ref bs, ref value );
+		}
+		finally
+		{
+			visited.Remove( obj );
+		}
+	}
+
+	void IValuePacker<T>.Write( ref ByteStream bs, T value ) => WriteFields( ref bs, ref value );
+
+	void WriteFields( ref ByteStream bs, ref T value )
+	{
+		foreach ( var field in fields )
+		{
+			field.Write( this, ref bs, ref value );
+		}
+	}
+
+	public override object Read( ref ByteStream bs, int depth ) => ReadFields( ref bs, depth );
+
+	T IValuePacker<T>.Read( ref ByteStream bs ) => ReadFields( ref bs, 0 );
+
+	T IValuePacker<T>.Read( ref ByteStream bs, int depth ) => ReadFields( ref bs, depth );
+
+	T ReadFields( ref ByteStream bs, int depth )
+	{
+		var value = new T();
+
+		foreach ( var field in fields )
+		{
+			field.Read( this, ref bs, ref value, depth + 1 );
+		}
+
+		return value;
+	}
+}
+
+/// <summary>
+/// A struct's compiled field accessors. They only depend on the type, so every BytePack rebuild reuses them.
+/// </summary>
+file static class StructFields<T> where T : struct
+{
+	public static readonly StructField<T>[] All = typeof( T ).GetFields( StructPacker.Fields )
+		.OrderByDescending( x => x.Name )
+		.ThenBy( x => x.DeclaringType!.Name )
+		.Select( StructField<T>.Create )
+		.ToArray();
+}
+
+file abstract class StructField<T> where T : struct
+{
+	public abstract void Write( Packer packer, ref ByteStream bs, ref T value );
+	public abstract void Read( Packer packer, ref ByteStream bs, ref T value, int depth );
+
+	public static StructField<T> Create( FieldInfo field )
+	{
+		var type = typeof( StructField<,> ).MakeGenericType( typeof( T ), field.FieldType );
+		return (StructField<T>)Activator.CreateInstance( type, field );
+	}
+}
+
+file sealed class StructField<T, TField> : StructField<T> where T : struct
+{
+	delegate TField Getter( ref T target );
+	delegate void Setter( ref T target, TField value );
+
+	readonly Getter _get;
+	readonly Setter _set;
+
+	public StructField( FieldInfo field )
+	{
+		// IL rather than expression trees, which can't assign readonly fields
+		var get = new System.Reflection.Emit.DynamicMethod( $"get_{field.Name}", typeof( TField ), [typeof( T ).MakeByRefType()], true );
+		var il = get.GetILGenerator();
+		il.Emit( System.Reflection.Emit.OpCodes.Ldarg_0 );
+		il.Emit( System.Reflection.Emit.OpCodes.Ldfld, field );
+		il.Emit( System.Reflection.Emit.OpCodes.Ret );
+		_get = get.CreateDelegate<Getter>();
+
+		var set = new System.Reflection.Emit.DynamicMethod( $"set_{field.Name}", typeof( void ), [typeof( T ).MakeByRefType(), typeof( TField )], true );
+		il = set.GetILGenerator();
+		il.Emit( System.Reflection.Emit.OpCodes.Ldarg_0 );
+		il.Emit( System.Reflection.Emit.OpCodes.Ldarg_1 );
+		il.Emit( System.Reflection.Emit.OpCodes.Stfld, field );
+		il.Emit( System.Reflection.Emit.OpCodes.Ret );
+		_set = set.CreateDelegate<Setter>();
+	}
+
+	public override void Write( Packer packer, ref ByteStream bs, ref T value ) => packer.SerializeValue( ref bs, _get( ref value ) );
+
+	public override void Read( Packer packer, ref ByteStream bs, ref T value, int depth ) => _set( ref value, packer.DeserializeValue<TField>( ref bs, depth ) );
 }

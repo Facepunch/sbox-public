@@ -185,7 +185,7 @@ public class GameTags : ITagSet
 		MarkDirty();
 	}
 
-	void MarkDirty()
+	internal void MarkDirty()
 	{
 		if ( !target.IsValid )
 			return;

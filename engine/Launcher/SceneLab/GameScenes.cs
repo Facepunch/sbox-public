@@ -297,6 +297,50 @@ internal static partial class GameScenes
 		scene.RenderAttributes.Set( "SceneLabTint", new Vector3( 0.2f, 0.9f, 0.4f ) );
 	}
 
+	public static Scene AggregateAttributes()
+	{
+		var scene = Stage( out _ );
+		using var scope = scene.Push();
+		var material = Material.Create( "scenelab_aggregate_attributes", "shaders/scene_renderer_attribute_test.shader" );
+		var mesh = new Mesh( material );
+		Span<Vertex> vertices =
+		[
+			new() { Position = new Vector3( 0, -30, 0 ), Normal = Vector3.Backward },
+			new() { Position = new Vector3( 0, 30, 0 ), Normal = Vector3.Backward },
+			new() { Position = new Vector3( 0, 30, 80 ), Normal = Vector3.Backward },
+			new() { Position = new Vector3( 0, -30, 80 ), Normal = Vector3.Backward }
+		];
+		Span<int> indices = [0, 1, 2, 0, 2, 3];
+		mesh.CreateVertexBuffer( vertices.Length, vertices );
+		mesh.CreateIndexBuffer( indices.Length, indices );
+		var bounds = new BBox( new Vector3( -1, -30, 0 ), new Vector3( 1, 30, 80 ) );
+		mesh.Bounds = bounds;
+		var model = Model.Builder.AddMesh( mesh ).WithViewBounds( bounds ).Create();
+
+		for ( int i = 0; i < 3; i++ )
+		{
+			var go = new GameObject( false, $"Attributed Aggregate {i}" );
+			go.WorldPosition = new Vector3( 0, (i - 1) * 90, 0 );
+			var renderer = go.AddComponent<AggregateRenderer>();
+			renderer.Model = model;
+			renderer.Fragments = [new( bounds )];
+			if ( i < 2 )
+				renderer.Attributes.Set( "SceneLabTint", i == 0 ? new Vector3( 1, 0.1f, 0.1f ) : new Vector3( 0.1f, 1, 0.1f ) );
+			go.Enabled = true;
+		}
+		return scene;
+	}
+
+	public static void ChangeAggregateAttributes( Scene scene )
+	{
+		var renderers = scene.GetAllComponents<AggregateRenderer>().ToArray();
+		renderers[0].Enabled = false;
+		renderers[0].Attributes.Set( "SceneLabTint", new Vector3( 0.1f, 0.1f, 1 ) );
+		renderers[0].Enabled = true;
+		renderers[1].WorldPosition += new Vector3( 0, 0, 15 );
+		renderers[2].Attributes.Set( "SceneLabTint", new Vector3( 1, 1, 0.1f ) );
+	}
+
 	/// <summary>
 	/// Ambient occlusion (<c>AmbientOcclusion</c>, GTAO): two walls meeting in a corner over a metal floor, with a box in the
 	/// corner, a sphere and a small box. GTAO reads the depth chain and the normals the depth-normals prepass writes, and

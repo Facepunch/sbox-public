@@ -9,15 +9,25 @@ namespace Facepunch.ContentWorker;
 /// one asset compiled where it is, as the editor compiles one by itself:
 ///   contentworker [-compilers folder] -searchpaths ... -compile file
 /// or the editor's built-in projects compiled once for a build's workers:
-///   contentworker -compileprojects folder
+///   contentworker -compileprojects folder [-project game.sbproj] [-addonroots roots.json]
 /// </summary>
 class Program
 {
+	/// <summary>
+	/// Compiles project assemblies or runs content compilation jobs.
+	/// </summary>
 	[STAThread]
 	public static int Main( string[] args )
 	{
 		var i = Array.IndexOf( args, "-compileprojects" );
-		if ( i >= 0 ) return ContentWorkerAppSystem.CompileBuiltInProjects( args[i + 1] ) ? 0 : 1;
+		if ( i >= 0 )
+		{
+			var projectIndex = Array.IndexOf( args, "-project" );
+			var rootsIndex = Array.IndexOf( args, "-addonroots" );
+			var project = projectIndex >= 0 ? args[projectIndex + 1] : null;
+			var roots = rootsIndex >= 0 ? args[rootsIndex + 1] : null;
+			return ContentWorkerAppSystem.CompileBuiltInProjects( args[i + 1], project, roots ) ? 0 : 1;
+		}
 
 		using var app = new ContentWorkerAppSystem();
 

@@ -47,6 +47,8 @@ PS
 	Texture2D g_tPainterColor < Attribute( "Texture" ); SrgbRead( false ); >;
 	Texture2D g_tColor < Attribute( "Texture" ); SrgbRead( true ); >;
 	float4 g_vInvTextureDim < Source( InvTextureDim ); SourceArg( g_tColor ); >;
+	// Layer targets are rounded up in size; the content covers this much of them, from the top left
+	float2 LayerUVScale < Default2( 1.0f, 1.0f ); Attribute( "LayerUVScale" ); >;
 
 	//
 	// Filters
@@ -197,7 +199,8 @@ PS
 
 		// filter: blur( r ) - r is the gaussian's standard deviation. Sampled with a border sampler so the blur fades
 		// to nothing past the layer's edge instead of wrapping its far side in
-		o.vColor = SampleLayer( uv, g_sTrilinearBorder, FilterBlur );
+		float2 layerUv = uv * LayerUVScale;
+		o.vColor = SampleLayer( layerUv, g_sTrilinearBorder, FilterBlur );
 		o.vColor = ApplyColorFilters( o.vColor );
 
 		//
@@ -240,7 +243,7 @@ PS
 			{
 				// Sample from original texture, we're using a mask-scope value of "filter"
 				// so we use this for blending
-				float4 origColor = SampleLayer( uv, Bindless::GetSampler( BorderSamplerIndex ), 0 );
+				float4 origColor = SampleLayer( layerUv, Bindless::GetSampler( BorderSamplerIndex ), 0 );
 				o.vColor = lerp( origColor, o.vColor, mask );
 			}
 		}

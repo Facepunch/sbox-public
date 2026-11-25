@@ -122,7 +122,7 @@ public abstract partial class Component : BytePack.ISerializer
 
 		if ( node.TryGetPropertyValue( JsonKeys.Snapshot, out var snapshotNode ) && this is INetworkSnapshot sw )
 		{
-			var data = snapshotNode.Deserialize<byte[]>();
+			var data = snapshotNode.ReadAs<byte[]>();
 			var reader = ByteStream.CreateReader( data );
 			sw.ReadSnapshot( ref reader );
 			reader.Dispose();

@@ -540,10 +540,28 @@
 					},
 					{
 						_class = "Attachment"
+						name = "eye_R_optical_axis"
+						parent_bone = "eye_R"
+						relative_origin = [ 0.0, 0.0, 0.0 ]
+						relative_angles = [ 6.9, 90.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
 						name = "eye_L_forward"
 						parent_bone = "eye_L"
 						relative_origin = [ 0.0, 0.0, 0.0 ]
 						relative_angles = [ 0.0, 90.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "eye_L_optical_axis"
+						parent_bone = "eye_L"
+						relative_origin = [ 0.0, 0.0, 0.0 ]
+						relative_angles = [ -6.9, 90.0, 90.0 ]
 						weight = 1.0
 						ignore_rotation = false
 					},

@@ -95,8 +95,8 @@
 						target_body = ""
 						mass_override = 30.0
 						inertia_scale = 1.0
-						linear_damping = 0.04
-						angular_damping = 0.15
+						linear_damping = 0.08
+						angular_damping = 0.3
 						use_mass_center_override = false
 						mass_center_override = [ 0.0, 0.0, 0.0 ]
 						gravity_scale = 1.0

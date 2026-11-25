@@ -5,6 +5,11 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 {
 	void ReloadSymlinkedResidentResources();
 	void UpdateSimple();
+	inline bool HandlesResource( string name )
+	{
+		return g_pResourceSystem->GetTypeManager( DeduceResourceTypeFromResourceName( name ) ) != nullptr;
+	}
+
 	inline ITexture LoadTexture( string name )
 	{
 		return g_pResourceSystem->BlockingLoadResourceByName< RESOURCE_TYPE_TEXTURE >( CResourceName( name ), "Managed LoadTexture" );
@@ -50,6 +55,12 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 	bool NeedsGuidWrite( string path );
 }
 
+
+managed class Sandbox.Internal.CompiledAssetUpgrader
+{
+	// The parsed resource data is owned by native and only valid during this call.
+	static void UpgradeCompiled( string path, KeyValues3 data );
+}
 
 managed class Sandbox.Resource
 {

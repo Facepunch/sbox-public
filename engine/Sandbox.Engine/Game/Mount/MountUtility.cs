@@ -76,17 +76,15 @@ public static class MountUtility
 			return cached;
 
 		// Disk cache
-		var cacheKey = $"preview/icons/{path.Md5()}.png";
-		if ( FileSystem.Cache.TryGet( cacheKey, out var data ) )
+		var cache = new ThumbnailCache( path );
+		if ( cache.Load() is { } tex )
 		{
-			using var bitmap = Bitmap.CreateFromBytes( data );
-			var tex = bitmap.ToTexture( true );
 			_cache[path] = tex;
 			return tex;
 		}
 
 		// Queue render job
-		var job = new RenderJob( path, cacheKey );
+		var job = new RenderJob( path, cache );
 		_jobs.Add( job );
 		_cache[path] = job.Texture;
 
@@ -155,6 +153,13 @@ public static class MountUtility
 
 	static async Task<bool> GenerateMapThumb( ResourceLoader sceneLoader )
 	{
+		var fs = sceneLoader.Mount.ThumbsFileSystem;
+		if ( fs is null )
+		{
+			Log.Error( $"Mount '{sceneLoader.Mount.Ident}' has nowhere to write thumbs" );
+			return false;
+		}
+
 		SceneFile sceneFile = null;
 		var scene = Scene.CreateEditorScene();
 
@@ -179,11 +184,18 @@ public static class MountUtility
 			cc.ZFar = 100000.0f;
 			cc.ZNear = 0.1f;
 
-			var transform = scene.FindAllWithTag( "map_preview" ).FirstOrDefault()
-				?? scene.GetComponentInChildren<SpawnPoint>()?.GameObject;
-			if ( transform.IsValid() )
+			if ( scene.FindAllWithTag( "map_preview" ).FirstOrDefault() is { } mapPreview )
 			{
-				cc.WorldTransform = transform.WorldTransform;
+				cc.WorldTransform = mapPreview.WorldTransform;
+			}
+			else if ( scene.GetAllComponents<SpawnPoint>().OrderByDescending( x => x.Priority ).FirstOrDefault()?.GameObject is { } spawnPoint )
+			{
+				cc.WorldTransform = spawnPoint.WorldTransform with { Position = spawnPoint.WorldPosition + new Vector3( 0, 0, 64 ) };
+			}
+			else
+			{
+				Log.Warning( $"No map_preview tag or SpawnPoint found in scene: '{sceneLoader.Path}'.. skipping!" );
+				return false;
 			}
 
 			byte[] bytes;
@@ -193,16 +205,10 @@ public static class MountUtility
 				bytes = bitmap.ToPng();
 			}
 
-			var path = EngineFileSystem.Root.GetFullPath( "/" );
-			if ( string.IsNullOrWhiteSpace( path ) ) return false;
+			var path = $"{sceneLoader.RelativePath}.png";
+			fs.WriteAllBytes( path, bytes );
 
-			path += $"/mount/{sceneLoader._mount.Ident}/assets/thumbs/{sceneLoader._mount.Ident}/{System.IO.Path.GetDirectoryName( sceneLoader.RelativePath )}/";
-			System.IO.Directory.CreateDirectory( path );
-
-			path += System.IO.Path.GetFileName( sceneLoader.RelativePath ).WithExtension( ".png" );
-			System.IO.File.WriteAllBytes( path, bytes );
-
-			Log.Info( $"Written {path}" );
+			Log.Info( $"Written {fs.GetFullPath( path )}" );
 		}
 		catch ( Exception ex )
 		{
@@ -229,13 +235,13 @@ class RenderJob
 	public Texture Texture { get; }
 
 	Task _task;
-	readonly string _cacheKey;
+	readonly ThumbnailCache _cache;
 
 	public bool IsFinished => _task is null || _task.IsCompleted;
 
-	public RenderJob( string path, string cacheKey )
+	public RenderJob( string path, ThumbnailCache cache )
 	{
-		_cacheKey = cacheKey;
+		_cache = cache;
 		Path = path;
 
 		using var bitmap = new Bitmap( 256, 256 );
@@ -250,15 +256,10 @@ class RenderJob
 
 	public async Task Run()
 	{
-		var modelResource = await Model.LoadAsync( Path );
-		if ( !modelResource.IsValid() ) return;
+		using var icon = await Model.RenderSpawnIconAsync( Path );
+		if ( icon is null ) return;
 
-		using var bitmap = new Bitmap( 512, 512 );
-		SceneUtility.RenderModelBitmap( modelResource, bitmap );
-
-		using var resized = bitmap.Resize( 256, 256 );
-		Texture.Update( resized );
-
-		FileSystem.Cache.Set( _cacheKey, resized.ToPng() );
+		Texture.Update( icon );
+		_cache.Save( icon );
 	}
 }

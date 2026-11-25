@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "gutter_roof_pipe_b",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "gutter_roof_pipe_b",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_roof_pipe_b.vmdl"
+      }
+    }
+  },
+  "guid": "a018e5bc-c3ff-4936-ae63-c2527bd2d26e"
+}

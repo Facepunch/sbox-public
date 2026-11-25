@@ -128,6 +128,7 @@ internal static class EngineFileSystem
 	/// </summary>
 	internal static void Shutdown()
 	{
+		BakeCache.Close();
 		Root = null;
 		Config = null;
 

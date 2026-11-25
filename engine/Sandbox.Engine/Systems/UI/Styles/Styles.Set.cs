@@ -25,9 +25,15 @@ namespace Sandbox.UI
 			if ( IsCssWideKeyword( value, out var cssWide ) && MarkCssWide( property, cssWide ) )
 				return true;
 
-			// A normal value supersedes any keyword recorded earlier for this property (or its longhands).
-			ClearCssWide( property );
+			if ( !SetProperty( property, value ) ) return false;
 
+			// Only a valid declaration supersedes an earlier CSS-wide keyword.
+			ClearCssWide( property );
+			return true;
+		}
+
+		bool SetProperty( string property, string value )
+		{
 			// 'currentColor' (even nested inside a shorthand) parses to a sentinel that resolves to the
 			// element's computed colour after the cascade; flag it so that resolution pass runs.
 			if ( value != null && value.Length >= 12 && value.Contains( "currentcolor", System.StringComparison.OrdinalIgnoreCase ) )
@@ -252,6 +258,19 @@ namespace Sandbox.UI
 
 				case "font-style":
 					return SetFontStyle( value );
+
+				case "font-variation-settings":
+					if ( !UI.FontVariationSettings.TryParse( value, out var settings ) ) return false;
+					FontVariationSettings = settings;
+					return true;
+
+				case "font-optical-sizing":
+					switch ( value?.Trim().ToLowerInvariant() )
+					{
+						case "auto": FontOpticalSizing = UI.FontOpticalSizing.Auto; return true;
+						case "none": FontOpticalSizing = UI.FontOpticalSizing.None; return true;
+						default: return false;
+					}
 
 				case "font-variant-numeric":
 					return SetFontVariantNumeric( value );
@@ -3134,6 +3153,9 @@ namespace Sandbox.UI
 			{
 				Set( "font-size", sizePart );
 			}
+
+			FontVariationSettings = default( UI.FontVariationSettings );
+			FontOpticalSizing = UI.FontOpticalSizing.Auto;
 
 			// Everything after the size is the font-family.
 			Set( "font-family", string.Join( " ", tokens, sizeIndex + 1, tokens.Length - sizeIndex - 1 ) );

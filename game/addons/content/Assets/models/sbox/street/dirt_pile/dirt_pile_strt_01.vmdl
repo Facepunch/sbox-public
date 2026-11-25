@@ -1,0 +1,82 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "dirt_pile_02.vmat"
+								to = "models/sbox/street/dirt_pile/dirt_pile_02.vmat"
+							},
+							{
+								from = "dirt_pile_02_opaque.vmat"
+								to = "models/sbox/street/dirt_pile/dirt_pile_02_opaque.vmat"
+							},
+						]
+						use_global_default = true
+						global_default_material = "models/sbox/street/dirt_pile/dirt_pile_02.vmat"
+					},
+					{
+						_class = "MaterialGroup"
+						name = "light"
+						remaps = 
+						[
+							{
+								from = "models/sbox/street/dirt_pile/dirt_pile_02.vmat"
+								to = "models/sbox/street/dirt_pile/dirt_pile_02b.vmat"
+							},
+						]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "LOD0"
+						filename = "models/sbox/street/dirt_pile/dirt_pile_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"Plane_005",
+								"Plane_006",
+								"dirt_pile_01_002",
+								"dirt_pile_01_003",
+								"dirt_pile_01_004",
+								"dirt_pile_01_005",
+								"dirt_pile_strt_01_LOD0_001",
+								"dirt_pile_strt_01_LOD0",
+							]
+						}
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
+		base_model_name = ""
+	}
+}

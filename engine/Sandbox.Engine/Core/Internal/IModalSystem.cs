@@ -12,7 +12,11 @@ public interface IModalSystem
 	public void Game( string packageIdent );
 	public void Map( string packageIdent );
 	public void Package( string packageIdent, string page );
-	public void Review( Package package );
+	/// <summary>
+	/// Legacy entry point for the retired review form.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
+	public void Review( Package package ) { }
 	public void Report( string packageIdent );
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged = null );
 	public void MapSelect( Action<string> onMapSelected, string selected = null );

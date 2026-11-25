@@ -1,0 +1,27 @@
+{
+  "guid": "ee328470-fc8f-46f1-8fbc-4dff37ccf219",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Cash Register",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "cashregister",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/shop/cash_register/materials/cash_register.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

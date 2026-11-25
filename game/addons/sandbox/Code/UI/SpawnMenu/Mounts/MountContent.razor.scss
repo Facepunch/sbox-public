@@ -1,0 +1,13 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	MountContent .mount-count
+	{
+		min-width: 0px;
+		color: $ui-text-label;
+		@include ui-ellipsis;
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

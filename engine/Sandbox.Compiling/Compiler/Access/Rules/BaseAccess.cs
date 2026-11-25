@@ -132,7 +132,6 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.NonSerializedAttribute",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.MethodImplAttribute*",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.MethodImplOptions",
-		"System.Private.CoreLib/System.Runtime.CompilerServices.DefaultInterpolatedStringHandler*",
 		"System.Private.CoreLib/System.ComponentModel.EditorBrowsableAttribute*",
 		"System.Private.CoreLib/System.ObsoleteAttribute*",
 		"System.Private.CoreLib/System.Diagnostics.DebuggerDisplayAttribute*",

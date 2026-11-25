@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "M Pipe S Half",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "mpipeshalf",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/industrial/modular_pipe_kit/m_pipe_s_half.vmdl"
+      }
+    }
+  },
+  "guid": "13daed78-00fc-0000-0201-000000000000"
+}

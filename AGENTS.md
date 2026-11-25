@@ -27,7 +27,7 @@ dotnet run --project engine/Tools/SboxBuild/SboxBuild.csproj -- format
 
 Pull requests run the same `build`, `test`, and `format --verify` steps, so run them before pushing.
 Engine and Integration tests need the `FACEPUNCH_ENGINE` environment variable pointing at `game/`
-(the folder containing `sbox.exe`). Run the built engine from `game/bin/win64/sbox.exe`.
+(the folder containing `sbox.exe`). Run the built engine from `game/sbox.exe`.
 
 ## Documentation
 
@@ -39,6 +39,6 @@ Engine and Integration tests need the `FACEPUNCH_ENGINE` environment variable po
 ## Conventions
 
 - Standard .NET style, enforced by `.editorconfig` and `format --verify`. Match surrounding code.
-- Keep pull requests small and in scope. Reference the issue you're fixing. Add a unit test where one fits.
+- Keep pull requests small and in scope. Reference the issue you're fixing. Add tests only when asked.
 - The public API surface that addons compile against is deliberately controlled. Exposing a new .NET
   type to game code means adding it to the access allow-list in `engine/Sandbox.Compiling/Compiler/Access/Rules/`, not bypassing it.

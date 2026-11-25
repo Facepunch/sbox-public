@@ -7,45 +7,62 @@
 
 @*
     Along the bottom, under every game: game navigation on the left, party and friends in the middle,
-    and avatar, rewards, mounts, settings and quit on the right.
+    and weekly drop, avatar, mounts, settings and quit on the right.
 *@
 <root>
 	<div class="inner">
 		<div class="left">
-			<div class="pill library @(LibraryOpen ? "open" : "")" onclick=@SwitchGame>
+			<div class="pill library @(LibraryOpen ? "open" : "")" onclick=@SwitchGame tooltip="@(InstalledGames == 1 ? "1 game installed" : $"{InstalledGames} games installed")">
 				<i>sports_esports</i>
 				<label>Library</label>
 				<label class="count">@InstalledGames</label>
 			</div>
 
-			@* Browse opens with its search field ready to type in. *@
-			<div class="pill search @(Shelf == PlatformShelf.Browse ? "open" : "")" onclick=@ToggleSearch>
-				<i>search</i>
-				<label>Games</label>
+			@* Straight into Browse, with a search field out of its end that's ready to type in *@
+			<div class="pill discover @(DiscoverOpen ? "open" : "")">
+				<div class="go" onclick=@ToggleDiscover>
+					<i>explore</i>
+					<label>Games</label>
+				</div>
+				@if ( DiscoverOpen )
+				{
+					<div class="find" @ref="FindBox" onclick=@( () => SearchEntry?.Focus() )>
+						<i>search</i>
+						<TextEntry @ref="SearchEntry" Placeholder="Search" OnTextEdited=@Typed onsubmit=@Submit />
+					</div>
+				}
 			</div>
 
-			<div class="pill multiplayer @(Shelf == PlatformShelf.Multiplayer ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Multiplayer ) )>
-				<i>public</i>
-				<label>Multiplayer</label>
+			<div class="pill servers @(Shelf == PlatformShelf.Multiplayer ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Multiplayer ) )>
+				<i>dns</i>
+				<label>Servers</label>
 			</div>
 		</div>
 
+		@* Your friends, and your party when you're in one - one button. Out of a party it's how many are on and opens
+		   your friends, where you can start a party; in one, it's the party's faces and opens its window, with how many
+		   else are on beside them opening your friends. *@
 		<div class="middle">
-			<div class="party @(PartyDeck.ShownOnPlatform || (card.IsValid() && !card.IsDeleting) ? "open" : "") @(PartyDeck.Activity() ?? "")" @ref="PartyButton">
+			<div class="party @(FriendsUp ? "open" : "") @(PartyDeck.Activity() ?? "")" @ref="PartyButton">
 				@if ( Joining is { ShowGame: true } && !string.IsNullOrWhiteSpace( PartyArt ) )
 				{
 					<div class="game-art" style="background-image: url( @PartyArt );"></div>
 				}
 
-				@* Pressed apart from the + beside them, so a press on one is never one on the other *@
-				<div class="faces" onmousedown=@( () => cardWasUp = cardUp ) onclick=@PressParty tooltip="@(PartyView.Exists ? "Your party" : "You")">
+				<div class="faces" onclick=@PressFriends tooltip="@(InParty ? "Your party" : "Friends")">
 					@if ( Joining is { ShowGame: false } stage )
 					{
 						<div class="status-icon @(PartyDeck.Activity() ?? "")"><i>@stage.Icon</i></div>
 					}
 
-					@if ( PartyView.Exists )
+					@if ( InParty )
 					{
+						@* Still being set up - just you so far *@
+						@if ( !PartyView.Exists )
+						{
+							<div class="face" style="background-image: url( avatar:@Game.SteamId );"></div>
+						}
+
 						@foreach ( var member in ShownMembers )
 						{
 							<PartyMember Friend=@member Status=@PartyView.StatusOf( member ) Ready=@PartyView.IsMemberReady( member ) />
@@ -60,35 +77,46 @@
 						{
 							<div class="more"><label>@($"+{MoreSeats}")</label></div>
 						}
+
 					}
 					else
 					{
-						<div class="me" style="background-image: url( avatar:@Game.SteamId );"></div>
+						<i>group</i>
+
+						@if ( onlineCount > 0 )
+						{
+							<label class="count">@onlineCount</label>
+						}
 					}
 				</div>
 
-				<div class="add @(PartyDeck.Drafting || FriendsUpFrom( InviteButton ) ? "open" : "")" @ref="InviteButton" onclick=@AddToParty tooltip="@(PartyView.Exists ? "Invite friends" : "Start a party")">
-					<i>add</i>
-				</div>
-			</div>
-
-			<div class="square friends @(Root?.FriendsOpen == true ? "open" : "")" @ref="FriendsButton" onclick=@Friends tooltip="Friends">
-				<i>group</i>
-				@if ( PlayingFriends > 0 )
+				@if ( InParty )
 				{
-					<label class="count">@PlayingFriends</label>
+					<div class="online" onclick=@PressOnline tooltip="Friends">
+						<i>group</i>
+						@if ( onlineCount > 0 )
+						{
+							<label>@onlineCount</label>
+						}
+					</div>
 				}
 			</div>
 		</div>
 
 		<div class="right">
-			@* Your weekly drop, in from the right as your friends are - not in a started game: opening one loads its own
-			   scene, which would pull you out of it. A pip when there's one waiting. *@
+			@* Your weekly drop - not in a started game: opening one loads its own scene, which would pull you out of it.
+			   A ring for this week's progress once there is some, a pip when there's one waiting. Not while it's being
+			   opened. *@
 			@if ( PlatformRoot.CanDressUp )
 			{
-				<div class="square rewards @(Root?.RewardsOpen == true ? "open" : "")" onclick=@( () => Root?.ToggleSide( PlatformRoot.SidePanel.Rewards ) ) tooltip="Weekly rewards">
+				<div class="square rewards @(Root?.RewardsOpen == true ? "open" : "") @(Shelf == PlatformShelf.Unbox ? "disabled" : "")" onclick=@( () => Root?.ToggleSide( PlatformRoot.SidePanel.Rewards ) ) tooltip="@DropTooltip" @ref="DropSquare">
+					@if ( Drop is { Kind: "ready" } or { Kind: "progress", Met: > 0 } )
+					{
+						<div class="ring" style="@RingStyle"></div>
+						<div class="hole"></div>
+					}
 					<i>redeem</i>
-					@if ( MenuHelpers.RewardReady( rewards ) )
+					@if ( Drop.Kind == "ready" )
 					{
 						<div class="pip"></div>
 					}
@@ -98,20 +126,27 @@
 			@* Not in a started game - you dress up on a menu *@
 			@if ( PlatformRoot.CanDressUp )
 			{
-				<div class="square @(Shelf == PlatformShelf.Avatar ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
-					<i>checkroom</i>
+				<div class="square avatar @(Shelf == PlatformShelf.Avatar ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
+					<MenuProject.MenuUI.Front.CitizenPreview AvatarJson=@AvatarJson Still=@true PlayIntro=@false Studio=@false
+						FieldOfView=@(11f) CameraDistance=@(158f) CameraHeight=@(57f) HeadOffset=@(-2f) Yaw=@(-20f) />
 				</div>
 			}
 
-			<div class="square @(Shelf == PlatformShelf.Mounts ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Mounts ) ) tooltip="Mounts">
-				<i>extension</i>
+			@* Between what's yours and what runs s&box - not when what's yours isn't there *@
+			@if ( PlatformRoot.CanDressUp )
+			{
+				<div class="divider"></div>
+			}
+
+			<div class="square system @(Shelf == PlatformShelf.Mounts ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Mounts ) ) tooltip="Mounted games">
+				<i>videogame_asset</i>
 			</div>
 
-			<div class="square @(Root?.SettingsPage is not null ? "open" : "")" onclick=@( () => ModalSystem.Instance?.Settings() ) tooltip="Settings">
+			<div class="square system @(Root?.SettingsPage is not null ? "open" : "")" onclick=@( () => ModalSystem.Instance?.Settings() ) tooltip="Settings">
 				<i>settings</i>
 			</div>
 
-			<div class="square quit" onclick=@Quit tooltip="Quit to desktop">
+			<div class="square system quit" onclick=@Quit tooltip="@(Application.IsEditor ? "Stop playing" : "Quit to desktop")">
 				<i>power_settings_new</i>
 			</div>
 		</div>
@@ -126,15 +161,26 @@
 
     bool LibraryOpen => Shelf == PlatformShelf.YourGames;
 
+    bool DiscoverOpen => Shelf == PlatformShelf.Browse;
+
     /// <summary>
     /// Your games - in a game too, where picking one leaves it for that one (PlatformRoot.Picked): the way out, there
     /// even when the game puts its own pause screen in front of everything
     /// </summary>
     void SwitchGame() => Root?.ToggleShelf( PlatformShelf.YourGames );
 
-    Panel InviteButton;
     Panel PartyButton;
-    Panel FriendsButton;
+    Panel DropSquare;
+
+    /// <summary>
+    /// The weekly drop button, for its panel to rise out of
+    /// </summary>
+    internal static Panel DropButton { get; private set; }
+
+    /// <summary>
+    /// The Friends button, for the friends list to rise out of
+    /// </summary>
+    internal static Panel FriendsAnchor { get; private set; }
 
     const int MaxShownSeats = 6;
 
@@ -148,12 +194,18 @@
 
     static int MoreSeats => Math.Max( 0, PartyView.MemberCount + PartyInvites.Pending.Count - MaxShownSeats );
 
-    void PressParty( PanelEvent e )
+    static bool InParty => PartyView.Exists || PartyDeck.Drafting;
+
+    bool FriendsUp => PartyDeck.ShownOnPlatform || Root?.FriendsOpen == true;
+
+    /// <summary>
+    /// In a party it's the party's window, otherwise your friends
+    /// </summary>
+    void PressFriends()
     {
-        if ( !PartyView.Exists && !PartyDeck.Drafting )
+        if ( !InParty )
         {
-            // Pressed with it up - the press closed it, as one does every popup, so leave it closed
-            card = cardWasUp ? null : ShowCard( e, new Friend( Game.SteamId.Value ) );
+            Friends();
             return;
         }
 
@@ -163,35 +215,14 @@
         PartyDeck.ShownOnPlatform = show;
     }
 
-    void AddToParty( PanelEvent e )
+    /// <summary>
+    /// Who's online beside the party's faces - your friends, rather than the party's window
+    /// </summary>
+    void PressOnline( PanelEvent e )
     {
         e.StopPropagation();
-
-        if ( PartyView.Exists )
-        {
-            OpenFriends( InviteButton );
-            return;
-        }
-
-        // Pressed again with a new party's setup up - given up on, as a click off it does
-        if ( PartyDeck.Drafting )
-        {
-            PartyDeck.PutAwayOnPlatform();
-            return;
-        }
-
-        Root?.PutAwaySide();
-        PartyDeck.ShownOnPlatform = true;
-        _ = PartyDeck.EnsurePartyExists();
+        Friends();
     }
-
-    MenuProject.MenuUI.Popups.FriendCard card;
-
-    /// <summary>
-    /// Your card's up - as of the last frame, so a press can tell it was, after the press has closed it
-    /// </summary>
-    bool cardUp;
-    bool cardWasUp;
 
     int installedGames;
     RealTimeSince gamesCounted = 10;
@@ -207,27 +238,23 @@
             if ( gamesCounted < 1 ) return installedGames;
 
             gamesCounted = 0;
-            installedGames = PlatformMenu.YourGames.Games?.Count( x => MenuUtility.IsInstalled( x.Id ) ) ?? 0;
+            installedGames = PlatformMenu.LocalGames.Count + (PlatformMenu.YourGames.Games?.Count( x => MenuUtility.IsInstalled( x.Id ) ) ?? 0);
             return installedGames;
         }
     }
 
-    int playingFriends;
-    RealTimeSince playingCounted = 10;
+    int onlineCount;
+    RealTimeSince friendsCounted = 10;
 
     /// <summary>
     /// How many of your friends are playing s&amp;box - counted again at most once a second
     /// </summary>
-    int PlayingFriends
+    void CountFriends()
     {
-        get
-        {
-            if ( playingCounted < 1 ) return playingFriends;
+        if ( friendsCounted < 1 ) return;
+        friendsCounted = 0;
 
-            playingCounted = 0;
-            playingFriends = MenuUtility.Friends.Count( x => !x.IsMe && x.IsOnline && x.IsPlayingThisGame );
-            return playingFriends;
-        }
+        onlineCount = MenuUtility.Friends.Count( x => !x.IsMe && x.IsOnline && x.IsPlayingThisGame );
     }
 
     /// <summary>
@@ -235,6 +262,7 @@
     /// </summary>
     RewardState rewards;
     RealTimeUntil untilRewardsPoll = 0;
+    bool dropBusy;
 
     async Task PollRewards()
     {
@@ -242,9 +270,66 @@
         StateHasChanged();
     }
 
+    /// <summary>
+    /// Where your weekly drop is at
+    /// </summary>
+    record struct DropStatus( string Kind, int Met = 0, int Total = 0, string Next = null );
+
+    DropStatus Drop
+    {
+        get
+        {
+            if ( MenuHelpers.RewardReady( rewards ) ) return new( "ready" );
+            if ( rewards?.Windows.FirstOrDefault() is not { } week ) return new( "" );
+
+            if ( week.IsClaimed ) return new( "opened", Next: TimeUntil( week.EndsAt ) );
+            if ( week.Facets.Length > 0 ) return new( "progress", week.MetCount, week.Facets.Length );
+
+            return new( "" );
+        }
+    }
+
+    string DropTooltip => Drop switch
+    {
+        { Kind: "ready" } => "Weekly rewards - ready to open",
+        { Kind: "progress" } d => $"Weekly rewards - {d.Met} of {d.Total} done",
+        { Next: { } next } => $"Weekly rewards - next in {next}",
+        _ => "Weekly rewards"
+    };
+
+    /// <summary>
+    /// Progress ring around the drop's icon - full once it's ready
+    /// </summary>
+    string RingStyle
+    {
+        get
+        {
+            // Not the player's culture - a comma for the decimal point isn't a percentage the stylesheet can read
+            var fill = (Drop.Kind == "ready" || Drop.Total == 0 ? 100f : 100f * Drop.Met / Drop.Total).ToString( "0.#", System.Globalization.CultureInfo.InvariantCulture );
+            return $"background-image: conic-gradient( #e8b44a 0%, #e8b44a {fill}%, rgba( 232, 180, 74, 0.25 ) {fill}%, rgba( 232, 180, 74, 0.25 ) 100% );";
+        }
+    }
+
+    /// <summary>
+    /// "3d", "5h", "40m" - null once it's passed
+    /// </summary>
+    static string TimeUntil( DateTimeOffset when )
+    {
+        if ( when == default || when <= DateTimeOffset.UtcNow ) return null;
+
+        var left = when - DateTimeOffset.UtcNow;
+        if ( left.TotalDays >= 1 ) return $"{(int)left.TotalDays}d";
+        if ( left.TotalHours >= 1 ) return $"{(int)left.TotalHours}h";
+        return $"{Math.Max( 1, (int)left.TotalMinutes )}m";
+    }
+
     public override void Tick()
     {
         base.Tick();
+
+        var busy = Root?.RewardsOpen == true || Shelf == PlatformShelf.Unbox;
+        if ( dropBusy && !busy ) untilRewardsPoll = 0;
+        dropBusy = busy;
 
         if ( untilRewardsPoll <= 0 )
         {
@@ -253,23 +338,136 @@
         }
 
         PartyDeck.PlatformAnchor = PartyButton;
-
-        cardUp = card.IsValid() && !card.IsDeleting;
+        DropButton = DropSquare;
+        FriendsAnchor = PartyButton;
 
         // Set up and then cancelled - put away, not up again the next time you're in a party
         if ( !PartyView.Exists && !PartyDeck.Drafting ) PartyDeck.ShownOnPlatform = false;
+
+        CountFriends();
+        UpdateSearch();
+        UpdateAvatar();
     }
 
-    void ToggleSearch()
+    void ToggleDiscover()
     {
         if ( Root is not { } root ) return;
 
-        if ( root.Shelf == PlatformShelf.Browse ) root.ToggleShelf( PlatformShelf.Browse );
-        else root.Browse( null );
+        if ( DiscoverOpen )
+        {
+            root.ToggleShelf( Shelf );
+            return;
+        }
+
+        // Straight to the search, ready to type in
+        root.Browse( null );
+        focusSearch = true;
+        sinceFocusAsked = 0;
     }
 
     /// <summary>
-    /// Your friends, in from the right - the popup's for inviting to a party (OpenFriends)
+    /// The search field's to be typed in as soon as it's there - it isn't till Browse is up
+    /// </summary>
+    bool focusSearch;
+    RealTimeSince sinceFocusAsked;
+
+    TextEntry SearchEntry;
+    Panel FindBox;
+
+    string typed;
+    RealTimeSince sinceTyped;
+
+    void Typed( string text )
+    {
+        typed = text?.Trim() ?? "";
+        sinceTyped = 0;
+    }
+
+    /// <summary>
+    /// Enter searches straight away - with nothing typed, it opens Browse on everything
+    /// </summary>
+    void Submit()
+    {
+        typed = null;
+        Find( SearchEntry?.Text?.Trim() ?? "", browseAll: true );
+    }
+
+    /// <summary>
+    /// Search Browse for <paramref name="query"/> - if it's already open, it keeps its sort and tags
+    /// </summary>
+    void Find( string query, bool browseAll = false )
+    {
+        if ( Root?.ShelfPage is BrowseShelf browse )
+        {
+            browse.Find( query );
+            return;
+        }
+
+        if ( string.IsNullOrEmpty( query ) && !browseAll ) return;
+
+        Root?.Browse( string.IsNullOrEmpty( query ) ? null : query );
+    }
+
+    /// <summary>
+    /// Searches once typing pauses. When the field isn't focused it mirrors Browse's current query.
+    /// </summary>
+    void UpdateSearch()
+    {
+        // Put away with something typed and not searched for yet - forgotten, not searched for the next time it's up
+        if ( !SearchEntry.IsValid() )
+        {
+            typed = null;
+
+            // Not left wanting focus for the next time, if Browse never came up
+            if ( !DiscoverOpen ) focusSearch = false;
+            return;
+        }
+
+        // It doesn't keep focus while it's still nothing wide and unseen, sliding out - given it again till it's out
+        if ( focusSearch )
+        {
+            if ( !SearchEntry.HasFocus ) SearchEntry.Focus();
+            if ( sinceFocusAsked > 0.4f ) focusSearch = false;
+        }
+
+        // As wide as it'll be typed in from the start when it's about to be, so it comes out to there in one go
+        FindBox?.SetClass( "typing", SearchEntry.HasFocus || focusSearch );
+
+        if ( typed is not null && sinceTyped > 0.4f )
+        {
+            Find( typed );
+            typed = null;
+        }
+
+        if ( SearchEntry.HasFocus || typed is not null ) return;
+
+        var searched = (Root?.ShelfPage as BrowseShelf)?.Searched ?? "";
+        if ( SearchEntry.Text != searched ) SearchEntry.Text = searched;
+    }
+
+    /// <summary>
+    /// The local avatar for the face on the Avatar button, rechecked every couple of seconds
+    /// </summary>
+    string AvatarJson;
+    RealTimeSince avatarChecked = 10;
+
+    void UpdateAvatar()
+    {
+        // Its button isn't there in a started game
+        if ( !PlatformRoot.CanDressUp ) return;
+
+        if ( avatarChecked < 2 ) return;
+        avatarChecked = 0;
+
+        var json = ClothingContainer.CreateFromLocalUser().Serialize();
+        if ( json == AvatarJson ) return;
+
+        AvatarJson = json;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Your friends, up out of the dock over the Friends button
     /// </summary>
     void Friends()
     {
@@ -278,56 +476,40 @@
     }
 
     /// <summary>
-    /// How far over one of its buttons a popup goes, to clear the dock - its buttons are 40 tall in the middle of its
-    /// 64, so 12 to its top, then a gap
+    /// How far over one of its buttons a popup goes, to clear the dock - its buttons are 30 tall in the middle of its
+    /// 48, so 9 to its top, then a gap
     /// </summary>
-    internal const float PopupOffset = 24;
-
-    static MenuProject.MenuUI.Popups.FriendCard ShowCard( PanelEvent e, Friend friend )
-    {
-        e.StopPropagation();
-        Popup.CloseAll();
-        return MenuProject.MenuUI.Popups.FriendCard.Show( e.This, friend, Popup.PositionMode.AboveCenter, PopupOffset );
-    }
-
-    static Panel friendsFrom;
-
-    static bool FriendsUpFrom( Panel button ) => button is not null && friendsFrom == button && (ModalSystem.Instance?.IsOpen<MenuProject.Modals.FriendsListModal>() ?? false);
+    internal const float PopupOffset = 18;
 
     /// <summary>
-    /// Your friends, up off <paramref name="anchor"/> like a shelf - pressed again, put away; a shelf, settings or the
-    /// party window up, put away for it
+    /// Puts a flyout's arrow (platform-flyout-arrow) under the middle of the button it came up from
     /// </summary>
-    internal static void OpenFriends( Panel anchor )
+    internal static void PointAt( Panel arrow, Panel button )
     {
-        if ( ModalSystem.Instance is not { } modals ) return;
+        if ( !arrow.IsValid() || !button.IsValid() || arrow.Parent is not { } flyout ) return;
 
-        var wasUp = modals.CloseFriendsList();
-        if ( wasUp && friendsFrom == anchor )
+        arrow.Style.Left = Length.Pixels( (button.Box.Rect.Center.x - flyout.Box.Rect.Left) * flyout.ScaleFromScreen );
+    }
+
+    /// <summary>
+    /// Out of the game - in the editor, out of play mode rather than the editor itself
+    /// </summary>
+    void Quit()
+    {
+        if ( !Application.IsEditor )
         {
-            friendsFrom = null;
+            MenuHelpers.ConfirmQuit();
             return;
         }
 
-        Action open = () =>
+        MenuHelpers.ConfirmLeave( () =>
         {
-            PartyDeck.ShownOnPlatform = false;
-            friendsFrom = anchor;
-            modals.FriendsList( new Sandbox.Modals.FriendsListModalOptions
-            {
-                ShowOnlineMembers = true,
-                ShowOfflineMembers = false,
-                Anchor = new() { Panel = anchor, Position = Sandbox.Modals.ModalAnchorPosition.AboveLeft, Offset = PopupOffset },
-            } );
-        };
-
-        if ( PlatformRoot.Instance is { } root ) root.CloseAll( open );
-        else open();
+            Root?.Resume();
+            Game.Close();
+        } );
     }
 
-    static void Quit() => MenuHelpers.ConfirmQuit();
-
-    protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, PlayingFriends, Root?.FriendsOpen == true, FriendsUpFrom( InviteButton ), card.IsValid() && !card.IsDeleting ), PartyDeck.ShownOnPlatform,
+    protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, onlineCount, Root?.FriendsOpen == true ), PartyDeck.ShownOnPlatform,
         MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x ), PartyView.IsMemberReady( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),
-        Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), MenuHelpers.RewardReady( rewards ), Root?.RewardsOpen == true, LibraryOpen ) );
+        Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), Drop, Root?.RewardsOpen == true, HashCode.Combine( LibraryOpen, AvatarJson ) ) );
 }

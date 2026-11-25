@@ -19,7 +19,7 @@ public enum MessageId : ushort
 	PackageChanged = 5003,
 	PackageUpdate = 5004,
 	PackageViewsChanged = 5005,
-	PackageReviewPosted = 5006,
+	// 5006 was used for package review notifications.
 
 	ClientAchievementUnlocked = 6001,
 

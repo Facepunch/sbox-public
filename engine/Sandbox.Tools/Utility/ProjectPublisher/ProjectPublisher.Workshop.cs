@@ -8,13 +8,13 @@ namespace Editor;
 public partial class ProjectPublisher
 {
 	/// <summary>
-	/// The package type whose files go in a workshop item rather than on the backend ("map" or "game"), or null
+	/// The package type whose files go in a workshop item rather than on the backend ("map", "game" or "addon"), or null
 	/// if this isn't one of those. It's the item's tag on the Workshop.
 	/// </summary>
 	string WorkshopType;
 
 	/// <summary>
-	/// The map asset being published to a workshop item, which remembers the item's id. Null for a game.
+	/// The map asset being published to a workshop item, which remembers the item's id. Null for a game or addon.
 	/// </summary>
 	Asset WorkshopAsset;
 
@@ -63,20 +63,22 @@ public partial class ProjectPublisher
 
 	/// <summary>
 	/// The package type whose files publishing this project puts in a workshop item - "map" for a map asset,
-	/// "game" for a game - or null if they go on the backend
+	/// "game" for a game, "addon" for an addon - or null if they go on the backend
 	/// </summary>
 	static string WorkshopTypeFor( Project project )
 	{
 		if ( project.ProjectSourceObject is Asset asset )
 			return IsWorkshopAsset( asset ) ? asset.Publishing.PackageType() : null;
 
-		return project.Config.Type == "game" && !project.IsSourcePublish() && !project.Config.IsStandaloneOnly ? "game" : null;
+		return project.Config.Type is "game" or "addon" && !project.Config.IsStandaloneOnly
+			? project.Config.Type
+			: null;
 	}
 
 	/// <summary>
 	/// The workshop item the files go in, or 0 if there isn't one yet. The backend's package says which item
 	/// it is - a map asset's note of it can be missing or stale on this machine, and going by that would make a
-	/// second item. A game only has the backend's.
+	/// second item. Games use the backend's ID; addons keep their ID in the project instead.
 	/// </summary>
 	static ulong FindWorkshopItemId( Package current, Asset asset )
 	{
@@ -84,13 +86,16 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
-	/// The workshop item a publish of this project goes to unless it's told otherwise - 0 if it isn't a map or a
-	/// game, or it'll make a new item
+	/// The workshop item a publish of this project goes to unless it's told otherwise - 0 if it isn't a map,
+	/// game or addon, or it'll make a new item
 	/// </summary>
 	public static async Task<ulong> GetWorkshopItemIdAsync( Project project )
 	{
 		if ( WorkshopTypeFor( project ) is null )
 			return 0;
+
+		if ( PublishesOnlyToWorkshop( project ) )
+			return project.Config.GetMetaOrDefault( "WorkshopId", 0UL );
 
 		return FindWorkshopItemId( await Package.FetchAsync( project.Config.FullIdent, false, false ), project.ProjectSourceObject as Asset );
 	}
@@ -162,8 +167,7 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
-	/// Why publishing to this item might not work, or null. Steam doesn't tell us who an item's contributors are,
-	/// so if it isn't ours we warn, and Steam decides when we upload.
+	/// Why publishing to this item won't work, or null. Only an item's owner can upload to it.
 	/// </summary>
 	static string WarningFor( ulong id, Workshop.Item item )
 	{
@@ -171,7 +175,7 @@ public partial class ProjectPublisher
 			return $"Couldn't find workshop item {id}. If it's been deleted or hidden, Steam won't accept the upload.";
 
 		if ( item.Owner.Id != Game.SteamId )
-			return $"Workshop item {id} belongs to {item.Owner.Name}. Steam will only accept the upload if they've added you as a contributor.";
+			return $"Workshop item {id} belongs to {item.Owner.Name}. Only its owner can publish to it.";
 
 		return null;
 	}
@@ -216,9 +220,11 @@ public partial class ProjectPublisher
 
 		WorkshopItemChecked = true;
 
-		var current = await Package.FetchAsync( Project.Config.FullIdent, false, false );
+		var current = IsWorkshopOnly ? null : await Package.FetchAsync( Project.Config.FullIdent, false, false );
 		BackendPackage = current;
-		WorkshopItemId = WorkshopItemChosen ? ChosenWorkshopItemId : FindWorkshopItemId( current, WorkshopAsset );
+		WorkshopItemId = WorkshopItemChosen ? ChosenWorkshopItemId
+			: IsWorkshopOnly ? Project.Config.GetMetaOrDefault( "WorkshopId", 0UL )
+			: FindWorkshopItemId( current, WorkshopAsset );
 
 		// First publish, we'll create one
 		if ( WorkshopItemId == 0 )
@@ -248,6 +254,9 @@ public partial class ProjectPublisher
 	/// </summary>
 	bool StaysOnBackend( ProjectFile file )
 	{
+		if ( IsWorkshopOnly )
+			return false;
+
 		if ( file == WorkshopThumb )
 			return WorkshopAsset is not null;
 
@@ -281,7 +290,7 @@ public partial class ProjectPublisher
 		if ( WorkshopType is null || WorkshopFiles is not null )
 			return;
 
-		WorkshopThumb = Manifest.FindAsset( $"/{TargetPackageIdent}/thumb.png" );
+		WorkshopThumb = Manifest.FindAsset( ThumbnailPath );
 
 		WorkshopMetadata = BuildWorkshopMetadata();
 
@@ -297,7 +306,8 @@ public partial class ProjectPublisher
 	static readonly Dictionary<string, string[]> WorkshopMetaKeys = new()
 	{
 		["map"] = ["PrimaryAsset", "ParentPackage"],
-		["game"] = ["LaunchMode", "MaxPlayers", "MinPlayers", "RecommendedMinPlayers", "RecommendedMaxPlayers", "ControlModes", "UsesStreamerFeatures", "MapSettings"],
+		["addon"] = ["ParentPackage"],
+		["game"] = ["LaunchMode", "MaxPlayers", "MinPlayers", "RecommendedMinPlayers", "RecommendedMaxPlayers", "ControlModes", "UsesStreamerFeatures", "AllowAddons", "AddonTypes", "MapSettings"],
 	};
 
 	/// <summary>
@@ -321,6 +331,11 @@ public partial class ProjectPublisher
 	};
 
 	/// <summary>
+	/// The meta key of a game's addon types (<see cref="PackageInfo.AddonTypes"/>)
+	/// </summary>
+	public const string AddonTypesMetaKey = "AddonTypes";
+
+	/// <summary>
 	/// The most tags that can be picked for an item - enough to say what it is, and it keeps room for the ones a
 	/// game gets from its player settings (Steam takes 32 at most)
 	/// </summary>
@@ -332,14 +347,32 @@ public partial class ProjectPublisher
 	static readonly string[] PlayerKeyValues = ["MinPlayers", "MaxPlayers", "RecommendedMinPlayers", "RecommendedMaxPlayers"];
 
 	/// <summary>
-	/// The workshop item's tags - its type, the ones picked, and for a game how it's played, from its player settings
+	/// The workshop item's tags - its type, the ones picked (an addon's from its target game's addon types), an addon's target game, and a game's player settings
 	/// </summary>
-	IEnumerable<string> BuildWorkshopTags()
+	async Task<IEnumerable<string>> BuildWorkshopTags()
 	{
 		var tags = new List<string> { WorkshopType };
+		var choices = WorkshopTagChoices( WorkshopType );
+
+		// Make the target searchable without fetching each item's metadata.
+		if ( WorkshopType == "addon" && Package.TryParseIdentParts( Project.Config.GetMetaOrDefault<string>( "ParentPackage", null ), out var target ) )
+		{
+			var ident = $"{target.org}.{target.package}".ToLowerInvariant();
+			tags.Add( $"target_ident:{ident}" );
+
+			var targetPackage = await Package.FetchAsync( ident, false, false )
+				?? throw new InvalidOperationException( $"Couldn't resolve target game '{ident}' for the Workshop upload." );
+
+			// An addon's tags are its game's addon types
+			choices = targetPackage.Info.AddonTypes;
+
+			if ( targetPackage.InstallsFromWorkshop )
+			{
+				tags.Add( $"target:{targetPackage.WorkshopId}" );
+			}
+		}
 
 		// Only ones we offer - one that's been dropped since it was picked doesn't go up
-		var choices = WorkshopTagChoices( WorkshopType );
 		tags.AddRange( Project.Config.GetMetaOrDefault( WorkshopTagsMetaKey, Array.Empty<string>() ).Where( choices.Contains ).Take( MaxPickedWorkshopTags ) );
 
 		if ( WorkshopType == "game" )
@@ -412,7 +445,7 @@ public partial class ProjectPublisher
 
 	string SerializeWorkshopMetadata( Dictionary<string, object> meta ) => Json.Serialize( new WorkshopItemMetaData
 	{
-		PackageIdent = Project.Config.FullIdent,
+		PackageIdent = IsWorkshopOnly ? null : Project.Config.FullIdent,
 		Title = Project.Config.Title,
 		TypeName = WorkshopType,
 		Meta = Json.Serialize( meta ),
@@ -441,6 +474,11 @@ public partial class ProjectPublisher
 	/// Would publishing this project put its files in a Steam Workshop item?
 	/// </summary>
 	public static bool PublishesToWorkshop( Project project ) => WorkshopTypeFor( project ) is not null;
+
+	/// <summary>
+	/// Addons are identified and published entirely through Steam Workshop, without a backend package.
+	/// </summary>
+	public static bool PublishesOnlyToWorkshop( Project project ) => project.Config.Type == "addon";
 
 	/// <summary>
 	/// The workshop item this publishes to, or 0 if it'll create a new one
@@ -509,9 +547,10 @@ public partial class ProjectPublisher
 		if ( WorkshopFiles is null )
 			throw new InvalidOperationException( "Call PrePublish before Publish" );
 
-		var folderName = $"workshop/{TargetPackageIdent}";
-		var previewName = $"workshop/{TargetPackageIdent}.jpg";
-		var mediaFolderName = $"workshop/{TargetPackageIdent}.media";
+		var uploadName = IsWorkshopOnly ? "addon" : TargetPackageIdent;
+		var folderName = $"workshop/{uploadName}";
+		var previewName = $"workshop/{uploadName}.jpg";
+		var mediaFolderName = $"workshop/{uploadName}.media";
 
 		WorkshopUtils.DeleteTemporaryFolder( folderName );
 		FileSystem.ProjectTemporary.CreateDirectory( folderName );
@@ -565,7 +604,12 @@ public partial class ProjectPublisher
 				preview = FileSystem.ProjectTemporary.GetFullPath( previewName );
 			}
 
+			var tags = await BuildWorkshopTags();
+			cancel.ThrowIfCancellationRequested();
+
 			workshopStage = WorkshopStage.Submitting;
+
+			var isNewItem = WorkshopItemId == 0;
 
 			var itemId = await WorkshopUtils.Upload( WorkshopItemId, folder, false, item =>
 			{
@@ -574,10 +618,17 @@ public partial class ProjectPublisher
 				item.SetTitle( Project.Config.Title );
 				item.SetMetaData( WorkshopMetadata );
 				// Steam replaces all of the item's tags with these
-				foreach ( var tag in BuildWorkshopTags() )
+				foreach ( var tag in tags )
 					item.SetTag( tag );
 
-				item.SetKeyValue( "package", Project.Config.FullIdent );
+				if ( IsWorkshopOnly )
+				{
+					item.RemoveKeyValues( "package" );
+				}
+				else
+				{
+					item.SetKeyValue( "package", Project.Config.FullIdent );
+				}
 
 				// Key values add to what's there - take the old ones off first
 				if ( WorkshopType == "game" )
@@ -601,14 +652,14 @@ public partial class ProjectPublisher
 				// A new item isn't for everyone until whoever's publishing says so
 				if ( WorkshopVisibility is { } visibility )
 					item.SetVisibility( visibility );
-				else if ( WorkshopItemId == 0 )
+				else if ( isNewItem )
 					item.SetVisibility( Storage.Visibility.Unlisted );
 
 				if ( preview is not null )
 					item.SetPreviewImage( preview );
 
 				// A new item gets its sbox.game summary - after that the description's the creator's own
-				if ( WorkshopItemId == 0 && !string.IsNullOrWhiteSpace( BackendPackage?.Summary ) )
+				if ( isNewItem && !string.IsNullOrWhiteSpace( BackendPackage?.Summary ) )
 					item.SetDescription( BackendPackage.Summary );
 
 				foreach ( var image in media )
@@ -616,15 +667,11 @@ public partial class ProjectPublisher
 
 			}, WorkshopChangeNote() );
 
-			if ( itemId == 0 )
-				throw new Exception( WorkshopItemId != 0
-					? $"Steam didn't accept the upload to workshop item {WorkshopItemId}. You need to be its owner or a contributor."
-					: $"Couldn't create a workshop item for {TargetPackageIdent}." );
+			CompleteWorkshopUpload( itemId );
 
 			// A map remembers its item on this machine too
 			WorkshopAsset?.MetaData.Set( "WorkshopId", itemId );
 
-			WorkshopItemId = itemId;
 			SetMeta( "WorkshopId", itemId );
 			workshopStage = WorkshopStage.Done;
 
@@ -647,6 +694,25 @@ public partial class ProjectPublisher
 				FileSystem.ProjectTemporary.DeleteFile( previewName );
 
 			WorkshopUtils.DeleteTemporaryFolder( mediaFolderName );
+		}
+	}
+
+	/// <summary>
+	/// Remembers the Workshop item ID after a successful upload.
+	/// </summary>
+	internal void CompleteWorkshopUpload( ulong itemId )
+	{
+		if ( itemId == 0 )
+			throw new Exception( WorkshopItemId != 0
+				? $"Steam didn't accept the upload to workshop item {WorkshopItemId}. Only its owner can publish to it."
+				: $"Couldn't create a workshop item for {Project.Config.Title}." );
+
+		WorkshopItemId = itemId;
+
+		if ( IsWorkshopOnly )
+		{
+			Project.Config.SetMeta( "WorkshopId", itemId );
+			Project.Save();
 		}
 	}
 

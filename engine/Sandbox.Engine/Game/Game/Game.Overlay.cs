@@ -8,7 +8,7 @@ public static partial class Game
 	/// <summary>
 	/// Provides static methods for displaying various modal overlays in the game UI.
 	/// <para>
-	/// The <see cref="Overlay"/> class allows you to open modals for packages, maps, news, organizations, reviews, friends lists, server lists, settings, input bindings, and player profiles.
+	/// The <see cref="Overlay"/> class allows you to open modals for packages, maps, news, organizations, friends lists, server lists, settings, input bindings, and player profiles.
 	/// It serves as a central point for invoking user interface overlays that interact with core game and community features.
 	/// </para>
 	/// </summary>
@@ -90,20 +90,11 @@ public static partial class Game
 		}
 
 		/// <summary>
-		/// Opens a modal to review the specified package
+		/// Retained for addons that opened the former package review form.
 		/// </summary>
-		/// <param name="package"></param>
+		[Obsolete( "Written package reviews are no longer supported." )]
 		public static void ShowReviewModal( Package package )
 		{
-			if ( !IsEnginePackage( package ) )
-			{
-				Log.Warning( "ShowReviewModal: needs a package from Package.FetchAsync" );
-				return;
-			}
-
-			using var scope = GlobalContext.MenuScope();
-
-			IModalSystem.Current?.Review( package );
 		}
 
 		/// <summary>

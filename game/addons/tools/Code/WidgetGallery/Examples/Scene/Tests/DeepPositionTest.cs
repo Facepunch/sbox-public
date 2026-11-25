@@ -32,12 +32,14 @@ internal class PositionDeep : ISceneTest
 				using ( Gizmo.Scope( "ObjectPosition", new Transform( position ) ) )
 				{
 					Gizmo.Draw.Color = Color.White;
-					Gizmo.Draw.Model( "models/citizen_props/crate01.vmdl" );
-
-					if ( Gizmo.Control.Position( "my-arrow", position, out var newPosition ) )
+					var oldPosition = position;
+					if ( Gizmo.Control.UpdatePosition( "my-arrow", position, out var newPosition ) )
 					{
 						position = newPosition;
 					}
+					Gizmo.Transform = Gizmo.Transform.ToWorld( new Transform( position - oldPosition ) );
+					Gizmo.Draw.Model( "models/citizen_props/crate01.vmdl" );
+					Gizmo.Draw.Position( "my-arrow" );
 
 					Gizmo.Draw.Color = Color.Black;
 					Gizmo.Draw.Text( $"Value: {position.x:n0}, {position.y:n0}, {position.z:n0}", new Transform( Vector3.Down * 50.0f ) );

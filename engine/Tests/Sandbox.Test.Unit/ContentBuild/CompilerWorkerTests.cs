@@ -33,6 +33,100 @@ public class CompilerWorkerTests
 	}
 
 	/// <summary>
+	/// The pool starts its worker as a program with arguments of its own.
+	/// </summary>
+	static string Launcher( string directory, string assembly )
+	{
+		if ( OperatingSystem.IsWindows() )
+		{
+			var cmd = Path.Combine( directory, "worker.cmd" );
+			File.WriteAllText( cmd, $"@\"{Dotnet}\" \"{assembly}\" %*" );
+			return cmd;
+		}
+
+		var sh = Path.Combine( directory, "worker.sh" );
+		File.WriteAllText( sh, $"#!/bin/sh\nexec \"{Dotnet}\" \"{assembly}\" \"$@\"\n" );
+		File.SetUnixFileMode( sh, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute );
+		return sh;
+	}
+
+	/// <summary>
+	/// A worker that exits before it's ready (no render device, compilers that don't load) fails the job.
+	/// </summary>
+	[TestMethod]
+	public void AWorkerThatNeverGetsReadyFailsTheJob()
+	{
+		var directory = Directory.CreateTempSubdirectory( "worker-unready-test" ).FullName;
+		try
+		{
+			var assembly = Emit( directory, "System.Environment.Exit(1);" );
+			var types = Path.Combine( directory, "assettypes.txt" );
+			File.WriteAllText( types, "" );
+			var compiler = new ResourceCompiler( Launcher( directory, assembly ), new AssetTypeTable( types ), [], null );
+			try
+			{
+				var root = new ContentRoot( "test", directory, directory );
+				var staging = Directory.CreateDirectory( Path.Combine( directory, "staging" ) ).FullName;
+				Assert.IsFalse( compiler.Compile( new CompileJob( root, [], Path.Combine( directory, "a.vtex" ), staging, [] ), default ).Success );
+			}
+			finally { compiler.Finished(); }
+		}
+		finally { Directory.Delete( directory, true ); }
+	}
+
+	/// <summary>
+	/// The last build's cleanup, run late (the editor stops a build's workers in the background), stops idle workers only:
+	/// a job the next build started on one finishes there.
+	/// </summary>
+	[TestMethod]
+	public async Task LateCleanupLeavesTheWorkerOfARunningJob()
+	{
+		var directory = Directory.CreateTempSubdirectory( "worker-cleanup-test" ).FullName;
+		try
+		{
+			var assembly = Emit( directory, """
+				using System;
+				using System.IO;
+				using System.Threading;
+				var output = new object();
+				Console.WriteLine("\u0001ready");
+				while (Console.ReadLine() is {} line)
+				{
+					var fields = line.Split('\t');
+					new Thread(() =>
+					{
+						File.WriteAllText(fields[2] + ".waiting", "");
+						while (!File.Exists(fields[2] + ".release")) Thread.Sleep(10);
+						File.WriteAllLines(fields[4], ["buildreport\t1", "result\t1"]);
+						lock (output) Console.WriteLine($"\u0001done\t{fields[0]}\tsucceeded");
+					}) { IsBackground = true }.Start();
+				}
+				""" );
+			var types = Path.Combine( directory, "assettypes.txt" );
+			File.WriteAllText( types, "" );
+			var compiler = new ResourceCompiler( Launcher( directory, assembly ), new AssetTypeTable( types ), [], null );
+			try
+			{
+				var root = new ContentRoot( "test", directory, directory );
+				var source = Path.Combine( directory, "a.vtex" );
+				var staging = Directory.CreateDirectory( Path.Combine( directory, "staging" ) ).FullName;
+				var job = Task.Run( () => compiler.Compile( new CompileJob( root, [], source, staging, [] ), default ) );
+				using var timeout = new CancellationTokenSource( TimeSpan.FromSeconds( 30 ) );
+				while ( !File.Exists( $"{source}.waiting" ) ) await Task.Delay( 10, timeout.Token );
+
+				compiler.Finished();
+				File.WriteAllText( $"{source}.release", "" );
+				var result = await job;
+				Assert.IsTrue( result.Success, result.Log );
+				Assert.AreEqual( 1, compiler.Launches );
+				Assert.AreEqual( 0, compiler.Ended.Count );
+			}
+			finally { compiler.Finished(); }
+		}
+		finally { Directory.Delete( directory, true ); }
+	}
+
+	/// <summary>
 	/// A job that crashes every worker it runs on fails, and the jobs that ran beside it don't: they died with it twice,
 	/// so their last run is on a worker of their own.
 	/// </summary>
@@ -62,23 +156,9 @@ public class CompilerWorkerTests
 				}
 				""" );
 
-			// The pool starts its worker as a program with arguments of its own
-			string launcher;
-			if ( OperatingSystem.IsWindows() )
-			{
-				launcher = Path.Combine( directory, "worker.cmd" );
-				File.WriteAllText( launcher, $"@\"{Dotnet}\" \"{assembly}\" %*" );
-			}
-			else
-			{
-				launcher = Path.Combine( directory, "worker.sh" );
-				File.WriteAllText( launcher, $"#!/bin/sh\nexec \"{Dotnet}\" \"{assembly}\" \"$@\"\n" );
-				File.SetUnixFileMode( launcher, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute );
-			}
-
 			var types = Path.Combine( directory, "assettypes.txt" );
 			File.WriteAllText( types, "" );
-			var compiler = new ResourceCompiler( launcher, new AssetTypeTable( types ), [], null );
+			var compiler = new ResourceCompiler( Launcher( directory, assembly ), new AssetTypeTable( types ), [], null );
 			try
 			{
 				var root = new ContentRoot( "test", directory, directory );

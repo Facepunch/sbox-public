@@ -1020,14 +1020,21 @@ public sealed partial class GraphBuilder
 	}
 
 	/// <summary>
-	/// Apply a rotation and translation offset to a target.
+	/// Apply a rotation and translation offset to a target in the bone's parent space or model space.
+	/// </summary>
+	public Node TargetOffset( Node target, Vector3 translationOffset, Rotation rotationOffset, bool boneSpace = true, Node translation = null )
+		=> TargetOffset( target, translationOffset, rotationOffset, boneSpace, translation, false );
+
+	/// <summary>
+	/// Apply a rotation and translation offset to a target, optionally following its rotation.
 	/// </summary>
 	/// <param name="target">The target node to offset.</param>
 	/// <param name="translationOffset">The translation offset to apply.</param>
 	/// <param name="rotationOffset">The rotation offset to apply.</param>
-	/// <param name="boneSpace">When true the offset is applied in the target's local (bone) space.</param>
+	/// <param name="boneSpace">When true the offset is applied in the bone's parent space; otherwise in model space. Ignored when followTargetRotation is true.</param>
 	/// <param name="translation">Optional vector input overriding the constant translation offset.</param>
-	public Node TargetOffset( Node target, Vector3 translationOffset, Rotation rotationOffset, bool boneSpace = true, Node translation = null )
+	/// <param name="followTargetRotation">Apply the offset as a child of the target, following its rotation and bone scale. When false, preserves existing offset behavior.</param>
+	public Node TargetOffset( Node target, Vector3 translationOffset, Rotation rotationOffset, bool boneSpace, Node translation, bool followTargetRotation )
 	{
 		Require( target, NodeKind.Target );
 		if ( translation is not null )
@@ -1038,6 +1045,7 @@ public sealed partial class GraphBuilder
 			definition.m_inputValueNodeIdx = (short)Resolve( target );
 			definition.m_translationOffsetNodeIdx = (short)ResolveOptional( translation );
 			definition.m_isBoneSpaceOffset = boneSpace;
+			definition.m_followTargetRotation = followTargetRotation;
 			definition.m_rotationOffset = rotationOffset;
 			definition.m_translationOffset = translationOffset;
 			return definition;

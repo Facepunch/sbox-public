@@ -952,14 +952,20 @@ public sealed unsafe partial class CommandList
 	/// <param name="numMips">Number of mips you want in this texture. You probably don't want this unless you want to generate mips in a second pass.</param>
 	/// <returns>A RenderTarget that is ready to render to.</returns>
 	public RenderTargetHandle GetRenderTarget( string name, int width, int height, ImageFormat colorFormat = ImageFormat.Default, ImageFormat depthFormat = ImageFormat.Default, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1 )
+		=> GetRenderTarget( name, width, height, colorFormat, depthFormat, msaa, numMips, engineOwned: false );
+
+	/// <summary>
+	/// As above, from the engine's own pool. The UI painter's layers hold menu pixels.
+	/// </summary>
+	internal RenderTargetHandle GetRenderTarget( string name, int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa, int numMips, bool engineOwned )
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y, targetName: (string)entry.Object5 );
+			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y, (string)entry.Object5, 0, entry.Data2.z != 0 );
 			commandList.state.renderTargets[(string)entry.Object5] = temp;
 		}
 
-		AddEntry( &Execute, new Entry { Object5 = name, Data1 = new Vector4( width, height, (int)colorFormat, (int)depthFormat ), Data2 = new Vector4( (int)msaa, numMips, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object5 = name, Data1 = new Vector4( width, height, (int)colorFormat, (int)depthFormat ), Data2 = new Vector4( (int)msaa, numMips, engineOwned ? 1 : 0, 0 ) } );
 		return new RenderTargetHandle { Name = name };
 	}
 
@@ -1065,12 +1071,8 @@ public sealed unsafe partial class CommandList
 	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => GlobalAttributes.Set( token, buffer );
 
 	/// <summary>
-	/// Binds the given render target's color texture to a stable, pipeline-level bindless slot
-	/// for this frame. This is how full-screen pipeline resources (ambient occlusion, screen-space
-	/// reflections) are published to the rest of the pipeline: consumers read a fixed descriptor
-	/// binding rather than a per-view render attribute. Because procedural layers build their
-	/// command lists on threaded jobs, writing the result index into the shared frame attributes
-	/// would race - this fixed slot is resolved single-threaded at submit, so it doesn't.
+	/// Publishes the color texture in the current view's pipeline slots.
+	/// Producers fill their slots without changing attributes while other layers record.
 	/// </summary>
 	internal void SetPipelineTexture( PipelineTextureSlot slot, RenderTargetHandle.ColorTextureRef buffer )
 	{
@@ -1082,7 +1084,8 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			NativeEngine.CSceneSystem.SetPipelineTextureIndex( (int)entry.Data1.x, target.ColorTarget.Index );
+			var offset = Graphics.Attributes.GetInt( "PipelineTextureOffset" );
+			NativeEngine.CSceneSystem.SetPipelineTextureIndex( offset, (int)entry.Data1.x, target.ColorTarget.Index );
 		}
 
 		// Dont write out of bounds of the pipeline slots

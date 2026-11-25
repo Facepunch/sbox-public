@@ -180,22 +180,26 @@ public static partial class SandboxSystemExtensions
 
 	private enum SizeUnit { B, KB, MB, GB, TB, PB, EB, ZB, YB }
 
+	/// <summary>
+	/// Formats a byte count with its sign and a binary unit suffix.
+	/// </summary>
 	public static string SizeFormat( this long bytes )
 	{
-		if ( bytes < 0 )
-			return "-" + SizeFormat( -bytes );
-
 		int unit = 0;
-		double value = bytes;
+		// Convert before taking the magnitude: negating long.MinValue overflows.
+		double value = Math.Abs( (double)bytes );
 		while ( unit < (int)SizeUnit.YB && value >= 1024 )
 		{
 			value /= 1024;
 			unit++;
 		}
 
-		return $"{value:F2} {(SizeUnit)unit}";
+		return $"{(bytes < 0 ? "-" : "")}{value:F2} {(SizeUnit)unit}";
 	}
 
+	/// <summary>
+	/// Formats a byte count with its sign and a binary unit suffix.
+	/// </summary>
 	public static string SizeFormat( this int bytes ) => SizeFormat( (long)bytes );
 
 	/// <summary>

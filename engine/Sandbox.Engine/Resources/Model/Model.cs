@@ -57,6 +57,7 @@ public sealed partial class Model : Resource
 
 		_physics?.Dispose();
 		_physics = default;
+		_physicsBounds = null;
 
 		_morphs?.Dispose();
 		_morphs = null;

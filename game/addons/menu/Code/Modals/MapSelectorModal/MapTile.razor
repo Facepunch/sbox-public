@@ -17,6 +17,10 @@
 
 		<div class="foot">
 			<label class="title">@Title</label>
+			@if ( !string.IsNullOrEmpty( File ) )
+			{
+				<label class="file">@File</label>
+			}
 		</div>
 	</div>
 </root>
@@ -25,6 +29,12 @@
 {
 	[Parameter]
 	public string Title { get; set; }
+
+	/// <summary>
+	/// Its file's name, shown beside the title when that's a display name (E1M1 beside Hangar)
+	/// </summary>
+	[Parameter]
+	public string File { get; set; }
 
 	[Parameter]
 	public Texture Thumbnail { get; set; }
@@ -37,6 +47,12 @@
 
 	[Parameter]
 	public Action OnSelect { get; set; }
+
+	/// <summary>
+	/// Its page - on right-click, beside picking it. A mounted map has none.
+	/// </summary>
+	[Parameter]
+	public Action OnView { get; set; }
 
 	Panel ThumbnailPanel = null;
 
@@ -54,5 +70,15 @@
 	{
 		base.OnClick(e);
 		OnSelect?.Invoke();
+	}
+
+	protected override void OnRightClick( MousePanelEvent e )
+	{
+		base.OnRightClick( e );
+		if ( OnView is null ) return;
+
+		var menu = MenuProject.UI.MenuPanel.Open( this );
+		menu.AddOption( "check", "Select map", () => OnSelect?.Invoke() );
+		menu.AddOption( "info", "View map", OnView );
 	}
 }

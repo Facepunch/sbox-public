@@ -1,0 +1,697 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "BoolParameterNode",
+      "ParameterIdentifier": "ed066074-8c5a-48f5-a70a-c06f76682a09",
+      "ParameterName": "b_attack_has_hit",
+      "Identifier": "1ada999e-0c23-4616-8b28-9a4d5abcf852",
+      "Position": "300,-300",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "FloatSwitchNode",
+      "Condition": {
+        "Identifier": "1ada999e-0c23-4616-8b28-9a4d5abcf852",
+        "Output": "Value"
+      },
+      "TrueValue": 1,
+      "FalseValue": 0,
+      "EaseTime": 0,
+      "Easing": "Linear",
+      "Identifier": "203cc793-bfa3-4dac-9c69-adb795dad302",
+      "Position": "610,-300",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "FloatParameterNode",
+      "ParameterIdentifier": "588b3bdd-f8f7-4594-92c5-80270296bfda",
+      "ParameterName": "holdtype_attack",
+      "Identifier": "bb126f61-eb2c-4329-af88-5efbb00c0a1b",
+      "Position": "920,-240",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "RandomFloatNode",
+      "Min": 0,
+      "Max": 3,
+      "Identifier": "1541a619-91d0-47a2-9d89-4900af8e21cf",
+      "Position": "0,-260",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "501134c3-c5e1-45d7-85b4-0503e875de60",
+          "Path": "weapons/fists/animations/left_miss_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "c37f027e-b1c8-4557-81bc-54ddaa1163b4",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "7f83c461-1078-4c30-a957-6671e004cebe",
+          "Path": "weapons/fists/animations/left_miss_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "a0132f6a-fc6a-449d-8c87-e323802fab7f",
+      "Position": "0,135",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "316191d9-9f80-40a4-a618-998570d1bed4",
+          "Path": "weapons/fists/animations/left_miss_03.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "79801230-f548-44d7-9ab2-cac2e428493d",
+      "Position": "0,270",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "1541a619-91d0-47a2-9d89-4900af8e21cf",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "Variant 1",
+          "Pose": {
+            "Identifier": "c37f027e-b1c8-4557-81bc-54ddaa1163b4",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Variant 2",
+          "Pose": {
+            "Identifier": "a0132f6a-fc6a-449d-8c87-e323802fab7f",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Variant 3",
+          "Pose": {
+            "Identifier": "79801230-f548-44d7-9ab2-cac2e428493d",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "36418f33-dcdc-4020-aa45-e6867ecccd8e",
+      "Position": "350,0",
+      "Title": "Left miss",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "d091350a-d35d-4cc0-a767-4332aa376366",
+          "Path": "weapons/fists/animations/left_hit_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "085087b4-ea3c-4810-b28d-6255ef6a397a",
+      "Position": "0,450",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "7fe83e05-80c7-4630-a106-576f94dc33fc",
+          "Path": "weapons/fists/animations/left_hit_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "4861737d-632e-4dd9-a149-1e2eb0401ddd",
+      "Position": "0,585",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "8991f358-53ed-4b20-a354-b120b4784915",
+          "Path": "weapons/fists/animations/left_hit_03.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "5e6c4b9d-3158-4dcc-bb5d-1c4f35e5ca18",
+      "Position": "0,720",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "1541a619-91d0-47a2-9d89-4900af8e21cf",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "Variant 1",
+          "Pose": {
+            "Identifier": "085087b4-ea3c-4810-b28d-6255ef6a397a",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Variant 2",
+          "Pose": {
+            "Identifier": "4861737d-632e-4dd9-a149-1e2eb0401ddd",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Variant 3",
+          "Pose": {
+            "Identifier": "5e6c4b9d-3158-4dcc-bb5d-1c4f35e5ca18",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "4eb41227-fd70-489d-a3ea-6e423ed7618e",
+      "Position": "350,450",
+      "Title": "Left hit",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedSelectorNode",
+      "Parameter": {
+        "Identifier": "203cc793-bfa3-4dac-9c69-adb795dad302",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "Miss",
+          "Pose": {
+            "Identifier": "36418f33-dcdc-4020-aa45-e6867ecccd8e",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Hit",
+          "Pose": {
+            "Identifier": "4eb41227-fd70-489d-a3ea-6e423ed7618e",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "300156da-ba18-47d0-93a9-9f49f0d709ed",
+      "Position": "660,150",
+      "Title": "Left punch",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "f2714dc8-5c68-412b-826f-a774e110ea7b",
+          "Path": "weapons/fists/animations/right_miss_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "eeb34c3a-5b20-4c87-bda1-efcc346f9bcf",
+      "Position": "0,900",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "2541bba7-068c-45aa-b56f-234e5230f17a",
+          "Path": "weapons/fists/animations/right_miss_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "ba8bc6c4-65ac-447b-b906-db1bcded44f3",
+      "Position": "0,1035",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "82876ce2-d8d6-4ff9-a2dc-b1446790353b",
+          "Path": "weapons/fists/animations/right_miss_03.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "11d65840-ad94-4467-a8c9-482ec41e502d",
+      "Position": "0,1170",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "1541a619-91d0-47a2-9d89-4900af8e21cf",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "Variant 1",
+          "Pose": {
+            "Identifier": "eeb34c3a-5b20-4c87-bda1-efcc346f9bcf",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Variant 2",
+          "Pose": {
+            "Identifier": "ba8bc6c4-65ac-447b-b906-db1bcded44f3",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Variant 3",
+          "Pose": {
+            "Identifier": "11d65840-ad94-4467-a8c9-482ec41e502d",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "f9ed55ee-f31e-4ce1-9422-33786e190013",
+      "Position": "350,900",
+      "Title": "Right miss",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "24f536f3-c669-47f3-959f-c507ab316ec7",
+          "Path": "weapons/fists/animations/right_hit_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "8741a062-8b3d-41c6-8df2-c91162e2e3d0",
+      "Position": "0,1350",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "a081b658-2637-4da0-a057-624326a2c2a7",
+          "Path": "weapons/fists/animations/right_hit_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "e1469d15-d89c-46d1-adeb-c8e1c40eaaf2",
+      "Position": "0,1485",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "cc4f89ba-4155-41f2-a94f-f7d69cdf8030",
+          "Path": "weapons/fists/animations/right_hit_03.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "14834530-2c9f-487d-be37-644d908131b4",
+      "Position": "0,1620",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "1541a619-91d0-47a2-9d89-4900af8e21cf",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "Variant 1",
+          "Pose": {
+            "Identifier": "8741a062-8b3d-41c6-8df2-c91162e2e3d0",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Variant 2",
+          "Pose": {
+            "Identifier": "e1469d15-d89c-46d1-adeb-c8e1c40eaaf2",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Variant 3",
+          "Pose": {
+            "Identifier": "14834530-2c9f-487d-be37-644d908131b4",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "5941a3ae-f7ab-4e77-adce-59cb6433183d",
+      "Position": "350,1350",
+      "Title": "Right hit",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedSelectorNode",
+      "Parameter": {
+        "Identifier": "203cc793-bfa3-4dac-9c69-adb795dad302",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "Miss",
+          "Pose": {
+            "Identifier": "f9ed55ee-f31e-4ce1-9422-33786e190013",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Hit",
+          "Pose": {
+            "Identifier": "5941a3ae-f7ab-4e77-adce-59cb6433183d",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "54651db5-b369-4167-ac79-207bad39f4bb",
+      "Position": "660,1050",
+      "Title": "Right punch",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedSelectorNode",
+      "Parameter": {
+        "Identifier": "bb126f61-eb2c-4329-af88-5efbb00c0a1b",
+        "Output": "Value"
+      },
+      "Options": [
+        {
+          "Label": "Left",
+          "Pose": {
+            "Identifier": "300156da-ba18-47d0-93a9-9f49f0d709ed",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Right",
+          "Pose": {
+            "Identifier": "54651db5-b369-4167-ac79-207bad39f4bb",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "187c9e60-86c4-40d2-bb4d-6fed69eccde9",
+      "Position": "980,550",
+      "Title": "Punch hand",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "187c9e60-86c4-40d2-bb4d-6fed69eccde9",
+        "Output": "Result"
+      },
+      "Identifier": "d2b02c2d-4a2e-4e45-83ab-7922f3dcb1c8",
+      "Position": "1300,550",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "0843ef28-00fc-0000-c400-000000000000",
+    "Path": "weapons/shared/first_person/v_first_person_arms_human.vmdl"
+  },
+  "Skeleton": {
+    "Id": "bbde796f-da32-4a3e-9a6a-73d8936e2047",
+    "Path": "weapons/fists/animations/fists.skel"
+  },
+  "parameters": [
+    {
+      "Identifier": "588b3bdd-f8f7-4594-92c5-80270296bfda",
+      "Type": "Float",
+      "Name": "holdtype_attack",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    },
+    {
+      "Identifier": "ed066074-8c5a-48f5-a70a-c06f76682a09",
+      "Type": "Bool",
+      "Name": "b_attack_has_hit",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    }
+  ],
+  "virtualParameters": []
+}

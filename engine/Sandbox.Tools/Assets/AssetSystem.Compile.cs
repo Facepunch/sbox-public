@@ -12,6 +12,11 @@ public static partial class AssetSystem
 	/// </summary>
 	internal static bool TryManagedCompile( IResourceCompilerContext context ) => ContentCompilerHost.CompileOnMainThread( () => ManagedCompile( context ) );
 
+	/// <summary>
+	/// A compile asked for while the editor's content build holds the roots: whether the build let go of them.
+	/// </summary>
+	internal static bool YieldContentBuild() => EditorContentBuild.Yield();
+
 	static async Task<bool> ManagedCompile( IResourceCompilerContext _context )
 	{
 		using var context = new ResourceCompileContextImp( _context );

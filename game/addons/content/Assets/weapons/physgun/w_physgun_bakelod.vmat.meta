@@ -1,0 +1,28 @@
+{
+  "guid": "4f6f4455-348c-4ae9-acca-02c1901856fc",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "W Physgun Bakelod",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "w_physgun_bakelod",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [
+        "jase.carddebris_a_02#12112"
+      ],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "weapons/physgun/w_physgun_bakelod.vmat"
+      }
+    }
+  }
+}

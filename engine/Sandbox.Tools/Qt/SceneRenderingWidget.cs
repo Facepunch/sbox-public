@@ -12,6 +12,7 @@ public class SceneRenderingWidget : Frame
 
 	internal SwapChainHandle_t SwapChain;
 	bool renderingStopped;
+	bool renderFailed;
 
 	/// <summary>
 	/// The active scene that we're rendering
@@ -29,6 +30,38 @@ public class SceneRenderingWidget : Frame
 	public Gizmo.Instance GizmoInstance { get; private set; } = new();
 
 	public bool EnableEngineOverlays { get; set; } = false;
+
+	protected override void OnMousePress( MouseEvent e )
+	{
+		QueueGizmoPointerEvent( e, true );
+		base.OnMousePress( e );
+	}
+
+	protected override void OnMouseReleased( MouseEvent e )
+	{
+		QueueGizmoPointerEvent( e, false );
+		base.OnMouseReleased( e );
+	}
+
+	protected override void OnBlur( FocusChangeReason reason )
+	{
+		GizmoInstance.CancelPointerInput();
+		base.OnBlur( reason );
+	}
+
+	void QueueGizmoPointerEvent( MouseEvent e, bool pressed )
+	{
+		if ( !e.LeftMouseButton || GetSceneCamera() is not { } camera ) return;
+		var input = GizmoInstance.Input;
+		input.Camera = camera;
+		input.CursorPosition = e.LocalPosition;
+		input.CursorRay = camera.GetRay( e.LocalPosition, Size );
+		input.Modifiers = e.KeyboardModifiers;
+		input.IsHovered = LocalRect.IsInside( e.LocalPosition );
+		input.LeftMouse = pressed;
+		input.DoubleClick = e.IsDoubleClick;
+		GizmoInstance.QueuePointerEvent( input );
+	}
 
 	// Track if we've locked this widget's size for recording
 	private bool _sizeLockedForRecording;
@@ -181,7 +214,12 @@ public class SceneRenderingWidget : Frame
 		var camera = GetSceneCamera();
 		if ( camera is null ) return;
 
+		var component = Camera.IsValid() ? Camera : Scene.Camera;
+		component.UpdateSceneCameraTransform( camera );
+
 		UpdateGizmoInputs( ref GizmoInstance.Input, camera, hasMouseFocus );
+		if ( Gizmo.Active == GizmoInstance )
+			GizmoInstance.RefreshInput();
 	}
 
 	void Render()
@@ -193,9 +231,11 @@ public class SceneRenderingWidget : Frame
 
 		using ( Scene.PushScope() )
 		{
+			UpdateGizmoInputs();
 			using ( GizmoInstance.PushScope() )
 			{
 				PreFrame();
+				Gizmo.Draw.End();
 				RenderScene();
 			}
 		}
@@ -208,6 +248,7 @@ public class SceneRenderingWidget : Frame
 		}
 
 		g_pRenderDevice.Present( SwapChain );
+		renderFailed = false;
 	}
 
 	private void UpdateGizmoInputs( ref Gizmo.Inputs input, SceneCamera camera, bool hasMouseFocus )
@@ -219,6 +260,9 @@ public class SceneRenderingWidget : Frame
 
 		if ( !hasMouseFocus )
 		{
+			GizmoInstance.CancelPointerInput();
+			input.LeftMouse = false;
+			input.RightMouse = false;
 			input.CursorRay = new Ray();
 			return;
 		}
@@ -230,11 +274,6 @@ public class SceneRenderingWidget : Frame
 		input.CursorPosition -= ScreenPosition;
 		input.CursorRay = camera.GetRay( input.CursorPosition, Size );
 
-		if ( !input.IsHovered )
-		{
-			input.LeftMouse = false;
-			input.RightMouse = false;
-		}
 	}
 
 	private SceneCamera GetSceneCamera()
@@ -291,7 +330,16 @@ public class SceneRenderingWidget : Frame
 		{
 			if ( !widget.Visible ) continue;
 
-			widget.Render();
+			try
+			{
+				widget.Render();
+			}
+			catch ( Exception e )
+			{
+				if ( widget.renderFailed ) continue;
+				widget.renderFailed = true;
+				Log.Error( e, $"Exception rendering {widget.Scene}" );
+			}
 		}
 	}
 }

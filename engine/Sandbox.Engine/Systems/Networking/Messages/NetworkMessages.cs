@@ -59,6 +59,11 @@ struct ServerInfo
 	public string GamePackage { get; set; }
 
 	/// <summary>
+	/// The Workshop item used by the host's game, or zero for a game loaded from another source.
+	/// </summary>
+	public ulong GameWorkshopId { get; set; }
+
+	/// <summary>
 	/// Which version of the game's workshop item the host has (<see cref="Workshop.GetInstalledVersion"/>), or 0 if
 	/// it isn't installed from the workshop. Clients with a different one can't join.
 	/// </summary>
@@ -77,6 +82,11 @@ struct ServerInfo
 	/// If true the host hands the game to another peer when it leaves.
 	/// </summary>
 	public bool HostMigration { get; set; }
+
+	/// <summary>
+	/// The host is a dedicated server rather than a player.
+	/// </summary>
+	public bool IsDedicatedServer { get; set; }
 
 	/// <summary>
 	/// The client has to send the server's password (sv_password) to get in.
@@ -225,6 +235,9 @@ public record struct NetworkFile( string Name, byte[] Content )
 {
 
 }
+
+[Expose]
+internal record struct RequestCodeArchive( string Name, ulong Checksum );
 
 [Expose]
 struct RequestMountedVPKs

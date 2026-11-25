@@ -1,0 +1,23 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Side Cushion Left",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "side_cushion_left",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "models/props/couch/side_cushion_left.vmdl",
+        "AssetLicense": "CC0"
+      }
+    }
+  },
+  "guid": "020800e8-0000-0000-70ea-ae0efc000000"
+}

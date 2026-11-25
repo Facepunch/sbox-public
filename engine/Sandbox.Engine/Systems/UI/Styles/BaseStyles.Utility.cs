@@ -89,6 +89,15 @@ namespace Sandbox.UI
 			}
 		}
 
+		/// <summary>
+		/// Interpolates matching font axes during a CSS transition.
+		/// </summary>
+		protected void Lerp( ref FontVariationSettings? result, in FontVariationSettings? from, in FontVariationSettings? to, in FontVariationSettings? defaultValue, float delta )
+		{
+			if ( from.HasValue || to.HasValue )
+				result = UI.FontVariationSettings.Lerp( from ?? defaultValue.Value, to ?? defaultValue.Value, delta );
+		}
+
 		protected void Lerp( ref float? o, in float? a, in float? b, in float? defaultValue, float delta )
 		{
 			if ( !a.HasValue && !b.HasValue )

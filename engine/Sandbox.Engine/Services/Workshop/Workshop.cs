@@ -1,5 +1,6 @@
 using Sandbox.Services;
 using Sandbox.Services.Players;
+using Steamworks;
 using System.Text.Json.Serialization;
 using System.Threading;
 
@@ -34,6 +35,11 @@ internal static partial class Workshop
 
 		public string Title { get; init; }
 		public string Description { get; init; }
+
+		/// <summary>
+		/// What this is
+		/// </summary>
+		public WorkshopFileType FileType { get; init; }
 
 		/// <summary>
 		/// Its preview image
@@ -87,6 +93,11 @@ internal static partial class Workshop
 		public DateTimeOffset Updated { get; init; }
 
 		public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+
+		/// <summary>
+		/// Required Workshop items. Null if Steam couldn't return the dependency list.
+		/// </summary>
+		public IReadOnlyList<ulong> Children { get; init; }
 		public IReadOnlyDictionary<string, string> KeyValues { get; init; } = new Dictionary<string, string>();
 
 		/// <summary>
@@ -201,6 +212,11 @@ internal static partial class Workshop
 	/// Vote this item up or down. There's no taking a vote back, only changing it. False if Steam didn't take it.
 	/// </summary>
 	internal static Task<bool> VoteAsync( ulong id, bool up, CancellationToken token = default ) => Ugc.SetVoteAsync( id, up, token );
+
+	/// <summary>
+	/// Add this item to the user's favourites, or take it off. False if Steam didn't take it.
+	/// </summary>
+	internal static Task<bool> FavouriteAsync( ulong id, bool favourite, CancellationToken token = default ) => Ugc.SetFavouriteAsync( id, favourite, token );
 
 	/// <summary>
 	/// Are we subscribed to this item? Cheap - it's kept up to date as subscriptions change.

@@ -1,4 +1,4 @@
-﻿using Sandbox.Hashing;
+using Sandbox.Hashing;
 using Sandbox.Utility;
 using System.Runtime.InteropServices;
 
@@ -24,7 +24,7 @@ public static partial class Gizmo
 	/// active state whenever needed.
 	/// </summary>
 	[Expose]
-	public class Instance : IDisposable
+	public partial class Instance : IDisposable
 	{
 		/// <summary>
 		/// If true, we'll draw some debug information
@@ -80,7 +80,6 @@ public static partial class Gizmo
 
 		internal Frame current;
 		internal Frame previous;
-		internal Frame builder;
 		internal Frame pressed;
 
 		/// <summary>
@@ -89,6 +88,8 @@ public static partial class Gizmo
 		/// active scope.
 		/// </summary>
 		internal ScopeState scope;
+		internal GizmoDraw _renderer;
+		internal GizmoDraw Renderer => _renderer ??= new();
 
 		/// <summary>
 		/// Holds the current hitbox line scope status
@@ -96,14 +97,14 @@ public static partial class Gizmo
 		internal HitboxLineScope lineScope;
 
 		/// <summary>
-		/// The current control mode. This is generally implementation specific. 
+		/// The current control mode. This is generally implementation specific.
 		/// We tend to use "mouse" and "firstperson".
 		/// </summary>
 		public string ControlMode { get; set; }
 
 		/// <summary>
 		/// Some global settings accessible to the gizmos. Your implementation
-		/// generally lets your users set up  these things to their preference, 
+		/// generally lets your users set up  these things to their preference,
 		/// and the gizmos should try to obey them.
 		/// </summary>
 		public Gizmo.SceneSettings Settings { get; set; } = new SceneSettings();
@@ -111,7 +112,7 @@ public static partial class Gizmo
 		Dictionary<string, object> storage { get; } = new Dictionary<string, object>( StringComparer.OrdinalIgnoreCase );
 
 		/// <summary>
-		/// Generic storage for whatever you want to do. 
+		/// Generic storage for whatever you want to do.
 		/// You're responsible for not spamming into this and cleaning up after yourself.
 		/// </summary>
 		public T GetValue<T>( string name )
@@ -123,7 +124,7 @@ public static partial class Gizmo
 		}
 
 		/// <summary>
-		/// Generic storage for whatever you want to do. 
+		/// Generic storage for whatever you want to do.
 		/// You're responsible for not spamming into this and cleaning up after yourself.
 		/// </summary>
 		public void SetValue<T>( string name, T value )
@@ -138,6 +139,15 @@ public static partial class Gizmo
 		public void Clear()
 		{
 			storage.Clear();
+			_paths.Clear();
+			hitShapes.Clear();
+			displayedHitShapes.Clear();
+			pointerEvents.Clear();
+			_pickRevision = -1;
+			_pickVisibility.Clear();
+			_pickResult = default;
+			_pickView = default;
+			ClearPress();
 		}
 
 
@@ -150,12 +160,6 @@ public static partial class Gizmo
 
 		FastTimer timer;
 
-		/// <summary>
-		/// To handle multiple viewports, so we keep track of which viewport is being pressed.
-		/// </summary>
-		private static string activePressedPath;
-		private bool ownsActivePress;
-
 		public Instance()
 		{
 			Entries = new();
@@ -167,6 +171,9 @@ public static partial class Gizmo
 		/// </summary>
 		public void Dispose()
 		{
+			Clear();
+			_renderer?.Clear();
+			_renderer = null;
 			_world?.Delete();
 			_world = null;
 			Pool?.Clear();
@@ -177,10 +184,10 @@ public static partial class Gizmo
 		/// Push this instance as the global Gizmo state. All Gizmo calls during this scope
 		/// will use this instance.
 		/// </summary>
-		public IDisposable Push() => PushScope();
+		public IDisposable Push() => ScopeLease<DisposeAction<Instance, Instance>>.Rent( PushScope() );
 
 		/// <summary>
-		/// Allocation-free version of <see cref="Push"/>.
+		/// Internal instance scope used by engine call sites.
 		/// </summary>
 		internal DisposeAction<Instance, Instance> PushScope()
 		{
@@ -190,6 +197,7 @@ public static partial class Gizmo
 
 			Start();
 			Sandbox.Gizmo.BeginInstance( this );
+			RefreshInput();
 
 			unsafe
 			{
@@ -213,20 +221,24 @@ public static partial class Gizmo
 			Pool = Entries;
 			Entries = p;
 			Entries.Clear();
+			_pathFrame++;
 
 			previous = current;
-			current = builder;
+			current.Input = Input;
+			current.Click = false;
+			(hitShapes, displayedHitShapes) = (displayedHitShapes, hitShapes);
+			hitShapes.Clear();
+			eventsProcessed = false;
+			MousePressed = false;
+			MouseReleased = false;
+			HasReleaseInput = false;
 
 			lineScope = default;
-			builder = default;
-			builder.HitDistance = float.MaxValue;
-			builder.Input = Input;
 
 			scope.HitDepthBias = 1.0f;
 
 			Hitbox.Debug = DebugHitboxes;
 
-			MouseUpdate();
 		}
 
 		void DrawDebug()
@@ -254,6 +266,10 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		/// </summary>
 		void End()
 		{
+			_renderer?.EndFrame();
+			UpdateHitRevision();
+			if ( pressOwner == this && (MouseReleased || (captureHasShape && !HasCapturedShape())) )
+				ClearPress();
 			foreach ( var entry in Pool )
 			{
 				if ( entry.Value is SceneObject so )
@@ -264,79 +280,32 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			}
 
 			Pool.Clear();
+			PrunePaths();
 
 			// don't force the world to exist just to flush deletes
 			_world?.DeletePendingObjects();
 		}
 
-		void MouseUpdate()
+		bool HasCapturedShape()
 		{
-			if ( !current.Input.IsHovered )
-			{
-				if ( ownsActivePress )
-				{
-					// Keep path alive in builder so Pressed.Any stays true until we regain hover and detect the actual release.
-					builder.PressedPath = current.PressedPath;
-				}
-				else if ( !string.IsNullOrEmpty( activePressedPath ) )
-				{
-					// Mirror the owning instance's path so Pressed.Any correctly returns true across all views.
-					builder.PressedPath = activePressedPath;
-				}
-
-				return;
-			}
-
-			// If we release the mouse outside of the viewport we pressed on, clear the stale press state.
-			if ( ownsActivePress && !current.Input.LeftMouse && !previous.Input.LeftMouse )
-			{
-				ownsActivePress = false;
-				activePressedPath = default;
-			}
-
-			//
-			// left mouse button just clicked
-			//
-			if ( previous.Input.LeftMouse == false && current.Input.LeftMouse == true )
-			{
-				current.PressedPath = current.HoveredPath;
-				activePressedPath = current.HoveredPath;
-				ownsActivePress = true;
-				pressed = current;
-			}
-
-			//
-			// left mouse button just released
-			//
-			if ( previous.Input.LeftMouse == true && current.Input.LeftMouse == false )
-			{
-				ownsActivePress = false;
-				activePressedPath = default;
-
-				if ( current.HoveredPath == current.PressedPath )
-				{
-					current.Click = true;
-				}
-			}
-
-			if ( current.Input.LeftMouse )
-			{
-				current.HoveredPath = current.PressedPath;
-				builder.PressedPath = current.PressedPath;
-			}
-
-			builder.SelectedPath = current.SelectedPath;
+			foreach ( var shape in hitShapes )
+				if ( shape.Path == current.PressedPath ) return true;
+			return false;
 		}
 
 		/// <summary>
 		/// Find a cached version of this sceneobject - if not found, create one
 		/// </summary>
 		internal T FindOrCreate<T>( string key, Func<T> value ) where T : SceneObject
+			=> FindOrCreate( key, value, static ( _, factory ) => factory() );
+
+		internal T FindOrCreate<T, TState>( string key, TState state, Func<SceneWorld, TState, T> factory, bool flushGeometry = true ) where T : SceneObject
 		{
+			if ( flushGeometry ) _renderer?.Flush();
 			Active.scope.Create++;
 
 			var objectKey = new GizmoObjectKey(
-				HashString( Sandbox.Gizmo.Path ),
+				scope.PathHash,
 				Active.scope.Create,
 				HashString( key ),
 				typeof( T ) );
@@ -348,17 +317,14 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			// Do we have this in our pool (created last frame)
 			// If so, we can re-use it.
 			//
-			if ( Pool.TryGetValue( objectKey, out var obj ) )
-			{
-				Pool.Remove( objectKey );
-			}
+			Pool.Remove( objectKey, out var obj );
 
 			//
 			// If not then create a new one
 			//
 			if ( obj == null )
 			{
-				obj = value();
+				obj = factory( World, state );
 				ObjectsCreated++;
 			}
 
@@ -377,7 +343,6 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		{
 			current.Input.CursorPosition = position;
 			previous.Input.CursorPosition = position;
-			builder.Input.CursorPosition = position;
 		}
 	}
 

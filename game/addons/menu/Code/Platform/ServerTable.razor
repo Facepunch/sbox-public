@@ -51,7 +51,7 @@
 
             @foreach ( var server in Sorted )
             {
-                <tr class="server @(server.IsFull ? "full" : "") @(server.IsOutdated ? "outdated" : "") @(server.LobbyId == selected ? "selected" : "")" @key=@server.LobbyId onclick=@( () => selected = server.LobbyId )>
+                <tr class="server @(server.IsFull ? "full" : "") @(server.IsOutdated ? "outdated" : "") @(server.LobbyId == selected ? "selected" : "")" @key=@server.LobbyId onclick=@( () => selected = server.LobbyId ) onrightclick=@( ( PanelEvent e ) => OpenMenu( e.This, server ) )>
                     @if ( ShowGame )
                     {
                         <td>
@@ -271,6 +271,7 @@
 
     static string WhyNotJoin( LobbyInformation server )
     {
+        if ( !PlatformMenu.CanChangeGame ) return "Servers can't be joined from the editor";
         if ( server.IsOutdated ) return OutdatedReason( server );
         if ( server.IsFull ) return "It's full";
         if ( !MenuHelpers.HasAuthority ) return "Only the party leader can join a server";
@@ -303,6 +304,27 @@
     {
         if ( MenuHelpers.CachedPackage( server.Map ) is { } map ) return !string.IsNullOrEmpty( map.ThumbWide ) ? map.ThumbWide : map.Thumb;
         return MenuHelpers.CachedPackage( server.Game )?.Thumb is { Length: > 0 } thumb ? thumb : null;
+    }
+
+    /// <summary>
+    /// What else you can do with a server - its game's page, its map's when it's on one from the Workshop, and its name
+    /// (and a dedicated server's Steam ID) to copy
+    /// </summary>
+    void OpenMenu( Panel row, LobbyInformation server )
+    {
+        var menu = MenuProject.UI.MenuPanel.Open( row );
+
+        if ( !string.IsNullOrEmpty( server.Game ) )
+            menu.AddOption( "sports_esports", "View Game", () => PlatformRoot.Instance?.ShowGame( server.Game ) );
+
+        if ( MenuHelpers.CachedPackage( server.Map ) is not null )
+            menu.AddOption( "map", "View Map", () => PlatformRoot.Instance?.ShowGame( server.Map ) );
+
+        menu.AddSpacer();
+        menu.AddOption( "content_copy", "Copy Name", () => Clipboard.SetText( server.Name ) );
+
+        if ( IsDedicated( server ) )
+            menu.AddOption( "badge", "Copy Steam ID", () => Clipboard.SetText( server.OwnerId.ToString() ) );
     }
 
     void Join( LobbyInformation server )

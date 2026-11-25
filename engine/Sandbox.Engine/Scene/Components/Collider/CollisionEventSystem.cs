@@ -14,6 +14,18 @@ class CollisionEventSystem : IDisposable
 
 	public IReadOnlyCollection<Collider> Touching => _touchingColliders is null ? Array.Empty<Collider>() : _touchingColliders.Keys;
 
+	/// <summary>
+	/// Append contacts without boxing the dictionary's enumerator.
+	/// </summary>
+	internal void GetTouching( List<Collider> result )
+	{
+		if ( _touchingColliders is null )
+			return;
+
+		foreach ( var collider in _touchingColliders.Keys )
+			result.Add( collider );
+	}
+
 	private record struct TouchingPair( Collider Self, Collider Other, GameObject GameObject );
 	private HashSet<TouchingPair> _touchingPairs;
 

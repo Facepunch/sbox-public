@@ -629,7 +629,7 @@ namespace Editor
 
 			try
 			{
-				Paint.SetFont( "Material Icons", pixelHeight, 400, sizeInPixels: true );
+				Paint.SetFont( "Material Symbols Outlined", pixelHeight, 400, sizeInPixels: true );
 				return Paint.DrawText( rect, iconName?.ToLower(), alignment );
 			}
 			finally

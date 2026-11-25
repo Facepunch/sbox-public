@@ -1,0 +1,78 @@
+@import "/UI/Theme.scss";
+
+@mixin component-theme
+{
+	ToolsMenu
+	{
+		@include ui-menu-tab-panel;
+		width: 100%;
+		flex-shrink: 0;
+		flex-grow: 0;
+
+		> .tabbar > .search-toggle { margin-left: auto; }
+
+		&.hide-search > .tabbar > .search-toggle { display: none; }
+		&.hide-search > .tabbar > .theme-toggle { margin-left: auto; }
+
+		> .tabbar > .search-toggle,
+		> .tabbar > .theme-toggle
+		{
+			@include ui-header-button;
+			width: $ui-menu-tab-height;
+			pointer-events: all;
+
+			> .icon
+			{
+				font-size: 18px;
+				pointer-events: none;
+			}
+			&.selected { @include ui-selected( $ui-catalog-selected-bg ); }
+		}
+
+		> ToolMenuSearch
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			background-color: $ui-catalog-surface;
+			border-bottom: 1px solid $ui-separator;
+
+			> SpawnMenuToolbar { padding: 8px; }
+			.textentry.menu-input { width: 100%; }
+		}
+
+		> .tab-body > .tab-page > .tab
+		{
+			flex-direction: row;
+		}
+	}
+
+	ToolsTab .tool-shortcuts
+	{
+		flex-shrink: 0;
+		height: $ui-menu-title-height;
+		align-items: center;
+		padding: 0 8px;
+		gap: 6px;
+		border-bottom: 1px solid $ui-separator;
+
+		> .tool-shortcut
+		{
+			@include ui-header-button;
+			flex-grow: 1;
+			flex-basis: 0;
+			background-color: $ui-popup-bg-light;
+			border-color: $ui-separator;
+			color: $ui-text-strong;
+
+			> .icon
+			{
+				font-size: 21px;
+				pointer-events: none;
+			}
+
+			&.active { @include ui-selected( $ui-catalog-selected-bg ); }
+		}
+	}
+}
+
+@import "/UI/Theme/Apply.scss";

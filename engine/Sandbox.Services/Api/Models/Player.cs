@@ -20,11 +20,7 @@ public class PlayerOverview
 	public long SecondsPlayed { get; set; }
 	public long Achievements { get; set; }
 	public long TotalFavourites { get; set; }
-	public long TotalReviews { get; set; }
-	public long NegativeReviews { get; set; }
-	public long PositiveReviews { get; set; }
 	public string Avatar { get; set; }
-	public PackageReviewDto[] LatestReviews { get; set; }
 
 	public PackageWrapMinimal MostPlayed { get; set; }
 	public PackageWrapMinimal LatestPlayed { get; set; }

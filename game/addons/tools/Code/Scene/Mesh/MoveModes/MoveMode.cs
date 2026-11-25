@@ -14,6 +14,7 @@ public abstract class MoveMode
 
 	bool _dirty = true;
 	bool _globalSpace;
+	Transform _workPlane = Transform.Zero;
 
 	protected bool CanUseGizmo = true;
 	private Vector2 _lastCursorPos;
@@ -29,14 +30,15 @@ public abstract class MoveMode
 				_dirty = true;
 			}
 		}
-		else if ( _globalSpace != tool.GlobalSpace )
+		else if ( _globalSpace != tool.GlobalSpace || _workPlane != WorkPlane.Current )
 		{
 			_dirty = true;
 		}
 
 		_globalSpace = tool.GlobalSpace;
+		_workPlane = WorkPlane.Current;
 
-		if ( _dirty )
+		if ( _dirty || Gizmo.WasLeftMousePressed )
 		{
 			OnBegin( tool );
 
@@ -45,6 +47,11 @@ public abstract class MoveMode
 
 		UpdateGizmoFromCursor();
 		OnUpdate( tool );
+		if ( tool.DragStarted && Gizmo.WasLeftMouseReleased )
+		{
+			tool.EndDrag();
+			_dirty = true;
+		}
 	}
 
 	protected void UpdateGizmoFromCursor()

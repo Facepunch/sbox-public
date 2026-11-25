@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.IO.Enumeration;
 using System.Text.Json;
 using Zio.FileSystems;
 
@@ -111,10 +112,16 @@ public class BaseFileSystem
 
 		List<string> foundFiles = new();
 
+		bool hasPattern = !string.IsNullOrWhiteSpace( pattern ) && pattern != "*";
+
 		try
 		{
-			foreach ( var path in system.EnumeratePaths( folder, pattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly, Zio.SearchTarget.File ) )
+			foreach ( var path in system.EnumeratePaths( folder, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly, Zio.SearchTarget.File ) )
 			{
+				// zio's pattern matching is case sensitive, which we don't want
+				if ( hasPattern && !FileSystemName.MatchesSimpleExpression( pattern, Path.GetFileName( path.FullName ), ignoreCase: true ) )
+					continue;
+
 				var found = path.FullName.Substring( folder.Length ).Trim( '/' );
 				foundFiles.Add( found );
 			}
@@ -456,6 +463,11 @@ public class BaseFileSystem
 	/// Convert object to json and write it to the specified file
 	/// </summary>
 	public void WriteJson<T>( string filename, T data )
+
+
+
+
+
 	{
 		var text = System.Text.Json.JsonSerializer.Serialize( data, JsonSerializerOptions );
 		WriteAllText( filename, text );
@@ -629,6 +641,8 @@ public class BaseFileSystem
 			return 0;
 		}
 	}
+
+	internal DateTime GetLastWriteTime( string path ) => system.GetLastWriteTime( FixPath( path ) );
 
 	/// <summary>
 	/// Returns file size of given file.

@@ -22,13 +22,14 @@ public class VolumetricFogVolumeTool : EditorTool<VolumetricFogVolume>
 
 		using ( Gizmo.Scope( "Volumetric Fog Volume Editor", volumetricFogVolume.WorldTransform ) )
 		{
-			if ( Gizmo.Control.BoundingBox( "Bounds", currentBounds, out var newBounds ) )
+			if ( Gizmo.Control.UpdateBoundingBox( "Bounds", currentBounds, out var newBounds ) )
 			{
 				_componentUndoScope ??= SceneEditorSession.Active.UndoScope( "Resize Volumetric Fog Volume Bounds" )
 					.WithComponentChanges( volumetricFogVolume ).Push();
 
 				volumetricFogVolume.Bounds = newBounds;
 			}
+			Gizmo.Draw.BoundingBox( "Bounds", volumetricFogVolume.Bounds );
 		}
 	}
 }

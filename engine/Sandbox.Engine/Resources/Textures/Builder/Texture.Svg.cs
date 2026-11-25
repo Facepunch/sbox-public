@@ -28,7 +28,7 @@ public partial class Texture
 	{
 		try
 		{
-			var svgDocument = Svg.SvgDocument.FromSvg<Svg.SvgDocument>( svgContents.Trim() );
+			var svgDocument = SvgSanitizer.Parse( svgContents );
 
 			int nativeWidth = svgDocument.Width.Value.FloorToInt();
 			int nativeHeight = svgDocument.Height.Value.FloorToInt();

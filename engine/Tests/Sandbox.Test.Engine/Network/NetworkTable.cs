@@ -8,6 +8,95 @@ namespace NetworkTests;
 [TestClass]
 public class NetworkTableTest
 {
+	/// <summary>
+	/// A getter that fails during registration can be registered again on a later refresh.
+	/// </summary>
+	[TestMethod]
+	public void RegistrationRetriesFailedGetter()
+	{
+		using var table = new Sandbox.Network.NetworkTable();
+		var fail = true;
+		var entry = new Sandbox.Network.NetworkTable.Entry
+		{
+			NeedsQuery = true,
+			GetValue = () =>
+			{
+				Assert.IsTrue( table.IsRegistered( 1 ), "A synced getter needs to see its own slot." );
+				return fail ? throw new InvalidOperationException() : 42;
+			}
+		};
+
+		Assert.ThrowsException<InvalidOperationException>( () => table.Register( 1, entry ) );
+		Assert.IsFalse( table.IsRegistered( 1 ) );
+		Assert.IsFalse( table.HasPollEntries );
+
+		fail = false;
+		table.Register( 1, entry );
+		Assert.IsTrue( table.HasPollEntries );
+
+		var snapshot = new LocalSnapshotState();
+		table.WriteSnapshotState( snapshot );
+		Assert.AreEqual( 42, Game.TypeLibrary.FromBytes<int>( snapshot.Lookup[1].Value ) );
+	}
+
+	/// <summary>
+	/// Retrying a network container keeps it eligible for dormancy.
+	/// </summary>
+	[TestMethod]
+	public void RetriedNetListRegistrationDoesNotEnablePolling()
+	{
+		using var table = new Sandbox.Network.NetworkTable();
+		using var list = new NetList<int>();
+		var fail = true;
+		var entry = new Sandbox.Network.NetworkTable.Entry
+		{
+			TargetType = typeof( NetList<int> ),
+			GetValue = () => fail ? throw new InvalidOperationException() : list
+		};
+
+		Assert.ThrowsException<InvalidOperationException>( () => table.Register( 1, entry ) );
+		fail = false;
+		table.Register( 1, entry );
+		Assert.IsTrue( table.IsRegistered( 1 ) );
+		Assert.IsFalse( table.HasPollEntries );
+	}
+
+	/// <summary>
+	/// A failed getter leaves the last good snapshot intact and can recover on a later capture.
+	/// </summary>
+	[TestMethod]
+	public void SnapshotRetriesFailedGetter()
+	{
+		using var table = new Sandbox.Network.NetworkTable();
+		var fail = false;
+		var value = 1;
+		table.Register( 1, new Sandbox.Network.NetworkTable.Entry { DebugName = "Value", GetValue = () => fail ? throw new InvalidOperationException() : value } );
+		table.Register( 2, new Sandbox.Network.NetworkTable.Entry { GetValue = () => true } );
+
+		var snapshot = new LocalSnapshotState();
+		fail = true;
+		table.WriteSnapshotState( snapshot );
+		Assert.IsFalse( snapshot.Lookup.ContainsKey( 1 ) );
+		Assert.IsNotNull( snapshot.Lookup[2].Value );
+
+		fail = false;
+		table.WriteSnapshotState( snapshot );
+		var previous = snapshot.Lookup[1].Value;
+		var previousBytes = previous.ToArray();
+		var previousChange = snapshot.LastChange;
+
+		value++;
+		table.UpdateSlotHash( 1, value );
+		fail = true;
+		table.WriteSnapshotState( snapshot );
+		Assert.AreSame( previous, snapshot.Lookup[1].Value );
+		Assert.AreEqual( previousChange, snapshot.LastChange );
+
+		fail = false;
+		table.WriteSnapshotState( snapshot );
+		Assert.IsFalse( previousBytes.SequenceEqual( snapshot.Lookup[1].Value ) );
+	}
+
 	[TestMethod]
 	public void SetValue()
 	{
@@ -244,6 +333,10 @@ public class NetworkTableTest
 		using var dict5 = new NetDictionary<string, int> { ["Foo"] = 0, ["Bar"] = 1 };
 		using var dict6 = new NetDictionary<string, int> { ["Foo"] = 1, ["Bar"] = 0 };
 		ExchangeTest( dict5, dict6, t => t.Remove( "Foo" ) );
+
+		using var dict7 = new NetDictionary<FindMode, float> { [FindMode.InSelf] = 1, [FindMode.InChildren] = 2 };
+		using var dict8 = new NetDictionary<FindMode, float> { [FindMode.InSelf] = 3 };
+		ExchangeTest( dict7, dict8, t => t[FindMode.InSelf] = 5 );
 	}
 
 	[TestMethod]

@@ -1,0 +1,355 @@
+{
+  "Version": 1,
+  "nodes": [
+    {
+      "_class": "BoolParameterNode",
+      "ParameterIdentifier": "ccdef13d-6fa9-4c8f-a49a-523e43fb16ab",
+      "ParameterName": "b_attack_has_hit",
+      "Identifier": "0f7f7cd5-acee-40b0-936c-d65fbe301037",
+      "Position": "330,-220",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "FloatSwitchNode",
+      "Condition": {
+        "Identifier": "0f7f7cd5-acee-40b0-936c-d65fbe301037",
+        "Output": "Value"
+      },
+      "TrueValue": 1,
+      "FalseValue": 0,
+      "EaseTime": 0,
+      "Easing": "Linear",
+      "Identifier": "47bc3d78-cdd8-4f44-84e9-09731c0a3ded",
+      "Position": "660,-220",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "RandomFloatNode",
+      "Min": 0,
+      "Max": 3,
+      "Identifier": "104ffa5b-0f61-418b-b623-43571651b7a6",
+      "Position": "0,0",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "c1207240-21bf-468c-ac41-17fbf56c8d89",
+          "Path": "weapons/crowbar/animations/swing_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "c7c241c1-eb27-4d99-90d6-abf6c6aa5872",
+      "Position": "0,160",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "b6900a8a-98b5-4740-a4d4-3085836964ac",
+          "Path": "weapons/crowbar/animations/swing_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "57f67322-c002-45c9-9f46-f89228c72eb0",
+      "Position": "0,310",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "36b2a348-d148-4a88-b877-7dd3e76507c4",
+          "Path": "weapons/crowbar/animations/swing_03.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "64739afd-b526-4f83-8a57-cc5599e3d857",
+      "Position": "0,460",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "104ffa5b-0f61-418b-b623-43571651b7a6",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "swing 1",
+          "Pose": {
+            "Identifier": "c7c241c1-eb27-4d99-90d6-abf6c6aa5872",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "swing 2",
+          "Pose": {
+            "Identifier": "57f67322-c002-45c9-9f46-f89228c72eb0",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "swing 3",
+          "Pose": {
+            "Identifier": "64739afd-b526-4f83-8a57-cc5599e3d857",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "ab628633-213c-4d63-a4b1-9b8c07485c41",
+      "Position": "350,200",
+      "Title": "Miss variants",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "4ba5f2fc-13e3-4075-9379-ec1bb5cd4312",
+          "Path": "weapons/crowbar/animations/hit_01.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "44ca6db6-f33d-4c96-9d2f-9494caa50aae",
+      "Position": "0,610",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "fe401886-d5f5-4d74-9597-1033768d838c",
+          "Path": "weapons/crowbar/animations/hit_02.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "086831f3-5021-485d-aa0f-6654dfd1e9bb",
+      "Position": "0,760",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "AnimationClipNode",
+      "Loop": false,
+      "SampleRootMotion": false,
+      "GraphEvents": [],
+      "PlayInReverse": {
+        "Identifier": null,
+        "Output": null
+      },
+      "ResetTime": {
+        "Identifier": null,
+        "Output": null
+      },
+      "DefaultVariationData": {
+        "AnimationName": {
+          "Id": "caa37a8b-4a59-4b52-b585-00139eaf6240",
+          "Path": "weapons/crowbar/animations/hit_03.anim"
+        },
+        "SpeedMultiplier": 1,
+        "StartSyncEventOffset": 0
+      },
+      "Overrides": [],
+      "Identifier": "ba2a0178-b5e0-440c-9b28-c0f34f6cd025",
+      "Position": "0,910",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedAnimationClipSelectorNode",
+      "Parameter": {
+        "Identifier": "104ffa5b-0f61-418b-b623-43571651b7a6",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "hit 1",
+          "Pose": {
+            "Identifier": "44ca6db6-f33d-4c96-9d2f-9494caa50aae",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "hit 2",
+          "Pose": {
+            "Identifier": "086831f3-5021-485d-aa0f-6654dfd1e9bb",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "hit 3",
+          "Pose": {
+            "Identifier": "ba2a0178-b5e0-440c-9b28-c0f34f6cd025",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "c2699277-1e0f-44ab-aa2a-8804463fd4dd",
+      "Position": "350,650",
+      "Title": "Hit variants",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "ParameterizedSelectorNode",
+      "Parameter": {
+        "Identifier": "47bc3d78-cdd8-4f44-84e9-09731c0a3ded",
+        "Output": "Result"
+      },
+      "Options": [
+        {
+          "Label": "Miss",
+          "Pose": {
+            "Identifier": "ab628633-213c-4d63-a4b1-9b8c07485c41",
+            "Output": "Result"
+          }
+        },
+        {
+          "Label": "Hit",
+          "Pose": {
+            "Identifier": "c2699277-1e0f-44ab-aa2a-8804463fd4dd",
+            "Output": "Result"
+          }
+        }
+      ],
+      "IgnoreInvalidOptions": false,
+      "DefaultVariationData": {
+        "OptionWeights": [
+          1,
+          1
+        ]
+      },
+      "Overrides": [],
+      "Identifier": "28798580-519e-49bd-86f3-0d10c5e8dd0f",
+      "Position": "970,130",
+      "Title": "Swing outcome",
+      "HandleOffsets": {}
+    },
+    {
+      "_class": "PoseResultNode",
+      "Pose": {
+        "Identifier": "28798580-519e-49bd-86f3-0d10c5e8dd0f",
+        "Output": "Result"
+      },
+      "Identifier": "ab4bc801-bb53-43c0-8b73-7574755cee3e",
+      "Position": "1290,130",
+      "HandleOffsets": {}
+    }
+  ],
+  "Model": {
+    "Id": "0f3eeae8-00fc-0000-ca00-000000000000",
+    "Path": "weapons/crowbar/v_crowbar.vmdl"
+  },
+  "Skeleton": {
+    "Id": "af7c4ca2-0383-4b23-aeb3-8edccdc60798",
+    "Path": "weapons/crowbar/animations/crowbar.skel"
+  },
+  "parameters": [
+    {
+      "Identifier": "ccdef13d-6fa9-4c8f-a49a-523e43fb16ab",
+      "Type": "Bool",
+      "Name": "b_attack_has_hit",
+      "Group": "",
+      "RuntimeDefaultFloat": 0,
+      "RuntimeDefaultBool": false,
+      "RuntimeDefaultID": "",
+      "RuntimeDefaultVector": "0,0,0",
+      "DefaultFloat": 0,
+      "Min": 0,
+      "Max": 1,
+      "DefaultBool": false,
+      "DefaultID": "",
+      "EnumTypeName": "",
+      "ExpectedValues": [],
+      "ResolvedOptions": [],
+      "DefaultVector": "0,0,0",
+      "PreviewStartTargetIsSet": false,
+      "PreviewStartTargetIsBone": false,
+      "PreviewStartBone": ""
+    }
+  ],
+  "virtualParameters": []
+}

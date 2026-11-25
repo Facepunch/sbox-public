@@ -27,6 +27,7 @@ public partial class BaseCombatWeapon
 	{
 		var tr = scene.Trace.Ray( ray, distance )
 			.IgnoreGameObjectHierarchy( ignore ?? attacker )
+			.WithoutTags( "trigger", "playerclip" )
 			.Radius( radius )
 			.UseHitboxes()
 			.Run();
@@ -141,10 +142,10 @@ public partial class BaseCombatWeapon
 	}
 
 	/// <summary>
-	/// The GameObject credited for this weapon's damage - the holding player, or the weapon itself
-	/// when unheld. Override to credit someone else (e.g. the driver of a mounted weapon).
+	/// The GameObject credited for this weapon's damage: an explicit trigger attacker, its <see cref="Holder"/>,
+	/// or the weapon itself when unheld. Override to change attribution; use the base value to honor explicit attackers.
 	/// </summary>
-	protected virtual GameObject Attacker => Owner?.GameObject ?? GameObject;
+	protected virtual GameObject Attacker => _attackAttacker ?? Holder?.GameObject ?? GameObject;
 
 	/// <summary>
 	/// The impulse one of this weapon's hits applies to <paramref name="target"/>, decided on the host.
@@ -162,12 +163,13 @@ public partial class BaseCombatWeapon
 
 	/// <summary>
 	/// The trace used for this weapon's bullets. Base traces against hitboxes and ignores the
-	/// <see cref="Attacker"/>'s hierarchy. Override to add collision rules or filters.
+	/// holder's hierarchy (or the weapon itself when unheld). Override to add collision rules or filters.
 	/// </summary>
 	protected virtual SceneTrace BulletTrace( Ray ray, float distance, float radius )
 	{
 		return Scene.Trace.Ray( ray, distance )
-			.IgnoreGameObjectHierarchy( Attacker )
+			.IgnoreGameObjectHierarchy( Holder?.GameObject ?? GameObject )
+			.WithoutTags( "trigger", "playerclip" )
 			.Radius( radius )
 			.UseHitboxes();
 	}
@@ -177,10 +179,13 @@ public partial class BaseCombatWeapon
 	/// <see cref="Attacker"/>. When the host controls the weapon (seats, NPCs, a host-owned weapon)
 	/// the damage applies immediately. On the owning client the hit is sent to the host as a claim -
 	/// the client's trace decides where the shot landed, the host applies (or rejects) the damage.
-	/// See BaseCombatWeapon.HitClaims.
+	/// See BaseCombatWeapon.HitClaims. Without <paramref name="tags"/> the damage carries the weapon's
+	/// <see cref="AttackDamageTags"/>; pass an empty set for none.
 	/// </summary>
 	protected SceneTraceResult ShootBullet( SceneTraceResult tr, float damage, float force, TagSet tags = null, bool hitboxTags = true )
 	{
+		tags = ResolveDamageTags( tags );
+
 		if ( Networking.IsHost )
 			return ShootBullet( tr, damage, HitForce( tr.GameObject, force ), Attacker, GameObject, tags, hitboxTags );
 
@@ -196,7 +201,8 @@ public partial class BaseCombatWeapon
 
 	/// <summary>
 	/// Fires a bullet from this weapon's <see cref="BaseCombatWeapon.AimRay"/> - traced with
-	/// <see cref="BulletTrace"/>, resolved through <see cref="ShootBullet(SceneTraceResult,float,float,TagSet,bool)"/>.
+	/// <see cref="BulletTrace"/>, resolved through <see cref="ShootBullet(SceneTraceResult,float,float,TagSet,bool)"/>,
+	/// which says what tags the damage carries.
 	/// </summary>
 	protected SceneTraceResult ShootBullet( float distance, float radius, float damage, float force, TagSet tags = null )
 	{
@@ -209,10 +215,12 @@ public partial class BaseCombatWeapon
 	/// <see cref="BulletTrace"/> per pellet, each randomly deflected within <paramref name="spread"/>
 	/// degrees. On the host the damage applies immediately; on the owning client the whole volley is
 	/// claimed to the host in a single message (see BaseCombatWeapon.HitClaims). Returns every pellet's
-	/// trace so the caller can drive tracers and impacts.
+	/// trace so the caller can drive tracers and impacts. Without <paramref name="tags"/> the damage carries
+	/// the weapon's <see cref="AttackDamageTags"/>; pass an empty set for none.
 	/// </summary>
 	protected SceneTraceResult[] ShootBullets( int count, Vector2 spread, float distance, float radius, float damage, float force, TagSet tags = null )
 	{
+		tags = ResolveDamageTags( tags );
 		count = Math.Max( count, 0 );
 		var results = new SceneTraceResult[count];
 		var ray = AimRay;

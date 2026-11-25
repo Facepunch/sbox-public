@@ -1,4 +1,6 @@
 ﻿using SkiaSharp;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Sandbox;
@@ -29,7 +31,7 @@ internal static class GpuFontGlyphCache
 
 	static readonly object _lock = new();
 	// Keyed by the typeface object, so a reloaded font never collides with a stale entry
-	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SKTypeface, Dictionary<ushort, Glyph>> _glyphs = new();
+	static readonly ConditionalWeakTable<SKTypeface, TypefaceGlyphs> _typefaces = new();
 	static readonly List<Vector2> _curves = new(); // 3 points per curve
 	static readonly List<uint> _bands = new();
 	static readonly List<Glyph> _table = new();
@@ -44,14 +46,36 @@ internal static class GpuFontGlyphCache
 	/// A colour glyph's layers from COLR v0, which v1 fonts like Segoe UI Emoji still carry: outline glyphs
 	/// stacked in order, each with a CPAL colour or null for the text colour. Null for a plain glyph.
 	/// </summary>
-	internal static (ushort Glyph, Color? Color)[] GetLayers( SKTypeface typeface, ushort glyphId )
-	{
-		var table = _colorTables.GetValue( typeface, ColorTable.Load );
-		if ( table.IsEmpty ) return null;
-		lock ( table ) return table.Get( glyphId );
-	}
+	internal static (ushort Glyph, Color? Color)[] GetLayers( SKTypeface typeface, ushort glyphId ) => ForTypeface( typeface ).GetLayers( glyphId );
 
-	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SKTypeface, ColorTable> _colorTables = new();
+	internal static TypefaceGlyphs ForTypeface( SKTypeface typeface ) => _typefaces.GetValue( typeface, static face => new TypefaceGlyphs( face ) );
+
+	internal sealed class TypefaceGlyphs( SKTypeface typeface )
+	{
+		readonly ColorTable _colors = ColorTable.Load( typeface );
+		readonly ConcurrentDictionary<ushort, Glyph> _glyphs = new( concurrencyLevel: 1, capacity: 31 );
+
+		internal (ushort Glyph, Color? Color)[] GetLayers( ushort glyphId )
+		{
+			if ( _colors.IsEmpty ) return null;
+			lock ( _colors ) return _colors.Get( glyphId );
+		}
+
+		internal Glyph Get( ushort glyphId )
+		{
+			if ( _glyphs.TryGetValue( glyphId, out var glyph ) ) return glyph;
+
+			// Publish the glyph only after its curves, bands and table entry have all been appended.
+			lock ( _lock )
+			{
+				if ( _glyphs.TryGetValue( glyphId, out glyph ) ) return glyph;
+
+				glyph = Encode( typeface, glyphId );
+				_glyphs[glyphId] = glyph;
+				return glyph;
+			}
+		}
+	}
 
 	class ColorTable
 	{
@@ -116,19 +140,7 @@ internal static class GpuFontGlyphCache
 		}
 	}
 
-	public static Glyph Get( SKTypeface typeface, ushort glyphId )
-	{
-		lock ( _lock )
-		{
-			var glyphs = _glyphs.GetOrCreateValue( typeface );
-			if ( glyphs.TryGetValue( glyphId, out var glyph ) )
-				return glyph;
-
-			glyph = Encode( typeface, glyphId );
-			glyphs[glyphId] = glyph;
-			return glyph;
-		}
-	}
+	public static Glyph Get( SKTypeface typeface, ushort glyphId ) => ForTypeface( typeface ).Get( glyphId );
 
 	/// <summary>
 	/// Upload anything this context hasn't uploaded yet and point the shader at the buffers. Only ever appends,
@@ -277,7 +289,7 @@ internal static class GpuFontGlyphCache
 	static void ExtractCurves( SKPath path, float scale, List<Vector2> curves )
 	{
 		using var iter = path.CreateIterator( false );
-		var pts = new SKPoint[4];
+		Span<SKPoint> pts = stackalloc SKPoint[4];
 		Vector2 cur = default, start = default;
 
 		while ( true )

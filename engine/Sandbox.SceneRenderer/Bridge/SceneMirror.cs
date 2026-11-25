@@ -37,7 +37,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	readonly List<RenderMesh.DrawState> drawStates = new();
 
 	// Objects whose attribute emptiness must be polled.
-	readonly Dictionary<MeshObject, RenderAttributes> attributed = new();
+	readonly Dictionary<RenderObject, RenderAttributes> attributed = new();
 
 	// Changes as they're reported, from any thread, and the batch being applied
 	readonly object gate = new();
@@ -121,6 +121,13 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		if ( obj is not null && (change & SceneObjectChange.Tags) != 0 )
 			obj.Tags = TagsOf( sceneObject );
+
+		if ( obj is MeshObject or AggregateObject && (change & SceneObjectChange.Attributes) != 0 )
+		{
+			if ( sceneObject.CreatedAttributes is { } attributes ) attributed[obj] = attributes;
+			else attributed.Remove( obj );
+			obj.Attributes = null;
+		}
 
 		switch ( obj )
 		{
@@ -243,6 +250,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			SceneModel => new MeshObject( null, sceneObject.Transform ),
 			SceneCustomObject custom => new BridgeCustomObject( custom ),
 			SceneDynamicObject dynamic => new BridgeDynamicObject( dynamic ),
+			SceneMeshObject buffered => new BridgeMeshObject( buffered ),
 			DecalSceneObject => new DecalObject( sceneObject.Transform ),
 			SceneAggregateObject => AggregateFor( sceneObject ),
 
@@ -264,9 +272,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	{
 		if ( !objects.Remove( sceneObject, out var obj ) ) return;
 
+		if ( obj is not null ) attributed.Remove( obj );
 		if ( obj is MeshObject mesh )
 		{
-			attributed.Remove( mesh );
 			ReleaseLightmap( mesh.LightmapAttributes );
 			mesh.LightmapAttributes = null;
 		}
@@ -336,14 +344,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		// Local lighting origins move with the object.
 		if ( (change & (SceneObjectChange.Transform | SceneObjectChange.Flags | Draws)) != 0 )
 			mesh.LightingOrigin = sceneObject.native.HasLightingOrigin() ? sceneObject.native.GetLightingOrigin() : null;
-
-		// Track mutable attributes; SyncAttributes omits empty sets.
-		if ( (change & SceneObjectChange.Attributes) != 0 )
-		{
-			if ( sceneObject.CreatedAttributes is { } attributes ) attributed[mesh] = attributes;
-			else attributed.Remove( mesh );
-			mesh.Attributes = null;
-		}
 
 		// Restore posed local bounds after mesh changes reset them to bind-pose bounds.
 		const SceneObjectChange Pose = SceneObjectChange.Bones | SceneObjectChange.Transform | SceneObjectChange.Model;
@@ -497,6 +497,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// </summary>
 	static void ApplyCustom( SceneObject sceneObject, CustomObject custom, SceneObjectChange change )
 	{
+		custom.RenderOrder = sceneObject.native.GetIntValue( RenderOrderName, 0 );
 		const SceneObjectChange Placement = SceneObjectChange.Transform | SceneObjectChange.Bounds;
 		if ( (change & Placement) != 0 )
 		{
@@ -530,6 +531,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	static readonly uint StaticOverlayMatch = new StringToken( "StaticOverlayLayer" ).Value;
 	static readonly uint OverlayWithDepthMatch = new StringToken( "OverlayWithDepth" ).Value;
 	static readonly uint OverlayWithoutDepthMatch = new StringToken( "OverlayWithoutDepth" ).Value;
+	static readonly uint ToolOverlayMatch = new StringToken( "ToolOverlay" ).Value;
+	static readonly uint ToolScreenOverlayMatch = new StringToken( "ToolScreenOverlay" ).Value;
 	static readonly StringToken RenderOrderName = new( "RenderOrder" );
 	static readonly StringToken LightGroupName = new( "LightGroup" );
 
@@ -551,7 +554,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		mesh.LightGroup = (uint)sceneObject.native.GetIntValue( LightGroupName, 0 );
 
 		mesh.LayerMatch = LayerMatchFor( sceneObject.native.GetLayerMatchIDValue() );
-		mesh.RenderOrder = mesh.LayerMatch == LayerMatch.StaticOverlay ? sceneObject.native.GetIntValue( RenderOrderName, 0 ) : 0;
+		mesh.RenderOrder = mesh.LayerMatch is LayerMatch.StaticOverlay or LayerMatch.ToolOverlay or LayerMatch.ToolScreenOverlay ? sceneObject.native.GetIntValue( RenderOrderName, 0 ) : 0;
 	}
 
 	/// <summary>
@@ -582,6 +585,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( match == StaticOverlayMatch ) return LayerMatch.StaticOverlay;
 		if ( match == OverlayWithDepthMatch ) return LayerMatch.OverlayWithDepth;
 		if ( match == OverlayWithoutDepthMatch ) return LayerMatch.OverlayWithoutDepth;
+		if ( match == ToolOverlayMatch ) return LayerMatch.ToolOverlay;
+		if ( match == ToolScreenOverlayMatch ) return LayerMatch.ToolScreenOverlay;
 		return LayerMatch.Unsupported;
 	}
 

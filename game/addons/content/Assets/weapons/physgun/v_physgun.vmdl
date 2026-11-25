@@ -1,0 +1,222 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "Skeleton"
+				children =
+				[
+					{
+						_class = "SkeletonFile"
+						filename = "weapons/physgun/v_physgun.fbx"
+						import_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "physgun_display.vmat"
+								to = "weapons/physgun/v_physgun_display.vmat"
+							},
+							{
+								from = "v_physgun_a.vmat"
+								to = "weapons/physgun/v_physgun_a.vmat"
+							},
+							{
+								from = "v_physgun_b.vmat"
+								to = "weapons/physgun/v_physgun_b.vmat"
+							},
+							{
+								from = "v_physgun_c.vmat"
+								to = "weapons/physgun/v_physgun_c.vmat"
+							},
+							{
+								from = "v_physgun_d.vmat"
+								to = "weapons/physgun/v_physgun_d.vmat"
+							},
+							{
+								from = "v_physgun_tube.vmat"
+								to = "weapons/physgun/v_physgun_tube.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/default.vmat"
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						children = 
+						[
+							{
+								_class = "RenderMeshMarkup"
+								material_search_path = ""
+								use_expensive_tangents = true
+								high_high_precision_texcoords = false
+								calc_per_vertex_curvature = false
+								prefer_high_density_tris_in_uv_density_calc = false
+							},
+						]
+						filename = "weapons/physgun/v_physgun.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"v_physgun",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "ModelModifierList"
+				children = 
+				[
+					{
+						_class = "ModelModifier_ScaleAndMirror"
+						scale = 0.3937
+						mirror_x = false
+						mirror_y = false
+						mirror_z = false
+						flip_bone_forward = false
+						swap_left_and_right_bones = false
+					},
+				]
+			},
+			{
+				_class = "AnimConstraintList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_animconstraintlist.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "IKData"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_ikdata.vmdl_prefab"
+					},
+				]
+			},
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "BoneMarkup"
+						target_bone = ""
+						ignore_Translation = false
+						ignore_rotation = false
+						do_not_discard = false
+					},
+				]
+				bone_cull_type = "None"
+			},
+			{
+				_class = "WeightListList"
+				children = 
+				[
+					{
+						_class = "Prefab"
+						target_file = "weapons/shared/first_person/prefabs/v_first_person_arms_weightlistlist.vmdl_prefab"
+					},
+					{
+						_class = "WeightList"
+						name = "Stylus_Only"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "stylus_C"
+								weight = 1.0
+							},
+							{
+								bone = "stylus_L"
+								weight = 1.0
+							},
+							{
+								bone = "stylus_R"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = [  ]
+					},
+				]
+			},
+			{
+				_class = "AttachmentList"
+				children = 
+				[
+					{
+						_class = "Attachment"
+						name = "muzzle"
+						parent_bone = "weapon_root"
+						relative_origin = [ 42.689999, 0.0, 2.35 ]
+						relative_angles = [ 0.0, 0.0, 0.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "stylus_L"
+						parent_bone = "stylus_L"
+						relative_origin = [ 17.0, 6.84666, 0.329597 ]
+						relative_angles = [ -10.0, 135.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "stylus_C"
+						parent_bone = "stylus_C"
+						relative_origin = [ 16.75, 6.85, -0.377521 ]
+						relative_angles = [ 15.0, 133.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+					{
+						_class = "Attachment"
+						name = "stylus_R"
+						parent_bone = "stylus_R"
+						relative_origin = [ 16.801888, 6.866526, -0.368586 ]
+						relative_angles = [ 15.0, 133.0, 90.0 ]
+						weight = 1.0
+						ignore_rotation = false
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

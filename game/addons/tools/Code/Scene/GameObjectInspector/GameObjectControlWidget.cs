@@ -89,7 +89,7 @@ public class GameObjectControlWidget : ControlWidget
 		if ( SerializedProperty.IsMultipleDifferentValues )
 		{
 			Paint.SetPen( Theme.MultipleValues );
-			Paint.DrawIcon( rect, "panorama_wide_angle_select", 14, TextFlag.LeftCenter );
+			Paint.DrawIcon( rect, "panorama_wide_angle", 14, TextFlag.LeftCenter );
 			rect.Left += 22;
 			Paint.DrawText( rect, "Multiple Values", TextFlag.LeftCenter );
 		}
@@ -103,14 +103,14 @@ public class GameObjectControlWidget : ControlWidget
 		else if ( go is PrefabScene )
 		{
 			Paint.SetPen( Theme.Blue );
-			Paint.DrawIcon( rect, "panorama_wide_angle_select", 14, TextFlag.LeftCenter );
+			Paint.DrawIcon( rect, "panorama_wide_angle", 14, TextFlag.LeftCenter );
 			rect.Left += 22;
 			Paint.DrawText( rect, go.Name, TextFlag.LeftCenter );
 		}
 		else
 		{
 			Paint.SetPen( Theme.Green );
-			Paint.DrawIcon( rect, "panorama_wide_angle_select", 14, TextFlag.LeftCenter );
+			Paint.DrawIcon( rect, "panorama_wide_angle", 14, TextFlag.LeftCenter );
 			rect.Left += 22;
 			Paint.DrawText( rect, BuildName( go ), TextFlag.LeftCenter );
 		}

@@ -1,0 +1,27 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	_class = "CSkeletonDocument"
+	m_sourceFilename = "weapons/grenade/v_he_grenade.fbx"
+	m_flGlobalScale = 0.3937
+	m_rootBoneName = ""
+	m_additionalSourceFilenames = [  ]
+	m_boneMaskSetDefinitions =
+	[
+		{
+			m_ID = "Pin"
+			m_primaryWeightList =
+			{
+				m_boneIDs =
+				[
+					"root",
+					"weapon_root_children",
+					"he_pin_0",
+				]
+				m_weights = [ 0, 0, 1 ]
+				m_defaultFloatChannelWeight = 0
+			}
+		},
+	]
+	m_highLODBones = [  ]
+	m_floatChannelSets = [  ]
+}

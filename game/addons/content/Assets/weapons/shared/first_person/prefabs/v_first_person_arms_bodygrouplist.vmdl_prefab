@@ -1,0 +1,96 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "BodyGroupList"
+				children = 
+				[
+					{
+						_class = "BodyGroup"
+						name = "arms"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"arms",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "shadowblocker"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								meshes = [  ]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"first_person_arms_shadow_mesh",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+					{
+						_class = "BodyGroup"
+						name = "debug"
+						children = 
+						[
+							{
+								_class = "BodyGroupChoice"
+								name = "no_tester_meshes"
+								meshes = [  ]
+							},
+							{
+								_class = "BodyGroupChoice"
+								name = "weapon_IK"
+								meshes = 
+								[
+									"L_tester",
+									"R_tester",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								name = "weapon_gizmo"
+								meshes = 
+								[
+									"W_tester",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								name = "camera_gizmo"
+								meshes = 
+								[
+									"C_tester",
+								]
+							},
+						]
+						hidden_in_tools = false
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

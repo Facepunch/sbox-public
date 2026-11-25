@@ -1,0 +1,1029 @@
+{
+  "Title": "Basic",
+  "Description": "",
+  "Icon": "shapes",
+  "RequiredMount": "gmod",
+  "Parent": {
+    "Id": "881eeef9-7802-4ab2-b0a8-7a4335c15b87",
+    "Path": "spawnlists/garrysmod/garrys_mod/builder.spawn"
+  },
+  "Order": 7,
+  "Items": [
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Metal",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate1.mdl",
+      "Title": "metal_plate1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate1_tri.mdl",
+      "Title": "metal_plate1_tri",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate1x2.mdl",
+      "Title": "metal_plate1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate1x2_tri.mdl",
+      "Title": "metal_plate1x2_tri",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate2x2.mdl",
+      "Title": "metal_plate2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate2x2_tri.mdl",
+      "Title": "metal_plate2x2_tri",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate2x4.mdl",
+      "Title": "metal_plate2x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate2x4_tri.mdl",
+      "Title": "metal_plate2x4_tri",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate4x4.mdl",
+      "Title": "metal_plate4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate4x4_tri.mdl",
+      "Title": "metal_plate4x4_tri",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_tube.mdl",
+      "Title": "metal_tube",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_tubex2.mdl",
+      "Title": "metal_tubex2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_angle360.mdl",
+      "Title": "metal_angle360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_angle180.mdl",
+      "Title": "metal_angle180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_angle90.mdl",
+      "Title": "metal_angle90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate_curve360.mdl",
+      "Title": "metal_plate_curve360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate_curve180.mdl",
+      "Title": "metal_plate_curve180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate_curve.mdl",
+      "Title": "metal_plate_curve",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate_curve360x2.mdl",
+      "Title": "metal_plate_curve360x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate_curve180x2.mdl",
+      "Title": "metal_plate_curve180x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_plate_curve2x2.mdl",
+      "Title": "metal_plate_curve2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_dome360.mdl",
+      "Title": "metal_dome360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_dome180.mdl",
+      "Title": "metal_dome180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_dome90.mdl",
+      "Title": "metal_dome90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri1x1solid.mdl",
+      "Title": "tri1x1solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri1x1x1solid.mdl",
+      "Title": "tri1x1x1solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri1x1x2solid.mdl",
+      "Title": "tri1x1x2solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x1solid.mdl",
+      "Title": "tri2x1solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x1x1solid.mdl",
+      "Title": "tri2x1x1solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x1x2solid.mdl",
+      "Title": "tri2x1x2solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x2solid.mdl",
+      "Title": "tri2x2solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x2x1solid.mdl",
+      "Title": "tri2x2x1solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x2x2solid.mdl",
+      "Title": "tri2x2x2solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/trieq1x1x1solid.mdl",
+      "Title": "trieq1x1x1solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/trieq1x1x2solid.mdl",
+      "Title": "trieq1x1x2solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/trieq2x2x1solid.mdl",
+      "Title": "trieq2x2x1solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/trieq2x2x2solid.mdl",
+      "Title": "trieq2x2x2solid",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Metal Frames",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/bar1x.mdl",
+      "Title": "bar1x",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/bar1x45a.mdl",
+      "Title": "bar1x45a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/bar1x45b.mdl",
+      "Title": "bar1x45b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/bar2x.mdl",
+      "Title": "bar2x",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/bar2x45a.mdl",
+      "Title": "bar2x45a",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/bar2x45b.mdl",
+      "Title": "bar2x45b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire1x1.mdl",
+      "Title": "metal_wire1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/cab1x1x1.mdl",
+      "Title": "cab1x1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire1x1x1.mdl",
+      "Title": "metal_wire1x1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire1x2b.mdl",
+      "Title": "metal_wire1x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire1x2.mdl",
+      "Title": "metal_wire1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/cab2x1x1.mdl",
+      "Title": "cab2x1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire1x1x2b.mdl",
+      "Title": "metal_wire1x1x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire1x1x2.mdl",
+      "Title": "metal_wire1x1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire2x2b.mdl",
+      "Title": "metal_wire2x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire2x2.mdl",
+      "Title": "metal_wire2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/cab2x2x1.mdl",
+      "Title": "cab2x2x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire1x2x2b.mdl",
+      "Title": "metal_wire1x2x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/cab2x2x2.mdl",
+      "Title": "cab2x2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire2x2x2b.mdl",
+      "Title": "metal_wire2x2x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire_angle360x1.mdl",
+      "Title": "metal_wire_angle360x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire_angle180x1.mdl",
+      "Title": "metal_wire_angle180x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire_angle90x1.mdl",
+      "Title": "metal_wire_angle90x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire_angle360x2.mdl",
+      "Title": "metal_wire_angle360x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire_angle180x2.mdl",
+      "Title": "metal_wire_angle180x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/metal_wire_angle90x2.mdl",
+      "Title": "metal_wire_angle90x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri1x1.mdl",
+      "Title": "tri1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri1x1x1.mdl",
+      "Title": "tri1x1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri1x1x2.mdl",
+      "Title": "tri1x1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x1.mdl",
+      "Title": "tri2x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x1x1.mdl",
+      "Title": "tri2x1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x1x2.mdl",
+      "Title": "tri2x1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x2.mdl",
+      "Title": "tri2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x2x1.mdl",
+      "Title": "tri2x2x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/tri2x2x2.mdl",
+      "Title": "tri2x2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/trieq1x1x1.mdl",
+      "Title": "trieq1x1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/trieq1x1x2.mdl",
+      "Title": "trieq1x1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/trieq2x2x1.mdl",
+      "Title": "trieq2x2x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/phxtended/trieq2x2x2.mdl",
+      "Title": "trieq2x2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Glass",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_plate1x1.mdl",
+      "Title": "glass_plate1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_plate1x2.mdl",
+      "Title": "glass_plate1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_plate2x2.mdl",
+      "Title": "glass_plate2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_plate2x4.mdl",
+      "Title": "glass_plate2x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_plate4x4.mdl",
+      "Title": "glass_plate4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_angle360.mdl",
+      "Title": "glass_angle360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_angle180.mdl",
+      "Title": "glass_angle180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_angle90.mdl",
+      "Title": "glass_angle90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_curve360x1.mdl",
+      "Title": "glass_curve360x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_curve180x1.mdl",
+      "Title": "glass_curve180x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_curve90x1.mdl",
+      "Title": "glass_curve90x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_curve360x2.mdl",
+      "Title": "glass_curve360x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_curve180x2.mdl",
+      "Title": "glass_curve180x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_curve90x2.mdl",
+      "Title": "glass_curve90x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_dome360.mdl",
+      "Title": "glass_dome360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_dome180.mdl",
+      "Title": "glass_dome180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/glass/glass_dome90.mdl",
+      "Title": "glass_dome90",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Windows",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window1x1.mdl",
+      "Title": "window1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window1x2.mdl",
+      "Title": "window1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window2x2.mdl",
+      "Title": "window2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window2x4.mdl",
+      "Title": "window2x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window4x4.mdl",
+      "Title": "window4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_angle360.mdl",
+      "Title": "window_angle360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_angle180.mdl",
+      "Title": "window_angle180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_angle90.mdl",
+      "Title": "window_angle90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_curve360x1.mdl",
+      "Title": "window_curve360x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_curve180x1.mdl",
+      "Title": "window_curve180x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_curve90x1.mdl",
+      "Title": "window_curve90x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_curve360x2.mdl",
+      "Title": "window_curve360x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_curve180x2.mdl",
+      "Title": "window_curve180x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_curve90x2.mdl",
+      "Title": "window_curve90x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_dome360.mdl",
+      "Title": "window_dome360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_dome180.mdl",
+      "Title": "window_dome180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/windows/window_dome90.mdl",
+      "Title": "window_dome90",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Wooden",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_boardx1.mdl",
+      "Title": "wood_boardx1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_boardx2.mdl",
+      "Title": "wood_boardx2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_boardx4.mdl",
+      "Title": "wood_boardx4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_panel1x1.mdl",
+      "Title": "wood_panel1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_panel1x2.mdl",
+      "Title": "wood_panel1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_panel2x2.mdl",
+      "Title": "wood_panel2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_panel2x4.mdl",
+      "Title": "wood_panel2x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_panel4x4.mdl",
+      "Title": "wood_panel4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_angle360.mdl",
+      "Title": "wood_angle360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_angle180.mdl",
+      "Title": "wood_angle180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_angle90.mdl",
+      "Title": "wood_angle90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_curve360x1.mdl",
+      "Title": "wood_curve360x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_curve180x1.mdl",
+      "Title": "wood_curve180x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_curve90x1.mdl",
+      "Title": "wood_curve90x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_curve360x2.mdl",
+      "Title": "wood_curve360x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_curve180x2.mdl",
+      "Title": "wood_curve180x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_curve90x2.mdl",
+      "Title": "wood_curve90x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_dome360.mdl",
+      "Title": "wood_dome360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_dome180.mdl",
+      "Title": "wood_dome180",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_dome90.mdl",
+      "Title": "wood_dome90",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Wooden Frames",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire1x1.mdl",
+      "Title": "wood_wire1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire1x1x1.mdl",
+      "Title": "wood_wire1x1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire1x2b.mdl",
+      "Title": "wood_wire1x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire1x2.mdl",
+      "Title": "wood_wire1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire1x1x2b.mdl",
+      "Title": "wood_wire1x1x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire1x1x2.mdl",
+      "Title": "wood_wire1x1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire2x2b.mdl",
+      "Title": "wood_wire2x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire2x2.mdl",
+      "Title": "wood_wire2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire1x2x2b.mdl",
+      "Title": "wood_wire1x2x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire2x2x2b.mdl",
+      "Title": "wood_wire2x2x2b",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire_angle360x1.mdl",
+      "Title": "wood_wire_angle360x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire_angle180x1.mdl",
+      "Title": "wood_wire_angle180x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire_angle90x1.mdl",
+      "Title": "wood_wire_angle90x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire_angle360x2.mdl",
+      "Title": "wood_wire_angle360x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire_angle180x2.mdl",
+      "Title": "wood_wire_angle180x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/wood/wood_wire_angle90x2.mdl",
+      "Title": "wood_wire_angle90x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Title",
+      "Ident": null,
+      "Title": "Plastic",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel1x1.mdl",
+      "Title": "plastic_panel1x1",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel1x2.mdl",
+      "Title": "plastic_panel1x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel1x3.mdl",
+      "Title": "plastic_panel1x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel1x4.mdl",
+      "Title": "plastic_panel1x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel1x8.mdl",
+      "Title": "plastic_panel1x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel2x2.mdl",
+      "Title": "plastic_panel2x2",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel2x3.mdl",
+      "Title": "plastic_panel2x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel2x4.mdl",
+      "Title": "plastic_panel2x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel2x8.mdl",
+      "Title": "plastic_panel2x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel3x3.mdl",
+      "Title": "plastic_panel3x3",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel4x4.mdl",
+      "Title": "plastic_panel4x4",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel4x8.mdl",
+      "Title": "plastic_panel4x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_panel8x8.mdl",
+      "Title": "plastic_panel8x8",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_angle_360.mdl",
+      "Title": "plastic_angle_360",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_angle_90.mdl",
+      "Title": "plastic_angle_90",
+      "Icon": null
+    },
+    {
+      "Kind": "Item",
+      "Ident": "mount:mount://gmod/models/props_phx/construct/plastic/plastic_angle_180.mdl",
+      "Title": "plastic_angle_180",
+      "Icon": null
+    }
+  ],
+  "__references": [],
+  "__version": 0
+}

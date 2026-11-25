@@ -155,7 +155,7 @@ internal static class ScreenshotService
 
 			ResizeUI( camera, requestedSize );
 
-			renderTarget = RenderTarget.GetTemporary( width, height, ImageFormat.Default, ImageFormat.Default, RenderSettings.Instance.AntiAliasQuality, 1, "HighResScreenshot" );
+			renderTarget = RenderTarget.GetEngineTemporary( width, height, ImageFormat.Default, ImageFormat.Default, RenderSettings.Instance.AntiAliasQuality, 1, "HighResScreenshot" );
 			if ( renderTarget is null )
 			{
 				Log.Warning( "Failed to create render target for high-res screenshot." );

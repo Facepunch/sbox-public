@@ -31,6 +31,7 @@ public static partial class Game
 		typeLibrary.AddAssembly( Game.GameAssembly, false );
 		typeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
 		typeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );
+		Mounting.Directory.AddTypesTo( typeLibrary );
 
 		if ( !context.HasNodeLibrary )
 		{

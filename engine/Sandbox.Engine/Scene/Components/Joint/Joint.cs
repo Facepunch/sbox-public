@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Sandbox;
 
@@ -374,7 +374,7 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 		Gizmo.Draw.LineThickness = 1;
 		Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsSelected ? 1.0f : 0.75f );
 
-		using var scope = Gizmo.Scope();
+		using var scope = Gizmo.PushScope();
 
 		// use world space
 		Gizmo.Transform = global::Transform.Zero;

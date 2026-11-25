@@ -9,6 +9,8 @@ namespace Sandbox.UI;
 /// </summary>
 [StyleSheet.Inline( "slidercontrol", Styles )]
 [CustomEditor( typeof( float ), WithAllAttributes = [typeof( RangeAttribute )] )]
+[CustomEditor( typeof( double ), WithAllAttributes = [typeof( RangeAttribute )] )]
+[CustomEditor( typeof( int ), WithAllAttributes = [typeof( RangeAttribute )] )]
 public class SliderControl : BaseControl
 {
 	const string Styles = """
@@ -298,17 +300,24 @@ public class SliderControl : BaseControl
 	}
 
 	float _value;
+	bool _applyOnRelease;
+	bool _hasPropertyGradient;
+	SerializedProperty _pendingProperty;
 
+	/// <summary>
+	/// The value displayed by the slider, including an edit awaiting release.
+	/// </summary>
 	[Parameter]
 	public float Value
 	{
-		get => Property?.As.Float ?? _value;
+		get => _pendingProperty is not null ? _value : Property?.As.Float ?? _value;
 
 		set
 		{
 			if ( Property is not null )
 			{
-				Property.As.Float = value;
+				_pendingProperty = null;
+				WriteProperty( Property, value );
 				UpdateVisuals();
 				return;
 			}
@@ -319,6 +328,42 @@ public class SliderControl : BaseControl
 			_value = value;
 			UpdateVisuals();
 		}
+	}
+
+	static void WriteProperty( SerializedProperty property, float value )
+	{
+		if ( property.PropertyType == typeof( int ) )
+			property.As.Int = (int)MathF.Round( value );
+		else if ( property.PropertyType == typeof( double ) )
+			property.As.Double = value;
+		else
+			property.As.Float = value;
+	}
+
+	void SetFromInput( float value )
+	{
+		if ( Property is not null ) value = value.Clamp( Min, Max );
+
+		if ( _applyOnRelease && Property is not null )
+		{
+			_pendingProperty = Property;
+			_value = value;
+			UpdateVisuals();
+		}
+		else
+		{
+			Value = value;
+		}
+
+		OnValueChanged?.Invoke( Value );
+	}
+
+	void CommitPending()
+	{
+		if ( _pendingProperty is not { } property ) return;
+
+		_pendingProperty = null;
+		WriteProperty( property, _value );
 	}
 
 	Panel entryPanel;
@@ -373,13 +418,22 @@ public class SliderControl : BaseControl
 
 	public override void Rebuild()
 	{
-		if ( Property is null ) return;
+		CommitPending();
+		_applyOnRelease = Property?.HasAttribute<ApplyOnReleaseAttribute>() == true;
+		UpdateTrackGradient();
+		if ( Property is null )
+		{
+			UpdateVisuals();
+			return;
+		}
 
 		ShowTextEntry = true;
+		TextEntryPanel.WholeNumbers = Property.PropertyType == typeof( int );
 
-		// Read like the editor's float control, with an f chip to scrub from
+		// The chip shows the number type and acts as the scrub handle.
 		AddClass( "property" );
-		_prefixChip ??= Add.Label( "f", "prefix-chip" );
+		_prefixChip ??= Add.Label( "", "prefix-chip" );
+		_prefixChip.Text = TextEntryPanel.WholeNumbers ? "i" : "f";
 
 		if ( Property.TryGetAttribute<RangeAttribute>( out var rangeAttribute ) )
 		{
@@ -391,6 +445,31 @@ public class SliderControl : BaseControl
 		{
 			Step = stepAttribute.Step;
 		}
+
+		UpdateVisuals();
+	}
+
+	void UpdateTrackGradient()
+	{
+		var stops = Property?.GetAttributes<SliderGradientAttribute>().FirstOrDefault()?.CreateGradient().Colors;
+		if ( stops is { Count: > 0 } )
+		{
+			var colors = stops.Select( stop => FormattableString.Invariant( $"{stop.Value.Hex} {stop.Time * 100f}%" ) );
+			TrackPanel.Style.Set( $"background-image: linear-gradient(to right, {string.Join( ", ", colors )});" );
+			_hasPropertyGradient = true;
+		}
+		else if ( _hasPropertyGradient )
+		{
+			TrackPanel.Style.Set( "background-image: none;" );
+			_hasPropertyGradient = false;
+		}
+	}
+
+	/// <inheritdoc/>
+	public override void OnDeleted()
+	{
+		CommitPending();
+		base.OnDeleted();
 	}
 
 	float renderedValue = float.NaN;
@@ -398,6 +477,9 @@ public class SliderControl : BaseControl
 	public override void Tick()
 	{
 		base.Tick();
+
+		if ( !HasActive && !TextEntryPanel.HasFocus )
+			CommitPending();
 
 		// the bound property can change underneath us
 		if ( Value != renderedValue )
@@ -440,7 +522,8 @@ public class SliderControl : BaseControl
 
 		var position = MathX.LerpInverse( value, Min, Max, true ) * 100.0f;
 
-		var (fillStart, fillWidth) = _fill switch
+		var fill = _hasPropertyGradient ? SliderFill.None : _fill;
+		var (fillStart, fillWidth) = fill switch
 		{
 			SliderFill.Right => (position, 100.0f - position),
 			SliderFill.Center => (MathF.Min( 50.0f, position ), MathF.Abs( position - 50.0f )),
@@ -492,8 +575,11 @@ public class SliderControl : BaseControl
 
 	void OnTextEntryEdited( string text )
 	{
-		Value = text.ToFloat( Value );
-		OnValueChanged?.Invoke( Value );
+		var value = text.ToFloat( Value );
+		if ( Property is not null && Step > 0f )
+			value = value.Clamp( Min, Max ).SnapToGrid( Step );
+
+		SetFromInput( value );
 	}
 
 	/// <summary>
@@ -521,8 +607,7 @@ public class SliderControl : BaseControl
 
 		if ( !HasActive || e.MouseButton == MouseButtons.Middle ) return;
 
-		Value = ScreenPosToValue( ScreenMousePosition );
-		OnValueChanged?.Invoke( Value );
+		SetFromInput( ScreenPosToValue( ScreenMousePosition ) );
 		e.StopPropagation();
 	}
 
@@ -544,14 +629,14 @@ public class SliderControl : BaseControl
 			return;
 		}
 
-		Value = ScreenPosToValue( ScreenMousePosition );
-		OnValueChanged?.Invoke( Value );
+		SetFromInput( ScreenPosToValue( ScreenMousePosition ) );
 	}
 
 	protected override void OnMouseUp( MousePanelEvent e )
 	{
 		base.OnMouseUp( e );
 		_scrubbing = false;
+		if ( !TextEntryPanel.HasFocus ) CommitPending();
 	}
 
 	/// <summary>
@@ -567,8 +652,7 @@ public class SliderControl : BaseControl
 		_scrubValue = (_scrubValue + (x - _scrubLastX) / ScaleToScreen * step).Clamp( Min, Max );
 		_scrubLastX = x;
 
-		Value = Step > 0 ? _scrubValue.SnapToGrid( Step ) : _scrubValue;
-		OnValueChanged?.Invoke( Value );
+		SetFromInput( Step > 0 ? _scrubValue.SnapToGrid( Step ) : _scrubValue );
 		e.StopPropagation();
 	}
 

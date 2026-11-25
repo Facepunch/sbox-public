@@ -38,6 +38,7 @@ public struct NetListChangeEvent<T>
 /// </code>
 /// </para>
 /// </summary>
+[Expose]
 public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkProperty, IDisposable, IList, IList<T>, IReadOnlyList<T>
 {
 	/// <summary>

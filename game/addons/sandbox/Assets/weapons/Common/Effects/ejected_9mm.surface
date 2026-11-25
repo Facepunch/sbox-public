@@ -1,0 +1,60 @@
+{
+  "BaseSurface": null,
+  "AudioSurface": "Generic",
+  "Description": null,
+  "Friction": 0.17,
+  "Elasticity": 0.76,
+  "Density": 112.87,
+  "RollingResistance": 0.03,
+  "BounceThreshold": 51.13,
+  "FluidLinearDrag": 0.1,
+  "FluidAngularDrag": 0.1,
+  "Dampening": 0,
+  "ImpactEffects": {
+    "Regular": [],
+    "Bullet": [],
+    "BulletDecal": [],
+    "SoftParticles": [],
+    "SoftDecal": [],
+    "HardParticles": [],
+    "HardDecal": []
+  },
+  "ScrapeEffects": {
+    "RoughnessFactor": 0.25,
+    "RoughThreshold": 0.5,
+    "SmoothParticles": [],
+    "RoughParticles": [],
+    "SmoothDecal": [],
+    "RoughDecal": []
+  },
+  "Sounds": {
+    "FootLeft": null,
+    "FootRight": null,
+    "FootLaunch": null,
+    "FootLand": null,
+    "Bullet": null,
+    "ImpactHard": "weapons/common/effects/shell_case_bounce.wav.sound",
+    "ImpactSoft": null,
+    "ScrapeRough": null,
+    "ScrapeSmooth": null
+  },
+  "PrefabCollection": {
+    "BulletImpact": null,
+    "BluntImpact": null
+  },
+  "SoundCollection": {
+    "FootLeft": null,
+    "FootRight": null,
+    "FootLaunch": null,
+    "FootLand": null,
+    "Bullet": null,
+    "ImpactHard": "weapons/common/effects/shell_case_bounce.wav.sound",
+    "ImpactSoft": "weapons/common/effects/shell_case_bounce.wav.sound",
+    "ScrapeRough": null,
+    "ScrapeSmooth": null,
+    "Break": null
+  },
+  "Tags": null,
+  "__references": [],
+  "__version": 0
+}

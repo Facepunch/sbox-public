@@ -87,6 +87,18 @@ public static class Preferences
 	[ConVar( "voip_agc", ConVarFlags.Protected, Help = "Automatically adjust the microphone's volume so voice is sent at a consistent level", Saved = true )]
 	public static bool VoiceAutomaticGainControl { get; internal set; } = true;
 
+	/// <summary>
+	/// Show the microphone indicator while voice is being sent. Only the player can change this, games and servers can't.
+	/// </summary>
+	[ConVar( "voip_show_indicator", ConVarFlags.Protected, Help = "Show the microphone indicator while talking", Saved = true )]
+	public static bool ShowVoiceIndicator { get; internal set; } = true;
+
+	/// <summary>
+	/// Show the list of who's talking. Only the player can change this, games and servers can't.
+	/// </summary>
+	[ConVar( "voip_show_speakers", ConVarFlags.Protected, Help = "Show the list of who's talking", Saved = true )]
+	public static bool ShowVoiceSpeakers { get; internal set; } = true;
+
 	public static bool ChatEnabled
 	{
 		get => ChatEnabledSetting;

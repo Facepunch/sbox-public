@@ -152,16 +152,14 @@ public sealed class EmbeddedMovieResource : IMovieResource
 		// Include current game's ident so we can import movies recorded in-game
 		// into empty editor projects
 
-		if ( Package.TryParseIdent( Game.Ident, out var parsed ) )
+		if ( Package.TryParseIdentParts( Game.Ident, out var parsed ) )
 		{
-			// Parse to strip out #local etc
-
-			packages.Add( $"{parsed.org}.{parsed.package}" );
+			packages.Add( Package.FormatIdent( parsed.org, parsed.package ) );
 		}
 
 		foreach ( var package in clip.ResolvePrimaryPackages() )
 		{
-			packages.Add( $"{package.FullIdent}#{package.Revision.VersionId}" );
+			packages.Add( package.GetVersionedIdent() );
 		}
 
 		return [.. packages];

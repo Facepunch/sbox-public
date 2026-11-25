@@ -1,0 +1,584 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "BoneMarkupList"
+				children = 
+				[
+					{
+						_class = "Folder"
+						name = "BoneMarkupRoot"
+						children = 
+						[
+							{
+								_class = "BoneMarkup"
+								target_bone = "root"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "camera"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "weapon_root"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "weapon_root_children"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "hand_R_to_L_ikrule"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "hand_L_to_R_ikrule"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "hand_R_to_weapon_ikrule"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "hand_L_to_weapon_ikrule"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "BoneMarkupRight"
+						children = 
+						[
+							{
+								_class = "Folder"
+								name = "BoneMarkupRightFingers"
+								children = 
+								[
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_thumb_0_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_thumb_1_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_thumb_2_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_index_meta_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_index_0_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_index_1_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_index_2_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_middle_meta_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_middle_0_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_middle_1_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_middle_2_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_ring_meta_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_ring_0_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_ring_1_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_ring_2_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_pinky_meta_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_pinky_0_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_pinky_1_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_pinky_2_R"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+								]
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_upper_R"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_R"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_R_twistctrl0"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_R_twist0"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_R_twistctrl1"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_R_twist1"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_R_twistctrl2"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_R_twist2"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "hand_R"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "hold_R"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = false
+								hidden = false
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "BoneMarkupLeft"
+						children = 
+						[
+							{
+								_class = "Folder"
+								name = "BoneMarkupLeftFingers"
+								children = 
+								[
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_thumb_0_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_thumb_1_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_thumb_2_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_index_meta_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_index_0_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_index_1_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_index_2_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_middle_meta_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_middle_0_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_middle_1_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_middle_2_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_ring_meta_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_ring_0_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_ring_1_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_ring_2_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_pinky_meta_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_pinky_0_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_pinky_1_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+									{
+										_class = "BoneMarkup"
+										target_bone = "finger_pinky_2_L"
+										ignore_Translation = false
+										ignore_rotation = false
+										do_not_discard = true
+										hidden = false
+									},
+								]
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_upper_L"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_L"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_L_twistctrl0"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_L_twist0"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_L_twistctrl1"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_L_twist1"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_L_twistctrl2"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "arm_lower_L_twist2"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "hand_L"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+							{
+								_class = "BoneMarkup"
+								target_bone = "hold_L"
+								ignore_Translation = false
+								ignore_rotation = false
+								do_not_discard = true
+								hidden = false
+							},
+						]
+					},
+				]
+				bone_cull_type = "Aggressive"
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

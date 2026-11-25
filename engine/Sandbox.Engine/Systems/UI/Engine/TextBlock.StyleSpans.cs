@@ -82,6 +82,8 @@ internal sealed partial class TextBlock
 		result.FontWeight = source.FontWeight ?? result.FontWeight;
 		if ( source.FontStyle is { } italic ) result.FontItalic = italic == UI.FontStyle.Italic;
 		result.FontVariantNumeric = source.FontVariantNumeric ?? result.FontVariantNumeric;
+		result.FontVariationSettings = source.FontVariationSettings ?? result.FontVariationSettings;
+		result.FontOpticalSizing = source.FontOpticalSizing ?? result.FontOpticalSizing;
 		result.TextColor = source.FontColor?.ToSkF() ?? result.TextColor;
 		result.BackgroundColor = source.BackgroundColor?.ToSkF() ?? result.BackgroundColor;
 		if ( source.LetterSpacing is { } letters ) result.LetterSpacing = letters.GetPixels( 1000 ) * scale;

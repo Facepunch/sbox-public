@@ -1,0 +1,15 @@
+{
+    "weapon.group.recoil": "Recul",
+    "weapon.setting.primary.description": "Contrôle l’action principale de l’arme.",
+    "weapon.setting.secondary.description": "Contrôle l’action secondaire de l’arme.",
+    "weapon.setting.recoil_force": "Force du recul",
+    "weapon.setting.recoil_force.description": "Recul physique appliqué lorsqu’une arme non tenue tire.",
+    "weapon.setting.extend": "Augmenter la distance de saisie",
+    "weapon.setting.extend.description": "Éloigne l’objet saisi.",
+    "weapon.setting.retract": "Réduire la distance de saisie",
+    "weapon.setting.retract.description": "Rapproche l’objet saisi.",
+    "weapon.setting.camera_aim": "Viser avec la caméra",
+    "weapon.setting.camera_aim.description": "Vise dans la direction de la caméra du joueur assis.",
+    "weapon.setting.guide_rockets": "Guider les roquettes",
+    "weapon.setting.guide_rockets.description": "Guide les roquettes tirées vers le réticule du joueur."
+}

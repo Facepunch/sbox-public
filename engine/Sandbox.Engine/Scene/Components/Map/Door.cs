@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Mapping;
+namespace Sandbox.Mapping;
 
 [EditorHandle( Icon = "door_back" )]
 [Category( "Mapping" ), Icon( "door_back" )]
@@ -220,17 +220,19 @@ public sealed class Door : Component, Component.IPressable
 
 		var pivotPos = Pivot is not null ? Pivot.LocalPosition : Vector3.Zero;
 
-		using ( Gizmo.Scope( "Tool", new Transform( pivotPos ) ) )
+		using ( Gizmo.PushScope( "Tool", new Transform( pivotPos ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.1f;
 
-			if ( Gizmo.Control.Position( "pivot", 0, out var newPivot ) )
+			if ( Gizmo.Control.UpdatePosition( "pivot", 0, out var newPivot ) )
 			{
 				if ( Pivot is not null )
 				{
 					Pivot.LocalPosition += newPivot;
+					Gizmo.Transform = Gizmo.Transform.ToWorld( new Transform( newPivot ) );
 				}
 			}
+			Gizmo.Draw.Position( "pivot" );
 		}
 
 		var delta2 = MathF.Sin( RealTime.Now * 2.0f ).Remap( -1, 1 );

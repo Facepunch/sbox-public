@@ -20,19 +20,14 @@ $badge-to-middle: 118px;
 
 // Small, bottom middle - the art in a circle with a ring round it filling up, and a glow behind it so
 // it's still noticed. One row for what's coming down, and one for each that failed above it.
-// Above the platform menu's dock, not over its search box
-.platform WorkshopDownloadOverlay
-{
-	bottom: 112px;
-}
-
 WorkshopDownloadOverlay
 {
 	// Half its width back from the middle
 	position: absolute;
 	left: 50%;
 	margin-left: -$pill-half;
-	bottom: 24px;
+	// Above the dock, not over its search box
+	bottom: 96px;
 	width: $pill-width;
 	flex-direction: column;
 	z-index: 5101;

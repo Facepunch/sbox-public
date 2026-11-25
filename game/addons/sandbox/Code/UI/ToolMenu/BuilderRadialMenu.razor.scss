@@ -1,0 +1,123 @@
+@import "/UI/Theme.scss";
+
+$wheel-size: 562px;
+$ring-stop: 66.2%;
+$ring-inset: 16.9%;
+$ring-width: 6px;
+
+$icon-top: rgb( 216, 216, 217 );
+$icon-bottom: rgb( 207, 212, 229 );
+
+BuilderRadialMenu
+{
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	justify-content: center;
+	align-items: center;
+	pointer-events: none;
+
+	.wheel
+	{
+		position: relative;
+		flex-shrink: 0;
+		width: $wheel-size;
+		height: $wheel-size;
+		border-radius: 50%;
+		background-image: radial-gradient( circle closest-side, rgba( 11, 12, 18, 0 ) $ring-stop, rgba( 11, 12, 18, 0.65 ) $ring-stop, rgba( 47, 50, 65, 0.8 ) 100% );
+		opacity: 0;
+		transform: scale( 0.8 );
+		transition: all 0.12s ease-out;
+	}
+
+	&.open .wheel
+	{
+		opacity: 1;
+		transform: scale( 1 );
+	}
+
+	.highlight
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 100%;
+		background-image: linear-gradient( to bottom, rgba( $hud-accent, 0 ) 0%, rgba( $hud-accent, 0.33 ) $ring-inset, rgba( $hud-accent, 0 ) $ring-inset );
+		mask-size: 100% 100%;
+		mask-repeat: no-repeat;
+		mask-mode: alpha;
+	}
+
+	.item
+	{
+		position: absolute;
+		width: 44px;
+		height: 44px;
+		margin-left: -22px;
+		margin-top: -22px;
+		transition: transform 0.08s ease-out;
+
+		.icon
+		{
+			transition: filter 0.08s ease-out;
+		}
+
+		// Code also pops the hovered icon outwards and scales it up
+		&.hovered .icon
+		{
+			filter: brightness( 1.25 );
+		}
+	}
+
+	.icon
+	{
+		flex-shrink: 0;
+		width: 100%;
+		height: 100%;
+		background-image: linear-gradient( to bottom, $icon-top, $icon-bottom );
+		mask-size: contain;
+		mask-repeat: no-repeat;
+		mask-position: center;
+		mask-mode: alpha;
+
+		&.missing
+		{
+			background-image: none;
+			border: 3px solid $icon-bottom;
+			border-radius: 50%;
+		}
+	}
+
+	.middle
+	{
+		position: absolute;
+		left: $ring-inset;
+		top: $ring-inset;
+		right: $ring-inset;
+		bottom: $ring-inset;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		gap: 10px;
+		border-radius: 50%;
+		border: $ring-width solid $hud-accent;
+		background-color: rgba( 0, 0, 0, 0.5 );
+
+		.icon
+		{
+			width: 76px;
+			height: 76px;
+		}
+
+		.name
+		{
+			font-family: $title-font;
+			font-weight: 700;
+			font-size: 20px;
+			color: $icon-top;
+		}
+	}
+}

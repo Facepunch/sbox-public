@@ -223,7 +223,7 @@ internal static class DevToolsStyles
 			text-align: center;
 			align-items: center;
 			color: $dim;
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 16px;
 			cursor: pointer;
 		}
@@ -349,7 +349,7 @@ internal static class DevToolsStyles
 			flex-shrink: 0;
 			width: 16px;
 			text-align: center;
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 14px;
 			color: $dim;
 		}
@@ -422,7 +422,7 @@ internal static class DevToolsStyles
 
 		.devtools .badge-icon
 		{
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 15px;
 		}
 
@@ -606,17 +606,36 @@ internal static class DevToolsStyles
 		.devtools .head-button
 		{
 			flex-shrink: 0;
-			padding: 1px 8px;
-			color: $dim;
+			padding: 2px 10px;
+			margin-left: 4px;
+			color: $text;
 			font-size: 11px;
-			border: 1px solid $line;
+			font-weight: 600;
+			background-color: #2e2e2e;
+			border: 1px solid #484848;
+			border-radius: 3px;
 			cursor: pointer;
 		}
 
 		.devtools .head-button:hover
 		{
 			color: $bright;
-			background-color: $hover;
+			background-color: #3d3d3d;
+			border: 1px solid #5e5e5e;
+		}
+
+		.devtools .head-button:active
+		{
+			background-color: #262626;
+		}
+
+		// An icon in front of a button's text
+		.devtools .button-icon
+		{
+			font-family: Material Symbols Outlined;
+			font-size: 14px;
+			font-weight: 400;
+			margin-right: 5px;
 		}
 
 		.devtools .data-row.heading > .cell
@@ -762,7 +781,7 @@ internal static class DevToolsStyles
 		.devtools .section-link
 		{
 			flex-shrink: 0;
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 16px;
 			color: $faint;
 			margin-right: -4px;
@@ -811,7 +830,7 @@ internal static class DevToolsStyles
 
 		.devtools .section-chevron
 		{
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			font-size: 16px;
 			color: $dim;
 			margin-left: -4px;
@@ -1230,21 +1249,57 @@ internal static class DevToolsStyles
 			flex-grow: 1;
 		}
 
+		// Raised, so they read as buttons rather than as status icons
 		.devtools .net-toolbar .icon-button
 		{
-			height: 26px;
-			width: 28px;
+			height: 24px;
+			width: 30px;
+			color: $text;
+			background-color: #2e2e2e;
+			border: 1px solid #484848;
+			border-radius: 3px;
 		}
 
-		.devtools .net-toolbar .icon-button.record.on
+		// A labelled button in the bar stands as tall as the icon ones beside it
+		.devtools .net-toolbar .head-button
+		{
+			height: 24px;
+			padding: 0px 10px;
+			margin-left: 0px;
+			align-items: center;
+		}
+
+		.devtools .net-toolbar .icon-button:hover
+		{
+			color: $bright;
+			background-color: #3d3d3d;
+			border: 1px solid #5e5e5e;
+		}
+
+		.devtools .net-toolbar .icon-button:active
+		{
+			background-color: #262626;
+		}
+
+		.devtools .net-toolbar .icon-button.active
+		{
+			color: $bright;
+			background-color: #484848;
+			border: 1px solid #6a6a6a;
+		}
+
+		.devtools .net-toolbar .icon-button.record.on, .devtools .net-toolbar .icon-button.record.on:hover
 		{
 			color: $bad;
 		}
 
+		// Raised like the buttons, with the one that's showing lit
 		.devtools .segments
 		{
 			flex-shrink: 0;
-			border: 1px solid $line;
+			border: 1px solid #484848;
+			border-radius: 3px;
+			overflow: hidden;
 		}
 
 		.devtools .segment
@@ -1252,21 +1307,23 @@ internal static class DevToolsStyles
 			height: 24px;
 			padding: 0px 12px;
 			align-items: center;
-			color: $dim;
+			color: $text;
+			font-weight: 600;
+			background-color: #2e2e2e;
 			cursor: pointer;
-			border-right: 1px solid $line;
+			border-right: 1px solid #484848;
 		}
 
 		.devtools .segment:hover
 		{
-			color: $text;
-			background-color: $hover;
+			color: $bright;
+			background-color: #3d3d3d;
 		}
 
 		.devtools .segment.active
 		{
 			color: $bright;
-			background-color: $line;
+			background-color: #5c5c5c;
 		}
 
 		.devtools .net-session
@@ -1339,7 +1396,7 @@ internal static class DevToolsStyles
 
 		.devtools .net-select-icon, .devtools .net-icon
 		{
-			font-family: Material Icons;
+			font-family: Material Symbols Outlined;
 			color: $dim;
 		}
 

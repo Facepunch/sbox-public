@@ -4,7 +4,6 @@
 @using Sandbox;
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
-@using MenuProject.Modals.GameModalComponents;
 @using MenuProject.Settings;
 @using SboxMenu;
 @namespace MenuProject.Platform
@@ -13,11 +12,12 @@
 @implements INavigatorPage
 
 @*
-    Setting up a new game of the front's game, on the front rather than in the game setup modal, in a panel (the platform-panel mixin) - the same setup
-    (GameSetup) and rows (SettingsRow), a section at a time: a rail of them down the left, out on the art (the game -
-    where it starts, and its server - then each group of the game's own settings), the one picked's rows in the panel. It's
-    installed first: its settings come in it. Starts from the party's settings for it if it's the party's game.
-    Saving to a party is still the modal's.
+    Setting up a new game - the front's, or the one its pages were given (FrontPages.SetupPackage, up on their own in a
+    SetupModal) - in a panel (the platform-panel mixin): its setup (GameSetup) and rows (SettingsRow), a section at a time,
+    a rail of them down the left, out on the art (the game - where it starts, and its server - then each group of the
+    game's own settings), the one picked's rows in the panel. It's installed first: its settings come in it. Starts from
+    the party's settings for it if it's the party's game. Started when it's done - or handed back to a game that asked
+    for it (FrontPages.OnSetUp).
 *@
 <root>
 
@@ -39,7 +39,7 @@
     </div>
 
     <div class="panel">
-        <PanelHead Title="Start New Game" Icon="sports_esports" Art=@PlatformMenu.Art Back=@Back />
+        <PanelHead Title="Start New Game" Icon="sports_esports" Art=@(Pages?.SetupPackage?.Thumb ?? PlatformMenu.Art) Back=@Back />
 
         <div class="body">
 
@@ -107,7 +107,7 @@
         <div class="actions">
             <div class="button start @(CanStart ? "" : "disabled")" tooltip="@(WhyNot ?? "")" onclick=@Start>
                 <i>play_arrow</i>
-                <label>@(busy ? "Starting…" : "Start game")</label>
+                <label>@(busy ? "Starting…" : Pages?.OnSetUp is not null ? "Done" : "Start game")</label>
             </div>
         </div>
 
@@ -198,7 +198,17 @@
     int request;
     CancellationTokenSource cancel;
 
-    string WhyNot => PlatformMenu.WhyCantStart( Setup?.Package );
+    FrontPages Pages => FrontPages.Of( this );
+
+    /// <summary>
+    /// The game it sets up - the one its pages were given, or the front's
+    /// </summary>
+    Package SetupGame => Pages?.SetupPackage ?? PlatformMenu.Current;
+
+    /// <summary>
+    /// Handed back rather than started, nobody's held back from it
+    /// </summary>
+    string WhyNot => Pages?.OnSetUp is not null ? null : PlatformMenu.WhyCantStart( Setup?.Package );
 
     bool CanStart => Setup is not null && !busy && WhyNot is null;
 
@@ -208,7 +218,7 @@
     /// </summary>
     public void OnNavigationOpen()
     {
-        if ( PlatformMenu.Current is not { } package ) return;
+        if ( SetupGame is not { } package ) return;
         if ( Setup?.Package.FullIdent == package.FullIdent ) return;
 
         _ = LoadAsync( package );
@@ -255,10 +265,12 @@
             if ( !IsValid || mine != request ) return;
 
             var shared = PartyView.IsGameSelected( full ) ? PartyView.SelectedGameSettings : null;
-            var settings = shared ?? GameSetup.GetInitialSettings( full, PartyView.Exists ? PartyView.MaxMembers : 0 );
+            var settings = Pages?.SetupSettings ?? shared ?? GameSetup.GetInitialSettings( full, PartyView.Exists ? PartyView.MaxMembers : 0 );
 
             download = null;
-            Setup = new GameSetup( full, null, settings );
+            Setup = new GameSetup( full, settings );
+
+            if ( !string.IsNullOrEmpty( Pages?.SetupMap ) ) Setup.Map = Pages.SetupMap;
         }
         catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
         {
@@ -283,6 +295,12 @@
 
         try
         {
+            if ( Pages?.OnSetUp is { } done )
+            {
+                done( Setup.Finish() );
+                return;
+            }
+
             await MenuHelpers.StartConfiguredGame( Setup.Package, Setup.Finish(), PartyRoom.Current );
         }
         catch ( Exception e )
@@ -297,7 +315,7 @@
         }
     }
 
-    void Back() => FrontPages.Of( this )?.GoBack();
+    void Back() => FrontPages.Of( this )?.Leave();
 
     protected override int BuildHash() => HashCode.Combine( Setup, Error, download, busy, WhyNot, shownKey, Setup?.Map, Setup?.MapTitle );
 }

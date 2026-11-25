@@ -11,6 +11,10 @@ public partial class ProjectPublisher
 
 	public string TargetPackageIdent => Project.Config.FullIdent;
 
+	bool IsWorkshopOnly => PublishesOnlyToWorkshop( Project );
+
+	string ThumbnailPath => IsWorkshopOnly ? "/.publish/thumb.png" : $"/{TargetPackageIdent}/thumb.png";
+
 	Project Project;
 	public PackageManifest Manifest { get; protected set; }
 
@@ -48,16 +52,13 @@ public partial class ProjectPublisher
 		if ( asset.Publishing is null )
 			return null;
 
-		// We don't have a better way right now. In the future we'll allow them to define which
-		// code to include and whatever.
-		var context = asset.Publishing.BuildPublishContext();
-		var fakeProject = asset.Publishing.CreateTemporaryProject( context.IncludeCode ? Project.Current?.RootDirectory : null );
+		var fakeProject = asset.Publishing.CreateTemporaryProject();
 
 		var p = new ProjectPublisher( fakeProject );
 		// p.Manifest.IncludeSourceFiles = asset.Publishing.ProjectConfig.IncludeSourceFiles;
 		p.Manifest.IncludeSourceFiles = false; // tony: Disabled this until we implement it in a better way
 		p.SetMetaFromAsset( asset );
-		await p.Manifest.BuildFrom( asset, fakeProject );
+		await p.Manifest.BuildFrom( asset );
 
 		// include thumbnail!
 		var thumb = await asset.RenderThumb();
@@ -227,6 +228,9 @@ public partial class ProjectPublisher
 		{
 			await PublishToWorkshop( cancel );
 
+			if ( IsWorkshopOnly )
+				return;
+
 			// Only once the workshop has the files - if Steam turned us down, the backend never hears about it
 			await UploadFiles();
 
@@ -239,7 +243,7 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
-	/// Check the intended manifest, ask the backend which files need to be uploaded.
+	/// Prepare the Workshop files and, for projects with a backend package, check which backend files need uploading.
 	/// </summary>
 	public async Task PrePublish( CancellationToken cancellationToken = default )
 	{
@@ -268,6 +272,9 @@ public partial class ProjectPublisher
 
 		// After lowercasing, the workshop item's files are laid out by these names
 		MoveFilesToWorkshop();
+
+		if ( IsWorkshopOnly )
+			return;
 
 		var publish = new PublishManifest
 		{
@@ -586,7 +593,7 @@ public partial class ProjectPublisher
 		using var bitmap = Bitmap.CreateFromBytes( image ) ?? throw new ArgumentException( "Couldn't read the thumbnail image" );
 		using var square = CropToSquare( bitmap );
 
-		var name = $"/{TargetPackageIdent}/thumb.png";
+		var name = ThumbnailPath;
 		Manifest.Assets.RemoveAll( x => string.Equals( x.Name, name, StringComparison.OrdinalIgnoreCase ) );
 		ThumbnailChosen = true;
 

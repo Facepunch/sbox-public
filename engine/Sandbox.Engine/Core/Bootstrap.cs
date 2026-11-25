@@ -228,7 +228,10 @@ internal static class Bootstrap
 					IToolsDll.Current?.Bootstrap();
 				}
 
-				Mounting.Directory.LoadAssemblies();
+				if ( !Application.IsEditor )
+				{
+					Mounting.Directory.LoadSources();
+				}
 			}
 
 			GameWindow.Current?.UpdateStartupProgress( 0.19f, "Starting the engine" );

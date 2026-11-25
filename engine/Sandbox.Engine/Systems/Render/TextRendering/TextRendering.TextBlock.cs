@@ -102,7 +102,8 @@ public static partial class TextRendering
 		internal void EnsureLayout()
 		{
 			LastPreparedFrame = Application.FrameCount;
-			if ( CacheKey != 0 ) Dictionary.TryAdd( CacheKey, this );
+			// TryAdd locks even when the key is there, and text blocks are prepared from several threads every frame
+			if ( CacheKey != 0 && !Dictionary.ContainsKey( CacheKey ) ) Dictionary.TryAdd( CacheKey, this );
 
 			if ( Layout != null )
 				return;

@@ -1,0 +1,24 @@
+{
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Concrete Glossy Used blend",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "concrete_glossy_used_blend",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsStandaloneOnly": false,
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/floor/concrete_glossy_used_blend.vmat",
+        "Summary": "",
+        "Description": "",
+        "Public": true
+      }
+    }
+  },
+  "guid": "0f6ee750-00fc-0000-0000-000000000000"
+}

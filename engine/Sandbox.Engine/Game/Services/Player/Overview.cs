@@ -17,8 +17,23 @@ public sealed class Overview
 	public string AvatarJson { get; init; }
 	[Obsolete( "Comments were replaced with forum posts" )] public long TotalComments { get; init; }
 	public long TotalFavourites { get; init; }
+
+	/// <summary>
+	/// Legacy total review count. Fetched profiles report zero.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public long TotalReviews { get; init; }
+
+	/// <summary>
+	/// Legacy negative review count. Fetched profiles report zero.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public long NegativeReviews { get; init; }
+
+	/// <summary>
+	/// Legacy positive review count. Fetched profiles report zero.
+	/// </summary>
+	[Obsolete( "Written package reviews are no longer supported." )]
 	public long PositiveReviews { get; init; }
 	public Package MostPlayed { get; init; }
 	public Package LatestPlayed { get; init; }
@@ -87,9 +102,6 @@ public sealed class Overview
 			Achievements = p.Achievements,
 			AvatarJson = p.Avatar,
 			TotalFavourites = p.TotalFavourites,
-			TotalReviews = p.TotalReviews,
-			NegativeReviews = p.NegativeReviews,
-			PositiveReviews = p.PositiveReviews,
 			MostPlayed = RemotePackage.FromDto( p.MostPlayed ),
 			LatestPlayed = RemotePackage.FromDto( p.LatestPlayed ),
 			TopPlayed = p.TopPlayed?.Select( PlayedGame.From ).Where( x => x is not null ).ToArray() ?? [],

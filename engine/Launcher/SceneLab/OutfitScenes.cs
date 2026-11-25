@@ -3,10 +3,8 @@ using System.Threading.Tasks;
 namespace Sandbox.SceneLab;
 
 /// <summary>
-/// Workshop clothing on Citizen 2.0's avatar deforms. The deforms are <c>citizen_deforms.prefab</c>, which a citizen's
-/// <see cref="Dresser"/> puts under it: model deformers on the neck, waist, chest, head, nose and chin, all with
-/// <c>ApplyToBoneMergedChildren</c> on, so the body's clothing is deformed with it. Clothing made before them wasn't made
-/// for that, and some of it breaks.
+/// Workshop clothing on bodies with explicit neck and nose deformers. These fixtures exercise
+/// <c>ApplyToBoneMergedChildren</c> and clothing deformation modes independently of avatar appearance.
 /// </summary>
 internal static class OutfitScenes
 {
@@ -46,11 +44,8 @@ internal static class OutfitScenes
 	/// </summary>
 	static readonly Costume[] All = [HotdogCostume, PearlNecklace, BananaSuit, Katana, GolfBackpack];
 
-	const string DeformsPrefab = "models/citizen/citizen_deforms.prefab";
-
 	/// <summary>
-	/// The deformed citizens' weights, past what the avatar's sliders reach (the neck's 0.5, the nose's 0.8): the neck sucked
-	/// in and the nose inflated, so what they do to the costume is plain.
+	/// Exaggerated neck and nose weights make their effect on the costume clear.
 	/// </summary>
 	const float ThinNeck = 1.0f;
 	const float BigNose = 3.0f;
@@ -87,8 +82,7 @@ internal static class OutfitScenes
 	];
 
 	/// <summary>
-	/// The big head: a sphere around the head inflating it, which the avatar's deforms haven't got (their head deform squashes
-	/// and stretches), from the head deform's centre in the citizen's model space.
+	/// A sphere around the head inflates it to test how clothing follows larger changes in body shape.
 	/// </summary>
 	static readonly Vector3 HeadCenter = new( 1.2f, 0, 63 );
 	const float HeadRadius = 14;
@@ -235,9 +229,6 @@ internal static class OutfitScenes
 			clothing ??= IsLocal ? Task.FromResult( GameScenes.LoadResource<Clothing>( source, "addons/citizen/Assets" ) ) : LoadClothing( source );
 			if ( !clothing.IsCompleted ) return;
 
-			// A panel app doesn't register game resources, so the Dresser wouldn't find the deforms prefab itself
-			GameScenes.LoadResource<PrefabFile>( DeformsPrefab, "addons/citizen/Assets" );
-
 			// Dressed in nothing if it didn't load, so a capture still finishes
 			if ( clothing.IsFaulted ) Log.Warning( clothing.Exception, $"Scene Lab: couldn't load {source}" );
 
@@ -253,16 +244,9 @@ internal static class OutfitScenes
 					item.DeformationMode = !citizen.DeformCostume ? SkinnedModelRenderer.DeformationModeType.None
 						: citizen.Rigid ? SkinnedModelRenderer.DeformationModeType.Rigid : SkinnedModelRenderer.DeformationModeType.Normal;
 
-				var root = body.Components.Get<Dresser>().UpdateDeforms( outfit, citizen.Deforms );
-				if ( citizen.Deforms && root is null ) Log.Warning( $"Scene Lab: no {DeformsPrefab}" );
-
-				foreach ( var deformer in root?.GetComponentsInChildren<ModelDeformer>( true ) ?? [] )
+				if ( citizen.Deforms )
 				{
-					deformer.ApplyToBoneMergedChildren = true;
-
-					// Set past the sliders, after the Dresser has set them from its appearance
-					if ( deformer.GameObject.Name == "deform_neck" ) deformer.Weight = ThinNeck;
-					if ( deformer.GameObject.Name == "deform_nose" ) deformer.Weight = BigNose;
+					AddDeformers( body );
 				}
 			}
 
@@ -273,6 +257,35 @@ internal static class OutfitScenes
 		/// Every citizen is dressed - captures wait for it.
 		/// </summary>
 		public bool Dressed( Scene scene ) => dressedScene == scene;
+	}
+
+	/// <summary>
+	/// Creates the exaggerated neck and nose used by the clothing deformation comparisons.
+	/// </summary>
+	static void AddDeformers( SkinnedModelRenderer body )
+	{
+		var neck = new GameObject( body.GameObject, true, "Thin Neck" );
+		neck.LocalPosition = new Vector3( -1.80435658f, 0, 55.053112f );
+		neck.LocalScale = new Vector3( 1, 1, 0.280000091f );
+		var neckDeformer = neck.Components.Create<ModelDeformer>();
+		neckDeformer.SceneVolume = new Sandbox.Volumes.SceneVolume { Type = Sandbox.Volumes.SceneVolume.VolumeTypes.Sphere, Sphere = new Sphere( 0, 16.260162f ) };
+		neckDeformer.Operation = ModelDeformer.OperationType.Suck;
+		neckDeformer.ScaleFactor = new Vector3( 0, 0, 1 );
+		neckDeformer.Falloff = 1;
+		neckDeformer.NormalMode = ModelDeformer.NormalModeType.Accurate;
+		neckDeformer.Weight = ThinNeck;
+		neckDeformer.ApplyToBoneMergedChildren = true;
+
+		var nose = new GameObject( body.GameObject, true, "Big Nose" );
+		nose.LocalPosition = new Vector3( 8.06340122f, 0.147055864f, 63.1016769f );
+		var noseDeformer = nose.Components.Create<ModelDeformer>();
+		noseDeformer.SceneVolume = new Sandbox.Volumes.SceneVolume { Type = Sandbox.Volumes.SceneVolume.VolumeTypes.Sphere, Sphere = new Sphere( 0, 3 ) };
+		noseDeformer.Operation = ModelDeformer.OperationType.Inflate;
+		noseDeformer.Inflation = 0.6095618f;
+		noseDeformer.Falloff = 1;
+		noseDeformer.NormalMode = ModelDeformer.NormalModeType.Accurate;
+		noseDeformer.Weight = BigNose;
+		noseDeformer.ApplyToBoneMergedChildren = true;
 	}
 
 	/// <summary>

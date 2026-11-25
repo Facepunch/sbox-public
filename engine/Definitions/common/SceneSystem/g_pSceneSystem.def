@@ -75,6 +75,11 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     void DeleteSceneObject( CSceneObject pObj );
     void DeleteSceneObjectAtFrameEnd( CSceneObject pObj );
 
+	inline CSceneObject CreateSceneObjectFromBuffers( ISceneWorld world, VertexBufferHandle_t vertices, IndexBufferHandle_t indices, IMaterial material, int vertexCount, int indexCount, BBox bounds, RenderPrimitiveType primitiveType )
+	{
+		return g_pSceneSystem->CreateSceneObjectFromBuffers( world, vertices, indices, material, vertexCount, indexCount, bounds.m_vMinBounds, bounds.m_vMaxBounds, primitiveType, nullptr, true );
+	}
+
     CSceneSkyBoxObject CreateSkyBox( IMaterial skyMaterial, ISceneWorld world );
     CDecalSceneObject CreateDecal( ISceneWorld world );
 
@@ -191,12 +196,9 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
 	void BindTransformSlot( IRenderContext pCtx, int nVBSlot, int nTransformSlotIndex );
 
-	// Bind a full-screen texture to a stable, pipeline-level bindless slot for this frame
-	// (used by AO/SSR so shaders read a fixed descriptor binding instead of a racy attribute).
-	void SetPipelineTextureIndex( int nSlot, int nBindlessIndex );
-
-	// Upload the slots as they are now into a context's stream, for a renderer that submits before frame end does
-	void UploadPipelineTextureIndices( IRenderContext pRenderContext );
+	int AllocatePipelineTextureIndices();
+	void SetPipelineTextureIndex( int nViewOffset, int nSlot, int nBindlessIndex );
+	void UpdateGlobalPerFrameDescriptorBindings();
 
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );

@@ -140,7 +140,7 @@ internal class LargeNetworkFiles
 		if ( !AssetDownloadCache.IsLegalDownload( fileName ) )
 			return;
 
-		if ( AssetDownloadCache.TryMount( RedirectFileSystem, fileName, contents.CRC ) )
+		if ( AssetDownloadCache.TryMount( RedirectFileSystem, fileName, contents.CRC, includeHostFiles: true ) )
 			return;
 
 		if ( AssetDownloadCache.DebugNetworkFiles )
@@ -201,7 +201,7 @@ internal class LargeNetworkFiles
 				continue;
 			}
 
-			var fn = AssetDownloadCache.StoreFile( file, info.CRC, data );
+			var fn = AssetDownloadCache.StoreFile( file, info.CRC, data, fromHost: true );
 			if ( fn is not null )
 			{
 				RedirectFileSystem.AddAbsFile( file, fn );

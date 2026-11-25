@@ -62,4 +62,20 @@ public class HighlightOutline : Component
 
 		return Components.GetAll<Renderer>( FindMode.EnabledInSelfAndDescendants );
 	}
+
+	/// <summary>
+	/// Append the same targets as <see cref="GetOutlineTargets()"/> to <paramref name="targets"/>.
+	/// </summary>
+	internal void GetOutlineTargets( List<Renderer> targets )
+	{
+		if ( OverrideTargets )
+		{
+			if ( Targets is not null )
+				targets.AddRange( Targets );
+
+			return;
+		}
+
+		Components.GetAll( targets, FindMode.EnabledInSelfAndDescendants );
+	}
 }

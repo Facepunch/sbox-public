@@ -1,5 +1,6 @@
 ﻿using NativeEngine;
 using Sandbox.Engine;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -12,6 +13,10 @@ public partial class ResourceSystem
 {
 	// Strong references to managed file resources, including uncompiled assets.
 	private Dictionary<int, Resource> ResourceIndex { get; } = new();
+
+	// GetAll<T> walks every indexed resource, and games call it every frame: keep each type's answer until the index changes
+	int _indexVersion;
+	readonly ConcurrentDictionary<Type, (int Version, object Items)> _allByType = new();
 	private Dictionary<ulong, Resource> ResourceIndexLong { get; } = new();
 	private Dictionary<Guid, Resource> GuidIndex { get; } = new();
 
@@ -43,6 +48,7 @@ public partial class ResourceSystem
 			ResourceIndex[resource.ResourceId] = resource;
 #pragma warning restore CS0618 // Type or member is obsolete
 			ResourceIndexLong[resource.ResourceIdLong] = resource;
+			_indexVersion++;
 		}
 
 		if ( resource.Guid != Guid.Empty )
@@ -95,7 +101,11 @@ public partial class ResourceSystem
 		removed |= RemoveIndexedWeak( WeakIndexLong, resource.ResourceIdLong, resource );
 
 #pragma warning disable CS0618 // Type or member is obsolete
-		removed |= RemoveIndexed( ResourceIndex, resource.ResourceId, resource );
+		if ( RemoveIndexed( ResourceIndex, resource.ResourceId, resource ) )
+		{
+			removed = true;
+			_indexVersion++;
+		}
 		removed |= RemoveIndexedWeak( WeakIndex, resource.ResourceId, resource );
 #pragma warning restore CS0618 // Type or member is obsolete
 
@@ -217,6 +227,7 @@ public partial class ResourceSystem
 	internal void OnHotload()
 	{
 		TypeCache.Clear();
+		ClearAllByType();
 	}
 
 	/// <summary>
@@ -266,6 +277,7 @@ public partial class ResourceSystem
 		WeakGuidIndex.Clear();
 
 		ResourceIndex.Clear();
+		_indexVersion++;
 		WeakIndex.Clear();
 
 		ResourceIndexLong.Clear();
@@ -273,6 +285,7 @@ public partial class ResourceSystem
 		PathIndex.Clear();
 
 		TypeCache.Clear();
+		ClearAllByType();
 
 		_referenceInstallCancel.Cancel();
 		_referenceInstallCancel = new();
@@ -442,13 +455,25 @@ public partial class ResourceSystem
 		return resource != null;
 	}
 
+	void ClearAllByType()
+	{
+		_allByType.Clear();
+	}
+
 	/// <summary>
 	/// Get all cached resources of given type.
 	/// </summary>
 	/// <typeparam name="T">Resource type to get.</typeparam>
 	public IEnumerable<T> GetAll<T>()
 	{
-		return ResourceIndex.Values.OfType<T>().Distinct();
+		var version = _indexVersion;
+		if ( _allByType.TryGetValue( typeof( T ), out var cached ) && cached.Version == version )
+			return (IReadOnlyList<T>)cached.Items;
+
+		// Threads racing to build the same list build equal ones, so the last one stored wins
+		IReadOnlyList<T> items = Array.AsReadOnly( ResourceIndex.Values.OfType<T>().Distinct().ToArray() );
+		_allByType[typeof( T )] = (version, items);
+		return items;
 	}
 
 	/// <summary>
@@ -808,7 +833,7 @@ public static class ResourceLibrary
 	public static IEnumerable<T> GetAll<T>( string filepath, bool recursive = true ) where T : Resource => Game.Resources.GetAll<T>( filepath, recursive );
 
 	/// <summary>
-	/// Load a resource by its file path.
+	/// Load a resource by its file path. Abstract resource types resolve to the file's concrete type.
 	/// </summary>
 	public static async Task<T> LoadAsync<T>( string path ) where T : Resource
 	{
@@ -819,23 +844,37 @@ public static class ResourceLibrary
 			return uncompiled as T;
 		}
 
-		// try to load cached version first
+		path = Resource.FixPath( path );
 		if ( TryGet<T>( path, out var cached ) )
 			return cached;
+
+		// Mounts know their resource types. Disk resources use their file extension.
+		if ( type.IsAbstract && !Mounting.MountUtility.IsMountPath( path ) )
+		{
+			var resolvedType = ResolveResourceType( path );
+			if ( resolvedType is null || !resolvedType.IsAssignableTo( type ) ) return null;
+			type = resolvedType;
+		}
+
+		if ( type == typeof( Model ) )
+			return (T)(object)(await Sandbox.Model.LoadAsync( path ));
+
+		if ( type == typeof( Material ) )
+			return (T)(object)(await Sandbox.Material.LoadAsync( path ));
+
+		if ( Mounting.MountUtility.IsMountPath( path ) )
+		{
+			var mounted = await Mounting.Directory.TryLoadAsync( path );
+			if ( mounted is null || mounted is T )
+				return mounted as T;
+
+			Log.Warning( $"Mounted resource '{path}' is not a '{type.FullName}'." );
+			return null;
+		}
 
 		// Check if the type is a GameResource, and handle it accordingly
 		if ( type.IsAssignableTo( typeof( GameResource ) ) )
 		{
-			if ( Mounting.MountUtility.IsMountPath( path ) )
-			{
-				var mounted = await Mounting.Directory.TryLoadAsync( path );
-				if ( mounted is null || mounted is T )
-					return mounted as T;
-
-				Log.Warning( $"Mounted resource '{path}' is not a '{type.FullName}'." );
-				return null;
-			}
-
 			if ( type == typeof( PrefabFile ) )
 			{
 				return (T)(object)PrefabFile.Load( path );
@@ -845,22 +884,44 @@ public static class ResourceLibrary
 			return Get<T>( path );
 		}
 
-		if ( type == typeof( Model ) )
-		{
-			return (T)(object)(await Sandbox.Model.LoadAsync( path ));
-		}
-
-		if ( type == typeof( Material ) )
-		{
-			return (T)(object)(await Sandbox.Material.LoadAsync( path ));
-		}
-
 		if ( type == typeof( Shader ) )
 		{
 			return (T)(object)(Sandbox.Shader.Load( path ));
 		}
 
-		return default;
+		using var manifest = AsyncResourceLoader.Load( path );
+		if ( manifest is not null )
+			await manifest.WaitForLoad();
+
+		return Resource.LoadNative( type, path ) as T;
+	}
+
+	/// <summary>
+	/// Resolve native formats without editor services, then check declared game resource types.
+	/// </summary>
+	private static Type ResolveResourceType( string path )
+	{
+		var extension = System.IO.Path.GetExtension( path );
+		var nativeType = extension switch
+		{
+			".vmdl" => typeof( Model ),
+			".vmat" => typeof( Material ),
+			".vtex" => typeof( Texture ),
+			".vsnd" or ".wav" or ".mp3" or ".ogg" => typeof( SoundFile ),
+#pragma warning disable CS0618
+			".vanmgrph" => typeof( AnimationGraph ),
+#pragma warning restore CS0618
+			".ag" => typeof( Animation.Graph ),
+			".anim" => typeof( Animation.Clip ),
+			".skel" => typeof( Animation.Skeleton ),
+			".shader" => typeof( Shader ),
+			".vphys" => typeof( PhysicsGroupDescription ),
+			_ => null
+		};
+
+		if ( nativeType is not null ) return nativeType;
+
+		return Game.Resources.TryGetType( extension, out var attribute ) ? attribute.TargetType : null;
 	}
 
 	/// <summary>

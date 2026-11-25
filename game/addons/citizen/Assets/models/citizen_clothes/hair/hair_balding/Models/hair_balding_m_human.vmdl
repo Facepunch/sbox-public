@@ -221,6 +221,8 @@
 		model_archetype = ""
 		primary_associated_entity = ""
 		anim_graph_name = ""
+		animation_graph_name = resource:""
+		skeleton_name = resource:""
 		base_model_name = ""
 	}
 }

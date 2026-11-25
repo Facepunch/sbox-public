@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 public static partial class Gizmo
 {
@@ -11,7 +11,10 @@ public static partial class Gizmo
 	{
 		public Transform Transform;
 		public object Object;
+		public Component Component;
+		public bool IsSceneGizmo;
 		public string Path;
+		public ulong PathHash;
 		public float HitDepthBias;
 		public int Create;
 		public bool IgnoreDepth;

@@ -108,7 +108,7 @@ public class ResourceStringControlWidget : ControlWidget
 		{
 			var textRect = rect.Shrink( 0, 3 );
 
-			bool isPackage = !resource.Contains( ".vmap" ) && Package.TryParseIdent( resource, out _ );
+			bool isPackage = !resource.Contains( ".vmap" ) && Package.TryParseIdentParts( resource, out _ );
 			if ( !isPackage )
 			{
 				Paint.SetBrush( Theme.Red.Darken( 0.8f ) );
@@ -191,6 +191,11 @@ public class ResourceStringControlWidget : ControlWidget
 		picker.Show();
 
 		picker.SetSelection( asset );
+
+		if ( SerializedProperty.TryGetAttribute<AssetHintAttribute>( out var hint ) )
+		{
+			picker.SetSearchText( hint.Pattern );
+		}
 	}
 
 	private void UpdateFromAsset( Asset asset )
@@ -225,7 +230,7 @@ public class ResourceStringControlWidget : ControlWidget
 	{
 		if ( AssetType == AssetType.MapFile && ev.Data.Url?.Scheme == "https" )
 		{
-			if ( !Package.TryParseIdent( ev.Data.Url.ToString(), out var ident ) )
+			if ( !Package.TryParseIdentParts( ev.Data.Url.ToString(), out var ident ) )
 				return;
 
 			PropertyStartEdit();

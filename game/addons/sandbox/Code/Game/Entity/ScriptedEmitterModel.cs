@@ -1,0 +1,24 @@
+
+[AssetType( Name = "Scripted Model Emitter", Extension = "smemit", Category = "Sandbox", Flags = AssetTypeFlags.NoEmbedding | AssetTypeFlags.IncludeThumbnails )]
+public class ScriptedEmitterModel : GameResource, IDefinitionResource
+{
+	/// <summary>
+	/// The prefab containing the physical emitter body
+	/// </summary>
+	[Property]
+	public PrefabFile Prefab { get; set; }
+
+	[Property]
+	public string Title { get; set; }
+
+	[Property]
+	public string Description { get; set; }
+
+	/// <inheritdoc/>
+	public override Bitmap RenderThumbnail( ThumbnailOptions options ) => Prefab?.RenderThumbnail( options );
+
+	protected override Bitmap CreateAssetTypeIcon( int width, int height )
+	{
+		return CreateSimpleAssetTypeIcon( "💨", width, height, "#42b4f5" );
+	}
+}

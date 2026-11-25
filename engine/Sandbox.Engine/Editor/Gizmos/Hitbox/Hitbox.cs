@@ -1,4 +1,4 @@
-﻿
+
 using System.ComponentModel;
 
 namespace Sandbox;
@@ -34,6 +34,8 @@ public static partial class Gizmo
 
 		public bool Debug { get; internal set; }
 
+		public Ray Ray => Active.IsReportedPress ? Pressed.Ray : CurrentRay;
+
 		public float DepthBias
 		{
 			get => Active.scope.HitDepthBias;
@@ -47,26 +49,30 @@ public static partial class Gizmo
 		{
 			if ( !CanInteract )
 				return;
+			if ( !Active.IsPicking && Pressed.Any && IsLeftMouseDown && !Active.IsReportedPress )
+				return;
 
 			distance *= DepthBias;
 
 			var path = Active.lineScope.Enabled ? Active.lineScope.LinePath : Path;
 
 			// we have a closer object
-			if ( distance > Active.builder.HitDistance )
+			if ( distance > Active.current.HitDistance )
 			{
 				// it's us anyway, forget it
-				if ( path == Active.builder.HoveredPath )
+				if ( path == Active.current.HoveredPath )
 					return;
 
-				bool currentIsParent = path.StartsWith( Active.builder.HoveredPath );
+				bool currentIsParent = Active.current.HoveredPath is not null && path.StartsWith( Active.current.HoveredPath );
 
 				if ( !currentIsParent )
 					return;
 			}
 
-			Active.builder.HoveredPath = path;
-			Active.builder.HitDistance = distance;
+			Active.current.HoveredPath = path;
+			Active.current.HoveredObject = Object;
+			Active.current.HitDistance = distance;
+			if ( !Active.IsPicking ) Active.UpdateCapture( reportedHit: true );
 		}
 
 		/// <summary>
@@ -82,16 +88,18 @@ public static partial class Gizmo
 		/// </summary>
 		public void Sphere( Sphere sphere )
 		{
+			var recorded = Record( new( HitShapeType.Sphere, sphere.Center, Size: sphere.Radius ) );
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 				Sandbox.Gizmo.Draw.LineThickness = 1;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.33f );
 				Sandbox.Gizmo.Draw.LineSphere( sphere );
 			}
+			if ( recorded ) return;
 
 			// convert ray to local to the sphere
-			var ray = CurrentRay.ToLocal( Transform );
+			var ray = LocalRay;
 
 			if ( !sphere.Trace( ray, float.MaxValue, out float hitDistance ) )
 				return;
@@ -105,7 +113,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 				Sandbox.Gizmo.Draw.LineThickness = 1;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.8f );
 				Sandbox.Gizmo.Draw.LineSphere( sphere );
@@ -117,16 +125,18 @@ public static partial class Gizmo
 		/// </summary>
 		public void BBox( BBox bounds )
 		{
+			var recorded = Record( new( HitShapeType.Box, bounds.Mins, bounds.Maxs ) );
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 				Sandbox.Gizmo.Draw.LineThickness = 2;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.33f );
 				Sandbox.Gizmo.Draw.LineBBox( bounds );
 			}
+			if ( recorded ) return;
 
 			// convert ray to local to the box
-			var ray = CurrentRay.ToLocal( Transform );
+			var ray = LocalRay;
 
 			if ( !bounds.Trace( ray, float.MaxValue, out float hitDistance ) )
 				return;
@@ -136,7 +146,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 
 				Sandbox.Gizmo.Draw.LineThickness = 2;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.8f );
@@ -149,8 +159,9 @@ public static partial class Gizmo
 		/// </summary>
 		public void Circle( Vector3 center, Vector3 forward, float outerRadius, float innerRadius = 0.0f )
 		{
+			if ( Record( new( HitShapeType.Circle, center, forward, outerRadius, innerRadius ) ) ) return;
 			// convert ray to local to the box
-			var ray = CurrentRay.ToLocal( Transform );
+			var ray = LocalRay;
 
 			var plane = new Plane( center, forward );
 			if ( !plane.TryTrace( ray, out var hitPoint, true ) ) return;
@@ -169,19 +180,21 @@ public static partial class Gizmo
 		{
 			if ( model is null )
 				return;
+			var recorded = Record( new( HitShapeType.Model, Model: model ) );
 
 			var modelBounds = model.Bounds;
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 				Sandbox.Gizmo.Draw.LineThickness = 2;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.33f );
 				Sandbox.Gizmo.Draw.LineBBox( modelBounds );
 			}
+			if ( recorded ) return;
 
 			// convert ray to local to the box
-			var ray = CurrentRay.ToLocal( Transform );
+			var ray = LocalRay;
 
 			if ( !modelBounds.Trace( ray, RayDepth, out _ ) )
 				return;
@@ -194,7 +207,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 
 				Sandbox.Gizmo.Draw.LineThickness = 2;
 				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Selected.WithAlpha( 0.8f );
@@ -207,6 +220,7 @@ public static partial class Gizmo
 		/// </summary>
 		public void Sprite( Vector3 center, float size, bool worldspace = true )
 		{
+			if ( Record( new( HitShapeType.Sprite, center, Size: size, WorldSpace: worldspace ) ) ) return;
 			var position = Transform.Position + center;
 			var halfSize = size * 0.5f;
 			var plane = new Plane( position, Camera.Rotation.Forward );
@@ -231,7 +245,7 @@ public static partial class Gizmo
 
 			if ( Debug )
 			{
-				using var scope = Scope();
+				using var scope = PushScope();
 
 				Draw.Color = Colors.Selected.WithAlpha( hit ? 0.8f : 0.33f );
 				Draw.Sprite( center, size, Texture.White, false );

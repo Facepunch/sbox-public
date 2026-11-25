@@ -13,7 +13,13 @@ public struct WorkshopItemMetaData
 	public const string FileName = "metadata.json";
 
 	public string Title { get; set; }
+
+	/// <summary>
+	/// The backend package, when this item has one. Workshop-only addons omit it.
+	/// </summary>
+	[System.Text.Json.Serialization.JsonIgnore( Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull )]
 	public string PackageIdent { get; set; }
+
 	public ulong WorkshopId { get; set; }
 
 	/// <summary>
@@ -49,6 +55,30 @@ public struct WorkshopItemMetaData
 		catch ( System.Exception e )
 		{
 			Log.Warning( e, $"Couldn't read {path} ({e.Message})" );
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// What an item's Steam metadata says it is, for an item that has no <see cref="FileName"/> (maps published before
+	/// items shipped one). Its <see cref="Meta"/> is left out: Steam's holds only part of the package's meta, and the
+	/// backend's whole meta stays in use. Null if it has none.
+	/// </summary>
+	internal static WorkshopItemMetaData? FromItemMetadata( string metadata )
+	{
+		if ( string.IsNullOrWhiteSpace( metadata ) ) return null;
+
+		try
+		{
+			var value = Json.Deserialize<WorkshopItemMetaData>( metadata );
+			if ( string.IsNullOrEmpty( value.TypeName ) ) return null;
+
+			value.Meta = null;
+			return value;
+		}
+		catch ( System.Exception e )
+		{
+			Log.Warning( e, $"Couldn't read a Workshop item's Steam metadata ({e.Message})" );
 			return null;
 		}
 	}

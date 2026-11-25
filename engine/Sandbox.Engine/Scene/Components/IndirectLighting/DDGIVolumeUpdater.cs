@@ -9,6 +9,7 @@ namespace Sandbox;
 /// </summary>
 class DDGIProbeUpdaterCubemapper : IDisposable
 {
+	private const int CaptureSize = 64;
 	private readonly IndirectLightVolume _volume;
 	private readonly SceneCamera _camera;
 	private List<Vector3Int> _pendingProbes;
@@ -98,16 +99,13 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	/// </summary>
 	void CopyDepthToColor( ITexture srcDepth, Texture dstColor, int dstArraySlice )
 	{
-		var width = dstColor.Width;
-		var height = dstColor.Height;
-
 		var attrs = RenderAttributes.Pool.Get();
 		attrs.Set( "SourceDepth", srcDepth );
 		attrs.Set( "DestTextureArray", dstColor );
-		attrs.Set( "TextureSize", new Vector2Int( width, height ) );
+		attrs.Set( "TextureSize", new Vector2Int( CaptureSize, CaptureSize ) );
 		attrs.Set( "DestArraySlice", dstArraySlice );
 
-		DepthCopyShader.DispatchWithAttributes( attrs, width, height, 1 );
+		DepthCopyShader.DispatchWithAttributes( attrs, CaptureSize, CaptureSize, 1 );
 		RenderAttributes.Pool.Return( attrs );
 	}
 
@@ -138,15 +136,20 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	/// Captures direct lighting, then one bounce from the completed first pass.
 	/// Returns false when either cancellation source interrupts the bake.
 	/// </summary>
-	public async Task<bool> RunAsync( CancellationToken token )
+	public async Task<bool> RunAsync( CancellationToken token, Editor.IProgressSection section = null )
 	{
-		FastTimer pauseTimer = FastTimer.StartNew();
+		using var popup = section is null ? Application.Editor.ProgressSection() : null;
+		var progress = section ?? popup;
 
-		using var progress = Application.Editor.ProgressSection();
-
+		var totalCaptures = _pendingProbes.Count * 2;
 		progress.Title = "Baking Indirect Light Volume";
-		progress.TotalCount = _pendingProbes.Count * 2;
+		progress.TotalCount = totalCaptures;
 		var progressToken = progress.GetCancel();
+
+		await Task.Yield();
+
+		int completedCaptures = 0;
+		var pauseTimer = FastTimer.StartNew();
 
 		for ( _pass = 0; _pass < 2; _pass++ )
 		{
@@ -166,17 +169,16 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 				if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
 					return false;
 
-				progress.Subtitle = $"Rendering probe {progress.Current + 1:n0} / {progress.TotalCount:n0}";
-				if ( !await RenderProbe( probeIndex, token, progressToken ) )
-					return false;
-				if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
-					return false;
+				RenderProbe( probeIndex );
+				completedCaptures++;
 
-				progress.Current++;
-
-				if ( pauseTimer.ElapsedMilliSeconds > 20 )
+				// Update the editor between slices of capture work.
+				if ( pauseTimer.ElapsedMilliSeconds >= 20 || completedCaptures == totalCaptures )
 				{
+					progress.Subtitle = $"Rendering probe {completedCaptures:n0} / {totalCaptures:n0}";
+					progress.Current = completedCaptures;
 					await Task.Delay( 1 );
+					pauseTimer.Start();
 				}
 			}
 		}
@@ -221,7 +223,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			_captureVolumes.SetData( data );
 	}
 
-	private async Task<bool> RenderProbe( Vector3Int probeIndex, CancellationToken token, CancellationToken progressToken )
+	private void RenderProbe( Vector3Int probeIndex )
 	{
 		_renderedIndex = probeIndex;
 
@@ -233,18 +235,10 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		_camera.Attributes.Set( "DDGI_Volumes", _captureVolumes );
 		_camera.Attributes.Set( "DDGI_VolumeCount", _captureVolumeCount );
 
-		await Task.Yield();
-
-		if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
-			return false;
-
 		foreach ( var texture in _captureTextures )
 			texture.MarkUsed( ushort.MaxValue );
 
 		_camera.RenderToCubeTexture( _captureTexture );
-
-		await Task.Yield();
-		return true;
 	}
 
 	private void InitializeProbeQueue()
@@ -256,7 +250,11 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			{
 				for ( int x = 0; x < counts.x; x++ )
 				{
-					_pendingProbes.Add( new Vector3Int( x, y, z ) );
+					var index = new Vector3Int( x, y, z );
+					if ( _volume.GetProbe( index )?.Active == false )
+						continue;
+
+					_pendingProbes.Add( index );
 				}
 			}
 		}
@@ -264,16 +262,15 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 	private void InitializeCaptureTexture()
 	{
-		const int cubemapSize = 64;
-		int numMips = (int)MathF.Log2( cubemapSize ) + 1;
+		int numMips = (int)MathF.Log2( CaptureSize ) + 1;
 
-		_captureTexture = Texture.CreateCube( cubemapSize, cubemapSize )
+		_captureTexture = Texture.CreateCube( CaptureSize, CaptureSize )
 								.WithUAVBinding()
 								.WithMips( numMips )
 								.WithFormat( ImageFormat.RGBA16161616F )
 								.Finish();
 
-		_captureDepth = Texture.CreateCube( cubemapSize, cubemapSize )
+		_captureDepth = Texture.CreateCube( CaptureSize, CaptureSize )
 								.WithUAVBinding()
 								.WithFormat( ImageFormat.R32F )
 								.Finish();

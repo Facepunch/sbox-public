@@ -14,7 +14,7 @@ partial class PublishWizard
 		WorkshopChoices Workshop => PublishConfig.Workshop;
 
 		/// <summary>
-		/// Does the revision get a changelist? A game's does - a map's gets the default.
+		/// Does the revision get a changelist? Games do - maps get the default.
 		/// </summary>
 		bool HasChangeDetails => Project.Config.Type == "game";
 

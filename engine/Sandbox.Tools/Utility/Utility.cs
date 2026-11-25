@@ -311,6 +311,9 @@ public static partial class EditorUtility
 	/// Create a copy of an asset (and related files) on a new path.
 	/// </summary>
 	public static bool CopyAsset( Asset asset, string path, bool overwrite = false )
+		=> CopyAsset( asset, path, overwrite, rebuildFromSource: false );
+
+	public static bool CopyAsset( Asset asset, string path, bool overwrite, bool rebuildFromSource )
 	{
 		path = path?.Trim();
 
@@ -337,14 +340,25 @@ public static partial class EditorUtility
 		// TODO: Remove this once we have FileSystem.DeferChanges()
 		FileWatch.SuppressWatchers = RealTime.Now + 999;
 
-		// copy all our components: oldpath -> path
-		foreach ( var ext in Asset.RelatedFileExts )
+		try
 		{
-			var file = new FileInfo( oldPath + ext );
-			if ( file.Exists ) file.CopyTo( path + ext, overwrite );
-		}
+			var rebuild = rebuildFromSource && asset.HasSourceFile;
+			foreach ( var ext in Asset.RelatedFileExts )
+			{
+				if ( rebuild && ext == "_c" )
+				{
+					if ( overwrite ) File.Delete( path + ext );
+					continue;
+				}
 
-		FileWatch.SuppressWatchers = RealTime.Now;
+				var file = new FileInfo( oldPath + ext );
+				if ( file.Exists ) file.CopyTo( path + ext, overwrite );
+			}
+		}
+		finally
+		{
+			FileWatch.SuppressWatchers = RealTime.Now;
+		}
 
 		return true;
 	}

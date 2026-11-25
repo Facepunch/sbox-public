@@ -639,6 +639,13 @@ native class CFootIKNode::Definition as NativeEngine.GraphFootIKNode : Animation
 	{
 		self->m_leftFootBoneID.m_nHashCode = value;
 	}
+	inline void SetSwivelMode( int value )
+	{
+		self->m_swivelMode = static_cast<decltype(self->m_swivelMode)>( value );
+	}
+	float m_swivelOffset;
+	short m_leftPoleNodeIdx;
+	short m_rightPoleNodeIdx;
 	short m_leftTargetNodeIdx;
 	inline void SetRightFootBoneID( uint value )
 	{
@@ -1119,6 +1126,7 @@ native class CStateCompletedConditionNode::Definition as NativeEngine.GraphState
 	short m_sourceStateNodeIdx;
 	float m_transitionDuration;
 	short m_transitionDurationOverrideNodeIdx;
+	bool m_requireFullyInState;
 }
 
 native class CStateMachineNode::Definition as NativeEngine.GraphStateMachineNode : AnimationGraphNodeDefinition
@@ -1235,6 +1243,7 @@ native class CTargetOffsetNode::Definition as NativeEngine.GraphTargetOffsetNode
 	}
 	short m_inputValueNodeIdx;
 	bool m_isBoneSpaceOffset;
+	bool m_followTargetRotation;
 	Rotation m_rotationOffset;
 	Vector3 m_translationOffset;
 	short m_translationOffsetNodeIdx;
@@ -1393,6 +1402,12 @@ native class CTwoBoneIKNode::Definition as NativeEngine.GraphTwoBoneIKNode : Ani
 	}
 	float m_blendTime;
 	float m_chainRotationWeight;
+	inline void SetSwivelMode( int value )
+	{
+		self->m_swivelMode = static_cast<decltype(self->m_swivelMode)>( value );
+	}
+	short m_poleTargetNodeIdx;
+	float m_swivelOffset;
 	short m_childNodeIdx;
 	inline void SetEffectorBoneID( uint value )
 	{

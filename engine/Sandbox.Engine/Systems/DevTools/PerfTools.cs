@@ -224,6 +224,46 @@ internal static class PerfTools
 		};
 	}
 
+	[McpTool.ReadOnly( "perf_vram" )]
+	[Description( "GPU memory blocks, captured now: what the allocator holds from the driver against what's allocated in it, then each block emptiest first with its size, fill, largest free range and contents by kind. A block only goes back to the system once it's empty, so blocks under a quarter full list their biggest allocations by name - those are what's holding the block. Also the dedicated allocations, which is where render targets and depth buffers over 512 KB are (smaller ones sit in blocks and count as textures), and the driver's usage and budget. Walks the whole allocator: call it when you need it, not in a loop." )]
+	internal static object Vram( [Description( "How many allocations to name in each list: for each nearly empty block, the dedicated ones, and the largest overall. Default 8, max 50." )] int limit = 8 )
+	{
+		limit = Math.Clamp( limit, 1, 50 );
+
+		var map = GpuMemoryMap.Capture();
+		if ( map is null ) return new { Available = false, Reason = "No GPU allocator to read: a headless run, or the renderer isn't Vulkan" };
+
+		return new
+		{
+			Available = true,
+			DriverUsageMiB = MiB( map.DriverUsage ),
+			DriverBudgetMiB = map.DriverBudget > 0 ? MiB( map.DriverBudget ) : (double?)null,
+			BlockCount = map.Blocks.Count,
+			BlocksMiB = MiB( map.BlockBytes ),
+			AllocatedMiB = MiB( map.UsedBytes ),
+			UnusedMiB = MiB( map.UnusedBytes ),
+			DedicatedCount = map.Dedicated.Count,
+			DedicatedMiB = MiB( map.DedicatedBytes ),
+			Blocks = map.Blocks.Select( b => new
+			{
+				SizeMiB = MiB( b.Size ),
+				FillPercent = Round( b.Fill * 100, 1 ),
+				Allocations = b.Allocations.Count,
+				LargestFreeMiB = MiB( b.LargestFree ),
+				b.Movable,
+				TextureMiB = MiB( b.Bytes( GpuMemoryMap.Kind.Texture ) ),
+				BufferMiB = MiB( b.Bytes( GpuMemoryMap.Kind.Buffer ) ),
+				OtherMiB = MiB( b.Bytes( GpuMemoryMap.Kind.Other ) ),
+				HeldBy = b.Used > 0 && b.Fill < 0.25f ? Named( b.Allocations.OrderByDescending( x => x.Size ).Take( limit ) ) : null,
+			} ),
+			LargestDedicated = Named( map.Dedicated.Take( limit ) ),
+			Largest = Named( map.Blocks.SelectMany( b => b.Allocations ).Concat( map.Dedicated ).OrderByDescending( x => x.Size ).Take( limit ) ),
+		};
+	}
+
+	static object Named( IEnumerable<GpuMemoryMap.Allocation> allocations ) =>
+		allocations.Select( x => new { x.Name, SizeMiB = Round( x.Size / (1024.0 * 1024), 2 ), Kind = GpuMemoryMap.Describe( x.Kind ) } ).ToList();
+
 	[McpTool.ReadOnly( "perf_rendering" )]
 	[Description( "Rendering detail for the last frame: which renderer drew it, resolution and AA, the rendering issues the dev tools flags (draw calls, batching, texture pool), every scene system counter (draws, triangles, batches, material changes, culling, lights and shadows, texture pool, device report), the managed renderer's phases and draws when it rendered, and the active camera's post-processing layers." )]
 	internal static object Rendering()

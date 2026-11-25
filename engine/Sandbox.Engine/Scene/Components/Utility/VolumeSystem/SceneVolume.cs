@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Sandbox.Volumes;
 
@@ -119,16 +119,19 @@ public struct SceneVolume : IEquatable<SceneVolume>
 		{
 			if ( Type == VolumeTypes.Sphere )
 			{
-				using var center = Gizmo.Scope( "SphereCenter", new Transform( Sphere.Center ) );
-				changed |= Gizmo.Control.Sphere( "Volume", Sphere.Radius, out Sphere.Radius, Color.Yellow );
+				using var center = Gizmo.PushScope( "SphereCenter", new Transform( Sphere.Center ) );
+				changed |= Gizmo.Control.UpdateSphere( "Volume", Sphere.Radius, out Sphere.Radius );
+				Gizmo.Draw.Sphere( "Volume", Sphere.Radius, Color.Yellow );
 			}
 			else if ( Type == VolumeTypes.Capsule )
 			{
-				changed |= Gizmo.Control.Capsule( "Volume", Capsule, out Capsule, Color.Yellow );
+				changed |= Gizmo.Control.UpdateCapsule( "Volume", Capsule, out Capsule );
+				Gizmo.Draw.Capsule( "Volume", Capsule, Color.Yellow );
 			}
 			else if ( Type == VolumeTypes.Box )
 			{
-				changed |= Gizmo.Control.BoundingBox( "Volume", Box, out Box );
+				changed |= Gizmo.Control.UpdateBoundingBox( "Volume", Box, out Box );
+				Gizmo.Draw.BoundingBox( "Volume", Box );
 			}
 		}
 

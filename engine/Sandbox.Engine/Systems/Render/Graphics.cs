@@ -82,6 +82,25 @@ public static partial class Graphics
 	[ThreadStatic]
 	private static RenderState _state;
 
+	/// <summary>
+	/// Wait for the scene's render jobs. The calling thread runs jobs while it waits, so the wait goes without a
+	/// sync context: a job's contended lock would otherwise pump the main thread's queue, and a continuation that
+	/// syncs the resource system waits for rendering from inside the job it interrupted.
+	/// </summary>
+	internal static void WaitForRenderingToComplete()
+	{
+		var syncContext = System.Threading.SynchronizationContext.Current;
+		try
+		{
+			System.Threading.SynchronizationContext.SetSynchronizationContext( null );
+			CSceneSystem.WaitForRenderingToComplete();
+		}
+		finally
+		{
+			System.Threading.SynchronizationContext.SetSynchronizationContext( syncContext );
+		}
+	}
+
 	internal static IRenderContext Context => _state.renderContext;
 
 	/// <summary>
@@ -403,6 +422,12 @@ public static partial class Graphics
 	/// Grabs the current viewport's color texture and stores it in targetName on renderAttributes.
 	/// </summary>
 	public static RenderTarget GrabFrameTexture( string targetName = "FrameTexture", RenderAttributes renderAttributes = null, DownsampleMethod downsampleMethod = DownsampleMethod.None, int maxMips = 0 )
+		=> GrabFrameTexture( targetName, renderAttributes, downsampleMethod, maxMips, engineOwned: false );
+
+	/// <summary>
+	/// As above, with <paramref name="engineOwned"/> taking the copy from the engine's own pool, for grabs of the menu UI.
+	/// </summary>
+	internal static RenderTarget GrabFrameTexture( string targetName, RenderAttributes renderAttributes, DownsampleMethod downsampleMethod, int maxMips, bool engineOwned )
 	{
 		renderAttributes ??= Attributes;
 
@@ -417,7 +442,9 @@ public static partial class Graphics
 		}
 
 		// Grab a new one - which may very well be the one we just returned
-		var frameTexture = RenderTarget.GetTemporary( 1, ImageFormat.Default, ImageFormat.None, msaa: MultisampleAmount.MultisampleNone, numMips: numMips, targetName );
+		var frameTexture = engineOwned
+			? RenderTarget.GetEngineTemporary( 1, ImageFormat.Default, ImageFormat.None, MultisampleAmount.MultisampleNone, numMips, targetName )
+			: RenderTarget.GetTemporary( 1, ImageFormat.Default, ImageFormat.None, msaa: MultisampleAmount.MultisampleNone, numMips: numMips, targetName );
 
 		RenderTools.ResolveFrameBuffer( Context, frameTexture.ColorTarget.native, Viewport );
 

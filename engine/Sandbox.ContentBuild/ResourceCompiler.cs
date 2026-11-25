@@ -115,7 +115,7 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	public void Published( IReadOnlyList<string> paths )
 	{
 		// The editor reloads what it has loaded as it's published
-		if ( InProcess is not null ) return;
+		if ( executable is null ) return;
 
 		lock ( gate )
 		{
@@ -303,17 +303,17 @@ public sealed class ResourceCompiler( string executable, AssetTypeTable types, I
 	}
 
 	/// <summary>
-	/// Every worker goes (a build has none busy once it returns), all at once: each takes seconds to shut its engine
-	/// down. The compiler can be used again afterwards and starts new ones.
+	/// Every idle worker goes (a build has none busy once it returns), all at once: each takes seconds to shut its engine
+	/// down. One a later build's job took meanwhile stays. The compiler can be used again afterwards and starts new ones.
 	/// </summary>
 	public void Finished()
 	{
-		List<CompilerWorker> all;
+		List<CompilerWorker> idle;
 		lock ( gate )
 		{
-			all = [.. workers];
-			workers.Clear();
+			idle = workers.Where( x => x.Busy == 0 ).ToList();
+			workers.RemoveAll( idle.Contains );
 		}
-		Parallel.ForEach( all, worker => worker.Stop() );
+		Parallel.ForEach( idle, worker => worker.Stop() );
 	}
 }

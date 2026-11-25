@@ -33,6 +33,7 @@ internal class PageSceneView : Widget
 		sheet.AddProperty( () => EditorPreferences.OrbitZoomSpeed );
 
 		sheet.AddProperty( () => EditorPreferences.BackfaceSelection );
+		sheet.AddProperty( () => EditorPreferences.BoxSelectIntersecting );
 		sheet.AddProperty( () => EditorPreferences.BoundsPlacement );
 		sheet.AddProperty( () => EditorPreferences.PasteAtCursor );
 		sheet.AddProperty( () => EditorPreferences.PlaceModelsAsProp );

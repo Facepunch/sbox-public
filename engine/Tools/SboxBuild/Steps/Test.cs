@@ -15,14 +15,16 @@ internal partial class Test( bool noBuild = true, string filter = null )
 	/// </summary>
 	public const string PullRequestFilter = "TestCategory!=LiveBackend&TestCategory!=Slow";
 
-	/// <param name="Name">The project under engine/Tests/.</param>
+	/// <param name="Name">The project under engine/Tests/. For projects elsewhere, use <paramref name="Path"/>.</param>
 	/// <param name="NeedsEngine">Whether FACEPUNCH_ENGINE is set for it.</param>
 	/// <param name="Shard">Label for one part of a project split across processes, or null.</param>
 	/// <param name="ShardFilter">Which of the project's tests this part runs.</param>
 	/// <param name="Isolated">Runs one test at a time, with tiered compilation off.</param>
-	private record TestProject( string Name, bool NeedsEngine, string Shard = null, string ShardFilter = null, bool Isolated = false )
+	/// <param name="Path">The project or solution to test, relative to engine/, if it isn't under engine/Tests/.</param>
+	private record TestProject( string Name, bool NeedsEngine, string Shard = null, string ShardFilter = null, bool Isolated = false, string Path = null )
 	{
 		public string DisplayName => Shard is null ? Name : $"{Name} ({Shard})";
+		public string TestPath => Path ?? System.IO.Path.Combine( "Tests", Name, $"{Name}.csproj" );
 	}
 
 	/// <summary>
@@ -43,7 +45,7 @@ internal partial class Test( bool noBuild = true, string filter = null )
 
 	/// <summary>
 	/// The test projects. They run at the same time, so the whole run takes as long as the slowest one
-	/// (Sandbox.Test.Integration, which is split in two, plus its allocation tests). Sandbox.Test.Unit and Sandbox.Test.Text run with FACEPUNCH_ENGINE
+	/// (Sandbox.Test.Integration, which is split in two, plus its allocation tests). Sandbox.Test.Unit, Sandbox.Test.Text and Sandbox.Test.Navigation run with FACEPUNCH_ENGINE
 	/// removed from their environment: those tiers must work without a built native engine, so a test
 	/// that sneaks in a native dependency fails here rather than on someone's bare checkout.
 	/// New test projects under engine/Tests/ need to be added to this list.
@@ -58,8 +60,12 @@ internal partial class Test( bool noBuild = true, string filter = null )
 		new( "Sandbox.Test.Engine", NeedsEngine: true, ShardFilter: NotAllocationTests ),
 		new( "Sandbox.Test.Engine", NeedsEngine: true, Shard: "allocations", ShardFilter: AllocationTests, Isolated: true ),
 		new( "Sandbox.Test.Text", NeedsEngine: false ),
+		new( "Sandbox.Test.Navigation", NeedsEngine: false ),
 		new( "Sandbox.Test.NetSim", NeedsEngine: true ),
+		new( "Addons", NeedsEngine: true, Path: AddonSolution ),
 	];
+
+	private const string AddonSolution = "../game/s&box.slnx";
 
 	/// <summary>
 	/// How many of the slowest tests to list after each project, so slow tests get noticed.
@@ -76,9 +82,16 @@ internal partial class Test( bool noBuild = true, string filter = null )
 			string engineDir = Path.Combine( rootDir, "engine" );
 			string gameDir = Path.Combine( rootDir, "game" );
 
-			Log.Info( $"Running {Projects.Length} test processes at the same time..." );
+			var projects = Projects.Where( x => x.Path is null || Path.Exists( Path.Combine( engineDir, x.Path ) ) ).ToArray();
 
-			var tasks = Projects
+			foreach ( var project in Projects.Except( projects ) )
+			{
+				Log.Info( $"Skipping {project.DisplayName}: {project.Path} doesn't exist, run build-addons first." );
+			}
+
+			Log.Info( $"Running {projects.Length} test processes at the same time..." );
+
+			var tasks = projects
 				.Select( project => Task.Factory.StartNew( () => RunTestProject( project, engineDir, gameDir ), TaskCreationOptions.LongRunning ) )
 				.ToArray();
 
@@ -126,15 +139,14 @@ internal partial class Test( bool noBuild = true, string filter = null )
 	/// </summary>
 	private TestResult RunTestProject( TestProject project, string engineDir, string gameDir )
 	{
-		var csproj = Path.Combine( "Tests", project.Name, $"{project.Name}.csproj" );
-
-		// --no-build: BuildManaged already compiled all projects in Sandbox-Engine.slnx (including test projects).
+		// --no-build: BuildManaged already compiled all projects in Sandbox-Engine.slnx (including test projects),
+		// and build-addons compiled the addon solution.
 		var noBuildFlag = noBuild ? " --no-build" : string.Empty;
 		var filters = new[] { filter, project.ShardFilter }.Where( x => !string.IsNullOrEmpty( x ) ).Select( x => $"({x})" ).ToArray();
 		var filterFlag = filters.Length == 0 ? string.Empty : $" --filter \"{string.Join( "&", filters )}\"";
 		// Run settings after the --, overriding the assembly's [Parallelize]
 		var isolatedFlag = project.Isolated ? " -- MSTest.Parallelize.Workers=1" : string.Empty;
-		var testArgs = $"test {csproj} --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release{noBuildFlag}{filterFlag}{isolatedFlag}";
+		var testArgs = $"test \"{project.TestPath}\" --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release{noBuildFlag}{filterFlag}{isolatedFlag}";
 
 		var output = new List<string>();
 		var failedTests = new List<string>();

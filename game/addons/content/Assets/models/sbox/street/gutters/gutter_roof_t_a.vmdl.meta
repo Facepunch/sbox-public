@@ -1,0 +1,26 @@
+{
+  "publish": {
+    "Allowed": true,
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "gutter_roof_t_a",
+      "Type": "model",
+      "Org": "facepunch",
+      "Ident": "gutter_roof_t_a",
+      "Tags": null,
+      "Schema": 0,
+      "HasAssets": false,
+      "AssetsPath": null,
+      "Resources": null,
+      "MenuResources": null,
+      "HasCode": false,
+      "CodePath": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/street/gutters/gutter_roof_t_a.vmdl"
+      }
+    }
+  },
+  "guid": "7343cf7a-71dc-43e0-9d68-4e0a241f62c4"
+}

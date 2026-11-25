@@ -11,6 +11,11 @@ internal partial class BytePack
 	{
 		void Write( ref ByteStream bs, T value );
 		T Read( ref ByteStream bs );
+
+		/// <summary>
+		/// Read as part of another value, for packers that read nested values.
+		/// </summary>
+		T Read( ref ByteStream bs, int depth ) => Read( ref bs );
 	}
 
 	public class Packer
@@ -31,6 +36,27 @@ internal partial class BytePack
 		public virtual object Read( ref ByteStream data, int depth )
 		{
 			throw new NotImplementedException();
+		}
+
+		/// <summary>
+		/// A collection's element count, which can't be more than the bytes left to hold them.
+		/// </summary>
+		protected static int ReadCount( ref ByteStream bs, int elementSize = 1 )
+		{
+			var count = bs.Read<int>();
+			if ( count < 0 || (long)count * elementSize > bs.ReadRemaining )
+				throw new System.IO.InvalidDataException( $"Collection of {count} elements doesn't fit in {bs.ReadRemaining} bytes" );
+
+			return count;
+		}
+
+		/// <summary>
+		/// Some types read no bytes at all, so a hostile count would keep making them after the data ends.
+		/// </summary>
+		protected static void AssertAdvanced( ref ByteStream bs, int position )
+		{
+			if ( bs.Position == position )
+				throw new System.IO.InvalidDataException( "Collection element read no data" );
 		}
 
 		public virtual void WriteTypeIdentifier( ref ByteStream bs, Type targetType )
@@ -83,5 +109,15 @@ internal partial class BytePack
 
 		internal object Deserialize( ref ByteStream bs, int depth ) => parent.Deserialize( ref bs, depth );
 		internal void Serialize( ref ByteStream bs, object obj ) => parent.Serialize( ref bs, obj );
+
+		/// <summary>
+		/// Write a value as its own type, which doesn't box plain values. Same bytes as <see cref="Serialize"/>.
+		/// </summary>
+		internal void SerializeValue<T>( ref ByteStream bs, T value ) => parent.Serialize( ref bs, value );
+
+		/// <summary>
+		/// Read a nested value as its own type. A null reads as default, like setting a field through reflection.
+		/// </summary>
+		internal T DeserializeValue<T>( ref ByteStream bs, int depth ) => parent.DeserializeValue<T>( ref bs, depth );
 	}
 }

@@ -23,6 +23,15 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 
 	[nogc]
 	void SetWorldSpaceRenderBoneTransform( int nBoneIndex, Transform pRenderWorldTransform );
+
+	[nogc]
+	inline void SetWorldSpaceRenderBoneTransforms( int nNumBones, void* pTransforms )
+	{
+		const CTransformUnaligned* pSource = static_cast<const CTransformUnaligned*>( pTransforms );
+		for ( int i = 0; i < nNumBones; ++i )
+			self->SetWorldSpaceRenderBoneTransform( i, pSource[i] );
+	}
+
 	[nogc]
 	Transform GetWorldSpaceRenderBoneTransform( int nBoneIndex );
 	Transform GetWorldSpaceRenderBoneTransform( string boneName );
@@ -65,6 +74,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 
 	void SetAnimGraph2( HAnimGraph2 hGraph );
 	void SetAnimGraph2ControllerCreatedCallback( SboxAnimGraph2ControllerCreatedCallback callback );
+	[nogc]
 	NativeEngine.AnimationGraph2Controller GetAnimGraph2Controller();
 	float GetAnimGraph2UpdateTimeMs();
 	void SetLowDetailAnimation( bool bLowDetail );
@@ -96,6 +106,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 
 	float GetSequenceDuration();
 
+	[nogc]
 	float GetSequenceCycle();
 	void SetSequenceCycle( float flCycle );
 

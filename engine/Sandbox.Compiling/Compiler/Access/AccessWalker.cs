@@ -708,7 +708,14 @@ sealed class AccessWalker : CSharpSyntaxWalker
 
 		CheckType( node, m.ReturnType );
 		foreach ( var p in m.Parameters )
+		{
+			// string.Create( provider, $"..." ) passes a handler the compiler builds for the call. Holding
+			// one still needs the type named, which stays blocked, so a copy can't outlive its buffer.
+			if ( p.RefKind != RefKind.Out && IsInterpolationHandler( p.Type ) )
+				continue;
+
 			CheckType( node, p.Type );
+		}
 		foreach ( var a in m.TypeArguments )
 			CheckType( node, a );
 		for ( var outer = container; outer is not null; outer = outer.ContainingType )
@@ -717,6 +724,9 @@ sealed class AccessWalker : CSharpSyntaxWalker
 				CheckType( node, a );
 		}
 	}
+
+	static bool IsInterpolationHandler( ITypeSymbol type ) =>
+		type is INamedTypeSymbol { Name: "DefaultInterpolatedStringHandler", ContainingNamespace: { Name: "CompilerServices", ContainingNamespace: { Name: "Runtime", ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true } } } };
 
 	// A virtual call names the method that introduced the slot, not the override it binds to; base.X() names the override
 	static IMethodSymbol CallTarget( SyntaxNode node, IMethodSymbol m )

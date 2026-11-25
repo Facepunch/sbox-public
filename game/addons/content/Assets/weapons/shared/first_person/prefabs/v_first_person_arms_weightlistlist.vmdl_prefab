@@ -1,0 +1,1432 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "WeightListList"
+				children = 
+				[
+					{
+						_class = "Folder"
+						name = "FingerWeightlists"
+						children = 
+						[
+							{
+								_class = "WeightList"
+								name = "Finger_R1_Thumb"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_thumb_0_R"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_R2_Index"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_index_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_R3_Middle"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_middle_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_R4_Ring"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_ring_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_R5_Pinky"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_pinky_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_L1_Thumb"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_thumb_0_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_L2_Index"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_index_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_L3_Middle"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_middle_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_L4_Ring"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_ring_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Finger_L5_Pinky"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_pinky_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "All_Right_Fingers"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_index_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_thumb_0_R"
+										weight = 1.0
+									},
+									{
+										bone = "hand_R"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "All_Left_Fingers"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_index_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_thumb_0_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "All_Fingers"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "arm_lower_R_twistctrl0"
+										weight = 1.0
+									},
+									{
+										bone = "finger_index_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_index_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_thumb_0_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Weightlists"
+						children = 
+						[
+							{
+								_class = "WeightList"
+								name = "FireModeSelectAnim_Absolute"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_L"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_R"
+										weight = 0.0
+									},
+									{
+										bone = "finger_index_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_thumb_0_R"
+										weight = 1.0
+									},
+									{
+										bone = "hand_L_to_R_ikrule"
+										weight = 0.0
+									},
+									{
+										bone = "hand_L_to_weapon_ikrule"
+										weight = 0.0
+									},
+									{
+										bone = "hand_R_to_weapon_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "hold_R"
+										weight = 1.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_IK_hand_L"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_IK_hand_R"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root_children"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "ReduceJumpForIronsights"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "bolt"
+										weight = 0.0
+									},
+									{
+										bone = "camera"
+										weight = 0.2
+									},
+									{
+										bone = "clavicle_L"
+										weight = 0.0
+									},
+									{
+										bone = "cocking_lever"
+										weight = 0.0
+									},
+									{
+										bone = "forearm"
+										weight = 0.0
+									},
+									{
+										bone = "hammer"
+										weight = 0.0
+									},
+									{
+										bone = "hand_L_to_weapon_ikrule"
+										weight = 0.0
+									},
+									{
+										bone = "hand_R_to_weapon_ikrule"
+										weight = 0.0
+									},
+									{
+										bone = "magazine"
+										weight = 0.0
+									},
+									{
+										bone = "mode_selector"
+										weight = 0.0
+									},
+									{
+										bone = "muzzle"
+										weight = 0.0
+									},
+									{
+										bone = "reload_latch"
+										weight = 0.0
+									},
+									{
+										bone = "reload_lever"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 0.2
+									},
+									{
+										bone = "safety"
+										weight = 0.0
+									},
+									{
+										bone = "silencer"
+										weight = 0.0
+									},
+									{
+										bone = "slide"
+										weight = 0.0
+									},
+									{
+										bone = "slide_catch"
+										weight = 0.0
+									},
+									{
+										bone = "stock"
+										weight = 0.0
+									},
+									{
+										bone = "trigger"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_IK_hand_L"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_IK_hand_R"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.2
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "ReduceJumpBy50Percent"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "hammer"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 0.5
+									},
+									{
+										bone = "safety"
+										weight = 0.0
+									},
+									{
+										bone = "silencer"
+										weight = 0.0
+									},
+									{
+										bone = "slide"
+										weight = 0.0
+									},
+									{
+										bone = "slide_catch"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.5
+									},
+									{
+										bone = "weapon_root_children"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "ReduceCameraBy50Percent"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 0.5
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Reduce_WeaponRoot_80"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "root"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.8
+									},
+									{
+										bone = "weapon_root_children"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Reduce_WeaponRoot_50"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "root"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.5
+									},
+									{
+										bone = "weapon_root_children"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Reduce_WeaponRoot_20"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "root"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.2
+									},
+									{
+										bone = "weapon_root_children"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Weapon_Root_no_children"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root_children"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Weapon_no_IK"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_IK_hand_L"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_IK_hand_R"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Weapon"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_RightArm_plusCamera"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "arm_lower_R_twist0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twist1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twist2"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl2"
+										weight = 1.0
+									},
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "clavicle_L"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_R"
+										weight = 1.0
+									},
+									{
+										bone = "hand_R_to_weapon_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_IK_hand_R"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_RightArm_40percent_plusFingers"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_L"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_R"
+										weight = 0.4
+									},
+									{
+										bone = "finger_index_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_thumb_0_R"
+										weight = 1.0
+									},
+									{
+										bone = "hand_L_to_R_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "hold_R"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_RightArm"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "arm_lower_R_twist0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twist1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twist2"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl2"
+										weight = 1.0
+									},
+									{
+										bone = "clavicle_L"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_R"
+										weight = 1.0
+									},
+									{
+										bone = "hand_R_to_weapon_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_IK_hand_R"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_LeftArm_plusCamera"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "arm_lower_L_twist0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twist1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twist2"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl2"
+										weight = 1.0
+									},
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "clavicle_L"
+										weight = 1.0
+									},
+									{
+										bone = "clavicle_R"
+										weight = 0.0
+									},
+									{
+										bone = "hand_L_to_weapon_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_IK_hand_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_LeftArm_40percent_plusFingers"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_L"
+										weight = 0.4
+									},
+									{
+										bone = "clavicle_R"
+										weight = 0.0
+									},
+									{
+										bone = "finger_index_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_thumb_0_L"
+										weight = 1.0
+									},
+									{
+										bone = "hand_R_to_L_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "hold_L"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_LeftArm"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "arm_lower_L_twist0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twist1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twist2"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl2"
+										weight = 1.0
+									},
+									{
+										bone = "clavicle_L"
+										weight = 1.0
+									},
+									{
+										bone = "clavicle_R"
+										weight = 0.0
+									},
+									{
+										bone = "hand_L_to_weapon_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_IK_hand_L"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Hold_R"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "hold_R"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Hold_L"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "hold_L"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Helpers"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "arm_lower_L_twist0"
+										weight = 0.0
+									},
+									{
+										bone = "arm_lower_L_twist1"
+										weight = 0.0
+									},
+									{
+										bone = "arm_lower_L_twist2"
+										weight = 0.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_L_twistctrl2"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twist0"
+										weight = 0.0
+									},
+									{
+										bone = "arm_lower_R_twist1"
+										weight = 0.0
+									},
+									{
+										bone = "arm_lower_R_twist2"
+										weight = 0.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl0"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl1"
+										weight = 1.0
+									},
+									{
+										bone = "arm_lower_R_twistctrl2"
+										weight = 1.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Hand_R_IK"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "hand_L_to_R_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "hand_R_to_L_ikrule"
+										weight = 0.0
+									},
+									{
+										bone = "hand_R_to_weapon_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_IK_hand_R"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Hand_R_children"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_index_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_R"
+										weight = 1.0
+									},
+									{
+										bone = "finger_thumb_0_R"
+										weight = 1.0
+									},
+									{
+										bone = "hand_L_to_R_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "hand_R"
+										weight = 0.0
+									},
+									{
+										bone = "hold_R"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Hand_L_IK"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "hand_L_to_weapon_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "hand_R_to_L_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_IK_hand_L"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Hand_L_children"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "finger_index_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_middle_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_pinky_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_ring_meta_L"
+										weight = 1.0
+									},
+									{
+										bone = "finger_thumb_0_L"
+										weight = 1.0
+									},
+									{
+										bone = "hand_L"
+										weight = 0.0
+									},
+									{
+										bone = "hand_R_to_L_ikrule"
+										weight = 1.0
+									},
+									{
+										bone = "hold_L"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_Camera"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_ArmsRoot_no_children"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "clavicle_L"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_R"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Only_ArmsRoot_plus_Camera"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "clavicle_L"
+										weight = 0.0
+									},
+									{
+										bone = "clavicle_R"
+										weight = 0.0
+									},
+									{
+										bone = "root"
+										weight = 1.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "Half_Everything"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 0.5
+									},
+									{
+										bone = "clavicle_L"
+										weight = 0.5
+									},
+									{
+										bone = "root"
+										weight = 0.5
+									},
+									{
+										bone = "weapon_root"
+										weight = 0.5
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+							{
+								_class = "WeightList"
+								name = "FireModeSelectAnim_Additive"
+								default_weight = 0.0
+								weights = 
+								[
+									{
+										bone = "camera"
+										weight = 1.0
+									},
+									{
+										bone = "root"
+										weight = 0.0
+									},
+									{
+										bone = "weapon_root"
+										weight = 1.0
+									},
+									{
+										bone = "weapon_root_children"
+										weight = 0.0
+									},
+								]
+								master_morph_weight = -1.0
+								morph_weights = [  ]
+							},
+						]
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}
