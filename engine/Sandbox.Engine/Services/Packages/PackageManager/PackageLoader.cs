@@ -81,6 +81,7 @@ internal sealed partial class PackageLoader : IDisposable
 		Loaded.Clear();
 		Loaded = null;
 
+		LoadContext.UnloadChildren();
 		LoadContext.Unload();
 		LoadContext = null;
 
