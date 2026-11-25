@@ -196,6 +196,18 @@ public partial class Package
 		}
 	}
 
+	/// <summary>
+	/// The package as the backend has it, even when a local project has its ident - what's published, for a
+	/// publish to go by. Null if it's never been published.
+	/// </summary>
+	internal static async Task<Package> FetchPublishedAsync( string identString )
+	{
+		if ( Backend.Package is null || !TryParseIdentParts( identString, out var ident ) )
+			return null;
+
+		return await FetchFromBackendAsync( identString, FormatIdent( ident.org, ident.package ), null ) as RemotePackage;
+	}
+
 	static readonly ConcurrentDictionary<string, Task<Package>> Fetching = new( StringComparer.OrdinalIgnoreCase );
 
 	static async Task<Package> FetchFromBackendAsync( string identString, string packageIdent, int? version )

@@ -161,7 +161,7 @@ partial class PublishWizard
 
 			var ident = Project.Config.FullIdent;
 			var published = ProjectPublisher.GetPublishedWorkshopItemsAsync( Project.Config.Type );
-			var package = await Package.FetchAsync( Project.Config.FullIdent, false, false );
+			var package = await ProjectPublisher.FetchPublishedPackageAsync( Project );
 			BackendThumb = string.IsNullOrEmpty( package?.Thumb ) ? null : package.Thumb;
 			ItemId = await ProjectPublisher.GetWorkshopItemIdAsync( Project );
 			PublishedItems = await published;
