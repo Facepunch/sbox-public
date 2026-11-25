@@ -210,9 +210,10 @@ public static partial class Input
 			if ( ReferenceEquals( recycledKeys, KeysPrevious ) || ReferenceEquals( recycledKeys, KeysCurrent ) )
 				recycledKeys = new();
 
+			// HashSet's own enumerator: UnionWith and ExceptWith take an IEnumerable and box it for every held key's flip
 			recycledKeys.Clear();
-			recycledKeys.UnionWith( AccumKeysPressed );
-			recycledKeys.ExceptWith( AccumKeysReleased );
+			foreach ( var key in AccumKeysPressed ) recycledKeys.Add( key );
+			foreach ( var key in AccumKeysReleased ) recycledKeys.Remove( key );
 			AccumKeysPressed = recycledKeys;
 			AccumKeysReleased.Clear();
 		}
