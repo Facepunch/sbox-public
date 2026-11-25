@@ -71,6 +71,7 @@ public static partial class TextRendering
 
 	const ulong UnusedFrameLimit = 2;
 	static RealTimeSince _timeSinceCleanup;
+	static IEnumerator<KeyValuePair<int, TextBlock>> _sweep;
 
 	/// <summary>
 	/// Evict unused text blocks. Callers can still retain their textures.
@@ -84,8 +85,12 @@ public static partial class TextRendering
 		if ( _timeSinceCleanup < 0.5f ) return;
 		_timeSinceCleanup = 0;
 
-		foreach ( var item in Dictionary )
+		// A kept enumerator, reset: the dictionary's own allocates one each sweep (main thread only)
+		var sweep = _sweep ??= Dictionary.GetEnumerator();
+		sweep.Reset();
+		while ( sweep.MoveNext() )
 		{
+			var item = sweep.Current;
 			// Preparation also counts: measuring text need not submit its texture to the GPU.
 			if ( Application.FrameCount - item.Value.LastPreparedFrame <= UnusedFrameLimit ) continue;
 			// LastUsed is measured in resource frames, not seconds.
@@ -93,6 +98,9 @@ public static partial class TextRendering
 
 			Dictionary.TryRemove( item );
 		}
+
+		// Let go of the last entry it read
+		sweep.Reset();
 	}
 
 	internal static void Shutdown()

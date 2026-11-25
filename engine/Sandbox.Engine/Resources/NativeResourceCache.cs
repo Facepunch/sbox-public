@@ -40,6 +40,10 @@ internal static partial class NativeResourceCache
 	/// </summary>
 	static readonly ConcurrentDictionary<long, WeakReference> WeakTable = new();
 
+	// Kept enumerators for Tick's sweeps (main thread only), reset each time: the dictionaries' own allocate one per sweep
+	static IEnumerator<KeyValuePair<long, Retained>> retainedSweeper;
+	static IEnumerator<KeyValuePair<long, WeakReference>> weakSweeper;
+
 	/// <summary>
 	/// When <see cref="LeakTracking"/> is enabled, stores the callstack captured at the time each resource
 	/// was added to the cache. This prevents WeakTable pruning so every allocation remains visible at
@@ -162,8 +166,11 @@ internal static partial class NativeResourceCache
 
 		// Anything not touched since the last tick loses its strong reference here.
 		var current = Interlocked.Increment( ref generation );
-		foreach ( var kvp in retained )
+		var retainedSweep = retainedSweeper ??= retained.GetEnumerator();
+		retainedSweep.Reset();
+		while ( retainedSweep.MoveNext() )
 		{
+			var kvp = retainedSweep.Current;
 			if ( Volatile.Read( ref kvp.Value.Generation ) < current - 1 && retained.TryRemove( kvp ) )
 			{
 				// Touched again while we removed it, keep it
@@ -172,17 +179,25 @@ internal static partial class NativeResourceCache
 			}
 		}
 
+		// Let go of the last entry it read (it holds the resource)
+		retainedSweep.Reset();
+
 		// Prune dead WeakTable entries to prevent unbounded growth from procedural resources.
 		// Skipped when leak tracking is enabled so every allocation stays visible until shutdown.
 		if ( !LeakTracking )
 		{
-			foreach ( var kvp in WeakTable )
+			var weakSweep = weakSweeper ??= WeakTable.GetEnumerator();
+			weakSweep.Reset();
+			while ( weakSweep.MoveNext() )
 			{
+				var kvp = weakSweep.Current;
 				if ( kvp.Value.Target is null )
 				{
 					WeakTable.TryRemove( kvp.Key, out _ );
 				}
 			}
+
+			weakSweep.Reset();
 		}
 
 	}
