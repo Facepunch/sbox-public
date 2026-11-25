@@ -94,6 +94,13 @@ internal static class RenderPipeline
 	internal static readonly int OcclusionStatCount = Marshal.SizeOf<OcclusionStats>() / sizeof( uint );
 
 	/// <summary>
+	/// The cull stats are only shown, so they're read back every this many frames: each readback costs a submit per view.
+	/// </summary>
+	internal const int OcclusionStatsInterval = 8;
+
+	internal static bool ReadsOcclusionStats => Application.FrameCount % OcclusionStatsInterval == 0;
+
+	/// <summary>
 	/// Native occlusion culling results for a frame, summed over its views.
 	/// </summary>
 	internal struct OcclusionCounts
@@ -132,7 +139,7 @@ internal static class RenderPipeline
 		lock ( occlusionLock )
 		{
 			var frame = Application.FrameCount;
-			if ( occlusionFrame is null || occlusionFrame.Frame + 1 < frame )
+			if ( occlusionFrame is null || occlusionFrame.Frame + OcclusionStatsInterval < frame )
 			{
 				completedOcclusionFrame = frame;
 				occlusionCounts = default;
@@ -161,7 +168,7 @@ internal static class RenderPipeline
 		{
 			if ( occlusionFrame is { } frame && frame.Frame < Application.FrameCount ) frame.Close();
 
-			if ( !OcclusionCulling || occlusionFrame is null || occlusionFrame.Frame + 1 < Application.FrameCount )
+			if ( !OcclusionCulling || occlusionFrame is null || occlusionFrame.Frame + OcclusionStatsInterval < Application.FrameCount )
 				return default;
 
 			return occlusionCounts;
