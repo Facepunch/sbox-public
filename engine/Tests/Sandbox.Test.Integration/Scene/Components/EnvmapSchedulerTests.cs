@@ -57,6 +57,28 @@ public class EnvmapSchedulerTests
 	}
 
 	/// <summary>
+	/// Just after a loading screen goes, captures earn more time a frame: the load left every probe's bounces to capture, and
+	/// the view settled seconds after native's while they trickled in at the usual budget (Construct: 2.4-4.3 s on bench-low).
+	/// </summary>
+	[TestMethod]
+	public void CapturesEarnMoreJustAfterALoad()
+	{
+		var screenBefore = LoadingScreen.IsVisible;
+		try
+		{
+			LoadingScreen.IsVisible = true;
+			LoadingScreen.IsVisible = false;
+			Assert.AreEqual( EnvmapScheduler.AfterLoadBudgetMs, EnvmapScheduler.FrameBudget( inDrawing: true ) );
+			Assert.AreEqual( EnvmapScheduler.AfterLoadBudgetMs, EnvmapScheduler.FrameBudget( inDrawing: false ) );
+			Assert.IsTrue( EnvmapScheduler.AfterLoadBudgetMs > EnvmapScheduler.DrawingBudgetMs );
+		}
+		finally
+		{
+			LoadingScreen.IsVisible = screenBefore;
+		}
+	}
+
+	/// <summary>
 	/// The scene's camera without a scene camera (not made yet, or already disposed) has nothing to see from: the scheduler
 	/// captures in native's order rather than asking it for a frustum. Before, it threw every frame (Mouse Fishing).
 	/// </summary>

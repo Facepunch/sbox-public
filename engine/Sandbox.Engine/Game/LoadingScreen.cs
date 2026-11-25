@@ -38,7 +38,10 @@ public static class LoadingScreen
 
 			_changes++;
 			if ( !value )
+			{
+				_hidden = 0;
 				Navigation.NavMesh.LoadEnded();
+			}
 			if ( !value && CollectsAfterLoad )
 				_ = CollectWhatTheLoadLeft( _changes );
 		}
@@ -51,6 +54,11 @@ public static class LoadingScreen
 
 	/// <summary>How many times the screen has been shown or hidden, so what waits to hide it knows whether something else has.</summary>
 	internal static int Changes => _changes;
+
+	/// <summary>Seconds since a loading screen last went: what a load left to finish (envmap bounces) gets more time a frame just after.</summary>
+	internal static float SinceHidden => _hidden;
+
+	static RealTimeSince _hidden = 1e6f;
 
 	/// <summary>
 	/// How long after the screen goes the heap is collected: the menu's loading overlay lets go of the game's art a second

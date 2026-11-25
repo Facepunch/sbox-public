@@ -20,6 +20,16 @@ internal sealed class EnvmapScheduler( SceneBridge bridge )
 	/// </summary>
 	public static float DrawingBudgetMs { get; set; } = 1.5f;
 
+	/// <summary>
+	/// Seconds after a loading screen has gone during which captures earn <see cref="AfterLoadBudgetMs"/> a frame. A load
+	/// leaves every probe's bounces to capture once the game ticks (four each with MultiBounce: Construct's 141 probes, the view
+	/// brightening in steps as those it sees come in), and its first frames have time to spare.
+	/// </summary>
+	public static float AfterLoadSeconds { get; set; } = 4;
+
+	/// <summary>The budget a frame earns in the <see cref="AfterLoadSeconds"/> after a load, either budget's when larger.</summary>
+	public static float AfterLoadBudgetMs { get; set; } = 6;
+
 	/// <summary>Off: native's order (the first dirty probe every frame, seen or not). For comparisons.</summary>
 	public static bool Enabled { get; set; } = true;
 
@@ -89,7 +99,8 @@ internal sealed class EnvmapScheduler( SceneBridge bridge )
 		// within the credit: what the last frame's drawing spent comes off it now the render thread has joined
 		var inDrawing = FacesInDrawing && SpreadFaces && bridge is not null && !Application.IsEditor && Sandbox.Engine.GameWindow.Current?.Borealis is not null;
 		if ( inDrawing ) bridge.FacesInDrawing = true;
-		credit = inDrawing ? Math.Min( credit + DrawingBudgetMs, DrawingBudgetMs ) : Math.Min( credit + BudgetMs, Math.Max( BudgetMs, lastCost * 2 ) );
+		var budget = FrameBudget( inDrawing );
+		credit = inDrawing ? Math.Min( credit + budget, budget ) : Math.Min( credit + budget, Math.Max( budget, lastCost * 2 ) );
 		if ( credit <= 0 ) return;
 
 		// A capture spread over frames goes on before another starts: its faces wait in the targets the next would draw into
@@ -141,6 +152,13 @@ internal sealed class EnvmapScheduler( SceneBridge bridge )
 		}
 
 		return best;
+	}
+
+	/// <summary>Milliseconds of capturing a frame earns: in the window's drawing or not, more just after a load.</summary>
+	internal static float FrameBudget( bool inDrawing )
+	{
+		var budget = inDrawing ? DrawingBudgetMs : BudgetMs;
+		return LoadingScreen.SinceHidden < AfterLoadSeconds ? Math.Max( budget, AfterLoadBudgetMs ) : budget;
 	}
 
 	static bool HasProbes( Scene scene )
