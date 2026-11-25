@@ -84,6 +84,12 @@
 			DrawTexture( painter, Texture, size );
 		}
 
+		internal override bool TryGetDrawKey( out DrawKey key )
+		{
+			key = new DrawKey( Texture, Texture.IsValid() ? Texture.Index : 0, default, default );
+			return IsDrawnBy( typeof( Image ) );
+		}
+
 		internal override bool TryGetContentBounds( out Rect bounds )
 		{
 			bounds = Box.Rect;

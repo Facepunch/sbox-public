@@ -173,6 +173,8 @@ internal static class PanelWindows
 	/// </summary>
 	internal static void FrameEnd()
 	{
+		// The game window's render thread may be drawing with borrowed targets
+		Sandbox.BorealisGpuRenderBackend.JoinRenderThread();
 		RenderTarget.EndOfFrame();
 		EngineLoop.DrainFrameEndDisposables();
 	}

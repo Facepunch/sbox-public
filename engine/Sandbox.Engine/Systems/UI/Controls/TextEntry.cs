@@ -868,6 +868,13 @@ public partial class TextEntry : BaseControl
 
 	}
 
+	internal override bool TryGetDrawKey( out DrawKey key )
+	{
+		// Unfocused with nothing being dragged over it, it draws nothing; focused, its caret blinks
+		key = default;
+		return IsDrawnBy( typeof( TextEntry ) ) && !HasFocus && !(DropCaretPosition >= 0 && CanEdit);
+	}
+
 	void RealtimeEmojiReplace()
 	{
 		if ( !AllowEmojiReplace )

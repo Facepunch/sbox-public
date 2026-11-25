@@ -314,6 +314,8 @@ public partial class Panel : IPanel, IValid, IComponent
 		if ( Application.IsHeadless )
 			return;
 
+		_tickQuietAt = 0;
+
 		if ( IsDeleting )
 		{
 			// we're probably transitioning out
@@ -338,8 +340,9 @@ public partial class Panel : IPanel, IValid, IComponent
 
 			var didBuildRenderTree = false;
 			var isFirstRender = renderTree == null;
+			var hasRenderTree = HasRenderTree;
 
-			if ( HasRenderTree || parametersChanged )
+			if ( hasRenderTree || parametersChanged )
 			{
 				InternalTreeBinds();
 
@@ -378,9 +381,10 @@ public partial class Panel : IPanel, IValid, IComponent
 			//
 			// Don't tick our children if we're not visible
 			//
+			var childrenQuiet = true;
 			if ( IsVisible && _children is not null && _children.Count > 0 )
 			{
-				TickChildren( tickStack );
+				childrenQuiet = TickChildren( tickStack );
 			}
 
 			//
@@ -403,6 +407,9 @@ public partial class Panel : IPanel, IValid, IComponent
 			RunClassBinds();
 			_paintCache.CheckTextures( this );
 
+			// Nothing to do here or below: skipped until something in the subtree changes. Stamps made during this paint
+			// clock period, even before this, aren't below it, so a change this period is ticked again next frame
+			if ( childrenQuiet && TickedQuietly( hasRenderTree ) ) _tickQuietAt = PaintClock;
 
 		}
 		catch ( System.Exception e )
@@ -414,12 +421,14 @@ public partial class Panel : IPanel, IValid, IComponent
 
 	/// <summary>
 	/// Children can be added or removed while they tick, so each level ticks a snapshot. Every level shares
-	/// the root's stack, pushing its children on top and popping them when done.
+	/// the root's stack, pushing its children on top and popping them when done. True when every child is quiet
+	/// (<see cref="_tickQuietAt"/>).
 	/// </summary>
-	void TickChildren( List<Panel> tickStack )
+	bool TickChildren( List<Panel> tickStack )
 	{
 		int start = tickStack.Count;
 		tickStack.AddRange( _children );
+		var quiet = true;
 
 		try
 		{
@@ -427,13 +436,24 @@ public partial class Panel : IPanel, IValid, IComponent
 			{
 				var child = tickStack[i];
 				if ( !child.IsValid() ) continue;
+
+				// A subtree that had nothing to do and hasn't changed since
+				if ( child.CanSkipTick( this ) )
+				{
+					SkippedTicks++;
+					continue;
+				}
+
 				child.TickInternal( tickStack );
+				quiet &= child._tickQuietAt != 0;
 			}
 		}
 		finally
 		{
 			tickStack.RemoveRange( start, tickStack.Count - start );
 		}
+
+		return quiet;
 	}
 
 	internal int GetRenderOrderIndex()

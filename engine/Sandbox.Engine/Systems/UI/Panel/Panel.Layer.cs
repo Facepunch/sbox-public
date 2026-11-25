@@ -34,6 +34,9 @@ public partial class Panel
 		internal (int Hash, ulong Frame) Cache;
 		float _padding;
 		Texture _maskImage;
+
+		/// <summary>Whether a mask image is drawn, whose size the tick watches.</summary>
+		internal bool HasMask => _maskImage is not null;
 		Vector2 _maskSize;
 		int _maskVersion;
 

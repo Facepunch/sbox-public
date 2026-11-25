@@ -209,6 +209,20 @@ internal sealed partial class TextBlock : IDisposable
 	}
 
 	/// <summary>
+	/// What <see cref="Draw"/> draws from, beyond the style, opacity and blend mode it's given: the laid out block, where
+	/// it's placed and the selection. Equal keys draw the same glyphs. False while the block is still waiting on its size.
+	/// </summary>
+	internal bool TryGetDrawKey( Rect textrect, out Panel.DrawKey key )
+	{
+		key = default;
+		if ( BlockSize == default && !string.IsNullOrEmpty( Text ) ) return false;
+		if ( !ui_rendertext || Block is null || BlockSize == 0 || Text.Length == 0 ) return true;
+
+		key = new Panel.DrawKey( Block, Block.LayoutVersion, textrect, GetOptions() );
+		return true;
+	}
+
+	/// <summary>
 	/// Emit only the text's shadows and outlines, for background-clip: text, which fills the glyphs with the background instead.
 	/// </summary>
 	internal void DrawEffects( Painter painter, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )

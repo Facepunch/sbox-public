@@ -84,7 +84,7 @@ internal partial class SurfaceWindow
 			if ( simulated )
 			{
 				// Scene panels queue their render during simulate - fill them in before we draw,
-				// otherwise a panel that just resized draws a texture with nothing in it yet
+				// otherwise a panel that just resized draws a texture with nothing in it yet.
 				ScenePanel.RenderPending();
 
 				DrawFrame();
@@ -131,12 +131,13 @@ internal partial class SurfaceWindow
 	/// </summary>
 	bool SimulateFrame()
 	{
-		if ( !ApplyFullscreen() || Window is null || !Window.UpdateSwapChain( vsync: VSync ) ) return false;
+		if ( !ApplyFullscreen() || Window is null ) return false;
+		if ( _borealis is not null ? !_borealis.Update( Window.PixelSize ) : Window.PixelSize is { x: < 1 } or { y: < 1 } ) return false;
 
 		UpdateMouseCapture();
 
 		// Lay out and render at the actual swapchain size, including while a resize is pending.
-		Surface.Size = Window.SwapChainSize;
+		Surface.Size = _borealis?.Size ?? Window.PixelSize;
 
 		// A window that sizes to its contents has nothing to show until it has some - drawing
 		// now would put an empty window on the screen at whatever size it happens to be
@@ -199,15 +200,8 @@ internal partial class SurfaceWindow
 	{
 		var profile = !IsShown && Sandbox.Utility.CommandLine.HasSwitch( "-startup-profile" ) ? Stopwatch.StartNew() : null;
 
-		OnRenderBackground( Window.SwapChain, Surface.Size );
-		_camera.AddToRenderList( Window.SwapChain, Surface.Size );
-		if ( profile is not null )
-		{
-			Log.Info( $"Startup profile (panel): {Title} render submission {profile.Elapsed.TotalMilliseconds:F3} ms" );
-			profile.Restart();
-		}
-
-		Window.Present();
+		// The whole frame on Borealis.Gpu; without it there's nothing to draw on
+		_borealis?.Present( BackgroundColor, ClearsBackground, Surface.Render );
 		if ( profile is not null )
 		{
 			Log.Info( $"Startup profile (panel): {Title} present call {profile.Elapsed.TotalMilliseconds:F3} ms" );
@@ -223,6 +217,46 @@ internal partial class SurfaceWindow
 		}
 
 		ApplyCursorShape();
+	}
+
+	/// <summary>
+	/// The window's UI as it stands drawn now into a texture of its size on <paramref name="device"/>, as a frame of the
+	/// window draws it, and read back: for comparing what each device draws. On a device other than the process's, the
+	/// panels' command lists are recorded again for it first (no tick, so the same frame), and again for the process's
+	/// after.
+	/// </summary>
+	internal Color32[] RenderToPixels( RenderBackend device )
+	{
+		var other = device != RenderBackend.Default;
+		if ( other ) Record( device );
+
+		try
+		{
+			var size = Surface.Size;
+			using var target = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "Window capture" );
+			BorealisGpuWindow.Draw( device, target, BackgroundColor, ClearsBackground, Surface.Render );
+
+			if ( device is BorealisGpuRenderBackend borealis ) return borealis.ReadPixels( target );
+			return target.GetPixels();
+		}
+		finally
+		{
+			if ( other ) Record( RenderBackend.Default );
+		}
+	}
+
+	void Record( RenderBackend device )
+	{
+		var previous = Graphics.SetRecordingBackend( device );
+		try
+		{
+			Surface.System.BuildCommandLists();
+			Surface.System.CombineCommandLists();
+		}
+		finally
+		{
+			Graphics.SetRecordingBackend( previous );
+		}
 	}
 
 	/// <summary>

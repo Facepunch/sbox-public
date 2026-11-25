@@ -62,6 +62,7 @@ public partial class Panel
 		internal void Invalidate( Panel panel )
 		{
 			_dirty = true;
+			panel.MarkPaintChanged();
 			var style = panel.ComputedStyle;
 			// Inline layout needs these flags before the box geometry is finalized.
 			HasBackground = style.BackgroundColor.Value.a > 0 || style.BorderImageSource is not null
@@ -97,6 +98,7 @@ public partial class Panel
 			if ( Background.SizeChanged() | (Layer?.MaskSizeChanged() ?? false) )
 			{
 				_dirty = true;
+				panel.MarkPaintChanged();
 				panel.SetNeedsFinalLayout();
 			}
 		}
@@ -107,6 +109,8 @@ public partial class Panel
 		/// </summary>
 		internal void Update( Panel panel )
 		{
+			// Only called when something resolved here may have moved: the box, the style or the transforms above
+			panel.MarkPaintChanged();
 			var style = panel.ComputedStyle;
 			var rect = panel.Box.Rect;
 			var insets = panel.GetBackgroundClipInset( style.BackgroundClip ?? BackgroundClip.BorderBox );

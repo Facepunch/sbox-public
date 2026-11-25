@@ -125,6 +125,7 @@ public partial class Panel
 		if ( old == IsVisible )
 			return;
 
+		MarkPaintChanged();
 		if ( Parent != null )
 		{
 			Parent.IndexesDirty = true;
@@ -161,6 +162,7 @@ public partial class Panel
 
 	internal void SetNeedsPreLayout()
 	{
+		MarkPaintChanged();
 		if ( needsPreLayout ) return;
 
 		needsPreLayout = true;
@@ -176,6 +178,7 @@ public partial class Panel
 	/// </summary>
 	protected internal void SetNeedsFinalLayout()
 	{
+		MarkPaintChanged();
 		if ( needsFinalLayout ) return;
 
 		needsFinalLayout = true;

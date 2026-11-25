@@ -207,6 +207,7 @@ public partial class Panel
 	{
 		PendingEvents ??= new List<PanelEvent>();
 		PendingEvents.Add( evnt );
+		WakeTick();
 	}
 
 	/// <summary>

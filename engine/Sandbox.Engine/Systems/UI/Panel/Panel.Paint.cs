@@ -17,6 +17,50 @@ public partial class Panel
 			return;
 		}
 
+		// An unchanged subtree replays what it recorded last frame
+		if ( PanelRecording.Current is not { } recording || !WantsSubtreeRecording )
+		{
+			RenderRecorded( painter, ref stats );
+			return;
+		}
+
+		// A large subtree that stopped changing draws from a list of its own, which is inserted while it stays unchanged
+		if ( recording.WantsRetained( this, painter ) )
+		{
+			if ( !recording.TryInsertRetained( this, painter, ref stats ) ) RenderRetained( recording, painter, ref stats );
+			return;
+		}
+
+		if ( recording.TryReplay( this, painter, ref stats ) ) return;
+
+		var capture = recording.BeginSubtree( this, painter, in stats );
+		RenderRecorded( painter, ref stats );
+		recording.EndSubtree( this, painter, in capture, in stats );
+	}
+
+	/// <summary>
+	/// Called by Render to record this subtree into its retained list, begun where <paramref name="painter"/> draws, and
+	/// insert the list there.
+	/// </summary>
+	void RenderRetained( PanelRecording recording, Painter painter, ref RootPanel.FrameStats stats )
+	{
+		var kept = recording.BeginRetained( this, painter );
+		using ( var child = kept.Context.BeginInherited( painter.RecordingContext ) )
+		{
+			var capture = recording.BeginSubtree( this, child, in stats );
+			RenderRecorded( child, ref stats );
+			recording.EndSubtree( this, child, in capture, in stats );
+			recording.EndRetained( this, in capture );
+		}
+
+		painter.Batcher.InsertRetained( kept.List );
+	}
+
+	/// <summary>
+	/// Called by Render to record this visible panel and its children.
+	/// </summary>
+	void RenderRecorded( Painter painter, ref RootPanel.FrameStats stats )
+	{
 		stats.Panels++;
 		using var scope = EnterDestination( painter );
 		painter = scope.Painter;
@@ -78,10 +122,18 @@ public partial class Panel
 					Log.Error( e );
 				}
 			}
+
+			// Inline paragraphs draw text gathered from other panels, which nothing describes yet
+			if ( PanelRecording.Current is { } recording )
+			{
+				if ( LayoutTree.HasInlineContent ) recording.DrewUncomparable();
+				else recording.Drew( this );
+			}
 		}
 
 		if ( this is IPanelDraw custom )
 		{
+			PanelRecording.Current?.DrewUncomparable();
 			try
 			{
 				custom.Draw( painter.NativeCommands( objectSpace: true ) );

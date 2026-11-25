@@ -73,6 +73,7 @@ public partial class Panel
 		if ( IsDeleted )
 			return;
 
+		WakeTick(); // A deletion's outro runs in its tick
 		_deleteTokenSource?.Cancel();
 
 		if ( immediate )
@@ -135,6 +136,10 @@ public partial class Panel
 				else
 					child.OnDeleteRecursive();
 			}
+
+			// A subtree kept in a list of its own frees that list's buffers; a frame handed over still draws with them
+			SubtreeRecording?.Kept?.List.DisposePainter();
+			SubtreeRecording = null;
 
 			try
 			{

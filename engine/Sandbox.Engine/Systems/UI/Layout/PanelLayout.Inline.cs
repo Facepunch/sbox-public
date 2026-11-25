@@ -34,6 +34,7 @@ internal sealed partial class PanelLayout
 
 		ReleaseInlineContext();
 		_inlineContext = context;
+		_panel?.MarkPaintChanged();
 	}
 
 	internal void LeaveInlineContext( InlineFormattingContext context )
@@ -42,6 +43,7 @@ internal sealed partial class PanelLayout
 		if ( _inlineContext != context ) return;
 
 		_inlineContext = null;
+		_panel?.MarkPaintChanged();
 		_node?.MarkDirty();
 	}
 
@@ -51,6 +53,7 @@ internal sealed partial class PanelLayout
 		if ( context is null ) return;
 
 		_inlineContext = null;
+		_panel?.MarkPaintChanged();
 
 		if ( context.Root == this )
 		{

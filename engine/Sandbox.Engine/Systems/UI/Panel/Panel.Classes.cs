@@ -224,6 +224,7 @@ public partial class Panel
 	{
 		classBinds ??= new();
 		classBinds[className] = func;
+		WakeTick();
 	}
 
 	private void RunClassBinds()

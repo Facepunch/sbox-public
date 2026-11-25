@@ -238,6 +238,13 @@ namespace Sandbox.UI
 			DrawTexture( painter, RenderTexture, Length.Contain );
 		}
 
+		internal override bool TryGetDrawKey( out DrawKey key )
+		{
+			// The scene renders into the same texture every frame, so its contents needn't record again
+			key = new DrawKey( RenderTexture, RenderTexture.IsValid() ? RenderTexture.Index : 0, Box.RectInner, default );
+			return IsDrawnBy( typeof( ScenePanel ) );
+		}
+
 		public override void SetProperty( string name, string value )
 		{
 			base.SetProperty( name, value );

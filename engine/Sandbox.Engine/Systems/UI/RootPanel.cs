@@ -113,6 +113,7 @@ public partial class RootPanel : Panel
 		fixedOverlays.Clear();
 		PanelCommandList.Enabled = false;
 		PanelCommandList.DisposePainter(); // tasks can keep a deleted root alive
+		_recording.Clear();
 
 		UISystem.RemoveRoot( this );
 	}
@@ -376,6 +377,14 @@ public partial class RootPanel : Panel
 			{
 				_styleRuleList.Clear();
 			}
+		}
+
+		// A ::before or ::after element appearing or going is made in the panel's tick, which nothing else wakes
+		foreach ( var panel in styleRuleUpdates )
+		{
+			if ( panel.Style is not { PseudoElementsChanged: true } style ) continue;
+			style.PseudoElementsChanged = false;
+			panel.WakeTick();
 		}
 
 		styleRuleUpdates.Clear();

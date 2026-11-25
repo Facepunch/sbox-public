@@ -12,6 +12,7 @@ public partial class Panel
 	internal void ParametersChanged( bool immediately )
 	{
 		parametersChanged = true;
+		WakeTick();
 
 		// task is still running
 		if ( parametersSetTask != null && !parametersSetTask.IsCompleted )

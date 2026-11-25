@@ -39,7 +39,7 @@ namespace Sandbox.UI
 				if ( _textBlock is null )
 					return;
 
-				if ( _textBlock.ShouldDrawSelection == Selectable && value )
+				if ( _textBlock.ShouldDrawSelection == (Selectable && value) )
 					return;
 
 				_textBlock.ShouldDrawSelection = Selectable && value;
@@ -501,6 +501,21 @@ namespace Sandbox.UI
 			if ( clipsBackgroundToText ) return;
 
 			_textBlock?.Draw( painter, CachedOverrideBlendMode, ComputedStyle, TextLayoutRect, CachedRenderOpacity );
+		}
+
+		internal override bool TryGetDrawKey( out DrawKey key )
+		{
+			key = default;
+			if ( !IsDrawnBy( typeof( Label ) ) ) return false;
+
+			// Drawing nothing of its own is still a drawing: say which way, so a switch between them shows
+			if ( LayoutTree?.IsInlineParticipant == true || clipsBackgroundToText || _textBlock is null )
+			{
+				key = new DrawKey( null, (clipsBackgroundToText ? 1 : 0) | (_textBlock is null ? 2 : 0), default, default );
+				return true;
+			}
+
+			return _textBlock.TryGetDrawKey( TextLayoutRect, out key );
 		}
 
 		internal override bool TryGetContentBounds( out Rect bounds )

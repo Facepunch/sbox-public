@@ -89,6 +89,12 @@ public partial class SvgPanel : Panel
 		DrawTexture( painter, texture, Length.Cover );
 	}
 
+	internal override bool TryGetDrawKey( out DrawKey key )
+	{
+		key = new DrawKey( texture, texture.IsValid() ? texture.Index : 0, default, default );
+		return IsDrawnBy( typeof( SvgPanel ) );
+	}
+
 	internal override bool TryGetContentBounds( out Rect bounds )
 	{
 		bounds = Box.Rect;
