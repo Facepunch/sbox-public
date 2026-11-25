@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    s&box's rendering integration: native's pipeline layers, and the bridge that renders GameObject scenes through Borealis.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>Sandbox.Rendering</AssemblyName>
+    <OutputPath>..\..\game\bin\managed</OutputPath>
+    <NoWarn>1701;1702</NoWarn>
+    <LangVersion>14</LangVersion>
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Borealis\Borealis.csproj" Private="false" />
+    <ProjectReference Include="..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
+    <ProjectReference Include="..\Sandbox.System\Sandbox.System.csproj" Private="false" />
+  </ItemGroup>
+
+</Project>

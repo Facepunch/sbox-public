@@ -1,0 +1,555 @@
+using Borealis.Backend;
+using System.Runtime.CompilerServices;
+using Borealis.Source2.Models;
+using System.Runtime.InteropServices;
+
+namespace Sandbox.Rendering.Bridge;
+
+/// <summary>
+/// An engine resource as what a world draws with on the Borealis.Gpu device Borealis renders on
+/// (<see cref="RenderHost.Device"/>, <c>-borealisgpu</c>): the compiled file Borealis.Source2 reads by the resource's path.
+/// What was made at run time (procedural models, materials and textures made in code) and attributes have no file: models
+/// made at run time are read back from Source 2 (see <see cref="RuntimeMesh"/>), attributes come from their managed copy
+/// (<see cref="ObjectParameters"/>), and the rest are null. Without a Borealis.Gpu device everything is null.
+/// </summary>
+internal static class MirrorContent
+{
+	/// <summary>The Borealis.Gpu device Borealis renders on, or null in a process drawing on Source 2's.</summary>
+	public static BackendDevice Gpu => RenderHost.Current?.Device as BackendDevice;
+
+	/// <summary>A model's mesh, every mesh group in it (an object's draws hide those it doesn't draw).</summary>
+	public static RenderMesh Mesh( Model model ) => Mesh( model, out _ );
+
+	/// <summary>
+	/// A model's mesh; loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) null with <paramref name="pending"/>
+	/// set while it loads.
+	/// </summary>
+	public static RenderMesh Mesh( Model model, out bool pending ) => Mesh( model, out pending, pin: true );
+
+	/// <summary>
+	/// <see cref="Mesh(Model, out bool)"/>; without <paramref name="pin"/> a model loaded from its file is held by the caller
+	/// (<see cref="BackendDevice.HoldModel"/>) and freed a while after the last holder lets it go.
+	/// </summary>
+	public static RenderMesh Mesh( Model model, out bool pending, bool pin )
+	{
+		pending = false;
+		if ( Gpu is not { } gpu ) return null;
+
+		if ( model is { IsProcedural: true } ) return RuntimeMesh( model, gpu, out pending );
+		var path = FilePath( model );
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		return gpu.AsyncModels ? gpu.LoadModelAsync( path, ulong.MaxValue, out pending, pin ) : gpu.LoadModel( path, ulong.MaxValue );
+	}
+
+	/// <summary>What native draws for a model that isn't there (<c>models/dev/error.vmdl</c>).</summary>
+	internal const string ErrorModel = "models/dev/error.vmdl";
+
+	/// <summary>
+	/// The compiled model a model file draws as: its own, or the error model for one that isn't there or failed to load, as
+	/// native's resource system binds it.
+	/// </summary>
+	static string FilePath( Model model )
+	{
+		var path = model?.ResourcePath;
+		if ( string.IsNullOrEmpty( path ) ) return path;
+		return !model.native.IsNull && model.native.IsError() ? ErrorModel : path;
+	}
+
+	static readonly ConditionalWeakTable<Model, RuntimeModel> runtimeMeshes = new();
+	static readonly ConditionalWeakTable<Model, System.Threading.Tasks.Task<ModelFile>> runtimeReads = new();
+	static readonly System.Collections.Concurrent.ConcurrentQueue<BackendModel> freedModels = new();
+
+	/// <summary>
+	/// A model made at run time (no file to read): saved as a compiled model in memory
+	/// (<c>Model.SaveMeshesToVmdl</c>, its buffers as its meshes keep them, no physics) and read as a model file is, its materials by
+	/// path, drawn whole as native draws it (no generated levels: its vertices may be what a vertex stage places, a water
+	/// surface's clipmap cells); loading asynchronously (<see cref="BackendDevice.AsyncModels"/>) that's on a worker, and it's made within the
+	/// frame's load budget, null with <paramref name="pending"/> set until then. Its buffers are freed once the engine's model
+	/// is gone.
+	/// </summary>
+	static RenderMesh RuntimeMesh( Model model, BackendDevice gpu, out bool pending )
+	{
+		pending = false;
+		while ( freedModels.TryDequeue( out var freed ) ) freed.Free();
+		if ( runtimeMeshes.TryGetValue( model, out var known ) )
+		{
+			// It couldn't be read: not again
+			if ( known.Mesh is null ) return null;
+
+			// Freed after no world held it for a while (BackendDevice.TrackModel): made again
+			if ( known.Mesh.Geometry is not BackendModel { Freed: true } ) return known.Mesh;
+			runtimeMeshes.Remove( model );
+		}
+
+		// Every mesh: a model built in code has no default mesh groups (native draws them all)
+		RenderMesh mesh;
+		if ( gpu.AsyncModels )
+		{
+			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( m.SaveMeshesToVmdl ) );
+			mesh = gpu.MakeModel( read, ulong.MaxValue, drawFastPath: true, out pending, generateLevels: false );
+			if ( pending ) return null;
+			runtimeReads.Remove( model );
+			if ( mesh is null && read.Exception?.GetBaseException() is { } e ) Log.Warning( e, $"Couldn't read run-time model {model.Name}: {e.Message}" );
+		}
+		else mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveMeshesToVmdl(), gpu.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true, generateLevels: false );
+
+		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
+		if ( mesh is not null ) gpu.TrackModel( mesh );
+		return mesh;
+	}
+
+	/// <summary>Whether a model loading asynchronously (<see cref="Mesh(Model, out bool)"/>) has been read, so asking again can make it.</summary>
+	public static bool MeshRead( Model model, BackendDevice gpu ) => model is { IsProcedural: true }
+		? !runtimeReads.TryGetValue( model, out var read ) || read.IsCompleted
+		: gpu.ModelRead( FilePath( model ) );
+
+	/// <summary>A run-time model's mesh, which frees its geometry after the engine's model is collected.</summary>
+	sealed class RuntimeModel( RenderMesh mesh )
+	{
+		public RenderMesh Mesh { get; } = mesh;
+
+		~RuntimeModel()
+		{
+			if ( Mesh?.Geometry is BackendModel geometry ) freedModels.Enqueue( geometry );
+		}
+	}
+
+	/// <summary>
+	/// A material as its compiled file (a copy's being its original's), or as its shader for one made in code
+	/// (<see cref="Sandbox.Material.MadeFromShader"/>, which needn't have a name), with what code set on it over that: its
+	/// values and textures (<see cref="Sandbox.Material.SetInCode"/>: a screen's render target a game sets on its copy of the
+	/// screen material) and features (<see cref="Sandbox.Material.FeaturesSetInCode"/>: foliage made in code that alpha
+	/// tests), which follows later sets (<see cref="Follow"/>).
+	/// </summary>
+	public static GpuMaterial Material( Material material )
+	{
+		if ( Gpu is not { } gpu || material is null ) return null;
+
+		var path = material.FilePath;
+		var shader = material.MadeFromShader;
+		if ( string.IsNullOrEmpty( path ) && shader is null ) return null;
+		if ( !material.ChangedInCode ) return gpu.LoadMaterial( path );
+
+		var made = setMaterials.GetOrCreateValue( material );
+		lock ( made )
+		{
+			if ( made.Material is null )
+			{
+				Sandbox.Material.SetInCodeChanged ??= Follow;
+				var (values, textures) = Lower( material.SetInCode );
+
+				// Made in code from a shader: the shader's defaults, its textures native's (their defaults, or the error texture),
+				// then what's set
+				if ( shader is not null )
+				{
+					made.Material = gpu.CreateRawMaterial( string.IsNullOrEmpty( path ) ? material.Name ?? shader : path, ShaderPath( shader ) );
+					gpu.SetOnMaterial( made.Material, values, textures );
+				}
+				else made.Material = gpu.LoadMaterial( path, values, textures, $"{path} (set in code)" );
+
+				gpu.SetFeaturesOnMaterial( made.Material, material.FeaturesSetInCode );
+
+				made.Version = material.SetInCodeVersion;
+				made.Set = material.SetInCode;
+				made.Features = material.FeaturesSetInCode;
+			}
+
+			return made.Material;
+		}
+	}
+
+	/// <summary>A shader as a material names it (<c>complex.shader</c>, or with its folder), as its compiled file's path.</summary>
+	static string ShaderPath( string shader )
+	{
+		shader = shader.Replace( '\\', '/' );
+		if ( shader.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) shader = shader[..^2];
+		if ( !shader.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) shader += ".shader";
+		return shader.Contains( '/' ) ? shader : $"shaders/{shader}";
+	}
+
+	/// <summary>
+	/// A material whose values or features set in code changed: its copy here takes them, if it has one. Code that sets a
+	/// material's values every frame (a weapon's glow) changes one or two values a frame: only values that changed are set,
+	/// textures are set again (what one resolves to can change), and features only when they changed (each change replaces
+	/// <see cref="Sandbox.Material.FeaturesSetInCode"/> whole), so following it allocates nothing.
+	/// </summary>
+	static void Follow( Sandbox.Material material )
+	{
+		if ( Gpu is not { } gpu || !setMaterials.TryGetValue( material, out var made ) ) return;
+
+		lock ( made )
+		{
+			if ( made.Material is null || made.Version == material.SetInCodeVersion ) return;
+
+			var set = material.SetInCode;
+			if ( set is Dictionary<string, object> own )
+			{
+				foreach ( var (name, value) in own ) FollowOne( gpu, made, name, value );
+			}
+			else if ( set is not null )
+			{
+				foreach ( var (name, value) in set ) FollowOne( gpu, made, name, value );
+			}
+
+			if ( !ReferenceEquals( made.Features, material.FeaturesSetInCode ) ) gpu.SetFeaturesOnMaterial( made.Material, material.FeaturesSetInCode );
+
+			made.Set = set;
+			made.Features = material.FeaturesSetInCode;
+			made.Version = material.SetInCodeVersion;
+		}
+	}
+
+	/// <summary>One value or texture set in code on a material's copy (<see cref="Follow"/>): a value only when it changed.</summary>
+	static void FollowOne( BackendDevice gpu, SetMaterial made, string name, object value )
+	{
+		if ( value is Vector4 v )
+		{
+			if ( made.Set is { } before && before.TryGetValue( name, out var was ) && was is Vector4 old && old == v ) return;
+			gpu.SetValueOnMaterial( made.Material, name, [v.x, v.y, v.z, v.w] );
+		}
+		else if ( value is Sandbox.Texture t && Texture( t ) is { } texture ) gpu.SetTextureOnMaterial( made.Material, name, texture );
+	}
+
+	/// <summary>Values set in code as shader variables: vectors, and textures Borealis.Gpu has.</summary>
+	static (Dictionary<string, float[]> Values, Dictionary<string, GpuTexture> Textures) Lower( IReadOnlyDictionary<string, object> set )
+	{
+		var values = new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase );
+		var textures = new Dictionary<string, GpuTexture>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (name, value) in set ?? new Dictionary<string, object>() )
+		{
+			if ( value is Vector4 v ) values[name] = [v.x, v.y, v.z, v.w];
+			else if ( value is Sandbox.Texture t && Texture( t ) is { } texture ) textures[name] = texture;
+		}
+
+		return (values, textures);
+	}
+
+	sealed class SetMaterial
+	{
+		public GpuMaterial Material;
+		public int Version;
+
+		/// <summary>The values and features set in code it last took (<see cref="Follow"/>).</summary>
+		public IReadOnlyDictionary<string, object> Set;
+		public IReadOnlyDictionary<string, int> Features;
+	}
+
+	static readonly ConditionalWeakTable<Sandbox.Material, SetMaterial> setMaterials = new();
+
+	public static GpuTexture Texture( Texture texture )
+	{
+		if ( Gpu is not { } gpu || texture is null ) return null;
+
+		// A view rendered for it on this device (a water body's refraction) drew into Borealis's own texture (a render
+		// target's path is its name, with no file behind it)
+		if ( texture.DrawnByView && captures.TryGetValue( texture, out var capture ) && capture.Texture is { IsValid: true } drawn && !capture.Owned ) return drawn;
+
+		// A cube made at run time for compute to write (a realtime probe's) is what cube captures draw into
+		if ( IsCaptureCube( texture ) ) return CaptureCube( texture );
+
+		// A render target (a screen a game draws into) or any texture made in code (a voxel atlas array a game fills layer by
+		// layer) is the engine's copy on the device: its path is only its name
+		var engine = RenderBackend.Default as BorealisGpuRenderBackend;
+		if ( engine is not null && !texture.native.IsNull && (texture.IsRenderTarget || texture.MadeAtRunTime) ) return engine.BorealisViewOf( texture );
+
+		var path = texture.ResourcePath;
+		if ( !string.IsNullOrEmpty( path ) ) return gpu.LoadTexture( path );
+
+		// A material's texture (a sky's cubemap for fog and sky lighting) is the material's, read by its path
+		if ( Sandbox.Texture.MaterialOrigins.TryGetValue( texture, out var origin ) && origin is Sandbox.Texture.MaterialOrigin o )
+			return gpu.LoadedMaterialTexture( o.Material, o.Parameter );
+
+		// Any other texture with no file (an engine texture of any shape) is the engine's copy on the device
+		return engine is not null && !texture.native.IsNull ? engine.BorealisViewOf( texture ) : null;
+	}
+
+	sealed class Capture
+	{
+		public GpuTexture Texture;
+
+		/// <summary>Whether <see cref="Texture"/> is this capture's own (a cube's), freed once the engine texture is gone.</summary>
+		public bool Owned;
+
+		~Capture()
+		{
+			if ( Owned && Texture is not null ) freedCaptures.Enqueue( Texture );
+		}
+	}
+
+	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
+	static readonly System.Collections.Concurrent.ConcurrentQueue<GpuTexture> freedCaptures = new();
+
+	/// <summary>
+	/// Free what the engine's resources took on the device once they were collected (capture cubes, run-time models' buffers),
+	/// whether or not anything asks for another: a map's realtime probes' cubes outlived it in the menu.
+	/// </summary>
+	public static void FreeCollected()
+	{
+		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
+		while ( freedModels.TryDequeue( out var model ) ) model.Free();
+
+		// Released cubes a few frames on, once worlds have dropped the probes that drew with them
+		collectFrames++;
+		while ( releasedCaptures.TryPeek( out var released ) && collectFrames - released.Frame >= ReleasedCaptureFrames )
+		{
+			releasedCaptures.TryDequeue( out _ );
+			released.Texture.Dispose();
+		}
+	}
+
+	// Cubes of engine textures that were disposed (ReleaseCapture), with the FreeCollected call they were released at
+	static readonly System.Collections.Concurrent.ConcurrentQueue<(GpuTexture Texture, long Frame)> releasedCaptures = new();
+	static long collectFrames;
+	const int ReleasedCaptureFrames = 3;
+
+	/// <summary>
+	/// An engine texture was disposed (a realtime probe's cube, as its component goes): the cube made for it is freed a few
+	/// frames on (<see cref="FreeCollected"/>), and a capture asked for it later makes another.
+	/// </summary>
+	public static void ReleaseCapture( Texture texture )
+	{
+		if ( texture is null || !captures.TryGetValue( texture, out var capture ) ) return;
+		captures.Remove( texture );
+		texture.DrawnByView = false;
+		if ( capture.Owned && capture.Texture is not null ) releasedCaptures.Enqueue( (capture.Texture, collectFrames) );
+		capture.Owned = false;
+		capture.Texture = null;
+	}
+
+	/// <summary>Whether an engine texture is a cube made at run time for compute to write (a realtime probe's), which <see cref="CaptureCube"/> captures into.</summary>
+	public static bool IsCaptureCube( Texture texture ) => texture is not null && texture.Depth == 6 && texture.UAVAccess;
+
+	/// <summary>The cube <see cref="CaptureCube"/> has made for <paramref name="texture"/>, or null when nothing has captured or drawn it yet.</summary>
+	public static GpuTexture MadeCaptureCube( Texture texture ) => captures.TryGetValue( texture, out var capture ) && capture.Owned && capture.Texture is { IsValid: true } made ? made : null;
+
+	/// <summary>How many cubes <see cref="CaptureCube"/> has made, for what waits for one (<see cref="MadeCaptureCube"/>).</summary>
+	public static int CaptureCubesMade { get; private set; }
+
+	/// <summary>
+	/// The Borealis.Gpu cube that cube captures of <paramref name="texture"/> (an engine cube made at run time, a realtime
+	/// probe's) draw into, and that what reads the engine texture reads: made the first time either asks, as the engine made
+	/// it (size, format, mips), black until captured, and made again if the engine texture's shape changes. Null without a
+	/// device, or for a texture that isn't a square cube in a format Borealis.Gpu has.
+	/// </summary>
+	public static GpuTexture CaptureCube( Texture texture )
+	{
+		if ( Gpu is not { } gpu || texture is null || texture.Depth != 6 || texture.Width != texture.Height || texture.Width < 1 ) return null;
+
+		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
+
+		var format = Source2Formats.From( texture.ImageFormat );
+		var mips = Math.Max( texture.Mips, 1 );
+		var capture = captures.GetOrCreateValue( texture );
+		if ( capture.Owned && capture.Texture is { IsValid: true, IsCube: true } made && made.Width == texture.Width && made.Format == format && made.Mips == mips ) return made;
+		if ( format == TextureFormat.Unknown ) return null;
+
+		if ( capture.Owned ) capture.Texture?.Dispose();
+		capture.Texture = gpu.CreateTexture( new TextureDesc
+		{
+			Width = texture.Width,
+			Height = texture.Height,
+			Depth = 1,
+			Format = format,
+			Samples = 1,
+			Mips = mips,
+			Cube = true,
+			RenderTarget = true,
+			Storage = true,
+		}, $"Cube capture {texture.Width}px" );
+		capture.Owned = true;
+		CaptureCubesMade++;
+		gpu.Clear( capture.Texture, Color.Transparent );
+		return capture.Texture;
+	}
+
+	/// <summary>
+	/// Note that a view rendered for <paramref name="texture"/> (an engine render target a command list's view asked for) drew
+	/// into <paramref name="drawn"/>, a texture of Borealis's: what Borealis's draws read for the engine texture from then on.
+	/// </summary>
+	public static void SetCapture( Texture texture, GpuTexture drawn )
+	{
+		captures.GetOrCreateValue( texture ).Texture = drawn;
+		texture.DrawnByView = true;
+	}
+
+	/// <summary>
+	/// What the engine's drawing on <paramref name="backend"/> reads for <paramref name="texture"/> when Borealis renders into
+	/// it on the same device (<c>BorealisGpuRenderBackend.RenderedInto</c>): a realtime probe's cube's capture
+	/// (<see cref="CaptureCube"/>), or what a view drew for a render target (<see cref="ViewCapture"/>). Null otherwise.
+	/// </summary>
+	public static GpuTexture RenderedInto( BorealisGpuRenderBackend backend, Texture texture )
+	{
+		if ( Gpu is null || Gpu != backend.Services ) return null;
+		return IsCaptureCube( texture ) ? CaptureCube( texture ) : ViewCapture( texture );
+	}
+
+	/// <summary>
+	/// What a view drew for <paramref name="texture"/> (<see cref="SetCapture"/>), for the engine's own draws to read in its place
+	/// (<c>BorealisGpuRenderBackend.RenderedInto</c>): only when it has the engine texture's shape (size, format, mips, one
+	/// sample), so a draw binding it sees what it expects. Null otherwise.
+	/// </summary>
+	public static GpuTexture ViewCapture( Texture texture )
+	{
+		if ( texture is null || !texture.DrawnByView || !captures.TryGetValue( texture, out var capture ) || capture.Owned ) return null;
+		if ( capture.Texture is not { IsValid: true, IsCube: false, IsArray: false, Samples: 1 } drawn ) return null;
+		if ( drawn.Width != texture.Width || drawn.Height != texture.Height || drawn.Mips != Math.Max( texture.Mips, 1 ) ) return null;
+		if ( Source2Formats.Samples( texture.MultisampleType ) != 1 || drawn.Format != Source2Formats.From( texture.ImageFormat ) ) return null;
+		return drawn;
+	}
+
+	/// <summary>
+	/// Set on <paramref name="into"/> what <paramref name="attributes"/> had set after its version was <paramref name="version"/>:
+	/// what a command list set meanwhile. Numbers, vectors, matrices, combos and the textures Borealis can read carry over.
+	/// </summary>
+	public static void SetChanged( ManagedRenderAttributes attributes, int version, ShaderParameters into )
+	{
+		foreach ( var (token, value) in attributes.ValuesSince( version ) ) Set( into, new StringToken( token ), value );
+		foreach ( var (token, value) in attributes.CombosSince( version ) ) into.SetCombo( new StringToken( token ), value );
+	}
+
+	/// <summary>
+	/// A camera's attributes (<c>SceneCamera.Attributes</c>: what its component and <c>Scene.RenderAttributes</c> set, a game's
+	/// time of day among them) as its view's camera attributes, as native's camera renderer gives its view them, kept in
+	/// <paramref name="parameters"/> (made the first time) by <see cref="CopyChanged"/>.
+	/// </summary>
+	public static ShaderParameters CameraParameters( RenderAttributes attributes, ref ShaderParameters parameters, ref int version )
+	{
+		if ( Gpu is not { } gpu || (attributes?.Shadow ?? attributes?.Managed) is null ) return null;
+		if ( parameters is null )
+		{
+			parameters = gpu.CreateParameters();
+			version = NeverCopied;
+		}
+
+		CopyChanged( attributes, parameters, ref version );
+		return parameters;
+	}
+
+	/// <summary>The version to start <see cref="CopyChanged"/> from: before anything was set.</summary>
+	public const int NeverCopied = int.MinValue;
+
+	/// <summary>
+	/// Keep <paramref name="into"/> holding what <paramref name="attributes"/> (its managed copy, or its managed values) holds:
+	/// only what was set since <paramref name="version"/>, or everything again when something went since.
+	/// </summary>
+	public static void CopyChanged( RenderAttributes attributes, ShaderParameters into, ref int version )
+	{
+		if ( (attributes?.Shadow ?? attributes?.Managed) is not { } source || source.Version == version ) return;
+		if ( source.RemovedAt > version && version != NeverCopied )
+		{
+			into.Clear();
+			version = NeverCopied;
+		}
+
+		SetChanged( source, version, into );
+		version = source.Version;
+	}
+
+	/// <summary>
+	/// A view's own attributes with a managed store (a planar reflection published for it) written into
+	/// <paramref name="parameters"/>, made the first time: what was there before is cleared.
+	/// </summary>
+	public static ShaderParameters ViewParameters( RenderAttributes attributes, ref ShaderParameters parameters )
+	{
+		if ( Gpu is not { } gpu || attributes?.Managed is not { } managed ) return null;
+
+		parameters ??= gpu.CreateParameters();
+		parameters.Clear();
+		foreach ( var (token, value) in managed.Values ) Set( parameters, new StringToken( token ), value );
+		foreach ( var (token, value) in managed.Combos ) parameters.SetCombo( new StringToken( token ), value );
+		return parameters;
+	}
+
+	static void Set( ShaderParameters parameters, StringToken name, object value )
+	{
+		switch ( value )
+		{
+			case float[] { Length: 1 } f: parameters.Set( name, f[0] ); break;
+			case float[] { Length: 2 } f: parameters.Set( name, new Vector2( f[0], f[1] ) ); break;
+			case float[] { Length: 3 } f: parameters.Set( name, new Vector3( f[0], f[1], f[2] ) ); break;
+			case float[] { Length: 4 } f: parameters.Set( name, new Vector4( f[0], f[1], f[2], f[3] ) ); break;
+			case float[] { Length: 16 } f: parameters.Set( name, MemoryMarshal.Read<Matrix>( MemoryMarshal.AsBytes( f.AsSpan() ) ) ); break;
+			case ManagedRenderAttributes.TextureValue t when Texture( t.Texture ) is { } texture: parameters.Set( name, texture, t.Mip ); break;
+			case Sandbox.GpuBuffer b when Buffer( b ) is { } buffer: parameters.Set( name, buffer ); break;
+		}
+	}
+
+	/// <summary>
+	/// An engine buffer as draws bind it: the engine's copy on the device (<see cref="BorealisGpuRenderBackend.BufferOf"/>,
+	/// which keeps it while the engine's buffer lives), borrowed, so the wrapper never frees it.
+	/// </summary>
+	public static Borealis.GpuBuffer Buffer( Sandbox.GpuBuffer buffer )
+	{
+		if ( Gpu is not { } gpu || RenderBackend.Default is not BorealisGpuRenderBackend engine || buffer is not { IsValid: true } ) return null;
+
+		var handle = engine.BufferOf( buffer );
+		if ( borrowedBuffers.TryGetValue( buffer, out var known ) && BackendDevice.Binds( known, handle ) ) return known;
+
+		var wrapped = gpu.BorrowBuffer( handle, buffer.ElementCount, buffer.ElementSize, "Engine buffer" );
+		borrowedBuffers.AddOrUpdate( buffer, wrapped );
+		return wrapped;
+	}
+
+	static readonly ConditionalWeakTable<Sandbox.GpuBuffer, Borealis.GpuBuffer> borrowedBuffers = new();
+
+	/// <summary>
+	/// An object's attributes as its draws read them: its managed copy (<c>RenderAttributes.Shadow</c>) converted, again only
+	/// when it changed. Numbers, vectors, matrices, combos, textures and buffers carry over; samplers and constant buffers
+	/// don't yet. Values set again (a time or colour each frame, or all of them after a clear) are written into the same
+	/// parameters; a value added or gone, or a combo changed, makes new ones, so the object's draws are made again
+	/// (<c>MeshObject.Attributes</c>).
+	/// </summary>
+	public static ShaderParameters ObjectParameters( RenderAttributes attributes )
+	{
+		if ( Gpu is not { } gpu || attributes?.ManagedValues is not { } shadow ) return null;
+
+		var converted = convertedAttributes.GetOrCreateValue( shadow );
+		if ( converted.Parameters is not null && converted.Version == shadow.Version ) return converted.Parameters;
+
+		var shape = Shape( shadow );
+		if ( converted.Parameters is not null && shape == converted.Shape )
+		{
+			foreach ( var (token, value) in shadow.ValuesSince( converted.Version ) ) Set( converted.Parameters, new StringToken( token ), value );
+			converted.Version = shadow.Version;
+			return converted.Parameters;
+		}
+
+		var parameters = gpu.CreateParameters();
+		foreach ( var (token, value) in shadow.Values ) Set( parameters, new StringToken( token ), value );
+
+		foreach ( var (token, value) in shadow.Combos ) parameters.SetCombo( new StringToken( token ), value );
+		converted.Parameters = parameters;
+		converted.Version = shadow.Version;
+		converted.Shape = shape;
+		return parameters;
+	}
+
+	/// <summary>The names a set holds and its combos' values, whatever order they were set in, as a hash.</summary>
+	static ulong Shape( ManagedRenderAttributes attributes )
+	{
+		var shape = (ulong)attributes.ValueCount;
+		foreach ( var (token, _) in attributes.Values ) shape += Mix( token );
+		foreach ( var (token, value) in attributes.Combos ) shape += Mix( (ulong)token << 32 | (uint)value ) * 3;
+		return shape;
+	}
+
+	static ulong Mix( ulong x )
+	{
+		x ^= x >> 33;
+		x *= 0xff51afd7ed558ccdUL;
+		x ^= x >> 33;
+		x *= 0xc4ceb9fe1a85ec53UL;
+		return x ^ x >> 33;
+	}
+
+	sealed class ConvertedAttributes
+	{
+		public ShaderParameters Parameters;
+		public int Version;
+
+		/// <summary>The <see cref="Shape"/> it was made with.</summary>
+		public ulong Shape;
+	}
+
+	static readonly ConditionalWeakTable<ManagedRenderAttributes, ConvertedAttributes> convertedAttributes = new();
+}
