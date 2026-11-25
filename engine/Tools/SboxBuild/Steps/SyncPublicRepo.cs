@@ -815,8 +815,9 @@ internal class SyncPublicRepo( bool dryRun = false, string publicBranch = SyncPu
 
 		// git-filter-repo has already rewritten tag targets to their public commits.
 		// Push both lightweight and annotated tags atomically with the branch. Another branch pushes no tags: they're
-		// master's, and Setup finds a commit's artifacts by its hash. Never forced: its filtered history only grows.
-		var push = IsMaster ? $"push --atomic public {MasterBranch} --tags" : $"push public HEAD:refs/heads/{publicBranch}";
+		// master's, and Setup finds a commit's artifacts by its hash. Master is never forced: its filtered history only grows.
+		// Another branch is: it's rebased onto master and squashed, so its filtered history is rewritten too.
+		var push = IsMaster ? $"push --atomic public {MasterBranch} --tags" : $"push --force public HEAD:refs/heads/{publicBranch}";
 		if ( !Utility.RunProcess( "git", push, relativeRepoPath ) )
 		{
 			Log.Error( "Failed to push to public repository" );
