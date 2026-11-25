@@ -393,6 +393,29 @@ public class JobDispatcherTest
 		}
 	}
 
+	/// <summary>
+	/// The caller wakes only a couple of workers itself and those wake the rest, so every worker still joins in: items that
+	/// each wait for all of the threads to be in at once only finish if they are.
+	/// </summary>
+	[TestMethod]
+	public void WokenWorkersWakeTheRest()
+	{
+		var threads = Math.Min( JobDispatcher.Workers.Count + 1, JobDispatcher.MaxDegreeOfParallelism );
+		if ( threads <= JobDispatcher.Workers.CallerWakes + 1 ) Assert.Inconclusive( "Too few workers to need waking in turn." );
+
+		for ( int run = 0; run < 20; run++ )
+		{
+			using var barrier = new Barrier( threads );
+			var met = 0;
+			JobDispatcher.For( threads, barrier, ( b, i ) =>
+			{
+				if ( b.SignalAndWait( 10_000 ) ) Interlocked.Increment( ref met );
+			}, itemsPerBatch: 1, maxDegreeOfParallelism: threads );
+
+			Assert.AreEqual( threads, met, $"run {run}: {threads} threads didn't all take part" );
+		}
+	}
+
 	[TestMethod]
 	public void BeginStartsEvenOneItemOnAWorker()
 	{
