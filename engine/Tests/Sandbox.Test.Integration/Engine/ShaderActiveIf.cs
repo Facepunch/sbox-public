@@ -33,7 +33,7 @@ public class ShaderActiveIfTest
 	{
 		if ( Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) != "1" ) Assert.Inconclusive( "Requires Vulkan." );
 		var assets = System.IO.Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), "addons/citizen/Assets" );
-		FullFileSystem.AddProjectPath( "activeif-citizen", assets.ToLowerInvariant() );
+		FullFileSystem.AddProjectPath( "activeif-citizen", Project.NativeSearchPath( assets ) );
 		g_pResourceSystem.InvalidateDatabase();
 		var messages = new List<string>();
 		void OnMessage( LogEvent e ) { messages.Add( e.Message ); }

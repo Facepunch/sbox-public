@@ -29,7 +29,7 @@ public class SymlinkReloadTests
 		_targets = Path.Combine( Path.GetTempPath(), _folder );
 		Directory.CreateDirectory( _targets );
 
-		NativeEngine.FullFileSystem.AddProjectPath( "unittest", _assetsPath.ToLowerInvariant() );
+		NativeEngine.FullFileSystem.AddProjectPath( "unittest", Project.NativeSearchPath( _assetsPath ) );
 
 		GlobalContext.Current.FileMount = new AggregateFileSystem();
 		FileSystem.Mounted.Mount( new LocalFileSystem( _assetsPath ) );
