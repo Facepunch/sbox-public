@@ -78,7 +78,10 @@ public sealed class MountMetadata : Component
 			};
 		}
 
-		_label.WorldPosition = WorldPosition + Vector3.Up * (BoundsSize.z / 2f + 8f);
+		// Keep the label a fixed size: it is a child of the prop, so a scaled prop would scale the text too.
+		// Anchor it above the world-space bounds so it stays on top when the prop tips over.
+		var worldBounds = bounds.Transform( t );
+		_label.WorldTransform = new Transform( worldBounds.Center.WithZ( worldBounds.Maxs.z ) + Vector3.Up * 8f, t.Rotation, 1f );
 	}
 
 	void EnsureFallbackRenderers()
