@@ -50,7 +50,7 @@ public struct FrameStats
 		ObjectsCulledByVis = stats.m_nNumObjectsRejectedByVis;
 		ObjectsCulledByScreenSize = stats.m_nNumObjectsRejectedByScreenSizeCulling;
 		ObjectsCulledByFade = stats.m_nNumObjectsRejectedByFading;
-		ObjectsCulledByOcclusion = Rendering.RenderPipeline.GetOcclusionCulled();
+		ObjectsCulledByOcclusion = 0;
 		ObjectsFading = stats.m_nNumFadingObjects;
 		ShadowedLightsInView = stats.m_nNumShadowedLightsInView;
 		UnshadowedLightsInView = stats.m_nNumUnshadowedLightsInView;
@@ -63,7 +63,7 @@ public struct FrameStats
 	}
 
 	/// <summary>
-	/// Add what the managed scene renderer drew (<c>r_managed_scene</c>), which native's counters don't see: its objects,
+	/// Add what Borealis drew (<c>-borealisgpu</c>), which native's counters don't see: its objects,
 	/// draws, triangles, views and size culling.
 	/// </summary>
 	internal void AddManaged( in Rendering.ManagedFrameCounters managed )
@@ -212,8 +212,15 @@ public struct FrameStats
 	/// <summary>Number of shadow maps rendered this frame.</summary>
 	public double ShadowMaps { get; set; }
 
-	/// <summary>Multi-line GPU resource summary from the render device (memory mgr, framebuffers, pipeline cache).</summary>
-	public string GpuStatsSummary { get; set; }
+	/// <summary>
+	/// Multi-line GPU resource summary from the render device (memory mgr, framebuffers, pipeline cache). Unless set, the
+	/// device's when read: it changes with every resource made or freed, and is only read by tools.
+	/// </summary>
+	public string GpuStatsSummary
+	{
+		get => field ?? (RenderBackend.Default is BorealisGpuRenderBackend borealis ? borealis.DescribeResources() : "");
+		set;
+	}
 
 	/// <summary>In-flight resource streaming-data requests. Sustained &gt; 0 indicates streaming pressure (mips/data still loading).</summary>
 	public int PendingStreamingRequests { get; set; }

@@ -37,6 +37,8 @@ public static class LoadingScreen
 			}
 
 			_changes++;
+			if ( !value )
+				Navigation.NavMesh.LoadEnded();
 			if ( !value && CollectsAfterLoad )
 				_ = CollectWhatTheLoadLeft( _changes );
 		}
@@ -46,6 +48,9 @@ public static class LoadingScreen
 	/// Counts the screen being shown and hidden, so a collection queued as it went away is dropped if it came back.
 	/// </summary>
 	static int _changes;
+
+	/// <summary>How many times the screen has been shown or hidden, so what waits to hide it knows whether something else has.</summary>
+	internal static int Changes => _changes;
 
 	/// <summary>
 	/// How long after the screen goes the heap is collected: the menu's loading overlay lets go of the game's art a second

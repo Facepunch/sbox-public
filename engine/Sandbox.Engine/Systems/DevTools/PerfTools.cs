@@ -52,6 +52,7 @@ internal static class PerfTools
 				ProcessMiB = MiB( PerformanceStats.ApproximateProcessMemoryUsage ),
 				VideoMemory = VideoMemory(),
 				AllocatedMiBPerSecond = MiB( second.ByteAlloc ),
+				RendererAllocatedBytesLastFrame = PerformanceStats.RendererBytesAllocated,
 				GcPauseMsLastSecond = Round( TimeSpan.FromTicks( second.GcPause ).TotalMilliseconds ),
 				GcLastSecond = new { Gen0 = second.Gc0, Gen1 = second.Gc1, Gen2 = second.Gc2 },
 			},
@@ -231,7 +232,7 @@ internal static class PerfTools
 		limit = Math.Clamp( limit, 1, 50 );
 
 		var map = GpuMemoryMap.Capture();
-		if ( map is null ) return new { Available = false, Reason = "No GPU allocator to read: a headless run, or the renderer isn't Vulkan" };
+		if ( map is null ) return new { Available = false, Reason = "No GPU allocator to read: a headless run, or a process without Borealis.Gpu" };
 
 		return new
 		{
@@ -278,7 +279,7 @@ internal static class PerfTools
 		issues.Sort( static ( a, b ) => b.Severity.CompareTo( a.Severity ) );
 
 		var camera = Application.GetActiveScene()?.Camera;
-		var layers = camera?.PostProcess.Layers;
+		var layers = camera?.DrawnPostProcess.Layers;
 
 		return new
 		{

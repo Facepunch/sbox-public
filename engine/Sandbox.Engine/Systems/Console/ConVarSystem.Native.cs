@@ -53,6 +53,8 @@ internal static partial class ConVarSystem
 		{
 			Members.Remove( name );
 		}
+
+		Changed();
 	}
 }
 

@@ -1,7 +1,4 @@
-﻿
-using System.Runtime.InteropServices;
-
-namespace Sandbox.Engine.Utility.RayTrace;
+﻿namespace Sandbox.Engine.Utility.RayTrace;
 
 public partial struct MeshTraceRequest
 {
@@ -11,29 +8,6 @@ public partial struct MeshTraceRequest
 	internal Model targetModel;
 
 	internal Func<SceneObject, bool> filterCallback;
-
-	[ThreadStatic]
-	static Func<SceneObject, bool> _currentfilterCallback;
-
-	[UnmanagedCallersOnly]
-	static byte FilterFunctionInternal( int value )
-	{
-		try
-		{
-			Assert.NotNull( _currentfilterCallback );
-
-			var shape = HandleIndex.Get<SceneObject>( value );
-			if ( shape is null ) return 1; // should never happen, just use default behaviour
-
-			if ( _currentfilterCallback( shape ) ) return 1;
-			return 0;
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( e, $"Error in trace filter: {e.Message}" );
-			return 1;
-		}
-	}
 
 	/// <summary>
 	/// Run the trace and return the result. The result will return the first hit.
@@ -47,23 +21,11 @@ public partial struct MeshTraceRequest
 
 		if ( targetWorld != null && targetWorld.IsValid() )
 		{
-			if ( filterCallback is not null )
-			{
-				r.filterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
-				_currentfilterCallback = filterCallback;
-			}
+			Result? hit = TraceObjects( r );
 
-			try
-			{
-				if ( targetWorld.native.MeshTrace( r, ref result ) )
-				{
-					return Result.From( this, result );
-				}
-			}
-			finally
-			{
-				_currentfilterCallback = default;
-			}
+			// Maps have no native objects to trace: their own meshes, if nearer
+			if ( TraceMaps( r, hit?.Fraction ?? float.MaxValue ) is { } mapHit ) hit = mapHit;
+			if ( hit is { } found ) return found;
 		}
 
 		if ( targetModel != null )
@@ -88,36 +50,12 @@ public partial struct MeshTraceRequest
 
 		if ( targetWorld != null && targetWorld.IsValid() )
 		{
-			if ( filterCallback is not null )
-			{
-				r.filterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
-				_currentfilterCallback = filterCallback;
-			}
+			var output = new List<Result>();
+			TraceObjectsAll( r, output );
 
-			var results = NativeEngine.CUtlVectorMeshTraceOutput.Create( 32, 32 );
-
-			try
-			{
-
-				if ( targetWorld.native.MeshTraceAll( r, results ) )
-				{
-					var hitCount = results.Count();
-					var output = new Result[hitCount];
-
-					for ( int i = 0; i < hitCount; i++ )
-					{
-						output[i] = Result.From( this, results.Element( i ) );
-					}
-
-					return output;
-				}
-			}
-			finally
-			{
-				_currentfilterCallback = default;
-
-				results.DeleteThis();
-			}
+			// Maps aren't scene objects: their own meshes
+			TraceMapsAll( r, output );
+			if ( output.Count > 0 ) return output.ToArray();
 		}
 
 		if ( targetModel is not null )
@@ -128,6 +66,119 @@ public partial struct MeshTraceRequest
 		}
 
 		return [];
+	}
+
+	/// <summary>The target world's maps (<see cref="SceneMap.Geometry"/>), read by Borealis.Source2.</summary>
+	readonly List<MapGeometry> MapsToTrace()
+	{
+		if ( targetWorld is null ) return null;
+
+		List<MapGeometry> maps = null;
+		lock ( targetWorld.InternalSceneMaps )
+		{
+			foreach ( var map in targetWorld.InternalSceneMaps )
+			{
+				if ( map.Geometry is { } geometry ) (maps ??= new()).Add( geometry );
+			}
+		}
+
+		return maps;
+	}
+
+	/// <summary>
+	/// Whether a map's world objects pass the request's tags: native's world node tags them <c>world</c>, <c>map</c> and
+	/// <c>solid</c> (<c>CWorldNode::ApplyTags</c>). There's no scene object for a filter to look at.
+	/// </summary>
+	static unsafe bool MapPassesTags( MeshTraceInput r )
+	{
+		var tags = MapGeometry.WorldTags;
+		if ( r.tagRequire[0] != 0 )
+		{
+			for ( int i = 0; i < 8 && r.tagRequire[i] != 0; i++ )
+			{
+				if ( Array.IndexOf( tags, r.tagRequire[i] ) < 0 ) return false;
+			}
+		}
+
+		if ( r.tagAny[0] != 0 )
+		{
+			var any = false;
+			for ( int i = 0; i < 8 && r.tagAny[i] != 0; i++ ) any |= Array.IndexOf( tags, r.tagAny[i] ) >= 0;
+			if ( !any ) return false;
+		}
+
+		for ( int i = 0; i < 8 && r.tagExclude[i] != 0; i++ )
+		{
+			if ( Array.IndexOf( tags, r.tagExclude[i] ) >= 0 ) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>The nearest hit on the target world's maps nearer than <paramref name="fraction"/>, or null.</summary>
+	readonly Result? TraceMaps( in MeshTraceInput r, float fraction )
+	{
+		var maps = MapsToTrace();
+		if ( maps is null || !MapPassesTags( r ) ) return null;
+
+		var best = new MapTrace.Hit { Fraction = fraction };
+		var found = false;
+		foreach ( var map in maps ) found |= map.Trace().Trace( r.start, r.end, r.cullMode, ref best );
+		return found ? FromMap( r, best ) : null;
+	}
+
+	/// <summary>Every hit on the target world's maps.</summary>
+	readonly void TraceMapsAll( in MeshTraceInput r, List<Result> into )
+	{
+		var maps = MapsToTrace();
+		if ( maps is null || !MapPassesTags( r ) ) return;
+
+		var hits = new List<MapTrace.Hit>();
+		foreach ( var map in maps ) map.Trace().TraceAll( r.start, r.end, r.cullMode, hits );
+		foreach ( var hit in hits ) into.Add( FromMap( r, hit ) );
+	}
+
+	// Map materials loaded on the main thread, for map hits traced on others
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Material> mapMaterials = new( StringComparer.OrdinalIgnoreCase );
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> mapMaterialsQueued = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A map hit's material. Loading needs the main thread, and traces run on others too (a DDGI bake relocates its probes
+	/// in parallel while the main thread waits): there a material the main thread hasn't loaded yet is null, and its load is
+	/// queued for later hits.
+	/// </summary>
+	static Material MapMaterial( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		if ( mapMaterials.TryGetValue( path, out var material ) ) return material;
+
+		if ( ThreadSafe.IsMainThread ) return mapMaterials[path] = Material.Load( path );
+
+		if ( mapMaterialsQueued.TryAdd( path, true ) ) MainThread.Queue( () => mapMaterials.TryAdd( path, Material.Load( path ) ) );
+		return null;
+	}
+
+	static Result FromMap( in MeshTraceInput r, in MapTrace.Hit hit )
+	{
+		var length = r.start.Distance( r.end );
+		return new Result
+		{
+			Hit = true,
+			Distance = hit.Fraction * length,
+			Fraction = hit.Fraction,
+			StartPosition = r.start,
+			EndPosition = hit.Position,
+			HitPosition = hit.Position,
+			Normal = hit.Normal,
+			Material = MapMaterial( hit.Material ),
+			Transform = hit.Transform,
+			HitTriangle = hit.Triangle,
+			HitTriangleUv = hit.Uv,
+			VertexInfluence = new Vector3( hit.Uv.x, hit.Uv.y, 1 - hit.Uv.x - hit.Uv.y ),
+			Vertex0 = new Result.VertexDetail { Position = hit.V0 },
+			Vertex1 = new Result.VertexDetail { Position = hit.V1 },
+			Vertex2 = new Result.VertexDetail { Position = hit.V2 },
+		};
 	}
 
 	/// <summary>
@@ -347,7 +398,7 @@ public partial struct MeshTraceRequest
 		public VertexDetail Vertex1;
 		public VertexDetail Vertex2;
 
-		internal unsafe static Result From( in MeshTraceRequest input, in MeshTraceOutput result )
+		internal unsafe static Result From( in MeshTraceRequest input, in MeshTraceOutput result, SceneObject sceneObject = null )
 		{
 			Result tr = default;
 
@@ -363,7 +414,7 @@ public partial struct MeshTraceRequest
 			tr.Material = Material.FromNative( result.material );
 			tr.Transform = result.transform;
 			tr.HitTriangle = result.triangleIndex;
-			tr.SceneObject = HandleIndex.Get<SceneObject>( result.sceneobjectHandle );
+			tr.SceneObject = sceneObject ?? HandleIndex.Get<SceneObject>( result.sceneobjectHandle );
 
 			tr.HitTriangleUv = result.uv;
 			tr.VertexInfluence = new Vector3( result.uv.x, result.uv.y, 1 - result.uv.x - result.uv.y );

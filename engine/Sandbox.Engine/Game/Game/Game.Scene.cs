@@ -96,7 +96,7 @@ public static partial class Game
 		if ( ActiveScene is null )
 			return;
 
-		if ( ActiveScene.IsLoading || LoadingScreen.IsVisible || Networking.IsConnecting )
+		if ( DrawsLoading( ActiveScene ) )
 		{
 			ActiveScene.RenderEnvmaps();
 
@@ -115,6 +115,31 @@ public static partial class Game
 
 		ActiveScene.Render( swapChain, default );
 	}
+
+	/// <summary>
+	/// The game's half of a frame the game window draws, on the main thread at the sync point (<see cref="Scene.ExtractRender"/>):
+	/// the active scene's cameras prepared into <paramref name="drawn"/>. Returns the scene they draw, or null when the frame
+	/// draws the game as <see cref="Render"/> does (nothing playing, a load showing: its envmaps and overlays, on this thread).
+	/// </summary>
+	internal static Scene ExtractRender( List<CameraComponent> drawn )
+	{
+		drawn.Clear();
+		if ( !IsPlaying || ActiveScene is null ) return null;
+		if ( DrawsLoading( ActiveScene ) ) return null;
+
+		ActiveScene.Camera?.SceneCamera.EnableEngineOverlays = true;
+		SceneCamera.RecordingCamera = ActiveScene.Camera?.SceneCamera;
+		ActiveScene.ExtractRender( drawn );
+		return ActiveScene;
+	}
+
+	/// <summary>
+	/// Whether a frame draws <paramref name="scene"/> as a load does (its main camera and envmaps, on the main thread): while it
+	/// loads, a loading screen shows or it connects. Not once it has loaded and the screen stays only while its first frames
+	/// draw behind it (<see cref="BorealisGpuRenderBackend.Revealing"/>): those draw as the frames after it will.
+	/// </summary>
+	internal static bool DrawsLoading( Scene scene ) => scene.IsLoading || Networking.IsConnecting
+		|| (LoadingScreen.IsVisible && BorealisGpuRenderBackend.Revealing != scene);
 
 	internal static void Shutdown()
 	{

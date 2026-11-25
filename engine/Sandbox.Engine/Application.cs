@@ -66,7 +66,20 @@ public static class Application
 	/// Number of engine frames since startup. Increments once at the start of every frame.
 	/// Starts at 1, so a default frame stamp of 0 always reads as a frame that has passed.
 	/// </summary>
-	public static ulong FrameCount { get; internal set; } = 1;
+	public static ulong FrameCount
+	{
+		// The render thread draws the frame handed over while the main thread counts on into the next
+		get => renderThreadFrame != 0 ? renderThreadFrame : frameCount;
+		internal set => frameCount = value;
+	}
+
+	static ulong frameCount = 1;
+
+	/// <summary>The frame the render thread is drawing, which <see cref="FrameCount"/> is on that thread; 0 elsewhere.</summary>
+	[ThreadStatic] static ulong renderThreadFrame;
+
+	/// <summary>Set the frame this thread (the render thread) draws, which <see cref="FrameCount"/> says on it; 0 for none.</summary>
+	internal static void DrawingFrame( ulong frame ) => renderThreadFrame = frame;
 
 	/// <summary>
 	/// The engine's version string
@@ -117,6 +130,9 @@ public static class Application
 		IsHeadless = headless;
 		IsEditor = toolsMode;
 		IsJoinLocal = CommandLine.HasSwitch( "-joinlocal" );
+
+		// The game window's render thread takes a core of its own: the job workers leave it one
+		if ( !dedicated && !testMode && !headless && !toolsMode && Graphics.BorealisGpuRequested && BorealisGpuFrameThread.Draws ) JobDispatcher.Workers.ReserveForRenderThread();
 		IsBenchmark = Environment.GetEnvironmentVariable( "SBOX_MODE" ) == "BENCHMARK";
 		LocalInstanceId = CommandLine.GetSwitchInt( "+instanceid", 1 );
 	}

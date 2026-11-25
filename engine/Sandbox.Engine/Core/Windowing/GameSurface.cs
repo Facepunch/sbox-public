@@ -1,14 +1,17 @@
 using NativeEngine;
+using Sandbox.Engine.Settings;
 
 namespace Sandbox.Engine;
 
 /// <summary>
-/// Borrowed snapshot of the game window or editor play widget. Do not retain it across window or swapchain disposal.
+/// Borrowed snapshot of the game window or editor play widget. Do not retain it across window disposal.
 /// </summary>
-internal readonly record struct GameSurface( IntPtr Window, SwapChainHandle_t SwapChain, bool? VSyncOverride = null )
+internal readonly record struct GameSurface( IntPtr Window, bool? VSyncOverride = null )
 {
 	internal static GameSurface? Current => GameWindow.Current?.Surface ?? IToolsDll.Current?.GameSurface;
-	internal bool VSync => VSyncOverride ?? (SwapChain != default && g_pRenderDevice.GetSwapChainInfo( SwapChain ).m_bWaitForVSync != 0);
+
+	/// <summary>Whether the window's swap chain waits for vertical sync: as it was made, else the setting.</summary>
+	internal bool VSync => VSyncOverride ?? RenderSettings.Instance.VSync;
 	internal uint Display => SdlDisplay.ForWindow( Window );
 	/// <summary>
 	/// Display/UI scale relative to authored UI units.
@@ -19,16 +22,7 @@ internal readonly record struct GameSurface( IntPtr Window, SwapChainHandle_t Sw
 	/// </summary>
 	internal float RefreshRate => SdlDisplay.GetCurrentMode( Display ).RefreshRate;
 	/// <summary>
-	/// Actual swapchain size in pixels. Before the swapchain exists the window's size is used, or zero without a window.
+	/// The window's size in pixels, or zero without a window.
 	/// </summary>
-	internal Vector2 Size
-	{
-		get
-		{
-			if ( SwapChain == default )
-				return Window != default && Sdl.GetWindowSizeInPixels( Window, out var width, out var height ) ? new Vector2( width, height ) : default;
-			var mode = g_pRenderDevice.GetSwapChainInfo( SwapChain ).m_DisplayMode;
-			return new Vector2( mode.m_nWidth, mode.m_nHeight );
-		}
-	}
+	internal Vector2 Size => Window != default && Sdl.GetWindowSizeInPixels( Window, out var width, out var height ) ? new Vector2( width, height ) : default;
 }

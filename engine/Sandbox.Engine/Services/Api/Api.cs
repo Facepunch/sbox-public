@@ -62,7 +62,6 @@ internal static partial class Api
 			AoResolution = AmbientOcclusion.UserResolution,
 			AoDenoisePasses = AmbientOcclusion.UserDenoisePasses,
 			ManagedSceneRenderer = Rendering.ManagedSceneRendering.Enabled,
-			ManagedAsyncCompute = Rendering.ManagedSceneRendering.AsyncCompute,
 			Application.ExceptionCount,
 
 			// Display mode, so presentation problems can be told apart by how the swapchain was set up

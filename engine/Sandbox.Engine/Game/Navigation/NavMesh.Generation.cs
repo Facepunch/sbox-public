@@ -1,6 +1,7 @@
 using Nav;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Threading;
 using NVector3 = System.Numerics.Vector3;
 
 namespace Sandbox.Navigation;
@@ -42,9 +43,79 @@ public sealed partial class NavMesh
 	private readonly TileJob[] jobs = new TileJob[MaxBuilds];
 	private int failedBuilds;
 
+	// Builders own tens of MiB of working arrays each, and a load runs one per core. They go when a navmesh is cleared (a
+	// build under way then doesn't put its back), and all but IdleBuilders go once no build has started for IdleSeconds, or
+	// once a load's screen has gone (LoadEnded).
 	private static readonly ConcurrentQueue<NavBuilder> builders = new();
+	private static int builderEpoch, runningBuilds;
+	private static long lastBuildStart;
+	internal const int IdleBuilders = 2;
+	internal const double IdleSeconds = 10;
+
+	internal static int PooledBuilders => builders.Count;
 
 	private static int MaxBuilds => Math.Max( 2, Environment.ProcessorCount - 1 );
+
+	private static void RunBuild( TileJob job )
+	{
+		var epoch = Volatile.Read( ref builderEpoch );
+		if ( !builders.TryDequeue( out var builder ) ) builder = new NavBuilder();
+		try { builder.Build( job ); }
+		finally
+		{
+			if ( Volatile.Read( ref builderEpoch ) == epoch ) builders.Enqueue( builder );
+			Interlocked.Decrement( ref runningBuilds );
+		}
+	}
+
+	// Tiles' geometry, rented when a job is taken and returned when it's committed. Pools of their own rather than the shared
+	// ones, which keep a load's large arrays for good: these are let go of with the builders.
+	private static ArrayPool<NVector3> vertexPool = NewPool<NVector3>();
+	private static ArrayPool<int> indexPool = NewPool<int>();
+	private static ArrayPool<NVector3> VertexPool => Volatile.Read( ref vertexPool );
+	private static ArrayPool<int> IndexPool => Volatile.Read( ref indexPool );
+	private static ArrayPool<T> NewPool<T>() => ArrayPool<T>.Create( 1 << 24, 16 );
+
+	// Every pooled builder and geometry array goes; builds under way drop theirs when they end
+	internal static void ReleaseBuilders()
+	{
+		Interlocked.Increment( ref builderEpoch );
+		builders.Clear();
+		Volatile.Write( ref vertexPool, NewPool<NVector3>() );
+		Volatile.Write( ref indexPool, NewPool<int>() );
+	}
+
+	// A load has ended: its builders and geometry go as soon as nothing builds, not IdleSeconds after
+	private static bool loadEnded;
+
+	/// <summary>
+	/// A loading screen has gone. A load builds its navmesh one tile per core, and what that leaves pooled (Construct: about
+	/// 0.8 GB of builders' fields and tiles' geometry) would stay live through the collection that follows a load, only to
+	/// become garbage IdleSeconds later. All but <see cref="IdleBuilders"/> go now, or once the builds under way are done.
+	/// Main thread.
+	/// </summary>
+	internal static void LoadEnded()
+	{
+		loadEnded = true;
+		TrimIdleBuilders();
+	}
+
+	private static void TrimIdleBuilders()
+	{
+		if ( Volatile.Read( ref runningBuilds ) > 0 ) return;
+		if ( loadEnded )
+		{
+			loadEnded = false;
+		}
+		else
+		{
+			if ( builders.Count <= IdleBuilders ) return;
+			if ( System.Diagnostics.Stopwatch.GetElapsedTime( Interlocked.Read( ref lastBuildStart ) ).TotalSeconds < IdleSeconds ) return;
+		}
+		while ( builders.Count > IdleBuilders && builders.TryDequeue( out _ ) ) { }
+		Volatile.Write( ref vertexPool, NewPool<NVector3>() );
+		Volatile.Write( ref indexPool, NewPool<int>() );
+	}
 
 	/// <summary>
 	/// Generates or regenerates the navmesh tile at the given world position.
@@ -220,6 +291,7 @@ public sealed partial class NavMesh
 
 		UpdateLadderLinks( world );
 		ReadLinkEnds();
+		TrimIdleBuilders();
 	}
 
 	private void UpdateTiles( MeshWork work, PhysicsWorld world )
@@ -234,8 +306,8 @@ public sealed partial class NavMesh
 			var build = work.Builds[i];
 			if ( !build.Task.IsCompleted ) continue;
 			work.Builds.RemoveAt( i );
-			if ( build.Vertices is not null ) ArrayPool<NVector3>.Shared.Return( build.Vertices );
-			if ( build.Indices is not null ) ArrayPool<int>.Shared.Return( build.Indices );
+			if ( build.Vertices is not null ) VertexPool.Return( build.Vertices );
+			if ( build.Indices is not null ) IndexPool.Return( build.Indices );
 
 			if ( build.Task.IsFaulted )
 			{
@@ -283,12 +355,9 @@ public sealed partial class NavMesh
 				CollectGeometry( tileWorld, job, out vertices, out indices );
 			}
 
-			var task = Task.Run( () =>
-			{
-				if ( !builders.TryDequeue( out var builder ) ) builder = new NavBuilder();
-				try { builder.Build( job ); }
-				finally { builders.Enqueue( builder ); }
-			} );
+			Interlocked.Increment( ref runningBuilds );
+			Interlocked.Exchange( ref lastBuildStart, System.Diagnostics.Stopwatch.GetTimestamp() );
+			var task = Task.Run( () => RunBuild( job ) );
 			work.Builds.Add( new TileBuild( job, task, vertices, indices ) );
 		}
 		Array.Clear( jobs );

@@ -56,8 +56,8 @@ public sealed partial class NavMesh
 		}
 
 		// Returned to the pool when the job is committed
-		vertices = ArrayPool<NVector3>.Shared.Rent( geometryVertices.Count );
-		indices = ArrayPool<int>.Shared.Rent( geometryIndices.Count );
+		vertices = VertexPool.Rent( geometryVertices.Count );
+		indices = IndexPool.Rent( geometryIndices.Count );
 		geometryVertices.CopyTo( vertices );
 		geometryIndices.CopyTo( indices );
 		job.SetGeometry( vertices.AsMemory( 0, geometryVertices.Count ), indices.AsMemory( 0, geometryIndices.Count ) );

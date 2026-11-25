@@ -230,14 +230,18 @@ internal static partial class DevTools
 		if ( Paused )
 			return;
 
-		SampleGpuTimeline( force );
+		var sampled = SampleGpuTimeline( force );
 
 		if ( !force && _sinceAnalysis < AnalysisInterval )
+		{
+			// The Rendering tab's timeline moves with each GPU frame captured, not only with the rest of the analysis
+			if ( sampled && IsCollecting( "rendering" ) ) GpuTimeline = Shown( BuildGpuLayout(), GpuTimeline );
 			return;
+		}
 
 		_sinceAnalysis = 0;
 		Current = Summarise();
-		GpuTimeline = BuildGpuLayout();
+		GpuTimeline = Shown( BuildGpuLayout(), GpuTimeline );
 	}
 
 	/// <summary>

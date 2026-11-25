@@ -134,6 +134,24 @@ internal static partial class DevTools
 	static readonly Dictionary<string, SampledSpan> _gpuSpans = new();
 	static readonly List<float> _gpuSubmits = new();
 	static RealTimeSince _sinceGpuSample = 1;
+	static ulong _sampledFrame;
+	static double _lastGpuSample = double.NegativeInfinity;
+
+	/// <summary>How long the last layout with passes is kept on screen while no GPU frame can be captured.</summary>
+	internal const float GpuTimelineHoldSeconds = 10;
+
+	/// <summary>
+	/// The layout to show: <paramref name="built"/>, unless it has no passes while <paramref name="shown"/> has and a GPU frame
+	/// was captured in the last <see cref="GpuTimelineHoldSeconds"/> - a gap in the readback (the dev tools just opened, a
+	/// frame that couldn't be read) keeps the last good timeline up rather than saying it's waiting for one.
+	/// </summary>
+	internal static GpuLayout Shown( GpuLayout built, GpuLayout shown, double now, double lastSample )
+	{
+		if ( built.Spans.Count > 0 || shown is null || shown.Spans.Count == 0 ) return built;
+		return now - lastSample <= GpuTimelineHoldSeconds ? shown : built;
+	}
+
+	static GpuLayout Shown( GpuLayout built, GpuLayout shown ) => Shown( built, shown, RealTime.Now, _lastGpuSample );
 
 	/// <summary>
 	/// How often a GPU frame is captured. Each pass's average and max are over the frames captured in the analysis window,
@@ -160,17 +178,21 @@ internal static partial class DevTools
 	}
 
 	/// <summary>
-	/// Capture the latest completed GPU frame into each pass's samples, when one is due.
+	/// Capture the latest completed GPU frame into each pass's samples, when one is due and a frame not captured yet has been
+	/// read back; until then, every call looks again. True if one was captured.
 	/// </summary>
-	static void SampleGpuTimeline( bool force )
+	static bool SampleGpuTimeline( bool force )
 	{
-		if ( !force && _sinceGpuSample < GpuSampleInterval ) return;
-		_sinceGpuSample = 0;
+		if ( !force && _sinceGpuSample < GpuSampleInterval ) return false;
+		if ( GpuProfilerStats.FrameId == 0 || GpuProfilerStats.FrameId == _sampledFrame ) return false;
 
 		var frame = GpuFrameTimeline.Capture();
-		if ( frame is null ) return;
+		if ( frame is null ) return false;
 
+		_sinceGpuSample = 0;
+		_sampledFrame = GpuProfilerStats.FrameId;
 		var now = RealTime.Now;
+		_lastGpuSample = now;
 		var events = frame.Events;
 
 		var submit = 0;
@@ -255,6 +277,7 @@ internal static partial class DevTools
 		_captures.Add( new GpuCapture( Frames.Number( 0 ), now, captured, submits, plan ) );
 		if ( _captures.Count > CaptureHistory ) _captures.RemoveAt( 0 );
 		_pickedLayout = null;
+		return true;
 	}
 
 	/// <summary>

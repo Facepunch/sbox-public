@@ -160,6 +160,10 @@ internal static class Bootstrap
 	{
 		try
 		{
+			// The shader names standing for another shader (complex for standard), for materialsystem2's lookup of a shader's
+			// module, before any material loads
+			foreach ( var (name, standsFor) in Borealis.Source2.Shaders.ShaderAliases.Names ) NativeEngine.MaterialSystem2.SetShaderAlias( name, standsFor );
+
 			initializeWindow?.Invoke();
 			InitServices();
 			Graphics.Initialize();
@@ -315,7 +319,7 @@ internal static class Bootstrap
 			{
 				ReflectionUtility.RunAllStaticConstructors( "Sandbox.System" );
 				ReflectionUtility.RunAllStaticConstructors( "Sandbox.Engine" );
-				Rendering.RenderPipeline.WarmUp();
+				Rendering.SceneRenderer.WarmUp();
 			}
 			GameWindow.Current?.UpdateStartupProgress( 0.29f, "Loading the menu" );
 

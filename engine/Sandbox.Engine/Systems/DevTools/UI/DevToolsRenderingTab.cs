@@ -171,8 +171,8 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 			? "A frame is picked: the GPU's passes are one captured frame, the soonest after it - GPU results arrive a few frames late. Counters are the last second's"
 			: "GPU times are averaged over the frames captured in the last two seconds; max is the most any of them took" );
 		_context.Set( "Renderer", isManaged ? "managed" : "native", tooltip: isManaged
-			? $"{m.Renders} camera {(m.Renders == 1 ? "frame" : "frames")} through Sandbox.SceneRenderer last frame"
-			: ManagedSceneRendering.Enabled ? "r_managed_scene is on, but no camera rendered through it" : "The Source 2 scene system" );
+			? $"{m.Renders} camera {(m.Renders == 1 ? "frame" : "frames")} through Borealis last frame"
+			: ManagedSceneRendering.Enabled ? "Borealis.Gpu, but no camera rendered through Borealis" : "The Source 2 scene system" );
 		_context.Set( "Resolution", $"{Screen.Width:0}x{Screen.Height:0}" );
 		_context.Set( "AA", aa );
 		_context.Set( "Upscaling", rs.UpscalerMode.ToString().ToLowerInvariant() );
@@ -388,7 +388,7 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 	/// </summary>
 	static (PostProcessLayer Layer, string Stage)? Effect( string name )
 	{
-		var layers = Application.GetActiveScene()?.Camera?.PostProcess.Layers;
+		var layers = Application.GetActiveScene()?.Camera?.DrawnPostProcess.Layers;
 		if ( layers is null ) return null;
 
 		foreach ( var (stage, list) in layers )
@@ -436,8 +436,7 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 			c.Set( "Binds", $"{matChanges:N0}", tooltip: $"Material changes, {f.ShadowMaterialChanges:N0} in shadows\n{f.FullMaterialSets:N0} full sets, {f.SimilarMaterialSets:N0} similar" );
 
 			var tested = f.ObjectsTested;
-			var occlusion = RenderPipeline.OcclusionCulling ? $"\n{f.ObjectsCulledByOcclusion:N0} hidden instances (occlusion, read back late)" : "";
-			c.Set( "Objects", $"{f.ObjectsRendered:N0}", tooltip: $"Drawn, of {tested:N0} tested\n{f.ObjectsCulledByVis:N0} vis culled, {f.ObjectsCulledByScreenSize:N0} too small, {f.ObjectsCulledByFade:N0} faded out{occlusion}" );
+			c.Set( "Objects", $"{f.ObjectsRendered:N0}", tooltip: $"Drawn, of {tested:N0} tested\n{f.ObjectsCulledByVis:N0} vis culled, {f.ObjectsCulledByScreenSize:N0} too small, {f.ObjectsCulledByFade:N0} faded out" );
 			c.Set( "Lights", $"{f.ShadowedLightsInView + f.UnshadowedLightsInView:N0}", tooltip: $"{f.ShadowedLightsInView:N0} shadowed, {f.UnshadowedLightsInView:N0} unshadowed" );
 			c.Set( "Shadow views", $"{f.ShadowMaps:N0}", tooltip: "Shadow maps rendered" );
 		}

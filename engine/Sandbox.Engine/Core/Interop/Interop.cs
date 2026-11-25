@@ -75,6 +75,38 @@ internal unsafe static partial class Interop
 	}
 
 	/// <summary>
+	/// As <see cref="GetString(IntPtr)"/>, for the short names native passes again and again (animation events' types and
+	/// attachments): the same text gives the same string, from a small per-thread cache, so a repeat allocates nothing.
+	/// </summary>
+	public static string GetCachedString( IntPtr pointer )
+	{
+		if ( pointer == IntPtr.Zero )
+			return null;
+
+		var span = MemoryMarshal.CreateReadOnlySpanFromNullTerminated( (byte*)pointer );
+		if ( span.IsEmpty )
+			return string.Empty;
+		if ( span.Length > CachedStringBytes )
+			return GetString( pointer );
+
+		var cache = cachedStrings ??= new CachedString[CachedStrings];
+		for ( int i = 0; i < cache.Length; i++ )
+		{
+			if ( cache[i].Utf8 is { } utf8 && span.SequenceEqual( utf8 ) ) return cache[i].Text;
+		}
+
+		var text = Encoding.UTF8.GetString( span );
+		cache[cachedStringNext] = new CachedString( span.ToArray(), text );
+		cachedStringNext = (cachedStringNext + 1) % CachedStrings;
+		return text;
+	}
+
+	const int CachedStrings = 64, CachedStringBytes = 64;
+	readonly record struct CachedString( byte[] Utf8, string Text );
+	[ThreadStatic, SkipHotload] static CachedString[] cachedStrings;
+	[ThreadStatic, SkipHotload] static int cachedStringNext;
+
+	/// <summary>
 	/// Convert a native utf pointer to a string
 	/// </summary>
 	public static string GetString( IntPtr pointer, int byteLen )

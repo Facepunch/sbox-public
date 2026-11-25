@@ -63,6 +63,7 @@ public sealed partial class NavMesh : IDisposable
 		queryPool.Clear();
 		ReadLinkEnds();
 		DestroyGeneratedLinks();
+		ReleaseBuilders();
 	}
 
 	/// <summary>

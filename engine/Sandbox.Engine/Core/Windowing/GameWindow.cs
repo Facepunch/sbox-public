@@ -19,13 +19,17 @@ internal sealed partial class GameWindow : IDisposable
 	WindowMode? windowMode;
 	VideoMode? pendingMode;
 	bool attached;
-	bool renderingRequested;
-	bool renderingInitialized;
 	VideoMode startupVideoMode;
+
+	// With -borealisgpu: the window's swap chain on Borealis.Gpu, in place of Source 2's (docs/reference/borealis-gpu-path.md, stage 5)
+	BorealisGpuWindow borealis;
+
+	/// <summary>The window's swap chain on Borealis.Gpu (<c>-borealisgpu</c>); null on Source 2's device.</summary>
+	internal BorealisGpuWindow Borealis => borealis;
 
 	internal IntPtr Handle => window.Handle;
 
-	internal GameSurface Surface => new( window.Handle, window.SwapChain );
+	internal GameSurface Surface => new( window.Handle, borealis?.VSync );
 
 	internal string Title
 	{
@@ -80,9 +84,21 @@ internal sealed partial class GameWindow : IDisposable
 
 	void AttachSwapChain( VideoMode mode )
 	{
-		window.CreateSwapChain( "GameWindow", mode.Multisample, mode.VSync, mainWindow: true );
+		if ( RenderBackend.Default is BorealisGpuRenderBackend device )
+		{
+			borealis = new BorealisGpuWindow( device, window.Handle, mode.VSync ) { Samples = SampleCount( mode.Multisample ) };
 
-		GameWindowNative.Attach( window.Handle, window.SwapChain );
+			// Scene changes are written at the sync point, unless the game runs serially
+			// and a frame's drawing runs on the render thread while the main thread records the next one
+			if ( BorealisGpuFrameThread.Enabled )
+			{
+				Rendering.RenderSync.DeferWrites = true;
+				Rendering.RenderSync.Overlapping = BorealisGpuFrameThread.Draws;
+			}
+		}
+
+		// Without Borealis.Gpu nothing draws into the window
+		GameWindowNative.Attach( window.Handle, default );
 		attached = true;
 		WarnIfFailed( Sdl.StartTextInput( window.Handle ) );
 	}
@@ -119,7 +135,6 @@ internal sealed partial class GameWindow : IDisposable
 		else if ( splash.IsDrawable ) StartupScreen.Show( splash );
 		else splash.Dispose();
 
-		if ( renderingRequested ) InitializeRendering();
 	}
 
 	static SdlWindow CreateVulkanWindow( string title, VideoMode mode )
@@ -170,15 +185,26 @@ internal sealed partial class GameWindow : IDisposable
 	{
 		if ( pendingMode is not { } video ) return;
 		ThreadSafe.AssertIsMainThread();
+
+		// The swap chain is the render thread's until it has drawn the frame handed to it
+		JoinRenderThread();
 		if ( (window.Flags & Sdl.WindowFlags.Minimized) != 0 ) return;
 		var size = window.PixelSize;
 		if ( size.x < 1 || size.y < 1 ) return;
-		window.Flush();
 
 		if ( !ApplyWindowMode( video.Window ) ) return;
-		if ( !window.UpdateSwapChain( video.Multisample, video.VSync ) ) return;
+
+		// A Borealis.Gpu swap chain follows the window's size every frame (Render); only vsync is a mode of its own
+		if ( borealis is not null )
+		{
+			borealis.SetVSync( video.VSync );
+			borealis.Samples = SampleCount( video.Multisample );
+		}
 		if ( pendingMode == video ) pendingMode = null;
 	}
+
+	/// <summary>Samples per pixel a game window's scenes render with on Borealis.Gpu: the setting, as the device allows it.</summary>
+	static int SampleCount( RenderMultisampleType multisample ) => Graphics.RenderMultiSampleToNum( Graphics.BestMultisampleType( multisample ) );
 
 	bool ApplyWindowMode( WindowMode requested )
 	{
@@ -217,6 +243,12 @@ internal sealed partial class GameWindow : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	/// Let go of the engine texture the window's frames are drawn into (with <c>-borealisgpu</c>), at shutdown once no frame
+	/// will be drawn, before the engine's leak check: the window itself goes later. A frame drawn after makes it again.
+	/// </summary>
+	public void ReleaseFrameTarget() => borealis?.ReleaseTarget();
+
 	public void Dispose()
 	{
 		ThreadSafe.AssertIsMainThread();
@@ -225,16 +257,15 @@ internal sealed partial class GameWindow : IDisposable
 		if ( Current == this ) Current = null;
 		startupWindow?.Detach();
 		startupWindow = null;
-		if ( renderingInitialized )
-		{
-			CSceneSystem.SetMainSwapChain( default );
-			renderingInitialized = false;
-		}
 		if ( attached )
 		{
 			GameWindowNative.Detach( window.Handle );
 			attached = false;
 		}
+
+		// Its surface goes before the window
+		borealis?.Dispose();
+		borealis = null;
 		window.Dispose();
 	}
 }

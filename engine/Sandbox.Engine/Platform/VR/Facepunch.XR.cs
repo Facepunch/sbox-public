@@ -1,89 +1,7 @@
 ﻿using Sandbox;
-using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Facepunch.XR;
-
-internal static class Constants
-{
-	public const int MaxAppNameSize = 128;
-	public const int MaxPathSize = 512;
-	public const int MaxSystemNameSize = 256;
-	public const int HandJointCount = 26;
-}
-
-internal enum GraphicsAPI
-{
-	Undefined = 0,
-	Headless = 1,
-	Vulkan = 2
-}
-
-internal enum EventType
-{
-	Unknown = 0,
-	EventsLost = 1,
-	InstanceLossPending = 2,
-	InteractionProfileChanged = 3,
-	ReferenceSpaceChangePending = 4,
-	SessionStateChanged = 5,
-}
-
-[StructLayout( LayoutKind.Sequential )]
-internal struct Event
-{
-	public EventType type;
-	public IntPtr data;
-
-	public T GetData<T>() where T : struct
-	{
-		return Marshal.PtrToStructure<T>( data );
-	}
-}
-
-internal enum SessionState
-{
-	Unknown = 0,
-	Idle = 1,
-	Ready = 2,
-	Synchronized = 3,
-	Visible = 4,
-	Focused = 5,
-	Stopping = 6,
-	LossPending = 7,
-	Exiting = 8,
-};
-
-[StructLayout( LayoutKind.Sequential )]
-internal struct SessionStateChangedEventData
-{
-	public SessionState state;
-}
-
-[StructLayout( LayoutKind.Sequential )]
-internal struct VulkanInfo
-{
-	public IntPtr vkInstance;
-	public IntPtr vkPhysicalDevice;
-	public IntPtr vkDevice;
-	public uint vkQueueIndex;
-	public uint vkQueueFamilyIndex;
-};
-
-[StructLayout( LayoutKind.Sequential )]
-internal struct TextureSubmitInfo
-{
-	public ulong image;
-	public ulong depthImage;
-
-	public uint sampleCount;
-
-	public long format;
-	public long depthFormat;
-
-	public TrackedDevicePose poseLeft;
-	public TrackedDevicePose poseRight;
-};
 
 [StructLayout( LayoutKind.Sequential )]
 internal struct InputVector2ActionState
@@ -108,42 +26,6 @@ internal struct InputBooleanActionState
 	public bool isActive;
 	public uint state;
 	public bool changedThisFrame;
-}
-
-enum DebugCallbackType
-{
-	Undefined = 0,
-	Verbose = 1,
-	Info = 2,
-	Warning = 3,
-	Error = 4
-};
-
-enum XRResult
-{
-	NotImplemented = -1000,
-	InvalidViewIndex = -7,
-	PathNotFound = -6,
-	CompositorNotAttached = -5,
-	FrameNotStarted = -4,
-	ActionNotFound = -3,
-	ActionSetNotFound = -2,
-	ErrorOpenXR = -1,
-	Error = 0,
-	Success = 1,
-	NoEventsPending = 2,
-	NoSessionRunning = 3,
-	NoFrameStarted = 4,
-	NoFrameSubmitted = 5,
-};
-
-[StructLayout( LayoutKind.Sequential )]
-internal unsafe struct InstanceInfo
-{
-	public fixed byte appName[Constants.MaxAppNameSize];
-	public bool useDebugMessenger;
-	public GraphicsAPI graphicsApi;
-	public fixed byte actionManifestPath[Constants.MaxPathSize];
 }
 
 [StructLayout( LayoutKind.Sequential )]
@@ -213,74 +95,6 @@ internal struct TrackedDevicePose
 		pose.rotw = t.Rotation.w;
 
 		return pose;
-	}
-}
-
-[StructLayout( LayoutKind.Sequential )]
-internal struct ViewInfo
-{
-	public float fovUp;
-	public float fovDown;
-	public float fovLeft;
-	public float fovRight;
-
-	public TrackedDevicePose pose;
-
-	public static ViewInfo Zero => new ViewInfo()
-	{
-		fovUp = 45,
-		fovDown = 45,
-		fovLeft = 45,
-		fovRight = 45,
-		pose = new TrackedDevicePose()
-		{
-			posx = 0,
-			posy = 0,
-			posz = 0,
-			rotx = 0,
-			roty = 0,
-			rotz = 0,
-			rotw = 1
-		}
-	};
-}
-
-[StructLayout( LayoutKind.Sequential )]
-internal unsafe struct InstanceProperties
-{
-	public fixed byte systemName[Constants.MaxSystemNameSize];
-	public bool supportsHandTracking;
-}
-
-[StructLayout( LayoutKind.Sequential )]
-internal unsafe struct XrMatrix
-{
-	public float m0; //float[4][4]
-	public float m1;
-	public float m2;
-	public float m3;
-	public float m4;
-	public float m5;
-	public float m6;
-	public float m7;
-	public float m8;
-	public float m9;
-	public float m10;
-	public float m11;
-	public float m12;
-	public float m13;
-	public float m14;
-	public float m15;
-
-	public Matrix ToMatrix()
-	{
-		var numerics = new Matrix4x4(
-			m0, m1, m2, m3,
-			m4, m5, m6, m7,
-			m8, m9, m10, m11,
-			m12, m13, m14, m15
-		);
-		return new Matrix { _numerics = numerics };
 	}
 }
 

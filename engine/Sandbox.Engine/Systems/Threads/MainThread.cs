@@ -84,7 +84,8 @@ public static class MainThread
 	/// </summary>
 	public static void Queue( Action method )
 	{
-		if ( ThreadSafe.IsMainThread )
+		// The render thread counts as the main thread for rendering code, but what's queued here is the main thread's
+		if ( ThreadSafe.IsMainThread && !ThreadSafe.IsRenderThread )
 		{
 			method();
 			return;

@@ -311,7 +311,17 @@ internal static class DedicatedServer
 
 		if ( !IsGameServerActive )
 		{
-			await LogOnToSteamAsync();
+			// Without a Steam game server there are no sockets to listen on: say so, rather than run on unjoinable
+			if ( !await LogOnToSteamAsync() )
+			{
+				var noSteamClient = !Steam.SteamGameServer().IsValid;
+				Log.Error( noSteamClient && OperatingSystem.IsLinux()
+					? "Couldn't start the Steam game server, so no one can join: steamclient.so wasn't found. Put bin/linuxsteamrt64 on LD_LIBRARY_PATH, or link it at ~/.steam/sdk64/steamclient.so."
+					: "Couldn't start the Steam game server, so no one can join." );
+				Shutdown();
+				return false;
+			}
+
 			Networking.Bootstrap();
 
 			// Conna: we can abstract this stuff out later, but for now we only use Steam networking for dedicated servers.

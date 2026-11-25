@@ -15,6 +15,10 @@ namespace Sandbox
 
 		bool IValid.IsValid => HandleValid();
 
+		/// <summary>
+		/// Hands <paramref name="obj"/> to the next native object made on this thread, which binds its handle to it. Open one
+		/// only around code that makes that native object; a null object opens nothing.
+		/// </summary>
 		internal static NextHandleScope MakeNextHandle( IHandle obj ) => new NextHandleScope( obj );
 
 		internal ref struct NextHandleScope
@@ -25,15 +29,20 @@ namespace Sandbox
 			public NextHandleScope( IHandle handle )
 			{
 				self = handle;
+				if ( self is null ) return;
+
 				last = HandleIndex.nextObject;
 				HandleIndex.nextObject = self;
 			}
 
 			public void Dispose()
 			{
+				if ( self is null ) return;
+
+				// No native object took it: the scope was opened around code that made none
 				if ( HandleIndex.nextObject == self )
 				{
-					Log.Warning( "NextHandleScope: Didn't use nextObject!! WTF!!!" );
+					Log.Warning( $"NextHandleScope: no native object took the handle for {self.GetType()}" );
 				}
 
 				HandleIndex.nextObject = last;
@@ -113,7 +122,6 @@ namespace Sandbox
 		internal static int RegisterHandle( IntPtr ptr, uint type )
 		{
 			// No auto create, should already be waiting in NextObject
-			if ( type == Types.ManagedSceneObject ) return New<SceneObject>( ptr, null );
 
 			if ( type == Types.SceneWorld ) return New<SceneWorld>( ptr, ( h ) => new SceneWorld( h ) );
 			if ( type == Types.SceneObject ) return New<SceneObject>( ptr, ( h ) => new SceneObject( h ) );
@@ -122,7 +130,6 @@ namespace Sandbox
 			if ( type == Types.SceneAnimatableObject ) return New<SceneModel>( ptr, ( h ) => new SceneModel( h ) );
 			if ( type == Types.EnvMapSceneObject ) return New<SceneCubemap>( ptr, ( h ) => new SceneCubemap( h ) );
 			if ( type == Types.SceneLightProbeVolumeObject ) return New<SceneLightProbe>( ptr, ( h ) => new SceneLightProbe( h ) );
-			if ( type == Types.DecalSceneObject ) return New<DecalSceneObject>( ptr, ( h ) => new DecalSceneObject( h ) );
 
 			if ( type == Types.PhysicsWorld ) return New<PhysicsWorld3d>( ptr, ( h ) => new PhysicsWorld3d( h ) );
 			if ( type == Types.PhysicsBody ) return New<PhysicsBody3d>( ptr, ( h ) => new PhysicsBody3d( h ) );
@@ -177,10 +184,8 @@ namespace Sandbox
 			internal static uint SceneSkyBoxObject { get; } = StringToken.FindOrCreate( "SceneSkyBoxObject" );
 			internal static uint SceneParticleObject { get; } = StringToken.FindOrCreate( "SceneParticleObject" );
 			internal static uint SceneAnimatableObject { get; } = StringToken.FindOrCreate( "SceneAnimatableObject" );
-			internal static uint ManagedSceneObject { get; } = StringToken.FindOrCreate( "ManagedSceneObject" );
 			internal static uint EnvMapSceneObject { get; } = StringToken.FindOrCreate( "EnvMapSceneObject" );
 			internal static uint SceneLightProbeVolumeObject { get; } = StringToken.FindOrCreate( "SceneLightProbeVolumeObject" );
-			internal static uint DecalSceneObject { get; } = StringToken.FindOrCreate( "DecalSceneObject" );
 
 			// Physics
 			internal static uint PhysicsWorld { get; } = StringToken.FindOrCreate( "PhysicsWorld" );

@@ -125,6 +125,10 @@ internal class HotloadManager : IDisposable
 	public bool DoSwap( Action beforeSuccess = null )
 	{
 		log.Trace( "DoSwap Start" );
+
+		// The render thread drawing a frame is joined first and stays parked until the next frame's hand-over, so nothing
+		// draws while references are swapped (docs/reference/borealis-render-thread.md)
+		Sandbox.BorealisGpuRenderBackend.JoinRenderThread();
 		MainThread.RunQueues(); // dispose of any threaded IDisposables waiting
 
 		var timer = Stopwatch.StartNew();

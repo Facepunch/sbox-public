@@ -40,8 +40,9 @@ internal sealed class GpuPassTimings
 	int droppedPassSamples;
 	string renderer = "unknown";
 
-	// Paths by StableId, which native derives from the scope's parent and name, so they're built once per scope
-	readonly Dictionary<uint, (string Name, string ParentPath, string Path)> scopePaths = new();
+	// Paths by StableId, name and parent path, so they're built once per scope and parent: a scope's id doesn't follow its
+	// parent, and one whose parent changes from frame to frame (a list another queue's overlaps) has a path for each
+	readonly Dictionary<(uint StableId, string Name, string ParentPath), string> scopePaths = new();
 
 	// This frame's path per row, for its children
 	string[] rowPaths = [];
@@ -92,12 +93,13 @@ internal sealed class GpuPassTimings
 
 			var parentPath = row.Parent < 0 ? null : rowPaths[row.Parent];
 
-			if ( !scopePaths.TryGetValue( row.StableId, out var known ) || known.Name != row.Name || known.ParentPath != parentPath )
+			var key = (row.StableId, row.Name, parentPath);
+			if ( !scopePaths.TryGetValue( key, out var path ) )
 			{
 				// Escape separators so a marker named "A/B" cannot collide with nested A -> B.
 				var name = row.Name.Replace( "%", "%25" ).Replace( "/", "%2F" );
-				known.Path = parentPath is null ? name : $"{parentPath}/{name}";
-				if ( known.Path.Length > MaxPathLength )
+				path = parentPath is null ? name : $"{parentPath}/{name}";
+				if ( path.Length > MaxPathLength )
 				{
 					rowPaths[i] = null;
 
@@ -111,10 +113,9 @@ internal sealed class GpuPassTimings
 
 				// Bounded, scopes only come and go with renderer changes
 				if ( scopePaths.Count >= MaxPasses * 4 ) scopePaths.Clear();
-				scopePaths[row.StableId] = (row.Name, parentPath, known.Path);
+				scopePaths[key] = path;
 			}
 
-			var path = known.Path;
 			rowPaths[i] = path;
 
 			// View/group rows have no timestamp of their own.

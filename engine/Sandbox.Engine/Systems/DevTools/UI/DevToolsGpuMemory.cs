@@ -17,7 +17,6 @@ internal sealed class DevToolsVramTab : DevToolsTab
 	readonly DevToolsFacts _captured;
 	readonly DevToolsGpuMemoryView _view;
 	readonly Label _hint;
-	double _followUntil;
 
 	public DevToolsVramTab()
 	{
@@ -35,13 +34,6 @@ internal sealed class DevToolsVramTab : DevToolsTab
 		_capture = Button( toolbar, "fiber_manual_record", "Capture what's allocated on the GPU now. Walks the whole allocator, so it's only done when asked", Capture );
 		_capture.AddClass( "record" );
 		_capture.AddClass( "on" );
-
-		// Not something an icon says by itself
-		var defrag = toolbar.AddChild( new Panel( null, "head-button" ) );
-		defrag.AddChild( new Label( "compress", "button-icon" ) );
-		defrag.AddChild( new Label( "Defrag" ) );
-		defrag.Tooltip = "Pack the blocks now and release the ones that empty. Takes a few frames, and hitches while it does";
-		defrag.AddEventListener( "onclick", Defrag );
 
 		_facts = AddChild( new DevToolsFacts() );
 		_facts.AddClass( "span-all" );
@@ -77,20 +69,6 @@ internal sealed class DevToolsVramTab : DevToolsTab
 			: DevToolsFormat.Bytes( stats.TexturePoolUsedBytes ), tooltip: "Streamed textures, of the most they may take. Streaming drops mips when it's full" );
 		_facts.Set( "Pinned textures", DevToolsFormat.Bytes( stats.TexturePoolNonEvictableBytes ), tooltip: "Textures streaming can't drop" );
 		_facts.Set( "Streaming", $"{stats.PendingStreamingRequests} pending", stats.PendingStreamingRequests > 32 ? DevTools.Severity.Warning : null );
-
-		// Packing runs over a few frames: keep capturing for a while after it's asked for, to show it happen
-		var following = RealTime.Now < _followUntil;
-		_capture.SetClass( "active", following );
-		if ( following && RealTime.Now - _view.CapturedAt > 0.5 ) Capture();
-	}
-
-	void Defrag()
-	{
-		if ( !Graphics.IsAvailable ) return;
-
-		g_pRenderDevice.DefragmentGpuMemory();
-		_followUntil = RealTime.Now + 6;
-		Capture();
 	}
 
 	void Capture()
@@ -107,7 +85,7 @@ internal sealed class DevToolsVramTab : DevToolsTab
 			map.DriverBudget > 0 && map.DriverUsage > map.DriverBudget * 0.9 ? DevTools.Severity.Warning : null, "What the driver says this process uses, of what it may. Shrinks when other apps take video memory" );
 		_captured.Set( "Blocks", $"{map.Blocks.Count}", tooltip: "Memory comes from the driver a block at a time, and a block only goes back once it's empty" );
 		_captured.Set( "In blocks", DevToolsFormat.Bytes( map.BlockBytes ), tooltip: "What the blocks hold from the driver, used or not" );
-		_captured.Set( "Unused", DevToolsFormat.Bytes( map.UnusedBytes ), wasteful ? DevTools.Severity.Warning : null, "Held in blocks with nothing allocated in it. Defragmenting packs the blocks and releases the ones that empty" );
+		_captured.Set( "Unused", DevToolsFormat.Bytes( map.UnusedBytes ), wasteful ? DevTools.Severity.Warning : null, "Held in blocks with nothing allocated in it. Content is moved out of emptying blocks over a few frames, and empty blocks go back after a while" );
 		_captured.Set( "Dedicated", DevToolsFormat.Bytes( map.DedicatedBytes ), tooltip: $"{map.Dedicated.Count:N0} allocations with memory of their own, mostly render targets. Released the moment they're freed" );
 	}
 

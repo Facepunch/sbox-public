@@ -67,15 +67,34 @@ public static class SystemInfo
 		TotalMemory = memory;
 	}
 
+	// Set when the process draws on a Borealis.Gpu device (-borealisgpu): Source 2's render system is then the empty one, so
+	// its adapter ("Empty Driver") isn't the GPU that draws, and games that pick settings by GPU must see the real one
+	static bool _borealisGpu;
+
 	internal static void SetGpu( string driver, string version, ulong memory, bool integrated )
 	{
-		Gpu = driver;
-		GpuVersion = version;
-		GpuMemory = memory;
-		GpuIntegrated = integrated;
+		if ( !_borealisGpu )
+		{
+			Gpu = driver;
+			GpuVersion = version;
+			GpuMemory = memory;
+			GpuIntegrated = integrated;
+		}
 
 		// Main thread with the window up, so the SDL display queries run here rather than on whichever thread first reports
 		_ = GraphicsEnv.Value;
+	}
+
+	/// <summary>
+	/// The GPU the process draws with is a Borealis.Gpu device: report it, whether Source 2's adapter is set before or after.
+	/// </summary>
+	internal static void SetBorealisGpu( string name, string version, ulong memory, bool integrated )
+	{
+		_borealisGpu = true;
+		Gpu = name;
+		GpuVersion = version;
+		GpuMemory = memory;
+		GpuIntegrated = integrated;
 	}
 
 	/// <summary>

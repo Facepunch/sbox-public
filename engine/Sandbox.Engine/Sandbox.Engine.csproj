@@ -44,6 +44,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="../Borealis/Borealis.csproj" />
+		<ProjectReference Include="../Borealis.Backend/Borealis.Backend.csproj" />
+		<ProjectReference Include="../Borealis.Gpu/Borealis.Gpu.csproj" />
+		<ProjectReference Include="../Borealis.Sdl/Borealis.Sdl.csproj" />
+		<ProjectReference Include="../Borealis.Source2/Borealis.Source2.csproj" />
 		<ProjectReference Include="../Sandbox.Mounting/Sandbox.Mounting.csproj" />
 		<ProjectReference Include="../Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
 		<ProjectReference Include="../Sandbox.Compiling/Sandbox.Compiling.csproj" />
@@ -83,11 +88,6 @@
 			<DesignTime>True</DesignTime>
 			<AutoGen>True</AutoGen>
 		</Compile>
-        <Compile Update="Platform\VR\VRSystem.Generated.cs">
-            <DesignTime>True</DesignTime>
-            <AutoGen>True</AutoGen>
-            <DependentUpon>VRSystem.Generated.tt</DependentUpon>
-        </Compile>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -95,10 +95,6 @@
 			<LastGenOutput>BaseStyles.Generated.cs</LastGenOutput>
 			<Generator>TextTemplatingFileGenerator</Generator>
 		</None>
-        <None Update="Platform\VR\VRSystem.Generated.tt">
-            <Generator>TextTemplatingFileGenerator</Generator>
-            <LastGenOutput>VRSystem.Generated.cs</LastGenOutput>
-        </None>
 	</ItemGroup>
 
 	<ItemGroup>

@@ -25,12 +25,12 @@ class Superluminal : IDisposable
 		[CallerLineNumber] int line = 0,
 		[CallerMemberName] string member = null )
 	{
-		NativeEngine.PerformanceTrace.BeginEvent( _text, extraData, _color, file, line, member );
+		ProfilerZones.Begin( _text, _color, extraData, file, line, member );
 		return this;
 	}
 
 	public void Dispose()
 	{
-		NativeEngine.PerformanceTrace.EndEvent();
+		ProfilerZones.End();
 	}
 }

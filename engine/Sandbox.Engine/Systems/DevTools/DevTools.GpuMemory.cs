@@ -1,5 +1,4 @@
-using NativeEngine;
-using System.Text.Json;
+using Sandbox.Rendering;
 
 namespace Sandbox.Diagnostics;
 
@@ -96,82 +95,46 @@ internal sealed class GpuMemoryMap
 	public double CapturedAt;
 
 	/// <summary>
-	/// Null where there's no allocator to ask: a headless run, or a renderer that isn't Vulkan.
+	/// Null where there's no allocator to ask: a headless run, or a process without Borealis.Gpu.
 	/// </summary>
 	public static GpuMemoryMap Capture()
 	{
-		if ( !Graphics.IsAvailable ) return null;
-
-		var json = g_pRenderDevice.GetGpuMemoryMap();
-		if ( string.IsNullOrEmpty( json ) ) return null;
+		if ( RenderBackend.Default is not BorealisGpuRenderBackend { Device: { } device } ) return null;
 
 		var map = new GpuMemoryMap { CapturedAt = RealTime.Now };
-		g_pRenderDevice.GetVideoMemoryInfo( out var budget, out var usage, out _ );
-		map.DriverBudget = (long)budget;
-		map.DriverUsage = (long)usage;
 
-		using var doc = JsonDocument.Parse( json );
-		var root = doc.RootElement;
-
-		if ( root.TryGetProperty( "DefaultPools", out var defaults ) )
+		Span<Borealis.Gpu.MemoryHeapBudget> heaps = stackalloc Borealis.Gpu.MemoryHeapBudget[16];
+		var count = Math.Min( device.GetMemoryHeaps( heaps ), heaps.Length );
+		foreach ( var heap in heaps[..count] )
 		{
-			foreach ( var type in defaults.EnumerateObject() )
-				map.ReadPool( type.Value, movable: true );
+			if ( !heap.DeviceLocal ) continue;
+			map.DriverUsage += heap.Usage;
+			map.DriverBudget += heap.Budget;
 		}
 
-		if ( root.TryGetProperty( "CustomPools", out var customs ) )
+		foreach ( var from in device.MemoryMap() )
 		{
-			foreach ( var type in customs.EnumerateObject() )
-				foreach ( var pool in type.Value.EnumerateArray() )
-					map.ReadPool( pool, movable: false );
+			if ( from.Dedicated )
+			{
+				map.DedicatedBytes += from.Size;
+				map.Dedicated.Add( new Allocation( 0, from.Size, from.Images ? Kind.RenderTarget : Kind.Buffer, null ) );
+				continue;
+			}
+
+			var block = new Block { Size = from.Size, Used = from.Used, LargestFree = from.LargestFree, Movable = from.Content };
+			var kind = from.Images ? Kind.Texture : Kind.Buffer;
+			foreach ( var (offset, size) in from.Allocations )
+				block.Allocations.Add( new Allocation( offset, size, kind, null ) );
+
+			BuildRuns( block );
+			map.BlockBytes += block.Size;
+			map.UsedBytes += block.Used;
+			map.Blocks.Add( block );
 		}
 
 		map.Blocks.Sort( ( a, b ) => a.Fill.CompareTo( b.Fill ) );
 		map.Dedicated.Sort( ( a, b ) => b.Size.CompareTo( a.Size ) );
 		return map;
-	}
-
-	void ReadPool( JsonElement pool, bool movable )
-	{
-		if ( pool.TryGetProperty( "Blocks", out var blocks ) )
-		{
-			foreach ( var entry in blocks.EnumerateObject() )
-			{
-				var block = new Block { Size = Number( entry.Value, "TotalBytes" ), Movable = movable };
-				block.Used = block.Size - Number( entry.Value, "UnusedBytes" );
-
-				if ( entry.Value.TryGetProperty( "Suballocations", out var ranges ) )
-				{
-					foreach ( var range in ranges.EnumerateArray() )
-					{
-						var size = Number( range, "Size" );
-						var type = Text( range, "Type" );
-						if ( type == "FREE" )
-						{
-							block.LargestFree = Math.Max( block.LargestFree, size );
-							continue;
-						}
-
-						block.Allocations.Add( new Allocation( Number( range, "Offset" ), size, KindOf( type, dedicated: false ), Text( range, "Name" ) ) );
-					}
-				}
-
-				BuildRuns( block );
-				BlockBytes += block.Size;
-				UsedBytes += block.Used;
-				Blocks.Add( block );
-			}
-		}
-
-		if ( pool.TryGetProperty( "DedicatedAllocations", out var dedicated ) )
-		{
-			foreach ( var item in dedicated.EnumerateArray() )
-			{
-				var size = Number( item, "Size" );
-				DedicatedBytes += size;
-				Dedicated.Add( new Allocation( 0, size, KindOf( Text( item, "Type" ), dedicated: true ), Text( item, "Name" ) ) );
-			}
-		}
 	}
 
 	/// <summary>
@@ -195,27 +158,6 @@ internal sealed class GpuMemoryMap
 
 			block.Runs.Add( new Run( a.Offset, a.Size, a.Kind ) );
 		}
-	}
-
-	/// <summary>
-	/// The allocator isn't told what an image is for. Render targets and depth buffers over 512 KB are the images
-	/// the renderer gives memory of their own, so that's how they're told from textures; smaller ones count as textures.
-	/// </summary>
-	static Kind KindOf( string type, bool dedicated )
-	{
-		if ( type is null ) return Kind.Other;
-		if ( type.StartsWith( "IMAGE" ) ) return dedicated ? Kind.RenderTarget : Kind.Texture;
-		return type == "BUFFER" ? Kind.Buffer : Kind.Other;
-	}
-
-	static string Text( JsonElement element, string name ) =>
-		element.TryGetProperty( name, out var value ) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-
-	static long Number( JsonElement element, string name )
-	{
-		if ( !element.TryGetProperty( name, out var value ) ) return 0;
-		if ( value.ValueKind == JsonValueKind.Number ) return value.TryGetInt64( out var n ) ? n : 0;
-		return value.ValueKind == JsonValueKind.String && long.TryParse( value.GetString(), out var parsed ) ? parsed : 0;
 	}
 
 	public static string Describe( Kind kind ) => kind switch

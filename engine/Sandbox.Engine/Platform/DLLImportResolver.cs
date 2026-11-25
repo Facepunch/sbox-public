@@ -67,6 +67,12 @@ internal static class DLLImportResolver
 			return handle;
 		}
 
+		// Our own Linux and macOS libraries are named the usual way (libmeshopt.so)
+		if ( !OperatingSystem.IsWindows() && NativeLibrary.TryLoad( Path.Combine( NetCore.NativeDllPath, $"lib{nativeName}" ), out handle ) )
+		{
+			return handle;
+		}
+
 		return IntPtr.Zero;
 	}
 }

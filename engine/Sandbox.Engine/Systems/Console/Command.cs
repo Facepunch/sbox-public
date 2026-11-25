@@ -339,6 +339,7 @@ partial class ManagedCommand : Command
 				return;
 
 			propertyInfo.SetValue( null, newValue );
+			ConVarSystem.Changed();
 
 			Save();
 		}

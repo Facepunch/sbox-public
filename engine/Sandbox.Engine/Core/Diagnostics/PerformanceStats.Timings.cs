@@ -207,6 +207,13 @@ public static partial class PerformanceStats
 			calls += addcalls;
 		}
 
+		/// <summary><see cref="AddMilliseconds"/> from a thread other than the main one (the render thread).</summary>
+		internal void AddMillisecondsFromAnyThread( double ms )
+		{
+			Interlocked.Add( ref ticks, (long)(ms * Stopwatch.Frequency / 1_000.0) );
+			Interlocked.Increment( ref calls );
+		}
+
 		public float AverageMs( int frames )
 		{
 			int count = Math.Min( frames, History.Size );

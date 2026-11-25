@@ -48,8 +48,6 @@ public static class GpuProfilerStats
 				return;
 
 			_enabled = value;
-			NativeEngine.CSceneSystem.SetGPUProfilerMode( value ? NativeEngine.SceneSystemGPUProfilerMode.SCENE_GPU_PROFILER_TIMESTAMP_ONLY : NativeEngine.SceneSystemGPUProfilerMode.SCENE_GPU_PROFILER_DISABLE );
-
 			if ( !value )
 			{
 				_samples.Clear();
@@ -83,6 +81,11 @@ public static class GpuProfilerStats
 	internal static ulong FrameId { get; private set; }
 	internal static string Renderer { get; private set; } = "unknown";
 	internal static ReadOnlySpan<Row> Rows => System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _rows );
+
+	/// <summary>
+	/// Borealis.Gpu's scopes of the last read frame, in the order of <see cref="Rows"/>.
+	/// </summary>
+	internal static ReadOnlySpan<GpuScope> Scopes => System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _borealisScopes );
 	internal static Row GetRow( int index ) => _rows[index];
 
 	/// <summary>
@@ -113,87 +116,139 @@ public static class GpuProfilerStats
 		}
 
 		_frame++;
+
+		// Borealis.Gpu's lists and passes (the busy-time pass timer's); a process without it draws nothing to time
+		if ( RenderBackend.Default is BorealisGpuRenderBackend borealis )
+		{
+			UpdateFromBorealis( borealis );
+			return;
+		}
+
+		FrameId = 0;
+		Renderer = "none";
+		BusyMs = 0;
 		_rows.Clear();
 		_paths = null;
-
-		NativeEngine.CSceneSystem.RefreshGpuTimestampSnapshot();
-		FrameId = NativeEngine.CSceneSystem.GetGpuTimestampFrameId();
-		Renderer = NativeEngine.CSceneSystem.GetGpuTimestampRenderer() switch
-		{
-			1 => "native",
-			2 => "managed",
-			3 => "managed-async",
-			_ => "unknown"
-		};
-
-		int count = NativeEngine.CSceneSystem.GetGpuTimestampCount();
-		for ( int i = 0; i < count; i++ )
-		{
-			var stableId = NativeEngine.CSceneSystem.GetGpuTimestampStableId( i );
-			var name = _names.TryGetValue( stableId, out var known ) ? known.Name : NativeEngine.CSceneSystem.GetGpuTimestampName( i );
-			_names[stableId] = (name, _frame);
-
-			var row = new Row
-			{
-				Name = name,
-				Parent = NativeEngine.CSceneSystem.GetGpuTimestampParent( i ),
-				StableId = stableId,
-				Measured = NativeEngine.CSceneSystem.GetGpuTimestampMeasured( i ),
-				Unparented = NativeEngine.CSceneSystem.GetGpuTimestampUnparented( i ),
-				Duration = NativeEngine.CSceneSystem.GetGpuTimestampDuration( i ),
-			};
-
-			_rows.Add( row );
-
-			if ( !row.Measured )
-				continue;
-
-			var duration = row.Duration;
-
-			if ( _samples.TryGetValue( row.StableId, out var sample ) )
-			{
-				sample.Smoothed = MathX.LerpTo( sample.Smoothed, duration, Time.Delta );
-				sample.Max = duration > sample.Max ? duration : MathX.LerpTo( sample.Max, duration, Time.Delta * 0.25f );
-			}
-			else
-			{
-				sample.Smoothed = duration;
-				sample.Max = duration;
-			}
-
-			sample.LastSeenFrame = _frame;
-			_samples[row.StableId] = sample;
-		}
-
-		PruneSamples();
-		BusyMs = GraphicsBusy();
 	}
 
-	/// <summary>
-	/// Add up the measured passes with no measured pass inside them, outside the async compute queue.
-	/// </summary>
-	static float GraphicsBusy()
+	static void AddSample( uint stableId, float duration, float delta )
 	{
-		Span<bool> hasChild = _rows.Count <= 1024 ? stackalloc bool[_rows.Count] : new bool[_rows.Count];
-		for ( int i = 0; i < _rows.Count; i++ )
+		if ( _samples.TryGetValue( stableId, out var sample ) )
 		{
-			var parent = _rows[i].Parent;
-			if ( _rows[i].Measured && parent >= 0 && parent < _rows.Count ) hasChild[parent] = true;
+			sample.Smoothed = MathX.LerpTo( sample.Smoothed, duration, delta );
+			sample.Max = duration > sample.Max ? duration : MathX.LerpTo( sample.Max, duration, delta * 0.25f );
 		}
+		else
+		{
+			sample.Smoothed = duration;
+			sample.Max = duration;
+		}
+
+		sample.LastSeenFrame = _frame;
+		_samples[stableId] = sample;
+	}
+
+	/// <summary>A timed GPU scope of another device's frame: a command list, or a pass or other work inside one.</summary>
+	internal readonly record struct GpuScope( string Name, bool List, double Start, double End )
+	{
+		public double Ms => End - Start;
+	}
+
+	static ulong _borealisFrame;
+	static RealTimeSince _sinceBorealisFrame;
+	static readonly List<GpuScope> _borealisScopes = new();
+	static readonly List<int> _borealisOpen = new();
+	static readonly Dictionary<string, int> _borealisSeen = new();
+
+	/// <summary>
+	/// Rows from Borealis.Gpu's last read frame (<see cref="BuildRows"/>). Kept between reads (one every few frames), so the
+	/// rows and their smoothing only move when a new frame was read.
+	/// </summary>
+	static void UpdateFromBorealis( BorealisGpuRenderBackend borealis )
+	{
+		Renderer = "borealis";
+		var frame = borealis.GpuBusyFrame;
+		if ( frame == _borealisFrame && _rows.Count > 0 )
+		{
+			// Keep the rows' samples from being pruned while no new frame is read
+			foreach ( var row in _rows )
+			{
+				if ( !_samples.TryGetValue( row.StableId, out var sample ) ) continue;
+				sample.LastSeenFrame = _frame;
+				_samples[row.StableId] = sample;
+			}
+
+			return;
+		}
+
+		var delta = (float)_sinceBorealisFrame;
+		_sinceBorealisFrame = 0;
+		_paths = null;
+
+		// The backend swaps in each frame it reads under its lock: the frame and its timings are taken together
+		_borealisScopes.Clear();
+		lock ( borealis.GpuBusyLock )
+		{
+			frame = borealis.GpuBusyFrame;
+			// By index: a foreach over the list's interface boxes its enumerator every frame
+			var timings = borealis.GpuBusyTimings;
+			for ( int i = 0; i < timings.Count; i++ )
+			{
+				var timing = timings[i];
+				_borealisScopes.Add( new GpuScope( timing.Name, timing.Kind == Borealis.Backend.PassTimer.ScopeKind.List, timing.Start, timing.End ) );
+			}
+		}
+
+		_borealisFrame = frame;
+		FrameId = frame;
+
+		BuildRows( _borealisScopes, _rows, _borealisOpen, _borealisSeen );
 
 		float busy = 0;
 		for ( int i = 0; i < _rows.Count; i++ )
 		{
-			if ( !_rows[i].Measured || hasChild[i] ) continue;
-
-			var root = i;
-			while ( _rows[root].Parent >= 0 && _rows[root].Parent < _rows.Count && _rows[root].Parent != root ) root = _rows[root].Parent;
-			if ( _rows[root].Name == "Async compute" ) continue;
-
-			busy += _rows[i].Duration;
+			AddSample( _rows[i].StableId, _rows[i].Duration, delta );
+			if ( _rows[i].Parent < 0 ) busy += _rows[i].Duration;
 		}
 
-		return busy;
+		PruneSamples();
+		BusyMs = busy;
+	}
+
+	/// <summary>
+	/// Rows for <paramref name="scopes"/> in the order they began on the GPU: lists at the top, each pass under the list or
+	/// pass it ran inside. A name repeated in a frame (each view's prepass) gets an id per occurrence. Sorts
+	/// <paramref name="scopes"/>; <paramref name="open"/> and <paramref name="seen"/> are scratch. Allocates nothing once they've grown.
+	/// </summary>
+	internal static void BuildRows( List<GpuScope> scopes, List<Row> rows, List<int> open, Dictionary<string, int> seen )
+	{
+		// Outer scopes first where they start together: lists, then the longer scope
+		scopes.Sort( static ( a, b ) => a.Start != b.Start ? a.Start.CompareTo( b.Start ) : a.List != b.List ? (a.List ? -1 : 1) : b.End.CompareTo( a.End ) );
+
+		rows.Clear();
+		open.Clear();
+		seen.Clear();
+		foreach ( var scope in scopes )
+		{
+			while ( open.Count > 0 && scopes[open[^1]].End <= scope.Start ) open.RemoveAt( open.Count - 1 );
+
+			// Under the innermost open scope that holds all of it. Lists on one queue run one after another, but another
+			// queue's list (async compute), or a list of the next frame's submitted while the last one's ran, can start inside
+			// one and end past it: nested there, its parent wouldn't contain it, and the timeline would drop the whole frame
+			var parent = -1;
+			for ( int k = open.Count - 1; k >= 0; k-- )
+			{
+				if ( scopes[open[k]].End < scope.End ) continue;
+				parent = open[k];
+				break;
+			}
+
+			seen.TryGetValue( scope.Name, out var count );
+			seen[scope.Name] = count + 1;
+
+			rows.Add( new Row { Name = scope.Name, Parent = parent, StableId = (uint)HashCode.Combine( scope.Name, count, scope.List ), Measured = true, Duration = (float)scope.Ms } );
+			open.Add( rows.Count - 1 );
+		}
 	}
 
 	/// <summary>
