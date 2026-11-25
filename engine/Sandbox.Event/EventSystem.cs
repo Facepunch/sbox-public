@@ -26,6 +26,18 @@ internal class EventSystem : IDisposable
 		public List<EventAction> Events = new();
 		public List<object> Targets = new();
 
+		/// <summary>
+		/// The type gained its first target or lost its last: the event lists its handlers are in look again at which of their
+		/// actions have anything to run.
+		/// </summary>
+		internal void TargetsChanged()
+		{
+			foreach ( var e in Events )
+			{
+				e.Group.ActionsChanged();
+			}
+		}
+
 		public void Destroy()
 		{
 			Assembly = null;
@@ -61,6 +73,7 @@ internal class EventSystem : IDisposable
 		{
 			Class.Events.Remove( this );
 			Group.Remove( this );
+			Group.ActionsChanged();
 		}
 
 		/// <summary>
@@ -113,16 +126,47 @@ internal class EventSystem : IDisposable
 	/// </summary>
 	public class EventList : List<EventAction>
 	{
+		EventAction[] runnable = [];
+		bool runnableChanged = true;
+
 		/// <summary>
-		/// Run this event list, aggregating any exceptions.
+		/// An action was added or removed, or a type gained its first target or lost its last.
+		/// </summary>
+		internal void ActionsChanged() => runnableChanged = true;
+
+		/// <summary>
+		/// The actions with anything to run, in the list's order: static ones, and instance ones whose type has targets. Most of
+		/// the editor's per-frame handlers are on types with no instance alive (editors and widgets not open), so a frame doesn't
+		/// visit them. Made again when the list or a type's targets change; a new array each time, so a run already going
+		/// through the old one isn't changed under it.
+		/// </summary>
+		EventAction[] Runnable()
+		{
+			if ( !runnableChanged ) return runnable;
+			runnableChanged = false;
+
+			var list = new List<EventAction>( Count );
+			foreach ( var action in this )
+			{
+				if ( action.IsStatic || action.Class.Targets.Count > 0 ) list.Add( action );
+			}
+
+			runnable = list.ToArray();
+			return runnable;
+		}
+
+		/// <summary>
+		/// Run this event list, aggregating any exceptions. A type that gets its first target while the list runs is first
+		/// called the next time it runs, as a target added to a type that already has some is.
 		/// </summary>
 		internal void Run( string name, object[] args = null )
 		{
 			List<Exception> innerExceptions = null;
+			var actions = Runnable();
 
-			for ( int i = Count - 1; i >= 0; i-- )
+			for ( int i = actions.Length - 1; i >= 0; i-- )
 			{
-				var action = this[i];
+				var action = actions[i];
 
 				try
 				{
@@ -199,6 +243,7 @@ internal class EventSystem : IDisposable
 				eventAction.Group.Add( eventAction );
 
 				group.Sort();
+				group.ActionsChanged();
 			}
 		}
 
@@ -426,6 +471,7 @@ internal class EventSystem : IDisposable
 			return;
 
 		type.Targets.Add( obj );
+		if ( type.Targets.Count == 1 ) type.TargetsChanged();
 	}
 
 	internal void Unregister( object obj )
@@ -438,7 +484,7 @@ internal class EventSystem : IDisposable
 		if ( !Classes.TryGetValue( TypeKey( obj.GetType() ), out var type ) )
 			return;
 
-		type.Targets.Remove( obj );
+		if ( type.Targets.Remove( obj ) && type.Targets.Count == 0 ) type.TargetsChanged();
 	}
 
 	public void Dispose()
