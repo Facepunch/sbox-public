@@ -126,12 +126,14 @@ internal sealed class NativeOcclusionCull : IDisposable
 		if ( ++underused >= ShrinkAfter ) SetCapacity( underusedPeak );
 	}
 
+	// Runs on the render thread. Drops the buffers before the capacity changes, so they never get handed to native with a
+	// capacity bigger than they are
 	void SetCapacity( int entries )
 	{
+		DisposeCullBuffers();
 		capacity = Math.Max( InitialCapacity, (int)System.Numerics.BitOperations.RoundUpToPowerOf2( (uint)Math.Max( entries, 1 ) ) );
 		underused = 0;
 		underusedPeak = 0;
-		DisposeCullBuffers();
 	}
 
 	public ISceneLayer AddEarlyToView( ISceneView view, RenderViewport viewport ) => early.AddToView( view, viewport );
@@ -221,10 +223,10 @@ internal sealed class NativeOcclusionCull : IDisposable
 	// The capacity-sized buffers. The render device frees them once the GPU is done with them
 	void DisposeCullBuffers()
 	{
-		instances?.Dispose();
-		runs?.Dispose();
-		args?.Dispose();
-		culledIds?.Dispose();
+		instances?.DisposeFromAnyThread();
+		runs?.DisposeFromAnyThread();
+		args?.DisposeFromAnyThread();
+		culledIds?.DisposeFromAnyThread();
 		instances = null;
 		runs = null;
 		args = null;
