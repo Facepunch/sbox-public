@@ -426,12 +426,8 @@ internal sealed class MenuDll : IMenuDll
 		return false;
 	}
 
-	public void OnRender( SwapChainHandle_t swapChain )
-	{
-		using var _ = EnterScope();
-
-		CCameraRenderer.RenderOverlay( swapChain );
-	}
+	// A Borealis.Gpu game window draws the overlay itself, last in its frame
+	public void OnRender( SwapChainHandle_t swapChain ) { }
 
 	void SetupFileWatch()
 	{

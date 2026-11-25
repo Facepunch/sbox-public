@@ -33,6 +33,25 @@ public static class ThreadSafe
 		isMainThread = true;
 	}
 
+	[ThreadStatic]
+	static bool isRenderThread;
+
+	/// <summary>
+	/// Whether this is the game window's render thread: it draws the frames the main thread hands over, with the main thread's
+	/// rendering code, so it counts as the main thread for that code (<see cref="IsMainThread"/>) while running no game code.
+	/// </summary>
+	internal static bool IsRenderThread => isRenderThread;
+
+	/// <summary>
+	/// Mark the current thread as the render thread (<see cref="IsRenderThread"/>), which counts as the main thread for the
+	/// rendering code it runs.
+	/// </summary>
+	internal static void MarkRenderThread()
+	{
+		isMainThread = true;
+		isRenderThread = true;
+	}
+
 	/// <summary>
 	/// Throws an exception if not called from the main thread.
 	/// Useful for enforcing thread safety on main-thread-only APIs.

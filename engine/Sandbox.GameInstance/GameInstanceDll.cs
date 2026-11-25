@@ -454,6 +454,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// </summary>
 	private void LeaveGame( bool disconnect )
 	{
+		// The game's last frame is drawn before anything it draws goes (docs/reference/borealis-render-thread.md)
+		Sandbox.Engine.GameWindow.Current?.JoinRenderThread();
 		Analytics.GameClosed();
 		using var scope = GlobalContext.GameScope();
 

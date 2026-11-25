@@ -31,6 +31,9 @@ public class PanelAppSystem : AppSystem
 	{
 		bootTimer = Stopwatch.StartNew();
 
+		// Panels and scene panels draw on Borealis.Gpu, Source 2 on its empty device
+		DrawOnBorealisGpu();
+
 		base.Init();
 		Phase( "Interop" );
 
@@ -52,7 +55,7 @@ public class PanelAppSystem : AppSystem
 		// device. No VR - nothing here renders in stereo. -panelapp tells the engine nobody here
 		// is drawing a scene, so the fixed buffers and atlases that exist for one are sized down
 		// to what a scene panel might want instead of what a map needs.
-		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr" + (DrawsScenes ? "" : " -panelapp");
+		var commandLine = (Utility.CommandLine.CommandLineString ?? Environment.CommandLine).Replace( ".dll", ".exe" ) + " -nosteam -novr" + (DrawsScenes ? "" : " -panelapp");
 
 		// Tools mode creates the render device but no window - our windows are our own
 		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )
@@ -171,16 +174,11 @@ public class PanelAppSystem : AppSystem
 	}
 
 	/// <summary>
-	/// The render pipeline's layers hold shaders and materials in static fields, and creating
-	/// those asserts the main thread - but in an app like this their first touch is on a render
-	/// job. Make them here, where it's allowed.
+	/// The scene renderer makes what it renders with on the main thread, before anything renders.
 	/// </summary>
 	static void WarmRenderLayers()
 	{
-		Sandbox.Rendering.RenderPipeline.WarmUp();
-
-		// Native's shadow callback reads its convar mid-render, so its compute shader would be made there otherwise
-		System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor( typeof( Sandbox.Rendering.ContactShadows ).TypeHandle );
+		Sandbox.Rendering.SceneRenderer.WarmUp();
 	}
 
 	/// <summary>

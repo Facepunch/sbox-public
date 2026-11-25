@@ -38,7 +38,7 @@ public class AppSystem
 		}
 
 		// check core count, ram, os?
-		// rendersystemvulkan ends up checking gpu, driver, vram later on
+		// Borealis.Gpu checks the GPU, driver and VRAM when it makes its device
 
 	}
 
@@ -62,12 +62,12 @@ public class AppSystem
 	}
 
 	/// <summary>
-	/// Native's rendering pipeline gets its layers from Sandbox.SceneRenderer, which also renders cameras when
-	/// <c>r_managed_scene</c> is on. It references the engine, so it's registered with it here.
+	/// Native's rendering pipeline gets its layers from Sandbox.Rendering, which also renders cameras through Borealis on a
+	/// Borealis.Gpu device (<c>-borealisgpu</c>). It references the engine, so it's registered with it here.
 	/// </summary>
 	protected static void InstallRenderers()
 	{
-		SceneRenderer.EngineHooks.Install();
+		Rendering.EngineHooks.Install();
 	}
 
 	void SetupEnvironment()
@@ -186,6 +186,9 @@ public class AppSystem
 
 	public virtual void Shutdown()
 	{
+		// The render thread finishes the last frame handed to it and stops before anything it draws with is let go of
+		gameWindow?.StopRenderThread();
+
 		startupWindow?.Dispose();
 		startupWindow = null;
 
@@ -282,12 +285,8 @@ public class AppSystem
 		TextRendering.Shutdown();
 		NativeResourceCache.ClearCache();
 
-		// Renderpipeline may hold onto native resources, clear them out
-		RenderPipeline.Shutdown();
-		ShadowMapperCallbacks.Shutdown();
-
-		// So may the managed scene renderer, if r_managed_scene loaded it
-		Rendering.ManagedSceneRendering.Shutdown();
+		// Borealis holds GPU resources on its Borealis.Gpu device
+		Rendering.SceneRenderer.Shutdown();
 
 		// Destroy all cached render targets immediately — must happen before
 		// GlobalContext.Shutdown() so ResourceSystem is still alive for Unregister calls.
@@ -309,6 +308,10 @@ public class AppSystem
 		// will run during shutdown so these would otherwise leak.
 		EngineLoop.DrainFrameEndDisposables();
 		MainThread.RunQueues();
+
+		// No more frames: the game window's frame target goes now, not after the leak check with the window
+		gameWindow?.ReleaseFrameTarget();
+		Graphics.ReleaseFrameState();
 
 		// Run GC and finalizers to clear any resources held by managed
 		GC.Collect();
@@ -379,12 +382,25 @@ public class AppSystem
 		Application.Shutdown();
 	}
 
+	/// <summary>
+	/// Draw on Borealis.Gpu (<c>-borealisgpu</c>) whatever the command line says: the game and the editor do, and there is
+	/// no switch back to Source 2's renderer. Adds the switch to the command line native and managed code read, so call it
+	/// before anything starts.
+	/// </summary>
+	protected static void DrawOnBorealisGpu()
+	{
+		if ( Utility.CommandLine.HasSwitch( "-borealisgpu" ) ) return;
+
+		Utility.CommandLine.CommandLineString = (Utility.CommandLine.CommandLineString ?? System.Environment.CommandLine) + " -borealisgpu";
+		Utility.CommandLine.Parse();
+	}
+
 	protected void InitGame( AppSystemCreateInfo createInfo, string commandLine = null )
 	{
 		Bootstrap.StartStartupClock();
 		InstallRenderers();
 
-		commandLine ??= System.Environment.CommandLine;
+		commandLine ??= Utility.CommandLine.CommandLineString ?? System.Environment.CommandLine;
 		commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
 
 		_appSystem = CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() );
@@ -454,7 +470,6 @@ public class AppSystem
 		}
 
 		Bootstrap.BeginResourceScan();
-		gameWindow?.InitializeRendering();
 		gameWindow?.UpdateStartupProgress( 0.22f, "Loading shaders" );
 		Bootstrap.Init();
 		gameWindow?.UpdateStartupProgress( 0.4f, Application.IsStandalone ? "Loading the game" : "Building the menu" );

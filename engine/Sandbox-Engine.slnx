@@ -16,6 +16,8 @@
     <Project Path="Tools/ShaderCompiler/ShaderCompiler.csproj" />
   </Folder>
   <Folder Name="/Engine/Exe/">
+    <Project Path="Launcher/BorealisGpuSample/BorealisGpuSample.csproj" />
+    <Project Path="Launcher/BorealisLab/BorealisLab.csproj" />
     <Project Path="Launcher/CrashReporter/CrashReporter.csproj" Id="652c4b4b-7f21-4884-9ad5-6a9032ce4ef9" />
     <Project Path="Launcher/PanelGallery/PanelGallery.csproj" />
     <Project Path="Launcher/Sbox/Sbox.csproj" />
@@ -25,7 +27,6 @@
     <Project Path="Launcher/SboxProfiler/SboxProfiler.csproj" />
     <Project Path="Launcher/SboxServer/Sbox-Server.csproj" />
     <Project Path="Launcher/SboxStandalone/Sbox-Standalone.csproj" />
-    <Project Path="Launcher/SceneLab/SceneLab.csproj" />
     <Project Path="Launcher/Shared/LaunchShared.shproj" />
     <Project Path="Launcher/StandaloneTest/Sbox-Launcher.csproj" />
   </Folder>
@@ -57,7 +58,13 @@
     <Project Path="Sandbox.AppSystem/Sandbox.AppSystem.csproj" />
     <Project Path="Sandbox.GameInstance/Sandbox.GameInstance.csproj" />
     <Project Path="Sandbox.Menu/Sandbox.Menu.csproj" />
-    <Project Path="Sandbox.SceneRenderer/Sandbox.SceneRenderer.csproj" />
+    <Project Path="Borealis/Borealis.csproj" />
+    <Project Path="Borealis.Backend/Borealis.Backend.csproj" />
+    <Project Path="Borealis.Gpu/Borealis.Gpu.csproj" />
+    <Project Path="Borealis.Sdl/Borealis.Sdl.csproj" />
+    <Project Path="Borealis.Source2/Borealis.Source2.csproj" />
+    <Project Path="Sandbox.ShaderCompiler/Sandbox.ShaderCompiler.csproj" />
+    <Project Path="Sandbox.Rendering/Sandbox.Rendering.csproj" />
     <Project Path="Sandbox.Tools/Sandbox.Tools.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
@@ -65,6 +72,8 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Benchmark/Benchmark.csproj" />
+    <Project Path="Tests/Borealis.Gpu.Test/Borealis.Gpu.Test.csproj" />
+    <Project Path="Tests/Borealis.Test/Borealis.Test.csproj" />
     <Project Path="Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj" />
     <Project Path="Tests/Sandbox.Test.NetSim/Sandbox.Test.NetSim.csproj" />
     <Project Path="Tests/Sandbox.Test.Integration/Sandbox.Test.Integration.csproj" />

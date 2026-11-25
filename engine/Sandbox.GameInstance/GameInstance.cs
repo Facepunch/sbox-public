@@ -584,7 +584,12 @@ internal class GameInstance : IGameInstance
 		Game.ActiveScene = null;
 		Game.ActiveScene = new Scene();
 
-		if ( IsDeveloperHost || (Application.IsEditor && !Game.IsPlaying) ) return true;
+		// Nothing loads here, so no scene load will put the loading screen away
+		if ( IsDeveloperHost || (Application.IsEditor && !Game.IsPlaying) )
+		{
+			LoadingScreen.IsVisible = false;
+			return true;
+		}
 
 		var menu = flags.Contains( GameLoadingFlags.Menu ) && !Application.IsDedicatedServer ? MenuScene : null;
 		var startupScene = menu ?? GetStartupScene();
