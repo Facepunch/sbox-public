@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_UNLIT"		"1"
 	"F_SELF_ILLUM"		"1"
 	"TextureAmbientOcclusion"		"materials/default/default_ao.tga"

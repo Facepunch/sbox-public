@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/complex.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"TextureAmbientOcclusion"		"materials/default/default_ao.tga"
 	"g_flFadeExponent"		"1.000000"
 	"g_flModelTintAmount"		"1.000000"

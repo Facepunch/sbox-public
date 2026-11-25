@@ -1,6 +1,6 @@
 "Layer0"
 {
-	"shader"		"shaders/generic.shader_c"
+	"shader"		"shaders/standard.shader_c"
 	"F_SPECULAR"		"1"
 	"F_TRANSLUCENT"		"1"
 	"g_vColorTint"		"[1.000000 1.000000 1.000000 0.000000]"
@@ -21,7 +21,7 @@
 	"Attributes"
 	{
 		"houShader"		"shader"
-		"defShader"		"generic.vfx"
+		"defShader"		"standard.vfx"
 		"dispShader"		"prototype_tessellation.vfx"
 		"houColor"		"TextureColor"
 		"houSpec_mask"		"TextureReflectance"

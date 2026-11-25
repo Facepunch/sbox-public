@@ -2,7 +2,7 @@
 
 Layer0
 {
-	shader "shaders/generic.shader"
+	shader "shaders/standard.shader"
 
 	//---- Color ----
 	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
