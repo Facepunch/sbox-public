@@ -328,11 +328,18 @@ public partial class Panel
 		// Nested clip owners each fill the same labels, but the outermost one draws their effects, under every fill
 		bool drawEffects = !HasTextClipFillAbove();
 
-		foreach ( var label in Descendants.Prepend( this ).OfType<Label>() )
-		{
-			if ( !label.IsVisible || label.VisualRoot != VisualRoot ) continue;
-			if ( !label.GetTextMask( out var texture, out var rect ) ) continue;
+		FillTextClipLabels( this, painter, in descriptor, drawEffects );
+	}
 
+	/// <summary>
+	/// Fill the background through the text mask of <paramref name="panel"/> and every label below it, in tree order.
+	/// Walks the child lists directly: this runs each frame the panel paints, and the descendant iterators allocated one
+	/// enumerator per panel in the subtree.
+	/// </summary>
+	void FillTextClipLabels( Panel panel, Painter painter, in Painter.BoxDescriptor descriptor, bool drawEffects )
+	{
+		if ( panel is Label label && label.IsVisible && label.VisualRoot == VisualRoot && label.GetTextMask( out var texture, out var rect ) )
+		{
 			// Shadows and outlines aren't part of the mask, they go under the fill like normal text
 			if ( drawEffects ) label.DrawTextEffects( painter, CachedOverrideBlendMode, CachedRenderOpacity );
 
@@ -346,6 +353,13 @@ public partial class Panel
 				BorderImage = default
 			};
 			painter.Rect( in fill );
+		}
+
+		var children = panel._children;
+		if ( children is null ) return;
+		for ( int i = 0; i < children.Count; i++ )
+		{
+			if ( children[i] is { } child ) FillTextClipLabels( child, painter, in descriptor, drawEffects );
 		}
 	}
 

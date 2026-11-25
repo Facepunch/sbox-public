@@ -65,6 +65,46 @@ public class PainterPanelTest
 		}
 	}
 
+	/// <summary>
+	/// A text-clipped background finds its labels without allocating, however deep they are: it runs every frame the panel
+	/// paints, and walking the subtree through Descendants made an enumerator per panel (Dark Descent's menu, 48 KB a frame).
+	/// </summary>
+	[TestMethod]
+	public void TextClippedBackgroundAllocatesNothingPerPanel()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics to rasterize the text mask." );
+
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 400, 300 ) };
+		var panel = root.AddChild<Panel>();
+		panel.Style.Set( "position: absolute; left: 40px; top: 30px; width: 200px; height: 80px; background-color: red;" );
+		var parent = panel;
+		for ( int i = 0; i < 64; i++ ) parent = parent.AddChild<Panel>();
+		var label = parent.AddChild<Label>();
+		label.Style.Set( "font-family: Arial; font-size: 24px;" );
+		label.Text = "Deep";
+		try
+		{
+			long Allocated()
+			{
+				root.Layout();
+				PanelDrawSnapshot.Build( root );
+				PanelDrawSnapshot.Build( root );
+				var before = GC.GetAllocatedBytesForCurrentThread();
+				PanelDrawSnapshot.Build( root );
+				return GC.GetAllocatedBytesForCurrentThread() - before;
+			}
+
+			var plain = Allocated();
+			panel.Style.Set( "background-clip: text;" );
+			var clipped = Allocated();
+			Assert.IsTrue( clipped - plain < 1024, $"{clipped - plain} bytes more to fill one label through 64 panels" );
+		}
+		finally
+		{
+			root.Delete( true );
+		}
+	}
+
 	sealed class InheritedLegacyPanel : LegacyPanel
 	{
 	}
