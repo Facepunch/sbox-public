@@ -146,13 +146,13 @@
         {
             "r.water.detail": "2",
             "r.water.planar.downsample": "1",
-            "r.water.refraction.downsample": "1"
+            "r.water.refraction.downsample": "2"
         },
         "Ultra":
         {
             "r.water.detail": "2",
             "r.water.planar.downsample": "1",
-            "r.water.refraction.downsample": "1"
+            "r.water.refraction.downsample": "2"
         }
     },
     "ShadowQuality":

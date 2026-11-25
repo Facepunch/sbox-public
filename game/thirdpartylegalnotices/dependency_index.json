@@ -864,19 +864,7 @@
 				"Functional Software, Inc."
 			]
 		},
-		{
-			"Name": "OpenXR",
-			"Comment": "Khronos OpenXR runtime loader (openxr_loader.dll).",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "Apache-2.0",
-			"ProjectUrl": "https://github.com/KhronosGroup/OpenXR-SDK/",
-			"Linkage": "dynamic",
-			"Copyright": [
-				"The Khronos Group Inc."
-			]
-		},
+
 		{
 			"Name": "NVIDIA Nsight Aftermath",
 			"Comment": "GPU crash dump/diagnostics library (GFSDK_Aftermath_Lib.x64.dll).",

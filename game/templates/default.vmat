@@ -2,7 +2,7 @@
 
 Layer0
 {
-	shader "complex.vfx"
+	shader "standard.vfx"
 
 	//---- Ambient Occlusion ----
 	g_flAmbientOcclusionDirectDiffuse "0.000"
