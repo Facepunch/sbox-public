@@ -7,7 +7,18 @@ public static partial class Stats
 	/// <summary>
 	/// Static cache of all the global stats
 	/// </summary>
-	static CaseInsensitiveDictionary<PlayerStats> _playerStats = new CaseInsensitiveDictionary<PlayerStats>();
+	static Dictionary<PlayerKey, PlayerStats> _playerStats = new();
+
+	/// <summary>A package (any case) and a player: looked up without making a string, as achievements do every second.</summary>
+	readonly struct PlayerKey( string package, long steamId ) : IEquatable<PlayerKey>
+	{
+		readonly string package = package ?? "";
+		readonly long steamId = steamId;
+
+		public bool Equals( PlayerKey other ) => steamId == other.steamId && string.Equals( package, other.package, StringComparison.OrdinalIgnoreCase );
+		public override bool Equals( object obj ) => obj is PlayerKey other && Equals( other );
+		public override int GetHashCode() => HashCode.Combine( StringComparer.OrdinalIgnoreCase.GetHashCode( package ), steamId );
+	}
 
 	/// <summary>
 	/// Get the global stats for the calling package
@@ -33,14 +44,14 @@ public static partial class Stats
 	/// </summary>
 	public static PlayerStats GetPlayerStats( string packageIdent, long steamid )
 	{
-		var hash = $"{packageIdent}/{steamid}".ToLowerInvariant();
+		var key = new PlayerKey( packageIdent, steamid );
 
-		if ( _playerStats.TryGetValue( hash, out var s ) )
+		if ( _playerStats.TryGetValue( key, out var s ) )
 			return s;
 
 		s = new PlayerStats( packageIdent, steamid );
 		_ = s.Refresh();
-		_playerStats[hash] = s;
+		_playerStats[key] = s;
 		return s;
 	}
 
