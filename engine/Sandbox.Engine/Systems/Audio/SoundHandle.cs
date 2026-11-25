@@ -611,11 +611,14 @@ public partial class SoundHandle : IValid, IDisposable
 		{
 			_motion.Update( Position, RealTime.NowDouble );
 
+			// Off with the rest of the sound simulation, the player's setting.
+			float dopplerScale = SoundSimulationSystem.snd_simulation_enable ? DopplerScale * (GetEffectiveMixer()?.Doppler ?? 1f) : 0f;
+
 			// Not before the sound's speed is known: a new sound moving with the listener would start off pitch
 			foreach ( var listener in _motion.Known ? snap.Listeners : [] )
 			{
 				if ( listener.Scene != Scene ) continue;
-				pitch *= Audio.Doppler.Factor( Position, _motion.Velocity, listener.MixTransform.Position, listener.Listener.Motion.Velocity, DopplerScale );
+				pitch *= Audio.Doppler.Factor( Position, _motion.Velocity, listener.MixTransform.Position, listener.Listener.Motion.Velocity, dopplerScale );
 				break;
 			}
 		}

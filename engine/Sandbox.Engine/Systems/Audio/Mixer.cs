@@ -219,6 +219,18 @@ public partial class Mixer
 		set => Interlocked.Exchange( ref _airAborb, value );
 	}
 
+	float _doppler = 1.0f;
+
+	/// <summary>
+	/// How much sounds shift in pitch as they and the listener move toward or away from each other (0 = off, 1 = physical).
+	/// </summary>
+	[Range( 0, 1 ), Group( "Simulation" )]
+	public float Doppler
+	{
+		get => Volatile.Read( ref _doppler );
+		set => Interlocked.Exchange( ref _doppler, value );
+	}
+
 	/// <summary>
 	/// Should this be the only mixer that is heard?
 	/// </summary>

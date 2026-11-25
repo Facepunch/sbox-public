@@ -81,6 +81,12 @@ public partial class SoundEvent : GameResource
 	public bool AirAbsorption { get; set; } = true;
 
 	/// <summary>
+	/// Shift this sound's pitch as it and the listener move toward or away from each other
+	/// </summary>
+	[HideIf( nameof( UI ), true )]
+	public bool Doppler { get; set; } = true;
+
+	/// <summary>
 	/// Legacy transmission toggle. Transmission is now derived from occlusion and material response.
 	/// </summary>
 	[JsonInclude, Hide, Obsolete( "Transmission is derived from occlusion and material response." )]
