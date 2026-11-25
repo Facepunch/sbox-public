@@ -35,7 +35,42 @@ public static class LoadingScreen
 				StepFraction = null;
 				Package = null;
 			}
+
+			_changes++;
+			if ( !value && CollectsAfterLoad )
+				_ = CollectWhatTheLoadLeft( _changes );
 		}
+	}
+
+	/// <summary>
+	/// Counts the screen being shown and hidden, so a collection queued as it went away is dropped if it came back.
+	/// </summary>
+	static int _changes;
+
+	/// <summary>
+	/// How long after the screen goes the heap is collected: the menu's loading overlay lets go of the game's art a second
+	/// after it's put away, once it has faded out.
+	/// </summary>
+	const float CollectSeconds = 2;
+
+	/// <summary>
+	/// Not on a dedicated server, in a terminal, a test or a benchmark (it settles the heap itself between runs).
+	/// </summary>
+	static bool CollectsAfterLoad => !Application.IsDedicatedServer && !Application.IsHeadless && !Application.IsUnitTest && !Application.IsBenchmark;
+
+	/// <summary>
+	/// Once a load's screen has gone, start collecting what the load left, in the background. A game that allocates
+	/// little can go its whole session without another full collection, and textures nothing holds any more (the loading
+	/// art, a 20 MB screenshot) keep their video memory until their engine objects are collected.
+	/// </summary>
+	static async Task CollectWhatTheLoadLeft( int change )
+	{
+		await Task.Delay( TimeSpan.FromSeconds( CollectSeconds ) );
+		if ( change != _changes || _loading ) return;
+
+		// It returns at once: the collection runs on the background GC thread, and the finalizers it queues free the
+		// textures' video memory between frames
+		GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
 	}
 
 	/// <summary>
