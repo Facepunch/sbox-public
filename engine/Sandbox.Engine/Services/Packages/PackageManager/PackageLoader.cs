@@ -85,6 +85,9 @@ internal sealed partial class PackageLoader : IDisposable
 		LoadContext.Unload();
 		LoadContext = null;
 
+		// The runtime's cache of reflected generic instantiations would keep the contexts alive
+		ReflectionUtility.ForgetCollectibleMethodInstantiations();
+
 		ILHotload?.Dispose();
 		ILHotload = null;
 
