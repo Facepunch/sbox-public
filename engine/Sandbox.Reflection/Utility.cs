@@ -287,7 +287,12 @@ internal static class ReflectionUtility
 
 		if ( alc is not null && alc != System.Runtime.Loader.AssemblyLoadContext.Default )
 		{
-			unloadHandler = _ => cts.Cancel();
+			// The unload can run this as the task finishes and disposes cts: the handler list was taken before it was removed
+			unloadHandler = _ =>
+			{
+				try { cts.Cancel(); }
+				catch ( ObjectDisposedException ) { }
+			};
 			alc.Unloading += unloadHandler;
 		}
 
