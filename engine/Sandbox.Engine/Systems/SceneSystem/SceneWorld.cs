@@ -27,6 +27,13 @@ public sealed partial class SceneWorld : IHandle
 	/// </summary>
 	internal Rendering.ISceneWorldRender Render { get; set; }
 
+	/// <summary>
+	/// Whether this is a native tool's world (Hammer's, ModelDoc's), polled and written by the views that draw it on the main
+	/// thread, while native keeps its objects alive: never at the sync point (<see cref="Rendering.RenderSync.Run"/>), at some
+	/// other moment in the frame, when native may have destroyed objects whose changes wait.
+	/// </summary>
+	internal bool WrittenByItsViews { get; set; }
+
 	internal event Action<SceneWorld> Destroyed;
 
 	/// <summary>

@@ -539,6 +539,8 @@ internal static partial class ToolSceneViews
 			| SceneObjectChange.Settings | SceneObjectChange.Bounds;
 		if ( frame % ModelPollFrames == 0 ) change |= SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Flags;
 
+		// Written by this view as it draws, not at the sync point, where native may have destroyed objects since
+		world.WrittenByItsViews = true;
 		var listening = world.Render is not null;
 		lock ( world.InternalSceneObjects )
 		{

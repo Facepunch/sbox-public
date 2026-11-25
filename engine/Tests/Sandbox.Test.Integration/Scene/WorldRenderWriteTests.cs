@@ -328,6 +328,93 @@ public class WorldRenderWriteTests
 	}
 
 	/// <summary>
+	/// A native tool's world (Hammer's, ModelDoc's, <see cref="SceneWorld.WrittenByItsViews"/>) isn't written at the sync point:
+	/// native may have destroyed objects whose changes wait by then (Hammer's view crashed writing one there, once the editor's
+	/// scene view drew on the render thread). Its changes wait for the view drawing it, which writes them as it prepares.
+	/// </summary>
+	[TestMethod]
+	public void TheSyncPointLeavesAToolsWorldToItsViews()
+	{
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
+
+		var world = new SceneWorld { WrittenByItsViews = true };
+		var camera = new SceneCamera { World = world };
+		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
+		var deferred = RenderSync.DeferWrites;
+		try
+		{
+			var box = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
+			var prepare = RenderType.GetMethod( "Prepare", Any );
+			var find = RenderType.GetMethod( "Find", Any );
+			var pending = RenderType.GetProperty( "PendingChanges", Any );
+			prepare.Invoke( render, [camera, false] );
+			var boxObject = (Borealis.MeshObject)find.Invoke( render, [box] );
+
+			RenderSync.DeferWrites = true;
+			var moved = new Vector3( 10, 20, 30 );
+			box.Position = moved;
+			RenderSync.Run();
+			Assert.AreNotEqual( moved, boxObject.Transform.Position, "not written at the sync point" );
+			Assert.IsTrue( (int)pending.GetValue( render ) > 0, "the change waits" );
+
+			prepare.Invoke( render, [camera, false] );
+			Assert.AreEqual( moved, boxObject.Transform.Position, "the view drawing it writes it" );
+			Assert.AreEqual( 0, (int)pending.GetValue( render ), "nothing waits after it" );
+		}
+		finally
+		{
+			RenderSync.DeferWrites = deferred;
+			render.Dispose();
+			camera.Dispose();
+			world.Delete();
+		}
+	}
+
+	/// <summary>
+	/// An object drawing a run-time model that was destroyed meanwhile (a tool's buffer object model goes with its object while
+	/// a change of an object drawing it waits) draws nothing; its world's prepare doesn't throw, which left a Hammer view's
+	/// read-back black.
+	/// </summary>
+	[TestMethod]
+	public void ADestroyedRunTimeModelDrawsNothing()
+	{
+		if ( !Graphics.IsAvailable )
+			Assert.Inconclusive( "Requires SBOX_TEST_GRAPHICS=1: meshes are made on the device." );
+
+		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
+
+		var world = new SceneWorld();
+		var camera = new SceneCamera { World = world };
+		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
+		try
+		{
+			var material = Material.Load( "materials/default/white.vmat" );
+			var mesh = new Mesh( material );
+			mesh.CreateVertexBuffer( 3, new Vertex[]
+			{
+				new() { Position = new Vector3( 0, 0, 0 ), Normal = Vector3.Up },
+				new() { Position = new Vector3( 32, 0, 0 ), Normal = Vector3.Up },
+				new() { Position = new Vector3( 0, 32, 0 ), Normal = Vector3.Up }
+			} );
+			mesh.CreateIndexBuffer( 3, new[] { 0, 1, 2 } );
+			mesh.Bounds = new BBox( Vector3.Zero, new Vector3( 32, 32, 0 ) );
+			var model = Model.Builder.AddMesh( mesh ).Create();
+			model.Destroy();
+
+			var drawn = new SceneObject( world, model );
+			RenderType.GetMethod( "Prepare", Any ).Invoke( render, [camera, false] );
+			Assert.IsNull( Sandbox.Rendering.Bridge.MirrorContent.Mesh( model, out var pending ), "nothing to draw" );
+			Assert.IsFalse( pending );
+		}
+		finally
+		{
+			render.Dispose();
+			camera.Dispose();
+			world.Delete();
+		}
+	}
+
+	/// <summary>
 	/// What lights the world rather than drawing in it writes straight there too: a sun's change waits for nothing but the next
 	/// view to light with it, a probe volume's goes into its volume.
 	/// </summary>

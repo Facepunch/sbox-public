@@ -293,6 +293,9 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	/// </summary>
 	public void Sync()
 	{
+		// A native tool's world is written by the views drawing it (SceneWorld.WrittenByItsViews)
+		if ( source.WrittenByItsViews ) return;
+
 		// With a render thread the frame's views don't prepare their worlds (they'd read the game's objects on it), so every
 		// world drawn is prepared here: its changes, and models and textures that finished loading
 		if ( RenderSync.Overlapping ) { if ( !HasPrepared && !Waiting ) return; }

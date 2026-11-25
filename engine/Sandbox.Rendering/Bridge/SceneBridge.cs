@@ -618,9 +618,14 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	}
 
 	/// <summary>
-	/// The view whose frame is being rendered on this bridge, if one is: a view asked for meanwhile is its child.
+	/// The view whose frame is being rendered on this bridge for this thread's drawing thread, if one is: a view asked for
+	/// meanwhile is its child. The main thread and the render thread each have their own (<see cref="DrawerFrames{T}"/>): the
+	/// editor's tool views draw on the main thread while the render thread draws the scene view's frame, and a view of the
+	/// main thread's isn't a child of the render thread's.
 	/// </summary>
-	CameraState rendering;
+	CameraState rendering => drawingFrames.Current;
+
+	readonly DrawerFrames<CameraState> drawingFrames = new();
 
 	/// <summary>
 	/// How many child views deep the frame being drawn on this thread is.
@@ -638,22 +643,20 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	readonly ref struct Drawing : IDisposable
 	{
-		readonly SceneBridge bridge;
-		readonly CameraState state, parent;
+		readonly CameraState state;
+		readonly DrawerFrames<CameraState>.Scope scope;
 
 		public Drawing( SceneBridge bridge, CameraState state )
 		{
-			this.bridge = bridge;
 			this.state = state;
-			parent = bridge.rendering;
-			bridge.rendering = state;
+			scope = bridge.drawingFrames.Enter( state );
 			state.Rendering = true;
 		}
 
 		public void Dispose()
 		{
 			state.Rendering = false;
-			bridge.rendering = parent;
+			scope.Dispose();
 		}
 	}
 

@@ -81,6 +81,10 @@ internal static class MirrorContent
 			runtimeMeshes.Remove( model );
 		}
 
+		// Destroyed (a tool's buffer object model goes with its object while a change of an object drawing it still waits):
+		// nothing left to save, so nothing to draw, rather than the whole view's prepare throwing
+		if ( model.native.IsNull ) return null;
+
 		// Every mesh: a model built in code has no default mesh groups (native draws them all)
 		RenderMesh mesh;
 		if ( gpu.AsyncModels )
