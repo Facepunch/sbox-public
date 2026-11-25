@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Borealis on its own: boots only the part of the engine Borealis's Source 2 device needs (render device, filesystem,
+		resource, material, mesh and scene systems) and renders a RenderWorld into a window or a texture. No game, UI,
+		physics, sound, Steam or editor. See docs/reference/borealis-host.md.
+	-->
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<GenerateDocumentationFile>False</GenerateDocumentationFile>
+		<AssemblyName>borealislab</AssemblyName>
+		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+		<NoWarn>1701;1702;1591;NETSDK1138</NoWarn>
+		<LangVersion>14</LangVersion>
+		<OutputPath>..\..\..\game\bin\managed</OutputPath>
+		<OutputType>Exe</OutputType>
+		<DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
+		<PreserveCompilationReferences>false</PreserveCompilationReferences>
+		<PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+		<PreserveCompilationContext>false</PreserveCompilationContext>
+		<GenerateRuntimeConfigDevFile>false</GenerateRuntimeConfigDevFile>
+		<StartupObject>Sandbox.Program</StartupObject>
+		<ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+		<DebugType>embedded</DebugType>
+		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+		<GenerateDependencyFile>false</GenerateDependencyFile>
+		<CETCompat>false</CETCompat>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
+		<ProjectReference Include="..\..\Borealis\Borealis.csproj" Private="false" />
+		<ProjectReference Include="..\..\Borealis.Gpu\Borealis.Gpu.csproj" Private="false" />
+		<ProjectReference Include="..\..\Borealis.Sdl\Borealis.Sdl.csproj" Private="false" />
+		<ProjectReference Include="..\..\Borealis.Source2\Borealis.Source2.csproj" Private="false" />
+		<ProjectReference Include="..\..\Borealis.Backend\Borealis.Backend.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.ShaderCompiler\Sandbox.ShaderCompiler.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" Private="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- -map: the sample's PNG writer, and the map shader (compiled by Shaders/compile.bat) -->
+		<Compile Include="..\BorealisGpuSample\Capture.cs" Link="Maps\Capture.cs" />
+		<EmbeddedResource Include="Shaders\*.spv" LogicalName="%(Filename)%(Extension)" WithCulture="false" />
+	</ItemGroup>
+
+	<Import Project="..\Shared\LaunchShared.projitems" Label="Shared" />
+	<Import Project="..\LabShared\LabShared.projitems" Label="Shared" />
+
+</Project>
