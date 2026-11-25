@@ -259,12 +259,12 @@ public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component
 		}
 	}
 
+	// Legacy support for old texture based renderers: a copy of its own, since it sets the texture on it, drawn by its beams.
+	// Made only while no material is set, and freed once one is or the component is disabled, rather than left to the GC
 	private Material _defaultMaterial;
 
 	protected override void OnEnabled()
 	{
-		_defaultMaterial ??= Material.Load( "materials/default/default_line.vmat" ).CreateCopy();
-
 		StartLoop();
 	}
 
@@ -289,6 +289,9 @@ public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component
 		}
 
 		_beams.Clear();
+
+		_defaultMaterial?.ReleaseCopy();
+		_defaultMaterial = null;
 	}
 
 	protected override void OnUpdate()
@@ -405,17 +408,28 @@ public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component
 		offset -= (TextureScroll.Evaluate( lifeDelta, beam.Rand( 13 ) ) / texScale);
 		offset += secondsAlive * (TextureScrollSpeed.Evaluate( lifeDelta, beam.Rand( 14 ) ) / texScale);
 
-		// Legacy support for old texture based renderers
-#pragma warning disable CS0618
-		if ( Texture.IsValid() )
+		// Legacy support for old texture based renderers. Every beam is updated each frame, so once a material is set none
+		// draws the copy after this frame
+		if ( Material is not null )
 		{
-			_defaultMaterial.Set( "g_tColor", Texture );
+			_defaultMaterial?.ReleaseCopy();
+			_defaultMaterial = null;
 		}
 		else
 		{
-			_defaultMaterial.Set( "g_tColor", Texture.White );
-		}
+			_defaultMaterial ??= Material.Load( "materials/default/default_line.vmat" ).CreateCopy();
+
+#pragma warning disable CS0618
+			if ( Texture.IsValid() )
+			{
+				_defaultMaterial.Set( "g_tColor", Texture );
+			}
+			else
+			{
+				_defaultMaterial.Set( "g_tColor", Texture.White );
+			}
 #pragma warning restore CS0618
+		}
 
 		lineRenderer.UseVectorPoints = true;
 		lineRenderer.VectorPoints ??= new();

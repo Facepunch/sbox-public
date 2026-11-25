@@ -86,9 +86,6 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 		if ( !Graphics.IsAvailable )
 			return;
 
-		// Legacy support for old texture based renderers
-		_defaultMaterial = Material.Load( "materials/default/default_line.vmat" ).CreateCopy();
-
 		_so = new SceneLineObject( Scene.SceneWorld );
 		_so.Transform = WorldTransform;
 		_so.RenderingEnabled = false;
@@ -103,12 +100,22 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 		BackupRenderAttributes( _so?.Attributes );
 		_so?.Delete();
 		_so = null;
+
+		ReleaseDefaultMaterial();
 	}
 
 	List<Vector3> _points;
 	List<Vector3> _normals;
 
+	// Legacy support for old texture based renderers: a copy of its own, since it sets the texture on it. Made only while no
+	// material is set, and freed once one is or the component is disabled, rather than left to the GC
 	private Material _defaultMaterial;
+
+	void ReleaseDefaultMaterial()
+	{
+		_defaultMaterial?.ReleaseCopy();
+		_defaultMaterial = null;
+	}
 
 	protected override void OnPreRender()
 	{
@@ -174,9 +181,12 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 		if ( Texturing.Material.IsValid() )
 		{
 			_so.Material = Texturing.Material;
+			ReleaseDefaultMaterial();
 		}
 		else
 		{
+			_defaultMaterial ??= Material.Load( "materials/default/default_line.vmat" ).CreateCopy();
+
 #pragma warning disable CS0618
 			if ( Texturing.Texture.IsValid() )
 			{

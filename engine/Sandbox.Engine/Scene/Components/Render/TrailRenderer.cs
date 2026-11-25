@@ -52,11 +52,18 @@ public sealed class TrailRenderer : Renderer, Component.ExecuteInEditor
 	[Group( "Rendering" )]
 	[Property] public BlendMode BlendMode { get; set; } = BlendMode.Normal;
 
+	// Legacy support for old texture based renderers: a copy of its own, since it sets the texture on it. Made only while no
+	// material is set, and freed once one is or the component is disabled, rather than left to the GC
 	private Material _defaultMaterial;
+
+	void ReleaseDefaultMaterial()
+	{
+		_defaultMaterial?.ReleaseCopy();
+		_defaultMaterial = null;
+	}
 
 	protected override void OnEnabled()
 	{
-		_defaultMaterial = Material.Load( "materials/default/default_line.vmat" ).CreateCopy();
 		_so = new SceneTrailObject( Scene.SceneWorld );
 		_so.Transform = WorldTransform;
 		OnSceneObjectCreated( _so );
@@ -67,6 +74,8 @@ public sealed class TrailRenderer : Renderer, Component.ExecuteInEditor
 		BackupRenderAttributes( _so?.Attributes );
 		_so?.Delete();
 		_so = null;
+
+		ReleaseDefaultMaterial();
 	}
 
 	protected override void OnUpdate()
@@ -79,8 +88,14 @@ public sealed class TrailRenderer : Renderer, Component.ExecuteInEditor
 		_so.Transform = new Transform( WorldPosition );
 		_so.LifeTime = LifeTime;
 		_so.Texturing = Texturing;
-		if ( !Texturing.Material.IsValid() )
+		if ( Texturing.Material.IsValid() )
 		{
+			ReleaseDefaultMaterial();
+		}
+		else
+		{
+			_defaultMaterial ??= Material.Load( "materials/default/default_line.vmat" ).CreateCopy();
+
 #pragma warning disable CS0618
 			if ( Texturing.Texture.IsValid() )
 			{
