@@ -71,7 +71,7 @@ internal class BuildContent( string onlyRoot = null, bool force = false )
 				MaxJobs = ResourceCompiler.DefaultMaxJobs,
 
 				// Only the menu publishes here. Other roots ship generated files with their own assets.
-				OutputRoots = new Dictionary<string, string> { ["transient"] = Path.Combine( gameDir, "addons", "menu", "Transients" ) },
+				OutputRoots = new Dictionary<string, string> { ["transient"] = ContentRoots.EngineTransients( gameDir ) },
 				Select = onlyRoot is null ? null : [Path.Combine( gameDir, onlyRoot )],
 				Force = force,
 				CompileProgress = progress =>

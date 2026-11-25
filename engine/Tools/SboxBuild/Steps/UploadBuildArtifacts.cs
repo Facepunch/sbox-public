@@ -156,7 +156,6 @@ internal class UploadBuildArtifacts
 		"core/shaders/tools_wireframe.shader",
 		"core/shaders/ui.shader",
 		"core/shaders/unlit.shader",
-		"core/shaders/visualize_quad_overdraw.shader",
 
 		// addons raw assets
 		"addons/**/*.tga",
@@ -195,7 +194,6 @@ internal class UploadBuildArtifacts
 		"bin/win64/materialsystem2.dll",
 		"bin/win64/meshsystem.dll",
 		"bin/win64/modeldoc_utils.dll",
-		"bin/win64/openxr_loader.dll",
 		"bin/win64/rendersystemempty.dll",
 		"bin/win64/resourcecompiler.dll",
 		"bin/win64/schemasystem.dll",
@@ -207,12 +205,13 @@ internal class UploadBuildArtifacts
 		"bin/win64/tier0.dll",
 		"bin/win64/vfx_vulkan.dll",
 
-		// Shader includes, plus the error assets the engine loads at startup
+		// Shader includes, plus the error assets the engine loads at startup (the error shader is its Slang module alone)
 		"core/shaders/**/*.fxc",
 		"core/shaders/**/*.hlsl",
 		"core/shaders/**/*.h",
 		"core/shaders/**/*.cpp",
-		"core/shaders/error.shader_c",
+		"core/shaders/error.slang",
+		"core/shaders/error.slang_c",
 		"core/materials/error.vmat_c"
 	};
 
@@ -303,7 +302,7 @@ internal class UploadBuildArtifacts
 	/// include/exclude globs (see <see cref="IncludeGlobs"/> / <see cref="ExcludeGlobs"/>)
 	/// to the <c>game/</c> folder.
 	/// </summary>
-	private static List<(string EntryPath, string AbsolutePath)> CollectRunnableFiles( string repoRoot )
+	internal static List<(string EntryPath, string AbsolutePath)> CollectRunnableFiles( string repoRoot )
 	{
 		var gameRoot = Path.Combine( repoRoot, "game" );
 		if ( !Directory.Exists( gameRoot ) )

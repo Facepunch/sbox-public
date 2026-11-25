@@ -10,26 +10,32 @@ using static Facepunch.Constants;
 namespace Facepunch.Steps;
 
 /// <summary>
-/// Register pressure for every shader: dumps each combo's SPIR-V with <c>ShaderCompiler --dump-spirv</c>, compiles
-/// it for AMD GPUs with the pipeline compiler from the Radeon GPU Analyzer and writes the worst combo per shader and
-/// stage to <c>docs/reference/shader-stats.md</c>, so a change in VGPRs or occupancy shows up in the diff.
+/// Register pressure for every shader: dumps each combo's SPIR-V with <c>ShaderCompiler --dump-spirv</c> (each Slang
+/// surface's passes with <c>ShaderCompiler -slang --dump-spirv</c>), compiles it for AMD GPUs with the pipeline compiler
+/// from the Radeon GPU Analyzer and writes the worst combo per shader and stage to <c>docs/reference/shader-stats.md</c>,
+/// so a change in VGPRs or occupancy shows up in the diff.
 /// </summary>
 internal class ShaderStats( string[] asics, string[] shaders )
 {
 	const string RgaVersion = "2.14.2";
-	const string RgaUrl = $"https://github.com/GPUOpen-Tools/radeon_gpu_analyzer/releases/download/{RgaVersion}/rga-windows-x64-{RgaVersion}.zip";
-	const string RgaDir = $"src/thirdparty/rga/{RgaVersion}";
+
+	/// <summary>
+	/// 2.14's amdllpc no longer compiles GFX10 (RDNA 1 and 2, the Steam Deck's family); the last release that does
+	/// compiles those targets.
+	/// </summary>
+	const string Gfx10RgaVersion = "2.13";
 	const string Output = "docs/reference/shader-stats.md";
 
-	public static readonly string[] DefaultAsics = ["gfx1100", "gfx1150", "gfx1200"];
+	public static readonly string[] DefaultAsics = ["gfx1100", "gfx1030", "gfx1150", "gfx1200"];
 
 	/// <summary>
 	/// Occupancy inputs per target, from LLVM's AMDGPU backend (Feature1536VGPRs in AMDGPU.td; the granule and
-	/// totals in AMDGPUBaseInfo getVGPRAllocGranule and AMDGPUTargetParser getTotalNumVGPRs). GFX11 and GFX12
-	/// both run at most 16 waves per SIMD.
+	/// totals in AMDGPUBaseInfo getVGPRAllocGranule and AMDGPUTargetParser getTotalNumVGPRs). GFX10.3, GFX11 and
+	/// GFX12 all run at most 16 waves per SIMD.
 	/// </summary>
 	static readonly Dictionary<string, (string Name, bool LargeVgprFile)> Targets = new()
 	{
+		["gfx1030"] = ("RDNA 2 (RX 6800, Steam Deck class)", false),
 		["gfx1100"] = ("RDNA 3 (RX 7900)", true),
 		["gfx1101"] = ("RDNA 3 (RX 7800/7700)", true),
 		["gfx1102"] = ("RDNA 3 (RX 7600)", false),
@@ -75,16 +81,22 @@ internal class ShaderStats( string[] asics, string[] shaders )
 		var game = Path.Combine( root, "game" );
 		var cache = Path.Combine( game, ".source2", "shaderstats" );
 
-		var rga = FindRga( root );
-		if ( rga is null ) return ExitCode.Failure;
-
 		// RGA's offline Vulkan mode runs this with verbose LLVM IR logging that it then parses, five times slower than
 		// compiling directly; everything we report is in the pipeline ELF's metadata anyway
-		var llpc = Path.Combine( Path.GetDirectoryName( rga ), "utils", "amdllpc.exe" );
-		if ( !File.Exists( llpc ) )
+		var llpcs = new Dictionary<string, string>();
+		foreach ( var version in asics.Select( RgaFor ).Distinct() )
 		{
-			Log.Error( $"{llpc} is missing - RGA {RgaVersion} ships it." );
-			return ExitCode.Failure;
+			var rga = FindRga( root, version );
+			if ( rga is null ) return ExitCode.Failure;
+
+			var llpc = Path.Combine( Path.GetDirectoryName( rga ), "utils", "amdllpc.exe" );
+			if ( !File.Exists( llpc ) )
+			{
+				Log.Error( $"{llpc} is missing - RGA {version} ships it." );
+				return ExitCode.Failure;
+			}
+
+			llpcs[version] = llpc;
 		}
 
 		if ( !DumpSpirv( game, cache ) ) return ExitCode.Failure;
@@ -96,7 +108,7 @@ internal class ShaderStats( string[] asics, string[] shaders )
 			return ExitCode.Failure;
 		}
 
-		var stats = Analyze( llpc, cache, programs );
+		var stats = Analyze( llpcs, cache, programs );
 
 		var markdown = WriteMarkdown( programs, stats );
 		var output = Path.Combine( root, Output );
@@ -108,28 +120,34 @@ internal class ShaderStats( string[] asics, string[] shaders )
 	} );
 
 	/// <summary>
-	/// RGA_PATH, else the pinned release under src/thirdparty, downloaded the first time.
+	/// The RGA release whose amdllpc compiles a target.
 	/// </summary>
-	static string FindRga( string root )
+	static string RgaFor( string asic ) => asic.StartsWith( "gfx10", StringComparison.Ordinal ) ? Gfx10RgaVersion : RgaVersion;
+
+	/// <summary>
+	/// RGA_PATH for the main release, else the pinned release under src/thirdparty, downloaded the first time.
+	/// </summary>
+	static string FindRga( string root, string version )
 	{
 		var env = Environment.GetEnvironmentVariable( "RGA_PATH" );
-		if ( !string.IsNullOrEmpty( env ) )
+		if ( version == RgaVersion && !string.IsNullOrEmpty( env ) )
 		{
 			if ( File.Exists( env ) ) return env;
 			Log.Error( $"RGA_PATH is set but {env} doesn't exist." );
 			return null;
 		}
 
-		var dir = Path.Combine( root, RgaDir );
+		var url = $"https://github.com/GPUOpen-Tools/radeon_gpu_analyzer/releases/download/{version}/rga-windows-x64-{version}.zip";
+		var dir = Path.Combine( root, "src", "thirdparty", "rga", version );
 		var exe = Path.Combine( dir, "rga.exe" );
 		if ( File.Exists( exe ) ) return exe;
 
-		BuildDisplay.Status( $"Download Radeon GPU Analyzer {RgaVersion}" );
-		var zip = Path.Combine( Path.GetTempPath(), $"rga-windows-x64-{RgaVersion}.zip" );
+		BuildDisplay.Status( $"Download Radeon GPU Analyzer {version}" );
+		var zip = Path.Combine( Path.GetTempPath(), $"rga-windows-x64-{version}.zip" );
 		try
 		{
 			using ( var http = new HttpClient { Timeout = TimeSpan.FromMinutes( 30 ) } )
-			using ( var response = http.GetAsync( RgaUrl, HttpCompletionOption.ResponseHeadersRead ).GetAwaiter().GetResult() )
+			using ( var response = http.GetAsync( url, HttpCompletionOption.ResponseHeadersRead ).GetAwaiter().GetResult() )
 			{
 				response.EnsureSuccessStatusCode();
 				var total = response.Content.Headers.ContentLength ?? 0;
@@ -150,7 +168,7 @@ internal class ShaderStats( string[] asics, string[] shaders )
 		}
 		catch ( Exception e )
 		{
-			Log.Error( $"Couldn't fetch RGA from {RgaUrl}: {e.Message}. Install it and set RGA_PATH to rga.exe instead." );
+			Log.Error( $"Couldn't fetch RGA from {url}: {e.Message}. Install it and set RGA_PATH to rga.exe instead." );
 			return null;
 		}
 		finally
@@ -159,7 +177,7 @@ internal class ShaderStats( string[] asics, string[] shaders )
 		}
 
 		if ( File.Exists( exe ) ) return exe;
-		Log.Error( $"{RgaUrl} didn't contain rga.exe" );
+		Log.Error( $"{url} didn't contain rga.exe" );
 		return null;
 	}
 
@@ -191,26 +209,40 @@ internal class ShaderStats( string[] asics, string[] shaders )
 			}
 		}
 
-		var files = targets.Length == 0 ? "*" : string.Join( ' ', targets.Select( x => $"\"{x}\"" ) );
+		// .shader files through vfx; the Slang surfaces (.slang) through their own compile, a combo per pass
+		var vfxTargets = targets.Where( x => !x.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ).ToArray();
+		var slangTargets = targets.Where( x => x.EndsWith( ".slang", StringComparison.OrdinalIgnoreCase ) ).ToArray();
 		var failed = new List<string>();
 		string current = null;
-		BuildDisplay.Status( "Compile shaders and dump SPIR-V" );
+		var success = true;
+		if ( targets.Length == 0 || vfxTargets.Length > 0 )
+		{
+			var files = targets.Length == 0 ? "*" : string.Join( ' ', vfxTargets.Select( x => $"\"{x}\"" ) );
+			BuildDisplay.Status( "Compile shaders and dump SPIR-V" );
+			success = Utility.RunProcess( compiler, $"{files} --dump-spirv \"{cache}\"", game, timeoutMs: 7_200_000,
+				onDataReceived: ( _, e ) =>
+				{
+					if ( e.Data is null ) return;
+					var match = Regex.Match( e.Data, @"^\((\d+)/(\d+)\)\s*(.*)$" );
+					if ( match.Success )
+					{
+						current = match.Groups[3].Value;
+						BuildDisplay.Progress( int.Parse( match.Groups[1].Value ) - 1, int.Parse( match.Groups[2].Value ), current );
+					}
+					else if ( e.Data.Contains( "Compile failed." ) && current is not null )
+					{
+						lock ( failed ) failed.Add( current );
+					}
+				} );
+		}
 
-		var success = Utility.RunProcess( compiler, $"{files} --dump-spirv \"{cache}\"", game, timeoutMs: 7_200_000,
-			onDataReceived: ( _, e ) =>
-			{
-				if ( e.Data is null ) return;
-				var match = Regex.Match( e.Data, @"^\((\d+)/(\d+)\)\s*(.*)$" );
-				if ( match.Success )
-				{
-					current = match.Groups[3].Value;
-					BuildDisplay.Progress( int.Parse( match.Groups[1].Value ) - 1, int.Parse( match.Groups[2].Value ), current );
-				}
-				else if ( e.Data.Contains( "Compile failed." ) && current is not null )
-				{
-					lock ( failed ) failed.Add( current );
-				}
-			} );
+		if ( targets.Length == 0 || slangTargets.Length > 0 )
+		{
+			BuildDisplay.Status( "Compile Slang surfaces and dump SPIR-V" );
+			var files = string.Join( ' ', slangTargets.Select( x => $"\"{x}\"" ) );
+			if ( !Utility.RunProcess( compiler, $"-slang --dump-spirv \"{cache}\" {files}", game, timeoutMs: 7_200_000 ) )
+				Log.Warning( "Some Slang shaders failed to compile and are missing from the stats." );
+		}
 
 		// A broken shader shouldn't hide the stats for the rest; build-shaders is what fails on it
 		foreach ( var shader in failed ) Log.Warning( $"{shader} failed to compile and is missing from the stats." );
@@ -239,12 +271,12 @@ internal class ShaderStats( string[] asics, string[] shaders )
 	/// Every module on the first target, so its worst combo is exact. The other targets only get each stage's default
 	/// and that worst combo: complex.shader alone is ~1900 big modules, too slow to repeat per target.
 	/// </summary>
-	Dictionary<(string Asic, string Spirv), Stats> Analyze( string llpc, string cache, List<Program> programs )
+	Dictionary<(string Asic, string Spirv), Stats> Analyze( Dictionary<string, string> llpcs, string cache, List<Program> programs )
 	{
 		var results = new Dictionary<(string, string), Stats>();
 		var primary = asics[0];
 
-		AnalyzeModules( llpc, cache, primary, programs.SelectMany( p => p.Combos.Select( c => c.Spirv ) ), results );
+		AnalyzeModules( llpcs[RgaFor( primary )], cache, primary, programs.SelectMany( p => p.Combos.Select( c => c.Spirv ) ), results );
 
 		var picked = programs.SelectMany( p =>
 		{
@@ -253,7 +285,7 @@ internal class ShaderStats( string[] asics, string[] shaders )
 		} ).ToArray();
 
 		foreach ( var asic in asics.Skip( 1 ) )
-			AnalyzeModules( llpc, cache, asic, picked, results );
+			AnalyzeModules( llpcs[RgaFor( asic )], cache, asic, picked, results );
 
 		var errors = results.Values.Count( x => x.Error is not null );
 		if ( errors > 0 ) Log.Warning( $"amdllpc failed on {errors} modules; they're marked in the report." );
@@ -266,7 +298,7 @@ internal class ShaderStats( string[] asics, string[] shaders )
 	/// </summary>
 	static void AnalyzeModules( string llpc, string cache, string asic, IEnumerable<string> modules, Dictionary<(string, string), Stats> results )
 	{
-		var dir = Path.Combine( cache, "llpc", RgaVersion, asic );
+		var dir = Path.Combine( cache, "llpc", RgaFor( asic ), asic );
 		Directory.CreateDirectory( dir );
 
 		var jobs = new List<(string Spirv, string File)>();
@@ -418,8 +450,12 @@ internal class ShaderStats( string[] asics, string[] shaders )
 		md.AppendLine();
 		md.AppendLine( $"Every combo of every shader under `game/` is compiled to the SPIR-V that ships in its `.shader_c` (specialization" );
 		md.AppendLine( "constants baked in), then to AMD ISA by `amdllpc`, the AMDVLK pipeline compiler behind the offline Vulkan mode of the" );
-		md.AppendLine( $"[Radeon GPU Analyzer](https://gpuopen.com/rga/) {RgaVersion}. Each stage is compiled on its own without the real" );
-		md.AppendLine( "pipeline state, so treat the numbers as close, not exact. Columns:" );
+		md.AppendLine( $"[Radeon GPU Analyzer](https://gpuopen.com/rga/) {RgaVersion} ({Gfx10RgaVersion} for GFX10 targets, which {RgaVersion} dropped)." );
+		md.AppendLine( "Each stage is compiled on its own without the real" );
+		md.AppendLine( "pipeline state, so treat the numbers as close, not exact. A Slang surface (`name.slang`) is compiled the same way, its" );
+		md.AppendLine( "passes as its combos (Forward the default) and its material's features at the record's values, as in a pipeline that" );
+		md.AppendLine( "isn't specialised for a material: its uniform branches keep every feature's code. A standalone pass module" );
+		md.AppendLine( "(`terrain.slang`) is compiled as its offline compile makes it, a combo per combination of its combos. Columns:" );
 		md.AppendLine();
 		md.AppendLine( "- **Worst** is the combo with the most VGPRs; the combo is named by the values that differ from the default." );
 		md.AppendLine( "  **Default** is the first combo, every combo at its minimum." );

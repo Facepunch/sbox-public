@@ -38,7 +38,11 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 				return ExitCode.Failure;
 			}
 
-			return RunShaderCompiler( shaderCompilerPath, gameDir );
+			var result = RunShaderCompiler( shaderCompilerPath, gameDir );
+			if ( result == ExitCode.Success ) result = CompileTestShaders( shaderCompilerPath, rootDir, gameDir ) ? ExitCode.Success : ExitCode.Failure;
+			if ( result == ExitCode.Success ) CompileSlang( shaderCompilerPath, gameDir );
+			if ( result == ExitCode.Success && !CheckShaderIncludes.Check( rootDir ) ) result = ExitCode.Failure;
+			return result;
 		}
 		catch ( Exception ex )
 		{
@@ -46,6 +50,44 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 			return ExitCode.Failure;
 		}
 	} );
+
+	/// <summary>
+	/// The Borealis.Gpu tests' own .shader files (engine/Tests/Borealis.Gpu.Test/Content: engine shaders whose materials compile
+	/// from their Slang modules now, kept so the tests have compiled vfx shaders to read), mounted and compiled beside themselves
+	/// as a mount's are. Up-to-date ones are skipped.
+	/// </summary>
+	static bool CompileTestShaders( string shaderCompilerPath, string rootDir, string gameDir )
+	{
+		var content = Path.Combine( rootDir, "engine", "Tests", "Borealis.Gpu.Test", "Content" );
+		if ( !Directory.Exists( content ) || !Directory.EnumerateFiles( content, "*.shader", SearchOption.AllDirectories ).Any() ) return true;
+
+		BuildDisplay.Status( "Compile test shaders" );
+		if ( Utility.RunProcess( shaderCompilerPath, $"-assets \"{content}\"", gameDir, onDataReceived: ( sender, e ) =>
+		{
+			if ( e.Data != null && !BuildDisplay.IsActive ) Log.Info( e.Data );
+		} ) ) return true;
+
+		Log.Error( "The Borealis.Gpu tests' shaders failed to compile" );
+		return false;
+	}
+
+	/// <summary>
+	/// Borealis's Slang shaders compiled offline (<c>name.slang_c</c> beside each <c>.slang</c>): every surface and pass module,
+	/// so a fresh build or install runs no Slang in game (docs/reference/borealis-slang-materials.md). Only those whose inputs
+	/// changed compile. A failure only warns: Borealis.Gpu compiles what's missing in game.
+	/// </summary>
+	void CompileSlang( string shaderCompilerPath, string gameDir )
+	{
+		BuildDisplay.Status( "Compile Slang shaders" );
+		var success = Utility.RunProcess( shaderCompilerPath, "-slang", gameDir, onDataReceived: ( sender, e ) =>
+		{
+			if ( e.Data == null ) return;
+			if ( !BuildDisplay.IsActive ) Log.Info( e.Data );
+			if ( e.Data.StartsWith( "Slang offline:", StringComparison.Ordinal ) ) GitHubActions.Note( e.Data );
+		} );
+
+		if ( !success ) Log.Warning( "Some Slang shaders didn't compile offline; Borealis.Gpu compiles those in game." );
+	}
 
 	private ExitCode RunShaderCompiler( string shaderCompilerPath, string workingDirectory )
 	{
