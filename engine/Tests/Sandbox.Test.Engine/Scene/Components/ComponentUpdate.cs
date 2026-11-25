@@ -159,6 +159,36 @@ public class ComponentUpdateTest : SceneTest
 	}
 
 	/// <summary>
+	/// A mesh stays off the update list in play, and an OnComponentUpdate action set on one after it's enabled still
+	/// puts it on, then takes it off again when cleared.
+	/// </summary>
+	[TestMethod]
+	public void MeshComponentUpdatesOnlyForItsActionInPlay()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var mesh = go.Components.Create<MeshComponent>();
+
+		Assert.IsInstanceOfType<IUpdateSubscriber>( mesh );
+		Assert.IsFalse( scene.updateComponents.Contains( mesh ) );
+
+		var calls = 0;
+		mesh.OnComponentUpdate = () => calls++;
+		Assert.IsTrue( scene.updateComponents.Contains( mesh ) );
+
+		scene.GameTick();
+		Assert.AreEqual( 1, calls );
+
+		mesh.OnComponentUpdate = null;
+		Assert.IsFalse( scene.updateComponents.Contains( mesh ) );
+
+		scene.GameTick();
+		Assert.AreEqual( 1, calls );
+	}
+
+	/// <summary>
 	/// An OnComponentUpdate action assigned while the component is disabled
 	/// doesn't run, but starts running once the component is enabled.
 	/// </summary>
