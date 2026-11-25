@@ -78,9 +78,40 @@ public sealed partial class Material : Resource
 		{
 			copy.anonymousShader = anonymousShader;
 			copy.IsRuntime = true;
+			copy.IsCopy = true;
 			// The native copy merges raw buffer pointers, so the copy needs its own bindings
 			Attributes?.MergeUsedBuffersTo( copy.Attributes );
 		}
 		return copy;
+	}
+
+	/// <summary>
+	/// Made by <see cref="CreateCopy"/>: nothing shares it unless handed on, so what made it can free it (<see cref="ReleaseCopy"/>).
+	/// </summary>
+	internal bool IsCopy { get; private set; }
+
+	bool releaseQueued;
+
+	/// <summary>
+	/// Free a copy made by <see cref="CreateCopy"/> at the end of this frame, once everything has rendered, rather than whenever
+	/// the GC finalizes it: its strong handle goes then, and with native's last reference its material and layers. What drew
+	/// it must have let go of it by then (its scene object deleted, or given another material). Does nothing for a material
+	/// that isn't a copy, which others share.
+	/// </summary>
+	internal void ReleaseCopy()
+	{
+		if ( !IsCopy || releaseQueued || native.IsNull ) return;
+
+		releaseQueued = true;
+
+		// Frame end disposes it
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		EngineLoop.DisposeAtFrameEnd( new CopyRelease( this ) );
+#pragma warning restore CA2000
+	}
+
+	sealed class CopyRelease( Material material ) : IDisposable
+	{
+		public void Dispose() => material.Destroy();
 	}
 }
