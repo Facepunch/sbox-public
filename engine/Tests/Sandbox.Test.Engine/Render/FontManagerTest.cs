@@ -23,6 +23,8 @@ public class FontManagerTest
 	[DataRow( "Material Symbols Rounded" )]
 	[DataRow( "Material Symbols Sharp" )]
 	[DataRow( "Material Icons" )]
+	[DataRow( "Material Icons Round" )]
+	[DataRow( "Material Icons Sharp" )]
 	public void SymbolVariationsShapeAndDraw( string family )
 	{
 		var block = new TextBlock { FontMapper = CoreFonts.Value };

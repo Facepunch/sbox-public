@@ -17,11 +17,14 @@ internal class FontManager : FontMapper, ICharacterMatcher
 	/// </summary>
 	record struct LoadedFont( SKTypeface Typeface, bool IsMenu );
 
-	// Older addons still ask for these families by name.
-	static readonly HashSet<string> LegacyIconFamilies = new( StringComparer.OrdinalIgnoreCase )
+	// Older addons still ask for the Material Icons families by name: each is drawn with the Material Symbols style it became
+	static readonly Dictionary<string, string> LegacyIconFamilies = new( StringComparer.OrdinalIgnoreCase )
 	{
-		"Material Icons",
-		"Material Icons Outlined"
+		["Material Icons"] = "Material Symbols Outlined",
+		["Material Icons Outlined"] = "Material Symbols Outlined",
+		["Material Icons Round"] = "Material Symbols Rounded",
+		["Material Icons Rounded"] = "Material Symbols Rounded",
+		["Material Icons Sharp"] = "Material Symbols Sharp",
 	};
 
 	Dictionary<(string family, int weight, int width, SKFontStyleSlant slant), LoadedFont> _loadedFonts = new();
@@ -167,7 +170,7 @@ internal class FontManager : FontMapper, ICharacterMatcher
 	/// </summary>
 	private SKTypeface GetBestTypeface( IStyle style )
 	{
-		var family = LegacyIconFamilies.Contains( style.FontFamily ) ? "Material Symbols Outlined" : style.FontFamily;
+		var family = style.FontFamily is { } asked && LegacyIconFamilies.TryGetValue( asked, out var symbols ) ? symbols : style.FontFamily;
 
 		lock ( _loadedFonts )
 		{
