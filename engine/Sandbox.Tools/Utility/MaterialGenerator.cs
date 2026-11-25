@@ -10,7 +10,7 @@ namespace Editor;
 /// </summary>
 internal static class MaterialGenerator
 {
-	internal const string DefaultShader = "shaders/complex.shader";
+	internal const string DefaultShader = "shaders/standard.shader";
 
 	/// <summary>
 	/// A group of texture files that share a directory and a base name, keyed by their suffix..
@@ -31,6 +31,9 @@ internal static class MaterialGenerator
 	/// </summary>
 	internal static Dictionary<string, string> GetSuffixMap( string shaderPath )
 	{
+		// A shader only a Slang module describes has no compiled schema: its module declares the inputs
+		if ( AssetSystem.CoreModuleOf( shaderPath ) is { } module ) return ModuleSuffixMap( module );
+
 		var shader = Shader.Load( shaderPath );
 		if ( shader is null || !shader.IsValid )
 		{
@@ -68,6 +71,31 @@ internal static class MaterialGenerator
 				.First();
 
 			map[group.Key] = name;
+		}
+
+		return map;
+	}
+
+	/// <summary>
+	/// The suffix map of a module's texture inputs (<see cref="Sandbox.ShaderCompiler.MaterialInputs"/>), in its default
+	/// feature state and with each feature on, so inputs only a feature uses (a metalness texture) are matched too.
+	/// </summary>
+	static Dictionary<string, string> ModuleSuffixMap( Sandbox.ShaderCompiler.PassModule module )
+	{
+		var states = new List<Dictionary<string, int>> { new() };
+		var featureLines = Sandbox.ShaderCompiler.MaterialInputs.Read( module, states[0] ).FeatureLines;
+		foreach ( System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches( featureLines, @"Feature\(\s*(F_\w+)\s*,\s*\d+\s*\.\.\s*(\d+)" ) )
+			states.Add( new() { [m.Groups[1].Value] = int.Parse( m.Groups[2].Value ) } );
+
+		var map = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var state in states )
+		{
+			foreach ( var input in Sandbox.ShaderCompiler.MaterialInputs.Read( module, state ).Inputs.Values )
+			{
+				if ( string.IsNullOrWhiteSpace( input.FileEnding ) ) continue;
+				if ( !map.TryGetValue( input.FileEnding, out var known ) || input.Name.Length < known.Length || (input.Name.Length == known.Length && string.Compare( input.Name, known, StringComparison.OrdinalIgnoreCase ) < 0) )
+					map[input.FileEnding] = input.Name;
+			}
 		}
 
 		return map;
@@ -192,10 +220,10 @@ internal static class MaterialGenerator
 		var features = new List<string>();
 		var textures = new List<string>();
 
-		// i really-really dislike this, but metalness texture is optional in complex & simple shaders, 
-		// so if texture set has a valid metalness texture, make sure to force enable F_METALNESS_TEXTURE if user selects these shaders
+		// i really-really dislike this, but metalness texture is optional in the standard shader (and complex & simple, which
+		// stand for it), so if texture set has a valid metalness texture, make sure to force enable F_METALNESS_TEXTURE if user selects these shaders
 		var shaderName = Path.GetFileNameWithoutExtension( shaderPath );
-		var forceMetalnessFeature = shaderName.Equals( "complex", StringComparison.OrdinalIgnoreCase ) || shaderName.Equals( "simple", StringComparison.OrdinalIgnoreCase );
+		var forceMetalnessFeature = shaderName.Equals( "standard", StringComparison.OrdinalIgnoreCase ) || shaderName.Equals( "complex", StringComparison.OrdinalIgnoreCase ) || shaderName.Equals( "simple", StringComparison.OrdinalIgnoreCase );
 
 		foreach ( var (suffix, asset) in set.BySuffix.OrderBy( x => x.Key, StringComparer.OrdinalIgnoreCase ) )
 		{

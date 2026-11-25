@@ -28,20 +28,15 @@ internal class PanelSurfaceWidget : Frame
 	/// </summary>
 	public PerformanceStats.Timings FrameTiming { get; set; }
 
-	public Color BackgroundColor
-	{
-		get => _camera.BackgroundColor;
-		set => _camera.BackgroundColor = value;
-	}
+	public Color BackgroundColor { get; set; } = Color.Black;
 
 	/// <summary>
 	/// Called each time the widget is about to draw, before the surface lays out.
 	/// </summary>
 	public Action OnPreFrame { get; set; }
 
-	SwapChainHandle_t _swapChain;
-	readonly SceneWorld _world;
-	readonly SceneCamera _camera;
+	BorealisGpuWindow _borealis;
+	bool _winIdChanged;
 	RealTimeSince _sinceFrame;
 	bool _mouseInside;
 	bool _stopped;
@@ -62,20 +57,8 @@ internal class PanelSurfaceWidget : Frame
 		Surface = new UISurface();
 		Surface.OnCursorChanged = name => Cursor = CursorFor( name );
 
-		_world = new SceneWorld();
-		_camera = new SceneCamera( "PanelSurfaceWidget" )
-		{
-			World = _world,
-			BackgroundColor = Color.Black,
-			ClearFlags = ClearFlags.All,
-			EnablePostProcessing = false,
-			ZNear = 1,
-			ZFar = 1000,
-			UIOnly = true,
-			OnRenderUI = Surface.Render,
-		};
-
-		_swapChain = WidgetUtil.CreateSwapChain( _widget, NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE );
+		// The widget presents on Borealis.Gpu, as a panel window does
+		_borealis = BorealisGpuWindow.FromNativeWindow( (BorealisGpuRenderBackend)RenderBackend.Default, _widget.winId(), Size * DpiScale, vsync: false );
 		All.Add( this );
 	}
 
@@ -87,13 +70,36 @@ internal class PanelSurfaceWidget : Frame
 
 	internal override void NativeDestroying() => ReleaseSwapChain();
 
+	/// <summary>
+	/// Qt reset the widget's native window id or gave it one; the next frame looks, as
+	/// <see cref="SceneRenderingWidget.OnWinIdChanged"/> does.
+	/// </summary>
+	internal override void OnWinIdChanged()
+	{
+		base.OnWinIdChanged();
+		_winIdChanged = true;
+	}
+
+	/// <summary>Keep the swap chain on the window it presents to, or move it to the widget's new one.</summary>
+	bool FollowNativeWindow()
+	{
+		if ( !_winIdChanged || _stopped ) return _borealis is not null;
+		_winIdChanged = false;
+
+		var window = _widget.winId();
+		if ( _borealis is not null && _borealis.NativeWindow == window ) return true;
+
+		_borealis?.Dispose();
+		_borealis = null;
+		_borealis = BorealisGpuWindow.MoveToNativeWindow( (BorealisGpuRenderBackend)RenderBackend.Default, window, Size * DpiScale );
+		return _borealis is not null;
+	}
+
 	internal override void NativeShutdown()
 	{
 		base.NativeShutdown();
 		All.Remove( this );
 		Surface.Dispose();
-		_camera.Dispose();
-		_world.Delete();
 	}
 
 	void ReleaseSwapChain()
@@ -101,11 +107,9 @@ internal class PanelSurfaceWidget : Frame
 		if ( _stopped ) return;
 		_stopped = true;
 
-		if ( _swapChain == default ) return;
-		g_pRenderDevice.Flush();
-		g_pRenderDevice.ForceFlushGPU( _swapChain );
-		g_pRenderDevice.DestroySwapChain( _swapChain );
-		_swapChain = default;
+		// Destroying the swap chain waits for the device: the native window is still alive
+		_borealis?.Dispose();
+		_borealis = null;
 	}
 
 	internal static void ShutdownRendering()
@@ -114,12 +118,19 @@ internal class PanelSurfaceWidget : Frame
 			widget.ReleaseSwapChain();
 	}
 
+	[ThreadStatic] static List<PanelSurfaceWidget> renderScratch;
+
 	/// <summary>
 	/// Draw every visible widget. Called in the render phase, with the scene rendering widgets.
 	/// </summary>
 	internal static void RenderAll()
 	{
-		foreach ( var widget in All.ToArray() )
+		// A snapshot, as a widget may close while drawing; taken out while in use so a nested call makes its own
+		var widgets = renderScratch ?? new List<PanelSurfaceWidget>();
+		renderScratch = null;
+		widgets.AddRange( All );
+
+		foreach ( var widget in widgets )
 		{
 			if ( !widget.IsValid() || !widget.Visible ) continue;
 
@@ -134,11 +145,14 @@ internal class PanelSurfaceWidget : Frame
 				Log.Error( e, $"Exception rendering a panel surface" );
 			}
 		}
+
+		widgets.Clear();
+		renderScratch = widgets;
 	}
 
 	void Render()
 	{
-		if ( _swapChain == default ) return;
+		if ( !FollowNativeWindow() ) return;
 		if ( MaxFramesPerSecond > 0 && _sinceFrame < 1f / MaxFramesPerSecond ) return;
 		_sinceFrame = 0;
 
@@ -159,20 +173,9 @@ internal class PanelSurfaceWidget : Frame
 		// Scene panels queue their render while simulating; fill them in before drawing
 		ScenePanel.RenderPending();
 
-		// Its own pass, but one that leaves the frame stats alone. Every pass starts them again, and in the editor this
-		// one draws after the scene views, so it would leave draws and triangles at whatever panels cost - nothing.
-		NativeEngine.CSceneSystem.BeginRenderingViews( false );
-		try
-		{
-			_camera.AddToRenderList( _swapChain, size );
-		}
-		finally
-		{
-			NativeEngine.CSceneSystem.FinishRenderingViews();
-			Sandbox.Graphics.WaitForRenderingToComplete();
-		}
-
-		g_pRenderDevice.Present( _swapChain );
+		// The whole frame on Borealis.Gpu, as a panel window's
+		if ( !_borealis.Update( size ) ) return;
+		_borealis.Present( BackgroundColor, true, Surface.Render );
 		_renderFailed = false;
 	}
 

@@ -95,6 +95,10 @@ internal static class ManagedTools
 
 	static bool _wasActiveWindow;
 
+	static readonly Sandbox.Utility.Superluminal _asyncTasks = new( "Tools Async Tasks", "#6f8fce" );
+	static readonly Sandbox.Utility.Superluminal _toolFrame = new( "Tools tool.frame", "#6f8fce" );
+	static readonly Sandbox.Utility.Superluminal _thumbnails = new( "Tools Thumbnails", "#6f8fce" );
+
 	public static void RunFrame()
 	{
 		Application.StartFrame();
@@ -113,15 +117,18 @@ internal static class ManagedTools
 			EditorEvent.Run( "refresh" );
 		}
 
-		EngineLoop.RunAsyncTasks();
+		using ( _asyncTasks.Start() )
+			EngineLoop.RunAsyncTasks();
 
 		using ( Performance.Scope( "Tool Binds" ) )
 		{
 			BindSystem.Tick();
 		}
 
-		EditorEvent.Run( "tool.frame" );
-		AssetThumbnail.Frame();
+		using ( _toolFrame.Start() )
+			EditorEvent.Run( "tool.frame" );
+		using ( _thumbnails.Start() )
+			AssetThumbnail.Frame();
 	}
 
 	public static void Shutdown()
@@ -131,6 +138,7 @@ internal static class ManagedTools
 		// Panel UI windows and their swap chains, before the render device goes away
 		PanelWindow.DisposeAll();
 		SceneRenderingWidget.ShutdownRendering();
+		ToolSceneViews.ShutdownRendering();
 		PanelSurfaceWidget.ShutdownRendering();
 		EngineLoop.DrainFrameEndDisposables();
 
@@ -139,6 +147,22 @@ internal static class ManagedTools
 
 	internal static void NativeHook( string name, IntPtr arg0, IntPtr arg1, IntPtr arg2 )
 	{
+		// Native tool views on Borealis.Gpu, every frame: no reflection
+		switch ( name )
+		{
+			case "RenderToolScene":
+				ToolSceneViews.Render( arg0 );
+				return;
+
+			case "ReleaseToolSceneView":
+				ToolSceneViews.Release( arg0 );
+				return;
+
+			case "ReadTexturePixels":
+				ToolTexturePixels.Read( arg0 );
+				return;
+		}
+
 		var method = typeof( ManagedTools ).GetMethod( name, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic );
 		if ( method == null )
 		{
@@ -251,10 +275,24 @@ internal static class ManagedTools
 		Material.Preload();
 		FontManager.Instance.LoadAll( EngineFileSystem.CoreContent );
 		EditorSplashScreen.Singleton = new EditorSplashScreen();
+		HoldHeartbeat( true );
 		EditorSplashScreen.Pump();
 
 		g_pToolFramework2.Spin();
 	}
+	static int heartbeatHolds;
+
+	/// <summary>
+	/// Qt's heartbeat timer (<see cref="OnQtHeartbeat"/>) runs only while something needs pumping from it: the splash
+	/// screen, or a blocking call such as a drag (<see cref="BlockingLoopPumper"/>). Otherwise it would do nothing,
+	/// and each of its ticks costs the main thread Qt's timer dispatch.
+	/// </summary>
+	internal static void HoldHeartbeat( bool hold )
+	{
+		heartbeatHolds = Math.Max( 0, heartbeatHolds + (hold ? 1 : -1) );
+		Native.QApp.SetHeartbeat( heartbeatHolds > 0 );
+	}
+
 	/// <summary>
 	/// Attempted to be called every 16ms, even when Qt is blocking
 	/// </summary>

@@ -41,11 +41,7 @@ public static class GameMode
 		_playWindow = widget._widget.winId();
 		NativeEngine.InputSystem.RegisterWindowWithSDL( _playWindow );
 		PlayWindow = NativeEngine.GameWindowNative.FromNativeHandle( _playWindow );
-		NativeEngine.GameWindowNative.SetRenderTarget( PlayWindow, widget.SwapChain );
-
-		// The play widget is where the game renders, so make it the main window: flip the existing
-		// m_bIsMainWindow flag so GetGPUFrameTimeMS reports the running game's GPU frame time.
-		g_pRenderDevice.SetSwapChainIsMainWindow( widget.SwapChain, true );
+		NativeEngine.GameWindowNative.SetRenderTarget( PlayWindow, default );
 
 		_inPlay = widget;
 
@@ -82,8 +78,6 @@ public static class GameMode
 		NativeEngine.InputSystem.UnregisterWindowFromSDL( _playWindow );
 		_playWindow = default;
 		PlayWindow = default;
-
-		g_pRenderDevice.SetSwapChainIsMainWindow( widget.SwapChain, false );
 	}
 
 	/// <summary>

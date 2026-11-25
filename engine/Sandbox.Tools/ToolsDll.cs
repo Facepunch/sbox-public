@@ -47,6 +47,9 @@ internal class ToolsDll : IToolsDll
 		Mixer.ResetToDefault();
 
 		EditorShortcuts.RegisterShortcuts();
+
+		// A lost Borealis.Gpu device saves copies of unsaved scenes before the editor exits
+		BorealisGpuDeviceLost.SaveRecoveryCopies = SceneRecovery.SaveCopies;
 	}
 
 	/// <summary>
@@ -87,8 +90,9 @@ internal class ToolsDll : IToolsDll
 	/// </summary>
 	public void OnRender()
 	{
-		SceneRenderingWidget.RenderAll();
+		// Panel surfaces first: the game view's frame, drawn last, goes to the render thread
 		PanelSurfaceWidget.RenderAll();
+		SceneRenderingWidget.RenderAll();
 	}
 
 	public bool ConsoleFocus()
@@ -354,7 +358,7 @@ internal class ToolsDll : IToolsDll
 		{
 			var playWidget = GameMode.PlayWidget;
 			var window = playWidget is not null ? GameMode.PlayWindow : WindowInput.GetEditorMainWindow();
-			return new( window, playWidget?.SwapChain ?? default, RenderSettings.Instance.VSync );
+			return new( window, RenderSettings.Instance.VSync );
 		}
 	}
 

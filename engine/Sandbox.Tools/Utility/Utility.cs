@@ -583,23 +583,11 @@ public static partial class EditorUtility
 		return new VideoWriter( path, config );
 	}
 
-	static bool disabledStreaming = false;
-
 	/// <summary>
-	/// Force textures to load fully when loading a model etc..
+	/// Force textures to load fully when loading a model etc.. The drawing device loads every texture whole, so there's
+	/// nothing to turn off (Source 2's empty device streams nothing).
 	/// </summary>
-	public static IDisposable DisableTextureStreaming()
-	{
-		bool prev = disabledStreaming;
-		disabledStreaming = true;
-		g_pRenderDevice.SetForcePreloadStreamingData( true );
-
-		return new DisposeAction( () =>
-		{
-			disabledStreaming = prev;
-			g_pRenderDevice.SetForcePreloadStreamingData( prev );
-		} );
-	}
+	public static IDisposable DisableTextureStreaming() => new DisposeAction( () => { } );
 
 	/// <summary>
 	/// Quit the whole engine

@@ -134,6 +134,7 @@ internal sealed class EditorSplashScreen : PanelWindow
 		{
 			g_pToolFramework2.SetStallMonitorPanelWindow( IntPtr.Zero );
 			Singleton = null;
+			ManagedTools.HoldHeartbeat( false );
 		}
 		BackgroundImage?.Dispose();
 		LogoImage?.Dispose();

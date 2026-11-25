@@ -158,33 +158,33 @@ namespace Editor
 			if ( !HasGraphics )
 				return null;
 
-			if ( texture is null )
+			if ( texture is null || !texture.IsValid )
 				return null;
 
-			var desc = g_pRenderDevice.GetTextureDesc( texture.native );
-			var width = desc.m_nWidth;
-			var height = desc.m_nHeight;
-			var depth = desc.m_nDepth;
+			// Its first mip and slice, read back from Borealis.Gpu
+			var (width, height) = texture.ReadSize( 0 );
 			var outputFormat = withAlpha ? ImageFormat.BGRA8888 : ImageFormat.BGR888;
 			var targetMemoryRequired = NativeEngine.ImageLoader.GetMemRequired( width, height, 1, 1, outputFormat );
 
-			if ( targetMemoryRequired <= 0 )
+			if ( width <= 0 || height <= 0 || targetMemoryRequired <= 0 )
 				return null;
 
 			var data = new byte[targetMemoryRequired];
 
-			fixed ( byte* pData = data )
+			try
 			{
-				var rect = new NativeRect( 0, 0, width, height );
-				if ( !g_pRenderDevice.ReadTexturePixels( texture.native, ref rect, 0, 0, ref rect, (IntPtr)pData, outputFormat, 0 ) )
-					return null;
-
-				var pixmap = new Pixmap( width, height );
-				pixmap.Clear( Color.Transparent );
-				pixmap.UpdateFromPixels( data, width, height, outputFormat );
-
-				return pixmap;
+				texture.GetPixels<byte>( (0, 0, width, height), 0, 0, data, outputFormat );
 			}
+			catch ( Exception )
+			{
+				return null;
+			}
+
+			var pixmap = new Pixmap( width, height );
+			pixmap.Clear( Color.Transparent );
+			pixmap.UpdateFromPixels( data, width, height, outputFormat );
+
+			return pixmap;
 		}
 
 		internal static Pixmap FromNative( QPixmap pixmap )

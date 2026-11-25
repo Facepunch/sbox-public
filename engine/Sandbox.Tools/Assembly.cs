@@ -9,4 +9,3 @@
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
 [assembly: InternalsVisibleTo( "sbox-launcher" )]
 [assembly: InternalsVisibleTo( "panelgallery" )]
-[assembly: InternalsVisibleTo( "scenelab" )]

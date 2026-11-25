@@ -85,6 +85,11 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 
 	public override bool Describing => _context.IsDescribeOnly();
 
+	internal override void AddEditData( string name, string value )
+	{
+		_context.AddEditData_Str( name, value );
+	}
+
 	internal override void Fail( string error )
 	{
 		Log.Error( $"{AbsolutePath}: {error}" );

@@ -91,6 +91,8 @@ namespace Editor
 		{
 			BlockingLoopPumper.PendingFunction += () =>
 			{
+				// The heartbeat pumps the main loop while the drag blocks
+				ManagedTools.HoldHeartbeat( true );
 				try
 				{
 					DragData.Current = Data;
@@ -102,6 +104,7 @@ namespace Editor
 				finally
 				{
 					DragData.Current = null;
+					ManagedTools.HoldHeartbeat( false );
 				}
 			};
 		}
