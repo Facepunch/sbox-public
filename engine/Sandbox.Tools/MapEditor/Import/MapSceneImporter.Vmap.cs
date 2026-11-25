@@ -75,6 +75,36 @@ static partial class MapSceneImporter
 			return copy;
 		}
 
+		static void ReadSelectionSets( Element root, SourceNode world, Dictionary<Element, SourceNode> nodes )
+		{
+			if ( root.GetValueOrDefault( "rootSelectionSet" ) is not Element container ||
+				container.GetValueOrDefault( "children" ) is not Element[] { Length: > 0 } sets ) return;
+
+			world.SelectionSets = [];
+			var visited = new HashSet<Element> { container };
+			foreach ( var set in sets ) ReadSet( set, null );
+
+			void ReadSet( Element set, HashSet<SourceNode> parent )
+			{
+				if ( set is null ) return;
+				if ( !visited.Add( set ) ) throw new InvalidDataException( $"Repeated Hammer selection set '{set.Name}'." );
+
+				var members = new HashSet<SourceNode>();
+				world.SelectionSets.Add( (set.Get( "selectionSetName", set.Name ), members) );
+				if ( set.GetValueOrDefault( "selectionSetData" ) is Element data )
+				{
+					// Face, edge and vertex selections store one mesh reference per selected component.
+					var objects = data.Get<Element[]>( "selectedObjects", null ) ?? data.Get( "meshes", Array.Empty<Element>() );
+					foreach ( var obj in objects )
+						if ( obj is not null && nodes.TryGetValue( obj, out var node ) ) members.Add( node );
+				}
+
+				// Selecting a parent in Hammer also selects every set in its subtree.
+				foreach ( var child in set.Get<Element[]>( "children", [] ) ) ReadSet( child, members );
+				parent?.UnionWith( members );
+			}
+		}
+
 		static string PrefabMapPath( Element prefab )
 		{
 			return prefab.Get( "targetMapPath", "" ).Replace( '\\', '/' ).Trim().TrimStart( '/' );
@@ -213,7 +243,7 @@ static partial class MapSceneImporter
 			var instances = new Queue<(SourceNode Instance, Element Target)>();
 			List<SourceNode> proxies = null;
 			List<GridBake> grids = null;
-			var root = file[0].Get<Element>( "world" );
+			var root = file[0].GetValueOrDefault( "world" ) as Element ?? throw new InvalidDataException( $"Missing world in VMAP '{filename}'." );
 			var hiddenSelection = ReadHiddenSelectionNodes( file[0] );
 			bool tileLibrary = file.Any( e => e.ClassName == "CMapTileSet" );
 			SourceNode ReadNode( Element element, string entityClass, bool worldGeometry = true, bool visible = true )
@@ -250,7 +280,7 @@ static partial class MapSceneImporter
 						break;
 					case "CMapEntity":
 						node.Kind = NodeKind.Entity;
-						var properties = element.Get<Element>( "entity_properties" );
+						var properties = element.GetValueOrDefault( "entity_properties" ) as Element ?? throw new InvalidDataException( $"Missing properties on entity {node.NodeId} in '{filename}'." );
 						var keys = new Dictionary<string, string>( properties.Count, StringComparer.OrdinalIgnoreCase );
 						foreach ( var pair in properties )
 							if ( EntityValue( pair.Value ) is { } value ) keys[pair.Key] = value;
@@ -504,6 +534,7 @@ static partial class MapSceneImporter
 				BakeOverlays( world, instanceDefinitions );
 			}
 			if ( hasPropCullBoxes ) CullPlacedProps( world, instanceDefinitions );
+			if ( !insidePrefab ) ReadSelectionSets( file[0], world, nodes );
 			cache[filename] = world;
 			return world;
 		}

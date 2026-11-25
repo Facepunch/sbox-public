@@ -11,6 +11,13 @@ static partial class MapSceneImporter
 	static Element[] Upgrade( Element[] elements, int schema )
 	{
 		if ( schema >= 29 ) return elements;
+		if ( schema <= 6 && elements.Length > 0 && elements[0].GetValueOrDefault( "world" ) is Element legacyWorld &&
+			legacyWorld.GetValueOrDefault( "children" ) is Element[] children )
+		{
+			var sets = Array.FindAll( children, x => x?.ClassName == "CMapSelectionSet" );
+			elements[0]["rootSelectionSet"] = new Element( "CMapSelectionSet", "RootSelectionSet" ) { ["children"] = sets };
+			legacyWorld["children"] = Array.FindAll( children, x => x?.ClassName != "CMapSelectionSet" );
+		}
 		// Light class and key renames precede the world-wide sky/sun merge.
 		if ( schema <= 7 )
 			foreach ( var element in elements ) UpgradeEarlyGeometry( element, schema );
@@ -129,8 +136,6 @@ static partial class MapSceneImporter
 			if ( mesh.GetValueOrDefault( "baseStates" ) is Element[] bases )
 				foreach ( var state in bases ) state?.Remove( "flipVCoordinates" );
 		}
-		if ( schema <= 6 && node.ClassName == "CMapWorld" && node.GetValueOrDefault( "children" ) is Element[] children )
-			node["children"] = Array.FindAll( children, x => x?.ClassName != "CMapSelectionSet" );
 
 		if ( node.ClassName == "CDmePolygonMeshDataStream" && node.GetValueOrDefault( "semanticName" ) as string == "VertexPaintBlendParams" )
 			ShiftBlends( node, "data" );

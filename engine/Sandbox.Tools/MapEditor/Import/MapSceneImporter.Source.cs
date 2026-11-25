@@ -43,6 +43,7 @@ static partial class MapSceneImporter
 		public Dictionary<string, string> VariableOverrides, EntityKeys;
 		public (string Name, string Key)[] VariableBindings;
 		public Element[] ChoiceGroups;
+		public List<(string Name, HashSet<SourceNode> Members)> SelectionSets;
 		public Guid ObjectId;
 		public MapLoader.ObjectEntry Entity;
 		public IReadOnlyList<SceneMeshData> Meshes;

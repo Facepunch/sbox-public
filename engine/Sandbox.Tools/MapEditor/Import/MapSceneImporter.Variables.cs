@@ -27,8 +27,9 @@ static partial class MapSceneImporter
 		if ( groups is null ) return values;
 		foreach ( var group in groups )
 		{
+			if ( group is null ) continue;
 			var selection = overrides?.GetValueOrDefault( group.Name ) ?? group.Get( "m_ActiveValue", "" );
-			var choice = group.Get( "m_Choices", Array.Empty<Element>() ).FirstOrDefault( c => string.Equals( c.Name, selection, StringComparison.OrdinalIgnoreCase ) );
+			var choice = group.Get( "m_Choices", Array.Empty<Element>() ).FirstOrDefault( c => c is not null && string.Equals( c.Name, selection, StringComparison.OrdinalIgnoreCase ) );
 			if ( choice is null ) continue;
 
 			var keys = group.Get( "m_ChoiceVariables", Array.Empty<string>() );
@@ -122,7 +123,10 @@ static partial class MapSceneImporter
 				if ( changes is null ) continue;
 				if ( !ids.TryGetValue( id, out var guid ) ||
 					placement.Scene.Directory.FindByGuid( guid ) is not { } obj )
-					throw new InvalidDataException( $"Cannot find prefab variable target {node.NodeId} in '{prefab.TargetMapPath}'." );
+				{
+					Warnings.Add( $"Skipped variable overrides for missing node {node.NodeId} in '{prefab.TargetMapPath}'." );
+					continue;
+				}
 
 				var defaults = _visibilityDefaults[node];
 				bool hidden = (changes.Remove( "Force Hidden", out var forceHidden ) ? HammerFlag( forceHidden ) : node.ForceHidden) || node.SelectionHidden;

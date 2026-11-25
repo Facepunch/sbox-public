@@ -265,7 +265,27 @@ internal static partial class MapSceneImporter
 				scene.UnlinkInstance( template );
 				template.DestroyImmediate();
 			}
+			ImportSelectionSets();
 			if ( bindings is not null ) CollectBindings( source, bindings );
+		}
+
+		void ImportSelectionSets()
+		{
+			if ( source.SelectionSets is null ) return;
+			var system = scene.GetSystem<SelectionSetsSystem>() ?? throw new InvalidOperationException( "The scene selection set system is unavailable." );
+			system.Data ??= new();
+			system.Data.SelectionSets ??= [];
+			foreach ( var (name, members) in source.SelectionSets )
+			{
+				var entry = new SelectionSetsSystem.SelectionSetEntry { Name = name };
+				foreach ( var member in members )
+				{
+					if ( !_objects.TryGetValue( member, out var obj ) || !obj.IsValid() ) continue;
+					entry.ObjectIds.Add( obj.Id );
+					entry.Enabled &= obj.Enabled;
+				}
+				system.Data.SelectionSets.Add( entry );
+			}
 		}
 
 		// Hammer visits parents first. A child's transform override is relative to the
