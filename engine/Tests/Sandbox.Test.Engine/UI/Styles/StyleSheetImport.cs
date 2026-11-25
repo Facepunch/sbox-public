@@ -140,4 +140,34 @@ public class StyleSheetImportTest
 
 		Assert.IsTrue( StyleSheet.AllLoaded.Contains( menuSheet ) );
 	}
+
+	/// <summary>
+	/// Panels are built on several threads at once (this assembly runs tests in parallel). Loading sheets concurrently
+	/// must neither corrupt the loaded list (a null slot made every later FromFile throw) nor load one key twice.
+	/// </summary>
+	[TestMethod]
+	public void ConcurrentLoadsKeepTheLoadedListIntact()
+	{
+		const int keys = 64;
+		var results = new StyleSheet[keys, 16];
+
+		System.Threading.Tasks.Parallel.For( 0, keys * 16, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 16 }, i =>
+		{
+			// The ambient context flows into the parallel tasks, so every load is in this test's context
+			results[i % keys, i / keys] = StyleSheet.FromInline( ".a { width: 1px; }", $"inline:concurrent-{i % keys}" );
+		} );
+
+		lock ( StyleSheet.AllLoaded )
+		{
+			Assert.IsFalse( StyleSheet.AllLoaded.Contains( null ) );
+			for ( int k = 0; k < keys; k++ )
+			{
+				Assert.AreEqual( 1, StyleSheet.AllLoaded.Count( x => x.FileName == $"inline:concurrent-{k}" ) );
+				for ( int n = 0; n < 16; n++ )
+					Assert.AreSame( results[k, 0], results[k, n] );
+			}
+
+			StyleSheet.AllLoaded.RemoveAll( x => x?.FileName?.StartsWith( "inline:concurrent-" ) == true );
+		}
+	}
 }

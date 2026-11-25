@@ -8,9 +8,43 @@ namespace Sandbox.UI;
 [Expose]
 public class StyleSheet
 {
-	public static List<StyleSheet> Loaded => AllLoaded.Where( x => ReferenceEquals( x?.Context, GlobalContext.Game ) ).ToList();
+	public static List<StyleSheet> Loaded
+	{
+		get
+		{
+			lock ( AllLoaded )
+				return AllLoaded.Where( x => ReferenceEquals( x?.Context, GlobalContext.Game ) ).ToList();
+		}
+	}
 
+	/// <summary>
+	/// Every loaded sheet, in all contexts. Panels are built off the main thread too (tests run in parallel, UI built
+	/// in tasks), so every access locks the list: an unlocked concurrent Add can leave a null slot, after which every
+	/// lookup throws.
+	/// </summary>
 	internal static readonly List<StyleSheet> AllLoaded = new();
+
+	static StyleSheet FindLoaded( string fileName, GlobalContext context )
+	{
+		lock ( AllLoaded )
+			return AllLoaded.FirstOrDefault( x => x != null && x.FileName == fileName && ReferenceEquals( x.Context, context ) );
+	}
+
+	/// <summary>
+	/// Adds a freshly parsed sheet unless another thread loaded the same one meanwhile; returns the one to use.
+	/// </summary>
+	static StyleSheet AddLoaded( StyleSheet sheet )
+	{
+		lock ( AllLoaded )
+		{
+			var existing = AllLoaded.FirstOrDefault( x => x != null && x.FileName == sheet.FileName && ReferenceEquals( x.Context, sheet.Context ) );
+			if ( existing != null )
+				return existing;
+
+			AllLoaded.Add( sheet );
+			return sheet;
+		}
+	}
 
 	/// <summary>
 	/// Between sessions we clear the stylesheets, so one gamemode can't accidentally
@@ -21,14 +55,17 @@ public class StyleSheet
 		// Only reset sheets belonging to the current context, so we don't stomp another context (eg the menu)
 		var context = GlobalContext.Current;
 
-		for ( int i = AllLoaded.Count - 1; i >= 0; i-- )
+		lock ( AllLoaded )
 		{
-			var sheet = AllLoaded[i];
-			if ( sheet == null || !ReferenceEquals( sheet.Context, context ) )
-				continue;
+			for ( int i = AllLoaded.Count - 1; i >= 0; i-- )
+			{
+				var sheet = AllLoaded[i];
+				if ( sheet == null || !ReferenceEquals( sheet.Context, context ) )
+					continue;
 
-			sheet.Release();
-			AllLoaded.RemoveAt( i );
+				sheet.Release();
+				AllLoaded.RemoveAt( i );
+			}
 		}
 
 		Panel.ForgetPackageInlineStyleSheets();
@@ -65,7 +102,7 @@ public class StyleSheet
 		filename = BaseFileSystem.NormalizeFilename( filename );
 		var context = GlobalContext.Current;
 
-		var alreadyLoaded = AllLoaded.FirstOrDefault( x => x.FileName == filename && ReferenceEquals( x.Context, context ) );
+		var alreadyLoaded = FindLoaded( filename, context );
 		if ( alreadyLoaded != null )
 			return alreadyLoaded;
 
@@ -77,9 +114,11 @@ public class StyleSheet
 		sheet.FileName = filename;
 		sheet.AddWatcher( filename );
 
-		AllLoaded.Add( sheet );
+		var loaded = AddLoaded( sheet );
+		if ( loaded != sheet )
+			sheet.Release();
 
-		return sheet;
+		return loaded;
 	}
 
 	internal void AddFilename( string filename )
@@ -122,7 +161,7 @@ public class StyleSheet
 	{
 		var context = GlobalContext.Current;
 
-		var alreadyLoaded = AllLoaded.FirstOrDefault( x => x.FileName == key && ReferenceEquals( x.Context, context ) );
+		var alreadyLoaded = FindLoaded( key, context );
 		if ( alreadyLoaded != null )
 		{
 			if ( !ReferenceEquals( alreadyLoaded.InlineSource, content ) && alreadyLoaded.InlineSource != content )
@@ -141,9 +180,7 @@ public class StyleSheet
 		sheet.UpdateFromString( content, key );
 		sheet.FileName = key;
 
-		AllLoaded.Add( sheet );
-
-		return sheet;
+		return AddLoaded( sheet );
 	}
 
 	public static StyleSheet FromString( string styles, string filename = "none", IEnumerable<(string key, string value)> variables = null )
