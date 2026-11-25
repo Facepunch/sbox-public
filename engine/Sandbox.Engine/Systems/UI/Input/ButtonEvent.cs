@@ -49,7 +49,7 @@ public record ButtonEvent
 
 	internal ButtonEvent( ButtonCode button, bool pressed, KeyboardModifiers modifiers )
 	{
-		Button = InputEventQueue.NormalizeButtonName( button.ToString() );
+		Button = InputEventQueue.NormalizeButtonName( button );
 		Pressed = pressed;
 		VirtualKey = Sandbox.Engine.KeyTranslation.ButtonCodeToVirtualKey( button );
 		KeyboardModifiers = modifiers;
@@ -57,7 +57,7 @@ public record ButtonEvent
 
 	internal ButtonEvent( ButtonCode button, bool pressed )
 	{
-		Button = InputEventQueue.NormalizeButtonName( button.ToString() );
+		Button = InputEventQueue.NormalizeButtonName( button );
 		Pressed = pressed;
 	}
 

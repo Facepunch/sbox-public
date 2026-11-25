@@ -232,7 +232,14 @@ public static partial class Input
 
 	static InputAction FindInputActionByName( string action )
 	{
-		return InputActions?.FirstOrDefault( x => string.Equals( x.Name, action, StringComparison.OrdinalIgnoreCase ) );
+		// A loop: every key press and release looks actions up, and a predicate capturing the name allocated each time
+		if ( InputActions is not { } actions ) return null;
+		foreach ( var x in actions )
+		{
+			if ( string.Equals( x.Name, action, StringComparison.OrdinalIgnoreCase ) ) return x;
+		}
+
+		return null;
 	}
 
 	static HashSet<string> activeButtons = new HashSet<string>();
