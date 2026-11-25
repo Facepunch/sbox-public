@@ -16,7 +16,26 @@ internal sealed class McpWire( Stream input, int maxBytes = 8 * 1024 * 1024 )
 	int length;
 	static readonly UTF8Encoding Encoding = new( false, true );
 
-	internal static string PipeName( int pid, long startTime ) => $"sbox-mcp-{pid}-{startTime:x}";
+	/// <summary>
+	/// The pipe a process serves MCP on: its id and when it started, so a reused id names another pipe. On Linux the start
+	/// is the kernel's (<c>/proc/[pid]/stat</c>, clock ticks since boot): <see cref="System.Diagnostics.Process.StartTime"/> there is worked
+	/// out from the boot time each time it's read, and comes out a little different in the server and the client.
+	/// </summary>
+	internal static string PipeName( System.Diagnostics.Process process ) => $"sbox-mcp-{process.Id}-{StartOf( process ):x}";
+
+	static long StartOf( System.Diagnostics.Process process )
+	{
+		if ( OperatingSystem.IsLinux() )
+		{
+			var stat = File.ReadAllText( $"/proc/{process.Id}/stat" );
+
+			// After the command name, which may hold spaces and brackets: the state is field 3, the start field 22
+			var fields = stat[(stat.LastIndexOf( ')' ) + 2)..].Split( ' ' );
+			return long.Parse( fields[22 - 3], System.Globalization.CultureInfo.InvariantCulture );
+		}
+
+		return process.StartTime.ToUniversalTime().Ticks;
+	}
 
 	internal async Task<string> ReadAsync( CancellationToken cancellation )
 	{
