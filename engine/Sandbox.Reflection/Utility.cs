@@ -141,6 +141,10 @@ internal static class ReflectionUtility
 			}
 		}
 
+		// Multi-dimensional arrays can't be indexed through IList, and arrays of value types hold no references
+		if ( value is Array array && (array.Rank != 1 || valueType.GetElementType().IsValueType) )
+			return false;
+
 		// Non-generic IList fallback (e.g. ArrayList) — remove matching items
 		if ( value is System.Collections.IList nonGenericList && !nonGenericList.IsReadOnly )
 		{
