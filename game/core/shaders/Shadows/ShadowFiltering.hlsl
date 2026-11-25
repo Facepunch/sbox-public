@@ -55,6 +55,28 @@ struct ShadowDisk
     }
 };
 
+// The 16-tap Poisson disk the shadow filters used before their spiral taps. Nothing here reads it; it stays because shaders
+// built against it (a package's own shadow filtering, Little Railways' floor) still name it, and recompile against these files
+static const float2 g_vPoissonDisk16[16] =
+{
+    float2( -0.942016, -0.399062 ),
+    float2( -0.094184, -0.938988 ),
+    float2(  0.310720, -0.371712 ),
+    float2( -0.545396, -0.589939 ),
+    float2(  0.140388, -0.040836 ),
+    float2(  0.667325,  0.174626 ),
+    float2( -0.527440,  0.056346 ),
+    float2(  0.346120, -0.935218 ),
+    float2( -0.267592,  0.406868 ),
+    float2( -0.850940,  0.424726 ),
+    float2(  0.206578,  0.570748 ),
+    float2( -0.413360,  0.855142 ),
+    float2(  0.654718, -0.521624 ),
+    float2(  0.954892,  0.016536 ),
+    float2(  0.439138,  0.898128 ),
+    float2(  0.878554, -0.397416 ),
+};
+
 // Face normal of the shadow receiver, from the screen-space derivatives of its world position.
 // Prefer the camera-relative position: far from the origin the derivatives can round to 0 (no offset then).
 // Derivatives are only defined in uniform control flow, so compute this once per pixel *before* any
@@ -108,19 +130,35 @@ float SampleShadowTent( ShadowPCFInput i, uint nAxisTaps )
     const float flTaps = float( nAxisTaps );
 
     float2 vGridPosition = i.ShadowPos.xy / flGrid - 0.5;
-    float2 vBase = floor( vGridPosition ) - ( flTaps - 1.0 );
     float2 vPhase = frac( vGridPosition );
 
-    // The tap count is a specialization constant in pipelines, so the driver can unroll it fully and keep every fetch in flight
+    // Two taps of a row at a time, their fetches in flight together, in loops. Fully unrolled, the driver grouped every
+    // fetch with its coordinates and weights, the peak of the lit shaders' registers. Same taps, same order, and the same
+    // rounding as unrolled: a tap's whole-texel offsets come from integers, as the constants they were, so the compiler
+    // can't regroup the sums that round
+    float2 vFloor = floor( vGridPosition );
     float flVisibility = 0.0;
-    [unroll]
-    for ( uint s = 0; s < nAxisTaps * nAxisTaps; s++ )
+    [loop]
+    for ( uint y = 0; y < nAxisTaps; y++ )
     {
-        float2 k = 2.0 * float2( s % nAxisTaps, s / nAxisTaps );
-        float2 w0 = flTaps - abs( k - ( flTaps - 1.0 ) - vPhase );
-        float2 w1 = flTaps - abs( k - ( flTaps - 2.0 ) - vPhase );
-        float2 vUV = ( vBase + k + w1 / ( w0 + w1 ) + 0.5 ) * flGrid;
-        flVisibility += ( w0.x + w1.x ) * ( w0.y + w1.y ) * i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vUV, flCompareDepth );
+        [loop]
+        for ( uint x0 = 0; x0 < nAxisTaps; x0 += 2 )
+        {
+            [unroll]
+            for ( uint dx = 0; dx < 2; dx++ )
+            {
+                uint x = x0 + dx;
+                if ( x >= nAxisTaps )
+                    break;
+
+                // k - ( taps - 1 ) and k - ( taps - 2 ), k twice the tap's index
+                int2 c0 = 2 * int2( x, y ) + 1 - int( nAxisTaps );
+                float2 w0 = flTaps - abs( float2( c0 ) - vPhase );
+                float2 w1 = flTaps - abs( float2( c0 + 1 ) - vPhase );
+                float2 vUV = ( ( vFloor + float2( 2 * c0 + 1 ) * 0.5 ) + w1 / ( w0 + w1 ) ) * flGrid;
+                flVisibility += ( w0.x + w1.x ) * ( w0.y + w1.y ) * i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vUV, flCompareDepth );
+            }
+        }
     }
 
     // The weights sum to nAxisTaps^4

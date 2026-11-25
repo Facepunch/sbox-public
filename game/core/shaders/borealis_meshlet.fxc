@@ -1,0 +1,99 @@
+// Copyright (c) Facepunch. All Rights Reserved.
+
+#ifndef BOREALIS_MESHLET_FXC
+#define BOREALIS_MESHLET_FXC
+
+//
+// A meshlet's cull against a view, shared by borealis_meshlet_cull_cs (compute) and borealis_meshlet_ids (task shader),
+// so both keep the same meshlets. A meshlet record is 32 bytes: box centre and first triangle (relative to its draw's
+// first index), then half extents and triangle count. See docs/reference/borealis-gpu-driven.md ("Meshlets").
+//
+
+// The view: world to clip a row per clip coordinate (y before the vertex shaders negate it), the viewport in pixels and
+// the depth target's samples
+struct MeshletView
+{
+	float4 vClipX;
+	float4 vClipY;
+	float4 vClipZ;
+	float4 vClipW;
+	float2 vViewport;
+	uint nSamples;
+};
+
+float4 MeshletClip( MeshletView view, float3 vPosition, float flW )
+{
+	float4 v = float4( vPosition, flW );
+	return float4( dot( view.vClipX, v ), dot( view.vClipY, v ), dot( view.vClipZ, v ), dot( view.vClipW, v ) );
+}
+
+// Whether a sample of the frame's grid lies in [vMin, vMax] (pixels): pixel centres, or the standard 4x positions
+bool MeshletHoldsSample( uint nSamples, float2 vMin, float2 vMax )
+{
+	if ( nSamples == 1 )
+		return all( ceil( vMin - 0.5 ) <= floor( vMax - 0.5 ) );
+
+	const float2 vSamples[4] = { float2( 0.375, 0.125 ), float2( 0.875, 0.375 ), float2( 0.125, 0.625 ), float2( 0.625, 0.875 ) };
+	[unroll]
+	for ( uint s = 0; s < 4; s++ )
+	{
+		if ( all( ceil( vMin - vSamples[s] ) <= floor( vMax - vSamples[s] ) ) )
+			return true;
+	}
+
+	return false;
+}
+
+// A meshlet's box (centre and half extents in the mesh's space) under its instance's transform, outside the view; with
+// bShadow, a shadow view's test (below)
+bool MeshletOutside( MeshletView view, float3 vCenter, float3 vExtents, float3x4 mTransform, bool bShadow )
+{
+	float4 vC = MeshletClip( view, mul( mTransform, float4( vCenter, 1 ) ), 1 );
+	float4 vA0 = MeshletClip( view, float3( mTransform[0][0], mTransform[1][0], mTransform[2][0] ) * vExtents.x, 0 );
+	float4 vA1 = MeshletClip( view, float3( mTransform[0][1], mTransform[1][1], mTransform[2][1] ) * vExtents.y, 0 );
+	float4 vA2 = MeshletClip( view, float3( mTransform[0][2], mTransform[1][2], mTransform[2][2] ) * vExtents.z, 0 );
+
+	uint nOutLeft = 0, nOutRight = 0, nOutBottom = 0, nOutTop = 0, nOutFar = 0, nOutNear = 0;
+	bool bFront = true;
+	float2 vMin = 1e30;
+	float2 vMax = -1e30;
+	[unroll]
+	for ( uint k = 0; k < 8; k++ )
+	{
+		float4 v = vC + ( ( k & 1 ) != 0 ? vA0 : -vA0 ) + ( ( k & 2 ) != 0 ? vA1 : -vA1 ) + ( ( k & 4 ) != 0 ? vA2 : -vA2 );
+		nOutLeft += v.x < -v.w ? 1 : 0;
+		nOutRight += v.x > v.w ? 1 : 0;
+		nOutBottom += v.y < -v.w ? 1 : 0;
+		nOutTop += v.y > v.w ? 1 : 0;
+		nOutFar += v.z < 0 ? 1 : 0;
+		nOutNear += v.z > v.w ? 1 : 0;
+
+		// Reverse depth: the near plane is z = w
+		bFront = bFront && v.w > 1e-4 && v.z <= v.w;
+		float2 vPixel = float2( v.x / v.w * 0.5 + 0.5, 0.5 - v.y / v.w * 0.5 ) * view.vViewport;
+		vMin = min( vMin, vPixel );
+		vMax = max( vMax, vPixel );
+	}
+
+	if ( nOutLeft == 8 || nOutRight == 8 || nOutBottom == 8 || nOutTop == 8 || nOutFar == 8 )
+		return true;
+
+	// A shadow view: its side and far planes only. Casters nearer the light than its near plane still cast where the view
+	// clamps depth, and its culls keep them
+	if ( bShadow )
+		return false;
+
+	if ( nOutNear == 8 )
+		return true;
+
+	return bFront && ( view.nSamples == 1 || view.nSamples == 4 ) && !MeshletHoldsSample( view.nSamples, vMin, vMax );
+}
+
+// A meshlet's box under its instance's transform against a depth prepass's view: outside one clip plane, or wholly in front
+// of the near plane with screen bounds that hold no sample
+bool MeshletCulled( MeshletView view, float3 vCenter, float3 vExtents, float3x4 mTransform )
+{
+	return MeshletOutside( view, vCenter, vExtents, mTransform, false );
+}
+
+#endif // BOREALIS_MESHLET_FXC

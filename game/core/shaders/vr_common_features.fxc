@@ -1,23 +1,2 @@
-// Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-//
-// These features are an attempt to standardize the lighting models across HLVR scene shaders, with the goal of accelerating shader authoring and
-// homogenizing lighting calculations and making code extension easier.
-//
-// NOTE: These featrues support the basic features that all scene shaders will suport
-//		 For standard world shaders that automatically support features like texture mapping, alpha transparency and normal mapping
-//       there is a better starting point in the vr_shared_standard_PS_code.fxc headers
-//
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-//=====================================================================================================================
-//
-// Common Features
-//
-//=====================================================================================================================
-
-Feature( F_DO_NOT_CAST_SHADOWS, 0..1, "Rendering" );
-Feature( F_RENDER_BACKFACES, 0..1, "Rendering" );
-Feature( F_MORPH_SUPPORTED, 0..1, "Animation" );
-
-//=====================================================================================================================
+// vr_common_features.fxc: the include name shaders have always used, kept for them; what it declares is ours, in sbox/features.slangh.
+#include "sbox/features.slangh"

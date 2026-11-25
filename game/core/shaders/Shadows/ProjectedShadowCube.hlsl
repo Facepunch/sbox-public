@@ -7,6 +7,7 @@
 #ifndef SHADOWS_PROJECTEDCUBESHADOW_HLSL
 #define SHADOWS_PROJECTEDCUBESHADOW_HLSL
 
+#include "common.fxc"
 #include "Shadows/ShadowFiltering.hlsl"
 
 struct ProjectedShadowCubeStruct
@@ -18,8 +19,8 @@ struct ProjectedShadowCubeStruct
 	float ShadowHardness;
 };
 
-// Per view
-StructuredBuffer<ProjectedShadowCubeStruct> ProjectedCubeShadows < Attribute( "ProjectedCubeShadows" ); > ;
+// The view's point light shadows, in its descriptor set (common.fxc)
+StructuredBuffer<ProjectedShadowCubeStruct> ProjectedCubeShadows EXTERNAL_DESC_SET( t, g_viewSet, 5 );
 
 //------------------------------------------------------------------------------
 // GetCubemapFace
@@ -51,6 +52,18 @@ int GetCubemapFace( float3 lightDirection )
 // Represents a cube-style shadow projection system. Provides utilities
 // to query shadow visibility at a given world position for a specific shadow index.
 //------------------------------------------------------------------------------
+// The cube filter's disk taps: 4, 6 or 8 on one disk (ShadowDisk), scaled by a radius that keeps the RMS radius of the
+// 5, 12 and 29-tap tables these replaced (2.5, 2.14 and 2.04, times sqrt(2) for the disk's own RMS radius: 3.5355, 3.0209
+// and 2.8811), as float32 folds them, so the filter's loop reads the offsets its unrolled taps had as constants
+static const float2 kShadowCubeDisk4[4] = { float2( 1.24998796, 0 ), float2( -1.59643507, 1.46246552 ), float2( 0.244359687, -2.78435588 ), float2( 2.01220369, 2.62456226 ) };
+static const float2 kShadowCubeDisk6[6] = { float2( 0.87205869, 0 ), float2( -1.11375868, 1.02029431 ), float2( 0.170478448, -1.94251621 ), float2( 1.40382123, 1.83103549 ), float2( -2.5761838, -0.455689937 ), float2( 2.44038558, -1.55237472 ) };
+static const float2 kShadowCubeDisk8[8] = { float2( 0.720274985, 0 ), float2( -0.919906616, 0.842709839 ), float2( 0.140806288, -1.60441697 ), float2( 1.15948296, 1.51233959 ), float2( -2.12779331, -0.376376092 ), float2( 2.01563096, -1.28218043 ), float2( -0.674188256, 2.50795054 ), float2( -1.28575301, -2.47563672 ) };
+
+float2 ShadowCubeDiskTap( uint i )
+{
+	return UserShadowFilterQuality == 1 ? kShadowCubeDisk4[i] : UserShadowFilterQuality == 2 ? kShadowCubeDisk6[i] : kShadowCubeDisk8[i];
+}
+
 struct ProjectedShadowCube
 {
     //--------------------------------------------------------------------------
@@ -117,11 +130,21 @@ struct ProjectedShadowCube
 		sideVector *= shadow.InvShadowMapRes * filterScale;
 		upVector *= shadow.InvShadowMapRes * filterScale;
 
-		int cubeFaceIndex = GetCubemapFace( lightDirectionN );
-		float4x4 shadowViewProj = shadow.ShadowViewProjectionMatrices[cubeFaceIndex];
+		// Transform the Light-relative position into shadow space (The light shadow view is pre-translated wrt the main view).
+		// The wave's faces one at a time, each wave-uniform, so the face's matrix is scalar: read per lane, its sixteen
+		// floats were a peak of the lit shaders' registers
+		int laneFace = GetCubemapFace( lightDirectionN );
+		float4 shadowPosition = 0.0f;
+		[loop]
+		for ( ;; )
+		{
+			int cubeFaceIndex = WaveReadLaneFirst( laneFace );
+			if ( cubeFaceIndex != laneFace )
+				continue;
 
-		// Transform the Light-relative position into shadow space (The light shadow view is pre-translated wrt the main view)
-		float4 shadowPosition = mul( float4( worldPosition, 1 ), shadowViewProj );
+			shadowPosition = mul( float4( worldPosition, 1 ), shadow.ShadowViewProjectionMatrices[cubeFaceIndex] );
+			break;
+		}
 
 		float compareDistance = shadowPosition.z / shadowPosition.w;
 
@@ -135,22 +158,25 @@ struct ProjectedShadowCube
 		}
 		else
 		{
-			// 4, 6 or 8 taps on one disk (Bevy filters cubes with 8). Every tap is a hardware 2x2 compare, so few
-			// are needed. Radii keep the RMS radius of the 5, 12 and 29-tap tables these replaced (2.5, 2.14 and
-			// 2.04), scaled by sqrt(2) for the disk's own RMS radius
+			// 4, 6 or 8 taps on one disk (Bevy filters cubes with 8; ShadowCubeDiskTap). Every tap is a hardware 2x2
+			// compare, so few are needed
 			uint nTaps = UserShadowFilterQuality == 1 ? 4 : UserShadowFilterQuality == 2 ? 6 : 8;
-			float flRadius = UserShadowFilterQuality == 1 ? 3.5355 : UserShadowFilterQuality == 2 ? 3.0209 : 2.8811;
 
-			ShadowDisk disk = ShadowDisk::Start( 0.0, nTaps );
-			[unroll]
-			for ( uint i = 0; i < nTaps; ++i )
+			// Two taps at a time, their fetches in flight together, the pairs a loop. Fully unrolled, the driver grouped
+			// every fetch with its coordinates, a peak of the lit shaders' registers
+			[loop]
+			for ( uint p = 0; p < nTaps; p += 2 )
 			{
-				float2 offset = disk.Next( i ) * flRadius;
-				float3 samplePos = lightDirectionN + sideVector * offset.x + upVector * offset.y;
-				shadowVisibility += shadowMapTextureCube.SampleCmpLevelZero(
-					ShadowDepthPCFSampler,
-					samplePos,
-					compareDistance );
+				[unroll]
+				for ( uint j = 0; j < 2; ++j )
+				{
+					float2 offset = ShadowCubeDiskTap( p + j );
+					float3 samplePos = lightDirectionN + sideVector * offset.x + upVector * offset.y;
+					shadowVisibility += shadowMapTextureCube.SampleCmpLevelZero(
+						ShadowDepthPCFSampler,
+						samplePos,
+						compareDistance );
+				}
 			}
 			shadowVisibility /= nTaps;
 		}

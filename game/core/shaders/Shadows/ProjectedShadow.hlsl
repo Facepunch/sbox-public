@@ -6,6 +6,7 @@
 #ifndef SHADOWS_PROJECTEDSHADOW_HLSL
 #define SHADOWS_PROJECTEDSHADOW_HLSL
 
+#include "common.fxc"
 #include "Shadows/ShadowFiltering.hlsl"
 #include "common/Bindless.hlsl"
 
@@ -17,7 +18,8 @@ struct ProjectedShadowStruct
 	float ShadowHardness;
 };
 
-StructuredBuffer<ProjectedShadowStruct> ProjectedShadows < Attribute( "ProjectedShadows" ); >;
+// The view's spot light shadows, in its descriptor set (common.fxc)
+StructuredBuffer<ProjectedShadowStruct> ProjectedShadows EXTERNAL_DESC_SET( t, g_viewSet, 4 );
 
 struct ProjectedShadow
 {
@@ -65,6 +67,34 @@ struct ProjectedShadow
 
         // Square the result for a softer falloff
         return shadowVisibility * shadowVisibility;
+    }
+
+    // An extra sun's map (LightBinnerFeature.Suns.cs): orthographic around the camera, so w is 1 and the matrix's x column
+    // is the UV per world unit. Outside it is lit, and its shadow fades out over its outer tenth. Not squared, as cascades
+    static float GetSunVisibility( uint shadowIndex, float3 worldPosition, float3 normalWs, float2 screenPos )
+    {
+        if ( shadowIndex == 0xFFFFFFFF )
+            return 1.0f;
+
+        ProjectedShadowStruct shadow = ProjectedShadows[shadowIndex];
+        const float4x4 m = shadow.WorldToShadowMatrix;
+        float3 shadowPosition = mul( float4( worldPosition, 1.0f ), m ).xyz;
+        float flEdge = max( abs( shadowPosition.x * 2.0f - 1.0f ), abs( shadowPosition.y * 2.0f - 1.0f ) );
+        if ( flEdge >= 1.0f || shadowPosition.z <= 0.0f || shadowPosition.z >= 1.0f )
+            return 1.0f;
+
+        const float flUvPerUnit = length( float3( m[0][0], m[1][0], m[2][0] ) );
+        worldPosition = ApplyShadowNormalOffset( worldPosition, normalWs, shadow.InvShadowMapRes / flUvPerUnit, shadow.ShadowHardness );
+
+        ShadowPCFInput pcfInput;
+        pcfInput.ShadowMap = Bindless::GetTexture2D( shadow.ShadowMapTextureIndex );
+        pcfInput.ShadowPos = mul( float4( worldPosition, 1.0f ), m ).xyz;
+        pcfInput.InvShadowMapRes = shadow.InvShadowMapRes;
+        pcfInput.Bias = 0;
+        pcfInput.Hardness = shadow.ShadowHardness;
+        pcfInput.ScreenPos = screenPos;
+
+        return lerp( SampleShadowPCF( pcfInput ), 1.0f, smoothstep( 0.9f, 1.0f, flEdge ) );
     }
 
     // For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,

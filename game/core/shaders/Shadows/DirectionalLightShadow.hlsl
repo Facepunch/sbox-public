@@ -1,6 +1,7 @@
 #ifndef DIRECTIONAL_LIGHT_SHADOW_HLSL
 #define DIRECTIONAL_LIGHT_SHADOW_HLSL
 
+#include "common.fxc"
 #include "common/Bindless.hlsl"
 #include "Shadows/ShadowFiltering.hlsl"
 
@@ -9,25 +10,8 @@
 
 #include "common/utils/MSAAUtils.hlsl"
 
-// don't have more than this for fucks sake
-#define MAX_CASCADE_COUNT 4
-
-cbuffer DirectionalLightCB
-{
-    float4 g_DirectionalLightColor; // w fogstrength
-    float4 g_DirectionalLightDirection; // w blank
-
-    float4x4 g_DirectionalLightWorldToShadowViewMatrices[MAX_CASCADE_COUNT];
-	uint4 g_DirectionalLightShadowMapTextureIndex;
-	uint g_DirectionalLightCascadeCount;
-    float g_DirectionalLightInverseShadowMapSize;
-	// Bindless index of the screen-space (contact) shadow mask, 0 if none.
-	uint g_DirectionalLightScreenSpaceShadowIndex;
-	bool g_DirectionalLightEnabled;
-    float4 g_DirectionalLightCascadeHardness;
-    float4 g_DirectionalLightCascadeSpheres[MAX_CASCADE_COUNT]; // xyz = world center, w = radius squared
-    float4 g_DirectionalLightShadowBias; // per-cascade depth bias, scaled by cascade size
-};
+// The view's sun and its cascades (MAX_CASCADE_COUNT of them): DirectionalLightCB's block of its environment
+#include "common/ViewEnvironment.hlsl"
 
 int DirectionalLightDebug < Attribute("DirectionalLightDebug"); >;
 bool DisableScreenSpaceShadows < Attribute("DisableScreenSpaceShadows" ); Default( 0 ); > ;
@@ -89,6 +73,10 @@ struct DirectionalLightShadow
 	// Camera-relative position (vPositionWithOffsetWs).
 	static float SampleCascadeWithOffset( int cascadeIndex, float3 positionWithOffsetWs, float3 normalWs, float2 screenPos )
     {
+		// A cascade that drew nothing is lit
+		if ( ( ( g_DirectionalLightFlags >> ( 1 + cascadeIndex ) ) & 1 ) != 0 )
+			return 1.0;
+
 		float4x4 worldToShadow = g_DirectionalLightWorldToShadowViewMatrices[cascadeIndex];
 
 		positionWithOffsetWs = ApplyShadowNormalOffset( positionWithOffsetWs, normalWs, g_DirectionalLightInverseShadowMapSize / length( worldToShadow[0].xyz ), g_DirectionalLightCascadeHardness[cascadeIndex] );
@@ -100,6 +88,22 @@ struct DirectionalLightShadow
         pcfInput.Bias = g_DirectionalLightShadowBias[cascadeIndex];
 		pcfInput.Hardness = g_DirectionalLightCascadeHardness[cascadeIndex];
         pcfInput.ScreenPos = screenPos;
+
+		// Nearer the sun than every caster the filter could reach is lit, behind every one of them shadowed: the filter
+		// would return exactly that, so skip it. The tiles hold each 32x32 texel tile's farthest and nearest caster depth
+		// over it and its neighbours, cascades side by side (Borealis's; native sets no index)
+		uint nTiles = g_DirectionalLightFlags >> 5;
+		if ( nTiles != 0 )
+		{
+			int nTilesPerSide = (int)( rcp( g_DirectionalLightInverseShadowMapSize ) * ( 1.0 / 32.0 ) + 0.5 );
+			int2 vTile = clamp( int2( pcfInput.ShadowPos.xy * nTilesPerSide ), 0, nTilesPerSide - 1 );
+			float2 vMinMax = Bindless::GetTexture2D( nTiles ).Load( int3( vTile.x + cascadeIndex * nTilesPerSide, vTile.y, 0 ) ).xy;
+			float flCompareDepth = saturate( pcfInput.ShadowPos.z + pcfInput.Bias );
+			if ( flCompareDepth >= vMinMax.y )
+				return 1.0;
+			if ( flCompareDepth < vMinMax.x )
+				return 0.0;
+		}
 
         return SampleShadowPCF( pcfInput );
     }
@@ -168,23 +172,41 @@ struct DirectionalLightShadow
             return ssShadow;
 
 		float3 posLs;
-		int cascade = FindCascadeWithOffset( positionWithOffsetWs, posLs );
-		if ( cascade < 0 )
+		int want = FindCascadeWithOffset( positionWithOffsetWs, posLs );
+		if ( want < 0 )
 			return ssShadow;
 
-		// Sampled outside a loop: the filter inside the cascade loop cost lit shaders about 50 VGPRs
-		float visibility = SampleCascadeWithOffset( cascade, positionWithOffsetWs, normalWs, vPositionSs.xy );
-
-		// Near the edge, blend into the next cascade, or out to unshadowed past the last
-		float weight = CascadeBlendWeight( cascade, positionWithOffsetWs );
-		if ( weight < 1.0 )
+		// The cascades the wave's lanes want, one at a time, each wave-uniform: the cascade's matrix, bias and shadow map
+		// are scalar, the filter's taps need no loop over the lanes' shadow maps, and the filter is in the shader once. A
+		// lane near its cascade's edge wants the next one too, and blends into it, or out to unshadowed past the last.
+		// Not inside the unrolled search: the filter in there cost lit shaders about 50 VGPRs
+		float visibility = 1.0;
+		float weight = 1.0;
+		bool primary = true;
+		[loop]
+		for ( ;; )
 		{
-			int next = cascade + 1;
-			float nextVisibility = 1.0;
-			if ( next < (int)g_DirectionalLightCascadeCount )
-				nextVisibility = SampleCascadeWithOffset( next, positionWithOffsetWs, normalWs, vPositionSs.xy );
+			int cascade = WaveReadLaneFirst( want );
+			if ( cascade != want )
+				continue;
 
-			visibility = lerp( nextVisibility, visibility, weight );
+			float sampled = 1.0;
+			if ( cascade < (int)g_DirectionalLightCascadeCount )
+				sampled = SampleCascadeWithOffset( cascade, positionWithOffsetWs, normalWs, vPositionSs.xy );
+
+			if ( !primary )
+			{
+				visibility = lerp( sampled, visibility, weight );
+				break;
+			}
+
+			visibility = sampled;
+			weight = CascadeBlendWeight( cascade, positionWithOffsetWs );
+			if ( !( weight < 1.0 ) )
+				break;
+
+			primary = false;
+			want = cascade + 1;
 		}
 
 		return visibility * ssShadow;

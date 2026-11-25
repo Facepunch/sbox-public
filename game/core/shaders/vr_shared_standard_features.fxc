@@ -1,27 +1,2 @@
-// Copyright (c) Valve Corporation, All rights reserved. ======================================================================================================
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-//
-// These features are an attempt to standardize the lighting models across HLVR scene shaders, with the goal of accelerating shader authoring and
-// homogenizing lighting calculations and making code extension easier.
-//
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-//=====================================================================================================================
-//
-// Common Features
-//
-//=====================================================================================================================
-
-#include "vr_common_features.fxc"
-
-Feature( F_ALPHA_TEST, 0..1, "Translucent" );
-Feature( F_TRANSLUCENT, 0..1, "Translucent" );
-Feature( F_ADDITIVE_BLEND, 0..1, "Translucent" );
-
-FeatureRule( Allow1( F_ALPHA_TEST, F_TRANSLUCENT ), "Translucent and Alpha Test are not compatible" );
-FeatureRule( Requires1( F_ADDITIVE_BLEND, F_TRANSLUCENT ), "Requires translucency" );
-FeatureRule( Allow1( F_TRANSLUCENT, F_DO_NOT_CAST_SHADOWS ), "Translucent and Do Not Cast Shadows are not compatible" );
-Feature( F_TINT_MASK, 0..1, "Color" );
-
-
-//=====================================================================================================================
+// vr_shared_standard_features.fxc: the include name shaders have always used, kept for them; what it declares is ours, in sbox/standard_features.slangh.
+#include "sbox/standard_features.slangh"

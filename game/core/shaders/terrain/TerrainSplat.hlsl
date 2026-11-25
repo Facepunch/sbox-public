@@ -6,7 +6,10 @@
 #ifndef TERRAIN_SPLAT_H
 #define TERRAIN_SPLAT_H
 
+// TerrainCommon.hlsl includes this file too: skipped when it's the one including us, as Slang refuses a cyclic include
+#ifndef TERRAIN_H
 #include "terrain/TerrainCommon.hlsl"
+#endif
 
 #if PROGRAM == VFX_PROGRAM_PS
 
@@ -151,85 +154,23 @@
         return o;
     }
 
+    // Each layer is sampled and added in turn, so only the running blend stays live, not every layer's samples. The height
+    // blend weighs a layer by 2^((height - average) * sharpness) over the sum of those weights; the average's factor is the
+    // same for every layer and cancels, so a layer's height measured against the first layer's gives the same blend.
     Material Terrain_SplatStack( float2 localPos, float2 localDdx, float2 localDdy, uint indices[4], float weights[4] )
     {
         float2 tileUV  = localPos  / TERRAIN_SPLAT_TILE_UNITS;
         float2 tileDdx = localDdx / TERRAIN_SPLAT_TILE_UNITS;
         float2 tileDdy = localDdy / TERRAIN_SPLAT_TILE_UNITS;
 
-        Material layers[4];
-        float heights[4];
+        float sum = weights[0] + weights[1] + weights[2] + weights[3];
+        float scale = sum > 0 && sum != 1.0 ? 1.0 / sum : 1.0;
+        float sharpness = Terrain::Get().HeightBlendSharpness * 10.0; // Scale for better control
 
-        // Sample materials by index
-        for ( int i = 0; i < 4; i++ )
-        {
-            if ( weights[i] <= 0.0f )
-            {
-                layers[i] = Material::Init();
-                layers[i].Albedo = 0;
-                layers[i].Roughness = 0;
-                layers[i].AmbientOcclusion = 0;
-                layers[i].Metalness = 0;
-                heights[i] = 0;
-                continue;
-            }
+        // The slots rotate through .x rather than being indexed by the counter, which would put them in scratch memory
+        uint4 slotIndices = uint4( indices[0], indices[1], indices[2], indices[3] );
+        float4 slotWeights = float4( weights[0], weights[1], weights[2], weights[3] );
 
-            layers[i] = Terrain_SampleLayer( g_TerrainMaterials[ indices[i] ], tileUV, tileDdx, tileDdy, heights[i] );
-        }
-
-        // Normalize base weights
-        float baseWeights[4] = { weights[0], weights[1], weights[2], weights[3] };
-        float sum = baseWeights[0] + baseWeights[1] + baseWeights[2] + baseWeights[3];
-        if ( sum > 0 && sum != 1.0 )
-        {
-            float scale = 1.0 / sum;
-            baseWeights[0] *= scale;
-            baseWeights[1] *= scale;
-            baseWeights[2] *= scale;
-            baseWeights[3] *= scale;
-        }
-
-        float blendWeights[4];
-
-        if ( Terrain::Get().HeightBlending )
-        {
-            float avgHeight = ( heights[0] * baseWeights[0] + heights[1] * baseWeights[1] +
-                                heights[2] * baseWeights[2] + heights[3] * baseWeights[3] );
-
-            float sharpness = Terrain::Get().HeightBlendSharpness * 10.0; // Scale for better control
-
-            for ( int idx = 0; idx < 4; idx++ )
-            {
-                if ( baseWeights[idx] > 0.0 )
-                {
-                    float heightBias = ( heights[idx] - avgHeight ) * sharpness;
-                    blendWeights[idx] = baseWeights[idx] * pow( 2.0, heightBias );
-                }
-                else
-                {
-                    blendWeights[idx] = 0.0;
-                }
-            }
-
-            // Normalize adjusted weights
-            float total = blendWeights[0] + blendWeights[1] + blendWeights[2] + blendWeights[3];
-            if ( total > 0.0 )
-            {
-                blendWeights[0] /= total;
-                blendWeights[1] /= total;
-                blendWeights[2] /= total;
-                blendWeights[3] /= total;
-            }
-        }
-        else
-        {
-            blendWeights[0] = baseWeights[0];
-            blendWeights[1] = baseWeights[1];
-            blendWeights[2] = baseWeights[2];
-            blendWeights[3] = baseWeights[3];
-        }
-
-        // Blend all materials simultaneously
         Material o = Material::Init();
         o.Albedo = 0;
         o.Normal = 0;
@@ -237,14 +178,43 @@
         o.AmbientOcclusion = 0;
         o.Metalness = 0;
 
-        [unroll]
-        for ( int b = 0; b < 4; b++ )
+        float total = 0.0;
+        float reference = 0.0;
+        bool first = true;
+        [loop]
+        for ( int i = 0; i < 4; i++, slotIndices = slotIndices.yzwx, slotWeights = slotWeights.yzwx )
         {
-            o.Albedo += layers[b].Albedo * blendWeights[b];
-            o.Normal += layers[b].Normal * blendWeights[b];
-            o.Roughness += layers[b].Roughness * blendWeights[b];
-            o.AmbientOcclusion += layers[b].AmbientOcclusion * blendWeights[b];
-            o.Metalness += layers[b].Metalness * blendWeights[b];
+            float weight = slotWeights.x * scale;
+            if ( slotWeights.x <= 0.0f )
+                continue;
+
+            float height;
+            Material layer = Terrain_SampleLayer( g_TerrainMaterials[ slotIndices.x ], tileUV, tileDdx, tileDdy, height );
+            if ( Terrain::Get().HeightBlending )
+            {
+                float sharpHeight = height * sharpness;
+                if ( first )
+                    reference = sharpHeight;
+                first = false;
+                weight *= exp2( sharpHeight - reference );
+                total += weight;
+            }
+
+            o.Albedo += layer.Albedo * weight;
+            o.Normal += layer.Normal * weight;
+            o.Roughness += layer.Roughness * weight;
+            o.AmbientOcclusion += layer.AmbientOcclusion * weight;
+            o.Metalness += layer.Metalness * weight;
+        }
+
+        if ( Terrain::Get().HeightBlending && total > 0.0 )
+        {
+            float inverse = 1.0 / total;
+            o.Albedo *= inverse;
+            o.Normal *= inverse;
+            o.Roughness *= inverse;
+            o.AmbientOcclusion *= inverse;
+            o.Metalness *= inverse;
         }
 
         return o;
@@ -264,8 +234,15 @@
 
         if ( Terrain::Get().HeightBlending )
         {
-            CompactTerrainMaterial mats[4];
-            mats[0] = mat00; mats[1] = mat10; mats[2] = mat01; mats[3] = mat11;
+            // A corner whose texel matches an earlier one's is blended once, with the weights summed; one corner at a
+            // time, so only the running blend stays live
+            float4 cornerWeights = quadWeights;
+            if ( controlBits.y == controlBits.x ) { cornerWeights.x += cornerWeights.y; cornerWeights.y = 0.0; }
+            if ( controlBits.z == controlBits.x ) { cornerWeights.x += cornerWeights.z; cornerWeights.z = 0.0; }
+            else if ( controlBits.z == controlBits.y ) { cornerWeights.y += cornerWeights.z; cornerWeights.z = 0.0; }
+            if ( controlBits.w == controlBits.x ) { cornerWeights.x += cornerWeights.w; cornerWeights.w = 0.0; }
+            else if ( controlBits.w == controlBits.y ) { cornerWeights.y += cornerWeights.w; cornerWeights.w = 0.0; }
+            else if ( controlBits.w == controlBits.z ) { cornerWeights.z += cornerWeights.w; cornerWeights.w = 0.0; }
 
             Material o = Material::Init();
             o.Albedo = 0;
@@ -274,16 +251,20 @@
             o.AmbientOcclusion = 0;
             o.Metalness = 0;
 
-            [unroll]
-            for ( int c = 0; c < 4; c++ )
+            // The corners rotate through .x rather than being indexed by the counter, which would put them in scratch memory
+            uint4 cornerBits = controlBits;
+            [loop]
+            for ( int c = 0; c < 4; c++, cornerBits = cornerBits.yzwx, cornerWeights = cornerWeights.yzwx )
             {
-                Material corner = Terrain_SplatCompact( localPos, localDdx, localDdy, mats[c] );
+                if ( cornerWeights.x <= 0.0 )
+                    continue;
 
-                o.Albedo += corner.Albedo * quadWeights[c];
-                o.Normal += corner.Normal * quadWeights[c];
-                o.Roughness += corner.Roughness * quadWeights[c];
-                o.AmbientOcclusion += corner.AmbientOcclusion * quadWeights[c];
-                o.Metalness += corner.Metalness * quadWeights[c];
+                Material corner = Terrain_SplatCompact( localPos, localDdx, localDdy, CompactTerrainMaterial::Decode( cornerBits.x ) );
+                o.Albedo += corner.Albedo * cornerWeights.x;
+                o.Normal += corner.Normal * cornerWeights.x;
+                o.Roughness += corner.Roughness * cornerWeights.x;
+                o.AmbientOcclusion += corner.AmbientOcclusion * cornerWeights.x;
+                o.Metalness += corner.Metalness * cornerWeights.x;
             }
 
             return o;
