@@ -8,7 +8,7 @@ namespace Sandbox;
 [Expose]
 public sealed partial class SceneModel : SceneObject
 {
-	internal CSceneAnimatableObject animNative;
+	internal SceneModelAnimation animNative;
 
 	internal SceneModel() { }
 	internal SceneModel( HandleCreationData _ ) { }
@@ -22,39 +22,36 @@ public sealed partial class SceneModel : SceneObject
 
 		if ( !model.HasRenderMeshes() ) model = Model.Error;
 
-		using ( var h = IHandle.MakeNextHandle( this ) )
-		{
-			var flags = Rendering.SceneObjectFlags.CastShadows | Rendering.SceneObjectFlags.IsLoaded;
-			var typeFlags = ESceneObjectTypeFlags.NONE;
+		// Made as SceneObject's: it animates on its own instance
+		var flags = Rendering.SceneObjectFlags.CastShadows | Rendering.SceneObjectFlags.IsLoaded;
+		MakeManaged( sceneWorld, model );
+		_keptModel = model;
+		StartResolvingDraws( model );
+		FlagsAtCreation( model, flags );
 
-			MeshSystem.CreateSceneObject( model.native, transform, "AnimatableSceneObjectDesc", flags, typeFlags, sceneWorld, 0x1 );
+		CreateAnimationInstance( model, transform );
 
-			if ( !animNative.IsValid )
-			{
-				Log.Warning( "SceneModel: Didn't get a valid native pointer" );
-				throw new System.ArgumentException( "Error creating AnimSceneObject - possible invalid model?" );
-			}
+		Tags.RemoveAll();
+		Transform = transform;
 
-			Tags.RemoveAll();
-			Transform = transform;
-
-			RegisterLegacyAnimationCallback();
-			animNative.InitAnimation();
-		}
+		RegisterLegacyAnimationCallback();
+		animNative.InitAnimation();
+		PoseChanged();
 	}
 
 	internal override void OnNativeInit( CSceneObject ptr )
 	{
 		base.OnNativeInit( ptr );
 
-		animNative = (NativeEngine.CSceneAnimatableObject)ptr;
-		RegisterAnimationControllerCallback();
+		// Native code made it (a tool's preview): the CSceneAnimatableObject native animates
+		animNative = new SceneModelAnimation( (NativeEngine.CSceneAnimatableObject)ptr, default, this );
 	}
 
-	internal override void OnNativeDestroy()
+	internal override void Destroyed()
 	{
+		DestroyAnimationInstance();
 		animNative = default;
-		base.OnNativeDestroy();
+		base.Destroyed();
 	}
 
 	public float PlaybackRate
@@ -66,6 +63,13 @@ public sealed partial class SceneModel : SceneObject
 	internal override void OnModelChanged()
 	{
 		base.OnModelChanged();
+		AnimationInstanceModelChanged();
+	}
+
+	internal override void OnTransformChanged( in Transform tx )
+	{
+		base.OnTransformChanged( tx );
+		if ( animNative.HasInstance ) animNative.Instance.SetTransform( tx );
 	}
 
 	/// <summary>
@@ -79,22 +83,7 @@ public sealed partial class SceneModel : SceneObject
 		OOBChecks.ThrowIfBoneOutOfBounds( boneIndex, Model?.BoneCount ?? 0, nameof( boneIndex ) );
 
 		animNative.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
-		NotifyChanged( Rendering.SceneObjectChange.Bones );
-	}
-
-	/// <summary>
-	/// Set the world space transforms of the first <c>bones.Length</c> bones, indexed by bone index, in a single interop
-	/// call. Bones past the model's bone count are ignored.
-	/// </summary>
-	internal unsafe void SetBoneWorldTransforms( ReadOnlySpan<Transform> bones )
-	{
-		if ( animNative.IsNull || bones.IsEmpty )
-			return;
-
-		fixed ( Transform* p = bones )
-			animNative.SetWorldSpaceRenderBoneTransforms( bones.Length, (IntPtr)p );
-
-		NotifyChanged( Rendering.SceneObjectChange.Bones );
+		BonesChanged();
 	}
 
 	/// <summary>
@@ -121,6 +110,32 @@ public sealed partial class SceneModel : SceneObject
 
 		fixed ( Transform* p = dest )
 			animNative.GetWorldSpaceRenderBoneTransforms( dest.Length, (IntPtr)p );
+	}
+
+	/// <summary>
+	/// <see cref="GetBoneWorldTransforms"/> as the matrices native keeps and skins with, without a round trip through
+	/// <see cref="Transform"/>.
+	/// </summary>
+	internal unsafe void GetBoneWorldMatrices( Span<Matrix3x4> dest )
+	{
+		if ( animNative.IsNull || dest.IsEmpty )
+			return;
+
+		fixed ( Matrix3x4* p = dest )
+			animNative.GetWorldSpaceRenderBoneMatrices( dest.Length, (IntPtr)p );
+	}
+
+	/// <summary>
+	/// The flex controllers' weights as native morphs the model with them - from its animation, then the overrides set
+	/// through <see cref="Morphs"/> - by the model's flex controller index (<see cref="Model.GetMorphName"/>), into
+	/// <paramref name="dest"/>. Returns how many the model has.
+	/// </summary>
+	internal unsafe int GetFlexControllerWeights( Span<float> dest )
+	{
+		if ( animNative.IsNull ) return 0;
+
+		fixed ( float* p = dest )
+			return animNative.GetFlexControllerWeights( (IntPtr)p, dest.Length );
 	}
 
 	/// <summary>
@@ -214,8 +229,16 @@ public sealed partial class SceneModel : SceneObject
 	/// </summary>
 	public void SetBodyGroup( string name, int value )
 	{
-		animNative.SetBodyGroup( name, value );
-		NotifyChanged( Rendering.SceneObjectChange.Material );
+		// CSceneObject::SetBodyGroup: the part's meshes out of the mask, the chosen one's in (the first for a choice past the
+		// last). A part the model doesn't have changes nothing
+		if ( Model is not { } model || model.native.IsNull ) return;
+		var part = model.native.GetBodyPartForName( name );
+		if ( part < 0 || part >= model.Parts.Count ) return;
+
+		var parts = model.Parts.All[part];
+		if ( value >= parts.Choices.Count ) value = 0;
+		var chosen = value >= 0 && value < parts.Choices.Count ? parts.Choices[value].Mask : 0;
+		MeshGroupMask = (MeshGroupMask & ~parts.Mask) | chosen;
 	}
 
 	/// <summary>

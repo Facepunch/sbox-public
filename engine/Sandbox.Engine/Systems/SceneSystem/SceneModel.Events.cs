@@ -90,7 +90,7 @@ public sealed partial class SceneModel : SceneObject
 
 	void OnAnimTagEventCallback( IntPtr pName, int status )
 	{
-		string name = Interop.GetString( pName );
+		string name = Interop.GetCachedString( pName );
 
 		try
 		{
@@ -104,7 +104,8 @@ public sealed partial class SceneModel : SceneObject
 
 	void OnAnimationEvent( IntPtr typeName, float cycle, float time, IntPtr data )
 	{
-		string name = Interop.GetString( typeName );
+		// A handful of names, again and again (a walking citizen sends two footsteps a second): cached, not made each time
+		string name = Interop.GetCachedString( typeName );
 		KeyValues3 kv = data;
 
 		if ( name == "AE_MANAGED_EVENT" )
@@ -134,7 +135,7 @@ public sealed partial class SceneModel : SceneObject
 		if ( name == "AE_FOOTSTEP" )
 		{
 			var foot = kv.GetMemberInt( "Foot", 0 );
-			var attachment = kv.GetMemberString( "attachment" );
+			var attachment = kv.GetMemberStringCached( "attachment" );
 			var volume = kv.GetMemberFloat( "volume", 1.0f );
 			var transform = GetAttachment( attachment ) ?? Transform;
 
@@ -152,7 +153,7 @@ public sealed partial class SceneModel : SceneObject
 
 		if ( name == "AE_CL_BODYGROUP_SET_VALUE" )
 		{
-			var bodygroup = kv.GetMemberString( "bodygroup" );
+			var bodygroup = kv.GetMemberStringCached( "bodygroup" );
 			var value = kv.GetMemberInt( "value", 0 );
 
 			SetBodyGroup( bodygroup, value );
@@ -162,7 +163,7 @@ public sealed partial class SceneModel : SceneObject
 		{
 			GenericEvent ev = default;
 
-			ev.Type = kv.GetMemberString( "TypeName" );
+			ev.Type = kv.GetMemberStringCached( "TypeName" );
 			ev.Int = kv.GetMemberInt( "Int", 0 );
 			ev.Float = kv.GetMemberFloat( "Float", 0.0f );
 			ev.Vector = kv.GetMemberVector( "Vector", Vector3.Zero );
@@ -183,9 +184,9 @@ public sealed partial class SceneModel : SceneObject
 		if ( name == "AE_CL_PLAYSOUND" || name == "AE_CL_PLAYSOUND_ATTACHMENT" || name == "AE_CL_PLAYSOUND_POSITION" || name == "AE_SV_PLAYSOUND" )
 		{
 			SoundEvent ev = default;
-			ev.Name = kv.GetMemberString( "name" );
+			ev.Name = kv.GetMemberStringCached( "name" );
 			ev.Position = Transform.Position;
-			ev.AttachmentName = kv.GetMemberString( "attachment" );
+			ev.AttachmentName = kv.GetMemberStringCached( "attachment" );
 
 			if ( !string.IsNullOrWhiteSpace( ev.AttachmentName ) && GetAttachment( ev.AttachmentName ) is Transform tx )
 			{

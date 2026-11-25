@@ -28,13 +28,11 @@ public sealed partial class SceneModel
 
 		var sourceController = source.animGraph2Native;
 		var targetController = animGraph2Native;
-		var parameters = source.Animation.Graph.Parameters;
-		for ( int i = 0; i < parameters.Count; i++ )
+		var parameters = FirstPersonParameters( source.Animation.Graph, sourceController );
+		for ( int i = 0; i < parameters.Length; i++ )
 		{
-			var name = parameters[i].Name;
-			var index = sourceController.GetControlParameterIndex( name );
-			if ( index < 0 ) continue;
-			switch ( sourceController.GetControlParameterType( index ) )
+			var (name, index, kind) = parameters[i];
+			switch ( kind )
 			{
 				case Sandbox.Animation.GraphValueKind.Bool:
 					targetController.SetParamBool( name, sourceController.GetParamBool( name ) );
@@ -56,6 +54,51 @@ public sealed partial class SceneModel
 			}
 		}
 		Animation.Parameters.TrySet( "b_firstperson", true );
+	}
+
+	/// <summary>
+	/// Set the world space transforms of the first bones, one per entry, as <see cref="SetBoneWorldTransform"/> would one at a
+	/// time. The model and its bone count are read once and the change is reported once, by the last bone going through
+	/// <see cref="SetBoneWorldTransform"/>.
+	/// </summary>
+	internal void SetBoneWorldTransforms( ReadOnlySpan<Transform> transforms )
+	{
+		var count = Math.Min( transforms.Length, Model?.BoneCount ?? 0 );
+		if ( count <= 0 ) return;
+
+		for ( int i = 0; i < count - 1; i++ )
+			animNative.SetWorldSpaceRenderBoneTransform( i, transforms[i] );
+
+		SetBoneWorldTransform( count - 1, transforms[count - 1] );
+	}
+
+	IReadOnlyList<Sandbox.Animation.Graph.Parameter> _firstPersonParameterSource;
+	IntPtr _firstPersonParameterController;
+	(StringToken Name, int Index, Sandbox.Animation.GraphValueKind Kind)[] _firstPersonParameters = [];
+
+	/// <summary>
+	/// The source graph's parameters that its controller has, with their tokens, indices and types. Resolved once per graph
+	/// and controller rather than looked up by name every frame.
+	/// </summary>
+	(StringToken Name, int Index, Sandbox.Animation.GraphValueKind Kind)[] FirstPersonParameters( Sandbox.Animation.Graph graph, NativeEngine.AnimationGraph2Controller controller )
+	{
+		var parameters = graph.Parameters;
+		if ( ReferenceEquals( parameters, _firstPersonParameterSource ) && _firstPersonParameterController == (IntPtr)controller )
+			return _firstPersonParameters;
+
+		var resolved = new List<(StringToken, int, Sandbox.Animation.GraphValueKind)>( parameters.Count );
+		for ( int i = 0; i < parameters.Count; i++ )
+		{
+			var name = new StringToken( parameters[i].Name );
+			var index = controller.GetControlParameterIndex( name );
+			if ( index < 0 ) continue;
+			resolved.Add( (name, index, controller.GetControlParameterType( index )) );
+		}
+
+		_firstPersonParameterSource = parameters;
+		_firstPersonParameterController = controller;
+		_firstPersonParameters = resolved.ToArray();
+		return _firstPersonParameters;
 	}
 
 	private Sandbox.Animation.AnimationAccessor _animation;

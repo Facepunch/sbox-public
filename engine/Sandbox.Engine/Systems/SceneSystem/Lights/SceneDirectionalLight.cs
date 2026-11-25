@@ -19,14 +19,14 @@ public sealed class SceneDirectionalLight : SceneLight
 	{
 	}
 
+	/// <summary>A sun lights its world (as its sun, or an extra one); it isn't drawn.</summary>
+	internal override bool LightsWorld => true;
+
 	public SceneDirectionalLight( SceneWorld sceneWorld, Rotation rotation, Color color ) : base()
 	{
 		Assert.IsValid( sceneWorld );
 
-		using ( var h = IHandle.MakeNextHandle( this ) )
-		{
-			CSceneSystem.CreateDirectionalLight( sceneWorld, rotation.Backward );
-		}
+		MakeManagedLight( sceneWorld, NewDescription( TypeDirectional, rotation.Backward ) );
 
 		LightColor = color;
 	}
@@ -36,14 +36,14 @@ public sealed class SceneDirectionalLight : SceneLight
 	/// </summary>
 	public int ShadowCascadeCount
 	{
-		get { return lightNative.GetShadowCascades(); }
-		set { lightNative.SetShadowCascades( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.ShadowCascadeCount; }
+		set { SetCascades( value, ShadowCascadeSplitRatio, Description.CascadeDistanceScale ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	public float ShadowCascadeSplitRatio
 	{
-		get { return lightNative.GetShadowCascadeSplitRatio(); }
-		set { lightNative.SetShadowCascadeSplitRatio( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.ShadowCascadeSplitRatio; }
+		set { SetCascades( ShadowCascadeCount, value, Description.CascadeDistanceScale ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -65,6 +65,6 @@ public sealed class SceneDirectionalLight : SceneLight
 	/// </summary>
 	public void SetCascadeDistanceScale( float distance )
 	{
-		lightNative.SetCascadeDistanceScale( distance ); NotifyChanged( Rendering.SceneObjectChange.Settings );
+		SetCascades( ShadowCascadeCount, ShadowCascadeSplitRatio, distance ); NotifyChanged( Rendering.SceneObjectChange.Settings );
 	}
 }

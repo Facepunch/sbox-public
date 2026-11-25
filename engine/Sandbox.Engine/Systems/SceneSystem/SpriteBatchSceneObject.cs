@@ -3,6 +3,7 @@
 using NativeEngine;
 using System.Buffers;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 /// <summary>
 /// This object renders every sprite registered to it in a single draw call. It takes care of sorting, sampling, and the whole pipeline regarding sprites.
@@ -191,10 +192,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	bool GPUUploadQueued = false;
 
-	// Set by UploadOnHost after building the staging buffer,
-	// consumed by RenderSceneObject for early-out guard.
-	int _pendingSpriteCount = 0;
-
 	GpuBuffer<SpriteData> SpriteBuffer;
 	GpuBuffer<SpriteData> SpriteBufferOut;
 
@@ -207,14 +204,118 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	bool SpriteDataBufferRented = false;
 
 
-	int _renderInstanceCount;
-	bool _pendingHasText, _renderHasText;
-	ulong _renderFrame; // the text buffers the sprites' placements point into
-	bool _renderIsSorted;
-	bool _renderFiltered;
-	bool _renderAdditive;
-	bool _renderOpaque;
-	bool _renderRefraction;
+	bool _pendingHasText;
+	bool _pendingFacesVelocity;
+
+	/// <summary>
+	/// What a frame's draw of the batch reads (<see cref="RenderSceneObject"/>), written by <see cref="UploadOnHost"/>, with the
+	/// buffers the frame's command list was recorded with: a frame drawing on the render thread while the main thread uploads
+	/// the next one reads its own (<see cref="ForDrawing"/>, <see cref="ForWriting"/>), as its command list does.
+	/// </summary>
+	sealed class DrawState
+	{
+		// Set after building the staging buffer; an early-out guard
+		public int SpriteCount;
+		public int InstanceCount;
+		public bool HasText;
+		public ulong Frame; // the text buffers the sprites' placements point into
+		public bool IsSorted, Filtered, Additive, Opaque, Refraction;
+
+		// Whether the compute's results depend on the view drawing them, and whether it would leave the sprites as uploaded
+		public bool PerView, Unprocessed;
+		public ulong ExecutedFrame;
+
+		public GpuBuffer<SpriteData> Sprites, SpritesOut;
+		public GpuBuffer<uint> Sorting;
+
+		public void CopyFrom( DrawState other )
+		{
+			(SpriteCount, InstanceCount, HasText, Frame) = (other.SpriteCount, other.InstanceCount, other.HasText, other.Frame);
+			(IsSorted, Filtered, Additive, Opaque, Refraction) = (other.IsSorted, other.Filtered, other.Additive, other.Opaque, other.Refraction);
+			(PerView, Unprocessed, ExecutedFrame) = (other.PerView, other.Unprocessed, other.ExecutedFrame);
+			(Sprites, SpritesOut, Sorting) = (other.Sprites, other.SpritesOut, other.Sorting);
+		}
+	}
+
+	DrawState _draw = new(), _drawHeld;
+	long _drawSplitEpoch = -1, _drawSplitPublished = -1;
+
+	/// <summary>
+	/// The draw state the main thread writes. While a frame handed over may be drawing on the render thread
+	/// (<see cref="RenderSync.Overlapping"/>), the first write since that hand-over keeps the state for that frame and goes on in
+	/// a copy of it, as <see cref="CommandList"/> keeps its recording.
+	/// </summary>
+	DrawState ForWriting()
+	{
+		if ( !RenderSync.Overlapping || RenderSync.OnRenderThread ) return _draw;
+		var epoch = RenderSync.Epoch;
+		if ( _drawSplitEpoch == epoch ) return _draw;
+		_drawSplitEpoch = epoch;
+
+		// The other state isn't read in this frame. Written in this order for ForDrawing, which reads them in the other order
+		var held = _draw;
+		var fresh = _drawHeld ?? new DrawState();
+		fresh.CopyFrom( held );
+		Volatile.Write( ref _drawHeld, held );
+		Volatile.Write( ref _drawSplitPublished, epoch );
+		Volatile.Write( ref _draw, fresh );
+		return fresh;
+	}
+
+	/// <summary>The draw state a draw on this thread reads: on the render thread, its frame's as it was handed over.</summary>
+	DrawState ForDrawing()
+	{
+		var current = Volatile.Read( ref _draw );
+		if ( !RenderSync.OnRenderThread ) return current;
+		return Volatile.Read( ref _drawSplitPublished ) == RenderSync.Epoch ? Volatile.Read( ref _drawHeld ) : current;
+	}
+
+	// Buffers and staging arrays a frame handed over may still draw with, kept until the next hand-over (that frame has been
+	// joined by then), then disposed or given back (DisposeRetired)
+	static readonly List<(long Epoch, GpuBuffer Buffer, SpriteData[] Staging)> _retired = new();
+
+	/// <summary>Dispose <paramref name="buffer"/>, or give <paramref name="staging"/> back, once no frame handed over can use it.</summary>
+	static void Retire( GpuBuffer buffer, SpriteData[] staging = null )
+	{
+		if ( buffer is null && staging is null ) return;
+		if ( !RenderSync.Overlapping )
+		{
+			buffer?.Dispose();
+			if ( staging is not null ) ArrayPool<SpriteData>.Shared.Return( staging, clearArray: false );
+			return;
+		}
+
+		_retired.Add( (RenderSync.Epoch, buffer, staging) );
+	}
+
+	/// <summary>On the main thread, before the batches upload: dispose what <see cref="Retire"/> kept once no frame can use it.</summary>
+	internal static void DisposeRetired()
+	{
+		if ( _retired.Count == 0 ) return;
+		var epoch = RenderSync.Epoch;
+		var overlapping = RenderSync.Overlapping;
+		int kept = 0;
+		for ( int i = 0; i < _retired.Count; i++ )
+		{
+			var retired = _retired[i];
+			if ( overlapping && retired.Epoch >= epoch )
+			{
+				_retired[kept++] = retired;
+				continue;
+			}
+
+			retired.Buffer?.Dispose();
+			if ( retired.Staging is not null ) ArrayPool<SpriteData>.Shared.Return( retired.Staging, clearArray: false );
+		}
+
+		_retired.RemoveRange( kept, _retired.Count - kept );
+	}
+
+	/// <summary>For the tests: buffers and staging arrays waiting for <see cref="DisposeRetired"/>.</summary>
+	internal static int RetiredCount => _retired.Count;
+
+	/// <summary>For the tests: the sprite buffer a draw on this thread reads, and the sprites it draws.</summary>
+	internal (GpuBuffer Sprites, int SpriteCount) DrawnForTests => (ForDrawing().Sprites, ForDrawing().SpriteCount);
 
 	public SpriteBatchSceneObject( Scene scene ) : base( scene.SceneWorld )
 	{
@@ -226,6 +327,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		GPUSortingBuffer = new( CurrentBufferSize );
 		GPUDistanceBuffer = new( CurrentBufferSize );
 		SpriteAtomicCounter = new( 1 );
+		(_draw.Sprites, _draw.SpritesOut, _draw.Sorting) = (SpriteBuffer, SpriteBufferOut, GPUSortingBuffer);
 	}
 
 	/// <summary>
@@ -263,15 +365,23 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	internal void Destroy()
 	{
 		Delete(); // native removal waits for frame end, so also empty what RenderSceneObject replays
-		_pendingSpriteCount = 0;
+		ForWriting().SpriteCount = 0;
 		_commandList.Reset();
-		SpriteAtomicCounter.Dispose();
-		VertexBuffer.Dispose();
-		IndexBuffer.Dispose();
-		SpriteBuffer?.Dispose();
-		SpriteBufferOut?.Dispose();
-		GPUSortingBuffer?.Dispose();
-		GPUDistanceBuffer?.Dispose();
+
+		// A frame handed over may still draw the batch
+		Retire( SpriteAtomicCounter );
+		Retire( VertexBuffer );
+		Retire( IndexBuffer );
+		Retire( SpriteBuffer );
+		Retire( SpriteBufferOut );
+		Retire( GPUSortingBuffer );
+		Retire( GPUDistanceBuffer );
+		if ( SpriteDataBufferRented )
+		{
+			Retire( null, SpriteDataBuffer );
+			SpriteDataBuffer = null;
+			SpriteDataBufferRented = false;
+		}
 	}
 
 	/// <summary>
@@ -295,10 +405,11 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	{
 		CurrentBufferSize = (int)System.Numerics.BitOperations.RoundUpToPowerOf2( (uint)allocationSize );
 
-		SpriteBuffer?.Dispose();
-		SpriteBufferOut?.Dispose();
-		GPUSortingBuffer?.Dispose();
-		GPUDistanceBuffer?.Dispose();
+		// A frame handed over may still draw with the old ones
+		Retire( SpriteBuffer );
+		Retire( SpriteBufferOut );
+		Retire( GPUSortingBuffer );
+		Retire( GPUDistanceBuffer );
 
 		SpriteBuffer = new( CurrentBufferSize );
 		SpriteBufferOut = new( CurrentBufferSize );
@@ -488,9 +599,10 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		// are uploaded directly from SharedSprites in RenderSceneObject.
 		if ( componentCount > 0 && (SpriteDataBuffer == null || SpriteDataBuffer.Length < componentCount) )
 		{
+			// The last frame's command list uploads from it, and may not have yet
 			if ( SpriteDataBufferRented )
 			{
-				ArrayPool<SpriteData>.Shared.Return( SpriteDataBuffer, clearArray: false );
+				Retire( null, SpriteDataBuffer );
 			}
 
 			SpriteDataBuffer = ArrayPool<SpriteData>.Shared.Rent( componentCount );
@@ -534,6 +646,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		}
 
 		_pendingHasText = false;
+		_pendingFacesVelocity = false;
 
 		foreach ( var spriteGroup in SpriteGroups.Values )
 		{
@@ -544,6 +657,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			_pendingHasText |= spriteGroup.Count > 0 && (spriteGroup.SharedSprites[spriteGroup.Offset].RenderFlags & (int)SpriteFlags.Text) != 0;
 			hasRefraction |= spriteGroup.Count > 0 && spriteGroup.SharedSprites[spriteGroup.Offset].NormalTextureHandle != 0;
 			hasLighting |= spriteGroup.Count > 0 && (spriteGroup.SharedSprites[spriteGroup.Offset].Lighting & 0xFF) != 0;
+			_pendingFacesVelocity |= spriteGroup.Count > 0 && spriteGroup.SharedSprites[spriteGroup.Offset].RotationOffset > -1;
 		}
 
 		HasLitSprites = hasLighting;
@@ -554,7 +668,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		// Use a degenerate zero-size bounds for empty batches so they can be frustum-culled.
 		Bounds = spriteCount > 0 ? new BBox( boundsMin, boundsMax ) : default;
 
-		_pendingSpriteCount = spriteCount;
+		ForWriting().SpriteCount = spriteCount;
 		GPUUploadQueued = false;
 
 		BuildCommandList( spriteCount, splotCount, componentCount );
@@ -593,6 +707,28 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		bool opaque = Opaque;
 		int bufferSize = CurrentBufferSize;
 		int totalInstances = spriteCount + splotCount;
+		bool didSort = sorted && totalInstances >= 2;
+
+		var draw = ForWriting();
+		draw.InstanceCount = totalInstances;
+		draw.IsSorted = didSort;
+		draw.Filtered = filtered;
+		draw.Additive = additive;
+		draw.Opaque = opaque;
+		draw.Refraction = Flags.WantsFrameBufferCopy;
+		draw.HasText = _pendingHasText;
+		draw.Frame = Application.FrameCount;
+		(draw.Sprites, draw.SpritesOut, draw.Sorting) = (SpriteBuffer, SpriteBufferOut, GPUSortingBuffer);
+
+		// The compute sorts by distance from the camera and turns sprites that face their velocity in the view. Without
+		// either its results are the same for every layer and view of a frame, and without motion blur's splots too it would
+		// copy the sprites as they are: they're drawn from where they're uploaded
+		draw.PerView = didSort || _pendingFacesVelocity;
+		draw.Unprocessed = !draw.PerView && splotCount == 0;
+		draw.ExecutedFrame = 0;
+
+		if ( draw.Unprocessed )
+			return;
 
 		_commandList.SetBufferData( SpriteAtomicCounter, ZeroUint );
 
@@ -645,47 +781,44 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 				}
 			}
 		}
-
-		bool didSort = sorted && totalInstances >= 2;
-
-		_renderInstanceCount = totalInstances;
-		_renderIsSorted = didSort;
-		_renderFiltered = filtered;
-		_renderAdditive = additive;
-		_renderOpaque = opaque;
-		_renderRefraction = Flags.WantsFrameBufferCopy;
-		_renderHasText = _pendingHasText;
-		_renderFrame = Application.FrameCount;
 	}
 
 	public override void RenderSceneObject()
 	{
 		base.RenderSceneObject();
 
-		if ( _pendingSpriteCount == 0 || !_commandList.Enabled )
+		var draw = ForDrawing();
+		if ( draw.SpriteCount == 0 || !_commandList.Enabled )
 			return;
 
 		Graphics.Attributes.Set( "CameraPosition", Graphics.CameraPosition );
-		_commandList.ExecuteOnRenderThread();
+
+		// A batch draws in several of a view's layers (translucent, bloom, a viewmodel's overlay): one upload and compute serves
+		// them all, unless the results are the view's
+		if ( draw.PerView || draw.ExecutedFrame != Application.FrameCount )
+		{
+			draw.ExecutedFrame = Application.FrameCount;
+			_commandList.ExecuteOnRenderThread();
+		}
 
 		var attributes = RenderAttributes.Pool.Get();
 		try
 		{
-			attributes.SetCombo( "D_BLEND", _renderAdditive ? 1 : 0 );
-			attributes.SetCombo( "D_OPAQUE", _renderOpaque ? 1 : 0 );
-			attributes.SetCombo( "D_TEXT", _renderHasText ? 1 : 0 );
+			attributes.SetCombo( "D_BLEND", draw.Additive ? 1 : 0 );
+			attributes.SetCombo( "D_OPAQUE", draw.Opaque ? 1 : 0 );
+			attributes.SetCombo( "D_TEXT", draw.HasText ? 1 : 0 );
 			// The scene binds FrameBufferCopyTexture for readers in translucent layers.
-			bool refractive = _renderRefraction && Graphics.LayerType == SceneLayerType.Translucent;
+			bool refractive = draw.Refraction && Graphics.LayerType == SceneLayerType.Translucent;
 			attributes.SetCombo( "D_REFRACTION", refractive ? 1 : 0 );
-			attributes.Set( "IsSorted", _renderIsSorted ? 1 : 0 );
-			attributes.Set( "SpriteCount", _renderInstanceCount );
-			attributes.Set( "Filtered", _renderFiltered );
-			attributes.Set( "Sprites", (GpuBuffer)SpriteBufferOut );
-			attributes.Set( "SortLUT", (GpuBuffer)GPUSortingBuffer );
+			attributes.Set( "IsSorted", draw.IsSorted ? 1 : 0 );
+			attributes.Set( "SpriteCount", draw.InstanceCount );
+			attributes.Set( "Filtered", draw.Filtered );
+			attributes.Set( "Sprites", (GpuBuffer)(draw.Unprocessed ? draw.Sprites : draw.SpritesOut) );
+			attributes.Set( "SortLUT", (GpuBuffer)draw.Sorting );
 			attributes.Set( "Vertices", (GpuBuffer)VertexBuffer );
-			if ( _renderHasText ) GpuFontText.Bind( attributes, _renderFrame );
+			if ( draw.HasText ) GpuFontText.Bind( attributes, draw.Frame );
 
-			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );
+			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, draw.InstanceCount, attributes );
 		}
 		finally
 		{

@@ -1,17 +1,22 @@
-using NativeEngine;
-
 namespace Sandbox;
 
-internal sealed class SceneMeshObject : SceneObject
+/// <summary>
+/// A scene object drawing its own vertex and index buffers with one material (the editor's tool render context: gizmo lines
+/// and points). Managed only: its buffers are <see cref="GpuBuffer"/>s, and Borealis draws them as a custom object draws.
+/// </summary>
+internal sealed class SceneMeshObject : SceneCustomObject
 {
-	VertexBufferHandle _vertices;
-	IndexBufferHandle _indices;
+	GpuBuffer _vertices;
+	GpuBuffer _indices;
+	Action<SceneMeshObject, RenderAttributes> _draw;
+	Material _material;
+	Graphics.PrimitiveType _primitiveType;
 	BBox _localBounds;
 	int _indexStart;
 	int _indexCount;
 
-	public int VertexCount => _vertices.ElementCount;
-	public int IndexCount => _indices.ElementCount;
+	public int VertexCount => _vertices?.ElementCount ?? 0;
+	public int IndexCount => _indices?.ElementCount ?? 0;
 
 	public new BBox LocalBounds
 	{
@@ -23,7 +28,7 @@ internal sealed class SceneMeshObject : SceneObject
 		}
 	}
 
-	SceneMeshObject()
+	SceneMeshObject( SceneWorld world ) : base( world )
 	{
 	}
 
@@ -39,72 +44,68 @@ internal sealed class SceneMeshObject : SceneObject
 		ArgumentOutOfRangeException.ThrowIfZero( indices.Length );
 		ValidateIndices( indices, vertices.Length );
 
-		var result = new SceneMeshObject { _localBounds = bounds, _indexCount = indices.Length };
-		try
-		{
-			result._vertices = VertexBufferHandle.Create( vertices.Length, vertices );
-			result._indices = new IndexBufferHandle( indices.Length, indices );
-			using ( IHandle.MakeNextHandle( result ) )
-			{
-				CSceneSystem.CreateSceneObjectFromBuffers( world, result._vertices, result._indices, material.native,
-					vertices.Length, indices.Length, bounds, (RenderPrimitiveType)primitiveType );
-			}
+		var vertexBuffer = new GpuBuffer<T>( vertices.Length, GpuBuffer.UsageFlags.Vertex, "SceneMeshObject vertices" );
+		var indexBuffer = new GpuBuffer<int>( indices.Length, GpuBuffer.UsageFlags.Index, "SceneMeshObject indices" );
+		vertexBuffer.SetData( vertices );
+		indexBuffer.SetData( indices );
 
-			if ( result.native.IsNull )
-				throw new InvalidOperationException( "Failed to create a mesh scene object." );
-
-			return result;
-		}
-		finally
+		var result = new SceneMeshObject( world )
 		{
-			if ( result.native.IsNull )
-			{
-				if ( result._vertices.IsValid )
-					g_pRenderDevice.DestroyVertexBuffer( result._vertices );
-				if ( result._indices.IsValid )
-					g_pRenderDevice.DestroyIndexBuffer( result._indices );
-			}
-		}
+			_vertices = vertexBuffer,
+			_indices = indexBuffer,
+			_material = material,
+			_primitiveType = primitiveType,
+			_indexCount = indices.Length,
+			_draw = static ( o, attributes ) => Graphics.Draw( (GpuBuffer<T>)o._vertices, o._indices, o._material, o._indexStart, o._indexCount, attributes, o._primitiveType ),
+		};
+
+		// As native's buffer object: placed at the origin, the bounds it was made with
+		result.LocalBounds = bounds;
+		return result;
 	}
 
 	public void SetVertexBufferData<T>( Span<T> vertices ) where T : unmanaged
 	{
 		ThreadSafe.AssertIsMainThread();
-		if ( native.IsNull || !_vertices.IsValid )
+		if ( !this.IsValid() || _vertices is not GpuBuffer<T> buffer )
 			throw new InvalidOperationException( "Scene object has been deleted." );
 		if ( vertices.Length != VertexCount )
 			throw new ArgumentException( "Vertex count must match the existing buffer.", nameof( vertices ) );
 
-		_vertices.SetData( vertices );
+		buffer.SetData( vertices );
 	}
 
 	public void SetIndexBufferData( Span<int> indices )
 	{
 		ThreadSafe.AssertIsMainThread();
-		if ( native.IsNull || !_indices.IsValid )
+		if ( !this.IsValid() || _indices is null )
 			throw new InvalidOperationException( "Scene object has been deleted." );
 		if ( indices.Length != IndexCount )
 			throw new ArgumentException( "Index count must match the existing buffer.", nameof( indices ) );
 
 		ValidateIndices( indices, VertexCount );
-		_indices.SetData( indices );
+		_indices.SetData( (ReadOnlySpan<int>)indices );
 	}
 
 	public void SetIndexRange( int start, int count )
 	{
 		ThreadSafe.AssertIsMainThread();
-		if ( native.IsNull || !_indices.IsValid )
+		if ( !this.IsValid() || _indices is null )
 			throw new InvalidOperationException( "Scene object has no buffer geometry." );
 		ArgumentOutOfRangeException.ThrowIfNegative( start );
 		ArgumentOutOfRangeException.ThrowIfNegative( count );
 		if ( (long)start + count > IndexCount )
 			throw new ArgumentOutOfRangeException( nameof( count ), "Index range is outside the buffer." );
-		if ( _indexStart == start && _indexCount == count )
-			return;
 
-		native.SetBufferIndexRange( start, count );
 		_indexStart = start;
 		_indexCount = count;
+	}
+
+	/// <summary>Draw the buffers with the object's own attributes (a tool overlay's depth test and order).</summary>
+	public override void RenderSceneObject()
+	{
+		if ( _draw is null || _indexCount <= 0 || !_material.IsValid() ) return;
+		_draw( this, CreatedAttributes?.ManagedSet ?? Graphics.Attributes );
 	}
 
 	internal override void OnTransformChanged( in Transform transform )
@@ -113,11 +114,16 @@ internal sealed class SceneMeshObject : SceneObject
 		Bounds = _localBounds.Transform( transform );
 	}
 
-	internal override void OnModelChanged()
+	internal override void Destroyed()
 	{
-		base.OnModelChanged();
-		_vertices = default;
-		_indices = default;
+		base.Destroyed();
+
+		// The renderer has let go of the object by now; the buffers go with it
+		_vertices?.Dispose();
+		_indices?.Dispose();
+		_vertices = null;
+		_indices = null;
+		_draw = null;
 	}
 
 	static void ValidateIndices( ReadOnlySpan<int> indices, int vertexCount )

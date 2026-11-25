@@ -14,8 +14,8 @@ public sealed class SceneSpotLight : SceneLight
 	/// </summary>
 	public float ConeInner
 	{
-		get { return lightNative.GetTheta(); }
-		set { lightNative.SetTheta( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.Theta; }
+		set { SetSpot( value, ConeOuter, FallOff ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -23,24 +23,21 @@ public sealed class SceneSpotLight : SceneLight
 	/// </summary>
 	public float ConeOuter
 	{
-		get { return lightNative.GetPhi(); }
-		set { lightNative.SetPhi( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.Phi; }
+		set { SetSpot( ConeInner, value, FallOff ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	public float FallOff
 	{
-		get { return lightNative.GetFallOff(); }
-		set { lightNative.SetFallOff( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+		get { return Description.Falloff; }
+		set { SetSpot( ConeInner, ConeOuter, value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	public SceneSpotLight( SceneWorld world, Vector3 position, Color color ) : base()
 	{
 		Assert.IsValid( world );
 
-		using ( var h = IHandle.MakeNextHandle( this ) )
-		{
-			CSceneSystem.CreateSpotLight( world );
-		}
+		MakeManagedLight( world, NewDescription( TypeSpot ) );
 
 		LightColor = color;
 		Position = position;
@@ -52,4 +49,8 @@ public sealed class SceneSpotLight : SceneLight
 	{
 
 	}
+
+	internal override bool OwnsRenderObject => true;
+
+	internal override Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render ) => new Borealis.LightObject( Borealis.LightObject.LightKind.Spot, Transform );
 }

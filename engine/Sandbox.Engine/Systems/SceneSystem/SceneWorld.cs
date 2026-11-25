@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using Sandbox.Rendering;
 
 namespace Sandbox;
@@ -22,10 +22,10 @@ public sealed partial class SceneWorld : IHandle
 	internal HashSet<SceneLight> InternalSceneLights { get; } = new();
 
 	/// <summary>
-	/// Told about every change to this world's scene objects - the managed scene renderer's mirror of it, when
-	/// <c>r_managed_scene</c> is on. Null otherwise.
+	/// What this world draws as on Borealis, once a camera has drawn it: its objects make and write their own render objects
+	/// (<see cref="SceneObject.OwnsRenderObject"/>) and its lighting there. Null before, and in a process without Borealis.
 	/// </summary>
-	internal Rendering.ISceneObjectListener ChangeListener { get; set; }
+	internal Rendering.ISceneWorldRender Render { get; set; }
 
 	internal event Action<SceneWorld> Destroyed;
 
@@ -57,9 +57,36 @@ public sealed partial class SceneWorld : IHandle
 		FogVolumes.RemoveAt( FogVolumes.Count - 1 );
 		FogVolumesVersion++;
 	}
+
+	/// <summary>
+	/// This world's culling boxes (<see cref="SceneCullingBox"/>), which hide its objects in every view of it.
+	/// <see cref="CullingBoxesVersion"/> goes up with every change.
+	/// </summary>
+	internal List<SceneCullingBox> CullingBoxes { get; } = new();
+
+	/// <summary>
+	/// Goes up whenever <see cref="CullingBoxes"/> changes, or one of them does.
+	/// </summary>
+	internal int CullingBoxesVersion { get; private set; }
+
+	internal void AddCullingBox( SceneCullingBox box )
+	{
+		CullingBoxes.Add( box );
+		CullingBoxesVersion++;
+	}
+
+	internal void RemoveCullingBox( SceneCullingBox box )
+	{
+		if ( CullingBoxes.Remove( box ) ) CullingBoxesVersion++;
+	}
+
+	internal void CullingBoxChanged() => CullingBoxesVersion++;
+
 	internal HashSet<SceneMap> InternalSceneMaps { get; set; } = new();
+
+	/// <summary>Changes whenever a map is added or removed, so a view of the world knows to look at <see cref="InternalSceneMaps"/> again.</summary>
+	internal int MapsVersion { get; private set; }
 	internal HashSet<SceneSkybox3D> InternalSkyboxWorlds { get; set; } = new();
-	internal IPVS ActivePVS { get; private set; }
 
 	/// <summary>
 	/// List of scene objects belonging to this scene world.
@@ -143,10 +170,16 @@ public sealed partial class SceneWorld : IHandle
 
 		InternalSceneMaps.Clear();
 
-		Rendering.ManagedSceneRendering.Forget( this );
+		RunQueuedDeletes();
+
+		// Objects managed code made go with the world here; native destroys the ones native code made with its world
+		SceneObject[] remaining;
+		lock ( InternalSceneObjects ) remaining = InternalSceneObjects.Where( x => !x.HasNativeObject ).ToArray();
+		foreach ( var sceneObject in remaining ) sceneObject.Destroyed();
+
+		Rendering.SceneRenderer.Forget( this );
 		CSceneSystem.DestroyWorld( this );
 		native = IntPtr.Zero;
-		ActivePVS = default;
 		All.Remove( this );
 		NotifyDestroyed();
 	}
@@ -159,9 +192,8 @@ public sealed partial class SceneWorld : IHandle
 
 	internal void OnNativeDestroy()
 	{
-		Rendering.ManagedSceneRendering.Forget( this );
+		Rendering.SceneRenderer.Forget( this );
 		native = IntPtr.Zero;
-		ActivePVS = default;
 		All.Remove( this );
 		NotifyDestroyed();
 	}
@@ -181,50 +213,82 @@ public sealed partial class SceneWorld : IHandle
 	{
 		if ( !native.IsValid ) return;
 		native.DeleteEndOfFrameObjects();
+		RunQueuedDeletes();
+	}
+
+	/// <summary>Objects deleted (<see cref="SceneObject.Delete"/>) whose world's deletes haven't run yet.</summary>
+	readonly List<SceneObject> queuedDeletes = new();
+
+	internal void QueueDelete( SceneObject sceneObject )
+	{
+		lock ( queuedDeletes ) queuedDeletes.Add( sceneObject );
+	}
+
+	/// <summary>
+	/// Take the objects deleted since the last run out of this world and its renderer. A native object goes with native's
+	/// next end-of-frame deletes.
+	/// </summary>
+	void RunQueuedDeletes()
+	{
+		SceneObject[] deleted;
+		lock ( queuedDeletes )
+		{
+			if ( queuedDeletes.Count == 0 ) return;
+			deleted = queuedDeletes.ToArray();
+			queuedDeletes.Clear();
+
+			// One deleted while the render thread draws the frame handed over with it stays for that frame's drawing, until the
+			// next run after it's drawn (SceneObject.DeletedEpoch)
+			if ( Rendering.RenderSync.RenderThreadDrawing )
+			{
+				var epoch = Rendering.RenderSync.Epoch;
+				int kept = 0;
+				for ( int i = 0; i < deleted.Length; i++ )
+				{
+					if ( deleted[i].DeletedEpoch == epoch ) queuedDeletes.Add( deleted[i] );
+					else deleted[kept++] = deleted[i];
+				}
+
+				if ( kept < deleted.Length ) Array.Resize( ref deleted, kept );
+			}
+		}
+
+		foreach ( var sceneObject in deleted ) sceneObject.Destroyed();
+	}
+
+	[ThreadStatic] static List<SceneWorld> deleteScratch;
+
+	/// <summary>
+	/// The frame's end: every world's deleted objects leave it, whether or not anything called <see cref="DeletePendingObjects"/>
+	/// (a native view once ran each drawn world's; nothing draws natively now, so a world nobody flushed kept them).
+	/// </summary>
+	internal static void RunEndOfFrameDeletes()
+	{
+		// Taken out while in use so a nested flush makes its own; a snapshot, as deleting may change All
+		var worlds = deleteScratch ?? new List<SceneWorld>();
+		deleteScratch = null;
+
+		foreach ( var world in All )
+		{
+			bool any;
+			lock ( world.queuedDeletes ) any = world.queuedDeletes.Count > 0;
+			if ( any ) worlds.Add( world );
+		}
+
+		foreach ( var world in worlds ) world.DeletePendingObjects();
+
+		worlds.Clear();
+		deleteScratch = worlds;
 	}
 
 	/// <summary>
 	/// Flush all system-wide queued scene object and world deletes.
-	/// Normally processed at end-of-frame by FinishRenderingViews,
-	/// but during shutdown no frame runs so we must flush manually.
+	/// Normally processed at the frame's end, but during shutdown no frame runs so we must flush manually.
 	/// </summary>
 	internal static void FlushQueuedDeletes()
 	{
+		RunEndOfFrameDeletes();
 		CSceneSystem.PerformEndOfFrameDeletes();
-	}
-
-	/// <summary>
-	/// This finishes any loads and actually spawns the world sceneobjects
-	/// </summary>
-	internal void UpdateObjectsForRendering( Vector3 eyePos = default, float farPlane = 5000.0f )
-	{
-		if ( InternalSceneMaps is null || InternalSceneMaps.Count == 0 )
-			return;
-
-		foreach ( var map in InternalSceneMaps )
-		{
-			if ( !IsFirstMapInWorldGroup( map ) )
-				continue;
-
-			g_pWorldRendererMgr.UpdateObjectsForRendering( map.WorldGroup, eyePos, 1.0f, farPlane );
-		}
-
-		// If we have a 3D skybox, update its objects too
-		foreach ( var world in InternalSkyboxWorlds )
-		{
-			world?.SkyboxWorld.UpdateObjectsForRendering( world.Origin, farPlane );
-		}
-	}
-
-	bool IsFirstMapInWorldGroup( SceneMap map )
-	{
-		foreach ( var other in InternalSceneMaps )
-		{
-			if ( other == map ) return true;
-			if ( other.WorldGroup == map.WorldGroup ) return false;
-		}
-
-		return true;
 	}
 
 	/// <summary>
@@ -239,17 +303,8 @@ public sealed partial class SceneWorld : IHandle
 				Log.Warning( "Couldn't add sceneMap" );
 			}
 
-			// If the PVS data is valid - then apply it to this world
-			// We need to be careful that the pvs doesn't get deleted
-			// because this will be a hanging pointer. 
-			// I think it would be better to wrap it in a c# object and
-			// only delete when it gets garbage collected
-			if ( sceneMap.PVS.IsValid )
-			{
-				//Log.Info( $"{this} - SET PVS from {sceneMap}" );
-				native.SetPVS( sceneMap.PVS );
-				ActivePVS = sceneMap.PVS;
-			}
+			// No PVS is set (owner, 2026-11-18): maps don't build one
+			MapsVersion++;
 		}
 	}
 
@@ -263,14 +318,7 @@ public sealed partial class SceneWorld : IHandle
 				Log.Warning( "Couldn't remove sceneMap" );
 			}
 
-			if ( ActivePVS == sceneMap.PVS )
-			{
-				if ( !native.IsNull )
-				{
-					native.SetPVS( default );
-				}
-				ActivePVS = default;
-			}
+			MapsVersion++;
 		}
 	}
 }

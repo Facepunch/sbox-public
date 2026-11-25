@@ -13,10 +13,7 @@ public sealed class ScenePointLight : SceneLight
 	{
 		Assert.IsValid( sceneWorld );
 
-		using ( var h = IHandle.MakeNextHandle( this ) )
-		{
-			CSceneSystem.CreatePointLight( sceneWorld );
-		}
+		MakeManagedLight( sceneWorld, NewDescription( TypePoint ) );
 
 		Position = position;
 		Radius = radius;
@@ -28,4 +25,8 @@ public sealed class ScenePointLight : SceneLight
 	{
 
 	}
+
+	internal override bool OwnsRenderObject => true;
+
+	internal override Borealis.RenderObject MakeRenderObject( Rendering.ISceneWorldRender render ) => new Borealis.LightObject( Borealis.LightObject.LightKind.Point, Transform );
 }

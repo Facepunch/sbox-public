@@ -8,38 +8,62 @@ namespace Sandbox
 		/// List of tags for this scene object.
 		/// </summary>
 		public ITagSet Tags { get; private set; }
+
+		/// <summary>The tags as string tokens, in the order they were added (as native's <c>CSceneObject::m_tags</c>).</summary>
+		internal IReadOnlyList<uint> TagTokens => ((Internal.SceneObjectTags)Tags).Tokens;
 	}
 
 	namespace Internal
 	{
+		/// <summary>
+		/// A scene object's tags, kept in managed code. The first time anything asks they're read from the native object, which
+		/// has those native code gave it by then (a map's world geometry); from then on managed code owns them. A native object,
+		/// if native code made it, still gets every change.
+		/// </summary>
 		internal class SceneObjectTags : ITagSet
 		{
 			readonly SceneObject SceneObject;
+			readonly List<uint> tokens = new();
+			bool read;
 
 			internal SceneObjectTags( SceneObject sceneObject )
 			{
 				SceneObject = sceneObject;
 			}
 
+			/// <summary>The tags as string tokens, in the order they were added.</summary>
+			internal List<uint> Tokens
+			{
+				get
+				{
+					if ( !read && SceneObject.HasNativeObject )
+					{
+						read = true;
+						var count = SceneObject.native.GetTagCount();
+						for ( var i = 0; i < count; i++ ) tokens.Add( SceneObject.native.GetTagAt( i ) );
+					}
+
+					return tokens;
+				}
+			}
+
 			public override void Add( string tag )
 			{
-				if ( !SceneObject.native.IsValid ) return;
-				SceneObject.native.AddTag( StringToken.FindOrCreate( tag ) );
-				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
+				if ( !SceneObject.IsValid() ) return;
+				var token = StringToken.FindOrCreate( tag );
+				if ( Tokens.Contains( token ) ) return;
+				tokens.Add( token );
+				if ( SceneObject.HasNativeObject ) SceneObject.native.AddTag( token );
+				SceneObject.TagsChanged();
 			}
 
 			public override IEnumerable<string> TryGetAll()
 			{
-				if ( !SceneObject.native.IsValid )
+				if ( !SceneObject.IsValid() )
 					yield break;
 
-				var count = SceneObject.native.GetTagCount();
-
-				for ( var i = 0; i < count; i++ )
-				{
-					var tag = SceneObject.native.GetTagAt( i );
-					yield return StringToken.GetValue( tag );
-				}
+				foreach ( var token in Tokens.ToArray() )
+					yield return StringToken.GetValue( token );
 			}
 
 			/// <summary>
@@ -47,28 +71,28 @@ namespace Sandbox
 			/// </summary>
 			public override IReadOnlySet<uint> GetTokens()
 			{
-				var count = SceneObject.native.GetTagCount();
-				return Enumerable.Range( 0, count ).Select( SceneObject.native.GetTagAt ).ToFrozenSet();
+				return Tokens.ToFrozenSet();
 			}
 
 			public override void SetFrom( ITagSet set )
 			{
 				// Renderers copy their GameObject's tags every frame and they rarely change, so compare the cached
 				// tokens first instead of walking the tag strings
-				if ( set is GameTags or TagSet or TokenBasedTagSet && SceneObject.native.IsValid && Matches( set.GetTokens() ) )
+				if ( set is GameTags or TagSet or TokenBasedTagSet && SceneObject.IsValid() && Matches( set.GetTokens() ) )
 					return;
 
 				base.SetFrom( set );
 			}
 
-			bool Matches( IReadOnlySet<uint> tokens )
+			// The managed tokens are the tags (a native object only mirrors them); they hold no duplicates
+			bool Matches( IReadOnlySet<uint> other )
 			{
-				var count = SceneObject.native.GetTagCount();
-				if ( count != tokens.Count ) return false;
+				var own = Tokens;
+				if ( own.Count != other.Count ) return false;
 
-				for ( var i = 0; i < count; i++ )
+				for ( var i = 0; i < own.Count; i++ )
 				{
-					if ( !tokens.Contains( SceneObject.native.GetTagAt( i ) ) ) return false;
+					if ( !other.Contains( own[i] ) ) return false;
 				}
 
 				return true;
@@ -76,22 +100,26 @@ namespace Sandbox
 
 			public override bool Has( string tag )
 			{
-				if ( !SceneObject.native.IsValid ) return false;
-				return SceneObject.native.HasTag( StringToken.FindOrCreate( tag ) );
+				if ( !SceneObject.IsValid() ) return false;
+				return Tokens.Contains( StringToken.FindOrCreate( tag ) );
 			}
 
 			public override void Remove( string tag )
 			{
-				if ( !SceneObject.native.IsValid ) return;
-				SceneObject.native.RemoveTag( StringToken.FindOrCreate( tag ) );
-				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
+				if ( !SceneObject.IsValid() ) return;
+				var token = StringToken.FindOrCreate( tag );
+				if ( !Tokens.Remove( token ) ) return;
+				if ( SceneObject.HasNativeObject ) SceneObject.native.RemoveTag( token );
+				SceneObject.TagsChanged();
 			}
 
 			public override void RemoveAll()
 			{
-				if ( !SceneObject.native.IsValid ) return;
-				SceneObject.native.RemoveAllTags();
-				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
+				if ( !SceneObject.IsValid() ) return;
+				read = true;
+				tokens.Clear();
+				if ( SceneObject.HasNativeObject ) SceneObject.native.RemoveAllTags();
+				SceneObject.TagsChanged();
 			}
 		}
 	}

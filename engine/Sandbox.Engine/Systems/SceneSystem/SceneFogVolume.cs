@@ -8,6 +8,9 @@ public sealed class SceneFogVolume : IValid
 	uint? ID { get; set; }
 	SceneWorld World { get; set; }
 
+	// Its id in its world's list, which Borealis reads
+	static uint nextManagedId;
+
 	Transform transform;
 
 	/// <summary>
@@ -107,7 +110,6 @@ public sealed class SceneFogVolume : IValid
 
 		if ( ID.HasValue )
 		{
-			NativeEngine.CSceneSystem.RemoveVolumetricFogVolume( World, ID.Value );
 			World.RemoveFogVolume( this );
 			ID = default;
 		}
@@ -120,26 +122,11 @@ public sealed class SceneFogVolume : IValid
 
 		if ( ID.HasValue )
 		{
-			NativeEngine.CSceneSystem.RemoveVolumetricFogVolume( World, ID.Value );
 			World.RemoveFogVolume( this );
 			ID = default;
 		}
 
-		var mat = Matrix.CreateRotation( Transform.Rotation ) * Matrix.CreateTranslation( Transform.Position );
-
-		NativeEngine.SceneVolumetricFogVolume volume = new()
-		{
-			m_vMin = boundingBox.Mins,
-			m_vMax = boundingBox.Maxs,
-			m_fStrength = fogStrength,
-			m_vColor = color,
-			m_bSpherical = false,
-			m_fExponent = falloffExponent,
-			m_matWorldToVolume = mat.Inverted.Transpose(),
-			m_uID = 0,
-		};
-
-		ID = NativeEngine.CSceneSystem.AddVolumetricFogVolume( World, volume );
+		ID = ++nextManagedId;
 		World.AddFogVolume( this );
 	}
 }

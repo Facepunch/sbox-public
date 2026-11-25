@@ -11,19 +11,11 @@ public partial class SceneCamera
 internal class TonemapSystem
 {
 	private readonly SceneCamera Camera;
-	private ITonemapSystem System;
 	private SceneTonemapParameters_t Parameters = new SceneTonemapParameters_t();
 
 	internal TonemapSystem( SceneCamera camera )
 	{
 		Camera = camera;
-		System = Camera.ToneMapping?.GetNative() ?? default;
-
-		if ( System.IsValid )
-		{
-			SceneTonemapParameters_t defaultParams = new SceneTonemapParameters_t();
-			System.SetTonemapParameters( ref defaultParams );
-		}
 	}
 
 	internal void SetTonemapParameters( SceneTonemapParameters_t parameters )
@@ -143,9 +135,38 @@ internal class TonemapSystem
 
 	private void Update()
 	{
-		if ( System.IsValid )
+	}
+
+	// The camera's auto exposure on a Borealis.Gpu device, made when its frames are drawn there
+	Borealis.Backend.AutoExposure gpuExposure;
+	BorealisGpuRenderBackend gpuExposureDevice;
+
+	/// <summary>
+	/// The camera's auto exposure on <paramref name="backend"/>'s device: native's tonemap system ported, with the settings
+	/// native's has (what the tonemapping component sets through <c>CameraComponent.AutoExposure</c>). A frame there calls
+	/// its <see cref="Borealis.Backend.AutoExposure.FrameUpdate"/> where native's frame update runs, and counts its bucket over
+	/// the HDR colour before tonemapping (<see cref="BorealisGpuFrame.CountExposure"/>). Null while exposure is off.
+	/// </summary>
+	internal Borealis.Backend.AutoExposure GpuExposure( BorealisGpuRenderBackend backend )
+	{
+		if ( !Enabled ) return null;
+
+		if ( gpuExposure is null || gpuExposureDevice != backend )
 		{
-			System.SetTonemapParameters( ref Parameters );
+			gpuExposure?.Dispose();
+			gpuExposure = backend.CreateExposure();
+			gpuExposureDevice = backend;
 		}
+
+		gpuExposure.SetSettings( BorealisGpuRenderBackend.Settings( Parameters ) );
+		return gpuExposure;
+	}
+
+	/// <summary>Free the exposure made on a Borealis.Gpu device, once its device is done with it.</summary>
+	internal void DisposeGpuExposure()
+	{
+		gpuExposure?.Dispose();
+		gpuExposure = null;
+		gpuExposureDevice = null;
 	}
 }

@@ -1,6 +1,4 @@
-﻿using NativeEngine;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 /// <summary>
 /// A box which can be used to explicitly control scene visibility. 
@@ -64,6 +62,9 @@ public sealed class SceneCullingBox : IValid
 	}
 
 	internal uint _boxId;
+
+	// Its id, one of ours: the world lists the box while it has one
+	static uint nextManagedId;
 	internal Transform _transform;
 	internal Vector3 _size;
 	internal CullMode _mode;
@@ -92,7 +93,7 @@ public sealed class SceneCullingBox : IValid
 		if ( !IsValid )
 			return;
 
-		CSceneSystem.RemoveCullingBox( World, _boxId );
+		World.RemoveCullingBox( this );
 
 		_boxId = 0;
 		_transform = default;
@@ -107,16 +108,9 @@ public sealed class SceneCullingBox : IValid
 		if ( !World.IsValid() )
 			return;
 
-		if ( _boxId != 0 )
-		{
-			CSceneSystem.RemoveCullingBox( World, _boxId );
+		if ( _boxId == 0 ) World.AddCullingBox( this );
+		else World.CullingBoxChanged();
 
-			_boxId = 0;
-		}
-
-		_boxId = CSceneSystem.AddCullingBox( World,
-			_mode == CullMode.Inside,
-			_transform.Position, _transform.Rotation.Angles(),
-			_size * _transform.Scale );
+		_boxId = ++nextManagedId;
 	}
 }
