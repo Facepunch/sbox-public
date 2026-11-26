@@ -9,11 +9,13 @@ namespace Borealis;
 /// </summary>
 internal sealed class VolumetricFog : IDisposable
 {
-	// Native volume_fog_* defaults; width and height are thread-group counts.
 	const int ThreadGroupSize = 8;
-	const int Width = 240 & ~(ThreadGroupSize - 1);
-	const int Height = 160 & ~(ThreadGroupSize - 1);
-	const int Depth = 64;
+
+	/// <summary>Native's <c>volume_fog_*</c> defaults: froxels across, down and deep.</summary>
+	public static Vector3Int DefaultSize => new( 240, 160, 64 );
+
+	// The froxels it's made with (RenderHost.VolumetricFogSize), width and height a whole number of thread groups
+	int width = 240, height = 160, depth = 64;
 	const float DitherScale = 3.0f;
 
 	const int FramesAtZeroScatteringBeforeSwitchingOff = 100;
@@ -141,10 +143,29 @@ internal sealed class VolumetricFog : IDisposable
 		// Native makes a renderer only for a view with fog volumes (CCameraRenderer::AddLayersToView)
 		if ( !hasVolumes ) return;
 
+		Resize( RenderHost.Current.VolumetricFogSize );
 		EnsureResources();
 		frameOffset = frameIndex & 1;
 		Active = !renderingDisabled;
 	}
+
+	/// <summary>
+	/// Take the froxels the host asks for (the fog quality's), width and height rounded down to whole thread groups; a change
+	/// lets the volumes go, to be made again at the new size.
+	/// </summary>
+	void Resize( Vector3Int size )
+	{
+		var x = Math.Max( size.x & ~(ThreadGroupSize - 1), ThreadGroupSize );
+		var y = Math.Max( size.y & ~(ThreadGroupSize - 1), ThreadGroupSize );
+		var z = Math.Clamp( size.z, 1, 256 );
+		if ( x == width && y == height && z == depth ) return;
+
+		Release();
+		(width, height, depth) = (x, y, z);
+	}
+
+	/// <summary>The froxels across, down and deep it draws with now.</summary>
+	internal Vector3Int Size => new( width, height, depth );
 
 	/// <summary>
 	/// Create and clear volumes (<c>EnsureGPUResources</c>). Resets scattering until next frame's settings, matching native.
@@ -176,7 +197,7 @@ internal sealed class VolumetricFog : IDisposable
 		if ( constantBuffer == IntPtr.Zero ) constantBuffer = GpuContext.CreateConstantBuffer( System.Runtime.CompilerServices.Unsafe.SizeOf<Constants>() );
 	}
 
-	static GpuTexture MakeVolume( string name ) => RenderHost.Current.Device.CreateTexture( TextureDesc.Volume( Width, Height, Depth, TextureFormat.RGBA16161616F ) with { Storage = true }, $"Borealis {name}" );
+	GpuTexture MakeVolume( string name ) => RenderHost.Current.Device.CreateTexture( TextureDesc.Volume( width, height, depth, TextureFormat.RGBA16161616F ) with { Storage = true }, $"Borealis {name}" );
 
 	void Release()
 	{
@@ -191,7 +212,7 @@ internal sealed class VolumetricFog : IDisposable
 		constantBuffer = IntPtr.Zero;
 	}
 
-	float NearClip => farClip / Depth;
+	float NearClip => farClip / depth;
 
 	/// <summary>
 	/// World-to-fog shading constants for <c>PerViewConstantBufferVR_t</c> (<c>GetShadingConstants</c>).
@@ -203,7 +224,7 @@ internal sealed class VolumetricFog : IDisposable
 		var dither = farClip * DitherScale / 600.0f;
 
 		vr.VolumetricFogEnabled = 1;
-		vr.VolFogVolumeScaleShiftNearRange = new( 1.0f / Depth, 0.0f, near, clipRange );
+		vr.VolFogVolumeScaleShiftNearRange = new( 1.0f / depth, 0.0f, near, clipRange );
 		vr.VolFogDitherScaleBias = new( dither, -0.5f * dither, 0.0f, 0.0f );
 		vr.VolFogPostWorldToFrustumScale = new( 0.5f, 0.5f, 1.0f / clipRange, 0.0f );
 		vr.VolFogPostWorldToFrustumBias = new( 0.5f, 0.5f, -near / clipRange, 0.0f );
@@ -247,7 +268,7 @@ internal sealed class VolumetricFog : IDisposable
 			var scope = rc.BeginGpuScope( PassNames[pass] );
 			parameters.SetCombo( PassCombo, pass );
 			// Lighting is a thread per froxel the volumes cover, integrating a thread per column
-			if ( pass == 1 ) rc.Dispatch( computeShader, parameters, Width, Height, 1 );
+			if ( pass == 1 ) rc.Dispatch( computeShader, parameters, width, height, 1 );
 			else if ( litFroxels.x > 0 && litFroxels.y > 0 && litFroxels.z > 0 ) rc.Dispatch( computeShader, parameters, litFroxels.x, litFroxels.y, litFroxels.z );
 			rc.EndGpuScope( scope );
 		}
@@ -280,8 +301,8 @@ internal sealed class VolumetricFog : IDisposable
 		var ray2 = forward - right * tanX + up * tanY;
 
 		var camera = view.Position;
-		constants.ViewDX = new( (ray1 - ray0) / Width, 0.0f );
-		constants.ViewDY = new( (ray2 - ray0) / Height, 0.0f );
+		constants.ViewDX = new( (ray1 - ray0) / width, 0.0f );
+		constants.ViewDY = new( (ray2 - ray0) / height, 0.0f );
 		constants.ViewCorner = new( ray0, 0.0f );
 		constants.ViewPos = new( camera, 0.0f );
 		constants.ViewDir = new( forward, 0.0f );
@@ -297,18 +318,18 @@ internal sealed class VolumetricFog : IDisposable
 		constants.NearFarClipPlaneReciprocal = new( near, 1.0f / clipRange, farClip, 0.0f );
 		constants.PostWorldToFrustumScale = new( 0.5f, 0.5f, 1.0f / clipRange, 0.0f );
 		constants.PostWorldToFrustumBias = new( 0.5f, 0.5f, -near / clipRange, 0.0f );
-		constants.ThreadToVoxelScale = new( 2.0f / Width, 2.0f / Height, clipRange / Depth, -near * farClip / clipRange );
-		constants.ThreadToVoxelBias = new( 1.0f / Width - 1.0f, 1.0f / Height - 1.0f, near + 0.5f * clipRange / Depth, (1.0f + (farClip + near) / clipRange) / 2.0f );
+		constants.ThreadToVoxelScale = new( 2.0f / width, 2.0f / height, clipRange / depth, -near * farClip / clipRange );
+		constants.ThreadToVoxelBias = new( 1.0f / width - 1.0f, 1.0f / height - 1.0f, near + 0.5f * clipRange / depth, (1.0f + (farClip + near) / clipRange) / 2.0f );
 
 		var bbScale = new Vector3( 1.0f / (boxMax.x - boxMin.x), 1.0f / (boxMax.y - boxMin.y), 1.0f / (boxMax.z - boxMin.z) );
 		constants.IndirectBBScaleStrength = new( bbScale, indirectStrength );
 		constants.IndirectBBOffset = new( -(boxMin * bbScale), 0.0f );
-		constants.VolumeScaleShiftNearFar = new( 1.0f / Depth, 0.0f, near, clipRange );
+		constants.VolumeScaleShiftNearFar = new( 1.0f / depth, 0.0f, near, clipRange );
 
 		// The volumes the view sees, in the world's order, and the froxels they cover
 		var count = 0;
-		var dx = (ray1 - ray0) / Width;
-		var dy = (ray2 - ray0) / Height;
+		var dx = (ray1 - ray0) / width;
+		var dy = (ray2 - ray0) / height;
 		var froxelMin = new Vector3( float.MaxValue );
 		var froxelMax = new Vector3( -float.MaxValue );
 
@@ -318,10 +339,10 @@ internal sealed class VolumetricFog : IDisposable
 			for ( int c = 0; c < 8; c++ )
 			{
 				var point = new Vector3( (c & 1) != 0 ? worldMax.x : worldMin.x, (c & 2) != 0 ? worldMax.y : worldMin.y, (c & 4) != 0 ? worldMax.z : worldMin.z ) - camera;
-				var depth = Vector3.Dot( point, forward );
-				var ray = point / depth - ray0;
-				var behind = depth < near;
-				var froxel = behind ? new Vector3( Width, Height, 0 ) : new Vector3( Vector3.Dot( ray, dx ) / dx.LengthSquared, Vector3.Dot( ray, dy ) / dy.LengthSquared, MathF.Sqrt( (depth - near) / clipRange ) * Depth );
+				var distance = Vector3.Dot( point, forward );
+				var ray = point / distance - ray0;
+				var behind = distance < near;
+				var froxel = behind ? new Vector3( width, height, 0 ) : new Vector3( Vector3.Dot( ray, dx ) / dx.LengthSquared, Vector3.Dot( ray, dy ) / dy.LengthSquared, MathF.Sqrt( (distance - near) / clipRange ) * depth );
 				froxelMin = Vector3.Min( froxelMin, behind ? Vector3.Zero : froxel );
 				froxelMax = Vector3.Max( froxelMax, froxel );
 			}
@@ -350,12 +371,12 @@ internal sealed class VolumetricFog : IDisposable
 		constants.NumFogVolumeBoundingBoxes[0] = count;
 
 		// One froxel wider each way for the TAA neighbourhood, two further back for the depth jitter. With no volumes min ends past max: nothing's lit
-		constants.FroxelMin[0] = Froxel( MathF.Floor( froxelMin.x ) - 1, Width );
-		constants.FroxelMin[1] = Froxel( MathF.Floor( froxelMin.y ) - 1, Height );
-		constants.FroxelMin[2] = Froxel( MathF.Floor( froxelMin.z ) - 1, Depth );
-		constants.FroxelMax[0] = Froxel( MathF.Ceiling( froxelMax.x ) + 1, Width );
-		constants.FroxelMax[1] = Froxel( MathF.Ceiling( froxelMax.y ) + 1, Height );
-		constants.FroxelMax[2] = Froxel( MathF.Ceiling( froxelMax.z ) + 2, Depth );
+		constants.FroxelMin[0] = Froxel( MathF.Floor( froxelMin.x ) - 1, width );
+		constants.FroxelMin[1] = Froxel( MathF.Floor( froxelMin.y ) - 1, height );
+		constants.FroxelMin[2] = Froxel( MathF.Floor( froxelMin.z ) - 1, depth );
+		constants.FroxelMax[0] = Froxel( MathF.Ceiling( froxelMax.x ) + 1, width );
+		constants.FroxelMax[1] = Froxel( MathF.Ceiling( froxelMax.y ) + 1, height );
+		constants.FroxelMax[2] = Froxel( MathF.Ceiling( froxelMax.z ) + 2, depth );
 		litFroxels = new( constants.FroxelMax[0] - constants.FroxelMin[0], constants.FroxelMax[1] - constants.FroxelMin[1], constants.FroxelMax[2] - constants.FroxelMin[2] );
 
 		var fadeStart = fadeInStart < 0.0f ? fadeInEnd + fadeInStart : fadeInStart;
@@ -369,11 +390,11 @@ internal sealed class VolumetricFog : IDisposable
 			constants.FogFadeInScaleBias = new( 0.0f, 1.0f, 0.0f, 0.0f );
 		}
 
-		constants.WidthHeightDepth[0] = Width;
-		constants.WidthHeightDepth[1] = Height;
-		constants.WidthHeightDepth[2] = Depth;
+		constants.WidthHeightDepth[0] = (uint)width;
+		constants.WidthHeightDepth[1] = (uint)height;
+		constants.WidthHeightDepth[2] = (uint)depth;
 		constants.WidthHeightDepth[3] = 0;
-		constants.OoWidthHeightDepth = new( 1.0f / Width, 1.0f / Height, 1.0f / Depth, 0.0f );
+		constants.OoWidthHeightDepth = new( 1.0f / width, 1.0f / height, 1.0f / depth, 0.0f );
 	}
 
 	static unsafe void Set4( float* array, int index, Vector4 value ) => *(Vector4*)(array + index * 4) = value;

@@ -46,6 +46,11 @@ internal sealed class HeadlessRenderHost : Borealis.RenderHost
 
 	public override bool VolumetricFog => VolumetricFogOn;
 
+	/// <summary>The fog's froxels (<see cref="VolumetricFogSize"/>), for the tests of the fog quality.</summary>
+	public static Vector3Int FogSize { get; set; } = Borealis.VolumetricFog.DefaultSize;
+
+	public override Vector3Int VolumetricFogSize => FogSize;
+
 	/// <summary>
 	/// Whether frames drawn into a window describe themselves (<see cref="WantsFramePlan"/>), for the tests of it, which are
 	/// [DoNotParallelize] and turn it off after.

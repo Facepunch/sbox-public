@@ -51,6 +51,12 @@ public class RenderHost
 	public virtual bool VolumetricFog => true;
 
 	/// <summary>
+	/// The volumetric fog's froxels across, down and deep (native's <c>volume_fog_width</c>, <c>_height</c> and <c>_depth</c>,
+	/// which the fog quality sets); width and height are rounded down to its thread groups. Read once a view.
+	/// </summary>
+	public virtual Vector3Int VolumetricFogSize => Borealis.VolumetricFog.DefaultSize;
+
+	/// <summary>
 	/// Skip opaque meshes hidden by the depth prepass.
 	/// </summary>
 	public virtual bool OcclusionCulling => true;

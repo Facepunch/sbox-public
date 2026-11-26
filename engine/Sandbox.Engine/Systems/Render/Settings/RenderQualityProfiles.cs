@@ -54,6 +54,8 @@ class RenderQualityProfiles
 			return;
 		}
 
+		if ( group == "VolumetricFogQuality" ) VolumetricFogSize = FogSizeOf( convars );
+
 		foreach ( var convar in convars )
 		{
 			// Nothing downstream reports a missing convar, so check here. A renamed or misspelled
@@ -66,6 +68,20 @@ class RenderQualityProfiles
 
 			ConVarSystem.SetValue( convar.Key, convar.Value, true );
 		}
+	}
+
+	/// <summary>
+	/// The froxels across, down and deep the fog quality last applied asks for (its <c>volume_fog_*</c>), for a renderer on a
+	/// platform whose native has no such convars; null when it doesn't say.
+	/// </summary>
+	internal Vector3Int? VolumetricFogSize { get; private set; }
+
+	static Vector3Int? FogSizeOf( Dictionary<string, string> convars )
+	{
+		if ( !convars.TryGetValue( "volume_fog_width", out var width ) || !int.TryParse( width, out var x ) ) return null;
+		if ( !convars.TryGetValue( "volume_fog_height", out var height ) || !int.TryParse( height, out var y ) ) return null;
+		if ( !convars.TryGetValue( "volume_fog_depth", out var depth ) || !int.TryParse( depth, out var z ) ) return null;
+		return new Vector3Int( x, y, z );
 	}
 
 	void Warn( string key, string message )

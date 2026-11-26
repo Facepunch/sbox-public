@@ -166,4 +166,52 @@ public class EnvironmentTests
 			HeadlessRenderHost.VolumetricFogOn = true;
 		}
 	}
+
+	/// <summary>
+	/// The fog's froxels follow the host's (the fog quality's <c>volume_fog_*</c>): native's defaults, then High's, then Low's
+	/// with its width rounded down to whole thread groups, each made at that size (a frame to start scattering again, as
+	/// when the fog's volumes are first made) and running the fog.
+	/// </summary>
+	[TestMethod]
+	public void VolumetricFogTakesTheHostsFroxels()
+	{
+		var world = new RenderWorld();
+		world.FogVolumes.Add( new FogVolume { Bounds = new BBox( new Vector3( -4000 ), new Vector3( 4000 ) ), Strength = 0.15f, Exponent = 1 } );
+		world.Lighting.VolumetricFog.Enabled = true;
+		world.Lighting.VolumetricFog.Scattering = 1;
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+
+		int FogDispatches()
+		{
+			using var frame = HeadlessRenderHost.Headless.Capture();
+			RenderHost.Current.NextFrame();
+			system.Render( world, TestScenes.LookingDownX(), target );
+			return frame.Commands.Count( c => c.Op == Headless.GpuOp.Dispatch && c.In( "VolumetricFog" ) );
+		}
+
+		try
+		{
+			FogDispatches();
+			Assert.IsTrue( FogDispatches() > 0 );
+			Assert.AreEqual( new Vector3Int( 240, 160, 64 ), system.Fog.Size, "native's defaults" );
+			Assert.AreEqual( new Vector2Int( 240, 160 ), system.Fog.FogVolumeTexture.Size );
+
+			HeadlessRenderHost.FogSize = new Vector3Int( 192, 128, 64 );
+			FogDispatches();
+			Assert.IsTrue( FogDispatches() > 0 );
+			Assert.AreEqual( new Vector3Int( 192, 128, 64 ), system.Fog.Size, "High's" );
+			Assert.AreEqual( new Vector2Int( 192, 128 ), system.Fog.FogVolumeTexture.Size, "its volumes made again at that size" );
+
+			HeadlessRenderHost.FogSize = new Vector3Int( 60, 40, 32 );
+			FogDispatches();
+			Assert.IsTrue( FogDispatches() > 0 );
+			Assert.AreEqual( new Vector3Int( 56, 40, 32 ), system.Fog.Size, "Low's, its width a whole number of 8 wide groups" );
+			Assert.AreEqual( new Vector2Int( 56, 40 ), system.Fog.FogVolumeTexture.Size );
+		}
+		finally
+		{
+			HeadlessRenderHost.FogSize = VolumetricFog.DefaultSize;
+		}
+	}
 }

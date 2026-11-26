@@ -25,6 +25,19 @@ internal sealed class SboxRenderHost : RenderHost
 	// The player's volumetric fog setting, which the quality profiles set: native's convar (CRenderingPipelineStandard)
 	public override bool VolumetricFog => ConVarSystem.GetNativeInt( "r_enable_volume_fog", 1 ) != 0;
 
+	/// <summary>
+	/// Native's <c>volume_fog_*</c> where it has them, as the fog quality set them; else the fog quality's own (a platform
+	/// without them); else native's defaults.
+	/// </summary>
+	public override Vector3Int VolumetricFogSize
+	{
+		get
+		{
+			var size = Sandbox.Engine.Settings.RenderSettings.Instance.Config.VolumetricFogSize ?? Borealis.VolumetricFog.DefaultSize;
+			return new Vector3Int( ConVarSystem.GetNativeInt( "volume_fog_width", size.x ), ConVarSystem.GetNativeInt( "volume_fog_height", size.y ), ConVarSystem.GetNativeInt( "volume_fog_depth", size.z ) );
+		}
+	}
+
 	public override bool OcclusionCulling => ManagedSceneRendering.Occlusion;
 
 	public override FragmentOcclusion FragmentOcclusion => (FragmentOcclusion)ManagedSceneRendering.OcclusionAggregates;
