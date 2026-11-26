@@ -30,6 +30,18 @@ AddonsPage
 		flex-shrink: 0;
 	}
 
+	// In line too, over the heading - up into the space above it, so the heading stays where it was
+	.side > .back
+	{
+		position: relative;
+		top: 0;
+		transform: none;
+		align-self: flex-start;
+		flex-shrink: 0;
+		margin-top: -32px;
+		margin-bottom: 6px;
+	}
+
 	// Only once it's as far up as it goes does it give way too - it scrolls, faded where there's more (railFade)
 	.side > .rail
 	{

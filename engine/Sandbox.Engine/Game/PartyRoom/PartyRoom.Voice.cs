@@ -66,6 +66,11 @@ partial class PartyRoom
 	public bool IsMemberTalking( Friend member ) => _voiceSpeakers.TryGetValue( member, out var speaker ) && speaker.IsTalking;
 
 	/// <summary>
+	/// How loud <paramref name="member"/>'s voice is right now, as it's played - 0 when they're quiet or not heard here.
+	/// </summary>
+	public float GetMemberVoiceLevel( Friend member ) => _voiceSpeakers.TryGetValue( member, out var speaker ) ? speaker.Amplitude : 0f;
+
+	/// <summary>
 	/// Call every tick when you want the local user to be able to broadcast.
 	/// We still check for voice preferences (push-to-talk etc).
 	/// </summary>

@@ -85,6 +85,12 @@ PlatformSettings
 			padding: 0;
 		}
 
+		// The way out, over the heading as the front's pages have theirs
+		> .rail > .back
+		{
+			@include platform-side-back;
+		}
+
 		// Over the categories, where the front's pages have theirs (31.5vh)
 		> .rail > .heading
 		{

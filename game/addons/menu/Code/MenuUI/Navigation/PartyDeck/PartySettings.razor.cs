@@ -15,6 +15,12 @@ public partial class PartySettings
 
 	object editingParty;
 	bool CanEdit => Draft is not null ? !Draft.Cancelled && !Draft.Creating : PartyView.OwnerIsMe;
+
+	/// <summary>
+	/// The name box and slider are shown - kept while a new party's being made, just locked (the root's .creating), so
+	/// nothing in the window changes shape under the Create press
+	/// </summary>
+	bool ShowEditors => Draft is not null ? !Draft.Cancelled : PartyView.OwnerIsMe;
 	int MemberCount => Draft is not null ? 1 : PartyView.MemberCount;
 	int MaxMembers => Draft?.MaxMembers ?? PartyView.MaxMembers;
 	string SelectedGameIdent => Draft is not null ? null : PartyView.SelectedGameIdent;

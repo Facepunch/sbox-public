@@ -20,6 +20,7 @@
 <root>
 
     <div class="side">
+        <div class="back" onclick=@GoBack><i>arrow_back</i><label>Back</label></div>
         <label class="heading">Maps</label>
 
         <div class="rail">
@@ -34,7 +35,7 @@
     </div>
 
     <div class="panel">
-        <PanelHead Title="Choose a Map" Icon="map" Back=@GoBack Search="Search maps" OnSearch=@Typed>
+        <PanelHead Title="Choose a Map" Icon="map" Search="Search maps" OnSearch=@Typed>
             <Tools>
                 @* What order the Workshop's come in - the one picked lit, its name its tooltip *@
                 @if ( source == Workshop )

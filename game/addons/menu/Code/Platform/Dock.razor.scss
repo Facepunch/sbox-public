@@ -266,26 +266,36 @@ Dock
 		}
 	}
 
-	// Your avatar's face fills its button
-	.square.avatar
+	// Where the party goes, left of the friends button - nothing, gap and all, without one (.party has the gap)
+	.party-slot
 	{
-		position: relative;
-		overflow: hidden;
-		// Lighter than the dock so dark hair and skin don't disappear
-		background-image: radial-gradient( circle at 50% 35%, #5d7fb8 0%, #2b466d 70% );
+		flex-shrink: 0;
+		align-items: center;
+		margin-right: -8px;
+	}
 
-		CitizenPreview
+	// Your friends - the friends glyph and how many are on
+	.online
+	{
+		@include dock-button;
+		flex-shrink: 0;
+		height: 30px;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		padding: 0 10px;
+		cursor: pointer;
+		@include platform-sounds;
+
+		i
 		{
-			position: absolute;
-			left: 0;
-			top: 0;
-			right: 0;
-			bottom: 0;
+			font-size: 16px;
 		}
 
-		&.open
+		label
 		{
-			box-shadow: 0 0 0 2px $dock-selected;
+			font-size: 11px;
+			font-weight: 700;
 		}
 	}
 
@@ -296,16 +306,36 @@ Dock
 		@include dock-button;
 		position: relative;
 		flex-shrink: 0;
-		// The dock's buttons' height, its faces as far in from its sides as from its top and bottom - not clipped, so
-		// the leader's crown can sit up over its edge
+		// The dock's buttons' height, its faces as far in from its sides as from its top and bottom. Clipped, as it
+		// slides out from nothing - the leader's crown is kept inside it
 		height: 30px;
+		max-width: 260px;
 		align-items: center;
 		gap: 3px;
 		padding: 0 4px;
+		overflow: hidden;
 		cursor: pointer;
 		@include platform-sounds;
+		// The gap to the friends button is its own, so it goes with it (.party-slot)
+		margin-right: 8px;
+		transition: max-width 0.35s ease-out, padding 0.35s ease-out, margin-right 0.35s ease-out, opacity 0.2s ease-out, background-color 0.12s ease;
 
-		// Its full height so all of it's pressable - out of a party, the friends glyph and how many are on
+		// Out from nothing beside the friends button when a party's started, back into it when it's given up or left -
+		// the gap after it too
+		&:intro, &:outro
+		{
+			max-width: 0;
+			padding: 0;
+			margin-right: 0;
+			opacity: 0;
+		}
+
+		&:outro
+		{
+			transition: max-width 0.25s ease-in, padding 0.25s ease-in, margin-right 0.25s ease-in, opacity 0.15s ease-in;
+		}
+
+		// Its full height so all of it's pressable
 		.faces
 		{
 			align-self: stretch;
@@ -314,25 +344,6 @@ Dock
 			cursor: pointer;
 			@include platform-sounds;
 
-			> i
-			{
-				margin-left: 6px;
-				font-size: 16px;
-				color: $dock-icon;
-			}
-
-			> i:last-child
-			{
-				margin-right: 6px;
-			}
-
-			> .count
-			{
-				margin: 0 6px 0 1px;
-				font-size: 11px;
-				font-weight: 700;
-				color: $dock-text;
-			}
 		}
 
 		// You, while a party's still being set up - as big as its members will be
@@ -347,52 +358,6 @@ Dock
 			pointer-events: none;
 		}
 
-		// In a party, your friends beside its faces - pressed by itself, for them rather than the party. As far in from
-		// the button's end as from its top and bottom, so its round end sits inside the button's.
-		.online
-		{
-			height: 22px;
-			min-width: 22px;
-			align-items: center;
-			justify-content: center;
-			gap: 4px;
-			padding: 0 7px;
-			border-radius: 11px;
-			background-color: #102039;
-			cursor: pointer;
-			@include platform-sounds;
-
-			i
-			{
-				font-size: 14px;
-				color: $dock-icon;
-			}
-
-			label
-			{
-				font-size: 11px;
-				font-weight: 700;
-				color: $dock-text;
-			}
-
-			&:hover
-			{
-				background-color: $dock-hover;
-			}
-		}
-
-		&.open
-		{
-			.faces > i, .faces > .count, .online i, .online label
-			{
-				color: $dock-selected-text;
-			}
-
-			.online
-			{
-				background-color: rgba( 255, 255, 255, 0.35 );
-			}
-		}
 
 		&.joining
 		{
@@ -404,26 +369,22 @@ Dock
 			background-image: linear-gradient( 20deg, rgba( $front-danger, 0.22 ), rgba( $front-danger, 0 ) 60% );
 		}
 
-		> .game-art
-		{
-			position: absolute;
-			left: 0;
-			top: 0;
-			right: 0;
-			bottom: 0;
-			z-index: -1;
-			pointer-events: none;
-			border-radius: $platform-radius;
-			background-size: cover;
-			background-position: center;
-			opacity: 0.5;
-			mask-image: linear-gradient( 90deg, white 0%, black 60% );
-			transition: opacity 0.12s ease-out;
-		}
-
 		PartyMember, PartyPendingSeat
 		{
 			width: 22px;
+		}
+
+		// A face coming in - you when a party's started, anyone joining it - pops up into its place
+		PartyMember, PartyPendingSeat, .face
+		{
+			transform: scale( 1 );
+			transition: transform 0.3s ease-out, opacity 0.2s ease-out;
+
+			&:intro
+			{
+				opacity: 0;
+				transform: scale( 0.3 );
+			}
 		}
 
 		// Nothing on it's pressable or hoverable by itself - not the faces, nor anything on them
@@ -445,42 +406,47 @@ Dock
 			border-radius: 50%;
 		}
 
-		.status-icon
+		// The leader's crown, sized to these faces rather than the party window's - just on its corner, not up over the
+		// button's edge
+		PartyMember > .crown
 		{
-			flex-shrink: 0;
-			width: 22px;
-			height: 22px;
-			align-items: center;
-			justify-content: center;
-			border-radius: 11px;
-			background-color: rgba( 255, 255, 255, 0.08 );
-			pointer-events: none;
+			top: -4px;
+			right: -4px;
+			font-size: 9px;
+		}
 
-			i
-			{
-				font-size: 13px;
-				color: $front-secondary;
-			}
+		// What they're up to - too small for the party window's corner chips here, so a ring round the face instead:
+		// blue coming down or joining, green ready, red stuck. An invite's just its greyed face.
+		PartyMember > .status-badge, PartyPendingSeat .pending-badge
+		{
+			display: none;
+		}
 
-			&.joining
-			{
-				background-color: rgba( $front-reward, 0.2 );
+		// Inside the face's edge, not round it - so the faces keep their gap. Not the talking outline either.
+		PartyMember Avatar .avatar
+		{
+			outline: 0px solid transparent;
+		}
 
-				i
-				{
-					color: $front-reward;
-				}
-			}
+		PartyMember.busy Avatar .avatar
+		{
+			border: 1px solid $platform-primary;
+		}
 
-			&.failed
-			{
-				background-color: rgba( $front-danger, 0.18 );
+		PartyMember.ready Avatar .avatar
+		{
+			border: 1px solid $platform-good;
+		}
 
-				i
-				{
-					color: $front-danger;
-				}
-			}
+		PartyMember.failed Avatar .avatar
+		{
+			border: 1px solid $platform-danger;
+		}
+
+		// No dashed ring at this size - just the greyed face
+		PartyPendingSeat Avatar .avatar
+		{
+			border-width: 0px;
 		}
 
 		.more

@@ -4,30 +4,33 @@
 @namespace MenuProject.Modals
 @inherits MenuProject.Modals.BaseModal
 
-@* A yes-or-no question in a panel in the middle of the screen, come up from below - the question,
-   then the two answers, the one that does it in the question's colour. Escape or a click off it is Cancel.
+@* A yes-or-no question in one of the platform's panels in the middle of the screen, come up from below - the
+   question in its bar, with what answering does for a glyph, what it means under it, then the two answers at the
+   end, the one that does it in the question's colour. Escape or a click off it is Cancel.
    Without a CancelText it's just something to be told, with the one button - a notice. With an Entry
    there's something to type in too, and enter in it is the confirm button. *@
 <root>
     <div class="window">
-        <label class="title">@Title</label>
+        <MenuProject.Platform.PanelHead Icon=@Glyph Title=@Title />
 
-        @if ( !string.IsNullOrEmpty( Message ) )
-        {
-            <label class="message">@Message</label>
-        }
-
-        @if ( Entry is not null )
-        {
-            <TextEntry @ref=_entry class="entry" Value:bind=@Entry onsubmit=@Confirm />
-        }
-
-        <div class="buttons">
-            @if ( !string.IsNullOrEmpty( CancelText ) )
+        <div class="body">
+            @if ( !string.IsNullOrEmpty( Message ) )
             {
-                <Button class="cancel" Text="@CancelText" onclick=@( () => CloseModal( false ) ) />
+                <label class="message">@Message</label>
             }
-            <Button class="confirm" Icon="@ConfirmIcon" Text="@ConfirmText" style="background-color: @Color.Rgba;" onclick=@Confirm />
+
+            @if ( Entry is not null )
+            {
+                <TextEntry @ref=_entry class="entry" Value:bind=@Entry onsubmit=@Confirm />
+            }
+
+            <div class="buttons">
+                @if ( !string.IsNullOrEmpty( CancelText ) )
+                {
+                    <Button class="cancel" Text="@CancelText" onclick=@( () => CloseModal( false ) ) />
+                }
+                <Button class="confirm" Icon="@ConfirmIcon" Text="@ConfirmText" style="background-color: @Color.Rgba;" onclick=@Confirm />
+            </div>
         </div>
     </div>
 </root>
@@ -45,6 +48,11 @@
 
     public string ConfirmText { get; set; } = "#menu.common.ok";
     public string ConfirmIcon { get; set; }
+
+    /// <summary>
+    /// In the bar's tile - what confirming does, or a question mark (an i for a notice)
+    /// </summary>
+    string Glyph => !string.IsNullOrEmpty( ConfirmIcon ) ? ConfirmIcon : string.IsNullOrEmpty( CancelText ) ? "info" : "help";
     /// <summary>
     /// Null for no cancel button - just the one, for a notice.
     /// </summary>

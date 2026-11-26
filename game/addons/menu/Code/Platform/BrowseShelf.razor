@@ -16,7 +16,7 @@
 
         <div class="options">
 
-        @if ( Tags.Count > 0 || Mine || !string.IsNullOrEmpty( Query ) )
+        @if ( Tags.Count > 0 || Mine || Subscribed || !string.IsNullOrEmpty( Query ) )
         {
             <div class="reset" onclick=@ClearAll><i>filter_alt_off</i><label>Clear filters</label></div>
         }
@@ -24,19 +24,13 @@
         <label class="what">Order</label>
         @foreach ( var order in Orders )
         {
-            @if ( order.Sort is null && string.IsNullOrEmpty( Query ) ) continue;
+            @if ( order.Sort is null && !order.Mine && !order.Subscribed && string.IsNullOrEmpty( Query ) ) continue;
 
-            <div class="option @(Sort == order.Sort ? "on" : "")" onclick=@( () => SetSort( order.Sort ) )>
+            <div class="option @(IsOn( order ) ? "on" : "")" onclick=@( () => Pick( order ) )>
                 <i>@order.Icon</i>
                 <label>@order.Title</label>
             </div>
         }
-
-        <label class="what">Show</label>
-        <div class="option check @(Mine ? "on" : "")" onclick=@ToggleMine>
-            <i>@(Mine ? "check_box" : "check_box_outline_blank")</i>
-            <label>My games</label>
-        </div>
 
         <label class="what">Players</label>
         @foreach ( var tag in MenuUtility.WorkshopPlayerTags )
@@ -116,7 +110,11 @@
 
     void Pressed( WorkshopItemDetails item ) => PlatformRoot.Instance?.ShowWorkshopItem( item );
 
-    record Order( string Title, string Icon, Storage.SortOrder? Sort );
+    /// <summary>
+    /// One of the list to pick from - an order for everything on the Workshop, or just your own or the ones you're
+    /// subscribed to instead
+    /// </summary>
+    record Order( string Title, string Icon, Storage.SortOrder? Sort, bool Mine = false, bool Subscribed = false );
 
     static readonly Order[] Orders =
     [
@@ -128,6 +126,8 @@
         new( "Most subscribed", "favorite", Storage.SortOrder.RankedByTotalUniqueSubscriptions ),
         new( "Newest", "new_releases", Storage.SortOrder.RankedByPublicationDate ),
         new( "Recently updated", "update", Storage.SortOrder.RankedByLastUpdatedDate ),
+        new( "My games", "person", null, Mine: true ),
+        new( "Subscribed", "check_circle", null, Subscribed: true ),
     ];
 
     string Query;
@@ -140,6 +140,11 @@
     /// Just what you've published - friends only and private too
     /// </summary>
     bool Mine;
+
+    /// <summary>
+    /// Just the ones you're subscribed to
+    /// </summary>
+    bool Subscribed;
 
     List<WorkshopItemDetails> Found = new();
 
@@ -170,13 +175,14 @@
 
         Tags.Clear();
         Mine = false;
+        Subscribed = false;
 
         Search();
     }
 
     void Search()
     {
-        pages = MenuUtility.SearchWorkshopGames( Query, Sort, Tags.ToArray(), Mine );
+        pages = MenuUtility.SearchWorkshopGames( Query, Sort, Tags.ToArray(), Mine, Subscribed );
         Found = new();
         loading = false;
 
@@ -220,11 +226,18 @@
         Search();
     }
 
-    void SetSort( Storage.SortOrder? sort )
-    {
-        if ( Sort == sort ) return;
+    bool IsOn( Order order ) => order.Mine == Mine && order.Subscribed == Subscribed && (Mine || Subscribed || order.Sort == Sort);
 
-        Sort = sort;
+    void Pick( Order order )
+    {
+        if ( IsOn( order ) ) return;
+
+        Mine = order.Mine;
+        Subscribed = order.Subscribed;
+
+        // Yours and your subscriptions keep the order that was picked, for when it's gone back to
+        if ( !Mine && !Subscribed ) Sort = order.Sort;
+
         Search();
     }
 
@@ -234,16 +247,11 @@
         Search();
     }
 
-    void ToggleMine()
-    {
-        Mine = !Mine;
-        Search();
-    }
-
     void ClearAll()
     {
         Tags.Clear();
         Mine = false;
+        Subscribed = false;
 
         // Clearing a search searches again itself
         var searched = Query is not null;
@@ -258,5 +266,5 @@
         gridFade.Apply( Grid );
     }
 
-    protected override int ShownHash() => HashCode.Combine( Found, Found.Count, loading, Query, Sort, Mine, MenuHelpers.HashOf( Tags ) );
+    protected override int ShownHash() => HashCode.Combine( Found, Found.Count, loading, Query, Sort, Mine, Subscribed, MenuHelpers.HashOf( Tags ) );
 }

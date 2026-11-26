@@ -59,9 +59,10 @@ public partial class PartyDeck : Panel
 		windowVisible = InParty;
 
 		Current = InParty ? this : null;
-		// Kept up while the window's on its way out, so it can fade rather than vanish
-		var leaving = Children.Any( x => x is FloatingWindow { IsDeleting: true } );
-		Style.Display = InParty || leaving ? DisplayMode.Flex : DisplayMode.None;
+		// Kept up while there's a window at all - on its way out it fades rather than vanishing, and the frame between the
+		// party going and the window starting to go mustn't blink it off and back on
+		var hasWindow = Children.Any( x => x is FloatingWindow );
+		Style.Display = InParty || hasWindow ? DisplayMode.Flex : DisplayMode.None;
 
 		// Unseen till it's pinned over the dock, then fades up into place - not a frame of it wherever it was before
 		if ( Window.IsValid() && !InParty )
@@ -118,7 +119,11 @@ public partial class PartyDeck : Panel
 		var width = Math.Min( WindowWidth * ScaleToScreen, bounds.Width );
 		Window.Style.Width = width * Window.ScaleFromScreen;
 
+		// The sizer's just been given its height for this frame (EaseHeight) but isn't laid out at it yet - placed by the
+		// height it was, the window's bottom would bob a frame behind as it grows and shrinks
 		var height = Window.Box.Rect.Height;
+		if ( Sizer.IsValid() && sizedHeight > 0 && Sizer.Box.Rect.Height > 0 )
+			height += sizedHeight * Sizer.ScaleToScreen - Sizer.Box.Rect.Height;
 		if ( bounds.Width <= 0 || height <= 0 ) return;
 
 		var button = PlatformAnchor.Box.Rect;
@@ -137,9 +142,10 @@ public partial class PartyDeck : Panel
 
 		if ( !Arrow.IsValid() ) return;
 
-		// Under the window's bottom edge at the button's middle, once the window's all the way up
+		// Under the window's bottom edge at the button's middle, once the window's all the way up - a screen pixel up into
+		// it, or it rounds to a pixel short and a line shows between them
 		Arrow.Style.Left = Length.Pixels( (button.Center.x - Box.Rect.Left) * ScaleFromScreen );
-		Arrow.Style.Top = Length.Pixels( (top + height - Box.Rect.Top) * ScaleFromScreen );
+		Arrow.Style.Top = Length.Pixels( (top + height - 1 - Box.Rect.Top) * ScaleFromScreen );
 		Arrow.SetClass( "on", !growing && !Window.IsDeleting );
 	}
 

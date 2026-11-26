@@ -5,8 +5,9 @@
 @inherits Panel
 
 @*
-    A game as the Workshop has it - square art, who made it, votes and subscribers, whether you're subscribed (and the
-    way to change it) by its rating, picked out if it's the one you're on. Or a local project, with its name and author.
+    A game as the Workshop has it - square art, who made it, votes and subscribers, whether it's a favourite and whether
+    you're subscribed (and the way to change either) on its art, picked out if it's the one you're on. Or a local
+    project, with its name and author.
     Right-click for what else you can do with it (OpenMenu).
 *@
 <root class="@(Selected ? "selected" : "")" onclick=@Pick onrightclick=@OpenMenu>
@@ -15,6 +16,24 @@
         @if ( Selected )
         {
             <label class="pill">Selected</label>
+        }
+        @* Downloaded, but there's a newer one - playing it gets it *@
+        @if ( Outdated )
+        {
+            <div class="outdated" tooltip="Needs an update - it updates when you play it"><i>update</i></div>
+        }
+        @* Only there when they're showing - one that's on, or the card's under the pointer *@
+        @if ( Item is not null && (Subscribed || Favourited || HasHovered) )
+        {
+            <div class="actions">
+                <div class="action favourite @(Favourited ? "on" : "")" tooltip="@(Favourited ? "Click to unfavourite" : "Click to favourite")" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); ToggleFavourited(); } )>
+                    <i>@(Favourited ? "star" : "star_border")</i>
+                </div>
+                <div class="action subscribe @(Subscribed ? "on" : "")" tooltip="@(Subscribed ? "Click to unsubscribe" : "Click to subscribe")" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); ToggleSubscribed(); } )>
+                    <i class="state">@(Subscribed ? "check" : "add")</i>
+                    <i class="hover">@(Subscribed ? "close" : "add")</i>
+                </div>
+            </div>
         }
     </div>
 
@@ -33,18 +52,6 @@
                         <i>@(new string( StarGlyph, unlit ))</i>
                     }
                 </div>
-            }
-            @* Only there when it's showing - subscribed, or the card's under the pointer *@
-            @if ( Item is not null && (Subscribed || HasHovered) )
-            {
-                <div class="badge @(Subscribed ? "on" : "")" tooltip="@(Subscribed ? "Click to unsubscribe" : "Click to subscribe")" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); ToggleSubscribed(); } )>
-                    <i class="state">@(Subscribed ? "check" : "add")</i>
-                    <i class="hover">@(Subscribed ? "close" : "add")</i>
-                </div>
-            }
-            @if ( Favourited )
-            {
-                <i class="favourite" tooltip="In your favourites">star</i>
             }
         </div>
         <label class="name">@Shorten( Item?.Title ?? Local?.Title, 26 )</label>
@@ -73,6 +80,16 @@
     /// </summary>
     [Parameter] public Package Local { get; set; }
 
+    /// <summary>
+    /// It's on your games - so it can be taken off
+    /// </summary>
+    [Parameter] public bool InLibrary { get; set; }
+
+    /// <summary>
+    /// It's on the downloaded games - so it can be deleted off this machine
+    /// </summary>
+    [Parameter] public bool InDownloaded { get; set; }
+
     [Parameter] public Action<Package> OnPicked { get; set; }
 
     /// <summary>
@@ -87,6 +104,21 @@
         : Item is not null && Item.Id == PlatformMenu.CurrentId;
 
     bool Subscribed => Item is not null && MenuUtility.IsSubscribed( Item.Id );
+
+    /// <summary>
+    /// Downloaded here, but older than the Workshop's - worked out when it's given its game, as it asks Steam
+    /// </summary>
+    bool Outdated;
+    WorkshopItemDetails outdatedFor;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        if ( outdatedFor == Item ) return;
+        outdatedFor = Item;
+        Outdated = MenuUtility.NeedsUpdate( Item );
+    }
 
     bool Favourited => Item is not null && PlatformMenu.IsFavourite( Item.Id );
 
@@ -172,6 +204,18 @@
 
         menu.AddSpacer();
         menu.AddOption( "open_in_new", "View on Workshop", () => MenuUtility.OpenUrl( $"steam://url/CommunityFilePage/{Item.Id}" ) );
+
+        if ( InLibrary && PlatformMenu.CanRemoveFromLibrary( Item.Id ) )
+        {
+            menu.AddSpacer();
+            menu.AddOption( "playlist_remove", "Remove from Library", () => PlatformMenu.RemoveFromLibrary( Item.Id ) );
+        }
+
+        if ( InDownloaded && PlatformMenu.CanRemoveFromLibrary( Item.Id ) )
+        {
+            menu.AddSpacer();
+            menu.AddOption( "delete", "Delete", () => PlatformMenu.DeleteDownload( Item ) );
+        }
     }
 
     /// <summary>
@@ -190,6 +234,12 @@
         MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast { Title = "#menu.workshop.vote_failed", Icon = "thumbs_up_down" } );
     }
 
+    void ToggleFavourited()
+    {
+        PlatformMenu.SetFavourite( Item.Id, !Favourited );
+        StateHasChanged();
+    }
+
     void ToggleSubscribed()
     {
         if ( Subscribed ) MenuUtility.Unsubscribe( Item.Id );
@@ -197,5 +247,5 @@
         StateHasChanged();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Item, Local, Selected, Subscribed, Favourited, HasHovered );
+    protected override int BuildHash() => HashCode.Combine( Item, Local, Selected, Subscribed, Favourited, HasHovered, Outdated );
 }

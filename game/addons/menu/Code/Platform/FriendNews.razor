@@ -8,19 +8,20 @@
 
 @*
     A line above the dock when a friend starts playing something, with a way to join them. One at a time, and only
-    while nothing's open over the front.
+    while nothing's open over the front. Click it to send it away.
 *@
 <root class="@(Shown is not null && Clear ? "up" : "")">
     @if ( Shown is { } news )
     {
-        <div class="news" @key=@news.Id>
+        <div class="news" @key=@news.Id onclick=@Hide>
             <div class="face" style="background-image: url( avatar:@news.Friend.Id );"></div>
             <label class="name">@news.Friend.Name</label>
-            <label class="what">@($"started playing {news.Game}")</label>
+            <label class="verb">started playing</label>
+            <label class="game">@news.Game</label>
 
             @if ( news.Joinable )
             {
-                <div class="join" onclick=@( () => Join( news ) )><label>Join</label></div>
+                <div class="join" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); Join( news ); } )><label>Join</label></div>
             }
         </div>
     }

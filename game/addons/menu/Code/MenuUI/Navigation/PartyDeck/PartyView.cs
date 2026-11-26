@@ -208,6 +208,19 @@ public static class PartyView
 			: Party?.IsMemberReady( member ) ?? false;
 	}
 
+	/// <summary>
+	/// How loud they are right now, 0 to about 1 - what a face's glow grows with. Your own voice isn't played back, so
+	/// talking's a steady level for you.
+	/// </summary>
+	internal static float MemberVoiceLevel( Friend member )
+	{
+		if ( !IsMemberTalking( member ) ) return 0f;
+		if ( IsMocking ) return 0.35f + 0.3f * MathF.Abs( MathF.Sin( RealTime.Now * 9f + (member.Id & 0xff) ) );
+
+		var level = Party?.GetMemberVoiceLevel( member ) ?? 0f;
+		return level > 0f ? level : 0.4f;
+	}
+
 	internal static bool IsMemberTalking( Friend member )
 	{
 		return IsMocking

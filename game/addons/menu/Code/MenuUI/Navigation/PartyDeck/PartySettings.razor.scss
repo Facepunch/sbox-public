@@ -13,7 +13,18 @@ PartySettings
 	flex-shrink: 1;
 
 	> * { flex-shrink: 0; }
+	// Being made - everything stays where it is, locked and dimmed back, the button saying so
 	&.creating { pointer-events: none; }
+
+	.privacy-choice, .settings-row
+	{
+		transition: opacity 0.2s ease-out;
+	}
+
+	&.creating .privacy-choice, &.creating .settings-row
+	{
+		opacity: 0.5;
+	}
 
 	// Fades up in as the window grows to fit it
 	transition: opacity 0.18s ease-out, transform 0.22s ease-out;

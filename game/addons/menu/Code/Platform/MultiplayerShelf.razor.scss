@@ -144,18 +144,15 @@ MultiplayerShelf
 	// The bars' own buttons - the rest of them is the platform-tool mixin's
 	.tool
 	{
+		// A tool like the others beside it - wider only to fit how many filters are on
+		&.filters.counted
+		{
+			gap: 6px;
+			padding: 0 10px;
+		}
+
 		&.filters
 		{
-			gap: 8px;
-			padding: 0 10px;
-			font-size: 13px;
-			font-weight: 600;
-
-			// The text's size, not the bar's other tools'
-			i
-			{
-				font-size: 18px;
-			}
 
 			// A pill round the number, centring it - a label alone keeps its text at its top
 			.count

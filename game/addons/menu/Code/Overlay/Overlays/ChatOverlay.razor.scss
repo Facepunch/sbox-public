@@ -3,9 +3,11 @@
 
 ChatOverlay
 {
+	// In the corner as the platform's other panels are - 24 in from the edge, and as far over the dock (its 48) as the
+	// friends list
 	position: absolute;
-	left: calc( $front-rail-width + $front-chrome-gap + $front-chrome-gap );
-	bottom: 96px;
+	left: 24px;
+	bottom: 64px;
 	width: 570px;
 	flex-direction: column;
 	pointer-events: none;
@@ -24,6 +26,8 @@ ChatOverlay
 		{
 			align-self: flex-start;
 			max-width: 100%;
+			// On its own strip, as far in from its sides as from its top and bottom
+			padding: 4px 8px;
 			background-color: rgba( black, 0.3 );
 			backdrop-filter: blur( 10px );
 		}
@@ -36,40 +40,80 @@ ChatOverlay
 		ChatPanel
 		{
 			@include platform-surface;
+			border: 1px solid rgba( 255, 255, 255, 0.06 );
+			box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.45 );
 		}
 	}
 
-	// In the platform's look - Poppins, the channel a blue chip, the box to type in a round-ended field, a line from
-	// the menu itself quieter than what people say
+	// In the platform's look, as its panels are (the weekly rewards') - Poppins at their sizes, names in Steam's blue
+	// with no shadow behind them, the channel a quiet tag as tall as the field beside it
 	ChatPanel
 	{
 		flex-grow: 1;
-		padding: 12px;
+		padding: 14px;
 		gap: 10px;
 		font-family: $platform-font;
 
 		.channel-label
 		{
 			@include platform-chip;
-			height: 24px;
-			padding: 0 10px;
+			height: 34px;
+			padding: 0 14px;
+			background-color: rgba( 255, 255, 255, 0.06 );
 			box-shadow: none;
-			font-size: 11px;
+			font-size: 10.5px;
 			font-weight: 700;
 			letter-spacing: 1px;
-			color: $platform-icon;
+			color: $platform-muted;
+		}
+
+		.messages
+		{
+			gap: 2px;
 		}
 
 		.messages .chat-entry
 		{
+			align-items: center;
 			gap: 8px;
-			padding: 2px 6px;
+			padding: 3px 0;
 			border-radius: $platform-radius;
+
+			.avatar
+			{
+				width: 22px;
+				height: 22px;
+				min-width: 22px;
+				min-height: 22px;
+				box-shadow: none;
+			}
+
+			.name
+			{
+				font-family: $platform-font;
+				font-size: 13px;
+				font-weight: 600;
+				color: $platform-steam-blue;
+				text-shadow: none;
+			}
 
 			.text
 			{
+				margin-top: 0;
 				font-family: $platform-font;
+				font-size: 13px;
+				font-weight: 400;
+				color: $platform-text;
 				text-shadow: none;
+			}
+
+			// A message's own channel, small beside it
+			.channel-label
+			{
+				height: 20px;
+				margin-top: 0;
+				padding: 0 7px;
+				font-size: 9px;
 			}
 
 			&.system
@@ -83,7 +127,7 @@ ChatOverlay
 
 				.text
 				{
-					font-size: 13px;
+					font-size: 12px;
 					font-weight: 500;
 					color: $platform-muted;
 				}
@@ -92,13 +136,20 @@ ChatOverlay
 
 		.input-bar
 		{
+			align-items: center;
 			gap: 8px;
 
 			.textentry
 			{
-				@include platform-field( 38px );
+				@include platform-field( 34px );
 				flex-grow: 1;
 				font-family: $platform-font;
+				font-size: 13px;
+
+				&:focus
+				{
+					border-color: rgba( $platform-selected, 0.6 );
+				}
 			}
 		}
 	}

@@ -15,6 +15,7 @@
 <root>
 
     <div class="side">
+        <div class="back" onclick=@Back><i>arrow_back</i><label>Back</label></div>
         <label class="heading">Servers</label>
 
         <div class="rail">
@@ -30,7 +31,7 @@
 
     <div class="panel" @ref="PanelBox">
         <PanelHead Title=@(PlatformMenu.IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game") Icon="public" Art=@PlatformMenu.Art
-                   Back=@Back Search="Search servers or maps" OnSearch=@( ( string text ) => { search = text ?? ""; } )>
+                   Search="Search servers or maps" OnSearch=@( ( string text ) => { search = text ?? ""; } )>
             <Tools>
                 <div class="tool @(refreshing ? "busy" : "")" onclick=@Refresh tooltip="Refresh"><i>refresh</i></div>
             </Tools>

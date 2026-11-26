@@ -403,7 +403,7 @@ public static class MenuHelpers
 		Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
 		Title = "#menu.home.quit_to_desktop",
 		Message = "#menu.home.are_you_sure_you_want_to_close_s_box",
-		ConfirmText = "#menu.home.quit_to_desktop_sentence",
+		ConfirmText = "#menu.quit",
 		ConfirmIcon = "power_settings_new",
 		OnConfirm = () => MenuUtility.RunCommand( "quit" )
 	} );

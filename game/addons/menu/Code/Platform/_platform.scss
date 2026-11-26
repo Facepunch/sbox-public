@@ -775,6 +775,47 @@ $screen-w-16x9: 1920px;
 //     <label class="heading">...</label>
 //     <div class="rail"><div class="tab on"><i>...</i><label>...</label></div>...</div>
 // </div>
+// The way back off a page with a side column, just over its heading (31.5vh down) and in line with its words - quiet
+// till it's pointed at
+@mixin platform-side-back
+{
+	@include platform-sounds;
+	position: absolute;
+	left: -8px;
+	top: 31.5vh;
+	transform: translateY( -32px );
+	height: 26px;
+	align-items: center;
+	gap: 6px;
+	padding: 0 12px 0 8px;
+	border-radius: $platform-pill;
+	cursor: pointer;
+	transition: background-color 0.12s ease;
+
+	i
+	{
+		font-family: "Material Symbols Outlined";
+		font-size: 16px;
+		color: $platform-muted;
+	}
+
+	label
+	{
+		@include platform-plain-label( 13px );
+		color: $platform-muted;
+	}
+
+	&:hover
+	{
+		background-color: $platform-hover-wash;
+
+		i, label
+		{
+			color: $platform-text;
+		}
+	}
+}
+
 @mixin platform-side
 {
 	// As far down the screen as the settings' categories (38vh, less 60px) - up by the 80px the front starts down too,
@@ -801,6 +842,11 @@ $screen-w-16x9: 1920px;
 		top: 31.5vh;
 		font-size: 34px;
 		font-weight: 700;
+	}
+
+	.side > .back
+	{
+		@include platform-side-back;
 	}
 
 	.rail

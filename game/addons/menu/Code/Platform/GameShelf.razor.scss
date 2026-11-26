@@ -26,6 +26,22 @@ GameShelf
 	{
 		position: relative;
 		flex-shrink: 0;
+
+		// Taken off the row - the card shrinks and fades where it is, then the cell closes up (to nothing, the gap after it
+		// too) so the ones after it slide over. GameShelf.LeaveTime covers both.
+		&.leaving
+		{
+			margin-right: -4px;
+			pointer-events: none;
+			transition: width 0.28s ease-in-out 0.14s, margin-right 0.28s ease-in-out 0.14s;
+
+			GameCard
+			{
+				opacity: 0;
+				transform: scale( 0.85 );
+				transition: opacity 0.16s ease-in, transform 0.16s ease-in;
+			}
+		}
 	}
 
 	// Inset in its cell as a card is - and only faded in once it's been a moment, so a quick fetch goes straight to the
@@ -43,54 +59,6 @@ GameShelf
 		&:intro
 		{
 			opacity: 0;
-		}
-	}
-
-	.discover-more
-	{
-		position: absolute;
-		left: 6px;
-		top: 6px;
-		right: 6px;
-		bottom: 6px;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 6px;
-		border-radius: 6px;
-		border: 1px dashed rgba( 255, 255, 255, 0.18 );
-		background-image: radial-gradient( circle at 30% 20%, rgba( $platform-primary, 0.35 ) 0%, rgba( $platform-primary, 0 ) 70% );
-		background-color: rgba( 255, 255, 255, 0.03 );
-		cursor: pointer;
-		@include platform-sounds;
-		pointer-events: all;
-		transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
-
-		i
-		{
-			margin-bottom: 4px;
-			font-size: 44px;
-			color: $platform-primary-hover;
-		}
-
-		.title
-		{
-			font-size: 17px;
-			font-weight: 700;
-			color: $platform-text;
-		}
-
-		.hint
-		{
-			font-size: 12.5px;
-			color: $platform-muted;
-		}
-
-		&:hover
-		{
-			transform: translateY( -3px );
-			border-color: rgba( $platform-primary, 0.8 );
-			background-color: rgba( $platform-primary, 0.1 );
 		}
 	}
 

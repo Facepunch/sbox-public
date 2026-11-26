@@ -23,9 +23,8 @@
                        OnSearch=@( ( string text ) => { search = text ?? ""; } )>
                 <Tools>
                     <div class="filters-wrap">
-                        <div class="tool filters @(filtersOpen ? "open" : "")" onclick=@ToggleFilters>
+                        <div class="tool filters @(filtersOpen ? "open" : "") @(FilterCount > 0 ? "counted" : "")" tooltip="Filters" onclick=@ToggleFilters>
                             <i>tune</i>
-                            <label>Filters</label>
                             @if ( FilterCount > 0 )
                             {
                                 <div class="count"><label>@FilterCount</label></div>

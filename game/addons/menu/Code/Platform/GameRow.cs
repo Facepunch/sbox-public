@@ -31,6 +31,13 @@ public sealed class GameRow( string title, string icon, Func<Task<WorkshopItemDe
 		Games = Games.Where( x => x != game ).Prepend( game ).ToArray();
 	}
 
+	public void Remove( ulong id )
+	{
+		if ( Games is null ) return;
+
+		Games = Games.Where( x => x.Id != id ).ToArray();
+	}
+
 	/// <summary>
 	/// The rows' art, by url - held, or textures only being held weakly, it'd be gone again before a shelf's opened
 	/// </summary>

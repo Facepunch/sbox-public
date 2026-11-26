@@ -417,15 +417,20 @@ FriendCard.popup-panel
 				@include platform-button-primary;
 			}
 
-			// Already done - said, not pressed
+			// Already done - said, not pressed: the button's size, quieter, a green tick
 			&.done
 			{
-				@include platform-chip;
-				align-self: center;
+				background-color: rgba( 255, 255, 255, 0.04 );
 				background-image: none;
 				cursor: default;
 
+				label { color: $platform-muted; }
 				icon { color: $platform-good; }
+
+				&:hover
+				{
+					background-color: rgba( 255, 255, 255, 0.04 );
+				}
 			}
 
 			// Leaving, kicking

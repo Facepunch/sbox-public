@@ -6,7 +6,7 @@
 @namespace MenuProject
 
 @*
-    Who's in your party, and what everyone's up to. The open seat opens the friend picker.
+    Who's in your party, and what everyone's up to. Friends are invited from the friends list beside it.
     While you're following the leader into a game the header becomes that - what's happening, how far
     along, and a way out.
 *@
@@ -17,7 +17,7 @@
 			<ChildContent>
 				@* Eased to the height of what's in it, so opening settings grows it rather than jumping - see EaseHeight *@
 				<div class="party-deck-sizer" @ref="Sizer">
-					<div class="party-deck-content @(Activity() ?? "")" @ref="Sized">
+					<div class="party-deck-content @(Activity() ?? "") @(JustMade ? "just-made" : "")" @ref="Sized">
 						@* A new party's - what it is, its way out where it has one; who it's for is picked big under this *@
 						@if ( Draft is not null )
 						{
@@ -31,7 +31,7 @@
 							@* The game's plain to see - it's the one the menu's on - so just what this is, and the party's buttons *@
 							<PanelHead Icon="groups" Title="Party">
 								<Tools>
-									<Button class="icon-button privacy" Icon="@(IsPublic ? "lock_open" : "lock")" disabled="@(!CanChangeSettings)" onclick="@TogglePrivacy" tooltip="@PrivacyTooltip" />
+									<Button class="icon-button privacy @(IsPublic ? "public" : "friends")" Icon="@(IsPublic ? "lock_open" : "lock")" disabled="@(!CanChangeSettings)" onclick="@TogglePrivacy" tooltip="@PrivacyTooltip" />
 									<Button class="icon-button settings" Active=@SettingsOpen Icon="settings" onclick="@ToggleSettings" tooltip="@(SettingsOpen ? "#menu.party.back_to_party" : "#menu.party.party_settings")" />
 									@* Leaving's its own button - not closing the window *@
 									<Button class="icon-button leave" Icon="logout" onclick="@Leave" tooltip="Leave the party" />
@@ -50,12 +50,6 @@
 						}
 						else
 						{
-							@* The game we're headed into, faded right back behind everything *@
-							@if ( Status is { ShowGame: true } && !string.IsNullOrWhiteSpace( GameArt ) )
-							{
-								<div class="game-art" style="background-image: url( @GameArt );"></div>
-							}
-
 							@if ( Status is { } status )
 							{
 								<div class="head status">
@@ -112,11 +106,6 @@
 							@foreach ( var invited in PartyInvites.Pending )
 							{
 								<PartyPendingSeat Friend=@invited />
-							}
-
-							@if ( SeatsTaken < MaxMembers )
-							{
-								<div class="open-seat" onmouseup="@OpenFriends" tooltip="#menu.party.invite_a_friend"><icon>add</icon></div>
 							}
 						</div>
 
@@ -304,7 +293,7 @@
 			members.Add( PartyView.IsMemberReady( member ) );
 		}
 
-		return System.HashCode.Combine( PartyView.Exists, MemberCount, PartyView.Owner, Status, members.ToHashCode(), HashCode.Combine( GameThumb, GameArt, PartyInvites.Hash, InParty, DisplayGameIdent ), HashCode.Combine( PartyView.Name, IsPublic, SettingsOpen, SettingsError, MaxMembers, Draft, Draft?.Creating ) );
+		return System.HashCode.Combine( PartyView.Exists, MemberCount, PartyView.Owner, Status, members.ToHashCode(), HashCode.Combine( GameThumb, GameArt, PartyInvites.Hash, InParty, DisplayGameIdent ), HashCode.Combine( PartyView.Name, IsPublic, SettingsOpen, SettingsError, MaxMembers, Draft, Draft?.Creating, JustMade ) );
 	}
 
 	/// <summary>
@@ -315,21 +304,6 @@
 		if ( PartyRoom.Current is not null ) return System.Threading.Tasks.Task.FromResult( true );
 		if ( !Instance.IsValid() ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.party_settings_are_not_available_yet" ) );
 		return Instance.BeginCreate( isPublic, createImmediately: createImmediately );
-	}
-
-	void OpenFriends()
-	{
-		ModalSystem.Instance.FriendsList( new Sandbox.Modals.FriendsListModalOptions
-		{
-			ShowOnlineMembers = true,
-			ShowOfflineMembers = false,
-			Anchor = new()
-			{
-				Panel = Window,
-				Position = Sandbox.Modals.ModalAnchorPosition.AboveRight,
-				Offset = 16,
-			},
-		} );
 	}
 
 	void Retry() => PartyView.Retry();

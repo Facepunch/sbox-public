@@ -1,7 +1,7 @@
 @import "/Platform/_platform.scss";
 
-// A panel in the middle of the screen, come up from below like the platform's shelves out of its dock - its edge and
-// fill, its buttons square like the dock's. What's behind it's dimmed, not blurred.
+// One of the platform's panels in the middle of the screen, come up from below like its shelves out of its dock - the
+// question in its bar, the answers at its end. What's behind it's dimmed, not blurred.
 QuestionModal
 {
 	font-family: $platform-font;
@@ -9,7 +9,7 @@ QuestionModal
 	// On the modal class, to win over every modal's own dim and blur
 	&.modal
 	{
-		background-color: rgba( 8, 10, 16, 0.55 );
+		background-color: rgba( 6, 8, 13, 0.66 );
 		backdrop-filter: none;
 	}
 
@@ -35,17 +35,14 @@ QuestionModal
 		}
 	}
 
-	// Solid as a side panel is, over a game's front - the art behind doesn't tint it
+	// One of the platform's panels (platform-panel) - its bar with the question in it, then its body. Solid, as a side
+	// panel is over a game's front: the art behind doesn't tint it.
 	.window
 	{
-		@include platform-surface;
+		@include platform-panel;
 		background-color: $platform-panel;
-		width: 420px;
-		align-items: center;
-		gap: 10px;
-		padding: 22px 20px 20px 20px;
-		overflow: hidden;
-		pointer-events: all;
+		box-shadow: 0 24px 60px rgba( 0, 0, 0, 0.55 );
+		width: 440px;
 		transition: all 0.2s ease-out;
 
 		// Up from below, coming into focus as it fades in - and back out of it on the way out (above)
@@ -55,23 +52,23 @@ QuestionModal
 			filter: blur( 6px );
 			transform: translateY( 60px );
 		}
+
+		// As far in as the bar's tile and tools are
+		> .body
+		{
+			flex-grow: 0;
+			padding: 6px 8px 8px 8px;
+			overflow: visible;
+		}
 	}
 
-	.title
-	{
-		font-size: 20px;
-		font-weight: 700;
-		color: white;
-		text-align: center;
-	}
-
-	// Its width, so it wraps rather than running out past it
+	// In line with the bar's tile. Its width, so it wraps rather than running out past it
 	.message
 	{
 		width: 100%;
-		font-size: 13px;
+		padding: 0 4px 4px 4px;
+		font-size: 13.5px;
 		color: $platform-muted;
-		text-align: center;
 		// Kept - a notice's message can come in paragraphs (a load error, then what it said)
 		white-space: pre-line;
 	}
@@ -91,21 +88,23 @@ QuestionModal
 		margin-top: 8px;
 	}
 
+	// At the end, as wide as their words - the one that does it last
 	.buttons
 	{
 		width: 100%;
 		flex-direction: row;
-		gap: 6px;
-		margin-top: 10px;
+		justify-content: flex-end;
+		gap: 8px;
+		margin-top: 14px;
 	}
 
 	.buttons .button
 	{
-		@include platform-text-button( 36px );
-		flex-grow: 1;
-		flex-basis: 0;
+		@include platform-text-button( 38px );
+		flex-shrink: 0;
+		min-width: 96px;
 		justify-content: center;
-		padding: 0 14px;
+		padding: 0 18px;
 
 		&:hover
 		{

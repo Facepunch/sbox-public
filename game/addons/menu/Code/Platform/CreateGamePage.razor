@@ -22,6 +22,7 @@
 <root>
 
     <div class="side">
+        <div class="back" onclick=@Back><i>arrow_back</i><label>Back</label></div>
         <label class="heading">Configure</label>
 
         @if ( Setup is not null )
@@ -39,7 +40,7 @@
     </div>
 
     <div class="panel">
-        <PanelHead Title="Start New Game" Icon="sports_esports" Art=@(Pages?.SetupPackage?.Thumb ?? PlatformMenu.Art) Back=@Back />
+        <PanelHead Title="Start New Game" Icon="sports_esports" Art=@(Pages?.SetupPackage?.Thumb ?? PlatformMenu.Art) />
 
         <div class="body">
 

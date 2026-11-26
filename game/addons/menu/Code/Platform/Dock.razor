@@ -39,66 +39,47 @@
 			</div>
 		</div>
 
-		@* Your friends, and your party when you're in one - one button. Out of a party it's how many are on and opens
-		   your friends, where you can start a party; in one, it's the party's faces and opens its window, with how many
-		   else are on beside them opening your friends. *@
+		@* Your friends - how many are on, opening the list, where you can start a party - and once one's being set up or
+		   you're in one, the party's faces beside them, opening its window. The friends button never moves for it: the
+		   party slides out beside it, and back in when it's given up or left. *@
 		<div class="middle">
-			<div class="party @(FriendsUp ? "open" : "") @(PartyDeck.Activity() ?? "")" @ref="PartyButton">
-				@if ( Joining is { ShowGame: true } && !string.IsNullOrWhiteSpace( PartyArt ) )
-				{
-					<div class="game-art" style="background-image: url( @PartyArt );"></div>
-				}
-
-				<div class="faces" onclick=@PressFriends tooltip="@(InParty ? "Your party" : "Friends")">
-					@if ( Joining is { ShowGame: false } stage )
+			@* A place of its own, always there - one going out is moved after the ones kept while it goes, which would put it
+			   on the other side of the friends button *@
+			<div class="party-slot">
+			@if ( InParty )
+			{
+			<div class="party @(PartyUp ? "open" : "") @(PartyDeck.Activity() ?? "")" @ref="PartyButton">
+				<div class="faces" onclick=@PressParty tooltip="Your party">
+					@* Still being set up - just you so far *@
+					@if ( !PartyView.Exists )
 					{
-						<div class="status-icon @(PartyDeck.Activity() ?? "")"><i>@stage.Icon</i></div>
+						<div class="face" style="background-image: url( avatar:@Game.SteamId );"></div>
 					}
 
-					@if ( InParty )
+					@foreach ( var member in ShownMembers )
 					{
-						@* Still being set up - just you so far *@
-						@if ( !PartyView.Exists )
-						{
-							<div class="face" style="background-image: url( avatar:@Game.SteamId );"></div>
-						}
-
-						@foreach ( var member in ShownMembers )
-						{
-							<PartyMember Friend=@member Status=@PartyView.StatusOf( member ) Ready=@PartyView.IsMemberReady( member ) />
-						}
-
-						@foreach ( var invited in ShownInvites )
-						{
-							<PartyPendingSeat Friend=@invited />
-						}
-
-						@if ( MoreSeats > 0 )
-						{
-							<div class="more"><label>@($"+{MoreSeats}")</label></div>
-						}
-
+						<PartyMember Friend=@member Status=@PartyView.StatusOf( member ) Ready=@PartyView.IsMemberReady( member ) />
 					}
-					else
-					{
-						<i>group</i>
 
-						@if ( onlineCount > 0 )
-						{
-							<label class="count">@onlineCount</label>
-						}
+					@foreach ( var invited in ShownInvites )
+					{
+						<PartyPendingSeat Friend=@invited />
+					}
+
+					@if ( MoreSeats > 0 )
+					{
+						<div class="more"><label>@($"+{MoreSeats}")</label></div>
 					}
 				</div>
+			</div>
+			}
+			</div>
 
-				@if ( InParty )
+			<div class="online @(Root?.FriendsOpen == true ? "open" : "")" onclick=@Friends tooltip="Friends" @ref="OnlineButton">
+				<i>group</i>
+				@if ( onlineCount > 0 )
 				{
-					<div class="online" onclick=@PressOnline tooltip="Friends">
-						<i>group</i>
-						@if ( onlineCount > 0 )
-						{
-							<label>@onlineCount</label>
-						}
-					</div>
+					<label>@onlineCount</label>
 				}
 			</div>
 		</div>
@@ -126,9 +107,8 @@
 			@* Not in a started game - you dress up on a menu *@
 			@if ( PlatformRoot.CanDressUp )
 			{
-				<div class="square avatar @(Shelf == PlatformShelf.Avatar ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
-					<MenuProject.MenuUI.Front.CitizenPreview AvatarJson=@AvatarJson Still=@true PlayIntro=@false Studio=@false
-						FieldOfView=@(11f) CameraDistance=@(158f) CameraHeight=@(57f) HeadOffset=@(-2f) Yaw=@(-20f) />
+				<div class="square @(Shelf == PlatformShelf.Avatar ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
+					<i>checkroom</i>
 				</div>
 			}
 
@@ -170,6 +150,11 @@
     void SwitchGame() => Root?.ToggleShelf( PlatformShelf.YourGames );
 
     Panel PartyButton;
+
+    /// <summary>
+    /// Your friends - the list comes up out of it
+    /// </summary>
+    Panel OnlineButton;
     Panel DropSquare;
 
     /// <summary>
@@ -196,39 +181,27 @@
 
     static bool InParty => PartyView.Exists || PartyDeck.Drafting;
 
-    bool FriendsUp => PartyDeck.ShownOnPlatform || Root?.FriendsOpen == true;
+    /// <summary>
+    /// The party's window is up
+    /// </summary>
+    static bool PartyUp => PartyDeck.ShownOnPlatform;
 
     /// <summary>
-    /// In a party it's the party's window, otherwise your friends
+    /// The party's window, up or away
     /// </summary>
-    void PressFriends()
+    void PressParty()
     {
-        if ( !InParty )
-        {
-            Friends();
-            return;
-        }
-
         var show = !PartyDeck.ShownOnPlatform;
         if ( show ) Root?.PutAwaySide();
 
         PartyDeck.ShownOnPlatform = show;
     }
 
-    /// <summary>
-    /// Who's online beside the party's faces - your friends, rather than the party's window
-    /// </summary>
-    void PressOnline( PanelEvent e )
-    {
-        e.StopPropagation();
-        Friends();
-    }
-
     int installedGames;
     RealTimeSince gamesCounted = 10;
 
     /// <summary>
-    /// Installed games in the library, excluding recent games that are no longer downloaded.
+    /// Games installed here - local ones, and the Workshop's still downloaded (PlatformMenu.Downloaded).
     /// Recounted at most once a second as installs finish or games are removed.
     /// </summary>
     int InstalledGames
@@ -238,7 +211,7 @@
             if ( gamesCounted < 1 ) return installedGames;
 
             gamesCounted = 0;
-            installedGames = PlatformMenu.LocalGames.Count + (PlatformMenu.YourGames.Games?.Count( x => MenuUtility.IsInstalled( x.Id ) ) ?? 0);
+            installedGames = PlatformMenu.LocalGames.Count + (PlatformMenu.Downloaded.Games?.Count( x => MenuUtility.IsInstalled( x.Id ) ) ?? 0);
             return installedGames;
         }
     }
@@ -339,14 +312,13 @@
 
         PartyDeck.PlatformAnchor = PartyButton;
         DropButton = DropSquare;
-        FriendsAnchor = PartyButton;
+        FriendsAnchor = OnlineButton;
 
         // Set up and then cancelled - put away, not up again the next time you're in a party
         if ( !PartyView.Exists && !PartyDeck.Drafting ) PartyDeck.ShownOnPlatform = false;
 
         CountFriends();
         UpdateSearch();
-        UpdateAvatar();
     }
 
     void ToggleDiscover()
@@ -446,27 +418,6 @@
     }
 
     /// <summary>
-    /// The local avatar for the face on the Avatar button, rechecked every couple of seconds
-    /// </summary>
-    string AvatarJson;
-    RealTimeSince avatarChecked = 10;
-
-    void UpdateAvatar()
-    {
-        // Its button isn't there in a started game
-        if ( !PlatformRoot.CanDressUp ) return;
-
-        if ( avatarChecked < 2 ) return;
-        avatarChecked = 0;
-
-        var json = ClothingContainer.CreateFromLocalUser().Serialize();
-        if ( json == AvatarJson ) return;
-
-        AvatarJson = json;
-        StateHasChanged();
-    }
-
-    /// <summary>
     /// Your friends, up out of the dock over the Friends button
     /// </summary>
     void Friends()
@@ -476,10 +427,10 @@
     }
 
     /// <summary>
-    /// How far over one of its buttons a popup goes, to clear the dock - its buttons are 30 tall in the middle of its
-    /// 48, so 9 to its top, then a gap
+    /// How far over one of its buttons a popup goes - as high as the friends panel sits (FriendsPanel: $platform-above-dock,
+    /// 64, less the dock's 48), and the 9 from the dock's top down to its 30 tall buttons
     /// </summary>
-    internal const float PopupOffset = 18;
+    internal const float PopupOffset = 25;
 
     /// <summary>
     /// Puts a flyout's arrow (platform-flyout-arrow) under the middle of the button it came up from
@@ -511,5 +462,5 @@
 
     protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, onlineCount, Root?.FriendsOpen == true ), PartyDeck.ShownOnPlatform,
         MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x ), PartyView.IsMemberReady( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),
-        Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), Drop, Root?.RewardsOpen == true, HashCode.Combine( LibraryOpen, AvatarJson ) ) );
+        Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), Drop, Root?.RewardsOpen == true, LibraryOpen ) );
 }

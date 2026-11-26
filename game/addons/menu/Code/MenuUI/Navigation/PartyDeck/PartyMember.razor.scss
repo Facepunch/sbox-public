@@ -11,7 +11,7 @@ PartyMember
 	cursor: pointer;
 
 	// Size comes from the deck, which shrinks faces as the party fills up
-	// Beats the online/in-game outlines the avatar has elsewhere - here the ring means talking
+	// Beats the online/in-game outlines the avatar has elsewhere
 	Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
 	{
 		border-radius: 50%;
@@ -25,9 +25,25 @@ PartyMember
 		outline: 2px solid rgba( 255, 255, 255, 0.35 );
 	}
 
-	&.talking Avatar .avatar, &.talking Avatar .avatar.online, &.talking Avatar .avatar.ingame
+	// Talking - a soft green glow on the face's own edge, stronger the louder they are (PartyMember.TickVoice)
+	Avatar .avatar
 	{
-		outline: 2px solid $primary-green;
+		transition: box-shadow 0.12s ease-out, outline 0.1s ease;
+	}
+
+	&.voice-1 Avatar .avatar
+	{
+		box-shadow: 0 0 4px rgba( $platform-good, 0.6 );
+	}
+
+	&.voice-2 Avatar .avatar
+	{
+		box-shadow: 0 0 6px rgba( $platform-good, 0.8 );
+	}
+
+	&.voice-3 Avatar .avatar
+	{
+		box-shadow: 0 0 8px rgba( $platform-good, 1 );
 	}
 
 	> .crown
@@ -46,68 +62,58 @@ PartyMember
 		opacity: 0.75;
 	}
 
-	// Tucked onto the bottom-right corner - a small dark chip, what they're up to in its glyph's colour with a ring of
-	// it: plain to see, without sitting over the face. Download percent, or ready / in the game / stuck.
+	// Tucked onto the bottom-right corner - a solid round chip, edged in the window's colour so it sits clear of the
+	// face: blue coming down or joining (the percent in a pill), green ready, red stuck
 	> .status-badge
 	{
 		pointer-events: none;
 		position: absolute;
-		bottom: -3px;
-		right: -3px;
-		width: 14px;
-		height: 14px;
+		bottom: -2px;
+		right: -2px;
+		min-width: 18px;
+		height: 18px;
 		align-items: center;
 		justify-content: center;
-		border-radius: 50%;
-		border: 0.5px solid rgba( $platform-primary, 0.6 );
-		background-color: rgba( 12, 15, 22, 0.92 );
+		border-radius: 9px;
+		border: 2px solid #11141d;
+		background-color: $platform-primary;
 
-		// A square of its own as wide as the glyph, an even pixel in from each side of the chip's 13 inside -
-		// a 10px one landed on half a pixel and the narrow ones (!) sat off to a side
 		icon
 		{
-			width: 11px;
-			height: 11px;
 			font-size: 11px;
-			text-align: center;
-			justify-content: center;
-			align-items: center;
-			color: $platform-primary;
+			color: #ffffff;
 		}
 
 		// Every digit as wide as the next, so a climbing percent doesn't jiggle
 		label
 		{
-			font-size: 8.5px;
+			padding: 0 4px;
+			font-size: 9px;
 			font-weight: 700;
 			font-variant-numeric: tabular-nums;
-			color: $platform-primary;
+			color: #ffffff;
 		}
 
-		// A download percent's as wide as "100%" all the way up, so it doesn't twitch as the number changes
+		// As wide as "100%" all the way up, so it doesn't twitch as the number changes
 		&.percent
 		{
-			width: 26px;
+			min-width: 32px;
+			right: -8px;
 		}
 
 		&.ready
 		{
-			border-color: rgba( $platform-reward, 0.6 );
+			background-color: $platform-good;
 
 			icon, label
 			{
-				color: $platform-reward;
+				color: #06210f;
 			}
 		}
 
 		&.failed
 		{
-			border-color: rgba( $platform-danger, 0.7 );
-
-			icon, label
-			{
-				color: $platform-danger;
-			}
+			background-color: $platform-danger;
 		}
 	}
 }

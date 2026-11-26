@@ -39,20 +39,10 @@
                 <div class="cell" style="@CellStyle"><GameCard Local=@game OnPicked=@OnPicked /></div>
             }
 
-            @foreach ( var item in Games )
+            @* A game taken off the row stays a moment, leaving (see TickLeaving) *@
+            @foreach ( var (item, leaving) in WithLeaving )
             {
-                <div class="cell" style="@CellStyle"><GameCard Item=@item OnPicked=@OnPicked OnPickedItem=@OnPickedItem /></div>
-            }
-
-            @if ( IsYours && Shown < Columns )
-            {
-                <div class="cell" style="@CellStyle">
-                    <div class="discover-more" onclick=@( () => PlatformRoot.Instance?.Browse( null ) )>
-                        <i>explore</i>
-                        <label class="title">Discover more</label>
-                        <label class="hint">Find something new to play</label>
-                    </div>
-                </div>
+                <div class="cell @(leaving ? "leaving" : "")" style="@(leaving ? LeavingStyle : CellStyle)" @key=@item.Id><GameCard Item=@item InLibrary=@IsYours InDownloaded=@(Row == PlatformMenu.Downloaded) OnPicked=@OnPicked OnPickedItem=@OnPickedItem /></div>
             }
         }
     </div>
@@ -86,7 +76,8 @@
         get
         {
             var games = (Row?.Games ?? []).Where( x => Skip is null || !Skip.Contains( x.Id ) );
-            return MaxRows > 0 ? games.Take( Columns * MaxRows ) : games;
+            // Local games are on the row too
+            return MaxRows > 0 ? games.Take( Math.Max( 0, Columns * MaxRows - (Local?.Count ?? 0) ) ) : games;
         }
     }
 
@@ -95,7 +86,73 @@
     /// </summary>
     public IEnumerable<ulong> ShownIds => Row?.Games is null ? [] : Games.Select( x => x.Id );
 
-    int Shown => (Local?.Count ?? 0) + Games.Count();
+    //
+    // Leaving - a game taken off the row (removed from your games, unfavourited) fades out where it was, then its
+    // cell closes up so the ones after it slide over, rather than them all jumping
+    //
+
+    record struct Leaving( int Index, WorkshopItemDetails Item, RealTimeSince Since );
+
+    readonly List<Leaving> leaving = new();
+
+    /// <summary>
+    /// What the row showed last time it was looked at - what's gone from it since is leaving
+    /// </summary>
+    WorkshopItemDetails[] lastGames;
+
+    /// <summary>
+    /// How long one that's leaving stays - its card fading, then its cell closing (GameShelf.razor.scss)
+    /// </summary>
+    const float LeaveTime = 0.45f;
+
+    /// <summary>
+    /// The games, with the ones leaving back where they were
+    /// </summary>
+    IEnumerable<(WorkshopItemDetails Item, bool Leaving)> WithLeaving
+    {
+        get
+        {
+            var list = Games.Select( x => (x, false) ).ToList();
+            foreach ( var gone in leaving.OrderBy( x => x.Index ) )
+                list.Insert( Math.Min( gone.Index, list.Count ), (gone.Item, true) );
+
+            return list;
+        }
+    }
+
+    void TickLeaving()
+    {
+        var changed = leaving.RemoveAll( x => x.Since > LeaveTime ) > 0;
+
+        // Only once it's got games - not while they're being fetched again
+        if ( Row?.Games is not { } all )
+        {
+            lastGames = null;
+            if ( changed ) StateHasChanged();
+            return;
+        }
+
+        var shown = Games.ToArray();
+
+        // Gone from the row altogether - not just pushed off the end of it
+        if ( lastGames is not null )
+        {
+            for ( var i = 0; i < lastGames.Length; i++ )
+            {
+                var game = lastGames[i];
+                if ( all.Any( x => x.Id == game.Id ) || leaving.Any( x => x.Item.Id == game.Id ) ) continue;
+
+                leaving.Add( new Leaving( i, game, 0 ) );
+                changed = true;
+            }
+        }
+
+        // Back again before it'd gone
+        changed |= leaving.RemoveAll( x => shown.Any( s => s.Id == x.Item.Id ) ) > 0;
+
+        lastGames = shown;
+        if ( changed ) StateHasChanged();
+    }
 
     int Columns = 1;
 
@@ -126,6 +183,11 @@
     int CardSize = 248;
 
     string CellStyle => $"width: {CardSize + CardInset * 2}px; height: {CardSize + GameCard.InfoHeight + CardInset * 2}px;";
+
+    /// <summary>
+    /// A leaving one's cell - closed up, the stylesheet easing it there
+    /// </summary>
+    string LeavingStyle => $"width: 0px; height: {CardSize + GameCard.InfoHeight + CardInset * 2}px;";
 
     /// <summary>
     /// How tall it is with just its header and first row of cards showing
@@ -160,6 +222,8 @@
     {
         base.Tick();
 
+        TickLeaving();
+
         if ( !Cards.IsValid() ) return;
 
         // Without the cells' insets at either end - the row's pulled out by them
@@ -176,5 +240,5 @@
         StateHasChanged();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Row, Row?.Games, Skip?.Count, Local, HashCode.Combine( CardSize, Columns, MaxRows ) );
+    protected override int BuildHash() => HashCode.Combine( Row, Row?.Games, Skip?.Count, Local, HashCode.Combine( CardSize, Columns, MaxRows, leaving.Count ) );
 }

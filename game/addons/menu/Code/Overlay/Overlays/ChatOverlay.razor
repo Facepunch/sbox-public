@@ -41,9 +41,9 @@
     bool InParty => Preferences.ChatEnabled && PartyRoom.Current is not null && (MenuShowing || WantsChat);
 
     /// <summary>
-    /// Not in a game, or in one with the menu up over it.
+    /// Not in a game, on a game's own menu scene, or in one with the menu up over it.
     /// </summary>
-    bool MenuShowing => !Game.InGame || Game.IsMainMenuVisible || ModalSystem.Instance?.IsPauseMenuOpen == true;
+    bool MenuShowing => !Game.InGame || Game.IsOnMenu || Game.IsMainMenuVisible || ModalSystem.Instance?.IsPauseMenuOpen == true;
 
     /// <summary>
     /// Is the chat available for us?

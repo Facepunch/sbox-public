@@ -71,6 +71,27 @@ GameCard
 		color: $platform-primary-text;
 	}
 
+	// Downloaded, but there's a newer one - an amber glyph in a dark chip on the art's top right corner
+	.outdated
+	{
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		width: 26px;
+		height: 26px;
+		align-items: center;
+		justify-content: center;
+		border-radius: $platform-radius;
+		border: 1px solid rgba( $front-trophy, 0.45 );
+		background-color: rgba( 12, 15, 22, 0.85 );
+		color: $front-trophy;
+
+		i
+		{
+			font-size: 17px;
+		}
+	}
+
 	// What it is, under the art - its rating, what it's called, who made it. GameCard.InfoHeight tall.
 	.info
 	{
@@ -112,25 +133,43 @@ GameCard
 		}
 	}
 
-	// Subscribed or not, and the way to change it - a tick when it is, an x pointed at to unsubscribe; a plus to
-	// subscribe when it isn't, only with the pointer on the card
-	.badge
+	// On the art's bottom right corner - favourite it, and subscribe to it. The same button twice: dark with a lit glyph once
+	// it's on (a gold star, a green tick - an x pointed at to unsubscribe), and only with the pointer on the card when
+	// it isn't, a gold and a green gradient with a dark glyph so it's plain what they're for. They pop in with the
+	// pointer, swell under it, sink when pressed, and their glyph bounces when they're turned on
+	.actions
 	{
-		width: 18px;
-		height: 18px;
+		position: absolute;
+		bottom: 8px;
+		right: 8px;
+		gap: 6px;
+	}
+
+	// One that's off isn't there at all without the pointer on the card, so one that's on sits in the corner
+	.action
+	{
+		display: none;
+		width: 30px;
+		height: 30px;
 		align-items: center;
 		justify-content: center;
-		border-radius: 2px;
-		background-color: rgba( 255, 255, 255, 0.12 );
+		border-radius: $platform-radius;
+		border: 1px solid rgba( 255, 255, 255, 0.08 );
+		background-color: rgba( 12, 15, 22, 0.85 );
+		background-image: linear-gradient( 180deg, rgba( 40, 46, 62, 0.95 ), rgba( 12, 15, 22, 0.95 ) );
+		box-shadow: 0 2px 6px rgba( 0, 0, 0, 0.45 );
 		color: $platform-text;
 		cursor: pointer;
 		@include platform-press-sound;
-		opacity: 0;
-		transition: opacity 0.12s ease, background-color 0.12s ease;
+		transform: scale( 1 );
+		transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out;
+		animation-name: action-in;
+		animation-duration: 0.22s;
+		animation-timing-function: ease-out;
 
 		i
 		{
-			font-size: 14px;
+			font-size: 20px;
 		}
 
 		.hover
@@ -140,13 +179,71 @@ GameCard
 
 		&.on
 		{
-			opacity: 1;
+			display: flex;
+
+			i
+			{
+				animation-name: action-pop;
+				animation-duration: 0.35s;
+				animation-timing-function: ease-out;
+			}
 		}
 
 		&:hover
 		{
-			background-color: $platform-primary;
-			color: $platform-primary-text;
+			transform: scale( 1.1 );
+			box-shadow: 0 4px 12px rgba( 0, 0, 0, 0.55 );
+		}
+
+		&:active
+		{
+			transform: scale( 0.92 );
+			transition: transform 0.06s ease-out;
+		}
+	}
+
+	&:hover .action
+	{
+		display: flex;
+	}
+
+	.favourite
+	{
+		border-color: rgba( 255, 236, 180, 0.55 );
+		background-color: $front-trophy;
+		background-image: linear-gradient( 160deg, #ffe08f, $front-trophy 55%, #c98a1c );
+		color: #2a1c02;
+
+		&:hover
+		{
+			box-shadow: 0 4px 14px rgba( $front-trophy, 0.55 );
+		}
+
+		&.on
+		{
+			border-color: rgba( $front-trophy, 0.45 );
+			background-color: rgba( 12, 15, 22, 0.85 );
+			background-image: linear-gradient( 160deg, rgba( 74, 58, 26, 0.95 ), rgba( 12, 15, 22, 0.95 ) 70% );
+			box-shadow: 0 2px 10px rgba( $front-trophy, 0.3 );
+			color: $front-trophy;
+		}
+
+		&.on:hover
+		{
+			box-shadow: 0 4px 14px rgba( $front-trophy, 0.5 );
+		}
+	}
+
+	.subscribe
+	{
+		border-color: rgba( 190, 255, 215, 0.5 );
+		background-color: $platform-good;
+		background-image: linear-gradient( 160deg, #8ef0b2, $platform-good 55%, #239a55 );
+		color: #06210f;
+
+		&:hover
+		{
+			box-shadow: 0 4px 14px rgba( $platform-good, 0.55 );
 
 			.state
 			{
@@ -159,22 +256,24 @@ GameCard
 			}
 		}
 
+		&.on
+		{
+			border-color: rgba( $platform-good, 0.45 );
+			background-color: rgba( 12, 15, 22, 0.85 );
+			background-image: linear-gradient( 160deg, rgba( 22, 70, 44, 0.95 ), rgba( 12, 15, 22, 0.95 ) 70% );
+			box-shadow: 0 2px 10px rgba( $platform-good, 0.3 );
+			color: $platform-good;
+		}
+
+		// Pointed at to unsubscribe - red
 		&.on:hover
 		{
+			border-color: rgba( 255, 190, 195, 0.5 );
 			background-color: $platform-danger;
+			background-image: linear-gradient( 160deg, #ff8f98, $platform-danger 55%, #c93542 );
+			box-shadow: 0 4px 14px rgba( $platform-danger, 0.5 );
+			color: $platform-primary-text;
 		}
-	}
-
-	&:hover .badge
-	{
-		opacity: 1;
-	}
-
-	.favourite
-	{
-		margin-left: 4px;
-		font-size: 16px;
-		color: $front-trophy;
 	}
 
 	.name
@@ -206,4 +305,19 @@ GameCard
 	}
 
 	@include platform-verified( 13px );
+}
+
+// Up with the pointer - from small and low
+@keyframes action-in
+{
+	0% { opacity: 0; transform: scale( 0.6 ) translateY( 6px ); }
+	100% { opacity: 1; transform: scale( 1 ) translateY( 0 ); }
+}
+
+// Turned on - the glyph bounces
+@keyframes action-pop
+{
+	0% { transform: scale( 0.4 ); }
+	55% { transform: scale( 1.35 ); }
+	100% { transform: scale( 1 ); }
 }

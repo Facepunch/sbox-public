@@ -205,8 +205,8 @@
                             @if ( IsGame && !IsCurrent && PlatformMenu.CanChangeGame )
                             {
                                 <div class="action primary" onclick=@Switch>
-                                    <i>@(Downloaded ? "check" : "download")</i>
-                                    <label>@(Downloaded ? "Select" : "Download")</label>
+                                    <i>@(Downloaded ? "play_arrow" : "download")</i>
+                                    <label>@(Downloaded ? "Play" : "Download")</label>
                                 </div>
                             }
                             else if ( IsGame )

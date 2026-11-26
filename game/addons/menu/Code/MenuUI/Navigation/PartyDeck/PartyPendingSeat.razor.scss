@@ -21,33 +21,26 @@ PartyPendingSeat
 		transition: all 0.1s ease;
 	}
 
-	// The same corner chip as a face's status (PartyMember), an hourglass in it
+	// The same corner chip as a face's status (PartyMember) - grey, an hourglass in it
 	.pending-badge
 	{
 		pointer-events: none;
 		position: absolute;
-		bottom: -3px;
-		right: -3px;
-		width: 14px;
-		height: 14px;
+		bottom: -2px;
+		right: -2px;
+		width: 18px;
+		height: 18px;
 		align-items: center;
 		justify-content: center;
-		border-radius: 50%;
-		border: 0.5px solid rgba( 255, 255, 255, 0.25 );
-		background-color: rgba( 12, 15, 22, 0.92 );
-		transition: background-color 0.1s ease, border-color 0.1s ease;
+		border-radius: 9px;
+		border: 2px solid #11141d;
+		background-color: #3a4152;
+		transition: background-color 0.1s ease;
 
-		// A square of its own as wide as the glyph, an even pixel in from each side of the chip's 13 inside -
-		// a 10px one landed on half a pixel and the narrow ones (!) sat off to a side
 		icon
 		{
-			width: 11px;
-			height: 11px;
 			font-size: 11px;
-			text-align: center;
-			justify-content: center;
-			align-items: center;
-			color: $platform-muted;
+			color: #ffffff;
 		}
 
 		.dismiss

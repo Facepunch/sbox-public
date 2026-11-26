@@ -155,12 +155,40 @@ public static class PlatformMenu
 
 	const string GameCookie = "platform.game";
 	const string RecentCookie = "platform.recent";
-	const int MaxRecent = 16;
+	const int MaxRecent = 7;
 
 	static List<ulong> Recent
 	{
-		get => Game.Cookies.Get( RecentCookie, new List<ulong>() );
+		get => Game.Cookies.Get( RecentCookie, new List<ulong>() ).Take( MaxRecent ).ToList();
 		set => Game.Cookies.Set( RecentCookie, value );
+	}
+
+	/// <summary>
+	/// The game can come out of your games - not the one you're on
+	/// </summary>
+	public static bool CanRemoveFromLibrary( ulong id ) => id != 0 && id != CurrentId;
+
+	/// <summary>
+	/// Out of your recent games - playing it again puts it back. Still under Downloaded while it's installed.
+	/// </summary>
+	public static void RemoveFromLibrary( ulong id )
+	{
+		if ( !CanRemoveFromLibrary( id ) ) return;
+
+		Recent = Recent.Where( x => x != id ).ToList();
+		YourGames.Remove( id );
+	}
+
+	/// <summary>
+	/// Off this machine - unsubscribed, or a download that was only to play let go; Steam deletes it once the game's
+	/// closed. Not the one you're on.
+	/// </summary>
+	public static void DeleteDownload( WorkshopItemDetails item )
+	{
+		if ( item is null || !CanRemoveFromLibrary( item.Id ) ) return;
+
+		MenuUtility.RemoveWorkshopDownload( new WorkshopStorageItem( item, "Game", 0, MenuUtility.IsSubscribed( item.Id ) ) );
+		Downloaded.Remove( item.Id );
 	}
 
 	static void Remember( ulong id )
@@ -177,6 +205,9 @@ public static class PlatformMenu
 		// Your games has it first straight away, and fetches again for one it hadn't got - ready before it's opened
 		YourGames.MoveToFront( id );
 		_ = YourGames.RefreshAsync();
+
+		// And it's downloaded now, or will be
+		_ = Downloaded.RefreshAsync();
 	}
 
 	//
@@ -282,6 +313,7 @@ public static class PlatformMenu
 	{
 		_ = YourGames.RefreshAsync();
 		_ = Favourites.RefreshAsync();
+		_ = Downloaded.RefreshAsync();
 		_ = RefreshFavouriteIdsAsync();
 	}
 
@@ -313,12 +345,16 @@ public static class PlatformMenu
 		if ( favourite ) FavouriteIds.Add( id );
 		else FavouriteIds.Remove( id );
 
+		// Off the row straight away - the refresh below puts it back if the Workshop didn't take it
+		if ( !favourite ) Favourites.Remove( id );
+
 		if ( !await MenuUtility.FavouriteOnWorkshopAsync( id, favourite ) )
 		{
 			if ( favourite ) FavouriteIds.Remove( id );
 			else FavouriteIds.Add( id );
 
 			MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast { Title = "Couldn't change your favourites", Icon = "star" } );
+			_ = Favourites.RefreshAsync();
 			return;
 		}
 
@@ -601,9 +637,10 @@ public static class PlatformMenu
 	//
 
 	/// <summary>
-	/// Your games - installed local addons, then Workshop games played here lately and installed Workshop games.
+	/// Your library - installed local addons, then the Workshop games played here lately. Everything else installed is
+	/// under <see cref="Downloaded"/>.
 	/// </summary>
-	public static GameRow YourGames { get; } = new( "Your games", "sports_esports", FindYourGames );
+	public static GameRow YourGames { get; } = new( "Recents", "sports_esports", FindYourGames );
 
 	/// <summary>
 	/// The games you've favourited on the Workshop - under your recent ones, when there are any. Asked for again every time
@@ -611,12 +648,24 @@ public static class PlatformMenu
 	/// </summary>
 	public static GameRow Favourites { get; } = new( "Favourites", "star", MenuUtility.FindFavouriteWorkshopGamesAsync );
 
-	static async Task<WorkshopItemDetails[]> FindYourGames()
+	/// <summary>
+	/// Every Workshop game downloaded here - under your favourites, for the ones the library's first row hasn't room for,
+	/// and those taken out of the library: it's what's on disk, whatever's in your library
+	/// </summary>
+	public static GameRow Downloaded { get; } = new( "Downloaded", "download_done", () => FindGames( [], false ) );
+
+	static Task<WorkshopItemDetails[]> FindYourGames() => FindGames( Recent, true );
+
+	/// <summary>
+	/// The Workshop games - <paramref name="recent"/> first, then everything installed, or with <paramref name="onlyRecent"/>
+	/// just them - less those that are a local game already
+	/// </summary>
+	static async Task<WorkshopItemDetails[]> FindGames( List<ulong> recent, bool onlyRecent )
 	{
 		LocalGames = MenuUtility.FindInstalledGames();
 
-		var games = await MenuUtility.FindYourWorkshopGamesAsync( Recent );
-		return games.Where( x => !LocalGames.Any( local => string.Equals( local.FullIdent.Split( '#' )[0],
+		var games = await MenuUtility.FindYourWorkshopGamesAsync( recent );
+		return games.Where( x => (!onlyRecent || recent.Contains( x.Id )) && !LocalGames.Any( local => string.Equals( local.FullIdent.Split( '#' )[0],
 			x.KeyValues.GetValueOrDefault( "package" ), StringComparison.OrdinalIgnoreCase ) ) ).ToArray();
 	}
 

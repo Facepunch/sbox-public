@@ -30,7 +30,8 @@
         </thead>
 
         <tbody @ref="Body">
-            @if ( Loading )
+            @* Only before the first ones are in - they come in as they're found, and the shapes stayed under them *@
+            @if ( Loading && Sorted.Count == 0 )
             {
                 @* A server row's shape in each column - its game, who's hosting, its name, map, how full and ping *@
                 @for ( var i = 0; i < 12; i++ )
@@ -116,6 +117,9 @@
         @* Comes up over the table's bottom when one's first picked - and what's in it fades across to the next *@
         <div class="band">
             <div class="card" @key=@picked.LobbyId>
+                @* Put away - back to just the list *@
+                <div class="dismiss" tooltip="Close" onclick=@( () => selected = 0 )><i>close</i></div>
+
                 @* Its map, like a package card - just to see, not to open: its page would let you start it in any game,
                    and you pick the game first. *@
                 <div class="map" style="@MenuHelpers.BackgroundImage( CardArt( picked ) )" tooltip="@MenuHelpers.MapTitle( picked.Map )">
@@ -129,47 +133,63 @@
                     <label class="server-name">@picked.Name</label>
                     <label class="where">@WhereText( picked )</label>
 
-                    @* What else there is to know - plain, a glyph and its words each *@
-                    <div class="facts">
-                        <div class="fact"><i>group</i><label>@($"{picked.Members} / {picked.MaxMembers}")</label></div>
-                        <div class="fact ping @MenuHelpers.PingClass( picked.Ping )">
-                            <div class="ping-bars">@for ( var i = 0; i < 4; i++ ) { <div class="bar @(i < PingBars( picked ) ? "on" : "")"></div> }</div>
-                            <label>@PingText( picked )</label>
+                    @* What there is to know about it - a tile each *@
+                    <div class="stats">
+                        <div class="stat players">
+                            <div class="value">
+                                <label>@picked.Members</label><label class="of">@($"/ {picked.MaxMembers}")</label>
+                                <div class="fill-track"><div class="fill" style="width: @FullPercent( picked )%;"></div></div>
+                            </div>
+                        </div>
+
+                        <div class="stat ping @MenuHelpers.PingClass( picked.Ping )">
+                            <div class="value">
+                                <div class="ping-bars">@for ( var i = 0; i < 4; i++ ) { <div class="bar @(i < PingBars( picked ) ? "on" : "")"></div> }</div>
+                                <label>@PingText( picked )</label>
+                            </div>
                         </div>
 
                         @if ( IsDedicated( picked ) )
                         {
-                            <div class="fact"><i>dns</i><label>Dedicated</label></div>
+                            <div class="stat">
+                                <div class="value"><i>dns</i><label>Dedicated</label></div>
+                            </div>
                         }
                         else if ( HostName( picked ) is { } host )
                         {
-                            <div class="fact host @(HostIsFriend( picked ) ? "friend" : "")">
-                                <div class="avatar" style="background-image: url( avatar:@picked.OwnerId );"></div>
-                                <label>@host</label>
+                            <div class="stat host @(HostIsFriend( picked ) ? "friend" : "")">
+                                <div class="value"><div class="avatar" style="background-image: url( avatar:@picked.OwnerId );"></div><label>@host</label></div>
                             </div>
                         }
 
                         @if ( FriendsOn( picked ) is { Count: > 0 } friends )
                         {
-                            <div class="fact friend">
-                                @foreach ( var friend in friends.Take( 4 ) )
-                                {
-                                    <div class="avatar" style="background-image: url( avatar:@friend.Id );"></div>
-                                }
-                                <label>@FriendsText( friends.Count )</label>
+                            <div class="stat friend">
+                                <div class="value">
+                                    <div class="faces">
+                                        @foreach ( var friend in friends.Take( 4 ) )
+                                        {
+                                            <div class="avatar" style="background-image: url( avatar:@friend.Id );"></div>
+                                        }
+                                    </div>
+                                    <label>@friends.Count</label>
+                                </div>
                             </div>
                         }
 
                         @if ( picked.IsPasswordProtected )
                         {
-                            <div class="fact"><i>lock</i><label>Password</label></div>
+                            <div class="stat locked">
+                                <div class="value"><i>lock</i><label>Password</label></div>
+                            </div>
                         }
-                    </div>
-                </div>
 
-                <div class="join @(WhyNotJoin( picked ) is null ? "" : "disabled")" tooltip="@(WhyNotJoin( picked ) ?? "")" onclick=@( () => Join( picked ) )>
-                    <i>@(picked.IsOutdated ? "update" : picked.IsFull ? "block" : "play_arrow")</i>
-                    <label>@(picked.IsOutdated ? (picked.IsNewerVersion ? "Newer version" : "Outdated") : picked.IsFull ? "Full" : "Join")</label>
+                        @* The way in, at the end of the row *@
+                        <div class="join @(WhyNotJoin( picked ) is null ? "" : "disabled")" tooltip="@(WhyNotJoin( picked ) ?? "")" onclick=@( () => Join( picked ) )>
+                            <i>@(picked.IsOutdated ? "update" : picked.IsFull ? "block" : "play_arrow")</i>
+                            <label>@(picked.IsOutdated ? (picked.IsNewerVersion ? "Newer version" : "Outdated") : picked.IsFull ? "Full" : "Join")</label>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -294,12 +314,19 @@
         return ShowGame ? $"{MenuHelpers.CachedTitle( server.Game )} · {map}" : map;
     }
 
-    static string FriendsText( int count ) => count == 1 ? "1 friend" : $"{count} friends";
+    /// <summary>
+    /// How full it is, as a percentage - its players' tile's bar
+    /// </summary>
+    static string FullPercent( LobbyInformation server ) => server.MaxMembers <= 0 ? "0"
+        : (Math.Clamp( (float)server.Members / server.MaxMembers, 0, 1 ) * 100).ToString( "0.#", System.Globalization.CultureInfo.InvariantCulture );
 
     static List<Friend> FriendsOn( LobbyInformation server ) => MenuHelpers.FriendsPlaying.ByLobby.GetValueOrDefault( server.LobbyId ) ?? [];
 
     bool HasFriends( LobbyInformation server ) => HostIsFriend( server ) || FriendsOn( server ).Count > 0;
 
+    /// <summary>
+    /// Its map's thumb, or failing that its game's
+    /// </summary>
     static string CardArt( LobbyInformation server )
     {
         if ( MenuHelpers.MapThumb( server.Map ) is { Length: > 0 } map ) return map;

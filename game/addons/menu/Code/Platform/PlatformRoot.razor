@@ -34,9 +34,17 @@
     <div class="blur @(Covered && !PlatformMenu.IsSwitching ? "on" : "")" onclick=@ClickedAway></div>
 
     @* Up for a switch - a dim if it's taking a while, all the way over a game's own scene going, and a spinner only while
-       it's downloading *@
+       it's downloading, with what's coming down and how far it's got under it *@
     <div class="veil @(PlatformMenu.IsSwitching ? "on" : "") @(PlatformMenu.IsCovering ? "cover" : "")">
         <Spinner class="large @(Downloading ? "on" : "")" />
+        <div class="download @(Downloading ? "on" : "")">
+            @if ( Downloading )
+            {
+                <label class="title">@DownloadTitle</label>
+                <div class="bar"><div class="fill" style="width: @((DownloadFraction * 100).ToString( "0.##", System.Globalization.CultureInfo.InvariantCulture ))%;"></div></div>
+                <label class="amount">@DownloadAmount</label>
+            }
+        </div>
     </div>
 
     <ShelfPanel @ref="Shelves" Hidden=@PlatformMenu.IsSwitching />
@@ -201,6 +209,55 @@
     bool Covered => PlatformMenu.IsSwitching || Shelf is not null || SettingsPage is not null;
 
     static bool Downloading => PlatformMenu.IsSwitching && LoadingView.Downloads.Count > 0;
+
+    /// <summary>
+    /// What's coming down for the switch - "Downloading Sandbox", or a count once it's more than one thing
+    /// </summary>
+    static string DownloadTitle
+    {
+        get
+        {
+            var going = LoadingView.Downloads.Where( x => !x.Complete ).ToList();
+            if ( going.Count > 1 ) return $"Downloading {going.Count} packages";
+            return $"Downloading {going.FirstOrDefault().Title ?? PlatformMenu.Title ?? "game"}";
+        }
+    }
+
+    /// <summary>
+    /// How far through all of it, 0 to 1 - by bytes when they're known, by downloads when they aren't
+    /// </summary>
+    static double DownloadFraction
+    {
+        get
+        {
+            var downloads = LoadingView.Downloads;
+            if ( downloads.Count == 0 ) return 0;
+
+            var size = downloads.Sum( x => x.Size );
+            return downloads.All( x => x.Size > 0 )
+                ? downloads.Sum( x => x.Size * Math.Clamp( x.Fraction, 0, 1 ) ) / size
+                : downloads.Average( x => Math.Clamp( x.Fraction, 0, 1 ) );
+        }
+    }
+
+    /// <summary>
+    /// "120 MB of 1.1 GB · 48 Mbps" - the percentage when the sizes aren't known
+    /// </summary>
+    static string DownloadAmount
+    {
+        get
+        {
+            var downloads = LoadingView.Downloads;
+            var fraction = DownloadFraction;
+            var mbps = downloads.Where( x => !x.Complete ).Sum( x => x.Mbps );
+
+            var amount = downloads.All( x => x.Size > 0 )
+                ? $"{MenuProject.Overlay.Overlays.LoadingOverlay.SizeIn( downloads.Sum( x => x.Size ) * fraction, downloads.Sum( x => x.Size ) )} of {MenuProject.Overlay.Overlays.LoadingOverlay.Size( downloads.Sum( x => x.Size ) )}"
+                : $"{fraction * 100:0}%";
+
+            return mbps > 0 ? $"{amount} · {mbps:0} Mbps" : amount;
+        }
+    }
 
     /// <summary>
     /// The menu is up with nothing open over the front
@@ -645,5 +702,5 @@
         MenuUtility.SetSafeArea( null );
     }
 
-    protected override int BuildHash() => HashCode.Combine( Visible, ShowFront, Paused, Shelf, SettingsPage, HashCode.Combine( backdrops.Count, backdropsAdded, Paging ), HashCode.Combine( PlatformMenu.IsSwitching, PlatformMenu.IsCovering, Downloading, Side, ClicksOff ) );
+    protected override int BuildHash() => HashCode.Combine( Visible, ShowFront, Paused, Shelf, SettingsPage, HashCode.Combine( backdrops.Count, backdropsAdded, Paging ), HashCode.Combine( PlatformMenu.IsSwitching, PlatformMenu.IsCovering, Downloading, Side, ClicksOff ), Downloading ? HashCode.Combine( DownloadTitle, DownloadAmount, (int)(DownloadFraction * 1000) ) : 0 );
 }

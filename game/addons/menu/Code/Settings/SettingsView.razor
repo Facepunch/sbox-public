@@ -11,6 +11,11 @@
 
 	<div class="rail">
 
+		@if ( OnCancel is not null )
+		{
+			<div class="back" onclick=@Back><i>arrow_back</i><label>Back</label></div>
+		}
+
 		@if ( !string.IsNullOrEmpty( Heading ) )
 		{
 			<label class="heading">@Heading</label>
@@ -39,7 +44,7 @@
 	<div class="body">
 
 		<PanelHead Icon=@(Searching ? "search" : SubPage?.Icon ?? Current?.Icon) Title=@(Searching ? "#menu.common.search" : SubPage?.Title ?? Current?.Title)
-		           Back=@(SubPage is { } sub && !Searching ? sub.Back : OnCancel is null ? null : (Action)Back) Search="#menu.settings.search_settings" OnSearch=@(SearchInBar ? (Action<string>)OnSearchEdited : null) />
+		           Back=@(SubPage is { } sub && !Searching ? sub.Back : null) Search="#menu.settings.search_settings" OnSearch=@(SearchInBar ? (Action<string>)OnSearchEdited : null) />
 
 		@if ( Searching )
 		{

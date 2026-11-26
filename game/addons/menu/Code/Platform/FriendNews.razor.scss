@@ -1,12 +1,13 @@
 @import "/Platform/_platform.scss";
 
-// Centred just above the dock, sliding up into view when there's something to show
+// Centred just above the dock, sliding up into view when there's something to show - a slim card as the platform's
+// panels are, one line: their face, who it is, and what they've started playing in green
 FriendNews
 {
 	position: absolute;
 	left: 0;
 	right: 0;
-	bottom: 56px;
+	bottom: 60px;
 	justify-content: center;
 	pointer-events: none;
 	opacity: 0;
@@ -26,22 +27,24 @@ FriendNews
 
 	.news
 	{
-		height: 38px;
+		@include platform-surface;
+
+		flex-direction: row;
+		height: 40px;
 		align-items: center;
-		gap: 8px;
-		padding: 0 6px 0 8px;
-		border-radius: 19px;
-		border: 1px solid rgba( 128, 175, 255, 0.16 );
-		background-color: rgba( 14, 22, 40, 0.88 );
-		backdrop-filter: blur( 16px );
-		box-shadow: 0 12px 30px rgba( 0, 0, 0, 0.4 );
-		font-family: $platform-font;
+		gap: 5px;
+		padding: 0 6px 0 7px;
+		border: 1px solid rgba( 255, 255, 255, 0.06 );
+		box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.45 );
+		cursor: pointer;
 	}
 
 	.face
 	{
-		width: 24px;
-		height: 24px;
+		flex-shrink: 0;
+		width: 26px;
+		height: 26px;
+		margin-right: 3px;
 		border-radius: 50%;
 		background-size: cover;
 		background-position: center;
@@ -50,38 +53,51 @@ FriendNews
 	.name
 	{
 		font-size: 13px;
-		font-weight: 700;
+		font-weight: 600;
 		color: $platform-text;
+		white-space: nowrap;
 	}
 
-	.what
+	.verb
 	{
-		margin: 0 6px 0 -4px;
 		font-size: 13px;
-		color: #cdd8ee;
+		color: $platform-muted;
+		white-space: nowrap;
+	}
+
+	.game
+	{
+		font-size: 13px;
+		font-weight: 600;
+		color: $platform-good;
+		white-space: nowrap;
 	}
 
 	// The same green as joining elsewhere
 	.join
 	{
-		height: 26px;
+		flex-shrink: 0;
+		height: 28px;
+		margin-left: 7px;
 		align-items: center;
 		padding: 0 12px;
-		border-radius: 13px;
-		background-color: $platform-reward;
+		border-radius: $platform-radius;
+		background-color: $platform-good;
+		background-image: linear-gradient( 160deg, #8ef0b2, $platform-good 55%, #239a55 );
 		cursor: pointer;
 		@include platform-sounds;
+		transition: box-shadow 0.15s ease-out;
 
 		label
 		{
 			font-size: 12px;
 			font-weight: 700;
-			color: #062a12;
+			color: #06210f;
 		}
 
 		&:hover
 		{
-			background-color: #52d47c;
+			box-shadow: 0 4px 14px rgba( $platform-good, 0.5 );
 		}
 	}
 }

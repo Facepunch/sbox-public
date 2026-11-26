@@ -83,14 +83,18 @@ public static partial class MenuUtility
 
 	/// <summary>
 	/// Games on the Workshop, a page at a time - for a list that loads more as it's
-	/// scrolled. With <paramref name="mine"/>, just what you've published - friends only and private too.
+	/// scrolled. With <paramref name="mine"/>, just what you've published - friends only and private too. With
+	/// <paramref name="subscribed"/>, just the ones you're subscribed to.
 	/// </summary>
-	public static WorkshopItemSearch SearchWorkshopGames( string search = null, Sandbox.Storage.SortOrder? sort = null, IEnumerable<string> tags = null, bool mine = false )
+	public static WorkshopItemSearch SearchWorkshopGames( string search = null, Sandbox.Storage.SortOrder? sort = null, IEnumerable<string> tags = null, bool mine = false, bool subscribed = false )
 	{
 		var query = new Workshop.Query( search ).WithType( Workshop.ItemType.Game );
 
 		if ( mine )
 			query.WithAuthor( Game.SteamId );
+
+		if ( subscribed )
+			query.WithSubscribed();
 
 		foreach ( var tag in tags ?? [] )
 			query.WithTag( tag );

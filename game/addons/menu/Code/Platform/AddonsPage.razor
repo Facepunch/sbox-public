@@ -9,6 +9,7 @@
 <root>
     <div class="side">
         <div class="above"></div>
+        <div class="back" onclick=@Back><i>arrow_back</i><label>Back</label></div>
         <label class="heading">Addons</label>
         <div class="rail" @ref="rail">
             @foreach ( var (key, title, icon) in Sources )
@@ -31,7 +32,7 @@
     </div>
 
     <div class="panel">
-        <PanelHead Title=@Heading Icon="extension" Art=@PlatformMenu.Art Back=@Back
+        <PanelHead Title=@Heading Icon="extension" Art=@PlatformMenu.Art
                    Search="Search addons for this game" OnSearch=@Typed>
             <Tools>
                 <div class="tool" tooltip="Refresh" onclick=@Search><i>refresh</i></div>

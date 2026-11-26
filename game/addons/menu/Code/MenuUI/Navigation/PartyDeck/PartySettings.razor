@@ -26,7 +26,7 @@
 
 	<div class="settings-row">
 		<label class="field-title">#menu.party.name</label>
-		@if ( CanEdit )
+		@if ( ShowEditors )
 		{
 			<TextEntry Value=@Name OnTextEdited=@EditName MaxLength=@PartyRoom.MaxNameLength Placeholder="#menu.party.name_your_party" onsubmit=@SaveName onblur=@SaveName disabled=@(Draft?.Creating == true) />
 		}
@@ -38,7 +38,7 @@
 
 	<div class="settings-row">
 		<label class="field-title">#menu.party.max_members</label>
-		@if ( CanEdit )
+		@if ( ShowEditors )
 		{
 			<SliderControl Value=@((float)MaxMembers) OnValueChanged=@SetMaxMembers Min=@((float)Math.Max( 1, MemberCount )) Max=@((float)PartyDeck.MAX_MEMBERS) Step=@(1f) ShowTextEntry=@true />
 		}

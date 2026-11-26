@@ -11,34 +11,152 @@ AddonCard
 	overflow: hidden;
 	cursor: pointer;
 	@include platform-sounds;
+	transform: scale( 1 );
+	transition: transform 0.15s ease-out, background-color 0.15s ease-out;
 
-	&.disabled-addon .art
+	// Under the pointer - up a touch, and lighter
+	&:hover
 	{
-		opacity: 0.45;
-	}
+		transform: scale( 1.02 );
+		background-color: #222a3a;
+		z-index: 1;
 
-	.toggle
-	{
-		position: absolute;
-		top: 5px;
-		left: 5px;
-		padding: 2px;
-		border-radius: 4px;
-		background-color: rgba( 7, 17, 32, 0.85 );
-		color: white;
-		font-size: 20px;
-		opacity: 0;
-		transition: opacity 0.1s ease;
-
-		&:hover
+		.art .image
 		{
-			background-color: $platform-button;
+			filter: brightness( 1.12 );
 		}
 	}
 
-	&:hover .toggle
+	// Subscribed, but off in this game - its picture greyed right back, not the button over it
+	&.off .art .image
 	{
-		opacity: 1;
+		opacity: 0.4;
+		filter: saturate( 0 );
+	}
+
+	&.off:hover .art .image
+	{
+		opacity: 0.55;
+		filter: saturate( 0 ) brightness( 1.12 );
+	}
+
+	// On the art's bottom right corner, as a game's card has them (GameCard) - one at a time: the active tick once
+	// it's subscribed, the subscribe button when it isn't. Only the tick of one that's on is there without the pointer
+	// on the card.
+	.actions
+	{
+		position: absolute;
+		bottom: 6px;
+		right: 6px;
+		gap: 5px;
+	}
+
+	.action
+	{
+		display: none;
+		width: 26px;
+		height: 26px;
+		align-items: center;
+		justify-content: center;
+		border-radius: $platform-radius;
+		border: 1px solid rgba( 255, 255, 255, 0.08 );
+		background-color: rgba( 12, 15, 22, 0.85 );
+		background-image: linear-gradient( 180deg, rgba( 40, 46, 62, 0.95 ), rgba( 12, 15, 22, 0.95 ) );
+		box-shadow: 0 2px 6px rgba( 0, 0, 0, 0.45 );
+		color: $platform-text;
+		cursor: pointer;
+		@include platform-press-sound;
+		transform: scale( 1 );
+		transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+
+		i
+		{
+			font-size: 17px;
+		}
+
+		&.on
+		{
+			display: flex;
+		}
+
+		&:hover
+		{
+			transform: scale( 1.1 );
+		}
+
+		&:active
+		{
+			transform: scale( 0.92 );
+			transition: transform 0.06s ease-out;
+		}
+	}
+
+	&:hover .action
+	{
+		display: flex;
+	}
+
+	// Subscribed - lit green while it's active in this game, always there; while it isn't, only with the pointer on the
+	// card, as the subscribe one is
+	.active
+	{
+		border-color: rgba( 255, 255, 255, 0.28 );
+		color: #d5dbe8;
+
+		&.on
+		{
+			border-color: rgba( $platform-good, 0.45 );
+			background-image: linear-gradient( 160deg, rgba( 22, 70, 44, 0.95 ), rgba( 12, 15, 22, 0.95 ) 70% );
+			box-shadow: 0 2px 10px rgba( $platform-good, 0.3 );
+			color: $platform-good;
+		}
+
+		// Pointed at, what clicking does - a cross to turn it off, red; a tick to turn it on, green
+		.hover
+		{
+			display: none;
+		}
+
+		&:hover
+		{
+			.state
+			{
+				display: none;
+			}
+
+			.hover
+			{
+				display: flex;
+			}
+		}
+
+		&:hover:not(.on)
+		{
+			border-color: rgba( $platform-good, 0.45 );
+			color: $platform-good;
+		}
+
+		&.on:hover
+		{
+			border-color: rgba( 255, 190, 195, 0.5 );
+			background-image: linear-gradient( 160deg, #ff8f98, $platform-danger 55%, #c93542 );
+			box-shadow: 0 4px 14px rgba( $platform-danger, 0.5 );
+			color: $platform-primary-text;
+		}
+	}
+
+	// Not subscribed - a green one to get it
+	.subscribe
+	{
+		border-color: rgba( 190, 255, 215, 0.5 );
+		background-color: $platform-good;
+		background-image: linear-gradient( 160deg, #8ef0b2, $platform-good 55%, #239a55 );
+		color: #06210f;
+
+		&:hover
+		{
+			box-shadow: 0 4px 14px rgba( $platform-good, 0.55 );
+		}
 	}
 
 	.art
@@ -52,22 +170,22 @@ AddonCard
 		align-items: center;
 		justify-content: center;
 
+		.image
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			background-size: cover;
+			background-position: center;
+			transition: opacity 0.2s ease-out, filter 0.2s ease-out;
+		}
+
 		.placeholder
 		{
 			font-size: 40px;
 			color: $platform-icon;
-		}
-
-		.size
-		{
-			position: absolute;
-			bottom: 5px;
-			right: 5px;
-			padding: 2px 5px;
-			border-radius: 4px;
-			background-color: rgba( 7, 17, 32, 0.85 );
-			color: white;
-			font-size: 9px;
 		}
 	}
 

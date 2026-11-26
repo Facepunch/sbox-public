@@ -12,6 +12,10 @@
     {
         <GameShelf Row=@PlatformMenu.Favourites OnPicked=@Pressed OnPickedItem=@PressedItem Skip=@ShownGames />
     }
+    @if ( DownloadedLeft )
+    {
+        <GameShelf Row=@PlatformMenu.Downloaded OnPicked=@Pressed OnPickedItem=@PressedItem Skip=@ShownAbove />
+    }
 </root>
 
 @code
@@ -48,18 +52,40 @@
 
     HashSet<ulong> ShownGames => ShelfAt( 0 )?.ShownIds.ToHashSet();
 
+    /// <summary>
+    /// The games on the rows above the downloaded ones - your first row, and your favourites
+    /// </summary>
+    HashSet<ulong> ShownAbove
+    {
+        get
+        {
+            var shown = ShownGames ?? new HashSet<ulong>();
+            if ( ShelfOf( PlatformMenu.Favourites ) is { } favourites ) shown.UnionWith( favourites.ShownIds );
+            return shown;
+        }
+    }
+
+    /// <summary>
+    /// Any downloaded games not on a row above - none, and there's no row for them
+    /// </summary>
+    bool DownloadedLeft => PlatformMenu.Downloaded.Games is { Length: > 0 } downloaded
+        && downloaded.Select( x => x.Id ).Except( ShownAbove ).Any();
+
+    GameShelf ShelfOf( GameRow row ) => Children.OfType<GameShelf>().FirstOrDefault( x => x.Row == row );
+
     public override void OnShelfShown()
     {
         grown = 0;
 
         _ = PlatformMenu.YourGames.RefreshAsync();
         _ = PlatformMenu.Favourites.RefreshAsync();
+        _ = PlatformMenu.Downloaded.RefreshAsync();
     }
 
     public override bool Fills => false;
 
     /// <summary>
-    /// Your games with your favourites peeking out under them scroll - faded off over the favourites' art. Just their
+    /// Your games with the rows under them peeking out scroll - faded off over the next row's art. Just their
     /// first row, they don't - all of it shown, not faded off over its names.
     /// </summary>
     public override bool Scrolls => grown > 0 || ShelfAt( 1 ) is not null;
@@ -109,5 +135,5 @@
 
     // What the rows are made from, not the rows - they're worked out from it when it's built, not every frame. A row's
     // games are a new array each time they change; how many of your recent games show goes by how many fit across.
-    protected override int ShownHash() => HashCode.Combine( PlatformMenu.YourGames.Games, PlatformMenu.Favourites.Games, ShelfAt( 0 )?.ColumnCount );
+    protected override int ShownHash() => HashCode.Combine( PlatformMenu.YourGames.Games, PlatformMenu.Favourites.Games, PlatformMenu.Downloaded.Games, ShelfAt( 0 )?.ColumnCount, ShelfOf( PlatformMenu.Favourites )?.ShownIds.Count() );
 }

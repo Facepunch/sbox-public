@@ -13,6 +13,13 @@ public partial class PartyDeck
 	string settingsPartyId;
 	PartyDraft Draft;
 
+	/// <summary>
+	/// When the party being set up was made - what's in the window fades up into place for a moment after (.just-made)
+	/// </summary>
+	RealTimeSince sinceMade = float.MaxValue;
+
+	bool JustMade => sinceMade < 0.5f;
+
 	bool IsPublic => Draft?.IsPublic ?? PartyView.IsPublic;
 
 	/// <summary>
@@ -63,6 +70,7 @@ public partial class PartyDeck
 			Draft = null;
 			SettingsOpen = false;
 			settingsPartyId = MenuUI.Front.RailPresence.PartyId;
+			if ( created ) sinceMade = 0;
 			if ( IsValid ) StateHasChanged();
 		}
 
