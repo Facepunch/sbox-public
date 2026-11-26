@@ -2,6 +2,7 @@ using Borealis.Gpu;
 using Borealis.Source2.Shaders;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace Borealis.Backend;
 
@@ -253,6 +254,28 @@ public sealed class ShaderAttributes
 			/// <summary>Nothing to release.</summary>
 			public readonly void Dispose() { }
 		}
+	}
+
+	/// <summary>
+	/// What a variant's making reads of this set (<see cref="ShaderDrawer.Variant"/>): its combos and the first float of each
+	/// number, those under it included, copied into a set of their own, so it can be made on another thread while this one
+	/// changes.
+	/// </summary>
+	internal ShaderAttributes VariantInputs()
+	{
+		var copy = new ShaderAttributes();
+		if ( under is not null )
+		{
+			foreach ( var (id, value) in under.combos ) copy.combos[id] = value;
+		}
+
+		foreach ( var (id, value) in combos ) copy.combos[id] = value;
+		foreach ( var (name, value) in Values )
+		{
+			if ( value is float[] { Length: > 0 } floats ) copy.Put( AttributeIds.Of( name ), new[] { floats[0] } );
+		}
+
+		return copy;
 	}
 
 	void Put( int id, object value )
@@ -868,6 +891,20 @@ public sealed partial class ShaderDrawer : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		// A variant being made aside makes device modules: done before what it makes them on goes
+		foreach ( var making in makingVariants.Values )
+		{
+			try
+			{
+				making.Wait();
+			}
+			catch ( AggregateException )
+			{
+				// Asked for again by nobody: the drawer is going
+			}
+		}
+
+		makingVariants.Clear();
 		foreach ( var pipeline in pipelines.Values ) gpu.Destroy( pipeline );
 		pipelines.Clear();
 		foreach ( var pipeline in computePipelines.Values ) gpu.Destroy( pipeline );
@@ -963,12 +1000,65 @@ public sealed partial class ShaderDrawer : IDisposable
 		if ( features.Length > 0 ) combos = string.Concat( combos, "|", FeaturesKey( features ) );
 		var key = (shader, mode, combos, specialization);
 		if ( variants.TryGetValue( key, out var variant ) ) return variant;
+		if ( MakeVariantsAside && RedrawnEveryFrame.Active && !waitedVariants.Contains( key ) && MadeAside( key, shader, attributes, mode, features, out variant ) ) return variant;
 
 		// Not kept while its module compiles: its programs draw until then
 		variant = shaders.Variant( shader, mode, features, attributes.GetCombo, name => attributes.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null, false, out var pending );
 		pendingVariant = pending;
 		if ( !pending ) variants[key] = variant;
 		return variant;
+	}
+
+	/// <summary>
+	/// Whether a variant a draw redrawn every frame (<see cref="RedrawnEveryFrame"/>) asks for that isn't made yet is made on a
+	/// worker while its draws are skipped (on), as such a draw's pipeline is, rather than on the recording thread: making one
+	/// reads and preprocesses its stages and makes their device modules, 50-250 ms on the render thread for world text in a
+	/// cube capture just after a load. A one-off draw still waits for its own. For tests and comparisons.
+	/// </summary>
+	public static bool MakeVariantsAside { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_VARIANTS_ASIDE" ) != "0";
+
+	// Variants being made on a worker for draws redrawn every frame, by key; and those whose made variant still waited for its
+	// module, which are asked for here as before (its programs draw meanwhile, rather than nothing every other frame)
+	readonly Dictionary<(ShaderFile, string, string, ulong), Task<(ShaderVariant Variant, bool Pending)>> makingVariants = new();
+	readonly HashSet<(ShaderFile, string, string, ulong)> waitedVariants = new();
+
+	/// <summary>Variants a worker is still making for draws redrawn every frame, for tests.</summary>
+	internal int VariantsBeingMadeAside => makingVariants.Values.Count( t => !t.IsCompleted );
+
+	// True with the variant (null: none, or not made yet; pendingVariant set then) when it's made aside; false to ask here
+	bool MadeAside( (ShaderFile, string, string, ulong) key, ShaderFile shader, ShaderAttributes attributes, string mode, int[] features, out ShaderVariant variant )
+	{
+		variant = null;
+		if ( !makingVariants.TryGetValue( key, out var making ) )
+		{
+			var inputs = attributes.VariantInputs();
+			var library = shaders;
+			makingVariants[key] = Task.Run( () =>
+			{
+				var made = library.Variant( shader, mode, features, inputs.GetCombo, name => inputs.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null, false, out var pending );
+				return (made, pending);
+			} );
+			pendingVariant = true;
+			return true;
+		}
+
+		if ( !making.IsCompleted )
+		{
+			pendingVariant = true;
+			return true;
+		}
+
+		makingVariants.Remove( key );
+		if ( !making.IsCompletedSuccessfully || making.Result.Pending )
+		{
+			// Failed (asked here, it throws where it did before) or its module still compiling: asked here from now on
+			waitedVariants.Add( key );
+			return false;
+		}
+
+		variant = making.Result.Variant;
+		variants[key] = variant;
+		return true;
 	}
 
 	/// <summary>

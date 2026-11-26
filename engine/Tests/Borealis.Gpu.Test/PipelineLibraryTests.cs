@@ -269,6 +269,27 @@ public class PipelineLibraryTests : GpuTest
 	}
 
 	/// <summary>
+	/// The builder threads run below normal priority while frames are watched (<see cref="Device.BuildersYield"/>), so the
+	/// threads making frames (the game's physics workers wait for each other) take a processor from them first, and at normal
+	/// priority behind a loading screen; builders already running change with it.
+	/// </summary>
+	[TestMethod]
+	public void BuildersYieldToFrameThreadsWhileFramesAreWatched()
+	{
+		if ( Environment.GetEnvironmentVariable( "BOREALIS_BUILDER_PRIORITY" ) is not null ) Assert.Inconclusive( "BOREALIS_BUILDER_PRIORITY holds the builders' priority" );
+		Device.StartBuildersNow();
+		var started = Device.BuilderPriorities;
+		Assert.IsTrue( started.Length > 0 );
+		CollectionAssert.AreEqual( Enumerable.Repeat( System.Threading.ThreadPriority.Normal, started.Length ).ToArray(), started, "behind a loading screen (the default): normal" );
+
+		Device.BuildersYield = true;
+		CollectionAssert.AreEqual( Enumerable.Repeat( System.Threading.ThreadPriority.BelowNormal, started.Length ).ToArray(), Device.BuilderPriorities, "frames watched: below normal" );
+
+		Device.BuildersYield = false;
+		CollectionAssert.AreEqual( Enumerable.Repeat( System.Threading.ThreadPriority.Normal, started.Length ).ToArray(), Device.BuilderPriorities, "a load again: normal" );
+	}
+
+	/// <summary>
 	/// Parts made on the builder threads, ahead or for a pipeline being linked, aren't pipelines a draw is waiting for: the
 	/// deferred pipelines' pending count leaves them out however far they've got (a test of a draw's deferred pipeline read
 	/// two while its fragment part was still being made).

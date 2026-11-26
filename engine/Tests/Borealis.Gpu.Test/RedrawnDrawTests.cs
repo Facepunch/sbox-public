@@ -9,7 +9,7 @@ namespace BorealisGpuTests;
 /// <summary>
 /// A shader drawn on its own through <see cref="ShaderDrawer"/> by a draw that's redrawn every frame (a scene's custom
 /// object, <see cref="Borealis.RedrawnEveryFrame"/>) doesn't wait for its pipeline: workers make it and the draw is skipped
-/// meanwhile. Any other draw of the same shader still waits for its own and draws.
+/// meanwhile, and its variant is made on a worker first. Any other draw of the same shader still waits for its own and draws.
 /// </summary>
 [TestClass]
 public class RedrawnDrawTests : GpuTest
@@ -75,7 +75,12 @@ public class RedrawnDrawTests : GpuTest
 			return Pixel( pixels, Size, Size / 2, Size / 2 );
 		}
 
-		// Redrawn: the pipeline goes to the workers (very rarely they make it before the draw)
+		// Redrawn: its variant is made on a worker (ShaderDrawer.MakeVariantsAside), nothing drawn or asked of the device meanwhile
+		Assert.AreEqual( ((byte)0, (byte)0, (byte)0, (byte)0), Draw( redrawn: true, out _ ) );
+		Assert.AreEqual( 0, Device.DeferredPipelines.Made + Device.DeferredPipelines.Pending, "the variant wasn't made where it was asked for" );
+		Assert.IsTrue( System.Threading.SpinWait.SpinUntil( () => drawer.VariantsBeingMadeAside == 0, TimeSpan.FromSeconds( 60 ) ) );
+
+		// Then the pipeline goes to the workers (very rarely they make it before the draw)
 		Draw( redrawn: true, out var skippedFirst );
 		var stats = Device.DeferredPipelines;
 		Assert.AreEqual( 1, stats.Made + stats.Pending, "the redrawn draw's pipeline was made on the workers, not where it was asked for" );

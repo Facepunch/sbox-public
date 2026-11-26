@@ -479,18 +479,67 @@ public sealed unsafe partial class Device
 	int buildingAhead;
 	const int ReservedBuilders = 2;
 
-	static readonly ThreadPriority builderPriority = Environment.GetEnvironmentVariable( "BOREALIS_BUILDER_PRIORITY" ) == "below" ? ThreadPriority.BelowNormal : ThreadPriority.Normal;
+	// BOREALIS_BUILDER_PRIORITY=below or normal holds the builders at that priority whatever BuildersYield says, to compare
+	static readonly ThreadPriority? builderPriority = Environment.GetEnvironmentVariable( "BOREALIS_BUILDER_PRIORITY" ) switch
+	{
+		"below" => ThreadPriority.BelowNormal,
+		"normal" => ThreadPriority.Normal,
+		_ => null,
+	};
+
+	bool buildersYield;
+
+	/// <summary>
+	/// Whether the pipeline builder threads run below normal priority, so the threads drawing and simulating frames take a
+	/// processor from them first; the host sets it while frames are watched (no loading screen). The game's physics workers
+	/// wait for each other at every solver stage, so one that loses its processor to a builder for a time slice holds up the
+	/// whole step: with a backlog of pipelines after a load, normal-priority builders made frames of 100-170 ms. Behind a
+	/// loading screen they stay at normal priority: below it, the load's own threads starve them while the draws about to be
+	/// shown wait.
+	/// </summary>
+	public bool BuildersYield
+	{
+		get => Volatile.Read( ref buildersYield );
+		set
+		{
+			// Set every frame: the lock only when it changes
+			if ( Volatile.Read( ref buildersYield ) == value ) return;
+			lock ( buildQueue )
+			{
+				if ( buildersYield == value ) return;
+				buildersYield = value;
+				if ( builders is null || stopBuilding ) return;
+				foreach ( var builder in builders ) builder.Priority = BuilderPriority;
+			}
+		}
+	}
+
+	ThreadPriority BuilderPriority => builderPriority ?? (buildersYield ? ThreadPriority.BelowNormal : ThreadPriority.Normal);
+
+	/// <summary>The builder threads' priorities (none until the first is needed), for tests.</summary>
+	internal ThreadPriority[] BuilderPriorities
+	{
+		get
+		{
+			lock ( buildQueue ) return builders is null ? [] : Array.ConvertAll( builders, b => b.Priority );
+		}
+	}
+
+	/// <summary>Start the builder threads now rather than when they're first given work, for tests.</summary>
+	internal void StartBuildersNow()
+	{
+		lock ( buildQueue ) StartBuilders();
+	}
 
 	// Under the build queue's lock
 	void StartBuilders()
 	{
 		if ( builders is not null ) return;
-		// All but two logical processors, at normal priority: below it, a loading map's threads starve them while draws wait
-		// (BOREALIS_BUILDER_PRIORITY=below, to compare)
+		// All but two logical processors, at normal priority or below it while frames are watched (BuildersYield)
 		builders = new Thread[int.TryParse( Environment.GetEnvironmentVariable( "BOREALIS_BUILDERS" ), out var count ) && count > 0 ? count : Math.Clamp( Environment.ProcessorCount - 2, 2, 12 )];
 		for ( int i = 0; i < builders.Length; i++ )
 		{
-			builders[i] = new Thread( Build ) { IsBackground = true, Priority = builderPriority, Name = $"Borealis.Gpu pipeline builder {i}" };
+			builders[i] = new Thread( Build ) { IsBackground = true, Priority = BuilderPriority, Name = $"Borealis.Gpu pipeline builder {i}" };
 			builders[i].Start();
 		}
 	}
