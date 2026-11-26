@@ -398,7 +398,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 
 	#if ( !S_TRANSMISSIVE )
 		// If we are shadowed and not transmissive, we can skip the rest of the lighting calculations
-		if ( flShadowScalar <= 0.0 )
+		if ( flShadowScalar <= 0.0 && S_TRANSMISSIVE_BACKFACE_NDOTL == 0 )
 			return;
 	#endif
 	
@@ -466,7 +466,7 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 	float3 vTransmissiveThickness = 1.0f;
 
 	#if ( !S_TRANSMISSIVE )
-		if ( flShadowScalar <= 0.0 )
+		if ( flShadowScalar <= 0.0 && S_TRANSMISSIVE_BACKFACE_NDOTL == 0 )
 			return;
 	#else
 		//blergh
