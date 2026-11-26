@@ -26,10 +26,9 @@ public static class Launcher
 		// -no-specialize: surface pipelines not specialised for their materials' features (for A/B)
 		if ( Lab.Args.Has( "-no-specialize" ) ) Borealis.Backend.SurfaceShaders.SpecializeByDefault = false;
 
-		// Sun cascades, for A/B runs in any mode: -far-cache, -no-far-cache, -cascade-tiles, -no-cascade-tiles, -no-texel-cascades
+		// Sun cascades, for A/B runs in any mode: -far-cache, -no-far-cache, -no-cascade-tiles, -no-texel-cascades
 		if ( Lab.Args.Has( "-far-cache" ) ) Borealis.Shadows.ShadowMapper.FarCascadeCache = true;
 		if ( Lab.Args.Has( "-no-far-cache" ) ) Borealis.Shadows.ShadowMapper.FarCascadeCache = false;
-		if ( Lab.Args.Has( "-cascade-tiles" ) ) Borealis.Shadows.ShadowMapper.CascadeTiles = true;
 		if ( Lab.Args.Has( "-no-cascade-tiles" ) ) Borealis.Shadows.ShadowMapper.CascadeTiles = false;
 		if ( Lab.Args.Has( "-no-texel-cascades" ) ) Borealis.Shadows.ShadowMapper.TexelSizedCascades = false;
 
