@@ -775,13 +775,16 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
-	/// A cache the size of a big map's (Construct's runs to about 300 MiB) is saved whole from native memory without a managed
-	/// copy, and loads back in one array.
+	/// A cache the size of a big map's (Construct's runs to about 300 MiB) is within what's saved, and a large one is saved
+	/// whole from native memory without a managed copy, and loads back in one array. 64 MiB shows a copy as plainly as 300
+	/// did (any copy is the whole size) and writes a fifth of the file: 300 MiB took 9 s.
 	/// </summary>
 	[TestMethod]
 	public unsafe void AMapSizedPipelineCacheSavesWithoutAManagedCopy()
 	{
-		const int size = 300 << 20;
+		var mapSized = 300 << 20;
+		Assert.IsTrue( mapSized <= PipelineCacheFile.MaxBytes, "a map's cache is within the cap" );
+		const int size = 64 << 20;
 		var folder = Path.Combine( Path.GetTempPath(), $"borealis-pipelines-{Guid.NewGuid():N}" );
 		var data = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc( size );
 		try
@@ -791,7 +794,7 @@ public class DeviceTests : GpuTest
 
 			var path = Path.Combine( folder, "cache.bin" );
 			var before = GC.GetAllocatedBytesForCurrentThread();
-			Assert.IsTrue( PipelineCacheFile.Save( path, span ), "within the cap" );
+			Assert.IsTrue( PipelineCacheFile.Save( path, span ), "saved" );
 			var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 			Assert.IsTrue( allocated < 1 << 20, $"saving {size} B allocated {allocated} B" );
 
