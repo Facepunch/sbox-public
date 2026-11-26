@@ -71,6 +71,10 @@ cbuffer BorealisGpuDrivenCull_t
 	uint g_nCullListed;			// byte offset of the listed fragments: dispatch arguments, then 32 bytes each
 	uint g_nCullMeshletRuns;		// bindless slot of the meshlet runs (16 bytes per draw record) where the view's prepass culls meshlets; else None
 	uint g_nCullLodCount;
+	uint g_nCullCorners;		// bindless slot of the meshlet store's corner runs (16 bytes per draw record: in its last two words the lowest first corner and how many values from it, 0 until known), or None
+	uint g_nCullPad0;
+	uint g_nCullPad1;
+	uint g_nCullPad2;
 };
 
 static const uint None = 0xffffffffu;
@@ -128,6 +132,7 @@ uint LargeRecord( uint nLarge ) { return 48 + PartCapacity() * 4 + nLarge * Larg
 groupshared uint gs_Owned;
 groupshared uint gs_Start;
 groupshared uint gs_Cursor;
+groupshared uint gs_Marked;
 
 // A listed fragment, from its entry: transform, draw record, its vertices' first bit (with the base vertex), its multi-draw
 // and its bucket's compacted multi-draw, its draw's first index, index count, base vertex and index page, and the triangles
@@ -235,6 +240,60 @@ uint CountOwned( Fragment f, uint nLo, uint nHi, uint nThread )
 	return gs_Owned;
 }
 
+// Mask words a group reads at most to learn whether any of a fragment's first corners is marked; past it, it scans
+static const uint MaxMarkWords = GroupSize * 4;
+
+// Whether a mark set any bit a triangle of the fragment can own: the vertex bits from its draw's lowest first corner
+// (published with its meshlets, Meshlets.MeshletStore.CornerRunBytes) for as many values as it spans. A fragment with
+// none owns no sample, and is dropped without reading its triangles. True where the range isn't known, or too long to
+// read. Called by the whole group, with the same answer for every thread: a range of a few words is read by each thread,
+// a longer one by the group together
+bool AnyMarked( Fragment f, uint nThread )
+{
+	if ( g_nCullCorners == None )
+		return true;
+	uint2 vCorners = g_bindless_VertexBuffers[ g_nCullCorners ].Load2( f.nDrawRecord * 16 + 8 );
+	if ( vCorners.y == 0 )
+		return true;
+	uint nLo = f.nVertexBase + vCorners.x, nHi = nLo + vCorners.y - 1;
+	uint nFirstWord = nLo >> 5, nLastWord = nHi >> 5;
+	if ( nLastWord - nFirstWord >= MaxMarkWords )
+		return true;
+
+	if ( nLastWord - nFirstWord < 4 )
+	{
+		uint nAny = 0;
+		for ( uint w = nFirstWord; w <= nLastWord; w++ )
+		{
+			uint nWord = g_Mask.Load( w * 4 );
+			if ( w == nFirstWord )
+				nWord &= 0xffffffffu << ( nLo & 31 );
+			if ( w == nLastWord )
+				nWord &= 0xffffffffu >> ( 31 - ( nHi & 31 ) );
+			nAny |= nWord;
+		}
+		return nAny != 0;
+	}
+
+	if ( nThread == 0 )
+		gs_Marked = 0;
+	GroupMemoryBarrierWithGroupSync();
+	uint nAny = 0;
+	for ( uint w = nFirstWord + nThread; w <= nLastWord; w += GroupSize )
+	{
+		uint nWord = g_Mask.Load( w * 4 );
+		if ( w == nFirstWord )
+			nWord &= 0xffffffffu << ( nLo & 31 );
+		if ( w == nLastWord )
+			nWord &= 0xffffffffu >> ( 31 - ( nHi & 31 ) );
+		nAny |= nWord;
+	}
+	if ( WaveActiveAnyTrue( nAny != 0 ) && WaveIsFirstLane() )
+		gs_Marked = 1;
+	GroupMemoryBarrierWithGroupSync();
+	return gs_Marked != 0;
+}
+
 // Copied where few own a sample and there's room; else the whole draw. Where its copy starts, or None
 uint DrawFragment( Fragment f, uint nOwned )
 {
@@ -317,7 +376,7 @@ void PartRange( Fragment f, uint nParts, uint nPart, out uint nLo, out uint nHi 
 	// A group per listed fragment
 	uint nEntry = g_nCullListed + ListedArguments_Size + vGroupId.x * ListedFragment_Size;
 	Fragment f = LoadFragment( nEntry );
-	if ( f.bNone )
+	if ( f.bNone || !AnyMarked( f, nThread ) )
 		return;
 
 	// A large one goes in the list, its parts after the parts listed, where there's room for both (a fragment listed whose

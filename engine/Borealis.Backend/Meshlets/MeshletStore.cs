@@ -46,9 +46,10 @@ internal sealed class MeshletStore : IDisposable
 	public const int DataPageBytes = 32 << 20;
 
 	/// <summary>
-	/// Bytes of a corner run in the corner table (<see cref="CornerData"/>), per draw record: the data page's bindless slot
-	/// plus 1 (0 for none), the byte offset of the range's first-corner table there (<see cref="MeshletSet.Corners"/>), its
-	/// lowest first corner and how many values from it.
+	/// Bytes of a corner run in the corner table, per draw record: the data page's bindless slot plus 1 (0 for none: no
+	/// <see cref="CornerData"/>), the byte offset of the range's first-corner table there (<see cref="MeshletSet.Corners"/>),
+	/// its lowest first corner and how many values from it (0 until its run is written). Compaction reads the last two
+	/// whatever <see cref="CornerData"/> is: the vertex bits a mark can set for the draw.
 	/// </summary>
 	public const int CornerRunBytes = 16;
 
@@ -179,7 +180,7 @@ internal sealed class MeshletStore : IDisposable
 	int runSlot = -1;
 	long runBytes;
 
-	// The corner table (CornerData): a corner run per draw record, grown as the run table is
+	// The corner table: a corner run per draw record, grown as the run table is
 	BufferHandle corners;
 	int cornerSlot = -1;
 	long cornerBytes;
@@ -254,12 +255,11 @@ internal sealed class MeshletStore : IDisposable
 	}
 
 	/// <summary>
-	/// The corner table's bindless slot (<see cref="CornerData"/>), grown first to hold a corner run for every one of
-	/// <paramref name="drawRecords"/> draw records, as <see cref="RunSlotCovering"/> grows the run table; -1 without corner data.
+	/// The corner table's bindless slot, grown first to hold a corner run for every one of <paramref name="drawRecords"/>
+	/// draw records, as <see cref="RunSlotCovering"/> grows the run table.
 	/// </summary>
 	public int CornerSlotCovering( long drawRecords )
 	{
-		if ( !CornerData ) return -1;
 		lock ( gate )
 		{
 			if ( drawRecords * CornerRunBytes > cornerBytes || !corners.IsValid ) GrowCorners( Math.Max( drawRecords * CornerRunBytes, 1 << 16 ) );
@@ -427,6 +427,7 @@ internal sealed class MeshletStore : IDisposable
 			entry.Set = set is not null && set.Meshlets.Length <= MaxRunMeshlets ? set : null;
 			if ( LocalData && entry.Set is not null ) entry.Local = entry.Set.Local();
 			if ( CornerData && entry.Set is not null && entry.Set.Corners() is { } table && table.Words.Length * 4L <= DataPageBytes ) entry.Corners = table;
+			if ( entry.Set is not null ) (entry.CornerLow, entry.CornerSpan) = entry.Set.FirstCorners();
 			if ( StageOnWorkers && entry.Set is not null ) Stage( entry );
 			built.Enqueue( entry );
 		}
@@ -909,15 +910,15 @@ internal sealed class MeshletStore : IDisposable
 
 	void WriteRun( uint draw, Entry entry )
 	{
-		// The corner run first, its slot last: a resolve finds no table until it's whole
-		if ( CornerData && entry.CornerSlot != 0 )
+		// The corner run first, its slot last: a resolve finds no table until it's whole. The lowest first corner and the
+		// span in one write: compaction, which reads them together, sees both or neither
+		if ( entry.CornerSpan != 0 )
 		{
 			var cornerAt = draw * (long)CornerRunBytes;
 			if ( cornerAt + CornerRunBytes > cornerBytes || !corners.IsValid ) GrowCorners( cornerAt + CornerRunBytes );
 			var corner = MemoryMarshal.Cast<byte, uint>( gpu.Map( corners ).Slice( (int)cornerAt, CornerRunBytes ) );
 			corner[1] = entry.CornerAt;
-			corner[2] = entry.CornerLow;
-			corner[3] = entry.CornerSpan;
+			Volatile.Write( ref MemoryMarshal.Cast<uint, ulong>( corner )[1], entry.CornerLow | (ulong)entry.CornerSpan << 32 );
 			Thread.MemoryBarrier();
 			Volatile.Write( ref corner[0], entry.CornerSlot );
 		}

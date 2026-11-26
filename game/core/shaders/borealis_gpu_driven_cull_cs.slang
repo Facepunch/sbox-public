@@ -58,6 +58,10 @@ cbuffer BorealisGpuDrivenCull_t
 	uint g_nCullListed;			// byte offset of the fragments forward compacts: dispatch arguments, then 32 bytes each
 	uint g_nCullMeshletRuns;		// a prepass that culls meshlets: bindless slot of the meshlet runs (16 bytes per draw record); else None
 	uint g_nCullLodCount;		// draw records the LOD table covers
+	uint g_nCullCorners;		// compaction's (borealis_gpu_driven_compact_cs)
+	uint g_nCullPad0;
+	uint g_nCullPad1;
+	uint g_nCullPad2;
 };
 
 static const uint None = 0xffffffffu;

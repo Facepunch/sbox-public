@@ -125,12 +125,10 @@ internal sealed class MeshletSet
 	}
 
 	/// <summary>
-	/// The range's triangles by first corner, which a visibility id names a triangle by (its provoking vertex): for each index
-	/// value from the lowest first corner to the highest, where its triangles start, then one more for the end; then each
-	/// triangle's number in meshlet order, grouped by first corner. <see cref="MeshletCorners.Span"/> values have
-	/// <c>Span + 1 + Triangles</c> words.
+	/// The lowest first corner (a triangle's first index, which a visibility id names it by) and how many values from it to
+	/// the highest; (0, 0) without triangles.
 	/// </summary>
-	public MeshletCorners Corners()
+	public (uint Low, uint Span) FirstCorners()
 	{
 		var triangles = Triangles;
 		uint low = uint.MaxValue, high = 0;
@@ -140,8 +138,21 @@ internal sealed class MeshletSet
 			high = Math.Max( high, Indices[t * 3] );
 		}
 
+		return triangles == 0 ? (0, 0) : (low, high - low + 1);
+	}
+
+	/// <summary>
+	/// The range's triangles by first corner, which a visibility id names a triangle by (its provoking vertex): for each index
+	/// value from the lowest first corner to the highest, where its triangles start, then one more for the end; then each
+	/// triangle's number in meshlet order, grouped by first corner. <see cref="MeshletCorners.Span"/> values have
+	/// <c>Span + 1 + Triangles</c> words.
+	/// </summary>
+	public MeshletCorners Corners()
+	{
+		var triangles = Triangles;
 		if ( triangles == 0 ) return null;
-		var span = (int)(high - low + 1);
+		var (low, spanValues) = FirstCorners();
+		var span = (int)spanValues;
 		var words = new uint[span + 1 + triangles];
 
 		// Counts, then where each value's run starts

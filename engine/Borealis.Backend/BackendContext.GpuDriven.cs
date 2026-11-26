@@ -46,6 +46,9 @@ internal sealed partial class BackendContext
 		/// table's bindless slot, else none; the draw records the LOD table covers.
 		/// </summary>
 		public uint Frame, Visibility, LodTable, Capacity, FragmentWords, Listed, MeshletRuns, LodCount;
+
+		/// <summary>The meshlet store's corner runs' bindless slot (each draw record's lowest first corner and how many values from it), which compaction narrows a fragment's vertex bits to; none without a store.</summary>
+		public uint Corners, Pad0, Pad1, Pad2;
 	}
 
 	/// <summary><c>borealis_meshlet_cull_cs</c>'s <c>BorealisMeshletCull_t</c> (<see cref="HandFilledConstants"/>).</summary>
@@ -1162,6 +1165,7 @@ internal sealed partial class BackendContext
 			MeshletRuns = meshletPass || lists && MeshletStampsReady( visibility ) ? (uint)device.MeshletStore.RunSlotCovering( tables.DrawRecords ) : uint.MaxValue,
 			LodTable = lodTable.Slot >= 0 ? (uint)lodTable.Slot : uint.MaxValue,
 			LodCount = lodTable.Records,
+			Corners = lists && device.MeshletStore is { } cornerStore ? (uint)cornerStore.CornerSlotCovering( tables.DrawRecords ) : uint.MaxValue,
 		} );
 		cullAttributes.Clear();
 		cullAttributes.SetById( Ids.BorealisCullFrame, frameBuffer );

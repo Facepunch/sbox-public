@@ -145,6 +145,37 @@ public class MeshletTests
 	}
 
 	/// <summary>
+	/// A range's first corners as compaction reads them from its corner run: the lowest and how many values to the highest,
+	/// the corner table's own, every triangle's first corner among them and both ends taken.
+	/// </summary>
+	[TestMethod]
+	public void FirstCornersSpanEveryTrianglesFirstCorner()
+	{
+		UseEngineLibrary();
+		const uint First = 700;
+		var (indices, positions) = Grid( 40, First );
+		V3 Position( int vertex ) => positions[vertex - (int)First];
+
+		var set = MeshletBuilder.Build( indices, Position, 0, MeshletConfig.Default );
+		var (low, span) = set.FirstCorners();
+		var corners = set.Corners();
+		Assert.AreEqual( corners.Low, low );
+		Assert.AreEqual( corners.Span, span );
+
+		uint lowest = uint.MaxValue, highest = 0;
+		for ( int t = 0; t < set.Triangles; t++ )
+		{
+			var first = set.Indices[t * 3];
+			Assert.IsTrue( first >= low && first - low < span, $"triangle {t}'s first corner {first} is in [{low}, {low + span})" );
+			lowest = Math.Min( lowest, first );
+			highest = Math.Max( highest, first );
+		}
+
+		Assert.AreEqual( lowest, low );
+		Assert.AreEqual( highest, low + span - 1 );
+	}
+
+	/// <summary>
 	/// The first-corner table (normals from the ids): each index value's run lists exactly the triangles whose first corner
 	/// it is, in meshlet order, and the runs tile the triangles.
 	/// </summary>
