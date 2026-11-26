@@ -21,8 +21,11 @@ public class VolumetricFogTests : GpuTest
 	[TestMethod]
 	public void ThinFogLeavesTheSceneLit()
 	{
-		var clear = Render( fog: false );
-		var fogged = Render( fog: true );
+		// One device for both pictures (each frame's fog starts from a render system of its own): a device each made every
+		// pipeline of the frame twice
+		using var backend = new BackendDevice( Device );
+		var clear = Render( backend, fog: false );
+		var fogged = Render( backend, fog: true );
 		TestContext.WriteLine( $"box without fog {clear}, with fog {fogged}" );
 		Assert.IsTrue( clear > 0.05f, $"the box is lit without fog ({clear})" );
 		Assert.IsFalse( float.IsNaN( fogged ), "the fogged box isn't NaN" );
@@ -40,8 +43,9 @@ public class VolumetricFogTests : GpuTest
 	{
 		// The camera looks along +x; its right is -y. Past the fog's near plane (64), so the lit froxels start mid-view
 		var right = new BBox( new Vector3( 100, -600, -300 ), new Vector3( 240, -10, 300 ) );
-		var (clearLeft, clearRight) = RenderSides( null );
-		var (foggedLeft, foggedRight) = RenderSides( right );
+		using var backend = new BackendDevice( Device );
+		var (clearLeft, clearRight) = RenderSides( backend, null );
+		var (foggedLeft, foggedRight) = RenderSides( backend, right );
 		TestContext.WriteLine( $"wall without fog {clearLeft} | {clearRight}, with the volume on the right {foggedLeft} | {foggedRight}" );
 		Assert.IsTrue( clearLeft > 0.02f && clearRight > 0.02f, $"the wall is lit without fog ({clearLeft}, {clearRight})" );
 		Assert.IsTrue( foggedRight < clearRight * 0.8f, $"the volume on the right dims the wall behind it: {foggedRight} against {clearRight}" );
@@ -49,9 +53,9 @@ public class VolumetricFogTests : GpuTest
 	}
 
 	/// <summary>The wall's brightness a quarter of the way in from the left and from the right, with a fog volume or none.</summary>
-	(float Left, float Right) RenderSides( BBox? volume )
+	(float Left, float Right) RenderSides( BackendDevice backend, BBox? volume )
 	{
-		var texels = Render( volume is not null, volume, scattering: 8, wall: true );
+		var texels = Render( backend, volume is not null, volume, scattering: 8, wall: true );
 		return (Brightness( texels, Width / 4, Height / 2 ), Brightness( texels, Width * 3 / 4, Height / 2 ));
 	}
 
@@ -62,16 +66,15 @@ public class VolumetricFogTests : GpuTest
 	}
 
 	/// <summary>The box's brightness in the middle of a frame rendered after a few frames, with or without fog.</summary>
-	float Render( bool fog ) => Brightness( Render( fog, null, scattering: 1, wall: false ), Width / 2, Height / 2 );
+	float Render( BackendDevice backend, bool fog ) => Brightness( Render( backend, fog, null, scattering: 1, wall: false ), Width / 2, Height / 2 );
 
 	/// <summary>
 	/// The frame's texels (RGBA16F) after a few frames: a box ahead, or a wall filling the view, with fog in
 	/// <paramref name="volume"/> (by default everywhere) when <paramref name="fog"/> is set.
 	/// </summary>
-	byte[] Render( bool fog, BBox? volume, float scattering, bool wall )
+	byte[] Render( BackendDevice backend, bool fog, BBox? volume, float scattering, bool wall )
 	{
 		var errors = new List<string>();
-		using var backend = new BackendDevice( Device );
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		try
