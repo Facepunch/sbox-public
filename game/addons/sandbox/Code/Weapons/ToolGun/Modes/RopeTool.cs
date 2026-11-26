@@ -66,6 +66,7 @@ public sealed class RopeTool : BaseConstraintToolMode
 
 		var cleanup = go1.AddComponent<ConstraintCleanup>();
 		cleanup.Attachment = go2;
+		go1.AddComponent<RopeGibDropper>();
 
 		//
 		// If it's ourself - we want to create the rope, but no joint between

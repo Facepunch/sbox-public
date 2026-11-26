@@ -31,6 +31,23 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	public LineRenderer LinkedRenderer { get; set; }
 
 	/// <summary>
+	/// With no <see cref="Attachment"/>, let the end hang free from this GameObject instead of hiding the rope. It
+	/// starts along the points its renderer draws, so a rope that lost its end carries on from there.
+	/// </summary>
+	[Property, Group( "Attachment" )]
+	public bool FreeEnd
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			Initialize();
+		}
+	}
+
+	/// <summary>
 	/// Additional slack, added to the rope length.
 	/// </summary>
 	[Property, Group( "Simulation" )]
@@ -189,18 +206,19 @@ public class VerletRope : Component, Component.ExecuteInEditor
 
 	protected override void OnEnabled()
 	{
+		// Try to find a LineRenderer if none is assigned
+		LinkedRenderer ??= GetComponent<LineRenderer>();
+
 		Initialize();
 
-		for ( int i = 0; i < 10; i++ )
+		// Settle the rope between its ends. A free end starts as it is drawn.
+		for ( int i = 0; i < 10 && Attachment.IsValid(); i++ )
 		{
 			Simulate( 1.0f / 60.0f );
 		}
 
 		timeSinceSimulate = 0;
 		timeSinceRest = 0;
-
-		// Try to find a LineRenderer if none is assigned
-		LinkedRenderer ??= GetComponent<LineRenderer>();
 	}
 
 	protected override void OnUpdate()
@@ -219,7 +237,11 @@ public class VerletRope : Component, Component.ExecuteInEditor
 
 	void Initialize()
 	{
-		if ( !Attachment.IsValid() ) return;
+		if ( !Attachment.IsValid() )
+		{
+			InitializeFreeEnd();
+			return;
+		}
 
 		if ( SegmentCount < 1 ) SegmentCount = 1;
 
@@ -262,9 +284,56 @@ public class VerletRope : Component, Component.ExecuteInEditor
 		base.OnDestroy();
 	}
 
+	/// <summary>
+	/// Start a <see cref="FreeEnd"/> rope along the points its renderer draws now, held by its first point.
+	/// </summary>
+	void InitializeFreeEnd()
+	{
+		if ( !FreeEnd || LinkedRenderer is not { UseVectorPoints: true, VectorPoints: { Count: >= 2 } shape } )
+			return;
+
+		var lengths = new float[shape.Count];
+		for ( int i = 1; i < shape.Count; i++ )
+			lengths[i] = lengths[i - 1] + Vector3.DistanceBetween( shape[i - 1], shape[i] );
+
+		initialRopeLength = lengths[^1];
+
+		// Even points along the shape.
+		var count = Math.Max( SegmentCount, 1 ) + 1;
+		var free = new RopePoint[count];
+		var segment = 1;
+		for ( int i = 0; i < count; i++ )
+		{
+			var distance = initialRopeLength * i / (count - 1);
+			while ( segment < shape.Count - 1 && lengths[segment] < distance )
+				segment++;
+
+			var span = lengths[segment] - lengths[segment - 1];
+			var t = span > 0f ? (distance - lengths[segment - 1]) / span : 0f;
+			var pos = Vector3.Lerp( shape[segment - 1], shape[segment], t );
+			free[i] = new RopePoint { Position = pos, Previous = pos, IsAttached = i == 0 };
+		}
+
+		points = free;
+		lastStartPos = WorldPosition;
+		WakeRope();
+	}
+
 	internal void Simulate( float dt )
 	{
-		if ( !Attachment.IsValid() ) return;
+		if ( points.Length < 2 ) return;
+
+		if ( !Attachment.IsValid() )
+		{
+			if ( !FreeEnd ) return;
+
+			// The attachment is gone: let the end go.
+			if ( points[^1].IsAttached )
+			{
+				points[^1].IsAttached = false;
+				WakeRope();
+			}
+		}
 
 		CheckAndWakeRope();
 
@@ -290,7 +359,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 		if ( isAtRest )
 		{
 			bool startMoved = (WorldPosition - lastStartPos).LengthSquared > 0.01f;
-			bool endMoved = (Attachment.WorldPosition - lastEndPos).LengthSquared > 0.01f;
+			bool endMoved = Attachment.IsValid() && (Attachment.WorldPosition - lastEndPos).LengthSquared > 0.01f;
 
 			if ( startMoved || endMoved || timeSinceRest > 2f ) // Occasionally wake up ropes, so we can react to external collisions
 			{
@@ -306,7 +375,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 
 		// Update attachment positions for tracking
 		lastStartPos = WorldPosition;
-		lastEndPos = Attachment?.WorldPosition ?? lastEndPos;
+		lastEndPos = Attachment.IsValid() ? Attachment.WorldPosition : lastEndPos;
 	}
 
 	private void WakeRope()
@@ -610,7 +679,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	{
 		if ( LinkedRenderer is null ) return;
 
-		if ( !Attachment.IsValid() )
+		if ( points.Length < 2 || (!FreeEnd && !Attachment.IsValid()) )
 		{
 			LinkedRenderer.Enabled = false;
 			return;
