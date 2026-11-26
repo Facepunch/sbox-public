@@ -78,8 +78,6 @@
     "menu.common.search": "검색",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "파티 채팅을 하려면 설정에서 채팅 키를 지정하세요.",
     "menu.common.the_message_could_not_be_sent": "메시지를 보내지 못했습니다.",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "파티 또는 게임 설정이 변경되었습니다. 게임 설정을 확인한 후 다시 시도하세요.",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "파티가 변경되었습니다. 게임 설정을 확인한 후 다시 시도하세요.",
     "menu.friends.1_other_friend_playing": "다른 친구 1명이 플레이 중",
     "menu.friends.add_friend": "친구 추가",
     "menu.friends.away": "자리 비움",

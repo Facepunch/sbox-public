@@ -128,5 +128,5 @@
 		SetClass( "focused", View?.Focused == Item );
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Item, Disabled, Warning, View?.Revision, ReadOnly, ReadOnly ? Item?.Value : null );
+	protected override int BuildHash() => HashCode.Combine( Item, Disabled, Warning, View?.Revision, ReadOnly, ReadOnly ? Item?.Value : null, Item?.Min );
 }

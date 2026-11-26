@@ -78,8 +78,6 @@
     "menu.common.search": "搜尋",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "請在設定中綁定聊天按鍵，以便與隊伍聊天。",
     "menu.common.the_message_could_not_be_sent": "訊息未能傳送。",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "隊伍或遊戲設定已變更。請檢查遊戲設定後重試。",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "你的隊伍已變更。請檢查遊戲設定後重試。",
     "menu.friends.1_other_friend_playing": "還有 1 位好友在玩",
     "menu.friends.add_friend": "新增好友",
     "menu.friends.away": "離開",

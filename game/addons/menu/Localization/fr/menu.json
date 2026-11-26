@@ -78,8 +78,6 @@
     "menu.common.search": "Rechercher",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "Définissez une touche de chat dans les paramètres pour discuter avec votre groupe.",
     "menu.common.the_message_could_not_be_sent": "Le message n’a pas pu être envoyé.",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "Le groupe ou la configuration de la partie a changé. Vérifiez les paramètres de la partie et réessayez.",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "Votre groupe a changé. Vérifiez la configuration de la partie et réessayez.",
     "menu.friends.1_other_friend_playing": "1 autre ami en jeu",
     "menu.friends.add_friend": "Ajouter un ami",
     "menu.friends.away": "Absent",

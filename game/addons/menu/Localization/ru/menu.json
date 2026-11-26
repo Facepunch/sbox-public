@@ -78,8 +78,6 @@
     "menu.common.search": "Поиск",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "Назначьте клавишу чата в настройках, чтобы общаться с группой.",
     "menu.common.the_message_could_not_be_sent": "Не удалось отправить сообщение.",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "Группа или параметры игры изменились. Проверьте настройки игры и повторите попытку.",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "Ваша группа изменилась. Проверьте параметры игры и повторите попытку.",
     "menu.friends.1_other_friend_playing": "Играет ещё 1 друг",
     "menu.friends.add_friend": "Добавить в друзья",
     "menu.friends.away": "Отошёл",

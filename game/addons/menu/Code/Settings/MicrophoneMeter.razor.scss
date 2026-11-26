@@ -30,20 +30,30 @@ MicrophoneMeter
 		height: 24px;
 		border-radius: 3px;
 		overflow: hidden;
-		background-image: linear-gradient( to right, #3fc76a 0%, #8fd14f 55%, #f5a623 80%, #ff5d6a 100% );
+		// The slider's empty track's colour
+		background-color: rgb( 14, 18, 27 );
 	}
 
-	// Hides the part of the bar above the microphone level, before AGC - solid, the slider's empty track's colour,
-	// and a pixel past the bar's edges so none of the colours show round them
-	.cover
+	// The microphone level, before AGC - the gradient shown up to it, its width set in code. Drawn over the dark
+	// track rather than the track covering the gradient, whose colours showed round the covered end's rounded corners
+	.level
 	{
 		position: absolute;
-		top: -1px;
-		bottom: -1px;
-		right: -1px;
-		// Its left is the level, set in code - a pixel further, so at none it covers the bar's left edge too
-		margin-left: -1px;
-		background-color: rgb( 14, 18, 27 );
+		left: 0;
+		top: 0;
+		bottom: 0;
+		overflow: hidden;
+	}
+
+	// The meter's full width (set in code), so a colour's always at the same level
+	.gradient
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		flex-shrink: 0;
+		background-image: linear-gradient( to right, #3fc76a 0%, #8fd14f 55%, #f5a623 80%, #ff5d6a 100% );
 	}
 
 	.noise, .processed, .threshold

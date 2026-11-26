@@ -540,3 +540,18 @@ Dock
 		}
 	}
 }
+
+// Up from the bottom with the pause menu - an animation, as the platform's root comes out of display: none for it
+PlatformRoot.paused Dock
+{
+	animation-name: dock-pause-in;
+	animation-duration: 0.3s;
+	animation-timing-function: ease-out;
+	animation-iteration-count: 1;
+}
+
+@keyframes dock-pause-in
+{
+	0% { opacity: 0; transform: translateY( 24px ); }
+	100% { opacity: 1; transform: translateY( 0px ); }
+}

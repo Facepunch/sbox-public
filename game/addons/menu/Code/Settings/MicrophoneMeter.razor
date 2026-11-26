@@ -11,7 +11,7 @@
 	<label class="readout">@($"{Value:0} dB")</label>
 
 	<div class="meter" @ref="Meter">
-		<div class="cover" @ref="Cover"></div>
+		<div class="level" @ref="Level"><div class="gradient" @ref="Gradient"></div></div>
 		<div class="noise" @ref="NoiseLine"></div>
 		<div class="processed" @ref="ProcessedLine"></div>
 		<div class="threshold" @ref="Line"></div>
@@ -40,7 +40,8 @@
 
 	Panel Light;
 	Panel Meter;
-	Panel Cover;
+	Panel Level;
+	Panel Gradient;
 	Panel NoiseLine;
 	Panel ProcessedLine;
 	Panel Line;
@@ -85,8 +86,9 @@
 		ProcessedLine?.SetClass( "visible", gainControl && transmitting && Fraction( shownProcessed ) > 0 );
 		NoiseLine?.SetClass( "visible", gainControl && Fraction( noiseLevel ) > 0 );
 
-		// Cover everything above the current level, so the gradient shows up to it
-		if ( Cover is not null ) Cover.Style.Left = Length.Percent( Fraction( shown ) * 100 );
+		// The gradient up to the current level - drawn the meter's width, so its colours stay put as the level moves
+		if ( Level is not null ) Level.Style.Width = Length.Percent( Fraction( shown ) * 100 );
+		if ( Gradient is not null && Meter is not null ) Gradient.Style.Width = Length.Pixels( Meter.Box.Rect.Width * Meter.ScaleFromScreen );
 		if ( NoiseLine is not null ) NoiseLine.Style.Left = Length.Percent( Fraction( noiseLevel ) * 100 );
 		if ( ProcessedLine is not null ) ProcessedLine.Style.Left = Length.Percent( Fraction( shownProcessed ) * 100 );
 		if ( Line is not null ) Line.Style.Left = Length.Percent( Fraction( Value ) * 100 );

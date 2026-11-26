@@ -188,6 +188,9 @@
     {
         base.Tick();
 
+        // The slots follow the party - no fewer than are in it
+        Setup?.FitParty();
+
         // The map's picture comes in once it's looked up
         if ( MapTile.IsValid() && MapTile.Style.BackgroundImage != Setup?.MapThumb )
             MapTile.Style.BackgroundImage = Setup?.MapThumb;
@@ -265,8 +268,7 @@
 
             if ( !IsValid || mine != request ) return;
 
-            var shared = PartyView.IsGameSelected( full ) ? PartyView.SelectedGameSettings : null;
-            var settings = Pages?.SetupSettings ?? shared ?? GameSetup.GetInitialSettings( full, PartyView.Exists ? PartyView.MaxMembers : 0 );
+            var settings = Pages?.SetupSettings ?? GameSetup.GetInitialSettings( full, PartyView.Exists ? PartyView.MaxMembers : 0 );
 
             download = null;
             Setup = new GameSetup( full, settings );
@@ -302,7 +304,7 @@
                 return;
             }
 
-            await MenuHelpers.StartConfiguredGame( Setup.Package, Setup.Finish(), PartyRoom.Current );
+            await MenuHelpers.StartConfiguredGame( Setup.Package, Setup.Finish() );
         }
         catch ( Exception e )
         {

@@ -180,14 +180,30 @@ GameFront
 		transition: opacity 0.08s ease-in;
 	}
 
-	// The pause menu, over the game - no art behind, so a scrim of its own. It just fades up.
+	// The pause menu, over the game - no art behind, so a scrim of its own. It fades up, its title and actions sliding in
+	// after as the front's do, only quicker - it's a pause, not a game coming in. Animations, not :intro transitions: the
+	// platform's root comes out of display: none in the same frame, which leaves a transition nothing to start from
 	&.paused
 	{
-		transition: opacity 0.15s ease-out;
+		animation-name: pause-in;
+		animation-duration: 0.18s;
+		animation-timing-function: ease-out;
+		animation-iteration-count: 1;
 
-		&:intro
+		.inner > .header > .title
 		{
-			opacity: 0;
+			animation-name: pause-title-in;
+			animation-duration: 0.32s;
+			animation-timing-function: ease-out;
+			animation-iteration-count: 1;
+		}
+
+		.nav
+		{
+			animation-name: pause-nav-in;
+			animation-duration: 0.4s;
+			animation-timing-function: ease-out;
+			animation-iteration-count: 1;
 		}
 	}
 
@@ -234,8 +250,34 @@ GameFront > .inner > .nav
 	overflow-y: scroll;
 	scrollbar-width: 0px;
 
+	// Scrolling clips it, so room inside for the items' shadows - moved out by as much, so they sit where they were
+	left: 32px;
+	top: 224px;
+	padding: 16px;
+
 	> .tier
 	{
 		flex-shrink: 0;
 	}
+}
+
+@keyframes pause-in
+{
+	0% { opacity: 0; }
+	100% { opacity: 1; }
+}
+
+// Held back a moment, then in from the left - the actions a little after the title
+@keyframes pause-title-in
+{
+	0% { opacity: 0; transform: translateX( -24px ); }
+	10% { opacity: 0; transform: translateX( -24px ); }
+	100% { opacity: 1; transform: translateX( 0px ); }
+}
+
+@keyframes pause-nav-in
+{
+	0% { opacity: 0; transform: translateX( -18px ); }
+	25% { opacity: 0; transform: translateX( -18px ); }
+	100% { opacity: 1; transform: translateX( 0px ); }
 }

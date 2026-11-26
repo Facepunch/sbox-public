@@ -83,14 +83,6 @@ public static class MenuHelpers
 		if ( package.Info.IsVrOnly && !Application.IsVR )
 			return;
 
-		var party = PartyRoom.Current;
-		if ( !package.Info.IsDedicatedServerOnly && party?.IsGameSelected( package ) == true && party.SelectedGameSettings is not null )
-		{
-			if ( openSetup is not null ) openSetup( package );
-			else ModalSystem.Instance?.SetUpGame( package );
-			return;
-		}
-
 		// QuickPlay: try to join an existing lobby first - not for a game played on your own, whatever its launch mode
 		if ( package.Info.IsQuickPlay && !IsSingleplayer( package ) )
 		{
@@ -144,29 +136,16 @@ public static class MenuHelpers
 		}
 	}
 
-	internal static async Task StartConfiguredGame( Package package, CreateGameResults settings, PartyRoom party = null )
+	internal static async Task StartConfiguredGame( Package package, CreateGameResults settings )
 	{
 		if ( !HasAuthority ) return;
-		var startingParty = PartyRoom.Current;
 
 		await PrepareForLoad();
 
-		// Party membership or settings may change while the loading screen settles.
-		var serverSlots = GameSetup.ClampServerSlots( package, settings.MaxPlayers );
-		if ( PartyRoom.Current != startingParty )
-		{
-			LoadingScreen.IsVisible = false;
-			throw new InvalidOperationException( Language.GetPhrase( "menu.common.your_party_has_changed_check_the_game_setup_and" ) );
-		}
+		// Room for the whole party, whoever's in it by now - as far as the game goes
+		var serverSlots = GameSetup.ClampServerSlots( package, Math.Max( settings.MaxPlayers, MenuProject.PlayerModes.PartySize ) );
 
-		if ( party is not null && (PartyRoom.Current != party || !party.Owner.IsMe || !party.IsGameSelected( package )
-			|| party.SelectedGameSettings is not { } currentSettings || !GameSetup.SettingsEqual( settings, currentSettings )
-			|| serverSlots < party.MemberCount) )
-		{
-			LoadingScreen.IsVisible = false;
-			throw new InvalidOperationException( Language.GetPhrase( "menu.common.the_party_or_game_setup_changed_check_the_game" ) );
-		}
-
+		// No longer leading the party - it's the new leader's to start
 		if ( !HasAuthority )
 		{
 			LoadingScreen.IsVisible = false;

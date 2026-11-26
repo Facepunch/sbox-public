@@ -78,8 +78,6 @@
     "menu.common.search": "検索",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "パーティーでチャットするには、設定でチャットキーを割り当ててください。",
     "menu.common.the_message_could_not_be_sent": "メッセージを送信できませんでした。",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "パーティーまたはゲーム設定が変更されました。ゲーム設定を確認して、もう一度お試しください。",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "パーティーが変更されました。ゲーム設定を確認して、もう一度お試しください。",
     "menu.friends.1_other_friend_playing": "ほかに1人のフレンドがプレイ中",
     "menu.friends.add_friend": "フレンドを追加",
     "menu.friends.away": "離席中",

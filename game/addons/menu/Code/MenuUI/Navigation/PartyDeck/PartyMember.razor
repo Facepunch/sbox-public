@@ -15,7 +15,7 @@
 		<div class="crown">👑</div>
 	}
 
-	@* What they're up to, at a glance - download progress, ready, in the game, stuck *@
+	@* What they're up to, at a glance - download progress, in the game, stuck *@
 	@if ( Badge is { } badge )
 	{
 		<div class="status-badge @StatusClass @(Status is { Stage: PartyRoom.JoinStage.Downloading, Progress: not null } ? "percent" : "")">
@@ -40,14 +40,9 @@
 	/// </summary>
 	public PartyRoom.MemberStatus Status { get; set; }
 
-	/// <summary>
-	/// Whether this member is ready to start the party's selected game.
-	/// </summary>
-	public bool Ready { get; set; }
-
 	string Name => Friend.IsMe ? Language.GetPhrase( "menu.friends.you" ) : Friend.Name;
 
-	string Badge => Ready ? "check" : Status.Stage switch
+	string Badge => Status.Stage switch
 	{
 		PartyRoom.JoinStage.Downloading => "download",
 		PartyRoom.JoinStage.WaitingForHost => "check",
@@ -57,7 +52,7 @@
 		_ => null
 	};
 
-	string StatusClass => Ready ? "ready" : Status.Stage switch
+	string StatusClass => Status.Stage switch
 	{
 		PartyRoom.JoinStage.Downloading or PartyRoom.JoinStage.Connecting => "busy",
 		PartyRoom.JoinStage.WaitingForHost or PartyRoom.JoinStage.Connected => "ready",
@@ -65,7 +60,7 @@
 		_ => ""
 	};
 
-	string StatusTooltip => Ready ? $"{Name} - ready to start" : Status.Stage switch
+	string StatusTooltip => Status.Stage switch
 	{
 		PartyRoom.JoinStage.Downloading when Status.Progress is { } p => $"{Name} - downloading, {p * 100:0}%",
 		PartyRoom.JoinStage.Downloading => $"{Name} - downloading",
@@ -80,7 +75,7 @@
 
 	public bool IsTalking => PartyView.IsMemberTalking( Friend );
 
-	protected override int BuildHash() => System.HashCode.Combine( IsOwner, IsTalking, Status, Ready );
+	protected override int BuildHash() => System.HashCode.Combine( IsOwner, IsTalking, Status );
 
 	//
 	// A bounce when their status changes - finished downloading, joined, fell over - so your eye

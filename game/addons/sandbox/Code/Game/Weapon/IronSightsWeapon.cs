@@ -29,6 +29,11 @@ public abstract class IronSightsWeapon : BaseBulletWeapon
 
 	private float _aimFovBlend;
 
+	/// <summary>
+	/// How far into aiming down sights the view is, 0 to 1 - eased over <see cref="AimFovTransitionTime"/>.
+	/// </summary>
+	public float AimBlend => _aimFovBlend;
+
 	protected override Vector3 ViewModelOffset => AimOffset * _aimFovBlend;
 
 	// Synced (owner-authoritative) so the host's authoritative shot trace sees it too - otherwise ADS

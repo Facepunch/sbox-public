@@ -42,7 +42,16 @@ internal sealed class WorkshopItems
 
 	internal WorkshopItems( Func<ulong, CancellationToken, Task<WorkshopFileSystem>> createMount = null )
 	{
-		this.createMount = createMount ?? (( id, token ) => WorkshopFileSystem.OpenAsync( id, $"Workshop item {id}", token ));
+		this.createMount = createMount ?? OpenAsync;
+	}
+
+	/// <summary>
+	/// Mounts an item under its Workshop title, so its download shows what it is.
+	/// </summary>
+	static async Task<WorkshopFileSystem> OpenAsync( ulong id, CancellationToken token )
+	{
+		var title = (await Workshop.FetchAsync( id, token ))?.Title ?? $"Workshop item {id}";
+		return await WorkshopFileSystem.OpenAsync( id, title, token );
 	}
 
 	/// <summary>

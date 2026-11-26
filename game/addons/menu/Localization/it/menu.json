@@ -78,8 +78,6 @@
     "menu.common.search": "Cerca",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "Assegna un tasto alla chat nelle impostazioni per parlare con il tuo gruppo.",
     "menu.common.the_message_could_not_be_sent": "Impossibile inviare il messaggio.",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "Il gruppo o la configurazione della partita sono cambiati. Controlla le impostazioni della partita e riprova.",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "Il tuo gruppo è cambiato. Controlla la configurazione della partita e riprova.",
     "menu.friends.1_other_friend_playing": "1 altro amico sta giocando",
     "menu.friends.add_friend": "Aggiungi amico",
     "menu.friends.away": "Assente",

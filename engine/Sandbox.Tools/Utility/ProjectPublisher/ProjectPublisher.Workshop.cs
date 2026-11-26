@@ -189,7 +189,8 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
-	/// Why publishing to this item won't work, or null. Only an item's owner can upload to it.
+	/// Why publishing to this item might not work, or null. Someone else's item can still be published to by its
+	/// contributors, so that's worth checking rather than a dead end.
 	/// </summary>
 	static string WarningFor( ulong id, Workshop.Item item )
 	{
@@ -197,7 +198,7 @@ public partial class ProjectPublisher
 			return $"Couldn't find workshop item {id}. If it's been deleted or hidden, Steam won't accept the upload.";
 
 		if ( item.Owner.Id != Game.SteamId )
-			return $"Workshop item {id} belongs to {item.Owner.Name}. Only its owner can publish to it.";
+			return $"Workshop item {id} belongs to {item.Owner.Name}. Steam will only accept the upload if you're one of its contributors.";
 
 		return null;
 	}
@@ -722,7 +723,7 @@ public partial class ProjectPublisher
 	{
 		if ( itemId == 0 )
 			throw new Exception( WorkshopItemId != 0
-				? $"Steam didn't accept the upload to workshop item {WorkshopItemId}. Only its owner can publish to it."
+				? $"Steam didn't accept the upload to workshop item {WorkshopItemId}. Only its owner and contributors can publish to it."
 				: $"Couldn't create a workshop item for {Project.Config.Title}." );
 
 		WorkshopItemId = itemId;

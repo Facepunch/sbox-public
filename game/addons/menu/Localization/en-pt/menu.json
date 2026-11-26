@@ -78,8 +78,6 @@
     "menu.common.search": "Seek",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "Set a chat key in Arrangements to talk with yer crew.",
     "menu.common.the_message_could_not_be_sent": "Couldn’t send yer message, matey.",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "The crew or game setup has changed. Check the game settings and try again, matey.",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "Yer crew has changed. Check the game setup and try again.",
     "menu.friends.1_other_friend_playing": "1 other matey playing",
     "menu.friends.add_friend": "Add a matey",
     "menu.friends.away": "Away from the helm",

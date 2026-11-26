@@ -147,10 +147,16 @@ PlatformRoot
 		opacity: 0;
 		transition: opacity 0.3s ease-out;
 
+		// Faded up by an animation too - pausing brings the root out of display: none in the same frame, so the
+		// transition alone has nothing to start from
 		&.on
 		{
 			opacity: 1;
 			pointer-events: all;
+			animation-name: platform-blur-in;
+			animation-duration: 0.3s;
+			animation-timing-function: ease-out;
+			animation-iteration-count: 1;
 		}
 	}
 
@@ -257,4 +263,10 @@ PlatformRoot
 	{
 		transform: translate( 2%, 1% ) scale( 1.15 );
 	}
+}
+
+@keyframes platform-blur-in
+{
+	0% { opacity: 0; }
+	100% { opacity: 1; }
 }

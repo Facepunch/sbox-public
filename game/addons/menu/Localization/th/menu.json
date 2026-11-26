@@ -78,8 +78,6 @@
     "menu.common.search": "ค้นหา",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "กำหนดปุ่มแชทในหน้าการตั้งค่าเพื่อแชทกับปาร์ตี้ของคุณ",
     "menu.common.the_message_could_not_be_sent": "ส่งข้อความไม่สำเร็จ",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "ปาร์ตี้หรือการตั้งค่าเกมมีการเปลี่ยนแปลง ตรวจสอบการตั้งค่าเกมแล้วลองอีกครั้ง",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "ปาร์ตี้ของคุณมีการเปลี่ยนแปลง ตรวจสอบการตั้งค่าเกมแล้วลองอีกครั้ง",
     "menu.friends.1_other_friend_playing": "มีเพื่อนอีก 1 คนกำลังเล่น",
     "menu.friends.add_friend": "เพิ่มเพื่อน",
     "menu.friends.away": "ไม่อยู่",

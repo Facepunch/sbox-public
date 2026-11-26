@@ -71,6 +71,17 @@ public sealed partial class GameSetup
 	public bool IsMultiplayer => Package.Tags.Contains( "multiplayer" ) || Package.Info.MaxPlayers > 1;
 
 	/// <summary>
+	/// Keeps the server's slots from going below the party - its lowest raised to the party's size (as far as the game
+	/// goes), and the slots with it. Call it as the party changes.
+	/// </summary>
+	public void FitParty()
+	{
+		var min = Math.Clamp( Math.Max( MinPlayerCount, PlayerModes.PartySize ), 1, MaxPlayerCount );
+		if ( PlayersItem.Min != min ) PlayersItem.Min = min;
+		if ( PlayersItem.FloatValue < min ) PlayersItem.Value = (float)min;
+	}
+
+	/// <summary>
 	/// A player count to pick - only when the game lets it be more than one number.
 	/// </summary>
 	public bool HasPlayerRange => MinPlayerCount != MaxPlayerCount;

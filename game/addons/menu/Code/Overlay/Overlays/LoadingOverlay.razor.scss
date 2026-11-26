@@ -480,11 +480,24 @@ LoadingOverlay
 				border-bottom-right-radius: 999px;
 			}
 
-			// The segment's shape does the clipping - the fill's own rounding would round it again
-			// inside it
+			// The fill's leading edge is round, its back end clipped by the segment. Full, it's square - the
+			// segment's own end shapes it, round on the bar's last and square between segments
 			.fill
 			{
 				border-radius: 0;
+				border-top-right-radius: 999px;
+				border-bottom-right-radius: 999px;
+			}
+
+			&.done .fill
+			{
+				border-radius: 0;
+			}
+
+			&.done:last-child .fill
+			{
+				border-top-right-radius: 999px;
+				border-bottom-right-radius: 999px;
 			}
 
 			// Down - just full, nothing sweeping or pulsing along it any more (till the batch's finish

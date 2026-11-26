@@ -6,9 +6,24 @@ public partial class ViewModel
 	[Property, Group( "Movement" )]
 	public bool MovementBob { get; set; }
 
+	/// <summary>
+	/// Multiplies the bob while aiming down sights (on weapons with an <see cref="IronSightsWeapon"/>), eased in
+	/// with the aim - below 1 keeps the sights steadier, 0 stops the bob.
+	/// </summary>
+	[Property, Title( "ADS Bob Scale" ), Group( "Movement" ), ShowIf( nameof( MovementBob ), true )]
+	public float ADSBobScale { get; set; } = 0.15f;
+
 	void ApplyMovementBob( Player player, Rotation eyeRotation, ref Vector3 position, ref Rotation rotation )
 	{
 		var (vertical, lateral) = player.GetViewModelBob();
+
+		if ( GetComponentInParent<IronSightsWeapon>() is { } sights )
+		{
+			var scale = MathX.Lerp( 1f, ADSBobScale, sights.AimBlend );
+			vertical *= scale;
+			lateral *= scale;
+		}
+
 		if ( vertical == 0f && lateral == 0f ) return;
 
 		// The lift stays vertical even when the player looks up or down.

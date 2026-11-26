@@ -48,7 +48,7 @@
     /// <summary>
     /// Is the chat available for us?
     /// </summary>
-    bool ChatAvailable => InGame || InParty;
+    bool ChatAvailable => !LoadingScreen.IsVisible && (InGame || InParty);
 
     protected override void OnAfterTreeRender( bool firstTime )
     {
@@ -197,5 +197,5 @@
         Close();
     }
 
-    protected override int BuildHash() => System.HashCode.Combine( IsOpen, InGame, InParty, Channel );
+    protected override int BuildHash() => System.HashCode.Combine( IsOpen, ChatAvailable, InGame, InParty, Channel );
 }

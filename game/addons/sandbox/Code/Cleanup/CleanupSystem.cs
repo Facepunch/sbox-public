@@ -41,7 +41,7 @@ public interface ICleanupEvents : ISceneEvent<ICleanupEvents>
 /// A system that tracks the baseline scene state and allows resetting the map to its original state.
 /// Removes all spawned props and restores destroyed map objects while leaving players untouched.
 /// </summary>
-internal sealed class CleanupSystem : GameObjectSystem<CleanupSystem>, ISceneLoadingEvents
+internal sealed class CleanupSystem : GameObjectSystem<CleanupSystem>, ISceneLoadingEvents, ISceneStartup
 {
 	/// <summary>
 	/// Set of GameObjects that existed in the original scene baseline.
@@ -87,14 +87,11 @@ internal sealed class CleanupSystem : GameObjectSystem<CleanupSystem>, ISceneLoa
 
 	async Task ISceneLoadingEvents.OnLoad( Scene scene, SceneLoadOptions options, LoadingContext context )
 	{
-		// We don't care if the game is not playing
-		if ( !Game.IsPlaying ) return;
+		// Not the editor's own scene. Not Game.IsPlaying either - a game only sets that once its startup scene's loaded
+		if ( scene.IsEditor ) return;
 
-		// Wait for next frame to ensure all objects are spawned
-		await Task.Yield();
-
-		// Could be null if the scene was unloaded before this runs
-		if ( !Scene.IsValid() ) return;
+		// Wait for the scene's objects, and any map it loads, so they're all part of the baseline
+		if ( !await WaitForMaps() ) return;
 
 		// When loading a save, restore the baseline captured before the scene was destroyed
 		if ( _restorePersistedBaseline && _persistedBaselineIds is not null )
@@ -113,23 +110,49 @@ internal sealed class CleanupSystem : GameObjectSystem<CleanupSystem>, ISceneLoa
 	}
 
 	/// <summary>
+	/// Clients take their own baseline once they've got the host's scene, so they can clear what only they spawned.
+	/// </summary>
+	void ISceneStartup.OnClientInitialize()
+	{
+		// After the scene's loading has finished, maps and all
+		if ( Networking.IsHost ) return;
+
+		CaptureBaseline( false );
+	}
+
+	/// <summary>
+	/// Waits a frame, then for the scene's maps to finish loading, or failing to - their objects come after the
+	/// scene's. False if the scene's gone.
+	/// </summary>
+	async Task<bool> WaitForMaps()
+	{
+		await Task.Yield();
+
+		// While a map's loading - flagged for the whole of it, loaded or failed, however long its download takes
+		while ( Scene.IsValid() && Scene.GetAllComponents<MapInstance>().Any( x => x.GameObject.Flags.Contains( GameObjectFlags.Loading ) ) )
+			await Task.Delay( 100 );
+
+		return Scene.IsValid();
+	}
+
+	/// <summary>
 	/// Captures the current scene state as the baseline.
 	/// All objects that exist at this point are considered part of the original map.
 	/// </summary>
-	public void CaptureBaseline()
+	public void CaptureBaseline( bool restorable = true )
 	{
 		_baselineObjectIds.Clear();
 		_baselineObjectData.Clear();
 
 		foreach ( var go in Scene.Children?.ToArray() ?? [] )
 		{
-			CaptureObjectRecursive( go );
+			CaptureObjectRecursive( go, restorable );
 		}
 
 		Log.Info( $"CleanupSystem: Captured baseline with {_baselineObjectIds.Count} objects." );
 	}
 
-	private void CaptureObjectRecursive( GameObject go )
+	private void CaptureObjectRecursive( GameObject go, bool restorable )
 	{
 		if ( !go.IsValid() )
 			return;
@@ -143,7 +166,7 @@ internal sealed class CleanupSystem : GameObjectSystem<CleanupSystem>, ISceneLoa
 
 		_baselineObjectIds.Add( go.Id );
 
-		var serialized = go.Serialize();
+		var serialized = restorable ? go.Serialize() : null;
 		if ( serialized is not null )
 		{
 			_baselineObjectData[go.Id] = serialized.ToJsonString();
@@ -151,7 +174,7 @@ internal sealed class CleanupSystem : GameObjectSystem<CleanupSystem>, ISceneLoa
 
 		foreach ( var child in go.Children?.ToArray() ?? [] )
 		{
-			CaptureObjectRecursive( child );
+			CaptureObjectRecursive( child, restorable );
 		}
 	}
 
@@ -221,12 +244,9 @@ internal sealed class CleanupSystem : GameObjectSystem<CleanupSystem>, ISceneLoa
 			{
 				existingBaselineIds.Add( go.Id );
 			}
-			else
+			else if ( IsSpawned( go ) )
 			{
-				if ( go.Parent == Scene )
-				{
-					objectsToRemove.Add( go );
-				}
+				objectsToRemove.Add( go );
 			}
 		}
 
@@ -280,9 +300,43 @@ internal sealed class CleanupSystem : GameObjectSystem<CleanupSystem>, ISceneLoa
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	private static void BroadcastCleanup( int removedObjects, int restoredObjects )
 	{
+		// The host's own went in Cleanup, minus any OnCleaningUp kept
+		if ( !Networking.IsHost ) Current?.RemoveLocalLeftovers();
+
 		Game.ActiveScene?.RunEvent<ICleanupEvents>( x => x.OnCleanup( removedObjects, restoredObjects ) );
 
 		Log.Info( $"Cleanup complete. Removed {removedObjects} spawned objects, restored {restoredObjects} destroyed objects." );
+	}
+
+	/// <summary>
+	/// A client's own spawned objects - gibs, impacts, effects - which the host's cleanup can't reach. Networked ones
+	/// are the host's to remove.
+	/// </summary>
+	private void RemoveLocalLeftovers()
+	{
+		if ( !HasBaseline ) return;
+
+		foreach ( var go in Scene.GetAllObjects( true ).ToArray() )
+		{
+			if ( !go.IsValid() || go.IsNetworkRoot || !IsSpawned( go ) ) continue;
+
+			go.Destroy();
+		}
+	}
+
+	/// <summary>
+	/// Whether this was spawned since the baseline, and is the top of what was - on its own, or stuck to the map like
+	/// an impact. Not players' things, nor what the engine makes under objects (bones, attachments, hidden helpers).
+	/// </summary>
+	private bool IsSpawned( GameObject go )
+	{
+		// The scene's own in the list, with no parent
+		if ( go.Parent is not { } parent || _baselineObjectIds.Contains( go.Id ) ) return false;
+		if ( parent != Scene && !_baselineObjectIds.Contains( parent.Id ) ) return false;
+		if ( go.Flags.Contains( GameObjectFlags.DontDestroyOnLoad ) ) return false;
+		if ( go.Flags.Contains( GameObjectFlags.Bone ) || go.Flags.Contains( GameObjectFlags.Attachment ) || go.Flags.Contains( GameObjectFlags.Hidden ) ) return false;
+
+		return !IsPlayerObject( go );
 	}
 
 	/// <summary>

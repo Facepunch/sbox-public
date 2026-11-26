@@ -95,10 +95,10 @@
 						}
 						@* Keep member listeners mounted while settings replace the party roster view. *@
 						<div class="members @(SeatsTaken > 5 ? "compact" : "")" style="display: @(SettingsOpen ? "none" : "flex")">
-							<PartyMember Friend="@Me" Status="@StatusOf( Me )" Ready="@PartyView.IsMemberReady( Me )" />
+							<PartyMember Friend="@Me" Status="@StatusOf( Me )" />
 							@foreach ( var member in Members.Where( x => !x.IsMe ) )
 							{
-								<PartyMember Friend="@member" Status="@StatusOf( member )" Ready="@PartyView.IsMemberReady( member )" />
+								<PartyMember Friend="@member" Status="@StatusOf( member )" />
 							}
 
 							@* Asked in, not here yet - their seat's held, greyed out, until they turn up or it lapses.
@@ -290,7 +290,6 @@
 		foreach ( var member in Members )
 		{
 			members.Add( StatusOf( member ) );
-			members.Add( PartyView.IsMemberReady( member ) );
 		}
 
 		return System.HashCode.Combine( PartyView.Exists, MemberCount, PartyView.Owner, Status, members.ToHashCode(), HashCode.Combine( GameThumb, GameArt, PartyInvites.Hash, InParty, DisplayGameIdent ), HashCode.Combine( PartyView.Name, IsPublic, SettingsOpen, SettingsError, MaxMembers, Draft, Draft?.Creating, JustMade ) );

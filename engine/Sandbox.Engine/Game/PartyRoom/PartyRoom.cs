@@ -4,7 +4,6 @@ using Sandbox.Network;
 using Steamworks;
 using Steamworks.Data;
 using System.Globalization;
-using System.Text.Json;
 
 namespace Sandbox;
 
@@ -228,8 +227,6 @@ public partial class PartyRoom : ILobby
 			steamLobby.SetData( "packagetitle", Application.GamePackage?.Title );
 
 			var state = DetermineJoinState();
-			// Back in the menu: everyone needs to ready up again for the next game.
-			if ( state == OwnerJoinState.None && JoinState != OwnerJoinState.None ) ResetReadiness();
 			steamLobby.SetData( "joinstate", state.ToString() );
 			var progress = state == OwnerJoinState.Loading ? LoadingScreen.Progress : null;
 			steamLobby.SetData( "download_fraction", progress?.Fraction.ToString( "F4", CultureInfo.InvariantCulture ) ?? "" );
@@ -410,73 +407,6 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	public bool IsGameSelected( Package package ) => package is not null && (SelectedGameIdent == package.GetVersionedIdent() || SelectedGameIdent == package.FullIdent);
 
-	string selectedGameSettingsJson;
-	CreateGameResults? selectedGameSettings;
-
-	/// <summary>
-	/// A copy of the leader's saved setup for the selected game, or null if it has not been configured.
-	/// </summary>
-	public CreateGameResults? SelectedGameSettings
-	{
-		get
-		{
-			var json = steamLobby.GetData( "selected_game_settings" );
-			if ( json != selectedGameSettingsJson )
-			{
-				selectedGameSettingsJson = json;
-				selectedGameSettings = null;
-
-				if ( !string.IsNullOrEmpty( json ) )
-				{
-					try
-					{
-						selectedGameSettings = JsonSerializer.Deserialize<CreateGameResults>( json );
-					}
-					catch ( JsonException )
-					{
-						// Keep invalid settings empty until the lobby publishes a different value.
-					}
-				}
-			}
-
-			if ( selectedGameSettings is not { } settings ) return null;
-
-			// Callers can edit their copy without changing the cached lobby settings.
-			return settings with { GameSettings = settings.GameSettings is null ? null : new( settings.GameSettings ) };
-		}
-	}
-
-	/// <summary>
-	/// Save the setup for the currently selected game. Only the leader can change it.
-	/// </summary>
-	public void ConfigureGame( string gameIdent, CreateGameResults settings )
-	{
-		if ( Current != this || !Owner.IsMe )
-		{
-			throw new InvalidOperationException( "Only the party leader can change game settings." );
-		}
-
-		if ( string.IsNullOrEmpty( gameIdent ) || gameIdent != SelectedGameIdent )
-		{
-			throw new InvalidOperationException( "The party's game has changed. Open its settings again." );
-		}
-
-		// Lobby data anyone can read. The party gets in on an invite, so they don't need the password.
-		var json = JsonSerializer.Serialize( settings with { Password = null } );
-		if ( System.Text.Encoding.UTF8.GetByteCount( json ) > 8191 )
-		{
-			throw new ArgumentException( "These game settings are too large to share with the party." );
-		}
-
-		if ( steamLobby.GetData( "selected_game_settings" ) == json ) return;
-		if ( !steamLobby.SetData( "selected_game_settings", json ) )
-		{
-			throw new InvalidOperationException( "Could not save game settings. Please try again." );
-		}
-
-		ResetReadiness();
-	}
-
 	/// <summary>
 	/// Publish the leader's choice of game. Pass null to clear the choice.
 	/// </summary>
@@ -487,14 +417,7 @@ public partial class PartyRoom : ILobby
 			throw new InvalidOperationException( "Only the party leader can choose the game." );
 		}
 
-		var ident = package?.GetVersionedIdent() ?? "";
-		if ( SelectedGameIdent != ident )
-		{
-			steamLobby.DeleteData( "selected_game_settings" );
-			ResetReadiness();
-		}
-
-		steamLobby.SetData( "selected_game", ident );
+		steamLobby.SetData( "selected_game", package?.GetVersionedIdent() ?? "" );
 		steamLobby.SetData( "selected_game_title", package?.Title ?? "" );
 	}
 
@@ -546,9 +469,7 @@ public partial class PartyRoom : ILobby
 
 	void UpdateLobbyData()
 	{
-		var previousOwner = Owner;
 		Owner = new Friend( steamLobby.Owner );
-		if ( Owner.IsMe && previousOwner.Id != Owner.Id ) ResetReadiness();
 	}
 
 

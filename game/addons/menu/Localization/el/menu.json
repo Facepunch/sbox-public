@@ -78,8 +78,6 @@
     "menu.common.search": "Αναζήτηση",
     "menu.common.set_a_chat_key_in_settings_to_chat_with": "Ορίστε πλήκτρο συνομιλίας στις Ρυθμίσεις για να μιλάτε με την παρέα σας.",
     "menu.common.the_message_could_not_be_sent": "Δεν ήταν δυνατή η αποστολή του μηνύματος.",
-    "menu.common.the_party_or_game_setup_changed_check_the_game": "Η παρέα ή η διαμόρφωση παιχνιδιού άλλαξε. Ελέγξτε τις ρυθμίσεις παιχνιδιού και δοκιμάστε ξανά.",
-    "menu.common.your_party_has_changed_check_the_game_setup_and": "Η παρέα σας άλλαξε. Ελέγξτε τη διαμόρφωση παιχνιδιού και δοκιμάστε ξανά.",
     "menu.friends.1_other_friend_playing": "Παίζει ακόμη 1 φίλος",
     "menu.friends.add_friend": "Προσθήκη φίλου",
     "menu.friends.away": "Απουσιάζει",

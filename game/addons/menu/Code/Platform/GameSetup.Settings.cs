@@ -4,7 +4,7 @@ using Sandbox.Modals;
 namespace MenuProject.Platform;
 
 /// <summary>
-/// Defaults and comparisons shared by game setup and party launching.
+/// Defaults shared by game setup and party launching.
 /// </summary>
 public sealed partial class GameSetup
 {
@@ -38,14 +38,5 @@ public sealed partial class GameSetup
 	internal static int ClampServerSlots( Package package, int slots )
 	{
 		return Math.Clamp( slots, 1, Math.Max( 1, package.Info.MaxPlayers ) );
-	}
-
-	internal static bool SettingsEqual( CreateGameResults? left, CreateGameResults? right )
-	{
-		if ( left is not { } a || right is not { } b ) return left.HasValue == right.HasValue;
-
-		return a.MaxPlayers == b.MaxPlayers && a.ServerName == b.ServerName && a.Privacy == b.Privacy && a.Map == b.Map
-			&& (a.GameSettings?.Count ?? 0) == (b.GameSettings?.Count ?? 0)
-			&& (a.GameSettings is null || a.GameSettings.All( x => b.GameSettings is not null && b.GameSettings.TryGetValue( x.Key, out var value ) && value == x.Value ));
 	}
 }

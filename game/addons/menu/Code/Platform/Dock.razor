@@ -58,7 +58,7 @@
 
 					@foreach ( var member in ShownMembers )
 					{
-						<PartyMember Friend=@member Status=@PartyView.StatusOf( member ) Ready=@PartyView.IsMemberReady( member ) />
+						<PartyMember Friend=@member Status=@PartyView.StatusOf( member ) />
 					}
 
 					@foreach ( var invited in ShownInvites )
@@ -461,6 +461,6 @@
     }
 
     protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, onlineCount, Root?.FriendsOpen == true ), PartyDeck.ShownOnPlatform,
-        MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x ), PartyView.IsMemberReady( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),
+        MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),
         Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), Drop, Root?.RewardsOpen == true, LibraryOpen ) );
 }

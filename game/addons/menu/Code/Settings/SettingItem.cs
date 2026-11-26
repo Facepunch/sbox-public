@@ -42,7 +42,8 @@ public class SettingItem
 	/// <summary>For lists only known when shown. Wins over <see cref="Options"/>.</summary>
 	public Func<List<Option>> OptionsBuilder { get; init; }
 
-	public float Min { get; init; }
+	/// <summary>A slider's lowest - can move while it's shown, like a server's slots that can't go below the party.</summary>
+	public float Min { get; set; }
 	public float Max { get; init; } = 100;
 	public float Step { get; init; } = 1;
 	public string NumberFormat { get; init; } = "0.###";

@@ -6,7 +6,7 @@
 @inherits RootPanel
 
 @* The platform menu - a root of its own over the game. *@
-<root class="@(Visible ? "" : "hidden") @(Paging ? "paging" : "")">
+<root class="@(Visible ? "" : "hidden") @(Paging ? "paging" : "") @(Paused ? "paused" : "")">
 
     @* The next game's fades in over the one before - see UpdateBackdrops. In a panel of their own: one going out is moved
        after the ones kept, which would draw it over everything else here while it fades - and its :outro z-index keeps
