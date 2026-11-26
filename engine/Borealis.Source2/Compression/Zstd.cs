@@ -22,24 +22,42 @@ public static class Zstd
 	public static int Decompress( ReadOnlySpan<byte> source, Span<byte> destination, ZstdDictionary dictionary = null )
 	{
 		var written = 0;
-		while ( source.Length > 0 )
+		var workspace = TakeWorkspace();
+		try
 		{
-			var magic = BinaryPrimitives.ReadUInt32LittleEndian( source );
-			if ( (magic & SkippableMagicMask) == SkippableMagic )
+			while ( source.Length > 0 )
 			{
-				var size = (int)BinaryPrimitives.ReadUInt32LittleEndian( source[4..] );
-				source = source[(8 + size)..];
-				continue;
-			}
+				var magic = BinaryPrimitives.ReadUInt32LittleEndian( source );
+				if ( (magic & SkippableMagicMask) == SkippableMagic )
+				{
+					var size = (int)BinaryPrimitives.ReadUInt32LittleEndian( source[4..] );
+					source = source[(8 + size)..];
+					continue;
+				}
 
-			if ( magic != FrameMagic ) throw new InvalidDataException( $"Not a Zstandard frame (magic {magic:X8})" );
-			var frame = new FrameDecoder( dictionary, workspace ??= new Workspace() );
-			var used = frame.Decode( source, destination[written..], out var produced );
-			written += produced;
-			source = source[used..];
+				if ( magic != FrameMagic ) throw new InvalidDataException( $"Not a Zstandard frame (magic {magic:X8})" );
+				var frame = new FrameDecoder( dictionary, workspace );
+				var used = frame.Decode( source, destination[written..], out var produced );
+				written += produced;
+				source = source[used..];
+			}
+		}
+		finally
+		{
+			lock ( spareWorkspaces ) spareWorkspaces.Push( workspace );
 		}
 
 		return written;
+	}
+
+	static Workspace TakeWorkspace()
+	{
+		lock ( spareWorkspaces )
+		{
+			if ( spareWorkspaces.TryPop( out var kept ) ) return kept;
+		}
+
+		return new Workspace();
 	}
 
 	/// <summary>
@@ -67,8 +85,8 @@ public static class Zstd
 	}
 
 	/// <summary>
-	/// A thread's decoding scratch, kept between frames: the literals buffer and the tables a frame reads, filled in place
-	/// rather than made for every frame (a texture's every mip is one).
+	/// A decode's scratch, kept between decodes (<see cref="spareWorkspaces"/>): the literals buffer and the tables a frame
+	/// reads, filled in place rather than made for every frame (a texture's every mip is one).
 	/// </summary>
 	sealed class Workspace
 	{
@@ -81,7 +99,11 @@ public static class Zstd
 	/// <summary>The most a block decodes to, and so the most literals it holds.</summary>
 	const int MaxBlockBytes = 1 << 17;
 
-	[ThreadStatic] static Workspace workspace;
+	/// <summary>
+	/// Workspaces not in use, one per decode at once at most: kept here rather than per thread, as the thread pool's workers
+	/// that stream content come and go, and each new one made its own.
+	/// </summary>
+	static readonly Stack<Workspace> spareWorkspaces = new();
 
 	static int DictionaryIdBytes( int flag ) => flag switch { 0 => 0, 1 => 1, 2 => 2, _ => 4 };
 
