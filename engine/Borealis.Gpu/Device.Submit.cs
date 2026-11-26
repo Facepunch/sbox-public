@@ -373,6 +373,17 @@ public sealed unsafe partial class Device
 			for ( int i = 0; i < frame.Lists.Count; i++ )
 			{
 				if ( frame.Lists[i].Frame == FrameNumber ) continue;
+
+				// Submitted after its frame closed (a DeferUploads scope or the engine's uploads spanning frames) and not done:
+				// the wait above doesn't cover it, and its command buffer may still be running or waiting in the queue's next
+				// submission. It goes with this frame, whose wait will
+				if ( frame.Lists[i].Submitted.IsValid && !IsComplete( frame.Lists[i].Submitted ) )
+				{
+					frame.Lists[i].Frame = FrameNumber;
+					ListsKeptPending++;
+					continue;
+				}
+
 				recycle.Add( frame.Lists[i] );
 				frame.Lists.RemoveAt( i-- );
 			}
@@ -395,6 +406,9 @@ public sealed unsafe partial class Device
 
 	// The frame's lists as BeginFrame recycles them, kept
 	readonly List<CommandList> recycling = new();
+
+	/// <summary>Lists kept past their slot's recycling for being submitted later than their frame and not done, for the tests.</summary>
+	internal int ListsKeptPending { get; private set; }
 
 	/// <summary>Lists carried into the frame after the one they began in, for the tests.</summary>
 	internal int ListsCarried { get; private set; }

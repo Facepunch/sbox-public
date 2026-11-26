@@ -282,6 +282,47 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A list submitted frames after the one it began in (a DeferUploads scope spanning frames) whose submission isn't done
+	/// when its slot comes round isn't recycled under it: here it's sent with the next submission just as the slot is
+	/// recycled, and still writes what it recorded. Recycled, its command buffer was reset and given to another list while
+	/// the queue still held it (the game, Mow the Lawn's menu with validation, 2026-11-26).
+	/// </summary>
+	[TestMethod]
+	public void ListSubmittedLateIsntRecycledUnderItsSubmission()
+	{
+		var readback = Device.CreateBuffer( new BufferInfo { Size = 1024, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 1024, Usage = BufferUsage.Storage, Name = "Written late" } );
+		var data = Enumerable.Range( 0, 256 ).Select( i => (uint)(i * 3 + 2) ).ToArray();
+
+		Device.BeginFrame();
+		var kept = Device.ListsKeptPending;
+		var list = Device.BeginCommandList( name: "Submitted late" );
+		list.UpdateBuffer<uint>( buffer, data );
+		list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Transfer, DestinationAccess = MemoryAccess.TransferRead } );
+		list.CopyBuffer( buffer, 0, readback, 0, 1024 );
+		list.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+
+		// Carried into the next frame's slot; submitted (to go with the next submission) as that slot is recycled
+		for ( int i = 0; i < Device.FramesInFlight; i++ ) Device.BeginFrame();
+		SyncPoint point = default;
+		Device.FrameSwitchedForTests = () => point = Device.SubmitLater( list );
+		try
+		{
+			Device.BeginFrame();
+		}
+		finally
+		{
+			Device.FrameSwitchedForTests = null;
+		}
+
+		Assert.IsTrue( point.IsValid, "submitted as the slot was recycled" );
+		Device.Flush();
+		Device.Wait( point );
+		CollectionAssert.AreEqual( data, MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) ).ToArray(), "the late list's copy ran" );
+		Assert.AreEqual( kept + 1, Device.ListsKeptPending, "kept for its submission" );
+	}
+
+	/// <summary>
 	/// A list another thread begins while a frame starts (the game's frame thread starts frames while the main thread
 	/// records), after the switch and before the slot's old lists are recycled, belongs to the new frame: it isn't recycled
 	/// with the slot's old lists under its recording, and records, submits and uploads what it was given.
