@@ -88,7 +88,7 @@ internal sealed class ObjectLayer
 	[ThreadStatic] static System.Text.StringBuilder scratchKey;
 
 	/// <summary>The combos as a key, by name (<see cref="Combos"/>): <paramref name="current"/> when it's the same.</summary>
-	static string ComboKey( Dictionary<uint, int> combos, string current )
+	internal static string ComboKey( Dictionary<uint, int> combos, string current )
 	{
 		if ( combos.Count == 0 ) return "";
 
@@ -100,8 +100,28 @@ internal sealed class ObjectLayer
 		var key = scratchKey ??= new();
 		key.Clear();
 		foreach ( var (combo, value) in sorted ) key.Append( combo ).Append( '=' ).Append( value ).Append( ';' );
-		return key.Equals( current.AsSpan() ) ? current : string.Intern( key.ToString() );
+		if ( key.Equals( current.AsSpan() ) ) return current;
+
+		// A key made before is found by its characters, so combos that switch back and forth (a component setting one every
+		// frame) make no string
+		var length = key.Length;
+		var chars = scratchChars ??= new char[256];
+		if ( chars.Length < length ) scratchChars = chars = new char[Math.Max( length, chars.Length * 2 )];
+		key.CopyTo( 0, chars, 0, length );
+		var span = chars.AsSpan( 0, length );
+		lock ( comboKeys )
+		{
+			if ( comboKeys.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue( span, out var known ) ) return known;
+			var made = string.Intern( new string( span ) );
+			comboKeys.Add( made );
+			return made;
+		}
 	}
+
+	/// <summary>Every combo key made so far (<see cref="ComboKey"/>), one per set of combos a layer has had.</summary>
+	static readonly HashSet<string> comboKeys = new( StringComparer.Ordinal );
+
+	[ThreadStatic] static char[] scratchChars;
 
 	// The last key joined with a lighting layer's (BackendContext.SetObjectAttributes), so drawing the same pair again joins nothing
 	(string Lighting, string Joined) joined;
