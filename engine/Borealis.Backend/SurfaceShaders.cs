@@ -1367,6 +1367,18 @@ internal sealed class SurfaceProgram : IDisposable
 	public bool WritesNormals( PassObjects pass ) => Compiled.Tier == ShaderTier.Surface
 		&& pass.Pass.Pixel?.Entry is "ForwardPs" or "ForwardAlphaTestPs" or "ForwardPsGpuDriven" or "ForwardAlphaTestPsGpuDriven";
 
+	/// <summary>Whether a surface's render state biases its depth in its colour passes (<c>[DepthBias]</c>).</summary>
+	internal static bool HasDepthBias( SurfaceRenderState state ) => state.DepthBias != 0 || state.SlopeDepthBias != 0;
+
+	/// <summary>
+	/// Set a colour draw's depth bias to its surface's own (<see cref="HasDepthBias"/>), which its pipeline enables; one
+	/// without leaves the list's values alone, as its pipeline doesn't use them.
+	/// </summary>
+	internal static void ColorDepthBias( CommandList list, SurfaceRenderState state )
+	{
+		if ( HasDepthBias( state ) ) list.SetDepthBias( state.DepthBias, state.SlopeDepthBias );
+	}
+
 	internal GraphicsPipelineInfo Info( PassObjects pass, VertexLayout layout, Format color, Format depth, int samples, SpecializationConstant[] vertexConstants, SpecializationConstant[] pixelConstants, SurfaceRenderState state, bool ids, bool opaqueFade, bool depthEqual, bool normals )
 	{
 		// A vertex-cache draw reads its vertex ids from streams 2 and 3, as floats, and the default stream from 4, as
@@ -1423,6 +1435,10 @@ internal sealed class SurfaceProgram : IDisposable
 			info.Blend = [Blend( state.Blend )];
 			info.DepthTest = depth != Format.Unknown && state.DepthTest;
 			info.DepthWrite = depth != Format.Unknown && state.DepthWrite;
+
+			// The material's own depth bias (a static overlay's [DepthBias( 250, 0.5 )]), as its render state gives it: what keeps
+			// it over the surface it lies on. Its values are set while recording (ColorDepthBias)
+			info.DepthBias = depth != Format.Unknown && HasDepthBias( state );
 
 			// Colour after a prepass that drew the same triangles: their depth isn't written again. An alpha-tested pass, whose
 			// prepass drew them with the same vertex stage, tests it equal, as foliage.shader's colour pass, so it keeps early

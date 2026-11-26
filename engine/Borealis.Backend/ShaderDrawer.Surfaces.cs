@@ -43,6 +43,7 @@ public sealed partial class ShaderDrawer
 
 		// Into depth alone, the depth bias is dynamic, as for classic draws (DepthBias)
 		if ( color == Format.Unknown && depth != Format.Unknown ) list.SetDepthBias( DepthBias.Constant, DepthBias.Slope );
+		else if ( color != Format.Unknown ) SurfaceProgram.ColorDepthBias( list, state );
 
 		list.SetVertexBuffer( 0, draw.Vertices, draw.VertexOffset );
 		if ( ids ) list.SetVertexBuffer( 1, InstanceIds.Buffer, InstanceIds.Offset );

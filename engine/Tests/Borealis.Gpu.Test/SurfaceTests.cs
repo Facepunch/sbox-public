@@ -355,6 +355,29 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A static overlay keeps its render state's depth bias in its colour pass, as native's render state gives it: it lies on
+	/// the surface under it, which wrote that depth first, and without the bias loses the depth test to it over much of
+	/// its area. Its material resolves to no depth write and <c>[DepthBias( 250, 0.5 )]</c>; its forward pipeline biases
+	/// depth, an unbiased surface's doesn't.
+	/// </summary>
+	[TestMethod]
+	public void StaticOverlayColourKeepsItsDepthBias()
+	{
+		var compiled = Compiler().CompileSurface( Path.Combine( Core, "shaders", "static_overlay.slang" ) );
+		var state = compiled.Material.States().Resolve( new byte[compiled.Material.Size] );
+		Assert.IsFalse( state.DepthWrite, "NoDepthWrite" );
+		Assert.AreEqual( 250f, state.DepthBias );
+		Assert.AreEqual( 0.5f, state.SlopeDepthBias );
+
+		using var backend = new BackendDevice( Device );
+		using var program = new SurfaceProgram( backend, compiled );
+		var pass = program.Pass( ShaderPasses.Forward );
+		Assert.IsTrue( program.Info( pass, backend.PulledLayout, Format.RGBA16Float, Format.D32Float, 4, null, null, state, false, false, false, false ).DepthBias, "the overlay's colour" );
+		Assert.IsFalse( program.Info( pass, backend.PulledLayout, Format.RGBA16Float, Format.D32Float, 4, null, null, state with { DepthBias = 0, SlopeDepthBias = 0 }, false, false, false, false ).DepthBias, "unbiased colour" );
+		Assert.IsTrue( program.Info( pass, backend.PulledLayout, Format.Unknown, Format.D32Float, 4, null, null, SurfaceRenderState.Opaque, false, false, false, false ).DepthBias, "depth alone takes the pass's" );
+	}
+
+	/// <summary>
 	/// A forward pass's pixel module without its outputs past location 0 is made with the program, on the thread that compiles
 	/// it: a pipeline into a view with no normals target (a cube capture's face) finds it made, rather than making it on the
 	/// thread that records the draw.

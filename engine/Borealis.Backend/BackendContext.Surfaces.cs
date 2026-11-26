@@ -136,6 +136,7 @@ internal sealed partial class BackendContext
 		r.Binder = null;
 
 		if ( noColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
+		else SurfaceProgram.ColorDepthBias( r.List, state );
 		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect, material );
 		return true;
 	}
@@ -264,6 +265,9 @@ internal sealed partial class BackendContext
 		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
 		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
 		r.Binder = null;
+
+		// Colour with the surface's own depth bias (a static overlay's); depth and ids passes set the pass's after binding
+		if ( !ids && color != Format.Unknown && !bucket.NoColor ) SurfaceProgram.ColorDepthBias( r.List, bucket.SurfaceState );
 	}
 
 	/// <summary>

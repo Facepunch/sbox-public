@@ -2226,7 +2226,8 @@ internal sealed partial class BackendContext
 					var meshObject = cache.Get( key, immediate: false, (device, key, stateFrom), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.device.PulledLayout, s.key.Color, s.key.Depth, s.key.Samples, false, l.Sets, ids: true, stateFrom: s.stateFrom ) );
 					resolver.LayerEpoch = layerEpoch;
 					meshObject.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
-					if ( bucket.NoColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
+					// Ids pipelines bias depth (the pass's): set it, whatever an earlier colour draw's surface left
+					r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 					if ( bucket.Variant is { State.StencilTest: true } && depthTexture is not null && BackendDevice.FormatOf( depthTexture ).HasStencil() ) r.List.SetStencilReference( (byte)bucket.Variant.State.StencilReference );
 				}
 
@@ -2284,7 +2285,7 @@ internal sealed partial class BackendContext
 
 				resolver.LayerEpoch = layerEpoch;
 				materialObject?.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
-				if ( bucket.NoColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
+				r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 				if ( bucket.Variant is { State.StencilTest: true } && depthTexture is not null && BackendDevice.FormatOf( depthTexture ).HasStencil() ) r.List.SetStencilReference( (byte)bucket.Variant.State.StencilReference );
 			}
 
