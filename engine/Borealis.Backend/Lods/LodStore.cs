@@ -181,6 +181,12 @@ internal sealed class LodStore : IDisposable
 	readonly List<(BufferHandle Buffer, long Frame)> retired = new();
 	volatile bool cleared;
 
+	// Builds in flight, so Dispose waits for them before destroying what they write to: a build making its staging buffer
+	// after the device went crashes the process, as the meshlet store's did. Monitor.Wait gives the lock up while it waits
+	readonly object flight = new();
+	int building;
+	volatile bool disposed;
+
 	readonly BufferHandle state;
 	readonly WeakReference<object>[] sliceOwners = new WeakReference<object>[StateSlices];
 	readonly bool[] sliceReady = new bool[StateSlices];
@@ -204,7 +210,20 @@ internal sealed class LodStore : IDisposable
 		Config = config;
 		CacheFolder = cacheFolder;
 		workers = new ConcurrentExclusiveSchedulerPair( TaskScheduler.Default, Math.Max( threads, 1 ) ).ConcurrentScheduler;
-		build = entry => BuildOn( (Entry)entry );
+		build = entry =>
+		{
+			try
+			{
+				if ( !disposed ) BuildOn( (Entry)entry );
+			}
+			finally
+			{
+				lock ( flight )
+				{
+					if ( --building == 0 ) Monitor.PulseAll( flight );
+				}
+			}
+		};
 		GrowTable( null, 1 << 12 );
 		state = gpu.CreateBuffer( new BufferInfo { Size = StateHeaderBytes + (long)StateSlices * StateSliceBytes, Usage = BufferUsage.Storage | BufferUsage.CopyDestination | BufferUsage.CopySource, Name = "Borealis LOD levels" } );
 	}
@@ -355,6 +374,7 @@ internal sealed class LodStore : IDisposable
 			entries[range] = entry;
 			if ( waitingDraws.Remove( range, out var draws ) ) entry.Draws.AddRange( draws );
 			Requested++;
+			lock ( flight ) building++;
 			Task.Factory.StartNew( build, entry, CancellationToken.None, TaskCreationOptions.DenyChildAttach, workers );
 		}
 	}
@@ -985,6 +1005,15 @@ internal sealed class LodStore : IDisposable
 
 	public void Dispose()
 	{
+		// Builds not started yet do nothing; running ones finish first (bounded, so a build stuck on the device can't hold up
+		// the shutdown for good)
+		disposed = true;
+		lock ( flight )
+		{
+			var until = Environment.TickCount64 + 10_000;
+			while ( building > 0 && Environment.TickCount64 < until ) Monitor.Wait( flight, 100 );
+		}
+
 		lock ( gate )
 		{
 			while ( built.TryDequeue( out var entry ) ) ready.Add( entry );
