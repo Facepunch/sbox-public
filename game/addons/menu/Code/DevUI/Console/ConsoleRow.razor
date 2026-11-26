@@ -6,6 +6,10 @@
 <root class="@classes">
     <div class="stripe"></div>
     <div class="time">@Event.Time.ToString("hh:mm:ss")</div>
+    @if (Event.Repeats > 0)
+    {
+        <div class="repeats">[@(Event.Repeats + 1)]</div>
+    }
     <div class="message">@Event.Message</div>
 </root>
 

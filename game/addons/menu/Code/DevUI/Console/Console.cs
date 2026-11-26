@@ -143,17 +143,32 @@ public class Console : Panel
 		// Only the text is shown. Logged objects (e.g. a component as message context) would otherwise
 		// keep their whole scene alive for as long as the entry stays in this list.
 		e.Arguments = null;
-		Entries.Add( e );
 
-		// Trim in batches like the dev tools console, so a busy log doesn't rebuild the shown items every line
-		if ( Entries.Count > MaxEntries * 2 )
+		if ( Entries.Count > 0 && IsRepeat( Entries[^1], e ) )
 		{
-			Entries.RemoveRange( 0, Entries.Count - MaxEntries );
-			OnFilter();
+			e.Repeats = Entries[^1].Repeats + 1;
+			Entries[^1] = e;
+
+			if ( ShouldShowEvent( e ) && Output.ItemCount > 0 )
+			{
+				Output.RemoveAt( Output.ItemCount - 1 );
+				Output.AddItem( e );
+			}
 		}
-		else if ( ShouldShowEvent( e ) )
+		else
 		{
-			Output.AddItem( e );
+			Entries.Add( e );
+
+			// Trim in batches like the dev tools console, so a busy log doesn't rebuild the shown items every line
+			if ( Entries.Count > MaxEntries * 2 )
+			{
+				Entries.RemoveRange( 0, Entries.Count - MaxEntries );
+				OnFilter();
+			}
+			else if ( ShouldShowEvent( e ) )
+			{
+				Output.AddItem( e );
+			}
 		}
 
 		if ( e.Level == LogLevel.Info || e.Level == LogLevel.Trace )
@@ -173,6 +188,11 @@ public class Console : Panel
 			Error.Count++;
 			Error.Button.Text = $"{Error.Count:n0}";
 		}
+	}
+
+	internal static bool IsRepeat( in LogEvent previous, in LogEvent e )
+	{
+		return previous.Level == e.Level && previous.Message == e.Message && previous.Logger == e.Logger;
 	}
 
 	void OnFilter()

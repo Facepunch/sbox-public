@@ -33,6 +33,13 @@ ConsoleRow
 		white-space: nowrap;
 	}
 
+	.repeats
+	{
+		flex-shrink: 0;
+		color: $platform-faint;
+		white-space: nowrap;
+	}
+
 	.message
 	{
 		white-space: pre;

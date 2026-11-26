@@ -18,6 +18,14 @@ public class ConsoleOverlay : Panel
 		if ( MenuUtility.GetConsoleVariable( "consoleoverlay" ) != "True" )
 			return;
 
+		if ( Output.Children.LastOrDefault() is ConsoleEntry last && !last.IsDeleting && Console.IsRepeat( last.Event, e ) )
+		{
+			e.Repeats = last.Event.Repeats + 1;
+			last.SetLogEvent( e );
+			last.DeleteIn( 8 );
+			return;
+		}
+
 		var entry = Output.AddChild<ConsoleEntry>();
 		entry.SetLogEvent( e );
 		entry.DeleteIn( 8 );
