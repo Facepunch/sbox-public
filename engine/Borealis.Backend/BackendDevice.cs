@@ -1504,10 +1504,11 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// A compiled material (<c>.vmat_c</c>) with its shader and textures; one that isn't there, or whose shader isn't,
-	/// draws nothing.
+	/// draws nothing. No path (a model's draw without a material) is the empty one.
 	/// </summary>
 	public override GpuMaterial LoadMaterial( string path )
 	{
+		path ??= "";
 		lock ( sharedMaterials )
 		{
 			// Asked for by something other than a model's draws: kept for good

@@ -169,6 +169,20 @@ public class BackendTests : GpuTest
 	}
 
 	/// <summary>
+	/// A model's draw whose material slot names nothing (Falls' runtime meshes) draws nothing, as an empty name does, rather than
+	/// throwing from the material bookkeeping and stopping the frame's scene preparation every frame.
+	/// </summary>
+	[TestMethod]
+	public void ADrawWithNoMaterialPathDrawsNothing()
+	{
+		using var backend = new Borealis.Backend.BackendDevice( Device );
+
+		Assert.IsNull( ((Borealis.Backend.BackendMaterial)backend.LoadMaterial( null )).Shader );
+		Assert.AreSame( backend.LoadMaterial( "" ), backend.ModelMaterial( null ), "the empty name's material" );
+		backend.ReleaseModelMaterial( null );
+	}
+
+	/// <summary>
 	/// A material that's there but whose shader isn't (S&amp;Business's bucket water names <c>shaders/quake_water.shader</c>,
 	/// which its package doesn't ship) draws as the error material too, as native's material system gives it the error
 	/// shader; one whose shader loads keeps its own.
