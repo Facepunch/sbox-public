@@ -140,6 +140,18 @@ internal struct ShadowViewInfo
 	/// shadow map and can render before every view.
 	/// </summary>
 	public bool NoShadows;
+
+	/// <summary>
+	/// The view the sun's shadow views take as their root (LODs, tags, the camera's attributes) when it isn't the one being
+	/// drawn: a lead view's (<see cref="ShadowMapper.Lead"/>). Null for the view being drawn.
+	/// </summary>
+	public object Root;
+
+	/// <summary>
+	/// What else in the view decides what its cascades draw, past the fit and tags: another view takes cascades drawn for a
+	/// lead only when this matches too.
+	/// </summary>
+	public (float FieldOfView, float ViewportWidth, float TextureLodScale, float FallbackTextureLodScale, bool Capture, object HostView) RootState;
 }
 
 /// <summary>
@@ -172,6 +184,11 @@ internal struct ShadowViewDesc
 	public int Resolution;
 
 	public ShadowMap Target;
+
+	/// <summary>
+	/// The view it takes its root from when it isn't the main view's (<see cref="ShadowViewInfo.Root"/>); null for that.
+	/// </summary>
+	public object Root;
 
 	/// <summary>
 	/// The cube face to render, for a cube target.

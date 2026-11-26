@@ -592,6 +592,54 @@ public class ShadowCacheTests
 	}
 
 	/// <summary>
+	/// A texture camera drawn before the frame's window camera (a water reflection, smaller and elsewhere) draws the sun's
+	/// cascades fit to the window camera (<see cref="RenderView.CascadesFor"/>), with it as their root, and the window camera
+	/// takes them when its view is the one they were fit to; one that turns out otherwise draws its own. Without a lead, the
+	/// window camera draws its own too, the texture camera's being smaller.
+	/// </summary>
+	[TestMethod]
+	public void TextureCameraDrawsTheLeadsCascades()
+	{
+		var world = new RenderWorld();
+		world.Add( new MeshObject( null, new Transform( new Vector3( 100, 0, -20 ) ) ) { LocalBounds = UnitBox } );
+
+		static RenderView Reflection( RenderView lead )
+		{
+			var view = LookingDownX();
+			view.Position = new Vector3( 0, 0, -200 );
+			view.Viewport = new Rect( 0, 0, 500, 500 );
+			view.CascadesFor = lead;
+			view.Update();
+			return view;
+		}
+
+		foreach ( var (lead, moved, takes) in new[] { (true, false, true), (true, true, false), (false, false, false) } )
+		{
+			Borealis.Shadows.ShadowMapper.ResetCache();
+			using var texture = new RenderSystem();
+			using var window = new RenderSystem();
+
+			var predicted = LookingDownX();
+			RenderHost.Current.NextFrame();
+			Prepare( texture, world, Reflection( lead ? predicted : null ) );
+			var passes = texture.ShadowMaps.Passes.ToArray();
+			Assert.IsTrue( passes.Length > 0, "the texture camera draws cascades" );
+			Assert.IsTrue( passes.Where( p => p.View.Name.StartsWith( "CSM Cascade" ) ).All( p => p.Root == (lead ? predicted : p.Root) ), "with the lead as their root" );
+
+			var main = LookingDownX();
+			if ( moved )
+			{
+				main.Position = new Vector3( 1, 0, 0 );
+				main.Update();
+			}
+
+			Prepare( window, world, main );
+			Assert.AreEqual( takes, window.ShadowMaps.Passes.Length == 0, $"lead {lead}, moved {moved}" );
+			if ( takes ) Assert.AreEqual( texture.ShadowMaps.Directional.WorldToShadowMatrices0, window.ShadowMaps.Directional.WorldToShadowMatrices0 );
+		}
+	}
+
+	/// <summary>
 	/// A camera's sub-worlds (another world drawn in its view, like gizmos) cast its shadows too, so a light seen by a camera
 	/// that draws one and a camera that doesn't keeps a map for each, and their cascades aren't shared.
 	/// </summary>

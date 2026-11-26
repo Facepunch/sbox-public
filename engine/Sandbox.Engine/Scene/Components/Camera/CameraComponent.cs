@@ -684,6 +684,16 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	Vector2? _preparedSize;
 
 	/// <summary>
+	/// Whether <see cref="DrawToRenderList"/> draws the camera into the window rather than into its render target.
+	/// </summary>
+	internal bool DrawsIntoWindow => ThreadSafe.IsRenderThread ? _preparedTarget is null : RenderTarget is not { native.IsValid: true };
+
+	/// <summary>
+	/// The size <see cref="DrawToRenderList"/> draws the camera at, given the window's.
+	/// </summary>
+	internal Vector2? DrawSize( Vector2? size ) => ThreadSafe.IsRenderThread ? _preparedSize ?? size : CustomSize ?? size;
+
+	/// <summary>
 	/// Draw the camera <see cref="PrepareForRenderList"/> prepared: in the scene's scope on the main thread, without one on the
 	/// render thread, which runs no game code (the scope sets the game's statics).
 	/// </summary>

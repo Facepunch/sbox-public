@@ -143,7 +143,7 @@ internal sealed partial class SceneBridge
 		gpuView.ToolsVisMode = ToolsVisModeOf( camera );
 		gpuView.SetCamera( camera, size );
 
-		var frame = RenderScene( backend, camera, size, 1, setup );
+		var frame = RenderScene( backend, camera, size, 1, setup, leads: true );
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
 
 		var ui = setup.EnableUI ?? camera.RenderUI;
@@ -256,7 +256,7 @@ internal sealed partial class SceneBridge
 	/// rest at <paramref name="size"/>. A scene shown in a window (<paramref name="inWindow"/>) gives the dev tools its frame plan
 	/// and the debug views their report.
 	/// </summary>
-	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup, bool upscale = false, bool inWindow = false )
+	BorealisGpuFrame RenderScene( BorealisGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup, bool upscale = false, bool inWindow = false, bool leads = false )
 	{
 		// The view's viewport at the display size: the stages inside the scene's frame move it to theirs
 		var display = new Vector2Int( (int)size.x, (int)size.y );
@@ -278,6 +278,9 @@ internal sealed partial class SceneBridge
 		CameraState state;
 		using ( PrepareTiming.Scope() )
 			(render, state) = Prepare( camera, setup, size );
+
+		// A texture camera drawn before the frame's window camera draws the sun's cascades for that one, which takes them
+		state.View.CascadesFor = leads ? LeadView( camera, state.View, render ) : null;
 
 		// A temporal upscaler's sub-pixel offset this frame, which the view's projection takes, and its reactive mask's
 		// overlays drawn depth only; neither otherwise
@@ -358,6 +361,39 @@ internal sealed partial class SceneBridge
 
 		frame.End();
 		return frame;
+	}
+
+	// The frame's window camera's view as it will draw, for a texture camera drawn before it (LeadView)
+	readonly Borealis.RenderView leadView = new();
+
+	/// <summary>
+	/// The view the frame's window camera (<see cref="SceneRenderer.Lead"/>) will draw, as <see cref="RenderInto"/> prepares it,
+	/// for <paramref name="view"/>, a texture camera drawn before it in the same world, to draw the sun's cascades for. Null
+	/// when there's no such camera, or its view can't be told now: a temporal upscaler jitters it. A view that turns out other
+	/// than this draws its own cascades (ShadowMapper.SameView).
+	/// </summary>
+	Borealis.RenderView LeadView( SceneCamera camera, Borealis.RenderView view, WorldRender render )
+	{
+		var (lead, size) = SceneRenderer.Lead;
+		if ( lead is null || lead == camera || lead.World != camera.World || view.Reflection || lead.UIOnly || lead.Ortho ) return null;
+		if ( BorealisGpuWindow.Drawing is not { } window ) return null;
+
+		var renderSize = size ?? window.Size;
+		if ( renderSize.x < 1 || renderSize.y < 1 ) return null;
+
+		// At the upscaler's render size when it upscales the camera, as it did last frame
+		var setup = lead.MainView;
+		if ( !Application.IsEditor && !lead.ToolsView && views.TryGetValue( new ViewKey( lead._cameraId, setup.ViewHash ), out var state ) && state.GpuUpscaler is { } upscaler && upscaler.Active != BorealisGpuUpscaler.Mode.Off )
+		{
+			if ( upscaler.IsTemporal || upscaler.DisplaySize != new Vector2Int( (int)renderSize.x, (int)renderSize.y ) ) return null;
+			renderSize = upscaler.RenderSize;
+		}
+
+		FillView( leadView, lead, setup, renderSize, render );
+		leadView.SubWorlds = view.SubWorlds;
+		leadView.HostView = lead.Attributes;
+		leadView.Update();
+		return leadView;
 	}
 
 	/// <summary>

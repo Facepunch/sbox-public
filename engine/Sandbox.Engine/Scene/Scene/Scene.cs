@@ -406,11 +406,27 @@ public partial class Scene : GameObject
 	internal void DrawRender( List<CameraComponent> drawn, SwapChainHandle_t swapChain, Vector2? size )
 	{
 		using var _renderScope = _renderTimer.Start();
+
+		// The camera drawn into the window last leads: the texture cameras before it may draw its sun's cascades
+		CameraComponent lead = null;
 		foreach ( var cc in drawn )
 		{
-			if ( !cc.IsValid() ) continue;
-			using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
-			cc.DrawToRenderList( swapChain, size );
+			if ( cc.IsValid() && cc.DrawsIntoWindow ) lead = cc;
+		}
+
+		Rendering.SceneRenderer.Lead = lead is null ? default : (lead.SceneCamera, lead.DrawSize( size ));
+		try
+		{
+			foreach ( var cc in drawn )
+			{
+				if ( !cc.IsValid() ) continue;
+				using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
+				cc.DrawToRenderList( swapChain, size );
+			}
+		}
+		finally
+		{
+			Rendering.SceneRenderer.Lead = default;
 		}
 	}
 

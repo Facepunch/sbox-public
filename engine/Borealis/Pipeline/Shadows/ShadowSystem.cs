@@ -118,28 +118,46 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		mapper.InFlight = true;
 
 		var view = main.View;
-		mapper.View = new ShadowViewInfo
-		{
-			// Cascades fit the view from its near plane, which an oblique projection leans along its clip plane
-			ProjectionToView = view.SquareViewToProjection.Inverted,
-			ViewToWorldRotation = view.WorldToViewRotation.Transpose(),
-			CameraPosition = view.Position,
-			Camera = view,
-			ViewportSize = new Vector2( view.Viewport.Width, view.Viewport.Height ),
-			RenderTags = view.RenderTags,
-			ExcludeTags = view.ExcludeTags,
-			SharesCascades = view.ClipPlane is not null,
-			SubWorlds = view.SubWorlds,
-			IsSkybox = skybox,
-			IsReflection = view.Reflection,
-			NoShadows = view.Reflection && !view.ReflectionShadows,
-		};
+		mapper.View = InfoOf( view, skybox );
+
+		// A view drawn before its frame's lead draws the sun's cascades for the lead, which then takes them
+		var lead = skybox ? null : view.CascadesFor;
+		mapper.HasLead = LeadCascades && lead is not null && lead != view && !lead.Reflection && !lead.Orthographic;
+		mapper.Lead = mapper.HasLead ? InfoOf( lead, false ) : default;
+		if ( mapper.HasLead ) mapper.Lead.Root = lead;
 		mapper.InitForView();
 
 		PrepareSun( world.Lighting, enabled || skybox );
 		if ( enabled ) PrepareLocalLights( lightBinner );
 		if ( enabled ) PrepareExtraSuns( world.Lighting, lightBinner );
 	}
+
+	/// <summary>
+	/// Whether a view drawn before its frame's lead (<see cref="RenderView.CascadesFor"/>) draws the sun's cascades for it (on
+	/// unless <c>-no-lead-cascades</c>). Off, each fits and draws its own.
+	/// </summary>
+	internal static bool LeadCascades { get; set; } = !Array.Exists( Environment.GetCommandLineArgs(), a => a.Equals( "-no-lead-cascades", StringComparison.OrdinalIgnoreCase ) );
+
+	/// <summary>
+	/// The shadow mapper's picture of <paramref name="view"/>: what its cascades are fit to and depend on.
+	/// </summary>
+	static ShadowViewInfo InfoOf( RenderView view, bool skybox ) => new()
+	{
+		// Cascades fit the view from its near plane, which an oblique projection leans along its clip plane
+		ProjectionToView = view.SquareViewToProjection.Inverted,
+		ViewToWorldRotation = view.WorldToViewRotation.Transpose(),
+		CameraPosition = view.Position,
+		Camera = view,
+		ViewportSize = new Vector2( view.Viewport.Width, view.Viewport.Height ),
+		RenderTags = view.RenderTags,
+		ExcludeTags = view.ExcludeTags,
+		SharesCascades = view.ClipPlane is not null,
+		SubWorlds = view.SubWorlds,
+		IsSkybox = skybox,
+		IsReflection = view.Reflection,
+		NoShadows = view.Reflection && !view.ReflectionShadows,
+		RootState = (view.FieldOfView, view.Viewport.Width, view.TextureLodScale, view.FallbackTextureLodScale, view.Capture, view.HostView),
+	};
 
 	/// <summary>
 	/// The frame was never submitted: forget that its shadow maps were drawn, so they're drawn again.
@@ -352,7 +370,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		passes.Add( pass );
 		pass.Reset( featureCount );
 		pass.IsShadow = true;
-		pass.Root = main.View;
+		pass.Root = desc.Root as RenderView ?? main.View;
 		pass.TargetMap = desc.Target;
 		pass.TargetSlice = desc.Slice;
 		pass.CachedStatic = desc.CachedStatic;

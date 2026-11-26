@@ -116,6 +116,12 @@ internal static class SceneRenderer
 	public static ISceneRenderer Current { get; private set; } = None;
 
 	/// <summary>
+	/// While a scene's cameras draw (<see cref="Scene.DrawRender"/>): the one drawn into the window last, with the size it
+	/// draws at. A texture camera drawn before it may draw its sun's cascades for it, which it then takes. None otherwise.
+	/// </summary>
+	internal static (SceneCamera Camera, Vector2? Size) Lead { get; set; }
+
+	/// <summary>
 	/// Pick the renderer, at the top of the frame's output.
 	/// </summary>
 	internal static void BeginFrame()

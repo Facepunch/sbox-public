@@ -72,7 +72,30 @@ internal partial class ShadowMapper
 		public uint[] RenderTags, ExcludeTags;
 		public ulong SubWorlds;
 		public GPUDirectionalLight Data;
+
+		/// <summary>
+		/// Drawn by a view before the lead it was fit to (<see cref="Lead"/>): another view takes them only when it's that view
+		/// exactly (<see cref="Fit"/>), so they're what it would have drawn.
+		/// </summary>
+		public bool ForLead;
+		public ShadowViewInfo Fit;
 	}
+
+	/// <summary>
+	/// The view drawn after this one in its frame whose cascades this one draws and shades with instead of its own
+	/// (<see cref="RenderView.CascadesFor"/>), when <see cref="HasLead"/>: that view then takes them as they are.
+	/// </summary>
+	internal ShadowViewInfo Lead;
+	internal bool HasLead;
+
+	/// <summary>
+	/// Whether <paramref name="view"/> is the view <paramref name="fit"/> describes, in everything its cascades depend on.
+	/// </summary>
+	static bool SameView( in ShadowViewInfo fit, in ShadowViewInfo view )
+		=> fit.ProjectionToView == view.ProjectionToView && fit.ViewToWorldRotation == view.ViewToWorldRotation
+			&& fit.CameraPosition == view.CameraPosition && fit.ViewportSize == view.ViewportSize && fit.SubWorlds == view.SubWorlds
+			&& SameTags( fit.RenderTags ?? [], view.RenderTags ?? [] ) && SameTags( fit.ExcludeTags ?? [], view.ExcludeTags ?? [] )
+			&& fit.RootState.Equals( view.RootState );
 
 	/// <summary>
 	/// Sun cascades cull casters, and the last picks LODs, by the cascade's own texel size instead of the main view's
@@ -440,17 +463,38 @@ internal partial class ShadowMapper
 			return;
 		}
 
-		float viewportArea = View.ViewportSize.x * View.ViewportSize.y;
-		var cameraPosition = View.CameraPosition;
+		// The cascades face the way the light travels
+		var rotation = light.Direction.EulerAngles.ToRotation();
+		Span<Cascade> cascades = stackalloc Cascade[numCascades];
 
-		// A reflection's mirrored camera neither reuses another view's cascades nor shares its own
-		if ( !View.IsReflection && LastCascades.Frame == FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
+		// Fit to the lead view drawn after this one when there is one, as a later view takes another's: when this one is no
+		// bigger and within the lead's outer cascade. Else to this view
+		var leading = false;
+		if ( HasLead && !View.IsReflection && View.ViewportSize.x * View.ViewportSize.y <= Lead.ViewportSize.x * Lead.ViewportSize.y )
+		{
+			var leadCount = GetCascades( cascades, Lead, rotation, numCascades, 1.0f, farClip, splitRatio, shadowmapSize );
+			var outer = leadCount > 0 ? cascades[leadCount - 1].SphereRadius : 0f;
+			leading = View.CameraPosition.DistanceSquared( Lead.CameraPosition ) <= outer * outer;
+		}
+
+		ref readonly var fit = ref leading ? ref Lead : ref View;
+
+		float viewportArea = fit.ViewportSize.x * fit.ViewportSize.y;
+		var cameraPosition = fit.CameraPosition;
+
+		// A reflection's mirrored camera neither reuses another view's cascades nor shares its own. Cascades drawn for a lead
+		// go only to that view
+		if ( !fit.IsReflection && LastCascades.Frame == FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
 			&& !(LastCascades.Mapper is { InFlight: true } drawing && drawing != this)
 			&& LastCascades.StaticFilter == staticFilter
-			&& SameTags( LastCascades.RenderTags, View.RenderTags ?? [] ) && (View.SharesCascades || SameTags( LastCascades.ExcludeTags, View.ExcludeTags ?? [] ))
-			&& (LastCascades.SubWorlds == View.SubWorlds || View.SharesCascades && (View.SubWorlds & ~LastCascades.SubWorlds) == 0)
-			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared )
+			&& SameTags( LastCascades.RenderTags, fit.RenderTags ?? [] ) && (fit.SharesCascades || SameTags( LastCascades.ExcludeTags, fit.ExcludeTags ?? [] ))
+			&& (LastCascades.SubWorlds == fit.SubWorlds || fit.SharesCascades && (fit.SubWorlds & ~LastCascades.SubWorlds) == 0)
+			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared
+			&& (!LastCascades.ForLead || SameView( LastCascades.Fit, fit )) )
 		{
+			// The lead took its own: they're its cascades now, for the views after it as any view's are
+			if ( !leading ) LastCascades.ForLead = false;
+
 			gpuShadowData = LastCascades.Data;
 			gpuShadowData.ShadowMaskTextureIndex = Renderer.GetShadowMaskIndex( light.Key );
 
@@ -462,21 +506,18 @@ internal partial class ShadowMapper
 			return;
 		}
 
-		// The cascades face the way the light travels
-		var rotation = light.Direction.EulerAngles.ToRotation();
-		Span<Cascade> cascades = stackalloc Cascade[numCascades];
-		int cascadeCount = GetCascades( cascades, View, rotation, numCascades, 1.0f, farClip, splitRatio, shadowmapSize );
+		int cascadeCount = GetCascades( cascades, fit, rotation, numCascades, 1.0f, farClip, splitRatio, shadowmapSize );
 		cascades = cascades[..cascadeCount];
 		float baseHardness = 1.0f + light.Hardness * 4.0f;
 
 		// The last of several from the camera's cache, unless this view's camera is a mirror's
 		FarCascade far = null;
 		var farFit = default( FarFit );
-		if ( FarCascadeCache && !FreezeFarCascade && cascadeCount > 1 && !View.IsReflection && View.Camera is not null )
+		if ( FarCascadeCache && !FreezeFarCascade && cascadeCount > 1 && !fit.IsReflection && fit.Camera is not null )
 		{
-			far = FarCascadeFor( View.Camera, shadowmapSize );
+			far = FarCascadeFor( fit.Camera, shadowmapSize );
 			FarCacheMap = far.Cache;
-			cascades[^1] = FitFarCascade( far, light, staticFilter, new RenderWorldChanges( light.StaticChanges, light.SettledChanges ), out farFit );
+			cascades[^1] = FitFarCascade( far, fit, light, staticFilter, new RenderWorldChanges( light.StaticChanges, light.SettledChanges ), out farFit );
 		}
 
 		for ( int i = 0; i < cascades.Length; i++ )
@@ -496,6 +537,7 @@ internal partial class ShadowMapper
 				Height = cascade.Height,
 				Resolution = shadowmapSize,
 				Target = rt,
+				Root = leading ? fit.Root : null,
 				StaticFilter = staticFilter,
 				DepthBias = ShadowDepthBias,
 				SlopeScaledDepthBias = ShadowSlopeScale,
@@ -546,7 +588,7 @@ internal partial class ShadowMapper
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;
 
 		float outerRadius = cascadeCount > 0 ? cascades[cascadeCount - 1].SphereRadius : 0f;
-		if ( !View.IsReflection ) LastCascades = new CascadeCache
+		if ( !fit.IsReflection ) LastCascades = new CascadeCache
 		{
 			Mapper = this,
 			Frame = FrameCount,
@@ -555,10 +597,12 @@ internal partial class ShadowMapper
 			RadiusSquared = outerRadius * outerRadius,
 			ViewportArea = viewportArea,
 			StaticFilter = staticFilter,
-			RenderTags = View.RenderTags ?? [],
-			ExcludeTags = View.ExcludeTags ?? [],
-			SubWorlds = View.SubWorlds,
+			RenderTags = fit.RenderTags ?? [],
+			ExcludeTags = fit.ExcludeTags ?? [],
+			SubWorlds = fit.SubWorlds,
 			Data = gpuShadowData,
+			ForLead = leading,
+			Fit = fit,
 		};
 
 		// Ensure we have our screenspace texture index before we actually render them if we use it, so it's already ready when we composite.

@@ -151,6 +151,13 @@ public sealed class RenderView
 	public bool Capture { get; set; }
 
 	/// <summary>
+	/// The view drawn after this one in its frame whose sun cascades this view draws, fit to it and with it as their root,
+	/// and shades with: a game's texture camera (a water reflection) drawn before the main camera. The main camera then
+	/// takes them as they are when its view matches, instead of drawing its own. Null fits this view's own.
+	/// </summary>
+	public RenderView CascadesFor { get; set; }
+
+	/// <summary>
 	/// Optional camera and scene attributes, merged before pipeline overrides (<c>CCameraRenderer::CreateView</c>).
 	/// </summary>
 	internal ShaderParameters CameraAttributes { get; set; }

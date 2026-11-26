@@ -183,7 +183,7 @@ internal partial class ShadowMapper
 	/// the sun has turned <see cref="FarCacheSunDegrees"/>, its settings changed, the camera moved a whole window or cast
 	/// casters have settled; otherwise the strip the camera's move brought in, and the cells changed casters cover.
 	/// </summary>
-	Cascade FitFarCascade( FarCascade far, in ShadowLight light, StaticFilter filter, RenderWorldChanges changes, out FarFit fit )
+	Cascade FitFarCascade( FarCascade far, in ShadowViewInfo view, in ShadowLight light, StaticFilter filter, RenderWorldChanges changes, out FarFit fit )
 	{
 		var distance = CascadeDistance * FarCacheDistanceScale;
 
@@ -191,10 +191,10 @@ internal partial class ShadowMapper
 		var side = distance * 2.0f / (1.0f - 1.0f / FarCacheCells);
 		var grid = side / FarCacheCells;
 
-		var renderTags = View.RenderTags ?? [];
-		var excludeTags = View.ExcludeTags ?? [];
+		var renderTags = view.RenderTags ?? [];
+		var excludeTags = view.ExcludeTags ?? [];
 
-		var whole = !far.Valid || far.Light != light.Key || far.Side != side || far.Filter != filter || far.SubWorlds != View.SubWorlds
+		var whole = !far.Valid || far.Light != light.Key || far.Side != side || far.Filter != filter || far.SubWorlds != view.SubWorlds
 			|| !SameTags( far.RenderTags, renderTags ) || !SameTags( far.ExcludeTags, excludeTags ) || far.Changes != changes;
 
 		// The sun as it was drawn, until it has turned enough to show
@@ -203,7 +203,7 @@ internal partial class ShadowMapper
 		var rotation = whole ? light.Direction.EulerAngles.ToRotation() : far.Rotation;
 
 		Vector3 right = rotation.Right, up = rotation.Up, forward = rotation.Forward;
-		var camera = View.CameraPosition;
+		var camera = view.CameraPosition;
 		var cellX = (long)MathF.Round( Vector3.Dot( camera, right ) / grid );
 		var cellY = (long)MathF.Round( Vector3.Dot( camera, up ) / grid );
 
@@ -244,7 +244,7 @@ internal partial class ShadowMapper
 			far.Filter = filter;
 			far.RenderTags = renderTags.Length == 0 ? [] : (uint[])renderTags.Clone();
 			far.ExcludeTags = excludeTags.Length == 0 ? [] : (uint[])excludeTags.Clone();
-			far.SubWorlds = View.SubWorlds;
+			far.SubWorlds = view.SubWorlds;
 			far.Changes = changes;
 			far.SettledStamp = SettledCasters.Stamp;
 			far.RestlessStamp = SettledCasters.RestlessStamp;
