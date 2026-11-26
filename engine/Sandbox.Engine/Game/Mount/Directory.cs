@@ -144,7 +144,11 @@ public static partial class Directory
 			// Compiled thumbnails, loaded as {ident}/thumbs/{path}.vtex. Only native resource loads see them, not the managed filesystems.
 			var mountsPath = System.IO.Path.Combine( fullPath, "Mounts" );
 			if ( System.IO.Directory.Exists( mountsPath ) )
+			{
+				// The resource compiler resolves each GAME path to its owning mod during compilation.
+				NativeEngine.EngineGlue.AddSearchPath( mountsPath, $"mod_mnt_{folderName}_thumbs", false );
 				NativeEngine.EngineGlue.AddSearchPath( mountsPath, "GAME", false );
+			}
 
 			foreach ( var dll in assemblies )
 			{
