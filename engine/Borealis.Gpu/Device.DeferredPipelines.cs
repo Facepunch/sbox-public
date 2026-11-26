@@ -327,8 +327,53 @@ public sealed unsafe partial class Device
 
 	readonly Dictionary<string, ComputeAhead> computeAhead = new();
 
-	// Lines CreateComputePipeline made itself this run: a builder that hadn't started one leaves it
+	// Lines CreateComputePipeline has had this run, made there or taken from a builder: a builder that hadn't started one
+	// leaves it, and QueueComputePipeline doesn't queue it again
 	readonly HashSet<string> computeMadeHere = new();
+
+	// Lines QueueComputePipeline queued (each once a run), and those of them no builder has finished yet (under the build
+	// queue's lock)
+	readonly HashSet<string> computeQueued = new();
+	readonly HashSet<string> computeQueuedPending = new();
+
+	/// <summary>
+	/// Make a compute pipeline on the builder threads now, ahead of where it's asked for: <see cref="CreateComputePipeline"/>
+	/// with the same shader (by its SPIR-V), entry point, constants and set layouts takes it then, or waits for the builder
+	/// making it. For pipelines a load knows its frames will ask for (a cull, a cube filter), so a frame's thread doesn't make
+	/// them: hundreds of milliseconds each with an empty driver cache. Each is queued once a run, before parts made ahead;
+	/// does nothing without a part manifest (pipeline libraries and a cache folder) or once the pipeline was made. False when
+	/// it queued nothing: no manifest, or the pipeline was made, is being made or was queued before.
+	/// </summary>
+	public bool QueueComputePipeline( in ComputePipelineInfo info )
+	{
+		var line = ComputeLine( info );
+		if ( line is null ) return false;
+		lock ( computeAhead )
+		{
+			if ( computeMadeHere.Contains( line ) || computeAhead.ContainsKey( line ) || !computeQueued.Add( line ) ) return false;
+		}
+
+		var recorded = new GraphicsPipelineInfo { VertexShader = info.Shader, VertexEntry = info.Entry, VertexConstants = info.Constants, Sets = info.Sets, Name = info.Name };
+		lock ( buildQueue )
+		{
+			if ( stopBuilding ) return false;
+			computeQueuedPending.Add( line );
+			prepareQueue.Enqueue( (recorded, PipelinePartManifest.Compute, line), int.MinValue );
+			StartBuilders();
+			Monitor.Pulse( buildQueue );
+		}
+
+		return true;
+	}
+
+	/// <summary>Compute pipelines <see cref="QueueComputePipeline"/> queued that no builder has finished making yet.</summary>
+	public int ComputePipelinesQueued
+	{
+		get
+		{
+			lock ( buildQueue ) return computeQueuedPending.Count;
+		}
+	}
 
 	/// <summary>The manifest line for a compute pipeline, or null without a manifest (or when a set's layout went).</summary>
 	string ComputeLine( in ComputePipelineInfo info )
@@ -357,7 +402,7 @@ public sealed unsafe partial class Device
 
 			while ( !ahead.Ready ) Monitor.Wait( computeAhead );
 			computeAhead.Remove( line );
-			if ( ahead.Pipeline == 0 ) computeMadeHere.Add( line );
+			computeMadeHere.Add( line );
 			return ahead.Pipeline;
 		}
 	}
@@ -600,6 +645,7 @@ public sealed unsafe partial class Device
 				lock ( buildQueue )
 				{
 					building--;
+					if ( !isJob && prepare.Parts == PipelinePartManifest.Compute && prepare.Line is { } made ) computeQueuedPending.Remove( made );
 					if ( isJob ) buildingDeferred--;
 					if ( ahead ) buildingAhead--;
 					Monitor.PulseAll( buildQueue );
@@ -705,6 +751,7 @@ public sealed unsafe partial class Device
 			buildQueue.Clear();
 			prepareQueue.Clear();
 			speculativeQueue.Clear();
+			computeQueuedPending.Clear();
 			building = 0;
 			buildingAhead = 0;
 			Monitor.PulseAll( buildQueue );

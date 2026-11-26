@@ -789,6 +789,50 @@ public class PipelineLibraryTests : GpuTest
 	}
 
 	/// <summary>
+	/// A compute pipeline queued ahead (<see cref="Device.QueueComputePipeline"/>) is made on a builder, even on a first run
+	/// with an empty manifest; creating it then takes that pipeline, and queueing it again makes nothing.
+	/// </summary>
+	[TestMethod]
+	public void QueuedComputePipelineIsMadeOnABuilderAndTaken()
+	{
+		RequireLibraries();
+		var folder = Path.Combine( Path.GetTempPath(), $"borealis-compute-queued-{Environment.ProcessId}-{Guid.NewGuid():n}" );
+		var errors = new List<string>();
+		try
+		{
+			using var device = Device.Create( new DeviceOptions
+			{
+				Presentation = false,
+				Validation = true,
+				PipelineCacheFolder = folder,
+				PipelinePartManifest = true,
+				Message = m => { if ( m.Severity == MessageSeverity.Error ) lock ( errors ) errors.Add( $"{m.Id}: {m.Text}" ); },
+			} );
+
+			var info = new ComputePipelineInfo { Shader = device.CreateShader( Load( "pattern.cs.spv" ), "pattern" ), Entry = "MainCs" };
+			device.QueueComputePipeline( info );
+			Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+			Assert.AreEqual( 0, device.ComputePipelinesQueued );
+			Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "made on a builder" );
+
+			var pipeline = device.CreateComputePipeline( info );
+			Assert.AreEqual( 1, device.ComputePipelineCreation.Made, "creating it took the one made ahead" );
+
+			device.QueueComputePipeline( info );
+			Assert.AreEqual( 0, device.ComputePipelinesQueued, "one made isn't queued again" );
+			Assert.IsTrue( device.WaitForPendingPipelines( TimeSpan.FromSeconds( 60 ) ) );
+			Assert.AreEqual( 1, device.ComputePipelineCreation.Made );
+			device.Destroy( pipeline );
+		}
+		finally
+		{
+			if ( Directory.Exists( folder ) ) Directory.Delete( folder, recursive: true );
+		}
+
+		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
+	}
+
+	/// <summary>
 	/// The SPIR-V kept beside the manifest is made into modules on a loader thread, which queues their parts after making
 	/// each: a module of the same SPIR-V made meanwhile finds it made and queues nothing, so waiting for pending pipelines
 	/// waits for the loader too.

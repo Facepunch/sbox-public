@@ -4000,7 +4000,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		// What workers are making on this device (views' visibility and ids targets, reads' images) is finished first
 		WaitForWorkItems();
 
-		// Builds read on workers make their images there: finished before the device can go
+		// Builds read on workers make their images there, and a worker makes the load's variants: both finished first
+		StopLoadPipelines();
 		streamer?.Finish();
 		Gpu.WaitIdle();
 		Poll();

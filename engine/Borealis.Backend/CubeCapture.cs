@@ -60,7 +60,7 @@ public sealed class CubeCapture : IDisposable
 		red = gpu.CreateBuffer( new BufferInfo { Size = (long)size * size * 8, Usage = BufferUsage.CopySource, Name = "Cube capture red" } );
 		gpu.WriteBuffer( red, RedFace( size ) );
 		filterSource = (BackendTexture)CreateCube( device, size, "Cube capture filter source" );
-		filter = device.Shaders.Load( "shaders/envmap_filtering_cs.shader" );
+		filter = device.Shaders.Load( BackendDevice.CubeFilterShader );
 		drawer = new ShaderDrawer( device ) { MaterialObjects = false };
 		view.Viewport = new Rect( 0, 0, size, size );
 	}

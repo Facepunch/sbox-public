@@ -133,14 +133,20 @@ public sealed partial class BackendDevice
 	/// within <see cref="LoadingBudgetMs"/> and <see cref="LoadingUploadBytes"/> a frame instead, and textures stream faster
 	/// (<see cref="TextureStreamer.Loading"/>). A map's models are then made before its first frame, as native makes them in
 	/// its load, rather than over the seconds after it. As a load starts, its meshes start new geometry pages
-	/// (<see cref="GpuDrivenTables.StartNewPages"/>), so they go with it.
+	/// (<see cref="GpuDrivenTables.StartNewPages"/>), so they go with it, and the compute pipelines its first frames make
+	/// whatever the map are queued (<see cref="QueueLoadPipelines"/>).
 	/// </summary>
 	public bool Loading
 	{
 		get => loading;
 		set
 		{
-			if ( value && !loading ) gpuDrivenTables?.StartNewPages();
+			if ( value && !loading )
+			{
+				gpuDrivenTables?.StartNewPages();
+				QueueLoadPipelines();
+			}
+
 			loading = value;
 			if ( streamer is { } textures ) textures.Loading = value;
 			Gpu.HoldRelocation = value;
@@ -166,11 +172,12 @@ public sealed partial class BackendDevice
 	public bool LoadingModels => ModelReadsPending > 0 || pendingFrame + 2 > loadFrame;
 
 	/// <summary>
-	/// Whether shaders and pipelines the frames asked for are still being made on workers: pass module stages, surfaces, and
-	/// pipelines whose draws are skipped until they're ready. A load waits behind its loading screen until it's false, as for
-	/// <see cref="LoadingModels"/>, so the first frame it shows compiles nothing.
+	/// Whether shaders and pipelines the frames asked for are still being made on workers: pass module stages, surfaces,
+	/// pipelines whose draws are skipped until they're ready, and those a load queues ahead (<see cref="QueueLoadPipelines"/>).
+	/// A load waits behind its loading screen until it's false, as for <see cref="LoadingModels"/>, so the first frame it
+	/// shows compiles nothing.
 	/// </summary>
-	public bool CompilingShaders => Passes.Compiling > 0 || (surfaces?.Compiling ?? 0) > 0 || Gpu.DeferredPipelines.Pending > 0;
+	public bool CompilingShaders => Passes.Compiling > 0 || (surfaces?.Compiling ?? 0) > 0 || Gpu.DeferredPipelines.Pending > 0 || LoadPipelinesPending;
 
 	/// <summary>The time between the last two frames' starts, for the load budget.</summary>
 	void TimeFrame()

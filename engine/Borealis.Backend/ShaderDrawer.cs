@@ -1476,18 +1476,24 @@ public sealed partial class ShaderDrawer : IDisposable
 	{
 		if ( sets is null && computePipelines.TryGetValue( variant, out var cached ) ) return cached;
 
-		var pipeline = gpu.CreateComputePipeline( new ComputePipelineInfo
-		{
-			Shader = variant.Compute.Module,
-			Entry = variant.Compute.Bytecode.EntryPoint( ShaderProgramType.Compute ),
-			Constants = variant.Compute.Constants,
-			Sets = sets ?? variant.Sets,
-			Name = variant.ToString(),
-		} );
-
+		var pipeline = gpu.CreateComputePipeline( ComputeInfo( variant, sets ) );
 		if ( sets is null ) computePipelines[variant] = pipeline;
 		return pipeline;
 	}
+
+	/// <summary>
+	/// What a compute pipeline of <paramref name="variant"/> is made from, with a material object's
+	/// <paramref name="sets"/> or (null) the variant's own, as a dispatch by reflection binds them. What
+	/// <see cref="Device.QueueComputePipeline"/> is given to make one ahead.
+	/// </summary>
+	internal static ComputePipelineInfo ComputeInfo( ShaderVariant variant, BindingLayoutHandle[] sets = null ) => new()
+	{
+		Shader = variant.Compute.Module,
+		Entry = variant.Compute.Bytecode.EntryPoint( ShaderProgramType.Compute ),
+		Constants = variant.Compute.Constants,
+		Sets = sets ?? variant.Sets,
+		Name = variant.ToString(),
+	};
 
 	/// <summary>
 	/// The depth range draws map to, 0 to 1 by default: a frame's own where drawing lands inside it (a custom object in one of
