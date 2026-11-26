@@ -426,4 +426,36 @@ public class FrameLogTests
 		Assert.IsTrue( commands.FindLastIndex( c => c.Op == GpuOp.DispatchSkinning ) < commands.FindIndex( c => c.IsDraw ), "skinned before anything draws" );
 		Assert.AreEqual( parallel ? 1 : 0, IndexOf( submissions, skinning ), parallel ? "right after the setup context" : "in the setup context" );
 	}
+
+	/// <summary>
+	/// A few skinned objects in a frame that records in parallel (a dressed citizen's meshes among the world's) are skinned on
+	/// a worker's context too, not on the setup thread.
+	/// </summary>
+	[TestMethod]
+	public void AFewSkinnedObjectsAreSkinnedOnAWorker()
+	{
+		var skinned = TestSkinnedMesh( 2 );
+		var world = new RenderWorld();
+		for ( int i = 0; i < 4; i++ )
+		{
+			var mesh = new RenderMesh( new HeadlessMesh( $"clothing {i}" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, null )]] );
+			mesh.SetSkinning( [skinned.SkinFor( 0 )], skinned.BindPose );
+			world.Add( new MeshObject( mesh, new Transform( new Vector3( 60, i * 3, 0 ) ) ) );
+		}
+
+		// The rest of the world: enough draws apart to record in parallel
+		for ( int i = 0; i < 120; i++ )
+		{
+			var mesh = new RenderMesh( new HeadlessMesh( $"prop {i}" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, null )]] );
+			world.Add( new MeshObject( mesh, new Transform( new Vector3( 70, i % 40 * 3 - 60, i / 40 * 3 ) ) ) );
+		}
+
+		using var target = ViewTarget.Create( new Vector2Int( 640, 480 ) );
+		using var system = new RenderSystem { ParallelRecording = true };
+
+		var submissions = Render( system, world, target ).Submissions;
+		var skinning = submissions.Single( s => s.Commands.Any( c => c.Op == GpuOp.DispatchSkinning ) );
+		Assert.AreEqual( 4, skinning.Commands.Where( c => c.Op == GpuOp.DispatchSkinning ).Sum( c => c.Count ), "every skinned mesh" );
+		Assert.AreEqual( 1, IndexOf( submissions, skinning ), "on the worker's context, right after the setup context" );
+	}
 }

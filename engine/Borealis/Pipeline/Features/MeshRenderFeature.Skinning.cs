@@ -172,9 +172,10 @@ internal sealed partial class MeshRenderFeature
 	readonly Dictionary<(RenderMesh Mesh, int ModelMesh), int> skinnedRoom = new();
 
 	/// <summary>
-	/// The fewest skinning jobs worth recording on a worker (<see cref="BeginSetupWork"/>).
+	/// The fewest skinning jobs worth recording on a worker (<see cref="BeginSetupWork"/>): one dressed citizen's few
+	/// dispatches cost the setup thread more than the worker's list and its submit do.
 	/// </summary>
-	internal static int MinWorkerSkinningJobs { get; set; } = 16;
+	internal static int MinWorkerSkinningJobs { get; set; } = 4;
 
 	/// <summary>
 	/// Records the frame's skinning when a worker does, submitted right after the frame's setup context.
