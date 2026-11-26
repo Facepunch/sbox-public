@@ -819,7 +819,7 @@ internal sealed partial class BackendContext
 				// A shadow call's depth-only buckets whose vertex shader reads only positions (as the ids prepass's do): their
 				// meshlets' boxes bound what they draw. Alpha-tested and translucent ones keep their own pass and draw whole
 				// Its draws' meshlets: aggregates ask for theirs as their records are written, a model's static meshes (instances,
-				// resident meshes) here, once per draw (an ids prepass asks below). A bucket of neither draws as before, without a
+				// resident meshes) here, once per draw, for shadow views alone. A bucket of neither draws as before, without a
 				// meshlet pass
 				bucket.ShadowMeshlets = meshlets && !ids && bucket.Classic is not null && !bucket.Skinned;
 				var withMeshlets = false;
@@ -844,31 +844,18 @@ internal sealed partial class BackendContext
 				var runStart = written;
 
 				bucket.Batches.Sort( static ( a, b ) => a.Page != b.Page ? a.Page.CompareTo( b.Page ) : a.Batch.CompareTo( b.Batch ) );
-				// Its fragments the meshlet pass can take: aggregates', and a model's static mesh draws (instances, resident meshes).
-				// The culls list any of those whose draw record has meshlets: asked for here once a draw (BackendDevice.PrepassMeshMeshlets),
-				// by a shadow view, or by an aggregate drawing the same index range. So a bucket holding them takes the meshlet pass
-				// whether or not it asks, as its plan would. Skinned draws' vertices are elsewhere, a range no meshlets are made for
 				var hasAggregate = false;
-				var hasMeshes = false;
-				var meshMeshlets = meshlets && !bucket.Skinned;
 				foreach ( var (_, index) in bucket.Batches )
 				{
 					if ( !bucket.Ids ) break;
 					ref readonly var batch = ref batches[index];
-					var aggregate = !batch.Instances && batch.Owner is AggregateObject;
-					hasAggregate |= aggregate;
-					var geometry = GeometryOf( batch );
-					if ( bucket.IdsShader && bucket.Classic is not null && !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) )
+					hasAggregate |= !batch.Instances && batch.Owner is AggregateObject;
+					if ( bucket.IdsShader && bucket.Classic is not null && !ReadsOnlyPositions( bucket.Classic, GeometryOf( batch ).Layout ) )
 						bucket.Ids = bucket.IdsShader = false;
-					if ( meshMeshlets && !aggregate && batch.Mesh.Geometry is BackendModel model && geometry.Pooled is { } pooledMesh )
-					{
-						if ( device.PrepassMeshMeshlets ) RequestMeshlets( device.MeshletStore, pooledMesh, model, batch.Draw, geometry.BaseVertex );
-						hasMeshes = true;
-					}
-					if ( hasAggregate && !bucket.IdsShader && !(meshMeshlets && device.PrepassMeshMeshlets) ) break;
+					if ( hasAggregate && !bucket.IdsShader ) break;
 				}
 
-				bucket.PrepassMeshlets = meshlets && bucket.Ids && (hasAggregate || hasMeshes);
+				bucket.PrepassMeshlets = meshlets && bucket.Ids && hasAggregate;
 				var bucketCompact = bucketLists || bucket.PrepassMeshlets || bucket.ShadowMeshlets;
 
 				// Its meshlets culled and drawn by task and mesh shaders: a task group per listed fragment, as many as a task draw takes
@@ -1621,7 +1608,7 @@ internal sealed partial class BackendContext
 	GpuDrivenPlan.CallKey PlanKey( StringToken shaderMode, in GpuDrivenCull cull, Format color, Format depth, int samples )
 	{
 		var (compact, _, visibility, ids, lists) = CullState( cull );
-		return new GpuDrivenPlan.CallKey( shaderMode.Value, color, depth, samples, recording.Color is null, ids, lists, visibility is not null, device.PositionStreams, cull.KeepsOrder, MeshletsFor( cull, ids ), MeshTasksNow( cull, compact, ids, visibility ), ids && device.PrepassMeshMeshlets );
+		return new GpuDrivenPlan.CallKey( shaderMode.Value, color, depth, samples, recording.Color is null, ids, lists, visibility is not null, device.PositionStreams, cull.KeepsOrder, MeshletsFor( cull, ids ), MeshTasksNow( cull, compact, ids, visibility ) );
 	}
 
 	/// <summary>
@@ -2341,8 +2328,8 @@ internal sealed partial class BackendContext
 	}
 
 	/// <summary>
-	/// Ask for the meshlets of a model's static mesh draw (an instance batch's or resident meshes' draw), once a draw: shadow
-	/// views and ids prepasses cull them.
+	/// Ask for the meshlets of a model's static mesh draw (an instance batch's or resident meshes' draw), once a draw: a shadow
+	/// view culls them (the ids prepass lists only aggregates' fragments).
 	/// </summary>
 	static void RequestMeshlets( Meshlets.MeshletStore store, PooledGeometry pooled, BackendModel model, in RenderMesh.Draw draw, int baseVertex )
 	{

@@ -629,14 +629,6 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	public bool ShadowMeshlets { get; set; } = HasSwitch( "-shadow-meshlets" );
 
 	/// <summary>
-	/// Meshlet culling of static meshes in GPU-driven depth prepasses (docs/reference/borealis-gpu-driven.md, "Meshlets"): a
-	/// model's static mesh draws (instances, resident meshes) in a prepass that draws ids ask for their meshlets as aggregates'
-	/// fragments do, and draw only those that can reach a sample. On by default, with <see cref="Meshlets"/>;
-	/// <c>-no-prepass-mesh-meshlets</c> turns it off.
-	/// </summary>
-	public bool PrepassMeshMeshlets { get; set; } = !HasSwitch( "-no-prepass-mesh-meshlets" );
-
-	/// <summary>
 	/// Two-phase Hi-Z occlusion in GPU-driven depth prepasses that draw ids (docs/reference/borealis-gpu-driven.md, "Hi-Z
 	/// occlusion"): the fragments forward found visible last frame draw first, a Hi-Z is built from their depth, and the rest
 	/// draw only where they pass it. Off by default (an experiment); <c>-hiz-occlusion</c> turns it on.

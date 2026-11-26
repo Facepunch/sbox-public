@@ -172,7 +172,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	// The materials its draws hold (BackendDevice.ModelMaterial), let go when it's freed
 	readonly List<string> materialPaths = new();
 
-	/// <summary>Whether this is the first ask for a draw's meshlets: a shadow view or an ids prepass asks for a static mesh draw's once.</summary>
+	/// <summary>Whether this is the first ask for a draw's meshlets: a shadow view asks for a static mesh draw's once.</summary>
 	internal bool FirstMeshletRequest( int mesh, int call )
 		=> (uint)mesh < (uint)meshletRequested.Length && (uint)call < (uint)meshletRequested[mesh].Length && (System.Threading.Interlocked.Or( ref meshletRequested[mesh][call], 1 ) & 1) == 0;
 
