@@ -45,6 +45,8 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 
 	// The view's frustum in terrain-local space, refreshed whenever the view is culled
 	private readonly Plane[] _cullPlanes = new Plane[6];
+
+	// The main camera's clipmap centre, which shadow passes draw around. A camera pass uses its own camera's
 	private Vector2 _clipCameraLocal;
 
 	// What the visible meshlets were culled for, so a view's later passes - its prepass, then its opaque pass - reuse them
@@ -140,10 +142,9 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 			if ( _culledFor != key )
 			{
 				TerrainClipmapCuller.ToLocalPlanes( frustum, Transform, _cullPlanes );
-				_clipCameraLocal = clipCamera;
 
 				foreach ( ref var tier in _tiers.AsSpan() )
-					Cull( ref tier );
+					Cull( ref tier, clipCamera );
 
 				_culledFor = key;
 			}
@@ -159,7 +160,7 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 					tier.VisibleBuffer.SetData( tier.Visible.AsSpan( 0, counts[i] ) );
 			}
 
-			return _clipCameraLocal;
+			return clipCamera;
 		}
 	}
 
@@ -270,9 +271,9 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 		Graphics.DrawModelInstanced( mesh, count );
 	}
 
-	private void Cull( ref Tier tier )
+	private void Cull( ref Tier tier, Vector2 clipCamera )
 	{
-		tier.VisibleCount = tier.Culler.Cull( _cullPlanes, _clipCameraLocal, UnitsPerTexel, HeightScale, tier.Visible );
+		tier.VisibleCount = tier.Culler.Cull( _cullPlanes, clipCamera, UnitsPerTexel, HeightScale, tier.Visible );
 	}
 
 	private void DisposeBuffers()
