@@ -1,8 +1,11 @@
 using Borealis.Source2;
 using Borealis.Source2.Models;
+using Borealis.Source2.Resources;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using V3 = System.Numerics.Vector3;
 using V4 = System.Numerics.Vector4;
 
@@ -25,11 +28,14 @@ public class ModelFileTests
 		}
 	}
 
-	static ModelFile Load( string path )
+	static ModelFile Load( string path ) => Load( path, out _ );
+
+	static ModelFile Load( string path, out byte[] bytes )
 	{
 		var files = Files;
-		if ( files.Find( path ) is null ) Assert.Inconclusive( $"{path} isn't built" );
-		return ModelFile.Load( files, path );
+		bytes = files.TryRead( path );
+		if ( bytes is null ) Assert.Inconclusive( $"{path} isn't built" );
+		return ModelFile.Read( bytes, files.TryRead );
 	}
 
 	/// <summary>
@@ -92,6 +98,43 @@ public class ModelFileTests
 		Assert.AreEqual( 0, merged.Find( "TEXCOORD", 5 )?.Slot );
 		CollectionAssert.AreEqual( positions.Data[16..32], merged.Data[20..36], "vertex 1's positions" );
 		CollectionAssert.AreEqual( paint.Data[8..12], merged.Data[36..40], "vertex 1's paint is the paint buffer's vertex 2: bound one vertex in" );
+	}
+
+	/// <summary>
+	/// Releasing a buffer keeps its bytes available until collection; the next read after collection decodes them again
+	/// (once for reads in a row). A buffer that can't be decoded again stays resident.
+	/// </summary>
+	[TestMethod]
+	public void ReleasedBuffersAreReadAgain()
+	{
+		var bytes = Enumerable.Range( 0, 16 ).Select( x => (byte)x ).ToArray();
+		var reads = 0;
+		var buffer = ReleaseIndexBuffer( bytes, () => { reads++; return (byte[])bytes.Clone(); } );
+		var same = buffer with { Generated = false };
+
+		Assert.AreEqual( 0, reads, "release doesn't decode while the original bytes are alive" );
+		GC.Collect();
+		var first = buffer.Data;
+		CollectionAssert.AreEqual( bytes, first );
+		Assert.AreSame( first, buffer.Data, "reads in a row decode once" );
+		Assert.AreEqual( 1, reads );
+		Assert.AreEqual( BitConverter.ToUInt32( bytes, 4 ), buffer[1], "an index reads the same" );
+		Assert.AreEqual( buffer, same, "equal to what it was" );
+
+		var kept = new MeshIndexBuffer( 4, 4, (byte[])bytes.Clone() );
+		var held = kept.Data;
+		kept.Release();
+		Assert.AreSame( held, kept.Data, "a buffer that can't be read again is kept" );
+	}
+
+	[MethodImpl( MethodImplOptions.NoInlining )]
+	static MeshIndexBuffer ReleaseIndexBuffer( byte[] bytes, Func<byte[]> again )
+	{
+		var original = (byte[])bytes.Clone();
+		var buffer = new MeshIndexBuffer( 4, 4, original ) { Again = again };
+		buffer.Release();
+		Assert.AreSame( original, buffer.Data, "release reuses the original bytes while they're alive" );
+		return buffer;
 	}
 
 	/// <summary>
@@ -272,7 +315,19 @@ public class ModelFileTests
 	[DataRow( "models/citizen_human/human.vmdl", 70474, 128891, 69, 4, -5.7833f, -23.933f, -0.0696f, 6.3864f, 23.9598f, 68.9154f, null )]
 	public void MatchesEngine( string path, int vertices, int triangles, int draws, int lods, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, string lod0Materials )
 	{
-		var model = Load( path );
+		var model = Load( path, out var bytes );
+		if ( path == "models/dev/gordon_at_desk.vmdl" )
+		{
+			// The parity baseline was 1400 before the tangent-sign update; both compiled fixtures are in use.
+			// Use the file's buffer header to distinguish those fixtures without relying on the model reader's counts.
+			var buffers = ResourceFile.Read( bytes ).Block( "MBUF" );
+			Assert.AreEqual( 1, BinaryPrimitives.ReadInt32LittleEndian( buffers[4..] ), "compiled Gordon vertex buffers" );
+			var vertexBuffer = BinaryPrimitives.ReadInt32LittleEndian( buffers );
+			var compiledVertices = BinaryPrimitives.ReadInt32LittleEndian( buffers[vertexBuffer..] );
+			if ( compiledVertices == 1400 ) vertices = 1400;
+			Assert.AreEqual( vertices, compiledVertices, "compiled Gordon vertices" );
+		}
+
 		Assert.AreEqual( vertices, model.Meshes.Sum( m => m.VertexCount ), "vertices" );
 		Assert.AreEqual( triangles, model.Meshes.Sum( m => m.TriangleCount ), "triangles" );
 		Assert.AreEqual( draws, model.Meshes.Sum( m => m.DrawCalls.Count ), "draws" );

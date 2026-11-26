@@ -267,7 +267,7 @@ public sealed class MapEntity
 	/// <summary>A value by its field type (<c>fieldtype_t</c>).</summary>
 	static object Value( ByteReader reader, uint type ) => type switch
 	{
-		1 => reader.Float(), // float
+		1 or 15 => reader.Float(), // float, time
 		2 or 17 or 28 or 30 or 31 or 53 => reader.Terminated(), // string, sound name, resource, C string, script, utl string
 		3 or 14 or 39 or 45 or 46 => new Vector3( reader.Float(), reader.Float(), reader.Float() ), // vector, position, angles, direction
 		4 or 27 => new Vector4( reader.Float(), reader.Float(), reader.Float(), reader.Float() ), // quaternion, vector4
@@ -276,7 +276,7 @@ public sealed class MapEntity
 		7 => reader.Short(),
 		8 => reader.Byte(), // char
 		9 => reader.Bytes( 4 ), // colour, four bytes
-		13 or 15 or 16 or 37 or 38 => reader.UInt(), // handle, time, tick, uint, token
+		13 or 16 or 37 or 38 => reader.UInt(), // handle, tick, uint, token
 		25 => new Vector2( reader.Float(), reader.Float() ),
 		26 => reader.Long(), // int64
 		33 => reader.ULong(), // uint64

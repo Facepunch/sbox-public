@@ -43,7 +43,7 @@ public sealed class MaterialFile
 		var resource = ResourceFile.Read( data );
 		if ( Kv3.Read( resource.Block( "DATA" ) ) is not Dictionary<string, object> root ) throw new InvalidDataException( "Material DATA isn't an object" );
 
-		return new MaterialFile
+		var material = new MaterialFile
 		{
 			Name = root.Get( "m_materialName" ) as string,
 			Shader = root.Get( "m_shaderName" ) as string,
@@ -53,6 +53,55 @@ public sealed class MaterialFile
 			Textures = Pairs( root, "m_textureParams", "m_pValue", v => v as string ),
 			IntAttributes = Pairs( root, "m_intAttributes", "m_nValue", v => (int)Number( v ) ),
 			ShaderVersion = (int)Number( root.Get( "m_shaderVersion" ) ),
+		};
+
+		return IsBark( material.Shader ) ? FromBark( material ) : material;
+	}
+
+	static bool IsBark( string shader )
+	{
+		var name = shader?.Replace( '\\', '/' ).ToLowerInvariant() ?? "";
+		if ( name.StartsWith( "shaders/" ) ) name = name[8..];
+		if ( name.EndsWith( ".shader_c" ) ) name = name[..^2];
+		return name == "bark.shader";
+	}
+
+	/// <summary>
+	/// A <c>bark.shader</c> material as the engine loads it since bark was removed (<c>BarkMaterialUpgrader.UpgradeCompiled</c>):
+	/// foliage, animating the trunk only where bark animated, with bark's surface defaults. Published materials still name bark.
+	/// </summary>
+	static MaterialFile FromBark( MaterialFile bark )
+	{
+		// The first value of a name, ints before floats before vectors, as native reads it
+		float? First( string name ) => bark.Ints.TryGetValue( name, out var i ) ? i
+			: bark.Floats.TryGetValue( name, out var f ) ? f
+			: bark.Vectors.TryGetValue( name, out var v ) && v.Length > 0 ? v[0] : null;
+
+		string[] replaced = ["F_BARK_ANIMATION", "g_flSpecularOcclusion", "F_FOLIAGE_ANIMATION", "g_flMinRoughness", "g_flNormalVariation"];
+		Dictionary<string, T> Without<T>( IReadOnlyDictionary<string, T> values )
+		{
+			var kept = new Dictionary<string, T>( values, StringComparer.OrdinalIgnoreCase );
+			foreach ( var name in replaced ) kept.Remove( name );
+			return kept;
+		}
+
+		var ints = Without( bark.Ints );
+		ints["F_FOLIAGE_ANIMATION"] = (int)(First( "F_BARK_ANIMATION" ) ?? 0) != 0 ? 2 : 0;
+		var floats = Without( bark.Floats );
+		floats["g_flMinRoughness"] = 0;
+		floats["g_flNormalVariation"] = 0;
+		floats["g_flSpecularOcclusion"] = First( "g_flSpecularOcclusion" ) ?? 0.5f;
+
+		return new MaterialFile
+		{
+			Name = bark.Name,
+			Shader = "shaders/foliage.shader",
+			Ints = ints,
+			Floats = floats,
+			Vectors = Without( bark.Vectors ),
+			Textures = bark.Textures,
+			IntAttributes = bark.IntAttributes,
+			ShaderVersion = bark.ShaderVersion,
 		};
 	}
 

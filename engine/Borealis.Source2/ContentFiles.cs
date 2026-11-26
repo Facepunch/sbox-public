@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace Borealis.Source2;
 
@@ -9,7 +10,15 @@ namespace Borealis.Source2;
 /// </summary>
 public sealed class ContentFiles
 {
-	readonly List<string> roots = new();
+	// Each list is replaced whole when added to (under gate), never changed in place: the read workers search them without
+	// a lock while the main thread adds a map's folder or package
+	readonly object gate = new();
+	string[] roots = [];
+
+	static void Append<T>( ref T[] list, T item, object gate )
+	{
+		lock ( gate ) Volatile.Write( ref list, [.. list, item] );
+	}
 
 	/// <summary>Search these folders, first first.</summary>
 	public ContentFiles( params string[] roots )
@@ -23,10 +32,10 @@ public sealed class ContentFiles
 	/// <summary>Search another folder, after the others.</summary>
 	public void Add( string root )
 	{
-		if ( Directory.Exists( root ) ) roots.Add( Path.GetFullPath( root ) );
+		if ( Directory.Exists( root ) ) Append( ref roots, Path.GetFullPath( root ), gate );
 	}
 
-	readonly List<string> fallbacks = new();
+	string[] fallbacks = [];
 
 	/// <summary>
 	/// Folders searched last, after <see cref="Resolve"/>: the rest of the engine's GAME search path, which a game's files
@@ -37,7 +46,7 @@ public sealed class ContentFiles
 	/// <summary>Search another folder last, after the others and <see cref="Resolve"/>.</summary>
 	public void AddFallback( string root )
 	{
-		if ( Directory.Exists( root ) ) fallbacks.Add( Path.GetFullPath( root ) );
+		if ( Directory.Exists( root ) ) Append( ref fallbacks, Path.GetFullPath( root ), gate );
 	}
 
 	/// <summary>
@@ -115,13 +124,13 @@ public sealed class ContentFiles
 	/// <summary>A compiled resource's bytes; throws if it isn't anywhere.</summary>
 	public byte[] Read( string path ) => TryRead( path ) ?? throw new FileNotFoundException( $"No compiled {path} under {string.Join( ", ", roots.Concat( packages.Select( x => x.ToString() ) ) )}" );
 
-	readonly List<Resources.VpkFile> packages = new();
+	Resources.VpkFile[] packages = [];
 
 	/// <summary>
 	/// Also search a VPK (a compiled map's), after the folders. Files in folders win, as the engine's search path puts
 	/// loose files first.
 	/// </summary>
-	public void AddPackage( Resources.VpkFile package ) => packages.Add( package );
+	public void AddPackage( Resources.VpkFile package ) => Append( ref packages, package, gate );
 
 	/// <summary>The VPKs searched after the folders.</summary>
 	public IReadOnlyList<Resources.VpkFile> Packages => packages;
@@ -130,7 +139,8 @@ public sealed class ContentFiles
 	public byte[] TryRead( string path )
 	{
 		if ( Find( path ) is { } file ) return File.ReadAllBytes( file );
-		if ( packages.Count == 0 || string.IsNullOrEmpty( path ) ) return null;
+		var packages = this.packages;
+		if ( packages.Length == 0 || string.IsNullOrEmpty( path ) ) return null;
 
 		path = path.Replace( '\\', '/' ).TrimStart( '/' );
 		if ( !path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) path += "_c";
@@ -156,7 +166,8 @@ public sealed class ContentFiles
 			return data;
 		}
 
-		if ( packages.Count == 0 || string.IsNullOrEmpty( path ) ) return null;
+		var packages = this.packages;
+		if ( packages.Length == 0 || string.IsNullOrEmpty( path ) ) return null;
 
 		path = path.Replace( '\\', '/' ).TrimStart( '/' );
 		if ( !path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) path += "_c";
@@ -200,7 +211,8 @@ public sealed class ContentFiles
 			return data;
 		}
 
-		if ( packages.Count == 0 || string.IsNullOrEmpty( path ) ) return null;
+		var packages = this.packages;
+		if ( packages.Length == 0 || string.IsNullOrEmpty( path ) ) return null;
 
 		path = path.Replace( '\\', '/' ).TrimStart( '/' );
 		if ( !path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) path += "_c";

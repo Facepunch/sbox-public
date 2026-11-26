@@ -92,7 +92,7 @@ public sealed class ModelFile
 	/// <summary>The same model with other meshes (as many, in the same order): a copy with its meshes cooked (<see cref="MeshletCooker.Cook"/>).</summary>
 	internal ModelFile WithMeshes( IReadOnlyList<ModelMesh> meshes ) => Copy( Name, meshes, HasAnimation );
 
-	/// <summary>This model as a model made on it reads (<see cref="Read(byte[], Func{string, byte[]})"/>): the same, under that model's name, with its animation.</summary>
+	/// <summary>This model as a model made on it reads (<see cref="Read(byte[], Func{string, byte[]}, Func{byte[]})"/>): the same, under that model's name, with its animation.</summary>
 	ModelFile MadeOn( string name, bool hasAnimation ) => Copy( name, Meshes, HasAnimation || hasAnimation );
 
 	ModelFile Copy( string name, IReadOnlyList<ModelMesh> meshes, bool hasAnimation ) => new( remapping, remappingStarts )
@@ -113,6 +113,20 @@ public sealed class ModelFile
 		HasAnimation = hasAnimation,
 		HasPhysics = HasPhysics,
 	};
+
+	/// <summary>
+	/// Let go of the CPU copy of every buffer that can be read again from where it came from (a model read with <c>again</c>,
+	/// see <see cref="Read(byte[], Func{string, byte[]}, Func{byte[]})"/>), once they're on the GPU. What reads one later (meshlet
+	/// and level builds, traces, readbacks) decodes it again, and it's freed by the next collection.
+	/// </summary>
+	public void ReleaseBuffers()
+	{
+		foreach ( var mesh in Meshes )
+		{
+			foreach ( var buffer in mesh.VertexBuffers ) buffer.Release();
+			foreach ( var buffer in mesh.IndexBuffers ) buffer.Release();
+		}
+	}
 
 	/// <summary>
 	/// The base model a model's key values name (<c>base_model_resource</c>, as ModelDoc compiles a model's base model), or
@@ -221,14 +235,16 @@ public sealed class ModelFile
 	/// Read a model from its <c>.vmdl_c</c> bytes. Meshes kept in <c>.vmesh_c</c> files of their own are read through
 	/// <paramref name="external"/> (a compiled path to bytes, or null when it isn't there); without it they throw. A model
 	/// made on a base model (<c>base_model_resource</c> in its key values) reads as its base, read through
-	/// <paramref name="external"/> too, under its own name.
+	/// <paramref name="external"/> too, under its own name. <paramref name="again"/>, when the file can be read again, gives
+	/// its bytes anew (as <paramref name="external"/> gives the others'): <see cref="ReleaseBuffers"/> may then let go of the
+	/// buffers, which are decoded from them again when something reads one.
 	/// </summary>
-	public static ModelFile Read( byte[] data, Func<string, byte[]> external = null ) => Read( data, external, 0 );
+	public static ModelFile Read( byte[] data, Func<string, byte[]> external = null, Func<byte[]> again = null ) => Read( data, external, again, 0 );
 
 	/// <summary>How deep base models may nest before a chain of them counts as a loop.</summary>
 	const int MostBaseModels = 8;
 
-	static ModelFile Read( byte[] data, Func<string, byte[]> external, int depth )
+	static ModelFile Read( byte[] data, Func<string, byte[]> external, Func<byte[]> again, int depth )
 	{
 		var resource = ResourceFile.Read( data );
 		if ( Kv3.Read( resource.Block( "DATA" ) ) is not Dictionary<string, object> root ) throw new InvalidDataException( "Model DATA isn't an object" );
@@ -242,7 +258,7 @@ public sealed class ModelFile
 		{
 			if ( depth >= MostBaseModels ) throw new InvalidDataException( $"{name}'s base models nest more than {MostBaseModels} deep" );
 			var bytes = external?.Invoke( basePath ) ?? throw new FileNotFoundException( $"{name} is made on {basePath}, which isn't there" );
-			return Read( bytes, external, depth + 1 ).MadeOn( name, hasAnimation: control?.Get( "embedded_animation" ) is not null );
+			return Read( bytes, external, again is null ? null : () => external( basePath ), depth + 1 ).MadeOn( name, hasAnimation: control?.Get( "embedded_animation" ) is not null );
 		}
 
 		var blocks = BlockTable( resource );
@@ -257,6 +273,7 @@ public sealed class ModelFile
 			embedded[(int)Kv.Number( mesh.Get( "mesh_index" ), -1 )] = mesh;
 
 		var meshes = new ModelMesh[references.Length];
+		var reread = again is null ? null : new Reread( again );
 		for ( int i = 0; i < meshes.Length; i++ )
 		{
 			var groups = i < meshGroupMasks.Length ? Kv.Mask( meshGroupMasks[i] ) : ulong.MaxValue;
@@ -266,11 +283,13 @@ public sealed class ModelFile
 			{
 				var meshName = info.Get( "name" ) as string ?? $"mesh{i}";
 				var dataBlock = Block( resource, blocks, info.Get( "data_block" ), "MDAT", meshName );
-				var vbibBlock = Block( resource, blocks, info.Get( "vbib_block" ), "MBUF", meshName );
+				var vbib = info.Get( "vbib_block" );
+				var vbibBlock = Block( resource, blocks, vbib, "MBUF", meshName );
 				var morphBlock = (int)Kv.Number( info.Get( "morph_block" ), -1 );
 				var morphs = morphBlock >= 0 ? ReadMorphs( Block( resource, blocks, info.Get( "morph_block" ), "MRPH", meshName ) ) : null;
 				var meshlets = Kv.Number( info.Get( "meshlet_block" ), -1 ) >= 0 ? Block( resource, blocks, info.Get( "meshlet_block" ), CookedMeshlets.BlockName, meshName ) : default;
-				meshes[i] = ModelMesh.Read( dataBlock, vbibBlock, meshName, i, groups, lods, morphBlock >= 0, info.Get( "morph_texture" ) as string, morphs, meshlets );
+				Func<ReadOnlyMemory<byte>> againBuffers = reread is null ? null : () => EmbeddedBuffers( reread, vbib, meshName );
+				meshes[i] = ModelMesh.Read( dataBlock, vbibBlock, meshName, i, groups, lods, morphBlock >= 0, info.Get( "morph_texture" ) as string, morphs, meshlets, againBuffers );
 			}
 			else if ( references[i] is string path && path.Length > 0 )
 			{
@@ -278,7 +297,14 @@ public sealed class ModelFile
 				var mesh = ResourceFile.Read( bytes );
 				var buffers = mesh.Has( "VBIB" ) ? mesh.Block( "VBIB" ) : mesh.Block( "MBUF" );
 				var morphs = mesh.Has( "MRPH" ) ? ReadMorphs( mesh.Block( "MRPH" ) ) : null;
-				meshes[i] = ModelMesh.Read( mesh.Block( "DATA" ), buffers, Path.GetFileNameWithoutExtension( path ), i, groups, lods, mesh.Has( "MRPH" ), null, morphs, mesh.Block( CookedMeshlets.BlockName ) );
+				Func<ReadOnlyMemory<byte>> againBuffers = null;
+				if ( again is not null )
+				{
+					var file = new Reread( () => external( path ) );
+					againBuffers = () => ExternalBuffers( file );
+				}
+
+				meshes[i] = ModelMesh.Read( mesh.Block( "DATA" ), buffers, Path.GetFileNameWithoutExtension( path ), i, groups, lods, mesh.Has( "MRPH" ), null, morphs, mesh.Block( CookedMeshlets.BlockName ), againBuffers );
 			}
 			else
 			{
@@ -354,9 +380,52 @@ public sealed class ModelFile
 
 	static ReadOnlySpan<byte> Block( ResourceFile resource, List<(string Type, int Offset, int Size)> blocks, object index, string type, string mesh )
 	{
+		var (offset, size) = BlockRange( blocks, index, type, mesh );
+		return resource.Data.AsSpan( offset, size );
+	}
+
+	static (int Offset, int Size) BlockRange( List<(string Type, int Offset, int Size)> blocks, object index, string type, string mesh )
+	{
 		var i = (int)Kv.Number( index, -1 );
 		if ( i < 0 || i >= blocks.Count || blocks[i].Type != type ) throw new InvalidDataException( $"Mesh {mesh}'s {type} block {i} isn't one" );
-		return resource.Data.AsSpan( blocks[i].Offset, blocks[i].Size );
+		return (blocks[i].Offset, blocks[i].Size);
+	}
+
+	/// <summary>The buffer block of an embedded mesh, from the model's file read again.</summary>
+	static ReadOnlyMemory<byte> EmbeddedBuffers( Reread file, object index, string mesh )
+	{
+		var resource = ResourceFile.Read( file.Bytes() );
+		var (offset, size) = BlockRange( BlockTable( resource ), index, "MBUF", mesh );
+		return resource.Data.AsMemory( offset, size );
+	}
+
+	/// <summary>The buffer block of a mesh file of its own, read again.</summary>
+	static ReadOnlyMemory<byte> ExternalBuffers( Reread file )
+	{
+		var resource = ResourceFile.Read( file.Bytes() );
+		var (offset, size) = resource.Find( resource.Has( "VBIB" ) ? "VBIB" : "MBUF" );
+		return resource.Data.AsMemory( offset, size );
+	}
+
+	/// <summary>
+	/// A file's bytes, read again when buffers let go of are decoded again: held weakly, so the buffers decoded one after
+	/// another (a model's builds) read the file once, and nothing holds it between them.
+	/// </summary>
+	sealed class Reread( Func<byte[]> read )
+	{
+		WeakReference<byte[]> last;
+
+		public byte[] Bytes()
+		{
+			lock ( this )
+			{
+				if ( last is { } kept && kept.TryGetTarget( out var alive ) ) return alive;
+				var bytes = read() ?? throw new FileNotFoundException( "A model's file isn't there to read its buffers again" );
+				if ( last is null ) last = new( bytes );
+				else last.SetTarget( bytes );
+				return bytes;
+			}
+		}
 	}
 
 	static int CountLods( double[] lodMasks )

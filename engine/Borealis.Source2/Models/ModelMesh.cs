@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Threading;
 
 namespace Borealis.Source2.Models;
 
@@ -109,12 +110,13 @@ public sealed class ModelMesh
 	};
 
 	/// <summary>
-	/// Read a mesh from its KV3 (<c>CRenderMesh</c>) and buffer blocks.
+	/// Read a mesh from its KV3 (<c>CRenderMesh</c>) and buffer blocks. <paramref name="againBuffers"/> gives the buffer block
+	/// again, when the file can be read again: its buffers can then be let go once they're on the GPU (<see cref="MeshVertexBuffer.Release"/>).
 	/// </summary>
-	internal static ModelMesh Read( ReadOnlySpan<byte> kv3, ReadOnlySpan<byte> buffers, string name, int index, ulong meshGroups, byte lods, bool morphs, string morphTexture, MorphSet morphSet = null, ReadOnlySpan<byte> meshlets = default )
+	internal static ModelMesh Read( ReadOnlySpan<byte> kv3, ReadOnlySpan<byte> buffers, string name, int index, ulong meshGroups, byte lods, bool morphs, string morphTexture, MorphSet morphSet = null, ReadOnlySpan<byte> meshlets = default, Func<ReadOnlyMemory<byte>> againBuffers = null )
 	{
 		if ( Kv3.Read( kv3 ) is not Dictionary<string, object> root ) throw new InvalidDataException( $"Mesh {name} isn't a KV3 object" );
-		var (vertexBuffers, indexBuffers) = ReadBuffers( buffers, name );
+		var (vertexBuffers, indexBuffers) = ReadBuffers( buffers, name, againBuffers );
 
 		// The compiler's meshlets (an MSHL block), each index buffer given its ranges'
 		if ( !meshlets.IsEmpty && CookedMeshlets.Read( meshlets, vertexBuffers, indexBuffers ) is { } cooked )
@@ -211,7 +213,7 @@ public sealed class ModelMesh
 				count = Math.Max( count, 0 );
 
 				var fields = new List<VertexField>();
-				var data = new byte[count * stride];
+				var parts = new List<(MeshVertexBuffer Source, int Offset)>();
 				var at = 0;
 				foreach ( var (buffer, offset) in streams )
 				{
@@ -222,13 +224,13 @@ public sealed class ModelMesh
 						fields.Add( field with { Offset = field.Offset + at, Slot = 0 } );
 					}
 
-					for ( int v = 0; v < count; v++ )
-						source.Data.AsSpan( offset + v * source.Stride, source.Stride ).CopyTo( data.AsSpan( v * stride + at ) );
+					parts.Add( (source, offset) );
 					at += source.Stride;
 				}
 
+				// Built from its streams again when it's let go of
 				index = vertexBuffers.Length + added.Count;
-				added.Add( new MeshVertexBuffer( count, stride, [.. fields], data ) );
+				added.Add( new MeshVertexBuffer( count, stride, [.. fields], MergeData( parts, count, stride ) ) { Again = () => MergeData( parts, count, stride ) } );
 				merged[key] = index;
 			}
 
@@ -237,6 +239,22 @@ public sealed class ModelMesh
 		}
 
 		return added is null ? vertexBuffers : [.. vertexBuffers, .. added];
+	}
+
+	/// <summary>The streams' vertices side by side, each from where its draw binds it.</summary>
+	static byte[] MergeData( List<(MeshVertexBuffer Source, int Offset)> parts, int count, int stride )
+	{
+		var data = new byte[count * stride];
+		var at = 0;
+		foreach ( var (source, offset) in parts )
+		{
+			var from = source.Data;
+			for ( int v = 0; v < count; v++ )
+				from.AsSpan( offset + v * source.Stride, source.Stride ).CopyTo( data.AsSpan( v * stride + at ) );
+			at += source.Stride;
+		}
+
+		return data;
 	}
 
 	/// <summary>
@@ -289,7 +307,7 @@ public sealed class ModelMesh
 	/// The buffer block (<c>VBIBBlockHeader_t</c>): two resource arrays (<c>int offset</c> from the field, <c>uint
 	/// count</c>) of <c>RenderMeshBufferData_t</c>, vertex buffers then index buffers.
 	/// </summary>
-	static (MeshVertexBuffer[] Vertices, MeshIndexBuffer[] Indices) ReadBuffers( ReadOnlySpan<byte> block, string name )
+	static (MeshVertexBuffer[] Vertices, MeshIndexBuffer[] Indices) ReadBuffers( ReadOnlySpan<byte> block, string name, Func<ReadOnlyMemory<byte>> again )
 	{
 		var vertices = new MeshVertexBuffer[Count( block, 4 )];
 		var indices = new MeshIndexBuffer[Count( block, 12 )];
@@ -299,16 +317,31 @@ public sealed class ModelMesh
 		for ( int i = 0; i < vertices.Length; i++ )
 		{
 			var (count, stride, fields, data) = Buffer( block, vertexStart + i * 24, name );
-			vertices[i] = new MeshVertexBuffer( count, stride, fields, data );
+			vertices[i] = new MeshVertexBuffer( count, stride, fields, data ) { Again = Reload( again, i, false, name, data.Length ) };
 		}
 
 		for ( int i = 0; i < indices.Length; i++ )
 		{
 			var (count, stride, _, data) = Buffer( block, indexStart + i * 24, name, index: true );
-			indices[i] = new MeshIndexBuffer( count, stride, data );
+			indices[i] = new MeshIndexBuffer( count, stride, data ) { Again = Reload( again, i, true, name, data.Length ) };
 		}
 
 		return (vertices, indices);
+	}
+
+	/// <summary>Decodes buffer <paramref name="number"/> of the buffer block again, or null when the block can't be got again.</summary>
+	static Func<byte[]> Reload( Func<ReadOnlyMemory<byte>> block, int number, bool index, string name, int length )
+	{
+		if ( block is null ) return null;
+		return () =>
+		{
+			var span = block().Span;
+			var data = Buffer( span, Offset( span, index ? 8 : 0 ) + number * 24, name, index ).Data;
+
+			// A file rebuilt since it was read (an asset recompiled under a running game) isn't the one its draws were made from
+			if ( data.Length != length ) throw new InvalidDataException( $"Mesh {name} changed since it was read" );
+			return data;
+		};
 	}
 
 	static int Offset( ReadOnlySpan<byte> block, int field ) => field + BinaryPrimitives.ReadInt32LittleEndian( block[field..] );
@@ -368,6 +401,21 @@ public sealed class ModelMesh
 /// </summary>
 public sealed record MeshVertexBuffer( int Count, int Stride, VertexField[] Fields, byte[] Data )
 {
+	// Apart from the record, so its equality (the bytes by reference) doesn't change when they're let go
+	readonly BufferBytes data = new( Data );
+
+	/// <summary>
+	/// The vertices' bytes. A buffer read from a file whose bytes were let go (<see cref="Release"/>) decodes them again,
+	/// and keeps them only weakly after.
+	/// </summary>
+	public byte[] Data { get => data.Get(); init => data = new( value ); }
+
+	/// <summary>Decodes the bytes again, for a buffer that can be let go of.</summary>
+	internal Func<byte[]> Again { init => data.Again = value; }
+
+	/// <summary>Let go of the bytes once they're on the GPU, when <see cref="Again"/> can get them back: nothing holds them until the next read.</summary>
+	internal void Release() => data.Release();
+
 	/// <summary>The field with a semantic (case doesn't matter, as native matches them) and index, or null.</summary>
 	public VertexField? Find( string semantic, int index = 0 )
 	{
@@ -401,6 +449,21 @@ public sealed record MeshVertexBuffer( int Count, int Stride, VertexField[] Fiel
 /// <summary>A decoded index buffer: <paramref name="Count"/> indices of <paramref name="Size"/> bytes (2 or 4).</summary>
 public sealed record MeshIndexBuffer( int Count, int Size, byte[] Data )
 {
+	// Apart from the record, so its equality (the bytes by reference) doesn't change when they're let go
+	readonly BufferBytes data = new( Data );
+
+	/// <summary>
+	/// The indices' bytes. A buffer read from a file whose bytes were let go (<see cref="Release"/>) decodes them again,
+	/// and keeps them only weakly after.
+	/// </summary>
+	public byte[] Data { get => data.Get(); init => data = new( value ); }
+
+	/// <summary>Decodes the bytes again, for a buffer that can be let go of.</summary>
+	internal Func<byte[]> Again { init => data.Again = value; }
+
+	/// <summary>Let go of the bytes once they're on the GPU, when <see cref="Again"/> can get them back: nothing holds them until the next read.</summary>
+	internal void Release() => data.Release();
+
 	/// <summary>Made by the reader, not in the file: the counting indices of a mesh's unindexed draws.</summary>
 	public bool Generated { get; init; }
 
@@ -412,6 +475,50 @@ public sealed record MeshIndexBuffer( int Count, int Size, byte[] Data )
 
 	/// <inheritdoc/>
 	public override string ToString() => $"{Count} x {Size}";
+}
+
+/// <summary>
+/// The bytes of a decoded buffer. Ones read from a file can be let go once they're on the GPU (<see cref="Release"/>): the
+/// next read decodes them again (<see cref="Again"/>) and they're kept weakly after, so the reads of a build in a row decode
+/// once, and nothing holds them between builds.
+/// </summary>
+internal sealed class BufferBytes
+{
+	byte[] strong;
+	WeakReference<byte[]> weak;
+
+	/// <summary>Decodes the bytes again; null for bytes that can't be got back, which are never let go.</summary>
+	public Func<byte[]> Again;
+
+	public BufferBytes( byte[] bytes ) => strong = bytes;
+
+	public byte[] Get() => Volatile.Read( ref strong ) ?? (Again is null ? null : Decode());
+
+	byte[] Decode()
+	{
+		if ( weak is { } cached && cached.TryGetTarget( out var alive ) ) return alive;
+		lock ( this )
+		{
+			if ( strong is { } resident ) return resident;
+			if ( weak is { } kept && kept.TryGetTarget( out var again ) ) return again;
+			var bytes = Again();
+			if ( weak is null ) weak = new( bytes );
+			else weak.SetTarget( bytes );
+			return bytes;
+		}
+	}
+
+	public void Release()
+	{
+		if ( Again is null ) return;
+		lock ( this )
+		{
+			if ( strong is not { } bytes ) return;
+			if ( weak is null ) weak = new( bytes );
+			else weak.SetTarget( bytes );
+			Volatile.Write( ref strong, null );
+		}
+	}
 }
 
 /// <summary>
