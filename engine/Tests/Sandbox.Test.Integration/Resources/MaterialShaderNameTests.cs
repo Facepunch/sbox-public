@@ -16,7 +16,7 @@ public class MaterialShaderNameTests
 	[TestMethod]
 	public void MaterialsNameTheirShaderFromTheirFileOrCode()
 	{
-		foreach ( var (path, shader) in new[] { ("materials/default.vmat", "shaders/complex.shader"), ("materials/dev/reflectivity_30.vmat", "shaders/complex.shader"), ("materials/skybox/skybox_dark_01.vmat", "shaders/sky.shader") } )
+		foreach ( var (path, shader) in new[] { ("materials/default.vmat", "shaders/standard.shader"), ("materials/dev/reflectivity_30.vmat", "shaders/standard.shader"), ("materials/skybox/skybox_dark_01.vmat", "shaders/sky.shader") } )
 		{
 			var material = Material.Load( path );
 			Assert.IsNotNull( material, path );
