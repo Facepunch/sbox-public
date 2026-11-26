@@ -309,10 +309,12 @@ public sealed partial class RenderSystem
 	}
 
 	/// <summary>
-	/// A static shadow cache is kept while the camera moves, so it isn't size culled by where the camera was when it was drawn.
-	/// A texel-sized cull doesn't depend on the camera, so it keeps that.
+	/// A static shadow cache is kept while the camera moves, so it isn't size culled by where the camera was when it was drawn:
+	/// a light's, and its settled casters too where it holds them. A texel-sized cull doesn't depend on the camera, so it keeps
+	/// that.
 	/// </summary>
-	static bool KeepsSmallCasters( ViewPass pass ) => pass.StaticFilter == StaticFilter.OnlyStatic && !pass.TexelSized;
+	internal static bool KeepsSmallCasters( ViewPass pass )
+		=> (pass.StaticFilter == StaticFilter.OnlyStatic || (pass.StaticFilter == StaticFilter.Settled && pass.LightSphere is not null)) && !pass.TexelSized;
 
 	/// <summary>
 	/// Warm type lookups before parallel culling; cache misses write shared state.

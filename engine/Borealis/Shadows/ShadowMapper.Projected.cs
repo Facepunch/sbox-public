@@ -78,8 +78,9 @@ internal partial class ShadowMapper
 			SlopeScaledDepthBias = ShadowSlopeScale * biasScale,
 		};
 
-		// Static lights, and ones that have kept still, render their static casters once into a cache that gets copied in
-		// each frame, and only dynamic casters are re-rendered on top.
+		// Static lights, and ones that have kept still, render their static (and settled) casters once into a cache that gets
+		// copied in each frame, and only the other casters are re-rendered on top.
+		DropUnsettledCache( cacheEntry );
 		if ( CachesStatic( light, cacheEntry ) && !isBakedLight && (cacheEntry.StaticCache is null || (inFlight && cacheEntry.StaticRenderedFrame == FrameCount)) )
 		{
 			cacheEntry.StaticCache ??= AcquireTexture( cacheEntry.CurrentResolution, isCube: false );
@@ -88,20 +89,18 @@ internal partial class ShadowMapper
 			var staticView = shadowView;
 			staticView.Name = cacheEntry.DebugName + "_StaticCache";
 			staticView.Target = cacheEntry.StaticCache;
-			staticView.StaticFilter = StaticFilter.OnlyStatic;
+			BeginStaticCache( cacheEntry, light, ref staticView );
 			Renderer.RenderShadowView( staticView );
-			cacheEntry.StaticRenderedFrame = FrameCount;
-			cacheEntry.StaticRevision = light.StaticChanges?.Revision ?? 0;
 		}
 
 		// Not once the light is baked: the lightmap holds its static casters (a cache made before it was baked would shadow them twice)
 		bool useStaticCache = cacheEntry.StaticCache is not null && !isBakedLight;
 
 		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps.
-		// Cached lights exclude them too - their static shadows come from the static cache.
+		// Cached lights exclude what the cache holds.
 		shadowView.Target = cacheEntry.ShadowMap;
-		shadowView.StaticFilter = isBakedLight || useStaticCache ? StaticFilter.NoStatic : StaticFilter.Any;
-		shadowView.CachedStatic = useStaticCache ? cacheEntry.StaticCache : null;
+		shadowView.StaticFilter = isBakedLight ? StaticFilter.NoStatic : StaticFilter.Any;
+		if ( useStaticCache ) OverStaticCache( cacheEntry, ref shadowView );
 
 		Matrix viewProjection = Renderer.RenderShadowView( shadowView );
 

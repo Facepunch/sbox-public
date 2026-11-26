@@ -233,6 +233,33 @@ internal partial class ShadowMapper
 		public long StaticRevision;
 
 		/// <summary>
+		/// Whether <see cref="StaticCache"/> holds the casters settled by <see cref="SettledStamp"/> too, not only the static
+		/// ones (<see cref="SettledLocalCaches"/>): the map's updates draw the rest on top.
+		/// </summary>
+		public bool HoldsSettled;
+
+		/// <summary>
+		/// The <see cref="SettledCasters"/> stamps <see cref="StaticCache"/> was drawn at, when it <see cref="HoldsSettled"/>.
+		/// </summary>
+		public ulong SettledStamp, RestlessStamp;
+
+		/// <summary>
+		/// The world's settled changes' <see cref="StaticCasterChanges.Revision"/> <see cref="StaticCache"/> is up to date with.
+		/// </summary>
+		public long SettledRevision;
+
+		/// <summary>
+		/// When <see cref="StaticCache"/> was drawn.
+		/// </summary>
+		public float StaticDrawnAt;
+
+		/// <summary>
+		/// The casters the map's last update drew on top of its cache that have settled since: drawn again, the cache would
+		/// hold them.
+		/// </summary>
+		internal readonly CasterCount NewlySettled = new();
+
+		/// <summary>
 		/// The tags of the views this map is for: it holds the casters they show.
 		/// </summary>
 		internal uint[] RenderTags, ExcludeTags;
@@ -376,6 +403,19 @@ internal partial class ShadowMapper
 			entry.StaticRevision = changes.Revision;
 		}
 
+		// A cache that holds settled casters too: the same for a change to one of those
+		if ( entry.StaticCache is not null && entry.HoldsSettled && light.SettledChanges is { } settled && entry.SettledRevision != settled.Revision )
+		{
+			if ( settled.Touches( entry.SettledRevision, light.Position, light.Radius ) )
+			{
+				ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+				entry.StaticCache = null;
+				entry.RenderedFrame = 0;
+			}
+
+			entry.SettledRevision = settled.Revision;
+		}
+
 		return entry;
 	}
 
@@ -386,6 +426,64 @@ internal partial class ShadowMapper
 	/// cache is dropped when the light moves, so a moving light draws everything, as before.
 	/// </summary>
 	static bool CachesStatic( in ShadowLight light, LightEntry entry ) => light.Static || SettledCasters.Settled( entry.MovedStamp );
+
+	/// <summary>
+	/// A local light's static cache holds the casters that have settled too (<see cref="SettledCasters"/>), as the sun's far
+	/// cascade does, so an update draws only the casters that move on top of it, and in a still scene nothing. The cache is
+	/// drawn again when a settled caster within the light's reach changes, or when casters an update drew have settled
+	/// since. Off: it holds only static casters, and each update draws every other caster in reach.
+	/// </summary>
+	internal static bool SettledLocalCaches { get; set; } = true;
+
+	/// <summary>
+	/// Start drawing <paramref name="entry"/>'s static cache into <paramref name="view"/>: its casters, and what it then holds.
+	/// </summary>
+	static void BeginStaticCache( LightEntry entry, in ShadowLight light, ref ShadowViewDesc view )
+	{
+		entry.StaticRenderedFrame = FrameCount;
+		entry.StaticRevision = light.StaticChanges?.Revision ?? 0;
+		entry.HoldsSettled = SettledLocalCaches;
+		view.StaticFilter = StaticFilter.OnlyStatic;
+		if ( !entry.HoldsSettled ) return;
+
+		view.StaticFilter = StaticFilter.Settled;
+		view.SettledStamp = entry.SettledStamp = SettledCasters.Stamp;
+		view.RestlessStamp = entry.RestlessStamp = SettledCasters.RestlessStamp;
+		entry.SettledRevision = light.SettledChanges?.Revision ?? 0;
+		entry.StaticDrawnAt = RealTime.Now;
+		entry.NewlySettled.Value = 0;
+	}
+
+	/// <summary>
+	/// Draw <paramref name="view"/>, of the map over <paramref name="entry"/>'s static cache, with what the cache doesn't hold:
+	/// the casters that aren't static, or with a cache that <see cref="LightEntry.HoldsSettled"/>, those that haven't settled.
+	/// </summary>
+	static void OverStaticCache( LightEntry entry, ref ShadowViewDesc view )
+	{
+		view.CachedStatic = entry.StaticCache;
+		view.StaticFilter = StaticFilter.NoStatic;
+		if ( !entry.HoldsSettled ) return;
+
+		view.StaticFilter = StaticFilter.Unsettled;
+		view.SettledStamp = entry.SettledStamp;
+		view.RestlessStamp = entry.RestlessStamp;
+		entry.NewlySettled.Value = 0;
+		view.NewlySettled = entry.NewlySettled;
+	}
+
+	/// <summary>
+	/// Before drawing a map whose static cache <see cref="LightEntry.HoldsSettled"/>: drop the cache when casters its last
+	/// update drew have settled since, and it's been as long as they take to settle since it was drawn, so it's drawn again
+	/// holding them. Not one drawn this frame, which another frame in flight still draws from.
+	/// </summary>
+	static void DropUnsettledCache( LightEntry entry )
+	{
+		if ( entry.StaticCache is null || !entry.HoldsSettled || entry.NewlySettled.Value == 0 || entry.StaticRenderedFrame == FrameCount ) return;
+		if ( RealTime.Now - entry.StaticDrawnAt < SettledCasters.Seconds ) return;
+
+		ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+		entry.StaticCache = null;
+	}
 
 	/// <summary>
 	/// Whether two tag sets hold the same tags, in any order.

@@ -50,7 +50,8 @@ internal struct ShadowLight
 	public StaticCasterChanges StaticChanges;
 
 	/// <summary>
-	/// Directional: where the light's world has changed settled casters, which its cached far cascade must redraw for.
+	/// Where the light's world has changed settled casters, which its cached far cascade, or a local light's static cache that
+	/// holds them, must redraw for.
 	/// </summary>
 	public StaticCasterChanges SettledChanges;
 

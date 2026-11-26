@@ -537,7 +537,7 @@ internal sealed partial class AggregateRenderFeature : RenderFeature
 		return new GpuContext.GpuDrivenCull
 		{
 			// Resident meshes: culled as the CPU's collect culls them, their LOD picked as Classify picks it
-			KeepsSmallMeshes = view.StaticFilter == StaticFilter.OnlyStatic && !view.TexelSized,
+			KeepsSmallMeshes = RenderSystem.KeepsSmallCasters( view ),
 			LodCamera = texels ? default : new Vector4( root.Position, MathF.Tan( root.FieldOfView.DegreeToRadian() * 0.5f ) ),
 			LodWidth = texels ? view.LodTexelsPerUnit : root.Viewport.Width,
 			LodTexels = texels,

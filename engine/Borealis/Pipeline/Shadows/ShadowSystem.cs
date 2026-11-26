@@ -351,6 +351,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 				// A mixed light's static shadows are in its lightmaps, so its maps leave static casters out
 				Baked = light.Baked,
 				StaticChanges = world.StaticChanges,
+				SettledChanges = world.SettledChanges,
 			};
 
 			lightBinner.SetShadowMapIndex( i, mapper.FindOrCreateShadowMaps( shadowLight, lightBinner.ScreenSize( i ) ) );
@@ -471,7 +472,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		var n = 0;
 		foreach ( var pass in passes )
 		{
-			if ( pass.StaticFilter != StaticFilter.Unsettled || pass.TreeKept is not null || pass.CullReasons is not null ) continue;
+			// A local light's sphere query visits only the casters in its reach anyway
+			if ( pass.StaticFilter != StaticFilter.Unsettled || pass.LightSphere is not null || pass.TreeKept is not null || pass.CullReasons is not null ) continue;
 			if ( n == unsettledMarks.Count ) unsettledMarks.Add( new UnsettledMarks() );
 			pass.TreeKept = unsettledMarks[n++].For( world, pass );
 		}

@@ -83,8 +83,9 @@ internal partial class ShadowMapper
 			SlopeScaledDepthBias = ShadowSlopeScale * biasScale,
 		};
 
-		// Static lights, and ones that have kept still, render their static casters once into a cache that gets copied in
-		// each frame, and only dynamic casters are re-rendered on top.
+		// Static lights, and ones that have kept still, render their static (and settled) casters once into a cache that gets
+		// copied in each frame, and only the other casters are re-rendered on top.
+		DropUnsettledCache( cacheEntry );
 		if ( CachesStatic( light, cacheEntry ) && !isBakedLight && (cacheEntry.StaticCache is null || (inFlight && cacheEntry.StaticRenderedFrame == FrameCount)) )
 		{
 			cacheEntry.StaticCache ??= AcquireTexture( desiredResolution, isCube: true );
@@ -93,7 +94,7 @@ internal partial class ShadowMapper
 			var staticView = shadowView;
 			staticView.Name = cacheEntry.DebugName + "_StaticCache";
 			staticView.Target = cacheEntry.StaticCache;
-			staticView.StaticFilter = StaticFilter.OnlyStatic;
+			BeginStaticCache( cacheEntry, light, ref staticView );
 
 			for ( int i = 0; i < 6; i++ )
 			{
@@ -101,21 +102,17 @@ internal partial class ShadowMapper
 				staticView.Slice = i;
 				Renderer.RenderShadowView( staticView );
 			}
-
-			cacheEntry.StaticRenderedFrame = FrameCount;
-			cacheEntry.StaticRevision = light.StaticChanges?.Revision ?? 0;
 		}
 
 		// Not once the light is baked: the lightmap holds its static casters (a cache made before it was baked would shadow them twice)
 		bool useStaticCache = cacheEntry.StaticCache is not null && !isBakedLight;
 
 		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps.
-		// Cached lights exclude them too - their static shadows come from the static cache.
+		// Cached lights exclude what the cache holds: it's copied into the shadow map (once, on the first face), and the
+		// other casters render on top
 		shadowView.Target = cacheEntry.ShadowMap;
-		shadowView.StaticFilter = isBakedLight || useStaticCache ? StaticFilter.NoStatic : StaticFilter.Any;
-
-		// The cached static shadows are copied into the shadow map (once, on the first face), dynamic objects render on top
-		shadowView.CachedStatic = useStaticCache ? cacheEntry.StaticCache : null;
+		shadowView.StaticFilter = isBakedLight ? StaticFilter.NoStatic : StaticFilter.Any;
+		if ( useStaticCache ) OverStaticCache( cacheEntry, ref shadowView );
 
 		for ( int i = 0; i < 6; i++ )
 		{
