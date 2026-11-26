@@ -818,8 +818,8 @@ internal sealed partial class BackendContext
 /// </summary>
 internal sealed class ResidentCullState
 {
-	readonly Dictionary<(object View, object List), List<(GpuDrivenPlan.CallKey Key, uint Frame)>> calls = new();
-	readonly Stack<List<(GpuDrivenPlan.CallKey Key, uint Frame)>> spareCalls = new();
+	readonly Dictionary<(object View, object List), List<(GpuDrivenPlan.CallKey Key, uint Frame, uint Kept)>> calls = new();
+	readonly Stack<List<(GpuDrivenPlan.CallKey Key, uint Frame, uint Kept)>> spareCalls = new();
 	const int MaxSpareCalls = 256;
 	readonly Dictionary<(object View, GpuDrivenPlan Plan), BackendContext.ResidentAssignment> assigned = new();
 	readonly List<BackendContext.ResidentAssignment> pool = new();
@@ -828,10 +828,16 @@ internal sealed class ResidentCullState
 	uint frame;
 
 	/// <summary>A call's kind is kept this many frames after it was last drawn.</summary>
-	const uint KeptFrames = 4;
+	public const uint KeptFrames = 4;
 
-	/// <summary>A call drew <paramref name="key"/> of <paramref name="list"/> in <paramref name="view"/>.</summary>
-	public void Seen( object view, object list, in GpuDrivenPlan.CallKey key, uint now )
+	/// <summary>
+	/// A shadow view's call kinds are kept this many frames: a light's maps are drawn when the update budget gets to them,
+	/// which for a small light among many can be longer than <see cref="KeptFrames"/>, and a shadow view's kind doesn't change.
+	/// </summary>
+	public const uint KeptShadowFrames = 120;
+
+	/// <summary>A call drew <paramref name="key"/> of <paramref name="list"/> in <paramref name="view"/>, whose kinds are kept <paramref name="kept"/> frames.</summary>
+	public void Seen( object view, object list, in GpuDrivenPlan.CallKey key, uint now, uint kept = KeptFrames )
 	{
 		lock ( calls )
 		{
@@ -839,23 +845,23 @@ internal sealed class ResidentCullState
 			for ( int i = 0; i < keys.Count; i++ )
 			{
 				if ( keys[i].Key != key ) continue;
-				keys[i] = (key, now);
+				keys[i] = (key, now, kept);
 				return;
 			}
 
-			keys.Add( (key, now) );
+			keys.Add( (key, now, kept) );
 		}
 	}
 
-	/// <summary>The kinds of call a view drew of a list in the last few frames.</summary>
+	/// <summary>The kinds of call a view drew of a list in the last few frames (<see cref="Seen"/>).</summary>
 	public void Keys( object view, object list, uint now, List<GpuDrivenPlan.CallKey> into )
 	{
 		lock ( calls )
 		{
 			if ( !calls.TryGetValue( (view, list), out var keys ) ) return;
-			foreach ( var (key, seen) in keys )
+			foreach ( var (key, seen, kept) in keys )
 			{
-				if ( now - seen <= KeptFrames ) into.Add( key );
+				if ( now - seen <= kept ) into.Add( key );
 			}
 		}
 	}
@@ -891,7 +897,7 @@ internal sealed class ResidentCullState
 			{
 				for ( int i = keys.Count - 1; i >= 0; i-- )
 				{
-					if ( now - keys[i].Frame > KeptFrames ) keys.RemoveAt( i );
+					if ( now - keys[i].Frame > keys[i].Kept ) keys.RemoveAt( i );
 				}
 
 				if ( keys.Count == 0 && calls.Remove( key ) && spareCalls.Count < MaxSpareCalls ) spareCalls.Push( keys );

@@ -1648,7 +1648,8 @@ internal sealed partial class BackendContext
 		var key = PlanKey( shaderMode, cull, color, depth, samples );
 
 		// What the next frame's resident cull culls for this view; a call that keeps its order culls itself
-		if ( device.GpuDrivenResidentCull && cull.View is not null && !cull.KeepsOrder ) device.ResidentCulls.Seen( cull.View, cull.Plan, key, device.GpuDrivenFrame );
+		if ( device.GpuDrivenResidentCull && cull.View is not null && !cull.KeepsOrder )
+			device.ResidentCulls.Seen( cull.View, cull.Plan, key, device.GpuDrivenFrame, cull.Shadow ? ResidentCullState.KeptShadowFrames : ResidentCullState.KeptFrames );
 
 		var plans = device.PlansFor( cull.Plan );
 		var plan = plans.Find( key, cull.PlanVersion, prefix.Length, device.GpuDrivenTables.VisibilityEpoch );
