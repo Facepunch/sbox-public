@@ -741,6 +741,11 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	void ApplyAntiAliasing()
 	{
+		// Cube captures (envmaps, DDGI) render as fast as possible. CMAA2 would also read every face from the cube's first.
+		var sceneView = Graphics.SceneView;
+		if ( sceneView.IsValid && sceneView.GetRenderTargetArrayIndex() >= 0 )
+			return;
+
 		if ( !DisableAntiAliasing
 			&& RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
 			&& Graphics.ToolsVisMode == (int)SceneCameraDebugMode.Normal )
