@@ -68,7 +68,10 @@ public static class Application
 		set
 		{
 			Native.QApp.SetNativeCursorPosition( value );
-			lastCursorPos = UnscaledCursorPosition;
+
+			// Qt moves the cursor on macOS by posting a mouse event, which lands after this returns: read back now, the
+			// position is still the old one, and the next frame's delta would be the move itself, backwards
+			lastCursorPos = OperatingSystem.IsMacOS() ? value : UnscaledCursorPosition;
 		}
 	}
 

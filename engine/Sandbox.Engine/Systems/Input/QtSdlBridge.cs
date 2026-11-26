@@ -6,7 +6,7 @@ namespace Sandbox.Engine;
 /// <summary>
 /// Gives SDL the input of Qt's native windows in the editor: the main window and the play widget. Qt owns them; SDL
 /// adopts each one and subclasses its window procedure, then this subclasses it again to decide who sees each message.
-/// Windows only: elsewhere nothing is wrapped.
+/// Windows only: elsewhere nothing is wrapped, and the play widget's input comes from Qt (<c>PlayWidgetInput</c>).
 /// </summary>
 [SkipHotload]
 internal static unsafe class QtSdlBridge

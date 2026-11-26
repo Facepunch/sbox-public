@@ -358,6 +358,11 @@ internal class ToolsDll : IToolsDll
 		{
 			var playWidget = GameMode.PlayWidget;
 			var window = playWidget is not null ? GameMode.PlayWindow : WindowInput.GetEditorMainWindow();
+
+			// No SDL window wraps the play widget here (Linux, macOS): its size and scale are Qt's to give
+			if ( playWidget is not null && window == IntPtr.Zero )
+				return new( window, RenderSettings.Instance.VSync, playWidget.Size * playWidget.DpiScale, playWidget.DpiScale );
+
 			return new( window, RenderSettings.Instance.VSync );
 		}
 	}

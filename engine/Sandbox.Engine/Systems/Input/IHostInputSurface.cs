@@ -4,7 +4,7 @@ namespace Sandbox.Engine;
 
 /// <summary>
 /// A game surface in a native window the host owns, with no SDL window over it to read input from or capture the mouse
-/// with: the editor's play widget wherever SDL doesn't adopt Qt's windows. The host passes the surface's input to
+/// with: the editor's play widget on Linux and macOS, where SDL doesn't adopt Qt's windows. The host passes the surface's input to
 /// <see cref="HostSurfaceInput"/>, and <see cref="WindowInput"/> has it capture the mouse.
 /// </summary>
 internal interface IHostInputSurface
