@@ -5,11 +5,6 @@
 native class IMaterial2 as NativeEngine.IMaterial
 {
 	stable string GetName();
-	stable string GetNameWithMod();
-
-	ulong GetSimilarityKey();
-
-	bool IsLoaded();
 
 	CRenderAttributes GetRenderAttributes();
 
@@ -24,8 +19,6 @@ native class IMaterial2 as NativeEngine.IMaterial
 		self->GetStringAttribute( &value, name );
 		return value;
 	}
-
-	ITexture GetTextureAttributeOrDefault( StringToken name );
 
 	// The semantics of the vertex inputs the material reports to code that builds vertex buffers for it, comma separated
 	inline string GetVertexInputSemantics()
@@ -55,7 +48,6 @@ native class IMaterial2 as NativeEngine.IMaterial
 	ITexture GetTexture( string name );
 
 	void SetEdited( bool b );
-	bool IsEdited();
 
 	inline void ReloadStaticCombos()
 	{

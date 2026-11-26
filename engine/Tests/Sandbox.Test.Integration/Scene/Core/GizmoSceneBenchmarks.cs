@@ -113,8 +113,7 @@ public class GizmoSceneBenchmarks
 				if ( target is not null )
 				{
 					camera.RenderToTexture( target, null, view );
-					g_pRenderDevice.Present( IntPtr.Zero );
-					g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+					Graphics.FlushGPU();
 					EngineLoop.DrainFrameEndDisposables();
 					RenderTarget.EndOfFrame();
 					EngineLoop.RunAsyncTasks();
@@ -157,8 +156,7 @@ public class GizmoSceneBenchmarks
 					SetVisibility( true );
 					using ( gizmo.PushScope() ) scene.DrawGizmos();
 					camera.RenderToTexture( target, null, view );
-					g_pRenderDevice.Present( IntPtr.Zero );
-					g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+					Graphics.FlushGPU();
 				}
 				using var bitmap = target.GetBitmap();
 				File.WriteAllBytes( Path.Combine( output, name + ".png" ), bitmap.ToPng() );

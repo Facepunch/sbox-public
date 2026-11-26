@@ -145,8 +145,7 @@ public class ShaderActiveIfTest
 				EngineGlobal.SourceEnginePanelAppFrame();
 				scene.GameTick( 0 );
 				camera.RenderToTexture( target );
-				g_pRenderDevice.Present( IntPtr.Zero );
-				g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+				Graphics.FlushGPU();
 				EngineLoop.DrainFrameEndDisposables();
 				RenderTarget.EndOfFrame();
 				EngineLoop.RunAsyncTasks();

@@ -35,6 +35,11 @@ public class RenderHost
 	public void NextFrame() => frameCount++;
 
 	/// <summary>
+	/// The time shaders see this frame (<c>g_flTime</c>), in seconds. Null uses the device's clock.
+	/// </summary>
+	public virtual float? RenderTime => null;
+
+	/// <summary>
 	/// How shadows are budgeted and filtered.
 	/// </summary>
 	public virtual ShadowSettings Shadows { get; } = new();

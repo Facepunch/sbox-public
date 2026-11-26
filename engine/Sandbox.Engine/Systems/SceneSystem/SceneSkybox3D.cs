@@ -26,15 +26,8 @@ internal sealed class SceneSkybox3D : IValid
 		ParentWorld = parentWorld ?? throw new ArgumentNullException( nameof( parentWorld ) );
 		SkyboxWorld = skyboxWorld ?? throw new ArgumentNullException( nameof( skyboxWorld ) );
 
-		ParentWorld.native.Add3DSkyboxWorld( SkyboxWorld );
 		ParentWorld.InternalSkyboxWorlds.Add( this );
 		ParentWorld.ActiveSkybox = this;
-	}
-
-	public void Update()
-	{
-		if ( !IsValid || !ParentWorld.IsValid() ) return;
-		ParentWorld.native.Set3DSkyboxParameters( Origin, Angles, Scale );
 	}
 
 	public bool IsValid => SkyboxWorld.IsValid();
@@ -46,8 +39,6 @@ internal sealed class SceneSkybox3D : IValid
 	{
 		if ( !IsValid ) return;
 
-		if ( ParentWorld.IsValid() )
-			ParentWorld.native.Remove3DSkyboxWorld( SkyboxWorld );
 		ParentWorld.InternalSkyboxWorlds.Remove( this );
 		ParentWorld.ActiveSkybox = null;
 	}

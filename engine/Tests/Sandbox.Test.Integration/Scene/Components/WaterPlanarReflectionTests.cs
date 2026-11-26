@@ -69,8 +69,7 @@ public class WaterPlanarReflectionTests
 						EnableUI = false,
 						EnableDebugOverlays = false
 					} ) );
-					g_pRenderDevice.Present( IntPtr.Zero );
-					g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+					Graphics.FlushGPU();
 					EngineLoop.DrainFrameEndDisposables();
 					RenderTarget.EndOfFrame();
 					EngineLoop.RunAsyncTasks();
@@ -97,8 +96,7 @@ public class WaterPlanarReflectionTests
 				EnableUI = false,
 				EnableDebugOverlays = false
 			} ) );
-			g_pRenderDevice.Present( IntPtr.Zero );
-			g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+			Graphics.FlushGPU();
 			EngineLoop.DrainFrameEndDisposables();
 			RenderTarget.EndOfFrame();
 			EngineLoop.RunAsyncTasks();

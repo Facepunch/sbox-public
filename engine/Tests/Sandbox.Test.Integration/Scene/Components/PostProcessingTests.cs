@@ -859,7 +859,7 @@ public class PostProcessingComponentTest
 				using var target = Texture.CreateRenderTarget().WithSize( 128, 128 ).Create( "Bloom volume test" );
 				scene.PreRender();
 				Assert.IsTrue( camera.RenderToTexture( target, new ViewSetup { EnablePostprocessing = true } ) );
-				g_pRenderDevice.ForceFlushGPU( System.IntPtr.Zero );
+				Graphics.FlushGPU();
 				Assert.AreEqual( (int)bloom.Mode, mode );
 			}
 

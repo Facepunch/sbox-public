@@ -1,8 +1,8 @@
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// What the managed scene renderer did in a frame, added up over every camera it rendered - native's scenesystem counters
-/// (<c>SceneSystemPerFrameStats_t</c>) don't see its draws, so the frame stats (the dev tools's Rendering tab) read these.
+/// What the managed scene renderer did in a frame, added up over every camera it rendered: the frame stats
+/// (<see cref="Sandbox.Diagnostics.FrameStats"/>, the dev tools's Rendering tab) read these.
 /// </summary>
 internal struct ManagedFrameCounters
 {
@@ -91,8 +91,8 @@ internal static partial class ManagedSceneRendering
 	static ManagedFrameCounters thisFrame;
 
 	/// <summary>
-	/// What the managed renderer did last frame. <see cref="ManagedFrameCounters.Renders"/> is 0 when every camera rendered
-	/// natively.
+	/// What the managed renderer did last frame. <see cref="ManagedFrameCounters.Renders"/> is 0 when nothing
+	/// rendered.
 	/// </summary>
 	public static ManagedFrameCounters LastFrame { get; private set; }
 

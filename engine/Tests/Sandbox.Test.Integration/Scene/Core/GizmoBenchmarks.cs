@@ -99,8 +99,7 @@ public class GizmoBenchmarks
 				if ( target is not null )
 				{
 					camera.RenderToTexture( target, null, view );
-					g_pRenderDevice.Present( IntPtr.Zero );
-					g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+					Graphics.FlushGPU();
 					EngineLoop.DrainFrameEndDisposables();
 					RenderTarget.EndOfFrame();
 					EngineLoop.RunAsyncTasks();

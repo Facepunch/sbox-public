@@ -182,15 +182,8 @@ public static partial class PerformanceStats
 		// A dedicated server loads no scene system and draws nothing: no frame stats
 		if ( Application.IsDedicatedServer ) return true;
 
-		// The drawing device's summary is made when read (GpuStatsSummary); Source 2's texture pool is the empty device's, which has none
-		ulong poolUsed = 0, poolLimit = 0, poolNonEvictable = 0;
-		FrameStats._current = new FrameStats(
-			NativeEngine.CSceneSystem.GetPerFrameStats(),
-			NativeEngine.CSceneSystem.GetNumUnbatchableMaterials(),
-			null,
-			NativeEngine.g_pResourceSystem.GetNumPendingStreamingRequests(),
-			poolUsed, poolLimit, poolNonEvictable );
-		FrameStats._current.AddManaged( Rendering.ManagedSceneRendering.LastFrame );
+		// The drawing device's summary is made when read (GpuStatsSummary)
+		FrameStats._current = new FrameStats( Rendering.ManagedSceneRendering.LastFrame, NativeEngine.g_pResourceSystem.GetNumPendingStreamingRequests() );
 
 		return true;
 	}

@@ -47,7 +47,7 @@ public sealed partial class RenderTarget
 
 		// Resolve this once, so the key matches the sample count the texture is created with
 		if ( msaa == MultisampleAmount.MultisampleScreen )
-			msaa = Graphics.IsActive ? Graphics.IdealMsaaLevel : CSceneSystem.GetMainSwapChainMultisampleType().FromEngine();
+			msaa = Graphics.IsActive ? Graphics.IdealMsaaLevel : MultisampleAmount.MultisampleNone;
 
 		int hash = HashCode.Combine( HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa, targetName, targetId ), engineOwned );
 

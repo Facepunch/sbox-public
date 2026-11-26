@@ -1,7 +1,7 @@
 namespace Borealis;
 
 /// <summary>
-/// Tinted fog volume with centre-to-edge density falloff (<c>SceneVolumetricFogVolume_t</c>).
+/// Tinted fog volume with centre-to-edge density falloff.
 /// Requires enabled camera volumetric fog.
 /// </summary>
 public sealed class FogVolume

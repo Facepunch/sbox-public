@@ -26,7 +26,7 @@ internal static partial class SandboxEngineExtensions
 			case MultisampleAmount.Multisample6x: return RenderMultisampleType.RENDER_MULTISAMPLE_6X;
 			case MultisampleAmount.Multisample8x: return RenderMultisampleType.RENDER_MULTISAMPLE_8X;
 			case MultisampleAmount.Multisample16x: return RenderMultisampleType.RENDER_MULTISAMPLE_16X;
-			default: return CSceneSystem.GetMainSwapChainMultisampleType(); // Fall back to what the main swapchain is using
+			default: return RenderMultisampleType.RENDER_MULTISAMPLE_NONE; // The screen's own amount: the window's swap chain is never multisampled
 		}
 	}
 

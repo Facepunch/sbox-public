@@ -8,7 +8,7 @@ public sealed partial class SceneWorld
 	internal List<SceneSkyBox> Skies { get; } = new();
 
 	/// <summary>
-	/// The child world registered by CSceneWorld::Add3DSkyboxWorld. Removing any skybox clears it.
+	/// The 3D skybox made last for this world. Removing any skybox clears it.
 	/// </summary>
 	internal SceneSkybox3D ActiveSkybox { get; set; }
 

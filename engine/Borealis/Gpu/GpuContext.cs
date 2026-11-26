@@ -27,7 +27,7 @@ internal abstract class GpuContext : IDisposable
 	public static Vector4 MorphSubrect( int handle ) => Device.MorphSubrect( handle );
 
 	/// <summary>The time shaders see this frame.</summary>
-	public static float RenderTime => Device.RenderTime;
+	public static float RenderTime => RenderHost.Current.RenderTime ?? Device.RenderTime;
 
 	/// <summary>A zeroed constant buffer beyond per-frame limits. Free with <see cref="DestroyConstantBuffer"/>.</summary>
 	public static IntPtr CreateConstantBuffer( int size ) => Device.CreateConstantBuffer( size );

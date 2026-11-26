@@ -44,8 +44,7 @@ public class BorealisGpuBusyTimings
 				SceneRenderer.BeginFrame();
 				EngineGlobal.SourceEnginePanelAppFrame();
 				Assert.IsTrue( camera.RenderToTexture( target ) );
-				g_pRenderDevice.Present( IntPtr.Zero );
-				g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+				Graphics.FlushGPU();
 				EngineLoop.DrainFrameEndDisposables();
 				RenderTarget.EndOfFrame();
 				frames.Add( backend.GpuBusyFrame );

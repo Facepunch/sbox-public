@@ -18,6 +18,8 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override ulong FrameCount => Application.FrameCount;
 
+	public override float? RenderTime => EngineLoop.RenderTime;
+
 	public override Borealis.Shadows.ShadowSettings Shadows { get; } = new SboxShadowSettings();
 
 	public override bool ContactShadows => Sandbox.Rendering.ContactShadows.Enabled;

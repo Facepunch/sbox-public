@@ -8,10 +8,8 @@ public class GraphicsAvailabilityTest
 	[TestMethod]
 	public void AvailabilityMatchesInitializedRenderer()
 	{
-		// Source 2's real device, or Borealis.Gpu drawing over its empty one (-borealisgpu)
-		Assert.AreEqual(
-			g_pRenderDevice.GetRenderDeviceAPI() != NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY || RenderBackend.Default is BorealisGpuRenderBackend,
-			Graphics.IsAvailable );
+		// Borealis.Gpu drawing over Source 2's empty device (-borealisgpu)
+		Assert.AreEqual( RenderBackend.Default is BorealisGpuRenderBackend, Graphics.IsAvailable );
 	}
 
 	[TestMethod]

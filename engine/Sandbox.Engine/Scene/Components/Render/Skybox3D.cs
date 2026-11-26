@@ -137,6 +137,5 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 			WorldTransform = transform;
 		sceneSkybox.Origin = -position / scale;
 		sceneSkybox.Scale = scale;
-		sceneSkybox.Update();
 	}
 }

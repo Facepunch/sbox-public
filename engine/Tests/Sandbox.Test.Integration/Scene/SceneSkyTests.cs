@@ -198,30 +198,24 @@ public class SceneSkyTests
 		{
 			ConVarSystem.SetInt( "r_3d_skybox", 1, true );
 			first = new SceneSkybox3D( world, firstWorld );
-			first.Update();
 			Assert.AreSame( first, world.GetRenderingSkybox() );
 			last = new SceneSkybox3D( world, lastWorld );
-			last.Update();
 			Assert.AreSame( last, world.GetRenderingSkybox(), "An empty child world still replaces its parent" );
 
 			ConVarSystem.SetInt( "r_3d_skybox", 0, true );
 			Assert.IsNull( world.GetRenderingSkybox() );
 			ConVarSystem.SetInt( "r_3d_skybox", 1, true );
 			last.Scale = 0;
-			last.Update();
 			Assert.IsNull( world.GetRenderingSkybox() );
 			last.Scale = -1;
-			last.Update();
 			Assert.IsNull( world.GetRenderingSkybox() );
 			last.Scale = 16;
-			last.Update();
 			Assert.AreSame( last, world.GetRenderingSkybox() );
 
 			first.Delete();
 			first = null;
 			Assert.IsNull( world.GetRenderingSkybox(), "Removing an older link also clears native's active child" );
 			first = new SceneSkybox3D( world, firstWorld );
-			first.Update();
 			Assert.AreSame( first, world.GetRenderingSkybox() );
 			first.Delete();
 			first = null;

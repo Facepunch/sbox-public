@@ -111,11 +111,6 @@ internal sealed class Source2Backend
 		EngineLoop.DrainFrameEndDisposables();
 	}
 
-	/// <summary>
-	/// Wait for the GPU to finish everything submitted, before freeing what it might still read.
-	/// </summary>
-	public void Flush() => g_pRenderDevice.Flush();
-
 	public static void SavePng( Color32[] pixels, int width, int height, string path )
 	{
 		using var bitmap = new Bitmap( width, height );
@@ -162,7 +157,7 @@ internal sealed class Source2Backend
 	/// <returns>How many engine resources were still alive at the end, each logged as a leak.</returns>
 	int Shutdown()
 	{
-		g_pRenderDevice.Flush();
+		Graphics.FlushGPU();
 		Borealis.Shadows.ShadowMapper.ResetCache();
 		ReleaseStatics();
 		RenderHost.Current = null;

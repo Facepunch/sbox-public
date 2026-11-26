@@ -9,12 +9,10 @@ native class CRenderAttributes as NativeEngine.CRenderAttributes
 	void DeleteFloatValue( StringToken nTokenID );
 
 	void SetVector2DValue( StringToken nTokenID, Vector2 vValue );
-	Vector2 GetVector2DValue( StringToken nTokenID, Vector2 vDefaultValue );
 	void DeleteVector2DValue( StringToken nTokenID );
 
 	void SetVectorValue( StringToken nTokenID, Vector3 vValue );
 	Vector3 GetVectorValue( StringToken nTokenID, Vector3 vDefaultValue );
-	void DeleteVectorValue( StringToken nTokenID );
 
 	void SetVector4DValue( StringToken nTokenID, Vector4 vValue );
 	Vector4 GetVector4DValue( StringToken nTokenID, Vector4 vDefaultValue );
@@ -22,10 +20,8 @@ native class CRenderAttributes as NativeEngine.CRenderAttributes
 
 	void SetVMatrixValue( StringToken nTokenID, Matrix value );
 	Matrix GetVMatrixValue( StringToken nTokenID, Matrix vDefaultValue );
-	void DeleteVMatrixValue( StringToken nTokenID );
 
 	void SetStringValue( StringToken nTokenID, string str );
-	void DeleteStringValue( StringToken nTokenID );
 
 	void SetIntValue( StringToken nTokenID, int nValue );
 	int GetIntValue( StringToken nTokenID, int nDefaultValue );
@@ -33,33 +29,16 @@ native class CRenderAttributes as NativeEngine.CRenderAttributes
 
 	void SetComboValue( StringToken nTokenID, byte nValue );
 	byte GetComboValue( StringToken nTokenID, byte nValue );
-	void DeleteComboValue( StringToken nTokenID );
 	
 	void SetBoolValue( StringToken nTokenID, bool bValue );
 	bool GetBoolValue( StringToken nTokenID, bool bValue );
-	void DeleteBoolValue( StringToken nTokenID );
 
 	void SetTextureValue( StringToken nTokenID, ITexture txtr, int nSingleMipLevelToBind );
 	ITexture GetTextureValue( StringToken nTokenID, ITexture defaultTxtr );
-	void DeleteTextureValue( StringToken nTokenID );
 
 	void SetSamplerValue( StringToken nTokenID, CSamplerStateDesc samplerDesc );
 
-	void SetBufferValue( StringToken nTokenID, RenderBufferHandle_t hRenderBuffer );
-
-	inline void SetGlobalBindlessDescriptorSet()
-	{
-		self->SetDescriptorSetValue( "g_globalLateBoundBindlessSet", g_pRenderDevice->GetGlobalLateBoundBindlessDescriptorSet() );
-	}
-
-	// The view's g_viewSet (layout in scenesystem/viewdescriptorset.h)
-	inline void SetViewDescriptorSet( RenderDescriptorSetHandle_t hSet )
-	{
-		self->SetDescriptorSetValue( "g_viewSet", hSet );
-	}
-
 	void SetPtrValue( StringToken nTokenID, void* ptr );
-	void DeletePtrValue( StringToken nTokenID );
 
 	void SetIntVector4DValue( StringToken nTokenID, int x, int y, int z, int w );
 

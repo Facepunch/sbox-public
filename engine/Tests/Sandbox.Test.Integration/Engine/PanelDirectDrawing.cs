@@ -620,7 +620,7 @@ public class PanelDirectDrawingTest
 			};
 			using var camera = new SceneCamera( "Panel replay test" ) { World = world };
 			camera.RenderToTexture( cameraTarget, null, default );
-			g_pRenderDevice.ForceFlushGPU( default );
+			Graphics.FlushGPU();
 			if ( failure is not null )
 			{
 				System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture( failure ).Throw();

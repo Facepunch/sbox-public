@@ -21,16 +21,6 @@ public class NamedTextureDescriptionTests
 		Assert.AreEqual( 3, texture.Mips );
 		Assert.AreEqual( ImageFormat.RGBA8888, texture.ImageFormat );
 		Assert.AreEqual( undescribed, Texture.Undescribed, "It had a description" );
-
-		// Source 2's own description says the same (on a device of its own, or its empty one)
-		ref var native = ref g_pRenderDevice.GetOnDiskTextureDesc( texture.native );
-		if ( !System.Runtime.CompilerServices.Unsafe.IsNullRef( ref native ) && native.m_nWidth > 0 )
-		{
-			Assert.AreEqual( native.m_nWidth, texture.Desc.m_nWidth );
-			Assert.AreEqual( native.m_nHeight, texture.Desc.m_nHeight );
-			Assert.AreEqual( native.m_nNumMipLevels, texture.Desc.m_nNumMipLevels );
-			Assert.AreEqual( native.m_nFlags, texture.Desc.m_nFlags );
-		}
 	}
 
 	[TestMethod]

@@ -60,8 +60,7 @@ public class RendererAllocationTests
 				Assert.IsTrue( camera.RenderToTexture( target, setup ) );
 				var allocated = Borealis.RendererAllocations.TakeFrame();
 
-				g_pRenderDevice.Present( IntPtr.Zero );
-				g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+				Graphics.FlushGPU();
 				EngineLoop.DrainFrameEndDisposables();
 				RenderTarget.EndOfFrame();
 				EngineLoop.RunAsyncTasks();

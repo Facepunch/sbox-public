@@ -2,83 +2,28 @@ namespace Sandbox.Diagnostics;
 
 /// <summary>
 /// Stats returned from the engine each frame describing what was rendered, and how much of it.
+/// Borealis counts objects, culling, draws, triangles and views; the material, batch, context and light counters read 0.
 /// </summary>
 public struct FrameStats
 {
 	public static FrameStats Current => _current;
 	internal static FrameStats _current = new();
 
-	internal FrameStats( SceneSystemPerFrameStats_t stats, uint unbatchableMaterials, string gpuStatsSummary, int pendingStreamingRequests, ulong texturePoolUsedBytes, ulong texturePoolLimitBytes, ulong texturePoolNonEvictableBytes )
-	{
-		ObjectsRendered = stats.m_nNumObjectsPassingCullCheck;
-		ObjectsPreCull = stats.m_nNumObjectsPreCullCheck;
-		ObjectsTested = stats.m_nNumObjectsTested;
-		BaseObjectDraws = stats.m_nBaseSceneObjectPrimDraws;
-		AnimatableObjectDraws = stats.m_nAnimatableObjectPrimDraws;
-		AggregateObjectDraws = stats.m_nAggregateSceneObjectPrimDraws;
-		AggregateObjectsFullyCulled = stats.m_nAggregateSceneObjectsFullyCulled;
-		AggregateObjectDrawCalls = stats.m_nAggregateSceneObjectDrawCalls;
-		AggregateIndirectSubmits = stats.m_nAggregateSceneObjectIndirectSubmits;
-		AggregateIndirectFragments = stats.m_nAggregateSceneObjectIndirectFragments;
-		RenderBatchDraws = stats.m_nRenderBatchDraws;
-		TrianglesRendered = stats.m_nTrianglesRendered;
-		DrawCalls = stats.m_nDrawCalls;
-		MaterialChanges = stats.m_nMaterialChangesNonShadow;
-		ShadowMaterialChanges = stats.m_nMaterialChangesShadow;
-		ShadowMaterialChangesAlphaTested = stats.m_nMaterialChangesShadowAlphaTested;
-		InitialMaterialChanges = stats.m_nMaterialChangesNonShadowInitial + stats.m_nMaterialChangesShadowInitial;
-		InitialShadowMaterialChanges = stats.m_nMaterialChangesShadowInitial;
-		CopyMaterialChanges = stats.m_nCopyMaterialChangesNonShadow;
-		MaterialComputes = stats.m_nNumMaterialCompute;
-		// Native displays full material sets as (total - similar); preserve that decomposition here.
-		FullMaterialSets = stats.m_nNumMaterialSet >= stats.m_nNumSimilarMaterialSet
-			? stats.m_nNumMaterialSet - stats.m_nNumSimilarMaterialSet
-			: 0;
-		SimilarMaterialSets = stats.m_nNumSimilarMaterialSet;
-		TextureOnlyMaterialSets = stats.m_nNumTextureOnlyMaterialSet;
-		VfxEvals = stats.m_nNumVfxEval;
-		VfxRuleChecks = stats.m_nNumVfxRule;
-		ConstantBufferUpdates = stats.m_nNumConstantBufferUpdates;
-		ConstantBufferBytes = stats.m_nNumConstantBufferBytes;
-		UnbatchableMaterialDraws = unbatchableMaterials;
-		UniqueMaterials = stats.m_nNumUniqueMaterialsSeen;
-		DisplayLists = stats.m_nNumDisplayListsSubmitted;
-		SceneViewsRendered = stats.m_nNumViewsRendered;
-		RenderTargetResolves = stats.m_nNumResolves;
-		PrimaryContexts = stats.m_nNumPrimaryContexts;
-		SecondaryContexts = stats.m_nNumSecondaryContexts;
-		ObjectsCulledByVis = stats.m_nNumObjectsRejectedByVis;
-		ObjectsCulledByScreenSize = stats.m_nNumObjectsRejectedByScreenSizeCulling;
-		ObjectsCulledByFade = stats.m_nNumObjectsRejectedByFading;
-		ObjectsCulledByOcclusion = 0;
-		ObjectsFading = stats.m_nNumFadingObjects;
-		ShadowedLightsInView = stats.m_nNumShadowedLightsInView;
-		UnshadowedLightsInView = stats.m_nNumUnshadowedLightsInView;
-		ShadowMaps = stats.m_nNumShadowMaps;
-		GpuStatsSummary = gpuStatsSummary;
-		PendingStreamingRequests = pendingStreamingRequests;
-		TexturePoolUsedBytes = texturePoolUsedBytes;
-		TexturePoolLimitBytes = texturePoolLimitBytes;
-		TexturePoolNonEvictableBytes = texturePoolNonEvictableBytes;
-	}
-
 	/// <summary>
-	/// Add what Borealis drew (<c>-borealisgpu</c>), which native's counters don't see: its objects,
-	/// draws, triangles, views and size culling.
+	/// A frame's stats from what Borealis counted over every camera it rendered.
 	/// </summary>
-	internal void AddManaged( in Rendering.ManagedFrameCounters managed )
+	internal FrameStats( in Rendering.ManagedFrameCounters managed, int pendingStreamingRequests )
 	{
 		Managed = managed;
-		if ( managed.Renders == 0 ) return;
-
-		ObjectsRendered += managed.ObjectsVisible;
-		ObjectsPreCull += managed.Objects;
-		ObjectsTested += managed.Objects;
-		ObjectsCulledByScreenSize += managed.ObjectsSizeCulled;
-		ObjectsCulledByOcclusion += managed.ObjectsOcclusionCulled;
-		DrawCalls += managed.TotalDraws;
-		TrianglesRendered += managed.Triangles;
-		SceneViewsRendered += managed.Renders + managed.ShadowViews;
+		ObjectsRendered = managed.ObjectsVisible;
+		ObjectsPreCull = managed.Objects;
+		ObjectsTested = managed.Objects;
+		ObjectsCulledByScreenSize = managed.ObjectsSizeCulled;
+		ObjectsCulledByOcclusion = managed.ObjectsOcclusionCulled;
+		DrawCalls = managed.TotalDraws;
+		TrianglesRendered = managed.Triangles;
+		SceneViewsRendered = managed.Renders + managed.ShadowViews;
+		PendingStreamingRequests = pendingStreamingRequests;
 	}
 
 	/// <summary>

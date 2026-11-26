@@ -56,7 +56,7 @@ internal static partial class Api
 			// Try to incldue any convars that could make a meaningful impact on performance
 
 			FpsMax = ConVarSystem.GetInt( "fps_max", 0, true ),
-			MSAA = NativeEngine.CSceneSystem.GetMainSwapChainMultisampleType(),
+			MSAA = Sandbox.Engine.Settings.RenderSettings.Instance.AntiAliasQuality.ToEngine(),
 			VolumeFogDepth = ConVarSystem.GetInt( "volume_fog_depth", 0, true ),
 			AoQuality = AmbientOcclusion.UserQuality,
 			AoResolution = AmbientOcclusion.UserResolution,

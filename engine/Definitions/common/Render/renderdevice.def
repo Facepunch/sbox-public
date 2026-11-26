@@ -13,66 +13,15 @@ native enum RenderBufferType_t is NativeEngine.RenderBufferType;
 native enum RenderBufferFlags_t is NativeEngine.RenderBufferFlags;
 native enum DeviceSpecificInfo_t is NativeEngine.DeviceSpecificInfo_t;
 native struct VulkanDeviceSpecificTexture_t is NativeEngine.VulkanDeviceSpecificTexture_t;
-native struct RenderDeviceInfo_t;
 native struct CSamplerStateDesc is NativeEngine.CSamplerStateDesc;
 
 native accessor g_pRenderDevice
 {
-	RenderDeviceInfo_t GetSwapChainInfo( SwapChainHandle_t swapChain );
 	ITexture FindOrCreateTexture2( string pResourceName, bool bIsAnonymous, TextureCreationConfig_t pDescriptor, void* data, int dataSize );
-	ITexture FindOrCreateTextureWithSheet( string pResourceName, TextureCreationConfig_t pDescriptor, void* data, int dataSize, void* sheetData, int sheetDataSize );
 
 	asref cast CTextureDesc GetTextureDesc( ITexture hTexture );
-	asref cast CTextureDesc GetOnDiskTextureDesc( ITexture hTexture );
-
-	SwapChainHandle_t CreateSwapChain( CastTo[PlatWindow_t] IntPtr window, RenderDeviceInfo_t mode, string debugName );
-	bool UpdateSwapChain( SwapChainHandle_t swapChain, RenderDeviceInfo_t mode );
-	void DestroySwapChain( SwapChainHandle_t hSwapChain );
-
-	bool Present( SwapChainHandle_t chain );
-	void Flush();
-	void ForceFlushGPU( SwapChainHandle_t hSwapChain );
-	bool CanRenderToSwapChain( SwapChainHandle_t chain );
-
-	RenderDeviceAPI_t GetRenderDeviceAPI();
 
 	int GetTextureViewIndex( ITexture hTexture, CastTo[RenderColorSpace_t] byte colorSpace, RenderTextureDimension_t dim );
-
-	inline Vector4 GetSheetInfo( ITexture texture )
-	{
-		Vector4D vec(0, 0, 0, 0 );
-
-		Vector2D vSheetSequenceDataUVCoords;
-		HRenderTexture hSequenceDataTexture;
-		int nSequenceCount;
-		if ( g_pRenderDevice->GetSheetSequenceTextureData( texture, &hSequenceDataTexture, &vSheetSequenceDataUVCoords, &nSequenceCount ) )
-		{
-			vec[0] = vSheetSequenceDataUVCoords.y;
-			const CTextureDesc *pTexHeader = g_pRenderDevice->GetTextureDesc( hSequenceDataTexture );
-			if ( pTexHeader )
-			{
-				vec[1] = pTexHeader->m_nWidth;
-				vec[2] = 1.0f / pTexHeader->m_nHeight;
-				vec[3] = (float)nSequenceCount;
-			}
-		}
-
-		return vec;
-	}
-
-	inline int GetSequenceCount( ITexture texture )
-	{
-		const Sheet_t *pSheet = g_pRenderDevice->GetTextureSheet( texture );
-		if ( pSheet == nullptr ) return 0;
-		return pSheet->m_Sequences.Count();
-	}
-
-	inline SheetSequence_t GetSequence( ITexture texture, int index )
-	{
-		const Sheet_t *pSheet = g_pRenderDevice->GetTextureSheet( texture );
-		if ( pSheet == nullptr ) return 0;
-		return &pSheet->m_Sequences[index];
-	}
 }
 
 native static class ImageLoader as NativeEngine.ImageLoader
@@ -82,35 +31,3 @@ native static class ImageLoader as NativeEngine.ImageLoader
 
 	bool ConvertImageFormat( CastTo[uint8*] void* src, ImageFormat srcImageFormat, CastTo[uint8*] void* dst, ImageFormat dstImageFormat, int width, int height, int srcStride, int dstStride );
 }
-
-native class SheetSequence_t
-{
-	uint m_nId;
-	bool m_bClamp;
-	bool m_bAlphaCrop;
-	bool m_bNoColor;
-	bool m_bNoAlpha;
-	float m_flTotalTime;
-
-	inline int FrameCount()
-	{
-		return self->m_Frames.Count();
-	}
-}
-
-native class SheetSequenceFrame_t
-{
-	float m_flDisplayTime;
-
-	inline int ImageCount()
-	{
-		return self->m_Images.Count();
-	}
-
-	inline SheetFrameImage_t GetImage( int i )
-	{
-		return self->m_Images[i];
-	}
-}
-
-native struct SheetFrameImage_t;

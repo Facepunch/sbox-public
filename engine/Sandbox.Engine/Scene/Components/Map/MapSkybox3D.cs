@@ -40,7 +40,6 @@ public class MapSkybox3D : Component, Component.ExecuteInEditor
 	{
 		CameraOffset = WorldPosition;
 		sceneSkybox3D.Origin = sceneSkybox3D.CameraOrigin - CameraOffset / sceneSkybox3D.Scale;
-		sceneSkybox3D.Update();
 	}
 
 	internal static void InitializeFromLegacy( GameObject go, MapLoader.ObjectEntry kv )
@@ -76,7 +75,6 @@ file class SkyboxMapLoader : SceneMapLoader
 			Skybox3D.Origin = Skybox3D.CameraOrigin - CameraOffset / kv.GetValue( "scale", 16 );
 			Skybox3D.Angles = kv.Angles;
 			Skybox3D.Scale = kv.GetValue( "scale", 16 );
-			Skybox3D.Update();
 
 			return;
 		}

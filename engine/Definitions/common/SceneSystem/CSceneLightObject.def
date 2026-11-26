@@ -7,54 +7,18 @@ native class CSceneLightObject as NativeEngine.CSceneLightObject : CSceneObject
 	Vector3 GetWorldPosition();
 
 	void SetWorldDirection( Rotation dir );
-	Vector3 GetWorldDirection();
 
 	void SetColor( Vector3 color );
-	void SetBounceColor( Vector3 color );
 	Vector3 GetColor();
 
 	void SetRadius( float radius );
-	
-	float GetTheta();
 
 	void SetPhi( float f );
-	float GetPhi();
-
-	float GetFallOff();
-
-	int GetShadowTextureResolution();
-
-	bool GetShadows();
-
-	float GetConstantAttn();
-
-	float GetLinearAttn();
-
-	float GetQuadraticAttn();
 
 	ITexture GetLightCookie();
 
-	int GetShadowCascades();
-
-	float GetShadowCascadeSplitRatio();
-
-	float GetCascadeDistanceScale();
 	void SetCascadeDistanceScale( float dist );
 
-	float GetFogContributionStength();
-
-	int GetFogLightingMode();
-
-	void SetLightSourceSize0( float v );
-	void SetLightSourceSize1( float v );
-	void SetShadowTextureWidth( int v );
-	void SetShadowTextureHeight( int v );
-	int GetShadowTextureWidth();
-	int GetShadowTextureHeight();
-
-	uint GetLightFlags();
-
-	LightSourceShape_t GetLightShape();
 	void SetLightShape( LightSourceShape_t shape );
 
 	void SetLightSourceDim0( float v );

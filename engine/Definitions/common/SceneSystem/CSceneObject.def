@@ -13,39 +13,21 @@ native class CSceneObject as NativeEngine.CSceneObject
 
 	void SetFlags(ESceneObjectFlags nFlagsToOR);
 
-	bool HasFlags(ESceneObjectFlags nFlags);
-
 	ESceneObjectFlags GetFlags();
 
-	ESceneObjectFlags GetOriginalFlags();
-
 	void ClearFlags(ESceneObjectFlags nFlagsToClear);
-	
-	void SetCullDistance( float dist );
 
-	void EnableLightingCache();
-	void SetLightingOrigin( Vector3 vPos, bool worldspace );
 	Vector3 GetLightingOrigin();
 	bool HasLightingOrigin();
 
 	Vector4 GetTintRGBA();
 
-	void SetAlphaFade( float nAlpha );
-	float GetAlphaFade();
-
 	void SetMaterialOverrideForMeshInstances( IMaterial mat );
 	void ClearMaterialOverrideList();
 	void SetMaterialOverride( IMaterial hMaterial, StringToken nAttr, int nAttrValueMatch );
 
-	bool IsLoaded();
 	bool IsRenderingEnabled();
-	void SetLoaded();
-	void ClearLoaded();
-	void DisableRendering();
-	void EnableRendering();
 	void SetRenderingEnabled( bool bEnabled );
-
-	float GetBoundingSphereRadius();
 
 	void SetTransform( Transform tx );
 
@@ -59,15 +41,11 @@ native class CSceneObject as NativeEngine.CSceneObject
 	CSceneObject GetParent();
 	void RemoveChild( CSceneObject obj );
 
-	void EnableMeshGroups( ulong nMask );
-	void DisableMeshGroups( ulong nMask );
 	void ResetMeshGroups( ulong nMask );
 	ulong GetCurrentMeshGroupMask();
 
 	ISceneWorld GetWorld();
 
-	void DisableLOD();
-	ulong GetCurrentLODGroupMask();
 	int GetCurrentLODLevel();
 
 	IModel GetModelHandle();
@@ -78,7 +56,6 @@ native class CSceneObject as NativeEngine.CSceneObject
 
 	void SetBatchable( bool bIsBatchable );
 	bool IsNotBatchable();
-	void SetUniqueBatchGroup( bool bUnique );
 
 	void RemoveTag( uint tag );
 	void RemoveAllTags();
@@ -86,9 +63,6 @@ native class CSceneObject as NativeEngine.CSceneObject
 	uint GetTagAt( int i);
 	void AddTag( uint tag );
 	bool HasTag( uint tag );
-
-	// draw on this layer regardless of flags
-	void SetForceLayerID( StringToken nTok );
 
 	// draw only on this layer
 	inline uint GetLayerMatchIDValue()

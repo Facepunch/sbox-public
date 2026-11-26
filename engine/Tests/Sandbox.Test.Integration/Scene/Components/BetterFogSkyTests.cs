@@ -117,7 +117,6 @@ public class BetterFogSkyTests
 			fog.Color = Color.White;
 			CreateSky( scene.SceneWorld, Color.Red );
 			child = new SceneSkybox3D( scene.SceneWorld, childWorld );
-			child.Update();
 			Assert.IsNull( fog.GetSettings( camera ).SkyTexture, "An empty child world suppresses the parent's sky" );
 
 			var sky = CreateSky( childWorld, Color.Blue );
@@ -173,10 +172,8 @@ public class BetterFogSkyTests
 			CreateSky( firstWorld, Color.Green );
 			CreateSky( lastWorld, Color.Blue );
 			first = new SceneSkybox3D( scene.SceneWorld, firstWorld );
-			first.Update();
 			Assert.AreEqual( Color.Green, fog.GetSettings( camera ).Color );
 			last = new SceneSkybox3D( scene.SceneWorld, lastWorld );
-			last.Update();
 			Assert.AreSame( last, scene.SceneWorld.GetRenderingSkybox() );
 			Assert.AreEqual( Color.Blue, fog.GetSettings( camera ).Color );
 
@@ -185,7 +182,6 @@ public class BetterFogSkyTests
 			Assert.IsNull( scene.SceneWorld.GetRenderingSkybox(), "Removing the older link clears native's active skybox too" );
 			Assert.AreEqual( Color.Red, fog.GetSettings( camera ).Color );
 			replacement = new SceneSkybox3D( scene.SceneWorld, firstWorld );
-			replacement.Update();
 			Assert.AreEqual( Color.Green, fog.GetSettings( camera ).Color );
 			replacement.Delete();
 			replacement = null;

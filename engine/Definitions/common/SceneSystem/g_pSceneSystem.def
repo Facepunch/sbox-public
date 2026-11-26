@@ -1,117 +1,20 @@
 
 #include "scenesystem/iscenesystem.h"
-native enum SceneSystemRenderTargetSize_t as NativeEngine.SceneSystemRenderTargetSize;
-native enum SceneSystemWellKnownMaterialObjectID_t as NativeEngine.SceneSystemWellKnownMaterialObjectID;
-native enum SceneSystemWellKnownTextureObjectID_t as NativeEngine.SceneSystemWellKnownTextureObjectID;
-
-native struct SceneVolumetricFogVolume_t is NativeEngine.SceneVolumetricFogVolume;
-
-native class SceneSystemPerFrameStats_t
-{
-	uint m_nTrianglesRendered;
-	uint m_nArtistTrianglesRendered;
-	uint m_nRenderBatchDraws;
-	uint m_nDrawCalls;
-	uint m_nDrawPrimitives;
-	uint m_nBaseSceneObjectPrimDraws;
-	uint m_nAnimatableObjectPrimDraws;
-	uint m_nAggregateSceneObjectPrimDraws;
-	uint m_nAggregateSceneObjectsFullyCulled;
-	uint m_nAggregateSceneObjectDrawCalls;
-	uint m_nAggregateSceneObjectIndirectSubmits;
-	uint m_nAggregateSceneObjectIndirectFragments;
-	uint m_nNumMaterialCompute;
-	uint m_nNumMaterialSet;
-	uint m_nNumSimilarMaterialSet;
-	uint m_nNumTextureOnlyMaterialSet;
-	uint m_nNumVfxEval;
-	uint m_nNumVfxRule;
-	uint m_nNumConstantBufferUpdates;
-	uint m_nNumConstantBufferBytes;
-	uint m_nMaterialChangesNonShadow;
-	uint m_nMaterialChangesNonShadowInitial;
-	uint m_nMaterialChangesShadow;
-	uint m_nMaterialChangesShadowInitial;
-	uint m_nMaterialChangesShadowAlphaTested;
-	uint m_nCopyMaterialChangesNonShadow;
-	uint m_nMaxTransformRow;
-	uint m_nNumRowsUsed;
-	uint m_nNumObjectsTested;
-	uint m_nNumObjectsPreCullCheck;
-	uint m_nNumObjectsPassingCullCheck;
-	uint m_nNumVerticesReferenced;
-	uint m_nNumPrimaryContexts;
-	uint m_nNumSecondaryContexts;
-	uint m_nNumDisplayListsSubmitted;
-	int m_nNumViewsRendered;
-	uint m_nNumResolves;
-	uint m_nNumObjectsRejectedByBoundsIndex;
-	uint m_nNumObjectsRejectedByVis;
-	uint m_nNumObjectsRejectedByBackfaceCulling;
-	uint m_nNumObjectsRejectedByScreenSizeCulling;
-	uint m_nNumObjectsRejectedByFading;
-	uint m_nNumFadingObjects;
-	uint m_nNumUniqueMaterialsSeen;
-	uint m_nNumUnshadowedLightsInView;
-	uint m_nNumShadowedLightsInView;
-	uint m_nNumShadowMaps;
-	uint m_nNumRenderTargetBinds;
-	uint m_nPushConstantSets;
-}
 
 native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 {
 	void FrameUpdate();
-	void SetMainSwapChain( SwapChainHandle_t swapChain );
-	RenderMultisampleType GetMainSwapChainMultisampleType();
 
     void DeleteSceneObject( CSceneObject pObj );
     void DeleteSceneObjectAtFrameEnd( CSceneObject pObj );
 
     CSceneSkyBoxObject CreateSkyBox( IMaterial skyMaterial, ISceneWorld world );
 
-    
-	ITexture GetWellKnownTexture( SceneSystemWellKnownTextureObjectID a );
-    IMaterial GetWellKnownMaterialHandle( SceneSystemWellKnownMaterialObjectID a );
-	
-    inline SceneSystemPerFrameStats_t GetPerFrameStats()
-    {
-        return &(g_pSceneSystem->GetPerFrameStats());
-    }
-
-    uint GetNumUnbatchableMaterials();
-
     ISceneWorld CreateWorld( string debugName );
     void DestroyWorld( ISceneWorld world );
 
     void PerformEndOfFrameDeletes();
 
-    // End a frame that renders no views: deletes, dirty objects, the frame counter and render time
+    // End a frame that renders no views: deletes, dirty objects and the frame counter
     void FinishFrameWithoutViews();
-
-    bool WaitForRenderingToComplete();
-
-    inline CSceneLightObject CreateOrthoLight( ISceneWorld pWorld )
-    {
-        LightDesc_t desc;
-        desc.Clear();
-        desc.m_Type = MATERIAL_LIGHT_ORTHO;
-        desc.RecalculateDerivedValues();
-        return g_pSceneSystem->CreateLight( desc, pWorld, false );
-    }
-
-
-	inline void SetNextRenderTime( float flNextTime )
-	{
-		if ( g_pSceneSystem )
-		{
-			g_pSceneSystem->SetNextRenderTime( flNextTime );
-		}
-	}
-
-	// The time this frame's views render at (g_flTime), latched from SetNextRenderTime when views begin rendering
-	inline float GetCurrentRenderTime()
-	{
-		return g_pSceneSystem ? g_pSceneSystem->GetCurrentRenderTime() : 0.0f;
-	}
 }

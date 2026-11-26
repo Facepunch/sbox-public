@@ -198,8 +198,7 @@ public class WaterBodyTests
 				scene.PreRender();
 				Assert.IsTrue( camera.RenderToTexture( target,
 					new ViewSetup { EnablePostprocessing = false, EnableUI = false, EnableDebugOverlays = false } ) );
-				g_pRenderDevice.Present( IntPtr.Zero );
-				g_pRenderDevice.ForceFlushGPU( IntPtr.Zero );
+				Graphics.FlushGPU();
 				Span<ushort> pixel = stackalloc ushort[4];
 				target.GetPixels<ushort>( (32, 32, 1, 1), 0, 0, pixel, ImageFormat.RGBA16161616F );
 				EngineLoop.DrainFrameEndDisposables();

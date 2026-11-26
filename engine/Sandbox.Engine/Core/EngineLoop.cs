@@ -18,6 +18,12 @@ internal static class EngineLoop
 	static double previousTime;
 	static readonly FramePacer framePacer = new();
 
+	/// <summary>
+	/// The time shaders see this frame (<c>g_flTime</c>), in seconds: the playing game's scene time, else real time.
+	/// Null before the first frame.
+	/// </summary>
+	internal static float? RenderTime { get; private set; }
+
 	// Loop iterations vs frames that actually rendered. Native skips client output when it can't present.
 	internal static long LoopFrames;
 	internal static long RenderedFrames;
@@ -414,11 +420,9 @@ internal static class EngineLoop
 		Rendering.SceneRenderer.BeginFrame();
 
 		// Choose g_flTime before rendering, independently of temporary menu and preview scene scopes.
-		var renderTime = Game.IsPlaying && GlobalContext.Game.ActiveScene is { IsValid: true } gameScene
+		RenderTime = Game.IsPlaying && GlobalContext.Game.ActiveScene is { IsValid: true } gameScene
 			? (float)gameScene.TimeNow
 			: RealTime.Now;
-
-		CSceneSystem.SetNextRenderTime( renderTime );
 
 		// The sync point: the game's changes since the last frame are written into the worlds every view of this one draws
 		Rendering.RenderSync.Run();
