@@ -298,9 +298,34 @@ internal sealed partial class BackendContext
 		// Where the pixel stage reads the material record's offset (sbox/material.slang): passed on per pixel, or the draw's.
 		// A GPU-driven draw has no push constant of its own, so its pixels always take it from the vertex stage
 		var perPixel = gpuDriven || device.Surfaces.MaterialOffsetPerPixel;
+		var info = StageBindings( stage );
+
+		// What the same attributes, object combos and (where an object can set a slot's attribute) object attributes gave
+		// before: a bucket binds its stages per run, each looking up every slot
+		var version = attributes.Version;
+		var parent = attributes.Parent;
+		var layer = info.SpecializationsLayered( stage, device ) ? layerEpoch : 0;
+		var memo = info.Memo;
+		for ( int m = 0; m < memo.Length; m++ )
+		{
+			ref var seen = ref memo[m];
+			if ( seen.Constants is not null && seen.Version == version && ReferenceEquals( seen.Parent, parent ) && ReferenceEquals( seen.Combos, layerCombos ) && seen.Layer == layer && seen.PerPixel == perPixel )
+			{
+				key = seen.Key;
+				return seen.Constants;
+			}
+		}
+
+		var made = SurfaceConstantsLookedUp( stage, info, perPixel, out key );
+		memo[info.NextMemo] = new SurfaceStageBindings.Remembered( version, parent, layerCombos, layer, perPixel, made, key );
+		info.NextMemo = (info.NextMemo + 1) % memo.Length;
+		return made;
+	}
+
+	SpecializationConstant[] SurfaceConstantsLookedUp( CompiledStage stage, SurfaceStageBindings info, bool perPixel, out ulong key )
+	{
 		var fade = LookupCombo( OpaqueFadeCombo ) is > 0;
 		var skybox = LookupCombo( SkyboxCombo ) is > 0;
-		var info = StageBindings( stage );
 		key = (perPixel ? 1u : 2u) + (fade ? 4u : 0u) + (skybox ? 8u : 0u);
 		Span<int> values = stackalloc int[stage.Specializations.Count];
 		for ( int i = 0; i < values.Length; i++ )
@@ -347,6 +372,33 @@ internal sealed partial class BackendContext
 
 		/// <summary>The constants made for each set of values, a few of them.</summary>
 		public readonly Dictionary<ulong, SpecializationConstant[]> Made = new();
+
+		/// <summary>What the specialization slots were looked up as, by what they were looked up from: the last few.</summary>
+		public readonly Remembered[] Memo = new Remembered[4];
+		public int NextMemo;
+
+		public readonly record struct Remembered( int Version, BackendParameters Parent, string Combos, long Layer, bool PerPixel, SpecializationConstant[] Constants, ulong Key );
+
+		bool specializationsLayered;
+		int specializationsLayeredVersion = int.MinValue;
+
+		/// <summary>
+		/// Whether an object's attributes can set a specialization slot's attribute (without material objects, which keep the
+		/// names and combos objects set, assumed so).
+		/// </summary>
+		public bool SpecializationsLayered( CompiledStage stage, BackendDevice device )
+		{
+			if ( !device.MaterialObjects ) return true;
+			if ( SpecializationTokens.Length == 0 ) return false;
+			var cache = device.MaterialCache;
+			var version = cache.LayerNames;
+			if ( specializationsLayeredVersion == version ) return specializationsLayered;
+
+			var layered = false;
+			foreach ( var token in SpecializationTokens ) layered |= cache.IsLayerName( token.Value );
+			(specializationsLayered, specializationsLayeredVersion) = (layered, version);
+			return layered;
+		}
 
 		/// <summary>The pass state (the context's pass epoch) and list <see cref="Bound"/> was resolved in.</summary>
 		public long Epoch = -1;
@@ -503,10 +555,7 @@ internal sealed partial class BackendContext
 					var data = Lookup( token ) as byte[];
 					var size = (Math.Max( data?.Length ?? 0, b.Size ) + 15) & ~15;
 					if ( size == 0 ) return Binding.Uniform( b.Binding, defaults.Uniform, 0, ShaderDefaults.UniformSize );
-					var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
-					allocation.Data[..size].Clear();
-					data?.CopyTo( allocation.Data );
-					return Binding.Uniform( b.Binding, allocation.Buffer, allocation.Offset, size );
+					return SurfaceConstantBuffer( token, data, size, b.Binding );
 				}
 
 			case BindingKind.Buffer:
@@ -537,6 +586,37 @@ internal sealed partial class BackendContext
 				}
 		}
 	}
+
+	/// <summary>
+	/// A constant buffer an attribute holds, in upload memory: the same bytes as its last upload in this list bind that
+	/// again, so stages reading it in one list bind the same set.
+	/// </summary>
+	Binding SurfaceConstantBuffer( StringToken token, byte[] data, int size, int binding )
+	{
+		var session = recording.Started;
+		var length = data?.Length ?? 0;
+		if ( !constantBuffersWritten.TryGetValue( (token.Value, size), out var written ) ) constantBuffersWritten[(token.Value, size)] = written = new ConstantBufferWritten( size );
+		if ( written.Session == session && written.Length == length && (data is null || data.AsSpan().SequenceEqual( written.Bytes.AsSpan( 0, length ) )) ) return Binding.Uniform( binding, written.Buffer, written.Offset, size );
+
+		var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
+		allocation.Data[..size].Clear();
+		data?.CopyTo( allocation.Data );
+		data?.CopyTo( written.Bytes, 0 );
+		(written.Session, written.Length, written.Buffer, written.Offset) = (session, length, allocation.Buffer, allocation.Offset);
+		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+	}
+
+	/// <summary>What <see cref="SurfaceConstantBuffer"/> last uploaded for an attribute at a size: in which list, where, and its bytes.</summary>
+	sealed class ConstantBufferWritten( int size )
+	{
+		public readonly byte[] Bytes = new byte[size];
+		public long Session = -1;
+		public int Length;
+		public BufferHandle Buffer;
+		public long Offset;
+	}
+
+	readonly Dictionary<(uint Token, int Size), ConstantBufferWritten> constantBuffersWritten = new();
 
 	internal static SpirvImageDimension Dimension( TextureShape shape ) => shape switch
 	{
