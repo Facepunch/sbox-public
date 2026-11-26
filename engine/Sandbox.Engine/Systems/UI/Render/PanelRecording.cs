@@ -191,9 +191,10 @@ internal sealed class PanelRecording
 		if ( panel.PaintChangedAt > subtree.RecordedAt ) return false;
 		if ( !kept.DrawnLike( painter.RecordingContext ) ) return false;
 
-		foreach ( var (keyed, drawn) in kept.Keys )
+		// In place: a key is a hundred-odd bytes (its text options), checked for every label each frame
+		foreach ( ref readonly var keyed in System.Runtime.InteropServices.CollectionsMarshal.AsSpan( kept.Keys ) )
 		{
-			if ( !keyed.DrawKeyHolds( in drawn ) ) return false;
+			if ( !keyed.Panel.DrawKeyHolds( in keyed.Key ) ) return false;
 		}
 
 		if ( !kept.Context.Batcher.TexturesUnchanged() ) return false;
@@ -338,9 +339,9 @@ internal sealed class PanelRecording
 		if ( !Enabled || _recordedAt < 0 || _uncomparable > 0 ) return false;
 		if ( root.PaintChangedAt > _recordedAt || !key.Equals( _key ) ) return false;
 
-		foreach ( var (panel, drawn) in _keys )
+		foreach ( ref readonly var keyed in System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _keys ) )
 		{
-			if ( !panel.DrawKeyHolds( in drawn ) ) return false;
+			if ( !keyed.Panel.DrawKeyHolds( in keyed.Key ) ) return false;
 		}
 
 		if ( batcher is null || !batcher.TexturesUnchanged() ) return false;
