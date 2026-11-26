@@ -42,6 +42,9 @@ DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
     RWTexture2D<uint> 							ClassifiedTilesRW 		< Attribute("ClassifiedTilesRW"); >;
     RWStructuredBuffer<IndirectDispatchArguments> DispatchArgsRW 	< Attribute("IntersectDispatchArgsRW"); >;
     RWTexture2D<float4>                         OutRadiance 		< Attribute("OutRadiance"); >;
+    // The upscale's low-res guide and the full-res mip it fills (the trace's own mip at full res)
+    RWTexture2D<float4>                         OutGuide 			< Attribute("OutGuide"); >;
+    RWTexture2D<float4>                         OutFull 			< Attribute("OutFull"); >;
 
     uint PackTileCoord( uint2 tileCoord )
     {
@@ -50,9 +53,11 @@ DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 
     groupshared uint groupHasReflection;
 
-    void Pass_Reflections_ClassifyTiles( int2 vDispatch, int2 vGroupId, uint2 vGroupCoord )
+    // The intersect and upscale write only classified tiles; this writes the zeros everything else reads (the guide and
+    // the trace's mip, and the full-res mip past the upscale's reach), so nothing is cleared first
+    void Pass_Reflections_ClassifyTiles( int2 vDispatch, int2 vGroupThread, uint2 vGroupCoord )
     {
-        if ( vGroupId.x == 0 && vGroupId.y == 0 )
+        if ( vGroupThread.x == 0 && vGroupThread.y == 0 )
         {
             groupHasReflection = 0;
         }
@@ -61,24 +66,44 @@ DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 
         uint radianceWidth, radianceHeight;
         OutRadiance.GetDimensions( radianceWidth, radianceHeight );
-        if ( all( uint2( vDispatch ) < uint2( radianceWidth, radianceHeight ) ) )
+        bool inside = all( uint2( vDispatch ) < uint2( radianceWidth, radianceHeight ) );
+        bool reflects = false;
+        if ( inside )
         {
-            // Clear the trace mip, the intersect only writes classified tiles
-            OutRadiance[vDispatch] = 0;
-
-            // Same representative full-res pixel as the intersect pass
+            // Same representative full-res pixel as the intersect pass; the sky needs no roughness
             int2 vPixel = min( vDispatch * (int)ScaleInv + (int)ScaleInv / 2, int2( g_vViewportSize ) - 1 );
-            float roughness = Roughness::Sample( vPixel );
-            float depth = Depth::GetNormalized( vPixel );
-            if ( roughness < RoughnessCutoff && depth > 0.0001f )
-            {
-                InterlockedOr( groupHasReflection, 1u );
-            }
+            reflects = Depth::GetNormalized( vPixel ) > 0.0001f && Roughness::Sample( vPixel ) < RoughnessCutoff;
         }
+        if ( WaveActiveAnyTrue( reflects ) && WaveIsFirstLane() )
+            groupHasReflection = 1u;
 
         GroupMemoryBarrierWithGroupSync();
 
-        if ( vGroupId.x != 0 || vGroupId.y != 0 || groupHasReflection == 0u )
+        bool classified = groupHasReflection != 0u;
+        if ( inside && !classified )
+        {
+            OutRadiance[vDispatch] = 0;
+            OutGuide[vDispatch] = 0;
+        }
+
+        // The full-res texels this one stands for, unless the upscale writes them; the last row and column also take any
+        // the low-res size dropped, which no tile reaches
+        uint fullWidth, fullHeight;
+        OutFull.GetDimensions( fullWidth, fullHeight );
+        int scale = (int)ScaleInv;
+        if ( inside && scale > 1 )
+        {
+            int2 lo = vDispatch * scale;
+            int2 hi = lo + scale;
+            int2 last = int2( fullWidth, fullHeight );
+            hi = select( vDispatch == int2( uint2( radianceWidth, radianceHeight ) ) - 1, last, min( hi, last ) );
+            for ( int y = lo.y; y < hi.y; y++ )
+                for ( int x = lo.x; x < hi.x; x++ )
+                    if ( !classified || x >= int( radianceWidth ) * scale || y >= int( radianceHeight ) * scale )
+                        OutFull[int2( x, y )] = 0;
+        }
+
+        if ( vGroupThread.x != 0 || vGroupThread.y != 0 || !classified )
             return;
 
         uint writeIndex;

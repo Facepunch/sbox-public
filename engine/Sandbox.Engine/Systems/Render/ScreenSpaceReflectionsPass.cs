@@ -117,9 +117,9 @@ internal sealed class ScreenSpaceReflectionsPass : IDisposable
 
 		trace.ResourceBarrierTransition( lastFrame, ResourceState.NonPixelShaderResource );
 
-		// Clear since we are indirect
-		trace.Clear( reflection, Color.Transparent );
-		trace.Clear( guide, Color.Transparent );
+		// The indirect passes write only classified tiles; classify writes the zeros everything else reads
+		trace.ResourceBarrierTransition( reflection, ResourceState.UnorderedAccess );
+		trace.ResourceBarrierTransition( guide, ResourceState.UnorderedAccess );
 
 		// Classify tiles
 		using ( trace.ProfileScope( PassProfiles[0] ) )
@@ -129,8 +129,11 @@ internal sealed class ScreenSpaceReflectionsPass : IDisposable
 			trace.Attributes.Set( "ClassifiedTilesRW", tiles.ColorTexture );
 			trace.Attributes.Set( "IntersectDispatchArgsRW", dispatchArgs );
 			trace.Attributes.Set( "OutRadiance", reflection.ColorTexture, traceMip );
+			trace.Attributes.Set( "OutGuide", guide.ColorTexture );
+			trace.Attributes.Set( "OutFull", reflection.ColorTexture, 0 );
 			trace.DispatchCompute( ClassifyShaderCs, guide.Size );
 			trace.UavBarrier( reflection );
+			trace.UavBarrier( guide );
 			trace.ResourceBarrierTransition( tiles, ResourceState.NonPixelShaderResource );
 			trace.ResourceBarrierTransition( dispatchArgs, ResourceState.UnorderedAccess, ResourceState.IndirectArgument );
 		}
