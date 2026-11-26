@@ -461,7 +461,7 @@ public class CascadeCacheTests
 	/// </summary>
 	static RenderMesh Tree( GpuMaterial sways, GpuMaterial still, float metric )
 	{
-		RenderMesh.Draw Draw( GpuMaterial material ) => new( 0, 0, 0, 36, 24, 0, material );
+		static RenderMesh.Draw Draw( GpuMaterial material ) => new( 0, 0, 0, 36, 24, 0, material );
 		var bounds = new BBox( new Vector3( -50 ), new Vector3( 50 ) );
 		return new RenderMesh( new HeadlessMesh( "tree" ), bounds, [[Draw( sways )], [Draw( sways )], [Draw( still )]], [0, metric * 0.6f, metric * 0.9f] );
 	}
