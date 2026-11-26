@@ -156,6 +156,49 @@ public class ParticleLightTagTests
 		f.AssertTags( "grandparent", "parent", "emitter" );
 	}
 
+	/// <summary>
+	/// A particle that dies hides its light for the next particle to take, so an effect that keeps emitting makes no lights
+	/// (and no render objects) once it has its most: the next particles light up with the same lights, tags as they were.
+	/// Disabling the renderer deletes the kept ones.
+	/// </summary>
+	[TestMethod]
+	public void DeadParticlesLightsAreKeptForTheNext()
+	{
+		using var f = new Fixture();
+		var first = f.Lights;
+		Assert.AreEqual( 2, first.Length );
+
+		foreach ( var p in f.Effect.Particles.ToArray() ) f.Effect.Terminate( p );
+		f.Step();
+		Assert.AreEqual( 2, f.Lights.Length, "the dead particles' lights are kept" );
+		Assert.IsTrue( f.Lights.All( l => !l.RenderingEnabled ), "and hidden" );
+
+		f.Emit();
+		f.Step();
+		CollectionAssert.AreEquivalent( first, f.Lights, "the new particles took the kept lights" );
+		Assert.IsTrue( f.Lights.All( l => l.RenderingEnabled ), "shown again" );
+		f.AssertTags( "grandparent", "parent", "emitter" );
+
+		f.Renderer.Enabled = false;
+		Assert.AreEqual( 0, f.Lights.Length, "disabling the renderer deletes them, kept or lit" );
+	}
+
+	/// <summary>Particles dying and others lighting up in their place take the kept lights, allocating nothing once warm.</summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	public void ReplacedParticlesLightsDoNotAllocate()
+	{
+		using var f = new Fixture();
+		Allocations.AssertSettles( "particles' lights replaced", () =>
+		{
+			for ( int i = f.Effect.Particles.Count - 1; i >= 0; i-- ) f.Effect.Terminate( f.Effect.Particles[i] );
+			f.Step();
+			f.Emit();
+			f.Step();
+		} );
+		f.AssertTags( "grandparent", "parent", "emitter" );
+	}
+
 	private sealed class Fixture : IDisposable
 	{
 		public Scene Scene { get; } = new();
