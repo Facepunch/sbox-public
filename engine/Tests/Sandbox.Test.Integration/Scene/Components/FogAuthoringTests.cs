@@ -275,8 +275,7 @@ public class FogAuthoringTests
 			settings = fog.GetSettings( camera );
 			var constants = settings.ToConstants();
 			Assert.AreEqual( 1.0f, constants.HeightSkyShared );
-			var expectedIndex = g_pRenderDevice.GetTextureViewIndex( sky.SkyTexture.native,
-				(byte)NativeEngine.RenderColorSpace.RENDER_SRGB, NativeEngine.RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
+			var expectedIndex = sky.SkyTexture.Index;
 			Assert.AreEqual( expectedIndex, constants.HeightSkyTextureIndex );
 
 			settings.HeightSkyRotation = Rotation.FromYaw( 90 );

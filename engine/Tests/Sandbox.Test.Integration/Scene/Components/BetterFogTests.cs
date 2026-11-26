@@ -417,8 +417,7 @@ public class BetterFogTests
 		Assert.AreEqual( 0.0f, ResolveFog( visibleCamera ).Value.SkyAffect );
 
 		var constants = ResolveFog( visibleCamera ).Value.ToConstants();
-		var expectedIndex = g_pRenderDevice.GetTextureViewIndex( sky.SkyTexture.native,
-			(byte)NativeEngine.RenderColorSpace.RENDER_SRGB, NativeEngine.RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
+		var expectedIndex = sky.SkyTexture.Index;
 		Assert.AreEqual( expectedIndex, constants.SkyTextureIndex );
 		Assert.AreEqual( sky.SkyTexture.Desc.IsArray ? 1f : 0f, constants.SkyFormat.y );
 
@@ -722,8 +721,7 @@ public class BetterFogTests
 		Assert.AreEqual( sky.SkyTexture, ResolveFog( camera ).Value.SkyTexture );
 		Assert.AreEqual( 1.0f, ResolveFog( camera ).Value.SkyContribution );
 		var constants = ResolveFog( camera ).Value.ToConstants();
-		var expectedIndex = g_pRenderDevice.GetTextureViewIndex( sky.SkyTexture.native,
-			(byte)NativeEngine.RenderColorSpace.RENDER_SRGB, NativeEngine.RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
+		var expectedIndex = sky.SkyTexture.Index;
 		Assert.AreEqual( expectedIndex, constants.SkyTextureIndex );
 		Assert.AreEqual( sky.SkyTexture.Desc.IsArray ? 1f : 0f, constants.SkyFormat.y );
 	}

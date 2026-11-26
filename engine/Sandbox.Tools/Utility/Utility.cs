@@ -607,9 +607,9 @@ public static partial class EditorUtility
 	}
 
 	/// <summary>
-	/// Used for shadergraph
+	/// Used for shadergraph. Always true: Borealis.Gpu draws on Vulkan.
 	/// </summary>
-	public static bool IsVulkan => g_pRenderDevice.GetRenderDeviceAPI() == NativeEngine.RenderDeviceAPI_t.RENDER_DEVICE_API_VULKAN;
+	public static bool IsVulkan => true;
 
 	/// <summary>
 	/// True if we're currently recording a video (using the video command, or F6)

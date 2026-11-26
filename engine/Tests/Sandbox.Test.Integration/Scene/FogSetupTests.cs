@@ -221,8 +221,7 @@ public class FogSetupTests
 
 		var constants = new FogSetup { Enabled = true, Weight = 1, SkyTexture = texture, SkyContribution = 1 }.ToConstants();
 
-		var expectedIndex = g_pRenderDevice.GetTextureViewIndex( texture.native,
-			(byte)NativeEngine.RenderColorSpace.RENDER_SRGB, NativeEngine.RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
+		var expectedIndex = texture.Index;
 		Assert.AreEqual( expectedIndex, constants.SkyTextureIndex );
 		Assert.AreEqual( cubeCount > 1 ? 1f : 0f, constants.SkyFormat.y );
 	}

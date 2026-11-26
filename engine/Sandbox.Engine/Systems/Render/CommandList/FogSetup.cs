@@ -1,5 +1,3 @@
-using NativeEngine;
-
 namespace Sandbox.Rendering;
 
 /// <summary>
@@ -377,7 +375,7 @@ public struct FogSetup
 	}
 
 	/// <summary>
-	/// Resolve the sRGB cube or array descriptor and keep its mips resident for bindless sampling.
+	/// The texture's bindless index on the drawing device (<see cref="Texture.Index"/>), keeping its mips resident; -1 for none.
 	/// </summary>
 	static int GetTextureIndex( Texture texture )
 	{
@@ -385,7 +383,7 @@ public struct FogSetup
 			return -1;
 
 		texture.MarkUsed( ushort.MaxValue );
-		return g_pRenderDevice.GetTextureViewIndex( texture.native, (byte)RenderColorSpace.RENDER_SRGB, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
+		return texture.Index;
 	}
 }
 

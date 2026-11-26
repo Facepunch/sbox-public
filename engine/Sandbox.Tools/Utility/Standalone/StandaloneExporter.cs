@@ -280,7 +280,7 @@ public partial class StandaloneExporter
 		if ( textureBitmap is null || !textureBitmap.IsValid )
 			throw new InvalidOperationException( $"Couldn't read selected startup image '{path}'" );
 
-		var desc = g_pRenderDevice.GetTextureDesc( texture.native );
+		var desc = texture.Desc;
 		var width = desc.m_nDisplayRectWidth > 0 ? Math.Min( desc.m_nDisplayRectWidth, textureBitmap.Width ) : textureBitmap.Width;
 		var height = desc.m_nDisplayRectHeight > 0 ? Math.Min( desc.m_nDisplayRectHeight, textureBitmap.Height ) : textureBitmap.Height;
 		return textureBitmap.Crop( new Rect( 0, 0, width, height ) );
