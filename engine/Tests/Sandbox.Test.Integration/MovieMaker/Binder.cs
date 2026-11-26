@@ -193,6 +193,25 @@ public sealed class BinderTest : SceneTestBase
 #pragma warning restore CS0618
 
 	/// <summary>
+	/// Tests accessing <see cref="Sandbox.Animation.AnimationAccessor.Parameters"/>.
+	/// </summary>
+	[TestMethod]
+	public void GraphParameters()
+	{
+		var goTrack = MovieClip.RootGameObject( "Example" );
+		var cmpTrack = goTrack.Component<SkinnedModelRenderer>();
+		var animationTrack = cmpTrack.Property<Sandbox.Animation.AnimationAccessor>(
+			nameof( SkinnedModelRenderer.Animation ) );
+		var paramsTrack = animationTrack.Property<Sandbox.Animation.GraphParameters>(
+			nameof( Sandbox.Animation.AnimationAccessor.Parameters ) );
+		var paramTrack = paramsTrack.Property<float>( "example" );
+
+		// If we can't access, will be an UnknownProperty with IsValid = false
+
+		Assert.IsTrue( TrackBinder.Default.Get( paramTrack ).IsValid );
+	}
+
+	/// <summary>
 	/// Tests accessing <see cref="SkinnedModelRenderer.Morphs"/>.
 	/// </summary>
 	[TestMethod]
@@ -662,36 +681,60 @@ public sealed class BinderTest : SceneTestBase
 
 
 	/// <summary>
-	/// Assume that <see cref="MapInstance"/> will create its own child objects, don't
-	/// create them with <see cref="TrackBinder.CreateTargets(IMovieClip,GameObject)"/>.
+	/// Assume that <see cref="MapInstance"/> will create the objects it loaded, so don't create tracks with
+	/// <see cref="TrackFlags.MapObject"/> (or anything inside them) with
+	/// <see cref="TrackBinder.CreateTargets(IMovieClip,GameObject)"/>. Objects created at runtime and parented to the
+	/// map instance should still be created.
 	/// </summary>
 	[TestMethod]
-	public void SkipCreatingMapInstanceChildTargets()
+	public void SkipCreatingMapObjectTargets()
 	{
 		var mapObjTrack = MovieClip.RootGameObject( "Map" );
-		var mapInstTrack = mapObjTrack.Component<MapInstance>();
-		var childObjTrack = mapObjTrack.GameObject( "Example Child" );
+		var mapInstTrack = mapObjTrack.Component<MapInstance>( metadata: new TrackMetadata( Flags: TrackFlags.MapObject ) );
+		var mapPropTrack = mapObjTrack.GameObject( "Prop", metadata: new TrackMetadata( Flags: TrackFlags.MapObject ) );
+		var mapPropRendererTrack = mapPropTrack.Component<ModelRenderer>();
+		var mapPropChildTrack = mapPropTrack.GameObject( "Child" );
+		var effectTrack = mapObjTrack.GameObject( "Impact Effect" );
 
-		var clip = MovieClip.FromTracks( mapInstTrack, childObjTrack );
+		var clip = MovieClip.FromTracks( mapInstTrack, mapPropRendererTrack, mapPropChildTrack, effectTrack );
 
 		var binder = new TrackBinder();
 
-		var mapInstRef = binder.Get( mapInstTrack );
-		var childObjRef = binder.Get( childObjTrack );
+		binder.CreateTargets( clip );
 
-		// There are no game objects in the scene, these tracks shouldn't be bound to anything
+		Assert.IsTrue( binder.Get( mapInstTrack ).IsBound );
+		Assert.IsTrue( binder.Get( effectTrack ).IsBound );
 
-		Assert.IsFalse( mapInstRef.IsBound );
-		Assert.IsFalse( childObjRef.IsBound );
+		Assert.IsFalse( binder.Get( mapPropTrack ).IsBound );
+		Assert.IsFalse( binder.Get( mapPropRendererTrack ).IsBound );
+		Assert.IsFalse( binder.Get( mapPropChildTrack ).IsBound );
+	}
 
-		// Create any objects needed to play the clip
+	/// <summary>
+	/// A <see cref="MapInstance"/> track without <see cref="TrackFlags.MapObject"/>, like in movies recorded before
+	/// it existed, or for legacy maps, means <see cref="TrackBinder.CreateTargets(IMovieClip,GameObject)"/> skips
+	/// everything inside it.
+	/// </summary>
+	[TestMethod]
+	public void SkipCreatingChildrenOfUntaggedMapInstance()
+	{
+		var mapObjTrack = MovieClip.RootGameObject( "Map" );
+		var mapInstTrack = mapObjTrack.Component<MapInstance>();
+		var mapPropTrack = mapObjTrack.GameObject( "Prop" );
+		var mapPropRendererTrack = mapPropTrack.Component<ModelRenderer>();
+		var otherTrack = MovieClip.RootGameObject( "Other" );
+
+		var clip = MovieClip.FromTracks( mapInstTrack, mapPropRendererTrack, otherTrack );
+
+		var binder = new TrackBinder();
 
 		binder.CreateTargets( clip );
 
-		// MapInstance should be bound now, but the child object shouldn't
+		Assert.IsTrue( binder.Get( mapInstTrack ).IsBound );
+		Assert.IsTrue( binder.Get( otherTrack ).IsBound );
 
-		Assert.IsTrue( mapInstRef.IsBound );
-		Assert.IsFalse( childObjRef.IsBound );
+		Assert.IsFalse( binder.Get( mapPropTrack ).IsBound );
+		Assert.IsFalse( binder.Get( mapPropRendererTrack ).IsBound );
 	}
 
 	/// <summary>
@@ -772,6 +815,7 @@ public sealed class BinderTest : SceneTestBase
 		Assert.IsFalse( exampleObject.Enabled );
 	}
 }
+
 
 public class ExampleComponent : Component
 {

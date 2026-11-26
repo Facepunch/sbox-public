@@ -272,10 +272,13 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 	private static HashSet<Type> AccessorTypes { get; } =
 	[
 		typeof( SkinnedModelRenderer.MorphAccessor ),
+		typeof( Sandbox.Animation.AnimationAccessor ),
+		typeof( Sandbox.Animation.GraphParameters ),
 #pragma warning disable CS0618
 		typeof( SkinnedModelRenderer.ParameterAccessor ),
 #pragma warning restore CS0618
 		typeof( SkinnedModelRenderer.SequenceAccessor ),
+		typeof( SceneAnchor ),
 		typeof( GameTags ),
 		typeof( TagSet ),
 		typeof( RenderOptions )

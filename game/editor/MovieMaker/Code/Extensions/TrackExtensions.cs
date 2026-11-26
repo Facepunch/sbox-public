@@ -44,11 +44,32 @@ public static class TrackExtensions
 
 	public static IEnumerable<TrackView> GetSkinnedModelRendererTracksWithParameters( this TrackListView listView, MovieTimeRange timeRange )
 	{
-#pragma warning disable CS0618
 		return listView.UnlockedTracks
 			.Where( x => x is { Track: ProjectReferenceTrack<SkinnedModelRenderer> } )
-			.Where( x => x.Find( nameof( SkinnedModelRenderer.Parameters ) )?.Children.Any(
-				y => y.Track is IProjectPropertyTrack propertyTrack && propertyTrack.GetBlocks( timeRange ).Any() ) ?? false );
+			.Where( x => x.GetAnimParamTracks().Any(
+				y => y.Track is IProjectPropertyTrack propertyTrack && propertyTrack.GetBlocks( timeRange ).Any() ) );
+	}
+
+	/// <summary>
+	/// Path from a <see cref="SkinnedModelRenderer"/> to its anim graph parameters.
+	/// </summary>
+	public const string AnimParamsPath = $"{nameof( SkinnedModelRenderer.Animation )}.{nameof( Sandbox.Animation.AnimationAccessor.Parameters )}";
+
+	/// <summary>
+	/// Path from a <see cref="SkinnedModelRenderer"/> to its anim graph triggers.
+	/// </summary>
+	public const string AnimTriggersPath = $"{nameof( SkinnedModelRenderer.Animation )}.{GraphTriggerAccessor.PropertyName}";
+
+	/// <summary>
+	/// Anim graph parameter tracks of a <see cref="SkinnedModelRenderer"/> track: in its <see cref="AnimParamsPath"/>,
+	/// its <see cref="AnimTriggersPath"/>, and in the legacy <see cref="SkinnedModelRenderer.Parameters"/>.
+	/// </summary>
+	public static IEnumerable<TrackView> GetAnimParamTracks( this TrackView rendererView )
+	{
+#pragma warning disable CS0618
+		return (rendererView.Find( AnimParamsPath )?.Children ?? [])
+			.Concat( rendererView.Find( AnimTriggersPath )?.Children ?? [] )
+			.Concat( rendererView.Find( nameof( SkinnedModelRenderer.Parameters ) )?.Children ?? [] );
 #pragma warning restore CS0618
 	}
 

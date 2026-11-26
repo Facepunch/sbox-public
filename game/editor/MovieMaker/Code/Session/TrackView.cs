@@ -525,21 +525,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 
 		while ( parent is not null && propertyPath.Length > 0 )
 		{
-			var propertyName = propertyPath;
-
-			// TODO: Hack for anim graph parameters including periods
-
-#pragma warning disable CS0618
-			if ( parent.Track.TargetType != typeof( SkinnedModelRenderer.ParameterAccessor ) && propertyPath.IndexOf( '.' ) is var index and > -1 )
-			{
-				propertyName = propertyPath[..index];
-				propertyPath = propertyPath[(index + 1)..];
-			}
-			else
-			{
-				propertyPath = string.Empty;
-			}
-#pragma warning restore CS0618
+			var propertyName = PropertyPath.PopName( parent.Track.TargetType, ref propertyPath );
 
 			parent = parent.Children.FirstOrDefault( x => x.Track.Name == propertyName );
 		}

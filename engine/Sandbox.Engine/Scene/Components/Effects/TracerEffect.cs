@@ -76,8 +76,11 @@ public sealed class TracerEffect : Renderer, Component.ExecuteInEditor, Componen
 
 	bool ITemporaryEffect.IsActive => !_finished;
 
+	void ITemporaryEffect.DisableLooping() { _loop = false; }
+
 	float _distance;
 	bool _finished;
+	bool _loop;
 
 	SceneLineObject _so;
 	SceneLight _light;
@@ -107,6 +110,7 @@ public sealed class TracerEffect : Renderer, Component.ExecuteInEditor, Componen
 
 		_distance = StartDistance;
 		_finished = false;
+		_loop = Scene.IsEditor;
 	}
 
 	protected override void OnDisabled()
@@ -125,7 +129,7 @@ public sealed class TracerEffect : Renderer, Component.ExecuteInEditor, Componen
 		// Finished once the tail has passed the end point. Editor previews loop instead.
 		if ( _distance - Length > WorldPosition.Distance( EndPoint.Position ) )
 		{
-			if ( Scene.IsEditor )
+			if ( _loop )
 			{
 				_distance = StartDistance;
 				return;
@@ -145,7 +149,7 @@ public sealed class TracerEffect : Renderer, Component.ExecuteInEditor, Componen
 		var maxlen = travel.Length;
 
 		// The whole line has arrived - hide it until we're deleted (or loop again, in the editor).
-		if ( _distance - Length > maxlen )
+		if ( _finished )
 		{
 			_so.RenderingEnabled = false;
 

@@ -72,21 +72,7 @@ partial class Session
 	{
 		while ( parentTrack is not null && propertyPath.Length > 0 )
 		{
-			var propertyName = propertyPath;
-
-			// TODO: Hack for anim graph parameters including periods
-
-#pragma warning disable CS0618
-			if ( parentTrack.TargetType != typeof( SkinnedModelRenderer.ParameterAccessor ) && propertyPath.IndexOf( '.' ) is var index and > -1 )
-			{
-				propertyName = propertyPath[..index];
-				propertyPath = propertyPath[(index + 1)..];
-			}
-			else
-			{
-				propertyPath = string.Empty;
-			}
-#pragma warning restore CS0618
+			var propertyName = PropertyPath.PopName( parentTrack.TargetType, ref propertyPath );
 
 			parentTrack = parentTrack.Children.FirstOrDefault( x => x.Name == propertyName );
 		}
@@ -213,21 +199,7 @@ partial class Session
 	{
 		while ( propertyPath.Length > 0 )
 		{
-			var propertyName = propertyPath;
-
-			// TODO: Hack for anim graph parameters including periods
-
-#pragma warning disable CS0618
-			if ( parentTrack.TargetType != typeof( SkinnedModelRenderer.ParameterAccessor ) && propertyPath.IndexOf( '.' ) is var index and > -1 )
-			{
-				propertyName = propertyPath[..index];
-				propertyPath = propertyPath[(index + 1)..];
-			}
-			else
-			{
-				propertyPath = string.Empty;
-			}
-#pragma warning restore CS0618
+			var propertyName = PropertyPath.PopName( parentTrack.TargetType, ref propertyPath );
 
 			parentTrack = GetOrCreateTrackCore( parentTrack, propertyName );
 		}

@@ -105,4 +105,90 @@ public sealed class SerializationTest : SceneTestBase
 		Assert.AreEqual( "Cube", player.Resource.Compiled!.Tracks.First().Name );
 		Assert.AreEqual( 18000, player.Resource.EditorData?["Duration"]?.GetValue<int>() );
 	}
+
+	private static MovieClip DeserializeComponentTrack( string type, string fallbackType ) => Json.Deserialize<MovieClip>(
+		$$"""
+		{
+			"Tracks": [
+				{
+					"Kind": "Reference",
+					"Name": "Map",
+					"Type": "Sandbox.GameObject",
+					"Id": "f9599d9c-ef0d-4456-8dc9-9921c7ce483c",
+					"Children": [
+						{
+							"Kind": "Reference",
+							"Name": "MapLoader",
+							"Type": "{{type}}",
+							"Id": "e67d2256-395a-4398-bc54-74647b36fabf",
+							"Metadata": {
+								"ReferenceId": "fdc35dc7-be73-4153-b247-52b8474f4173",
+								"FallbackType": "{{fallbackType}}"
+							}
+						}
+					]
+				}
+			]
+		}
+		""" );
+
+	/// <summary>
+	/// A component track whose type doesn't exist here, like one declared in another game's code,
+	/// loads as its <see cref="TrackMetadata.FallbackType"/>.
+	/// </summary>
+	[TestMethod]
+	public void MissingComponentTypeUsesFallback()
+	{
+		var clip = DeserializeComponentTrack( "TerrorTown.TerrorTownHammerMapLoader", "Sandbox.MapInstance" );
+		var track = clip.Tracks.OfType<IReferenceTrack>().Single( x => x.Name == "MapLoader" );
+
+		Assert.AreEqual( typeof( MapInstance ), track.TargetType );
+		Assert.AreEqual( typeof( MapInstance ), track.Metadata?.FallbackType );
+	}
+
+	/// <summary>
+	/// A component track whose type exists ignores its <see cref="TrackMetadata.FallbackType"/>.
+	/// </summary>
+	[TestMethod]
+	public void ExistingComponentTypeIgnoresFallback()
+	{
+		var clip = DeserializeComponentTrack( "Sandbox.SkinnedModelRenderer", "Sandbox.ModelRenderer" );
+		var track = clip.Tracks.OfType<IReferenceTrack>().Single( x => x.Name == "MapLoader" );
+
+		Assert.AreEqual( typeof( SkinnedModelRenderer ), track.TargetType );
+	}
+
+	/// <summary>
+	/// A component track whose type doesn't exist, and has no fallback, is skipped without failing the whole movie.
+	/// </summary>
+	[TestMethod]
+	public void MissingComponentTypeWithoutFallbackIsSkipped()
+	{
+		var clip = DeserializeComponentTrack( "TerrorTown.TerrorTownHammerMapLoader", "TerrorTown.Missing" );
+
+		Assert.AreEqual( "Map", clip.Tracks.Single().Name );
+	}
+
+	/// <summary>
+	/// <see cref="TrackMetadata.Flags"/> survive serialization, and are left out when there aren't any.
+	/// </summary>
+	[TestMethod]
+	public void SerializeTrackFlags()
+	{
+		var mapTrack = MovieClip.RootGameObject( "Map" );
+		var propTrack = mapTrack.GameObject( "Prop", metadata: new TrackMetadata( Flags: TrackFlags.MapObject ) );
+		var effectTrack = mapTrack.GameObject( "Effect", metadata: new TrackMetadata( Order: 1 ) );
+
+		var json = Json.Serialize( MovieClip.FromTracks( propTrack, effectTrack ) );
+
+		Console.WriteLine( json );
+
+		Assert.AreEqual( 1, System.Text.RegularExpressions.Regex.Matches( json, "\"Flags\"" ).Count );
+
+		var clip = Json.Deserialize<MovieClip>( json )!;
+		var tracks = clip.Tracks.OfType<IReferenceTrack>().ToDictionary( x => x.Name );
+
+		Assert.AreEqual( TrackFlags.MapObject, tracks["Prop"].Metadata?.Flags );
+		Assert.AreEqual( TrackFlags.None, tracks["Effect"].Metadata?.Flags );
+	}
 }

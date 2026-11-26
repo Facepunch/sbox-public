@@ -20,6 +20,11 @@ public sealed partial class SceneModel
 		return p.IsValid;
 	}
 
+	/// <summary>
+	/// Does the graph reset the named legacy parameter to its default after every update?
+	/// </summary>
+	internal bool IsLegacyParameterAutoReset( string name ) => FindLegacyParameter( name, out var p ) && p.IsAutoReset();
+
 	internal void SetLegacyParameter( string name, AnimVariant value )
 	{
 		if ( !FindLegacyParameter( name, out var p ) )

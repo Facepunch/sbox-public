@@ -1,6 +1,5 @@
 ﻿using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
-using System.Collections.Immutable;
 
 namespace Sandbox.MovieMaker;
 
@@ -49,6 +48,12 @@ internal interface IMovieTrackRecorderInternal : IMovieTrackRecorder
 	/// we can find the default values of each track.
 	/// </summary>
 	TrackBinder? PrefabSourceBinder { get; }
+
+	/// <summary>
+	/// A recorded <see cref="BindingReference{T}"/> refers to this track, so it must be compiled even if nothing in
+	/// it was recorded.
+	/// </summary>
+	void MarkReferenced();
 
 	ITrack IMovieTrackRecorder.Track => Track;
 }
@@ -105,6 +110,10 @@ internal abstract class MovieTrackRecorder<TTrack, TTarget> : IMovieTrackRecorde
 		_children.Add( child );
 	}
 
+	private bool _isReferenced;
+
+	public void MarkReferenced() => _isReferenced = true;
+
 	public virtual IEnumerable<IPropertyBlock> Blocks => [];
 
 	public IMovieTrackRecorder Property( string name )
@@ -118,8 +127,19 @@ internal abstract class MovieTrackRecorder<TTrack, TTarget> : IMovieTrackRecorde
 			return UnknownTrackRecorder.Instance;
 		}
 
-		var recorderType = typeof( MoviePropertyTrackRecorder<> ).MakeGenericType( target.TargetType );
-		var property = (IMovieTrackRecorderInternal)Activator.CreateInstance( recorderType, [this, name] )!;
+		IMovieTrackRecorderInternal property;
+
+		if ( target.Name == nameof( GameObject.Enabled ) && target.TargetType == typeof( bool ) && this is MovieGameObjectTrackRecorder or IMovieComponentTrackRecorder )
+		{
+			// Enabled tracks have their own special behaviour, so get special recorders.
+
+			property = new MovieEnabledPropertyTrackRecorder( this );
+		}
+		else
+		{
+			var recorderType = typeof( MoviePropertyTrackRecorder<> ).MakeGenericType( target.TargetType );
+			property = (IMovieTrackRecorderInternal)Activator.CreateInstance( recorderType, this, name )!;
+		}
 
 		AddChild( property );
 
@@ -168,9 +188,9 @@ internal abstract class MovieTrackRecorder<TTrack, TTarget> : IMovieTrackRecorde
 			return children;
 		}
 
-		if ( ReferenceEquals( compiled, Track ) && children.Length == 0 )
+		if ( ReferenceEquals( compiled, Track ) && children.Length == 0 && !_isReferenced )
 		{
-			// This track and its children have no data for this time range
+			// This track and its children have no data for this time range, and nothing references it
 
 			return [];
 		}
@@ -179,501 +199,4 @@ internal abstract class MovieTrackRecorder<TTrack, TTarget> : IMovieTrackRecorde
 	}
 
 	ICompiledTrack IMovieTrackRecorderInternal.Track => Track;
-}
-
-internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<CompiledReferenceTrack<GameObject>, ITrackReference<GameObject>>
-{
-	private bool _firstCapture = true;
-	private TrackBinder? _prefabSourceBinder;
-	private readonly string _rootName;
-
-	public override TrackBinder? PrefabSourceBinder => _prefabSourceBinder ?? base.PrefabSourceBinder;
-
-	public MovieGameObjectTrackRecorder( MovieRecorder recorder, CompiledReferenceTrack<GameObject> track )
-		: base( recorder, null, track )
-	{
-		_rootName = GetRootName();
-	}
-
-	public MovieGameObjectTrackRecorder( MovieGameObjectTrackRecorder parent, CompiledReferenceTrack<GameObject> track )
-		: base( parent.MovieRecorder, parent, track )
-	{
-		_rootName = GetRootName();
-	}
-
-	private string GetRootName()
-	{
-		var name = Track.Name;
-
-		if ( name.Length < 4 ) return name;
-		if ( name[^1] != ')' ) return name;
-
-		var bracketIndex = name.LastIndexOf( '(' );
-
-		if ( bracketIndex < 2 ) return name;
-		if ( name[bracketIndex - 1] != ' ' ) return name;
-
-		var indexSpan = name.AsSpan( bracketIndex + 1, name.Length - bracketIndex - 2 );
-
-		if ( !int.TryParse( indexSpan, out _ ) ) return name;
-
-		return name.Substring( 0, bracketIndex - 1 );
-	}
-
-	private bool MatchesRootName( string name )
-	{
-		if ( name == _rootName ) return true;
-
-		if ( name.Length < 4 ) return false;
-		if ( name[^1] != ')' ) return false;
-
-		var bracketIndex = name.LastIndexOf( '(' );
-
-		if ( bracketIndex < 2 ) return false;
-		if ( name[bracketIndex - 1] != ' ' ) return false;
-
-		return name.AsSpan( 0, bracketIndex - 1 ).Equals( _rootName, StringComparison.Ordinal );
-	}
-
-	public bool CanTarget( GameObject gameObject, string? trackName )
-	{
-		if ( Target.IsBound )
-		{
-			return Target.Value == gameObject;
-		}
-
-		var prefabSource = gameObject.IsPrefabInstanceRoot ? gameObject.PrefabInstanceSource : null;
-
-		return Track.Metadata?.PrefabSource == prefabSource && MatchesRootName( trackName ?? gameObject.Name );
-	}
-
-	public MovieGameObjectTrackRecorder Child( IReferenceTrack<GameObject> track )
-	{
-		Assert.AreEqual( Track.Id, track.Parent?.Id, "Expecting the given track to be a child of this recorder's track." );
-
-		var recorder = Children
-			.OfType<MovieGameObjectTrackRecorder>()
-			.FirstOrDefault( x => x.Track.Id == track.Id );
-
-		if ( recorder is not null ) return recorder;
-
-		var compiledTrack = Track.GameObject( track.Name, track.Id, track.Metadata );
-
-		recorder = new MovieGameObjectTrackRecorder( this, compiledTrack );
-
-		AddChild( recorder );
-
-		return recorder;
-	}
-
-	public MovieGameObjectTrackRecorder Child( GameObject gameObject, string? trackName = null )
-	{
-		Assert.True( gameObject.Parent == Target.Value );
-
-		// Look for a recorder that currently targets this object, or is unbound and can target it
-
-		var recorder = Children
-			.OfType<MovieGameObjectTrackRecorder>()
-			.FirstOrDefault( x => x.CanTarget( gameObject, trackName ) );
-
-		if ( recorder is null )
-		{
-			// Create a new child recorder for this GameObject
-
-			var metadata = new TrackMetadata(
-				ReferenceId: gameObject.Id,
-				PrefabSource: gameObject.IsPrefabInstanceRoot ? gameObject.PrefabInstanceSource : null,
-				Order: 1_000 + Children.OfType<MovieGameObjectTrackRecorder>().Count() );
-
-			var track = Track.GameObject( trackName ?? gameObject.Name, metadata: metadata );
-
-			recorder = new MovieGameObjectTrackRecorder( this, track );
-
-			AddChild( recorder );
-		}
-
-		recorder.Target.Bind( gameObject );
-
-		return recorder;
-	}
-
-	public IMovieComponentTrackRecorder Component( IReferenceTrack track )
-	{
-		Assert.AreEqual( Track.Id, track.Parent?.Id, "Expecting the given track to be a child of this recorder's track." );
-		Assert.True( track.TargetType.IsAssignableTo( typeof( Component ) ), "Expected track to be a component type." );
-
-		var recorder = Children
-			.OfType<IMovieComponentTrackRecorder>()
-			.FirstOrDefault( x => x.Track is ICompiledReferenceTrack { Id: var id } && id == track.Id );
-
-		if ( recorder is not null ) return recorder;
-
-		var compiledTrack = Track.Component( track.TargetType, track.Id, track.Metadata );
-		var recorderType = typeof( MovieComponentTrackRecorder<> ).MakeGenericType( track.TargetType );
-
-		recorder = (IMovieComponentTrackRecorder)Activator.CreateInstance( recorderType, [this, compiledTrack] )!;
-
-		AddChild( recorder );
-
-		return recorder;
-	}
-
-	public IMovieComponentTrackRecorder Component( Component component )
-	{
-		Assert.True( component.GameObject == Target.Value );
-
-		// Look for a recorder that currently targets this component, or is unbound and can target it
-
-		var recorder = Children
-			.OfType<IMovieComponentTrackRecorder>()
-			.FirstOrDefault( x => x.CanTarget( component ) );
-
-		if ( recorder is null )
-		{
-			// Create a new recorder for this Component
-
-			var track = Track.Component( component.GetType(), metadata: new TrackMetadata( ReferenceId: component.Id ) );
-			var recorderType = typeof( MovieComponentTrackRecorder<> ).MakeGenericType( component.GetType() );
-
-			recorder = (IMovieComponentTrackRecorder)Activator.CreateInstance( recorderType, [this, track] )!;
-
-			AddChild( recorder );
-		}
-
-		recorder.Target.Bind( component );
-
-		return recorder;
-	}
-
-	protected override void OnCapture()
-	{
-		// Bones are animation controlled, don't need to record the transform
-
-		if ( Target.Value is not { IsValid: true } gameObject ) return;
-
-		if ( _firstCapture )
-		{
-			_firstCapture = false;
-			FindPrefabSource( gameObject );
-		}
-
-		// Need to always record ancestors for transform to be correct
-
-		Parent?.Capture();
-
-		if ( (gameObject.Flags & (GameObjectFlags.Bone | GameObjectFlags.PhysicsBone)) != 0 ) return;
-
-		Property( nameof( GameObject.Enabled ) ).Capture();
-		Property( nameof( GameObject.Parent ) ).Capture();
-		Property( nameof( GameObject.LocalPosition ) ).Capture();
-		Property( nameof( GameObject.LocalRotation ) ).Capture();
-		Property( nameof( GameObject.LocalScale ) ).Capture();
-		Property( nameof( GameObject.Tags ) ).Capture( gameObject.Tags );
-		Property( nameof( GameObject.Flags ) ).Property( nameof( GameObjectFlags.Absolute ) ).Capture();
-	}
-
-	protected override void OnSkip()
-	{
-		Parent?.Capture();
-
-		Property( nameof( GameObject.Enabled ) ).Capture();
-	}
-
-	private void FindPrefabSource( GameObject gameObject )
-	{
-		if ( !gameObject.IsPrefabInstanceRoot ) return;
-		if ( GameObject.GetPrefab( gameObject.PrefabInstanceSource ) is not Scene prefabScene ) return;
-
-		// TODO: does this work okay for nested prefabs?
-
-		_prefabSourceBinder = new TrackBinder( prefabScene );
-		_prefabSourceBinder.Get( Track ).Bind( prefabScene );
-	}
-}
-
-internal interface IMovieComponentTrackRecorder : IMovieTrackRecorderInternal
-{
-	ITrackReference Target { get; }
-
-	bool CanTarget( Component component );
-}
-
-internal sealed class MovieComponentTrackRecorder<T> : MovieTrackRecorder<CompiledReferenceTrack<T>, ITrackReference<T>>, IMovieComponentTrackRecorder
-	where T : Component
-{
-	private readonly IReadOnlyList<IComponentCapturer> _captureHandlers;
-
-	public MovieComponentTrackRecorder( MovieGameObjectTrackRecorder parent, CompiledReferenceTrack<T> track )
-		: base( parent.MovieRecorder, parent, track )
-	{
-		_captureHandlers = MovieRecorder.GetCapturers<T>();
-	}
-
-	protected override void OnCapture()
-	{
-		if ( Target.Value is not { IsValid: true } component ) return;
-
-		// Record containing GameObject's transform
-
-		Parent!.Capture();
-
-		Property( nameof( Component.Enabled ) ).Capture();
-
-		// IComponentCapturer implementations decide which properties get recorded
-
-		foreach ( var recorder in _captureHandlers )
-		{
-			recorder.Capture( this, component );
-		}
-	}
-
-	protected override void OnSkip()
-	{
-		Parent!.Capture();
-
-		Property( nameof( Component.Enabled ) ).Capture();
-	}
-
-	ITrackReference IMovieComponentTrackRecorder.Target => Target;
-
-	bool IMovieComponentTrackRecorder.CanTarget( Component component )
-	{
-		return Target.IsBound ? Target.Value == component : Target.TargetType == component.GetType();
-	}
-}
-
-internal sealed class MoviePropertyTrackRecorder<T> : MovieTrackRecorder<CompiledPropertyTrack<T>, ITrackProperty<T>>
-{
-	private static readonly bool MustUseConstantBlocks = typeof( T ).IsAssignableTo( typeof( Resource ) ) || BindingReference.GetUnderlyingType( typeof( T ) ) is not null;
-	private static readonly MovieTime MinimumConstantBlockDuration = MustUseConstantBlocks ? MovieTime.Zero : 1d;
-
-	private readonly List<ICompiledPropertyBlock<T>> _blocks = new();
-	private readonly PropertyBlockWriter<T> _writer;
-
-	private MovieTime? _startTime;
-	private MovieTime _elapsed;
-
-	private MovieTime _sampleTime;
-	private readonly MovieTime _sampleInterval;
-
-	private T _lastValue = default!;
-
-	private readonly bool _isEnabledTrack;
-	private bool _isDefaultValue;
-	private T _defaultValue = default!;
-
-	public override IEnumerable<IPropertyBlock> Blocks => _isDefaultValue ? [] : _writer.IsEmpty ? _blocks : [.. _blocks, _writer];
-
-	public MoviePropertyTrackRecorder( IMovieTrackRecorderInternal parent, string name )
-		: base( parent.MovieRecorder, parent, parent.Track.Property<T>( name ) )
-	{
-		_sampleInterval = MovieTime.FromFrames( 1, MovieRecorder.Options.SampleRate );
-		_writer = new PropertyBlockWriter<T>( MovieRecorder.Options.SampleRate, MovieRecorder.Options.BufferDuration );
-
-		_isEnabledTrack = Name == nameof( GameObject.Enabled ) && typeof( T ) == typeof( bool ) && Parent is MovieGameObjectTrackRecorder or IMovieComponentTrackRecorder;
-	}
-
-	protected override void OnCapture()
-	{
-		if ( Target is IBindingReferenceProperty referenceProperty )
-		{
-			// Capture the actual referenced instance, to make sure we have a track for it
-
-			MovieRecorder.GetTrackRecorder( referenceProperty.InnerValue )?.Capture();
-		}
-
-		if ( _startTime is null )
-		{
-			// First capture
-
-			_startTime = _elapsed = MovieRecorder.Time;
-			_writer.NextTime = _sampleTime = _elapsed.Floor( _sampleInterval );
-
-			FindDefaultValue();
-		}
-
-		_elapsed = MovieRecorder.Time;
-
-		// If we didn't capture last frame, end the block
-
-		if ( _sampleTime <= MovieRecorder.LastCaptureTime )
-		{
-			FinishBlock();
-			_writer.NextTime = _sampleTime = _elapsed.Floor( _sampleInterval );
-		}
-
-		while ( _sampleTime <= _elapsed )
-		{
-			CaptureSample();
-			_sampleTime += _sampleInterval;
-		}
-	}
-
-	protected override void OnSkip()
-	{
-		// Make sure we handle Enable tracks becoming false when skipping
-
-		if ( _isEnabledTrack && _isDefaultValue && Target.Value is false )
-		{
-			_isDefaultValue = false;
-		}
-
-		// If target isn't bound or is disabled, end the last block
-
-		FinishBlock();
-	}
-
-	/// <summary>
-	/// We use Enabled to represent objects / components being destroyed / created,
-	/// so we always include it for normal objects. We don't need to do that for map
-	/// objects, or objects flagged with <see cref="GameObjectFlags.DontDestroyOnLoad"/>
-	/// / <see cref="GameObjectFlags.Static"/>.
-	/// </summary>
-	private static bool AlwaysIncludeEnabledTrack( IMovieTrackRecorder parentRecorder )
-	{
-		if ( parentRecorder is MovieGameObjectTrackRecorder goRecorder )
-		{
-			return AlwaysIncludeEnabledTrack( goRecorder.Target.Value );
-		}
-
-		if ( parentRecorder is IMovieComponentTrackRecorder cmpRecorder )
-		{
-			return AlwaysIncludeEnabledTrack( ((Component?)cmpRecorder.Target.Value)?.GameObject );
-		}
-
-		return true;
-	}
-
-	private static bool AlwaysIncludeEnabledTrack( GameObject? go )
-	{
-		if ( go is null ) return true;
-
-		if ( (go.Flags & GameObjectFlags.Static) != 0 ) return false;
-		if ( (go.Flags & GameObjectFlags.DontDestroyOnLoad) != 0 ) return false;
-		if ( go.GetComponentInParent<MapInstance>() is not null ) return false;
-
-		return true;
-	}
-
-	private void FindDefaultValue()
-	{
-		// GameObject/Component.Enabled should always be recorded, since we use it to show or hide objects
-
-		if ( _isEnabledTrack )
-		{
-			if ( AlwaysIncludeEnabledTrack( Parent! ) )
-			{
-				_isDefaultValue = false;
-				return;
-			}
-
-			_isDefaultValue = true;
-			_defaultValue = (T)(object)true;
-			return;
-		}
-
-		// GameObject.Parent special case: default to the parent-parent track's ID
-
-		if ( Name == nameof( GameObject.Parent ) && Parent is MovieGameObjectTrackRecorder && typeof( T ) == typeof( BindingReference<GameObject> ) )
-		{
-			// Track.Parent is the GameObject, Track.Parent.Parent is the GameObject's parent
-
-			BindingReference<GameObject> defaultValue = (Track.Parent.Parent as ICompiledReferenceTrack)?.Id;
-
-			_isDefaultValue = true;
-			_defaultValue = (T)(object)defaultValue;
-			return;
-		}
-
-		// Default value is whatever the source prefab has for this property
-
-		if ( PrefabSourceBinder is not { } binder ) return;
-		if ( binder.Get( Track ) is not { IsBound: true } target ) return;
-
-		_isDefaultValue = true;
-		_defaultValue = target.Value;
-	}
-
-	private bool ShouldFinishBlockEarly( T nextValue )
-	{
-		return _writer is { IsEmpty: false, IsConstant: true }
-			&& Interpolator is null
-			&& _writer.TimeRange.Duration >= MinimumConstantBlockDuration
-			&& !Comparer.Equals( _lastValue, nextValue );
-	}
-
-	private void CaptureSample()
-	{
-		var nextValue = Target.Value;
-
-		if ( ShouldFinishBlockEarly( nextValue ) )
-		{
-			FinishBlock();
-		}
-
-		if ( _writer.IsEmpty )
-		{
-			_writer.NextTime = _sampleTime;
-		}
-
-		_writer.Write( nextValue );
-		_lastValue = nextValue;
-
-		if ( _isDefaultValue )
-		{
-			_isDefaultValue = Comparer.Equals( _defaultValue, nextValue );
-		}
-
-		if ( !_isDefaultValue )
-		{
-			MovieRecorder.PropertyCaptured( this );
-		}
-	}
-
-	private void FinishBlock()
-	{
-		if ( _writer.IsEmpty ) return;
-
-		// Make sure the generated block is clamped after _startTime
-
-		var clampedTimeRange = new MovieTimeRange( _startTime!.Value, _sampleTime );
-
-		_blocks.Add( _writer.Compile( clampedTimeRange ) );
-
-		// If we're doing a rolling buffer, can discard blocks that fell outside that window
-
-		if ( MovieRecorder.Options.BufferDuration is { } bufferDuration )
-		{
-			while ( _blocks.Count > 0 && _blocks[0].TimeRange.End <= _sampleTime - bufferDuration )
-			{
-				_blocks.RemoveAt( 0 );
-			}
-		}
-
-		_writer.Clear();
-	}
-
-	private ImmutableArray<ICompiledPropertyBlock<T>> ToBlocks( MovieTimeRange timeRange )
-	{
-		FinishBlock();
-
-		return
-		[
-			.. _blocks
-				.Where( x => x.TimeRange.Intersect( timeRange ) is { IsEmpty: false } )
-				.Select( x => x.Clamp( timeRange ).Shift( -timeRange.Start ) )
-		];
-	}
-
-	protected override ICompiledPropertyTrack? OnCompile( MovieTimeRange timeRange )
-	{
-		if ( _isDefaultValue ) return null;
-		if ( _blocks.Count == 0 && _writer.IsEmpty ) return null;
-		if ( ToBlocks( timeRange ) is not { Length: > 0 } blocks ) return null;
-
-		return Track with { Blocks = blocks };
-	}
-
-	private static IInterpolator<T>? Interpolator { get; } = MovieMaker.Interpolator.GetDefault<T>();
-	private static EqualityComparer<T> Comparer { get; } = EqualityComparer<T>.Default;
 }

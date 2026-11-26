@@ -55,18 +55,43 @@ public interface ITrack
 }
 
 /// <summary>
+/// Flags describing a reference track, stored in <see cref="TrackMetadata.Flags"/>.
+/// </summary>
+[Flags]
+public enum TrackFlags
+{
+	None = 0,
+
+	/// <summary>
+	/// On a <see cref="GameObject"/> track, the original target object was loaded by a <see cref="MapInstance"/>. These
+	/// objects aren't created when playing a movie, since the map will create them.
+	/// On a <see cref="MapInstance"/> track, the objects its map loaded were recorded with this flag. Without it,
+	/// nothing inside the map instance's object is created when playing a movie, since we can't tell which objects
+	/// the map will create.
+	/// </summary>
+	MapObject = 1
+}
+
+/// <summary>
 /// Additional information used when editing or animating reference tracks.
 /// </summary>
 /// <param name="ReferenceId">ID of the <see cref="Component"/> or <see cref="GameObject"/> this track was created to target.</param>
 /// <param name="PrefabSource">For <see cref="GameObject"/> tracks, the prefab path that the original target object was instantiated from.</param>
 /// <param name="Order">Sorting order for serialization / in the movie editor.</param>
+/// <param name="FallbackType">Engine type to use in case <see cref="ITrack.TargetType"/> doesn't exist.</param>
+/// <param name="Flags">Extra information about the track, see <see cref="TrackFlags"/>.</param>
 public sealed record TrackMetadata(
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
 	Guid? ReferenceId = null,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
 	string? PrefabSource = null,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
-	int Order = 0 );
+	int Order = 0,
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
+	[property: JsonConverter( typeof( Compiled.OptionalTypeConverter ) )]
+	Type? FallbackType = null,
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
+	TrackFlags Flags = TrackFlags.None );
 
 /// <summary>
 /// Maps to an <see cref="ITrackReference"/> in a scene, which binds to a <see cref="GameObject"/>

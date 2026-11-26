@@ -81,8 +81,17 @@ public class MotionToAnimParams : BlendModification
 
 			var compiledRootTrack = MovieClip.RootGameObject( rootTrack.Name, rootTrack.Id );
 			var compiledRendererTrack = compiledRootTrack.Component<SkinnedModelRenderer>( rendererTrack.Id );
+
+			// Legacy AnimGraph1 renderers don't have an Animation.Graph
+
+			var renderer = (localPosTrackView.Parent!.Target.Value as GameObject)?.GetComponent<SkinnedModelRenderer>();
+
 #pragma warning disable CS0618
-			var compiledParamsTrack = compiledRendererTrack.Property<SkinnedModelRenderer.ParameterAccessor>( nameof( SkinnedModelRenderer.Parameters ) );
+			ICompiledTrack compiledParamsTrack = renderer is { Animation.Graph: null }
+				? compiledRendererTrack.Property<SkinnedModelRenderer.ParameterAccessor>( nameof( SkinnedModelRenderer.Parameters ) )
+				: compiledRendererTrack
+					.Property<Sandbox.Animation.AnimationAccessor>( nameof( SkinnedModelRenderer.Animation ) )
+					.Property<Sandbox.Animation.GraphParameters>( nameof( Sandbox.Animation.AnimationAccessor.Parameters ) );
 #pragma warning restore CS0618
 
 			compiledTracks.Add( compiledParamsTrack.Property<float>( "move_x" )

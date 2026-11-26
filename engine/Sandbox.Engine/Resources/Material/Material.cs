@@ -22,6 +22,12 @@ public sealed partial class Material : Resource
 	public RenderAttributes Attributes { get; internal set; }
 
 	/// <summary>
+	/// Made with <see cref="Create(string, string, bool)"/> or <see cref="CreateCopy"/> rather than loaded, so a
+	/// reference to it can't be saved and loaded again.
+	/// </summary>
+	internal bool IsRuntime { get; private set; }
+
+	/// <summary>
 	/// Private constructor, use <see cref="FromNative(IMaterial, string)"/>
 	/// </summary>
 	/// <param name="native"></param>
@@ -71,6 +77,7 @@ public sealed partial class Material : Resource
 		if ( copy is not null )
 		{
 			copy.anonymousShader = anonymousShader;
+			copy.IsRuntime = true;
 			// The native copy merges raw buffer pointers, so the copy needs its own bindings
 			Attributes?.MergeUsedBuffersTo( copy.Attributes );
 		}

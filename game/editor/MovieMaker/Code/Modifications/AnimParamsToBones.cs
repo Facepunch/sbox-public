@@ -1,5 +1,6 @@
 ﻿using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
+using Sandbox.MovieMaker.Properties;
 using System.Linq;
 
 namespace Editor.MovieMaker;
@@ -30,13 +31,16 @@ public class AnimParamsToBones : BlendModification
 			var compiledRootTrack = MovieClip.RootGameObject( rendererTrackView.Name, rendererTrackView.Parent!.Track.Id );
 			var compiledRendererTrack = compiledRootTrack.Component<SkinnedModelRenderer>( rendererTrackView.Track.Id );
 
-#pragma warning disable CS0618
-			var animParamTracks = rendererTrackView.Find( nameof( SkinnedModelRenderer.Parameters ) )
-				?.Children
+			var animParamTracks = rendererTrackView.GetAnimParamTracks()
 				.Select( x => x.Track )
 				.OfType<IProjectPropertyTrack>()
-				.ToArray() ?? [];
-#pragma warning restore CS0618
+				.ToArray();
+
+			var graph = renderer.Animation.Graph;
+
+			// Trigger tracks are true for as long as a pulse was pending, so only trigger when one becomes true
+
+			var activeTriggers = new HashSet<string>();
 
 			var options = new BakeAnimationsOptions(
 				SampleRate: EditMode.Project.SampleRate,
@@ -46,11 +50,18 @@ public class AnimParamsToBones : BlendModification
 				{
 					model.UseAnimGraph = true;
 
-					ApplyAnimParamTracks( animParamTracks, model, timeRange.Start );
+					// Bake with the renderer's graph, it might not be the model's default
+
+					if ( graph is not null )
+					{
+						model.Animation.Graph = graph;
+					}
+
+					ApplyAnimParamTracks( animParamTracks, activeTriggers, model, timeRange.Start );
 				},
 				OnUpdate: ( model, _, time ) =>
 				{
-					ApplyAnimParamTracks( animParamTracks, model, timeRange.Start + time );
+					ApplyAnimParamTracks( animParamTracks, activeTriggers, model, timeRange.Start + time );
 				}
 			);
 
@@ -62,18 +73,53 @@ public class AnimParamsToBones : BlendModification
 		SetFromTracks( compiledTracks, timeRange, MovieTime.Zero, isAdditive: false );
 	}
 
-	private void ApplyAnimParamTracks( IEnumerable<IProjectPropertyTrack> tracks, SceneModel model, MovieTime time )
+	private void ApplyAnimParamTracks( IEnumerable<IProjectPropertyTrack> tracks, HashSet<string> activeTriggers, SceneModel model, MovieTime time )
 	{
+		var parameters = model.Animation.Parameters;
+
 		foreach ( var track in tracks )
 		{
-			if ( track is ProjectPropertyTrack<float> floatTrack && floatTrack.TryGetValue( time, out var value ) )
+			if ( track.Parent?.TargetType == typeof( GraphTriggerAccessor ) )
+			{
+				if ( track is not ProjectPropertyTrack<bool> triggerTrack ) continue;
+
+				if ( triggerTrack.TryGetValue( time, out var isPending ) && isPending )
+				{
+					if ( activeTriggers.Add( track.Name ) )
+					{
+						parameters.TryTrigger( track.Name );
+					}
+				}
+				else
+				{
+					activeTriggers.Remove( track.Name );
+				}
+
+				continue;
+			}
+
+			if ( track.Parent?.TargetType == typeof( Sandbox.Animation.GraphParameters ) )
+			{
+				_ = track switch
+				{
+					ProjectPropertyTrack<bool> boolTrack when boolTrack.TryGetValue( time, out var value ) => parameters.TrySet( track.Name, value ),
+					ProjectPropertyTrack<float> floatTrack when floatTrack.TryGetValue( time, out var value ) => parameters.TrySet( track.Name, value ),
+					ProjectPropertyTrack<Vector3> vectorTrack when vectorTrack.TryGetValue( time, out var value ) => parameters.TrySet( track.Name, value ),
+					ProjectPropertyTrack<string> stringTrack when stringTrack.TryGetValue( time, out var value ) => parameters.TrySet( track.Name, value ?? "" ),
+					_ => false
+				};
+
+				continue;
+			}
+
+			if ( track is ProjectPropertyTrack<float> floatTrack2 && floatTrack2.TryGetValue( time, out var legacyValue ) )
 			{
 #pragma warning disable CS0618
-				model.SetAnimParameter( track.Name, value );
+				model.SetAnimParameter( track.Name, legacyValue );
 #pragma warning restore CS0618
 			}
 
-			// TODO: other types
+			// TODO: other legacy types
 		}
 	}
 }

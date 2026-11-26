@@ -73,6 +73,12 @@ public sealed partial class GraphParameters : IJsonPopulator
 	public bool TryTrigger( string name )
 		=> TryGetController( name, out var controller ) && controller.TriggerParamBool( name );
 
+	/// <summary>
+	/// Is a pulse queued with <see cref="Trigger"/> waiting for the next live graph evaluation?
+	/// </summary>
+	internal bool IsTriggerPending( string name )
+		=> TryGetController( name, out var controller ) && controller.IsParamBoolTriggerPending( name );
+
 	public bool TrySet( string name, float value )
 		=> TryGetController( name, out var controller ) && controller.SetParamFloat( name, value );
 

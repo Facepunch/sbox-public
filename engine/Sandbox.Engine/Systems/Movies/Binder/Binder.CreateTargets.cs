@@ -28,7 +28,7 @@ partial class TrackBinder
 		var allTracks = tracks
 			.OrderBy( x => x.GetDepth() )
 			.ThenBy( x => x.Id )
-			.WithoutMapInstanceChildren()
+			.WithoutMapObjects()
 			.ToArray();
 
 		var children = allTracks
@@ -164,32 +164,37 @@ file static class ReferenceTrackExtensions
 {
 	extension( IEnumerable<IReferenceTrack> refTracks )
 	{
-		public IEnumerable<IReferenceTrack> WithoutMapInstanceChildren()
+		/// <summary>
+		/// Skip tracks for objects that a <see cref="MapInstance"/> will create when it loads, along with
+		/// everything inside them. Objects created at runtime and parented to the map instance's object
+		/// are still included.
+		/// </summary>
+		/// <remarks>
+		/// Only map instances whose track has <see cref="TrackFlags.MapObject"/> were recorded with it on the objects
+		/// they created. For the others, like movies recorded before it existed, or legacy maps whose entities don't
+		/// get it, we can't tell which objects the map creates, so skip everything inside them.
+		/// </remarks>
+		public IEnumerable<IReferenceTrack> WithoutMapObjects()
 		{
 			// Note: We're assuming we've ordered by depth, and we're assuming all
 			// ancestors of tracks are included in the enumerable
 
 			var refTrackArray = refTracks.ToArray();
-			var insideMapInstance = new HashSet<IReferenceTrack>();
 
-			// First pass: tag parents of IReferenceTrack<MapInstance>
+			var untaggedMapObjects = refTrackArray
+				.OfType<IReferenceTrack<MapInstance>>()
+				.Where( x => !x.HasFlag( TrackFlags.MapObject ) )
+				.Select( x => x.Parent )
+				.OfType<IReferenceTrack>()
+				.ToHashSet();
 
-			foreach ( var track in refTrackArray.OfType<IReferenceTrack<MapInstance>>() )
-			{
-				if ( track.Parent is { } parent )
-				{
-					insideMapInstance.Add( parent );
-				}
-			}
-
-			// Now we can propagate this tag to children
-			// We still want to yield any MapInstance, just not its children
+			var skipped = new HashSet<IReferenceTrack>();
 
 			foreach ( var track in refTrackArray )
 			{
-				if ( track is not IReferenceTrack<MapInstance> && track.Parent is { } parent && insideMapInstance.Contains( parent ) )
+				if ( IsMapCreated( track, untaggedMapObjects, skipped ) )
 				{
-					insideMapInstance.Add( track );
+					skipped.Add( track );
 					continue;
 				}
 
@@ -197,4 +202,19 @@ file static class ReferenceTrackExtensions
 			}
 		}
 	}
+
+	private static bool IsMapCreated( IReferenceTrack track, HashSet<IReferenceTrack> untaggedMapObjects, HashSet<IReferenceTrack> skipped )
+	{
+		if ( track.Parent is { } parent && skipped.Contains( parent ) ) return true;
+
+		// On a map instance, the flag means the objects it loaded have the flag, not that the map created it
+
+		if ( track is IReferenceTrack<MapInstance> ) return false;
+		if ( track is IReferenceTrack<GameObject> && track.HasFlag( TrackFlags.MapObject ) ) return true;
+
+		return track.Parent is { } untagged && untaggedMapObjects.Contains( untagged );
+	}
+
+	private static bool HasFlag( this IReferenceTrack track, TrackFlags flag ) =>
+		((track.Metadata?.Flags ?? TrackFlags.None) & flag) != 0;
 }

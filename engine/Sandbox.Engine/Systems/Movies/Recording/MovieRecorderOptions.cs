@@ -147,10 +147,17 @@ public sealed record MovieRecorderOptions(
 			.WithCaptureAll<CubemapFog>()
 #pragma warning restore CS0618
 			.WithCaptureAll<VolumetricFogVolume>()
+			.WithCaptureAll<AmbientOcclusion>()
+			.WithCaptureAll<Vignette>()
+			.WithCaptureAll<Tonemapping>()
+			.WithCaptureAll<Bloom>()
 			.WithCaptureAll<SkyBox2D>()
 			.WithCaptureAll<ParticleEffect>()
 			.WithCaptureAll<ParticleEmitter>()
+			.WithCaptureAll<Decal>()
 			.WithCaptureAll<BeamEffect>()
+			.WithCaptureAll<HighlightOutline>()
+			.WithCaptureAll<Highlight>()
 			.WithCaptureAll<SoundPointComponent>();
 	}
 

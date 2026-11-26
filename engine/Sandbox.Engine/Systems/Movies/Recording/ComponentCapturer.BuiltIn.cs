@@ -55,7 +55,7 @@ file sealed class ModelRendererCapturer : ComponentCapturer<ModelRenderer>
 	{
 		recorder.Property( nameof( ModelRenderer.Model ) ).Capture();
 		recorder.Property( nameof( ModelRenderer.Tint ) ).Capture();
-		recorder.Property( nameof( ModelRenderer.MaterialOverride ) ).Capture();
+		recorder.Property( nameof( ModelRenderer.MaterialOverride ) ).Capture( component.MaterialOverride );
 		recorder.Property( nameof( ModelRenderer.RenderType ) ).Capture();
 
 		if ( component.HasBodyGroups )
@@ -75,6 +75,8 @@ file sealed class SkinnedModelRendererCapturer : ComponentCapturer<SkinnedModelR
 
 		if ( component.BoneMergeTarget is not null ) return;
 
+		CaptureProceduralBones( recorder, component );
+
 		recorder.Property( nameof( SkinnedModelRenderer.UseAnimGraph ) ).Capture();
 
 		var sceneModel = component.SceneModel;
@@ -82,6 +84,8 @@ file sealed class SkinnedModelRendererCapturer : ComponentCapturer<SkinnedModelR
 		if ( sceneModel.IsValid() && sceneModel.HasBoneOverrides() )
 		{
 			if ( component.Model is not { } model ) return;
+
+			// Record bones if HasBoneOverrides
 
 			var bonesTrack = recorder.Property( "Bones" );
 
@@ -92,8 +96,32 @@ file sealed class SkinnedModelRendererCapturer : ComponentCapturer<SkinnedModelR
 				bonesTrack.Property( boneName ).Capture();
 			}
 		}
+		else if ( component is { UseAnimGraph: true, Animation: { IsValid: true, Graph: { Parameters.Count: > 0 } graph2 } animation } )
+		{
+			// Record Animation.Parameters if using AG2
+
+			var parametersTrack = recorder
+				.Property( nameof( SkinnedModelRenderer.Animation ) )
+				.Property( nameof( Sandbox.Animation.AnimationAccessor.Parameters ) );
+
+			foreach ( var parameter in graph2.Parameters )
+			{
+				// Targets can be unset, or follow a bone - neither of which a Transform track can play back
+
+				if ( parameter.Type == typeof( Transform ) ) continue;
+
+				if ( animation.Parameters.TryGetKind( parameter.Name, out _ ) )
+				{
+					parametersTrack.Property( parameter.Name ).Capture();
+				}
+			}
+
+			CaptureTriggers( recorder, graph2, animation.Parameters );
+		}
 		else if ( component.UseAnimGraph )
 		{
+			// Legacy AG fallback
+
 #pragma warning disable CS0618
 			if ( component.Parameters.Graph is not { } graph ) return;
 
@@ -118,6 +146,64 @@ file sealed class SkinnedModelRendererCapturer : ComponentCapturer<SkinnedModelR
 			sequenceTrack.Property( nameof( SkinnedModelRenderer.SequenceAccessor.PlaybackRate ) ).Capture();
 			sequenceTrack.Property( nameof( SkinnedModelRenderer.SequenceAccessor.Blending ) ).Capture();
 			sequenceTrack.Property( nameof( SkinnedModelRenderer.SequenceAccessor.Looping ) ).Capture();
+		}
+	}
+
+	/// <summary>
+	/// Bone objects posed by code, like a vehicle's wheels, are flagged with <see cref="GameObjectFlags.ProceduralBone"/>
+	/// and feed the model from their transforms. Record those transforms, since nothing else will pose them on playback.
+	/// </summary>
+	private static void CaptureProceduralBones( IMovieTrackRecorder recorder, SkinnedModelRenderer component )
+	{
+		if ( !component.CreateBoneObjects ) return;
+		if ( component.Model is not { } model ) return;
+		if ( recorder is not IMovieTrackRecorderInternal { MovieRecorder: { } movieRecorder } ) return;
+
+		foreach ( var bone in model.Bones.AllBones )
+		{
+			if ( component.GetBoneObject( bone ) is not { IsValid: true } boneObject ) continue;
+			if ( !boneObject.Flags.Contains( GameObjectFlags.ProceduralBone ) ) continue;
+
+			// Absolute bones are physics bones, which we don't record
+
+			if ( boneObject.Flags.Contains( GameObjectFlags.Absolute ) ) continue;
+
+			movieRecorder.GetTrackRecorder( boneObject )?.Capture();
+		}
+	}
+
+	/// <summary>
+	/// Trigger tracks that have seen a pulse. Most Bool parameters are never triggered, so we only start recording
+	/// a trigger track when it first fires, then keep recording it so the pulse ends.
+	/// </summary>
+	private static readonly ConditionalWeakTable<IMovieTrackRecorder, object> _firedTriggers = new();
+
+	/// <summary>
+	/// Records one-shot pulses queued with <see cref="Sandbox.Animation.GraphParameters.Trigger"/>, which don't change
+	/// the parameter's own value. We capture before the graph is evaluated, so pulses queued this frame are still pending.
+	/// </summary>
+	private static void CaptureTriggers( IMovieTrackRecorder recorder, Sandbox.Animation.Graph graph, Sandbox.Animation.GraphParameters parameters )
+	{
+		var triggersTrack = recorder
+			.Property( nameof( SkinnedModelRenderer.Animation ) )
+			.Property( GraphTriggerAccessor.PropertyName );
+
+		foreach ( var parameter in graph.Parameters )
+		{
+			if ( parameter.Type != typeof( bool ) ) continue;
+
+			var triggerTrack = triggersTrack.Property( parameter.Name );
+
+			if ( parameters.IsTriggerPending( parameter.Name ) )
+			{
+				_firedTriggers.TryAdd( triggerTrack, triggerTrack );
+			}
+			else if ( !_firedTriggers.TryGetValue( triggerTrack, out _ ) )
+			{
+				continue;
+			}
+
+			triggerTrack.Capture();
 		}
 	}
 }
@@ -329,6 +415,35 @@ file sealed class TemporaryEffectCapturer : ComponentCapturer<ITemporaryEffect>
 	protected override void OnCapture( IMovieTrackRecorder recorder, ITemporaryEffect component )
 	{
 		recorder.Property( nameof( ITemporaryEffect.IsActive ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class DecalCapturer : ComponentCapturer<Decal>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, Decal component )
+	{
+		// Decals pick a random seed when enabled, which decides which of Decals is used and where it lands in each
+		// random range below. We don't record it, so playback can pick a different variation.
+
+		recorder.Property( nameof( Decal.Decals ) ).Capture( component.Decals );
+		recorder.Property( nameof( Decal.LifeTime ) ).Capture();
+		recorder.Property( nameof( Decal.Looped ) ).Capture();
+		recorder.Property( nameof( Decal.Size ) ).Capture();
+		recorder.Property( nameof( Decal.Scale ) ).Capture();
+		recorder.Property( nameof( Decal.Rotation ) ).Capture();
+		recorder.Property( nameof( Decal.Depth ) ).Capture();
+		recorder.Property( nameof( Decal.Parallax ) ).Capture();
+		recorder.Property( nameof( Decal.ColorTint ) ).Capture();
+		recorder.Property( nameof( Decal.ColorMix ) ).Capture();
+		recorder.Property( nameof( Decal.AttenuationAngle ) ).Capture();
+		recorder.Property( nameof( Decal.SortLayer ) ).Capture();
+		recorder.Property( nameof( Decal.SheetSequence ) ).Capture();
+
+		if ( component.SheetSequence )
+		{
+			recorder.Property( nameof( Decal.SequenceId ) ).Capture();
+		}
 	}
 }
 
@@ -633,11 +748,72 @@ file sealed class VolumetricFogVolumeCapturer : ComponentCapturer<VolumetricFogV
 }
 
 [Expose]
+file sealed class AmbientOcclusionCapturer : ComponentCapturer<AmbientOcclusion>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, AmbientOcclusion component )
+	{
+		recorder.Property( nameof( AmbientOcclusion.Intensity ) ).Capture();
+		recorder.Property( nameof( AmbientOcclusion.Radius ) ).Capture();
+		recorder.Property( nameof( AmbientOcclusion.FalloffRange ) ).Capture();
+		recorder.Property( nameof( AmbientOcclusion.ThinCompensation ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class VignetteCapturer : ComponentCapturer<Vignette>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, Vignette component )
+	{
+		recorder.Property( nameof( Vignette.Color ) ).Capture();
+		recorder.Property( nameof( Vignette.Intensity ) ).Capture();
+		recorder.Property( nameof( Vignette.Smoothness ) ).Capture();
+		recorder.Property( nameof( Vignette.Roundness ) ).Capture();
+		recorder.Property( nameof( Vignette.Center ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class TonemappingCapturer : ComponentCapturer<Tonemapping>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, Tonemapping component )
+	{
+		recorder.Property( nameof( Tonemapping.Mode ) ).Capture();
+
+		if ( component.Mode == Tonemapping.TonemappingMode.HableFilmic )
+		{
+			recorder.Property( nameof( Tonemapping.ExposureMethod ) ).Capture();
+		}
+
+		recorder.Property( nameof( Tonemapping.AutoExposureEnabled ) ).Capture();
+
+		if ( component.AutoExposureEnabled )
+		{
+			recorder.Property( nameof( Tonemapping.MinimumExposure ) ).Capture();
+			recorder.Property( nameof( Tonemapping.MaximumExposure ) ).Capture();
+			recorder.Property( nameof( Tonemapping.ExposureCompensation ) ).Capture();
+			recorder.Property( nameof( Tonemapping.Rate ) ).Capture();
+		}
+	}
+}
+
+[Expose]
+file sealed class BloomCapturer : ComponentCapturer<Bloom>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, Bloom component )
+	{
+		recorder.Property( nameof( Bloom.Mode ) ).Capture();
+		recorder.Property( nameof( Bloom.Strength ) ).Capture();
+		recorder.Property( nameof( Bloom.Threshold ) ).Capture();
+		recorder.Property( nameof( Bloom.Tint ) ).Capture();
+	}
+}
+
+[Expose]
 file sealed class SkyBox2DCapturer : ComponentCapturer<SkyBox2D>
 {
 	protected override void OnCapture( IMovieTrackRecorder recorder, SkyBox2D component )
 	{
-		recorder.Property( nameof( SkyBox2D.SkyMaterial ) ).Capture();
+		recorder.Property( nameof( SkyBox2D.SkyMaterial ) ).Capture( component.SkyMaterial );
 		recorder.Property( nameof( SkyBox2D.Tint ) ).Capture();
 		recorder.Property( nameof( SkyBox2D.SkyIndirectLighting ) ).Capture();
 	}
@@ -663,7 +839,7 @@ file sealed class BeamEffectCapturer : ComponentCapturer<BeamEffect>
 		recorder.Property( nameof( BeamEffect.InitialBurst ) ).Capture();
 		recorder.Property( nameof( BeamEffect.BeamLifetime ) ).Capture();
 		recorder.Property( nameof( BeamEffect.Looped ) ).Capture();
-		recorder.Property( nameof( BeamEffect.Material ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Material ) ).Capture( component.Material );
 		recorder.Property( nameof( BeamEffect.TextureOffset ) ).Capture();
 		recorder.Property( nameof( BeamEffect.TextureScale ) ).Capture();
 		recorder.Property( nameof( BeamEffect.TextureScrollSpeed ) ).Capture();
@@ -686,8 +862,63 @@ file sealed class BeamEffectCapturer : ComponentCapturer<BeamEffect>
 	}
 }
 
+[Expose]
+file sealed class TracerEffectCapturer : ComponentCapturer<TracerEffect>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, TracerEffect component )
+	{
+		// The line's progress isn't a property: it restarts when the effect is enabled, and travels by itself
+
+		var endPointTrack = recorder.Property( nameof( TracerEffect.EndPoint ) );
+
+		endPointTrack.Property( nameof( SceneAnchor.Parent ) ).Capture();
+		endPointTrack.Property( nameof( SceneAnchor.LocalPosition ) ).Capture();
+
+		recorder.Property( nameof( TracerEffect.DistancePerSecond ) ).Capture();
+		recorder.Property( nameof( TracerEffect.Length ) ).Capture();
+		recorder.Property( nameof( TracerEffect.StartDistance ) ).Capture();
+
+		recorder.Property( nameof( TracerEffect.LineColor ) ).Capture();
+		recorder.Property( nameof( TracerEffect.LineWidth ) ).Capture();
+		recorder.Property( nameof( TracerEffect.StartCap ) ).Capture();
+		recorder.Property( nameof( TracerEffect.EndCap ) ).Capture();
+		recorder.Property( nameof( TracerEffect.Opaque ) ).Capture();
+		recorder.Property( nameof( TracerEffect.CastShadows ) ).Capture();
+		recorder.Property( nameof( TracerEffect.Material ) ).Capture( component.Material );
+
+		recorder.Property( nameof( TracerEffect.EnableLight ) ).Capture();
+
+		if ( component.EnableLight )
+		{
+			recorder.Property( nameof( TracerEffect.LightColor ) ).Capture();
+			recorder.Property( nameof( TracerEffect.LightRadius ) ).Capture();
+			recorder.Property( nameof( TracerEffect.LightPosition ) ).Capture();
+		}
+	}
+}
+
+[Expose]
+file sealed class HighlightOutlineCapturer : ComponentCapturer<HighlightOutline>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, HighlightOutline component )
+	{
+		recorder.Property( nameof( HighlightOutline.Material ) ).Capture( component.Material );
+		recorder.Property( nameof( HighlightOutline.Color ) ).Capture();
+		recorder.Property( nameof( HighlightOutline.ObscuredColor ) ).Capture();
+		recorder.Property( nameof( HighlightOutline.InsideColor ) ).Capture();
+		recorder.Property( nameof( HighlightOutline.InsideObscuredColor ) ).Capture();
+		recorder.Property( nameof( HighlightOutline.Width ) ).Capture();
+		recorder.Property( nameof( HighlightOutline.OverrideTargets ) ).Capture();
+
+		if ( component.OverrideTargets )
+		{
+			recorder.Property( nameof( HighlightOutline.Targets ) ).Capture( component.Targets );
+		}
+	}
+}
+
 /// <summary>
-/// Helpers for capturing collections. Ideally we'd have these happen automatically
+/// Helpers for capturing collections and materials. Ideally we'd have these happen automatically
 /// when <see cref="IMovieTrackRecorder.Capture"/> is called on a matching type eventually.
 /// </summary>
 internal static class CapturerExtensions
@@ -697,6 +928,29 @@ internal static class CapturerExtensions
 
 	extension( IMovieTrackRecorder recorder )
 	{
+		/// <summary>
+		/// Capture a <see cref="Material"/> property. Materials made at runtime, like with <see cref="Material.Create(string, string, bool)"/>
+		/// or <see cref="Material.CreateCopy"/>, can't be saved as a reference, so their shader is recorded instead and
+		/// playback makes a material from that. That material only has the shader's defaults: any parameters the original
+		/// material had, from <c>Material.Set</c> or a <see cref="Material.CreateCopy"/> source, aren't recorded.
+		/// </summary>
+		public void Capture( Material? material )
+		{
+			if ( material is { IsRuntime: true } )
+			{
+				recorder.Property( MaterialShaderProperty.PropertyName ).Capture();
+
+				// Playback replaces the material while the shader track plays. If the property goes back to its
+				// default later, we need the material track to restore it, even though it only ever saw the default.
+
+				(recorder as MoviePropertyTrackRecorder<Material>)?.KeepTrack();
+			}
+			else
+			{
+				recorder.Capture();
+			}
+		}
+
 		public void Capture( IList? collection )
 		{
 			if ( collection is null ) return;

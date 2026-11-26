@@ -42,8 +42,18 @@ public class BlendModification() : PerTrackModification<BlendOptions>( BlendOpti
 		};
 	}
 
-	public void SetFromMovieClip( MovieClip clip, MovieTimeRange timeRange, MovieTime offset, bool? isAdditive = null ) =>
+	public void SetFromMovieClip( MovieClip clip, MovieTimeRange timeRange, MovieTime offset, bool? isAdditive = null )
+	{
+		// Reference tracks with no properties of their own can still be referenced by a property, like
+		// SkinnedModelRenderer.BoneMergeTarget, so make sure they're in the project
+
+		foreach ( var referenceTrack in clip.Tracks.OfType<ICompiledReferenceTrack>() )
+		{
+			EditMode.Project.GetOrAddTrack( referenceTrack );
+		}
+
 		SetFromTracks( clip.Tracks.OfType<ICompiledPropertyTrack>(), timeRange, offset, isAdditive );
+	}
 
 	public void SetFromTracks( IEnumerable<ICompiledPropertyTrack> tracks, MovieTimeRange timeRange, MovieTime offset, bool? isAdditive = null )
 	{

@@ -44,6 +44,12 @@ public sealed partial class SkinnedModelRenderer
 		ApplyLegacyParameterToModel( v, value );
 	}
 
+	/// <inheritdoc cref="SceneModel.IsLegacyParameterAutoReset"/>
+	internal bool IsLegacyParameterAutoReset( string name )
+	{
+		return SceneModel.IsValid() && SceneModel.IsLegacyParameterAutoReset( name );
+	}
+
 	/// <summary>
 	/// Set an enum parameter by option name (e.g. Set( "holdtype", "pistol" )).
 	/// </summary>
@@ -267,6 +273,9 @@ public sealed partial class SkinnedModelRenderer
 		/// Do we have an override value for the named animation graph parameter?
 		/// </summary>
 		public bool Contains( string name ) => _renderer.ContainsLegacyParameter( name );
+
+		/// <inheritdoc cref="SceneModel.IsLegacyParameterAutoReset"/>
+		internal bool IsAutoReset( string name ) => _renderer.IsLegacyParameterAutoReset( name );
 
 		public bool GetBool( string v ) => _renderer.GetBool( v );
 		public int GetInt( string v ) => _renderer.GetInt( v );

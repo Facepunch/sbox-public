@@ -82,7 +82,8 @@ file enum TrackKind
 }
 
 [method: JsonConstructor]
-file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
+file sealed record TrackModel( TrackKind Kind, string Name,
+	[property: JsonConverter( typeof( OptionalTypeConverter ) )] Type? Type,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] Guid? Id,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] TrackMetadata? Metadata,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] ImmutableArray<TrackModel>? Children,
@@ -162,14 +163,18 @@ file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
 
 	private IEnumerable<ICompiledTrack> Deserialize( ICompiledTrack? parent, JsonSerializerOptions? options )
 	{
-		if ( (Type?)Type is null ) return [];
+		if ( GetTargetType() is not { } type )
+		{
+			Log.Warning( $"Unable to find type of movie track \"{Name}\", skipping it." );
+			return [];
+		}
 
 		var track = Kind switch
 		{
-			TrackKind.Reference => DeserializeReferenceTrack( parent, options ),
-			TrackKind.Action => new CompiledActionTrack( Name, Type, parent!, ImmutableArray<CompiledActionBlock>.Empty ),
-			TrackKind.Property => DeserializeHelper.Get( Type ).DeserializePropertyTrack( this, parent!, options ),
-			TrackKind.ReferenceProperty => DeserializeHelper.GetReference( Type ).DeserializePropertyTrack( this, parent!, options ),
+			TrackKind.Reference => DeserializeReferenceTrack( type, parent ),
+			TrackKind.Action => new CompiledActionTrack( Name, type, parent!, ImmutableArray<CompiledActionBlock>.Empty ),
+			TrackKind.Property => DeserializeHelper.Get( type ).DeserializePropertyTrack( this, parent!, options ),
+			TrackKind.ReferenceProperty => DeserializeHelper.GetReference( type ).DeserializePropertyTrack( this, parent!, options ),
 			_ => throw new NotImplementedException()
 		};
 
@@ -200,16 +205,61 @@ file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
 		return track.TargetType;
 	}
 
-	private ICompiledReferenceTrack DeserializeReferenceTrack( ICompiledTrack? parent, JsonSerializerOptions? options )
+	/// <summary>
+	/// The serialized <see cref="Type"/>, or for a reference track whose type doesn't exist here (like a component
+	/// declared in a game we don't have the code for), its <see cref="TrackMetadata.FallbackType"/>.
+	/// The track then targets the fallback type, so serializing it again writes that instead of the original type.
+	/// </summary>
+	private Type? GetTargetType()
+	{
+		if ( Type is not null ) return Type;
+		if ( Kind != TrackKind.Reference || Metadata?.FallbackType is not { } fallbackType ) return null;
+
+		Log.Info( $"Movie track \"{Name}\" is using fallback type {fallbackType.Name}." );
+
+		return fallbackType;
+	}
+
+	private ICompiledReferenceTrack DeserializeReferenceTrack( Type type, ICompiledTrack? parent )
 	{
 		var trackType = typeof( CompiledReferenceTrack<> )
-			.MakeGenericType( Type );
+			.MakeGenericType( type );
 
 		return (ICompiledReferenceTrack)Activator.CreateInstance( trackType,
 			Id ?? Guid.NewGuid(),
 			Name,
 			(CompiledReferenceTrack<GameObject>?)parent,
 			Metadata )!;
+	}
+}
+
+/// <summary>
+/// Reads a <see cref="System.Type"/> as null when it doesn't exist in the current type library, rather than throwing,
+/// so a track can fall back to <see cref="TrackMetadata.FallbackType"/> instead of the whole movie failing to load.
+/// </summary>
+internal sealed class OptionalTypeConverter : JsonConverter<Type?>
+{
+	public override bool HandleNull => true;
+
+	public override Type? Read( ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options )
+	{
+		if ( reader.TokenType == JsonTokenType.Null ) return null;
+
+		var node = JsonNode.Parse( ref reader );
+
+		try
+		{
+			return node.Deserialize<Type>( options );
+		}
+		catch ( Exception )
+		{
+			return null;
+		}
+	}
+
+	public override void Write( Utf8JsonWriter writer, Type? value, JsonSerializerOptions options )
+	{
+		JsonSerializer.Serialize( writer, value, options );
 	}
 }
 
