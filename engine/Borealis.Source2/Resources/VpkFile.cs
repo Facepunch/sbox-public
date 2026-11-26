@@ -130,9 +130,18 @@ public sealed class VpkFile : IDisposable
 
 		length = (int)Math.Min( entry.PreloadLength + (long)entry.Length, Math.Max( most, 0 ) );
 		var data = ContentBuffers.Rent( length );
-		var preload = Math.Min( (int)entry.PreloadLength, length );
-		tree.AsSpan( entry.PreloadOffset, preload ).CopyTo( data );
-		if ( preload == length || ReadAt( entry, data.AsSpan( preload, length - preload ) ) ) return data;
+		try
+		{
+			var preload = Math.Min( (int)entry.PreloadLength, length );
+			tree.AsSpan( entry.PreloadOffset, preload ).CopyTo( data );
+			if ( preload == length || ReadAt( entry, data.AsSpan( preload, length - preload ) ) ) return data;
+		}
+		catch
+		{
+			ContentBuffers.Return( data );
+			length = 0;
+			throw;
+		}
 
 		ContentBuffers.Return( data );
 		length = 0;

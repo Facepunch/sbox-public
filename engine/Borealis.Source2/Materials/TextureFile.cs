@@ -138,6 +138,7 @@ public sealed class TextureFile
 				{
 					var size = header.Size( mip );
 					var stored = header.Stored( mip );
+					if ( header.Compression == 0 && stored < size ) throw new InvalidDataException( $"Uncompressed mip {mip} held {stored} bytes, expected {size}" );
 					if ( (long)position + stored > data.Length )
 					{
 						// A file holding only its smaller mips is read as the mips it holds, from the first whose data is all there: a

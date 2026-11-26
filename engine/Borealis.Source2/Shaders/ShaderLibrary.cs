@@ -160,14 +160,24 @@ public sealed class ShaderLibrary : IDisposable
 	(ShaderFile Shader, bool Found) LoadUncached( string key )
 	{
 		// A bare name (downsample_spd), as the engine's Material.FromShader takes one, is a shader under shaders/
-		var full = Files.Find( key );
 		var bare = !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase );
-		if ( full is null && bare ) full = Files.Find( $"shaders/{key}.shader" );
+		var shaderPath = bare ? $"shaders/{key}.shader" : key;
 
-		// A compiled file with no .shader in any root where a Slang module or surface stands in its place is a leftover (a
-		// package's copy of an engine shader the module replaced, or a stale local one): the module's, as native's
-		// ShaderIsSlangModuleOnly decides
-		if ( full is not null && Modules is not null && !Modules.Skips( full ) && Leftover( bare ? $"shaders/{key}.shader" : key ) ) full = null;
+		// With no .shader in any root and a Slang module or surface in its place, any compiled file is a leftover (a
+		// package's copy of an engine shader the module replaced, or a stale local one) and the module's is used, as native's
+		// ShaderIsSlangModuleOnly decides. So the compiled file isn't looked for: that asks every mounted file system, and
+		// a surface-only shader (standard) finds nothing to keep, so every material of it would ask again
+		var moduleOnly = Modules is { } m && !m.Skips( shaderPath + "_c" ) && Leftover( shaderPath );
+		string full = null;
+		if ( !moduleOnly )
+		{
+			full = Files.Find( key );
+			if ( full is null && bare ) full = Files.Find( shaderPath );
+
+			// Found where its name is skipped (its module isn't used) but its file's isn't: a package's, named by its hash
+			if ( full is not null && Modules is not null && !Modules.Skips( full ) && Leftover( shaderPath ) ) full = null;
+		}
+
 		if ( full is not null )
 		{
 			// A standalone module describes its shader itself: the compiled file beside it is only Source 2's renderer's
@@ -179,7 +189,7 @@ public sealed class ShaderLibrary : IDisposable
 		if ( Modules is not { } modules ) return (null, false);
 		foreach ( var root in Files.Roots )
 		{
-			var compiled = Path.Combine( root, (bare ? $"shaders/{key}.shader" : key).TrimStart( '/' ) + "_c" );
+			var compiled = Path.Combine( root, shaderPath.TrimStart( '/' ) + "_c" );
 			if ( modules.Describe( Path.GetFullPath( compiled ) ) is { } described ) return (described, true);
 		}
 

@@ -26,6 +26,9 @@ public sealed class WorldVisibility
 	/// <summary>Native's <c>VOXVIS_RESERVED_CLUSTER_COUNT</c>.</summary>
 	const int ReservedClusters = 2;
 
+	// Region cluster IDs are 15 bits, so a gathered row never needs more than 4 KiB.
+	const int MaxClusters = 1 << 15;
+
 	/// <summary>Native's <c>RECENT_CLUSTER_MAILBOX_COUNT</c>, minus one.</summary>
 	const int MailboxMask = 511;
 
@@ -51,6 +54,9 @@ public sealed class WorldVisibility
 	/// <summary>Clusters, counting the two reserved ones (<c>m_nBaseClusterCount</c>).</summary>
 	public int ClusterCount { get; }
 
+	/// <summary>The number of words needed to gather a visibility row.</summary>
+	public int VisibilityWordCount => (ClusterCount + 31) / 32;
+
 	/// <summary>The octree's bounds, in the map's space.</summary>
 	public Vector3 Mins { get; }
 
@@ -71,10 +77,12 @@ public sealed class WorldVisibility
 
 	WorldVisibility( Dictionary<string, object> root, ReadOnlySpan<byte> payload )
 	{
-		ClusterCount = (int)Kv.Number( root.Get( "m_nBaseClusterCount" ) );
-		var rowBytes = (int)Kv.Number( root.Get( "m_nPVSBytesPerCluster" ) );
-		if ( rowBytes % 4 != 0 || ClusterCount < 0 ) throw new InvalidDataException( $"Bad visibility rows: {ClusterCount} clusters of {rowBytes} bytes" );
-		rowWords = rowBytes / 4;
+		var clusterCount = Kv.Number( root.Get( "m_nBaseClusterCount" ) );
+		var rowBytes = Kv.Number( root.Get( "m_nPVSBytesPerCluster" ) );
+		if ( clusterCount is < 0 or > MaxClusters || clusterCount % 1 != 0 || rowBytes is < 0 or > int.MaxValue || rowBytes % 4 != 0 )
+			throw new InvalidDataException( $"Bad visibility rows: {clusterCount} clusters of {rowBytes} bytes" );
+		ClusterCount = (int)clusterCount;
+		rowWords = (int)rowBytes / 4;
 		Mins = Kv.Vector3( root.Get( "m_vMinBounds" ) );
 		Maxs = Kv.Vector3( root.Get( "m_vMaxBounds" ) );
 		GridSize = (float)Kv.Number( root.Get( "m_flGridSize" ) );
@@ -85,7 +93,7 @@ public sealed class WorldVisibility
 		enclosedClusters = Block<ushort>( root, "m_EnclosedClustersBlock", payload, 2 );
 		masks = Block<ulong>( root, "m_MasksBlock", payload, 8 );
 		bits = Block<uint>( root, "m_nVisBlocks", payload, 1 );
-		if ( !IsEmpty && (nodes.Length == 0 || bits.Length < ClusterCount * rowWords || rowWords * 32 < ClusterCount) )
+		if ( !IsEmpty && (nodes.Length == 0 || bits.Length < (long)ClusterCount * rowWords || rowWords < VisibilityWordCount) )
 			throw new InvalidDataException( $"Visibility has {nodes.Length} nodes and {bits.Length} words of rows for {ClusterCount} clusters" );
 	}
 
@@ -148,10 +156,13 @@ public sealed class WorldVisibility
 	{
 		if ( IsEmpty ) return true;
 
-		Span<uint> seen = stackalloc uint[rowWords];
-		if ( Gather( sources, origin, seen ) ) return true;
-		return Sees( seen, ClusterAt( point - origin ) );
+		Span<uint> seen = stackalloc uint[VisibilityWordCount];
+		return Gather( sources, origin, seen ) || IsPointVisibleFromRow( seen, point, origin );
 	}
+
+	/// <summary>Test a point against a gathered row. An empty span sees everything.</summary>
+	public bool IsPointVisibleFromRow( ReadOnlySpan<uint> seen, Vector3 point, Vector3 origin )
+		=> seen.IsEmpty || Sees( seen, ClusterAt( point - origin ) );
 
 	/// <summary>
 	/// Whether any of the box from <paramref name="mins"/> to <paramref name="maxs"/> is visible from any of
@@ -161,8 +172,14 @@ public sealed class WorldVisibility
 	{
 		if ( IsEmpty ) return true;
 
-		Span<uint> seen = stackalloc uint[rowWords];
-		if ( Gather( sources, origin, seen ) ) return true;
+		Span<uint> seen = stackalloc uint[VisibilityWordCount];
+		return Gather( sources, origin, seen ) || IsBoxVisibleFromRow( seen, mins, maxs, origin );
+	}
+
+	/// <summary>Test a box against a gathered row. An empty span sees everything.</summary>
+	public bool IsBoxVisibleFromRow( ReadOnlySpan<uint> seen, Vector3 mins, Vector3 maxs, Vector3 origin )
+	{
+		if ( seen.IsEmpty ) return true;
 
 		// GetClustersForBounds: grown a little so it's never empty; one that holds the whole tree is in cluster 0
 		var lo = mins - origin;
@@ -215,11 +232,14 @@ public sealed class WorldVisibility
 	}
 
 	/// <summary>
-	/// What the sources see, OR'd into <paramref name="seen"/> (native's <c>AddOriginToPVS</c> per source). True when they
-	/// see everything: a source outside the tree, or in a leaf with no cluster at its point.
+	/// Fill the first <see cref="VisibilityWordCount"/> words of <paramref name="seen"/> with what the sources see
+	/// (native's <c>AddOriginToPVS</c> per source). True on an empty map or when a source sees everything.
 	/// </summary>
-	bool Gather( ReadOnlySpan<Vector3> sources, Vector3 origin, Span<uint> seen )
+	public bool Gather( ReadOnlySpan<Vector3> sources, Vector3 origin, Span<uint> seen )
 	{
+		if ( IsEmpty ) return true;
+
+		seen = seen[..VisibilityWordCount];
 		seen.Clear();
 		foreach ( var source in sources )
 		{
@@ -244,7 +264,7 @@ public sealed class WorldVisibility
 					var cluster = Cluster( region );
 					if ( cluster >= ClusterCount ) continue;
 
-					var row = bits.AsSpan( cluster * rowWords, rowWords );
+					var row = bits.AsSpan( cluster * rowWords, seen.Length );
 					for ( var w = 0; w < row.Length; w++ ) seen[w] |= row[w];
 					found = true;
 				}

@@ -333,7 +333,11 @@ public sealed class ShaderProgram
 
 		var blob = Decompress( data, start + (int)comboOffsets[index], Type == ShaderProgramType.Features );
 		var combo = new StaticCombo( this, id, blob );
-		lock ( combos ) combos[id] = combo;
+		lock ( combos )
+		{
+			if ( combos.TryGetValue( id, out var cached ) ) return cached;
+			combos.Add( id, combo );
+		}
 		return combo;
 	}
 

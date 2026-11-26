@@ -149,7 +149,9 @@ public sealed class ShaderVariant
 	/// <summary>
 	/// A graphics pipeline description for this variant into targets of these formats, with vertex inputs fed by
 	/// <paramref name="attributes"/> from <paramref name="buffers"/> (the caller maps <see cref="VertexInputs"/> to its
-	/// vertex streams; inputs it has no data for need a default stream, as native's input layouts give).
+	/// vertex streams; inputs it has no data for need a default stream, as native's input layouts give). Depth bias applies
+	/// with <paramref name="depthBias"/> (into depth alone, the view's) or when the state has its own
+	/// (<see cref="ShaderPipelineState.HasDepthBias"/>); either way its values are set while recording.
 	/// </summary>
 	public GraphicsPipelineInfo PipelineInfo( VertexBufferLayout[] buffers, VertexAttribute[] attributes, Format[] colors, Format depth, int samples, bool depthBias, string name )
 	{
@@ -171,7 +173,7 @@ public sealed class ShaderVariant
 			FrontFace = FrontFace.CounterClockwise,
 			Wireframe = state.Wireframe,
 			DepthClamp = !state.DepthClip,
-			DepthBias = depthBias,
+			DepthBias = depthBias || state.HasDepthBias,
 			DepthTest = depth != Format.Unknown && state.DepthTest,
 			DepthWrite = depth != Format.Unknown && state.DepthWrite,
 			DepthCompare = state.DepthCompare,
@@ -798,6 +800,7 @@ public sealed class ShaderPipelineState
 	public bool DepthClip { get; init; }
 	public int DepthBiasConstant { get; init; }
 	public float DepthBiasSlope { get; init; }
+	public float DepthBiasClamp { get; init; }
 	public bool DepthTest { get; init; }
 	public bool DepthWrite { get; init; }
 	public CompareFunction DepthCompare { get; init; }
@@ -811,6 +814,9 @@ public sealed class ShaderPipelineState
 	public bool AlphaToCoverage { get; init; }
 	public bool Translucent => Blend.Length > 0 && Blend[0].Enable;
 #pragma warning restore CS1591
+
+	/// <summary>Whether the shader biases its depth (static_overlay's pulls overlays off the surfaces under them).</summary>
+	public bool HasDepthBias => DepthBiasConstant != 0 || DepthBiasSlope != 0;
 
 	/// <summary>
 	/// Whether drawing with this state needs a stencil to be right: it can leave a stencil it starts as zero non-zero, or its
@@ -885,6 +891,7 @@ public sealed class ShaderPipelineState
 				case 1 when fixedState?.Rasterizer is null: rasterizer.CullMode = (byte)value; break;
 				case 2 when fixedState?.Rasterizer is null: rasterizer.DepthBias = value; break;
 				case 3 when fixedState?.Rasterizer is null: rasterizer.SlopeScaledDepthBias = floatValue; break;
+				case 4 when fixedState?.Rasterizer is null: rasterizer.DepthBiasClamp = floatValue; break;
 				case 5 when fixedState?.Rasterizer is null: rasterizer.DepthClip = value != 0; break;
 				case 16 when fixedState?.DepthStencil is null: depthStencil.DepthTest = value != 0; break;
 				case 17 when fixedState?.DepthStencil is null: depthStencil.DepthWrite = value != 0; break;
@@ -938,6 +945,7 @@ public sealed class ShaderPipelineState
 			DepthClip = rasterizer.DepthClip,
 			DepthBiasConstant = rasterizer.DepthBias,
 			DepthBiasSlope = rasterizer.SlopeScaledDepthBias,
+			DepthBiasClamp = rasterizer.DepthBiasClamp,
 			DepthTest = depthStencil.DepthTest,
 			DepthWrite = depthStencil.DepthWrite,
 			DepthCompare = (CompareFunction)depthStencil.DepthFunc,
