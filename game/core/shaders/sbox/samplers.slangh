@@ -1,0 +1,30 @@
+// The engine's shared samplers, which every shader has through system.slangh and may sample with by name. Ours, in place of
+// the old common_samplers.fxc: a Slang compile includes this wherever a file includes that (SlangHeaders), and that name
+// stays a file that includes this for vfx. Shares the old header's include guard.
+//
+// Each sampler's name, filter and addressing is what shaders and packages rely on, so none of them changes, and they stay
+// declared in this order, which sets the order of the module's sampler bindings.
+#ifndef COMMON_SAMPLERS_H
+#define COMMON_SAMPLERS_H
+
+// No settings of its own: the default sampler state
+SamplerState g_sDefault;
+
+SamplerState g_sAniso < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
+
+// Bilinear and trilinear, by addressing
+SamplerState g_sBilinearClamp < Filter( BILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
+SamplerState g_sBilinearWrap < Filter( BILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
+SamplerState g_sBilinearMirror < Filter( BILINEAR ); AddressU( MIRROR ); AddressV( MIRROR ); AddressW( MIRROR ); >;
+SamplerState g_sTrilinearWrap < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
+SamplerState g_sTrilinearClamp < Filter( TRILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
+SamplerState g_sTrilinearMirror < Filter( TRILINEAR ); AddressU( MIRROR ); AddressV( MIRROR ); AddressW( MIRROR ); >;
+SamplerState g_sTrilinearBorder < Filter( TRILINEAR ); AddressU( BORDER ); AddressV( BORDER ); AddressW( BORDER ); >;
+
+// Point sampling. g_sPointBorder clamps, as it always has; the wrap and mirror pair leave W at its default
+SamplerState g_sPointBorder < Filter( POINT ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
+SamplerState g_sPointClamp < Filter( POINT ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
+SamplerState g_sPointWrap < Filter( POINT ); AddressU( WRAP ); AddressV( WRAP ); >;
+SamplerState g_sPointMirror < Filter( POINT ); AddressU( MIRROR ); AddressV( MIRROR ); >;
+
+#endif // COMMON_SAMPLERS_H

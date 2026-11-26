@@ -27,8 +27,8 @@ public static partial class EmbeddedCompatibility
 	};
 
 	/// <summary>
-	/// The samplers common_samplers.fxc declares, which every module has (pass.slangh includes system.fxc, which includes
-	/// it). Packages from before it was included everywhere declare some of them themselves.
+	/// The samplers sbox/samplers.slangh declares (in place of common_samplers.fxc), which every module has (pass.slangh
+	/// includes system.fxc, which includes it). Packages from before it was included everywhere declare some of them themselves.
 	/// </summary>
 	public static readonly string[] EngineSamplers =
 	[

@@ -49,6 +49,8 @@ public static partial class SlangHeaders
 		["system.fxc"] = "sbox/system.slangh",
 		["descriptor_set_support.fxc"] = "sbox/descriptor_sets.slangh",
 		["common.fxc"] = "sbox/view.slangh",
+		["common_samplers.fxc"] = "sbox/samplers.slangh",
+		["vr_triplanar_blend.fxc"] = "sbox/triplanar_blend.slangh",
 	};
 
 	[GeneratedRegex( @"^([ \t]*#[ \t]*include[ \t]*"")([^""]+)("")", RegexOptions.Multiline )]

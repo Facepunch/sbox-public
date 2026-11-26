@@ -1,26 +1,2 @@
-#ifndef COMMON_SAMPLERS_H
-#define COMMON_SAMPLERS_H
-
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-//
-// Common Samplers
-//
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-SamplerState g_sDefault;
-
-// This stuff sort of sucks... We should do it like Unity
-SamplerState g_sAniso < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
-SamplerState g_sBilinearClamp < Filter( BILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
-SamplerState g_sBilinearWrap < Filter( BILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
-SamplerState g_sBilinearMirror < Filter( BILINEAR ); AddressU( MIRROR ); AddressV( MIRROR ); AddressW( MIRROR ); >;
-SamplerState g_sTrilinearWrap < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
-SamplerState g_sTrilinearClamp < Filter(TRILINEAR); AddressU(CLAMP); AddressV(CLAMP); AddressW(CLAMP); > ;
-SamplerState g_sTrilinearMirror < Filter(TRILINEAR); AddressU(MIRROR); AddressV(MIRROR); AddressW(MIRROR); > ;
-SamplerState g_sTrilinearBorder < Filter(TRILINEAR); AddressU(BORDER); AddressV(BORDER); AddressW(BORDER ); >;
-SamplerState g_sPointBorder < Filter( POINT ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
-SamplerState g_sPointClamp < Filter( POINT ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
-SamplerState g_sPointWrap  < Filter( POINT ); AddressU( WRAP );  AddressV( WRAP );  >;
-SamplerState g_sPointMirror  < Filter( POINT ); AddressU( MIRROR );  AddressV( MIRROR );  >;
-
-#endif // COMMON_SAMPLERS_H
+// common_samplers.fxc: the include name shaders have always used, kept for them; what it declares is ours, in sbox/samplers.slangh.
+#include "sbox/samplers.slangh"

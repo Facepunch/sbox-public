@@ -1,0 +1,93 @@
+// Triplanar blending of a second material ("B"), projected along the world axes: each axis's texture coordinates are the
+// world position over g_flTriplanarScale, each axis's weight is the normal's component raised to a power, and the three
+// samples' colour and AO, roughness, normal and mask are summed by those weights. Ours, in place of the old
+// vr_triplanar_blend.fxc: a Slang compile includes this wherever a file includes that (SlangHeaders), and that name stays a
+// file that includes this for vfx. The material parameters and textures are the old header's, declared in the same order
+// (which sets the material's layout), and the functions keep their names, signatures and results. Shares the old header's
+// include guard. Tex2DS and DecodeHemiOctahedronNormal are the includer's, as they were.
+#ifndef VR_TRIPLANAR_BLEND_FXC
+#define VR_TRIPLANAR_BLEND_FXC
+
+// What the old header included, which code that includes it may rely on
+#include "sbox/samplers.slangh"
+
+float g_flTriplanarScale < Default( 1.0 ); Range( 0.0, 2048.0 ); UiGroup( "Triplanar/30" ); >;
+
+// Material B's inputs, and the textures the material compiler packs them into: colour with AO in alpha, the hemi-octahedral
+// normal with roughness in its last two channels, and the mask
+CreateInputTexture2D( TextureNormalB, Linear, 8, "NormalizeNormals", "_normal", "Triplanar Material,20/20", Default3( 0.5, 0.5, 1.0 ) );
+CreateInputTexture2D( TextureRoughnessB, Linear, 8, "Inverse", "_rough", "Triplanar Material,20/30", Default3( 0.5, 0.5, 0.5 ) );
+CreateInputTexture2D( TextureAmbientOcclusionB, Linear, 8, "", "_ao", "Triplanar Material,20/40", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureColorB, Srgb, 8, "", "_color", "Triplanar Material,20/10", Default3( 1.0, 1.0, 1.0 ) );
+CreateInputTexture2D( TextureTriplanarMask, Linear, 8, "", "_mask", "Triplanar Material,20/50", Default3( 1.0, 1.0, 1.0 ) );
+float g_flMetalnessB < Default( 0.0 ); Range( 0.0, 1.0 ); UiGroup( "Triplanar Material,20/60" ); >;
+
+Texture2D g_tColorB < Channel( RGB, Box( TextureColorB ), Srgb ); Channel( A, Box( TextureAmbientOcclusionB ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
+Texture2D g_tNormalB < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormalB, TextureRoughnessB ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); >;
+Texture2D g_tTriplanarMask < Channel( R, Box( TextureTriplanarMask ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); >;
+
+/// The three projections' values summed by their weights: x by w.x, then y by w.y, then z by w.z.
+float SboxTriplanarWeigh( float x, float y, float z, float3 w ) { return x * w.x + y * w.y + z * w.z; }
+float2 SboxTriplanarWeigh( float2 x, float2 y, float2 z, float3 w ) { return x * w.x + y * w.y + z * w.z; }
+float3 SboxTriplanarWeigh( float3 x, float3 y, float3 z, float3 w ) { return x * w.x + y * w.y + z * w.z; }
+float4 SboxTriplanarWeigh( float4 x, float4 y, float4 z, float3 w ) { return x * w.x + y * w.y + z * w.z; }
+
+/// What material B's normals add to the surface normal: each projection's tangent-space normal (hemi-octahedral, in .rg)
+/// turned onto its axis in world space, keeping the two in-plane components, then summed by weight.
+float3 SboxTriplanarNormalOffsetWs( float2 vEncodedX, float2 vEncodedY, float2 vEncodedZ, float3 vBlendFactor )
+{
+	float3 x = DecodeHemiOctahedronNormal( vEncodedX );
+	float3 y = DecodeHemiOctahedronNormal( vEncodedY );
+	float3 z = DecodeHemiOctahedronNormal( vEncodedZ );
+	return SboxTriplanarWeigh( x.xzy * float3( -1.0, 0, 1.0 ), y.xzy * float3( 1.0, 0, -1.0 ), z * float3( 1.0, -1.0, 0 ), vBlendFactor );
+}
+
+/// The projections' texture coordinates (along X, Y and Z) at a world position, and their weights: the normal's absolute
+/// components raised to flBlendPower, scaled to sum to 1.
+void CalcTriplanarUVsAndBlendFactors( out float2 vUV_X, out float2 vUV_Y, out float2 vUV_Z, out float3 vBlendFactor, float3 vPositionWs, float3 vNormalWs, float flBlendPower = 16.f )
+{
+	float3 uvw = vPositionWs.xyz / ( g_flTriplanarScale );
+	vUV_X = -uvw.yz;
+	vUV_Y = uvw.xz;
+	vUV_Z = uvw.xy;
+
+	float3 weights = pow( abs( vNormalWs ), flBlendPower );
+	vBlendFactor = weights / dot( weights, float3( 1, 1, 1 ) );
+}
+
+/// Material B at the three projections: its colour and AO, its roughness, and the surface normal with B's normals added,
+/// renormalised. flBlendPower and bFlipY are unused (the weights come in already made); they stay for the signature.
+void TriPlanarBlendColorNormalRoughness( float2 vUV_X, float2 vUV_Y, float2 vUV_Z, float3 vBlendFactor, float3 vNormalWs, out float3 vNormalWs_Out, out float4 vColorAO_Out, out float2 vRoughness_Out, float flBlendPower, bool bFlipY )
+{
+	float4 colorX = Tex2DS( g_tColorB, g_sTrilinearWrap, vUV_X );
+	float4 colorY = Tex2DS( g_tColorB, g_sTrilinearWrap, vUV_Y );
+	float4 colorZ = Tex2DS( g_tColorB, g_sTrilinearWrap, vUV_Z );
+	float4 normalX = Tex2DS( g_tNormalB, g_sTrilinearWrap, vUV_X );
+	float4 normalY = Tex2DS( g_tNormalB, g_sTrilinearWrap, vUV_Y );
+	float4 normalZ = Tex2DS( g_tNormalB, g_sTrilinearWrap, vUV_Z );
+
+	vColorAO_Out = SboxTriplanarWeigh( colorX, colorY, colorZ, vBlendFactor );
+	vRoughness_Out = SboxTriplanarWeigh( normalX.ba, normalY.ba, normalZ.ba, vBlendFactor );
+	vNormalWs_Out = normalize( vNormalWs.xyz + SboxTriplanarNormalOffsetWs( normalX.rg, normalY.rg, normalZ.rg, vBlendFactor ) );
+}
+
+/// Material B blended at a world position and normal.
+void TriPlanarBlend( float3 vPositionWs, float3 vNormalWs, out float3 vNormalWs_Out, out float4 vColorAO_Out, out float2 vRoughness_Out, float flBlendPower = 16.f, bool bFlipY = true )
+{
+	float2 uvX, uvY, uvZ;
+	float3 weights;
+	CalcTriplanarUVsAndBlendFactors( uvX, uvY, uvZ, weights, vPositionWs, vNormalWs, flBlendPower );
+	TriPlanarBlendColorNormalRoughness( uvX, uvY, uvZ, weights, vNormalWs, vNormalWs_Out, vColorAO_Out, vRoughness_Out, flBlendPower, bFlipY );
+}
+
+/// As TriPlanarBlend, with the mask texture's red channel at the same projections, summed by the same weights.
+void TriPlanarBlendWithMask( float3 vPositionWs, float3 vNormalWs, out float3 vNormalWs_Out, out float4 vColorAO_Out, out float2 vRoughness_Out, out float flMask_Out, float flBlendPower = 16.f, bool bFlipY = true )
+{
+	float2 uvX, uvY, uvZ;
+	float3 weights;
+	CalcTriplanarUVsAndBlendFactors( uvX, uvY, uvZ, weights, vPositionWs, vNormalWs, flBlendPower );
+	flMask_Out = SboxTriplanarWeigh( Tex2DS( g_tTriplanarMask, g_sTrilinearWrap, uvX ).r, Tex2DS( g_tTriplanarMask, g_sTrilinearWrap, uvY ).r, Tex2DS( g_tTriplanarMask, g_sTrilinearWrap, uvZ ).r, weights );
+	TriPlanarBlendColorNormalRoughness( uvX, uvY, uvZ, weights, vNormalWs, vNormalWs_Out, vColorAO_Out, vRoughness_Out, flBlendPower, bFlipY );
+}
+
+#endif // VR_TRIPLANAR_BLEND_FXC

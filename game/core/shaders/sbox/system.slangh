@@ -276,7 +276,7 @@ int TextureDimensionsCubeArray( TextureCubeArray tex, int nMipLevel )
 #define TextureAttribute( attributeName, val ) SBOX_NAMED_SETTING( g_texAttr_, attributeName, value, val )
 
 // Shaders written against the old header also got its samplers and descriptor-set support
-#include "common_samplers.fxc"
+#include "sbox/samplers.slangh"
 #include "sbox/descriptor_sets.slangh"
 
 #endif // SYSTEM_FXC

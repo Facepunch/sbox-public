@@ -8,7 +8,7 @@
 // What the old header included, which code that includes it may rely on
 #include "sbox/system.slangh"
 #include "sbox/math.slangh"
-#include "common_samplers.fxc"
+#include "sbox/samplers.slangh"
 #include "common/Bindless.hlsl"
 
 /// A cube's mip count.

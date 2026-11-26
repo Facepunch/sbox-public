@@ -51,7 +51,7 @@
 #endif
 
 #include "vr_common_ps_code.fxc"
-#include "common_samplers.fxc"
+#include "sbox/samplers.slangh"
 #include "vr_detail_texture.fxc"
 
 #define MINIMAL_MATERIAL

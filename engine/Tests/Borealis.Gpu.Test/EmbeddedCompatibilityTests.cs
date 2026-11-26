@@ -431,12 +431,12 @@ public class EmbeddedCompatibilityTests
 		Compiles( pixel, "embedded_older_terrain" );
 	}
 
-	/// <summary>The samplers the converter leaves to the engine are common_samplers.fxc's.</summary>
+	/// <summary>The samplers the converter leaves to the engine are sbox/samplers.slangh's (common_samplers.fxc's).</summary>
 	[TestMethod]
 	public void EngineSamplersAreCommonSamplers()
 	{
 		var (_, shaders) = Compiler();
-		var declared = System.Text.RegularExpressions.Regex.Matches( File.ReadAllText( Path.Combine( shaders, "common_samplers.fxc" ) ), @"^\s*SamplerState\s+(\w+)", System.Text.RegularExpressions.RegexOptions.Multiline )
+		var declared = System.Text.RegularExpressions.Regex.Matches( File.ReadAllText( Path.Combine( shaders, SlangHeaders.Replaced["common_samplers.fxc"] ) ), @"^\s*SamplerState\s+(\w+)", System.Text.RegularExpressions.RegexOptions.Multiline )
 			.Select( m => m.Groups[1].Value ).ToArray();
 		CollectionAssert.AreEquivalent( declared, EmbeddedCompatibility.EngineSamplers );
 	}

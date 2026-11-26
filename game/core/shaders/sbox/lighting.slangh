@@ -9,7 +9,7 @@
 
 // What the old header included, in its order, which code that includes it may rely on
 #include "sbox/system.slangh"
-#include "common_samplers.fxc"
+#include "sbox/samplers.slangh"
 #include "sbox/light_probe_volume.slangh"
 #include "Shadows/ProjectedShadow.hlsl"
 #include "Shadows/Obsolete.hlsl"
