@@ -159,12 +159,17 @@ public sealed partial class NavMesh
 		return found ? (Vector3)point : null;
 	}
 
-	public Vector3? GetClosestPoint( BBox box )
+	public Vector3? GetClosestPoint( BBox box ) => ClosestPoint( box, anyArea );
+
+	// Only where this agent may go
+	internal Vector3? GetClosestPoint( BBox box, NavMeshAgent agent ) => ClosestPoint( box, CreateFilter( agent ) );
+
+	private Vector3? ClosestPoint( BBox box, in NavFilter filter )
 	{
 		var scratch = RentQuery();
 		if ( scratch is null ) return null;
 
-		bool found = scratch.Query.FindNearest( box.Center, box.Extents, anyArea, out _, out var nearest );
+		bool found = scratch.Query.FindNearest( box.Center, box.Extents, filter, out _, out var nearest );
 		ReturnQuery( scratch );
 		return found ? (Vector3)nearest : null;
 	}

@@ -8,7 +8,10 @@ public sealed partial class NavCrowd
 	MeshState?[] pinned = [];
 
 	uint step;
-	float dt;
+	// The substep, the Step's delta and the time its substeps cover, which a long pause bounds; whether this is its last.
+	float dt, stepDelta, stepTime;
+	int substeps;
+	bool lastSubstep;
 	Action<int, Action<int>>? run;
 
 	// The stages that run through the run hook: Bucket, Count and Assign are binning. Sync, the snapshot and
@@ -52,11 +55,14 @@ public sealed partial class NavCrowd
 		Sync( delta );
 
 		// Bound the movement of one substep, and of a step after a long pause.
-		int substeps = (int)Math.Clamp( MathF.Ceiling( delta / substepTime ), 1f, maxSubsteps );
-		dt = MathF.Min( delta, maxSubsteps * substepTime ) / substeps;
+		substeps = (int)Math.Clamp( MathF.Ceiling( delta / substepTime ), 1f, maxSubsteps );
+		stepTime = MathF.Min( delta, maxSubsteps * substepTime );
+		dt = stepTime / substeps;
+		stepDelta = delta;
 
 		for ( int n = 0; n < substeps; n++ )
 		{
+			lastSubstep = n == substeps - 1;
 			tallies.AsSpan().Clear();
 			Run( Stage.Plan );
 			Snapshot();
@@ -89,6 +95,7 @@ public sealed partial class NavCrowd
 			}
 			if ( !parms[i].External ) continue;
 			if ( !a.Has( AgentFlags.OwnVelocity ) ) states[i].Velocity = (states[i].Position - a.Seen) / delta;
+			a.Flags &= ~AgentFlags.OwnVelocity;
 			a.Seen = states[i].Position;
 		}
 	}
@@ -166,17 +173,26 @@ public sealed partial class NavCrowd
 						}
 						Show( i, ref tally, reach );
 						break;
+					// Its owner moves a Steered External agent once a Step, so it is steered once, in the last substep.
+					case Stage.Move when external && parms[i].Steered && !onLink && !lastSubstep:
+						break;
 					case Stage.Move when onLink:
 						WalkLink( i );
+						if ( states[i].Link >= 0 ) states[i].SteeredVelocity = states[i].DesiredVelocity;
 						break;
-					case Stage.Move when !external && a.Stride >= 0:
+					case Stage.Move when a.Stride >= 0 && (!external || parms[i].Steered):
 						Walk( i, s, query );
 						break;
-					case Stage.Separate when !external && slots[i] >= 0:
+					case Stage.Move:
+						states[i].SteeredVelocity = states[i].DesiredVelocity;
+						break;
+					// A Steered External agent is separated once a Step too, in the last substep, which is the push its owner gets.
+					case Stage.Separate when slots[i] >= 0 && (!external || (parms[i].Steered && !onLink && lastSubstep)):
 						pushed |= Separate( i );
 						break;
 					case Stage.Constrain when slots[i] >= 0 && a.Push != default:
-						MoveOnMesh( i, s, query, a.Push );
+						if ( external ) PushOwner( i, s, query );
+						else MoveOnMesh( i, s, query, a.Push );
 						break;
 				}
 			}

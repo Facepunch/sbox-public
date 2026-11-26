@@ -2,10 +2,8 @@ using System.Runtime.CompilerServices;
 
 namespace Nav.Build;
 
-/// <summary>
-/// The solid spans the triangles rasterize to. Every column owns a fixed number of slots, so a column
-/// is found by multiplication and neighbours are read without an index.
-/// </summary>
+// The solid spans the triangles rasterize to. Every column owns a fixed number of slots, so a column
+// is found by multiplication and neighbours are read without an index.
 internal sealed class SolidField
 {
 	public int Width, Height;
@@ -13,15 +11,11 @@ internal sealed class SolidField
 
 	const int FirstCapacity = 4;
 
-	/// <summary>
-	/// Slots per column. Doubles when a column overflows, back to the first on Reset: a field with fewer
-	/// slots is smaller in the cache, and most tiles need no more.
-	/// </summary>
+	// Slots per column. Doubles when a column overflows, back to the first on Reset: a field with fewer
+	// slots is smaller in the cache, and most tiles need no more.
 	public int Capacity = FirstCapacity;
 
-	/// <summary>
-	/// min | max &lt;&lt; 16 | area &lt;&lt; 32, sorted by min inside a column, never touching each other.
-	/// </summary>
+	// min | max << 16 | area << 32, sorted by min inside a column, never touching each other.
 	public ulong[] Spans = [];
 
 	public ushort[] Counts = [];
@@ -43,10 +37,8 @@ internal sealed class SolidField
 	public static int Area( ulong span ) => (int)(span >> 32);
 	public static ulong Pack( int min, int max, int area ) => (uint)min | ((uint)max << 16) | ((ulong)(uint)area << 32);
 
-	/// <summary>
-	/// Adds a span to a column, merging it with every span it overlaps or touches. A merged span takes the
-	/// higher area when the tops are within mergeThreshold of each other, else the new span's area.
-	/// </summary>
+	// Adds a span to a column, merging it with every span it overlaps or touches. A merged span takes the
+	// higher area when the tops are within mergeThreshold of each other, else the new span's area.
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public void Add( int column, int min, int max, int area, int mergeThreshold )
 	{

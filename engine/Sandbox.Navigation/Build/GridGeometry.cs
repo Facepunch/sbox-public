@@ -1,16 +1,12 @@
 namespace Nav.Build;
 
-/// <summary>
-/// Exact predicates on integer grid points. Positive area means c is to the right of a to b.
-/// </summary>
+// Exact predicates on integer grid points. Positive area means c is to the right of a to b.
 internal static class GridGeometry
 {
 	public static int Area( int ax, int ay, int bx, int by, int cx, int cy ) => (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
 
-	/// <summary>
-	/// Zero when d lies on the circle through a, b and c, else positive when it lies inside and a, b, c have
-	/// a positive area, or outside and they have a negative one. Exact for coordinates up to 2^14 apart.
-	/// </summary>
+	// Zero when d lies on the circle through a, b and c, else positive when it lies inside and a, b, c have
+	// a positive area, or outside and they have a negative one. Exact for coordinates up to 2^14 apart.
 	public static long InCircle( long ax, long ay, long bx, long by, long cx, long cy, long dx, long dy )
 	{
 		long adx = ax - dx, ady = ay - dy, bdx = bx - dx, bdy = by - dy, cdx = cx - dx, cdy = cy - dy;
@@ -24,9 +20,7 @@ internal static class GridGeometry
 
 	static bool Collinear( int ax, int ay, int bx, int by, int cx, int cy ) => Area( ax, ay, bx, by, cx, cy ) == 0;
 
-	/// <summary>
-	/// The segments cross at a point inside both.
-	/// </summary>
+	// The segments cross at a point inside both.
 	public static bool IntersectProper( int ax, int ay, int bx, int by, int cx, int cy, int dx, int dy )
 	{
 		if ( Collinear( ax, ay, bx, by, cx, cy ) || Collinear( ax, ay, bx, by, dx, dy ) || Collinear( cx, cy, dx, dy, ax, ay ) || Collinear( cx, cy, dx, dy, bx, by ) )
@@ -42,29 +36,23 @@ internal static class GridGeometry
 		return (ay <= cy && cy <= by) || (ay >= cy && cy >= by);
 	}
 
-	/// <summary>
-	/// The segments share any point, ends included.
-	/// </summary>
+	// The segments share any point, ends included.
 	public static bool Intersect( int ax, int ay, int bx, int by, int cx, int cy, int dx, int dy )
 	{
 		if ( IntersectProper( ax, ay, bx, by, cx, cy, dx, dy ) ) return true;
 		return Between( ax, ay, bx, by, cx, cy ) || Between( ax, ay, bx, by, dx, dy ) || Between( cx, cy, dx, dy, ax, ay ) || Between( cx, cy, dx, dy, bx, by );
 	}
 
-	/// <summary>
-	/// The segments share a point. Segments that start or end on the same point do not count. With loose
-	/// only a crossing inside both counts.
-	/// </summary>
+	// The segments share a point. Segments that start or end on the same point do not count. With loose
+	// only a crossing inside both counts.
 	public static bool Crosses( int ax, int ay, int bx, int by, int cx, int cy, int dx, int dy, bool loose = false )
 	{
 		if ( (ax == cx && ay == cy) || (bx == cx && by == cy) || (ax == dx && ay == dy) || (bx == dx && by == dy) ) return false;
 		return loose ? IntersectProper( ax, ay, bx, by, cx, cy, dx, dy ) : Intersect( ax, ay, bx, by, cx, cy, dx, dy );
 	}
 
-	/// <summary>
-	/// True when p lies inside the corner an outline makes at i, coming from b and going on to n.
-	/// With loose a point on one of the corner's edges is inside too.
-	/// </summary>
+	// True when p lies inside the corner an outline makes at i, coming from b and going on to n.
+	// With loose a point on one of the corner's edges is inside too.
 	public static bool InCone( int bx, int by, int ix, int iy, int nx, int ny, int px, int py, bool loose = false )
 	{
 		if ( LeftOn( bx, by, ix, iy, nx, ny ) )

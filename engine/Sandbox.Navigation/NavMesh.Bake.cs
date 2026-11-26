@@ -8,13 +8,17 @@ namespace Nav;
 /// polygons and the cells its vertices sit on; everything else a tile holds is made again at load. The
 /// bytes are small numbers meant for a general codec such as LZ4 on top. Version 3 is a mesh of one
 /// agent type, version 4 one of several; a mesh of one type always writes version 3.
-///   Header   version 3: "NAVB", 3, the settings field by field, tile count, all four bytes wide
+///   Header   version 3: "NAVB", 3, the settings field by field, record count, all four bytes wide
 ///            version 4: "NAVB", 4, the number of agent types, then per type the settings field by
-///            field and its tile count, all four bytes wide
-///   Tiles    per agent type in order, its tiles in the order of y, then x. Numbers are varints, seven
-///            bits a byte with the low bits first, and a signed one keeps its sign in the lowest bit.
+///            field and its record count, all four bytes wide
+///   Records  per agent type in order, its records in the order of y, then x: one per tile, and one per
+///            place without polygons that was built with volumes, so that a load knows the volumes that
+///            emptied it. Numbers are varints, seven bits a byte with the low bits first, and a signed
+///            one keeps its sign in the lowest bit.
+///            Older bakes have no such record and load as they are; older libraries refuse one.
+///            A place without polygons: x and y as below, 1, 0, the volume-set hash, eight bytes.
 ///            Per tile:
-///              x and y, as differences to the tile before
+///              x and y, as differences to the record before
 ///              polygon count times two, plus one when a volume-set hash follows
 ///              vertex count
 ///              the volume-set hash, eight bytes, when there is one
@@ -30,37 +34,34 @@ public sealed partial class NavMesh
 	const int OneTypeHeader = 8 + MeshAgentType.SettingsBytes + 4, TypesHeader = 12, TypeHeader = MeshAgentType.SettingsBytes + 4;
 
 	/// <summary>
-	/// Writes the bake. False, with nothing written, when it could exceed 2 GB. Any thread, also while
-	/// the owner commits. The tiles written are those of one Commit, each with the volume set it was
-	/// built with or, when the save overlaps a Commit, one it had before, never the set of a later build.
-	/// A load keeps a tile only under the set written with it, so loaded under the volumes it was built
-	/// with, a tile is kept or rebuilt, never kept out of date. The writer has to hand out the header as
-	/// one span and each tile as one span.
-	/// A vertex is written as the cell it sits on, which is where the builder puts every vertex, so a
-	/// loaded tile is the built one bit for bit.
+	/// Writes the bake. False, with nothing written, when it could exceed 2 GB. Any thread, also while the
+	/// owner commits: the bake is the mesh as one Commit left it, every tile with the volume set it was built
+	/// with, so a tile loaded under other volumes is rebuilt. The writer has to hand out the header and each
+	/// tile as one span. A loaded tile is the built one bit for bit.
 	/// </summary>
 	public bool Save( IBufferWriter<byte> output )
 	{
 		int n = types.Length;
 		var states = new MeshState[n];
 		var hashes = new (int Y, int X, ulong Hash)[n][];
-		// The hashes before the state: the owner publishes them after it. With several types, every
-		// type as of one commit.
+		// Every type as of one commit: read again when a commit published in between.
 		for ( var spin = new SpinWait(); ; spin.SpinOnce() )
 		{
 			int before = Volatile.Read( ref publishing );
 			if ( (before & 1) != 0 ) continue;
 			for ( int k = 0; k < n; k++ ) hashes[k] = types[k].TileHashes;
 			for ( int k = 0; k < n; k++ ) states[k] = types[k].State;
-			if ( n == 1 || Volatile.Read( ref publishing ) == before ) break;
+			if ( Volatile.Read( ref publishing ) == before ) break;
 		}
 
 		long most = n == 1 ? OneTypeHeader : TypesHeader + (long)TypeHeader * n;
 		var tiles = new Tile[n][];
+		var records = new int[n];
 		for ( int k = 0; k < n; k++ )
 		{
 			tiles[k] = MeshAgentType.SortedTiles( states[k], out long bytes );
-			most += bytes;
+			records[k] = MeshAgentType.RecordCount( tiles[k], hashes[k] );
+			most += bytes + (long)(records[k] - tiles[k].Length) * MeshAgentType.MostEmptyBytes;
 		}
 		if ( most > int.MaxValue ) return false;
 
@@ -71,7 +72,7 @@ public sealed partial class NavMesh
 		{
 			BinaryPrimitives.WriteUInt32LittleEndian( head[4..], OneTypeVersion );
 			MeshAgentType.WriteSettings( head[8..], types[0].Settings );
-			BinaryPrimitives.WriteInt32LittleEndian( head[(8 + MeshAgentType.SettingsBytes)..], tiles[0].Length );
+			BinaryPrimitives.WriteInt32LittleEndian( head[(8 + MeshAgentType.SettingsBytes)..], records[0] );
 		}
 		else
 		{
@@ -81,7 +82,7 @@ public sealed partial class NavMesh
 			{
 				var at = head[(TypesHeader + TypeHeader * k)..];
 				MeshAgentType.WriteSettings( at, types[k].Settings );
-				BinaryPrimitives.WriteInt32LittleEndian( at[MeshAgentType.SettingsBytes..], tiles[k].Length );
+				BinaryPrimitives.WriteInt32LittleEndian( at[MeshAgentType.SettingsBytes..], records[k] );
 			}
 		}
 		output.Advance( headerBytes );
@@ -117,7 +118,7 @@ public sealed partial class NavMesh
 
 	static NavSettings SettingsOf( ReadOnlySpan<byte> data, int count, int type ) => MeshAgentType.ReadSettings( count == 1 && FormatVersion( data ) == OneTypeVersion ? data[8..] : data[(TypesHeader + TypeHeader * type)..] );
 
-	static int TileCountOf( ReadOnlySpan<byte> data, int count, int type ) => BinaryPrimitives.ReadInt32LittleEndian( count == 1 && FormatVersion( data ) == OneTypeVersion ? data[(8 + MeshAgentType.SettingsBytes)..] : data[(TypesHeader + TypeHeader * type + MeshAgentType.SettingsBytes)..] );
+	static int RecordCountOf( ReadOnlySpan<byte> data, int count, int type ) => BinaryPrimitives.ReadInt32LittleEndian( count == 1 && FormatVersion( data ) == OneTypeVersion ? data[(8 + MeshAgentType.SettingsBytes)..] : data[(TypesHeader + TypeHeader * type + MeshAgentType.SettingsBytes)..] );
 
 	// The number of agent types and the header's length, for a bake whose header and settings are good.
 	static bool ReadHeader( ReadOnlySpan<byte> data, out int count, out int headerBytes )
@@ -146,14 +147,12 @@ public sealed partial class NavMesh
 	}
 
 	/// <summary>
-	/// Makes a mesh of one agent type from its bake. Null when anything in the data is wrong, when it is
-	/// a bake of several types, or when the link settings are not valid for the bake's settings: every
-	/// count, index and coordinate is checked before it is used, and what is not in the data is built
-	/// here, so it cannot be wrong. Keeps nothing of data.
-	/// A bake holds neither volumes nor links: add those of the scene to the new mesh before its first
-	/// TakeJobs. That call compares each tile's volumes with the ones it was baked with and issues a job,
-	/// which asks for geometry, for every tile where they differ. Generated links are not in a bake
-	/// either: a loaded tile has none until it is built from triangles again.
+	/// Makes a mesh of one agent type from its bake. Null when anything in the data is wrong (every count,
+	/// index and coordinate is checked), when it is a bake of several types, or when the link settings are
+	/// not valid for the bake's settings. Keeps nothing of data.
+	/// A bake holds neither volumes nor links: add the scene's before the first TakeJobs, which issues a
+	/// geometry job for every tile whose volumes differ from those it was baked with. A loaded tile has no
+	/// generated links until it is built from triangles again.
 	/// </summary>
 	public static NavMesh? Load( ReadOnlySpan<byte> data, in NavMeshOptions options )
 	{
@@ -173,18 +172,18 @@ public sealed partial class NavMesh
 		for ( int k = 0; k < count; k++ )
 		{
 			var settings = SettingsOf( data, count, k );
-			int tiles = TileCountOf( data, count, k );
-			if ( !options[k].Links.IsValid( settings, out _ ) || tiles < 0 || tiles > PolyRef.MaxTiles( settings.PolyBits ) ) return null;
-			least += (long)tiles * MeshAgentType.MinTileBytes;
+			int records = RecordCountOf( data, count, k );
+			if ( !options[k].Links.IsValid( settings, out _ ) || records < 0 ) return null;
+			least += (long)records * MeshAgentType.MinRecordBytes;
 			descs[k] = new NavAgentTypeDesc { Settings = settings, Options = options[k] };
 		}
 		if ( least > data.Length ) return null;
 
 		var reader = new MeshAgentType.BakeReader( data, headerBytes );
-		var read = new (Tile[] Tiles, ulong[] Hashes)[count];
+		var read = new (Tile[] Tiles, (int X, int Y, ulong Hash)[] Hashes)[count];
 		for ( int k = 0; k < count; k++ )
 		{
-			var tiles = MeshAgentType.ReadTiles( ref reader, descs[k].Settings, TileCountOf( data, count, k ), out var hashes );
+			var tiles = MeshAgentType.ReadTiles( ref reader, descs[k].Settings, RecordCountOf( data, count, k ), out var hashes );
 			if ( tiles == null ) return null;
 			read[k] = (tiles, hashes);
 		}
@@ -192,7 +191,14 @@ public sealed partial class NavMesh
 
 		var mesh = count == 1 ? new NavMesh( descs[0].Settings, descs[0].Options ) : new NavMesh( descs );
 		mesh.counted = false;
-		for ( int k = 0; k < count; k++ ) mesh.types[k].Loaded( read[k].Tiles, read[k].Hashes );
+		uint published = 0;
+		for ( int k = 0; k < count; k++ )
+		{
+			mesh.types[k].Loaded( read[k].Tiles, read[k].Hashes );
+			published += mesh.types[k].State.Version;
+		}
+		// One publish, as a mesh of one type counts it
+		if ( published != 0 ) mesh.version = 1;
 		return mesh;
 	}
 }

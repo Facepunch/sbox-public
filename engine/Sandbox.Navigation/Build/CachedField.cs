@@ -3,56 +3,38 @@ using System.Runtime.InteropServices;
 
 namespace Nav.Build;
 
-/// <summary>
-/// The eroded open-space field of one tile in the form the mesh keeps it: a tile can be rebuilt from this
-/// and its volumes without geometry. Columns run x first, then y, border included. Either the three
-/// arrays, or, when the mesh has a codec and it made them smaller, the codec's output in Packed.
-/// Never changed once the mesh has it, so jobs read it on any thread.
-/// </summary>
+// The eroded open-space field of one tile in the form the mesh keeps it: a tile can be rebuilt from this
+// and its volumes without geometry. Columns run x first, then y, border included. Either the three
+// arrays, or, when the mesh has a codec and it made them smaller, the codec's output in Packed.
+// Never changed once the mesh has it, so jobs read it on any thread.
 internal sealed class CachedField
 {
-	/// <summary>
-	/// Cells per edge, border included.
-	/// </summary>
+	// Cells per edge, border included.
 	public int Size;
 
-	/// <summary>
-	/// World height of floor 0.
-	/// </summary>
+	// World height of floor 0.
 	public float OriginZ;
 
 	public int SpanCount;
 
-	/// <summary>
-	/// Spans per column. The arrays may be longer than what is in use.
-	/// </summary>
+	// Spans per column. The arrays may be longer than what is in use.
 	public byte[] Counts = [];
 
-	/// <summary>
-	/// Floor of each span in cells above OriginZ.
-	/// </summary>
+	// Floor of each span in cells above OriginZ.
 	public ushort[] Floors = [];
 
-	/// <summary>
-	/// Per span: four 6-bit indices into the neighbour columns (-x, +y, +x, -y; 63 = none), area in the top byte.
-	/// </summary>
+	// Per span: four 6-bit indices into the neighbour columns (-x, +y, +x, -y; 63 = none), area in the top byte.
 	public uint[] Cons = [];
 
-	/// <summary>
-	/// What the codec made of the bytes of WriteTo. The arrays are empty then.
-	/// </summary>
+	// What the codec made of the bytes of WriteTo. The arrays are empty then.
 	public byte[]? Packed;
 
 	const int HeaderBytes = 12;
 
-	/// <summary>
-	/// The size of what WriteTo writes.
-	/// </summary>
+	// The size of what WriteTo writes.
 	public int ByteSize => HeaderBytes + Size * Size + SpanCount * 6;
 
-	/// <summary>
-	/// What the object holds in memory.
-	/// </summary>
+	// What the object holds in memory.
 	public long Bytes => Packed != null ? 64 + 24 + Packed.Length : 64 + 3 * 24 + (long)Counts.Length + Floors.Length * 2L + Cons.Length * 4L;
 
 	public void WriteTo( Span<byte> bytes )
@@ -66,16 +48,12 @@ internal sealed class CachedField
 		MemoryMarshal.AsBytes( Cons.AsSpan( 0, SpanCount ) ).CopyTo( bytes.Slice( HeaderBytes + columns + SpanCount * 2 ) );
 	}
 
-	/// <summary>
-	/// What the codec made of the bytes of WriteTo is kept with a sum over those bytes. The stages index by
-	/// what a field says without looking again, so nothing a codec hands back is used unless it sums up to
-	/// the same: then it is the field that went in.
-	/// </summary>
+	// What the codec made of the bytes of WriteTo is kept with a sum over those bytes. The stages index by
+	// what a field says without looking again, so nothing a codec hands back is used unless it sums up to
+	// the same: then it is the field that went in.
 	public ulong Checksum;
 
-	/// <summary>
-	/// Takes over what WriteTo wrote, reusing this object's arrays. Only the sizes are looked at.
-	/// </summary>
+	// Takes over what WriteTo wrote, reusing this object's arrays. Only the sizes are looked at.
 	public bool Parse( ReadOnlySpan<byte> bytes )
 	{
 		SpanCount = 0;

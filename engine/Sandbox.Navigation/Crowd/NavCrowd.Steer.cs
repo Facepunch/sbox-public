@@ -43,7 +43,8 @@ public sealed partial class NavCrowd
 	{
 		ref var a = ref agents[i];
 		ref readonly var p = ref parms[i];
-		ref readonly var state = ref states[i];
+		ref var state = ref states[i];
+		state.Push = default;
 		if ( !p.External && (a.Count == 0 || state.Link >= 0) )
 		{
 			shown.Id[i] = -1;
@@ -55,7 +56,13 @@ public sealed partial class NavCrowd
 		shown.Radius[i] = p.Radius;
 		shown.VelocityX[i] = state.Velocity.X;
 		shown.VelocityY[i] = state.Velocity.Y;
-		shown.Part[i] = p.External ? 1 : 0.5f;
+		// What separation does not move it by is for the other: all of an External agent's, but a Steered one's off links
+		// in the last substep, where it is separated.
+		shown.Part[i] = p.External && !(p.Steered && state.Link < 0 && lastSubstep) ? 1 : 0.5f;
+		shown.Rest[i] = a.Has( AgentFlags.AtEnd ) ? 1 : 0;
+		bool goes = a.Has( AgentFlags.HasTarget | AgentFlags.AtEnd );
+		shown.TargetX[i] = goes ? state.RouteTarget.X : float.NaN;
+		shown.TargetY[i] = goes ? state.RouteTarget.Y : float.NaN;
 		Put( i );
 		tally.Radius = MathF.Max( tally.Radius, p.Radius );
 		tally.Look = MathF.Max( tally.Look, p.MaxSpeed * reach );
@@ -191,6 +198,9 @@ public sealed partial class NavCrowd
 			frame.VelocityY[slot] = shown.VelocityY[i];
 			frame.Id[slot] = i;
 			frame.Part[slot] = shown.Part[i];
+			frame.Rest[slot] = shown.Rest[i];
+			frame.TargetX[slot] = shown.TargetX[i];
+			frame.TargetY[slot] = shown.TargetY[i];
 		}
 	}
 
@@ -374,7 +384,7 @@ public sealed partial class NavCrowd
 		}
 		var facing = segments[..count];
 
-		var current = Flat( state.Velocity );
+		var current = Going( i );
 		if ( CollisionTime( desired, facing, horizon ) >= horizon && CollisionTime( current, facing, horizon ) >= horizon ) return desired;
 
 		var direction = desired / speed;

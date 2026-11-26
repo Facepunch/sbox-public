@@ -2,11 +2,9 @@ using System.Runtime.Intrinsics;
 
 namespace Nav.Build;
 
-/// <summary>
-/// Turns contours into convex polygons of up to six vertices: triangulate each contour, flip the
-/// triangles to its constrained Delaunay triangulation, merge them across their longest shared edge,
-/// drop the helper vertices on tile borders, then find neighbours.
-/// </summary>
+// Turns contours into convex polygons of up to six vertices: triangulate each contour, flip the
+// triangles to its constrained Delaunay triangulation, merge them across their longest shared edge,
+// drop the helper vertices on tile borders, then find neighbours.
 internal sealed class PolyBuilder
 {
 	const int Nvp = BuildConfig.VertsPerPoly;
@@ -17,20 +15,14 @@ internal sealed class PolyBuilder
 
 	public int VertCount, PolyCount;
 
-	/// <summary>
-	/// x, y, height per vertex, in cells from the tile's corner and cell heights from the field's origin.
-	/// </summary>
+	// x, y, height per vertex, in cells from the tile's corner and cell heights from the field's origin.
 	public ushort[] Verts = [];
 
-	/// <summary>
-	/// Six vertex indices per polygon, unused ones are NoIndex.
-	/// </summary>
+	// Six vertex indices per polygon, unused ones are NoIndex.
 	public ushort[] Polys = [];
 
-	/// <summary>
-	/// Per polygon edge (from vertex j to vertex j + 1): the polygon on the other side, NoIndex for a wall,
-	/// BorderEdge + side on the tile's edge. Polygons are clockwise seen from above.
-	/// </summary>
+	// Per polygon edge (from vertex j to vertex j + 1): the polygon on the other side, NoIndex for a wall,
+	// BorderEdge + side on the tile's edge. Polygons are clockwise seen from above.
 	public ushort[] Neis = [];
 
 	public byte[] Areas = [];
@@ -93,9 +85,7 @@ internal sealed class PolyBuilder
 		if ( array.Length < length ) array = new T[length + length / 2];
 	}
 
-	/// <summary>
-	/// size is the tile's edge in cells: an unconnected edge along it leads into the next tile.
-	/// </summary>
+	// size is the tile's edge in cells: an unconnected edge along it leads into the next tile.
 	public bool Build( ContourBuilder contours, int size, out string? error )
 	{
 		if ( !Begin( contours, out error ) ) return false;
@@ -137,9 +127,7 @@ internal sealed class PolyBuilder
 		return true;
 	}
 
-	/// <summary>
-	/// Empties the polygons and makes room for those of the contours.
-	/// </summary>
+	// Empties the polygons and makes room for those of the contours.
 	internal bool Begin( ContourBuilder contours, out string? error )
 	{
 		error = null;
@@ -179,11 +167,9 @@ internal sealed class PolyBuilder
 		return true;
 	}
 
-	/// <summary>
-	/// Triangulates contour c, adds its vertices, and flips the triangles to its constrained Delaunay
-	/// triangulation: into Work, linked as Merge takes them. linked is false when they are not a clean
-	/// surface, and then not flipped. Returns the triangle count.
-	/// </summary>
+	// Triangulates contour c, adds its vertices, and flips the triangles to its constrained Delaunay
+	// triangulation: into Work, linked as Merge takes them. linked is false when they are not a clean
+	// surface, and then not flipped. Returns the triangle count.
 	internal int Triangles( ContourBuilder contours, int c, out bool linked )
 	{
 		linked = false;
@@ -219,14 +205,10 @@ internal sealed class PolyBuilder
 		return polyCount;
 	}
 
-	/// <summary>
-	/// Six vertex indices per triangle that Triangles made, unused ones NoIndex.
-	/// </summary>
+	// Six vertex indices per triangle that Triangles made, unused ones NoIndex.
 	internal ushort[] Work => work;
 
-	/// <summary>
-	/// The polygon across each edge of what Triangles made, -1 for none; six per triangle.
-	/// </summary>
+	// The polygon across each edge of what Triangles made, -1 for none; six per triangle.
 	internal int[] Across => neighbourPoly;
 
 	int AddVertex( int x, int y, int height )
@@ -396,11 +378,9 @@ internal sealed class PolyBuilder
 		return (bx - ax) * (cy - ay) - (cx - ax) * (by - ay) < 0;
 	}
 
-	// Merges triangles into polygons across shared edges, always the longest edge whose two polygons make a
-	// convex one of at most six vertices, the first such edge in polygon order on a tie. The merged polygon
-	// takes the place of the lower of the two, the last polygon moves into the place of the other. linked: Link
-	// found the triangles a clean surface; else every merge searches from scratch. areaOf follows the polygons
-	// when given.
+	// Merges triangles into polygons across the longest shared edge whose union is convex with at most six
+	// vertices, the first in polygon order on a tie. The merged polygon takes the lower slot, the last polygon
+	// moves into the other. linked: Link found a clean surface; else every merge searches from scratch.
 	int Merge( ushort[] polys, int polyCount, int[]? areaOf, bool linked )
 	{
 		if ( !linked )
@@ -555,14 +535,11 @@ internal sealed class PolyBuilder
 		return true;
 	}
 
-	// Lawson flips of linked triangles. An edge with a triangle on each side becomes the other diagonal of
-	// their quad when the quad is strictly convex and the far corner lies inside the circle through the other
-	// three, or on it while the edge touches the greatest of the four corners (by x, then y, then index). That
-	// tie rule makes it the Delaunay triangulation of the points lifted by amounts too small to measure that
-	// grow with that order, which is unique: the triangles that come out depend neither on the ones that went
-	// in nor on the order of the flips; only where each lands in the list does. Edges with one triangle, the
-	// outline and its holes, stay; a bridge to a hole has a triangle on each side and may flip. The stack
-	// starts with every shared edge, the first triangle's on top, and takes the outer edges of each flipped quad.
+	// Lawson flips of linked triangles. An edge between two triangles becomes the other diagonal of their
+	// quad when the quad is strictly convex and the far corner lies inside the circumcircle, or on it while
+	// the edge touches the greatest of the four corners (by x, then y, then index). That tie rule makes the
+	// result a unique Delaunay triangulation, independent of the input triangles and the flip order. Outline
+	// and hole edges stay; a bridge to a hole may flip.
 	void Flip( ushort[] tris, int count )
 	{
 		Ensure( ref flipStack, count * 3 );

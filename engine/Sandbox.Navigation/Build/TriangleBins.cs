@@ -3,21 +3,15 @@ using System.Runtime.InteropServices;
 
 namespace Nav.Build;
 
-/// <summary>
-/// A triangle soup sorted into tiles once: per tile the indices of every triangle whose box touches the
-/// tile's padded box, in the order of the soup.
-/// </summary>
+// A triangle soup sorted into tiles once: per tile the indices of every triangle whose box touches the
+// tile's padded box, in the order of the soup.
 internal sealed class TriangleBins
 {
-	/// <summary>
-	/// Tiles a triangle reaches into, border not counted, in the order the soup first reaches them.
-	/// A tile that only has triangles in its border cannot have polygons and is not listed.
-	/// </summary>
+	// Tiles a triangle reaches into, border not counted, in the order the soup first reaches them.
+	// A tile that only has triangles in its border cannot have polygons and is not listed.
 	public readonly List<(int X, int Y)> Tiles = new();
 
-	/// <summary>
-	/// Triangles left out: an index out of range or a coordinate that is not finite.
-	/// </summary>
+	// Triangles left out: an index out of range or a coordinate that is not finite.
 	public int Invalid;
 
 	const int MaxTilesPerTriangle = 1 << 22;
@@ -128,9 +122,7 @@ internal sealed class TriangleBins
 		return slot;
 	}
 
-	/// <summary>
-	/// The triangles of one tile, three indices each. Empty for a tile no triangle comes near.
-	/// </summary>
+	// The triangles of one tile, three indices each. Empty for a tile no triangle comes near.
 	public ReadOnlyMemory<int> Indices( int x, int y )
 	{
 		return slots.TryGetValue( (x, y), out int slot ) ? indices.AsMemory( starts[slot], counts[slot] ) : default;

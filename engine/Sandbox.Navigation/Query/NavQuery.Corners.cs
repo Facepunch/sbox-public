@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Nav;
 
@@ -82,13 +81,11 @@ public sealed partial class NavQuery
 		return count >= corners.Length || enters.IsNone;
 	}
 
-	/// <summary>
-	/// String-pulls a corridor into corners. The corridor is pulled in stretches that end at a link's
-	/// entry and start again at its exit: a link has no width, and a vertical one would vanish from a
-	/// funnel on the ground plane. When part of the corridor has gone stale the corners end on the last
-	/// good polygon. entered may be empty; otherwise it gets, per corner, the polygon or link the path
-	/// goes into there, none at the end.
-	/// </summary>
+	// String-pulls a corridor into corners. The corridor is pulled in stretches that end at a link's
+	// entry and start again at its exit: a link has no width, and a vertical one would vanish from a
+	// funnel on the ground plane. When part of the corridor has gone stale the corners end on the last
+	// good polygon. entered may be empty; otherwise it gets, per corner, the polygon or link the path
+	// goes into there, none at the end.
 	internal int Funnel( MeshState s, ReadOnlySpan<PolyRef> path, Vector3 from, Vector3 to, Span<Vector3> corners, Span<PolyRef> entered, bool stopAtLink )
 	{
 		int count = 0, first = 0;

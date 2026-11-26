@@ -352,7 +352,7 @@ public partial class GeneratedLinkTests
 		Assert.IsTrue( ids.Count >= 4 );
 	}
 
-	// C1: a tile does not hold its spans for a neighbour that fails, is removed or is never built.
+	// A tile does not hold its spans for a neighbour that fails, is removed or is never built.
 	[TestMethod]
 	public void HeldSpansAreLetGoWhenTheNeighbourFailsOrIsRemoved()
 	{
@@ -590,7 +590,7 @@ public partial class GeneratedLinkTests
 		AssertSame( Gap().Generate( Links ).Generated(), scene.Generated(), "against a generation" );
 	}
 
-	// C2: whatever order tiles are marked in, a generation is handed out row by row and holds two rows.
+	// Whatever order tiles are marked in, a generation is handed out row by row and holds two rows.
 	[TestMethod]
 	public void GenerationIsHandedOutRowByRowAndHoldsTwoRowsOfSpans()
 	{
@@ -611,7 +611,7 @@ public partial class GeneratedLinkTests
 		Assert.IsTrue( scene.PeakHeld <= 2 * tiles + 4 + 2, $"{scene.PeakHeld} fields held at once" );
 		Assert.IsTrue( scene.Generated().Count > tiles * tiles );
 
-		// Without links the order is the order of the marks, as before.
+		// Without links the order is the order of the marks.
 		var plain = new NavMesh( Settings, NavMeshOptions.Create( Settings ) );
 		plain.MarkDirty( 3, 3 );
 		plain.MarkDirty( 0, 0 );
@@ -624,7 +624,7 @@ public partial class GeneratedLinkTests
 		Assert.AreEqual( (0, 0), (jobs[0].X, jobs[0].Y) );
 	}
 
-	// C3: a box of tiles rebuilt at runtime has the links of a generation, in it and around it.
+	// A box of tiles rebuilt at runtime has the links of a generation, in it and around it.
 	[TestMethod]
 	public void BoxOfTilesRebuiltAtRuntimeHasTheLinksOfAGeneration()
 	{
@@ -650,7 +650,7 @@ public partial class GeneratedLinkTests
 
 	internal static NavVolume Blocker( float x0, float y0, float x1, float y1, float z0 = -50, float z1 = 50 ) => new() { Shape = VolumeShape.Box, Area = NavFilter.NoArea, LocalToWorld = Matrix4x4.Identity, A = new Vector3( x0, y0, z0 ), B = new Vector3( x1, y1, z1 ) };
 
-	// Rule 5: a changed volume keeps the links and takes out those it blocks, without triangles.
+	// A changed volume keeps the links and takes out those it blocks, without triangles.
 	[TestMethod]
 	public void VolumeTakesOutTheLinksItBlocksAndGivesThemBackWithoutGeometry()
 	{
@@ -680,7 +680,7 @@ public partial class GeneratedLinkTests
 		Assert.AreEqual( all.Count, scene.Generated().Count );
 	}
 
-	// C4: a tile built from changed triangles under a blocker has all its links once the blocker leaves.
+	// A tile built from changed triangles under a blocker has all its links once the blocker leaves.
 	[TestMethod]
 	public void TileBuiltUnderABlockerHasAllItsLinksWhenTheBlockerLeaves()
 	{
@@ -702,7 +702,7 @@ public partial class GeneratedLinkTests
 		Assert.AreEqual( all.Count, scene.Generated().Count );
 	}
 
-	// C6: a blocker that floats is judged the same inside a tile and across a border.
+	// A blocker that floats is judged the same inside a tile and across a border.
 	[TestMethod]
 	public void FloatingBlockerIsJudgedTheSameInsideATileAndAcrossABorder()
 	{
@@ -727,7 +727,6 @@ public partial class GeneratedLinkTests
 		}
 	}
 
-	// C7: link ids.
 	[TestMethod]
 	public void LinkIdsAreHandedOutLowestFirstUpToTheLimitAndAHighOneWorksInAPath()
 	{

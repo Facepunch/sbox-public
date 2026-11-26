@@ -3,10 +3,8 @@ using System.Runtime.InteropServices;
 
 namespace Nav;
 
-/// <summary>
-/// Which polygons of one tile hang together under one area mask, by the edges inside the tile.
-/// Computed once per tile build and mask, on first need, and shared by the tile objects of the build.
-/// </summary>
+// Which polygons of one tile hang together under one area mask, by the edges inside the tile.
+// Computed once per tile build and mask, on first need, and shared by the tile objects of the build.
 internal sealed class TileIslands
 {
 	public const ushort None = 0xFFFF;
@@ -49,11 +47,9 @@ internal sealed class TileIslands
 	}
 }
 
-/// <summary>
-/// The connections of one tile object's components into the components of its neighbour tiles, under
-/// one mask. Each entry is component &lt;&lt; 32 | side &lt;&lt; 16 | target component, sides as in Poly. A tile
-/// gets a new object whenever a neighbour changes, so this never goes stale.
-/// </summary>
+// The connections of one tile object's components into the components of its neighbour tiles, under
+// one mask. Each entry is component << 32 | side << 16 | target component, sides as in Poly. A tile
+// gets a new object whenever a neighbour changes, so this never goes stale.
 internal sealed class TileEdges
 {
 	public readonly ulong Forbidden;
@@ -90,11 +86,9 @@ internal sealed class TileEdges
 	}
 }
 
-/// <summary>
-/// The components of the tiles of one block of 8 x 8 tile coordinates under one area mask, joined over
-/// the connections between those tiles. It depends on nothing but the tile objects in the block, so
-/// maps share it until one of them is replaced.
-/// </summary>
+// The components of the tiles of one block of 8 x 8 tile coordinates under one area mask, joined over
+// the connections between those tiles. It depends on nothing but the tile objects in the block, so
+// maps share it until one of them is replaced.
 internal sealed class IslandBlock
 {
 	public const int Bits = 3, Size = 1 << Bits, Mask = Size - 1;
@@ -180,34 +174,24 @@ internal sealed class IslandBlock
 
 internal readonly record struct IslandJoin( int Label, int Block, int Other );
 
-/// <summary>
-/// A link that joins two tile components under an area mask, kept with the block its start sits in: per
-/// end the place in its block and the tile component, the block of the end by index.
-/// </summary>
+// A link that joins two tile components under an area mask, kept with the block its start sits in: per
+// end the place in its block and the tile component, the block of the end by index.
 internal readonly record struct IslandLink( int Id, int EndBlock, ushort StartComponent, ushort EndComponent, byte StartPlace, byte EndPlace, byte Type );
 
-/// <summary>
-/// What the links of one block join, in block labels, with one bit per link type among them.
-/// </summary>
+// What the links of one block join, in block labels, with one bit per link type among them.
 internal readonly record struct LinkJoin( int Label, int Block, int Other, ulong Types );
 
-/// <summary>
-/// The labels of one tile's components in an island map.
-/// </summary>
+// The labels of one tile's components in an island map.
 internal readonly struct TileLabels( int[] labels, int start, int[] local, int first )
 {
 	public int this[int component] => labels[start + local[first + component]];
 }
 
-/// <summary>
-/// Polygons with the same label can reach each other under one area mask and one link type mask.
-/// Three levels: the components inside each tile, kept with the tile build; blocks of 8 x 8 tiles,
-/// shared from map to map while their tile objects stay; and here a union over the joins between
-/// blocks and over the links, which each block keeps reduced to the label pairs they join. A map starts
-/// from the last one built for its area mask, rebuilds only the blocks whose tile objects differ and
-/// resolves only the links whose entries differ, so after a commit it costs per changed block and link
-/// and per block, not per tile or link.
-/// </summary>
+// Polygons with the same label can reach each other under one area mask and one link type mask.
+// Three levels: components per tile, kept with the tile build; blocks of 8 x 8 tiles, shared between
+// maps while their tile objects stay; and here a union over the joins between blocks and over the
+// links. A map starts from the last one built for its area mask and redoes only the blocks and links
+// that differ.
 internal sealed class IslandMap
 {
 	public readonly ulong Forbidden, ForbiddenLinks;

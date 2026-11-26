@@ -51,7 +51,7 @@ internal sealed class NavigationSimulation
 	internal AgentState StateOf( int id )
 	{
 		var state = Crowd.States[id];
-		if ( Crowd.Params[id].External && query.ClosestPoint( state.Poly, state.Position, out var closest ) ) state.Position = closest;
+		if ( Crowd.Params[id].Mode != AgentMode.Moved && query.ClosestPoint( state.Poly, state.Position, out var closest ) ) state.Position = closest;
 		return state;
 	}
 
@@ -108,6 +108,11 @@ internal sealed class NavigationSimulation
 	{
 		lock ( Gate )
 		{
+			// The Velocity setter holds until it is set again; the crowd takes a told velocity for one Step
+			foreach ( var agent in agents )
+			{
+				if ( agent is { Removed: false, Told: { } told } ) Crowd.SetVelocity( agent.Id, told );
+			}
 			Crowd.Step( delta, run );
 
 			// At most one link transition per agent per step
@@ -151,6 +156,9 @@ internal sealed class SimulationAgent
 	// The link the component was last told about
 	internal int Link = -1;
 
+	// The velocity the component was last given for an agent its owner moves, told to the crowd before every Step
+	internal Vector3? Told;
+
 	// Once the agent has left the crowd its state stays readable as it was then
 	internal bool Removed;
 	private AgentState last;
@@ -175,6 +183,9 @@ internal sealed class SimulationAgent
 	}
 
 	internal AgentState State { get { lock ( Owner.Gate ) return Removed ? last : Owner.StateOf( Id ); } }
+
+	// As the crowd holds it, for reads that don't need the position looked up on its polygon
+	internal AgentState RawState { get { lock ( Owner.Gate ) return Removed ? last : Owner.Crowd.States[Id]; } }
 
 	internal AgentParams Options
 	{
@@ -207,14 +218,24 @@ internal sealed class SimulationAgent
 	{
 		if ( Removed ) return;
 		var options = wanted;
-		if ( held ) (options.AutoLinks, options.External) = (false, true);
+		if ( held ) (options.AutoLinks, options.Mode) = (false, AgentMode.Planned);
 		Owner.Crowd.SetParams( Id, options );
+		if ( options.Mode == AgentMode.Moved ) Told = null;
 	}
 
 	internal void MoveTo( Vector3 target ) { lock ( Owner.Gate ) if ( !Removed ) Owner.Crowd.MoveTo( Id, target ); }
 	internal void Stop() { lock ( Owner.Gate ) if ( !Removed ) Owner.Crowd.Stop( Id ); }
 	internal void SetPosition( Vector3 position ) { lock ( Owner.Gate ) if ( !Removed ) Owner.Crowd.SetPosition( Id, position ); }
-	internal void SetVelocity( Vector3 velocity ) { lock ( Owner.Gate ) if ( !Removed ) Owner.Crowd.SetVelocity( Id, velocity ); }
+	// Held, the velocity is told again before every Step until set again; otherwise for the next Step only
+	internal void SetVelocity( Vector3 velocity, bool hold = true )
+	{
+		lock ( Owner.Gate )
+		{
+			if ( Removed ) return;
+			Owner.Crowd.SetVelocity( Id, velocity );
+			Told = hold && Owner.Crowd.Params[Id].Mode != AgentMode.Moved ? velocity : null;
+		}
+	}
 	internal void CompleteLink() { lock ( Owner.Gate ) if ( !Removed ) Owner.Crowd.CompleteLink( Id ); }
 
 	// Ignored unless the path was made on the mesh the agent is on now

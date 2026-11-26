@@ -19,7 +19,8 @@ public struct NavSettings
 	public int TileSize;
 
 	/// <summary>
-	/// The radius is at most 127 cells wide, the height and the climb at most 32,767 cells tall.
+	/// The radius is at most 127 cells wide, the height and the climb at most 32,767 cells tall, and the
+	/// climb at most as many cells as the height.
 	/// </summary>
 	public float AgentHeight, AgentRadius, AgentClimb;
 
@@ -44,12 +45,9 @@ public struct NavSettings
 	public float MaxEdgeError;
 
 	/// <summary>
-	/// The most polygons a tile may hold, from 1 to 65,520. Create allows one for every four cells of the
-	/// tile: 16,383 at 256 cells. A tile over the limit fails to build. The limit decides
-	/// how many tiles a mesh can hold at once: a polygon id has 32 bits, the polygons of a tile take as
-	/// many as the limit needs and the rest number tiles, less the top 65,536 ids, which name links.
-	/// 16,383 polygons leave room for 262,140 tiles, 1,023 for 4,194,240. Lower it for a large world
-	/// of small or simple tiles, raise it for tiles with many floors.
+	/// The most polygons a tile may hold, from 1 to 65,520. A tile over the limit fails to build. A polygon
+	/// id has 32 bits: the polygon takes as many as the limit needs, the rest number tiles, less the top
+	/// 65,536 ids, which name links. 16,383 polygons leave room for 262,140 tiles, 1,023 for 4,194,240.
 	/// </summary>
 	public int MaxTilePolygons;
 
@@ -98,9 +96,10 @@ public struct NavSettings
 		else if ( BuildConfig.RadiusCells( this ) > BuildConfig.MaxRadiusCells ) reason = "AgentRadius is more than 127 cells";
 		else if ( BuildConfig.HeightCells( this ) > BuildConfig.MaxHeightCells ) reason = "AgentHeight is more than 32767 cells";
 		else if ( BuildConfig.ClimbCells( this ) > BuildConfig.MaxHeightCells ) reason = "AgentClimb is more than 32767 cells";
+		// A step taller than the agent: two floors of one column could both be in reach of one floor beside it
+		else if ( BuildConfig.ClimbCells( this ) > BuildConfig.HeightCells( this ) ) reason = "AgentClimb is more cells than AgentHeight";
 		return reason == null;
 	}
-
 
 	// The bits of a polygon id that number the polygon in its tile. See PolyRef.
 	internal readonly int PolyBits => 32 - BitOperations.LeadingZeroCount( (uint)MaxTilePolygons );

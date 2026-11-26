@@ -48,7 +48,8 @@ internal enum AgentFlags : ushort
 	// not tried again until one of those happens.
 	NeedsPlan = 1 << 7,
 
-	// External only: the caller has given a velocity with SetVelocity, so the crowd does not derive one.
+	// External only: the caller has given a velocity with SetVelocity since the last Step, so the crowd does not derive
+	// one for this Step.
 	OwnVelocity = 1 << 8
 }
 
@@ -113,6 +114,9 @@ internal readonly struct Frame
 	// this one is External and does not yield.
 	public readonly float[] Part;
 
+	// 1 when the agent rests at the end of its route, and the target its route was planned for (NaN without one).
+	public readonly float[] Rest, TargetX, TargetY;
+
 	public Frame( int capacity )
 	{
 		X = new float[capacity + 8];
@@ -124,6 +128,9 @@ internal readonly struct Frame
 		VelocityY = new float[capacity + 8];
 		Id = new int[capacity + 8];
 		Part = new float[capacity + 8];
+		Rest = new float[capacity + 8];
+		TargetX = new float[capacity + 8];
+		TargetY = new float[capacity + 8];
 	}
 
 	public int Capacity => X == null ? 0 : X.Length - 8;

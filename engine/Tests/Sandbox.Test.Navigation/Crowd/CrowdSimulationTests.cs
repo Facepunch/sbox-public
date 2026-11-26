@@ -419,6 +419,8 @@ public class CrowdSimulationTests
 		var sim = new Sim( new() { UpperFloor = true, Link = true } );
 		var fast = Walker();
 		fast.MaxSpeed = 100000;
+		// Across a link the agent speeds up at its acceleration (decision 86): this one crosses in a substep.
+		fast.Acceleration = 100000000;
 		int agent = sim.Add( At( 320, 320 ), At( 500, 320, 201 ), fast );
 		sim.Step( 0.4f );
 		Assert.IsTrue( sim.OnLink( agent ), "Substeps must not consume the entry before the caller can observe it" );
@@ -527,8 +529,14 @@ public class CrowdSimulationTests
 					closest = MathF.Min( closest, Flat( sim.Position( i ), sim.Position( j ) ) );
 		}
 		Assert.IsTrue( closest > 12.8f, $"A pile-up compressed agents to {closest:0.0} apart, radii sum 16" );
+		// They stop where the point is held (decision 86) instead of shoving for ever: eight of radius 8 in two
+		// rings round the point, centres within 4 radii when packed tight, with up to a quarter radius between
+		// those that stopped on touching, and pushed back a little by separation.
 		for ( int i = 0; i < 8; i++ )
-			Assert.IsTrue( Vector3.Distance( sim.Position( i ), target ) < 32, $"An agent settled {Vector3.Distance( sim.Position( i ), target ):0} units from the shared destination" );
+		{
+			Assert.AreEqual( AgentStatus.Arrived, sim.Status( i ) );
+			Assert.IsTrue( Vector3.Distance( sim.Position( i ), target ) < 48, $"An agent settled {Vector3.Distance( sim.Position( i ), target ):0} units from the shared destination" );
+		}
 	}
 
 	[TestMethod]

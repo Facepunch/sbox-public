@@ -183,17 +183,6 @@ public sealed partial class NavQuery
 		return index;
 	}
 
-	int FindNode( uint id )
-	{
-		var slots = table;
-		int mask = slots.Length - 1;
-		for ( int i = Hash( id ) & mask; slots[i].Stamp == stamp; i = (i + 1) & mask )
-		{
-			if ( slots[i].Id == id ) return slots[i].Node;
-		}
-		return -1;
-	}
-
 	void GrowTable()
 	{
 		var slots = new TableSlot[table.Length * 2];
@@ -294,21 +283,16 @@ public sealed partial class NavQuery
 	// it can. Shorter searches never need the map, so a local query after a commit builds nothing.
 	const int IslandCheck = 256;
 
-	/// <summary>
-	/// A* over polygons: cost is distance times the area multiplier, for a link also times the
-	/// multiplier of its type and plus the penalty of its type. Distance is measured the way the path
-	/// is walked, straight from corner to corner through the portals, so a walk and a link are priced
-	/// alike whatever the size of the polygons. Only a bend round a corner of an earlier polygon is
-	/// taken through the point the route entered by instead. The estimate is 0.999 of the
-	/// straight distance, a hair under it so that rounding never lifts the estimate above the cost that
-	/// is left. When the target turns out to be on another island it is replaced by the nearest
-	/// polygon of the start island and the search starts over, so an unreachable goal does not flood
-	/// the island. Searches of up to IslandCheck expansions never ask. Returns true when the target
-	/// polygon was reached; searchEnd is then its node, else the node that came closest.
-	/// </summary>
+	// A* over polygons. Cost is the distance as walked, corner to corner through the portals (a bend round
+	// a corner of an earlier polygon goes through the point the route entered by), times the area
+	// multiplier; a link also times its type's multiplier, plus its type's penalty. The estimate is 0.999
+	// of the straight distance so rounding never lifts it above the cost left. Past IslandCheck
+	// expansions, a target on another island is replaced by the nearest polygon of the start island and
+	// the search starts over. Returns true when the target polygon was reached; searchEnd is then its
+	// node, else the node that came closest.
 	bool Search( MeshState s, uint startId, uint targetId, Vector3 start, Vector3 target, in NavFilter filter, int maxExpansions )
 	{
-		Begin( s, startId, targetId, start, target, filter );
+		Begin( s, startId, targetId, start, target );
 		bool reached = Expand( s, filter, Math.Min( maxExpansions, IslandCheck ) );
 		if ( reached || maxExpansions <= IslandCheck ) return reached;
 
@@ -318,13 +302,13 @@ public sealed partial class NavQuery
 			return Expand( s, filter, maxExpansions );
 
 		int wasted = SearchExpansions;
-		Begin( s, startId, reachable, start, reachablePoint, filter );
+		Begin( s, startId, reachable, start, reachablePoint );
 		reached = Expand( s, filter, maxExpansions );
 		SearchExpansions += wasted;
 		return reached;
 	}
 
-	void Begin( MeshState s, uint startId, uint targetId, Vector3 start, Vector3 target, in NavFilter filter )
+	void Begin( MeshState s, uint startId, uint targetId, Vector3 start, Vector3 target )
 	{
 		BeginNodes();
 		searchTarget = targetId;
@@ -671,10 +655,8 @@ public sealed partial class NavQuery
 		return count;
 	}
 
-	/// <summary>
-	/// A bounded search from start that rejoins the corridor at the furthest polygon it reached,
-	/// instead of planning the whole route again. False leaves the corridor as it was.
-	/// </summary>
+	// A bounded search from start that rejoins the corridor at the furthest polygon it reached,
+	// instead of planning the whole route again. False leaves the corridor as it was.
 	internal bool Repair( MeshState s, PolyRef start, Vector3 position, Vector3 target, in NavFilter filter, ref PolyRef[] corridor, ref int count, int expansions )
 	{
 		if ( count == 0 || !s.TryGet( start, out _, out _ ) || !s.TryGet( corridor[count - 1], out _, out _ ) || !Geo.IsFinite( position ) || !Geo.IsFinite( target ) ) return false;
@@ -704,12 +686,10 @@ public sealed partial class NavQuery
 		return false;
 	}
 
-	/// <summary>
-	/// The island map of a state for the area and link type masks of the filter, built on first need
-	/// and kept with the state. Finding a map that exists takes no lock. Threads that miss it queue
-	/// behind one builder per mesh, so a state gets each map once and a map starts from the last one
-	/// built for its area mask on any state of the mesh.
-	/// </summary>
+	// The island map of a state for the area and link type masks of the filter, built on first need
+	// and kept with the state. Finding a map that exists takes no lock. Threads that miss it queue
+	// behind one builder per mesh, so a state gets each map once and a map starts from the last one
+	// built for its area mask on any state of the mesh.
 	internal static IslandMap GetIslands( MeshState s, in NavFilter filter )
 	{
 		ulong forbidden = filter.ForbiddenAreas, forbiddenLinks = filter.ForbiddenLinks;

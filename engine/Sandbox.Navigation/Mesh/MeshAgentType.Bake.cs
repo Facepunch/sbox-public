@@ -4,21 +4,33 @@ using System.Numerics;
 
 namespace Nav;
 
-/// <summary>
-/// One agent type's part of a bake (NavMesh.Bake.cs has the layout): its settings, and its tiles as their
-/// polygons and the cells their vertices sit on. Everything else a tile holds follows from those and is
-/// made again at load: the neighbours of every polygon, the tree, the portal edges, bounds and area.
-/// </summary>
+// One agent type's part of a bake (NavMesh.Bake.cs has the layout): its settings, and its tiles as their
+// polygons and the cells their vertices sit on. Everything else a tile holds follows from those and is
+// made again at load: the neighbours of every polygon, the tree, the portal edges, bounds and area.
 internal sealed partial class MeshAgentType
 {
 	internal const int SettingsBytes = 44;
 
-	// The least a tile takes: two coordinates, two counts, and a polygon of three corners over three vertices
-	internal const int MinTileBytes = 4 + 4 + 9;
+	// The least a record takes: two coordinates, two counts and a hash, for a place without polygons
+	internal const int MinRecordBytes = 4 + 8;
 
-	// The most a tile takes: coordinates, counts and hash, then a byte and six indices of up to three
+	// The most a record takes: coordinates, counts and hash, then a byte and six indices of up to three
 	// bytes per polygon, and three numbers of up to five bytes per vertex
-	internal static long MostBytes( Tile tile ) => 28 + tile.Polys.Length * 19L + tile.Verts.Length * 15L;
+	internal const int MostEmptyBytes = 28;
+	internal static long MostBytes( Tile tile ) => MostEmptyBytes + tile.Polys.Length * 19L + tile.Verts.Length * 15L;
+
+	// How many records the tiles and hashes, both in the order of y, then x, make: one per tile, and one
+	// per hash that no tile has.
+	internal static int RecordCount( Tile[] tiles, (int Y, int X, ulong Hash)[] hashes )
+	{
+		int count = tiles.Length, next = 0;
+		foreach ( var (y, x, _) in hashes )
+		{
+			while ( next < tiles.Length && (tiles[next].Y, tiles[next].X).CompareTo( (y, x) ) < 0 ) next++;
+			if ( next == tiles.Length || tiles[next].Y != y || tiles[next].X != x ) count++;
+		}
+		return count;
+	}
 
 	// The tiles of a state in the order of y, then x, whatever the slots are, so equal meshes give equal
 	// bytes; and the most bytes they can take.
@@ -74,70 +86,91 @@ internal sealed partial class MeshAgentType
 		};
 	}
 
-	// Writes the tiles, each as one span, with the volume-set hash each was built with: hashes is the
-	// table published with or before the state the tiles come from.
+	// Writes the tiles, each as one span, with the volume-set hash each was built with, and a record of
+	// the hash alone for a place the hashes have and the tiles do not: built with volumes that left it no
+	// polygons. hashes is the table published with the state the tiles come from.
 	internal void WriteTiles( IBufferWriter<byte> output, Tile[] tiles, (int Y, int X, ulong Hash)[] hashes )
 	{
-		double perCell = 1.0 / settings.CellSize, perHeight = 1.0 / settings.CellHeight;
 		long lastX = 0, lastY = 0;
 		int next = 0;
 		foreach ( var tile in tiles )
 		{
-			var to = output.GetSpan( (int)MostBytes( tile ) );
-			int at = 0;
-			PutSigned( to, ref at, tile.X - lastX );
-			PutSigned( to, ref at, tile.Y - lastY );
-			lastX = tile.X;
-			lastY = tile.Y;
-
 			// Both in the order of y, then x
-			while ( next < hashes.Length && (hashes[next].Y, hashes[next].X).CompareTo( (tile.Y, tile.X) ) < 0 ) next++;
-			ulong hash = next < hashes.Length && hashes[next].Y == tile.Y && hashes[next].X == tile.X ? hashes[next].Hash : 0;
-			Put( to, ref at, (ulong)tile.Polys.Length * 2 + (hash != 0 ? 1u : 0u) );
-			Put( to, ref at, (ulong)tile.Verts.Length );
-			if ( hash != 0 )
-			{
-				BinaryPrimitives.WriteUInt64LittleEndian( to[at..], hash );
-				at += 8;
-			}
-
-			foreach ( ref readonly var poly in tile.Polys.AsSpan() ) to[at++] = (byte)(poly.VertCount - 3 | poly.Area << 2);
-			int last = 0;
-			foreach ( ref readonly var poly in tile.Polys.AsSpan() )
-			{
-				for ( int j = 0; j < poly.VertCount; j++ )
-				{
-					PutSigned( to, ref at, poly.Verts[j] - last );
-					last = poly.Verts[j];
-				}
-			}
-
-			// The same number for a cell as the builder makes of it: from its place in the world
-			long cellX = (long)tile.X * settings.TileSize, cellY = (long)tile.Y * settings.TileSize;
-			var verts = tile.Verts;
-			long before = 0;
-			foreach ( var v in verts )
-			{
-				long cell = Math.Clamp( CellOf( v.X, perCell ) - cellX, 0, settings.TileSize );
-				PutSigned( to, ref at, cell - before );
-				before = cell;
-			}
-			before = 0;
-			foreach ( var v in verts )
-			{
-				long cell = Math.Clamp( CellOf( v.Y, perCell ) - cellY, 0, settings.TileSize );
-				PutSigned( to, ref at, cell - before );
-				before = cell;
-			}
-			before = 0;
-			foreach ( var v in verts )
-			{
-				long cell = Math.Clamp( CellOf( v.Z, perHeight ), int.MinValue, int.MaxValue );
-				PutSigned( to, ref at, cell - before );
-				before = cell;
-			}
-			output.Advance( at );
+			for ( ; next < hashes.Length && (hashes[next].Y, hashes[next].X).CompareTo( (tile.Y, tile.X) ) < 0; next++ ) WriteEmpty( output, hashes[next].X, hashes[next].Y, hashes[next].Hash, ref lastX, ref lastY );
+			ulong hash = next < hashes.Length && hashes[next].Y == tile.Y && hashes[next].X == tile.X ? hashes[next++].Hash : 0;
+			WriteTile( output, tile, hash, ref lastX, ref lastY );
 		}
+		for ( ; next < hashes.Length; next++ ) WriteEmpty( output, hashes[next].X, hashes[next].Y, hashes[next].Hash, ref lastX, ref lastY );
+	}
+
+	static void WriteEmpty( IBufferWriter<byte> output, int x, int y, ulong hash, ref long lastX, ref long lastY )
+	{
+		var to = output.GetSpan( MostEmptyBytes );
+		int at = 0;
+		PutSigned( to, ref at, x - lastX );
+		PutSigned( to, ref at, y - lastY );
+		lastX = x;
+		lastY = y;
+		Put( to, ref at, 1 );
+		Put( to, ref at, 0 );
+		BinaryPrimitives.WriteUInt64LittleEndian( to[at..], hash );
+		output.Advance( at + 8 );
+	}
+
+	void WriteTile( IBufferWriter<byte> output, Tile tile, ulong hash, ref long lastX, ref long lastY )
+	{
+		double perCell = 1.0 / settings.CellSize, perHeight = 1.0 / settings.CellHeight;
+		var to = output.GetSpan( (int)MostBytes( tile ) );
+		int at = 0;
+		PutSigned( to, ref at, tile.X - lastX );
+		PutSigned( to, ref at, tile.Y - lastY );
+		lastX = tile.X;
+		lastY = tile.Y;
+
+		Put( to, ref at, (ulong)tile.Polys.Length * 2 + (hash != 0 ? 1u : 0u) );
+		Put( to, ref at, (ulong)tile.Verts.Length );
+		if ( hash != 0 )
+		{
+			BinaryPrimitives.WriteUInt64LittleEndian( to[at..], hash );
+			at += 8;
+		}
+
+		foreach ( ref readonly var poly in tile.Polys.AsSpan() ) to[at++] = (byte)(poly.VertCount - 3 | poly.Area << 2);
+		int last = 0;
+		foreach ( ref readonly var poly in tile.Polys.AsSpan() )
+		{
+			for ( int j = 0; j < poly.VertCount; j++ )
+			{
+				PutSigned( to, ref at, poly.Verts[j] - last );
+				last = poly.Verts[j];
+			}
+		}
+
+		// The same number for a cell as the builder makes of it: from its place in the world
+		long cellX = (long)tile.X * settings.TileSize, cellY = (long)tile.Y * settings.TileSize;
+		var verts = tile.Verts;
+		long before = 0;
+		foreach ( var v in verts )
+		{
+			long cell = Math.Clamp( CellOf( v.X, perCell ) - cellX, 0, settings.TileSize );
+			PutSigned( to, ref at, cell - before );
+			before = cell;
+		}
+		before = 0;
+		foreach ( var v in verts )
+		{
+			long cell = Math.Clamp( CellOf( v.Y, perCell ) - cellY, 0, settings.TileSize );
+			PutSigned( to, ref at, cell - before );
+			before = cell;
+		}
+		before = 0;
+		foreach ( var v in verts )
+		{
+			long cell = Math.Clamp( CellOf( v.Z, perHeight ), int.MinValue, int.MaxValue );
+			PutSigned( to, ref at, cell - before );
+			before = cell;
+		}
+		output.Advance( at );
 	}
 
 	// perCell is one over the cell size. Every vertex lies on a cell, so the product rounds to the cell as the quotient would.
@@ -200,36 +233,51 @@ internal sealed partial class MeshAgentType
 		}
 	}
 
-	// Reads count tiles of one agent type, in strictly increasing order, each with its volume-set hash
-	// (0 for none). Null when anything is wrong.
-	internal static Tile[]? ReadTiles( ref BakeReader reader, in NavSettings settings, int count, out ulong[] hashes )
+	// Reads count records of one agent type, in strictly increasing order: its tiles, and the volume-set
+	// hash of every place that has one, with or without a tile. Null when anything is wrong.
+	internal static Tile[]? ReadTiles( ref BakeReader reader, in NavSettings settings, int count, out (int X, int Y, ulong Hash)[] hashes )
 	{
 		var loader = new TileLoader( settings );
-		var tiles = new Tile[count];
-		hashes = new ulong[count];
+		var tiles = new List<Tile>();
+		var found = new List<(int X, int Y, ulong Hash)>();
+		hashes = [];
+		int maxTiles = PolyRef.MaxTiles( settings.PolyBits );
 		long x = 0, y = 0;
 		for ( int i = 0; i < count; i++ )
 		{
 			long nextX = x + reader.Signed(), nextY = y + reader.Signed();
-			// In order, so no tile is there twice
+			// In order, so no place is there twice
 			if ( i > 0 && (nextY < y || (nextY == y && nextX <= x)) ) return null;
 			if ( nextX != (int)nextX || nextY != (int)nextY ) return null;
 			x = nextX;
 			y = nextY;
 
-			var tile = loader.Read( ref reader, (int)x, (int)y, out hashes[i] );
+			ulong head = reader.Number(), vertNumber = reader.Number();
+			// A place built with volumes that left it no polygons: its hash alone
+			if ( head == 1 && vertNumber == 0 )
+			{
+				ulong only = reader.Hash();
+				if ( only == 0 || reader.Failed ) return null;
+				found.Add( ((int)x, (int)y, only) );
+				continue;
+			}
+			if ( tiles.Count == maxTiles ) return null;
+			var tile = loader.Read( ref reader, head, vertNumber, (int)x, (int)y, out ulong hash );
 			if ( tile == null ) return null;
-			tiles[i] = tile;
+			tiles.Add( tile );
+			if ( hash != 0 ) found.Add( ((int)x, (int)y, hash) );
 		}
-		return tiles;
+		hashes = found.ToArray();
+		return tiles.ToArray();
 	}
 
-	// A load: the tiles of the bake and the volume set each was built with.
-	internal void Loaded( Tile[] tiles, ulong[] hashes )
+	// A load: the tiles of the bake and the volume set each place was built with.
+	internal void Loaded( Tile[] tiles, (int X, int Y, ulong Hash)[] hashes )
 	{
 		CommitTiles( tiles );
-		SetVolumeHashes( tiles, hashes );
+		SetVolumeHashes( hashes );
 	}
+
 	// Reads tiles and builds what a bake leaves out, the way the builder's last stages do: neighbours as
 	// PolyBuilder finds them, tree and portal edges as TileAssembler lays them out. The polygons are in
 	// the tree's order already, so the tree needs no sorting.
@@ -246,10 +294,9 @@ internal sealed partial class MeshAgentType
 		Edge[] edges = [];
 		Vector3[] mins = [], maxs = [];
 
-		public Tile? Read( ref BakeReader reader, int tileX, int tileY, out ulong hash )
+		public Tile? Read( ref BakeReader reader, ulong head, ulong vertNumber, int tileX, int tileY, out ulong hash )
 		{
 			hash = 0;
-			ulong head = reader.Number(), vertNumber = reader.Number();
 			if ( head < 2 || head >> 1 > (ulong)settings.MaxTilePolygons || vertNumber < 3 || vertNumber > Poly.MaxVertsPerTile ) return null;
 			int polyCount = (int)(head >> 1), vertCount = (int)vertNumber;
 

@@ -10,11 +10,9 @@ internal struct Index6
 	ushort first;
 }
 
-/// <summary>
-/// Vertices are clockwise seen from above. Neis[j] belongs to the edge from vertex j to j + 1: a polygon
-/// index in the same tile, Wall, or Border + side for an edge on a tile border.
-/// Sides: 0 = +X, 1 = +Y, 2 = -X, 3 = -Y.
-/// </summary>
+// Vertices are clockwise seen from above. Neis[j] belongs to the edge from vertex j to j + 1: a polygon
+// index in the same tile, Wall, or Border + side for an edge on a tile border.
+// Sides: 0 = +X, 1 = +Y, 2 = -X, 3 = -Y.
 [StructLayout( LayoutKind.Sequential, Pack = 2 )]
 internal struct Poly
 {
@@ -27,10 +25,8 @@ internal struct Poly
 	ushort spare;
 }
 
-/// <summary>
-/// Flat depth-first tree over polygon bounds, in cells relative to the tile. A leaf covers Count polygons
-/// starting at First. An inner node has First == Inner and Count nodes in its subtree, itself included.
-/// </summary>
+// Flat depth-first tree over polygon bounds, in cells relative to the tile. A leaf covers Count polygons
+// starting at First. An inner node has First == Inner and Count nodes in its subtree, itself included.
 internal struct BvNode
 {
 	public const ushort Inner = 0xFFFF;
@@ -39,9 +35,7 @@ internal struct BvNode
 	public ushort MinX, MinY, MinZ, MaxX, MaxY, MaxZ, First, Count;
 }
 
-/// <summary>
-/// A polygon edge on a tile border. Lo and Hi are where it starts and ends along the border, in cells.
-/// </summary>
+// A polygon edge on a tile border. Lo and Hi are where it starts and ends along the border, in cells.
 internal struct PortalEdge
 {
 	public ushort Poly;
@@ -49,10 +43,8 @@ internal struct PortalEdge
 	public ushort Lo, Hi;
 }
 
-/// <summary>
-/// A connection from Edge of Poly into a polygon of a neighbour tile. TMin and TMax are the open part
-/// of the edge in 255ths, Area the area of the target polygon.
-/// </summary>
+// A connection from Edge of Poly into a polygon of a neighbour tile. TMin and TMax are the open part
+// of the edge in 255ths, Area the area of the target polygon.
 [StructLayout( LayoutKind.Sequential, Pack = 2 )]
 internal struct ExtLink
 {
@@ -66,10 +58,8 @@ internal struct LinkAttach
 	public ushort Poly, Link;
 }
 
-/// <summary>
-/// One built tile. Never changes once published: a rebuild or a relink makes a new object. Polys, Verts,
-/// Tree and Portals belong to the build and are shared by the objects made from it, as is Serial.
-/// </summary>
+// One built tile. Never changes once published: a rebuild or a relink makes a new object. Polys, Verts,
+// Tree and Portals belong to the build and are shared by the objects made from it, as is Serial.
 internal sealed class Tile
 {
 	public readonly Poly[] Polys;

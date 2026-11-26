@@ -60,14 +60,8 @@ internal sealed partial class MeshAgentType
 	internal long HeldBytes, HeldPeak;
 	internal int HeldFields => held.Count;
 
-	/// <summary>
-	/// Generated links that are not in the mesh because no link id was free. Owner thread.
-	/// </summary>
 	public int LinksRefused => linksRefused;
 
-	/// <summary>
-	/// The link as it was added or generated, as of the last Commit. False for an id that is not in use.
-	/// </summary>
 	public bool GetLink( int id, out NavLink link, out bool generated )
 	{
 		ref readonly var entry = ref State.LinkAt( id );
@@ -77,9 +71,6 @@ internal sealed partial class MeshAgentType
 		return found;
 	}
 
-	/// <summary>
-	/// Appends the ids of the generated links, as of the last Commit, and returns how many.
-	/// </summary>
 	public int GetGeneratedLinks( List<int> ids )
 	{
 		var pages = State.LinkPages;
@@ -96,13 +87,6 @@ internal sealed partial class MeshAgentType
 		return ids.Count - first;
 	}
 
-	/// <summary>
-	/// Appends the generated links of a tile that are good as of the last Commit, and returns how many:
-	/// both ends on the mesh, clear of blocking volumes, not as short to walk, thinned. Always in the
-	/// same order, and the same values for the same mesh, so a caller that keeps them compares the old
-	/// set with the new by value. Each has its ends on the polygons it joins and a radius of a cell:
-	/// added with AddLink it connects the same polygons. Owner thread.
-	/// </summary>
 	public int GetGeneratedLinks( int tileX, int tileY, List<NavLink> result )
 	{
 		if ( !tileLinks.TryGetValue( (tileX, tileY), out var t ) ) return 0;
@@ -119,12 +103,6 @@ internal sealed partial class MeshAgentType
 		return t.Made.Length;
 	}
 
-	/// <summary>
-	/// Appends the tiles whose generated links changed in a Commit since the last call, and returns how
-	/// many: a tile built or removed, one whose links across a border were judged, one a blocking volume
-	/// came over or left. A tile built again with the same links is not among them. Kept only for a mesh
-	/// that does not insert its links, whose caller has to ask. Owner thread.
-	/// </summary>
 	public int TakeLinkChanges( List<(int X, int Y)> tiles )
 	{
 		int count = linkChanges.Count;

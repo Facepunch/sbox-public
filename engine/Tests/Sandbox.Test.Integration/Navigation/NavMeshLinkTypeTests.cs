@@ -187,11 +187,11 @@ public class NavMeshLinkTypeTests
 			waited |= agents.Any( Waits );
 			if ( autoTraverse ) continue;
 
-			// Game code takes its time crossing
+			// Game code takes its time crossing, long enough that the second agent arrives while the first is on it
 			foreach ( var agent in crossing )
 			{
 				held[agent] = held.GetValueOrDefault( agent ) + 1;
-				if ( held[agent] < 20 ) continue;
+				if ( held[agent] < 40 ) continue;
 				agent.SetAgentPosition( agent.CurrentLinkTraversal.Value.LinkExitPosition );
 				agent.CompleteLinkTraversal();
 			}
@@ -232,7 +232,7 @@ public class NavMeshLinkTypeTests
 		// A changed setting does not let a held agent go
 		first.MaxSpeed = 100;
 		first.AutoTraverseLinks = true;
-		Assert.IsTrue( first.agentInternal.Options.External );
+		Assert.AreEqual( Nav.AgentMode.Planned, first.agentInternal.Options.Mode );
 		Assert.IsFalse( first.agentInternal.Options.AutoLinks );
 		first.AutoTraverseLinks = false;
 
@@ -246,7 +246,7 @@ public class NavMeshLinkTypeTests
 		Assert.IsTrue( first.agentInternal.State.Link < 0, "A waiting agent leaves a link that is gone" );
 		Assert.IsTrue( second.agentInternal.State.Link < 0, "So does the agent that crossed it" );
 		Assert.IsFalse( first.IsTraversingLink );
-		Assert.IsFalse( first.agentInternal.Options.External, "It is moved by the crowd again" );
+		Assert.AreEqual( Nav.AgentMode.Moved, first.agentInternal.Options.Mode, "It is moved by the crowd again" );
 		Assert.AreEqual( 1, exits );
 
 		// Back again, the link still takes one agent at a time

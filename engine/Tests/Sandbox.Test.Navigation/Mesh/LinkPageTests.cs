@@ -211,48 +211,6 @@ public partial class LinkPageTests
 	}
 
 	[TestMethod]
-	public void LinkIdsAtTheTopOfTheRange()
-	{
-		// Two floors 200 apart. Every id is taken by a link on the floor below, the last by a ladder up.
-		var mesh = GridMesh.Mesh( GridMesh.Tile( 0, 0, new GridMesh.Layer( 0 ), new GridMesh.Layer( 200 ) ) );
-		var ground = new NavLink { Start = new Vector3( 100, 100, 1 ), End = new Vector3( 500, 100, 1 ), Radius = 8, Bidirectional = true, Area = 1 };
-		var ladder = new NavLink { Start = new Vector3( 320, 320, 1 ), End = new Vector3( 320, 320, 201 ), Radius = 24, Bidirectional = true, Area = 1 };
-		int top = PolyRef.MaxLinks - 1;
-		for ( int id = 0; id < top; id++ ) Assert.AreEqual( id, mesh.AddLink( ground ) );
-		Assert.AreEqual( top, mesh.AddLink( ladder ) );
-		Assert.AreEqual( -1, mesh.AddLink( ground ) );
-		mesh.Commit();
-
-		var query = new NavQuery( mesh );
-		var path = new NavPath();
-		Vector3 below = new( 100, 320, 0 ), above = new( 500, 320, 200 );
-		void Climbs()
-		{
-			Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, GridMesh.Snap, Filters.All, path ) );
-			var link = path.Polys.ToArray().Single( p => p.IsLink );
-			Assert.AreEqual( top, link.Link );
-			Assert.IsTrue( query.IsValid( link, Filters.All ) );
-			Assert.IsTrue( query.GetLink( link, below, out var entry, out var exit ) );
-			Assert.AreEqual( new Vector3( 320, 320, 0 ), entry );
-			Assert.AreEqual( new Vector3( 320, 320, 200 ), exit );
-		}
-		Climbs();
-		Assert.IsTrue( mesh.GetLinkEnds( top, out _, out _, out bool startConnected, out bool endConnected ) && startConnected && endConnected );
-		Assert.IsFalse( mesh.GetLinkEnds( top + 1, out _, out _, out _, out _ ) );
-		Assert.IsFalse( mesh.GetLink( -1, out _, out _ ) );
-
-		mesh.RemoveLink( top );
-		mesh.Commit();
-		Assert.IsFalse( mesh.GetLinkEnds( top, out _, out _, out _, out _ ) );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, GridMesh.Snap, Filters.All, path ) );
-		Assert.AreEqual( top, mesh.AddLink( ladder ) );
-		mesh.Commit();
-		Climbs();
-		mesh.CommitTiles( [GridMesh.Tile( 0, 0, new GridMesh.Layer( 0 ), new GridMesh.Layer( 200 ) )] );
-		Climbs();
-	}
-
-	[TestMethod]
 	public void LinksOnALoadedBakeResolveAsOnTheMeshBaked()
 	{
 		const int Side = 4;

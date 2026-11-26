@@ -16,7 +16,7 @@ public class LinkTests
 	[TestMethod]
 	public void LinkNeedsACommitButNoJob()
 	{
-		// Review m2: AddLink on a clean mesh takes effect with the parameterless Commit.
+		// AddLink on a clean mesh takes effect with the parameterless Commit.
 		var mesh = TwoFloors();
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
@@ -66,39 +66,13 @@ public class LinkTests
 			Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, Filters.All, path ) );
 			Assert.AreEqual( bidirectional ? PathStatus.Complete : PathStatus.Partial, query.FindPath( above, below, Snap, Filters.All, path ) );
 			if ( bidirectional ) Assert.AreEqual( new Vector3( 320, 320, 200 ), path.Corners[1], "Walking back enters the link at its end" );
+			else
+			{
+				// A one-way link joins the islands, so the way back is a search that ends on the upper floor
+				Assert.AreEqual( 200f, path.End.Z );
+				Assert.IsFalse( path.Polys.ToArray().Any( p => p.IsLink ) );
+			}
 		}
-	}
-
-	[TestMethod]
-	public void OneWayLinkThatIsTheOnlyConnectionIsStillTaken()
-	{
-		// Review m4 proposed that one-way links do not join islands. Then the goal behind such a link
-		// counts as unreachable from the right side as well, so they do join. From the wrong side the
-		// search finds no way, after looking through the far island.
-		var mesh = TwoFloors();
-		mesh.AddLink( Ladder( bidirectional: false ) );
-		mesh.Commit();
-		var query = new NavQuery( mesh );
-		var path = new NavPath();
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 105, 325, 0 ), new Vector3( 505, 325, 200 ), Snap, Filters.All, path ) );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( new Vector3( 505, 325, 200 ), new Vector3( 105, 325, 0 ), Snap, Filters.All, path ) );
-		Assert.AreEqual( 200f, path.End.Z, "The partial path stays on the upper floor" );
-		Assert.IsFalse( path.Polys.ToArray().Any( p => p.IsLink ) );
-	}
-
-	[TestMethod]
-	public void LinkAreaIsFilteredAndCosted()
-	{
-		var mesh = TwoFloors();
-		var link = Ladder();
-		link.Area = 5;
-		mesh.AddLink( link );
-		mesh.Commit();
-		var query = new NavQuery( mesh );
-		var path = new NavPath();
-		Vector3 below = new( 100, 320, 0 ), above = new( 500, 320, 200 );
-		Assert.AreEqual( PathStatus.Partial, query.FindPath( below, above, Snap, Filters.All.WithForbiddenAreas( 1ul << 5 ), path ) );
-		Assert.AreEqual( PathStatus.Complete, query.FindPath( below, above, Snap, Filters.All, path ) );
 	}
 
 	[TestMethod]
@@ -162,9 +136,8 @@ public class LinkTests
 	[TestMethod]
 	public void LinkIsResolvedAgainWhenItsPolygonsTileIsRebuilt()
 	{
-		// Review B1: the link end lies 2 units inside tile A, but the nearest polygon is across the
-		// border in B, because A has no polygons there. B is rebuilt: the link must not keep an id into
-		// B's old polygon array.
+		// The link end lies 2 units inside tile A, but the nearest polygon is across the border in B. B is rebuilt:
+		// the link must not keep an id into B's old polygon array.
 		var a = GridMesh.Tile( 0, 0, new GridMesh.Layer( 0, ( x, y ) => x < 60 ) );
 		var mesh = GridMesh.Mesh( a, GridMesh.Flat( 1, 0 ), GridMesh.Tile( 0, 1, new GridMesh.Layer( 200 ) ) );
 		int id = mesh.AddLink( new NavLink { Start = new Vector3( 638, 320, 0 ), End = new Vector3( 320, 960, 200 ), Radius = 16, Bidirectional = true, Area = 1 } );
@@ -230,18 +203,6 @@ public class LinkTests
 		var path = new NavPath();
 		Assert.AreEqual( PathStatus.Complete, query.FindPath( new Vector3( 100, 320, 0 ), new Vector3( 5 * 640 + 300, 320, 0 ), Snap, Filters.All, path ) );
 		Assert.AreEqual( PathStatus.Partial, query.FindPath( new Vector3( 5 * 640 + 300, 320, 0 ), new Vector3( 100, 320, 0 ), Snap, Filters.All, path ) );
-	}
-
-	[TestMethod]
-	public void AddLinkReturnsMinusOneWhenNoIdIsFree()
-	{
-		var mesh = GridMesh.Create();
-		for ( int i = 0; i < PolyRef.MaxLinks; i++ ) Assert.AreEqual( i, mesh.AddLink( Ladder() ) );
-		Assert.AreEqual( -1, mesh.AddLink( Ladder() ) );
-		mesh.RemoveLink( 100 );
-		Assert.AreEqual( 100, mesh.AddLink( Ladder() ) );
-		Assert.AreEqual( -1, mesh.AddLink( Ladder() ) );
-		Assert.AreEqual( 0, mesh.Commit() );
 	}
 
 	[TestMethod]

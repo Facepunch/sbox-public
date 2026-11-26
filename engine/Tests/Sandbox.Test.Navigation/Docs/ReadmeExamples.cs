@@ -245,14 +245,15 @@ public class ReadmeExamples
 		// Only builds from triangles add to the triangle counter
 		long triangles = mesh.GetStats().TrianglesUsed;
 
-		// A crate lands in the way. Area NoArea blocks exactly the box: the walkable edge comes right up to it.
+		// A crate lands in the way. Area NoArea blocks; Margin keeps agents an agent radius away from it, as from a wall.
 		int crate = mesh.AddVolume( new NavVolume
 		{
 			Shape = VolumeShape.Box,
 			Area = NavFilter.NoArea,
 			LocalToWorld = Matrix4x4.CreateTranslation( 10, 10, 0 ),
 			A = new Vector3( -1, -1, -0.5f ),
-			B = new Vector3( 1, 1, 2 )
+			B = new Vector3( 1, 1, 2 ),
+			Margin = settings.AgentRadius
 		} );
 		while ( streamer.Pump() > 0 ) { }   // the first volume over a tile asks for its triangles once
 
@@ -284,7 +285,7 @@ public class ReadmeExamples
 
 		// The player: the game moves it, the crowd plans its route and makes others avoid it.
 		var player = AgentParams.Create( new AgentDesc { Radius = 0.4f, Height = 1.8f, MaxSpeed = 5, Acceleration = 20 } );
-		player.External = true;
+		player.Mode = AgentMode.Planned;
 		var position = new Vector3( 5, 5, 0 );
 		int id = crowd.Add( position, player );
 		uint generation = crowd.States[id].Generation;

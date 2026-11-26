@@ -1,8 +1,6 @@
 namespace Nav.Build;
 
-/// <summary>
-/// The settings of one navmesh in cells, as the build stages use them.
-/// </summary>
+// The settings of one navmesh in cells, as the build stages use them.
 internal struct BuildConfig
 {
 	public const int MaxSpanHeight = 0xFFFF;
@@ -52,9 +50,7 @@ internal struct BuildConfig
 	public static int HeightCells( in NavSettings settings ) => Math.Max( CeilToCells( settings.AgentHeight / settings.CellHeight ), 3 );
 	public static int ClimbCells( in NavSettings settings ) => FloorToCells( settings.AgentClimb / settings.CellHeight );
 
-	/// <summary>
-	/// Where the field of a tile sits in the world: the tile and its border. MinZ is for the build to set.
-	/// </summary>
+	// Where the field of a tile sits in the world: the tile and its border. MinZ is for the build to set.
 	public readonly FieldFrame Frame( int tileX, int tileY ) => new()
 	{
 		MinX = (float)(((long)tileX * TileSize - Border) * (double)CellSize),

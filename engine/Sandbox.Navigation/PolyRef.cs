@@ -2,9 +2,8 @@ namespace Nav;
 
 /// <summary>
 /// A handle to one polygon or link. It stops resolving when its tile is rebuilt or its link changes.
-/// It means something only to the mesh it came from: every mesh numbers its builds from 1, so another
-/// mesh, such as the one a Load returns, may resolve it to a polygon of its own. Keep the mesh with
-/// any PolyRef or NavPath that can outlive it.
+/// It means something only to the mesh it came from: another mesh, such as one from Load, may resolve it
+/// to a polygon of its own.
 /// </summary>
 public readonly struct PolyRef : IEquatable<PolyRef>
 {

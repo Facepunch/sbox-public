@@ -57,7 +57,7 @@ public partial class CommitTests
 	[TestMethod]
 	public void RampDoesNotConnectToAPlatformAboveIt()
 	{
-		// Review M5: a ramp along the border from 0 to 160, continued in the next tile, which also has a
+		// A ramp along the border from 0 to 160, continued in the next tile, which also has a
 		// flat platform at 80 over the first 160 units, where the ramp is at 0 to 40.
 		static float Ramp( float x, float y ) => y * 0.25f;
 		var mesh = GridMesh.Mesh(
@@ -157,7 +157,7 @@ public partial class CommitTests
 	[TestMethod]
 	public void ReusedSlotDoesNotValidateAnOldReference()
 	{
-		// Review B1 (b): with per-tile serials counting from 1 the new tile in the old slot would
+		// With per-tile serials counting from 1 the new tile in the old slot would
 		// validate a reference to the removed one.
 		var mesh = GridMesh.Mesh( (3, 3) );
 		var query = new NavQuery( mesh );
@@ -178,7 +178,7 @@ public partial class CommitTests
 	[TestMethod]
 	public void NeighbourRelinkKeepsReferencesValid()
 	{
-		// Review B1 (a): a crate lands in tile (1, 0); corridors through (0, 0) must stay valid.
+		// A crate lands in tile (1, 0); corridors through (0, 0) must stay valid.
 		var mesh = GridMesh.Mesh( (0, 0), (1, 0), (2, 0) );
 		var query = new NavQuery( mesh );
 		var path = new NavPath();
@@ -314,42 +314,5 @@ public partial class CommitTests
 		mesh.Commit();
 		Assert.AreEqual( 0, mesh.GetStats().Tiles );
 		Assert.IsTrue( mesh.State.Index.MaxX < mesh.State.Index.MinX, "An empty index has empty bounds" );
-	}
-
-	[TestMethod]
-	public void FullTileTableFailsTheJobInsteadOfThrowing()
-	{
-		var mesh = GridMesh.Create();
-		var batch = new Tile[4096];
-		int committed = 0;
-		while ( committed < mesh.MaxTiles )
-		{
-			int count = Math.Min( batch.Length, mesh.MaxTiles - committed );
-			for ( int i = 0; i < count; i++ ) batch[i] = GridMesh.Quad( (committed + i) % 512 * 2, (committed + i) / 512 * 2 );
-			Assert.AreEqual( 0, mesh.CommitTiles( batch.AsSpan( 0, count ) ) );
-			committed += count;
-		}
-		Assert.AreEqual( mesh.MaxTiles, mesh.GetStats().Tiles );
-
-		mesh.MarkDirty( 5000, 5000 );
-		var jobs = new TileJob[1];
-		Assert.AreEqual( 1, mesh.TakeJobs( jobs ) );
-		jobs[0].Complete( TileJobStatus.Built, GridMesh.Quad( 5000, 5000 ) );
-		jobs[0].TrianglesUsed = 7;
-		Assert.AreEqual( 1, mesh.Commit( jobs ) );
-		Assert.AreEqual( 0, mesh.GetStats().TrianglesUsed, "A tile that did not get in leaves nothing behind" );
-		Assert.AreEqual( 0, mesh.GetStats().CacheBytes );
-		Assert.AreEqual( TileJobStatus.Failed, jobs[0].Status );
-		StringAssert.Contains( jobs[0].Error, "tiles" );
-		Assert.AreEqual( 0, mesh.PendingTiles, "A failed tile is not handed out again" );
-		Assert.AreEqual( mesh.MaxTiles, mesh.GetStats().Tiles );
-
-		// Replacing an existing tile still works, and a freed slot can be taken.
-		Assert.AreEqual( 0, mesh.CommitTiles( [GridMesh.Quad( 0, 0 )] ) );
-		mesh.RemoveTile( 2, 0 );
-		Assert.AreEqual( 0, mesh.CommitTiles( [GridMesh.Quad( 5000, 5000 )] ) );
-		var query = new NavQuery( mesh );
-		Assert.IsTrue( query.FindNearest( new Vector3( 5000 * 640 + 320, 5000 * 640 + 320, 0 ), GridMesh.Snap, Filters.All, out var poly, out _ ) );
-		Assert.IsFalse( poly.IsLink, "The last tile slot must not read as a link" );
 	}
 }

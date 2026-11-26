@@ -89,7 +89,12 @@ public sealed partial class NavCrowd
 
 		var poly = s.RefOf( id );
 		int at = corridors[i].AsSpan( 0, a.Count ).IndexOf( poly );
-		if ( at < 0 ) return Rejoin( i, s, query, poly );
+		if ( at < 0 )
+		{
+			// Off its corridor, perhaps across a wall from where its walls were collected.
+			a.WallCount = -1;
+			return Rejoin( i, s, query, poly );
+		}
 		Advance( i, at );
 		return true;
 	}
@@ -185,6 +190,7 @@ public sealed partial class NavCrowd
 
 		float distance = Vector2.Distance( Flat( position ), Flat( end ) );
 		bool level = MathF.Abs( position.Z - end.Z ) < floorGap;
+		// Every agent gets on within its radius of the link's start: two heading for one start cannot both reach it.
 		if ( linkAhead && distance <= MathF.Max( eps, p.Radius ) && level )
 		{
 			// One link transition per Step, so a caller comparing States between steps sees every one:
@@ -198,6 +204,21 @@ public sealed partial class NavCrowd
 				a.LinkStep = step;
 				Advance( i, link + 1 );
 			}
+			// Crossing on its own, the agent goes onto the link at the speed it arrives with.
+			state.DesiredVelocity = default;
+			if ( !p.AutoLinks || state.Link < 0 ) Halt( ref state, p );
+			return;
+		}
+
+		// Close to an end that resting neighbours hold, it rests where it stands: the end is there now. A pack is
+		// looked for within two diameters of the two largest round the end.
+		if ( !linkAhead && level && !a.Has( AgentFlags.AtEnd ) && walkers > 0 && distance <= 4 * (p.Radius + largestRadius) && Held( i, position, end, distance, state.RouteTarget, p ) )
+		{
+			a.RouteEnd = position;
+			a.Count = 1;
+			a.CornerCount = 0;
+			a.Flags |= AgentFlags.AtEnd;
+			if ( !a.Has( AgentFlags.Partial ) ) a.Flags &= ~AgentFlags.HasTarget;
 			Halt( ref state, p );
 			return;
 		}
@@ -243,17 +264,110 @@ public sealed partial class NavCrowd
 		}
 
 		Vector2 direction = default;
-		for ( int k = 0; k < count; k++ )
+		int next = 0;
+		for ( ; next < count - 1; next++ )
 		{
-			direction = Flat( corner[k] - position );
+			direction = Flat( corner[next] - position );
 			if ( direction.LengthSquared() > eps * eps ) break;
 		}
+		if ( next == count - 1 ) direction = Flat( corner[next] - position );
 
-		// Brake so that the agent can stop at the end.
-		float speed = MathF.Min( p.MaxSpeed, MathF.Sqrt( 2 * p.Acceleration * distance ) );
 		float length = direction.Length();
+		// The plan acts one substep late: it brakes for where the agent will be by then.
+		float speed = length > 0 ? Speed( i, next, direction / length, length - MathF.Min( Going( i ).Length() * Ahead( i ), length ) ) : 0;
 		state.DesiredVelocity = length > 0 ? new Vector3( direction * (speed / length), 0 ) : default;
 		a.CornerDistance = length;
-		a.Stride = linkAhead ? float.PositiveInfinity : distance;
+		a.Stride = distance;
+	}
+
+	// Whether the end is held by a neighbour sent to the same target, so the agent stops where it stands: one
+	// touching it covers the end (stands where the agent would overlap it there) and rests or goes at under a
+	// quarter of the agent's MaxSpeed; or one touching it and nearer to the end rests while the agent, pressing on,
+	// has slowed to under that speed. So a group sent to one point packs round whoever reaches it. Read from the
+	// frame of the last substep, which no stage writes while agents plan.
+	bool Held( int i, Vector3 position, Vector3 end, float distance, Vector3 target, in AgentParams p )
+	{
+		float gap = p.Radius * 0.25f, still = p.MaxSpeed * 0.25f;
+		int bucket = ((int)MathF.Floor( position.X * perCell ) & gridMask) | (((int)MathF.Floor( position.Y * perCell ) & gridMask) << gridBits);
+		int reach = (int)MathF.Ceiling( (p.Radius + largestRadius + gap) / cellSize );
+		float top = position.Z + p.Height;
+		bool slow = Flat( states[i].Velocity ).LengthSquared() < still * still;
+		for ( int n = 0; Cells( bucket, reach, n, out int slot, out int last ); n++ )
+		{
+			for ( ; slot < last; slot++ )
+			{
+				if ( frame.Id[slot] == i || !(top > frame.Z[slot]) || !(frame.Top[slot] > position.Z) ) continue;
+				float touch = p.Radius + frame.Radius[slot];
+				float dx = position.X - frame.X[slot], dy = position.Y - frame.Y[slot];
+				// Only neighbours sent to the same target.
+				float tx = frame.TargetX[slot] - target.X, ty = frame.TargetY[slot] - target.Y;
+				if ( dx * dx + dy * dy > (touch + gap) * (touch + gap) || !(tx * tx + ty * ty < gap * gap) ) continue;
+				float ex = end.X - frame.X[slot], ey = end.Y - frame.Y[slot], fromEnd = ex * ex + ey * ey;
+				float vx = frame.VelocityX[slot], vy = frame.VelocityY[slot];
+				if ( fromEnd < touch * touch && (frame.Rest[slot] != 0 || vx * vx + vy * vy < still * still) ) return true;
+				// Nearer to the end, the lower id first when as near.
+				if ( frame.Rest[slot] != 0 && slow && (fromEnd < distance * distance || (fromEnd == distance * distance && frame.Id[slot] < i)) ) return true;
+			}
+		}
+		return false;
+	}
+
+	// The speed towards corner next from which the agent can still slow down to the turn speed of every corner on
+	// the way and stop at the end, measured along the corners. Corners beyond the braking distance of the speed so
+	// far cannot ask for less.
+	float Speed( int i, int next, Vector2 heading, float travelled )
+	{
+		ref readonly var a = ref agents[i];
+		ref readonly var p = ref parms[i];
+		var corner = corners.AsSpan( i * MaxCorners, a.CornerCount );
+		int last = corner.Length - 1;
+		float braking = 2 * p.Acceleration, squared = p.MaxSpeed * p.MaxSpeed;
+		if ( next == last )
+		{
+			// Moving at an angle to the way to the end or a link entry, it has to turn onto it before it gets there.
+			var velocity = Going( i );
+			float speed = velocity.Length();
+			if ( speed > 0 ) squared = MathF.Min( squared, TurnSpeedSquared( velocity / speed, heading * travelled, float.PositiveInfinity, p ) );
+		}
+		else if ( !(braking * travelled < squared) ) return p.MaxSpeed;
+		for ( int k = next; k < last && braking * travelled < squared; k++ )
+		{
+			var leg = Flat( corner[k + 1] - corner[k] );
+			float length = leg.Length();
+			if ( length == 0 ) continue;
+			leg /= length;
+			// Turns the same way less than a diameter apart, as erosion rounds a corner into, are one turn.
+			int target = k + 1;
+			var on = leg;
+			float side = heading.X * leg.Y - heading.Y * leg.X;
+			for ( float reach = length; reach < p.Radius * 2 && target < last; target++ )
+			{
+				var after = Flat( corner[target + 1] - corner[target] );
+				reach = after.Length();
+				if ( reach == 0 || (on.X * after.Y - on.Y * after.X) * side <= 0 ) break;
+				on = after / reach;
+			}
+			squared = MathF.Min( squared, TurnSpeedSquared( heading, Flat( corner[target] - corner[k] ), p.Radius, p ) + braking * travelled );
+			heading = leg;
+			travelled += length;
+		}
+		// The end, or the last corner short of it when the corners filled the buffer.
+		return MathF.Sqrt( MathF.Min( squared, braking * (travelled + Vector2.Distance( Flat( corner[last] ), Flat( a.End ) )) ) );
+	}
+
+	// The least the agent turns by in a unit of time, whatever its speed: at MaxSpeed it goes round a circle of one
+	// and a half times its radius. Where Acceleration across its way turns it faster, at low speed, that counts.
+	static float TurnRate( in AgentParams p ) => p.MaxSpeed / (1.5f * p.Radius);
+
+	// The speed squared for a turn from heading towards the point at to. The move turns on an arc (Accelerate),
+	// which has to stay within room of where it starts, 2 R sin( angle / 2 ) for a radius R, and to leave the point
+	// outside its circle, or the agent would circle it. The speed is the fastest the agent turns on that radius at:
+	// with Acceleration across its way, or at its turn rate.
+	static float TurnSpeedSquared( Vector2 heading, Vector2 to, float room, in AgentParams p )
+	{
+		float reach = to.Length(), cos = Vector2.Dot( heading, to ), sin = MathF.Abs( heading.X * to.Y - heading.Y * to.X );
+		if ( !(reach - cos > 1e-6f * reach) ) return float.PositiveInfinity;
+		float radius = MathF.Min( room / MathF.Sqrt( 2 * (1 - cos / reach) ), reach * reach / (2 * (cos > 0 ? sin : reach)) ), turned = radius * TurnRate( p );
+		return MathF.Max( p.Acceleration * radius, turned * turned );
 	}
 }

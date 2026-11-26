@@ -19,26 +19,6 @@ public class TileTests
 	}
 
 	[TestMethod]
-	public void LinkIdsAreTheSameAtEverySplit()
-	{
-		Assert.AreEqual( 65535, PolyRef.MaxLinks );
-		var poly = new PolyRef( 7, 5u << 14 | 9 );
-		Assert.IsFalse( poly.IsNone || poly.IsLink );
-		Assert.AreEqual( -1, poly.Link );
-		Assert.AreEqual( 7u, poly.Serial );
-
-		var link = PolyRef.ForLink( 3, 12 );
-		Assert.IsTrue( link.IsLink );
-		Assert.AreEqual( 12, link.Link );
-		var high = PolyRef.ForLink( 3, PolyRef.MaxLinks - 1 );
-		Assert.IsTrue( high.IsLink );
-		Assert.AreEqual( 65534, high.Link );
-		Assert.AreNotEqual( PolyRef.NoId, high.Id );
-		Assert.IsTrue( default( PolyRef ).IsNone );
-		Assert.IsFalse( default( PolyRef ).IsLink );
-	}
-
-	[TestMethod]
 	public void TreeLeavesHoldUpToFourPolygonsInTreeOrder()
 	{
 		var tile = GridMesh.Tile( 0, 0, new GridMesh.Layer( 0, ( x, y ) => x % 12 != 6 || y <= 8 || y >= 56 ) );

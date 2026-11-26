@@ -443,6 +443,28 @@ public class AgentTypeTests
 	}
 
 	[TestMethod]
+	public void LoadedVersionIsTheOneOfALoadedMeshOfOneType()
+	{
+		var options = new[] { NavMeshOptions.Create( Humans ), NavMeshOptions.Create( Vehicles ) };
+		var writer = new ArrayBufferWriter<byte>();
+		Assert.IsTrue( Both().Save( writer ) );
+		var both = NavMesh.Load( writer.WrittenSpan, options )!;
+		writer.Clear();
+		Assert.IsTrue( One( Humans ).Save( writer ) );
+		var one = NavMesh.Load( writer.WrittenSpan, options[0] )!;
+		Assert.AreEqual( 1u, one.Version, "A load publishes once" );
+		Assert.AreEqual( one.Version, both.Version );
+
+		// A bake without tiles publishes nothing.
+		writer.Clear();
+		Assert.IsTrue( new NavMesh( [Desc( Humans ), Desc( Vehicles )] ).Save( writer ) );
+		var none = NavMesh.Load( writer.WrittenSpan, options )!;
+		writer.Clear();
+		Assert.IsTrue( new NavMesh( Humans, options[0] ).Save( writer ) );
+		Assert.AreEqual( NavMesh.Load( writer.WrittenSpan, options[0] )!.Version, none.Version );
+	}
+
+	[TestMethod]
 	public void BakedVolumesPerType()
 	{
 		var (vertices, indices) = Street();

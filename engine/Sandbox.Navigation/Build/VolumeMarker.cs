@@ -4,10 +4,8 @@ namespace Nav.Build;
 
 internal static class VolumeMarker
 {
-	/// <summary>
-	/// Writes the volume's area into every walkable span whose centre is inside it. Area 0 always wins,
-	/// otherwise the higher id does, so the order of volumes does not matter.
-	/// </summary>
+	// Writes the volume's area into every walkable span whose centre is inside it. Area 0 always wins,
+	// otherwise the higher id does, so the order of volumes does not matter.
 	public static void Mark( CompactField field, in FieldFrame frame, float cellHeight, in NavVolume volume )
 	{
 		int w = field.Width;
@@ -84,9 +82,7 @@ internal static class VolumeMarker
 		}
 	}
 
-	/// <summary>
-	/// Whether a world point is inside the volume, as Mark tests the centre of a span.
-	/// </summary>
+	// Whether a world point is inside the volume, as Mark tests the centre of a span.
 	public static bool Contains( in NavVolume volume, Vector3 world )
 	{
 		if ( volume.Shape == VolumeShape.Everything ) return true;
@@ -102,10 +98,11 @@ internal static class VolumeMarker
 		return (offset - axis * along).LengthSquared() <= radius * radius;
 	}
 
-	// The local box around the shape, and the radius of a sphere or capsule. False for a radius that is
-	// negative or not a number.
+	// The local box around the shape grown by the margin, and the grown radius of a sphere or capsule. False for a
+	// radius that is negative or not a number.
 	static bool Local( in NavVolume volume, out Vector3 min, out Vector3 max, out float radius )
 	{
+		var matrix = volume.LocalToWorld;
 		var a = volume.A;
 		var b = volume.B;
 		radius = 0;
@@ -113,21 +110,34 @@ internal static class VolumeMarker
 		{
 			min = Vector3.Min( a, b );
 			max = Vector3.Max( a, b );
+			if ( volume.Margin > 0 )
+			{
+				// The margin is horizontal in the world: each local axis grows by its horizontal share
+				var axisX = new Vector3( matrix.M11, matrix.M12, matrix.M13 );
+				var axisY = new Vector3( matrix.M21, matrix.M22, matrix.M23 );
+				var axisZ = new Vector3( matrix.M31, matrix.M32, matrix.M33 );
+				var grow = new Vector3( HorizontalShare( axisX ), HorizontalShare( axisY ), HorizontalShare( axisZ ) ) * volume.Margin;
+				min -= grow;
+				max += grow;
+			}
 			return true;
 		}
 
 		radius = volume.Radius;
+		if ( volume.Margin > 0 )
+		{
+			float scale = MathF.Cbrt( MathF.Abs( matrix.GetDeterminant() ) );
+			if ( scale > 0 ) radius += volume.Margin / scale;
+		}
 		if ( volume.Shape == VolumeShape.Sphere ) b = a;
 		min = Vector3.Min( a, b ) - new Vector3( radius );
 		max = Vector3.Max( a, b ) + new Vector3( radius );
 		return radius >= 0;
 	}
 
-	/// <summary>
-	/// The world box a volume can mark spans in. False when it cannot mark any: a transform that cannot be
-	/// inverted or holds a NaN, a negative radius. An Everything volume has no box and returns true with
-	/// an infinite one.
-	/// </summary>
+	// The world box a volume can mark spans in. False when it cannot mark any: a transform that cannot be
+	// inverted or holds a NaN, a negative radius. An Everything volume has no box and returns true with
+	// an infinite one.
 	public static bool WorldBounds( in NavVolume volume, out Vector3 worldMin, out Vector3 worldMax )
 	{
 		worldMin = new Vector3( float.NegativeInfinity );
@@ -149,5 +159,12 @@ internal static class VolumeMarker
 
 		// Also false for a transform with a NaN in it
 		return worldMin.X <= worldMax.X && worldMin.Y <= worldMax.Y;
+	}
+
+	// How much of a world unit along this local axis is horizontal, in local units.
+	static float HorizontalShare( Vector3 axis )
+	{
+		float lengthSquared = axis.LengthSquared();
+		return lengthSquared > 0 ? MathF.Sqrt( axis.X * axis.X + axis.Y * axis.Y ) / lengthSquared : 0;
 	}
 }

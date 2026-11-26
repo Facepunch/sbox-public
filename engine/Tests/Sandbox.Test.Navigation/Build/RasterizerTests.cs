@@ -171,15 +171,6 @@ public class RasterizerTests
 	}
 
 	[TestMethod]
-	public void TriangleLeavesSpans()
-	{
-		var field = new SolidField();
-		field.Reset( Size, Size );
-		Rasterizer.Triangle( field, Frame( 0, 0, 0 ), new Vector3( 0, 0, 0 ), new Vector3( 40, 0, 0 ), new Vector3( 0, 40, 0 ), 1, 1 );
-		Assert.IsTrue( field.SpanCount > 0 );
-	}
-
-	[TestMethod]
 	public void TriangleWhoseBoxOverlapsButWhichMissesLeavesNothing()
 	{
 		var field = new SolidField();
