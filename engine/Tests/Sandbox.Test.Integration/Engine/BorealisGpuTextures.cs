@@ -524,12 +524,13 @@ public class BorealisGpuTexturesTest
 		RenderBackend.SetDefault( borealis );
 		try
 		{
-			// A 4x4 checkerboard of black and white; the second mip starts as its box filter, grey
+			// 4x4, its left half white and its right half black; the second mip starts as its box filter, a white texel beside
+			// a black one, which downsample_cs's gaussian (the method it has; the others are downsample_spd's) blurs together
 			using var texture = Texture.Create( 4, 4, ImageFormat.RGBA8888 ).WithMips( 2 ).WithUAVBinding()
-				.WithData( Pixels( 4, 4, ( x, y ) => ((x + y) & 1) == 0 ? new Color32( 0, 0, 0, 255 ) : new Color32( 255, 255, 255, 255 ) ) ).Finish();
+				.WithData( Pixels( 4, 4, ( x, y ) => x < 2 ? new Color32( 255, 255, 255, 255 ) : new Color32( 0, 0, 0, 255 ) ) ).Finish();
 
 			var downsample = new ComputeShader( "downsample_cs" );
-			downsample.Attributes.SetCombo( "D_DOWNSAMPLE_METHOD", (int)Graphics.DownsampleMethod.Max );
+			downsample.Attributes.SetCombo( "D_DOWNSAMPLE_METHOD", (int)Graphics.DownsampleMethod.GaussianBlur );
 			downsample.Attributes.Set( "MipLevel0", texture, 0 );
 			downsample.Attributes.Set( "MipLevel1", texture, 1 );
 			downsample.Attributes.Set( "TextureSize", new Vector2( 2, 2 ) );
@@ -546,7 +547,13 @@ public class BorealisGpuTexturesTest
 				Assert.IsTrue( borealis.ReadPixels( texture, new NativeRect( 0, 0, 2, 2 ), 0, 1, new NativeRect( 0, 0, 2, 2 ), (IntPtr)data, ImageFormat.RGBA8888, 2 * 4 ) );
 			}
 
-			Assert.IsTrue( mip.All( v => v == 255 ), "the second mip is the max of the first's: white, not the grey it started as" );
+			// Each row's left texel no longer white and its right one no longer black: the blur ran before the readback
+			for ( var row = 0; row < 2; row++ )
+			{
+				var left = mip[row * 8];
+				var right = mip[row * 8 + 4];
+				Assert.IsTrue( left < 250 && right > 5 && right < left, $"row {row}: the second mip is blurred across, not the white and black it started as ({left}, {right})" );
+			}
 		}
 		finally
 		{
