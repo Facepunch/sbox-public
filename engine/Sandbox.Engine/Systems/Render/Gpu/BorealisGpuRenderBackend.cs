@@ -2668,7 +2668,8 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		_ = Recording;
 		drawer.Material = null;
-		if ( !context.Dispatch( Require( computeMaterial ), LowerForDispatch( attributes ), threadsX, threadsY, threadsZ ) )
+		// Skipped while its variant is made or compiled (a scene object's, made on a worker), as a draw is; it runs once made
+		if ( !context.Dispatch( Require( computeMaterial ), LowerForDispatch( attributes ), threadsX, threadsY, threadsZ ) && !context.DispatchPending )
 			throw new InvalidOperationException( $"{computeMaterial} didn't dispatch on Borealis.Gpu" );
 	}
 
@@ -2682,7 +2683,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 
 		_ = Recording;
 		drawer.Material = null;
-		if ( !context.DispatchIndirect( Require( computeMaterial ), LowerForDispatch( attributes ), BufferOf( indirectBuffer ), bufferOffset ) )
+		if ( !context.DispatchIndirect( Require( computeMaterial ), LowerForDispatch( attributes ), BufferOf( indirectBuffer ), bufferOffset ) && !context.DispatchPending )
 			throw new InvalidOperationException( $"{computeMaterial} didn't dispatch on Borealis.Gpu" );
 	}
 

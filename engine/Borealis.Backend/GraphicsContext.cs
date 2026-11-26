@@ -635,6 +635,12 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Whether the last <see cref="Dispatch"/> or <see cref="DispatchIndirect"/> that didn't run was skipped because its
+	/// variant is still being made or compiled (<see cref="ShaderDrawer.VariantPending"/>): it runs once that's done.
+	/// </summary>
+	public bool DispatchPending => drawer.VariantPending;
+
+	/// <summary>
 	/// As <see cref="Dispatch"/>, over the thread groups <paramref name="arguments"/> holds at <paramref name="offset"/> bytes,
 	/// written by an earlier pass (a barrier after that pass makes them visible, as native needs one).
 	/// </summary>

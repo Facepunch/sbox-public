@@ -942,6 +942,7 @@ public sealed partial class ShaderDrawer : IDisposable
 		var materialVersion = material?.Version ?? 0;
 		var version = attributes.Version;
 		var stable = attributes.Stable;
+		pendingVariant = false;
 
 		// By where the lookup lands: a scene draws hundreds of materials, each asking again for every pass
 		var slot = (RuntimeHelpers.GetHashCode( (object)material ?? shader ) + RuntimeHelpers.GetHashCode( attributes ) * 31 + version) & (VariantMemos - 1);
@@ -995,6 +996,12 @@ public sealed partial class ShaderDrawer : IDisposable
 
 	// Whether the last VariantByName's variant was one whose module is still compiling
 	bool pendingVariant;
+
+	/// <summary>
+	/// Whether the variant the last <see cref="Variant"/> found is still being made (on a worker, for a call redrawn every
+	/// frame) or its module still compiling: a dispatch of it that didn't run was skipped for now, as such a draw is.
+	/// </summary>
+	public bool VariantPending => pendingVariant;
 
 	ShaderVariant VariantByName( ShaderFile shader, ShaderAttributes attributes, string mode, int[] features, ulong specialization )
 	{

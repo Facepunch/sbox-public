@@ -97,6 +97,55 @@ public class RedrawnDrawTests : GpuTest
 		Assert.IsTrue( Device.WaitForOptimisedPipelines( TimeSpan.FromSeconds( 60 ) ) );
 	}
 
+	/// <summary>
+	/// A dispatch redrawn every frame (a sprite batch's) whose variant is still made on a worker doesn't run and says so
+	/// (<see cref="ShaderDrawer.VariantPending"/>), so the backend skips it as it does such a draw rather than throwing; it runs
+	/// once the variant is made.
+	/// </summary>
+	[TestMethod]
+	public void RedrawnDispatchesSkipWhileTheirVariantIsMade()
+	{
+		using var backend = new BackendDevice( Device );
+		using var drawer = new ShaderDrawer( backend );
+		var sprite = backend.Shaders.Load( "shaders/sprite/sprite_cs.shader" );
+		if ( sprite is null ) Assert.Inconclusive( "sprite_cs isn't compiled" );
+
+		var sprites = Device.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage, Name = "Sprites" } );
+		var spritesOut = Device.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage, Name = "Sprites out" } );
+		var distances = Device.CreateBuffer( new BufferInfo { Size = 64, Usage = BufferUsage.Storage, Name = "Distances" } );
+		var counter = Device.CreateBuffer( new BufferInfo { Size = 4, Usage = BufferUsage.Storage, Name = "Counter" } );
+		Device.WriteBuffer<float>( sprites, new float[64] );
+		Device.WriteBuffer<float>( distances, new float[16] );
+		Device.WriteBuffer<uint>( counter, [0] );
+		var attributes = new ShaderAttributes();
+		attributes.SetData( "PerViewConstantBuffer_t", new byte[Borealis.Gpu.ViewConstants.NativeSize] );
+		attributes.Set( "Sprites", sprites );
+		attributes.Set( "SpriteBufferOut", spritesOut );
+		attributes.Set( "DistanceBuffer", distances );
+		attributes.Set( "AtomicCounter", counter );
+		attributes.Set( "SpriteCount", 1 );
+		attributes.Set( "CameraPosition", 0, 0, 0 );
+
+		bool Dispatch()
+		{
+			Device.BeginFrame();
+			var list = Device.BeginCommandList( QueueType.Graphics, "Redrawn dispatch" );
+			bool done;
+			using ( Borealis.RedrawnEveryFrame.Begin() ) done = drawer.Dispatch( list, sprite, attributes, 1, 1, 1 );
+			Device.Wait( Device.Submit( list ) );
+			return done;
+		}
+
+		Assert.IsFalse( Dispatch(), "the variant is made on a worker first" );
+		Assert.IsTrue( drawer.VariantPending, "a dispatch skipped while its variant is made says so" );
+		Assert.IsTrue( System.Threading.SpinWait.SpinUntil( () => drawer.VariantsBeingMadeAside == 0, TimeSpan.FromSeconds( 60 ) ) );
+		Assert.IsTrue( Dispatch(), "it runs once the variant is made" );
+		Assert.IsFalse( drawer.VariantPending );
+		Device.WaitIdle();
+
+		foreach ( var buffer in (ReadOnlySpan<BufferHandle>)[sprites, spritesOut, distances, counter] ) Device.Destroy( buffer );
+	}
+
 	BufferHandle Buffer( ReadOnlySpan<byte> data )
 	{
 		var buffer = Device.CreateBuffer( new BufferInfo { Size = data.Length, Usage = BufferUsage.Storage } );
