@@ -147,7 +147,7 @@ public class ShaderSpecializedConstantsTest
 	{
 		TestGraphics.Require();
 		var folder = Compile();
-		NativeEngine.FullFileSystem.AddProjectPath( "specialized-constants-test", folder.ToLowerInvariant() );
+		NativeEngine.FullFileSystem.AddProjectPath( "specialized-constants-test", Project.NativeSearchPath( folder ) );
 		NativeEngine.g_pResourceSystem.InvalidateDatabase();
 
 		// As the engine gives a shader compiled while running to Borealis.Gpu, whose roots don't hold this folder

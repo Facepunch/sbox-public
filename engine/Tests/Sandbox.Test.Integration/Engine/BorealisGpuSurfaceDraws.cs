@@ -157,7 +157,7 @@ public class BorealisGpuSurfaceDrawsTest
 	static void MountCitizen()
 	{
 		var assets = Path.Combine( Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" ), "addons/citizen/Assets" );
-		NativeEngine.FullFileSystem.AddProjectPath( "surface-draws-citizen", assets.ToLowerInvariant() );
+		NativeEngine.FullFileSystem.AddProjectPath( "surface-draws-citizen", Project.NativeSearchPath( assets ) );
 		NativeEngine.g_pResourceSystem.InvalidateDatabase();
 	}
 
