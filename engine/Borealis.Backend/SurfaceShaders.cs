@@ -970,8 +970,29 @@ internal sealed class SurfaceProgram : IDisposable
 				}
 			}
 
-			passes[name] = new PassObjects { Pass = pass, Vertex = Module( pass.Vertex ), Pixel = Module( pass.Pixel ), Sets = sets };
+			var objects = passes[name] = new PassObjects { Pass = pass, Vertex = Module( pass.Vertex ), Pixel = Module( pass.Pixel ), Sets = sets };
+			WithoutOutputsAhead( objects );
 		}
+	}
+
+	/// <summary>
+	/// A pass's pixel module without every output past location 0, made with the program (on the compile threads) rather than
+	/// by the first pipeline that leaves them out (<see cref="FitOutputs"/>): a view with no normals target, a cube capture's
+	/// face, leaves out a forward pass's normals, and a driver making that module took 110-250 ms of the render thread with an
+	/// empty cache while the builders compiled. Other combinations of outputs are made where they're first needed.
+	/// </summary>
+	void WithoutOutputsAhead( PassObjects pass )
+	{
+		if ( !pass.Pixel.IsValid || pass.Pass.Pixel?.Spirv is not { } spirv ) return;
+		pass.PixelOutputs = SpirvReflection.Read( spirv ).Outputs;
+		var past = 0u;
+		foreach ( var output in pass.PixelOutputs )
+		{
+			if ( output.Location is >= 1 and < 32 ) past |= 1u << output.Location;
+		}
+
+		if ( past == 0 ) return;
+		pass.PixelWithoutOutputs[past] = SpirvReflection.WithoutOutputs( spirv, past ) is { } changed ? device.Gpu.CreateShader( changed, $"{Compiled.Name} {pass.Pass.Pixel.Entry} without outputs {past:x}" ) : default;
 	}
 
 	static BindingType Type( ShaderBinding binding ) => binding.Kind switch

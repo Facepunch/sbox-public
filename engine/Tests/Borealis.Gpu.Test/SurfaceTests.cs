@@ -355,6 +355,28 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A forward pass's pixel module without its outputs past location 0 is made with the program, on the thread that compiles
+	/// it: a pipeline into a view with no normals target (a cube capture's face) finds it made, rather than making it on the
+	/// thread that records the draw.
+	/// </summary>
+	[TestMethod]
+	public void PixelModuleWithoutNormalsIsMadeWithTheProgram()
+	{
+		var compiled = Compiler().CompileSurface( Path.Combine( Surfaces, "rock.slang" ) );
+		using var backend = new BackendDevice( Device );
+		using var program = new SurfaceProgram( backend, compiled );
+		var pass = program.Pass( ShaderPasses.Forward );
+		Assert.IsTrue( pass.PixelOutputs?.Any( o => o.Location >= 1 ) == true, "rock's forward pass writes the normals at target 1" );
+		Assert.AreEqual( 1, pass.PixelWithoutOutputs.Count, "made with the program" );
+		var ahead = pass.PixelWithoutOutputs.Values.Single();
+		Assert.IsTrue( ahead.IsValid );
+
+		var info = program.Info( pass, backend.PulledLayout, Format.RGBA16Float, Format.D32Float, 1, null, null, SurfaceRenderState.Opaque, false, false, false, false );
+		Assert.AreEqual( ahead, info.FragmentShader, "a view without a normals target draws with the module made ahead" );
+		Assert.AreEqual( 1, pass.PixelWithoutOutputs.Count, "none made for the pipeline" );
+	}
+
+	/// <summary>
 	/// The surface pipeline manifest (<see cref="SurfacePipelineManifest"/>): a pipeline a draw made is recorded by what asked
 	/// for it, saved, read back by the next run and made ahead on a worker once the program compiles, so the same request
 	/// finds it made without making another. Lines that don't read, or name a pass the program no longer has, are dropped,
