@@ -15,6 +15,8 @@ internal static class Zones
 	public static readonly Zone LightPrepare = new( "Borealis Light Prepare", Color.Green );
 	public static readonly Zone ShadowPrepare = new( "Borealis Shadow Prepare", Color.Green );
 	public static readonly Zone SkyboxPrepare = new( "Borealis Skybox Prepare", Color.Green );
+	public static readonly Zone ShadowSelect = new( "Borealis Shadow Select", Color.Green );
+	public static readonly Zone ShadowResident = new( "Borealis Shadow Resident", Color.Green );
 	public static readonly Zone ShadowCull = new( "Borealis Shadow Cull", Color.Yellow );
 	public static readonly Zone TreeQuery = new( "Borealis Tree Query", Color.Yellow );
 	public static readonly Zone Setup = new( "Borealis Setup", Color.Orange );

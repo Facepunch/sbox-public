@@ -929,10 +929,10 @@ public sealed partial class RenderSystem : IDisposable
 		// Lights first: shadow views are chosen from them. The shadow views then cull on workers while the main view's
 		// other features prepare here - culling only reads what preparing doesn't write
 		using ( Zones.LightPrepare.Start() ) lightBinner.Prepare( world, mainPass, transforms );
-		shadows.Select( world, mainPass, lightBinner, features.Count, Shadows, isSkybox );
+		using ( Zones.ShadowSelect.Start() ) shadows.Select( world, mainPass, lightBinner, features.Count, Shadows, isSkybox );
 
 		// Resident casters reach the shadow views through their resident lists: the culls leave them out
-		aggregates.LeaveResidentOut( world, shadows.Passes, transforms );
+		using ( Zones.ShadowResident.Start() ) aggregates.LeaveResidentOut( world, shadows.Passes, transforms );
 		var shadowCull = shadows.BeginCull();
 		try
 		{
