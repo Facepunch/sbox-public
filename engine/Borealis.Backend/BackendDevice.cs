@@ -3908,8 +3908,9 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
-	/// The device's half of <see cref="BeginFrame"/>: wait for the frame slot and recycle it (<see cref="Device.BeginFrame"/>).
-	/// It touches nothing of this backend's but the device, so it may run on a thread of its own while the thread that
+	/// The device's half of <see cref="BeginFrame"/>: wait for the frame slot and recycle it (<see cref="Device.BeginFrame"/>),
+	/// then take the GPU culls' counts and copy their counters for a later frame (<see cref="CullStats"/>). It touches nothing
+	/// of this backend's but the device and the cull counts, so it may run on a thread of its own while the thread that
 	/// drives frames goes on (the game's frame thread), as long as <see cref="BeginFrameServices"/> follows on that thread
 	/// before it records.
 	/// </summary>
@@ -3919,7 +3920,14 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		GraphMeasureReport.BeginFrame( Gpu, this );
 
 		using ( Zones.DeviceFrame.Start() )
+		{
 			Gpu.BeginFrame();
+
+			// After the frame drawn last, whose culls it copies the counters of; it goes with the next submission, so the thread
+			// that drives frames doesn't submit (or wait for the queue behind a present) for it
+			using ( NoSyncContext.Enter() )
+				CullStats?.BeginFrame();
+		}
 	}
 
 	/// <summary>
@@ -3966,7 +3974,6 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			if ( lodStore is { } lods ) lods.Loading = Loading;
 			meshletStore?.BeginFrame();
 			lodStore?.BeginFrame();
-			cullStats?.BeginFrame();
 			GpuDrivenFrame++;
 			loadFrame++;
 			var shown = Volatile.Read( ref idsShownFrame );

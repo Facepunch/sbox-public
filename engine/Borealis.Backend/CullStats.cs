@@ -67,7 +67,10 @@ internal sealed class CullStats : IDisposable
 	/// <summary>The slot's counts for the frame whose copy came back last.</summary>
 	public CulledCounts Counts( int slot ) => counts[slot];
 
-	/// <summary>At a frame's start: take the counts of the copy made <see cref="Ring"/> frames ago, then copy the counters for a later one.</summary>
+	/// <summary>
+	/// At a frame's start: take the counts of the copy made <see cref="Ring"/> frames ago, then copy the counters for a later
+	/// one. The copy goes with the queue's next submission (<see cref="Device.SubmitLater"/>), in the same place in its order.
+	/// </summary>
 	public void BeginFrame()
 	{
 		var at = (int)(frame++ % Ring);
@@ -78,7 +81,7 @@ internal sealed class CullStats : IDisposable
 		list.Barrier( PipelineStage.AllCommands, MemoryAccess.ShaderWrite, PipelineStage.Transfer, MemoryAccess.TransferRead );
 		list.CopyBuffer( Buffer, 0, ring[at], 0, Words * 4 );
 		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Host, MemoryAccess.HostRead );
-		gpu.Submit( list );
+		gpu.SubmitLater( list );
 	}
 
 	void Receive( ReadOnlySpan<uint> now )
