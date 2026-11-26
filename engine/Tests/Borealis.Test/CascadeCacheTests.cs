@@ -19,7 +19,6 @@ namespace BorealisTests;
 public class CascadeCacheTests
 {
 	bool wasCached;
-	bool hadTiles;
 
 	[TestInitialize]
 	public void Start()
@@ -27,15 +26,12 @@ public class CascadeCacheTests
 		ShadowMapper.ResetCache();
 		wasCached = ShadowMapper.FarCascadeCache;
 		ShadowMapper.FarCascadeCache = true;
-		hadTiles = ShadowMapper.CascadeTiles;
-		ShadowMapper.CascadeTiles = true;
 	}
 
 	[TestCleanup]
 	public void Finish()
 	{
 		ShadowMapper.FarCascadeCache = wasCached;
-		ShadowMapper.CascadeTiles = hadTiles;
 		ShadowMapper.ResetCache();
 	}
 
@@ -329,30 +325,6 @@ public class CascadeCacheTests
 		{
 			ShadowSystem.MarksUnsettled = true;
 		}
-	}
-
-	/// <summary>
-	/// Without the min/max tiles (the default) no tiles pass runs, but the cascades that drew nothing are still flagged, and
-	/// the flags carry no tiles index. No far cache, whose own tiles the same shader makes.
-	/// </summary>
-	[TestMethod]
-	public void EmptyCascadesAreFlaggedWithoutTiles()
-	{
-		ShadowMapper.CascadeTiles = false;
-		ShadowMapper.FarCascadeCache = false;
-		var world = SunWorld();
-		var view = LookingDownX();
-		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
-		using var system = new RenderSystem();
-
-		using var frame = HeadlessRenderHost.Headless.Capture();
-		RenderHost.Current.NextFrame();
-		system.Render( world, view, target );
-
-		Assert.AreEqual( 0, frame.Commands.Count( c => c.Op == GpuOp.Dispatch && c.Material?.Name == "shaders/borealis_shadow_tiles_cs.shader" ), "no tiles" );
-		var flags = system.ShadowMaps.Directional.Flags;
-		Assert.AreNotEqual( 0u, (flags >> 1) & 0xF, "the empty cascades flagged" );
-		Assert.AreEqual( 0u, flags >> 5, "and no tiles index" );
 	}
 
 	/// <summary>

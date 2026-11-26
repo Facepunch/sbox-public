@@ -606,8 +606,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	}
 
 	//
-	// Cheaper sun shadow sampling: a lit shader skips the filter where a cascade drew nothing, and, with ShadowMapper.CascadeTiles
-	// on, where the receiver is nearer the sun than every caster the filter could reach, or behind all of them
+	// Cheaper sun shadow sampling: a lit shader skips the filter where a cascade drew nothing, or where the receiver is nearer
+	// the sun than every caster the filter could reach, or behind all of them (ShadowMapper.CascadeTiles)
 	//
 
 	/// <summary>
@@ -641,15 +641,15 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	uint tileCascades;
 
 	/// <summary>
-	/// Flag the cascades that drew nothing, and, with <see cref="ShadowMapper.CascadeTiles"/> on and any drawn, have their tiles
-	/// made after the shadow passes (<see cref="BuildTiles"/>). After culling: a cascade with no caster left is empty, unless it starts from a cache.
+	/// Flag the cascades that drew nothing, and, where any drew something, have their tiles made after the shadow passes
+	/// (<see cref="BuildTiles"/>). After culling: a cascade with no caster left is empty, unless it starts from a cache.
 	/// </summary>
 	void MarkCascades()
 	{
 		tileCascades = 0;
 		ref var sun = ref mapper.DirectionalLightData;
 		var cascades = mapper.Cascades;
-		if ( cascades.Length == 0 ) return;
+		if ( !ShadowMapper.CascadeTiles || cascades.Length == 0 ) return;
 
 		uint drawn = 0, empty = 0;
 		for ( int i = 0; i < cascades.Length; i++ )
@@ -670,14 +670,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			}
 		}
 
-		// Cascades another view drew this frame keep the flags and tiles it made
+		// Cascades another view drew this frame keep the tiles it made
 		if ( drawn == 0 ) return;
-
-		if ( !ShadowMapper.CascadeTiles )
-		{
-			sun.SetCascadeFlags( empty, 0 );
-			return;
-		}
 
 		var resolution = cascades[0].Resolution;
 		var side = Math.Max( resolution / TileTexels, 1 );
