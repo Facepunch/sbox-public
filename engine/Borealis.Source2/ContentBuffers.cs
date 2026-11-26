@@ -95,18 +95,18 @@ public static class ContentBuffers
 	}
 
 	/// <summary>
-	/// With no size rented less lately than the one at <paramref name="index"/>, let go of one kept array of the size whose kept
-	/// arrays add up to the most, if that's more than <paramref name="length"/>: a big file's buffer, rented less often than the
-	/// mips streaming decodes, was otherwise always the one let go, and made again for the next big file while hundreds of
-	/// small mips' arrays from the load stayed kept.
+	/// With no size rented less lately than the one at <paramref name="index"/>, let go of one kept array of the smaller size
+	/// whose kept arrays add up to the most, if that's more than <paramref name="length"/>: a big file's buffer, rented less
+	/// often than the mips streaming decodes, was otherwise always the one let go, and made again for the next big file while
+	/// hundreds of small mips' arrays from the load stayed kept. Only smaller sizes: a small array coming back never pushes
+	/// out a bigger one asked for more lately.
 	/// </summary>
 	static bool LetGoFullest( int index, int length )
 	{
 		int fullest = -1;
 		long most = length;
-		for ( int i = 0; i < free.Length; i++ )
+		for ( int i = 0; i < index; i++ )
 		{
-			if ( i == index ) continue;
 			var bytes = (long)free[i].Count << (i + SmallestShift);
 			if ( bytes <= most ) continue;
 			most = bytes;
