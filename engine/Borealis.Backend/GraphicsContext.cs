@@ -508,9 +508,17 @@ public sealed class GraphicsContext
 		EndScope();
 		Transition( Target, ImageLayout.CopySource );
 
-		// A multisampled target is resolved first, into a texture of its own size and format (blits take one sample)
+		// A multisampled target is resolved first, into a texture of its own size and format (blits take one sample); straight
+		// into the destination when that is the whole target's size and format (a frame grab), the same texels without the copy
 		var source = Target;
 		var info = gpu.InfoOf( Target );
+		if ( info.Samples > 1 && ResolvesInto( info, destination ) )
+		{
+			TransitionForWrite( destination, ImageLayout.CopyDestination );
+			List.ResolveTexture( Target, destination );
+			return;
+		}
+
 		if ( info.Samples > 1 )
 		{
 			if ( !resolvedTarget.IsValid || gpu.InfoOf( resolvedTarget ) is var kept && (kept.Width != info.Width || kept.Height != info.Height || kept.Format != info.Format) )
@@ -538,6 +546,17 @@ public sealed class GraphicsContext
 		// A destination already in CopyDestination (cleared, or copied into) still needs its last write finished first
 		TransitionForWrite( destination, ImageLayout.CopyDestination );
 		List.Blit( source, ((int)Viewport.X, (int)Viewport.Y, width, height), destination, (0, 0, width, height), Filter.Nearest );
+	}
+
+	/// <summary>
+	/// Whether the viewport is the whole of a multisampled target (<paramref name="info"/>) and <paramref name="destination"/>'s
+	/// first mip is its size and format, single-sampled and of one layer, so the target resolves straight into it.
+	/// </summary>
+	bool ResolvesInto( in TextureInfo info, TextureHandle destination )
+	{
+		if ( Viewport.X != 0 || Viewport.Y != 0 || (int)Viewport.Z != info.Width || (int)Viewport.W != info.Height ) return false;
+		var to = gpu.InfoOf( destination );
+		return to.Width == info.Width && to.Height == info.Height && to.Format == info.Format && to.Samples <= 1 && to.Layers <= 1 && to.Dimension == TextureDimension.Texture2D;
 	}
 
 	// A multisampled target's colour resolved for CopyTarget
