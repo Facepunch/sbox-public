@@ -63,7 +63,8 @@ bool g_bFogEnabled < Default( 1.0f ); UiType( CheckBox ); UiGroup( "Fog,300" ); 
 
 /// A FinalCombinerInput_t at rest: an opaque white dielectric, smooth, unoccluded and flat, with nothing emitted or
 /// transmitted. Everything not named below starts at zero. PS_CommonProcessing fills in the surface from a PS_INPUT; a shader
-/// that starts here instead must set the positions, the world normal and the tangent frame itself, or it lights wrongly.
+/// that starts here instead must set the positions, the world normal and the tangent frame itself, or it lights wrongly. Its
+/// vGeometricNormalWs too, or its shadows offset along the faceted normal of the position's screen-space derivatives.
 FinalCombinerInput_t PS_InitFinalCombiner()
 {
 	FinalCombinerInput_t o = (FinalCombinerInput_t)0;
@@ -134,6 +135,7 @@ FinalCombinerInput_t PS_CommonProcessing( const PS_INPUT i )
 	o.vDiffuseColor = i.vVertexColor.rgb;
 	o.flOpacity = i.vVertexColor.a;
 	o.vNormalWs = PS_SboxFacingNormalWs( i );
+	o.vGeometricNormalWs = o.vNormalWs;
 	o.flSSSCurvature = PS_SboxCurvature( i );
 
 	// The interpolated position is camera-relative; lighting works in world space

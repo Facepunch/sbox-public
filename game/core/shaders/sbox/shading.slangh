@@ -110,6 +110,7 @@ struct FinalCombinerInput_t
 	// The surface: positions, and the tangent frame (baked and anisotropic lighting)
 	float3 vPositionWs;
 	float3 vPositionWithOffsetWs;
+	float3 vGeometricNormalWs;		// The interpolated vertex normal, turned to the side seen: the shadow lookups' normal offset
 	float3 vNormalTs;
 	float3 vTangentUWs;
 	float3 vTangentVWs;

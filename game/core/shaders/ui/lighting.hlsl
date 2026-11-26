@@ -22,6 +22,7 @@ float4 UI_ApplyLighting( float4 positionPs, float4 color )
 		input.vPositionSs = positionPs;
 		input.vPositionSs.w = position.w;
 		input.vNormalWs = normalize( cross( ddy( positionRelative ), ddx( positionRelative ) ) );
+		input.vGeometricNormalWs = input.vNormalWs;
 		input.vRoughness = 1.0;
 
 		LightingTerms_t lighting = InitLightingTerms();

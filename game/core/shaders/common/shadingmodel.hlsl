@@ -90,6 +90,7 @@ struct ShadingModelStandard
 
         // Normal and tangent space
         o.vNormalWs = m.Normal;
+        o.vGeometricNormalWs = NormalizeSafe( m.GeometricNormal );
         o.vNormalTs = NormalWorldToTangent( m.Normal, m.WorldTangentU, m.WorldTangentV, m.GeometricNormal );
         o.vTangentUWs = m.WorldTangentU;
         o.vTangentVWs = m.WorldTangentV;
@@ -197,6 +198,9 @@ struct ShadingModelStandard
         m.WorldPosition = i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz;
         m.ScreenPosition = i.vPositionSs;
         m.GeometricNormal = i.vNormalWs.xyz;
+    #if ( S_RENDER_BACKFACES )
+        m.GeometricNormal *= i.face ? 1.0f : -1.0f;
+    #endif
 
         return Shade( m );
     }

@@ -359,6 +359,7 @@ struct PS_OUTPUT_EYE
 			+ 0.1 * vNormalWs.xyz;
 		finalCombinerInput.vPositionSs = i.vPositionSs;
 		finalCombinerInput.vNormalWs.xyz = vNormalWs.xyz;
+		finalCombinerInput.vGeometricNormalWs = vNormalWs.xyz;
 		finalCombinerInput.vTangentUWs.xyz = vTangentUWs.xyz;
 		finalCombinerInput.vTangentVWs.xyz = vTangentVWs.xyz;
 		finalCombinerInput.vRoughness.xy = vCorneaScleraRoughness.xy;

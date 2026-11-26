@@ -352,6 +352,13 @@ Texture2D SurfaceOpacityTexture()
 /// Whether the pixel is on a front face, set by the pixel entry: only a two-sided material's draws rasterize back faces.
 static bool s_SurfaceFrontFace = true;
 
+/// The interpolated vertex normal, turned to the side seen: what every shadow lookup offsets the receiver along. Smooth across
+/// triangles, unlike the face normal from the position's derivatives, so shadows don't show the mesh's triangles.
+float3 SurfaceGeometricNormal( PixelInput i )
+{
+	return NormalizeSafe( s_SurfaceFrontFace ? i.vNormalWs.xyz : -i.vNormalWs.xyz );
+}
+
 /// What the opaque forward entries write at target 1 for screen-space reflections (sbox/forward_normals.slangh), kept by
 /// SurfaceKeepNormals while the pipeline has that target; nothing written stays zero.
 static uint s_SurfaceNormals = 0;
@@ -461,6 +468,7 @@ void SurfaceToolsView( inout float4 color, Material s, SurfaceInput input, float
 ClassicMaterial ToClassicMaterial( PixelInput i, Material s )
 {
 	ClassicMaterial m = ClassicMaterial::Init( i );
+	m.GeometricNormal = SurfaceGeometricNormal( i );
 	m.Albedo = s.Albedo;
 	m.Metalness = s.Metalness;
 	m.Roughness = s.Roughness;
@@ -489,10 +497,9 @@ float4 SurfaceShade( PixelInput i, Material s, uint opacityTexture, bool alphaTe
 	AdjustAlphaToCoverage( m );
 	float4 color = DepthNormals::Output( m.Normal, m.Roughness, m.Opacity );
 #else
-	// Before the decals, so their loop doesn't hold the derivatives it comes from
-	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
 	SurfaceKeepNormals( s.Normal, s.Roughness );
-	float4 color = ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+	// ToClassicMaterial has the pixel's positions and geometric normal already
+	float4 color = ShadingModelStandard::Shade( ToClassicMaterial( i, s ) );
 	SurfaceShowUvs( color, s.Albedo, i.vTextureCoords.xy );
 #endif
 	if ( spread ) color.a *= s.Coverage;
@@ -557,7 +564,7 @@ float4 SurfaceForwardSunLit<S : ISunLitSurface, let AlphaTest : bool>( PixelInpu
 	// The sun's shadow before the material: its cascade filter is then the peak of few registers, not of the material's
 	float sunVisibility = 1;
 	if ( g_DirectionalLightEnabled )
-		sunVisibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, i.vPositionSs );
+		sunVisibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, SurfaceGeometricNormal( i ), i.vPositionSs );
 #endif
 	Material s = surface.Evaluate( input );
 #if ( !S_MODE_DEPTH )
@@ -593,8 +600,6 @@ float4 SurfaceShadeCombiner( PixelInput i, Material s, uint opacityTexture, bool
 
 	ClassicMaterial m = ToClassicMaterial( i, s );
 #if ( !S_MODE_DEPTH )
-	// The light loops' receiver normal before the decals, so their loop doesn't hold the derivatives it comes from
-	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
 	// Not in the depth pass, which writes nothing but alpha to coverage: decals don't change opacity
 	Decals::Apply( m.WorldPosition, m );
 #endif
@@ -763,6 +768,7 @@ struct SurfaceLayerLighting : ILayerLighting
 	float4 PositionSs;
 	float3 TangentU;
 	float3 TangentV;
+	float3 GeometricNormal;     // the shadow lookups' normal offset (SurfaceGeometricNormal)
 	float GeometricRoughness;   // CalculateGeometricRoughnessFactor of the geometric normal, taken in uniform control flow
 
 	static SurfaceLayerLighting Make( PixelInput i, SurfaceInput s )
@@ -773,6 +779,7 @@ struct SurfaceLayerLighting : ILayerLighting
 		l.PositionSs = i.vPositionSs;
 		l.TangentU = s.TangentU;
 		l.TangentV = s.TangentV;
+		l.GeometricNormal = SurfaceGeometricNormal( i );
 		l.GeometricRoughness = CalculateGeometricRoughnessFactor( s.Normal );
 		return l;
 	}
@@ -784,6 +791,7 @@ struct SurfaceLayerLighting : ILayerLighting
 		f.vPositionWithOffsetWs = PositionWithOffsetWs + layer.Offset;
 		f.vPositionSs = PositionSs;
 		f.vNormalWs = layer.Normal;
+		f.vGeometricNormalWs = GeometricNormal;
 		f.vTangentUWs = TangentU;
 		f.vTangentVWs = TangentV;
 		f.vRoughness = layer.GeometricRoughness ? max( layer.Roughness, GeometricRoughness.xx ) : layer.Roughness;   // AdjustRoughnessByGeometricNormal
@@ -897,8 +905,6 @@ float4 SurfaceForwardShaded<S : IShadedSurface, let AlphaTest : bool>( PixelInpu
 #if ( S_MODE_DEPTH )
 	return SurfaceShade( i, surface.Evaluate( input ), opacityTexture, AlphaTest );
 #else
-	// Before the material, so the decals' and lights' loops don't hold the derivatives it comes from
-	TakeShadowReceiverNormal( i.vPositionWithOffsetWs.xyz );
 	SurfaceLighting lighting = SurfaceLighting::Make( i, input );
 	Material s;
 	float4 color = surface.Shade( input, lighting, s );

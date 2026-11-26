@@ -298,26 +298,19 @@ float3 GetTransmissiveThickness( const FinalCombinerInput_t f, const BinnedLight
 #endif
 }
 
-// The shadow receiver normal (ComputeShadowReceiverNormal) of a camera-relative position, taken early by a caller with heavy
-// work before lighting (a surface's decals), so the screen-space derivatives it comes from aren't live until the light loops.
-// Kept with the position it was taken at, as the sun's shadow is below.
-static float3 s_vShadowReceiverNormalWithOffsetWs = 0;
-static uint3 s_vShadowReceiverNormalPosition = 0;
-static bool s_bShadowReceiverNormalTaken = false;
-
-void TakeShadowReceiverNormal( float3 vPositionWithOffsetWs )
+/// The normal every shadow lookup offsets the receiver along: the interpolated vertex normal the input carries
+/// (vGeometricNormalWs), smooth across triangles. Only an input that has none (a shader filling FinalCombinerInput_t itself
+/// without it) gets the face normal from screen-space derivatives of the position (ComputeShadowReceiverNormal), which is
+/// flat per triangle. Call it in uniform control flow, before any light loop: the fallback's derivatives are garbage where a
+/// quad's lanes diverge. An input either has the normal or hasn't, so the branch is uniform and the vertex normal costs no
+/// derivatives.
+float3 ShadowReceiverNormal( const FinalCombinerInput_t f )
 {
-	s_bShadowReceiverNormalTaken = true;
-	s_vShadowReceiverNormalPosition = asuint( vPositionWithOffsetWs );
-	s_vShadowReceiverNormalWithOffsetWs = ComputeShadowReceiverNormal( vPositionWithOffsetWs );
-}
-
-/// The receiver normal TakeShadowReceiverNormal took at this position, or a new one.
-float3 ShadowReceiverNormalWithOffset( float3 vPositionWithOffsetWs )
-{
-	if ( s_bShadowReceiverNormalTaken && all( s_vShadowReceiverNormalPosition == asuint( vPositionWithOffsetWs ) ) )
-		return s_vShadowReceiverNormalWithOffsetWs;
-	return ComputeShadowReceiverNormal( vPositionWithOffsetWs );
+	float3 vNormalWs = f.vGeometricNormalWs;
+	[branch]
+	if ( all( vNormalWs == 0.0 ) )
+		vNormalWs = ComputeShadowReceiverNormal( f.vPositionWithOffsetWs );
+	return vNormalWs;
 }
 
 // The sun's cascade shadow at the pixel, taken once in uniform control flow before the light loops and read by every light
@@ -554,15 +547,12 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	o.vSpecular = float3( 0.0, 0.0, 0.0 );
 	o.vTransmissive = vTransmissiveStart;
 
-	// The shadow receiver normal comes from screen-space derivatives, defined only in uniform control flow: taken here, never
-	// in the light loop, where a quad's lanes diverge whenever neighbouring pixels are in different clusters
-	const float3 vReceiverNormalWs = ShadowReceiverNormalWithOffset( f.vPositionWithOffsetWs );
-
-	// The sun's shadow before any loop. The baked loop shades the sun with the receiver normal of the absolute position, so a
-	// baked surface takes it with that one
+	// The shadow receiver normal, taken here, never in the light loop (ShadowReceiverNormal)
 	const bool bBaked = LightmappedLight::UsesLightmaps() || ProbeLight::UsesProbes();
-	const float3 vBakedReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs );
-	PrepareSunShadow( f, bBaked ? vBakedReceiverNormalWs : vReceiverNormalWs, bBaked );
+	const float3 vReceiverNormalWs = ShadowReceiverNormal( f );
+
+	// The sun's shadow before any loop
+	PrepareSunShadow( f, vReceiverNormalWs, bBaked );
 
 	// Baked surfaces get the sun through the baked loop instead, with its strength per texel
 	if ( !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
@@ -643,8 +633,8 @@ void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f
 		SampleLightProbeVolumeIndexedDirectLighting( vIndices, vStrengths, f.vPositionWs );
 	}
 
-	// Derivatives, so before the per-light branches diverge
-	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs );
+	// Before the per-light branches diverge
+	const float3 vReceiverNormalWs = ShadowReceiverNormal( f );
 
 	// The sun's shadow, unless ComputeDirectLighting took it already
 	PrepareSunShadow( f, vReceiverNormalWs, true );

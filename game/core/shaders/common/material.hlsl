@@ -105,6 +105,9 @@ struct Material
 
         m.Normal = i.vNormalWs.xyz;
         m.GeometricNormal = i.vNormalWs.xyz;
+    #if ( S_RENDER_BACKFACES )
+        m.GeometricNormal *= i.face ? 1.0f : -1.0f; // Shadow normal offset goes towards the side we're seeing
+    #endif
         m.WorldTangentU = i.vTangentUWs;
         m.WorldTangentV = i.vTangentVWs;
         m.LightmapUV = i.vLightmapUV;
