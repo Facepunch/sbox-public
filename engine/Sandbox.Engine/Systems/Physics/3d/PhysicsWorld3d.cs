@@ -198,7 +198,7 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 					var ab = new Collision( sa, sb, c );
 					OnIntersectionStart?.InvokeWithWarning( ab );
 					a.Body.DispatchIntersectionStart( ab );
-					b.Body.DispatchIntersectionStart( new Collision( sb, sa, c ) );
+					b.Body.DispatchIntersectionStart( new Collision( sb, sa, c ) { Normal = -c.Normal } );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.Hit )
 				{
@@ -216,7 +216,7 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 					var ab = new Collision( sa, sb, c );
 					OnIntersectionUpdate?.InvokeWithWarning( ab );
 					a.Body.DispatchIntersectionUpdate( ab );
-					b.Body.DispatchIntersectionUpdate( new Collision( sb, sa, c ) );
+					b.Body.DispatchIntersectionUpdate( new Collision( sb, sa, c ) { Normal = -c.Normal } );
 				}
 				else if ( ptr->Reason == IntersectionEventType_t.TriggerBegin )
 				{

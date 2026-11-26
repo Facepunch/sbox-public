@@ -124,6 +124,29 @@ public class CollisionEventTest
 	}
 
 	/// <summary>
+	/// Each side of a collision gets the normal pointing from itself toward the other, whichever way the physics
+	/// engine's own contact normal points.
+	/// </summary>
+	[TestMethod]
+	public void CollisionNormalPointsFromSelfToOther()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var floor = CreateFloor( scene );
+		var floorProbe = floor.Components.Create<CollisionProbe>();
+		var (go, _, _) = CreateBody( scene, new Vector3( 0, 0, 20 ) );
+		var bodyProbe = go.Components.Create<CollisionProbe>();
+
+		for ( int i = 0; i < 60; i++ ) scene.GameTick();
+
+		Assert.IsTrue( bodyProbe.Starts >= 1 && floorProbe.Starts >= 1 );
+		Assert.IsTrue( bodyProbe.LastStart.Normal.z < -0.9f, $"The body's normal points down to the floor: {bodyProbe.LastStart.Normal}" );
+		Assert.IsTrue( floorProbe.LastStart.Normal.z > 0.9f, $"The floor's normal points up to the body: {floorProbe.LastStart.Normal}" );
+		Assert.AreEqual( bodyProbe.LastStart.Contact.Normal, floorProbe.LastStart.Contact.Normal, "The contact itself is shared" );
+	}
+
+	/// <summary>
 	/// OnCollisionUpdate only fires while the collision is awake: updates stop when
 	/// the body falls asleep, resume on wake, and the sleep transition raises
 	/// neither a stop nor a new start.

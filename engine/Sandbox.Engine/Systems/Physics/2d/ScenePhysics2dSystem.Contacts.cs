@@ -62,7 +62,7 @@ sealed partial class ScenePhysics2dSystem
 				a.Body?.DispatchIntersectionStart( new Collision( sa, sb, contact ) );
 				if ( !world.IsValid() ) return;
 
-				b.Body?.DispatchIntersectionStart( new Collision( sb, sa, contact ) );
+				b.Body?.DispatchIntersectionStart( new Collision( sb, sa, contact ) { Normal = -contact.Normal } );
 				if ( !world.IsValid() ) return;
 			}
 		}
@@ -100,7 +100,7 @@ sealed partial class ScenePhysics2dSystem
 					if ( !world.IsValid() ) return;
 				}
 
-				var collisionFlip = new Collision( new CollisionSource( b ), new CollisionSource( a ), contact );
+				var collisionFlip = new Collision( new CollisionSource( b ), new CollisionSource( a ), contact ) { Normal = -contact.Normal };
 				foreach ( var ev in CollisionEvents )
 				{
 					ev.OnCollisionHit( collisionFlip );
@@ -121,7 +121,7 @@ sealed partial class ScenePhysics2dSystem
 			a.Body?.DispatchIntersectionUpdate( new Collision( sa, sb, contact ) );
 			if ( !world.IsValid() ) return;
 
-			b.Body?.DispatchIntersectionUpdate( new Collision( sb, sa, contact ) );
+			b.Body?.DispatchIntersectionUpdate( new Collision( sb, sa, contact ) { Normal = -contact.Normal } );
 			if ( !world.IsValid() ) return;
 		}
 	}

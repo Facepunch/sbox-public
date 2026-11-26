@@ -175,7 +175,7 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 				if ( !rb.IsValid() ) continue;
 
 				mass += rb.Mass;
-				center += rb.Mass * world.PointToWorld( rb.MassCenter );
+				center += rb.Mass * rb.WorldTransform.PointToWorld( rb.MassCenter );
 			}
 
 			return mass > 0.0f ? center / mass : world.Position;

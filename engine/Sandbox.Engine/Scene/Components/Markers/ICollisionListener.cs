@@ -25,7 +25,11 @@ public abstract partial class Component
 	}
 }
 
-public readonly record struct Collision( CollisionSource Self, CollisionSource Other, PhysicsContact Contact );
+public readonly record struct Collision( CollisionSource Self, CollisionSource Other, PhysicsContact Contact )
+{
+	// The contact normal from Self toward Other: Contact.Normal keeps the physics engine's direction, the same for both sides
+	internal Vector3 Normal { get; init; } = Contact.Normal;
+}
 public readonly record struct CollisionStop( CollisionSource Self, CollisionSource Other );
 
 public readonly struct CollisionSource
