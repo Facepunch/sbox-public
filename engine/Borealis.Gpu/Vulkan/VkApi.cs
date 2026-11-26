@@ -301,6 +301,7 @@ internal sealed unsafe class VkDeviceApi
 
 	public readonly delegate* unmanaged< nint, VkRenderingInfo*, void > vkCmdBeginRendering;
 	public readonly delegate* unmanaged< nint, void > vkCmdEndRendering;
+	public readonly delegate* unmanaged< nint, uint, VkClearAttachment*, uint, VkClearRect*, void > vkCmdClearAttachments;
 	public readonly delegate* unmanaged< nint, VkDependencyInfo*, void > vkCmdPipelineBarrier2;
 	public readonly delegate* unmanaged< nint, int, ulong, void > vkCmdBindPipeline;
 	public readonly delegate* unmanaged< nint, uint, uint, VkViewport*, void > vkCmdSetViewport;
@@ -449,6 +450,7 @@ internal sealed unsafe class VkDeviceApi
 
 		vkCmdBeginRendering = (delegate* unmanaged< nint, VkRenderingInfo*, void >)Need( "vkCmdBeginRendering" );
 		vkCmdEndRendering = (delegate* unmanaged< nint, void >)Need( "vkCmdEndRendering" );
+		vkCmdClearAttachments = (delegate* unmanaged< nint, uint, VkClearAttachment*, uint, VkClearRect*, void >)Need( "vkCmdClearAttachments" );
 		vkCmdPipelineBarrier2 = (delegate* unmanaged< nint, VkDependencyInfo*, void >)Need( "vkCmdPipelineBarrier2" );
 		vkCmdBindPipeline = (delegate* unmanaged< nint, int, ulong, void >)Need( "vkCmdBindPipeline" );
 		vkCmdSetViewport = (delegate* unmanaged< nint, uint, uint, VkViewport*, void >)Need( "vkCmdSetViewport" );

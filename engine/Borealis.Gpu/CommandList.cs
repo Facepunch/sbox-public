@@ -264,6 +264,23 @@ public sealed unsafe class CommandList
 		recording = false;
 	}
 
+	/// <summary>
+	/// Give up this recording without submitting it. Call only while you own the list, after all recording has stopped
+	/// and before passing it to <see cref="Device.Submit"/> or <see cref="Device.SubmitLater"/>. Its frame recycles it.
+	/// </summary>
+	public void Discard()
+	{
+		lock ( device.QueueFor( Queue ).SubmitLock )
+		{
+			if ( !recording ) return;
+			device.Counters?.ListEnded( this );
+			if ( rendering ) vk.vkCmdEndRendering( Handle );
+			vk.vkEndCommandBuffer( Handle );
+			rendering = recording = false;
+			LeaveGate();
+		}
+	}
+
 	// Its texture barriers in the order recorded, which the device applies to the textures' layouts when it's submitted
 	TextureBarrier[] layoutChanges = new TextureBarrier[16];
 
@@ -802,6 +819,16 @@ public sealed unsafe class CommandList
 	/// (<see cref="Device.Submit"/> and <see cref="Device.SubmitLater"/> both pair them) end and begin theirs on their own.
 	/// </remarks>
 	public void BeginRendering( ReadOnlySpan<ColorTarget> colors, in DepthTarget depth = default, RenderingFlags flags = RenderingFlags.None )
+		=> BeginRenderingCore( colors, depth, flags, 0, 0 );
+
+	/// <summary>
+	/// Begin rasterization without color or depth attachments, for draws whose only output is an occlusion query.
+	/// The render area, viewport and scissor are <paramref name="width"/> by <paramref name="height"/>.
+	/// </summary>
+	public void BeginRenderingWithoutAttachments( int width, int height )
+		=> BeginRenderingCore( [], default, RenderingFlags.None, checked((uint)width), checked((uint)height) );
+
+	void BeginRenderingCore( ReadOnlySpan<ColorTarget> colors, in DepthTarget depth, RenderingFlags flags, uint width, uint height )
 	{
 		Recording();
 		if ( rendering ) throw new InvalidOperationException( "BeginRendering isn't allowed while rendering: end rendering first" );
@@ -814,7 +841,6 @@ public sealed unsafe class CommandList
 		if ( colors.Length > 8 ) throw new ArgumentException( "At most 8 colour targets" );
 
 		var attachments = stackalloc VkRenderingAttachmentInfo[Math.Max( colors.Length, 1 )];
-		uint width = 0, height = 0;
 
 		for ( int i = 0; i < colors.Length; i++ )
 		{
@@ -882,7 +908,7 @@ public sealed unsafe class CommandList
 			}
 		}
 
-		if ( width == 0 ) throw new ArgumentException( "Rendering needs a colour or depth target" );
+		if ( width == 0 || height == 0 ) throw new ArgumentException( "Rendering needs an attachment or an explicit render area" );
 
 		var suspend = (flags & RenderingFlags.Suspend) != 0;
 		var info = new VkRenderingInfo
@@ -925,6 +951,20 @@ public sealed unsafe class CommandList
 	public bool IsRendering => rendering;
 
 	static bool IsIntegerFormat( Format format ) => format.IsInteger();
+
+	/// <summary>Clear depth to zero in a render-area rectangle of the current depth attachment, without clearing stencil.</summary>
+	public void ClearDepthRegion( int x, int y, int width, int height )
+	{
+		Recording();
+		if ( !rendering ) throw new InvalidOperationException( "Not rendering" );
+		var depth = new VkClearAttachment { aspectMask = Vulkan.Vk.AspectDepth };
+		var rect = new VkClearRect
+		{
+			rect = new VkRect2D { offset = new VkOffset2D { x = x, y = y }, extent = new VkExtent2D { width = (uint)width, height = (uint)height } },
+			layerCount = 1,
+		};
+		vk.vkCmdClearAttachments( Handle, 1, &depth, 1, &rect );
+	}
 
 	/// <summary>Finish drawing into the targets <see cref="BeginRendering"/> named.</summary>
 	public void EndRendering()
@@ -1681,17 +1721,19 @@ public sealed unsafe class CommandList
 	/// Resolve a multisampled texture into a single-sampled one of the same size, from <see cref="ImageLayout.CopySource"/>
 	/// to <see cref="ImageLayout.CopyDestination"/>.
 	/// </summary>
-	public void ResolveTexture( TextureHandle source, TextureHandle destination )
+	public void ResolveTexture( TextureHandle source, TextureHandle destination, (int X, int Y, int Width, int Height)? sourceRegion = null )
 	{
 		OutsideRendering();
 		FlushBarriers();
 		ref var src = ref device.Get( source );
 		ref var dst = ref device.Get( destination );
+		var (x, y, width, height) = sourceRegion ?? (0, 0, src.Info.Width, src.Info.Height);
 		var region = new VkImageResolve
 		{
 			srcSubresource = new VkImageSubresourceLayers { aspectMask = Vulkan.Vk.AspectColor, layerCount = 1 },
+			srcOffset = new VkOffset3D { x = x, y = y },
 			dstSubresource = new VkImageSubresourceLayers { aspectMask = Vulkan.Vk.AspectColor, layerCount = 1 },
-			extent = new VkExtent3D { width = (uint)src.Info.Width, height = (uint)src.Info.Height, depth = 1 },
+			extent = new VkExtent3D { width = (uint)width, height = (uint)height, depth = 1 },
 		};
 
 		vk.vkCmdResolveImage( Handle, src.Image, VkImageLayout.TransferSrcOptimal, dst.Image, VkImageLayout.TransferDstOptimal, 1, &region );

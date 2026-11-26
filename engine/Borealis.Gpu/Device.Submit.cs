@@ -1211,6 +1211,30 @@ public sealed unsafe partial class Device
 	}
 
 	/// <summary>
+	/// Recycle a list submitted at <paramref name="submitted"/> (what <see cref="Submit"/> returned) now rather than with its
+	/// frame, once the GPU has finished it. False when it hasn't, or the list began before the current frame (its frame
+	/// recycles it). For lists submitted while no frame begins: a window presenting its last output again through a long load
+	/// took a list each time, each holding a command pool of its own until the next frame (about a thousand in one load).
+	/// </summary>
+	public bool TryRecycle( CommandList list, SyncPoint submitted )
+	{
+		if ( !submitted.IsValid || !IsComplete( submitted ) ) return false;
+
+		// Under the frame switch, and only a list begun in the current frame: never one a switch going on is recycling
+		lock ( frameSwitch )
+		{
+			lock ( frame.Lists )
+			{
+				if ( list.Submitted != submitted || list.Frame != FrameNumber || !frame.Lists.Remove( list ) ) return false;
+			}
+		}
+
+		list.Recycle();
+		freeLists[(int)list.Queue].Add( list );
+		return true;
+	}
+
+	/// <summary>
 	/// Copy <paramref name="data"/> into a buffer now, and wait for it.
 	/// </summary>
 	public void WriteBuffer<T>( BufferHandle buffer, ReadOnlySpan<T> data, long offset = 0 ) where T : unmanaged => WriteBuffer( buffer, MemoryMarshal.AsBytes( data ), offset );

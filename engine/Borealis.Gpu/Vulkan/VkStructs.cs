@@ -1265,6 +1265,22 @@ internal unsafe struct VkClearValue
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal struct VkClearAttachment
+{
+	public uint aspectMask;
+	public uint colorAttachment;
+	public VkClearValue clearValue;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal struct VkClearRect
+{
+	public VkRect2D rect;
+	public uint baseArrayLayer;
+	public uint layerCount;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkRenderingAttachmentInfo
 {
 	public VkStructureType sType;
