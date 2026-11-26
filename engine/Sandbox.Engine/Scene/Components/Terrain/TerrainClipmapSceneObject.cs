@@ -16,7 +16,6 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 	public CommandList PendingBake;
 
 	private Frustum _cullFrustumLocal;
-	private Vector2 _clipCameraLocal;
 
 	// What the visible meshlets were culled for, so a view's later passes - its prepass, then its opaque pass - reuse them
 	// Native records a view's passes on job threads at once, so one culls while the others wait for it
@@ -80,30 +79,7 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 	internal void UpdateClipCamera( Vector3 cameraWorld )
 	{
 		var cameraLocal = Transform.PointToLocal( cameraWorld );
-		_clipCameraLocal = new Vector2( cameraLocal.x, cameraLocal.y );
-		Attributes.Set( "ClipCameraLocal", _clipCameraLocal );
-	}
-
-	private void UpdateView( Frustum frustum, Vector3 cameraWorld )
-	{
-		var cameraLocal = Transform.PointToLocal( cameraWorld );
-		var clipCamera = new Vector2( cameraLocal.x, cameraLocal.y );
-
-		// A view's passes all see the same meshlets: cull them once, not per pass
-		var key = (frustum, clipCamera, Transform, UnitsPerTexel, HeightScale, BlockSize);
-
-		lock ( _cullLock )
-		{
-			if ( _culledFor == key ) return;
-
-			_cullFrustumLocal = ToLocal( frustum, Transform );
-			_clipCameraLocal = clipCamera;
-
-			foreach ( ref var tier in _tiers.AsSpan() )
-				Cull( ref tier );
-
-			_culledFor = key;
-		}
+		Attributes.Set( "ClipCameraLocal", new Vector2( cameraLocal.x, cameraLocal.y ) );
 	}
 
 	public override void RenderSceneObject()
@@ -115,31 +91,67 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 		PendingBake = null;
 		bake?.ExecuteOnRenderThread();
 
-		// Shadow passes need off-screen casters, so they draw the whole clipmap;
-		// camera passes draw the culled subset. Graphics.Attributes is per-pass,
-		// so these don't stomp other passes recording at the same time.
+		// Graphics.Attributes is per-pass, so these don't stomp other passes recording at the same time
 		bool shadow = Graphics.LayerType == SceneLayerType.Shadow;
-
-		if ( !shadow )
-			UpdateView(
-				Graphics.Frustum.Scaled( Terrain.MeshletFrustumScale, Graphics.CameraPosition, Graphics.FieldOfView > 0.0f ),
-				Graphics.CameraPosition );
-
 		Attributes.MergeTo( Graphics.Attributes );
-		Graphics.Attributes.Set( "ClipCameraLocal", _clipCameraLocal );
 		Graphics.Attributes.Set( "TerrainShadowPass", shadow );
 
-		foreach ( ref var tier in _tiers.AsSpan() )
+		// Shadow passes need off-screen casters, so they draw the whole clipmap, around the main camera
+		if ( shadow )
 		{
-			int count = shadow ? tier.Meshlets.Length : tier.VisibleCount;
-			if ( count <= 0 ) continue;
+			foreach ( ref var tier in _tiers.AsSpan() )
+			{
+				Graphics.Attributes.Set( "TerrainMeshlets", tier.FullBuffer );
+				Graphics.DrawModelInstanced( tier.Mesh, tier.Meshlets.Length );
+			}
 
-			Graphics.Attributes.Set( "TerrainMeshlets", shadow ? tier.FullBuffer : tier.VisibleBuffer );
-			Graphics.DrawModelInstanced( tier.Mesh, count );
+			return;
+		}
+
+		// Camera passes draw the culled subset, around their own camera
+		var frustum = Graphics.Frustum.Scaled( Terrain.MeshletFrustumScale, Graphics.CameraPosition, Graphics.FieldOfView > 0.0f );
+		var cameraLocal = Transform.PointToLocal( Graphics.CameraPosition );
+		var clipCamera = new Vector2( cameraLocal.x, cameraLocal.y );
+		var key = (frustum, clipCamera, Transform, UnitsPerTexel, HeightScale, BlockSize);
+		Span<int> counts = stackalloc int[_tiers.Length];
+
+		lock ( _cullLock )
+		{
+			// A view's passes all see the same meshlets: cull them once, not per pass
+			if ( _culledFor != key )
+			{
+				_cullFrustumLocal = ToLocal( frustum, Transform );
+
+				foreach ( ref var tier in _tiers.AsSpan() )
+					Cull( ref tier, clipCamera );
+
+				_culledFor = key;
+			}
+
+			// Every pass uploads the list itself. An upload runs where its pass does on the GPU, so one recorded by a
+			// later pass comes too late for an earlier pass, which then draws the list of the view before
+			for ( int i = 0; i < _tiers.Length; i++ )
+			{
+				ref var tier = ref _tiers[i];
+				counts[i] = tier.VisibleCount;
+
+				if ( counts[i] > 0 )
+					tier.VisibleBuffer.SetData( tier.Visible.AsSpan( 0, counts[i] ) );
+			}
+		}
+
+		Graphics.Attributes.Set( "ClipCameraLocal", clipCamera );
+
+		for ( int i = 0; i < _tiers.Length; i++ )
+		{
+			if ( counts[i] <= 0 ) continue;
+
+			Graphics.Attributes.Set( "TerrainMeshlets", _tiers[i].VisibleBuffer );
+			Graphics.DrawModelInstanced( _tiers[i].Mesh, counts[i] );
 		}
 	}
 
-	private void Cull( ref Tier tier )
+	private void Cull( ref Tier tier, Vector2 clipCamera )
 	{
 		// Meshlets are level-ordered, so per-level constants only need recomputing when the level changes
 		int level = -1;
@@ -158,15 +170,12 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 				increment = vertexStep * 2.0f;
 
 				// Per-level snap matching the shader's roundToIncrement, so the AABBs track the drawn geometry
-				center = _clipCameraLocal.SnapToGrid( increment );
+				center = clipCamera.SnapToGrid( increment );
 			}
 
 			if ( _cullFrustumLocal.IsInside( GetMeshletBounds( in m, center, vertexStep, increment ), partially: true ) )
 				tier.Visible[vis++] = m;
 		}
-
-		if ( vis > 0 )
-			tier.VisibleBuffer.SetData( tier.Visible.AsSpan( 0, vis ) );
 
 		tier.VisibleCount = vis;
 	}
