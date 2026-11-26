@@ -1669,21 +1669,38 @@ internal sealed partial class BackendContext
 	{
 		// A ringing material's records are copies its frame slot rewrites (GpuDrivenTables.Rings): made again each frame
 		var tables = device.GpuDrivenTables;
-		foreach ( var (material, version) in plan.Materials )
+		if ( tables.AnyRings )
 		{
-			if ( MaterialVersion( material ) != version || tables.Rings( material ) ) return false;
+			foreach ( var (material, _) in plan.Materials )
+			{
+				if ( tables.Rings( material ) ) return false;
+			}
 		}
 
-		foreach ( var (attributes, version) in plan.Attributes )
+		// The rest once a frame: a frame's calls share a plan (every face of every point light's map draws one), and the
+		// records a newer version replaces are kept until the next frame begins, so the calls after a change that lands
+		// mid-frame draw as the frame's earlier ones did
+		var frame = device.GpuDrivenFrame;
+		if ( System.Threading.Volatile.Read( ref plan.CheckedFrame ) != frame )
 		{
-			if ( attributes.Version != version ) return false;
-		}
+			foreach ( var (material, version) in plan.Materials )
+			{
+				if ( MaterialVersion( material ) != version ) return false;
+			}
 
-		// Its records name its models' pages: a model freed since (its pages given back) makes it again without it, and the
-		// rest are noted as drawn this frame
-		foreach ( var geometry in plan.Geometries )
-		{
-			if ( !geometry.Use() ) return false;
+			foreach ( var (attributes, version) in plan.Attributes )
+			{
+				if ( attributes.Version != version ) return false;
+			}
+
+			// Its records name its models' pages: a model freed since (its pages given back) makes it again without it, and the
+			// rest are noted as drawn this frame
+			foreach ( var geometry in plan.Geometries )
+			{
+				if ( !geometry.Use() ) return false;
+			}
+
+			System.Threading.Volatile.Write( ref plan.CheckedFrame, frame );
 		}
 
 		var cache = device.MaterialCache;

@@ -141,4 +141,10 @@ internal sealed class GpuDrivenPlan
 
 	/// <summary>Replaced or dropped from its list's plans: no call finds it again.</summary>
 	public volatile bool Retired;
+
+	/// <summary>
+	/// The frame (<see cref="BackendDevice.GpuDrivenFrame"/>) its <see cref="Materials"/>' and <see cref="Attributes"/>' versions
+	/// were last found as it was made at and its <see cref="Geometries"/> in use; 0 for never.
+	/// </summary>
+	public uint CheckedFrame;
 }
