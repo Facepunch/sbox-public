@@ -432,6 +432,8 @@ internal sealed partial class BackendContext
 	// BindSurface last bound, which must be it
 	BufferHandle drawRecords, boundRecords;
 
+	// Up to 64 bindings on the stack, each written before it's read: not cleared first, a bind at a time
+	[System.Runtime.CompilerServices.SkipLocalsInit]
 	void BindSurface( SurfaceProgram.PassObjects pass, CompiledStage stage, int set )
 	{
 		if ( !pass.Sets[set].IsValid ) return;
@@ -548,44 +550,122 @@ internal sealed partial class BackendContext
 	/// <summary>
 	/// The stage's <c>$Globals</c>: each member with an <c>Attribute</c> annotation from that attribute, else its annotated
 	/// default, in upload memory. <c>UncompressedTangentFrame</c> comes from the draw's vertex layout, as for classic draws.
+	/// The members the pass state sets are looked up once per pass state, and only those an object's attributes can set
+	/// again for each bind; a block the same as the last one this layout wrote in the list binds that upload again, so draws
+	/// of one stage under different objects bind the same set.
 	/// </summary>
 	Binding SurfaceGlobals( GlobalConstants globals, int binding )
 	{
 		var size = Math.Max( globals?.Size ?? 16, 16 );
-		var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
-		var data = allocation.Data[..size];
 		if ( globals is null )
 		{
-			data.Clear();
-			return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+			var zeros = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
+			zeros.Data[..size].Clear();
+			return Binding.Uniform( binding, zeros.Buffer, zeros.Offset, size );
 		}
 
-		// Per bind, and the core includes declare hundreds of members: the defaults are laid out once per stage, and only
-		// the members bound by an attribute are looked up, without allocating
 		var layout = GlobalLayouts.GetValue( globals, static g => new SurfaceGlobalsLayout( g ) );
-		layout.Defaults.AsSpan( 0, Math.Min( layout.Defaults.Length, size ) ).CopyTo( data );
-		if ( layout.Defaults.Length < size ) data[layout.Defaults.Length..].Clear();
+		if ( !globalsWritten.TryGetValue( layout, out var written ) ) globalsWritten[layout] = written = new GlobalsWritten( size );
+		var session = recording.Started;
+		var cache = device.MaterialCache;
+		var layerNames = device.MaterialObjects ? cache.LayerNames : -2;
+		if ( written.Layered is null || written.LayerNames != layerNames )
+		{
+			// Which members an object's attributes can set, as of the cache's layer names (without material objects, which
+			// keep them, any)
+			written.Layered ??= new bool[layout.Bound.Length];
+			written.AnyLayered = false;
+			for ( int a = 0; a < layout.Bound.Length; a++ )
+			{
+				written.Layered[a] = globals.Members[layout.Bound[a]].Attribute != "UncompressedTangentFrame" && (layerNames == -2 || cache.IsLayerName( layout.Tokens[a].Value ));
+				written.AnyLayered |= written.Layered[a];
+			}
+
+			(written.LayerNames, written.PassEpoch) = (layerNames, -1);
+		}
 
 		Span<float> value = stackalloc float[16];
-		for ( int a = 0; a < layout.Bound.Length; a++ )
+		if ( written.PassEpoch != passEpoch || written.PassSession != session || written.Tangent != uncompressedTangentFrame )
 		{
-			var member = globals.Members[layout.Bound[a]];
-			int count;
-			if ( member.Attribute == "UncompressedTangentFrame" )
+			// What the pass state sets: the defaults, then the members bound by an attribute only it can set. The core includes
+			// declare hundreds of members, so the defaults are laid out once per stage and only the bound members looked up
+			var block = written.PassBlock.AsSpan( 0, size );
+			layout.Defaults.AsSpan( 0, Math.Min( layout.Defaults.Length, size ) ).CopyTo( block );
+			if ( layout.Defaults.Length < size ) block[layout.Defaults.Length..].Clear();
+			for ( int a = 0; a < layout.Bound.Length; a++ )
 			{
-				value[0] = uncompressedTangentFrame ? 1 : 0;
-				count = 1;
-			}
-			else
-			{
-				count = Components( Lookup( layout.Tokens[a] ), value );
+				if ( written.Layered[a] ) continue;
+				var member = globals.Members[layout.Bound[a]];
+				int count;
+				if ( member.Attribute == "UncompressedTangentFrame" )
+				{
+					value[0] = uncompressedTangentFrame ? 1 : 0;
+					count = 1;
+				}
+				else
+				{
+					count = Components( attributes.Get( layout.Tokens[a] ), value );
+				}
+
+				if ( count > 0 ) SurfaceGlobalsLayout.Write( block, member, value[..count] );
 			}
 
-			if ( count > 0 ) SurfaceGlobalsLayout.Write( data, member, value[..count] );
+			(written.PassEpoch, written.PassSession, written.Tangent) = (passEpoch, session, uncompressedTangentFrame);
 		}
 
+		// The members an object's attributes can set, over the pass state's block
+		var data = written.PassBlock.AsSpan( 0, size );
+		if ( written.AnyLayered )
+		{
+			data = written.Scratch.AsSpan( 0, size );
+			written.PassBlock.AsSpan( 0, size ).CopyTo( data );
+			for ( int a = 0; a < layout.Bound.Length; a++ )
+			{
+				if ( !written.Layered[a] ) continue;
+				var count = Components( Lookup( layout.Tokens[a] ), value );
+				if ( count > 0 ) SurfaceGlobalsLayout.Write( data, globals.Members[layout.Bound[a]], value[..count] );
+			}
+		}
+
+		// The same block as one of this layout's last few uploads in this list (objects lit by lightmap and by probe take
+		// turns): bound again
+		for ( int k = 0; k < GlobalsWritten.Kept; k++ )
+		{
+			if ( written.Sessions[k] == session && data.SequenceEqual( written.Uploaded[k].AsSpan( 0, size ) ) ) return Binding.Uniform( binding, written.Buffers[k], written.Offsets[k], size );
+		}
+
+		var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
+		data.CopyTo( allocation.Data );
+		var next = written.Next;
+		written.Next = (next + 1) % GlobalsWritten.Kept;
+		data.CopyTo( written.Uploaded[next] );
+		(written.Sessions[next], written.Buffers[next], written.Offsets[next]) = (session, allocation.Buffer, allocation.Offset);
 		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
 	}
+
+	/// <summary>
+	/// What <see cref="SurfaceGlobals"/> last wrote for a <c>$Globals</c> layout: the block as the pass state sets it, and
+	/// its last few uploads in this context's lists and what they hold.
+	/// </summary>
+	sealed class GlobalsWritten( int size )
+	{
+		public const int Kept = 4;
+		public readonly byte[] PassBlock = new byte[size], Scratch = new byte[size];
+		public bool[] Layered;
+		public int LayerNames = -1;
+		public bool AnyLayered;
+		public long PassEpoch = -1, PassSession = -1;
+		public bool Tangent;
+
+		/// <summary>By upload kept: the list's session it's in, where, and what it holds; the next to replace.</summary>
+		public readonly long[] Sessions = [-1, -1, -1, -1];
+		public readonly BufferHandle[] Buffers = new BufferHandle[Kept];
+		public readonly long[] Offsets = new long[Kept];
+		public readonly byte[][] Uploaded = [new byte[size], new byte[size], new byte[size], new byte[size]];
+		public int Next;
+	}
+
+	readonly Dictionary<SurfaceGlobalsLayout, GlobalsWritten> globalsWritten = new( ReferenceEqualityComparer.Instance );
 
 	internal static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GlobalConstants, SurfaceGlobalsLayout> GlobalLayouts = new();
 

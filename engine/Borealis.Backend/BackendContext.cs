@@ -41,6 +41,10 @@ internal sealed partial class BackendContext : GpuContext
 		public BackendContext Active;
 		public int BindVersion = -1;
 
+		/// <summary>Which list this is, as one session goes from list to list: new on each <see cref="Reset"/>.</summary>
+		public long Started;
+		static long started;
+
 		/// <summary>
 		/// For a list recorded beside others: each texture's layout when this list first used it (what it needs at its
 		/// start) and where it leaves it. Null for a frame's list, which moves the textures' own layouts.
@@ -59,6 +63,7 @@ internal sealed partial class BackendContext : GpuContext
 		public void Reset( CommandList list, bool ownLayouts )
 		{
 			List = list;
+			Started = System.Threading.Interlocked.Increment( ref started );
 			Rendering = false;
 			Color = Depth = null;
 			Slice = 0;

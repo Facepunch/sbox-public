@@ -97,6 +97,30 @@ public class DeviceTests : GpuTest
 		Device.Wait( Device.Submit( list ) );
 	}
 
+	[TestMethod]
+	public void BindingsWrittenEarlierInTheListReuseTheirSet()
+	{
+		var layout = Device.CreateBindingLayout( [new BindingSlot( 0, BindingType.UniformBuffer, ShaderStages.Vertex )] );
+		var list = Device.BeginCommandList();
+		var first = list.AllocateUpload( 256 );
+		var (firstBuffer, firstOffset) = (first.Buffer, first.Offset);
+		var second = list.AllocateUpload( 256 );
+		var (secondBuffer, secondOffset) = (second.Buffer, second.Offset);
+
+		list.SetBindings( 0, layout, [Binding.Uniform( 0, firstBuffer, firstOffset, 256 )] );
+		list.SetBindings( 0, layout, [Binding.Uniform( 0, secondBuffer, secondOffset, 256 )] );
+		list.SetBindings( 0, layout, [Binding.Uniform( 0, firstBuffer, firstOffset, 256 )] );
+		list.SetBindings( 1, layout, [Binding.Uniform( 0, secondBuffer, secondOffset, 256 )] );
+		Assert.AreEqual( 2, list.TransientSetsWritten, "each set of bindings written once, whichever slot binds it" );
+
+		Device.Wait( Device.Submit( list ) );
+		list = Device.BeginCommandList();
+		var third = list.AllocateUpload( 256 );
+		list.SetBindings( 0, layout, [Binding.Uniform( 0, third.Buffer, third.Offset, 256 )] );
+		Assert.AreEqual( 1, list.TransientSetsWritten, "a list begun again keeps none" );
+		Device.Wait( Device.Submit( list ) );
+	}
+
 	/// <summary>
 	/// Two moves of one image with nothing recorded between (a block leaving its target readable, and the next drawing into
 	/// it again) are one barrier, from where the first started to where the second ends: barriers in one call aren't ordered

@@ -163,6 +163,13 @@ public sealed unsafe class CommandList
 	readonly Binding[][] writtenBindings = [[], [], [], []];
 	readonly int[] writtenCounts = new int[4];
 
+	// Every transient set written in this list, found by a hash of its layout and bindings: the same bindings again, in any
+	// slot and after others, bind it rather than write another
+	readonly Dictionary<int, int> writtenByContent = new();
+	(ulong Set, ulong Layout, int Start, int Count)[] writtenList = new (ulong, ulong, int, int)[64];
+	Binding[] writtenStore = new Binding[512];
+	int writtenListCount, writtenStoreUsed;
+
 	/// <summary>Transient sets written since the list began, for tests.</summary>
 	internal int TransientSetsWritten { get; private set; }
 
@@ -303,6 +310,8 @@ public sealed unsafe class CommandList
 
 		descriptorPool = 0;
 		writtenSets.AsSpan().Clear();
+		writtenByContent.Clear();
+		writtenListCount = writtenStoreUsed = 0;
 		TransientSetsWritten = 0;
 
 		foreach ( var p in pages )
@@ -1069,9 +1078,20 @@ public sealed unsafe class CommandList
 		}
 		else
 		{
-			descriptorSet = AllocateSet( setLayout );
-			device.WriteDescriptors( descriptorSet, bindings );
-			TransientSetsWritten++;
+			var hash = device.ReusesTransientSets ? ContentHash( setLayout, bindings ) : 0;
+			if ( device.ReusesTransientSets && writtenByContent.TryGetValue( hash, out var at ) && writtenList[at].Layout == setLayout && Same( bindings, writtenStore.AsSpan( writtenList[at].Start, writtenList[at].Count ) ) )
+			{
+				// Written earlier in this list
+				descriptorSet = writtenList[at].Set;
+			}
+			else
+			{
+				descriptorSet = AllocateSet( setLayout );
+				device.WriteDescriptors( descriptorSet, bindings );
+				TransientSetsWritten++;
+				if ( device.ReusesTransientSets ) writtenByContent[hash] = Remember( descriptorSet, setLayout, bindings );
+			}
+
 			if ( writtenBindings[set].Length < bindings.Length ) writtenBindings[set] = new Binding[Math.Max( bindings.Length, 16 )];
 			bindings.CopyTo( writtenBindings[set] );
 			(writtenSets[set], writtenLayouts[set], writtenCounts[set]) = (descriptorSet, setLayout, bindings.Length);
@@ -1082,6 +1102,35 @@ public sealed unsafe class CommandList
 		setLayouts[set] = setLayout;
 		dirty[0] |= 1 << set;
 		dirty[1] |= 1 << set;
+	}
+
+	/// <summary>Keep a set written in this list and what it holds, for <see cref="writtenByContent"/>; its index.</summary>
+	int Remember( ulong descriptorSet, ulong setLayout, ReadOnlySpan<Binding> bindings )
+	{
+		if ( writtenListCount == writtenList.Length ) Array.Resize( ref writtenList, writtenList.Length * 2 );
+		if ( writtenStoreUsed + bindings.Length > writtenStore.Length ) Array.Resize( ref writtenStore, Math.Max( writtenStore.Length * 2, writtenStoreUsed + bindings.Length ) );
+		bindings.CopyTo( writtenStore.AsSpan( writtenStoreUsed ) );
+		writtenList[writtenListCount] = (descriptorSet, setLayout, writtenStoreUsed, bindings.Length);
+		writtenStoreUsed += bindings.Length;
+		return writtenListCount++;
+	}
+
+	static int ContentHash( ulong setLayout, ReadOnlySpan<Binding> bindings )
+	{
+		var hash = setLayout * 0x9E3779B97F4A7C15UL;
+		foreach ( ref readonly var b in bindings )
+		{
+			hash = Mix( hash, (ulong)(uint)b.Slot | (ulong)(uint)b.ArrayElement << 16 | (ulong)b.Type << 32 | (ulong)b.Layout << 40 | (b.Srgb ? 1UL << 48 : 0) );
+			hash = Mix( hash, (ulong)b.Buffer.Index | (ulong)b.Buffer.Generation << 32 );
+			hash = Mix( hash, (ulong)b.Offset ^ (ulong)b.Size << 40 );
+			hash = Mix( hash, (ulong)b.Texture.Index | (ulong)b.Texture.Generation << 32 );
+			hash = Mix( hash, (ulong)b.View.Index | (ulong)b.View.Generation << 32 );
+			hash = Mix( hash, (ulong)b.Sampler.Index | (ulong)b.Sampler.Generation << 32 );
+		}
+
+		return (int)(hash ^ hash >> 32);
+
+		static ulong Mix( ulong hash, ulong value ) => (hash ^ value) * 0x100000001B3UL + (hash >> 29);
 	}
 
 	static bool Same( ReadOnlySpan<Binding> a, ReadOnlySpan<Binding> b )
