@@ -294,6 +294,9 @@ public sealed partial class MaterialInputs
 	/// <summary>Whether a module is a surface (a <c>[Material]</c> struct), whose block is read with its pixel stage's lines alone.</summary>
 	internal static bool IsSurface( PassModule module ) => SurfaceStruct().IsMatch( module.Text );
 
+	/// <summary>Whether a module's text is a surface's (a <c>[Material]</c> struct).</summary>
+	public static bool SurfaceText( string text ) => SurfaceStruct().IsMatch( text );
+
 	/// <summary>
 	/// The FEATURES lines the material editor reads: every one but the rules naming a feature the lines don't declare (the
 	/// features a surface doesn't do, whose rules still apply to materials' values: <see cref="FeatureRules"/>).
@@ -386,8 +389,9 @@ public sealed partial class MaterialInputs
 	{
 		var stem = texture.StartsWith( "g_t", StringComparison.Ordinal ) ? texture[3..] : texture;
 		var unnumbered = stem.TrimEnd( '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' );
-		return Regex.IsMatch( surface, $@"\bTexture2D\s+{Regex.Escape( stem )}\s*;" ) || Regex.IsMatch( surface, $@"\bSource\(\s*""{Regex.Escape( texture )}""\s*\)" )
-			|| (unnumbered.Length > 0 && unnumbered != stem && Regex.IsMatch( surface, $@"\bTexture2D\s+{Regex.Escape( unnumbered )}\s*;" ));
+		const string types = @"\b(?:Texture2D|Rma)\s+";
+		return Regex.IsMatch( surface, $@"{types}{Regex.Escape( stem )}\s*;" ) || Regex.IsMatch( surface, $@"\bSource\(\s*""{Regex.Escape( texture )}""\s*\)" )
+			|| (unnumbered.Length > 0 && unnumbered != stem && Regex.IsMatch( surface, $@"{types}{Regex.Escape( unnumbered )}\s*;" ));
 	}
 
 	[GeneratedRegex( @"\bStaticCombo\s*\(\s*(?<name>S_\w+)\s*,\s*(?<feature>F_\w+)" )]

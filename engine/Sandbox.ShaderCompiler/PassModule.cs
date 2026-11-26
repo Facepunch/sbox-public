@@ -271,10 +271,13 @@ public sealed partial class PassModule
 	}
 
 	/// <summary>Read the module at <paramref name="path"/>, finding its includes beside it and in <paramref name="searchPaths"/>.</summary>
-	public static PassModule Read( string path, IReadOnlyList<string> searchPaths = null ) => new( System.IO.Path.GetFullPath( path ), File.ReadAllText( path ), searchPaths );
+	public static PassModule Read( string path, IReadOnlyList<string> searchPaths = null ) => FromText( System.IO.Path.GetFullPath( path ), File.ReadAllText( path ), searchPaths );
 
-	/// <summary>Read a module from text, reported as <paramref name="path"/>.</summary>
-	public static PassModule FromText( string path, string text, IReadOnlyList<string> searchPaths = null ) => new( path, text, searchPaths );
+	/// <summary>
+	/// Read a module from text, reported as <paramref name="path"/>. A surface's text gets its generated material inputs
+	/// (<see cref="SurfaceDeclarations"/>) as its <c>MATERIAL_INPUTS</c> block.
+	/// </summary>
+	public static PassModule FromText( string path, string text, IReadOnlyList<string> searchPaths = null ) => new( path, SurfaceDeclarations.Append( path, text, searchPaths ), searchPaths );
 
 	IReadOnlyCollection<string> bindingNames;
 

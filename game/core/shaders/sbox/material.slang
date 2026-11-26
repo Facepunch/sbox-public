@@ -191,3 +191,93 @@ public struct TranslucentAttribute {};
 // For example [Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct RenderStateAttribute { string Rule; };
+
+// What the material compiler, the material editor and the model compiler read of a surface, generated from these
+// (SurfaceDeclarations; docs/reference/borealis-slang-materials.md, "Declaring a surface's material"). Conditions and
+// expressions name the struct's fields ("Quality != 1"), read as the features they take.
+
+// A feature a .vmat sets this bool or int field with, which the material editor offers: its range is the field's [Range]
+// (0..1 for a bool), its pane the field's [Group]. One of the struct's [Features] set's is taken, not declared again
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct FeatureAttribute { string Name; };
+
+// A feature's values by name, separated by '|': "None | Mod2X | Overlay"
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct OptionsAttribute { string Names; };
+
+// A feature rule the material editor and the material compiler apply ("Allow1( UseAlphaTest, UseTranslucent )"), with
+// the message the editor shows, following the feature field's own declaration
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct RuleAttribute { string Rule; string Message; };
+
+// The material editor shows the field (a parameter, or a texture's inputs) only where the condition holds
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct ShowIfAttribute { string Condition; };
+
+// The texture, and its inputs, exist only where the condition holds (the material compiler makes it only then)
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct WhenAttribute { string Condition; };
+
+// A float3 the material editor shows as a colour
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct ColorAttribute {};
+
+// How the material compiler makes the texture from the artist's inputs: channels from inputs ("RGB: Color; A: TintMask",
+// an algorithm as "RGBA: HemiOctIsoRoughness_RG_B( Normal, Roughness )", Box by default) and the output format. A short
+// input name is the input Texture<Name>; its colour space, file ending, processor and default follow its name (Color,
+// Normal, Roughness, Metalness, AmbientOcclusion, ...) unless an [Input] gives them
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct PackAttribute { string Channels; string Format; };
+
+// A pack used where a condition holds; the first that holds is the texture's
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct PackIfAttribute { string Channels; string Format; string Condition; };
+
+// An input a pack reads, with its pane ("Color/10"); the rest by its name's convention
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct InputAttribute { string Name; string Group; };
+
+// An input with what its convention doesn't give: "Srgb", "Linear", a processor ("Inverse", "None"), a file ending
+// ("_mask"), a default ("Default3( 0.86, 0.67, 0.62 )", "Default3AndFile( 0, 0, 0, \"x.tga\" )"), separated by ';'
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct InputWithAttribute { string Name; string Group; string Settings; };
+
+// The engine's shared feature set the surface offers with its own: "Common" (common/features.hlsl) or "Sbox"
+// (vr_common_features.fxc)
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct FeaturesAttribute { string Set; };
+
+// The engine's shared material inputs the surface's textures are: "Standard" (the standard processing's colour, normal,
+// tint mask, occlusion, metalness, self-illumination, detail and transmission, by the struct's features)
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct InputsAttribute { string Set; };
+
+// A material attribute the engine reads (BoolAttribute), true
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct AttributeAttribute { string Name; };
+
+// A texture attribute naming this texture (RepresentativeTexture: what tools map a face's uvs by)
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct TextureAttributeAttribute { string Name; };
+
+// A material attribute set to a condition over the fields, worked out for each material ("Quality != 1")
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct AttributeOfAttribute { string Name; string Condition; };
+
+// A material attribute kept as an expression of the material's features, as vfx keeps one ("DoNotCastShadows")
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct AttributeExpressionAttribute { string Name; string Condition; };
+
+// A material attribute set (true) only where a condition holds
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct AttributeIfAttribute { string Name; string Condition; };
+
+// The vertex input signature the model compiler lays meshes out by: a base ("Common", "Standard" or "Sbox": the engine's
+// vertex inputs) and extra streams ("Color", "VertexPaintBlend", "VertexPaintTint", "SecondaryUv"), each with an
+// optional condition ("Color if Animation == 1"), separated by ','
+[__AttributeUsage( _AttributeTargets.Struct )]
+public struct VertexAttribute { string Inputs; };
+
+// A packed texture type's packing ("Rma"), which the compiler writes for a field declared with that type (Rma Rma;)
+[__AttributeUsage( _AttributeTargets.Var )]
+public struct PackedAttribute { string Type; };

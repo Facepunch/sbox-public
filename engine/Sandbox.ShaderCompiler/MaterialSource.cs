@@ -13,9 +13,15 @@ internal static partial class MaterialSource
 	[GeneratedRegex( @"\[\s*Material\s*(?:,[^\]]*)?\][^{;]*?\bstruct\s+(?<name>\w+)\s*(?::\s*(?<bases>[^{]*))?\{" )]
 	private static partial Regex MaterialStruct();
 
-	// A field declaration of a texture type at the start of a line: optional attributes, Texture2D or Texture2D<...>
-	[GeneratedRegex( @"^(?<lead>[ \t]*(?:\[[^\]\r\n]*\][ \t]*)*)Texture2D(?:[ \t]*<[^>\r\n]*>)?(?=[ \t]+\w+[ \t]*;)", RegexOptions.Multiline )]
+	// A field declaration of a texture type at the start of a line: optional attributes (or the end of a list that began on
+	// the line before), Texture2D or Texture2D<...>
+	[GeneratedRegex( @"^(?<lead>[ \t]*(?:[^\r\n]*\][ \t]*)?)Texture2D(?:[ \t]*<[^>\r\n]*>)?(?=[ \t]+\w+[ \t]*;)", RegexOptions.Multiline )]
 	private static partial Regex TextureField();
+
+	// A field of a packed texture type (Rma: roughness, metalness, occlusion and blend mask): a texture the material
+	// compiler packs that way
+	[GeneratedRegex( @"^(?<lead>[ \t]*(?:[^\r\n]*\][ \t]*)?)(?<type>Rma)(?=[ \t]+\w+[ \t]*;)", RegexOptions.Multiline )]
+	private static partial Regex PackedField();
 
 	/// <summary>A <c>[Material]</c> struct: its name and the interfaces it implements.</summary>
 	public readonly record struct Declared( string Name, string[] Interfaces );
@@ -90,7 +96,7 @@ internal static partial class MaterialSource
 	}
 
 	// A field declaration at the start of a line: optional attributes, a type, a name, an optional initializer
-	[GeneratedRegex( @"^(?<lead>[ \t]*(?:\[[^\]\r\n]*\][ \t]*)*)(?<decl>(?!public\b|private\b|internal\b|static\b|return\b|typedef\b|typealias\b)[A-Za-z_][\w:]*(?:[ \t]*<[^>\r\n]*>)?[ \t]+\w+[ \t]*(?:=[^;\r\n]*)?;)" )]
+	[GeneratedRegex( @"^(?<lead>[ \t]*(?:[^\r\n]*\][ \t]*)?)(?<decl>(?!public\b|private\b|internal\b|static\b|return\b|typedef\b|typealias\b)[A-Za-z_][\w:]*(?:[ \t]*<[^>\r\n]*>)?[ \t]+\w+[ \t]*(?:=[^;\r\n]*)?;)" )]
 	private static partial Regex Field();
 
 	/// <summary>
@@ -106,6 +112,7 @@ internal static partial class MaterialSource
 			if ( depth == 0 )
 			{
 				var line = TextureField().Replace( lines[i], "${lead}MaterialTexture2D" );
+				line = PackedField().Replace( line, "${lead}[Packed( \"${type}\" )] MaterialTexture2D" );
 				lines[i] = Field().Replace( line, "${lead}public ${decl}" );
 			}
 
@@ -179,11 +186,13 @@ internal static unsafe class MaterialReflection
 			var specialize = false;
 			string source = null;
 			SurfaceStateRule[] renderStates = null;
+			var all = new List<SurfaceAttribute>();
 			var attributes = SlangApi.VariableGetUserAttributeCount( field );
 			for ( uint a = 0; a < attributes; a++ )
 			{
 				var attribute = SlangApi.VariableGetUserAttribute( field, a );
 				var attributeName = SlangApi.String( SlangApi.UserAttributeGetName( attribute ) );
+				all.Add( Generic( attribute, attributeName ) );
 				switch ( attributeName )
 				{
 					case "Group":
@@ -207,7 +216,7 @@ internal static unsafe class MaterialReflection
 					case "Specialize":
 						specialize = true;
 						break;
-					case "Source":
+					case "Source" or "Feature":
 						source = Text( attribute, 0 );
 						break;
 					case "RenderState":
@@ -234,10 +243,26 @@ internal static unsafe class MaterialReflection
 
 			if ( renderStates is not null && (kind == MaterialFieldKind.Texture2D || components != 1) )
 				throw new ShaderCompileException( path, $"{type}.{fieldName}: a [RenderState] field is a bool, int, uint or float" );
-			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity, Source = source, RenderStates = renderStates, Specialize = specialize } );
+			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity, Source = source, RenderStates = renderStates, Specialize = specialize, Attributes = all } );
 		}
 
-		return MaterialLayout.Create( type, fields, RenderState( structType, type, path ) );
+		var structAttributes = new List<SurfaceAttribute>();
+		for ( uint a = 0, n = SlangApi.TypeGetUserAttributeCount( structType ); a < n; a++ )
+		{
+			var attribute = SlangApi.TypeGetUserAttribute( structType, a );
+			structAttributes.Add( Generic( attribute, SlangApi.String( SlangApi.UserAttributeGetName( attribute ) ) ) );
+		}
+
+		return MaterialLayout.Create( type, fields, RenderState( structType, type, path ), structAttributes );
+	}
+
+	/// <summary>An attribute's name and arguments as text: strings as written, numbers in invariant form.</summary>
+	static SurfaceAttribute Generic( IntPtr attribute, string name )
+	{
+		var arguments = new List<string>();
+		for ( uint i = 0, n = SlangApi.UserAttributeGetArgumentCount( attribute ); i < n; i++ )
+			arguments.Add( Text( attribute, i ) ?? Number( attribute, i )?.ToString( System.Globalization.CultureInfo.InvariantCulture ) ?? "" );
+		return new SurfaceAttribute( name, arguments );
 	}
 
 	/// <summary>The struct's render-state attributes (<c>[Blend( "Alpha" )]</c>, <c>[NoDepthWrite]</c>, ...) as defaults.</summary>

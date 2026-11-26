@@ -11,60 +11,6 @@
 // D_SKYBOX. Not done: the tools' refraction view.
 import sbox.surface;
 
-// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): glass.shader's texture inputs,
-// the textures made from them and its attributes, read with the material's features
-#if MATERIAL_INPUTS
-// The material editor's FEATURES lines, as the .shader declared them
-#include "common/features.hlsl"
-Feature( F_GLASS_QUALITY, 0..2( 0 ="Default Glass ( Refractive, Tinted )", 1 = "Simple Glass ( Faster To Render )", 2 = "Layered Glass ( Multi-Layer Compositing )" ), "Glass");
-Feature( F_OVERLAY_LAYER, 0..1, "Glass");
-// The material's parameters as the material editor shows them, with the feature states that use them
-float3 g_flTintColor < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material,10/90" ); >;
-float g_flBlurAmount < Default( 0 ); Range( 0, 1 ); UiGroup( "Glass,10/10" ); ActiveIf( F_GLASS_QUALITY != 1 ); >;
-float g_flRefractionStrength < Default( 1.005 ); Range( 1, 1.1 ); UiGroup( "Glass,10/20" ); >;
-float AlbedoAbsorption < Default( 0 ); Range( 0, 1 ); UiGroup( "Glass,10/30" ); ActiveIf( F_GLASS_QUALITY != 1 ); >;
-bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
-float3 g_flTintColorB < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "MaterialB,10/90" ); ActiveIf( F_OVERLAY_LAYER != 0 ); >;
-BoolAttribute( NeedsLightProbe, true );
-// End of the material editor's lines
-#define BLEND_MODE_ALREADY_SET 1
-#include "common/vertex.hlsl"
-#define GLASS_REFRACTIVE 0
-#define GLASS_CHEAP 1
-#define GLASS_LAYERED 2
-#define S_GLASS_QUALITY F_GLASS_QUALITY
-#define S_OVERLAY_LAYER F_OVERLAY_LAYER
-#if (S_GLASS_QUALITY == GLASS_LAYERED)
-#elif (S_GLASS_QUALITY == GLASS_CHEAP)
-#endif
-#define DEPTH_STATE_ALREADY_SET 1
-#define BLEND_MODE_ALREADY_SET 1
-#define S_TRANSLUCENT 1
-#include "common/utils/Material.CommonInputs.hlsl"
-#include "common/pixel.hlsl"
-BoolAttribute(bWantsFBCopyTexture, S_GLASS_QUALITY != GLASS_CHEAP );
-#if (S_OVERLAY_LAYER)
-CreateInputTexture2D(TextureColorB, Srgb, 8, "", "_color", "MaterialB,10/10", Default3(1.0, 1.0, 1.0));
-CreateInputTexture2D(TextureNormalB, Linear, 8, "NormalizeNormals", "_normal", "MaterialB,10/20", Default3(0.5, 0.5, 1.0));
-CreateInputTexture2D(TextureRoughnessB, Linear, 8, "", "_rough", "MaterialB,10/30", Default(0.5));
-CreateInputTexture2D(TextureMetalnessB, Linear, 8, "", "_metal", "MaterialB,10/40", Default(1.0));
-CreateInputTexture2D(TextureAmbientOcclusionB, Linear, 8, "", "_ao", "MaterialB,10/50", Default(1.0));
-CreateInputTexture2D(TextureBlendMaskB, Linear, 8, "", "_blend", "MaterialB,10/60", Default(1.0));
-CreateInputTexture2D(TextureTranslucencyB, Linear, 8, "", "_trans", "MaterialB,10/70", Default3(1.0, 1.0, 1.0));
-CreateInputTexture2D(TextureTintMaskB, Linear, 8, "", "_tint", "MaterialB,10/70", Default(1.0));
-Texture2D g_tColorB < Channel(RGB, AlphaWeighted(TextureColorB, TextureTranslucencyB), Srgb); Channel(A, Box(TextureTranslucencyB), Linear); OutputFormat(BC7); SrgbRead(true); > ;
-Texture2D g_tNormalB < Channel(RGB, Box(TextureNormalB), Linear); Channel(A, Box(TextureTintMaskB), Linear); OutputFormat(DXT5); SrgbRead(false); > ;
-Texture2D g_tRmaB < Channel(R, Box(TextureRoughnessB), Linear); Channel(G, Box(TextureMetalnessB), Linear); Channel(B, Box(TextureAmbientOcclusionB), Linear); Channel(A, Box(TextureBlendMaskB), Linear); OutputFormat(BC7); SrgbRead(false); > ;
-#endif
-// glass.shader's vertex inputs (its VS_INPUT, every dynamic combo's): what the model compiler lays out the meshes of
-// models using these materials by (the material's VSInputSignature), so they keep the streams they had
-#define VS_INPUT_HAS_TANGENT_BASIS 1
-struct VS_INPUT
-{
-	#include "common/vertexinput.hlsl"
-};
-#endif
-
 // The engine's, bound by attribute as glass.shader's are
 Texture2D GlassFrameBufferCopy < Attribute( "FrameBufferCopyTexture" ); SrgbRead( false ); >;
 Texture2D GlassBrdfLookup < Attribute( "BRDFLookup" ); >;
@@ -83,30 +29,34 @@ float3 ReflectionFactor( float nDotV, float roughness, float3 specular )
 	return specular * terms.x + terms.y;
 }
 
-[Material, DepthWrite, Translucent]
+[Material, DepthWrite, Translucent, Features( "Common" ), Vertex( "Common" ),
+	Attribute( "NeedsLightProbe" ), Attribute( "CanBatchWithDynamicShaderConstants" ), AttributeExpression( "DoNotCastShadows", "F_DO_NOT_CAST_SHADOWS" ),
+	Attribute( "SupportsMappingDimensions" ), AttributeExpression( "renderbackfaces", "RenderBackfaces" ), Attribute( "translucent" ),
+	AttributeOf( "bWantsFBCopyTexture", "Quality != 1" )]
 public struct Glass : ICompositeSurface, IShadowSurface
 {
 	// Features
-	[Group( "Glass" ), Source( "F_GLASS_QUALITY" ), Range( 0, 2 ), RenderState( "Blend: Opaque, Alpha, Premultiplied" )] int Quality;
-	[Group( "Glass" ), Source( "F_OVERLAY_LAYER" )] bool OverlayLayer;
-	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
+	[Group( "Glass" ), Feature( "F_GLASS_QUALITY" ), Options( "Default Glass ( Refractive, Tinted ) | Simple Glass ( Faster To Render ) | Layered Glass ( Multi-Layer Compositing )" ), Range( 0, 2 ), RenderState( "Blend: Opaque, Alpha, Premultiplied" )] int Quality;
+	[Group( "Glass" ), Feature( "F_OVERLAY_LAYER" )] bool OverlayLayer;
+	[Group( "Features" ), Feature( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
-	// Material.CommonInputs.hlsl's textures and tint
-	[Group( "Material" ), Srgb, Opacity] Texture2D Color;
-	[Group( "Material" )] Texture2D Normal;
-	[Group( "Material" )] Texture2D Rma;
-	[Group( "Material" ), Default3( 1, 1, 1 )] float3 TintColor;
+	// The common inputs: colour with translucency, normal with tint mask, roughness/metalness/occlusion/blend
+	[Group( "Material,10" ), Srgb, Opacity, TextureAttribute( "RepresentativeTexture" )] Texture2D Color;
+	[Group( "Material,10" )] Texture2D Normal;
+	[Group( "Material,10" )] Rma Rma;
+	[Group( "Material,10/90" ), Source( "g_flTintColor" ), Color, Default3( 1, 1, 1 )] float3 TintColor;
 
 	// Blur and refraction
-	[Group( "Glass" ), Default( 0 ), Range( 0, 1 )] float BlurAmount;
-	[Group( "Glass" ), Default( 1.005 ), Range( 1, 1.1 )] float RefractionStrength;
-	[Group( "Glass" ), Default( 0 ), Range( 0, 1 )] float AlbedoAbsorption;
+	[Group( "Glass,10/10" ), Default( 0 ), Range( 0, 1 ), ShowIf( "Quality != 1" )] float BlurAmount;
+	[Group( "Glass,10/20" ), Default( 1.005 ), Range( 1, 1.1 )] float RefractionStrength;
+	[Group( "Glass,10/30" ), Source( "AlbedoAbsorption" ), Default( 0 ), Range( 0, 1 ), ShowIf( "Quality != 1" )] float AlbedoAbsorption;
+	[Group( "Fog,300" ), Default( 1 )] bool FogEnabled;
 
 	// The overlay layer's material (F_OVERLAY_LAYER)
-	[Group( "MaterialB" ), Srgb] Texture2D ColorB;
-	[Group( "MaterialB" )] Texture2D NormalB;
-	[Group( "MaterialB" )] Texture2D RmaB;
-	[Group( "MaterialB" ), Default3( 1, 1, 1 )] float3 TintColorB;
+	[Group( "MaterialB,10" ), Srgb, When( "OverlayLayer" )] Texture2D ColorB;
+	[Group( "MaterialB,10" ), When( "OverlayLayer" ), Pack( "RGB: NormalB; A: TintMaskB", "DXT5" )] Texture2D NormalB;
+	[Group( "MaterialB,10" ), When( "OverlayLayer" )] Rma RmaB;
+	[Group( "MaterialB,10/90" ), Source( "g_flTintColorB" ), Color, Default3( 1, 1, 1 ), ShowIf( "OverlayLayer != 0" )] float3 TintColorB;
 
 	public Material Evaluate( SurfaceInput i )
 	{

@@ -7,79 +7,6 @@
 // the normal map too) and the new one (colour with the noise in its alpha, normal, roughness-metalness-occlusion).
 import sbox.surface;
 
-// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): fur.shader's texture inputs,
-// the textures made from them and its attributes, read with the material's features
-#if MATERIAL_INPUTS
-// The material editor's FEATURES lines, as the .shader declared them
-Feature( F_NEW_TEXTURE_PACKING, 0..1 );
-FeatureUpgrade( F_NEW_TEXTURE_PACKING, 1 );
-#include "common/features.hlsl"
-// The material's parameters as the material editor shows them, with the feature states that use them
-float g_flWindFreq < Default( 0.36 ); Range( 0, 100 ); UiGroup( "Wind Displacement, 80/10" ); >;
-float g_flWindNoise < Default( 0.36 ); Range( 0, 10 ); UiGroup( "Wind Displacement, 80/10" ); >;
-float g_flWind < Default( 0.36 ); Range( 0, 100 ); UiGroup( "Wind Displacement, 80/30" ); >;
-bool g_bSrgbToLinearColorSpace < Default( 0 ); UiGroup( "Vertex Colors, 70/10" ); >;
-float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); >;
-float g_flAntiAliasedEdgeStrength < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); >;
-float g_flAOAmount < Default( 0 ); Range( 0, 1 ); UiGroup( "Material, 10/51" ); >;
-float g_flNoiseAOAmount < Default( 0 ); Range( 0, 1 ); UiGroup( "Material, 10/52" ); >;
-float g_flNoiseTiling < Default( 1 ); Range( 0, 64 ); UiGroup( "Fur, 20/20" ); >;
-float g_flNoiseAlbedoMultiply < Default( 0 ); Range( 0, 1 ); UiGroup( "Fur, 20/21" ); >;
-float g_flMinClipFudge < Default( 0.01 ); Range( 0, 1 ); UiGroup( "Fur, 20/22" ); >;
-float3 g_vRimColour < UiType( Color ); Default3( 0.25, 0.25, 0.25 ); UiGroup( "Rim Lighting, 30/10" ); >;
-float g_flRimPower < Default( 0.84 ); Range( 0, 10 ); UiGroup( "Rim Lighting, 30/20" ); >;
-float g_flRimFudge < Default( 0.01 ); Range( 0.01, 1 ); UiGroup( "Rim Lighting, 30/30" ); >;
-bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
-bool g_bUseGeometryNormals < Default( 1 ); UiGroup( "Rim Lighting, 30/40" ); >;
-BoolAttribute( NeedsLightProbe, true );
-BoolAttribute( AnimatesVertices, true );
-// End of the material editor's lines
-#ifndef S_ALPHA_TEST
-#define S_ALPHA_TEST 1
-#endif
-#include "common/vertex.hlsl"
-#include "common/pixel.hlsl"
-#define S_NEW_TEXTURE_PACKING F_NEW_TEXTURE_PACKING
-#if !S_NEW_TEXTURE_PACKING
-CreateInputTexture2D( FurNoise, Linear, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
-CreateInputTexture2D( BaseColor, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
-CreateInputTexture2D( Normal, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
-CreateInputTexture2D( Roughness, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
-CreateInputTexture2D( Metalness, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
-CreateInputTexture2D( AO, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
-Texture2D g_tFurNoise < Channel( RGBA, Box( FurNoise ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
-Texture2D g_tBaseColor < Channel( RGBA, Box( BaseColor ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
-Texture2D g_tNormal < Channel( RGBA, Box( Normal ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
-Texture2D g_tRoughness < Channel( RGBA, Box( Roughness ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
-Texture2D g_tMetalness < Channel( RGBA, Box( Metalness ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
-Texture2D g_tAO < Channel( RGBA, Box( AO ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
-#else
-CreateInputTexture2D( BaseColor, Srgb, 8, "None", "_color", "Material, 10/10", Default( 1 ) );
-CreateInputTexture2D( Normal, Linear, 8, "NormalizeNormals", "_normal", "Material, 10/20", Default3( 0.5, 0.5, 1.0 ) );
-CreateInputTexture2D( Roughness, Linear, 8, "None", "_rough", "Material, 10/30", Default( 0.5 ) );
-CreateInputTexture2D( Metalness, Linear, 8, "None", "_metal", "Material, 10/40", Default( 0 ) );
-CreateInputTexture2D( AO, Linear, 8, "None", "_ao", "Material, 10/50", Default( 1 ) );
-CreateInputTexture2D( FurNoise, Linear, 8, "None", "_fur", "Fur, 20/10", Default( 0.5 ) );
-Texture2D g_tBaseColor < Channel( RGB, Box( BaseColor ), Srgb ); Channel( A, PreserveCoverage( FurNoise ), Linear ); OutputFormat( BC7 ); SrgbRead( true ); >;
-Texture2D g_tNormal < Channel( RGB, Box( Normal ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
-Texture2D g_tRMA <
-Channel( R, Box( Roughness ), Linear );
-Channel( G, Box( Metalness ), Linear );
-Channel( B, Box( AO ), Linear );
-OutputFormat( DXT5 );
-SrgbRead( false );
->;
-#endif
-// fur.shader's vertex inputs (its VS_INPUT, every dynamic combo's): what the model compiler lays out the meshes of
-// models using these materials by (the material's VSInputSignature), so they keep the streams they had
-#define VS_INPUT_HAS_TANGENT_BASIS 1
-struct VS_INPUT
-{
-	#include "common/vertexinput.hlsl"
-	float4 vColor : COLOR0 < Semantic( Color ); >;
-};
-#endif
-
 // common_samplers.fxc's g_sBilinearWrap, for the wind's noise
 SamplerState FurBilinearWrap < Filter( BILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 
@@ -88,46 +15,54 @@ public struct FurVaryings
 	public float4 Color : COLOR0;
 }
 
-[Material, AlphaTest]
+[Material, AlphaTest, Features( "Common" ), Vertex( "Common, Color" ),
+	Attribute( "NeedsLightProbe" ), Attribute( "AnimatesVertices" ), Attribute( "CanBatchWithDynamicShaderConstants" ), Attribute( "alphatest" )]
 public struct Fur : IInterpolatedVertexSurface
 {
 	typealias Varyings = FurVaryings;
 
-	// Features
-	[Group( "Features" ), Source( "F_NEW_TEXTURE_PACKING" )] bool NewTexturePacking;
-	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
+	// Features (F_NEW_TEXTURE_PACKING is old materials' alone: ShaderCompatibility)
+	[Source( "F_NEW_TEXTURE_PACKING" )] bool NewTexturePacking;
+	[Group( "Rendering" ), Feature( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
 	// The new packing
-	[Group( "Material" ), Srgb] Texture2D BaseColor;   // rgb albedo, a fur noise (both packings' albedo)
-	[Group( "Material" )] Texture2D Normal;
-	[Group( "Material" )] Texture2D RMA;
+	[Group( "Material" ), Srgb, When( "NewTexturePacking" ), InputWith( "BaseColor", "Material, 10/10", "None; Default( 1 )" ), InputWith( "FurNoise", "Fur, 20/10", "None; _fur; Default( 0.5 )" ),
+		Pack( "RGB: BaseColor; A: PreserveCoverage( FurNoise )", "BC7" )] Texture2D BaseColor;   // rgb albedo, a fur noise (both packings' albedo)
+	[Group( "Material" ), When( "NewTexturePacking" ), InputWith( "Normal", "Material, 10/20", "" ), Pack( "RGB: Normal", "DXT5" )] Texture2D Normal;
+	[Group( "Material" ), When( "NewTexturePacking" ), InputWith( "Roughness", "Material, 10/30", "None" ), InputWith( "Metalness", "Material, 10/40", "None; Default( 0 )" ),
+		InputWith( "AO", "Material, 10/50", "None; _ao; Default( 1 )" ), Pack( "R: Roughness; G: Metalness; B: AO", "DXT5" )] Texture2D RMA;
 
 	// The old packing: one texture each, the normal map and masks read as sRGB as the .shader declares them
-	[Group( "Legacy" )] Texture2D FurNoise;
-	[Group( "Legacy" ), Srgb, Source( "g_tNormal" )] Texture2D LegacyNormal;
-	[Group( "Legacy" ), Srgb] Texture2D Roughness;
-	[Group( "Legacy" ), Srgb] Texture2D Metalness;
-	[Group( "Legacy" ), Srgb] Texture2D AO;
+	Texture2D FurNoise;
+	[Srgb, Source( "g_tNormal" )] Texture2D LegacyNormal;
+	[Srgb] Texture2D Roughness;
+	[Srgb] Texture2D Metalness;
+	[Srgb] Texture2D AO;
 
-	[Group( "Material" ), Default( 0 ), Range( 0, 1 )] float AOAmount;
-	[Group( "Material" ), Default( 0 ), Range( 0, 1 )] float NoiseAOAmount;
+	[Group( "Material, 10/51" ), Default( 0 ), Range( 0, 1 )] float AOAmount;
+	[Group( "Material, 10/52" ), Default( 0 ), Range( 0, 1 )] float NoiseAOAmount;
 
-	[Group( "Fur" ), Default( 1 ), Range( 0, 64 )] float NoiseTiling;
-	[Group( "Fur" ), Default( 0 ), Range( 0, 1 )] float NoiseAlbedoMultiply;
-	[Group( "Fur" ), Default( 0.01 ), Range( 0, 1 )] float MinClipFudge;
+	[Group( "Fur, 20/20" ), Default( 1 ), Range( 0, 64 )] float NoiseTiling;
+	[Group( "Fur, 20/21" ), Default( 0 ), Range( 0, 1 )] float NoiseAlbedoMultiply;
+	[Group( "Fur, 20/22" ), Default( 0.01 ), Range( 0, 1 )] float MinClipFudge;
 
-	[Group( "Rim Lighting" ), Default3( 0.25, 0.25, 0.25 )] float3 RimColour;
-	[Group( "Rim Lighting" ), Default( 0.84 ), Range( 0, 10 )] float RimPower;
-	[Group( "Rim Lighting" ), Default( 0.01 ), Range( 0.01, 1 )] float RimFudge;
-	[Group( "Rim Lighting" ), Default( 1 )] bool UseGeometryNormals;
+	[Group( "Rim Lighting, 30/10" ), Color, Default3( 0.25, 0.25, 0.25 )] float3 RimColour;
+	[Group( "Rim Lighting, 30/20" ), Default( 0.84 ), Range( 0, 10 )] float RimPower;
+	[Group( "Rim Lighting, 30/30" ), Default( 0.01 ), Range( 0.01, 1 )] float RimFudge;
+	[Group( "Rim Lighting, 30/40" ), Default( 1 )] bool UseGeometryNormals;
 
 	// Wind
-	[Group( "Wind Displacement" ), Default( 0.36 ), Range( 0, 100 )] float WindFreq;
-	[Group( "Wind Displacement" ), Default( 0.36 ), Range( 0, 10 )] float WindNoise;
-	[Group( "Wind Displacement" ), Default( 0.36 ), Range( 0, 100 )] float Wind;
+	[Group( "Wind Displacement, 80/10" ), Default( 0.36 ), Range( 0, 100 )] float WindFreq;
+	[Group( "Wind Displacement, 80/10" ), Default( 0.36 ), Range( 0, 10 )] float WindNoise;
+	[Group( "Wind Displacement, 80/30" ), Default( 0.36 ), Range( 0, 100 )] float Wind;
 
 	// The mesh's colours were exported in sRGB (alpha stays as it is)
-	[Group( "Vertex Colors" ), Default( 0 )] bool SrgbToLinearColorSpace;
+	[Group( "Vertex Colors, 70/10" ), Default( 0 )] bool SrgbToLinearColorSpace;
+
+	// The alpha test (the .shader's parameters; the engine's cutoff is used) and fog
+	[Group( "Translucent" ), Default( 0.5 ), Range( 0.01, 0.99 )] float AlphaTestReference;
+	[Group( "Translucent" ), Default( 1 ), Range( 0, 1 )] float AntiAliasedEdgeStrength;
+	[Group( "Fog,300" ), Default( 1 )] bool FogEnabled;
 
 	public FurVaryings Vertex( FurVaryings v )
 	{

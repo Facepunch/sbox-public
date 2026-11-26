@@ -7,93 +7,29 @@
 // greater-or-equal, which draws the same pixels.
 import sbox.surface;
 
-// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): foliage.shader's texture inputs,
-// the textures made from them and its attributes, read with the material's features
-#if MATERIAL_INPUTS
-// The material editor's FEATURES lines, as the .shader declared them
-#include "common/features.hlsl"
-Feature( F_ALPHA_TEST, 0..1, "Rendering" );
-Feature( F_FOLIAGE_ANIMATION, 0..2( 0 = "None", 1 = "Vertex Color Based", 2 = "Trunk Only" ), "Foliage Animation" );
-Feature( F_TRANSMISSIVE, 0..1, "Rendering" );
-Feature( F_GRAZING_FADE, 0..1, "Rendering" );
-// The material's parameters as the material editor shows them, with the feature states that use them
-bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
-float g_flAlphaDistanceEnd < Default( 2000 ); Range( 0, 10000 ); UiGroup( "Alpha Test" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
-float g_flAlphaDistanceStart < Default( 500 ); Range( 0, 5000 ); UiGroup( "Alpha Test" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
-float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
-float g_flAmbientBoost < Default( 0 ); Range( 0, 0.5 ); UiGroup( "Foliage" ); >;
-float g_flBranchAmplitude < Default( 0.1 ); Range( 0, 1 ); UiGroup( "Foliage Animation,10/Detail" ); ActiveIf( F_FOLIAGE_ANIMATION == 1 ); >;
-float g_flBranchFrequency < Default( 0.5 ); Range( 0.1, 5 ); UiGroup( "Foliage Animation,10/Detail" ); ActiveIf( F_FOLIAGE_ANIMATION == 1 ); >;
-float g_flAntiAliasedEdgeStrength < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
-float g_flDetailFadeDistance < Default( 500 ); Range( 100, 2000 ); UiGroup( "Foliage" ); >;
-float g_flEdgeAmplitude < Default( 0.1 ); Range( 0, 1 ); UiGroup( "Foliage Animation,10/Detail" ); ActiveIf( F_FOLIAGE_ANIMATION == 1 ); >;
-float g_flEdgeFrequency < Default( 1 ); Range( 0.1, 5 ); UiGroup( "Foliage Animation,10/Detail" ); ActiveIf( F_FOLIAGE_ANIMATION == 1 ); >;
-float g_flGrassNormalUp < Default( 0 ); Range( 0, 1 ); UiGroup( "Foliage" ); >;
-float g_flGrazingFadeEnd < Default( 0.1 ); Range( 0, 1 ); UiGroup( "Grazing Fade" ); ActiveIf( F_GRAZING_FADE != 0 ); >;
-float g_flGrazingFadeStart < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Grazing Fade" ); ActiveIf( F_GRAZING_FADE != 0 ); >;
-float g_flMinRoughness < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Foliage" ); >;
-float g_flNormalVariation < Default( 0.1 ); Range( 0, 0.5 ); UiGroup( "Foliage" ); >;
-float g_flRimPower < Default( 4 ); Range( 1, 8 ); UiGroup( "Foliage" ); >;
-float g_flRimStrength < Default( 0 ); Range( 0, 2 ); UiGroup( "Foliage" ); >;
-float g_flSpecularOcclusion < Default( 0 ); Range( 0, 1 ); UiGroup( "Foliage" ); >;
-float g_flSwaySpeed < Default( 1 ); Range( 0, 10 ); UiGroup( "Foliage Animation,20/Trunk" ); ActiveIf( F_FOLIAGE_ANIMATION != 0 ); >;
-float g_flSwayStrength < Default( 1 ); Range( 0, 25 ); UiGroup( "Foliage Animation,20/Trunk" ); ActiveIf( F_FOLIAGE_ANIMATION != 0 ); >;
-float3 g_flTintColor < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material,10/90" ); >;
-float g_flTransmissionScale < Default( 1 ); Range( 0, 10 ); UiGroup( "Transmissive" ); ActiveIf( F_TRANSMISSIVE != 0 ); >;
-float g_flWrapAmount < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Foliage" ); ActiveIf( F_TRANSMISSIVE != 0 ); >;
-float g_flWrapStrength < Default( 0.3 ); Range( 0, 1 ); UiGroup( "Foliage" ); ActiveIf( F_TRANSMISSIVE != 0 ); >;
-BoolAttribute( NeedsLightProbe, true );
-#if ( F_ALPHA_TEST )
-BoolAttribute( alphatest, true );
-#endif
-// Its wind moves vertices: lights draw it live instead of keeping it in their static shadow caches
-#if ( F_FOLIAGE_ANIMATION )
-BoolAttribute( AnimatesVertices, true );
-#endif
-// End of the material editor's lines
-#define S_FOLIAGE_ANIMATION F_FOLIAGE_ANIMATION
-#include "common/vertex.hlsl"
-BoolAttribute( VertexNeedsPropOrigin, true );
-#include "common/utils/Material.CommonInputs.hlsl"
-#include "common/pixel.hlsl"
-#define S_ALPHA_TEST F_ALPHA_TEST
-#define S_TRANSMISSIVE F_TRANSMISSIVE
-#define S_GRAZING_FADE F_GRAZING_FADE
-#if S_ALPHA_TEST
-TextureAttribute( LightSim_Opacity_A, g_tColor );
-#endif
-#if S_TRANSMISSIVE
-CreateInputTexture2D( TextureTransmissiveColor, Srgb, 8, "", "_color", "Material,10/60", Default3( 1.0, 1.0, 1.0 ) );
-Texture2D g_tTransmissiveColor < Channel( RGB, Box( TextureTransmissiveColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); >;
-#endif
-// foliage.shader's vertex inputs (its VS_INPUT, every dynamic combo's): what the model compiler lays out the meshes of
-// models using these materials by (the material's VSInputSignature), so they keep the streams they had
-#define VS_INPUT_HAS_TANGENT_BASIS 1
-struct VS_INPUT
-{
-	#include "common/vertexinput.hlsl"
-	#if ( S_FOLIAGE_ANIMATION == 1 )
-		float4 vColor : COLOR0 < Semantic( Color ); >;
-	#endif
-};
-#endif
-
-[Material]
+[Material, Features( "Common" ), Vertex( "Common, Color if Animation == 1" ),
+	Attribute( "NeedsLightProbe" ), AttributeIf( "alphatest", "UseAlphaTest" ), AttributeIf( "AnimatesVertices", "Animation" ),
+	Attribute( "CanBatchWithDynamicShaderConstants" ), Attribute( "VertexNeedsPropOrigin" ), AttributeExpression( "DoNotCastShadows", "F_DO_NOT_CAST_SHADOWS" ),
+	Attribute( "SupportsMappingDimensions" ), AttributeExpression( "renderbackfaces", "RenderBackfaces" )]
 public struct Foliage : IVertexSurface, ISunLitSurface
 {
 	// Features
-	[Group( "Features" ), Source( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
-	[Group( "Features" ), Source( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
+	[Group( "Rendering" ), Feature( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
+	[Group( "Foliage Animation" ), Feature( "F_FOLIAGE_ANIMATION" ), Options( "None | Vertex Color Based | Trunk Only" ), Range( 0, 2 )] int Animation;
+	[Group( "Rendering" ), Feature( "F_TRANSMISSIVE" )] bool Transmissive;
+	[Group( "Rendering" ), Feature( "F_GRAZING_FADE" )] bool GrazingFade;
+	[Group( "Rendering" ), Feature( "F_RENDER_BACKFACES" ), RenderState( "TwoSided" )] bool RenderBackfaces;
 
-	// Material.CommonInputs.hlsl's textures and tint
-	[Group( "Material" ), Srgb, Opacity] Texture2D Color;  // rgb albedo, a opacity
-	[Group( "Material" )] Texture2D Normal;                // rgb tangent normal, a tint mask
-	[Group( "Material" )] Texture2D Rma;                   // roughness, metalness, occlusion, transmission
-	[Group( "Material" ), Default3( 1, 1, 1 )] float3 TintColor;
+	// The common inputs: colour with opacity, normal with tint mask, roughness/metalness/occlusion/transmission
+	[Group( "Material,10" ), Srgb, Opacity, TextureAttribute( "RepresentativeTexture" )] Texture2D Color;
+	[Group( "Material,10" )] Texture2D Normal;
+	[Group( "Material,10" )] Rma Rma;
+	[Group( "Material,10/90" ), Source( "g_flTintColor" ), Color, Default3( 1, 1, 1 )] float3 TintColor;
+	[Group( "Fog,300" ), Default( 1 )] bool FogEnabled;
 
 	// Foliage
-	[Group( "Foliage" ), Range( 0, 1 ), Default( 0.5 )] float WrapAmount;
-	[Group( "Foliage" ), Range( 0, 1 ), Default( 0.3 )] float WrapStrength;
+	[Group( "Foliage" ), Range( 0, 1 ), Default( 0.5 ), ShowIf( "Transmissive != 0" )] float WrapAmount;
+	[Group( "Foliage" ), Range( 0, 1 ), Default( 0.3 ), ShowIf( "Transmissive != 0" )] float WrapStrength;
 	[Group( "Foliage" ), Range( 0, 2 ), Default( 0 )] float RimStrength;
 	[Group( "Foliage" ), Range( 1, 8 ), Default( 4 )] float RimPower;
 	[Group( "Foliage" ), Range( 0, 0.5 ), Default( 0 )] float AmbientBoost;
@@ -101,30 +37,29 @@ public struct Foliage : IVertexSurface, ISunLitSurface
 	[Group( "Foliage" ), Range( 0, 1 ), Default( 0.5 )] float MinRoughness;
 	[Group( "Foliage" ), Range( 0, 0.5 ), Default( 0.1 )] float NormalVariation;
 	[Group( "Foliage" ), Range( 0, 1 ), Default( 0 )] float GrassNormalUp;
+	[Group( "Foliage" ), Range( 0, 1 ), Default( 0 )] float SpecularOcclusion;   // the .shader's, which it never read
 
 	// Wrap lighting and translucency (F_TRANSMISSIVE)
-	[Group( "Transmissive" ), Source( "F_TRANSMISSIVE" )] bool Transmissive;
-	[Group( "Transmissive" ), Srgb] Texture2D TransmissiveColor;
-	[Group( "Transmissive" ), Range( 0, 10 ), Default( 1 )] float TransmissionScale;
+	[Group( "Material,10" ), Srgb, When( "Transmissive" ), Input( "TextureTransmissiveColor", "Material,10/60" ), Pack( "RGB: TransmissiveColor", "BC7" )] Texture2D TransmissiveColor;
+	[Group( "Transmissive" ), Range( 0, 10 ), Default( 1 ), ShowIf( "Transmissive != 0" )] float TransmissionScale;
 
 	// The alpha test's cutoff (g_flAlphaTestReference), relaxed with distance so foliage doesn't pop as its LODs change
-	[Group( "Alpha Test" ), Range( 0.01, 0.99 ), Default( 0.5 )] float AlphaTestReference;
-	[Group( "Alpha Test" ), Range( 0, 5000 ), Default( 500 )] float AlphaDistanceStart;
-	[Group( "Alpha Test" ), Range( 0, 10000 ), Default( 2000 )] float AlphaDistanceEnd;
+	[Group( "Translucent" ), Range( 0.01, 0.99 ), Default( 0.5 ), ShowIf( "UseAlphaTest != 0" )] float AlphaTestReference;
+	[Group( "Translucent" ), Range( 0, 1 ), Default( 1 ), ShowIf( "UseAlphaTest != 0" )] float AntiAliasedEdgeStrength;   // the .shader's, which it never read
+	[Group( "Alpha Test" ), Range( 0, 5000 ), Default( 500 ), ShowIf( "UseAlphaTest != 0" )] float AlphaDistanceStart;
+	[Group( "Alpha Test" ), Range( 0, 10000 ), Default( 2000 ), ShowIf( "UseAlphaTest != 0" )] float AlphaDistanceEnd;
 
 	// Leaf cards fade out as they turn edge-on (F_GRAZING_FADE)
-	[Group( "Grazing Fade" ), Source( "F_GRAZING_FADE" )] bool GrazingFade;
-	[Group( "Grazing Fade" ), Range( 0, 1 ), Default( 0.5 )] float GrazingFadeStart;
-	[Group( "Grazing Fade" ), Range( 0, 1 ), Default( 0.1 )] float GrazingFadeEnd;
+	[Group( "Grazing Fade" ), Range( 0, 1 ), Default( 0.5 ), ShowIf( "GrazingFade != 0" )] float GrazingFadeStart;
+	[Group( "Grazing Fade" ), Range( 0, 1 ), Default( 0.1 ), ShowIf( "GrazingFade != 0" )] float GrazingFadeEnd;
 
 	// Wind (F_FOLIAGE_ANIMATION): vertex colour red and green attenuate edge and branch bending, blue is the phase
-	[Group( "Foliage Animation" ), Source( "F_FOLIAGE_ANIMATION" )] bool Animated;
-	[Group( "Foliage Animation" ), Range( 0.1, 5 ), Default( 1 )] float EdgeFrequency;
-	[Group( "Foliage Animation" ), Range( 0, 1 ), Default( 0.1 )] float EdgeAmplitude;
-	[Group( "Foliage Animation" ), Range( 0.1, 5 ), Default( 0.5 )] float BranchFrequency;
-	[Group( "Foliage Animation" ), Range( 0, 1 ), Default( 0.1 )] float BranchAmplitude;
-	[Group( "Foliage Animation" ), Range( 0, 25 ), Default( 1 )] float SwayStrength;
-	[Group( "Foliage Animation" ), Range( 0, 10 ), Default( 1 )] float SwaySpeed;
+	[Group( "Foliage Animation,10/Detail" ), Range( 0.1, 5 ), Default( 1 ), ShowIf( "Animation == 1" )] float EdgeFrequency;
+	[Group( "Foliage Animation,10/Detail" ), Range( 0, 1 ), Default( 0.1 ), ShowIf( "Animation == 1" )] float EdgeAmplitude;
+	[Group( "Foliage Animation,10/Detail" ), Range( 0.1, 5 ), Default( 0.5 ), ShowIf( "Animation == 1" )] float BranchFrequency;
+	[Group( "Foliage Animation,10/Detail" ), Range( 0, 1 ), Default( 0.1 ), ShowIf( "Animation == 1" )] float BranchAmplitude;
+	[Group( "Foliage Animation,20/Trunk" ), Range( 0, 25 ), Default( 1 ), ShowIf( "Animation != 0" )] float SwayStrength;
+	[Group( "Foliage Animation,20/Trunk" ), Range( 0, 10 ), Default( 1 ), ShowIf( "Animation != 0" )] float SwaySpeed;
 
 	public Material Evaluate( SurfaceInput i )
 	{
@@ -201,7 +136,7 @@ public struct Foliage : IVertexSurface, ISunLitSurface
 	public float3 Displace( VertexSurfaceInput v )
 	{
 		float3 position = v.Position;
-		if ( !Animated ) return position;
+		if ( Animation == 0 ) return position;
 
 		float bend = position.z * SwayStrength * 0.0001;
 		bend *= bend;

@@ -7,24 +7,6 @@
 // (IInterpolatedLayeredSurface) with citizen_eye.shader's lighting features ([Combiner]), as citizen_eye.shader does.
 import sbox.surface;
 
-// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): citizen_eye.shader's texture inputs,
-// the textures made from them and its attributes, read with the material's features
-#if MATERIAL_INPUTS
-// The material editor's FEATURES lines, as the .shader declared them
-// End of the material editor's lines
-#define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_WRAP
-#define S_SPECULAR 1
-#define S_SPECULAR_CUBE_MAP 1
-#include "vr_common_ps_code.fxc"
-// citizen_eye.shader's vertex inputs (its VS_INPUT, every dynamic combo's): what the model compiler lays out the meshes of
-// models using these materials by (the material's VSInputSignature), so they keep the streams they had
-#define VS_INPUT_HAS_TANGENT_BASIS 1
-struct VS_INPUT
-{
-	#include "vr_shared_standard_vs_input.fxc"
-};
-#endif
-
 static const float EyePi = 3.14159265358979323846;
 static const float EyeTwoPi = 6.28318530717958647692;
 
@@ -138,13 +120,13 @@ float EyeDisc( float distance, float softness )
 	return 1 - smoothstep( -width, width, distance );
 }
 
-[Material, Combiner( "S_SUBSURFACE_SCATTERING = SUBSURFACE_SCATTERING_WRAP, S_SPECULAR = 1" )]
+[Material, Combiner( "S_SUBSURFACE_SCATTERING = SUBSURFACE_SCATTERING_WRAP, S_SPECULAR = 1" ), Vertex( "Standard" )]
 public struct CitizenEye : IInterpolatedLayeredSurface, IInterpolatedVertexSurface
 {
 	typealias Varyings = CitizenEyeVaryings;
 
 	// Identity and mesh fit are the only artist controls
-	[Group( "Iris" ), Default3( 0.28, 0.19, 0.11 )] float3 IrisColor;
+	[Group( "Iris" ), Color, Default3( 0.28, 0.19, 0.11 )] float3 IrisColor;
 	[Group( "Iris" ), Default( 1 ), Range( 0, 100 )] float DetailSeed;
 	[Group( "Iris" ), Default( 0.30 ), Range( 0.15, 0.75 )] float PupilSize;
 	[Group( "Mesh Fit" ), Default( 0.20 ), Range( 0.10, 0.30 )] float IrisRadius;

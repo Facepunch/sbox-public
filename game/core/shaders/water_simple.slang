@@ -1,36 +1,6 @@
 // water_simple: a surface, the whole shader for Borealis.Gpu (docs/reference/borealis-slang-materials.md).
 import sbox.surface;
 
-// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): the common inputs' textures
-#if MATERIAL_INPUTS
-// The material editor's FEATURES lines, as the .shader declared them
-#include "common/features.hlsl"
-// The material's parameters as the material editor shows them, with the feature states that use them
-float3 g_flTintColor < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Material,10/90" ); >;
-float RefractionNormalScale < Default( 0.5 ); Range( 0.01, 1 ); UiGroup( "Refraction" ); >;
-float Translucency < Default( 1 ); Range( 0, 1 ); UiGroup( "Refraction" ); >;
-float Refraction < Default( 1 ); Range( 0, 1 ); UiGroup( "Water" ); >;
-float BigWaveSize < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Wave" ); >;
-float BigWaveScale < Default( 100 ); Range( 0, 256 ); UiGroup( "Wave" ); >;
-float BigWaveTime < Default( 1 ); Range( 0, 10 ); UiGroup( "Wave" ); >;
-float NormalScale < Default( 0.5 ); Range( 0, 2 ); UiGroup( "Tweaks" ); >;
-float g_fRoughness < Default( 0.02 ); Range( 0.01, 1 ); UiGroup( "Tweaks" ); >;
-float g_fMetalness < Default( 0.85 ); Range( 0.01, 1 ); UiGroup( "Tweaks" ); >;
-float g_fAmbientOcclusion < Default( 0.5 ); Range( 0.01, 1 ); UiGroup( "Tweaks" ); >;
-bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
-BoolAttribute( NeedsLightProbe, true );
-BoolAttribute( CanBatchWithDynamicShaderConstants, true );
-// End of the material editor's lines
-#include "common/utils/Material.CommonInputs.hlsl"
-// water_simple.shader's vertex inputs (its VS_INPUT, every dynamic combo's): what the model compiler lays out the meshes of
-// models using these materials by (the material's VSInputSignature), so they keep the streams they had
-#define VS_INPUT_HAS_TANGENT_BASIS 1
-struct VS_INPUT
-{
-	#include "common/vertexinput.hlsl"
-};
-#endif
-
 Texture2D g_RefractionTexture < Attribute("RefractionTexture");   SrgbRead( true ); Filter(MIN_MAG_MIP_LINEAR);    AddressU( CLAMP );     AddressV( CLAMP ); >;
 SamplerState g_RefractionTexture_sampler < Attribute("RefractionTexture");   SrgbRead( true ); Filter(MIN_MAG_MIP_LINEAR);    AddressU( CLAMP );     AddressV( CLAMP ); >;
 Texture2D g_ReflectionTexture < Attribute("ReflectionTexture");   SrgbRead( true ); Filter(MIN_MAG_MIP_LINEAR);    AddressU( CLAMP );     AddressV( CLAMP ); >;
@@ -38,24 +8,26 @@ SamplerState g_ReflectionTexture_sampler < Attribute("ReflectionTexture");   Srg
 bool g_bRefraction < Default(0.0f); Attribute( "HasRefractionTexture" ); > ;
 bool g_bReflection < Default(0.0f); Attribute( "HasReflectionTexture" ); > ;
 
-[Material]
+[Material, Features( "Common" ), Vertex( "Common" ), Attribute( "NeedsLightProbe" ), Attribute( "CanBatchWithDynamicShaderConstants" ),
+	AttributeExpression( "DoNotCastShadows", "F_DO_NOT_CAST_SHADOWS" ), Attribute( "SupportsMappingDimensions" ), AttributeExpression( "renderbackfaces", "F_RENDER_BACKFACES" )]
 public struct WaterSimple : ICompositeSurface
 {
-	[Group( "Material" ), Srgb, Opacity] Texture2D Color;
-	[Group( "Material" )] Texture2D Normal;
-	[Group( "Material" )] Texture2D Rma;
-	[Group( "Material" ), Default3( 1, 1, 1 )] float3 TintColor;
-	[Default( 0.5f ), Range( 0.01f, 1.0f ), Group( "Refraction" )] float RefractionNormalScale;
-	[Default( 1.0f ), Range( 0.0f, 1.0f ), Group( "Refraction" )] float Translucency;
-	[Default( 0.5f ), Range( 0.01f, 1.0f ), Group( "Reflection" )] float RelectionNormalScale;
-	[Default( 1.0f ), Range( 0.0f, 1 ), Group( "Water" )] float Refraction;
-	[Default( 0.5f ), Range( 0.0f, 1 ), Group( "Wave" )] float BigWaveSize;
-	[Default( 100.0f ), Range( 0.0f, 256 ), Group( "Wave" )] float BigWaveScale;
-	[Default( 1.0f ), Range( 0.0f, 10 ), Group( "Wave" )] float BigWaveTime;
-	[Default( 0.5f ), Range( 0.0f, 2 ), Group( "Tweaks" )] float NormalScale;
-	[Default( 0.02f ), Range( 0.01f, 1.0f ), Group( "Tweaks" )] float Roughness;
-	[Default( 0.85f ), Range( 0.01f, 1.0f ), Group( "Tweaks" )] float Metalness;
-	[Default( 0.5f ), Range( 0.01f, 1.0f ), Group( "Tweaks" )] float AmbientOcclusion;
+	[Group( "Material,10" ), Srgb, Opacity, TextureAttribute( "RepresentativeTexture" )] Texture2D Color;
+	[Group( "Material,10" )] Texture2D Normal;
+	[Group( "Material,10" )] Rma Rma;
+	[Group( "Material,10/90" ), Source( "g_flTintColor" ), Color, Default3( 1, 1, 1 )] float3 TintColor;
+	[Default( 0.5f ), Range( 0.01f, 1.0f ), Group( "Refraction" ), Source( "RefractionNormalScale" )] float RefractionNormalScale;
+	[Default( 1.0f ), Range( 0.0f, 1.0f ), Group( "Refraction" ), Source( "Translucency" )] float Translucency;
+	[Default( 0.5f ), Range( 0.01f, 1.0f )] float RelectionNormalScale;
+	[Default( 1.0f ), Range( 0.0f, 1 ), Group( "Water" ), Source( "Refraction" )] float Refraction;
+	[Default( 0.5f ), Range( 0.0f, 1 ), Group( "Wave" ), Source( "BigWaveSize" )] float BigWaveSize;
+	[Default( 100.0f ), Range( 0.0f, 256 ), Group( "Wave" ), Source( "BigWaveScale" )] float BigWaveScale;
+	[Default( 1.0f ), Range( 0.0f, 10 ), Group( "Wave" ), Source( "BigWaveTime" )] float BigWaveTime;
+	[Default( 0.5f ), Range( 0.0f, 2 ), Group( "Tweaks" ), Source( "NormalScale" )] float NormalScale;
+	[Default( 0.02f ), Range( 0.01f, 1.0f ), Group( "Tweaks" ), Source( "g_fRoughness" )] float Roughness;
+	[Default( 0.85f ), Range( 0.01f, 1.0f ), Group( "Tweaks" ), Source( "g_fMetalness" )] float Metalness;
+	[Default( 0.5f ), Range( 0.01f, 1.0f ), Group( "Tweaks" ), Source( "g_fAmbientOcclusion" )] float AmbientOcclusion;
+	[Group( "Fog,300" ), Default( 1 )] bool FogEnabled;
 
 	Material GetWave( SurfaceInput ii, float waveTime, float waveScale, float scale )
 	{

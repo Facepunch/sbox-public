@@ -298,7 +298,10 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 
 	static readonly Dictionary<string, (DateTime Written, PassModule Module)> modules = new( StringComparer.OrdinalIgnoreCase );
 
-	/// <summary>A surface's module, read again when its file changes; null when it has no <c>MATERIAL_INPUTS</c> block (or no file).</summary>
+	/// <summary>
+	/// A surface's module (its material inputs generated from its struct, <see cref="SurfaceDeclarations"/>), read again when
+	/// its file changes; null when it isn't a surface (or there's no file).
+	/// </summary>
 	static PassModule ModuleOf( string path )
 	{
 		if ( string.IsNullOrEmpty( path ) || !System.IO.File.Exists( path ) ) return null;
@@ -309,7 +312,7 @@ internal sealed class ConvertedMaterial : SurfaceMaterial
 		}
 
 		var text = System.IO.File.ReadAllText( path );
-		var module = text.Contains( "MATERIAL_INPUTS", StringComparison.Ordinal ) ? PassModule.FromText( Path.GetFullPath( path ), text, [Path.GetDirectoryName( Path.GetFullPath( path ) )] ) : null;
+		var module = MaterialInputs.SurfaceText( text ) ? PassModule.FromText( Path.GetFullPath( path ), text, [Path.GetDirectoryName( Path.GetFullPath( path ) )] ) : null;
 		lock ( modules ) modules[path] = (written, module);
 		return module;
 	}

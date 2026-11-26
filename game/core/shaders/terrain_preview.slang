@@ -1,33 +1,16 @@
 // terrain_preview: a surface, the whole shader for Borealis.Gpu (docs/reference/borealis-slang-materials.md).
 import sbox.surface;
 
-// The material editor's view of the shader (docs/reference/borealis-standalone-modules.md, "Material editor")
-#if MATERIAL_INPUTS
-// The material editor's FEATURES lines, as the .shader declared them
-#include "common/features.hlsl"
-// The material's parameters as the material editor shows them, with the feature states that use them
-bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
-BoolAttribute( NeedsLightProbe, true );
-BoolAttribute( CanBatchWithDynamicShaderConstants, true );
-// End of the material editor's lines
-// terrain_preview.shader's vertex inputs (its VS_INPUT, every dynamic combo's): what the model compiler lays out the meshes of
-// models using these materials by (the material's VSInputSignature), so they keep the streams they had
-#define VS_INPUT_HAS_TANGENT_BASIS 1
-struct VS_INPUT
-{
-	#include "common/vertexinput.hlsl"
-};
-#endif
-
 Texture2D g_tBCR < Attribute( "BCR" ); SrgbRead( false ); >;
 Texture2D g_tNHO < Attribute( "NHO" ); SrgbRead( false ); >;
 float g_flUVScale < Attribute( "UVScale" ); Default( 1.0 ); >;
 float g_flNormalStrength < Attribute( "NormalStrength" ); Default( 1.0 ); >;
 float g_flMetalness < Attribute( "Metalness" ); Default( 0.0 ); >;
 
-[Material]
+[Material, Features( "Common" ), Vertex( "Common" ), Attribute( "NeedsLightProbe" ), Attribute( "CanBatchWithDynamicShaderConstants" )]
 public struct TerrainPreview : ISurface
 {
+	[Group( "Fog,300" ), Default( 1 )] bool FogEnabled;
 
 	public Material Evaluate( SurfaceInput i )
 	{

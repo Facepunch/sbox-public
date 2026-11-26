@@ -22,6 +22,12 @@ public sealed class MaterialLayout
 	/// <summary>The render state every material starts from: the struct's attributes (<c>[Blend( "Alpha" )]</c>).</summary>
 	public SurfaceRenderDefaults RenderState { get; init; } = SurfaceRenderDefaults.None;
 
+	/// <summary>
+	/// Every attribute on the struct, in order (<c>[Features( "Common" )]</c>, <c>[Vertex( "Common" )]</c>): what
+	/// <see cref="SurfaceDeclarations"/> generates the material inputs from.
+	/// </summary>
+	public IReadOnlyList<SurfaceAttribute> Attributes { get; init; } = [];
+
 	/// <summary>The render state's defaults and <c>[RenderState]</c> fields, for resolving it per material.</summary>
 	public SurfaceStateLayout States() => new( RenderState, Fields.SelectMany( f => (f.RenderStates ?? []).Select( r => new SurfaceStateField( r, f.Offset, f.Kind == MaterialFieldKind.Float ) ) ).ToArray() );
 
@@ -47,7 +53,7 @@ public sealed class MaterialLayout
 	MaterialField[] features;
 
 	/// <summary>Lay out <paramref name="fields"/> (offsets ignored) in order, with the struct's render state.</summary>
-	public static MaterialLayout Create( string type, IEnumerable<MaterialField> fields, SurfaceRenderDefaults renderState = null )
+	public static MaterialLayout Create( string type, IEnumerable<MaterialField> fields, SurfaceRenderDefaults renderState = null, IReadOnlyList<SurfaceAttribute> attributes = null )
 	{
 		var laidOut = new List<MaterialField>();
 		var offset = 0;
@@ -57,7 +63,7 @@ public sealed class MaterialLayout
 			offset += field.Size;
 		}
 
-		return new MaterialLayout { Type = type, Size = offset, Fields = laidOut, RenderState = renderState ?? SurfaceRenderDefaults.None };
+		return new MaterialLayout { Type = type, Size = offset, Fields = laidOut, RenderState = renderState ?? SurfaceRenderDefaults.None, Attributes = attributes ?? [] };
 	}
 
 	/// <summary>A record with every field at its default (textures 0, which the engine's shaders read as none).</summary>
@@ -72,6 +78,13 @@ public sealed class MaterialLayout
 
 		return record;
 	}
+}
+
+/// <summary>An attribute on a <c>[Material]</c> struct or field: its name and arguments as text (numbers as written by Slang's reflection).</summary>
+public sealed record SurfaceAttribute( string Name, IReadOnlyList<string> Arguments )
+{
+	/// <summary>Argument <paramref name="index"/>, or null when there's none.</summary>
+	public string this[int index] => index < Arguments.Count ? Arguments[index] : null;
 }
 
 /// <summary>What a material field holds.</summary>
@@ -118,6 +131,15 @@ public sealed record MaterialField( string Name, MaterialFieldKind Kind, int Com
 	public IReadOnlyList<string> ShaderNames => Source is { } s && s.StartsWith( "Shader:", StringComparison.Ordinal )
 		? s["Shader:".Length..].Split( ' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries )
 		: null;
+
+	/// <summary>Every attribute on the field, in order: what <see cref="SurfaceDeclarations"/> generates its declarations from.</summary>
+	public IReadOnlyList<SurfaceAttribute> Attributes { get; init; } = [];
+
+	/// <summary>The field's attributes named <paramref name="name"/>, in order.</summary>
+	public IEnumerable<SurfaceAttribute> All( string name ) => Attributes.Where( a => a.Name == name );
+
+	/// <summary>The field's first attribute named <paramref name="name"/>, or null.</summary>
+	public SurfaceAttribute Get( string name ) => Attributes.FirstOrDefault( a => a.Name == name );
 
 	/// <summary>Pipelines are specialised for its value (<c>[Specialize]</c>).</summary>
 	public bool Specialize { get; init; }

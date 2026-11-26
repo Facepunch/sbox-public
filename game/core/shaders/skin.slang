@@ -8,160 +8,6 @@
 // Per-vertex curvature (F_USE_PER_VERTEX_CURVATURE) isn't done: such materials stay on skin.shader.
 import sbox.surface;
 
-// What the material compiler makes of a .vmat's images (SlangMaterialCompiler): skin.shader's texture inputs,
-// the textures made from them and its attributes, read with the material's features
-#if MATERIAL_INPUTS
-// The material editor's FEATURES lines, as the .shader declared them
-Feature( F_DO_NOT_CAST_SHADOWS, 0..1, "Shadows" );
-Feature( F_ALPHA_TEST, 0..1, "Translucent" );
-Feature( F_TRANSLUCENT, 0..1( 0 = "Opaque", 1 = "Translucent" ), "Translucent" );
-Feature( F_TINT_MASK, 0..1, "Per-Instance Tint Mask" );
-Feature( F_USE_PER_VERTEX_CURVATURE, 0..1, "Skin" );
-Feature( F_USE_BENT_NORMALS, 0..1, "Skin" );
-Feature( F_USE_FACE_OCCLUSION_TEXTURE, 0..1, "Skin" );
-Feature( F_SSS_MASK, 0..1, "Skin" );
-Feature( F_AGE_TEXTURE, 0..1, "Skin" );
-FeatureRule( Allow1( F_ALPHA_TEST, F_TRANSLUCENT, F_TINT_MASK, F_SSS_MASK ), "Translucent, Alpha Test, Tint Mask, and Sss Mask are not compatible" );
-Feature( F_WRINKLE, 0..1, "Animation" );
-// The material's parameters as the material editor shows them, with the feature states that use them
-float3 g_vColorTint < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Color" ); >;
-float g_flModelTintAmount < Default( 1 ); Range( 0, 1 ); UiGroup( "Color" ); >;
-float3 g_vTransmissionColor < UiType( Color ); Default3( 0.75, 0.23, 0.012 ); UiGroup( "Transmission" ); >;
-float g_flAmbientOcclusionDirectDiffuse < Default( 1 ); Range( 0, 1 ); UiGroup( "Ambient Occlusion/20" ); >;
-float g_flAmbientOcclusionDirectSpecular < Default( 1 ); Range( 0, 1 ); UiGroup( "Ambient Occlusion/30" ); >;
-float g_flTransmissionFalloff < Default( 0.8 ); Range( 0, 4 ); UiGroup( "Transmission" ); >;
-float g_flSecondSpecularLobeRatio < Default( 0.15 ); Range( 0, 1 ); UiGroup( "Specular" ); >;
-float g_flSecondSpecularLobeGlossiness < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Specular" ); >;
-float g_flCurvatureScale < Default( 1 ); Range( 0, 3 ); UiGroup( "Curvature" ); >;
-float g_flRoughnessScale < Default( 1 ); Range( 0, 3 ); UiGroup( "Roughness,23/9" ); >;
-float g_flDiffuseNormalBlur < Default( 0.5 ); Range( 0, 4 ); UiGroup( "Normal/30" ); >;
-float g_flMouthInteriorBrightnessScale < Default( 1 ); Range( 0, 1 ); UiGroup( "Face Occlusion" ); >;
-float g_flSkinAge < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Tinting/2" ); >;
-float3 g_vAmbientNormalSoftness < UiType( Color ); Default3( 1, 0.3, 0 ); UiGroup( "Lookup Textures" ); >;
-bool g_bOverrideTinting < Default( 0 ); UiGroup( "Tinting/0" ); >;
-bool g_bFogEnabled < Default( 1 ); UiGroup( "Fog,300" ); >;
-float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
-float g_flAntiAliasedEdgeStrength < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); ActiveIf( F_ALPHA_TEST != 0 ); >;
-float g_flOpacityScale < Default( 1 ); Range( 0, 1 ); UiGroup( "Translucent" ); ActiveIf( F_TRANSLUCENT != 0 ); >;
-float g_flSkinTint < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Tinting/1" ); ActiveIf( F_TINT_MASK != 0 ); >;
-float g_flOcclusionWidth < Default( 3 ); Range( 0.1, 5 ); UiGroup( "Face Occlusion/20" ); ActiveIf( F_USE_FACE_OCCLUSION_TEXTURE != 0 ); >;
-float g_flOcclusionStrength < Default( 0.75 ); Range( 0, 1 ); UiGroup( "Face Occlusion/30" ); ActiveIf( F_USE_FACE_OCCLUSION_TEXTURE != 0 ); >;
-BoolAttribute( NeedsLightProbe, true );
-// End of the material editor's lines
-#define DISABLE_STATIC_LIGHTING 1
-#define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_PREINTEGRATED
-#define S_TRANSMISSIVE 1
-#define S_AMBIENT_OCCLUSION_COLOR_BLEED 1
-#define S_POWER_SPECULAR_AMBIENT_OCCLUSION 1
-#define S_TWO_LOBE_SPECULAR 1
-#define S_USE_FACE_OCCLUSION_TEXTURE F_USE_FACE_OCCLUSION_TEXTURE
-#include "vr_common_vs_code.fxc"
-#define S_USE_PER_VERTEX_CURVATURE F_USE_PER_VERTEX_CURVATURE
-#define S_WRINKLE F_WRINKLE
-#define MINIMAL_MATERIAL
-#define DEPTH_STATE_ALREADY_SET
-#define BLEND_MODE_ALREADY_SET
-#define S_ALPHA_TEST F_ALPHA_TEST
-#define S_TRANSLUCENT F_TRANSLUCENT
-#define S_TINT_MASK F_TINT_MASK
-#define S_USE_PER_VERTEX_CURVATURE F_USE_PER_VERTEX_CURVATURE
-#define S_USE_BENT_NORMALS F_USE_BENT_NORMALS
-#define S_WRINKLE F_WRINKLE
-#define S_WRINKLE F_WRINKLE
-#define S_SSS_MASK F_SSS_MASK
-#define S_AGE_TEXTURE F_AGE_TEXTURE
-CreateInputTexture2D( TextureColor, Srgb, 8, "", "_color", "Color", Default3( 0.86, 0.67, 0.62 ) );
-CreateInputTexture2D( TextureNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal/10", Default3( 0.5, 0.5, 1.0 ) );
-CreateInputTexture2D( TextureBentNormal, Linear, 8, "NormalizeNormals", "_bentnormal", "Normal/20", Default3( 0.5, 0.5, 1.0 ) );
-CreateInputTexture2D( TextureRoughness, Linear, 8, "Inverse", "_rough", "Roughness,23/10", Default3( 0.5, 0.5, 0.5 ) );
-CreateInputTexture2D( TextureAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion,40/10", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureInsideMouth, Linear, 8, "", "_mask", "Face Occlusion", Default3AndFile( 0.0, 0.0, 0.0, "materials/default/default_black_mask.tga" ) );
-CreateInputTexture2D( TextureTransmissiveMask, Linear, 8, "", "_trans", "Transmission", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureTranslucency, Linear, 8, "", "_trans", "Translucent,15", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureSelfIllumMask, Srgb, 8, "", "_selfillum", "Self Illum,60", Default3( 0.0, 0.0, 0.0 ) );
-CreateInputTexture2D( TextureTintMask, Linear, 8, "", "_mask", "Color", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureSssMask, Linear, 8, "", "_mask", "Color", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureSquishColor, Srgb, 8, "", "_color", "Color/11", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureStretchColor, Srgb, 8, "", "_color", "Color/12", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureSquishNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal/21", Default3( 0.5, 0.5, 1.0 ) );
-CreateInputTexture2D( TextureStretchNormal, Linear, 8, "NormalizeNormals", "_normal", "Normal/22", Default3( 0.5, 0.5, 1.0 ) );
-CreateInputTexture2D( TextureSquishAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion/11", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureStretchAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Occlusion/12", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureTintLookup, Linear, 8, "", "_color", "Tinting/3", Default3( 1.0, 1.0, 1.0 ) );
-CreateInputTexture2D( TextureAgeColor, Srgb, 8, "", "_color", "Color", Default3( 0.86, 0.67, 0.62 ) );
-CreateInputTexture2D( TextureAgeNormal, Linear, 8, "NormalizeNormals", "_normal", "Age/10", Default3( 0.5, 0.5, 1.0 ) );
-Texture2D g_tAgeNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureAgeNormal, TextureRoughness ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); ActiveIf( S_AGE_TEXTURE != 0 ); >;
-Texture2D g_tAgeColor < Channel( RGB, Box( TextureAgeColor ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); ActiveIf( S_AGE_TEXTURE != 0 ); >;
-#if ( S_TRANSMISSIVE )
-Texture2D g_tColor <	Channel( RGB, Box( TextureColor ), Srgb );
-Channel( A, Box( TextureTransmissiveMask ), Linear );
-OutputFormat( BC7 );
-SrgbRead( true ); >;
-#else
-Texture2D g_tColor <	Channel( RGB, Box( TextureColor ), Srgb );
-OutputFormat( DXT1 );
-SrgbRead( true ); >;
-#endif
-#include "vr_common_ps_code.fxc"
-Texture2D g_tTintLookup < Channel( RGB, Box( TextureTintLookup ), Srgb );
-OutputFormat( DXT1 );
-SrgbRead( true ); >;
-TextureAttribute( g_tTintLookup, g_tTintLookup );
-Texture2D g_tNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormal, TextureRoughness ), Linear );
-OutputFormat( BC7 );
-SrgbRead( false ); >;
-Texture2D g_tBentNormal < Channel( RG, HemiOctIsoRoughness_RG_B( TextureBentNormal ), Linear );
-OutputFormat( ATI2N );
-SrgbRead( false ); ActiveIf( S_USE_BENT_NORMALS != 0 ); >;
-Texture2D g_tCombinedMasks <
-Channel( R, Box3( TextureInsideMouth ), Linear );
-Channel( G, Box3( TextureAmbientOcclusion ), Linear );
-#if ( S_ALPHA_TEST )
-Channel( A, PreserveCoverage( TextureTranslucency ), Linear );
-#elif(  S_TRANSLUCENT )
-Channel( A, Box( TextureTranslucency ), Linear );
-#elif( S_TINT_MASK )
-Channel( A, Box( TextureTintMask ), Linear );
-#elif ( S_SSS_MASK )
-Channel( A, Box( TextureSssMask ), Linear );
-#endif
-OutputFormat( DXT5 );
-SrgbRead( false );
-Filter( TRILINEAR ); >;
-#if ( ( S_TRANSLUCENT || S_ALPHA_TEST ) )
-TextureAttribute( LightSim_Opacity_A, g_tColor );
-#endif
-#if ( S_USE_FACE_OCCLUSION_TEXTURE )
-CreateInputTexture2D( TextureOcclusion, Linear, 8, "", "_color", "Face Occlusion/10", Default3( 1.0, 1.0, 1.0 ) );
-Texture2D g_tOcclusion < Channel( RGB, Box( TextureOcclusion ), Linear ); OutputFormat( DXT1 ); SrgbRead( false ); >;
-#endif
-Texture2D g_tSquishColor < Channel( RGB, Box( TextureSquishColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); ActiveIf( F_WRINKLE != 0 ); >;
-Texture2D g_tStretchColor < Channel( RGB, Box( TextureStretchColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); ActiveIf( F_WRINKLE != 0 ); >;
-Texture2D g_tSquishNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureSquishNormal, TextureRoughness ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); ActiveIf( F_WRINKLE != 0 ); >;
-Texture2D g_tStretchNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureStretchNormal, TextureRoughness ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); ActiveIf( F_WRINKLE != 0 ); >;
-Texture2D g_tSquishAmbientOcclusion < Channel( R, Box3( TextureSquishAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); ActiveIf( F_WRINKLE != 0 ); >;
-Texture2D g_tStretchAmbientOcclusion < Channel( R, Box3( TextureStretchAmbientOcclusion ), Linear ); OutputFormat( ATI1N ); SrgbRead( false ); ActiveIf( F_WRINKLE != 0 ); >;
-TextureAttribute( LightSim_DiffuseAlbedoTexture, g_tColor );
-TextureAttribute( RepresentativeTexture, g_tColor );
-BoolAttribute( SupportsMappingDimensions, true );
-#if ( S_TRANSLUCENT )
-BoolAttribute( translucent, true );
-#endif
-#if ( S_ALPHA_TEST )
-BoolAttribute( alphatest, true );
-#endif
-BoolAttribute( transmissive, true );
-BoolAttribute( DoNotCastShadows, F_DO_NOT_CAST_SHADOWS ? true : false );
-BoolAttribute( ShadowFastPath, true );
-// skin.shader's vertex inputs (its VS_INPUT, every dynamic combo's): what the model compiler lays out the meshes of
-// models using these materials by (the material's VSInputSignature), so they keep the streams they had
-#define VS_INPUT_HAS_TANGENT_BASIS 1
-struct VS_INPUT
-{
-	#include "vr_common_vs_input.fxc"
-};
-#endif
-
 // skin.shader's g_sTrilinearWrap (the combined masks) and g_sTrilinearClamp (the tint lookup and face occlusion); the
 // rest use g_sAniso, the surfaces' standard filtering
 SamplerState g_SkinTrilinearWrap < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
@@ -175,64 +21,80 @@ float4x4 g_matSkinFaceOcclusionWorldToTexture < Attribute( "EyeOcclusionViewProj
 
 // skin.shader's COMMON defines these after vr_common.fxc, so S_POWER_SPECULAR_AMBIENT_OCCLUSION never reaches
 // PowerSpecularOcclusion and DISABLE_STATIC_LIGHTING nothing at all: both are left out to light as it does
-[Material, Combiner( "S_SUBSURFACE_SCATTERING = SUBSURFACE_SCATTERING_PREINTEGRATED, S_TRANSMISSIVE, S_AMBIENT_OCCLUSION_COLOR_BLEED, S_TWO_LOBE_SPECULAR" )]
+[Material, Combiner( "S_SUBSURFACE_SCATTERING = SUBSURFACE_SCATTERING_PREINTEGRATED, S_TRANSMISSIVE, S_AMBIENT_OCCLUSION_COLOR_BLEED, S_TWO_LOBE_SPECULAR" ), Vertex( "Sbox" ),
+	Attribute( "NeedsLightProbe" ), Attribute( "CanBatchWithDynamicShaderConstants" ), Attribute( "SupportsMappingDimensions" ), AttributeIf( "translucent", "UseTranslucent" ),
+	AttributeIf( "alphatest", "UseAlphaTest" ), Attribute( "transmissive" ), AttributeExpression( "DoNotCastShadows", "DoNotCastShadows" ), Attribute( "ShadowFastPath" )]
 public struct Skin : ICombinerSurface
 {
 	// Features
-	[Group( "Features" ), Source( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
-	[Group( "Features" ), Source( "F_TRANSLUCENT" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
-	[Group( "Features" ), Source( "F_TINT_MASK" )] bool UseTintMask;
-	[Group( "Features" ), Source( "F_SSS_MASK" )] bool UseSssMask;
-	[Group( "Features" ), Source( "F_AGE_TEXTURE" )] bool UseAgeTexture;
-	[Group( "Features" ), Source( "F_USE_BENT_NORMALS" )] bool UseBentNormals;
-	[Group( "Features" ), Source( "F_USE_FACE_OCCLUSION_TEXTURE" )] bool UseFaceOcclusion;
+	[Group( "Shadows" ), Feature( "F_DO_NOT_CAST_SHADOWS" )] bool DoNotCastShadows;
+	[Group( "Translucent" ), Feature( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;
+	[Group( "Translucent" ), Feature( "F_TRANSLUCENT" ), Options( "Opaque | Translucent" ), RenderState( "Blend: Alpha" )] bool UseTranslucent;
+	[Group( "Per-Instance Tint Mask" ), Feature( "F_TINT_MASK" )] bool UseTintMask;
+	[Group( "Skin" ), Feature( "F_USE_PER_VERTEX_CURVATURE" )] bool PerVertexCurvature;   // not done: materials that set it draw without it
+	[Group( "Skin" ), Feature( "F_USE_BENT_NORMALS" )] bool UseBentNormals;
+	[Group( "Skin" ), Feature( "F_USE_FACE_OCCLUSION_TEXTURE" )] bool UseFaceOcclusion;
+	[Group( "Skin" ), Feature( "F_SSS_MASK" )] bool UseSssMask;
+	[Group( "Skin" ), Feature( "F_AGE_TEXTURE" ), Rule( "Allow1( UseAlphaTest, UseTranslucent, UseTintMask, UseSssMask )", "Translucent, Alpha Test, Tint Mask, and Sss Mask are not compatible" )] bool UseAgeTexture;
+	[Group( "Animation" ), Feature( "F_WRINKLE" )] bool Wrinkle;   // not done: skin.shader never passed wrinkles on either
 
-	// Features this surface doesn't do: materials that set them stay on skin.shader
-	[Group( "Not converted" ), Source( "F_USE_PER_VERTEX_CURVATURE" ), Range( 0, 0 )] int PerVertexCurvature;
+	// The preintegrated scattering's lookup (the material's diffuse falloff)
+	[InputWith( "TextureDiffuseFalloff", "Lookup Textures", "Srgb; _diffusewarp; Default3AndFile( 0.5, 0.5, 0.5, \"materials/default/default_skin_diffusewarp.tga\" )" ), Pack( "RGB: DiffuseFalloff", "RGBA8888" )] Texture2D DiffuseFalloff;
+
+	// Age
+	[ShowIf( "UseAgeTexture != 0" ), InputWith( "TextureAgeNormal", "Age/10", "NormalizeNormals; _normal; Default3( 0.5, 0.5, 1.0 )" ), Pack( "RGBA: HemiOctIsoRoughness_RG_B( AgeNormal, Roughness )", "BC7" )] Texture2D AgeNormal;
+	[Srgb, ShowIf( "UseAgeTexture != 0" ), InputWith( "TextureAgeColor", "Color", "Default3( 0.86, 0.67, 0.62 )" ), Pack( "RGB: AgeColor", "DXT1" )] Texture2D AgeColor;
 
 	// Colour (its alpha is the transmissive mask)
-	[Group( "Color" ), Srgb, Opacity] Texture2D Color;
-	[Group( "Color" ), Default3( 1, 1, 1 )] float3 ColorTint;
+	[Srgb, Opacity, InputWith( "TextureColor", "Color", "Default3( 0.86, 0.67, 0.62 )" ), InputWith( "TextureTransmissiveMask", "Transmission", "_trans; Default3( 1.0, 1.0, 1.0 )" ),
+		Pack( "RGB: Color; A: TransmissiveMask", "BC7" ), TextureAttribute( "RepresentativeTexture" )] Texture2D Color;
+	[Srgb, InputWith( "TextureTintLookup", "Tinting/3", "Linear; Default3( 1.0, 1.0, 1.0 )" ), Pack( "RGB: TintLookup Srgb", "DXT1" )] Texture2D TintLookup;
+	[Group( "Color" ), Color, Default3( 1, 1, 1 )] float3 ColorTint;
 	[Group( "Color" ), Default( 1 ), Range( 0, 1 )] float ModelTintAmount;
-	[Group( "Color" ), Srgb] Texture2D TintLookup;
-	[Group( "Tinting" )] bool OverrideTinting;
-	[Group( "Tinting" ), Default( 0.5 ), Range( 0, 1 )] float SkinTint;
-	[Group( "Tinting" ), Default( 0.5 ), Range( 0, 1 )] float SkinAge;
-	[Group( "Age" ), Srgb] Texture2D AgeColor;
-	[Group( "Age" )] Texture2D AgeNormal;
+	[Group( "Tinting/0" )] bool OverrideTinting;
+	[Group( "Tinting/1" ), Default( 0.5 ), Range( 0, 1 ), ShowIf( "UseTintMask != 0" )] float SkinTint;
+	[Group( "Tinting/2" ), Default( 0.5 ), Range( 0, 1 )] float SkinAge;
 
 	// Normal and roughness
-	[Group( "Normal" )] Texture2D Normal;
-	[Group( "Normal" )] Texture2D BentNormal;
-	[Group( "Normal" ), Default( 0.5 ), Range( 0, 4 )] float DiffuseNormalBlur;
-	[Group( "Roughness" ), Default( 1 ), Range( 0, 3 )] float RoughnessScale;
+	[Input( "TextureNormal", "Normal/10" ), InputWith( "TextureRoughness", "Roughness,23/10", "Inverse; Default3( 0.5, 0.5, 0.5 )" ), Pack( "RGBA: HemiOctIsoRoughness_RG_B( Normal, Roughness )", "BC7" )] Texture2D Normal;
+	[ShowIf( "UseBentNormals != 0" ), InputWith( "TextureBentNormal", "Normal/20", "NormalizeNormals; _bentnormal; Default3( 0.5, 0.5, 1.0 )" ), Pack( "RG: HemiOctIsoRoughness_RG_B( BentNormal )", "ATI2N" )] Texture2D BentNormal;
+	[Group( "Normal/30" ), Default( 0.5 ), Range( 0, 4 )] float DiffuseNormalBlur;
+	[Group( "Roughness,23/9" ), Default( 1 ), Range( 0, 3 )] float RoughnessScale;
 	[Group( "Specular" ), Default( 0.15 ), Range( 0, 1 )] float SecondSpecularLobeRatio;
 	[Group( "Specular" ), Default( 0.5 ), Range( 0, 1 )] float SecondSpecularLobeGlossiness;
 	[Group( "Curvature" ), Default( 1 ), Range( 0, 3 )] float CurvatureScale;
-	[Group( "Lookup Textures" )] Texture2D DiffuseFalloff;
+	[Group( "Lookup Textures" ), Color, Default3( 1, 0.3, 0 )] float3 AmbientNormalSoftness;   // the .shader's, which it never read
 
 	// Masks: r inside of the mouth, g occlusion, a opacity, tint mask or scattering mask
-	[Group( "Masks" )] Texture2D CombinedMasks;
+	[InputWith( "TextureInsideMouth", "Face Occlusion", "_mask; Default3AndFile( 0.0, 0.0, 0.0, \"materials/default/default_black_mask.tga\" )" ),
+		InputWith( "TextureAmbientOcclusion", "Ambient Occlusion,40/10", "Default3( 1.0, 1.0, 1.0 )" ), InputWith( "TextureTranslucency", "Translucent,15", "" ),
+		InputWith( "TextureTintMask", "Color", "_mask; Default3( 1.0, 1.0, 1.0 )" ), InputWith( "TextureSssMask", "Color", "_mask; Default3( 1.0, 1.0, 1.0 )" ),
+		PackIf( "R: Box3( InsideMouth ); G: Box3( AmbientOcclusion ); A: PreserveCoverage( Translucency )", "DXT5", "UseAlphaTest" ),
+		PackIf( "R: Box3( InsideMouth ); G: Box3( AmbientOcclusion ); A: Translucency", "DXT5", "UseTranslucent" ),
+		PackIf( "R: Box3( InsideMouth ); G: Box3( AmbientOcclusion ); A: TintMask", "DXT5", "UseTintMask" ),
+		PackIf( "R: Box3( InsideMouth ); G: Box3( AmbientOcclusion ); A: SssMask", "DXT5", "UseSssMask" ),
+		Pack( "R: Box3( InsideMouth ); G: Box3( AmbientOcclusion )", "DXT5" )] Texture2D CombinedMasks;
 
 	// Ambient occlusion
-	[Group( "Ambient Occlusion" ), Default3( 0.4, 0.15, 0.13 )] float3 AmbientOcclusionColorBleed;
-	[Group( "Ambient Occlusion" ), Default( 1 ), Range( 0, 1 )] float AmbientOcclusionDirectDiffuse;
-	[Group( "Ambient Occlusion" ), Default( 1 ), Range( 0, 1 )] float AmbientOcclusionDirectSpecular;
+	[Default3( 0.4, 0.15, 0.13 )] float3 AmbientOcclusionColorBleed;
+	[Group( "Ambient Occlusion/20" ), Default( 1 ), Range( 0, 1 )] float AmbientOcclusionDirectDiffuse;
+	[Group( "Ambient Occlusion/30" ), Default( 1 ), Range( 0, 1 )] float AmbientOcclusionDirectSpecular;
 
 	// Transmission
-	[Group( "Transmission" ), Default3( 0.75, 0.23, 0.012 )] float3 TransmissionColor;
+	[Group( "Transmission" ), Color, Default3( 0.75, 0.23, 0.012 )] float3 TransmissionColor;
 	[Group( "Transmission" ), Default( 0.8 ), Range( 0, 4 )] float TransmissionFalloff;
 
 	// Face occlusion
-	[Group( "Face Occlusion" )] Texture2D Occlusion;
+	[When( "UseFaceOcclusion" ), InputWith( "TextureOcclusion", "Face Occlusion/10", "" ), Pack( "RGB: Occlusion", "DXT1" )] Texture2D Occlusion;
 	[Group( "Face Occlusion" ), Default( 1 ), Range( 0, 1 )] float MouthInteriorBrightnessScale;
-	[Group( "Face Occlusion" ), Default( 3 ), Range( 0.1, 5 )] float OcclusionWidth;
-	[Group( "Face Occlusion" ), Default( 0.75 ), Range( 0, 1 )] float OcclusionStrength;
+	[Group( "Face Occlusion/20" ), Default( 3 ), Range( 0.1, 5 ), ShowIf( "UseFaceOcclusion != 0" )] float OcclusionWidth;
+	[Group( "Face Occlusion/30" ), Default( 0.75 ), Range( 0, 1 ), ShowIf( "UseFaceOcclusion != 0" )] float OcclusionStrength;
 
 	// Alpha test and translucency
-	[Group( "Translucent" ), Default( 0.5 ), Range( 0.01, 0.99 )] float AlphaTestReference;
-	[Group( "Translucent" ), Default( 1 ), Range( 0, 1 )] float AntiAliasedEdgeStrength;
-	[Group( "Translucent" ), Default( 1 ), Range( 0, 1 )] float OpacityScale;
+	[Group( "Translucent" ), Default( 0.5 ), Range( 0.01, 0.99 ), ShowIf( "UseAlphaTest != 0" )] float AlphaTestReference;
+	[Group( "Translucent" ), Default( 1 ), Range( 0, 1 ), ShowIf( "UseAlphaTest != 0" )] float AntiAliasedEdgeStrength;
+	[Group( "Translucent" ), Default( 1 ), Range( 0, 1 ), ShowIf( "UseTranslucent != 0" )] float OpacityScale;
+	[Group( "Fog,300" ), Default( 1 )] bool FogEnabled;
 
 	/// vr_common.fxc's DecodeHemiOctahedronNormal, with the tools' y flip skin.shader makes.
 	static float3 HemiOctahedron( float2 rg )

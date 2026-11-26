@@ -629,6 +629,18 @@ public sealed partial class SlangCompiler
 		return layout;
 	}
 
+	/// <summary>
+	/// The <c>[Material]</c> struct of a surface's <paramref name="text"/>, reflected without caching, waited for: what its
+	/// material inputs are generated from (<see cref="SurfaceDeclarations"/>). Null when it declares no single struct.
+	/// </summary>
+	internal MaterialLayout ReflectLayout( string path, string text )
+	{
+		var source = MaterialSource.Rewrite( text, out var declared );
+		if ( declared.Count != 1 ) return null;
+		var read = new ReadFiles( path );
+		return SlangWorkers.Run( () => ReflectMaterial( path, source, declared[0].Name, Path.GetDirectoryName( path ), read ), null ).GetAwaiter().GetResult();
+	}
+
 	/// <summary>Phase 1: the module alone, to reflect its <c>[Material]</c> struct's fields.</summary>
 	MaterialLayout ReflectMaterial( string path, string source, string type, string directory, ReadFiles read, string varyingsType = null, List<string> varyingFields = null )
 	{
