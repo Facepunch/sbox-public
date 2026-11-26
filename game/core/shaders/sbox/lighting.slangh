@@ -395,8 +395,8 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 	}
 
 #if ( !S_TRANSMISSIVE && !defined( SURFACE_LIGHT_HOOK ) )
-	// Fully shadowed adds nothing unless light gets through
-	if ( flShadow <= 0.0 )
+	// Fully shadowed adds nothing unless light gets through, as it does from behind with backface transmission
+	if ( flShadow <= 0.0 && S_TRANSMISSIVE_BACKFACE_NDOTL == 0 )
 		return;
 #endif
 
@@ -471,7 +471,7 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 	float3 vThickness = 1.0f;
 
 #if ( !S_TRANSMISSIVE && !defined( SURFACE_LIGHT_HOOK ) )
-	if ( flShadow <= 0.0 )
+	if ( flShadow <= 0.0 && S_TRANSMISSIVE_BACKFACE_NDOTL == 0 )
 		return;
 #elif ( S_TRANSMISSIVE )
 	vThickness = GetTransmissiveThicknessFromHit( f, DirectionalLightShadow::GetOccludedPosition( f.vPositionWs ) );
@@ -514,7 +514,7 @@ void ComputeExtraSuns( const FinalCombinerInput_t f, float3 vReceiverNormalWs, b
 		float flShadow = ProjectedShadow::GetSunVisibility( lightData.ShadowMapIndex, f.vPositionWs, vReceiverNormalWs, f.vPositionSs.xy );
 
 	#if ( !S_TRANSMISSIVE && !defined( SURFACE_LIGHT_HOOK ) )
-		if ( flShadow <= 0.0 )
+		if ( flShadow <= 0.0 && S_TRANSMISSIVE_BACKFACE_NDOTL == 0 )
 			continue;
 	#endif
 
