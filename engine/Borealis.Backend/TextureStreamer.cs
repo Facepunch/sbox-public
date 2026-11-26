@@ -44,7 +44,28 @@ internal sealed class StreamedTexture
 	public int Asked = int.MaxValue, AskedBefore = int.MaxValue;
 
 	/// <summary>Kept at every mip whatever is asked: something that doesn't ask (<see cref="BackendDevice.LoadTexture"/>) uses it.</summary>
-	public bool Pinned { get; set; }
+	public bool Pinned
+	{
+		get => Volatile.Read( ref pinned );
+		set
+		{
+			// Set on any thread, often again while it's pinned: newly pinned, its streamer looks at it again at its next update
+			var was = Volatile.Read( ref pinned );
+			Volatile.Write( ref pinned, value );
+			if ( value && !was ) Volatile.Read( ref Rechecks )?.Enqueue( this );
+		}
+	}
+
+	bool pinned;
+
+	/// <summary>Where it's queued to be looked at again when it's pinned: its streamer's, once added.</summary>
+	internal ConcurrentQueue<StreamedTexture> Rechecks;
+
+	/// <summary>In its streamer's set of textures that may want finer mips than they hold.</summary>
+	internal bool Growable;
+
+	/// <summary>Gone from its streamer: its texture was disposed.</summary>
+	internal bool Forgotten;
 
 	/// <summary>The streamer's frame it was last asked for in.</summary>
 	public uint LastAsked { get; set; }
@@ -148,6 +169,14 @@ internal sealed class TextureStreamer
 	readonly Action<GpuMaterial, int> ask;
 	readonly List<Build> builds = new();
 	readonly List<StreamedTexture> candidates = new();
+
+	// Textures that may want finer mips than they hold, kept across frames so a frame doesn't look at every texture. A
+	// texture only comes to want more than it holds when it's added, asked for finer mips, pinned, or a build of it ends
+	// (its mips or its unreadable mip move): those are touched, and join the set; the set drops what no longer wants more.
+	// The ask window's rollover only ever makes textures want fewer mips.
+	readonly List<StreamedTexture> growable = new();
+	readonly List<StreamedTexture> touched = new();
+	readonly ConcurrentQueue<StreamedTexture> rechecks = new();
 	uint frame = 1;
 	long room;
 	uint memoryFrame;
@@ -304,7 +333,9 @@ internal sealed class TextureStreamer
 		while ( added.TryDequeue( out var texture ) )
 		{
 			texture.LastAskedTime = updateTime;
+			Volatile.Write( ref texture.Rechecks, rechecks );
 			textures.Add( texture );
+			touched.Add( texture );
 			ResidentBytes += texture.ResidentBytes;
 		}
 
@@ -314,7 +345,11 @@ internal sealed class TextureStreamer
 			foreach ( var texture in asks.Textures )
 			{
 				var top = texture.TopFor( size );
-				if ( top < texture.Asked ) texture.Asked = top;
+				if ( top < texture.Asked )
+				{
+					texture.Asked = top;
+					touched.Add( texture );
+				}
 				texture.LastAsked = now;
 				texture.LastAskedTime = updateTime;
 			}
@@ -466,6 +501,7 @@ internal sealed class TextureStreamer
 			var texture = textures[i];
 			if ( texture.Texture.IsValid ) continue;
 			ResidentBytes -= texture.ResidentBytes;
+			texture.Forgotten = true;
 			textures.RemoveAt( i );
 		}
 	}
@@ -583,6 +619,7 @@ internal sealed class TextureStreamer
 			texture.ResidentTop = build.Top;
 			texture.ResidentBytes = bytes;
 			texture.Building = null;
+			touched.Add( texture );
 			builds.RemoveAt( i-- );
 		}
 	}
@@ -649,6 +686,7 @@ internal sealed class TextureStreamer
 		build.Release();
 		if ( build.Image.IsValid ) device.Gpu.Destroy( build.Image );
 		build.Texture.Building = null;
+		touched.Add( build.Texture );
 		builds.RemoveAt( index );
 	}
 
@@ -712,16 +750,39 @@ internal sealed class TextureStreamer
 	void Start()
 	{
 		candidates.Clear();
+		while ( rechecks.TryDequeue( out var pinned ) ) touched.Add( pinned );
+		foreach ( var texture in touched )
+		{
+			if ( texture.Growable || texture.Forgotten ) continue;
+			texture.Growable = true;
+			growable.Add( texture );
+		}
+
+		touched.Clear();
 		if ( Frame < growAfter )
 		{
 			Waiting = builds.Count;
 			return;
 		}
 
-		foreach ( var texture in textures )
+		// What still wants finer mips than it holds and isn't being built; the rest leave the set until they're touched again
+		var still = 0;
+		for ( int i = 0; i < growable.Count; i++ )
 		{
-			if ( texture.Building is null && texture.Reachable < texture.ResidentTop ) candidates.Add( texture );
+			var texture = growable[i];
+			if ( !texture.Forgotten && texture.Building is null && texture.Reachable < texture.ResidentTop )
+			{
+				growable[still++] = texture;
+				candidates.Add( texture );
+			}
+			else
+			{
+				// A build's end touches its texture again
+				texture.Growable = false;
+			}
 		}
+
+		growable.RemoveRange( still, growable.Count - still );
 
 		var waiting = 0;
 		if ( candidates.Count > 0 )

@@ -611,6 +611,33 @@ public class TextureStreamingTests : GpuTest
 	}
 
 	/// <summary>
+	/// The streamer only looks again at textures that may have come to want more mips (asked for finer, built, added,
+	/// pinned), not at every texture each frame: one that settled at its tail with nothing asking grows once it's pinned,
+	/// with no ask.
+	/// </summary>
+	[TestMethod]
+	public void SettledTextureGrowsWhenPinned()
+	{
+		var path = StreamingTextures( 1 )[0];
+		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		var texture = (BackendTexture)backend.MaterialTextureFile( path );
+		var stream = texture.Stream;
+
+		for ( int frame = 0; frame < 20; frame++ ) backend.BeginFrame();
+		if ( stream.ResidentTop == 0 ) Assert.Inconclusive( "The texture started with every mip." );
+
+		stream.Pinned = true;
+		for ( int frame = 0; frame < 400 && stream.ResidentTop != 0; frame++ )
+		{
+			backend.BeginFrame();
+			Thread.Sleep( 5 );
+		}
+
+		Assert.AreEqual( 0, stream.ResidentTop, "pinned, it grows to every mip" );
+		Device.WaitIdle();
+	}
+
+	/// <summary>
 	/// A streamed texture in a block being emptied (defragmenting) is copied into new memory on the GPU between frames and
 	/// swapped in under its handle: an image elsewhere, with every mip, its materials' versions as they were.
 	/// </summary>
