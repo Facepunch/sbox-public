@@ -142,31 +142,30 @@ public class ModelFileTests
 		var files = Files;
 		var timer = Stopwatch.StartNew();
 		int read = 0, meshes = 0, draws = 0, encoded = 0;
-		var failures = new List<string>();
+		var failures = new System.Collections.Concurrent.ConcurrentBag<string>();
 
-		foreach ( var root in files.Roots )
+		// Each model on a core of its own: they share nothing, and one after another took 24 s
+		var paths = files.Roots.SelectMany( root => Directory.EnumerateFiles( root, "*.vmdl_c", SearchOption.AllDirectories ).Select( path => (Root: root, Path: path) ) ).ToList();
+		System.Threading.Tasks.Parallel.ForEach( paths, entry =>
 		{
-			foreach ( var path in Directory.EnumerateFiles( root, "*.vmdl_c", SearchOption.AllDirectories ) )
+			try
 			{
-				try
+				var model = ModelFile.Read( File.ReadAllBytes( entry.Path ), mesh => files.Find( mesh ) is { } found ? File.ReadAllBytes( found ) : null );
+				foreach ( var mesh in model.Meshes )
 				{
-					var model = ModelFile.Read( File.ReadAllBytes( path ), mesh => files.Find( mesh ) is { } found ? File.ReadAllBytes( found ) : null );
-					foreach ( var mesh in model.Meshes )
-					{
-						Check( mesh );
-						meshes++;
-						draws += mesh.DrawCalls.Count;
-					}
+					Check( mesh );
+					System.Threading.Interlocked.Increment( ref meshes );
+					System.Threading.Interlocked.Add( ref draws, mesh.DrawCalls.Count );
+				}
 
-					encoded += model.Meshes.Sum( m => m.VertexBuffers.Count + m.IndexBuffers.Count );
-					read++;
-				}
-				catch ( Exception e )
-				{
-					failures.Add( $"{Path.GetRelativePath( root, path )}: {e.Message}" );
-				}
+				System.Threading.Interlocked.Add( ref encoded, model.Meshes.Sum( m => m.VertexBuffers.Count + m.IndexBuffers.Count ) );
+				System.Threading.Interlocked.Increment( ref read );
 			}
-		}
+			catch ( Exception e )
+			{
+				failures.Add( $"{Path.GetRelativePath( entry.Root, entry.Path )}: {e.Message}" );
+			}
+		} );
 
 		Console.WriteLine( $"{read} models read ({meshes} meshes, {draws} draws, {encoded} buffers) in {timer.ElapsedMilliseconds}ms, {failures.Count} failed" );
 		foreach ( var failure in failures ) Console.WriteLine( failure );
@@ -202,8 +201,10 @@ public class ModelFileTests
 				if ( normal?.Format is not (ColorFormat.R10G10B10A2_UNORM or ColorFormat.R8G8B8A8_UNORM) ) continue;
 				var packed = BitConverter.ToUInt32( buffer.Data, v * buffer.Stride + normal.Value.Offset );
 				var (n, t) = normal.Value.Format == ColorFormat.R10G10B10A2_UNORM ? TangentFrame.UnpackOctDiamond( packed ) : TangentFrame.UnpackLegacy( packed );
-				Assert.AreEqual( 1, n.Length(), 0.01f, $"{mesh.Name}: normal of vertex {v}" );
-				Assert.AreEqual( 0, V3.Dot( n, new V3( t.X, t.Y, t.Z ) ), 0.08f, $"{mesh.Name}: tangent of vertex {v}" );
+
+				// Checked before the message is made (NaN fails too): made for every vertex, it was most of the test's time
+				if ( !(MathF.Abs( n.Length() - 1 ) <= 0.01f) ) Assert.Fail( $"{mesh.Name}: normal of vertex {v} is {n.Length()} long" );
+				if ( !(MathF.Abs( V3.Dot( n, new V3( t.X, t.Y, t.Z ) ) ) <= 0.08f) ) Assert.Fail( $"{mesh.Name}: tangent of vertex {v} is {V3.Dot( n, new V3( t.X, t.Y, t.Z ) )} along its normal" );
 			}
 		}
 	}
