@@ -328,7 +328,11 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		GPUDistanceBuffer = new( CurrentBufferSize );
 		SpriteAtomicCounter = new( 1 );
 		(_draw.Sprites, _draw.SpritesOut, _draw.Sorting) = (SpriteBuffer, SpriteBufferOut, GPUSortingBuffer);
+		_clearNewBuffers = true;
 	}
+
+	// The compute's output and sort buffers were just made and hold whatever their memory held (ResizeBuffers too)
+	bool _clearNewBuffers;
 
 	/// <summary>
 	/// Create the initialize sprite mesh that will be instanced
@@ -415,6 +419,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		SpriteBufferOut = new( CurrentBufferSize );
 		GPUSortingBuffer = new( CurrentBufferSize );
 		GPUDistanceBuffer = new( CurrentBufferSize );
+		_clearNewBuffers = true;
 	}
 
 	private readonly Dictionary<Guid, int> _precomputedSplotCounts = [];
@@ -729,6 +734,18 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 		if ( draw.Unprocessed )
 			return;
+
+		// New buffers are zeroed first: a frame whose compute doesn't run (its variant still being made) then draws sprite 0 of
+		// zeroes, not sprites and textures found by whatever indices the memory held, which can lose the device (Borealis.Gpu's
+		// has no robust buffer access)
+		if ( _clearNewBuffers )
+		{
+			_clearNewBuffers = false;
+			_commandList.Clear( (GpuBuffer)SpriteBufferOut );
+			_commandList.Clear( (GpuBuffer)GPUSortingBuffer );
+			_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBufferOut, ResourceState.Common );
+			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.Common );
+		}
 
 		_commandList.SetBufferData( SpriteAtomicCounter, ZeroUint );
 
