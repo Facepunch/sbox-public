@@ -9,6 +9,7 @@ public partial class Material
 	{
 		ShaderVersion++;
 		_shaderName = null;
+		_reloaded = true;
 		Attributes.Set( native.GetRenderAttributes() );
 	}
 

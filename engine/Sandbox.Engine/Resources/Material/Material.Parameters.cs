@@ -5,9 +5,50 @@ public partial class Material
 	/// <summary>
 	/// Gets the underlying shader name for this material.
 	/// </summary>
-	public string ShaderName => _shaderName ??= native.GetString( "shader", "invalid" );
+	// As code gave it, else as its compiled file names it; the material system only for one with no file to read (no
+	// Borealis.Gpu content, an error material)
+	public string ShaderName
+	{
+		get
+		{
+			if ( _shaderName is not null ) return _shaderName;
+			_shaderName = ShaderNameFromCode ?? FileShaderName( Graphics.BorealisGpuContent, FilePath, reread: _reloaded ) ?? native.GetString( "shader", "invalid" );
+			_reloaded = false;
+			return _shaderName;
+		}
+	}
 
 	string _shaderName;
+
+	// Reloaded since its name was last worked out: its file is read again
+	bool _reloaded;
+
+	// The shader each compiled material file names, by the file's path
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> fileShaders = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// The shader a material's compiled file names (<c>m_shaderName</c>, as the material system's <c>"shader"</c> holds it),
+	/// read once per file, again with <paramref name="reread"/> (it was reloaded); null when there's no file of it to read.
+	/// </summary>
+	internal static string FileShaderName( Borealis.Source2.ContentFiles content, string path, bool reread )
+	{
+		if ( string.IsNullOrEmpty( path ) || content is null ) return null;
+		if ( !reread && fileShaders.TryGetValue( path, out var known ) ) return known;
+
+		string shader = null;
+		try
+		{
+			if ( content.TryRead( path ) is { } data ) shader = Borealis.Source2.Materials.MaterialFile.Read( data ).Shader;
+		}
+		catch ( Exception e ) when ( e is System.IO.InvalidDataException or System.IO.IOException )
+		{
+			// Unreadable: the material system's name for it
+		}
+
+		if ( shader is null ) fileShaders.TryRemove( path, out _ );
+		else fileShaders[path] = shader;
+		return shader;
+	}
 
 	/// <summary>
 	/// Get thje first texture assigned to this material, if any.

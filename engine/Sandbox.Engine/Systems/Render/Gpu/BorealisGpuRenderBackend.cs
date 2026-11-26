@@ -1962,7 +1962,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			// As code gave it, else as its compiled file names it; the material system only for one with no file of ours to
 			// read (an error material keeps the error shader it was given)
-			name.Path = material.ShaderNameFromCode ?? FileShaderName( material.FilePath, reread: name.ShaderVersion >= 0 ) ?? material.native.GetString( "shader", "" );
+			name.Path = material.ShaderNameFromCode ?? Material.FileShaderName( files, material.FilePath, reread: name.ShaderVersion >= 0 ) ?? material.native.GetString( "shader", "" );
 			name.ShaderVersion = material.ShaderVersion;
 			name.Loaded = -1;
 		}
@@ -1989,33 +1989,6 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		shaders[path] = shader;
 		if ( shader is not null ) AddNames( shader );
 		(name.Shader, name.Loaded) = (shader, shadersVersion);
-		return shader;
-	}
-
-	// The shader each compiled material file names, by the file's path
-	readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> fileShaders = new( StringComparer.OrdinalIgnoreCase );
-
-	/// <summary>
-	/// The shader a material's compiled file names (<c>m_shaderName</c>), read once per file, again with
-	/// <paramref name="reread"/> (it was reloaded); null when there's no file of it to read.
-	/// </summary>
-	string FileShaderName( string path, bool reread )
-	{
-		if ( string.IsNullOrEmpty( path ) ) return null;
-		if ( !reread && fileShaders.TryGetValue( path, out var known ) ) return known;
-
-		string shader = null;
-		try
-		{
-			if ( files.TryRead( path ) is { } data ) shader = Borealis.Source2.Materials.MaterialFile.Read( data ).Shader;
-		}
-		catch ( Exception e ) when ( e is System.IO.InvalidDataException or System.IO.IOException )
-		{
-			// Unreadable: the material system's name for it
-		}
-
-		if ( shader is null ) fileShaders.TryRemove( path, out _ );
-		else fileShaders[path] = shader;
 		return shader;
 	}
 
