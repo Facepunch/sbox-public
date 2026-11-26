@@ -72,7 +72,11 @@ partial class StandaloneWizard
 						{
 							menu.AddOption( preset.Name, action: () =>
 							{
-								PublishConfig = preset.Config;
+								PublishConfig.TargetDir = preset.Config.TargetDir;
+								PublishConfig.ExecutableName = preset.Config.ExecutableName;
+								PublishConfig.TargetIcon = preset.Config.TargetIcon;
+								PublishConfig.StartupImage = preset.Config.StartupImage;
+								PublishConfig.AppId = preset.Config.AppId;
 								CreateLayout();
 							} );
 						}
@@ -303,7 +307,47 @@ file class BrandingInput : Widget
 	private Vector2 _targetSize;
 	private string _extension;
 
-	public string Value { get; set; }
+	private string _value;
+	private Pixmap _preview;
+
+	public string Value
+	{
+		get => _value;
+		set
+		{
+			_value = value;
+			_preview = null;
+			ToolTip = value;
+
+			if ( !string.IsNullOrWhiteSpace( value ) )
+			{
+				try
+				{
+					if ( _extension == ".vtex" )
+					{
+						var path = AssetSystem.FindByPath( value )?.Path ?? value;
+						var texture = Texture.Load( path, false );
+						if ( texture is { IsValid: true, IsError: false } )
+						{
+							using var bitmap = texture.GetBitmap();
+							if ( bitmap is { IsValid: true } )
+								_preview = Pixmap.FromBitmap( bitmap );
+						}
+					}
+					else
+					{
+						_preview = Pixmap.FromFile( value );
+					}
+				}
+				catch ( Exception e )
+				{
+					Log.Warning( $"Couldn't preview branding image '{value}': {e.Message}" );
+				}
+			}
+
+			Update();
+		}
+	}
 	public Action OnSelected { get; set; }
 
 	public float IconSize { get; set; } = 32;
@@ -323,7 +367,7 @@ file class BrandingInput : Widget
 
 		var maxWidth = 256f;
 		if ( _targetSize.x > maxWidth )
-			return new Vector2( maxWidth, (maxWidth * aspect) );
+			return new Vector2( maxWidth, maxWidth / aspect );
 
 		return _targetSize;
 	}
@@ -371,7 +415,16 @@ file class BrandingInput : Widget
 			Paint.DrawRect( r, 4f );
 		}
 
-		// 
+		if ( _preview is { Width: > 0, Height: > 0 } )
+		{
+			var available = ContentRect.Shrink( 4 );
+			var scale = Math.Min( available.Width / _preview.Width, available.Height / _preview.Height );
+			var size = _preview.Size * scale;
+			Paint.Draw( new Rect( available.Center - size * 0.5f, size ), _preview );
+			return;
+		}
+
+		//
 		// Text
 		//
 		{
