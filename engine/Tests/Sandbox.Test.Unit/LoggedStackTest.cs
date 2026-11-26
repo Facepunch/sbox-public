@@ -54,18 +54,26 @@ public class LoggedStackTest
 	public void InfoLogStackHasSourceLines()
 	{
 		LogEvent logged = default;
-		void OnEmitted( LogEvent e ) => logged = e;
+		void OnEmitted( LogEvent e )
+		{
+			// In case other stuff logs
+			if ( e.Logger == nameof( LoggedStackTest ) )
+			{
+				logged = e;
+			}
+		}
 
 		Logging.OnEmitted += OnEmitted;
 		try
 		{
-			new Logger( "LoggedStackTest" ).Info( "hello" );
+			new Logger( nameof( LoggedStackTest ) ).Info( "hello" );
 		}
 		finally
 		{
 			Logging.OnEmitted -= OnEmitted;
 		}
 
+		Assert.IsNotNull( logged.Stack, $"no {nameof( LoggedStackTest )} event was emitted" );
 		StringAssert.Contains( logged.Stack, $"{nameof( LoggedStackTest )}.cs:line " );
 		StringAssert.Contains( logged.Stack, nameof( InfoLogStackHasSourceLines ) );
 	}

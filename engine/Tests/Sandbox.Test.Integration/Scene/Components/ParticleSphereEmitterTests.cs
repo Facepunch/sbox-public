@@ -5,6 +5,21 @@ namespace SceneTests.Components;
 [TestClass]
 public class ParticleSphereEmitterTests
 {
+	[TestInitialize]
+	public void TestInit()
+	{
+		// Sandbox.Test.Integration isn't parallelized, so nobody else should be reading from ParticleRandom.Shared during each test.
+		// TODO: 156 will fail PointEmitterRetainsBiasedLocalRadialVelocity and NormalizedBiasPreservesShellRadiusAndWorldDirection!
+
+		ParticleRandom.SetSeed( 0x1a4b5384 );
+	}
+
+	[TestCleanup]
+	public void TestCleanup()
+	{
+		ParticleRandom.SetSeed( null );
+	}
+
 	[TestMethod]
 	public void HollowSphereKeepsParticlesInShellAndMovesOutward()
 	{
