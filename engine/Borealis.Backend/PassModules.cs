@@ -50,6 +50,9 @@ public sealed partial class PassModules : IShaderModules
 	/// </summary>
 	public Action<string> Error { get; set; } = message => Console.Error.WriteLine( $"Borealis.Gpu: {message}" );
 
+	/// <summary>A draw's wait for a stage to compile longer than this is told (<see cref="Info"/>), with the module and the thread.</summary>
+	internal const double SlowWaitMs = 20;
+
 	/// <summary>Stages compiled (or read from the cache) so far.</summary>
 	public int StagesCompiled { get; private set; }
 
@@ -618,7 +621,10 @@ public sealed partial class PassModules : IShaderModules
 			{
 				if ( task is not null )
 				{
+					var waitStart = System.Diagnostics.Stopwatch.GetTimestamp();
 					using ( Zones.PassCompile.Start() ) compiled = task.GetAwaiter().GetResult();
+					var waited = System.Diagnostics.Stopwatch.GetElapsedTime( waitStart ).TotalMilliseconds;
+					if ( waited > SlowWaitMs ) Info?.Invoke( $"Borealis.Gpu: {System.Threading.Thread.CurrentThread.Name ?? "a thread"} waited {waited:F1} ms for {Path.GetFileName( module.Path )} {kind} {string.Join( ' ', values.OrderBy( v => v.Key, StringComparer.Ordinal ).Select( v => $"{v.Key}={v.Value}" ) )} to compile, drawing {Path.GetFileName( shader.Name )}" );
 				}
 			}
 			catch ( ShaderCompileException e )
