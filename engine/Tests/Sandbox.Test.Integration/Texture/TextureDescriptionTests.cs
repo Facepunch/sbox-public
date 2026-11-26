@@ -24,13 +24,14 @@ public class TextureDescriptionTests
 		{
 			("materials/debug/debugempty.vtex", 64, 64, 1, ImageFormat.DXT1, RuntimeTextureSpecificationFlags.TSPEC_NO_LOD, []),
 			("dev/env_cubemap_black.vtex", 4, 4, 1, ImageFormat.BC6H, RuntimeTextureSpecificationFlags.TSPEC_CUBE_TEXTURE, []),
-			("dev/helper/reflectivity_90b_color_tga_7a723180.generated.vtex", 32, 32, 4, ImageFormat.DXT1, None, []),
+			("dev/helper/reflectivity_90b_color_tga_*.generated.vtex", 32, 32, 4, ImageFormat.DXT1, None, []),
 			("textures/beams/beam_blood_01.vtex", 128, 256, 1, ImageFormat.DXT5, None, [(1, 1, true)]),
 			("textures/particles/flame/explosion/explosion_01.vtex", 2048, 2048, 1, ImageFormat.DXT5, None, [(64, 64, false)]),
 		};
 
-		foreach ( var c in cases )
+		foreach ( var item in cases )
 		{
+			var c = item with { Path = Compiled( item.Path ) };
 			var header = TextureHeader.Read( File.ReadAllBytes( Path.Combine( GameFolder, "core", c.Path + "_c" ) ) );
 			var desc = Texture.DescriptionOf( header );
 			Assert.IsNotNull( desc, $"{c.Path}: no description from VTEX format {header.Format}" );
@@ -49,7 +50,11 @@ public class TextureDescriptionTests
 				Assert.AreEqual( c.Sheet[i].Clamp, header.Sheet[i].Clamp, $"{c.Path}: sequence {i} clamp" );
 			}
 
-			// Loaded, the texture describes itself the same way
+			// Loaded, the texture describes itself the same way. Without graphics (SBOX_TEST_GRAPHICS unset, as on CI)
+			// a unit test loads no textures at all
+			if ( !Graphics.IsAvailable )
+				continue;
+
 			var texture = Texture.Load( c.Path );
 			Assert.IsNotNull( texture, c.Path );
 			Assert.AreEqual( c.Width, texture.Width, $"{c.Path}: loaded width" );
@@ -57,6 +62,21 @@ public class TextureDescriptionTests
 			Assert.AreEqual( c.Format, texture.ImageFormat, $"{c.Path}: loaded format" );
 			Assert.AreEqual( c.Sheet.Length, texture.SequenceCount, $"{c.Path}: loaded sequences" );
 		}
+	}
+
+	/// <summary>
+	/// A core path to a compiled texture. A generated texture's name carries a hash of how it was made, which changes with the
+	/// compiler, so a <c>*</c> stands for it and finds the one the content build made.
+	/// </summary>
+	static string Compiled( string path )
+	{
+		if ( !path.Contains( '*' ) )
+			return path;
+
+		var folder = path[..path.LastIndexOf( '/' )];
+		var files = Directory.GetFiles( Path.Combine( GameFolder, "core", folder ), path[(folder.Length + 1)..] + "_c" );
+		Assert.AreEqual( 1, files.Length, $"{path}: compiled files" );
+		return $"{folder}/{Path.GetFileName( files[0] )[..^2]}";
 	}
 
 	/// <summary>A texture made at run time is described by what it was made with.</summary>
