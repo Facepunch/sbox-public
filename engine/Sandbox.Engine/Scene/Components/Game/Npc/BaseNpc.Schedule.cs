@@ -180,6 +180,7 @@ public partial class BaseNpc : Component
 			Senses.ClearScan();
 
 		EndCurrentSchedule();
+		ClearKnockdown();
 	}
 
 	/// <summary>

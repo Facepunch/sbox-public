@@ -25,12 +25,8 @@ public partial class AnimationLayer : BaseNpcLayer
 		Lowered,
 	}
 
-	/// <summary>
-	/// How fast the body turns to face a look target, in degrees per second.
-	/// Constant rate - an exponential turn covers most of a half-circle in its
-	/// first moments, which reads as a jolting spin.
-	/// </summary>
-	internal float BodyTurnSpeed { get; set; } = 120f;
+	// Degrees per second, constant: an exponential turn reads as a jolting spin
+	private const float BodyTurnSpeed = 120f;
 
 	/// <summary>
 	/// Whether this layer turns the standing NPC's body toward its look target. On by default. Turn it off when
@@ -39,7 +35,7 @@ public partial class AnimationLayer : BaseNpcLayer
 	[Property]
 	public bool TurnsBody { get; set; } = true;
 
-	internal float MaxHeadAngle { get; set; } = 45f;
+	private const float MaxHeadAngle = 45f;
 
 	/// <summary>Play footstep sounds from the model's footstep animation events.</summary>
 	[Property]
@@ -96,12 +92,9 @@ public partial class AnimationLayer : BaseNpcLayer
 	/// </summary>
 	[Sync( SyncFlags.FromHost )] public WeaponStances WeaponStance { get; set; }
 
-	// The object being looked at, if the look target is an object. Synced so every
-	// client resolves the eye position locally - that way the player being looked
-	// at sees the NPC looking at their camera, while everyone else sees it looking
-	// at that player's avatar's eyes.
 	/// <summary>
-	/// The object the NPC is looking at, when its look target is an object, synced to all clients.
+	/// The object the NPC is looking at, when its look target is an object. Synced so each client resolves the eyes
+	/// itself: the player being looked at sees the NPC look at their camera, everyone else at their avatar's eyes.
 	/// </summary>
 	[Sync( SyncFlags.FromHost )] public GameObject LookObject { get; private set; }
 
@@ -254,7 +247,7 @@ public partial class AnimationLayer : BaseNpcLayer
 		if ( _renderer is null ) return true;
 
 		var direction = (LookTarget.Value.WithZ( 0 ) - Npc.WorldPosition.WithZ( 0 )).Normal;
-		var angleToTarget = Vector3.GetAngle( Npc.WorldRotation.Forward.WithZ( 0 ), direction );
+		var angleToTarget = Vector3.GetAngle( Npc.BodyRotation.Forward.WithZ( 0 ), direction );
 		return angleToTarget <= MaxHeadAngle;
 	}
 
@@ -270,7 +263,8 @@ public partial class AnimationLayer : BaseNpcLayer
 		if ( Npc.Movement.IsValid() && Npc.Movement.IsMoving )
 			return;
 
-		var angleToTarget = Vector3.GetAngle( Npc.WorldRotation.Forward, flatDirection );
+		var current = Npc.BodyRotation;
+		var angleToTarget = Vector3.GetAngle( current.Forward, flatDirection );
 
 		// Hysteresis: start turning when the target is beyond what the head can
 		// reach, and keep turning until we're comfortably facing it. If we stop
@@ -284,15 +278,21 @@ public partial class AnimationLayer : BaseNpcLayer
 		if ( _turningToTarget )
 		{
 			var targetRotation = Rotation.LookAt( flatDirection, Vector3.Up );
-			var remaining = Npc.WorldRotation.Distance( targetRotation );
+			var remaining = current.Distance( targetRotation );
 
 			if ( remaining > 0.1f )
 			{
 				var step = MathF.Min( 1f, BodyTurnSpeed * Time.Delta / remaining );
-				Npc.GameObject.WorldRotation = Rotation.Slerp( Npc.WorldRotation, targetRotation, step );
+				Npc.SetBodyRotation( Rotation.Slerp( current, targetRotation, step ) );
 			}
 		}
 	}
+
+	/// <summary>
+	/// How far the NPC is crouched down, from 0 standing to 1, such as while it gets up off the ground. Set on every
+	/// client, for animators.
+	/// </summary>
+	public float Crouch { get; internal set; }
 
 	/// <summary>
 	/// Records move state for replication. Called on the host by whatever moves the NPC.
@@ -301,6 +301,11 @@ public partial class AnimationLayer : BaseNpcLayer
 	{
 		MoveVelocity = velocity;
 	}
+
+	/// <summary>
+	/// Held and carried through physics, such as by a physgun. Synced to all clients, for animators.
+	/// </summary>
+	[Sync( SyncFlags.FromHost )] public bool IsCarried { get; internal set; }
 
 	/// <summary>
 	/// Fire a named one-shot (such as "attack") on every client, for animators to react to through <see cref="Triggered"/>.

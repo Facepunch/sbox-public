@@ -34,6 +34,7 @@ public class CitizenNpcAnimator : Component, IEvents
 
 	private float _lastYaw = float.NaN;
 	private NavMeshLinkType _shownTraversal;
+	private float _shownCrouch;
 
 	// The aim we're actually feeding the animgraph. Look targets appear out of
 	// nowhere (senses noticing someone) and jump around; the neck eases toward
@@ -90,7 +91,7 @@ public class CitizenNpcAnimator : Component, IEvents
 		else
 			ClearAim();
 
-		ApplyMoveToRenderer( layer.MoveVelocity, Npc.WorldRotation );
+		ApplyMoveToRenderer( layer.IsCarried ? Struggle( layer.MoveVelocity ) : layer.MoveVelocity, Npc.WorldRotation );
 
 		var weapon = Weapon;
 		var hold = HoldTypeOption( weapon );
@@ -119,6 +120,29 @@ public class CitizenNpcAnimator : Component, IEvents
 		if ( traversal is not null && traversal == jump && _shownTraversal != jump )
 			TriggerGesture( "b_jump" );
 		_shownTraversal = traversal;
+
+		// Only on a change, so a game can still duck the model itself
+		if ( layer.Crouch != _shownCrouch )
+		{
+			_shownCrouch = layer.Crouch;
+			SetFloat( "duck", _shownCrouch );
+		}
+	}
+
+	// The in-air pose flails with the velocity it is shown, so a held NPC is shown falling and kicking about even held still
+	private const float StruggleFallSpeed = 500f;
+	private const float StruggleSpeed = 300f;
+
+	private Vector3 Struggle( Vector3 velocity )
+	{
+		velocity.z = MathF.Min( velocity.z, -StruggleFallSpeed );
+
+		var flat = velocity.WithZ( 0 );
+		if ( flat.Length >= StruggleSpeed ) return velocity;
+
+		var angle = Time.Now * 1.5f + (Npc.GameObject.Id.GetHashCode() & 0xff) * 0.1f;
+		var kick = (Npc.WorldRotation.Right * MathF.Cos( angle ) + Npc.WorldRotation.Forward * MathF.Sin( angle )).WithZ( 0 );
+		return (flat + kick.Normal * (StruggleSpeed - flat.Length)).WithZ( velocity.z );
 	}
 
 	/// <summary>
