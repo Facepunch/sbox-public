@@ -39,7 +39,7 @@ public class SensesLayer : BaseNpcLayer
 	private float _cachedFieldOfView = float.NaN;
 	private float _fieldOfViewCos;
 
-	internal float PersonalSpace { get; set; } = 80f;
+	private const float PersonalSpace = 80f;
 
 	/// <summary>
 	/// Hostiles moving slower than this can't be heard -- creep (crouch-walk) to sneak up on someone.
@@ -62,15 +62,15 @@ public class SensesLayer : BaseNpcLayer
 	/// <summary>Visible entities this NPC is disposed Fearful toward (things to flee from).</summary>
 	public IReadOnlyList<GameObject> VisibleThreats => _visibleThreats;
 
-	private readonly List<GameObject> _visibleTargets = new();
-	private readonly List<GameObject> _audibleTargets = new();
-	private readonly List<GameObject> _visibleThreats = new();
+	private readonly List<GameObject> _visibleTargets = [];
+	private readonly List<GameObject> _audibleTargets = [];
+	private readonly List<GameObject> _visibleThreats = [];
 
 	// Everything confirmed visible, whatever the disposition.
-	private readonly List<GameObject> _visible = new();
+	private readonly List<GameObject> _visible = [];
 
 	// Neutral candidates wait until a query needs their visibility.
-	private readonly List<GameObject> _unchecked = new();
+	private readonly List<GameObject> _unchecked = [];
 
 	private GameObject _pushingPlayer;
 	private GameObject _heardHostile;
@@ -118,13 +118,9 @@ public class SensesLayer : BaseNpcLayer
 
 	private static readonly string[] SightIgnoreTags = ["trigger"];
 
-	// Potential extension points when games need custom detection rules.
-	private bool AllowSight( GameObject target ) => true;
-	private bool AllowHearing( GameObject target ) => true;
-
 	private bool CanSee( GameObject target )
 	{
-		if ( !AllowSight( target ) || !CanScan || !target.IsValid() )
+		if ( !CanScan || !target.IsValid() )
 			return false;
 
 		var distance = Npc.WorldPosition.Distance( target.WorldPosition );
@@ -169,7 +165,7 @@ public class SensesLayer : BaseNpcLayer
 		var isHostile = disposition == Disposition.Hostile;
 		var isFeared = disposition == Disposition.Fearful;
 
-		if ( isHostile && distance <= HearingRange && AllowHearing( obj ) )
+		if ( isHostile && distance <= HearingRange )
 		{
 			_audibleTargets.Add( obj );
 
@@ -194,7 +190,7 @@ public class SensesLayer : BaseNpcLayer
 		}
 
 		UpdateFieldOfView();
-		if ( !AllowSight( obj ) || !IsInViewCone( delta, distance, forward, PersonalSpace, _fieldOfViewCos ) ) return;
+		if ( !IsInViewCone( delta, distance, forward, PersonalSpace, _fieldOfViewCos ) ) return;
 		var endpoint = target.CalculateEyePosition();
 		if ( !CanScan || !target.IsLive ) return;
 		var visible = HasLineOfSight( obj, endpoint );
@@ -232,9 +228,6 @@ public class SensesLayer : BaseNpcLayer
 		}
 	}
 
-	/// <summary>
-	/// Check if we have line of sight to target
-	/// </summary>
 	private bool HasLineOfSight( GameObject target )
 	{
 		var targetPosition = target.GetComponent<BaseNpc>() is { } npc ? npc.EyePosition : target.GetBounds().Center;
@@ -323,19 +316,7 @@ public class SensesLayer : BaseNpcLayer
 	public GameObject FindNearestVisible( string tag )
 	{
 		CheckLineOfSight( tag );
-		GameObject nearest = null;
-		float nearestDist = float.MaxValue;
-		foreach ( var obj in _visible )
-		{
-			if ( !obj.IsValid() || !obj.Tags.Has( tag ) ) continue;
-			var dist = Npc.WorldPosition.Distance( obj.WorldPosition );
-			if ( dist < nearestDist )
-			{
-				nearestDist = dist;
-				nearest = obj;
-			}
-		}
-		return nearest;
+		return NearestVisible( tag, static ( obj, tag ) => obj.Tags.Has( tag ) );
 	}
 
 	/// <summary>
@@ -345,24 +326,7 @@ public class SensesLayer : BaseNpcLayer
 	public GameObject FindNearestVisible( Disposition disposition )
 	{
 		CheckLineOfSight( disposition: disposition );
-
-		GameObject nearest = null;
-		float nearestDist = float.MaxValue;
-
-		foreach ( var obj in _visible )
-		{
-			if ( !obj.IsValid() ) continue;
-			if ( Npc.GetDisposition( obj ) != disposition ) continue;
-
-			var dist = Npc.WorldPosition.Distance( obj.WorldPosition );
-			if ( dist < nearestDist )
-			{
-				nearestDist = dist;
-				nearest = obj;
-			}
-		}
-
-		return nearest;
+		return NearestVisible( (Npc, disposition), static ( obj, state ) => state.Npc.GetDisposition( obj ) == state.disposition );
 	}
 
 	/// <summary>
@@ -372,19 +336,22 @@ public class SensesLayer : BaseNpcLayer
 	internal GameObject FindNearestVisibleOfFaction( string faction )
 	{
 		CheckLineOfSight( faction: faction );
+		return NearestVisible( faction, static ( obj, faction ) => BaseNpc.GetFactionOf( obj ) == faction );
+	}
 
+	private GameObject NearestVisible<T>( T state, Func<GameObject, T, bool> match )
+	{
 		GameObject nearest = null;
-		float nearestDist = float.MaxValue;
+		var nearestDistance = float.MaxValue;
 
 		foreach ( var obj in _visible )
 		{
-			if ( !obj.IsValid() ) continue;
-			if ( BaseNpc.GetFactionOf( obj ) != faction ) continue;
+			if ( !obj.IsValid() || !match( obj, state ) ) continue;
 
-			var dist = Npc.WorldPosition.Distance( obj.WorldPosition );
-			if ( dist < nearestDist )
+			var distance = Npc.WorldPosition.Distance( obj.WorldPosition );
+			if ( distance < nearestDistance )
 			{
-				nearestDist = dist;
+				nearestDistance = distance;
 				nearest = obj;
 			}
 		}
