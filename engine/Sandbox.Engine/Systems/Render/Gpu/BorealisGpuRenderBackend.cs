@@ -2138,13 +2138,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			// Exact types first: a pattern switch over arrays and classes goes through cast helpers per value
 			var type = value.GetType();
 			if ( type == typeof( float[] ) || type == typeof( byte[] ) ) lowered.SetById( binding.Id, value );
-			else if ( type == typeof( ManagedRenderAttributes.TextureValue ) )
-			{
-				var (texture, mip) = (ManagedRenderAttributes.TextureValue)value;
-				if ( texture is null ) continue;
-				if ( mip < 0 ) lowered.SetById( binding.Id, BoundTextureOf( texture ) );
-				else lowered.SetById( binding.Id, context.View( BoundTextureOf( texture ), mip ) );
-			}
+			else if ( type == typeof( ManagedRenderAttributes.TextureValue ) ) LowerTexture( binding, (ManagedRenderAttributes.TextureValue)value, lowered );
 			else if ( value is GpuBuffer buffer ) LowerBuffer( binding, buffer, lowered );
 		}
 
@@ -2152,6 +2146,25 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		{
 			if ( BindingOf( token ) is { } binding ) lowered.SetComboById( binding.Id, value );
 		}
+	}
+
+	/// <summary>Lower <paramref name="managed"/>'s textures again: the same texture can be backed by another image since (streaming, a view's drawing).</summary>
+	void LowerTextures( ManagedRenderAttributes managed, ShaderAttributes lowered )
+	{
+		foreach ( var (token, value) in managed.Values )
+		{
+			if ( value is not null && value.GetType() == typeof( ManagedRenderAttributes.TextureValue ) && BindingOf( token ) is { } binding )
+				LowerTexture( binding, (ManagedRenderAttributes.TextureValue)value, lowered );
+		}
+	}
+
+	void LowerTexture( TokenBinding binding, ManagedRenderAttributes.TextureValue value, ShaderAttributes lowered )
+	{
+		var (texture, mip) = value;
+		if ( texture is null ) return;
+		loweredTextures++;
+		if ( mip < 0 ) lowered.SetById( binding.Id, BoundTextureOf( texture ) );
+		else lowered.SetById( binding.Id, context.View( BoundTextureOf( texture ), mip ) );
 	}
 
 	ShaderFile Require( Material material ) => ShaderOf( material ) ?? throw new NotSupportedException( $"{material} has no compiled shader Borealis.Gpu can load" );

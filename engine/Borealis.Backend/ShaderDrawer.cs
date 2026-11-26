@@ -309,6 +309,9 @@ public sealed class ShaderAttributes
 	/// <summary>Moves on any set, replace or clear; equal versions mean equal values only while <see cref="Stable"/>.</summary>
 	internal int Version => under is null ? version : HashCode.Combine( version, under.version, RuntimeHelpers.GetHashCode( under ) );
 
+	/// <summary>Moves on any change to this set's own values and combos, whatever the set under it does.</summary>
+	internal int OwnVersion => version;
+
 	/// <summary><see cref="Version"/> without the combos' changes: equal while the values are, whatever the combos.</summary>
 	internal int ValuesVersion => under is null ? version - comboChanges : HashCode.Combine( version - comboChanges, under.version - under.comboChanges, RuntimeHelpers.GetHashCode( under ) );
 

@@ -368,23 +368,36 @@ internal sealed partial class BorealisGpuRenderBackend
 	static readonly int UncompressedTangentFrameId = AttributeIds.Of( UncompressedTangentFrame );
 
 	/// <summary>
-	/// A draw's or dispatch's lowered attributes, kept while block, transforms, tangent frame, device frame, lent transforms and backings are
-	/// unchanged. Attributes set again since it was made are lowered into it again alone (a dispatch's combos, a draw's one buffer),
-	/// unless something was cleared meanwhile (<see cref="ManagedRenderAttributes.RemovedAt"/>), which lowers them all.
+	/// A draw's or dispatch's attributes lowered, kept on the engine set they came from (<see cref="ManagedRenderAttributes.Lowered"/>,
+	/// a few ways of lowering it in a row) and used again, in any frame, while the set's values, the transforms, tangent frame and
+	/// lent transforms it was lowered with and the backings are unchanged. The block's lowered set shows through under it
+	/// (<see cref="ShaderAttributes.Under"/>), not copied. Values set again since are lowered into it alone, unless something was
+	/// cleared meanwhile (<see cref="ManagedRenderAttributes.RemovedAt"/>), which lowers them all. Its textures are lowered again
+	/// in a new device frame or after a view drew into a texture: a texture's backing can change under it (streaming, a view's drawing).
 	/// </summary>
-	sealed class ModelAttributes
+	sealed class LoweredSet
 	{
 		public readonly ShaderAttributes Set = new();
-		public ManagedRenderAttributes Managed, Block;
-		public int Version, BlockVersion, Backings, Built, ViewDraws;
+		public ManagedRenderAttributes Owner;
+		public BorealisGpuRenderBackend Maker;
+		public LoweredSet Next;
+		public int Version, Backings, Built, ViewDraws, BlockVersion;
 		public ulong Frame;
 		public BufferHandle Lent, Transforms;
-		public bool Uncompressed, Pending, Dispatch;
+		public bool Uncompressed, Pending, Dispatch, Block, Textures;
 	}
 
-	const int ModelAttributesKept = 12;
-	readonly ModelAttributes[] modelAttributes = new ModelAttributes[ModelAttributesKept];
-	int modelAttributesNext;
+	// Ways of lowering one engine set kept on it; more lower again over the last
+	const int LoweredPerSet = 4;
+
+	// Every lowered set kept on an engine set, and those let go, to reuse: a set not drawn with for a couple of frames is taken back,
+	// so sets made and dropped every frame (a fresh RenderAttributes per draw) reuse the same few
+	readonly List<LoweredSet> loweredSets = new();
+	readonly Stack<LoweredSet> spareLowered = new();
+	ulong loweredSwept;
+
+	// Textures lowered by Lower since this was last zeroed
+	int loweredTextures;
 
 	ShaderAttributes LoweredForModel( RenderAttributes attributes, BufferHandle transforms, bool uncompressed ) => LoweredFor( attributes, transforms, uncompressed, pending: false );
 
@@ -398,48 +411,78 @@ internal sealed partial class BorealisGpuRenderBackend
 			throw new NotSupportedException( "Native render attributes can't be drawn with on Borealis.Gpu" );
 
 		var managed = attributes.Managed;
-		var block = blockAttributes?.Managed is { } b && !ReferenceEquals( b, managed ) ? b : null;
 		var frame = gpu.FrameNumber;
-		var blockVersion = block?.Version ?? 0;
+		if ( frame != loweredSwept ) SweepLowered( frame );
+
+		var block = blockAttributes?.Managed is { } b && !ReferenceEquals( b, managed ) ? LoweredBlock( b ) : null;
+		var hasBlock = block is not null;
+
+		// Under a block, the lent transforms are in the block's lowered set
+		var lent = hasBlock ? default : lentTransforms;
 		var version = managed.Version;
-		// A dispatch binds the engine's copies of textures views drew into (EngineWrites, made as it lowers them): one a view drew
-		// into since needs copying again
-		var viewDraws = dispatch ? Texture.ViewDraws : 0;
-		ModelAttributes older = null;
-		foreach ( var kept in modelAttributes )
+		var viewDraws = Texture.ViewDraws;
+
+		// This way of lowering the set if it's kept, else a new one, else the last kept
+		LoweredSet made = null, last = null;
+		var count = 0;
+		for ( var kept = managed.Lowered as LoweredSet; kept is not null; kept = kept.Next )
 		{
-			if ( kept is not null && ReferenceEquals( kept.Managed, managed ) && ReferenceEquals( kept.Block, block ) && kept.BlockVersion == blockVersion
-				&& kept.Frame == frame && kept.Lent == lentTransforms && kept.Transforms == transforms && kept.Uncompressed == uncompressed && kept.Pending == pending && kept.Dispatch == dispatch
-				&& kept.ViewDraws == viewDraws && kept.Backings == backingsVersion && kept.Built == kept.Set.Version )
+			if ( !ReferenceEquals( kept.Maker, this ) ) continue;
+			if ( kept.Block == hasBlock && kept.Lent == lent && kept.Transforms == transforms && kept.Uncompressed == uncompressed && kept.Pending == pending && kept.Dispatch == dispatch )
 			{
-				if ( kept.Version == version ) return kept.Set;
-				older = kept;
+				made = kept;
+				break;
 			}
+
+			last = kept;
+			count++;
 		}
 
-		// Only forward from it: a store read on another thread can be older (RenderAttributes' held copy), with nothing set since
-		var incremental = older is not null && version > older.Version && managed.RemovedAt <= older.Version;
-		var made = incremental ? older : modelAttributes[modelAttributesNext] ??= new ModelAttributes();
-		if ( !incremental ) modelAttributesNext = (modelAttributesNext + 1) % ModelAttributesKept;
+		// Only forward from it: a store read on another thread can be older (RenderAttributes' held copy), with nothing set since.
+		// A draw from buffers adds what the block lacks (EnsureTransform): another block's values lower it again
+		var full = made is null || made.Backings != backingsVersion || made.Built != made.Set.OwnVersion
+			|| version < made.Version || (version > made.Version && managed.RemovedAt > made.Version)
+			|| (pending && hasBlock && made.BlockVersion != block.Version);
+		if ( made is null )
+		{
+			if ( count < LoweredPerSet )
+			{
+				made = spareLowered.TryPop( out var spare ) ? spare : new LoweredSet();
+				(made.Owner, made.Maker) = (managed, this);
+				made.Next = managed.Lowered as LoweredSet;
+				managed.Lowered = made;
+				loweredSets.Add( made );
+			}
+			else made = last;
+		}
+
 		var set = made.Set;
 
 		// A dispatch's textures are the engine's own copies (EngineWrites)
 		loweringDispatch = dispatch;
+		loweredTextures = 0;
 		try
 		{
-			if ( incremental ) Lower( managed, set, made.Version );
-			else
+			if ( full )
 			{
 				set.Clear();
-				if ( block is not null ) set.CopyFrom( LoweredBlock( block ) );
-				else if ( lentTransforms.IsValid ) set.SetById( TransformBufferId, lentTransforms );
+				if ( lent.IsValid ) set.SetById( TransformBufferId, lent );
 				Lower( managed, set );
+				made.Textures = false;
+			}
+			else
+			{
+				if ( version != made.Version ) Lower( managed, set, made.Version );
+				if ( made.Textures && (made.Frame != frame || made.ViewDraws != viewDraws) ) LowerTextures( managed, set );
 			}
 		}
 		finally
 		{
 			loweringDispatch = false;
 		}
+
+		made.Textures |= loweredTextures > 0;
+		set.Under = block;
 
 		// Over what the attributes set, as when made: set again, a changed value can have replaced them
 		if ( transforms.IsValid ) set.SetById( TransformBufferId, transforms );
@@ -450,19 +493,51 @@ internal sealed partial class BorealisGpuRenderBackend
 		}
 		else if ( !dispatch ) set.SetById( UncompressedTangentFrameId, uncompressed ? 1.0f : 0.0f );
 
-		(made.Managed, made.Version, made.Block, made.BlockVersion, made.Frame, made.Lent, made.Transforms, made.Uncompressed, made.Pending, made.Dispatch, made.ViewDraws, made.Backings, made.Built) = (managed, managed.Version, block, blockVersion, frame, lentTransforms, transforms, uncompressed, pending, dispatch, viewDraws, backingsVersion, set.Version);
+		(made.Version, made.Block, made.BlockVersion, made.Frame, made.Lent, made.Transforms, made.Uncompressed, made.Pending, made.Dispatch, made.ViewDraws, made.Backings, made.Built)
+			= (version, hasBlock, block?.Version ?? 0, frame, lent, transforms, uncompressed, pending, dispatch, viewDraws, backingsVersion, set.OwnVersion);
 		return set;
 	}
 
-	/// <summary>Forget the kept lowered attributes, which hold textures and buffers past their owners.</summary>
+	/// <summary>Take back the lowered sets nothing drew with in the last two device frames, for other engine sets to reuse.</summary>
+	void SweepLowered( ulong frame )
+	{
+		loweredSwept = frame;
+		for ( int i = loweredSets.Count - 1; i >= 0; i-- )
+		{
+			var kept = loweredSets[i];
+			if ( kept.Frame + 2 > frame ) continue;
+			Forget( kept );
+			loweredSets[i] = loweredSets[^1];
+			loweredSets.RemoveAt( loweredSets.Count - 1 );
+			spareLowered.Push( kept );
+		}
+	}
+
+	// Unhook a lowered set from its engine set and empty it
+	static void Forget( LoweredSet kept )
+	{
+		var owner = kept.Owner;
+		if ( ReferenceEquals( owner.Lowered, kept ) ) owner.Lowered = kept.Next;
+		else
+		{
+			for ( var before = owner.Lowered as LoweredSet; before is not null; before = before.Next )
+			{
+				if ( !ReferenceEquals( before.Next, kept ) ) continue;
+				before.Next = kept.Next;
+				break;
+			}
+		}
+
+		kept.Set.Clear();
+		(kept.Owner, kept.Maker, kept.Next) = (null, null, null);
+	}
+
+	/// <summary>Forget the kept lowered attributes, which hold the engine sets they came from.</summary>
 	void ReleaseModelAttributes()
 	{
-		foreach ( var kept in modelAttributes )
-		{
-			if ( kept is null ) continue;
-			kept.Set.Clear();
-			kept.Managed = kept.Block = null;
-		}
+		foreach ( var kept in loweredSets ) Forget( kept );
+		loweredSets.Clear();
+		spareLowered.Clear();
 	}
 
 	//

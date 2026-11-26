@@ -203,6 +203,12 @@ internal sealed class ManagedRenderAttributes
 	internal bool BetweenFrames { get; set; }
 
 	/// <summary>
+	/// What a backend lowered this set into, kept with it to use again while its values don't change (Borealis.Gpu's lowered
+	/// sets for immediate draws and dispatches). Read and written only by the thread recording with the set.
+	/// </summary>
+	internal object Lowered;
+
+	/// <summary>
 	/// The store a write goes into. While a frame handed over may be drawing on the render thread (<see cref="Rendering.RenderSync.Overlapping"/>),
 	/// the main thread's first write since the hand-over leaves the store as it was for that frame and goes on in a copy, so the
 	/// frame reads every value as it was handed over, as it reads them on the main thread before the next update writes them. A
