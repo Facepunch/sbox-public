@@ -127,7 +127,7 @@ public partial class Material
 	{
 		native.Set( param, value );
 		native.SetEdited( true );
-		RememberSet( param, value );
+		RememberValue( param, value );
 		return true;
 	}
 
@@ -157,12 +157,43 @@ public partial class Material
 	/// <summary>
 	/// What code set on this material (<see cref="Set(string, Vector4)"/>, <see cref="Set(string, Texture)"/>) by parameter:
 	/// <see cref="Vector4"/> or <see cref="Texture"/> values, for devices that read the material's file and apply these over
-	/// it. Replaced whole on each set, so a reader on another thread sees one version. Null until something's set.
+	/// it. Replaced whole when a parameter is set for the first time or to another kind of value, so a reader on another
+	/// thread enumerates one version; a value set again changes in its box (<see cref="RememberValue"/>). Null until something's set.
 	/// </summary>
 	internal IReadOnlyDictionary<string, object> SetInCode { get; private set; }
 
 	/// <summary>Moves on with every <see cref="SetInCode"/> and <see cref="FeaturesSetInCode"/> change.</summary>
 	internal int SetInCodeVersion { get; private set; }
+
+	/// <summary>
+	/// <see cref="RememberSet"/> for a value, without boxing it: one already set takes the new value in its box (code that
+	/// animates a value sets it every frame), so only a value not set before makes the set again. A reader on another thread
+	/// may see the new value before the version moves, which only makes it take the value a frame early.
+	/// </summary>
+	void RememberValue( string param, Vector4 value )
+	{
+		if ( SetInCode is not null && SetInCode.TryGetValue( param, out var current ) && current is Vector4 was )
+		{
+			if ( was == value ) return;
+			System.Runtime.CompilerServices.Unsafe.Unbox<Vector4>( current ) = value;
+			NoteSetInCode();
+			return;
+		}
+
+		RememberSet( param, value );
+	}
+
+	/// <summary>
+	/// <see cref="SetInCode"/> for a copy: the same values in boxes of its own, as <see cref="RememberValue"/> changes a box in
+	/// place.
+	/// </summary>
+	static IReadOnlyDictionary<string, object> CopySetInCode( IReadOnlyDictionary<string, object> set )
+	{
+		if ( set is null ) return null;
+		var copy = new Dictionary<string, object>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (name, value) in set ) copy[name] = value is Vector4 v ? v : value;
+		return copy;
+	}
 
 	void RememberSet( string param, object value )
 	{

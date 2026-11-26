@@ -86,7 +86,7 @@ public sealed partial class Material : Resource
 			copy.FilePath = FilePath;
 			copy.MadeFromShader = MadeFromShader;
 			copy.ShaderSetInCode = ShaderSetInCode;
-			copy.SetInCode = SetInCode;
+			copy.SetInCode = CopySetInCode( SetInCode );
 			copy.FeaturesSetInCode = FeaturesSetInCode;
 			copy.SetInCodeVersion = SetInCodeVersion;
 		}

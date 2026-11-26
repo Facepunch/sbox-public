@@ -2206,6 +2206,9 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 	{
 		public BackendMaterial File;
 		public int Version;
+
+		/// <summary>The features set in code it last took.</summary>
+		public IReadOnlyDictionary<string, int> Features;
 	}
 
 	readonly ConditionalWeakTable<Material, MaterialBacking> materialFiles = new();
@@ -2233,13 +2236,20 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			// Code set more on it since: its own copy of the file takes the new values and features
 			if ( known.Version != material.SetInCodeVersion && known.File is not null )
 			{
-				if ( material.SetInCode is { } changed )
+				// Each value and texture on its own, without lowering the set into dictionaries: code that animates a value
+				// changes it every frame
+				if ( material.SetInCode is Dictionary<string, object> changed )
 				{
-					var (values, textures) = LowerSetInCode( changed );
-					services.SetOnMaterial( known.File, values, textures );
+					foreach ( var (name, value) in changed )
+					{
+						if ( value is Vector4 v ) services.SetValueOnMaterial( known.File, name, [v.x, v.y, v.z, v.w] );
+						else if ( value is Texture { IsValid: true } texture ) services.SetTextureOnMaterial( known.File, name, BorealisViewOf( texture ) );
+					}
 				}
 
-				services.SetFeaturesOnMaterial( known.File, material.FeaturesSetInCode );
+				// Features only when they changed: each change replaces them whole
+				if ( !ReferenceEquals( known.Features, material.FeaturesSetInCode ) ) services.SetFeaturesOnMaterial( known.File, material.FeaturesSetInCode );
+				known.Features = material.FeaturesSetInCode;
 				known.Version = material.SetInCodeVersion;
 			}
 
@@ -2276,7 +2286,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 			else file = services.ShaderMaterial( path );
 		}
 
-		materialFiles.Add( material, new MaterialBacking { File = file, Version = material.SetInCodeVersion } );
+		materialFiles.Add( material, new MaterialBacking { File = file, Version = material.SetInCodeVersion, Features = material.FeaturesSetInCode } );
 		return file;
 	}
 

@@ -154,7 +154,7 @@ internal static class MirrorContent
 				gpu.SetFeaturesOnMaterial( made.Material, material.FeaturesSetInCode );
 
 				made.Version = material.SetInCodeVersion;
-				made.Set = material.SetInCode;
+				made.Took( material.SetInCode );
 				made.Features = material.FeaturesSetInCode;
 			}
 
@@ -197,7 +197,6 @@ internal static class MirrorContent
 
 			if ( !ReferenceEquals( made.Features, material.FeaturesSetInCode ) ) gpu.SetFeaturesOnMaterial( made.Material, material.FeaturesSetInCode );
 
-			made.Set = set;
 			made.Features = material.FeaturesSetInCode;
 			made.Version = material.SetInCodeVersion;
 		}
@@ -208,8 +207,9 @@ internal static class MirrorContent
 	{
 		if ( value is Vector4 v )
 		{
-			if ( made.Set is { } before && before.TryGetValue( name, out var was ) && was is Vector4 old && old == v ) return;
+			if ( made.Values.TryGetValue( name, out var old ) && old == v ) return;
 			gpu.SetValueOnMaterial( made.Material, name, [v.x, v.y, v.z, v.w] );
+			made.Values[name] = v;
 		}
 		else if ( value is Sandbox.Texture t && Texture( t ) is { } texture ) gpu.SetTextureOnMaterial( made.Material, name, texture );
 	}
@@ -233,9 +233,24 @@ internal static class MirrorContent
 		public GpuMaterial Material;
 		public int Version;
 
-		/// <summary>The values and features set in code it last took (<see cref="Follow"/>).</summary>
-		public IReadOnlyDictionary<string, object> Set;
+		/// <summary>
+		/// The values set in code it last took (<see cref="Follow"/>), its own: the material changes a value set again in place,
+		/// so its set can't say what was taken before.
+		/// </summary>
+		public readonly Dictionary<string, Vector4> Values = new( StringComparer.OrdinalIgnoreCase );
+
+		/// <summary>The features set in code it last took.</summary>
 		public IReadOnlyDictionary<string, int> Features;
+
+		public void Took( IReadOnlyDictionary<string, object> set )
+		{
+			Values.Clear();
+			if ( set is null ) return;
+			foreach ( var (name, value) in set )
+			{
+				if ( value is Vector4 v ) Values[name] = v;
+			}
+		}
 	}
 
 	static readonly ConditionalWeakTable<Sandbox.Material, SetMaterial> setMaterials = new();
