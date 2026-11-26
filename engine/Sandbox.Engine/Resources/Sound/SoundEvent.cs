@@ -146,6 +146,7 @@ public partial class SoundEvent : GameResource
 		Forward = 1,
 		Backward = 2,
 		Random = 3,
+		[Hide, Obsolete( "Random never repeats a sound back to back now. Use Random." )]
 		RandomExclusive = 4,
 		//RandomWeighted = 5 // enable when we expose input_index
 	};
@@ -192,20 +193,9 @@ public partial class SoundEvent : GameResource
 			index--;
 			index = index < 0 ? maxIndex : index;
 		}
-		else if ( selectionMode == SoundSelectionMode.Random )
+		else // Random, and the obsolete RandomExclusive
 		{
-			index = Random.Shared.Int( 0, maxIndex );
-			InputIndex = index;
-		}
-		else if ( selectionMode == SoundSelectionMode.RandomExclusive )
-		{
-			index = Random.Shared.Int( 0, maxIndex );
-			if ( index == InputIndex )
-			{
-				index++;
-				index = index > maxIndex ? 0 : index;
-			}
-
+			index = NextShuffledIndex( count );
 			InputIndex = index;
 		}
 
@@ -213,6 +203,27 @@ public partial class SoundEvent : GameResource
 		InputIndex = index;
 
 		return sound;
+	}
+
+	int[] _shuffleBag;
+	int _shuffleBagPosition;
+
+	/// <summary>
+	/// Shuffle bag: every sound plays once before any repeats, and a new cycle never starts with the last sound played.
+	/// </summary>
+	int NextShuffledIndex( int count )
+	{
+		if ( _shuffleBag is null || _shuffleBag.Length != count || _shuffleBagPosition >= count )
+		{
+			_shuffleBag = Enumerable.Range( 0, count ).ToArray();
+			Random.Shared.Shuffle( _shuffleBag );
+			_shuffleBagPosition = 0;
+
+			if ( _shuffleBag[0] == InputIndex )
+				(_shuffleBag[0], _shuffleBag[count - 1]) = (_shuffleBag[count - 1], _shuffleBag[0]);
+		}
+
+		return _shuffleBag[_shuffleBagPosition++];
 	}
 
 	protected override Bitmap CreateAssetTypeIcon( int width, int height )
