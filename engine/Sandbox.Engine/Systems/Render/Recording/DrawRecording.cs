@@ -118,7 +118,9 @@ internal sealed unsafe class DrawRecording
 	{
 		entries.Clear();
 		bytesUsed = 0;
-		Array.Clear( transforms, 0, transformsUsed );
+
+		// Plain values, as the bytes are: written again before they're read, so nothing to clear (a game drawing models
+		// instanced can leave thousands)
 		transformsUsed = 0;
 		for ( int i = 0; i < snapshotsUsed; i++ ) snapshots[i].Clear();
 		snapshotsUsed = 0;
