@@ -168,11 +168,12 @@ public static partial class TextRendering
 		}
 
 		List<GPUBoxInstance> _instances;
+		List<uint> _tiles;
 		GpuFontText.Placement _placement;
 
 		/// <summary>
 		/// The block's glyph instances in this frame's shared text buffers, for a quad that composites them per
-		/// pixel straight from the outlines (like particle text). Built once, uploaded once a frame however often it's drawn.
+		/// pixel straight from the outlines (like particle text). Built and binned into tiles once, appended once a frame however often it's drawn.
 		/// </summary>
 		internal GpuFontText.Placement Upload()
 		{
@@ -185,10 +186,11 @@ public static partial class TextRendering
 			{
 				var instances = new List<GPUBoxInstance>();
 				GpuFontText.Build( Layout, BlockOrigin, GpuFontText.Options.For( _scope ), instances );
+				_tiles = GpuFontText.Bin( instances, (int)Size.x, (int)Size.y );
 				_instances = instances;
 			}
 
-			_placement = GpuFontText.Upload( _instances, (int)Size.x, (int)Size.y );
+			_placement = GpuFontText.Upload( _instances, _tiles, (int)Size.x, (int)Size.y );
 
 			// Evicted by Tick while a command list still held us: back in the cache so it can evict us again
 			if ( CacheKey != 0 && !Dictionary.ContainsKey( CacheKey ) ) Dictionary.TryAdd( CacheKey, this );

@@ -431,6 +431,39 @@ internal static class GpuFontText
 	}
 
 	/// <summary>
+	/// A block's instances binned into tiles over a width by height pixel area, once: what <see cref="Upload(List{GPUBoxInstance}, List{uint}, int, int)"/>
+	/// appends each frame instead of binning them again.
+	/// </summary>
+	public static List<uint> Bin( List<GPUBoxInstance> instances, int width, int height )
+	{
+		var tiles = new List<uint>();
+		BinTiles( CollectionsMarshal.AsSpan( instances ), tiles, (width + TileSize - 1) / TileSize, (height + TileSize - 1) / TileSize );
+		return tiles;
+	}
+
+	/// <summary>
+	/// <see cref="Upload(List{GPUBoxInstance}, int, int)"/> for a block binned once by <see cref="Bin"/>: its tiles are copied
+	/// into this frame's buffer, their offsets moved to where they land.
+	/// </summary>
+	public static Placement Upload( List<GPUBoxInstance> instances, List<uint> binned, int width, int height )
+	{
+		lock ( _lock )
+		{
+			var slot = AcquireSlot();
+			var start = slot.Tiles.Count;
+			var placement = new Placement( slot.Frame, slot.Instances.Count, start, (width + TileSize - 1) / TileSize, width, height );
+			slot.Tiles.AddRange( binned );
+
+			// The first tile count + 1 entries are offsets into the buffer; the rest are the block's own instance indices
+			var offsets = CollectionsMarshal.AsSpan( slot.Tiles ).Slice( start, placement.TilesX * ((height + TileSize - 1) / TileSize) + 1 );
+			for ( int i = 0; i < offsets.Length; i++ ) offsets[i] += (uint)start;
+
+			slot.Instances.AddRange( instances );
+			return placement;
+		}
+	}
+
+	/// <summary>
 	/// Bind the block buffers a frame's placements point into, and the glyph outlines, for a shader that composites
 	/// them. The render thread can be a frame or two behind, so the caller says which frame it recorded.
 	/// </summary>
