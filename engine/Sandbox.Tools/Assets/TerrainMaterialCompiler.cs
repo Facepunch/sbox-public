@@ -8,7 +8,7 @@ namespace Sandbox;
 [ResourceIdentity( "tmat" )]
 internal class TerrainMaterialCompiler : ResourceCompiler
 {
-	protected override Task<bool> Compile()
+	protected override async Task<bool> Compile()
 	{
 		var filename = Context.AbsolutePath;
 		var jsonString = File.ReadAllText( filename );
@@ -30,20 +30,21 @@ internal class TerrainMaterialCompiler : ResourceCompiler
 		var bcrPath = $"{path}/{file}_tmat_bcr.generated.vtex";
 		var nhoPath = $"{path}/{file}_tmat_nho.generated.vtex";
 
-		// Its textures are made from source images only, so a describe has nothing to learn from them
+		// Its textures are made from source images only, so a describe has nothing to learn from them. Awaited, not blocked
+		// on: in a build job they encode on the job's thread, leaving the main thread to the other jobs
 		if ( !Context.Describing )
 		{
 			var childContext = Context.CreateChild( bcrPath );
 			childContext.SetInputData( string.Format( BCRTextureDefinition, albedo, roughness ) );
-			childContext.Compile();
+			await childContext.CompileAsync();
 
 			childContext = Context.CreateChild( nhoPath );
 			childContext.SetInputData( string.Format( NHOTextureDefinition, normal, height, ao ) );
-			childContext.Compile();
+			await childContext.CompileAsync();
 		}
 
 		Context.Data.Write( jsonString );
-		return Task.FromResult( true );
+		return true;
 
 		/*
 		using var stream = new MemoryStream();

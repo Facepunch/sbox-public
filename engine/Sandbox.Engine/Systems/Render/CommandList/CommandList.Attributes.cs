@@ -8,22 +8,15 @@ public sealed partial class CommandList
 	RenderAttributes drawAttributes;
 	AttributeAccess drawAttributeAccess;
 
-	// The draw set while playing back into a block whose attributes are managed (a backend other than Source 2's)
-	RenderAttributes managedDrawAttributes;
-	RenderAttributes currentDrawAttributes;
-
 	/// <summary>Starts a private attribute set for one draw, inheriting the caller's attributes at playback.</summary>
 	internal unsafe AttributeAccess BeginDrawAttributes()
 	{
-		drawAttributes ??= new();
-		drawAttributeAccess ??= new( this, () => currentDrawAttributes ?? drawAttributes );
+		drawAttributeAccess ??= new( this, () => drawAttributes );
 		static void Execute( ref Entry entry, CommandList list )
 		{
-			var scope = Graphics.Attributes;
-			var draw = scope.IsManaged ? list.managedDrawAttributes ??= RenderAttributes.CreateManaged() : list.drawAttributes;
-			list.currentDrawAttributes = draw;
+			var draw = list.drawAttributes ??= RenderAttributes.CreateManaged();
 			draw.Clear( false );
-			scope.MergeTo( draw );
+			Graphics.Attributes.MergeTo( draw );
 		}
 		AddEntry( &Execute, default );
 		return drawAttributeAccess;
@@ -131,9 +124,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( entry.Token, (int)entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, entry.Count );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( i, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Count = i } );
 		}
 
 		public void Set( StringToken token, bool b )
@@ -173,25 +166,25 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( entry.Token, (Texture)entry.Object2, (int)entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, (Texture)entry.Object2, entry.Count );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object2 = texture, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = texture, Object4 = this, Count = mip } );
 		}
 
 		/// <summary>
 		/// Set a texture's bindless index to this int attribute, looked up as the list plays back, where the renderer draws,
-		/// and tell texture streaming the texture is used then (<see cref="Texture.MarkUsed"/> with <paramref name="requiredMipSize"/>).
+		/// and stamp its use at playback.
 		/// </summary>
-		internal void SetIndex( StringToken token, Texture texture, int requiredMipSize = 0 )
+		internal void SetIndex( StringToken token, Texture texture )
 		{
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var texture = (Texture)entry.Object2;
-				texture.MarkUsed( (int)entry.Data1.x );
+				texture.MarkUsed();
 				var attrAccess = (AttributeAccess)entry.Object4;
 				attrAccess.attributes.Set( entry.Token, texture.Index );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object2 = texture, Object4 = this, Data1 = new Vector4( requiredMipSize, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = texture, Object4 = this } );
 		}
 
 		public void Set( StringToken token, SamplerState samplerState )
@@ -209,31 +202,16 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetCombo( entry.Token, (int)entry.Data1.x );
+				attrAccess.attributes.SetCombo( entry.Token, entry.Count );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( value, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Count = value } );
 		}
 
 		public void SetCombo( StringToken token, bool value )
-		{
-			static void Execute( ref Entry entry, CommandList commandList )
-			{
-				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetCombo( entry.Token, (int)entry.Data1.x != 0 );
-			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( value ? 1 : 0, 0, 0, 0 ) } );
-		}
+			=> SetCombo( token, value ? 1 : 0 );
 
 		public void SetCombo<T>( StringToken token, T t ) where T : unmanaged, Enum
 		{
-			static void Execute( ref Entry entry, CommandList commandList )
-			{
-				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetCombo( entry.Token, (int)entry.Data1.x );
-			}
-			// Store the enum as its integer value in Data1.x to avoid boxing into Object2.
-			// SetCombo(int) and SetComboEnum<T> both ultimately call SetComboValue(byte),
-			// so the GPU behaviour is identical.
 			var intValue = Unsafe.SizeOf<T>() switch
 			{
 				1 => Unsafe.As<T, byte>( ref t ),
@@ -241,7 +219,7 @@ public sealed partial class CommandList
 				8 => (int)Unsafe.As<T, long>( ref t ),
 				_ => Unsafe.As<T, int>( ref t )
 			};
-			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( intValue, 0, 0, 0 ) } );
+			SetCombo( token, intValue );
 		}
 
 		public void SetData<T>( StringToken token, T data ) where T : unmanaged
@@ -254,9 +232,6 @@ public sealed partial class CommandList
 			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this }, data );
 		}
 
-		// What a managed block draws into: the target it bound, else its view's own (a Borealis.Gpu camera's stage)
-		static RenderTarget BoundTarget() => Graphics.RenderTarget ?? (Graphics.CurrentView as BorealisGpuView)?.Target;
-
 		/// <summary>
 		/// Set a special value
 		/// </summary>
@@ -265,44 +240,15 @@ public sealed partial class CommandList
 			switch ( value )
 			{
 				case RenderValue.ColorTarget:
-					{
-						static void Execute( ref Entry entry, CommandList commandList )
-						{
-							var attrAccess = (AttributeAccess)entry.Object4;
-
-							// A block on a device of its own (a Borealis.Gpu frame's, or a camera's stage in one) draws into its
-							// bound target, which has no native handle: the one it set, else its view's
-							if ( attrAccess.attributes.IsManaged )
-							{
-								attrAccess.attributes.Set( entry.Token, BoundTarget()?.ColorTarget );
-								return;
-							}
-
-							var handle = Graphics.GetColorTarget( out var owned );
-							attrAccess.attributes.Set( entry.Token, handle );
-							if ( owned && !handle.IsNull ) handle.DestroyStrongHandle();
-						}
-						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
-					}
-					break;
-
 				case RenderValue.DepthTarget:
 					{
 						static void Execute( ref Entry entry, CommandList commandList )
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
-
-							if ( attrAccess.attributes.IsManaged )
-							{
-								attrAccess.attributes.Set( entry.Token, BoundTarget()?.DepthTarget );
-								return;
-							}
-
-							var handle = Graphics.GetDepthTarget( out var owned );
-							attrAccess.attributes.Set( entry.Token, handle );
-							if ( owned && !handle.IsNull ) handle.DestroyStrongHandle();
+							var texture = (RenderValue)entry.Count == RenderValue.ColorTarget ? Graphics.BoundColorTexture : Graphics.BoundDepthTexture;
+							attrAccess.attributes.Set( entry.Token, texture );
 						}
-						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
+						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Count = (int)value } );
 					}
 					break;
 
@@ -334,10 +280,10 @@ public sealed partial class CommandList
 
 				// GetTemporary caps the mips a small target asks for, so a mip past the last one binds the last one
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( entry.Token, target.ColorTarget, Math.Min( (int)entry.Data1.x, target.ColorTarget.Mips - 1 ) );
+				attrAccess.attributes.Set( entry.Token, target.ColorTarget, Math.Min( entry.Count, target.ColorTarget.Mips - 1 ) );
 			}
 
-			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Count = mip } );
 		}
 
 		/// <summary>
@@ -354,10 +300,10 @@ public sealed partial class CommandList
 				}
 
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( entry.Token, target.DepthTarget, (int)entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, target.DepthTarget, entry.Count );
 			}
 
-			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Count = mip } );
 		}
 
 		/// <summary>
@@ -387,20 +333,32 @@ public sealed partial class CommandList
 		{
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
-				if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+				if ( commandList.GetDimension( (string)entry.Object5, entry.Count, entry.Ints.X != 0 ) is not { } dimension )
 				{
 					Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
 					return;
 				}
 
-				var s = target.ColorTarget.Size;
-
 				var attrAccess = (AttributeAccess)entry.Object4;
-				if ( (int)entry.Data1.x != 0 ) attrAccess.attributes.Set( entry.Token, new Vector2( 1.0f / s.x, 1.0f / s.y ) );
-				else attrAccess.attributes.Set( entry.Token, s );
+				var s = new Vector2( dimension.x, dimension.y );
+				attrAccess.attributes.Set( entry.Token, entry.Ints.Y != 0 ? new Vector2( 1.0f / s.x, 1.0f / s.y ) : s );
 			}
 
-			list.AddEntry( &Execute, new Entry { Token = token, Object5 = size.Name, Object4 = this, Data1 = new Vector4( inverse ? 1 : 0, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object5 = size.Name, Object4 = this, Count = size.Divisor, Ints = (size.IsViewport ? 1 : 0, inverse ? 1 : 0, 0, 0) } );
+		}
+
+		/// <summary>Set the allocated color mip's exact dimensions as a shader int2.</summary>
+		internal void SetMipSize( StringToken token, RenderTargetHandle.ColorTextureRef texture, int mip )
+		{
+			static void Execute( ref Entry entry, CommandList commandList )
+			{
+				if ( commandList.GetRenderTarget( (string)entry.Object5 )?.ColorTarget is not { } color ) return;
+				int mip = Math.Clamp( entry.Count, 0, color.Mips - 1 );
+				((AttributeAccess)entry.Object4).attributes.Set( entry.Token,
+					new Vector2Int( Math.Max( color.Width >> mip, 1 ), Math.Max( color.Height >> mip, 1 ) ) );
+			}
+
+			list.AddEntry( &Execute, new Entry { Token = token, Object5 = texture.Name, Object4 = this, Count = mip } );
 		}
 
 		/// <summary>
@@ -502,8 +460,7 @@ public sealed partial class CommandList
 	}
 
 	/// <summary>
-	/// These are the attributes for the current view. Setting a variable here will let you pass it down to
-	/// other places in the render pipeline.
+	/// Legacy alias for <see cref="Attributes"/>. Both write to the currently executing render block.
 	/// </summary>
 	[Obsolete( "Global/frame attributes are deprecated. Use a local Attributes set or pipeline texture slots instead." )]
 	public AttributeAccess GlobalAttributes => Attributes;

@@ -23,15 +23,16 @@ public sealed partial class SceneWorld
 	}
 
 	/// <summary>
-	/// Select the newest visible sky, as CSkyBoxObjectDesc::DrawArray does. Child views pass no object-tag filters.
+	/// Select the newest visible sky, as CSkyBoxObjectDesc::DrawArray does.
 	/// </summary>
-	internal SceneSkyBox GetSky( ITagSet renderTags = null, ITagSet excludeTags = null )
+	internal SceneSkyBox GetSky( ITagSet renderTags = null, ITagSet excludeTags = null, ITagSet viewExcludeTags = null )
 	{
 		// Camera tag sets cache their tokens; avoid enumerators and string lookups on every view.
 		var include = renderTags?.GetTokens();
 		var exclude = excludeTags?.GetTokens();
+		var viewExclude = viewExcludeTags?.GetTokens();
 		var filterInclusion = include is { Count: > 0 };
-		var filterExclusion = exclude is { Count: > 0 };
+		var filterExclusion = exclude is { Count: > 0 } || viewExclude is { Count: > 0 };
 
 		lock ( Skies )
 		{
@@ -49,7 +50,7 @@ public sealed partial class SceneWorld
 					for ( int tagIndex = 0; tagIndex < tags.Count; tagIndex++ )
 					{
 						var tag = tags[tagIndex];
-						if ( filterExclusion && exclude.Contains( tag ) )
+						if ( filterExclusion && (exclude?.Contains( tag ) == true || viewExclude?.Contains( tag ) == true) )
 						{
 							excluded = true;
 							break;

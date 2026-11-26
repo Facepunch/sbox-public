@@ -144,6 +144,7 @@ public partial class SceneObject : IHandle
 		lock ( World.InternalSceneObjects )
 		{
 			World.InternalSceneObjects.Add( this );
+			World.InvalidateSceneObjects();
 		}
 
 		// Made in its renderer once its constructor is done
@@ -175,6 +176,7 @@ public partial class SceneObject : IHandle
 		lock ( World.InternalSceneObjects )
 		{
 			World.InternalSceneObjects.Remove( this );
+			World.InvalidateSceneObjects();
 		}
 
 		if ( _attributes != null )
@@ -190,12 +192,6 @@ public partial class SceneObject : IHandle
 
 	Transform _transform;
 	bool _transformSet;
-
-	/// <summary>
-	/// Incremented whenever <see cref="Transform"/> actually changes. Cheap way for
-	/// consumers (e.g. the shadow cache) to detect movement without storing a transform.
-	/// </summary>
-	internal int TransformVersion = 1;
 
 	/// <summary>
 	/// What it draws as in its world's render world on Borealis, its own: made when its world is first drawn, null before
@@ -230,7 +226,6 @@ public partial class SceneObject : IHandle
 			var previous = _children is null ? default : Transform;
 			_transformSet = true;
 			_transform = value;
-			TransformVersion++;
 			if ( WritesNativeObject( "SetTransform" ) ) native.SetTransform( value );
 			UpdateRigidBounds();
 			NotifyChanged( Rendering.SceneObjectChange.Transform );
@@ -258,8 +253,9 @@ public partial class SceneObject : IHandle
 		if ( !System.Numerics.Matrix4x4.Invert( Matrix.FromTransform( previous ), out var inverse ) ) return;
 		var move = inverse * (System.Numerics.Matrix4x4)Matrix.FromTransform( now );
 
-		foreach ( var child in _children.ToArray() )
+		for ( int i = 0; i < _children.Count; i++ )
 		{
+			var child = _children[i];
 			if ( !child.IsValid() ) continue;
 			child.Transform = ((Matrix)((System.Numerics.Matrix4x4)Matrix.FromTransform( child.Transform ) * move)).ExtractTransform();
 		}

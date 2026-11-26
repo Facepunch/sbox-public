@@ -59,7 +59,7 @@ public class ViewTests
 
 		var c = new ViewConstants();
 		view.FillConstants( ref c, new Vector2( 1000, 1000 ), 0 );
-		view.FillUpscaledConstants( ref c, new Rect( 0, 0, 2000, 2000 ), new Vector2( 2000, 2000 ) );
+		view.FillUpscaledConstants( ref c, new Rect( 23, 17, 2000, 2000 ), new Vector2( 2000, 2000 ) );
 
 		// The view sits at the origin, so its rotation-only world to projection is the whole of it
 		var unjittered = c.WorldToProjection.Transform( new Vector4( point, 1 ) );
@@ -68,6 +68,13 @@ public class ViewTests
 		Assert.AreEqual( plain.y, unjittered.y, 1e-5f );
 		Assert.AreEqual( 2000, c.ViewportSize.x );
 		Assert.AreEqual( 2000, c.RenderTargetSize.y );
+		Assert.AreEqual( new Vector2( 23, 17 ), c.ViewportOffset );
+
+		var viewPoint = c.WorldToView.Transform( new Vector4( point, 1 ) );
+		var previousScreen = c.CurrFrameViewToPrevFrameProj.Transform( viewPoint );
+		previousScreen /= previousScreen.w;
+		Assert.AreEqual( (1 + plain.x) * 1000, previousScreen.x, 1e-3f );
+		Assert.AreEqual( (1 - plain.y) * 1000, previousScreen.y, 1e-3f );
 	}
 
 	[TestMethod]

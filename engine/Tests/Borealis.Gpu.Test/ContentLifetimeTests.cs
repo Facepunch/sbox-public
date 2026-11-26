@@ -13,7 +13,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class ContentLifetimeTests : GpuTest
+public class ContentLifetimeTests : RenderGpuTest
 {
 	[TestMethod]
 	public void ABorrowedMaterialGoesWithTheWorldThatHeldIt()

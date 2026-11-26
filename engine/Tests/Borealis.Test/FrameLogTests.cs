@@ -2,7 +2,6 @@ using Borealis;
 using Borealis.Gpu;
 using BorealisTests.Headless;
 using System.Collections.Generic;
-using System.Reflection;
 using static BorealisTests.TestScenes;
 
 namespace BorealisTests;
@@ -17,8 +16,6 @@ namespace BorealisTests;
 public class FrameLogTests
 {
 	static HeadlessDevice Device => HeadlessRenderHost.Headless;
-
-	static readonly FieldInfo Layers = typeof( RenderSystem ).GetField( "layers", BindingFlags.Instance | BindingFlags.NonPublic );
 
 	/// <summary>
 	/// A row of boxes that can draw, all of one opaque material.
@@ -285,7 +282,7 @@ public class FrameLogTests
 			new Pass( "graphics", draw ),
 		};
 		if ( read ) layers.Add( new Pass( "reader", consume, reads: FrameResources.QuarterDepth ) );
-		Layers.SetValue( system, layers.ToArray() );
+		system.Layers = layers.ToArray();
 
 		var frame = Render( system, new RenderWorld(), target );
 		var produced = frame.Submissions.Where( s => s.Commands.Any( c => c.Material == produce ) ).ToList();

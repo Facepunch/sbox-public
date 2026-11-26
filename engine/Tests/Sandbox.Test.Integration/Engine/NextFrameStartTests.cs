@@ -4,7 +4,7 @@ using System.Threading;
 namespace EngineTests;
 
 /// <summary>
-/// <see cref="BorealisGpuRenderBackend.NextFrameStart"/>: where a scene's load that waited for Borealis's content resumes.
+/// <see cref="FrameStartWaiters.Next"/>: where a scene's load that waited for Borealis's content resumes.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -27,12 +27,21 @@ public class NextFrameStartTests
 	public void ResumesOnlyOnceTheFrameHasMovedOn()
 	{
 		Assert.AreEqual( SyncContext.MainThread, SynchronizationContext.Current );
-		var task = BorealisGpuRenderBackend.NextFrameStart();
+		var task = FrameStartWaiters.Next();
+		Assert.AreSame( task, FrameStartWaiters.Next(), "waiters in one frame share a signal" );
+		FrameStartWaiters.Complete();
 		for ( int i = 0; i < 5; i++ ) SyncContext.MainThread.ProcessQueue();
 		Assert.IsFalse( task.IsCompleted, "not within the frame it was asked in" );
 
 		Application.FrameCount++;
+		Assert.IsFalse( task.IsCompleted, "advancing the counter doesn't fire frame start" );
+		var next = FrameStartWaiters.Next();
+		FrameStartWaiters.Complete();
 		SyncContext.MainThread.ProcessQueue();
 		Assert.IsTrue( task.IsCompletedSuccessfully, "in the next frame's first tasks" );
+		Assert.IsFalse( next.IsCompleted, "a waiter added in this frame is for the following frame" );
+		Application.FrameCount++;
+		FrameStartWaiters.Complete();
+		Assert.IsTrue( next.IsCompletedSuccessfully );
 	}
 }

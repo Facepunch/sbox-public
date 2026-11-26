@@ -4,7 +4,7 @@ namespace Sandbox;
 
 public sealed partial class CameraComponent : Component, Component.ExecuteInEditor
 {
-	CommandList _hudCommandList = new CommandList( "Hud" ) { Flags = CommandList.Flag.Hud };
+	CommandList _hudCommandList = new CommandList( "Hud" );
 
 	/// <summary>
 	/// Allows drawing on the camera after post processing.
@@ -19,7 +19,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	public Painter BeginHud() => Painter.Begin( _hudCommandList, new Rect( Vector2.Zero, ScreenRect.Size ) );
 
-	CommandList _overlayCommandList = new CommandList( "Overlay" ) { Flags = CommandList.Flag.Hud };
+	CommandList _overlayCommandList = new CommandList( "Overlay" );
 
 	/// <summary>
 	/// Used to draw to the screen. This is drawn on top of everything, so is good for debug overlays etc.

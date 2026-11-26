@@ -2,6 +2,7 @@ using Borealis;
 using Borealis.Gpu;
 using BorealisTests.Headless;
 using System.Collections.Generic;
+using System;
 using System.Linq;
 using static BorealisTests.TestScenes;
 
@@ -84,6 +85,46 @@ public class ChildViewTests
 		Assert.IsTrue( ForwardDraws( callbacks.SubmittedAfter, callbacks.SubmittedAtReadable ) > 0, "the child's draws" );
 		Assert.IsTrue( ForwardDraws( callbacks.SubmittedAtReadable, submissions.Count ) > 0, "the parent's draws" );
 		Assert.AreEqual( 0, ForwardDraws( 0, callbacks.SubmittedAfter ) );
+	}
+
+	sealed class CallbackLayer( Action record ) : RenderLayer( "Test callback" )
+	{
+		public override void Record( RenderFrame frame, GpuContext context, ref RenderStats stats ) => record();
+	}
+
+	[TestMethod]
+	public void NestedViewsSubmitBeforeTheirParentAndItsLaterSibling()
+	{
+		var world = new RenderWorld();
+		using var root = new RenderSystem { Shadows = false };
+		using var first = new RenderSystem { Shadows = false, MayFinishLater = true };
+		using var grandchild = new RenderSystem { Shadows = false, MayFinishLater = true };
+		using var sibling = new RenderSystem { Shadows = false, MayFinishLater = true };
+		using var rootTarget = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var firstTarget = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var grandchildTarget = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var siblingTarget = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		var order = new List<string>();
+
+		void DrawDeferred( RenderSystem system, ViewTarget target, string name )
+		{
+			system.Render( world, LookingDownX(), target );
+			Assert.IsTrue( system.IsUnfinished );
+			system.AfterSubmit( _ => order.Add( name ), target.Resolved );
+		}
+
+		first.Layers = [new CallbackLayer( () => DrawDeferred( grandchild, grandchildTarget, "grandchild" ) )];
+		root.Layers = [new CallbackLayer( () =>
+		{
+			DrawDeferred( first, firstTarget, "first" );
+			DrawDeferred( sibling, siblingTarget, "sibling" );
+			Assert.AreEqual( 0, order.Count );
+		} )];
+
+		RenderHost.Current.NextFrame();
+		root.Render( world, LookingDownX(), rootTarget );
+		CollectionAssert.AreEqual( new[] { "grandchild", "first", "sibling" }, order );
+		Assert.IsFalse( world.InRender );
 	}
 
 	[TestMethod]

@@ -16,6 +16,24 @@ internal static partial class DebugOverlay
 			[NetworkDebugSystem.MessageType.UserCommands] = Sandbox.Diagnostics.DevToolsStyles.Series[7]
 		};
 
+		private static readonly (NetworkDebugSystem.MessageType Type, Color Color, string Name)[] Legend = Colors
+			.OrderBy( k => (int)k.Key )
+			.Select( k => (k.Key, k.Value, k.Key.ToString()) )
+			.ToArray();
+
+		private static readonly List<float> RulerTicks = new();
+
+		private static readonly string DurationText = $"Last ~{MathF.Round( NetworkDebugSystem.MaxSamples * NetworkDebugSystem.SampleRate ):0} seconds";
+
+		static int TotalBytes( NetworkDebugSystem.Sample sample )
+		{
+			var total = 0;
+			foreach ( var bytes in sample.BytesPerType.Values )
+				total += bytes;
+
+			return total;
+		}
+
 		private static float _smoothedInKbpsIn;
 		private static float _smoothedScale = 10f;
 
@@ -37,9 +55,9 @@ internal static partial class DebugOverlay
 			const float rulerTickLabelWidth = 60f;
 			var biggestWidth = 0f;
 
-			foreach ( var (type, _) in Colors )
+			foreach ( var (_, _, name) in Legend )
 			{
-				scope = new TextRendering.Scope( $"{type}", Color.White, 11, fontName, fontWeight );
+				scope = new TextRendering.Scope( name, Color.White, 11, fontName, fontWeight );
 				var size = scope.Measure();
 
 				if ( size.x > biggestWidth )
@@ -51,7 +69,10 @@ internal static partial class DebugOverlay
 			var graphX = position.x + biggestWidth + 16f;
 			var graphY = position.y;
 
-			var maxTotalBytes = Math.Max( system.Samples.Max( s => s.BytesPerType.Values.Sum() ), 1 );
+			var maxTotalBytes = 1;
+			foreach ( var sample in system.Samples )
+				maxTotalBytes = Math.Max( maxTotalBytes, TotalBytes( sample ) );
+
 			var visibleKb = MathF.Max( 1f, maxTotalBytes / 1024f ); // Always show at least 1KB of height
 			var targetScale = graphHeight / visibleKb;
 
@@ -60,21 +81,21 @@ internal static partial class DebugOverlay
 			painter.BorderedRect( new Rect( graphX, graphY, graphWidth, graphHeight ).SnapToGrid(), Color.Black.WithAlpha( 0.2f ), cornerRadius: default, borderWidth: 1, borderColor: Color.White.WithAlpha( 0.1f ) );
 
 			var barWidth = graphWidth / NetworkDebugSystem.MaxSamples;
-			var samples = system.Samples.ToArray();
+			var sampleCount = system.Samples.Count;
+			var sampleIndex = 0;
 
-			for ( var i = 0; i < samples.Length; i++ )
+			foreach ( var sample in system.Samples )
 			{
-				var sampleIndex = samples.Length - 1 - i;
-				var sample = samples[sampleIndex];
-
-				var x = graphX + graphWidth - ((i + 1) * barWidth);
+				var x = graphX + graphWidth - ((sampleCount - sampleIndex++) * barWidth);
 				var y = graphY + graphHeight;
 				var accumulatedHeight = 0f;
 
-				foreach ( var kv in sample.BytesPerType.OrderBy( k => (int)k.Key ) )
+				foreach ( var (type, color, _) in Legend )
 				{
-					var height = (kv.Value / 1024f) * _smoothedScale;
-					var color = Colors[kv.Key];
+					if ( !sample.BytesPerType.TryGetValue( type, out var bytes ) )
+						continue;
+
+					var height = (bytes / 1024f) * _smoothedScale;
 
 					// Prevent total from overflowing the graph
 					if ( accumulatedHeight + height > graphHeight )
@@ -92,7 +113,8 @@ internal static partial class DebugOverlay
 			}
 
 			var maxRulerKb = maxTotalBytes / 1024f;
-			var rulerTicks = new List<float>();
+			var rulerTicks = RulerTicks;
+			rulerTicks.Clear();
 			var rulerStep = maxRulerKb switch
 			{
 				> 100f => 20f,
@@ -139,17 +161,16 @@ internal static partial class DebugOverlay
 				);
 			}
 
-			var legendEntries = Colors.OrderBy( k => (int)k.Key ).ToArray();
-			var legendHeight = legendEntries.Length * (legendRowHeight + 2);
+			var legendHeight = Legend.Length * (legendRowHeight + 2);
 			var legendPos = new Vector2( position.x, position.y + graphHeight - legendHeight );
 
-			foreach ( var (type, color) in Colors.OrderBy( k => (int)k.Key ) )
+			foreach ( var (_, color, name) in Legend )
 			{
 				painter.Fill = color;
 				painter.Stroke = Stroke.None;
 				painter.Rect( new Rect( legendPos.x, legendPos.y, legendBoxWidth, legendBoxHeight ).SnapToGrid() );
 
-				scope = new TextRendering.Scope( $"{type}", Color.White.WithAlpha( 0.8f ), 11, fontName, fontWeight )
+				scope = new TextRendering.Scope( name, Color.White.WithAlpha( 0.8f ), 11, fontName, fontWeight )
 				{
 					Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
 				};
@@ -164,8 +185,16 @@ internal static partial class DebugOverlay
 			}
 
 			var samplesToAverage = (1.0f / NetworkDebugSystem.SampleRate).CeilToInt();
-			var recent = system.Samples.TakeLast( samplesToAverage );
-			var totalBytes = recent.Sum( s => s.BytesPerType.Values.Sum() );
+			var skip = system.Samples.Count - samplesToAverage;
+			var totalBytes = 0;
+			foreach ( var sample in system.Samples )
+			{
+				if ( skip-- > 0 )
+					continue;
+
+				totalBytes += TotalBytes( sample );
+			}
+
 			var kbPerSecondIn = totalBytes / 1024f;
 
 			_smoothedInKbpsIn = _smoothedInKbpsIn.LerpTo( kbPerSecondIn, Time.Delta * 5f );
@@ -192,13 +221,7 @@ internal static partial class DebugOverlay
 				TextFlag.RightTop
 			);
 
-			var durationSeconds = MathF.Round( NetworkDebugSystem.MaxSamples * NetworkDebugSystem.SampleRate );
-			var durationLabel = $"{durationSeconds:0} seconds";
-
-			scope = new TextRendering.Scope(
-				$"Last ~{durationLabel}",
-				Color.White.WithAlpha( 0.8f ), 11, fontName, fontWeight
-			);
+			scope = new TextRendering.Scope( DurationText, Color.White.WithAlpha( 0.8f ), 11, fontName, fontWeight );
 
 			scope.Outline = new TextRendering.Outline
 			{

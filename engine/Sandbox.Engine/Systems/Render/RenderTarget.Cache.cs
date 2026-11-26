@@ -1,12 +1,23 @@
 ﻿using NativeEngine;
+using System.Diagnostics;
 using System.Threading;
 
 namespace Sandbox;
 
 public sealed partial class RenderTarget
 {
-	static Lock _lock = new();
-	static List<RenderTarget> All = new();
+	static readonly Lock _lock = new();
+	static readonly List<RenderTarget> All = new();
+
+	// Engine targets can contain menu UI or screenshots; never loan them to game callers.
+	enum Pool { Game, Engine, Capture }
+
+	readonly record struct Descriptor( int Width, int Height, ImageFormat Color, ImageFormat Depth,
+		int Mips, MultisampleAmount Msaa, string Name, Pool Pool );
+
+	Descriptor _descriptor;
+	ulong lastCaptureFrame;
+	long lastCaptureTicks;
 
 	/// <summary>
 	/// Get a temporary render target. You should dispose the returned handle when you're done to return the textures to the pool.
@@ -20,12 +31,12 @@ public sealed partial class RenderTarget
 	/// <param name="targetName">The optional name of the render target</param>
 	/// <returns>A RenderTarget that is ready to render to.</returns>
 	public static RenderTarget GetTemporary( int width, int height, ImageFormat colorFormat = ImageFormat.Default, ImageFormat depthFormat = ImageFormat.Default, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1, string targetName = "" )
-		=> GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName, 0 );
+		=> GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName, engineOwned: false );
 
-	/// <summary>
-	/// As above, with <paramref name="targetId"/> also telling targets apart, so callers needn't build a unique name every frame.
-	/// </summary>
-	internal static RenderTarget GetTemporary( int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa, int numMips, string targetName, int targetId, bool engineOwned = false )
+	internal static RenderTarget GetTemporary( int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa, int numMips, string targetName, bool engineOwned )
+		=> GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName, engineOwned ? Pool.Engine : Pool.Game );
+
+	static RenderTarget GetTemporary( int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa, int numMips, string targetName, Pool pool )
 	{
 		const int maxSize = 1024 * 16;
 
@@ -49,16 +60,15 @@ public sealed partial class RenderTarget
 		if ( msaa == MultisampleAmount.MultisampleScreen )
 			msaa = Graphics.IsActive ? Graphics.IdealMsaaLevel : MultisampleAmount.MultisampleNone;
 
-		int hash = HashCode.Combine( HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa, targetName, targetId ), engineOwned );
+		var descriptor = new Descriptor( width, height, colorFormat, depthFormat, numMips, msaa, targetName, pool );
 
 		RenderTarget rt = null;
 
 		lock ( _lock )
 		{
-			// Not FirstOrDefault - the predicate would capture hash and allocate a closure every call.
 			foreach ( var candidate in All )
 			{
-				if ( candidate.Loaned || candidate.CreationHash != hash || candidate.EngineOwned != engineOwned ) continue;
+				if ( candidate.Loaned || candidate._descriptor != descriptor ) continue;
 
 				rt = candidate;
 				break;
@@ -66,6 +76,7 @@ public sealed partial class RenderTarget
 
 			if ( rt == null )
 			{
+				var hash = descriptor.GetHashCode();
 				// Depth formats can't legally be UAV and they generally hate having mips.
 				// An R32 or similar is usually bound as a depth target if you want those. (e.g depth pyramid)
 				bool realDepthFormat = depthFormat.IsDepthFormat();
@@ -77,8 +88,7 @@ public sealed partial class RenderTarget
 				rt = new RenderTarget()
 				{
 					Loaned = true,
-					EngineOwned = engineOwned,
-					CreationHash = hash,
+					_descriptor = descriptor,
 					ColorTarget = rtColor,
 					DepthTarget = rtDepth,
 					Width = width,
@@ -90,16 +100,25 @@ public sealed partial class RenderTarget
 
 			rt.Loaned = true;
 			rt.FramesSinceUsed = 0;
+			if ( pool == Pool.Capture )
+			{
+				rt.lastCaptureFrame = Application.FrameCount;
+				rt.lastCaptureTicks = Stopwatch.GetTimestamp();
+			}
 		}
 
 		return rt;
 	}
 
+	/// <summary>Borrow a scene capture target for the frame, retaining the backing for the cached view's idle lifetime.</summary>
+	internal static RenderTarget GetCaptureTemporary( int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, string targetName )
+		=> GetTemporary( width, height, colorFormat, depthFormat, MultisampleAmount.MultisampleNone, 1, targetName, Pool.Capture );
+
 	/// <summary>
 	/// A temporary target from the engine's own pool, for anything holding the menu UI or the whole screen.
 	/// </summary>
 	internal static RenderTarget GetEngineTemporary( int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1, string targetName = "" )
-		=> GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName, 0, engineOwned: true );
+		=> GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName, engineOwned: true );
 
 	/// <inheritdoc cref="GetEngineTemporary(int, int, ImageFormat, ImageFormat, MultisampleAmount, int, string)"/>
 	internal static RenderTarget GetEngineTemporary( int sizeFactor, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1, string targetName = "" )
@@ -124,10 +143,12 @@ public sealed partial class RenderTarget
 	/// <param name="targetName">The optional name of the render target</param>
 	/// <returns>A RenderTarget that is ready to render to.</returns>
 	public static RenderTarget GetTemporary( int sizeFactor, ImageFormat colorFormat = ImageFormat.Default, ImageFormat depthFormat = ImageFormat.Default, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1, string targetName = "" )
+		=> GetTemporary( sizeFactor, colorFormat, depthFormat, msaa, numMips, targetName, engineOwned: false );
+
+	internal static RenderTarget GetTemporary( int sizeFactor, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa, int numMips, string targetName, bool engineOwned )
 	{
 		var (width, height) = ScaleDownSize( ScreenSize( sizeFactor ), sizeFactor );
-
-		return GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName );
+		return GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName, engineOwned );
 	}
 
 	static Vector2 ScreenSize( int sizeFactor )
@@ -174,12 +195,15 @@ public sealed partial class RenderTarget
 		{
 			for ( int i = All.Count - 1; i >= 0; i-- )
 			{
-				All[i].FramesSinceUsed++;
-				All[i].Loaned = false;
+				var target = All[i];
+				target.Loaned = false;
+				if ( target._descriptor.Pool == Pool.Capture )
+				{
+					if ( !CaptureIdlePolicy.Expired( Application.FrameCount, target.lastCaptureFrame, target.lastCaptureTicks ) ) continue;
+				}
+				else if ( ++target.FramesSinceUsed < 8 ) continue;
 
-				if ( All[i].FramesSinceUsed < 8 ) continue;
-
-				All[i].Destroy();
+				target.Destroy();
 				All.RemoveAt( i );
 			}
 		}
@@ -203,4 +227,14 @@ public sealed partial class RenderTarget
 			All.Clear();
 		}
 	}
+}
+
+/// <summary>Scene capture backing and view state stay warm until both idle limits pass.</summary>
+internal static class CaptureIdlePolicy
+{
+	internal const ulong Frames = 600;
+	internal const double Seconds = 5;
+
+	internal static bool Expired( ulong frame, ulong lastFrame, long lastTicks )
+		=> frame - lastFrame > Frames && Stopwatch.GetElapsedTime( lastTicks ).TotalSeconds >= Seconds;
 }

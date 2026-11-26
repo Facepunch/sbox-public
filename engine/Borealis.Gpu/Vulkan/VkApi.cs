@@ -168,6 +168,7 @@ internal sealed unsafe class VkInstanceApi
 	public readonly delegate* unmanaged< nint, VkWin32SurfaceCreateInfoKHR*, void*, ulong*, VkResult > vkCreateWin32SurfaceKHR;
 	public readonly delegate* unmanaged< nint, VkXlibSurfaceCreateInfoKHR*, void*, ulong*, VkResult > vkCreateXlibSurfaceKHR;
 	public readonly delegate* unmanaged< nint, VkWaylandSurfaceCreateInfoKHR*, void*, ulong*, VkResult > vkCreateWaylandSurfaceKHR;
+	public readonly delegate* unmanaged< nint, VkMetalSurfaceCreateInfoEXT*, void*, ulong*, VkResult > vkCreateMetalSurfaceEXT;
 
 	public VkInstanceApi( nint instance )
 	{
@@ -207,6 +208,7 @@ internal sealed unsafe class VkInstanceApi
 		vkCreateWin32SurfaceKHR = (delegate* unmanaged< nint, VkWin32SurfaceCreateInfoKHR*, void*, ulong*, VkResult >)Get( "vkCreateWin32SurfaceKHR" );
 		vkCreateXlibSurfaceKHR = (delegate* unmanaged< nint, VkXlibSurfaceCreateInfoKHR*, void*, ulong*, VkResult >)Get( "vkCreateXlibSurfaceKHR" );
 		vkCreateWaylandSurfaceKHR = (delegate* unmanaged< nint, VkWaylandSurfaceCreateInfoKHR*, void*, ulong*, VkResult >)Get( "vkCreateWaylandSurfaceKHR" );
+		vkCreateMetalSurfaceEXT = (delegate* unmanaged< nint, VkMetalSurfaceCreateInfoEXT*, void*, ulong*, VkResult >)Get( "vkCreateMetalSurfaceEXT" );
 	}
 
 	/// <summary>

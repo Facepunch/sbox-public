@@ -319,6 +319,10 @@ public class TerrainMaterialScatterer : Scatterer
 			instances.Add( CreateInstance( trace, entry ) );
 		}
 
+		// The scatterer lives on a resource: a terrain kept past this call holds its whole scene alive after it closes
+		_cachedTerrain = null;
+		_cachedTerrainObject = null;
+
 		return instances;
 	}
 

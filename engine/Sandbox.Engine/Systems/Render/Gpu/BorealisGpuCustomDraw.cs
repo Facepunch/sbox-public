@@ -2,6 +2,7 @@ using Borealis;
 using Borealis.Backend;
 using System.Runtime.InteropServices;
 using GpuContext = Borealis.Gpu.GpuContext;
+using OverlayStencil = Borealis.Gpu.OverlayStencil;
 
 namespace Sandbox;
 
@@ -63,7 +64,6 @@ internal static class BorealisGpuCustomDraw
 		frame ??= new BorealisGpuFrame( backend );
 		view ??= new BorealisGpuView( backend );
 		view.LayerType = layerType;
-		view.ShaderMode = shaderMode;
 		view.LightingWorld = lightingWorld;
 		view.LightingSubWorlds = subWorlds;
 		var viewport = target.Viewport;
@@ -80,6 +80,7 @@ internal static class BorealisGpuCustomDraw
 		// A debug view's tools pass (wireframe, overdraw, shader IDs) over the custom object's draws too
 		var drawer = backend.Context.Drawer;
 		drawer.ToolsPass = depthAlone ? ToolsPass.None : context.ToolsPass;
+		drawer.OverlayStencil = depthAlone ? context.OverlayStencil : OverlayStencil.None;
 		// A game's custom object replays what the extract recorded for this camera (Rendering.GameDrawExtract)
 		using var drawing = Rendering.GameDrawExtract.DrawingFor( cameraAttributes, overlay: false );
 		try
@@ -89,6 +90,7 @@ internal static class BorealisGpuCustomDraw
 		finally
 		{
 			drawer.ToolsPass = ToolsPass.None;
+			drawer.OverlayStencil = OverlayStencil.None;
 			view.LightingWorld = null;
 			backend.LendInstances( default, default, 0 );
 			backend.CullView = null;

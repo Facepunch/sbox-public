@@ -3,7 +3,7 @@ using System;
 namespace EngineTests;
 
 /// <summary>
-/// Validate caller-owned depth attachment requirements before native camera rendering.
+/// Validate caller-owned depth attachments for Borealis camera captures.
 /// </summary>
 [TestClass]
 public class CameraDepthTargetTest
@@ -33,7 +33,7 @@ public class CameraDepthTargetTest
 	}
 
 	/// <summary>
-	/// Reject incompatible attachments before submitting a view to the native renderer.
+	/// Reject incompatible attachments before submitting a view.
 	/// </summary>
 	[TestMethod]
 	public void RejectsWrongDepthSizeAndFormat()
@@ -48,6 +48,28 @@ public class CameraDepthTargetTest
 		{
 			Assert.ThrowsException<ArgumentException>( () => camera.RenderToTexture( color, smallDepth, default ) );
 			Assert.ThrowsException<ArgumentException>( () => camera.RenderToTexture( color, color, default ) );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	[TestMethod]
+	public void DrawsIntoMatchingColorAndDepth()
+	{
+		TestGraphics.Require();
+		var scene = new Scene();
+		using var scope = scene.Push();
+		using var color = Texture.CreateRenderTarget().WithSize( 32, 32 ).WithFormat( ImageFormat.RGBA8888 ).Create();
+		using var depth = Texture.CreateRenderTarget().WithSize( 32, 32 ).WithFormat( ImageFormat.D24S8 ).Create();
+		var camera = scene.CreateObject().Components.Create<CameraComponent>();
+
+		try
+		{
+			Assert.IsTrue( camera.RenderToTexture( color, depth, default, out var view ) );
+			Assert.IsTrue( view.IsValid );
+			Assert.IsTrue( depth.DrawnByView, "The caller's depth texture received the captured view." );
 		}
 		finally
 		{

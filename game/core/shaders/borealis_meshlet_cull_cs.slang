@@ -145,9 +145,18 @@ void Copy( uint nJob, uint nThread )
 	uint nPadded = vJob.z + ( ( vJob.z / 3 ) & 1 ) * 3;
 	for ( uint w = nThread; w * 2 < nPadded; w += 64 )
 	{
-		uint i0 = min( w * 2, vJob.z - 1 );
-		uint i1 = min( w * 2 + 1, vJob.z - 1 );
-		g_Compacted16.Store( ( vJob.x / 2 + w ) * 4, LoadIndex( page, vJob.y + i0, false ) | LoadIndex( page, vJob.y + i1, false ) << 16 );
+		// Aligned source pairs are already packed. Only unaligned pairs and the last padded word need unpacking.
+		uint i = w * 2;
+		uint nPair;
+		if ( ( vJob.y & 1 ) == 0 && i + 1 < vJob.z )
+			nPair = page.Load( ( vJob.y + i ) * 2 );
+		else
+		{
+			uint i0 = min( i, vJob.z - 1 );
+			uint i1 = min( i + 1, vJob.z - 1 );
+			nPair = LoadIndex( page, vJob.y + i0, false ) | LoadIndex( page, vJob.y + i1, false ) << 16;
+		}
+		g_Compacted16.Store( ( vJob.x / 2 + w ) * 4, nPair );
 	}
 }
 
@@ -178,7 +187,7 @@ void Copy( uint nJob, uint nThread )
 	bool bOneChunk = nMeshlets <= ChunkMeshlets;
 	ByteAddressBuffer meshlets = g_bindless_VertexBuffers[ vRun.x ];
 	uint nTransform = g_Frame.Load( nEntry + ListedFragment_Transform );
-	float3x4 mTransform = g_TransformData[ nTransform ].transform;
+	float3x4 mTransform = g_TransformData[ nTransform & 0xffffffu ].transform; // the top byte is a LOD fade's, kept in the records it writes
 	uint nVertexBase = g_Frame.Load( nEntry + ListedFragment_VertexBase );
 	uint nFragment = g_Frame.Load( nEntry + ListedFragment_Fragment );
 	ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nMeshletDraws ];

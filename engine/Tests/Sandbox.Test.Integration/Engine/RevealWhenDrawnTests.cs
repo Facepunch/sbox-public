@@ -31,9 +31,11 @@ public class RevealWhenDrawnTests
 		scene.Destroy();
 	}
 
-	static void NextFrame()
+	void NextFrame( bool draw = true )
 	{
+		if ( draw ) BorealisGpuRenderBackend.MarkRevealRendered( scene );
 		Application.FrameCount++;
+		FrameStartWaiters.Complete();
 		for ( int i = 0; i < 3; i++ ) SyncContext.MainThread.ProcessQueue();
 	}
 
@@ -71,6 +73,19 @@ public class RevealWhenDrawnTests
 		Assert.IsFalse( LoadingScreen.IsVisible );
 		Assert.IsTrue( reveal.IsCompletedSuccessfully );
 		Assert.AreEqual( System.Math.Max( BorealisGpuRenderBackend.RevealFrames, 2 ), frames, "the frames it waited" );
+	}
+
+	[TestMethod]
+	public void AFrameWithoutTheGameDrawDoesNotCount()
+	{
+		var reveal = BorealisGpuRenderBackend.RevealWhenDrawn( scene, () => false );
+		for ( int i = 0; i < 5; i++ ) NextFrame( draw: false );
+		Assert.IsTrue( LoadingScreen.IsVisible );
+		Assert.IsFalse( reveal.IsCompleted );
+
+		for ( int i = 0; i < System.Math.Max( BorealisGpuRenderBackend.RevealFrames, 2 ); i++ ) NextFrame();
+		Assert.IsTrue( reveal.IsCompletedSuccessfully );
+		Assert.IsFalse( LoadingScreen.IsVisible );
 	}
 
 	/// <summary>

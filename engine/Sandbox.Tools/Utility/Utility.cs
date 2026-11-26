@@ -958,6 +958,10 @@ public static partial class EditorUtility
 
 		if ( result.Success )
 		{
+			// A device of its own (Borealis.Gpu) keeps what it loaded until it's given the new file
+			if ( RenderBackend.TakesCompiledShaders && (result.CompiledShader ?? (File.Exists( path + "_c" ) ? await File.ReadAllBytesAsync( path + "_c", token ) : null)) is { } compiled )
+				RenderBackend.ShaderCompiledEverywhere( localPath, compiled );
+
 			ConsoleSystem.Run( $"mat_reloadshaders {localPath}" );
 		}
 

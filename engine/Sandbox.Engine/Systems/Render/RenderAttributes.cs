@@ -173,14 +173,14 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in int value )
 	{
-		(Managed ?? Shadow)?.Set( k, value );
+		(Managed ?? Shadow)?.SetInteger( k, value );
 		if ( !attributes.IsValid ) return;
 		attributes.SetIntValue( k, value );
 	}
 
 	public void Set( in StringToken k, in uint value )
 	{
-		(Managed ?? Shadow)?.Set( k, value );
+		(Managed ?? Shadow)?.SetInteger( k, value );
 		if ( !attributes.IsValid ) return;
 		attributes.SetIntValue( k, unchecked((int)value) );
 	}
@@ -354,7 +354,7 @@ public partial class RenderAttributes
 	public unsafe void SetData<T>( in StringToken k, List<T> value ) where T : unmanaged
 	{
 		if ( !attributes.IsValid && Managed is null ) return;
-		SetData( k, value.ToArray() );
+		SetData( k, System.Runtime.InteropServices.CollectionsMarshal.AsSpan( value ) );
 	}
 
 	/// <summary>
@@ -380,7 +380,16 @@ public partial class RenderAttributes
 	/// </summary>
 	public Vector4 GetVector4( in StringToken name, in Vector4 defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: >= 4 } f ? new Vector4( f[0], f[1], f[2], f[3] ) : defaultValue;
+		if ( !attributes.IsValid )
+		{
+			return Managed?.GetFloats( name ) switch
+			{
+				{ Length: 2 } f => new Vector4( f[0], f[1], 0, 0 ),
+				{ Length: 3 } f => new Vector4( f[0], f[1], f[2], 0 ),
+				{ Length: >= 4 } f => new Vector4( f[0], f[1], f[2], f[3] ),
+				_ => defaultValue
+			};
+		}
 		return attributes.GetVector4DValue( name, defaultValue );
 	}
 
@@ -411,7 +420,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public int GetInt( in StringToken name, in int defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: > 0 } f ? (int)f[0] : defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetInt( name, defaultValue ) ?? defaultValue;
 		return attributes.GetIntValue( name, defaultValue );
 	}
 
@@ -420,7 +429,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public uint GetUInt( in StringToken name, in uint defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: > 0 } f ? (uint)f[0] : defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetUInt( name, defaultValue ) ?? defaultValue;
 		return unchecked((uint)attributes.GetIntValue( name, unchecked((int)defaultValue) ));
 	}
 

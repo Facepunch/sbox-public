@@ -38,6 +38,17 @@ internal static class SceneSource
 		}
 	}
 
+	/// <summary>
+	/// Drop the raw blob bytes of an editing file once its scene has loaded, if they can be re-read through the mounted sidecar.
+	/// </summary>
+	internal static void ReleaseBlobData( SceneFile file )
+	{
+		if ( file.BinaryData is null || file.BinaryData.Length == 0 ) return;
+		if ( FileSystem.Mounted?.FileExists( file.ResourcePath + "_d" ) != true ) return;
+
+		file.BinaryData = null;
+	}
+
 	internal static SceneFile LoadForEditing( Asset asset )
 	{
 		var path = asset.GetSourceFile( true );

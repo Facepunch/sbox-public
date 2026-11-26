@@ -1,4 +1,6 @@
-﻿namespace Sandbox.Engine.Utility.RayTrace;
+﻿using N3 = System.Numerics.Vector3;
+
+namespace Sandbox.Engine.Utility.RayTrace;
 
 public partial struct MeshTraceRequest
 {
@@ -14,9 +16,6 @@ public partial struct MeshTraceRequest
 	/// </summary>
 	public readonly unsafe Result Run()
 	{
-		MeshTraceOutput result = default;
-		result.distance = float.MaxValue;
-
 		var r = request;
 
 		if ( targetWorld != null && targetWorld.IsValid() )
@@ -30,10 +29,7 @@ public partial struct MeshTraceRequest
 
 		if ( targetModel != null )
 		{
-			if ( !targetModel.native.MeshTrace( r, ref result ) )
-				return new Result { Hit = false };
-
-			return Result.From( this, result );
+			return TraceModel( r ) ?? new Result { Hit = false };
 		}
 
 		return new Result
@@ -60,9 +56,7 @@ public partial struct MeshTraceRequest
 
 		if ( targetModel is not null )
 		{
-			MeshTraceOutput result = default;
-			if ( targetModel.native.MeshTrace( r, ref result ) )
-				return [Result.From( this, result )];
+			if ( TraceModel( r ) is { } hit ) return [hit];
 		}
 
 		return [];
@@ -156,6 +150,67 @@ public partial struct MeshTraceRequest
 
 		if ( mapMaterialsQueued.TryAdd( path, true ) ) MainThread.Queue( () => mapMaterials.TryAdd( path, Material.Load( path ) ) );
 		return null;
+	}
+
+	/// <summary>The segment's nearest triangle, in the triangles' own space.</summary>
+	static bool Nearest( MapTrace.ModelTriangles triangles, in MeshTraceInput local, out int triangle, out float t, out float u, out float v )
+	{
+		Vector3 start = local.start, end = local.end;
+		var origin = new N3( start.x, start.y, start.z );
+		var delta = new N3( end.x, end.y, end.z ) - origin;
+		triangle = -1;
+		t = 1;
+		u = v = 0;
+		if ( delta.LengthSquared() < 1e-8f ) return false;
+		return triangles.Nearest( origin, delta, local.cullMode, ref t, out triangle, out u, out v );
+	}
+
+	/// <summary>
+	/// A hit on a triangle of a model's triangles, put in world space as native's instanced trace does
+	/// (<c>RayTracingResult_t::TransformFromModelSpaceToWorldSpace</c>): the point on the local ray at the hit gives the
+	/// distance from the start, a point 1000 units along the local normal gives the normal, and the hit position (from the
+	/// triangle's corners) goes to world space. The vertices stay in the model's space, with their positions only.
+	/// </summary>
+	static Result FromTriangle( in MeshTraceInput r, in MeshTraceInput local, in Transform transform, MapTrace.ModelTriangles triangles, int triangle, float t, float u, float v, SceneObject sceneObject )
+	{
+		var (a, b, c) = triangles.Corners( triangle );
+		var n = N3.Normalize( N3.Cross( b - a, c - a ) );
+		var p = c + (a - c) * u + (b - c) * v;
+
+		Vector3 start = local.start, end = local.end;
+		var localHit = start + (end - start) * t;
+		var worldHit = transform.PointToWorld( localHit );
+		var length = ((Vector3)r.start).Distance( r.end );
+		var distance = ((Vector3)r.start).Distance( worldHit );
+		var position = transform.PointToWorld( new Vector3( p.X, p.Y, p.Z ) );
+
+		return new Result
+		{
+			Hit = true,
+			Distance = distance,
+			Fraction = length > 0.0f ? distance / length : 0.0f,
+			StartPosition = r.start,
+			EndPosition = position,
+			HitPosition = position,
+			Normal = (transform.PointToWorld( localHit + new Vector3( n.X, n.Y, n.Z ) * 1000.0f ) - worldHit).Normal,
+			Material = MapMaterial( triangles.MaterialOf( triangle ) ),
+			Transform = transform,
+			HitTriangle = triangle,
+			SceneObject = sceneObject,
+			HitTriangleUv = new Vector2( u, v ),
+			VertexInfluence = new Vector3( u, v, 1 - u - v ),
+			Vertex0 = new Result.VertexDetail { Position = new Vector3( a.X, a.Y, a.Z ) },
+			Vertex1 = new Result.VertexDetail { Position = new Vector3( b.X, b.Y, b.Z ) },
+			Vertex2 = new Result.VertexDetail { Position = new Vector3( c.X, c.Y, c.Z ) },
+		};
+	}
+
+	/// <summary>The nearest hit on the target model, in its own space, or null.</summary>
+	readonly Result? TraceModel( in MeshTraceInput r )
+	{
+		if ( targetModel.TraceTriangles() is not { } triangles ) return null;
+		if ( !Nearest( triangles, r, out var triangle, out var t, out var u, out var v ) ) return null;
+		return FromTriangle( r, r, Transform.Zero, triangles, triangle, t, u, v, null );
 	}
 
 	static Result FromMap( in MeshTraceInput r, in MapTrace.Hit hit )
@@ -397,47 +452,5 @@ public partial struct MeshTraceRequest
 		public VertexDetail Vertex0;
 		public VertexDetail Vertex1;
 		public VertexDetail Vertex2;
-
-		internal unsafe static Result From( in MeshTraceRequest input, in MeshTraceOutput result, SceneObject sceneObject = null )
-		{
-			Result tr = default;
-
-			var distance = input.request.start.Distance( input.request.end );
-
-			tr.Hit = true;
-			tr.Distance = result.distance;
-			tr.Fraction = distance > 0.0f ? result.distance / distance : 0.0f;
-			tr.StartPosition = input.request.start;
-			tr.EndPosition = result.position;
-			tr.HitPosition = result.position;
-			tr.Normal = result.normal;
-			tr.Material = Material.FromNative( result.material );
-			tr.Transform = result.transform;
-			tr.HitTriangle = result.triangleIndex;
-			tr.SceneObject = sceneObject ?? HandleIndex.Get<SceneObject>( result.sceneobjectHandle );
-
-			tr.HitTriangleUv = result.uv;
-			tr.VertexInfluence = new Vector3( result.uv.x, result.uv.y, 1 - result.uv.x - result.uv.y );
-
-			tr.Vertex0 = GetTraceVertex( (TraceVertex_t*)result.v0 );
-			tr.Vertex1 = GetTraceVertex( (TraceVertex_t*)result.v1 );
-			tr.Vertex2 = GetTraceVertex( (TraceVertex_t*)result.v2 );
-
-			return tr;
-		}
-
-		static unsafe VertexDetail GetTraceVertex( TraceVertex_t* data )
-		{
-			if ( data == null )
-				return default;
-
-			VertexDetail d = default;
-			d.Position = data->m_vPosition;
-			d.Normal = data->m_vNormal;
-			d.Uv0 = data->m_vTexCoord;
-			d.Uv1 = data->m_vTexCoord2;
-
-			return d;
-		}
 	}
 }

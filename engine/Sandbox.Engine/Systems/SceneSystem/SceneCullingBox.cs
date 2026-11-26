@@ -27,7 +27,7 @@ public sealed class SceneCullingBox : IValid
 	/// <summary>
 	/// Is this culling box valid, exists inside a scene world.
 	/// </summary>
-	public bool IsValid => _boxId != 0 && World.IsValid();
+	public bool IsValid => World.IsValid();
 
 	/// <summary>
 	/// The scene world this culling box belongs to.
@@ -40,7 +40,7 @@ public sealed class SceneCullingBox : IValid
 	public Transform Transform
 	{
 		get => _transform;
-		set { _transform = value; Update(); }
+		set { if ( _transform != value ) { _transform = value; Update(); } }
 	}
 
 	/// <summary>
@@ -49,7 +49,7 @@ public sealed class SceneCullingBox : IValid
 	public Vector3 Size
 	{
 		get => _size;
-		set { _size = value; Update(); }
+		set { if ( _size != value ) { _size = value; Update(); } }
 	}
 
 	/// <summary>
@@ -58,13 +58,9 @@ public sealed class SceneCullingBox : IValid
 	public CullMode Mode
 	{
 		get => _mode;
-		set { _mode = value; Update(); }
+		set { if ( _mode != value ) { _mode = value; Update(); } }
 	}
 
-	internal uint _boxId;
-
-	// Its id, one of ours: the world lists the box while it has one
-	static uint nextManagedId;
 	internal Transform _transform;
 	internal Vector3 _size;
 	internal CullMode _mode;
@@ -75,14 +71,15 @@ public sealed class SceneCullingBox : IValid
 	/// </summary>
 	public SceneCullingBox( SceneWorld world, Transform transform, Vector3 size, CullMode mode )
 	{
-		World = world;
-
-		_boxId = 0;
 		_transform = transform;
 		_size = size;
 		_mode = mode;
 
-		Update();
+		if ( world.IsValid() )
+		{
+			World = world;
+			world.AddCullingBox( this );
+		}
 	}
 
 	/// <summary>
@@ -95,7 +92,6 @@ public sealed class SceneCullingBox : IValid
 
 		World.RemoveCullingBox( this );
 
-		_boxId = 0;
 		_transform = default;
 		_size = default;
 		_mode = default;
@@ -103,14 +99,8 @@ public sealed class SceneCullingBox : IValid
 		World = null;
 	}
 
-	internal void Update()
+	void Update()
 	{
-		if ( !World.IsValid() )
-			return;
-
-		if ( _boxId == 0 ) World.AddCullingBox( this );
-		else World.CullingBoxChanged();
-
-		_boxId = ++nextManagedId;
+		if ( IsValid ) World.CullingBoxChanged();
 	}
 }

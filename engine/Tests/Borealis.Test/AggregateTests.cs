@@ -74,8 +74,9 @@ public class AggregateTests
 		var transforms = system.Transforms;
 		Assert.AreEqual( 4, transforms.Count, "an entry per fragment, culled or not" );
 		Assert.AreEqual( 4, transforms.InstanceCount, "ids in fragment order, shared by every view" );
+		var firstInstance = transforms.AggregateFirstInstance( aggregate.Index );
 		for ( int i = 0; i < 4; i++ )
-			Assert.AreEqual( i, transforms.InstanceSlot( aggregate.FirstInstance + i ) );
+			Assert.AreEqual( i, transforms.InstanceSlot( firstInstance + i ) );
 
 		// 127.5 rounds to even
 		Assert.AreEqual( 0x80FFFFu, transforms[0].TintRgb888, "the object's tint times the draw's" );
@@ -284,7 +285,8 @@ public class AggregateTests
 			CollectAndPrepare( system, world, view );
 			var list = feature.ResidentFor( system.MainPass );
 			Assert.AreEqual( 1, list.Batches.Count, "resident" );
-			var first = aggregate.FirstInstance;
+			var first = system.Transforms.AggregateFirstInstance( aggregate.Index );
+			Assert.IsTrue( first >= 0, "its transforms current this frame" );
 			var slot = system.Transforms.InstanceSlot( first );
 
 			var quiet = feature.QuietFrames;
@@ -297,9 +299,9 @@ public class AggregateTests
 
 			Assert.AreEqual( quiet + frames, feature.QuietFrames, "every frame quiet while only an object that isn't resident moves" );
 			Assert.AreSame( list, feature.ResidentFor( system.MainPass ), "the same list" );
-			Assert.AreEqual( first, aggregate.FirstInstance, "its instance ids at the same place" );
-			Assert.AreEqual( slot, system.Transforms.InstanceSlot( aggregate.FirstInstance ), "its kept run kept" );
-			Assert.AreEqual( system.Transforms.Generation, aggregate.TransformsGeneration, "its transforms current this frame" );
+			var replayed = system.Transforms.AggregateFirstInstance( aggregate.Index );
+			Assert.AreEqual( first, replayed, "its instance ids current this frame and at the same place" );
+			Assert.AreEqual( slot, system.Transforms.InstanceSlot( replayed ), "its kept run kept" );
 			Assert.AreEqual( 0, feature.BatchesFor( system.MainPass ).Count, "the view prepares none of its own" );
 
 			// A frame drawn the views' own way gives it other ids: the next frame looks again, and the quiet ones after keep its ids
@@ -309,10 +311,10 @@ public class AggregateTests
 			quiet = feature.QuietFrames;
 			CollectAndPrepare( system, world, view );
 			Assert.AreEqual( quiet, feature.QuietFrames, "a look after a frame without one" );
-			Assert.AreEqual( slot, system.Transforms.InstanceSlot( aggregate.FirstInstance ), "its ids find its kept run" );
+			Assert.AreEqual( slot, system.Transforms.InstanceSlot( system.Transforms.AggregateFirstInstance( aggregate.Index ) ), "its ids find its kept run" );
 			CollectAndPrepare( system, world, view );
 			Assert.AreEqual( quiet + 1, feature.QuietFrames, "then quiet" );
-			Assert.AreEqual( slot, system.Transforms.InstanceSlot( aggregate.FirstInstance ), "its ids still find its kept run" );
+			Assert.AreEqual( slot, system.Transforms.InstanceSlot( system.Transforms.AggregateFirstInstance( aggregate.Index ) ), "its ids still find its kept run" );
 			frames = feature.QuietFrames - quiet;
 
 			// A change to the resident one is looked at: its kept entries written again, then quiet again

@@ -78,7 +78,7 @@ public partial class Scene : GameObject
 			if ( !IsValid ) return;
 
 			// The models and textures the renderer still loads in the background for what's loaded
-			if ( this is not PrefabScene ) await BorealisGpuRenderBackend.WaitForContent();
+			if ( this is not PrefabScene ) await BorealisGpuRenderBackend.WaitForContent( this );
 
 			if ( !IsValid ) return;
 
@@ -104,6 +104,11 @@ public partial class Scene : GameObject
 
 				LoadingScreen.Subtitle = "Loading Finished..";
 			}
+
+			// While the loading screen is still up, give back the free space the load left in the managed heap
+			if ( this is not PrefabScene ) await ClosedGameMemory.CompactAfterLoad( this );
+
+			if ( !IsValid ) return;
 
 			// Finish where the game ticks next, so its first tick and render are in the frame the loading screen goes in
 			if ( this is not PrefabScene ) await BorealisGpuRenderBackend.BeforeLoadFinishes();

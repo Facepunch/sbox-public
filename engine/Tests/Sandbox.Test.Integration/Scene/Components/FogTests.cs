@@ -357,6 +357,18 @@ public class FogComponentTest
 		Assert.AreEqual( new Color( 0.1f, 0.2f, 0.3f ), so.Color );
 		Assert.IsTrue( so.Transform.Position.Distance( new Vector3( 100, 0, 0 ) ) < 0.01f, "The scene fog volume follows the GameObject" );
 
+		var version = scene.SceneWorld.FogVolumesVersion;
+		scene.GameTick();
+		Assert.AreEqual( version, scene.SceneWorld.FogVolumesVersion, "Writing the same falloff and tint does not dirty the world." );
+
+		volume.FalloffExponent = 0.75f;
+		scene.GameTick();
+		Assert.AreEqual( version + 1, scene.SceneWorld.FogVolumesVersion, "A changed falloff publishes once." );
+
+		volume.Color = Color.Green;
+		scene.GameTick();
+		Assert.AreEqual( version + 2, scene.SceneWorld.FogVolumesVersion, "A changed tint publishes once." );
+
 		go.Destroy();
 		scene.ProcessDeletes();
 	}
@@ -530,6 +542,7 @@ public class FogComponentTest
 		so.Delete();
 
 		Assert.IsFalse( so.IsValid, "Delete should invalidate the volume" );
+		Assert.IsFalse( scene.SceneWorld.FogVolumes.Contains( so ), "Delete removes the volume from the world" );
 
 		so.Delete();
 
@@ -537,10 +550,15 @@ public class FogComponentTest
 
 		so.FogStrength = 0.9f;
 
-		Assert.IsTrue( so.IsValid, "A property write after Delete re-registers the native volume" );
+		Assert.IsTrue( so.IsValid, "A property write after Delete re-registers the volume" );
+		Assert.AreEqual( 1, scene.SceneWorld.FogVolumes.Count( x => x == so ), "Re-registration adds the volume exactly once" );
 
 		so.Delete();
 
 		Assert.IsFalse( so.IsValid );
+
+		so.Color = Color.Blue;
+		Assert.IsTrue( so.IsValid, "Assigning the same color can re-register a removed volume" );
+		so.Delete();
 	}
 }

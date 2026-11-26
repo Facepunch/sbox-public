@@ -285,20 +285,6 @@ namespace Sandbox
 
 		private readonly List<int> _surfaces = [];
 
-		private unsafe void ApplyTraceMesh( NativeEngine.ModelBuilder modelBuilder )
-		{
-			if ( traceVertices.Count == 0 || traceIndices.Count == 0 )
-				return;
-
-			var vertexSpan = CollectionsMarshal.AsSpan( traceVertices );
-			var indexSpan = CollectionsMarshal.AsSpan( traceIndices );
-			fixed ( Vector3* vertexPointer = vertexSpan )
-			fixed ( int* indexPointer = indexSpan )
-			{
-				modelBuilder.SetTraceMesh( (IntPtr)vertexPointer, vertexSpan.Length, (IntPtr)indexPointer, indexSpan.Length );
-			}
-		}
-
 		/// <summary>
 		/// Adds a surface that can be referenced by collision mesh material indices.
 		/// </summary>

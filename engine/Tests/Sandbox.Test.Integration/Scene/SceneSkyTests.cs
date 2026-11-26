@@ -1,5 +1,3 @@
-using System;
-
 namespace SceneTests;
 
 /// <summary>
@@ -127,10 +125,10 @@ public class SceneSkyTests
 			for ( int i = 0; i < 10; i++ )
 				world.GetSky( camera.RenderTags, camera.ExcludeTags );
 
-			var before = GC.GetAllocatedBytesForCurrentThread();
+			var before = System.GC.GetAllocatedBytesForCurrentThread();
 			for ( int i = 0; i < 10; i++ )
 				world.GetSky( camera.RenderTags, camera.ExcludeTags );
-			var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+			var allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
 			Assert.AreEqual( 0L, allocated );
 		}
@@ -141,7 +139,7 @@ public class SceneSkyTests
 	}
 
 	/// <summary>
-	/// The renderer refreshes sky selection for each camera.
+	/// Sky filtering belongs to each view and never changes the world's unfiltered default.
 	/// </summary>
 	[TestMethod]
 	public void WorldRefreshesSkyForEachView()
@@ -154,27 +152,32 @@ public class SceneSkyTests
 			var last = new SceneSkyBox( world, material ) { SkyTint = Color.Blue };
 			last.Tags.Add( "last" );
 			using var camera = new SceneCamera { World = world };
-			var renderType = System.Type.GetType( "Sandbox.Rendering.Bridge.WorldRender, Sandbox.Rendering", true );
-			using var render = (IDisposable)Activator.CreateInstance( renderType, [world] );
-			var renderWorld = (Borealis.RenderWorld)renderType.GetProperty( "World" ).GetValue( render );
-			var prepare = renderType.GetMethod( "Prepare" );
+			using var render = new Sandbox.Rendering.Bridge.WorldRender( world );
+			var view = new Borealis.RenderView();
+			var otherView = new Borealis.RenderView();
+			using var otherCamera = new SceneCamera { World = world };
+			render.Prepare();
 
-			prepare.Invoke( render, [camera, false] );
-			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SkyTint );
+			render.FillViewLighting( view, camera, default );
+			Assert.AreEqual( Color.Blue, view.SkyTint );
 			camera.ExcludeTags.Add( "last" );
-			prepare.Invoke( render, [camera, false] );
-			Assert.AreEqual( Color.Red, renderWorld.Lighting.SkyTint );
-			prepare.Invoke( render, [camera, true] );
-			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SkyTint );
+			render.FillViewLighting( view, camera, default );
+			Assert.AreEqual( Color.Red, view.SkyTint );
+			render.FillViewLighting( otherView, otherCamera, default );
+			Assert.AreEqual( Color.Blue, otherView.SkyTint );
+			Assert.AreEqual( Color.Blue, render.World.Lighting.SkyTint, "Applying the camera filter does not change the world default." );
 
 			camera.ExcludeTags.RemoveAll();
 			last.SkyMaterial = null;
-			prepare.Invoke( render, [camera, false] );
-			Assert.IsNull( renderWorld.Lighting.SkyMaterial, "A null material on the newest sky must not reveal an older sky" );
+			render.Prepare();
+			render.FillViewLighting( view, camera, default );
+			Assert.IsNull( view.SkyMaterial, "A null material on the newest sky must not reveal an older sky" );
 			first.RenderingEnabled = false;
 			last.RenderingEnabled = false;
-			prepare.Invoke( render, [camera, false] );
-			Assert.IsNull( renderWorld.Lighting.SkyMaterial );
+			render.Prepare();
+			render.FillViewLighting( view, camera, default );
+			Assert.IsNull( view.SkyMaterial );
+			Assert.IsNull( render.World.Lighting.SkyMaterial );
 		}
 		finally
 		{

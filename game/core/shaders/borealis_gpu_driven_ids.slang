@@ -80,6 +80,8 @@ struct PS_OUTPUT
 	uint2 vId : SV_Target1;
 };
 
+// No discards, depth exports or coverage changes: samples that fail depth or stencil need not shade an id.
+[earlydepthstencil]
 [shader( "pixel" )] PS_OUTPUT MainPs( PS_INPUT i )
 {
 	PS_OUTPUT o;

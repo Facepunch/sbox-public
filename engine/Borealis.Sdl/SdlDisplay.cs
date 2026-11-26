@@ -38,7 +38,7 @@ public sealed record SdlDisplay
 	internal static unsafe SdlDisplay From( uint id )
 	{
 		SdlRect bounds = default;
-		SDL_GetDisplayBounds( id, &bounds );
+		Check( SDL_GetDisplayBounds( id, &bounds ), "SDL_GetDisplayBounds" );
 		var mode = SDL_GetCurrentDisplayMode( id );
 		return new SdlDisplay
 		{

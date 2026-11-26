@@ -8,3 +8,5 @@
 !/*.so
 !/*.dbg
 !/*.dylib
+# The .NET runtime installer install.vdf runs is fetched with the binaries, not committed
+/dotnet-runtime-*.exe

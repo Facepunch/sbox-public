@@ -91,6 +91,12 @@ internal static class MapRun
 		var variants = only is null ? Variants : Variants.Where( v => only.Contains( v.Name, StringComparer.OrdinalIgnoreCase ) ).ToArray();
 		var views = Args.String( "-camera-pos" ) is { } cameraPos ? [new MapView( Args.String( "-view" ) ?? "camera", Vector( cameraPos ), Args.String( "-camera-lookat" ) is { } at ? Vector( at ) : new V3( 0, 0, 30 ), Args.Float( "-camera-fov", 80 ) )]
 			: Args.String( "-view" ) is { } viewName ? ConstructViews.Where( v => v.Name.Equals( viewName, StringComparison.OrdinalIgnoreCase ) ).ToArray() : ConstructViews;
+		if ( views.Length == 0 )
+		{
+			Console.Error.WriteLine( $"No view named {Args.String( "-view" )}: use one of {string.Join( ", ", ConstructViews.Select( v => v.Name ) )}, or -camera-pos x,y,z." );
+			return 2;
+		}
+
 		var captures = Args.String( "-capture" );
 		var output = Path.GetFullPath( Args.String( "-out" ) ?? Path.Combine( "screenshots", "borealislab", "map" ) );
 
@@ -106,6 +112,7 @@ internal static class MapRun
 		using var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ProgressMarkers = Args.Has( "-markers" ),
+			PassProgressMarkers = Args.Has( "-markers" ),
 			ApplicationName = driverNames ? "Sbox" : "Borealis Lab map",
 			EngineName = driverNames ? "Source2" : "Borealis",
 			Validation = Args.Has( "-validation" ) || Args.Has( "-sync-validation" ),
@@ -280,7 +287,8 @@ internal static class MapRun
 	/// <summary>"x,y,z" as a vector.</summary>
 	static V3 Vector( string text )
 	{
-		var v = text.Split( ',' ).Select( x => float.Parse( x, System.Globalization.CultureInfo.InvariantCulture ) ).ToArray();
+		var v = text.Split( ',', StringSplitOptions.TrimEntries ).Select( x => float.Parse( x, System.Globalization.CultureInfo.InvariantCulture ) ).ToArray();
+		if ( v.Length != 3 ) throw new ArgumentException( $"Expected x,y,z, got \"{text}\"." );
 		return new V3( v[0], v[1], v[2] );
 	}
 

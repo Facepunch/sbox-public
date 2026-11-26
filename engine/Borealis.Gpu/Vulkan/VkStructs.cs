@@ -1479,6 +1479,15 @@ internal unsafe struct VkWaylandSurfaceCreateInfoKHR
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkMetalSurfaceCreateInfoEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public uint flags;
+	public nint pLayer;
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal unsafe struct VkPhysicalDeviceMeshShaderFeaturesEXT
 {
 	public VkStructureType sType;

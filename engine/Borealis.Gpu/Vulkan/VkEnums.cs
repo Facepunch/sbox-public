@@ -74,6 +74,7 @@ internal enum VkStructureType
 	XlibSurfaceCreateInfoKhr = 1000004000,
 	WaylandSurfaceCreateInfoKhr = 1000006000,
 	Win32SurfaceCreateInfoKhr = 1000009000,
+	MetalSurfaceCreateInfoExt = 1000217000,
 	RenderingInfo = 1000044000,
 	RenderingAttachmentInfo = 1000044001,
 	PipelineRenderingCreateInfo = 1000044002,

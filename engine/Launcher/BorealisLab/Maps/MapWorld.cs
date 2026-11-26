@@ -599,6 +599,7 @@ internal sealed partial class MapWorld : IDisposable
 	sealed class EmptyCameraStages( bool reflections ) : IRenderStages
 	{
 		public void Render( RenderStage stage, in StageTarget target ) { }
+		public bool RendersInsideFrame( RenderStage stage ) => false;
 		public bool HasScreenSpaceReflections => reflections;
 	}
 

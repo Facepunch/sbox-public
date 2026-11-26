@@ -12,7 +12,9 @@ internal sealed class LightModulatorSystem : GameObjectSystem<LightModulatorSyst
 	readonly List<LightModulatorData> previousRectangles = new();
 	readonly List<LightState> lights = new();
 	readonly List<LightState> previousLights = new();
-	readonly List<uint> candidates = new();
+	List<uint> candidates = new();
+	List<uint> previousCandidates = new();
+	readonly Dictionary<SceneLight, LightCandidates> ranges = new();
 	GpuBuffer<LightModulatorData> rectangleBuffer;
 	GpuBuffer<uint> candidateBuffer;
 
@@ -40,6 +42,7 @@ internal sealed class LightModulatorSystem : GameObjectSystem<LightModulatorSyst
 	}
 
 	readonly record struct LightState( SceneLight Light, Vector3 Position, float Radius, int BoundsVersion );
+	readonly record struct LightCandidates( Vector3 Position, float Radius, int Offset, int Count, int Rebuild );
 
 	/// <summary>
 	/// Refresh the scene's modulation snapshot before rendering, including captures without a scene tick.
@@ -85,14 +88,17 @@ internal sealed class LightModulatorSystem : GameObjectSystem<LightModulatorSyst
 		// Appearance changes only need new rectangle data. Candidate lists depend on geometry and lights.
 		var rectanglesChanged = !MemoryMarshal.AsBytes( CollectionsMarshal.AsSpan( rectangles ) )
 			.SequenceEqual( MemoryMarshal.AsBytes( CollectionsMarshal.AsSpan( previousRectangles ) ) );
-		var candidatesChanged = !CollectionsMarshal.AsSpan( lights ).SequenceEqual( CollectionsMarshal.AsSpan( previousLights ) )
-			|| (rectanglesChanged && RectangleBoundsChanged());
+		var boundsChanged = rectanglesChanged && RectangleBoundsChanged();
+		var candidatesChanged = boundsChanged || !CollectionsMarshal.AsSpan( lights ).SequenceEqual( CollectionsMarshal.AsSpan( previousLights ) );
 
 		if ( candidatesChanged )
 		{
-			RebuildCandidates();
-			Upload( ref candidateBuffer, candidates, "LightModulatorCandidates" );
-			Scene.RenderAttributes.Set( "LightModulatorCandidateCount", candidates.Count );
+			RebuildCandidates( boundsChanged );
+			if ( !CollectionsMarshal.AsSpan( candidates ).SequenceEqual( CollectionsMarshal.AsSpan( previousCandidates ) ) )
+			{
+				Upload( ref candidateBuffer, candidates, "LightModulatorCandidates" );
+				Scene.RenderAttributes.Set( "LightModulatorCandidateCount", candidates.Count );
+			}
 
 			previousLights.Clear();
 			previousLights.AddRange( lights );
@@ -164,31 +170,39 @@ internal sealed class LightModulatorSystem : GameObjectSystem<LightModulatorSyst
 	/// <summary>
 	/// Rebuild local-light ranges when rectangle bounds or the light snapshot changes.
 	/// </summary>
-	void RebuildCandidates()
+	void RebuildCandidates( bool boundsChanged )
 	{
 		RebuildCount++;
+		(candidates, previousCandidates) = (previousCandidates, candidates);
 		candidates.Clear();
-		for ( int i = 0; i < previousLights.Count; i++ )
-		{
-			// One still in the snapshot at its place gets its new range below
-			var light = previousLights[i].Light;
-			if ( i < lights.Count && lights[i].Light == light ) continue;
-			if ( light.IsValid() )
-				light.SetModulatorRange( 0, 0 );
-		}
-
 		foreach ( var state in lights )
 		{
 			var first = candidates.Count;
-			for ( int i = 0; i < rectangles.Count; i++ )
+			ref var range = ref CollectionsMarshal.GetValueRefOrAddDefault( ranges, state.Light, out var known );
+			if ( known && !boundsChanged && range.Position.Equals( state.Position ) && range.Radius.Equals( state.Radius ) )
 			{
-				if ( rectangles[i].IntersectsLight( state.Position, state.Radius ) )
-					candidates.Add( (uint)i );
+				candidates.AddRange( CollectionsMarshal.AsSpan( previousCandidates ).Slice( range.Offset, range.Count ) );
+			}
+			else
+			{
+				for ( int i = 0; i < rectangles.Count; i++ )
+				{
+					if ( rectangles[i].IntersectsLight( state.Position, state.Radius ) )
+						candidates.Add( (uint)i );
+				}
 			}
 
-			// An empty range starts at 0 wherever it falls, so a light no rectangle reaches isn't written again
 			var count = candidates.Count - first;
+			range = new( state.Position, state.Radius, first, count, RebuildCount );
 			state.Light.SetModulatorRange( count > 0 ? (uint)first : 0, (uint)count );
+		}
+
+		foreach ( var state in previousLights )
+		{
+			if ( ranges[state.Light].Rebuild == RebuildCount ) continue;
+			ranges.Remove( state.Light );
+			if ( state.Light.IsValid() )
+				state.Light.SetModulatorRange( 0, 0 );
 		}
 	}
 

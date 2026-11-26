@@ -15,7 +15,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class AllocationTests : GpuTest
+public class AllocationTests : RenderGpuTest
 {
 	// Frames in a row that must allocate nothing, and the most it may take to get there (pipelines and caches warm up first)
 	const int SettledFrames = 8, MaxFrames = 200;

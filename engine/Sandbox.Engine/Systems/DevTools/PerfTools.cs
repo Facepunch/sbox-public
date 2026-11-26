@@ -230,6 +230,7 @@ internal static class PerfTools
 	internal static object Vram( [Description( "How many allocations to name in each list: for each nearly empty block, the dedicated ones, and the largest overall. Default 8, max 50." )] int limit = 8 )
 	{
 		limit = Math.Clamp( limit, 1, 50 );
+		if ( Graphics.BorealisGpuDevice is { } borealis ) return BorealisVram( borealis, limit );
 
 		var map = GpuMemoryMap.Capture();
 		if ( map is null ) return new { Available = false, Reason = "No GPU allocator to read: a headless run, or a process without Borealis.Gpu" };
@@ -259,6 +260,36 @@ internal static class PerfTools
 			} ),
 			LargestDedicated = Named( map.Dedicated.Take( limit ) ),
 			Largest = Named( map.Blocks.SelectMany( b => b.Allocations ).Concat( map.Dedicated ).OrderByDescending( x => x.Size ).Take( limit ) ),
+		};
+	}
+
+	static object BorealisVram( Borealis.Gpu.Device device, int limit )
+	{
+		var (textures, buffers) = device.ListResources();
+		var (usage, budget) = device.DeviceLocalMemory();
+		var all = textures.Select( t => (Name: t.Info.Name ?? "", Kind: "texture", t.Bytes, Detail: $"{t.Info.Format} {t.Info.Width}x{t.Info.Height}x{Math.Max( t.Info.Depth, t.Info.Layers )}, {t.Info.Mips} mips") )
+			.Concat( buffers.Select( b => (Name: b.Name ?? "", Kind: $"buffer {b.Location}", b.Bytes, Detail: b.Usage.ToString()) ) )
+			.ToList();
+
+		static string Group( string name ) => name.Contains( '/' ) || name.Contains( '\\' )
+			? string.Join( '/', name.Replace( '\\', '/' ).Split( '/', StringSplitOptions.RemoveEmptyEntries ).Take( 2 ) )
+			: System.Text.RegularExpressions.Regex.Replace( name, @"\d+", "#" );
+
+		return new
+		{
+			Available = true,
+			Renderer = "Borealis.Gpu",
+			DriverUsageMiB = MiB( usage ),
+			DriverBudgetMiB = MiB( budget ),
+			Memory = device.DescribeMemory(),
+			Resources = device.DescribeResources(),
+			TextureCount = textures.Count,
+			TexturesMiB = MiB( textures.Sum( t => t.Bytes ) ),
+			BufferCount = buffers.Count,
+			BuffersMiB = MiB( buffers.Sum( b => b.Bytes ) ),
+			ByKind = all.GroupBy( x => x.Kind ).Select( g => new { Kind = g.Key, Count = g.Count(), MiB = MiB( g.Sum( x => x.Bytes ) ) } ).OrderByDescending( g => g.MiB ).ToList(),
+			ByGroup = all.GroupBy( x => (x.Kind, Group: Group( x.Name )) ).Select( g => new { g.Key.Kind, g.Key.Group, Count = g.Count(), MiB = MiB( g.Sum( x => x.Bytes ) ) } ).OrderByDescending( g => g.MiB ).Take( limit * 4 ).ToList(),
+			Largest = all.OrderByDescending( x => x.Bytes ).Take( limit ).Select( x => new { x.Name, x.Kind, SizeMiB = MiB( x.Bytes ), x.Detail } ).ToList(),
 		};
 	}
 
@@ -326,7 +357,6 @@ internal static class PerfTools
 					l.Order,
 					l.RanEarly,
 					l.EarlyQueue,
-					l.NeedsDepthNormals,
 				} ) ).ToList(),
 		};
 	}

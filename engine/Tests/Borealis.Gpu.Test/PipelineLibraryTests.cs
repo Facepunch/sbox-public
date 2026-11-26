@@ -10,7 +10,6 @@ namespace BorealisGpuTests;
 /// made whole.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class PipelineLibraryTests : GpuTest
 {
 	const int Width = 320, Height = 200;
@@ -618,6 +617,7 @@ public class PipelineLibraryTests : GpuTest
 		{
 			var info = Triangle( device.CreateShader( Load( "triangle.vs.spv" ), "vs" ), device.CreateShader( Load( "triangle.ps.spv" ), "ps" ) );
 			info.Sets = [device.CreateBindingLayout( [new BindingSlot( 0, BindingType.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment )] )];
+			info.FragmentWave32 = true;
 			info.SkipUntilReady = true;
 			return info;
 		}

@@ -9,7 +9,6 @@ namespace BorealisGpuTests;
 /// block empties. Moves wait for a frame in which nothing records.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class RelocationTests : GpuTest
 {
 	const long Size = 1 << 20;

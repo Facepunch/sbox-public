@@ -25,20 +25,3 @@ struct MeshTraceOutput
 	public IntPtr v1;
 	public IntPtr v2;
 };
-
-unsafe struct TraceVertex_t
-{
-	// needs to match MeshVertex_t in imapbuilder
-	public Vector3 m_vPosition;
-	public Vector3 m_vNormal;
-	public Vector4 m_vTangent;
-	public Vector2 m_vTexCoord;
-	public Vector4 m_vColor;
-	public Vector2 m_vTexCoord2;
-	public fixed float m_vVertexPaintBlendParams[8];
-	public Vector4 m_vVertexPaintTintColor;
-
-	// extra data
-	public fixed ushort m_nBoneIndices[4]; // For posed prop conversion
-	public fixed byte m_flBoneWeights[4]; // For posed prop conversion
-};

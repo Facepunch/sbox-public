@@ -18,49 +18,102 @@ public sealed partial class WaterBody
 	internal static bool Refraction { get; set; } = true;
 
 	/// <summary>
-	/// Record the refraction capture: a view through the surface rendered where the surface draws, into a target the
-	/// renderer takes then, bound to the surface's draws with the view's viewport.
+	/// Immutable to the drawing thread: the scene's preparation updates this after joining the previous draw.
+	/// The command list keeps this instance, not the live component or its camera.
 	/// </summary>
-	void AddRefractionCapture( CommandList commands, in CaptureKey key )
+	sealed class RefractionCapture
 	{
-		var fog = key.Fog;
-		var camera = key.Camera;
-		var target = commands.GetRenderTarget( "Water refraction", key.Downsample, ImageFormat.RGBA16161616F, ImageFormat.None );
-		var view = commands.DrawRefraction( camera, key.Plane, target, new RefractionSetup
+		readonly TagSet exclusions;
+		readonly int viewHash;
+		readonly Action draw;
+		readonly Vector4[] waves = new Vector4[WaveBands];
+		Vector3 origin;
+		Rotation rotation;
+		float height, steepness, waveTime;
+		bool aboveVisible, belowVisible;
+		int downsample;
+		FogSetup? aboveFog;
+
+		public RefractionCapture( string surfaceTag )
 		{
-			RenderBehind = true,
-			FallbackColor = Color.Transparent,
-			ViewSetup = new ViewSetup
+			exclusions = new TagSet( [surfaceTag] );
+			viewHash = HashCode.Combine( surfaceTag, nameof( RefractionCapture ) );
+			draw = DrawView;
+		}
+
+		public Action Draw => draw;
+
+		public void Update( WaterBody water )
+		{
+			var material = water.ActiveMaterial;
+			aboveVisible = Refraction && MaterialOpacity( material, false ) < 1;
+			belowVisible = Refraction && MaterialOpacity( material, true ) < 1;
+			if ( !aboveVisible && !belowVisible ) return;
+
+			origin = water.SurfaceOrigin;
+			rotation = water.WorldRotation;
+			height = water.CaptureDisplacement;
+			if ( height > 0 )
 			{
-				ProjectionMatrix = key.Unclipped ? key.Projection : null,
+				water.UpdateWaves();
+				water._waves.AsSpan().CopyTo( waves );
+				steepness = water.WaveSteepness;
+				waveTime = water.WaveTime;
+			}
+			downsample = CaptureSizeFactor( RefractionDownsampleFactor );
+			aboveFog = aboveVisible ? water.RefractionFog : null;
+		}
+
+		void DrawView()
+		{
+			var attributes = Graphics.Attributes;
+			attributes.Set( "HasRefractionTexture", false );
+			if ( (!aboveVisible && !belowVisible)
+				|| !SceneRenderer.Current.TryGetCurrentView( out var view ) || view.Capture ) return;
+
+			var eye = rotation.Inverse * (view.Transform.Position - origin);
+			var surface = height > 0 ? WaterWaveMath.Sample( eye, waves, height, steepness, waveTime, out _ ) : 0;
+			bool below = surface > eye.z;
+			if ( below ? !belowVisible : !aboveVisible ) return;
+
+			FogSetup? fog = below ? default( FogSetup ) : aboveFog;
+			var setup = new ViewSetup
+			{
+				Transform = view.Transform,
+				FieldOfView = view.FieldOfView,
+				ZNear = view.ZNear,
+				ZFar = view.ZFar,
+				ProjectionMatrix = view.Projection,
 				EnablePostprocessing = false,
 				EnableUI = false,
 				EnableDebugOverlays = false,
-				ViewHash = HashCode.Combine( Id, 0 ),
-				ClearColor = key.Below || fog is null ? null : fog.Value.Color,
+				ViewHash = viewHash,
+				ClearColor = !below ? fog?.Color : null,
 				Fog = fog,
-				ExcludeTags = _captureExclusions
+				ExcludeTags = exclusions
+			};
+
+			// Use the view's projection as the base. Don't add oblique clipping to orthographic or near-surface views.
+			if ( !view.Orthographic && MathF.Abs( eye.z ) > MathF.Max( 0.5f, height ) + view.ZNear * 2
+				&& view.Size.x > 0 && view.Size.y > 0 )
+			{
+				var normal = below ? -rotation.Up : rotation.Up;
+				var plane = new Plane( origin + normal * (height + 0.125f), -normal );
+				var projection = view.Projection ?? Matrix.CreateProjection( view.ZNear, view.ZFar,
+					view.FieldOfView, view.Size.x / view.Size.y, new Vector4( -1, -1, 1, 1 ) );
+				var tx = view.Transform;
+				setup.ProjectionMatrix = Matrix.CreateObliqueProjection( in tx, in plane, in projection );
+				setup.ClipPlane = plane;
 			}
-		} );
-		commands.Attributes.Set( "RefractionTexture", target.ColorTexture );
-		commands.Attributes.Set( "RefractionViewport", view.Viewport );
-		commands.Attributes.Set( "HasRefractionTexture", view.IsValid );
-		commands.Attributes.Set( "RefractionHasSceneFog", fog is null );
+
+			var (width, heightPixels) = RenderTarget.ScaleDownSize( view.Size, downsample );
+			var target = RenderTarget.GetCaptureTemporary( width, heightPixels, ImageFormat.RGBA16161616F, ImageFormat.None, "Water refraction" );
+			if ( !view.Camera.RenderToTexture( target.ColorTarget, null, setup, out var capture ) ) return;
+
+			attributes.Set( "RefractionTexture", target.ColorTarget );
+			attributes.Set( "RefractionViewport", capture.Viewport );
+			attributes.Set( "RefractionHasSceneFog", fog is null );
+			attributes.Set( "HasRefractionTexture", true );
+		}
 	}
-
-	/// <summary>
-	/// Whether two refraction fogs are the same: what <see cref="RefractionFog"/> sets, exactly.
-	/// </summary>
-	static bool SameFog( FogSetup? a, FogSetup? b )
-	{
-		if ( a is not { } x || b is not { } y )
-			return a.HasValue == b.HasValue;
-
-		return x.Mode == y.Mode && SameColor( x.Color, y.Color ) && x.DistanceEnabled == y.DistanceEnabled
-			&& x.AttenuationDistance == y.AttenuationDistance && x.SunLightingEnabled == y.SunLightingEnabled
-			&& x.HeightEnabled == y.HeightEnabled && x.BaseHeight == y.BaseHeight && x.HeightFalloff == y.HeightFalloff
-			&& x.HeightExponent == y.HeightExponent && SameColor( x.HeightColor, y.HeightColor );
-	}
-
-	static bool SameColor( Color a, Color b ) => a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
 }

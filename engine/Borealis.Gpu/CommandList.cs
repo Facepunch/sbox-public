@@ -1131,8 +1131,8 @@ public sealed unsafe class CommandList
 			return;
 		}
 
-		Barrier( TextureBarrier.Transition( texture, layout, layout, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, stage, read )
-			with { BaseMip = mip, MipCount = 1, BaseLayer = layer, LayerCount = 1 } );
+		var barrier = TextureBarrier.Transition( texture, layout, layout, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, stage, read );
+		Barrier( barrier with { BaseMip = mip, MipCount = 1, BaseLayer = layer, LayerCount = 1 } );
 	}
 
 	/// <summary>The size of what's being rendered to, while rendering.</summary>

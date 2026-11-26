@@ -184,6 +184,7 @@ internal static class EditorContentBuild
 			// A single asset compiled by the asset system holds the roots' locks, as this build does
 			IAssetSystem.SetContentRootLocks( string.Join( "\n", roots.Select( ContentBuilder.LockFile ) ) );
 
+			string lastCompiled = null;
 			var request = new BuildRequest
 			{
 				Roots = roots,
@@ -210,7 +211,13 @@ internal static class EditorContentBuild
 					IToolsDll.Current?.Spin();
 				}
 				: null,
-				CompileProgress = startup ? progress => EditorSplashScreen.SetMessage( progress.Compiled is { } source ? $"Compiled {source} ({progress.Finished}/{progress.Total})" : $"Compiling assets ({progress.Finished}/{progress.Total})" ) : null,
+				CompileProgress = startup ? progress =>
+				{
+					// Progress also comes as compiles start, without a source: keep the last finished one up rather than flicker
+					lastCompiled = progress.Compiled ?? lastCompiled;
+					EditorSplashScreen.SetMessage( lastCompiled is { } source ? $"Compiled {source} ({progress.Finished}/{progress.Total})" : $"Compiling assets ({progress.Finished}/{progress.Total})" );
+				}
+				: null,
 			};
 
 			var report = await ContentBuilder.BuildAsync( request, Compiler( request.Mounts ), cancellation.Token );

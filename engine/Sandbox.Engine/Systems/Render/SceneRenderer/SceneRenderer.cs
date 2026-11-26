@@ -23,7 +23,14 @@ internal interface ISceneRenderer
 	/// Render the camera into colour and optional depth textures, as a child of the frame being drawn when there is one,
 	/// and copy its resolved projection and viewport for whatever samples it.
 	/// </summary>
-	bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData );
+	bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, out ViewData viewData );
+
+	/// <summary>Resolved facts of a scene view while its render callbacks execute.</summary>
+	bool TryGetCurrentView( out ActiveSceneView view )
+	{
+		view = default;
+		return false;
+	}
 
 	/// <summary>
 	/// Render the camera into a bitmap, blocking until it's read back.
@@ -31,10 +38,9 @@ internal interface ISceneRenderer
 	void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup );
 
 	/// <summary>
-	/// Render the camera's six directions into a cube texture, then <paramref name="afterFaces"/> (the GGX filter), on the GPU
-	/// after the sixth face.
+	/// Render the camera's six directions into a cube texture and optionally apply the GGX filter on the GPU.
 	/// </summary>
-	void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null );
+	void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CubemapRendering.GGXFilterType? filter = null );
 
 	/// <summary>
 	/// Free what's held for a camera that's been disposed, now rather than whenever the GC notices.
@@ -93,6 +99,9 @@ internal interface ISceneRenderer
 	{
 	}
 }
+
+internal readonly record struct ActiveSceneView( SceneCamera Camera, Transform Transform, float FieldOfView, float ZNear,
+	float ZFar, Vector2 Size, bool Orthographic, Matrix? Projection, bool Capture );
 
 /// <summary>
 /// Which <see cref="ISceneRenderer"/> renders scenes: Borealis in a process drawing on Borealis.Gpu (<c>-borealisgpu</c>),
@@ -213,14 +222,14 @@ internal static class SceneRenderer
 		public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup ) { }
 		public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup ) { }
 
-		public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData )
+		public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, out ViewData viewData )
 		{
 			viewData = default;
 			return false;
 		}
 
 		public void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup ) { }
-		public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null ) { }
+		public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CubemapRendering.GGXFilterType? filter = null ) { }
 		public void Forget( SceneCamera camera ) { }
 		public void Forget( SceneWorld world ) { }
 		public void Shutdown() { }

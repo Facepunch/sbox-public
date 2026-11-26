@@ -169,6 +169,44 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	}
 
 	/// <summary>
+	/// Take the reflection data of the base type's description of this inherited member, instead of capturing our own copies.
+	/// <see cref="TypeDescription"/> and <see cref="Identity"/> stay ours.
+	/// </summary>
+	protected void InitFrom( MemberDescription inherited )
+	{
+		MemberInfo = inherited.MemberInfo;
+		Name = inherited.Name;
+		Attributes = inherited.Attributes;
+		Tags = inherited.Tags;
+		displayInfo = inherited.displayInfo;
+
+		SourceLine = 0;
+		SourceFile = null;
+
+		foreach ( var attr in Attributes )
+		{
+			if ( attr is SourceLocationAttribute location )
+			{
+				SourceLine = location.Line;
+				SourceFile = location.Path;
+				break;
+			}
+		}
+
+		Identity = GetIdentityHash();
+	}
+
+	/// <summary>
+	/// Whether a derived type can borrow this description's data for <paramref name="member"/>, the same member reflected through the derived type.
+	/// Not when an attribute points back at its <see cref="MemberDescription"/>.
+	/// </summary>
+	internal virtual bool CanBeSharedWith( MemberInfo member )
+	{
+		return MemberInfo is { } info && info.MetadataToken == member.MetadataToken && info.Module == member.Module
+			&& Attributes is not null && !Attributes.Any( x => x is IMemberAttribute );
+	}
+
+	/// <summary>
 	/// Generate a unique hash to identity this member.
 	/// </summary>
 	/// <returns></returns>
@@ -244,13 +282,13 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	/// <summary>
 	/// TODO - create MethodDescription?
 	/// </summary>
-	internal static MemberDescription Create( TypeDescription td, MemberInfo member, MemberDescription previous )
+	internal static MemberDescription Create( TypeDescription td, MemberInfo member, MemberDescription previous, MemberDescription inherited )
 	{
 		return member switch
 		{
-			MethodInfo mi => MethodDescription.Create( mi, td, previous ),
-			PropertyInfo pi => PropertyDescription.Create( pi, td, previous ),
-			FieldInfo fi => FieldDescription.Create( fi, td, previous ),
+			MethodInfo mi => MethodDescription.Create( mi, td, previous, inherited as MethodDescription ),
+			PropertyInfo pi => PropertyDescription.Create( pi, td, previous, inherited as PropertyDescription ),
+			FieldInfo fi => FieldDescription.Create( fi, td, previous, inherited as FieldDescription ),
 			_ => null //new MemberDescription( member ) { TypeDescription = td };
 		};
 	}

@@ -1,5 +1,4 @@
 using Sandbox.Rendering;
-using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
@@ -9,10 +8,6 @@ namespace Sandbox;
 /// </summary>
 internal static class CubemapRendering
 {
-	// Made by Filter, before rendering. As a static initializer it was first reached from Filter in the cube camera's render
-	// stage hook, during rendering, where Material.Create throws: the type failed to initialize, and every render after threw.
-	static ComputeShader EnvmapFilter;
-
 	/// <summary>
 	/// Specifies the quality level for GGX filtering of environment maps.
 	/// </summary>
@@ -52,7 +47,6 @@ internal static class CubemapRendering
 		camera.Position = cubemapTransform.Position;
 		camera.Rotation = cubemapTransform.Rotation;
 		camera.World = world;
-		camera.ExcludeFromTextureStreaming = true;
 
 		if ( excludeTags is not null )
 		{
@@ -62,112 +56,11 @@ internal static class CubemapRendering
 		// Hide In Game meshes are still visible in the editor, keep them out of bakes
 		camera.ExcludeTags.Add( MeshComponent.HideInGameTag );
 
-		// Filter with GGX once all six faces are drawn, so roughness levels sample correctly
-		var filter = Filter( cubemapTexture, filterType );
-		if ( renderer is null ) camera.RenderToCubeTexture( cubemapTexture, afterFaces: filter );
-		else renderer.RenderToCube( camera, cubemapTexture, default, filter );
-	}
-
-	/// <summary>
-	/// Applies filtering to a cubemap texture, generating both downsample and GGX filtering.
-	/// </summary>
-	/// <param name="cubemapTexture">The cubemap texture to filter.</param>
-	/// <param name="filterType">The quality level for GGX filtering.</param>
-	/// <exception cref="Exception">Thrown when the cubemap texture doesn't meet requirements.</exception>
-	internal static CommandList Filter( Texture cubemapTexture, GGXFilterType filterType )
-	{
 		if ( cubemapTexture.Depth != 6 ) throw new Exception( "Cubemap texture must have 6 faces" );
 		if ( cubemapTexture.Width != cubemapTexture.Height ) throw new Exception( "Cubemap texture must be square" );
-		if ( cubemapTexture.Width.IsPowerOfTwo() == false ) throw new Exception( "Cubemap texture must be power of two" );
+		if ( !cubemapTexture.Width.IsPowerOfTwo() ) throw new Exception( "Cubemap texture must be power of two" );
 		if ( cubemapTexture.Mips != 7 ) throw new Exception( $"Cubemap texture must have 7 mip levels (this has {cubemapTexture.Mips})" );
 
-		EnvmapFilter ??= new ComputeShader( "envmap_filtering_cs" );
-
-		// Merge into a single command list for callers
-		var filter = new CommandList( "Cubemap.Filter" );
-		filter.InsertList( FilterDownsample( cubemapTexture ) );
-		filter.InsertList( FilterGGX( cubemapTexture, filterType ) );
-		filters.AddOrUpdate( filter, new StrongBox<GGXFilterType>( filterType ) );
-		return filter;
-	}
-
-	// What each filter Filter made filters with
-	static readonly ConditionalWeakTable<CommandList, StrongBox<GGXFilterType>> filters = new();
-
-	/// <summary>
-	/// The quality <paramref name="list"/> filters with, if it's a filter <see cref="Filter"/> made: a renderer that filters
-	/// cubes its own way (Borealis on Borealis.Gpu) runs that instead of the list.
-	/// </summary>
-	internal static GGXFilterType? FilterOf( CommandList list ) => list is not null && filters.TryGetValue( list, out var type ) ? type.Value : null;
-
-	/// <summary>
-	/// Downsamples a cubemap texture to generate its mip chain.
-	/// </summary>
-	/// <param name="cubemapTexture">The cubemap texture to downsample.</param>
-	internal static CommandList FilterDownsample( Texture cubemapTexture )
-	{
-		var cmd = new CommandList( "Cubemap.FilterDownsample" );
-
-		// Set static attributes once
-		cmd.Attributes.Set( "DownsampleInput", cubemapTexture );
-		cmd.Attributes.SetCombo( "D_PASS", 0 );
-
-		for ( int i = 1; i < cubemapTexture.Mips; i++ )
-		{
-			var size = cubemapTexture.Width >> i;
-			cmd.Attributes.Set( "DownsampleOutput", cubemapTexture, i );
-			cmd.Attributes.Set( "Size", size );
-			cmd.DispatchCompute( EnvmapFilter, size, size, 6 );
-
-			// Barrier for this mip before next iteration using CommandList helper
-			cmd.ResourceBarrierTransition( cubemapTexture, ResourceState.UnorderedAccess, i );
-		}
-
-		return cmd;
-	}
-
-	/// <summary>
-	/// Applies GGX filtering to a cubemap texture for image-based lighting.
-	/// This generates the pre-filtered environment map used in PBR workflows.
-	/// </summary>
-	/// <param name="cubemapTexture">The cubemap texture to filter.</param>
-	/// <param name="filterType">The quality level for GGX filtering.</param>
-	internal static CommandList FilterGGX( Texture cubemapTexture, GGXFilterType filterType )
-	{
-		var cmd = new CommandList( "Cubemap.FilterGGX" );
-
-		cmd.Attributes.Set( "Source", cubemapTexture );
-		for ( int i = 1; i < cubemapTexture.Mips; i++ )
-		{
-			cmd.Attributes.Set( $"Destination{i}", cubemapTexture, i );
-		}
-		cmd.Attributes.SetCombo( "D_QUALITY", (int)filterType );
-		cmd.Attributes.SetCombo( "D_PASS", 1 );
-		cmd.Attributes.Set( "BaseResolution", cubemapTexture.Width );
-
-		for ( int i = 0; i < 2; i++ )
-		{
-			cmd.DispatchCompute( EnvmapFilter, SumOfSquaresTwo( cubemapTexture.Width / 2 ), 6, 1 );
-			cmd.ResourceBarrierTransition( cubemapTexture, ResourceState.UnorderedAccess, cubemapTexture.Mips );
-		}
-
-		return cmd;
-	}
-
-	/// <summary>
-	/// Calculates the sum of squares of powers of two up to n.
-	/// Formula: 1² + 2² + 4² + 8² + ... + (2^k)² where 2^k ≤ n
-	/// Used for determining compute shader dispatch dimensions.
-	/// </summary>
-	/// <param name="n">The upper limit for powers of two.</param>
-	/// <returns>The sum of squares of powers of two up to n.</returns>
-	internal static int SumOfSquaresTwo( int n )
-	{
-		int sum = 0;
-		for ( int i = 1; i <= n; i *= 2 )
-		{
-			sum += i * i;
-		}
-		return sum;
+		(renderer ?? SceneRenderer.Current).RenderToCube( camera, cubemapTexture, default, filterType );
 	}
 }

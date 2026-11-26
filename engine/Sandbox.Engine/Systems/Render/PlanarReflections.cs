@@ -42,7 +42,7 @@ internal static class PlanarReflections
 
 	/// <summary>
 	/// A view's planar reflection, planned (<see cref="Plan{T}"/>): the plane it mirrors in, its setup for
-	/// <c>CommandList.RenderReflection</c>, the target it renders into, and how many planes share it.
+	/// <c>CommandList.ReflectionView</c>, the target it renders into, and how many planes share it.
 	/// </summary>
 	internal struct Reflection
 	{
@@ -159,7 +159,7 @@ internal static class PlanarReflections
 		bool unclipped = eyeHeight <= MathF.Max( 0.5f, clipOffset ) + zNear * 2;
 
 		var (width, height) = RenderTarget.ScaleDownSize( viewportSize, downsample );
-		var target = RenderTarget.GetTemporary( width, height, ImageFormat.RGBA16161616F, ImageFormat.Default, numMips: 1, targetName: "Planar reflection" );
+		var target = RenderTarget.GetCaptureTemporary( width, height, ImageFormat.RGBA16161616F, ImageFormat.Default, "Planar reflection" );
 
 		return new Reflection
 		{
@@ -184,27 +184,12 @@ internal static class PlanarReflections
 		};
 	}
 
-	/// <summary>
-	/// Publish a rendered reflection in the attributes of the view it was rendered for: materials on its plane sample it.
-	/// </summary>
-	internal static void Publish( RenderAttributes attributes, in Reflection reflection, in ViewData data )
+	/// <summary>Record the test diagnostics after the bridge successfully renders the reflection.</summary>
+	internal static void RecordRendered( in Reflection reflection )
 	{
-		if ( !data.IsValid )
-			return;
-
-		System.Threading.Interlocked.Increment( ref _captureCount );
 		LastSharedCount = reflection.Shared;
 		LastPlane = reflection.Plane;
-
-		var target = reflection.Target;
-		attributes.Set( "PlanarReflectionTexture", target.ColorTarget );
-		attributes.Set( "PlanarReflectionDepthTexture", target.DepthTarget );
-		attributes.Set( "PlanarReflectionProjectionToView", data.ProjectionToView );
-		attributes.Set( "PlanarReflectionDepthUvScaleBias", data.DepthUvScaleBias );
-		attributes.Set( "PlanarReflectionViewport", data.Viewport );
-		attributes.Set( "PlanarReflectionDepthRange", data.DepthRange );
-		attributes.Set( "PlanarReflectionPlane", new Vector4( reflection.Plane.Normal, reflection.Plane.Distance ) );
-		attributes.Set( "HasPlanarReflection", true );
+		System.Threading.Interlocked.Increment( ref _captureCount );
 	}
 
 	/// <summary>

@@ -1,10 +1,10 @@
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// Screen-space reflections, a core part of every camera's view: both renderers trace them right after the depth
-/// prepass's Hi-Z chain (<see cref="Trace"/>) and keep the lit scene after opaque as the next frame's history
-/// (<see cref="CaptureHistory"/>). The result is the <see cref="PipelineTextureSlot.Reflections"/> pipeline texture, which
-/// materials sample through <c>DynamicReflections</c>. One per camera, since the history is that camera's previous frame.
+/// Screen-space reflections trace right after the depth prepass's Hi-Z chain (<see cref="Trace"/>) and keep the lit scene
+/// after opaque as the next frame's history (<see cref="CaptureHistory"/>). Materials sample the result through
+/// <c>DynamicReflections</c> using the <see cref="PipelineTextureSlot.Reflections"/> pipeline texture.
+/// Each camera view owns its history.
 /// </summary>
 internal sealed class ScreenSpaceReflectionsPass : IDisposable
 {
@@ -58,27 +58,34 @@ internal sealed class ScreenSpaceReflectionsPass : IDisposable
 	];
 
 	readonly CommandList trace = new( "Screen-space reflections" );
-	readonly CommandList history = new( "Screen-space reflections (history)" );
-	readonly object _lock = new();
 	GpuBuffer<GpuBuffer.IndirectDispatchArguments> dispatchArgs;
 
-	public ScreenSpaceReflectionsPass()
-	{
-		// The cone blur samples the mip matching its footprint, taps along the lobe hide the box filter
-		history.Attributes.GrabFrameTexture( "LastFrameColor", Graphics.DownsampleMethod.GGX, maxMips: 6 );
-	}
+	Texture historyColor;
+	ImageFormat? historyFormat;
+	bool hasHistory;
+	BorealisGpuUpscaler.CutDetector cuts;
 
 	/// <summary>
 	/// Trace this view's reflections into the reflections pipeline texture. Needs the depth-normals G-buffer and the Hi-Z
 	/// chain; on the graphics queue, since it clears. In a <see cref="Graphics"/> block on the render thread.
 	/// </summary>
-	internal void Trace()
+	internal void Trace( Vector3 position, Rotation rotation, object world, ImageFormat? colorFormat )
 	{
-		lock ( _lock )
-		{
-			using ( Performance.Scope( "SSR record" ) ) Record();
-			using ( Performance.Scope( "SSR trace" ) ) trace.ExecuteOnRenderThread();
-		}
+		trace.Reset();
+
+		var cut = cuts.Cut( position, rotation, world, Application.FrameCount );
+		var size = Graphics.Viewport.Size;
+		var lastFrame = hasHistory && !cut && historyColor.ImageFormat == colorFormat
+			&& historyColor.Width == (int)size.x && historyColor.Height == (int)size.y ? historyColor : null;
+		historyFormat = colorFormat;
+		hasHistory = false;
+
+		// The frame starts with the reflections slot empty. Leave it that way without usable history, so materials
+		// fall back to their environment instead of treating black as a successful reflection.
+		if ( lastFrame is null ) return;
+
+		using ( Performance.Scope( "SSR record" ) ) Record( lastFrame );
+		using ( Performance.Scope( "SSR trace" ) ) trace.ExecuteOnRenderThread();
 	}
 
 	/// <summary>
@@ -86,17 +93,31 @@ internal sealed class ScreenSpaceReflectionsPass : IDisposable
 	/// </summary>
 	internal void CaptureHistory()
 	{
-		// No outer lock: the history list guards its own render targets, which is all Trace shares with it
+		if ( historyFormat is not { } format ) return;
+
 		using var scope = Performance.Scope( "SSR history" );
-		history.ExecuteOnRenderThread();
+		var viewport = Graphics.Viewport;
+		int width = (int)viewport.Width, height = (int)viewport.Height;
+		if ( historyColor is null || historyColor.Width != width || historyColor.Height != height || historyColor.ImageFormat != format )
+		{
+			// This is the view's own image, not a frame grab returned to the shared pool at the end of the block.
+			var mips = Math.Min( 6, System.Numerics.BitOperations.Log2( (uint)Math.Min( width, height ) ) + 1 );
+			var color = Texture.CreateRenderTarget().WithSize( width, height ).WithFormat( format ).WithMips( mips )
+				.WithUAVBinding().Create( "SSR history" );
+			historyColor?.Dispose();
+			historyColor = color;
+		}
+
+		// Both stages record on the graphics queue, so this overwrites the image only after the trace has read it.
+		Graphics.Backend.ResolveColor( historyColor, viewport );
+		// The cone blur samples the mip matching its footprint, taps along the lobe hide the box filter
+		Graphics.GenerateMipMaps( historyColor, Graphics.DownsampleMethod.GGX );
+		hasHistory = true;
 	}
 
-	void Record()
+	void Record( Texture lastFrame )
 	{
-		trace.Reset();
-
 		bool needsUpscale = Ratio != 1;
-		var lastFrame = history.Attributes.GetRenderTarget( "LastFrameColor" )?.ColorTarget ?? Texture.Transparent;
 		dispatchArgs ??= new GpuBuffer<GpuBuffer.IndirectDispatchArguments>( 2, GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments, "SSR_IntersectDispatchArgs" );
 		// Recorded, so every execution of this list starts the tile counts from zero
 		trace.SetBufferData( dispatchArgs, InitialDispatchArgs );
@@ -143,6 +164,7 @@ internal sealed class ScreenSpaceReflectionsPass : IDisposable
 		{
 			trace.Attributes.Set( "ClassifiedTiles", tiles.ColorTexture );
 			trace.Attributes.Set( "OutGuide", guide.ColorTexture );
+			trace.Attributes.Set( "OutRadiance", reflection.ColorTexture, traceMip );
 			trace.Attributes.SetCombo( "D_PASS", (int)Passes.Intersect );
 			trace.DispatchComputeIndirect( ShaderCs, dispatchArgs, (int)DispatchArgsEntry.Intersect );
 			trace.ResourceBarrierTransition( reflection, ResourceState.NonPixelShaderResource, traceMip );
@@ -163,12 +185,15 @@ internal sealed class ScreenSpaceReflectionsPass : IDisposable
 
 		// Rebuild from the bilateral-upscaled mip 0 so the raw trace doesn't bleed across edges
 		trace.GenerateMipMaps( reflection, Graphics.DownsampleMethod.GGX );
-		trace.ResourceBarrierTransition( reflection, ResourceState.PixelShaderResource );
-		trace.SetPipelineTexture( PipelineTextureSlot.Reflections, reflection.ColorTexture );
+		trace.PublishPipelineTexture( PipelineTextureSlot.Reflections, reflection.ColorTexture );
 	}
 
 	public void Dispose()
 	{
+		trace.Reset();
+		hasHistory = false;
+		historyColor?.Dispose();
+		historyColor = null;
 		dispatchArgs?.Dispose();
 		dispatchArgs = null;
 	}

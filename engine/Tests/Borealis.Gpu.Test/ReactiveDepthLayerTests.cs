@@ -11,7 +11,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class ReactiveDepthLayerTests : GpuTest
+public class ReactiveDepthLayerTests : RenderGpuTest
 {
 	const int Width = 256, Height = 256;
 

@@ -36,8 +36,9 @@ Mode( Default );
 
     float GetDepthMask(int2 vDispatchId)
     {
-        // We render depth mask at quarter res
-        const int2 baseCoord = vDispatchId.xy / 4;
+        uint2 dims;
+        DepthMask.GetDimensions( dims.x, dims.y );
+        const uint2 baseCoord = uint2( (vDispatchId.xy + 0.5f) * g_vInvViewportSize * dims );
 
         float depth = DepthMask[baseCoord].x;
 

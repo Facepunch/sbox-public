@@ -11,7 +11,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class CaptureTests : GpuTest
+public class CaptureTests : RenderGpuTest
 {
 	const int Width = 64, Height = 64;
 
@@ -68,7 +68,9 @@ public class CaptureTests : GpuTest
 	/// workers) is drawn, then copied flipped into its target by a full-screen draw: the side the box is on swaps.
 	/// </summary>
 	[TestMethod]
-	public void FlippedViewIsCopiedMirrored()
+	[DataRow( false )]
+	[DataRow( true )]
+	public void FlippedViewIsCopiedMirrored( bool useStagesOverload )
 	{
 		using var backend = new BackendDevice( Device );
 		var previousHost = RenderHost.Current;
@@ -89,7 +91,8 @@ public class CaptureTests : GpuTest
 
 				backend.BeginFrame();
 				RenderHost.Current.NextFrame();
-				system.Render( world, view, target, null );
+				if ( useStagesOverload ) system.Render( world, view, target, null );
+				else system.Render( world, view, target );
 				backend.MakeReadable( target.Resolved );
 				backend.Gpu.Flush();
 				Device.WaitIdle();

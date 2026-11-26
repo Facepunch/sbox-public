@@ -10,6 +10,16 @@ internal class FileAttribute : Attribute
 	/// The extension to filter by in the browse dialog. If empty, all files are shown.
 	/// </summary>
 	public string Extension { get; set; } = "";
+
+	/// <summary>
+	/// A program to run: <c>.exe</c> files on Windows, any file elsewhere, where programs have no extension.
+	/// </summary>
+	public bool Executable { get; set; }
+
+	/// <summary>
+	/// The extensions the picker accepts, comma separated; empty for any file.
+	/// </summary>
+	public string Filter => Executable ? (OperatingSystem.IsWindows() ? "exe" : "") : Extension;
 }
 
 [CustomEditor( typeof( string ), WithAllAttributes = new[] { typeof( FileAttribute ) } )]
@@ -93,7 +103,7 @@ internal class FileControlWidget : ControlWidget
 
 	void Browse()
 	{
-		var path = EditorUtility.OpenFileDialog( $"Select {SerializedProperty.DisplayName}", attribute?.Extension ?? "", SerializedProperty.GetValue<string>( "" ) );
+		var path = EditorUtility.OpenFileDialog( $"Select {SerializedProperty.DisplayName}", attribute?.Filter ?? "", SerializedProperty.GetValue<string>( "" ) );
 		if ( string.IsNullOrEmpty( path ) )
 			return;
 
@@ -111,7 +121,7 @@ internal class FileControlWidget : ControlWidget
 
 	bool CanAssign( string path )
 	{
-		var extensions = (attribute?.Extension ?? "").Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
+		var extensions = (attribute?.Filter ?? "").Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
 		if ( extensions.Length == 0 )
 			return true;
 

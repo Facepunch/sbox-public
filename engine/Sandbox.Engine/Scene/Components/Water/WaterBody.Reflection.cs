@@ -117,7 +117,7 @@ public sealed partial class WaterBody
 		var attributes = commands.Attributes;
 		attributes.Set( "HasEnvironment", environment.Texture is not null );
 		if ( environment.Texture is { } texture )
-			attributes.SetIndex( "EnvironmentTextureIndex", texture, ushort.MaxValue );
+			attributes.SetIndex( "EnvironmentTextureIndex", texture );
 		attributes.Set( "EnvironmentTextureFormat", environment.Format );
 
 		var tint = environment.Tint;

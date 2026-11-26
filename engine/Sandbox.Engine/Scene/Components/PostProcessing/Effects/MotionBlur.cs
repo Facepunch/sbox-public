@@ -24,7 +24,7 @@ public sealed class MotionBlur : BasePostProcess<MotionBlur>
 
 		if ( scale <= 0.0f ) return;
 
-		int[] samples = [4, 8, 12, 16];
+		ReadOnlySpan<int> samples = [4, 8, 12, 16];
 
 		Attributes.Set( "standard.motionblur.scale", scale );
 		Attributes.Set( "standard.motionblur.samples", samples[Quality] );

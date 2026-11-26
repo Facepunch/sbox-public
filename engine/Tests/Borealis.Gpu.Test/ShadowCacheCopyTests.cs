@@ -12,7 +12,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class ShadowCacheCopyTests : GpuTest
+public class ShadowCacheCopyTests : RenderGpuTest
 {
 	[TestMethod]
 	[DataRow( 0, 0 )]

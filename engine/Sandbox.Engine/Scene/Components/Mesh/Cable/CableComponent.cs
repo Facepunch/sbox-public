@@ -541,25 +541,32 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 
 	void DetectNodeChanges()
 	{
-		var nodes = GetNodeData();
-		if ( nodes.Count != _cachedNodePositions.Length )
+		// Compare against the cached state in place; node data is only gathered when something changed.
+		var count = 0;
+		var changed = false;
+		foreach ( var child in GameObject.Children )
 		{
-			CacheNodeState( nodes );
-			OnNodeDataChanged();
-			return;
+			var node = child.GetComponent<CableNodeComponent>();
+			if ( node is null )
+				continue;
+
+			if ( count >= _cachedNodePositions.Length ||
+				!_cachedNodePositions[count].AlmostEqual( child.LocalPosition ) ||
+				MathF.Abs( _cachedNodeRadiusScales[count] - node.RadiusScale ) > 0.0001f ||
+				MathF.Abs( _cachedNodeRolls[count] - node.Roll ) > 0.0001f )
+			{
+				changed = true;
+				break;
+			}
+
+			count++;
 		}
 
-		for ( int i = 0; i < nodes.Count; i++ )
-		{
-			if ( !_cachedNodePositions[i].AlmostEqual( nodes[i].Position ) ||
-				MathF.Abs( _cachedNodeRadiusScales[i] - nodes[i].RadiusScale ) > 0.0001f ||
-				MathF.Abs( _cachedNodeRolls[i] - nodes[i].Roll ) > 0.0001f )
-			{
-				CacheNodeState( nodes );
-				OnNodeDataChanged();
-				return;
-			}
-		}
+		if ( !changed && count == _cachedNodePositions.Length )
+			return;
+
+		CacheNodeState( GetNodeData() );
+		OnNodeDataChanged();
 	}
 
 	void OnNodeDataChanged()

@@ -56,4 +56,31 @@ public class CommandListBufferDataHandOverTests
 			RenderBackend.SetDefault( previous );
 		}
 	}
+
+	[TestMethod]
+	public void DeferredBufferClearKeepsAllBits()
+	{
+		TestGraphics.Require();
+		ThreadSafe.MarkMainThread();
+		using var borealis = BorealisGpuRenderBackend.Create( validation: true );
+		var previous = RenderBackend.Default;
+		RenderBackend.SetDefault( borealis );
+		try
+		{
+			using var buffer = new GpuBuffer<uint>( 4 );
+			var commands = new CommandList();
+			const uint value = 0xf1020304;
+			commands.Clear( buffer, value );
+			commands.Execute();
+
+			var data = new uint[4];
+			buffer.GetData( data, 0, 4 );
+			CollectionAssert.AreEqual( new uint[] { value, value, value, value }, data );
+			Assert.AreEqual( 0, borealis.ValidationErrors );
+		}
+		finally
+		{
+			RenderBackend.SetDefault( previous );
+		}
+	}
 }

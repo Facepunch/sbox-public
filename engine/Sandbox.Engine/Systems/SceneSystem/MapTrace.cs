@@ -228,6 +228,24 @@ internal sealed class MapTrace
 			return FromCorners( corners.ToArray(), materialOf.ToArray(), materials.ToArray() );
 		}
 
+		/// <summary>
+		/// Triangles from an indexed mesh with no materials, three indices each, in index order: a model made in code's trace
+		/// mesh, as native's <c>BuildRayTraceObject</c> took it. Triangle <c>i</c> is indices <c>3i..3i+2</c>, which is what
+		/// <c>PolygonMesh.TriangleToFace</c> reads a hit's triangle by.
+		/// </summary>
+		public static ModelTriangles FromIndexed( ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices )
+		{
+			var count = indices.Length / 3;
+			var corners = new N3[count * 3];
+			for ( int i = 0; i < corners.Length; i++ )
+			{
+				var p = vertices[indices[i]];
+				corners[i] = new N3( p.x, p.y, p.z );
+			}
+
+			return FromCorners( corners, new int[count], [null] );
+		}
+
 		/// <summary>Triangles from their corners, three each, with each triangle's index into <paramref name="materials"/>.</summary>
 		public static ModelTriangles FromCorners( N3[] corners, int[] materialOf, string[] materials )
 		{

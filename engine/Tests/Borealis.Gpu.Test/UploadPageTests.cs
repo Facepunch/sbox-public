@@ -7,7 +7,6 @@ namespace BorealisGpuTests;
 /// kept for later lists, rather than held mapped for good.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class UploadPageTests : GpuTest
 {
 	[TestMethod]

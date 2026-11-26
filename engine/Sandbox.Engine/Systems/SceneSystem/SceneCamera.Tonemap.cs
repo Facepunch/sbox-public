@@ -10,19 +10,7 @@ public partial class SceneCamera
 
 internal class TonemapSystem
 {
-	private readonly SceneCamera Camera;
-	private SceneTonemapParameters_t Parameters = new SceneTonemapParameters_t();
-
-	internal TonemapSystem( SceneCamera camera )
-	{
-		Camera = camera;
-	}
-
-	internal void SetTonemapParameters( SceneTonemapParameters_t parameters )
-	{
-		Parameters = parameters;
-		Update();
-	}
+	SceneTonemapParameters_t Parameters = new();
 
 	/// <summary>
 	/// Enable or disable exposure.
@@ -38,7 +26,6 @@ internal class TonemapSystem
 		set
 		{
 			Parameters.m_flRate = value;
-			Update();
 		}
 	}
 
@@ -51,7 +38,6 @@ internal class TonemapSystem
 		set
 		{
 			Parameters.m_flAccelerateExposureDown = value;
-			Update();
 		}
 	}
 
@@ -64,7 +50,6 @@ internal class TonemapSystem
 		set
 		{
 			Parameters.m_flAutoExposureMin = value;
-			Update();
 		}
 	}
 
@@ -77,7 +62,6 @@ internal class TonemapSystem
 		set
 		{
 			Parameters.m_flAutoExposureMax = value;
-			Update();
 		}
 	}
 
@@ -90,7 +74,6 @@ internal class TonemapSystem
 		set
 		{
 			Parameters.m_flExposureCompensationScalar = MathF.Pow( 2.0f, value );
-			Update();
 		}
 	}
 
@@ -103,7 +86,6 @@ internal class TonemapSystem
 		set
 		{
 			Parameters.m_flTonemapPercentTarget = value;
-			Update();
 		}
 	}
 
@@ -116,7 +98,6 @@ internal class TonemapSystem
 		set
 		{
 			Parameters.m_flTonemapPercentBrightPixels = value;
-			Update();
 		}
 	}
 
@@ -129,44 +110,8 @@ internal class TonemapSystem
 		set
 		{
 			Parameters.m_flTonemapMinAvgLum = value;
-			Update();
 		}
 	}
 
-	private void Update()
-	{
-	}
-
-	// The camera's auto exposure on a Borealis.Gpu device, made when its frames are drawn there
-	Borealis.Backend.AutoExposure gpuExposure;
-	BorealisGpuRenderBackend gpuExposureDevice;
-
-	/// <summary>
-	/// The camera's auto exposure on <paramref name="backend"/>'s device: native's tonemap system ported, with the settings
-	/// native's has (what the tonemapping component sets through <c>CameraComponent.AutoExposure</c>). A frame there calls
-	/// its <see cref="Borealis.Backend.AutoExposure.FrameUpdate"/> where native's frame update runs, and counts its bucket over
-	/// the HDR colour before tonemapping (<see cref="BorealisGpuFrame.CountExposure"/>). Null while exposure is off.
-	/// </summary>
-	internal Borealis.Backend.AutoExposure GpuExposure( BorealisGpuRenderBackend backend )
-	{
-		if ( !Enabled ) return null;
-
-		if ( gpuExposure is null || gpuExposureDevice != backend )
-		{
-			gpuExposure?.Dispose();
-			gpuExposure = backend.CreateExposure();
-			gpuExposureDevice = backend;
-		}
-
-		gpuExposure.SetSettings( BorealisGpuRenderBackend.Settings( Parameters ) );
-		return gpuExposure;
-	}
-
-	/// <summary>Free the exposure made on a Borealis.Gpu device, once its device is done with it.</summary>
-	internal void DisposeGpuExposure()
-	{
-		gpuExposure?.Dispose();
-		gpuExposure = null;
-		gpuExposureDevice = null;
-	}
+	internal ref readonly SceneTonemapParameters_t Settings => ref Parameters;
 }

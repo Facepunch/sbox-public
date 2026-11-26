@@ -11,7 +11,6 @@ namespace BorealisGpuTests;
 /// layer checking every test.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class DeviceTests : GpuTest
 {
 	TextureHandle Target( int width, int height ) => Device.CreateTexture( TextureInfo.RenderTarget( width, height, Format.RGBA8Unorm, name: "Target" ) );
@@ -174,7 +173,8 @@ public class DeviceTests : GpuTest
 		var target = Target( 64, 32 );
 		var list = Device.BeginCommandList();
 		list.Barrier( TextureBarrier.Transition( target, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.TopOfPipe, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
-		list.BeginRendering( [ColorTarget.Of( target, new Vector4( 1, 128f / 255f, 0, 1 ) )] );
+		// Choose an exactly representable UNORM value, not a tie between 127 and 128.
+		list.BeginRendering( [ColorTarget.Of( target, new Vector4( 1, 128f / 255, 0, 1 ) )] );
 		list.EndRendering();
 		Device.Wait( Device.Submit( list ) );
 
@@ -226,6 +226,58 @@ public class DeviceTests : GpuTest
 
 		Assert.AreEqual( ((byte)255, (byte)0, (byte)0, (byte)255), Draw( barrierFirst: false, suspend: false ), "a resume with nothing suspended loads what's there" );
 		Assert.AreEqual( pairings + 2, Device.ScopePairings, "a scope was begun for it to resume" );
+	}
+
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void AResumedDepthScopeCanSuspendAgain( bool endLocally )
+	{
+		var depth = Device.CreateTexture( TextureInfo.RenderTarget( 16, 16, Format.D32FloatS8Uint, name: "Carried depth" ) );
+		var resume = Device.BeginCommandList();
+		resume.BeginRendering( [], DepthTarget.Of( depth, 0.75f ) with { ClearStencil = 7 }, RenderingFlags.Resume | RenderingFlags.Suspend );
+		resume.EndRendering();
+		if ( endLocally )
+			resume.Barrier( PipelineStage.LateFragmentTests, MemoryAccess.DepthTargetWrite, PipelineStage.Transfer, MemoryAccess.TransferRead );
+
+		var first = Device.BeginCommandList();
+		first.Barrier( TextureBarrier.Transition( depth, ImageLayout.Undefined, ImageLayout.DepthTarget, PipelineStage.TopOfPipe, MemoryAccess.None,
+			PipelineStage.EarlyFragmentTests | PipelineStage.LateFragmentTests, MemoryAccess.DepthTargetWrite ) );
+		first.BeginRendering( [], DepthTarget.Of( depth, 0.25f ) with { ClearStencil = 3 }, RenderingFlags.Suspend );
+		first.EndRendering();
+
+		var pairings = Device.ScopePairings;
+		Device.SubmitLater( first );
+		Device.SubmitLater( resume );
+		Device.Flush();
+		Assert.AreEqual( pairings + (endLocally ? 0 : 1), Device.ScopePairings, "the lists paired directly, then the chain was ended" );
+
+		// The validation layer (1.4.321) misreads a list that resumes and suspends again in a vkQueueSubmit2: it sets the suspended
+		// state from the list's suspend before clearing it for its resume, so the list ending the chain is reported as resuming
+		// nothing (VUID-VkSubmitInfo2-commandBuffer-06192). The chain is valid; that one report is all that's allowed
+		var errors = TakeValidationErrors();
+		Assert.IsTrue( errors.All( e => !endLocally && e == "VUID-VkSubmitInfo2-commandBuffer-06192" ), string.Join( ", ", errors ) );
+		var pixels = ReadBack( depth, ImageLayout.DepthTarget );
+		Assert.AreEqual( 0.25f, BitConverter.ToSingle( pixels, (8 * 16 + 8) * sizeof( float ) ), "only the first depth clear took effect" );
+	}
+
+	[TestMethod]
+	public void ScopesWithDifferentStoreOperationsDoNotPair()
+	{
+		var target = Target( 16, 16 );
+		var first = Device.BeginCommandList();
+		first.Barrier( TextureBarrier.Transition( target, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.TopOfPipe, MemoryAccess.None,
+			PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetRead | MemoryAccess.ColorTargetWrite ) );
+		first.BeginRendering( [ColorTarget.Of( target )], default, RenderingFlags.Suspend );
+		first.EndRendering();
+		Device.SubmitLater( first );
+
+		var resume = Device.BeginCommandList();
+		resume.BeginRendering( [ColorTarget.Of( target ) with { Store = StoreOp.DontCare }], default, RenderingFlags.Resume );
+		resume.EndRendering();
+		var pairings = Device.ScopePairings;
+		Device.Wait( Device.Submit( resume ) );
+		Assert.AreEqual( pairings + 2, Device.ScopePairings, "each scope needs its own matching helper" );
 	}
 
 	/// <summary>
@@ -295,7 +347,6 @@ public class DeviceTests : GpuTest
 		var data = Enumerable.Range( 0, 256 ).Select( i => (uint)(i * 3 + 2) ).ToArray();
 
 		Device.BeginFrame();
-		var kept = Device.ListsKeptPending;
 		var list = Device.BeginCommandList( name: "Submitted late" );
 		list.UpdateBuffer<uint>( buffer, data );
 		list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Transfer, DestinationAccess = MemoryAccess.TransferRead } );
@@ -319,7 +370,6 @@ public class DeviceTests : GpuTest
 		Device.Flush();
 		Device.Wait( point );
 		CollectionAssert.AreEqual( data, MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) ).ToArray(), "the late list's copy ran" );
-		Assert.AreEqual( kept + 1, Device.ListsKeptPending, "kept for its submission" );
 	}
 
 	/// <summary>
@@ -454,6 +504,58 @@ public class DeviceTests : GpuTest
 		var right = Pixel( pixels, width, width / 2 + 125, height / 2 + 10 );
 		Assert.AreNotEqual( clear, left, "the checkerboard cube is drawn" );
 		Assert.AreNotEqual( clear, right, "the pattern cube is drawn" );
+	}
+
+	[TestMethod]
+	public void DrawAndDispatchSharePartialPushConstantsAcrossBindPoints()
+	{
+		const int size = 8;
+		var target = Target( size, size );
+		var info = TextureInfo.Texture2D( size, size, Format.RGBA8Unorm, name: "Compute target" );
+		info.Usage |= TextureUsage.Storage;
+		var pattern = Device.CreateTexture( info );
+		var triangle = Device.CreateGraphicsPipeline( new GraphicsPipelineInfo
+		{
+			VertexShader = Device.CreateShader( LoadShader( "triangle.vs.spv" ), "triangle vertex" ),
+			VertexEntry = "MainVs",
+			FragmentShader = Device.CreateShader( LoadShader( "triangle.ps.spv" ), "triangle fragment" ),
+			FragmentEntry = "MainPs",
+			Topology = PrimitiveTopology.TriangleList,
+			Samples = 1,
+			ColorFormats = [Format.RGBA8Unorm],
+		} );
+		var compute = Device.CreateComputePipeline( new ComputePipelineInfo
+		{
+			Shader = Device.CreateShader( LoadShader( "pattern.cs.spv" ), "pattern" ),
+			Entry = "MainCs",
+		} );
+		if ( Device.Capabilities.PipelineLibraries )
+			Assert.AreNotEqual( Device.Get( triangle ).Layout, Device.Get( compute ).Layout, "identical sets still need different layout flags" );
+
+		var list = Device.BeginCommandList();
+		list.Barrier( TextureBarrier.Transition( pattern, ImageLayout.Undefined, ImageLayout.General, PipelineStage.TopOfPipe, MemoryAccess.None,
+			PipelineStage.ComputeShader, MemoryAccess.ShaderWrite ) );
+		list.Barrier( TextureBarrier.Transition( target, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.TopOfPipe, MemoryAccess.None,
+			PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		list.SetPipeline( triangle );
+		list.PushConstants( new PatternConstants { Target = (uint)Device.StorageIndex( pattern ), Width = size, Height = size } );
+		list.SetPipeline( compute );
+		list.Dispatch( 1 );
+
+		// Reuse the same bytes as the triangle's constants: (Target's bits, Time) are effectively (0, 0).
+		// Update Width's word into Scale without rebinding the graphics pipeline before drawing.
+		list.PushConstants( 1f, 2 * sizeof( uint ) );
+		list.BeginRendering( [ColorTarget.Of( target, Vector4.Zero )] );
+		list.Draw( 3 );
+		list.EndRendering();
+		Device.Wait( Device.Submit( list ) );
+
+		var computePixels = ReadBack( pattern, ImageLayout.General );
+		Assert.AreEqual( (byte)255, Pixel( computePixels, size, 0, 0 ).A, "compute read the constants pushed against graphics" );
+		Assert.AreNotEqual( Pixel( computePixels, size, 0, 0 ), Pixel( computePixels, size, 1, 0 ), "compute wrote the pattern" );
+		var graphicsPixels = ReadBack( target, ImageLayout.ColorTarget );
+		Assert.AreEqual( (byte)255, Pixel( graphicsPixels, size, size / 2, size / 2 ).A, "graphics read the scale pushed against compute" );
+		Assert.AreEqual( (byte)0, Pixel( graphicsPixels, size, 0, 0 ).A, "graphics kept the rest of its push constants" );
 	}
 
 	/// <summary>

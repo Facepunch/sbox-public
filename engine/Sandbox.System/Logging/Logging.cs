@@ -224,7 +224,9 @@ internal static partial class Logging
 	{
 		OnEmitted?.Invoke( e );
 
-		if ( ThreadSafe.IsMainThread && callDepth < 3 )
+		// The render thread counts as the main thread but runs beside it: its listeners (the editor's Qt console) aren't
+		// safe to call from two threads at once, so it queues like any worker
+		if ( ThreadSafe.IsMainThread && !ThreadSafe.IsRenderThread && callDepth < 3 )
 		{
 			try
 			{

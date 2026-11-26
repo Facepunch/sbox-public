@@ -101,6 +101,78 @@ public class TargetTests
 		static RenderMesh Mesh( GpuMaterial material ) => new( new HeadlessMesh( "box" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, material )]] );
 	}
 
+	sealed class IsolatedHost( GpuDevice device ) : RenderHost
+	{
+		public override GpuDevice Device => device;
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	public void PassParametersAndMaterialsStayWithTheirDevice()
+	{
+		var previous = RenderHost.Current;
+		var first = new IsolatedHost( new HeadlessDevice() );
+		var second = new IsolatedHost( new HeadlessDevice() );
+		try
+		{
+			RenderHost.Current = first;
+			var material = first.Device.PassMaterial( GpuPassMaterial.ShadowTiles );
+			ShaderParameters taken;
+			using ( ParameterPool.Borrow( out taken ) )
+			{
+				RenderHost.Current = second;
+				Assert.AreNotSame( material, second.Device.PassMaterial( GpuPassMaterial.ShadowTiles ) );
+			}
+
+			using ( ParameterPool.Borrow( out var different ) )
+				Assert.AreNotSame( taken, different, "switching hosts does not cross the pools" );
+
+			RenderHost.Current = first;
+			using ( ParameterPool.Borrow( out var reused ) )
+				Assert.AreSame( taken, reused, "the lease returned it to its original pool" );
+			Assert.AreSame( material, first.Device.PassMaterial( GpuPassMaterial.ShadowTiles ) );
+		}
+		finally
+		{
+			RenderHost.Current = previous;
+		}
+	}
+
+	[TestMethod]
+	public void ScratchReuseRequiresMatchingRolesAndMultisampleUsage()
+	{
+		using var scratch = new TransientTextures();
+		var desc = TextureDesc.Target( 64, 64, TextureFormat.RGBA8888, 4 );
+		var first = scratch.Get( TransientTextureRole.IdsView, desc );
+		scratch.EndRender();
+
+		var sampled = scratch.Get( TransientTextureRole.IdsView, desc with { SampledMultisampled = true } );
+		Assert.AreNotSame( first, sampled );
+		var otherRole = scratch.Get( TransientTextureRole.ContactShadowMask, desc );
+		Assert.AreNotSame( first, otherRole );
+		scratch.EndRender();
+
+		Assert.AreSame( first, scratch.Get( TransientTextureRole.IdsView, desc ) );
+		Assert.AreNotSame( first, scratch.Get( TransientTextureRole.IdsView, desc ), "one texture cannot be loaned twice in one render" );
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	public void FixedPointOutputUsesTheSuppliedIntermediateDepth()
+	{
+		var device = HeadlessRenderHost.Headless;
+		using var output = device.CreateTexture( TextureDesc.Target( 64, 64, TextureFormat.RGBA8888 ), "output" );
+		using var intermediate = ViewTarget.Create( new Vector2Int( 64, 64 ), 4, TextureFormat.RGBA16161616F, TextureFormat.D32FS8 );
+		using var system = new RenderSystem();
+		var view = LookingDownX();
+		view.Viewport = new Rect( 0, 0, 64, 64 );
+		using var frame = device.Capture();
+		RenderHost.Current.NextFrame();
+		system.Render( new RenderWorld(), view, output, 4, null, intermediate: intermediate );
+
+		Assert.IsTrue( frame.Commands.Any( c => c.Op == GpuOp.Bind && c.Depth == intermediate.Depth ) );
+	}
+
 	[TestMethod]
 	public void ShadowViewsKeepTheWholeDepthRange()
 	{

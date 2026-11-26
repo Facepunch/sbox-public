@@ -45,17 +45,15 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 		if ( Scene?.RenderAttributes is null )
 			return;
 
-		// Mark textures as used every frame, so the streaming system keeps 
-		// them resident while the volumes are active. They're only sampled bindlessly,
-		// so request full detail or the streamer treats them as unused and evicts them.
+		// Bindless use does not go through an ordinary material texture binding.
 		foreach ( var volume in Scene.Query<IndirectLightVolume>() )
 		{
 			if ( volume is not { Active: true, Enabled: true } )
 				continue;
 
-			volume.IrradianceTexture?.MarkUsed( ushort.MaxValue );
-			volume.DistanceTexture?.MarkUsed( ushort.MaxValue );
-			volume.RelocationTexture?.MarkUsed( ushort.MaxValue );
+			volume.IrradianceTexture?.MarkUsed();
+			volume.DistanceTexture?.MarkUsed();
+			volume.RelocationTexture?.MarkUsed();
 		}
 
 		if ( !_dirty )

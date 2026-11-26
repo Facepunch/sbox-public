@@ -28,7 +28,7 @@ public abstract class GpuMaterial : IDisposable
 	public abstract bool IsAlphaTest { get; }
 
 	/// <summary>
-	/// Whether its GPU-driven draws dither a LOD cross-fade (resident instanced meshes, <c>borealis_lod_fade.fxc</c>): every
+	/// Whether its GPU-driven draws dither a LOD cross-fade (resident instanced meshes, <c>sbox/lod_fade.slangh</c>): every
 	/// pass of such a draw has a pixel stage that clips. Draws of other materials switch LODs at once.
 	/// </summary>
 	public virtual bool DithersLodFade => false;

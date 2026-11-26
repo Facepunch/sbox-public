@@ -103,10 +103,20 @@ internal class TitleBar : Widget
 		CloseButton.HighlightColor = Color.Parse( "#c42b1c" ).Value;
 		right.Add( CloseButton, 0 );
 
-		// macOS draws its own traffic lights, hide ours
-		if ( OperatingSystem.IsMacOS() )
+		// The system draws the window buttons: macOS its traffic lights, Linux its window manager's title bar
+		if ( HasSystemTitleBar )
 			MinimizeButton.Visible = MaximizeButton.Visible = CloseButton.Visible = false;
+
+		// The window manager's title bar has the icon and title too
+		if ( OperatingSystem.IsLinux() )
+			IconWidget.Visible = false;
 	}
+
+	/// <summary>
+	/// The window keeps the system's title bar and buttons. On Linux the frameless window doesn't take its title bar
+	/// from the window manager, which decorates it as any other: this row would repeat its title and buttons.
+	/// </summary>
+	static bool HasSystemTitleBar => OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
 
 	private bool PaintIcon()
 	{
@@ -134,7 +144,7 @@ internal class TitleBar : Widget
 		Paint.ClearPen();
 		Paint.ClearBrush();
 
-		if ( string.IsNullOrEmpty( Title ) )
+		if ( string.IsNullOrEmpty( Title ) || OperatingSystem.IsLinux() )
 			return;
 
 		Paint.SetPen( Theme.TextControl );

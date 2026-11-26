@@ -137,6 +137,11 @@ internal static class ThumbLoader
 			placeholder.CopyFrom( generated );
 			cache.Save( thumbnail );
 		}
+		catch ( Exception error )
+		{
+			placeholder.FailLoading( error );
+			throw;
+		}
 		finally
 		{
 			placeholder.IsLoaded = true;

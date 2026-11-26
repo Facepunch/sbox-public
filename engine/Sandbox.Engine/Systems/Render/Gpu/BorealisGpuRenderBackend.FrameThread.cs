@@ -31,6 +31,7 @@ internal sealed partial class BorealisGpuRenderBackend
 		SubmitUploads( later: true );
 		LimitAnisotropy();
 		BiasMips( next );
+		BorealisGpuFrame.LoadViewTextures();
 		services.Loading = GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene );
 
 		frameThread ??= NewFrameThread( BorealisGpuFrameThread.Draws );
@@ -62,11 +63,13 @@ internal sealed partial class BorealisGpuRenderBackend
 		SubmitUploads( later: true );
 		LimitAnisotropy();
 		BiasMips( next );
+		BorealisGpuFrame.LoadViewTextures();
 		services.Loading = GameLoading( Sandbox.Engine.GlobalContext.Game?.ActiveScene );
 
 		frameThread ??= NewFrameThread( renderThread: true );
 		renderDraw = draw;
 		drawFrame = Application.FrameCount;
+		drawCounters = Sandbox.Rendering.ManagedSceneRendering.HandOver();
 		aheadFrame = next;
 		aheadDeviceFrame = gpu.FrameNumber + 1;
 		aheadWindow = window;
@@ -99,6 +102,7 @@ internal sealed partial class BorealisGpuRenderBackend
 	// The frame the render thread draws (HandOverRenderFrame) and its number, and whether it's drawing it
 	Action renderDraw;
 	ulong drawFrame;
+	Sandbox.Rendering.ManagedFrameCounters drawCounters;
 	volatile bool drawing;
 	readonly System.Threading.ManualResetEventSlim drawn = new( true, 64 );
 
@@ -143,6 +147,8 @@ internal sealed partial class BorealisGpuRenderBackend
 		public Texture Texture;
 		public Action Work;
 		public Color? Clear;
+		public byte[] InitialPixels;
+		public Color? InitialColor;
 		public int Offset, Size, At, X, Y, Z, Width, Height, Depth;
 	}
 
@@ -180,7 +186,8 @@ internal sealed partial class BorealisGpuRenderBackend
 
 	void StageTextureUpdate( Texture texture, ReadOnlySpan<byte> data, int x, int y, int z, int width, int height, int depth )
 	{
-		staged.Add( new StagedWrite { Texture = texture, Size = data.Length, At = Stage( data ), X = x, Y = y, Z = z, Width = width, Height = height, Depth = depth } );
+		// With what it was made from, which the engine forgets once this returns (Texture.UpdateInternal): UpdateKept
+		staged.Add( new StagedWrite { Texture = texture, InitialPixels = texture.InitialPixels, InitialColor = texture.InitialColor, Size = data.Length, At = Stage( data ), X = x, Y = y, Z = z, Width = width, Height = height, Depth = depth } );
 		TextureUpdatesStaged++;
 	}
 
@@ -252,7 +259,7 @@ internal sealed partial class BorealisGpuRenderBackend
 				{
 					if ( write.Texture is { IsValid: true } cleared && !Cleared( cleared, clear ) ) Release( cleared );
 				}
-				else if ( write.Texture is { IsValid: true } texture && !Update( texture, bytes, write.X, write.Y, write.Z, write.Width, write.Height, write.Depth ) )
+				else if ( write.Texture is { IsValid: true } texture && !UpdateKept( texture, bytes, write.InitialPixels, write.InitialColor, write.X, write.Y, write.Z, write.Width, write.Height, write.Depth ) )
 				{
 					Release( texture );
 				}
@@ -319,6 +326,7 @@ internal sealed partial class BorealisGpuRenderBackend
 			}
 			finally
 			{
+				Sandbox.Rendering.ManagedSceneRendering.CompleteHandedOver( drawCounters );
 				Application.DrawingFrame( 0 );
 				drawing = false;
 				Sandbox.Rendering.RenderSync.RenderThreadDrawing = false;

@@ -51,9 +51,18 @@ public class SkyboxTests
 		var sky = new Skybox3D( new RenderWorld() ) { Scale = 16, Fog = new FogSettings { Mode = Borealis.FogMode.Distance, StartDistance = -160, EndDistance = 1600 } };
 		RenderSystem.FillSkyboxView( view, main, sky );
 		Assert.AreEqual( sky.Fog, view.Fog, "Independent skybox fog replaces the inherited snapshot" );
+		var cameraFog = new FogSettings { Mode = Borealis.FogMode.Distance, StartDistance = 90, EndDistance = 180 };
+		main.SkyboxFog = cameraFog;
+		main.CubemapFog = new CubemapFogSettings { Tint = Color.Red };
+		RenderSystem.FillSkyboxView( view, main, sky );
+		Assert.AreEqual( cameraFog, view.Fog, "The camera's skybox fog takes precedence over the shared skybox" );
+		Assert.AreSame( main.CubemapFog, view.CubemapFog, "The skybox inherits the camera's cubemap fog" );
+		main.SkyboxFog = null;
+		main.CubemapFog = null;
 		sky.Fog = null;
 		RenderSystem.FillSkyboxView( view, main, sky );
 		Assert.AreEqual( main.Fog, view.Fog, "Removing the override restores main-view fog" );
+		Assert.IsNull( view.CubemapFog );
 
 		main.Fog = null;
 		RenderSystem.FillSkyboxView( view, main, new Skybox3D( new RenderWorld() ) { Scale = 16 } );

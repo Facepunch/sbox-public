@@ -41,8 +41,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => PostProcessSystem.EnablePostProcess && DrawnPostProcess.HasEarlyPostProcess( stage, queue );
 
-	void ScheduleEarlyPostProcess( Stage stage, bool enabled ) => DrawnPostProcess.ScheduleEarlyPostProcess( stage, enabled );
-
 	/// <summary>
 	/// Run it, under the conditions the stage would (<c>PostProcessSystem.OnRenderStage</c>). On the render thread.
 	/// </summary>

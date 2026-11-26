@@ -92,7 +92,6 @@ public sealed partial class ModelBuilder
 				modelBuilder.SetPhysics_Runtime( physicsBodies );
 
 			modelBuilder.AppendSkeletonsFromChildResources( false );
-			ApplyTraceMesh( modelBuilder );
 
 			animationBuilder = CreateAnimationGroup();
 			if ( animationBuilder.IsValid )
@@ -101,7 +100,11 @@ public sealed partial class ModelBuilder
 			var resourceName = Resource.FixPath( modelName ).Replace( ':', '_' );
 			resourceName = string.IsNullOrEmpty( resourceName ) ? "sbox_procedural_model" : System.IO.Path.ChangeExtension( resourceName, ".vmdl" );
 			var model = Model.FromNative( modelBuilder.CreateRuntimeModel( resourceName, true ), true, modelName );
-			if ( model is not null ) model.BuilderMeshes = appliedMeshes;
+			if ( model is not null )
+			{
+				model.BuilderMeshes = appliedMeshes;
+				model.SetTraceMesh( traceVertices, traceIndices );
+			}
 			return model;
 		}
 		finally

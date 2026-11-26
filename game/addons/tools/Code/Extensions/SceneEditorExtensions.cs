@@ -105,6 +105,9 @@ public static class SceneEditorExtensions
 			if ( lockCursor && LockCursorToCanvas( canvas ) )
 				delta = Vector2.Zero;
 
+			// Wrapping the cursor round the canvas only takes while it's hidden under XWayland
+			var hideForWrap = lockCursor && Application.CursorMovesOnlyWhenHidden;
+
 			if ( self.ControlMode != "firstperson" )
 			{
 				EditorShortcuts.ReleaseAll();
@@ -150,7 +153,7 @@ public static class SceneEditorExtensions
 				if ( !delta.IsNearZeroLength )
 					camera.WorldRotation = angles;
 
-				if ( EditorPreferences.HideRotateCursor )
+				if ( EditorPreferences.HideRotateCursor || hideForWrap )
 					canvas.Cursor = CursorShape.Blank;
 				else
 					canvas.PixmapCursor = EyeCursor;
@@ -173,7 +176,7 @@ public static class SceneEditorExtensions
 
 				camera.WorldPosition += positionChange;
 
-				if ( EditorPreferences.HidePanCursor )
+				if ( EditorPreferences.HidePanCursor || hideForWrap )
 					canvas.Cursor = CursorShape.Blank;
 				else
 					canvas.Cursor = CursorShape.ClosedHand;
@@ -299,7 +302,7 @@ public static class SceneEditorExtensions
 				distance += zoomDelta;
 			}
 
-			if ( EditorPreferences.HideOrbitCursor )
+			if ( EditorPreferences.HideOrbitCursor || Application.CursorMovesOnlyWhenHidden )
 				canvas.Cursor = CursorShape.Blank;
 			else
 				canvas.Cursor = CursorShape.SizeV;
@@ -317,7 +320,7 @@ public static class SceneEditorExtensions
 		// Shared with the scene orientation gizmo drag so both orbit identically.
 		self.OrbitCameraAroundPivot( camera, delta, ref distance );
 
-		if ( EditorPreferences.HideOrbitCursor )
+		if ( EditorPreferences.HideOrbitCursor || Application.CursorMovesOnlyWhenHidden )
 			canvas.Cursor = CursorShape.Blank;
 		else
 			canvas.Cursor = CursorShape.ClosedHand;

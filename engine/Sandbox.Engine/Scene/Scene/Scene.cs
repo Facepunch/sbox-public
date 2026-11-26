@@ -253,6 +253,33 @@ public partial class Scene : GameObject
 		RenderAttributes.Clear();
 
 		DisposeListeners();
+
+		if ( this is not PrefabScene && !Application.IsUnitTest ) _ = WarnIfStillReferenced( new WeakReference( this ), Name );
+	}
+
+	/// <summary>Seconds after a scene is destroyed before a reference still holding it is reported.</summary>
+	internal const float LeakCheckSeconds = 30;
+
+	/// <summary>
+	/// A destroyed scene should go with the next collections. One still reachable long after is held by something that
+	/// outlives it - most often a static field or a static dictionary keyed by <see cref="Scene"/>, <see cref="GameObject"/>
+	/// or a component - and keeps every object, model and texture it had alive.
+	/// </summary>
+	static async System.Threading.Tasks.Task WarnIfStillReferenced( WeakReference scene, string name )
+	{
+		for ( int i = 0; i < 2; i++ )
+		{
+			await System.Threading.Tasks.Task.Delay( TimeSpan.FromSeconds( LeakCheckSeconds / 2 ) );
+			if ( !scene.IsAlive ) return;
+			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
+		}
+
+		await System.Threading.Tasks.Task.Delay( TimeSpan.FromSeconds( 5 ) );
+		if ( !scene.IsAlive ) return;
+
+		Log.Warning( $"Scene '{name}' is still referenced {LeakCheckSeconds:0} s after it was destroyed, so everything in it stays in memory. "
+			+ "Something outliving it holds it: a static field, or a static dictionary keyed by Scene, GameObject or Component. "
+			+ "Use a WeakReference or ConditionalWeakTable, or clear it in OnDestroy." );
 	}
 
 	public static Scene CreateEditorScene()
@@ -345,19 +372,21 @@ public partial class Scene : GameObject
 
 		using var _renderScope = _renderTimer.Start();
 
-		PreCameraRender();
+		PrepareSceneForRendering();
 
 		// Get all cameras sorted by render priority
 		var cameras = RentSortedCameras();
 		try
 		{
+			foreach ( var cc in cameras ) cc.InitializeRendering();
+
 			foreach ( var cc in cameras )
 			{
 				if ( cc.Active == false ) continue;
 				if ( cc.IsSceneEditorCamera ) continue;
 
 				using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
-				cc.AddToRenderList( swapChain, size );
+				if ( cc.PrepareForRenderList( initialize: false ) ) cc.DrawToRenderList( swapChain, size );
 			}
 		}
 		finally
@@ -368,8 +397,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// The game's half of a frame the game window draws (<c>GameWindow.Render</c>), on the main thread at the sync point: the
-	/// scene's render preparation (<see cref="PreCameraRender"/>: <see cref="GameObjectSystem.Stage.PrepareRender"/>, every
-	/// camera's scene camera) and each camera that draws prepared for it, in <paramref name="drawn"/> in priority order. What
+	/// scene and camera snapshots; each camera that draws is added to <paramref name="drawn"/> in priority order. What
 	/// draws them (<see cref="DrawRender"/>) then reads only what they prepared, on whichever thread draws the frame.
 	/// </summary>
 	internal void ExtractRender( List<CameraComponent> drawn )
@@ -381,16 +409,17 @@ public partial class Scene : GameObject
 
 		// The post processing the update built for each camera is what this frame draws; the next builds into the other set
 		foreach ( var cc in Cameras ) cc.TakePostProcess();
-		PreCameraRender();
+		PrepareSceneForRendering();
 
 		var cameras = RentSortedCameras();
 		try
 		{
 			foreach ( var cc in cameras )
 			{
+				cc.InitializeRendering();
 				if ( cc.Active == false ) continue;
 				if ( cc.IsSceneEditorCamera ) continue;
-				if ( cc.PrepareForRenderList() ) drawn.Add( cc );
+				if ( cc.PrepareForRenderList( initialize: false ) ) drawn.Add( cc );
 			}
 		}
 		finally
@@ -491,29 +520,26 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal void PreCameraRender()
 	{
-		// Prepare scene-owned rendering data before cameras copy it. Child views reuse the snapshot.
-		if ( ThreadSafe.IsMainThread && !ThreadSafe.IsRenderThread )
-		{
-			// A camera rendered from the game's update (RenderToTexture) waits for the render thread's frame first: what's
-			// prepared here is what that frame draws from
-			BorealisGpuRenderBackend.JoinRenderThread();
-			TakeRenderSnapshots();
-			Signal( GameObjectSystem.Stage.PrepareRender );
-		}
-
-		// We want to initialize all cameras (enabled & disabled) incase they're used to render manually
-		// we need to make sure the SceneCamera is created etc.
+		PrepareSceneForRendering();
 		var cameras = RentSortedCameras();
 		try
 		{
-			foreach ( var cc in cameras )
-			{
-				cc.InitializeRendering();
-			}
+			foreach ( var cc in cameras ) cc.InitializeRendering();
 		}
 		finally
 		{
 			ReturnSortedCameras( cameras );
+		}
+	}
+
+	internal void PrepareSceneForRendering()
+	{
+		// Prepare scene-owned rendering data before cameras copy it. Child views reuse the snapshot.
+		if ( ThreadSafe.IsMainThread && !ThreadSafe.IsRenderThread )
+		{
+			BorealisGpuRenderBackend.JoinRenderThread();
+			TakeRenderSnapshots();
+			Signal( GameObjectSystem.Stage.PrepareRender );
 		}
 
 		// Alpha is used to lerp between IBL and fixed ambient light

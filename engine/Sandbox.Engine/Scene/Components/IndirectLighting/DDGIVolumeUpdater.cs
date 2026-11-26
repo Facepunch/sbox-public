@@ -73,25 +73,10 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			if ( stage != Stage.AfterTransparent )
 				return;
 
-			// We don't render depth to cubemap, so we copy it manually using a compute shader. A face on Borealis.Gpu has its
-			// depth as an engine texture; a native view's is a native one
+			// A cube face's depth is separate; copy it into the array slice with a compute shader.
 			int face = Graphics.CubeFace;
 			if ( Graphics.DepthTexture is { } depthTexture )
-			{
 				CopyDepthToColor( depthTexture, _captureDepth, face );
-			}
-			else
-			{
-				var depth = Graphics.GetDepthTarget( out var owned );
-				try
-				{
-					CopyDepthToColor( depth, _captureDepth, face );
-				}
-				finally
-				{
-					if ( owned && !depth.IsNull ) depth.DestroyStrongHandle();
-				}
-			}
 
 			// Recording order is arbitrary; GPU submission follows the face order.
 			if ( face == 5 )
@@ -110,25 +95,10 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	/// <summary>
 	/// Copies depth texture values to a color texture array slice using a compute shader.
 	/// </summary>
-	void CopyDepthToColor( ITexture srcDepth, Texture dstColor, int dstArraySlice )
-	{
-		var attrs = RenderAttributes.Pool.Get();
-		attrs.Set( "SourceDepth", srcDepth );
-		CopyDepthToColor( attrs, dstColor, dstArraySlice );
-	}
-
-	/// <summary>
-	/// <see cref="CopyDepthToColor(ITexture, Texture, int)"/> from an engine texture's depth (a face drawn on Borealis.Gpu).
-	/// </summary>
 	void CopyDepthToColor( Texture srcDepth, Texture dstColor, int dstArraySlice )
 	{
 		var attrs = RenderAttributes.Pool.Get();
 		attrs.Set( "SourceDepth", srcDepth );
-		CopyDepthToColor( attrs, dstColor, dstArraySlice );
-	}
-
-	void CopyDepthToColor( RenderAttributes attrs, Texture dstColor, int dstArraySlice )
-	{
 		attrs.Set( "DestTextureArray", dstColor );
 		attrs.Set( "TextureSize", new Vector2Int( CaptureSize, CaptureSize ) );
 		attrs.Set( "DestArraySlice", dstArraySlice );

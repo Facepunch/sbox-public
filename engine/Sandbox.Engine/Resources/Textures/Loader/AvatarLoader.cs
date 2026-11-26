@@ -197,6 +197,11 @@ internal static class Avatar
 			//
 			await placeholder.ReplacementAsync( ImageUrl.LoadFromUrl( item, ct ) );
 		}
+		catch ( Exception error )
+		{
+			placeholder.FailLoading( error );
+			throw;
+		}
 		finally
 		{
 			placeholder.IsLoaded = true;

@@ -124,6 +124,7 @@ public class EnvmapSchedulerTests
 		}
 
 		public void WriteAggregate( SceneObject sceneObject, Borealis.AggregateObject aggregate, Sandbox.Rendering.SceneObjectChange change ) { }
+		public void WriteInstances( SceneObject sceneObject, Borealis.InstancedMeshObject instances, Sandbox.Rendering.SceneObjectChange change ) { }
 		public void WriteLighting( SceneObject sceneObject, Sandbox.Rendering.SceneObjectChange change ) { }
 		public void Made( SceneObject sceneObject ) { }
 		public void Deleted( SceneObject sceneObject ) { }

@@ -13,4 +13,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Startup.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LauncherEnvironment.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Each gen0 GC scans the multi-GB old heap's cards (12-55 ms), so the 8 MB default budget paused the game every few seconds -->
+    <RuntimeHostConfigurationOption Include="System.GC.Gen0MaxBudget" Value="67108864" />
+  </ItemGroup>
 </Project>

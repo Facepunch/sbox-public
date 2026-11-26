@@ -73,6 +73,13 @@ public static class Application
 	}
 
 	/// <summary>
+	/// Whether setting <see cref="CursorPosition"/> or <see cref="UnscaledCursorPosition"/> only moves the cursor while
+	/// it's hidden (<see cref="CursorShape.Blank"/>) over the widget it's in. True under XWayland, which otherwise leaves
+	/// it where the compositor has it: hide the cursor for as long as you keep moving it back.
+	/// </summary>
+	public static bool CursorMovesOnlyWhenHidden => XWayland.IsRunning;
+
+	/// <summary>
 	/// The cursor delta between this and previous frame.
 	/// </summary>
 	public static Vector2 CursorDelta

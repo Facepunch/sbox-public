@@ -16,13 +16,15 @@ public sealed class FieldDescription : MemberDescription
 
 	internal FieldInfo FieldInfo => MemberInfo as FieldInfo;
 
-	internal static FieldDescription Create( FieldInfo i, TypeDescription td, MemberDescription previous )
+	internal static FieldDescription Create( FieldInfo i, TypeDescription td, MemberDescription previous, FieldDescription inherited )
 	{
 		FieldDescription o = previous as FieldDescription;
 
 		o ??= new FieldDescription( td.library );
 		o.TypeDescription = td;
-		o.InitField( i );
+
+		if ( inherited is not null ) o.InitFrom( inherited );
+		else o.InitField( i );
 
 		return o;
 	}
@@ -48,6 +50,17 @@ public sealed class FieldDescription : MemberDescription
 		{
 			CaptureAttributes( eventInfo );
 		}
+	}
+
+	private void InitFrom( FieldDescription inherited )
+	{
+		base.InitFrom( inherited );
+
+		FieldType = inherited.FieldType;
+		IsStatic = inherited.IsStatic;
+		IsInitOnly = inherited.IsInitOnly;
+		IsPublic = inherited.IsPublic;
+		IsFamily = inherited.IsFamily;
 	}
 
 	/// <summary>

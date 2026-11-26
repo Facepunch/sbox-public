@@ -154,9 +154,8 @@ public class CameraComponentExtrasTest
 	}
 
 	/// <summary>
-	/// The component pushes FieldOfView, ZNear, ZFar, Size and the orthographic
-	/// settings into its internal SceneCamera whenever the screen math APIs
-	/// refresh the camera transform.
+	/// The component copies its projection properties into the scene camera when updating the render snapshot.
+	/// Screen-space queries must not publish a projection change before that update.
 	/// </summary>
 	[TestMethod]
 	public void PropertiesPropagateToSceneCamera()
@@ -169,7 +168,7 @@ public class CameraComponentExtrasTest
 		cam.ZNear = 5;
 		cam.ZFar = 2048;
 
-		cam.PointToScreenNormal( new Vector3( 100, 0, 0 ) );
+		cam.UpdateSceneCamera( cam.SceneCamera );
 
 		Assert.AreEqual( 75f, cam.SceneCamera.FieldOfView );
 		Assert.AreEqual( 5f, cam.SceneCamera.ZNear );
@@ -181,9 +180,25 @@ public class CameraComponentExtrasTest
 		cam.OrthographicHeight = 512;
 
 		cam.PointToScreenNormal( new Vector3( 100, 0, 0 ) );
+		Assert.IsFalse( cam.SceneCamera.Ortho, "A screen-space query must not update the render snapshot." );
+		cam.UpdateSceneCamera( cam.SceneCamera );
 
 		Assert.IsTrue( cam.SceneCamera.Ortho );
 		Assert.AreEqual( 512f, cam.SceneCamera.OrthoHeight );
+	}
+
+	[TestMethod]
+	public void VerticalFieldOfViewUsesTheRenderViewportAspect()
+	{
+		using var camera = new SceneCamera { Size = new Vector2( 100, 100 ) };
+		camera.SetFieldOfView( 90, vertical: true );
+
+		Assert.AreEqual( 126.8699f, camera.FieldOfViewForAspect( 2f ), 0.001f );
+		Assert.AreEqual( 53.1301f, camera.FieldOfViewForAspect( 0.5f ), 0.001f );
+		Assert.AreEqual( 90f, camera.FieldOfView, 0.001f, "The explicitly resolved aspect does not mutate the camera." );
+
+		camera.FieldOfView = 75f;
+		Assert.AreEqual( 75f, camera.FieldOfViewForAspect( 2f ), 0.001f, "A horizontal FOV does not depend on aspect." );
 	}
 
 	/// <summary>

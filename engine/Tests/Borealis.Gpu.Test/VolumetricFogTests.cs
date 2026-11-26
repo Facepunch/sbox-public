@@ -10,7 +10,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class VolumetricFogTests : GpuTest
+public class VolumetricFogTests : RenderGpuTest
 {
 	const int Width = 128, Height = 64;
 

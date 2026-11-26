@@ -6,16 +6,12 @@ namespace Sandbox.Rendering.Bridge;
 /// </summary>
 internal sealed partial class SceneBridge
 {
-	// What a bitmap render draws into before its pixels are read back, kept while bitmaps of its size are asked for
-	Texture bitmapTarget;
-
 	/// <summary>
 	/// A bitmap render on the device, as native's (<c>CCameraRenderer::RenderToBitmap</c>): the camera rendered as a texture
 	/// render (<see cref="RenderIntoTexture"/>) into an 8-bit target the bitmap's size, unflipped, then read back and written
 	/// into the bitmap, waiting for the GPU as native does. What it draws loads before it renders, as native's does, rather
 	/// than asynchronously as the game window's models do. Inside a render block it renders as a child view does, without the
-	/// camera's stages (<see cref="RenderBitmapInBlock"/>). With Source 2's device kept (the editor) it renders here too:
-	/// nothing presents on Source 2's device, so its scene system has no frame size to render a bitmap at.
+	/// camera's stages (<see cref="RenderBitmapInBlock"/>).
 	/// </summary>
 	public void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup )
 	{
@@ -24,12 +20,14 @@ internal sealed partial class SceneBridge
 		var size = bitmap.Size;
 		if ( size.x <= 1 || size.y <= 1 ) return;
 
-		camera.OnPreRender( size );
+		if ( !Graphics.IsActive ) camera.OnPreRender( size );
 
+		var output = Output;
+		var bitmapTarget = output.BitmapTarget;
 		if ( bitmapTarget is null || bitmapTarget.Width != size.x || bitmapTarget.Height != size.y )
 		{
 			bitmapTarget?.Dispose();
-			bitmapTarget = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu bitmap" );
+			output.BitmapTarget = bitmapTarget = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu bitmap" );
 		}
 
 		// A bitmap is never flipped (native's RenderPixels clears the flips)
@@ -45,11 +43,11 @@ internal sealed partial class SceneBridge
 		{
 			if ( Graphics.IsActive )
 			{
-				RenderBitmapInBlock( gpu, camera, bitmap, view );
+				RenderBitmapInBlock( camera, bitmap, bitmapTarget, view );
 				return;
 			}
 
-			RenderIntoTexture( gpu, camera, bitmapTarget, size, view );
+			if ( !RenderIntoTexture( gpu, camera, bitmapTarget, size, view, out _, bitmap ) ) return;
 		}
 		finally
 		{

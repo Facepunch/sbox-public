@@ -7,7 +7,6 @@ namespace BorealisGpuTests;
 /// each one to it, and changing it remakes the samplers already made in place.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class AnisotropyLimitTests : GpuTest
 {
 	[TestMethod]

@@ -464,6 +464,7 @@ public class TextureStreamingTests : GpuTest
 	{
 		var path = StreamingTextures( 1 )[0];
 		using var backend = new BackendDevice( Device ) { StreamTextures = true };
+		backend.Streamer.WindowFrames = int.MaxValue;
 		var texture = (BackendTexture)backend.MaterialTextureFile( path );
 		var stream = texture.Stream;
 		using var material = new BackendMaterial( "streamed", null, null, new( StringComparer.OrdinalIgnoreCase ) { ["g_tColor"] = texture } );
@@ -508,6 +509,7 @@ public class TextureStreamingTests : GpuTest
 		}
 
 		Assert.AreEqual( Math.Max( texture.Width >> stream.TailTop, 1 ), Device.InfoOf( texture.Handle ).Width );
+		Assert.AreEqual( 0, backend.Streamer.Waiting, "an expired ask doesn't stream the texture back in" );
 		Assert.IsTrue( backend.Streamer.IdleGivenBack > 0 );
 		Device.WaitIdle();
 	}

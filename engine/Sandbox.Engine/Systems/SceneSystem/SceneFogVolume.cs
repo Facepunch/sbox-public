@@ -5,11 +5,8 @@
 /// </summary>
 public sealed class SceneFogVolume : IValid
 {
-	uint? ID { get; set; }
-	SceneWorld World { get; set; }
-
-	// Its id in its world's list, which Borealis reads
-	static uint nextManagedId;
+	readonly SceneWorld world;
+	bool registered;
 
 	Transform transform;
 
@@ -70,7 +67,12 @@ public sealed class SceneFogVolume : IValid
 	public float FalloffExponent
 	{
 		get => falloffExponent;
-		set { falloffExponent = value; Update(); }
+		set
+		{
+			if ( registered && falloffExponent == value ) return;
+			falloffExponent = value;
+			Update();
+		}
 	}
 
 	Color color = Color.White;
@@ -81,15 +83,17 @@ public sealed class SceneFogVolume : IValid
 	public Color Color
 	{
 		get => color;
-		set { color = value; Update(); }
+		set
+		{
+			if ( registered && color.Equals( value ) ) return;
+			color = value;
+			Update();
+		}
 	}
 
 	public SceneFogVolume( SceneWorld world, Transform transform, BBox boundingBox, float fogStrength = 1.0f, float falloffExponent = 1.0f )
 	{
-		ID = default;
-		World = world;
-
-		// set the backing fields to not trigger Update() for each
+		this.world = world;
 		this.transform = transform;
 		this.boundingBox = boundingBox;
 		this.fogStrength = fogStrength;
@@ -98,35 +102,30 @@ public sealed class SceneFogVolume : IValid
 		Update();
 	}
 
-	public bool IsValid => ID.HasValue && World.IsValid();
+	public bool IsValid => registered && world.IsValid();
 
 	/// <summary>
-	/// Delete this fog volume. You shouldn't access it anymore.
+	/// Remove this fog volume from its world. Updating it later adds it back if the world is still valid.
 	/// </summary>
 	public void Delete()
 	{
-		if ( !IsValid )
-			return;
-
-		if ( ID.HasValue )
-		{
-			World.RemoveFogVolume( this );
-			ID = default;
-		}
+		if ( !registered ) return;
+		registered = false;
+		if ( world.IsValid() ) world.RemoveFogVolume( this );
 	}
 
 	void Update()
 	{
-		if ( !World.IsValid() )
-			return;
+		if ( !world.IsValid() ) return;
 
-		if ( ID.HasValue )
+		if ( registered )
 		{
-			World.RemoveFogVolume( this );
-			ID = default;
+			world.FogVolumeChanged();
 		}
-
-		ID = ++nextManagedId;
-		World.AddFogVolume( this );
+		else
+		{
+			world.AddFogVolume( this );
+			registered = true;
+		}
 	}
 }

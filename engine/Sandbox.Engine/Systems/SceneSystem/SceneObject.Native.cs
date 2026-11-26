@@ -42,6 +42,7 @@ public partial class SceneObject
 		lock ( World.InternalSceneObjects )
 		{
 			World.InternalSceneObjects.Add( this );
+			World.InvalidateSceneObjects();
 		}
 
 		World.Render?.Made( this );

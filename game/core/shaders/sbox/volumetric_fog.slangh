@@ -21,7 +21,8 @@ float3 GetVoxelInCurrentEyeFrustum( float3 vPositionWS, float2 vPositionSs )
 {
 	float4 p = mul( g_mVolFogFromWorld[0], float4( vPositionWS, 1.0f ) );
 	p.xy /= p.w;
-	p.xyz = p.xyw * g_vVolFogPostWorldToFrustumScale.xyz + g_vVolFogPostWorldToFrustumBias.xyz;
+	float depth = g_vVolFogPostWorldToFrustumScale.w == 1.0f ? p.z : p.w;
+	p.xyz = float3( p.xy, depth ) * g_vVolFogPostWorldToFrustumScale.xyz + g_vVolFogPostWorldToFrustumBias.xyz;
 	p.z = FogFrustumDepthToVoxelSliceZ( p.z );
 	return p.xyz;
 }

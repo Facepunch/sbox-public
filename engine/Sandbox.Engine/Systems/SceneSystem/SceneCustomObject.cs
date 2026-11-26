@@ -67,6 +67,14 @@ public class SceneCustomObject : SceneObject
 
 	readonly bool gameType;
 
+	// Out of the live list once gone: GameDrawn stops at the first game-drawn object, so it never reaches deleted ones behind
+	// it, and a deleted object kept there holds its component (an editor gizmo's mesh component, its model) for good
+	internal override void Destroyed()
+	{
+		base.Destroyed();
+		lock ( live ) live.Remove( this );
+	}
+
 	/// <summary>Its drawing's recordings in the extract, by camera and layer kind (<see cref="Rendering.GameDrawExtract"/>).</summary>
 	internal Rendering.GameDrawExtract.Slots DrawSlots;
 

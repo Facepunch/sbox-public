@@ -130,7 +130,8 @@ namespace Editor
 			if ( !HasGraphics )
 				return null;
 
-			if ( !filename.Contains( ":" ) ) filename = $"toolimages:{filename}";
+			// Bare names come from the tool images; an absolute path (a thumbnail in the cache on Linux) is already whole
+			if ( !filename.Contains( ":" ) && !System.IO.Path.IsPathRooted( filename ) ) filename = $"toolimages:{filename}";
 
 			var ptr = QPixmap.CreateFromFile( filename );
 			if ( ptr.IsNull ) return null;

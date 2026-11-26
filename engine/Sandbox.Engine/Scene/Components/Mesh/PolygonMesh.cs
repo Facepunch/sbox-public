@@ -93,10 +93,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 	private HalfEdgeData<bool> EdgeSmoothing { get; init; }
 	private HalfEdgeData<int> EdgeFlags { get; init; }
 
-	private FaceData<Vector3> TextureOriginUnused { get; init; }
-	private FaceData<Rotation> TextureRotationUnused { get; init; }
-	private FaceData<float> TextureAngleUnused { get; init; }
-
 	public VertexHandle VertexHandleFromIndex( int index ) => new( index, Topology );
 	public HalfEdgeHandle HalfEdgeHandleFromIndex( int index ) => new( index, Topology );
 	public FaceHandle FaceHandleFromIndex( int index ) => new( index, Topology );
@@ -281,10 +277,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 		MaterialIndex = Topology.CreateFaceData<int>( nameof( MaterialIndex ) );
 		EdgeSmoothing = Topology.CreateHalfEdgeData<bool>( nameof( EdgeSmoothing ) );
 		EdgeFlags = Topology.CreateHalfEdgeData<int>( nameof( EdgeFlags ) );
-
-		TextureOriginUnused = Topology.CreateFaceData<Vector3>( nameof( TextureOriginUnused ) );
-		TextureRotationUnused = Topology.CreateFaceData<Rotation>( nameof( TextureRotationUnused ) );
-		TextureAngleUnused = Topology.CreateFaceData<float>( nameof( TextureAngleUnused ) );
 
 		Topology.OnCopyFaceVertexData = ( dst, src ) =>
 		{

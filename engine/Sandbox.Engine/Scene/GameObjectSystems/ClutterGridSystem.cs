@@ -14,6 +14,13 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private const int MAX_JOBS_PER_FRAME = 8;
 	private const int MAX_PENDING_JOBS = 100;
 
+	/// <summary>
+	/// Clutter only has collision within this distance of the camera. 0 keeps collision everywhere.
+	/// Every clutter instance in range keeps its own physics body, so a larger radius (or 0) increases RAM usage.
+	/// </summary>
+	[Property]
+	public float PhysicsRadius { get; set; } = 4096f;
+
 	private readonly List<ClutterGenerationJob> _pendingJobs = [];
 	private readonly HashSet<ClutterTile> _pendingTiles = [];
 	private readonly HashSet<Terrain> _subscribedTerrains = [];
@@ -80,9 +87,6 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		if ( camera is not null )
 		{
 			_lastCameraPosition = camera.WorldPosition;
-
-			PublishLodParameters( camera );
-
 			SubscribeToTerrains();
 			UpdateInfiniteLayers( _lastCameraPosition );
 			ProcessJobs();
@@ -101,31 +105,18 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			if ( component.IsValid() && !component.Infinite )
 				layer.RebuildIfDirty();
 		}
+
+		// Collision follows the camera. Without one (dedicated server) every tile keeps its bodies.
+		Vector3? collisionCenter = camera is null ? null : _lastCameraPosition;
+		_painted?.UpdateCollision( collisionCenter, PhysicsRadius );
+		foreach ( var layer in _componentToLayer.Values )
+			layer.UpdateCollision( collisionCenter, PhysicsRadius );
 	}
 
 	private void RestorePaintedLayer()
 	{
 		RebuildPaintedLayer();
 		_dirty = false;
-	}
-
-	/// <summary>
-	/// Pushes the active camera's LOD parameters to the clutter scene objects for GPU LOD selection.
-	/// </summary>
-	private static void PublishLodParameters( CameraComponent camera )
-	{
-		var sceneCamera = camera.SceneCamera;
-
-		ClutterBatchSceneObject.Lod = new ClutterBatchSceneObject.LodParams
-		{
-			CameraPos = camera.WorldPosition,
-			TanHalfFov = MathF.Tan( camera.FieldOfView.DegreeToRadian() * 0.5f ),
-			ViewportWidth = sceneCamera is not null ? sceneCamera.Size.x : 1920f,
-			// Before SceneCamera is created, use its initial square aspect rather than perspective coverage.
-			OrthoWidth = camera.Orthographic
-				? camera.OrthographicHeight * (sceneCamera is not null ? sceneCamera.Size.x / MathF.Max( sceneCamera.Size.y, 1f ) : 1f)
-				: 0f,
-		};
 	}
 
 	private void SubscribeToTerrains()
@@ -405,7 +396,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		}
 		else if ( entry.Model != null )
 		{
-			Storage.AddInstance( entry.Model.ResourcePath, pos, rot, scale );
+			Storage.AddInstance( entry.Model.ResourcePath, pos, rot, scale, entry.EnablePhysics );
 			_dirty = true;
 		}
 	}

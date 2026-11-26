@@ -65,6 +65,12 @@ internal interface ISceneWorldRender
 	void WriteMesh( SceneObject sceneObject, Borealis.MeshObject mesh, SceneObjectChange change );
 
 	/// <summary>
+	/// Write a <see cref="SceneModelInstances"/>' model, flags, tint and placement into its render object (its instances are
+	/// the object's own to write).
+	/// </summary>
+	void WriteInstances( SceneObject sceneObject, Borealis.InstancedMeshObject instances, SceneObjectChange change );
+
+	/// <summary>
 	/// A native aggregate's model and fragments (a map's world geometry), or null if the object isn't one, or with
 	/// <paramref name="waiting"/> while its model is still loading: the object is made again once it has.
 	/// </summary>

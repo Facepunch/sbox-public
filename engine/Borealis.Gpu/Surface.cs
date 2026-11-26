@@ -15,6 +15,7 @@ public readonly struct SurfaceSource
 		Xlib,
 		Wayland,
 		Custom,
+		Metal,
 	}
 
 	internal Kind Type { get; init; }
@@ -30,6 +31,9 @@ public readonly struct SurfaceSource
 
 	/// <summary>A Wayland surface: the <c>wl_display*</c> and <c>wl_surface*</c>.</summary>
 	public static SurfaceSource Wayland( nint display, nint surface ) => new() { Type = Kind.Wayland, Display = display, Window = surface };
+
+	/// <summary>A macOS window, as the <c>CAMetalLayer*</c> its view presents through.</summary>
+	public static SurfaceSource Metal( nint layer ) => new() { Type = Kind.Metal, Window = layer };
 
 	/// <summary>
 	/// A window system that makes its own <c>VkSurfaceKHR</c> (SDL's <c>SDL_Vulkan_CreateSurface</c>): called with the
@@ -68,6 +72,14 @@ public readonly struct SurfaceSource
 					if ( vk.vkCreateWaylandSurfaceKHR == null ) throw new GpuException( "This Vulkan instance can't make Wayland surfaces" );
 					var info = new VkWaylandSurfaceCreateInfoKHR { sType = VkStructureType.WaylandSurfaceCreateInfoKhr, display = Display, surface = Window };
 					vk.vkCreateWaylandSurfaceKHR( vk.Instance, &info, null, &surface ).Check( "vkCreateWaylandSurfaceKHR" );
+					break;
+				}
+
+			case Kind.Metal:
+				{
+					if ( vk.vkCreateMetalSurfaceEXT == null ) throw new GpuException( "This Vulkan instance can't make Metal surfaces" );
+					var info = new VkMetalSurfaceCreateInfoEXT { sType = VkStructureType.MetalSurfaceCreateInfoExt, pLayer = Window };
+					vk.vkCreateMetalSurfaceEXT( vk.Instance, &info, null, &surface ).Check( "vkCreateMetalSurfaceEXT" );
 					break;
 				}
 

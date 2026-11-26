@@ -88,7 +88,10 @@ internal struct ManagedFrameCounters
 
 internal static partial class ManagedSceneRendering
 {
-	static ManagedFrameCounters thisFrame;
+	[ThreadStatic] static ManagedFrameCounters thisFrame;
+	static readonly object completedLock = new();
+	static ManagedFrameCounters completed;
+	static bool hasCompleted, handedOver;
 
 	/// <summary>
 	/// What the managed renderer did last frame. <see cref="ManagedFrameCounters.Renders"/> is 0 when nothing
@@ -97,16 +100,51 @@ internal static partial class ManagedSceneRendering
 	public static ManagedFrameCounters LastFrame { get; private set; }
 
 	/// <summary>
-	/// Add a camera's frame - called by the managed renderer on the main thread, after each frame it renders.
+	/// Add a camera's counters on the thread recording it.
 	/// </summary>
 	internal static void Report( in ManagedFrameCounters counters ) => thisFrame.Add( counters );
 
+	internal static ManagedFrameCounters HandOver()
+	{
+		handedOver = true;
+		return TakeFrame();
+	}
+
+	internal static void CompleteHandedOver( ManagedFrameCounters counters )
+	{
+		counters.Add( TakeFrame() );
+		lock ( completedLock )
+		{
+			completed = counters;
+			hasCompleted = true;
+		}
+	}
+
+	static ManagedFrameCounters TakeFrame()
+	{
+		var counters = thisFrame;
+		thisFrame = default;
+		return counters;
+	}
+
 	/// <summary>
-	/// Called once a frame, before the overlays draw: what was reported since the last call becomes <see cref="LastFrame"/>.
+	/// At the start of the main frame, publish the completed inline or handed-over render counters without waiting for drawing.
 	/// </summary>
 	internal static void EndFrame()
 	{
-		LastFrame = thisFrame;
-		thisFrame = default;
+		if ( !handedOver )
+		{
+			LastFrame = TakeFrame();
+			lock ( completedLock ) hasCompleted = false;
+			return;
+		}
+
+		handedOver = false;
+		lock ( completedLock )
+		{
+			if ( !hasCompleted ) return;
+			LastFrame = completed;
+			hasCompleted = false;
+		}
 	}
 }

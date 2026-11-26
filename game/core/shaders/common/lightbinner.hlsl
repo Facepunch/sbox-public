@@ -3,7 +3,7 @@
 
 #include "common.fxc"
 #include "common/Bindless.hlsl"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "common_samplers.fxc"
 
 //-----------------------------------------------------------------------------

@@ -4,7 +4,7 @@ namespace BorealisGpuTests;
 
 /// <summary>
 /// Progress markers (<see cref="DeviceOptions.ProgressMarkers"/>) on a device of their own: a finished list's markers are
-/// all reached and done, and the
+/// all reached and done, labels write markers only with <see cref="DeviceOptions.PassProgressMarkers"/>, and the
 /// device-loss report shows a list the GPU stopped part way through, however far back it is.
 /// </summary>
 [TestClass]
@@ -25,6 +25,22 @@ public class MarkerTests
 			StringAssert.StartsWith( described, " [markers " );
 			Assert.IsFalse( described.Contains( "reached" ), described );
 		} );
+	}
+
+	/// <summary>Without pass markers a list writes its beginning and end, and the markers asked for, not its labels'.</summary>
+	[TestMethod]
+	public void LabelsWriteNoMarkersWithoutPassMarkers()
+	{
+		WithDevice( device =>
+		{
+			var list = device.BeginCommandList( QueueType.Graphics, "Markers" );
+			list.BeginLabel( "Outer" );
+			list.Marker( "Inside" );
+			list.EndLabel();
+			device.Wait( device.Submit( list ) );
+
+			Assert.AreEqual( " [markers 3/3]", device.DescribeMarkers( list.MarkerSlot ) );
+		}, passMarkers: false );
 	}
 
 	/// <summary>
@@ -52,7 +68,7 @@ public class MarkerTests
 		}, expectLoss: true );
 	}
 
-	static void WithDevice( Action<Device> test, bool expectLoss = false )
+	static void WithDevice( Action<Device> test, bool expectLoss = false, bool passMarkers = true )
 	{
 		if ( !Device.IsSupported ) Assert.Inconclusive( "No Vulkan loader is installed" );
 
@@ -68,6 +84,7 @@ public class MarkerTests
 					Validation = true,
 					Presentation = false,
 					ProgressMarkers = true,
+					PassProgressMarkers = passMarkers,
 					Message = m =>
 					{
 						if ( m.Severity == MessageSeverity.Error && !(expectLoss && m.Id == "Borealis.Gpu.DeviceLost") ) lock ( errors ) errors.Add( m.Text );

@@ -420,6 +420,7 @@ internal sealed partial class BorealisGpuRenderBackend
 		// Under a block, the lent transforms are in the block's lowered set
 		var lent = hasBlock ? default : lentTransforms;
 		var version = managed.Version;
+		// Lowered draws hold the sampled backing, and dispatches copy from it when taking a texture back from a view.
 		var viewDraws = Texture.ViewDraws;
 
 		// This way of lowering the set if it's kept, else a new one, else the last kept

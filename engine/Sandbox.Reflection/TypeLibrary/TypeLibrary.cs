@@ -115,7 +115,11 @@ public partial class TypeLibrary
 		var added = new ConcurrentBag<Action>();
 		try
 		{
-			System.Threading.Tasks.Parallel.ForEach( types, t => AddType( t, isDynamic ) );
+			// Bases first, so derived types can share the descriptions of the members they inherit
+			foreach ( var wave in types.GroupBy( InheritanceDepth ).OrderBy( x => x.Key ) )
+			{
+				System.Threading.Tasks.Parallel.ForEach( wave, t => AddType( t, isDynamic ) );
+			}
 		}
 		finally
 		{
@@ -384,6 +388,13 @@ public partial class TypeLibrary
 		}
 
 		return whitelisted.Contains( member.Name );
+	}
+
+	static int InheritanceDepth( Type type )
+	{
+		var depth = 0;
+		for ( var t = type.BaseType; t is not null; t = t.BaseType ) depth++;
+		return depth;
 	}
 
 	private void AddType( Type type, bool dynamicAssembly )

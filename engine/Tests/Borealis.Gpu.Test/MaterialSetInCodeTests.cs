@@ -11,7 +11,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class MaterialSetInCodeTests : GpuTest
+public class MaterialSetInCodeTests : RenderGpuTest
 {
 	/// <summary>
 	/// A texture and a tint set in code replace the file's, the file's other textures stay, and a later set lands on the same

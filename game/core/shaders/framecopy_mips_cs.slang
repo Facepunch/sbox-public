@@ -48,28 +48,28 @@ Mode( Default );
 		return Weights[0]*e + Weights[1]*(d+f) + Weights[2]*(c+g) + Weights[3]*(b+h) + Weights[4]*(a+i);
 	}
 
-	// The taps as halves (as downsample_cs keeps them), then the rows blurred across, in full floats (as it keeps those)
-	groupshared uint2 Taps[24 * 24];
+	// Split the packed taps into planes so a lane's word is adjacent to its neighbour's. The
+	// horizontally blurred rows stay as full floats, just as in downsample_cs.
+	groupshared uint TapsRG[24 * 24];
+	groupshared uint TapsBA[24 * 24];
 	groupshared float4 Rows[24 * 16];
 
 	uint2 PackHalf4( float4 v ) { return uint2( f32tof16( v.r ) | f32tof16( v.g ) << 16, f32tof16( v.b ) | f32tof16( v.a ) << 16 ); }
 	float4 UnpackHalf4( uint2 p ) { return float4( f16tof32( p.x ), f16tof32( p.x >> 16 ), f16tof32( p.y ), f16tof32( p.y >> 16 ) ); }
 
 	[numthreads( 8, 8, 1 )]
-	[shader( "compute" )] void MainCs( uint2 vGroupID : SV_GroupID, uint2 vThread : SV_GroupThreadID )
+	[shader( "compute" )] void MainCs( uint2 vGroupID : SV_GroupID, uint lane : SV_GroupIndex )
 	{
 		const int2 vTile = int2( Region.xy ) + int2( vGroupID * 16 );
 		const int2 vTileOrigin = vTile - 4;
 
 		[unroll]
-		for ( uint y = 0; y < 3; y++ )
+		for ( uint k = 0; k < 9; k++ )
 		{
-			[unroll]
-			for ( uint x = 0; x < 3; x++ )
-			{
-				uint2 t = vThread * 3 + uint2( x, y );
-				Taps[t.y * 24 + t.x] = PackHalf4( LoadColorSRGB( vTileOrigin + int2( t ) ) );
-			}
+			uint tap = k * 64 + lane;
+			uint2 packed = PackHalf4( LoadColorSRGB( vTileOrigin + int2( tap % 24, tap / 24 ) ) );
+			TapsRG[tap] = packed.x;
+			TapsBA[tap] = packed.y;
 		}
 
 		GroupMemoryBarrierWithGroupSync();
@@ -77,30 +77,33 @@ Mode( Default );
 		[unroll]
 		for ( uint r = 0; r < 3; r++ )
 		{
-			uint row = vThread.y * 3 + r;
-			uint col = vThread.x * 2;
+			uint pair = r * 64 + lane;
+			uint tap = ( pair / 8 ) * 24 + ( pair % 8 ) * 2;
 			float4 s[10];
 			[unroll]
 			for ( uint i = 0; i < 10; i++ )
-				s[i] = UnpackHalf4( Taps[row * 24 + col + i] );
+				s[i] = UnpackHalf4( uint2( TapsRG[tap + i], TapsBA[tap + i] ) );
 
-			Rows[row * 16 + col] = BlurPixels( s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8] );
-			Rows[row * 16 + col + 1] = BlurPixels( s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9] );
+			Rows[pair * 2] = BlurPixels( s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8] );
+			Rows[pair * 2 + 1] = BlurPixels( s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9] );
 		}
 
 		GroupMemoryBarrierWithGroupSync();
 
 		const int2 vEnd = int2( min( TextureSize, Region.zw ) );
+		// Walk adjacent columns across consecutive lanes during the vertical pass.
 		[unroll]
 		for ( uint c = 0; c < 2; c++ )
 		{
-			uint col = vThread.x * 2 + c;
+			uint pair = c * 64 + lane;
+			uint col = pair % 16;
+			uint y = ( pair / 16 ) * 2;
 			float4 s[10];
 			[unroll]
 			for ( uint i = 0; i < 10; i++ )
-				s[i] = Rows[( vThread.y * 2 + i ) * 16 + col];
+				s[i] = Rows[( y + i ) * 16 + col];
 
-			int2 vOut = vTile + int2( col, vThread.y * 2 );
+			int2 vOut = vTile + int2( col, y );
 			if ( vOut.x < vEnd.x && vOut.y < vEnd.y ) StoreColor( vOut, BlurPixels( s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8] ) );
 			if ( vOut.x < vEnd.x && vOut.y + 1 < vEnd.y ) StoreColor( vOut + int2( 0, 1 ), BlurPixels( s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9] ) );
 		}

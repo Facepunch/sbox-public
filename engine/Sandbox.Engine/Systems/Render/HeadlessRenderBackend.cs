@@ -3,7 +3,6 @@ using Borealis.Source2;
 using Borealis.Source2.Materials;
 using NativeEngine;
 using Sandbox.Rendering;
-using System.Buffers;
 using System.Runtime.CompilerServices;
 using GpuFormat = Borealis.Gpu.Format;
 using RenderViewport = NativeEngine.RenderViewport;
@@ -28,7 +27,7 @@ internal sealed class HeadlessRenderBackend : RenderBackend
 	// Blocks and resources
 	//
 
-	public override RenderAttributes BeginBlock() => new();
+	public override RenderAttributes BeginBlock() => RenderAttributes.CreateManaged();
 
 	public override void EndBlock() { }
 
@@ -68,7 +67,7 @@ internal sealed class HeadlessRenderBackend : RenderBackend
 			if ( slice >= file.Slices * depth ) return false;
 
 			var sliceBytes = file.Format.RowPitch( width ) * file.Format.Rows( height );
-			return Convert( file.Mip( mip ).Slice( sliceBytes * slice, sliceBytes ), stored, file.Format.IsCompressed(), width, height, source, destination, data, format, pixel, stride );
+			return CopyPixels( file.Mip( mip ).Slice( sliceBytes * slice, sliceBytes ), stored, file.Format.IsCompressed(), width, height, source, destination, data, format, pixel, stride );
 		}
 
 		if ( texture.InitialPixels is { } pixels && mip == 0 && slice == 0 && texture.Depth <= 1 )
@@ -78,48 +77,10 @@ internal sealed class HeadlessRenderBackend : RenderBackend
 
 			var compressed = texture.ImageFormat is ImageFormat.DXT1 or ImageFormat.DXT1_ONEBITALPHA or ImageFormat.DXT3 or ImageFormat.DXT5
 				or ImageFormat.ATI1N or ImageFormat.ATI2N or ImageFormat.BC6H or ImageFormat.BC7;
-			return Convert( pixels.AsSpan( 0, made ), texture.ImageFormat, compressed, texture.Width, texture.Height, source, destination, data, format, pixel, stride );
+			return CopyPixels( pixels.AsSpan( 0, made ), texture.ImageFormat, compressed, texture.Width, texture.Height, source, destination, data, format, pixel, stride );
 		}
 
 		return false;
-	}
-
-	/// <summary>
-	/// A mip's bytes in <paramref name="stored"/>, converted into <paramref name="format"/> and the rectangle copied out.
-	/// A compressed mip decodes whole blocks: its rows and columns rounded up to 4.
-	/// </summary>
-	static unsafe bool Convert( ReadOnlySpan<byte> bytes, ImageFormat stored, bool compressed, int width, int height, NativeRect source, NativeRect destination, IntPtr data, ImageFormat format, int pixel, int stride )
-	{
-		if ( source.x < 0 || source.y < 0 || source.x + source.w > width || source.y + source.h > height ) return false;
-
-		int decodedWidth = compressed ? (width + 3) & ~3 : width, decodedHeight = compressed ? (height + 3) & ~3 : height;
-		var converted = ArrayPool<byte>.Shared.Rent( decodedWidth * decodedHeight * pixel );
-		try
-		{
-			if ( stored != format || compressed )
-			{
-				fixed ( byte* src = bytes )
-				fixed ( byte* dst = converted )
-				{
-					if ( !ImageLoader.ConvertImageFormat( (IntPtr)src, stored, (IntPtr)dst, format, decodedWidth, decodedHeight, 0, decodedWidth * pixel ) ) return false;
-				}
-
-				bytes = converted;
-			}
-
-			var row = source.w * pixel;
-			for ( int y = 0; y < source.h; y++ )
-			{
-				var line = bytes.Slice( ((source.y + y) * decodedWidth + source.x) * pixel, row );
-				line.CopyTo( new Span<byte>( (byte*)data + (long)(destination.y + y) * stride + (long)destination.x * pixel, row ) );
-			}
-
-			return true;
-		}
-		finally
-		{
-			ArrayPool<byte>.Shared.Return( converted );
-		}
 	}
 
 	/// <summary>The compiled file a texture was loaded from, read whole, or null.</summary>

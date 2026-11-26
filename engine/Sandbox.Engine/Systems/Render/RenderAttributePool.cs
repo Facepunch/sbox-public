@@ -10,19 +10,15 @@ namespace Sandbox;
 /// </summary>
 internal class RenderAttributePool
 {
-	private ConcurrentQueue<RenderAttributes> Pool = new();
-
-	// Managed sets, for a device that lowers attributes itself (Borealis.Gpu), apart from native ones
-	private ConcurrentQueue<RenderAttributes> ManagedPool = new();
+	readonly ConcurrentQueue<RenderAttributes> pool = new();
 
 	/// <summary>
-	/// Get a pooled <see cref="RenderAttributes"/> instance, of the kind the device being recorded for draws with
-	/// (<see cref="RenderAttributes.ForRecording"/>).
+	/// Get a pooled managed attribute set.
 	/// Make sure you return it to the pool after use with <see cref="Return(RenderAttributes)"/>.
 	/// </summary>
 	public RenderAttributes Get()
 	{
-		return ManagedPool.TryDequeue( out var managed ) ? managed : RenderAttributes.CreateManaged();
+		return pool.TryDequeue( out var managed ) ? managed : RenderAttributes.CreateManaged();
 	}
 
 	/// <summary>
@@ -34,20 +30,8 @@ internal class RenderAttributePool
 		ArgumentNullException.ThrowIfNull( renderAttributes );
 
 		renderAttributes.Clear( false ); // don't free our memory, we want to reuse it
-		(renderAttributes.IsManaged ? ManagedPool : Pool).Enqueue( renderAttributes );
+		pool.Enqueue( renderAttributes );
 	}
 
-	/// <summary>
-	/// Dequeues all pooled instances and clears them, releasing native handles.
-	/// </summary>
-	public void Clear()
-	{
-		while ( Pool.TryDequeue( out var ra ) )
-		{
-			ra.Clear();
-		}
-
-		Pool.Clear();
-		ManagedPool.Clear();
-	}
+	public void Clear() => pool.Clear();
 }

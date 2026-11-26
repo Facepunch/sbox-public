@@ -89,17 +89,27 @@ internal static class MirrorContent
 		RenderMesh mesh;
 		if ( gpu.AsyncModels )
 		{
-			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( m.SaveMeshesToVmdl ) );
+			var read = runtimeReads.GetValue( model, m => gpu.ReadModelAsync( SaveWeakly( m ) ) );
 			mesh = gpu.MakeModel( read, ulong.MaxValue, drawFastPath: true, out pending, generateLevels: false );
 			if ( pending ) return null;
 			runtimeReads.Remove( model );
 			if ( mesh is null && read.Exception?.GetBaseException() is { } e ) Log.Warning( e, $"Couldn't read run-time model {model.Name}: {e.Message}" );
 		}
-		else mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveMeshesToVmdl(), gpu.Content.TryRead ), meshGroups: ulong.MaxValue, drawFastPath: true, generateLevels: false );
+		else mesh = BackendModel.Create( gpu, ModelFile.Read( model.SaveMeshesToVmdl(), gpu.Content.TryRead, SaveWeakly( model ) ), meshGroups: ulong.MaxValue, drawFastPath: true, generateLevels: false );
 
 		runtimeMeshes.AddOrUpdate( model, new RuntimeModel( mesh ) );
 		if ( mesh is not null ) gpu.TrackModel( mesh );
 		return mesh;
+	}
+
+	/// <summary>
+	/// <see cref="Model.SaveMeshesToVmdl"/> without holding the model: the file read from it keeps this to decode buffers it let go
+	/// of, and mustn't keep the model alive. Null once the model is gone or destroyed.
+	/// </summary>
+	static Func<byte[]> SaveWeakly( Model model )
+	{
+		var weak = new WeakReference<Model>( model );
+		return () => weak.TryGetTarget( out var alive ) && !alive.native.IsNull ? alive.SaveMeshesToVmdl() : null;
 	}
 
 	/// <summary>Whether a model loading asynchronously (<see cref="Mesh(Model, out bool)"/>) has been read, so asking again can make it.</summary>
@@ -286,6 +296,7 @@ internal static class MirrorContent
 	{
 		public GpuTexture Texture;
 
+		public HashSet<SceneCubemap> WaitingProbes;
 		/// <summary>Whether <see cref="Texture"/> is this capture's own (a cube's), freed once the engine texture is gone.</summary>
 		public bool Owned;
 
@@ -298,6 +309,9 @@ internal static class MirrorContent
 	static readonly ConditionalWeakTable<Texture, Capture> captures = new();
 	static readonly System.Collections.Concurrent.ConcurrentQueue<GpuTexture> freedCaptures = new();
 
+	public static bool HasCollected => !freedCaptures.IsEmpty || !freedModels.IsEmpty
+		|| (releasedCaptures.TryPeek( out var released ) && Application.FrameCount - released.Frame >= ReleasedCaptureFrames);
+
 	/// <summary>
 	/// Free what the engine's resources took on the device once they were collected (capture cubes, run-time models' buffers),
 	/// whether or not anything asks for another: a map's realtime probes' cubes outlived it in the menu.
@@ -307,18 +321,16 @@ internal static class MirrorContent
 		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
 		while ( freedModels.TryDequeue( out var model ) ) model.Free();
 
-		// Released cubes a few frames on, once worlds have dropped the probes that drew with them
-		collectFrames++;
-		while ( releasedCaptures.TryPeek( out var released ) && collectFrames - released.Frame >= ReleasedCaptureFrames )
+		var frame = Application.FrameCount;
+		while ( releasedCaptures.TryPeek( out var released ) && frame - released.Frame >= ReleasedCaptureFrames )
 		{
 			releasedCaptures.TryDequeue( out _ );
 			released.Texture.Dispose();
 		}
 	}
 
-	// Cubes of engine textures that were disposed (ReleaseCapture), with the FreeCollected call they were released at
-	static readonly System.Collections.Concurrent.ConcurrentQueue<(GpuTexture Texture, long Frame)> releasedCaptures = new();
-	static long collectFrames;
+	// Keep disposed cubes through real engine frames so worlds can drop the probes that sampled them.
+	static readonly System.Collections.Concurrent.ConcurrentQueue<(GpuTexture Texture, ulong Frame)> releasedCaptures = new();
 	const int ReleasedCaptureFrames = 3;
 
 	/// <summary>
@@ -330,19 +342,35 @@ internal static class MirrorContent
 		if ( texture is null || !captures.TryGetValue( texture, out var capture ) ) return;
 		captures.Remove( texture );
 		texture.DrawnByView = false;
-		if ( capture.Owned && capture.Texture is not null ) releasedCaptures.Enqueue( (capture.Texture, collectFrames) );
-		capture.Owned = false;
-		capture.Texture = null;
+		lock ( capture )
+		{
+			if ( capture.Owned && capture.Texture is not null ) releasedCaptures.Enqueue( (capture.Texture, Application.FrameCount) );
+			capture.Owned = false;
+			capture.Texture = null;
+			capture.WaitingProbes = null;
+		}
 	}
 
 	/// <summary>Whether an engine texture is a cube made at run time for compute to write (a realtime probe's), which <see cref="CaptureCube"/> captures into.</summary>
 	public static bool IsCaptureCube( Texture texture ) => texture is not null && texture.Depth == 6 && texture.UAVAccess;
 
-	/// <summary>The cube <see cref="CaptureCube"/> has made for <paramref name="texture"/>, or null when nothing has captured or drawn it yet.</summary>
-	public static GpuTexture MadeCaptureCube( Texture texture ) => captures.TryGetValue( texture, out var capture ) && capture.Owned && capture.Texture is { IsValid: true } made ? made : null;
+	/// <summary>Read a realtime cube or subscribe the probe to this exact texture's first allocation.</summary>
+	public static GpuTexture CaptureForProbe( Texture texture, SceneCubemap probe )
+	{
+		var capture = captures.GetOrCreateValue( texture );
+		lock ( capture )
+		{
+			if ( capture.Owned && capture.Texture is { IsValid: true } made ) return made;
+			(capture.WaitingProbes ??= []).Add( probe );
+			return null;
+		}
+	}
 
-	/// <summary>How many cubes <see cref="CaptureCube"/> has made, for what waits for one (<see cref="MadeCaptureCube"/>).</summary>
-	public static int CaptureCubesMade { get; private set; }
+	public static void StopWaitingForCube( Texture texture, SceneCubemap probe )
+	{
+		if ( !captures.TryGetValue( texture, out var capture ) ) return;
+		lock ( capture ) capture.WaitingProbes?.Remove( probe );
+	}
 
 	/// <summary>
 	/// The Borealis.Gpu cube that cube captures of <paramref name="texture"/> (an engine cube made at run time, a realtime
@@ -354,31 +382,37 @@ internal static class MirrorContent
 	{
 		if ( Gpu is not { } gpu || texture is null || texture.Depth != 6 || texture.Width != texture.Height || texture.Width < 1 ) return null;
 
-		while ( freedCaptures.TryDequeue( out var freed ) ) freed.Dispose();
-
 		var format = Source2Formats.From( texture.ImageFormat );
 		var mips = Math.Max( texture.Mips, 1 );
 		var capture = captures.GetOrCreateValue( texture );
-		if ( capture.Owned && capture.Texture is { IsValid: true, IsCube: true } made && made.Width == texture.Width && made.Format == format && made.Mips == mips ) return made;
-		if ( format == TextureFormat.Unknown ) return null;
-
-		if ( capture.Owned ) capture.Texture?.Dispose();
-		capture.Texture = gpu.CreateTexture( new TextureDesc
+		lock ( capture )
 		{
-			Width = texture.Width,
-			Height = texture.Height,
-			Depth = 1,
-			Format = format,
-			Samples = 1,
-			Mips = mips,
-			Cube = true,
-			RenderTarget = true,
-			Storage = true,
-		}, $"Cube capture {texture.Width}px" );
-		capture.Owned = true;
-		CaptureCubesMade++;
-		gpu.Clear( capture.Texture, Color.Transparent );
-		return capture.Texture;
+			if ( capture.Owned && capture.Texture is { IsValid: true, IsCube: true } made && made.Width == texture.Width && made.Format == format && made.Mips == mips ) return made;
+			if ( format == TextureFormat.Unknown ) return null;
+
+			if ( capture.Owned ) capture.Texture?.Dispose();
+			var cube = gpu.CreateTexture( new TextureDesc
+			{
+				Width = texture.Width,
+				Height = texture.Height,
+				Depth = 1,
+				Format = format,
+				Samples = 1,
+				Mips = mips,
+				Cube = true,
+				RenderTarget = true,
+				Storage = true,
+			}, $"Cube capture {texture.Width}px" );
+			gpu.Clear( cube, Color.Transparent );
+			capture.Texture = cube;
+			capture.Owned = true;
+			if ( capture.WaitingProbes is { } waiting )
+			{
+				foreach ( var probe in waiting ) probe.World?.Render?.Later( probe, SceneObjectChange.Settings );
+				capture.WaitingProbes = null;
+			}
+			return cube;
+		}
 	}
 
 	/// <summary>
@@ -387,8 +421,10 @@ internal static class MirrorContent
 	/// </summary>
 	public static void SetCapture( Texture texture, GpuTexture drawn )
 	{
-		captures.GetOrCreateValue( texture ).Texture = drawn;
-		texture.DrawnByView = true;
+		var capture = captures.GetOrCreateValue( texture );
+		var changed = !ReferenceEquals( capture.Texture, drawn );
+		capture.Texture = drawn;
+		texture.MarkDrawnByView( changed );
 	}
 
 	/// <summary>
@@ -404,21 +440,26 @@ internal static class MirrorContent
 
 	/// <summary>
 	/// What a view drew for <paramref name="texture"/> (<see cref="SetCapture"/>), for the engine's own draws to read in its place
-	/// (<c>BorealisGpuRenderBackend.RenderedInto</c>): only when it has the engine texture's shape (size, format, mips, one
-	/// sample), so a draw binding it sees what it expects. Null otherwise.
+	/// (<c>BorealisGpuRenderBackend.RenderedInto</c>): only when it has the engine texture's shape.
 	/// </summary>
 	public static GpuTexture ViewCapture( Texture texture )
 	{
 		if ( texture is null || !texture.DrawnByView || !captures.TryGetValue( texture, out var capture ) || capture.Owned ) return null;
-		if ( capture.Texture is not { IsValid: true, IsCube: false, IsArray: false, Samples: 1 } drawn ) return null;
-		if ( drawn.Width != texture.Width || drawn.Height != texture.Height || drawn.Mips != Math.Max( texture.Mips, 1 ) ) return null;
-		if ( Source2Formats.Samples( texture.MultisampleType ) != 1 || drawn.Format != Source2Formats.From( texture.ImageFormat ) ) return null;
-		return drawn;
+		return CaptureMatches( texture, capture.Texture ) ? capture.Texture : null;
+	}
+
+	internal static bool CaptureMatches( Texture texture, GpuTexture drawn )
+	{
+		if ( drawn is not { IsValid: true, IsCube: false, IsArray: false } ) return false;
+		if ( drawn.Width != texture.Width || drawn.Height != texture.Height || drawn.Mips != Math.Max( texture.Mips, 1 ) ) return false;
+		// The engine backend maps all of its camera stencil formats onto the same device depth format.
+		var format = texture.ImageFormat.HasCameraStencil() ? TextureFormat.D32FS8 : Source2Formats.From( texture.ImageFormat );
+		return drawn.Samples == Source2Formats.Samples( texture.MultisampleType ) && drawn.Format == format;
 	}
 
 	/// <summary>
 	/// Set on <paramref name="into"/> what <paramref name="attributes"/> had set after its version was <paramref name="version"/>:
-	/// what a command list set meanwhile. Numbers, vectors, matrices, combos and the textures Borealis can read carry over.
+	/// what a command list set meanwhile. Numbers, vectors, matrices, combos, constant buffers and the textures Borealis can read carry over.
 	/// </summary>
 	public static void SetChanged( ManagedRenderAttributes attributes, int version, ShaderParameters into )
 	{
@@ -464,21 +505,6 @@ internal static class MirrorContent
 		version = source.Version;
 	}
 
-	/// <summary>
-	/// A view's own attributes with a managed store (a planar reflection published for it) written into
-	/// <paramref name="parameters"/>, made the first time: what was there before is cleared.
-	/// </summary>
-	public static ShaderParameters ViewParameters( RenderAttributes attributes, ref ShaderParameters parameters )
-	{
-		if ( Gpu is not { } gpu || attributes?.Managed is not { } managed ) return null;
-
-		parameters ??= gpu.CreateParameters();
-		parameters.Clear();
-		foreach ( var (token, value) in managed.Values ) Set( parameters, new StringToken( token ), value );
-		foreach ( var (token, value) in managed.Combos ) parameters.SetCombo( new StringToken( token ), value );
-		return parameters;
-	}
-
 	static void Set( ShaderParameters parameters, StringToken name, object value )
 	{
 		switch ( value )
@@ -490,6 +516,8 @@ internal static class MirrorContent
 			case float[] { Length: 16 } f: parameters.Set( name, MemoryMarshal.Read<Matrix>( MemoryMarshal.AsBytes( f.AsSpan() ) ) ); break;
 			case ManagedRenderAttributes.TextureValue t when Texture( t.Texture ) is { } texture: parameters.Set( name, texture, t.Mip ); break;
 			case Sandbox.GpuBuffer b when Buffer( b ) is { } buffer: parameters.Set( name, buffer ); break;
+			// RenderAttributes.SetData: a constant buffer's bytes (a game's per-frame constants on Scene.RenderAttributes)
+			case byte[] data: parameters.SetData( name, data ); break;
 		}
 	}
 
@@ -513,7 +541,7 @@ internal static class MirrorContent
 
 	/// <summary>
 	/// An object's attributes as its draws read them: its managed copy (<c>RenderAttributes.Shadow</c>) converted, again only
-	/// when it changed. Numbers, vectors, matrices, combos, textures and buffers carry over; samplers and constant buffers
+	/// when it changed. Numbers, vectors, matrices, combos, textures, buffers and constant buffers carry over; samplers
 	/// don't yet. Values set again (a time or colour each frame, or all of them after a clear) are written into the same
 	/// parameters; a value added or gone, or a combo changed, makes new ones, so the object's draws are made again
 	/// (<c>MeshObject.Attributes</c>).

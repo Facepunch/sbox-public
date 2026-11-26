@@ -142,13 +142,7 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 	static readonly ProfilingSampler UpsampleSampler = new( "AO Upsample" );
 	static readonly ProfilingSampler NormalsSampler = new( "AO Normals From Depth" );
 
-	/// <summary>
-	/// Rebuilds its normals from depth (geometric normals, without the materials' normal maps), so it doesn't read the
-	/// depth-normals G-buffer.
-	/// </summary>
-	internal override bool NeedsDepthNormals => false;
-
-	// GTAO is compute dispatches and barriers from the depth chain and normals into its own targets
+	// GTAO reconstructs geometric normals from depth; it does not read material normals.
 	internal override PostProcessQueue? EarlyQueue => PostProcessQueue.AsyncCompute;
 
 	public override void Render()
@@ -255,16 +249,12 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 			// A thread for every 2x2 pixels: at exactly half resolution they share their coarse texels and depth
 			commands.DispatchCompute( GtaoCs, commands.ViewportSizeScaled( 2 ) );
 
-			commands.ResourceBarrierTransition( UpsampledAO, ResourceState.PixelShaderResource );
-
-			commands.SetPipelineTexture( PipelineTextureSlot.AmbientOcclusion, UpsampledAO.ColorTexture );
+			commands.PublishPipelineTexture( PipelineTextureSlot.AmbientOcclusion, UpsampledAO.ColorTexture );
 		}
 		else
 		{
 			// Visibility is in red, which is what the forward shaders sample
-			commands.ResourceBarrierTransition( current, ResourceState.PixelShaderResource );
-
-			commands.SetPipelineTexture( PipelineTextureSlot.AmbientOcclusion, current.ColorTexture );
+			commands.PublishPipelineTexture( PipelineTextureSlot.AmbientOcclusion, current.ColorTexture );
 		}
 
 		InsertCommandList( commands, Stage.AfterDepthPrepass, 0, "Ambient Occlusion" );

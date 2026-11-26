@@ -11,7 +11,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class SkyboxTests : GpuTest
+public class SkyboxTests : RenderGpuTest
 {
 	const int Width = 320, Height = 200;
 

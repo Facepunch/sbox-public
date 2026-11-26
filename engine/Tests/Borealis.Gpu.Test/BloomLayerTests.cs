@@ -10,7 +10,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class BloomLayerTests : GpuTest
+public class BloomLayerTests : RenderGpuTest
 {
 	const int Width = 256, Height = 256;
 

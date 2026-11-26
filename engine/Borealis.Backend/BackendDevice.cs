@@ -796,7 +796,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Seconds a resident instanced mesh (<c>SceneModelInstances</c>) cross-fades between LODs after it switches, the two
-	/// dithered in complementary halves (<c>borealis_lod_fade.fxc</c>), in the view that owns the fades (<see cref="OwnsLodFade"/>);
+	/// dithered in complementary halves (<c>sbox/lod_fade.slangh</c>), in the view that owns the fades (<see cref="OwnsLodFade"/>);
 	/// 0 switches at once; at most 32. Only draws whose material dithers it fade (<see cref="GpuMaterial.DithersLodFade"/>), the rest switch.
 	/// <c>-no-lod-fade</c> sets it to 0.
 	/// </summary>
@@ -813,7 +813,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	volatile bool lodFadeMade;
 
 	/// <summary>
-	/// This frame's stamp for LOD fades, as a state word keeps one (<c>borealis_lod_fade.fxc</c>): its time in ticks of
+	/// This frame's stamp for LOD fades, as a state word keeps one (<c>sbox/lod_fade.slangh</c>): its time in ticks of
 	/// 1/256 s (bits 0-13, wrapping every 64 s) and its frame (bits 14-23): one for every cull of the frame.
 	/// </summary>
 	internal uint LodFadeNow { get; private set; }

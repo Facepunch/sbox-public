@@ -65,7 +65,7 @@ public sealed unsafe partial class CommandList
 
 		public StringToken Token;
 
-		// Instance counts remain exact integers.
+		// One inline exact integer, or an offset into the recorded payload.
 		public int Count;
 
 		/// <summary>
@@ -76,6 +76,25 @@ public sealed unsafe partial class CommandList
 		public Vector4 Data1;
 		public Vector4 Data2;
 		public Vector4 Data3;
+
+		// Integral commands reuse the vector-width storage without a floating-point conversion.
+		public (int X, int Y, int Z, int W) Ints
+		{
+			get => Unsafe.As<Vector4, (int, int, int, int)>( ref Data1 );
+			set => Data1 = Unsafe.As<(int, int, int, int), Vector4>( ref value );
+		}
+
+		public (uint X, uint Y, uint Z, uint W) UInts
+		{
+			get => Unsafe.As<Vector4, (uint, uint, uint, uint)>( ref Data1 );
+			set => Data1 = Unsafe.As<(uint, uint, uint, uint), Vector4>( ref value );
+		}
+
+		public (int X, int Y, int Z, int W) Ints2
+		{
+			get => Unsafe.As<Vector4, (int, int, int, int)>( ref Data2 );
+			set => Data2 = Unsafe.As<(int, int, int, int), Vector4>( ref value );
+		}
 		// Matrix attributes are written across Data1..Data4 through a reinterpret of Data1.
 #pragma warning disable CS0649
 		public Vector4 Data4;
@@ -167,7 +186,6 @@ public sealed unsafe partial class CommandList
 		// Written in this order for Playback, which reads them in the other order without the lock
 		var held = _recorded;
 		var fresh = _held ?? new Recorded();
-		_splitEpoch = epoch;
 		if ( clearing ) fresh.Clear();
 		else fresh.CopyFrom( held );
 		Volatile.Write( ref _held, held );
@@ -276,9 +294,6 @@ public sealed unsafe partial class CommandList
 	static readonly Func<Recorded, List<RefractionSetup>> RefractionSetupStore = static r => r.RefractionSetups ??= new List<RefractionSetup>( 2 );
 	static readonly Func<Recorded, List<RendererSetup>> RendererSetupStore = static r => r.RendererSetups ??= new List<RendererSetup>( 2 );
 
-	[Obsolete]
-	RenderAttributes attributes => Graphics.Attributes;
-
 	/// <summary>
 	/// This lives for the lifetime of the command list and is 
 	/// used to store temporary render targets and other state.
@@ -344,8 +359,6 @@ public sealed unsafe partial class CommandList
 				Attributes.ClearRenderTargets();
 				drawAttributeAccess?.ClearRenderTargets();
 				drawAttributes?.Clear( false );
-				managedDrawAttributes?.Clear( false );
-				currentDrawAttributes = null;
 			}
 
 			_recorded.Clear();
@@ -383,239 +396,74 @@ public sealed unsafe partial class CommandList
 	}
 
 	[Obsolete]
-	public void Set( StringToken token, float f )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, entry.Data1.x );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( f, 0, 0, 0 ) } );
-	}
+	public void Set( StringToken token, float f ) => Attributes.Set( token, f );
 
 	[Obsolete] public void Set( StringToken token, double f ) => Set( token, (float)f );
 
 	[Obsolete]
-	public void Set( StringToken token, Vector2 vector2 )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, new Vector2( entry.Data1.x, entry.Data1.y ) );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
-	}
+	public void Set( StringToken token, Vector2 vector2 ) => Attributes.Set( token, vector2 );
 
 	[Obsolete]
-	public void Set( StringToken token, Vector3 vector3 )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
-	}
+	public void Set( StringToken token, Vector3 vector3 ) => Attributes.Set( token, vector3 );
 
 	[Obsolete]
-	public void Set( StringToken token, Vector4 vector4 )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, entry.Data1 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = vector4 } );
-	}
+	public void Set( StringToken token, Vector4 vector4 ) => Attributes.Set( token, vector4 );
 
 	[Obsolete]
-	public void Set( StringToken token, int i )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, (int)entry.Data1.x );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( i, 0, 0, 0 ) } );
-	}
+	public void Set( StringToken token, int i ) => Attributes.Set( token, i );
 
 	[Obsolete]
-	public void Set( StringToken token, bool b )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, (int)entry.Data1.x != 0 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
-	}
+	public void Set( StringToken token, bool b ) => Attributes.Set( token, b );
 
 	[Obsolete]
-	public void Set( StringToken token, Matrix matrix )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
-		}
-		var e = new Entry { Token = token };
-		Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
-		AddEntry( &Execute, e );
-	}
+	public void Set( StringToken token, Matrix matrix ) => Attributes.Set( token, matrix );
 
 	[Obsolete]
-	public void Set( StringToken token, GpuBuffer buffer )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, (GpuBuffer)entry.Object2 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = buffer } );
-	}
+	public void Set( StringToken token, GpuBuffer buffer ) => Attributes.Set( token, buffer );
 
 	[Obsolete]
-	public void Set( StringToken token, Texture texture )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.Set( entry.Token, (Texture)entry.Object2 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = texture } );
-	}
+	public void Set( StringToken token, Texture texture ) => Attributes.Set( token, texture );
 
 	[Obsolete]
-	public void SetCombo( StringToken token, int value )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.SetCombo( entry.Token, (int)entry.Data1.x );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( value, 0, 0, 0 ) } );
-	}
+	public void SetCombo( StringToken token, int value ) => Attributes.SetCombo( token, value );
 
 	[Obsolete]
-	public void SetCombo( StringToken token, bool value )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.SetCombo( entry.Token, (int)entry.Data1.x != 0 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( value ? 1 : 0, 0, 0, 0 ) } );
-	}
+	public void SetCombo( StringToken token, bool value ) => Attributes.SetCombo( token, value );
 
 	[Obsolete]
-	public void SetCombo<T>( StringToken token, T t ) where T : unmanaged, Enum
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.SetCombo( entry.Token, (int)entry.Data1.x );
-		}
-		var intValue = Unsafe.SizeOf<T>() switch
-		{
-			1 => Unsafe.As<T, byte>( ref t ),
-			2 => (int)Unsafe.As<T, short>( ref t ),
-			8 => (int)Unsafe.As<T, long>( ref t ),
-			_ => Unsafe.As<T, int>( ref t )
-		};
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( intValue, 0, 0, 0 ) } );
-	}
+	public void SetCombo<T>( StringToken token, T t ) where T : unmanaged, Enum => Attributes.SetCombo( token, t );
 
 	[Obsolete]
-	public void SetConstantBuffer<T>( StringToken token, T data ) where T : unmanaged
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.Attributes.SetData( entry.Token, commandList.ReadPayload<T>( entry ) );
-		}
-		AddEntry( &Execute, new Entry { Token = token }, data );
-	}
+	public void SetConstantBuffer<T>( StringToken token, T data ) where T : unmanaged => Attributes.SetData( token, data );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, GpuBuffer buffer )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, (GpuBuffer)entry.Object2 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = buffer } );
-	}
+	public void SetGlobal( StringToken token, GpuBuffer buffer ) => Attributes.Set( token, buffer );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, int i )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, (int)entry.Data1.x );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( i, 0, 0, 0 ) } );
-	}
+	public void SetGlobal( StringToken token, int i ) => Attributes.Set( token, i );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, bool b )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, (int)entry.Data1.x != 0 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
-	}
+	public void SetGlobal( StringToken token, bool b ) => Attributes.Set( token, b );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, float f )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, entry.Data1.x );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( f, 0, 0, 0 ) } );
-	}
+	public void SetGlobal( StringToken token, float f ) => Attributes.Set( token, f );
 
 	[Obsolete] public void SetGlobal( StringToken token, double f ) => SetGlobal( token, (float)f );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, Vector2 vector2 )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, new Vector2( entry.Data1.x, entry.Data1.y ) );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
-	}
+	public void SetGlobal( StringToken token, Vector2 vector2 ) => Attributes.Set( token, vector2 );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, Vector3 vector3 )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
-	}
+	public void SetGlobal( StringToken token, Vector3 vector3 ) => Attributes.Set( token, vector3 );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, Vector4 vector4 )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, entry.Data1 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Data1 = vector4 } );
-	}
+	public void SetGlobal( StringToken token, Vector4 vector4 ) => Attributes.Set( token, vector4 );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, Matrix matrix )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
-		}
-		var e = new Entry { Token = token };
-		Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
-		AddEntry( &Execute, e );
-	}
+	public void SetGlobal( StringToken token, Matrix matrix ) => Attributes.Set( token, matrix );
 
 	[Obsolete]
-	public void SetGlobal( StringToken token, Texture texture )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.FrameAttributes.Set( entry.Token, (Texture)entry.Object2 );
-		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = texture } );
-	}
+	public void SetGlobal( StringToken token, Texture texture ) => Attributes.Set( token, texture );
 
 	/// <summary>
 	/// Takes a copy of the framebuffer and returns a handle to it
@@ -641,45 +489,14 @@ public sealed unsafe partial class CommandList
 	{
 		if ( otherBuffer == this ) return;
 
-		// TODO - check to make sure we don't create an infinite loop?
-		// maybe make a local int here, increment every call, throw exception if it's over 2?
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
 			var other = (CommandList)entry.Object1;
 			if ( !other.Enabled )
 				return;
 
-			// Propagate state from parent so child entries can access renderTargets etc.
-			var previousState = other.state;
-			other.state = commandList.state;
-
-			// The set this thread replays (the list as the render thread's frame was handed over, there), which recording
-			// leaves alone meanwhile; one replay of a list at a time
-			var played = other.Playback();
-			lock ( other._playLock )
-			{
-				var previousPlaying = other._playing;
-				other._playing = played;
-				try
-				{
-					// Inserted lists need the same resource preparation as direct execution.
-					// In particular, Painter must invalidate its previous execution's GPU copy.
-					other.BeginResources();
-
-					var entries = CollectionsMarshal.AsSpan( played.Entries );
-					for ( int i = 0; i < entries.Length; i++ )
-					{
-						var e = entries[i];
-						e.Execute( ref e, other );
-					}
-				}
-				finally
-				{
-					other._playing = previousPlaying;
-				}
-			}
-
-			other.state = previousState;
+			// Inserted lists share the parent's render targets and view metadata.
+			commandList.ExecuteInserted( other );
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = otherBuffer } );
@@ -700,7 +517,7 @@ public sealed unsafe partial class CommandList
 
 			try
 			{
-				ExecuteEntries();
+				Replay( null );
 			}
 			catch ( System.Exception e )
 			{
@@ -767,11 +584,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawModelInstanced( (Model)entry.Object1, ((Transform[])entry.Object5).AsSpan(), (int)entry.Data1.x, (RenderAttributes)entry.Object2 );
+			Graphics.DrawModelInstanced( (Model)entry.Object1, ((Transform[])entry.Object5).AsSpan(), entry.Count, (RenderAttributes)entry.Object2 );
 		}
 
 		var transformsCopy = transforms.ToArray();
-		AddEntry( &Execute, new Entry { Object1 = model, Object5 = transformsCopy, Data1 = new Vector4( lodLevel, 0, 0, 0 ), Object2 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = model, Object5 = transformsCopy, Count = lodLevel, Object2 = attributes } );
 	}
 
 	/// <summary>
@@ -809,10 +626,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawModelInstancedIndirect( (Model)entry.Object1, (GpuBuffer)entry.Object2, (int)entry.Data1.x, (RenderAttributes)entry.Object3 );
+			Graphics.DrawModelInstancedIndirect( (Model)entry.Object1, (GpuBuffer)entry.Object2, entry.Count, (RenderAttributes)entry.Object3 );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = model, Object2 = buffer, Data1 = new Vector4( bufferOffset, 0, 0, 0 ), Object3 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = model, Object2 = buffer, Count = bufferOffset, Object3 = attributes } );
 	}
 
 	/// <summary>
@@ -830,10 +647,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawModelInstancedIndirect( (Model)entry.Object1, (GpuBuffer)entry.Object2, (GpuBuffer)entry.Object3, (int)entry.Data1.x, (int)entry.Data1.y, (RenderAttributes)entry.Object4 );
+			Graphics.DrawModelInstancedIndirect( (Model)entry.Object1, (GpuBuffer)entry.Object2, (GpuBuffer)entry.Object3, entry.Ints.X, entry.Ints.Y, (RenderAttributes)entry.Object4 );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = model, Object2 = transformBuffer, Object3 = indirectArgs, Data1 = new Vector4( argsOffset, lodLevel, 0, 0 ), Object4 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = model, Object2 = transformBuffer, Object3 = indirectArgs, Ints = (argsOffset, lodLevel, 0, 0), Object4 = attributes } );
 	}
 
 	/// <summary>
@@ -850,10 +667,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawModelInstanced( (Model)entry.Object1, (int)entry.Data1.x, (RenderAttributes)entry.Object2 );
+			Graphics.DrawModelInstanced( (Model)entry.Object1, entry.Count, (RenderAttributes)entry.Object2 );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = model, Data1 = new Vector4( count, 0, 0, 0 ), Object2 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = model, Count = count, Object2 = attributes } );
 	}
 
 	/// <summary>
@@ -870,10 +687,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Draw( (GpuBuffer<T>)entry.Object1, (Material)entry.Object2, (int)entry.Data1.x, (int)entry.Data1.y, (RenderAttributes)entry.Object3, (Graphics.PrimitiveType)(int)entry.Data1.z );
+			Graphics.Draw( (GpuBuffer<T>)entry.Object1, (Material)entry.Object2, entry.Ints.X, entry.Ints.Y, (RenderAttributes)entry.Object3, (Graphics.PrimitiveType)entry.Ints.Z );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = vertexBuffer, Object2 = material, Data1 = new Vector4( startVertex, vertexCount, (int)primitiveType, 0 ), Object3 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = vertexBuffer, Object2 = material, Ints = (startVertex, vertexCount, (int)primitiveType, 0), Object3 = attributes } );
 	}
 
 	/// <summary>
@@ -891,10 +708,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Draw( (GpuBuffer<T>)entry.Object1, (GpuBuffer)entry.Object2, (Material)entry.Object3, (int)entry.Data1.x, (int)entry.Data1.y, (RenderAttributes)entry.Object4, (Graphics.PrimitiveType)(int)entry.Data1.z );
+			Graphics.Draw( (GpuBuffer<T>)entry.Object1, (GpuBuffer)entry.Object2, (Material)entry.Object3, entry.Ints.X, entry.Ints.Y, (RenderAttributes)entry.Object4, (Graphics.PrimitiveType)entry.Ints.Z );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = vertexBuffer, Object2 = indexBuffer, Object3 = material, Data1 = new Vector4( startIndex, indexCount, (int)primitiveType, 0 ), Object4 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = vertexBuffer, Object2 = indexBuffer, Object3 = material, Ints = (startIndex, indexCount, (int)primitiveType, 0), Object4 = attributes } );
 	}
 
 	/// <summary>
@@ -926,10 +743,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawInstancedIndirect( (GpuBuffer<T>)entry.Object1, (Material)entry.Object2, (GpuBuffer)entry.Object3, (uint)entry.Data1.x, (RenderAttributes)entry.Object4, (Graphics.PrimitiveType)(int)entry.Data1.y, (uint)entry.Data1.z, (uint)entry.Data1.w );
+			var (offset, primitive, count, stride) = entry.UInts;
+			Graphics.DrawInstancedIndirect( (GpuBuffer<T>)entry.Object1, (Material)entry.Object2, (GpuBuffer)entry.Object3, offset, (RenderAttributes)entry.Object4, (Graphics.PrimitiveType)primitive, count, stride );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = vertexBuffer, Object2 = material, Object3 = indirectBuffer, Data1 = new Vector4( bufferOffset, (int)primitiveType, drawCount, stride ), Object4 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = vertexBuffer, Object2 = material, Object3 = indirectBuffer, UInts = (bufferOffset, (uint)primitiveType, drawCount, stride), Object4 = attributes } );
 	}
 
 	/// <summary>
@@ -963,10 +781,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawInstancedIndirect( (Material)entry.Object1, (GpuBuffer)entry.Object2, (uint)entry.Data1.x, (RenderAttributes)entry.Object3, (Graphics.PrimitiveType)(int)entry.Data1.y, (uint)entry.Data1.z, (uint)entry.Data1.w );
+			var (offset, primitive, count, stride) = entry.UInts;
+			Graphics.DrawInstancedIndirect( (Material)entry.Object1, (GpuBuffer)entry.Object2, offset, (RenderAttributes)entry.Object3, (Graphics.PrimitiveType)primitive, count, stride );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = material, Object2 = indirectBuffer, Data1 = new Vector4( bufferOffset, (int)primitiveType, drawCount, stride ), Object3 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = material, Object2 = indirectBuffer, UInts = (bufferOffset, (uint)primitiveType, drawCount, stride), Object3 = attributes } );
 	}
 
 	/// <summary>
@@ -1000,10 +819,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawIndexedInstancedIndirect( (GpuBuffer<T>)entry.Object1, (GpuBuffer)entry.Object2, (Material)entry.Object3, (GpuBuffer)entry.Object4, (uint)entry.Data1.x, (RenderAttributes)entry.Object5, (Graphics.PrimitiveType)(int)entry.Data1.y, (uint)entry.Data1.z, (uint)entry.Data1.w );
+			var (offset, primitive, count, stride) = entry.UInts;
+			Graphics.DrawIndexedInstancedIndirect( (GpuBuffer<T>)entry.Object1, (GpuBuffer)entry.Object2, (Material)entry.Object3, (GpuBuffer)entry.Object4, offset, (RenderAttributes)entry.Object5, (Graphics.PrimitiveType)primitive, count, stride );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = vertexBuffer, Object2 = indexBuffer, Object3 = material, Object4 = indirectBuffer, Data1 = new Vector4( bufferOffset, (int)primitiveType, drawCount, stride ), Object5 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = vertexBuffer, Object2 = indexBuffer, Object3 = material, Object4 = indirectBuffer, UInts = (bufferOffset, (uint)primitiveType, drawCount, stride), Object5 = attributes } );
 	}
 
 	/// <summary>
@@ -1039,10 +859,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawIndexedInstancedIndirect( (GpuBuffer)entry.Object1, (Material)entry.Object2, (GpuBuffer)entry.Object3, (uint)entry.Data1.x, (RenderAttributes)entry.Object4, (Graphics.PrimitiveType)(int)entry.Data1.y, (uint)entry.Data1.z, (uint)entry.Data1.w );
+			var (offset, primitive, count, stride) = entry.UInts;
+			Graphics.DrawIndexedInstancedIndirect( (GpuBuffer)entry.Object1, (Material)entry.Object2, (GpuBuffer)entry.Object3, offset, (RenderAttributes)entry.Object4, (Graphics.PrimitiveType)primitive, count, stride );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = indexBuffer, Object2 = material, Object3 = indirectBuffer, Data1 = new Vector4( bufferOffset, (int)primitiveType, drawCount, stride ), Object4 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = indexBuffer, Object2 = material, Object3 = indirectBuffer, UInts = (bufferOffset, (uint)primitiveType, drawCount, stride), Object4 = attributes } );
 	}
 
 	/// <summary>
@@ -1052,10 +873,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.DrawIndexedInstanced( (GpuBuffer)entry.Object1, (Material)entry.Object2, (int)entry.Data1.x, (RenderAttributes)entry.Object3, (Graphics.PrimitiveType)(int)entry.Data1.y );
+			Graphics.DrawIndexedInstanced( (GpuBuffer)entry.Object1, (Material)entry.Object2, entry.Ints.X, (RenderAttributes)entry.Object3, (Graphics.PrimitiveType)entry.Ints.Y );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = indexBuffer, Object2 = material, Data1 = new Vector4( instanceCount, (int)primitiveType, 0, 0 ), Object3 = attributes } );
+		AddEntry( &Execute, new Entry { Object1 = indexBuffer, Object2 = material, Ints = (instanceCount, (int)primitiveType, 0, 0), Object3 = attributes } );
 	}
 
 	/// <summary>
@@ -1067,19 +888,7 @@ public sealed unsafe partial class CommandList
 	/// <param name="numMips">Number of mips you want in this texture. You probably don't want this unless you want to generate mips in a second pass.</param>
 	/// <returns>A RenderTarget that is ready to render to.</returns>
 	public RenderTargetHandle GetRenderTarget( string name, ImageFormat format, int numMips = 1, int sizeFactor = 1 )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			// Pass the name as the pool's targetName so this handle maps to a stable physical texture
-			// across frames. Without it, any RT of matching dimensions/format shares one pool bucket and
-			// the name->texture mapping can shuffle frame-to-frame (breaking temporal/history buffers).
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.x, depthFormat: ImageFormat.None, numMips: (int)entry.Data1.z );
-			commandList.state.renderTargets[(string)entry.Object5] = temp;
-		}
-
-		AddEntry( &Execute, new Entry { Object5 = name, Data1 = new Vector4( (int)format, sizeFactor, numMips, 0 ) } );
-		return new RenderTargetHandle { Name = name };
-	}
+		=> RecordTemporaryTarget( name, new TemporaryTarget( 0, 0, sizeFactor, format, ImageFormat.None, MultisampleAmount.MultisampleNone, numMips, "", false ) );
 
 	/// <summary>
 	/// Get a screen sized temporary render target. You should release the returned handle when you're done to return the textures to the pool.
@@ -1092,16 +901,7 @@ public sealed unsafe partial class CommandList
 	/// <param name="numMips">Number of mips you want in this texture. You probably don't want this unless you want to generate mips in a second pass.</param>
 	/// <returns>A RenderTarget that is ready to render to.</returns>
 	public RenderTargetHandle GetRenderTarget( string name, int sizeFactor = 1, ImageFormat colorFormat = ImageFormat.Default, ImageFormat depthFormat = ImageFormat.Default, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1 )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (ImageFormat)(int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (MultisampleAmount)(int)entry.Data1.w, (int)entry.Data2.x, targetName: (string)entry.Object5 );
-			commandList.state.renderTargets[(string)entry.Object5] = temp;
-		}
-
-		AddEntry( &Execute, new Entry { Object5 = name, Data1 = new Vector4( sizeFactor, (int)colorFormat, (int)depthFormat, (int)msaa ), Data2 = new Vector4( numMips, 0, 0, 0 ) } );
-		return new RenderTargetHandle { Name = name };
-	}
+		=> RecordTemporaryTarget( name, new TemporaryTarget( 0, 0, sizeFactor, colorFormat, depthFormat, msaa, numMips, name, false ) );
 
 	/// <summary>
 	/// Get a temporary render target. You should release the returned handle when you're done to return the textures to the pool.
@@ -1121,14 +921,32 @@ public sealed unsafe partial class CommandList
 	/// As above, from the engine's own pool. The UI painter's layers hold menu pixels.
 	/// </summary>
 	internal RenderTargetHandle GetRenderTarget( string name, int width, int height, ImageFormat colorFormat, ImageFormat depthFormat, MultisampleAmount msaa, int numMips, bool engineOwned )
+		=> RecordTemporaryTarget( name, new TemporaryTarget( width, height, null, colorFormat, depthFormat, msaa, numMips, name, engineOwned ) );
+
+	readonly record struct TemporaryTarget( int Width, int Height, int? SizeFactor, ImageFormat Color, ImageFormat Depth,
+		MultisampleAmount Msaa, int Mips, string PoolName, bool EngineOwned );
+
+	RenderTargetHandle RecordTemporaryTarget( string name, TemporaryTarget parameters )
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y, (string)entry.Object5, 0, entry.Data2.z != 0 );
-			commandList.state.renderTargets[(string)entry.Object5] = temp;
+			var (width, height, factor, color) = entry.Ints;
+			var (depth, msaa, mips, engine) = entry.Ints2;
+			var poolName = (string)entry.Object2;
+			var target = entry.Count == 0
+				? Sandbox.RenderTarget.GetTemporary( width, height, (ImageFormat)color, (ImageFormat)depth, (MultisampleAmount)msaa, mips, poolName, engine != 0 )
+				: Sandbox.RenderTarget.GetTemporary( factor, (ImageFormat)color, (ImageFormat)depth, (MultisampleAmount)msaa, mips, poolName, engine != 0 );
+			commandList.state.renderTargets[(string)entry.Object5] = target;
 		}
 
-		AddEntry( &Execute, new Entry { Object5 = name, Data1 = new Vector4( width, height, (int)colorFormat, (int)depthFormat ), Data2 = new Vector4( (int)msaa, numMips, engineOwned ? 1 : 0, 0 ) } );
+		AddEntry( &Execute, new Entry
+		{
+			Object2 = parameters.PoolName,
+			Object5 = name,
+			Ints = (parameters.Width, parameters.Height, parameters.SizeFactor.GetValueOrDefault(), (int)parameters.Color),
+			Ints2 = ((int)parameters.Depth, (int)parameters.Msaa, parameters.Mips, parameters.EngineOwned ? 1 : 0),
+			Count = parameters.SizeFactor.HasValue ? 1 : 0
+		} );
 		return new RenderTargetHandle { Name = name };
 	}
 
@@ -1231,13 +1049,12 @@ public sealed unsafe partial class CommandList
 	/// Set the color texture from this named render target to this attribute
 	/// </summary>
 	[Obsolete]
-	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => GlobalAttributes.Set( token, buffer );
+	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => Attributes.Set( token, buffer );
 
 	/// <summary>
-	/// Publishes the color texture in the current view's pipeline slots.
-	/// Producers fill their slots without changing attributes while other layers record.
+	/// Transitions the finished color texture to pixel shader reads and publishes it in the current view's pipeline slot.
 	/// </summary>
-	internal void SetPipelineTexture( PipelineTextureSlot slot, RenderTargetHandle.ColorTextureRef buffer )
+	internal void PublishPipelineTexture( PipelineTextureSlot slot, RenderTargetHandle.ColorTextureRef buffer )
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
@@ -1249,7 +1066,10 @@ public sealed unsafe partial class CommandList
 
 			// Borealis.Gpu's table is its backend's, written in the block's list; a headless process has none
 			if ( Graphics.Backend is BorealisGpuRenderBackend gpu )
-				gpu.SetPipelineTexture( (int)entry.Data1.x, target.ColorTarget );
+			{
+				gpu.ResourceBarrierTransition( target.ColorTarget, ResourceState.PixelShaderResource, -1 );
+				gpu.SetPipelineTexture( entry.Count, target.ColorTarget );
+			}
 		}
 
 		// Dont write out of bounds of the pipeline slots
@@ -1259,7 +1079,7 @@ public sealed unsafe partial class CommandList
 			return;
 		}
 
-		AddEntry( &Execute, new Entry { Object5 = buffer.Name, Data1 = new Vector4( (int)slot, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object5 = buffer.Name, Count = (int)slot } );
 	}
 
 
@@ -1268,10 +1088,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((ComputeShader)entry.Object1).DispatchWithAttributes( Graphics.Attributes, (int)entry.Data1.x, (int)entry.Data1.y, (int)entry.Data1.z );
+			((ComputeShader)entry.Object1).DispatchWithAttributes( Graphics.Attributes, entry.Ints.X, entry.Ints.Y, entry.Ints.Z );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = compute, Data1 = new Vector4( threadsX, threadsY, threadsZ, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = compute, Ints = (threadsX, threadsY, threadsZ, 0) } );
 	}
 
 	/// <inheritdoc cref="ComputeShader.DispatchIndirect(GpuBuffer, uint)"/>
@@ -1279,22 +1099,22 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((ComputeShader)entry.Object1).DispatchIndirectWithAttributes( Graphics.Attributes, (GpuBuffer)entry.Object2, (uint)entry.Data1.x );
+			((ComputeShader)entry.Object1).DispatchIndirectWithAttributes( Graphics.Attributes, (GpuBuffer)entry.Object2, unchecked((uint)entry.Count) );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = compute, Object2 = indirectBuffer, Data1 = new Vector4( indirectElementOffset, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = compute, Object2 = indirectBuffer, Count = unchecked((int)indirectElementOffset) } );
 	}
 
 	/// <summary>
 	/// A handle to the viewport size
 	/// </summary>
-	public RenderTargetHandle.SizeHandle ViewportSize => new RenderTargetHandle.SizeHandle { Name = "$vp" };
+	public RenderTargetHandle.SizeHandle ViewportSize => new RenderTargetHandle.SizeHandle { Name = "$vp", IsViewport = true };
 
 	/// <summary>
 	/// A handle to the viewport size divided by a factor, rounded up so a thread for every <paramref name="divisor"/> pixels
 	/// covers them all. Useful for dispatching at half or quarter resolution.
 	/// </summary>
-	public RenderTargetHandle.SizeHandle ViewportSizeScaled( int divisor ) => new RenderTargetHandle.SizeHandle { Name = "$vp", Divisor = Math.Max( 1, divisor ) };
+	public RenderTargetHandle.SizeHandle ViewportSizeScaled( int divisor ) => new RenderTargetHandle.SizeHandle { Name = "$vp", IsViewport = true, Divisor = Math.Max( 1, divisor ) };
 
 	/// <summary>
 	/// Dispatch a compute shader
@@ -1303,23 +1123,23 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			var xyz = commandList.GetDimension( (string)entry.Object5, (int)entry.Data1.x );
+			var xyz = commandList.GetDimension( (string)entry.Object5, entry.Count, entry.Ints.X != 0 );
 			if ( !xyz.HasValue ) return;
 
 			((ComputeShader)entry.Object1).DispatchWithAttributes( Graphics.Attributes, xyz.Value.x, xyz.Value.y, xyz.Value.z );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = compute, Object5 = dimension.Name, Data1 = new Vector4( dimension.Divisor, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = compute, Object5 = dimension.Name, Count = dimension.Divisor, Ints = (dimension.IsViewport ? 1 : 0, 0, 0, 0) } );
 	}
 
 	/// <summary>
 	/// Called during rendering, convert RenderTargetHandle.SizeHandle to a dimension
 	/// </summary>
-	Vector3Int? GetDimension( string name, int divisor = 0 )
+	Vector3Int? GetDimension( string name, int divisor, bool viewport )
 	{
 		Vector3Int result;
 
-		if ( name == "$vp" )
+		if ( viewport )
 		{
 			result = new Vector3Int( Graphics.Viewport.Width.CeilToInt(), Graphics.Viewport.Height.CeilToInt(), 1 );
 		}
@@ -1407,10 +1227,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((GpuBuffer)entry.Object1).Clear( (uint)entry.Data1.x );
+			((GpuBuffer)entry.Object1).Clear( unchecked((uint)entry.Count) );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = buffer, Data1 = new Vector4( value, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = buffer, Count = unchecked((int)value) } );
 	}
 
 	/// <summary>
@@ -1422,10 +1242,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((GpuBuffer)entry.Object1).SetCounterValue( (uint)entry.Data1.x );
+			((GpuBuffer)entry.Object1).SetCounterValue( unchecked((uint)entry.Count) );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = buffer, Data1 = new Vector4( value, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = buffer, Count = unchecked((int)value) } );
 	}
 
 	/// <summary>
@@ -1439,10 +1259,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((GpuBuffer)entry.Object1).CopyStructureCount( (GpuBuffer)entry.Object2, (int)entry.Data1.x );
+			((GpuBuffer)entry.Object1).CopyStructureCount( (GpuBuffer)entry.Object2, entry.Count );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = buffer, Object2 = destBuffer, Data1 = new Vector4( destBufferOffset, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = buffer, Object2 = destBuffer, Count = destBufferOffset } );
 	}
 
 	/// <summary>
@@ -1456,10 +1276,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.ResourceBarrierTransition( (Texture)entry.Object1, (ResourceState)(int)entry.Data1.x, (int)entry.Data1.y );
+			Graphics.ResourceBarrierTransition( (Texture)entry.Object1, (ResourceState)entry.Ints.X, entry.Ints.Y );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = texture, Data1 = new Vector4( (int)state, mip, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = texture, Ints = ((int)state, mip, 0, 0) } );
 	}
 
 	/// <summary>
@@ -1478,10 +1298,10 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			Graphics.ResourceBarrierTransition( target.ColorTarget, (ResourceState)(int)entry.Data1.x, (int)entry.Data1.y );
+			Graphics.ResourceBarrierTransition( target.ColorTarget, (ResourceState)entry.Ints.X, entry.Ints.Y );
 		}
 
-		AddEntry( &Execute, new Entry { Object5 = texture.Name, Data1 = new Vector4( (int)state, mip, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object5 = texture.Name, Ints = ((int)state, mip, 0, 0) } );
 	}
 
 	/// <summary>
@@ -1500,10 +1320,10 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			Graphics.ResourceBarrierTransition( target.DepthTarget, (ResourceState)(int)entry.Data1.x, (int)entry.Data1.y );
+			Graphics.ResourceBarrierTransition( target.DepthTarget, (ResourceState)entry.Ints.X, entry.Ints.Y );
 		}
 
-		AddEntry( &Execute, new Entry { Object5 = texture.Name, Data1 = new Vector4( (int)state, mip, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object5 = texture.Name, Ints = ((int)state, mip, 0, 0) } );
 	}
 
 	/// <summary>
@@ -1527,10 +1347,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.ResourceBarrierTransition( (GpuBuffer)entry.Object1, (ResourceState)(int)entry.Data1.x );
+			Graphics.ResourceBarrierTransition( (GpuBuffer)entry.Object1, (ResourceState)entry.Count );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = buffer, Data1 = new Vector4( (int)state, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = buffer, Count = (int)state } );
 	}
 
 	/// <summary>
@@ -1544,10 +1364,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.ResourceBarrierTransition( (GpuBuffer)entry.Object1, (ResourceState)(int)entry.Data1.x, (ResourceState)(int)entry.Data1.y );
+			Graphics.ResourceBarrierTransition( (GpuBuffer)entry.Object1, (ResourceState)entry.Ints.X, (ResourceState)entry.Ints.Y );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = buffer, Data1 = new Vector4( (int)before, (int)after, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = buffer, Ints = ((int)before, (int)after, 0, 0) } );
 	}
 
 	/// <summary>
@@ -1639,13 +1459,13 @@ public sealed unsafe partial class CommandList
 		static void ExecuteCopied( ref Entry entry, CommandList commandList )
 		{
 			var buf = (GpuBuffer<T>)entry.Object1;
-			var bytes = (commandList._playing ?? commandList._recorded).Payload.AsSpan( entry.Count, (int)entry.Data1.y * Unsafe.SizeOf<T>() );
-			buf.SetData( (ReadOnlySpan<T>)MemoryMarshal.Cast<byte, T>( bytes ), (int)entry.Data1.x );
+			var bytes = (commandList._playing ?? commandList._recorded).Payload.AsSpan( entry.Count, entry.Ints.Y * Unsafe.SizeOf<T>() );
+			buf.SetData( (ReadOnlySpan<T>)MemoryMarshal.Cast<byte, T>( bytes ), entry.Ints.X );
 		}
 
 		if ( RenderSync.Overlapping && !RenderSync.OnRenderThread )
 		{
-			AddEntryBytes( &ExecuteCopied, new Entry { Object1 = buffer, Data1 = new Vector4( elementOffset, count, 0, 0 ) }, MemoryMarshal.AsBytes( data.AsSpan( sourceOffset, count ) ) );
+			AddEntryBytes( &ExecuteCopied, new Entry { Object1 = buffer, Ints = (elementOffset, count, 0, 0) }, MemoryMarshal.AsBytes( data.AsSpan( sourceOffset, count ) ) );
 			return;
 		}
 
@@ -1653,12 +1473,11 @@ public sealed unsafe partial class CommandList
 		{
 			var buf = (GpuBuffer<T>)entry.Object1;
 			var arr = (T[])entry.Object2;
-			int srcOffset = (int)entry.Data1.z;
-			int length = (int)entry.Data1.y;
-			buf.SetData( arr.AsSpan( srcOffset, length ), (int)entry.Data1.x );
+			var (offset, length, srcOffset, _) = entry.Ints;
+			buf.SetData( arr.AsSpan( srcOffset, length ), offset );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = buffer, Object2 = data, Data1 = new Vector4( elementOffset, count, sourceOffset, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = buffer, Object2 = data, Ints = (elementOffset, count, sourceOffset, 0) } );
 	}
 
 	/// <summary>
@@ -1677,33 +1496,14 @@ public sealed unsafe partial class CommandList
 	/// <summary>
 	/// Sneaky way for externals to get render target
 	/// </summary>
-	internal RenderTarget GetRenderTarget( string name )
-	{
-		if ( state.renderTargets != null && state.renderTargets.TryGetValue( name, out var target ) )
-			return target;
-
-		return default;
-	}
+	internal RenderTarget GetRenderTarget( string name ) => state?.GetRenderTarget( name );
 
 	/// <summary>
 	/// Generates a mip-map chain for the specified render target.
 	/// This will generate mipmaps for the color texture of the render target.
 	/// </summary>
 	public void GenerateMipMaps( RenderTargetHandle handle, Graphics.DownsampleMethod method = Graphics.DownsampleMethod.GaussianBlur )
-	{
-		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			if ( !commandList.state.renderTargets.TryGetValue( (string)entry.Object5, out var target ) )
-			{
-				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
-				return;
-			}
-
-			Graphics.GenerateMipMaps( target.ColorTarget, (Graphics.DownsampleMethod)(int)entry.Data1.x );
-		}
-
-		AddEntry( &Execute, new Entry { Object5 = handle.Name, Data1 = new Vector4( (int)method, 0, 0, 0 ) } );
-	}
+		=> GenerateMipMaps( handle, method, 0 );
 
 	/// <summary>
 	/// Generates the mips below <paramref name="initialMip"/>, for when the levels above it were written directly.
@@ -1718,10 +1518,10 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			Graphics.GenerateMipMaps( target.ColorTarget, (Graphics.DownsampleMethod)(int)entry.Data1.x, (int)entry.Data1.y );
+			Graphics.GenerateMipMaps( target.ColorTarget, (Graphics.DownsampleMethod)entry.Ints.X, entry.Ints.Y );
 		}
 
-		AddEntry( &Execute, new Entry { Object5 = handle.Name, Data1 = new Vector4( (int)method, initialMip, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object5 = handle.Name, Ints = ((int)method, initialMip, 0, 0) } );
 	}
 
 	/// <summary>
@@ -1731,11 +1531,9 @@ public sealed unsafe partial class CommandList
 	public void GenerateMipMaps( RenderTarget target, Graphics.DownsampleMethod method = Graphics.DownsampleMethod.GaussianBlur )
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
-		{
-			Graphics.GenerateMipMaps( ((RenderTarget)entry.Object1).ColorTarget, (Graphics.DownsampleMethod)(int)entry.Data1.x );
-		}
+			=> Graphics.GenerateMipMaps( ((RenderTarget)entry.Object1).ColorTarget, (Graphics.DownsampleMethod)entry.Count );
 
-		AddEntry( &Execute, new Entry { Object1 = target, Data1 = new Vector4( (int)method, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = target, Count = (int)method } );
 	}
 
 	/// <summary>
@@ -1746,10 +1544,10 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.GenerateMipMaps( (Texture)entry.Object1, (Graphics.DownsampleMethod)(int)entry.Data1.x );
+			Graphics.GenerateMipMaps( (Texture)entry.Object1, (Graphics.DownsampleMethod)entry.Count );
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = texture, Data1 = new Vector4( (int)method, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = texture, Count = (int)method } );
 	}
 
 	/// <summary>
@@ -1773,14 +1571,15 @@ public sealed unsafe partial class CommandList
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
 			var position = new Rect( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w );
-			Graphics.DrawText( (TextRendering.TextBlock)entry.Object1, position, (TextFlag)(int)entry.Data2.x, entry.Data2.y );
+			Graphics.DrawText( (TextRendering.TextBlock)entry.Object1, position, (TextFlag)entry.Count, entry.Data2.x );
 		}
 
 		AddEntry( &Execute, new Entry
 		{
 			Object1 = block,
 			Data1 = new Vector4( rect.Left, rect.Top, rect.Width, rect.Height ),
-			Data2 = new Vector4( (float)(int)flags, angleDegrees, 0, 0 )
+			Count = (int)flags,
+			Data2 = new Vector4( angleDegrees, 0, 0, 0 )
 		} );
 	}
 }

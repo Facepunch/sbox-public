@@ -16,8 +16,6 @@ internal sealed partial class SceneBridge
 	/// <summary>The face target, copy and filter of captures of each size.</summary>
 	readonly Dictionary<int, CubeCapture> cubeCaptures = new();
 
-	bool warnedAfterFaces;
-
 	/// <summary>
 	/// A cube capture (an envmap probe) on the Borealis.Gpu device, as native's six face views
 	/// (<c>CCameraRenderer::RenderToCubeTexture</c>): mip 0 cleared to red, then six 90-degree faces of the camera's view, each
@@ -28,12 +26,12 @@ internal sealed partial class SceneBridge
 	/// the block records. A camera with stage hooks of its own (the DDGI bake's) gets its after-transparent stage once each
 	/// face is in its slice (<see cref="RunCaptureFaceStages"/>); no work after the faces runs other than the filter.
 	/// </summary>
-	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
+	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CubemapRendering.GGXFilterType? filter = null )
 	{
 		if ( cube is null || Gpu is null || MirrorContent.Gpu is not { } device ) return;
 
 		var hooked = camera.OnRenderStageHook is not null;
-		if ( NotYetInBorealis( camera, setup ) is not null ) return;
+		if ( !camera.World.IsValid() ) return;
 		if ( cube.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTexture" );
 
 		var size = cube.Width;
@@ -42,17 +40,6 @@ internal sealed partial class SceneBridge
 		// Captures run first in the engine's frame: its device frame starts before the faces record, not inside one
 		Gpu.FollowFrame();
 
-		int? filter = null;
-		if ( afterFaces is not null )
-		{
-			if ( CubemapRendering.FilterOf( afterFaces ) is { } type ) filter = (int)type;
-			else if ( !warnedAfterFaces )
-			{
-				warnedAfterFaces = true;
-				Log.Warning( "Borealis.Gpu: a cube capture's work after its faces isn't run; only CubemapRendering's filter is" );
-			}
-		}
-
 		// A capture spread over frames is finished first: its faces wait in the targets this one would draw into
 		ContinueSpreadCapture( double.MaxValue );
 
@@ -60,7 +47,7 @@ internal sealed partial class SceneBridge
 		var view = setup;
 
 		if ( !cubeCaptures.TryGetValue( size, out var capture ) ) cubeCaptures[size] = capture = new CubeCapture( device, size );
-		if ( filter is not null && !capture.CanFilter ) filter = null;
+		var quality = capture.CanFilter ? (int?)filter : null;
 
 		// The envmap scheduler's: faces while its time lasts, the rest in later frames, the cube keeping its last capture meanwhile.
 		// With the faces left for the frame's drawing (FacesInDrawing) none renders here
@@ -74,15 +61,14 @@ internal sealed partial class SceneBridge
 			copy.Position = camera.Position;
 			copy.Rotation = camera.Rotation;
 			copy.World = camera.World;
-			copy.ExcludeFromTextureStreaming = camera.ExcludeFromTextureStreaming;
 			copy.ExcludeTags.SetFrom( camera.ExcludeTags );
-			spread = new SpreadCapture( copy, target, capture, view, filter, size );
+			spread = new SpreadCapture( copy, target, capture, view, quality, size );
 			if ( !FacesInDrawing ) ContinueSpreadCapture( SpreadCaptureMs );
 			return;
 		}
 
-		capture.Render( target, ( i, faceTarget ) => RenderCaptureFace( device, camera, view, size, i, faceTarget ), filter,
-			hooked ? ( i, faceTarget ) => RunCaptureFaceStages( camera, size, i, faceTarget ) : null );
+		capture.Render( target, ( i, faceTarget ) => RenderCaptureFace( device, camera, view, size, i, faceTarget ), quality,
+			hooked ? ( i, faceTarget ) => RunCaptureFaceStages( camera, i, faceTarget ) : null );
 	}
 
 	// The engine's drawing on a capture face, for a camera's stages (RunCaptureFaceStages)
@@ -95,19 +81,20 @@ internal sealed partial class SceneBridge
 	/// The DDGI bake's hook copies each face's depth (<see cref="Graphics.DepthTexture"/>) and integrates the probe after the
 	/// sixth, which reads the whole cube.
 	/// </summary>
-	void RunCaptureFaceStages( SceneCamera camera, int size, int i, ViewTarget faceTarget )
+	void RunCaptureFaceStages( SceneCamera camera, int i, ViewTarget faceTarget )
 	{
 		if ( RenderBackend.Default is not BorealisGpuRenderBackend backend || captureFaces[i] is not { } state ) return;
 
 		var frame = captureFrame ??= new BorealisGpuFrame( backend );
 		var view = captureView ??= new BorealisGpuView( backend );
 		frame.Adopt( faceTarget, state.System.Frame.Constants );
-		view.Viewport = new Rect( 0, 0, size, size );
+		var face = state.View;
+		view.Viewport = face.Viewport;
 		view.SrgbWrite = false;
 		view.PostProcessEnabled = false;
 		view.LayerType = SceneLayerType.Translucent;
 		view.RenderSceneObject = null;
-		view.SetCamera( camera.Position, camera.Rotation * SceneCamera.CubeRotations[i], 90, camera.ZNear, camera.ZFar, 1, false, default );
+		view.SetCamera( face.Position, face.Rotation, face.FieldOfView, face.ZNear, face.ZFar, 1, face.Orthographic, face.OrthoSize );
 		view.CubeFace = i;
 		try
 		{
@@ -303,10 +290,10 @@ internal sealed partial class SceneBridge
 		lastCaptureFaceTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 	}
 
-	/// <summary>The capture faces' render systems and targets, once no capture has drawn a face for a while (<see cref="IdleLongEnough"/>).</summary>
+	/// <summary>Release the capture faces' render systems and targets once they go idle.</summary>
 	void FreeIdleCaptures( ulong frame )
 	{
-		if ( spread is not null || lastCaptureFace == 0 || !IdleLongEnough( frame, lastCaptureFace, lastCaptureFaceTicks ) ) return;
+		if ( spread is not null || lastCaptureFace == 0 || !CaptureIdlePolicy.Expired( frame, lastCaptureFace, lastCaptureFaceTicks ) ) return;
 		lastCaptureFace = 0;
 		FreeCaptureFaces( null );
 		foreach ( var (_, capture) in cubeCaptures ) capture.Dispose();

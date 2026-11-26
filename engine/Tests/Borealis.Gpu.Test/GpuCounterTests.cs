@@ -9,6 +9,7 @@ namespace BorealisGpuTests;
 /// put a scope's occurrences together, and (on an AMD GPU with GPUPerfAPI) a scope sampled over a few frames.
 /// </summary>
 [TestClass]
+[DoNotParallelize]
 public class GpuCounterTests : GpuTest
 {
 	[TestMethod]

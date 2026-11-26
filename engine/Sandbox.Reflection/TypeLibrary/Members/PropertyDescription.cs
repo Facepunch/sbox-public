@@ -13,13 +13,15 @@ public sealed class PropertyDescription : MemberDescription
 
 	internal PropertyInfo PropertyInfo => MemberInfo as PropertyInfo;
 
-	internal static PropertyDescription Create( PropertyInfo i, TypeDescription td, MemberDescription previous )
+	internal static PropertyDescription Create( PropertyInfo i, TypeDescription td, MemberDescription previous, PropertyDescription inherited )
 	{
 		PropertyDescription o = previous as PropertyDescription;
 
 		o ??= new PropertyDescription( td.library );
 		o.TypeDescription = td;
-		o.InitProperty( i );
+
+		if ( inherited is not null ) o.InitFrom( inherited );
+		else o.InitProperty( i );
 
 		return o;
 	}
@@ -47,6 +49,30 @@ public sealed class PropertyDescription : MemberDescription
 		IsFamily = x.GetMethod?.IsFamily ?? x.SetMethod?.IsFamily ?? false;
 
 		IsIndexer = x.GetIndexParameters().Length > 0;
+	}
+
+	private void InitFrom( PropertyDescription inherited )
+	{
+		base.InitFrom( inherited );
+
+		CanWrite = inherited.CanWrite;
+		CanRead = inherited.CanRead;
+		PropertyType = inherited.PropertyType;
+		IsGetMethodPublic = inherited.IsGetMethodPublic;
+		IsSetMethodPublic = inherited.IsSetMethodPublic;
+		IsSetMethodInitOnly = inherited.IsSetMethodInitOnly;
+		IsStatic = inherited.IsStatic;
+		IsPublic = inherited.IsPublic;
+		IsFamily = inherited.IsFamily;
+		IsIndexer = inherited.IsIndexer;
+	}
+
+	// A private accessor of a base property is hidden when reflected through the derived type, so only share when both see the same accessors
+	internal override bool CanBeSharedWith( MemberInfo member )
+	{
+		return member is PropertyInfo derived && base.CanBeSharedWith( member )
+			&& (derived.GetMethod is null) == (PropertyInfo.GetMethod is null)
+			&& (derived.SetMethod is null) == (PropertyInfo.SetMethod is null);
 	}
 
 	/// <summary>

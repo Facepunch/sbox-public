@@ -46,6 +46,10 @@ partial class Mesh
 		var edgeCount = reader.ReadInt32();
 		var faceCount = reader.ReadInt32();
 
+		VertexList.Reserve( vertexCount );
+		HalfEdgeList.Reserve( edgeCount );
+		FaceList.Reserve( faceCount );
+
 		for ( int i = 0; i < vertexCount; ++i )
 		{
 			var hVertex = AllocateVertex( new Vertex()

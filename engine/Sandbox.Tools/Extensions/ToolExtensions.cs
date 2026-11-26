@@ -52,7 +52,7 @@ public static partial class SandboxToolExtensions
 
 		using ( camera.Scene.Push() )
 		{
-			camera.Scene.PreCameraRender();
+			camera.Scene.PrepareSceneForRendering();
 			camera.InitializeRendering();
 			camera.SceneCamera.OnPreRender( targetPixmap.Size );
 

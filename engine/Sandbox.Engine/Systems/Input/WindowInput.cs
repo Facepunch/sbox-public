@@ -11,6 +11,8 @@ internal static class WindowInput
 {
 	static bool initialized, active, focused, relative, imeAllowed, noIme;
 	static IntPtr editorWindow, focusWindow;
+	static IHostInputSurface hostSurface;
+	static bool hostFocused;
 	static IntPtr InputWindow => editorWindow != IntPtr.Zero ? editorWindow : GameWindow.Current?.Handle ?? IntPtr.Zero;
 
 	internal static void Initialize()
@@ -30,7 +32,6 @@ internal static class WindowInput
 			SdlWindow.WarnIfFailed( Sdl.DisableScreenSaver() );
 			SdlCursors.Initialize();
 		}
-		InputSystem.SetGameFocus( focused );
 	}
 
 	internal static bool HasMouseFocus() => focused;
@@ -38,16 +39,22 @@ internal static class WindowInput
 	internal static bool GetRelativeMouseMode() => relative;
 	internal static IntPtr GetEditorMainWindow() => editorWindow;
 
-	internal static void SetEditorMainWindow( IntPtr hwnd )
-	{
-		InputSystem.SetEditorMainWindow( hwnd );
-		editorWindow = GameWindowNative.FromNativeHandle( hwnd );
-	}
+	/// <summary>The editor's main window, as the <c>SDL_Window*</c> <see cref="QtSdlBridge.Register"/> returned.</summary>
+	internal static void SetEditorMainWindow( IntPtr window ) => editorWindow = window;
 
-	internal static void OnEditorGameFocusChange( IntPtr hwnd, bool value )
+	/// <summary>
+	/// The play surface when the host owns its window and input (<see cref="IHostInputSurface"/>), or null while SDL
+	/// wraps it. Set it before its focus changes, which come through <see cref="OnEditorGameFocusChange"/> with a zero
+	/// window, and clear it after the surface lost focus.
+	/// </summary>
+	internal static void SetHostSurface( IHostInputSurface surface ) => hostSurface = surface;
+
+	/// <summary>The play widget's <c>SDL_Window*</c> gained or lost focus.</summary>
+	internal static void OnEditorGameFocusChange( IntPtr window, bool value )
 	{
 		if ( !initialized || Application.IsUnitTest ) return;
-		focusWindow = value ? GameWindowNative.FromNativeHandle( hwnd ) : IntPtr.Zero;
+		focusWindow = value ? window : IntPtr.Zero;
+		hostFocused = value && window == IntPtr.Zero && hostSurface is not null;
 		UpdateApplicationState( forceFocusUpdate: true );
 	}
 
@@ -63,7 +70,7 @@ internal static class WindowInput
 		var hostActive = tools?.IsApplicationActive ?? (window != IntPtr.Zero);
 		var isActive = hostActive || panelFocused;
 		var gameWindow = GameWindow.Current?.Handle ?? IntPtr.Zero;
-		var hasFocus = hostActive && !panelFocused && (tools is not null ? focusWindow != IntPtr.Zero : gameWindow != IntPtr.Zero && window == gameWindow);
+		var hasFocus = hostActive && !panelFocused && (tools is not null ? focusWindow != IntPtr.Zero || hostFocused : gameWindow != IntPtr.Zero && window == gameWindow);
 		if ( !forceFocusUpdate && active == isActive && focused == hasFocus ) return;
 		active = isActive;
 		if ( !active ) Sdl.SetModState( 0 );
@@ -73,7 +80,6 @@ internal static class WindowInput
 	static void SetFocus( bool value )
 	{
 		focused = value;
-		InputSystem.SetGameFocus( focused );
 		InputRouter.OnWindowActive( focused );
 		if ( focused ) SdlCursors.Restore();
 		else
@@ -93,10 +99,13 @@ internal static class WindowInput
 
 		var window = InputWindow;
 		value &= active && focused;
-		var actual = SdlWindow.SetRelativeMouseMode( window, value );
+		var actual = hostSurface is not null ? hostSurface.SetMouseCapture( value ) : SdlWindow.SetRelativeMouseMode( window, value );
 		if ( relative == actual ) return;
 		relative = actual;
-		IToolsDll.Current?.SetRelativeMouseOverride( relative );
+
+		// A host surface hides the cursor itself. The override would also have the editor drop all of Qt's input,
+		// which is what the host surface gets its input from: it's there for SDL's windows, which take it from SDL.
+		if ( hostSurface is null ) IToolsDll.Current?.SetRelativeMouseOverride( relative );
 	}
 
 	internal static void SetIMEAllowed( bool value )
@@ -149,6 +158,7 @@ internal static class WindowInput
 
 		if ( window == IntPtr.Zero ) window = focusWindow;
 		if ( window != IntPtr.Zero ) Sdl.WarpMouseInWindow( window, x, y );
+		else if ( hostFocused ) hostSurface.WarpCursor( new Vector2( x, y ) );
 	}
 
 	internal static void OnWindowDestroyed( IntPtr window )
@@ -164,8 +174,9 @@ internal static class WindowInput
 		if ( !initialized ) return;
 		SetRelativeMouseMode( false );
 		initialized = active = focused = relative = false;
-		InputSystem.SetGameFocus( focused );
 		editorWindow = focusWindow = IntPtr.Zero;
+		hostSurface = null;
+		hostFocused = false;
 		SdlCursors.Shutdown();
 		if ( !Application.IsHeadless ) SdlWindow.WarnIfFailed( Sdl.EnableScreenSaver() );
 	}

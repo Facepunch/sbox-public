@@ -9,7 +9,7 @@ internal static class CustomCodeEditorSettings
 	/// <summary>
 	/// Path to the executable to launch.
 	/// </summary>
-	[File( Extension = "exe" )]
+	[File( Executable = true )]
 	public static string ExecutablePath
 	{
 		get => EditorCookie.GetString( CustomCodeEditor.ExecutablePathKey, "" );

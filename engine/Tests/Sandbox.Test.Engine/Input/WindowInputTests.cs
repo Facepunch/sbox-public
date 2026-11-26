@@ -15,7 +15,6 @@ public unsafe class WindowInputTests
 	static int screensaverDisables, screensaverEnables;
 	static int creates, destroys, shows, hides, overrideCalls, stops, starts;
 	static IntPtr relativeWindow, textWindow, selected;
-	static int nativeFocus;
 	static bool appActive;
 	static IntPtr keyboardFocus;
 	static Sdl.Rect textArea;
@@ -38,7 +37,6 @@ public unsafe class WindowInputTests
 		Assert.IsTrue( WindowInput.IsAppActive() );
 		Assert.IsFalse( WindowInput.HasMouseFocus() );
 		Assert.IsFalse( WindowInput.GetRelativeMouseMode() );
-		Assert.AreEqual( 0, nativeFocus );
 		Assert.AreEqual( 2, overrideCalls );
 		SetActivation( false );
 		WindowInput.OnEditorGameFocusChange( 20, true );
@@ -228,14 +226,12 @@ public unsafe class WindowInputTests
 	} );
 
 	[TestMethod]
-	public void HeadlessInputSkipsNativeInputAndScreensaver() => WithInput( () =>
+	public void HeadlessInputSkipsScreensaver() => WithInput( () =>
 	{
 		WindowInput.Shutdown();
 		typeof( Application ).GetProperty( nameof( Application.IsHeadless ) ).SetValue( null, true );
-		nativeFocus = 42;
 		WindowInput.Initialize();
 		WindowInput.Shutdown();
-		Assert.AreEqual( 42, nativeFocus );
 		Assert.AreEqual( 1, screensaverDisables );
 		Assert.AreEqual( 1, screensaverEnables );
 	} );
@@ -248,10 +244,7 @@ public unsafe class WindowInputTests
 		var applicationActive = Native.QApp.__N.qApp_IsApplicationActive;
 		var keyboard = Sdl.__N.globalSdl_GetKeyboardFocus;
 		IToolsDll.Current = (IToolsDll)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject( typeof( ToolsDll ) );
-		var saved0 = InputSystem.__N.g_pInputSystem_SetGameFocus;
 		var saved1 = g_pToolFramework2.__N.g_pTlFrmwrk2_SetOverrideCursor;
-		var saved2 = InputSystem.__N.g_pInputSystem_SetEditorMainWindow;
-		var saved3 = GameWindowNative.__N.GameWindowGlue_FromNativeHandle;
 		var saved4 = Sdl.__N.globalSdl_CreateSystemCursor;
 		var saved5 = Sdl.__N.globalSdl_DestroyCursor;
 		var saved6 = Sdl.__N.globalSdl_SetCursor;
@@ -283,10 +276,7 @@ public unsafe class WindowInputTests
 			Sdl.__N.globalSdl_GetKeyboardFocus = &KeyboardFocus;
 			keyboardFocus = IntPtr.Zero;
 			appActive = true;
-			InputSystem.__N.g_pInputSystem_SetGameFocus = &State;
 			g_pToolFramework2.__N.g_pTlFrmwrk2_SetOverrideCursor = &Override;
-			InputSystem.__N.g_pInputSystem_SetEditorMainWindow = &SetEditor;
-			GameWindowNative.__N.GameWindowGlue_FromNativeHandle = &Identity;
 			Sdl.__N.globalSdl_CreateSystemCursor = &CreateCursor;
 			Sdl.__N.globalSdl_DestroyCursor = &DestroyCursor;
 			Sdl.__N.globalSdl_SetCursor = &SetCursor;
@@ -319,10 +309,7 @@ public unsafe class WindowInputTests
 			WindowInput.Shutdown();
 			Sdl.__N.globalSdl_DisableScreenSaver = disableScreensaver;
 			Sdl.__N.globalSdl_EnableScreenSaver = enableScreensaver;
-			InputSystem.__N.g_pInputSystem_SetGameFocus = saved0;
 			g_pToolFramework2.__N.g_pTlFrmwrk2_SetOverrideCursor = saved1;
-			InputSystem.__N.g_pInputSystem_SetEditorMainWindow = saved2;
-			GameWindowNative.__N.GameWindowGlue_FromNativeHandle = saved3;
 			Sdl.__N.globalSdl_CreateSystemCursor = saved4;
 			Sdl.__N.globalSdl_DestroyCursor = saved5;
 			Sdl.__N.globalSdl_SetCursor = saved6;
@@ -360,7 +347,6 @@ public unsafe class WindowInputTests
 	[UnmanagedCallersOnly] static void DestroySurface( IntPtr surface ) => surfacesDestroyed++;
 	[UnmanagedCallersOnly] static IntPtr CreateColor( IntPtr surface, int x, int y ) { hotspot = (x, y); return failColor ? IntPtr.Zero : (IntPtr)600; }
 
-	[UnmanagedCallersOnly] static void State( int focused ) => nativeFocus = focused;
 	[UnmanagedCallersOnly] static int ApplicationActive() => appActive ? 1 : 0;
 	[UnmanagedCallersOnly] static IntPtr KeyboardFocus() => keyboardFocus;
 
@@ -370,8 +356,6 @@ public unsafe class WindowInputTests
 		WindowInput.UpdateApplicationState();
 	}
 	[UnmanagedCallersOnly] static void Override( int value ) => overrideCalls++;
-	[UnmanagedCallersOnly] static void SetEditor( IntPtr hwnd ) { }
-	[UnmanagedCallersOnly] static IntPtr Identity( IntPtr hwnd ) => hwnd;
 	[UnmanagedCallersOnly] static IntPtr CreateCursor( long type ) { creates++; return (IntPtr)(100 + type); }
 	[UnmanagedCallersOnly] static void DestroyCursor( IntPtr cursor ) => destroys++;
 	[UnmanagedCallersOnly] static int SetCursor( IntPtr cursor ) { selected = cursor; return 1; }

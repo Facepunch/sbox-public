@@ -2,7 +2,7 @@
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // The frame buffer copy made by its depth-aware mask: depthaware_mask_cs (native's DepthAwareMask_CS.shader), which writes
 // last frame's blurred copy, reprojected, where something is in front of the glass, with the frame copied (D_COPY 1) or
-// resolved (D_COPY 2) everywhere else, over a region of the copy (the readers', in a 3D skybox).
+// resolved (D_COPY 2 or 3) everywhere else, over a region of the copy (the readers', in a 3D skybox).
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // HEADER: DevShader = true;
 // HEADER: Description = "The frame buffer copy and its depth-aware mask with temporal reprojection, in one pass";
@@ -33,12 +33,13 @@ Mode( Default );
     // Output texture
     RWTexture2D<float4> Output < Attribute("Output"); > ;
 
-    // D_COPY: the frame itself, copied into Output where the mask keeps it, so the copy and the mask are one pass; 2, a
-    // multisampled frame, resolved there (its samples averaged, as a resolve does)
-    DynamicCombo( D_COPY, 1..2, Sys( ALL ) );
-#if ( D_COPY == 2 )
+    // 1 copies a single sample; 2 resolves a variable number, and 3 resolves four samples without a dynamic loop.
+    DynamicCombo( D_COPY, 1..3, Sys( ALL ) );
+#if ( D_COPY != 1 )
     Texture2DMS<float4> Source < Attribute("MaskSource"); SrgbRead( false ); > ;
+#if ( D_COPY == 2 )
     float SourceSamples < Attribute("MaskSamples"); > ;
+#endif
 #else
     Texture2D Source < Attribute("MaskSource"); SrgbRead( false ); > ;
 #endif
@@ -49,8 +50,9 @@ Mode( Default );
 
     float GetDepthMask(int2 vDispatchId)
     {
-        // We render depth mask at quarter res
-        const int2 baseCoord = vDispatchId.xy / 4;
+        uint2 dims;
+        DepthMask.GetDimensions( dims.x, dims.y );
+        const uint2 baseCoord = uint2( (vDispatchId.xy + 0.5f) * g_vInvViewportSize * dims );
 
         float depth = DepthMask[baseCoord].x;
 
@@ -62,10 +64,10 @@ Mode( Default );
     //
     // Same as Motion::Get but uses depth from refraction object
     //-----------------------------------------------------------------------------------------
-    float2 ReprojectDepthMask(int2 vDispatchId)
+    float2 ReprojectDepthMask(int2 vDispatchId, float maskDepth)
     {
         // Get normalized depth value of where the refraction is
-        float flDepth = Depth::Normalize( GetDepthMask( vDispatchId ) );
+        float flDepth = Depth::Normalize( maskDepth );
 
         // Calculate ray in NDC space
         float3 vRay = float3(vDispatchId * g_vInvViewportSize, flDepth);
@@ -108,32 +110,34 @@ Mode( Default );
         // Load depth from our mask texture
         float maskDepth = GetDepthMask( vDispatchId );
         
-        // Reproject current pixel to find sampling position in previous frame
-        float2 vReadPos = ReprojectDepthMask(vDispatchId);
-
-        // If we have an intersecting object in front of our refraction texture, reproject it with blur
-        if (maskDepth < sceneDepth && IsValidCoordinate(vReadPos))
+        // Only pixels in front of the glass can use the reprojected history.
+        [branch]
+        if (maskDepth < sceneDepth)
         {
-            // Sample the source texture at the reprojected position
-            float4 sourceColor = Mip[vReadPos / 2];
+            float2 vReadPos = ReprojectDepthMask(vDispatchId, maskDepth);
+            if (IsValidCoordinate(vReadPos))
+            {
+                Output[vDispatchId.xy] = clamp( Mip[vReadPos / 2], 0.0f, 4.0f );
+                return;
+            }
+        }
 
-            const int2 vWritePos = vDispatchId.xy;
-            Output[vWritePos] = clamp( sourceColor, 0.0f, 4.0f );
-        }
-#if ( D_COPY == 2 )
-        else
-        {
-            const int samples = int( SourceSamples );
-            float4 sum = 0;
-            for ( int i = 0; i < samples; i++ )
-                sum += Source.Load( int2( vDispatchId.xy ), i );
-            Output[vDispatchId.xy] = sum / samples;
-        }
+        const int2 sourcePos = int2( vDispatchId.xy ) + int2( g_vViewportOffset );
+#if ( D_COPY == 3 )
+        // Keep the generic resolve's accumulation order even after unrolling.
+        precise float4 sum = 0;
+        [unroll]
+        for ( int i = 0; i < 4; i++ )
+            sum += Source.Load( sourcePos, i );
+        Output[vDispatchId.xy] = sum / 4;
+#elif ( D_COPY == 2 )
+        const int samples = int( SourceSamples );
+        float4 sum = 0;
+        for ( int i = 0; i < samples; i++ )
+            sum += Source.Load( sourcePos, i );
+        Output[vDispatchId.xy] = sum / samples;
 #else
-        else
-        {
-            Output[vDispatchId.xy] = Source.Load( int3( vDispatchId.xy, 0 ) );
-        }
+        Output[vDispatchId.xy] = Source.Load( int3( sourcePos, 0 ) );
 #endif
 
     }

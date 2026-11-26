@@ -53,20 +53,11 @@ public abstract class GpuTest
 
 		// Tests check the pixels of the frames they draw: no draw is skipped for a pipeline workers are still making
 		Device.SkipDrawsUntilReady = false;
-
-		// Casters move into the sun's cached far cascade once they've stayed put for a while of wall-clock time. Tests compare
-		// frames rendered seconds apart (a first frame can take seconds), so in them casters stay where they are: every frame a
-		// test draws has the same cache, whenever it's drawn
-		Borealis.Shadows.SettledCasters.Reset();
-		Borealis.Shadows.SettledCasters.Seconds = float.PositiveInfinity;
-		Borealis.Shadows.SettledCasters.RestlessSeconds = float.PositiveInfinity;
 	}
 
 	[TestCleanup]
 	public void DestroyDevice()
 	{
-		Borealis.Shadows.SettledCasters.Seconds = Borealis.Shadows.SettledCasters.DefaultSeconds;
-		Borealis.Shadows.SettledCasters.RestlessSeconds = Borealis.Shadows.SettledCasters.DefaultRestlessSeconds;
 		Device?.Dispose();
 		Device = null;
 
@@ -195,5 +186,28 @@ public abstract class GpuTest
 		}
 
 		return ~crc;
+	}
+}
+
+/// <summary>Tests that prepare renderer frames or install a render host use process-wide renderer state.</summary>
+[DoNotParallelize]
+public abstract class RenderGpuTest : GpuTest
+{
+	[TestInitialize]
+	public void ConfigureCasters()
+	{
+		// Casters move into the sun's cached far cascade once they've stayed put for a while of wall-clock time. Tests compare
+		// frames rendered seconds apart (a first frame can take seconds), so in them casters stay where they are: every frame a
+		// test draws has the same cache, whenever it's drawn
+		Borealis.Shadows.SettledCasters.Reset();
+		Borealis.Shadows.SettledCasters.Seconds = float.PositiveInfinity;
+		Borealis.Shadows.SettledCasters.RestlessSeconds = float.PositiveInfinity;
+	}
+
+	[TestCleanup]
+	public void RestoreCasters()
+	{
+		Borealis.Shadows.SettledCasters.Seconds = Borealis.Shadows.SettledCasters.DefaultSeconds;
+		Borealis.Shadows.SettledCasters.RestlessSeconds = Borealis.Shadows.SettledCasters.DefaultRestlessSeconds;
 	}
 }

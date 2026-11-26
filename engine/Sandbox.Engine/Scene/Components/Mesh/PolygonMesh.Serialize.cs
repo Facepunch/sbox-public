@@ -80,26 +80,11 @@ public partial class PolygonMesh
 				else if ( propertyName == nameof( Colors ) )
 					mesh.Colors.CopyFrom( JsonSerializer.Deserialize<Color32[]>( ref reader ) );
 
-				else if ( propertyName == "TextureOrigin" )
-				{
-					if ( reader.TokenType == JsonTokenType.StartArray )
-					{
-						mesh.TextureOriginUnused.CopyFrom( JsonSerializer.Deserialize<Vector3[]>( ref reader ) );
-					}
-					else
-					{
-						JsonSerializer.Deserialize<Vector3>( ref reader );
-					}
-				}
-
 				else if ( propertyName == nameof( TextureCoord ) )
 				{
 					mesh.TextureCoord.CopyFrom( JsonSerializer.Deserialize<Vector2[]>( ref reader ) );
 					hasTextureCoords = true;
 				}
-
-				else if ( propertyName == "TextureRotation" )
-					mesh.TextureRotationUnused.CopyFrom( JsonSerializer.Deserialize<Rotation[]>( ref reader ) );
 
 				// Legacy: Texture parameters are no longer written. They are world-space derived
 				// values recomputed at runtime from TextureCoord via ComputeFaceTextureParametersFromCoordinates().
@@ -115,9 +100,6 @@ public partial class PolygonMesh
 
 				else if ( propertyName == nameof( TextureOffset ) )
 					mesh.TextureOffset.CopyFrom( JsonSerializer.Deserialize<Vector2[]>( ref reader ) );
-
-				else if ( propertyName == "TextureAngle" )
-					mesh.TextureAngleUnused.CopyFrom( JsonSerializer.Deserialize<float[]>( ref reader ) );
 
 				else if ( propertyName == nameof( MaterialIndex ) )
 					mesh.MaterialIndex.CopyFrom( JsonSerializer.Deserialize<int[]>( ref reader ) );

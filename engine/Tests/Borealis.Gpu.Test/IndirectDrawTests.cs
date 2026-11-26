@@ -9,7 +9,6 @@ namespace BorealisGpuTests;
 /// count buffer; the device issues them counted there (Device.IndirectCounts).
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class IndirectDrawTests : GpuTest
 {
 	const int Width = 64, Height = 64;

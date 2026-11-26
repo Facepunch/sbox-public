@@ -416,13 +416,13 @@ public class GraphicsContextTests : GpuTest
 		attributes.Set( "ShadowTileDepth", depth );
 		attributes.Set( "ShadowTilesOut", raw );
 		attributes.Set( "ShadowTiles", Side, Side, 0, 0 );
-		Assert.IsTrue( context.Dispatch( shader, attributes, Side * 8, Side * 8, 1 ) );
+		Assert.IsTrue( context.Dispatch( shader, attributes, Side * 8, Side * 4, 1 ) );
 
 		attributes = new ShaderAttributes();
 		attributes.SetCombo( "D_WIDEN", 1 );
 		attributes.Set( "ShadowTilesIn", raw );
 		attributes.Set( "ShadowTilesOut", widened );
-		attributes.Set( "ShadowTiles", Side, Side, 0, 0 );
+		attributes.Set( "ShadowTiles", 0, Side, 1, 0 );
 		Assert.IsTrue( context.Dispatch( shader, attributes, Side, Side, 1 ) );
 
 		var rawReadback = Device.CreateBuffer( new BufferInfo { Size = Side * 2 * Side * 8, Memory = MemoryLocation.Readback, Name = "Raw tiles" } );

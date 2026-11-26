@@ -41,9 +41,8 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 	ModelRenderer _renderer;
 	readonly SurfaceAttributes _surfaceAttributes = new();
 	CommandList _captures;
-	CaptureKey _recorded;
-	bool _hasRecorded;
-	TagSet _captureExclusions;
+	EnvironmentBinding? _recordedEnvironment;
+	RefractionCapture _refractionCapture;
 	static readonly List<CameraComponent> _cameras = [];
 
 	/// <summary>
@@ -68,8 +67,7 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		_renderer = _surface.Components.Create<ModelRenderer>();
 		_renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
 		_captures = new( "Water captures" );
-		_hasRecorded = false;
-		_captureExclusions = new TagSet( [Id.ToString( "N" )] );
+		_refractionCapture = new RefractionCapture( _surfaceTag );
 		_surface.Enabled = true;
 		UpdateSurface( ViewingCamera() );
 	}
@@ -209,10 +207,7 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 	}
 
 	/// <summary>
-	/// Hand the renderer what the surface's draws need from game state, for the editor viewport or main camera: the
-	/// environment it reflects and the refraction capture, as one command list played back where the surface draws (bindless
-	/// indices and capture targets are resolved there). The list is recorded again only when what it records changes.
-	/// Simultaneous independent viewing cameras and custom-projection captures are not supported yet.
+	/// Update the water's render snapshot. The capture command evaluates it against the view that actually draws the surface.
 	/// </summary>
 	protected override void OnPreRender()
 	{
@@ -229,63 +224,18 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 			return;
 		}
 
-		var key = Captures( viewer );
-		if ( !_hasRecorded || !key.Same( _recorded ) )
+		_refractionCapture.Update( this );
+		var environment = CurrentEnvironment();
+		if ( _recordedEnvironment is not { } previous || !environment.Same( previous ) )
 		{
-			RecordCaptures( _captures, key );
-			_recorded = key;
-			_hasRecorded = true;
+			_captures.Reset();
+			BindEnvironment( _captures, environment );
+			_captures.AddAction( _refractionCapture.Draw );
+			_recordedEnvironment = environment;
+			CaptureRecords++;
 		}
 
 		_renderer.ExecuteBefore = _captures;
-	}
-
-	/// <summary>
-	/// What the capture commands record, from game state: the environment, and the refraction capture when the
-	/// viewer sees through the surface.
-	/// </summary>
-	CaptureKey Captures( CameraComponent viewer )
-	{
-		var key = new CaptureKey { Environment = CurrentEnvironment() };
-		if ( !viewer.IsValid() || viewer.CustomProjectionMatrix is not null )
-			return key;
-
-		var normal = WorldRotation.Up;
-		float eyeHeight = Vector3.Dot( viewer.WorldPosition - SurfaceOrigin, normal );
-		bool below = ViewSurfaceDepth( viewer.WorldPosition ) > 0;
-		if ( below )
-			normal = -normal;
-
-		// A surface wholly hidden behind the scene needs no capture: its count comes a few frames late, so the first
-		// frames of it coming into view draw without refraction
-		var surface = _renderer.SceneObject;
-		if ( surface.IsValid() ) surface.CountsSamples = true;
-		if ( !Refraction || MaterialOpacity( ActiveMaterial, below ) >= 1 || surface is { IsCountedHidden: true } )
-			return key;
-
-		key.Camera = viewer;
-		key.Refract = true;
-		key.Below = below;
-		key.Unclipped = viewer.Orthographic || MathF.Abs( eyeHeight ) <= MathF.Max( 0.5f, CaptureDisplacement ) + viewer.ZNear * 2;
-		if ( key.Unclipped )
-			key.Projection = viewer.ProjectionMatrix;
-		key.Plane = new Plane( SurfaceOrigin + normal * (CaptureDisplacement + 0.125f), -normal );
-		key.Downsample = CaptureSizeFactor( RefractionDownsampleFactor );
-		key.Fog = below ? default( FogSetup ) : RefractionFog;
-		return key;
-	}
-
-	/// <summary>
-	/// Record the capture commands: the environment's binding, then the refraction capture or its absence.
-	/// </summary>
-	void RecordCaptures( CommandList captures, in CaptureKey key )
-	{
-		CaptureRecords++;
-		captures.Reset();
-		BindEnvironment( captures, key.Environment );
-		captures.Attributes.Set( "HasRefractionTexture", false );
-		if ( key.Refract )
-			AddRefractionCapture( captures, key );
 	}
 
 	/// <summary>
@@ -293,34 +243,12 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 	/// </summary>
 	internal int CaptureRecords { get; private set; }
 
-	/// <summary>
-	/// Everything the capture commands are recorded from, compared exactly each frame.
-	/// </summary>
-	struct CaptureKey
-	{
-		public EnvironmentBinding Environment;
-		public bool Refract;
-		public CameraComponent Camera;
-		public bool Below;
-		public bool Unclipped;
-		public Matrix Projection;
-		public Plane Plane;
-		public int Downsample;
-		public FogSetup? Fog;
-
-		public readonly bool Same( in CaptureKey other ) => Environment.Same( other.Environment ) && Refract == other.Refract
-			&& ReferenceEquals( Camera, other.Camera ) && Below == other.Below && Unclipped == other.Unclipped
-			&& Projection._numerics == other.Projection._numerics
-			&& Plane.Normal.x == other.Plane.Normal.x && Plane.Normal.y == other.Plane.Normal.y && Plane.Normal.z == other.Plane.Normal.z
-			&& Plane.Distance == other.Plane.Distance && Downsample == other.Downsample && SameFog( Fog, other.Fog );
-	}
-
 	static readonly Sandbox.Utility.Superluminal _preRenderZone = new( "WaterBody.OnPreRender", Color.Cyan );
 
 	CameraComponent ViewingCamera() => FindViewingCamera( Scene );
 
 	/// <summary>
-	/// The camera water captures render for: the editor viewport's camera in the editor, else the scene's main camera.
+	/// The camera used for game-side water layout and effects, not the view used by a refraction draw.
 	/// </summary>
 	internal static CameraComponent FindViewingCamera( Scene scene )
 	{
@@ -363,10 +291,9 @@ public sealed partial class WaterBody : Component, Component.ExecuteInEditor
 		_layout = default;
 		Array.Clear( _surfaceMeshes );
 		_captures = null;
-		_recorded = default;
-		_hasRecorded = false;
+		_recordedEnvironment = null;
+		_refractionCapture = null;
 		_surfaceAttributes.Forget();
-		_captureExclusions = null;
 		_reflectionSkies.Clear();
 		DestroyOverlays();
 		_boundsUndoScope?.Dispose();

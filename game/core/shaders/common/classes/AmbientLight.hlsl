@@ -1,7 +1,7 @@
 #ifndef AMBIENTLIGHT_HLSL
 #define AMBIENTLIGHT_HLSL
 
-#include "light_probe_volume.fxc"
+#include "sbox/light_probe_volume.slangh"
 #include "vr_environment_map.fxc"
 #include "common/DDGI/DDGI.hlsl"
 

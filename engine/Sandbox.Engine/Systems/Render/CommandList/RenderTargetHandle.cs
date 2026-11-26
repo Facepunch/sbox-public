@@ -48,6 +48,7 @@ public ref struct RenderTargetHandle
 		public string Name { get; internal set; }
 
 		public int Divisor { get; internal set; }
+		internal bool IsViewport { get; init; }
 	}
 
 }

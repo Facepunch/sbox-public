@@ -134,9 +134,10 @@ public sealed unsafe class SdlWindow : IDisposable
 		Sdl.Register( this );
 	}
 
-	SdlWindow( nint window )
+	SdlWindow( nint window, bool owned = false )
 	{
 		handle = window;
+		this.owned = owned;
 		Id = SDL_GetWindowID( window );
 	}
 
@@ -149,6 +150,44 @@ public sealed unsafe class SdlWindow : IDisposable
 		if ( sdlWindow == 0 ) throw new ArgumentNullException( nameof( sdlWindow ) );
 		SdlNative.Load();
 		return new SdlWindow( sdlWindow );
+	}
+
+	/// <summary>
+	/// An SDL window over a Win32 window another toolkit made and owns (Qt's, in the editor): borderless and ready for
+	/// Vulkan. SDL subclasses its window procedure and chains to the one it had. Disposing it puts that procedure back
+	/// and leaves the Win32 window alone. Windows only.
+	/// </summary>
+	public static SdlWindow Adopt( nint hwnd )
+	{
+		if ( hwnd == 0 ) throw new ArgumentNullException( nameof( hwnd ) );
+		// Other video drivers ignore the HWND and would open a new window instead
+		if ( !OperatingSystem.IsWindows() ) throw new PlatformNotSupportedException( "SdlWindow.Adopt takes a Win32 window" );
+		Sdl.Init();
+
+		nint window;
+		var properties = SDL_CreateProperties();
+		try
+		{
+			fixed ( byte* name = Utf8( "SDL.window.create.win32.hwnd" ) ) SDL_SetPointerProperty( properties, name, hwnd );
+			fixed ( byte* name = Utf8( "SDL.window.create.borderless" ) ) SDL_SetBooleanProperty( properties, name, 1 );
+			fixed ( byte* name = Utf8( "SDL.window.create.vulkan" ) ) SDL_SetBooleanProperty( properties, name, 1 );
+			window = SDL_CreateWindowWithProperties( properties );
+		}
+		finally
+		{
+			SDL_DestroyProperties( properties );
+		}
+
+		if ( window == 0 )
+		{
+			var error = LastError;
+			Sdl.Quit();
+			throw new SdlException( $"SDL couldn't adopt window 0x{hwnd:x}: {error}" );
+		}
+
+		var adopted = new SdlWindow( window, owned: true );
+		Sdl.Register( adopted );
+		return adopted;
 	}
 
 	void Require()
@@ -205,8 +244,8 @@ public sealed unsafe class SdlWindow : IDisposable
 		get
 		{
 			Require();
-			int w, h;
-			SDL_GetWindowSize( handle, &w, &h );
+			int w = 0, h = 0;
+			Check( SDL_GetWindowSize( handle, &w, &h ), "SDL_GetWindowSize" );
 			return (w, h);
 		}
 	}
@@ -217,8 +256,8 @@ public sealed unsafe class SdlWindow : IDisposable
 		get
 		{
 			Require();
-			int w, h;
-			SDL_GetWindowSizeInPixels( handle, &w, &h );
+			int w = 0, h = 0;
+			Check( SDL_GetWindowSizeInPixels( handle, &w, &h ), "SDL_GetWindowSizeInPixels" );
 			return (w, h);
 		}
 	}

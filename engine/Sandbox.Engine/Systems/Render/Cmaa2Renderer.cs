@@ -74,20 +74,13 @@ internal sealed class Cmaa2Renderer : IDisposable
 
 	private static bool PathsMatch( string actualPath, string expectedPath )
 	{
-		return string.Equals( NormalizeShaderPath( actualPath ), NormalizeShaderPath( expectedPath ), StringComparison.OrdinalIgnoreCase );
-	}
+		static ReadOnlySpan<char> ComparisonPath( string path )
+		{
+			var canonical = BorealisGpuRenderBackend.ShaderPath( path );
+			return canonical.StartsWith( "shaders/", StringComparison.OrdinalIgnoreCase ) ? canonical.AsSpan( 8 ) : canonical.AsSpan();
+		}
 
-	private static string NormalizeShaderPath( string path )
-	{
-		if ( string.IsNullOrWhiteSpace( path ) ) return string.Empty;
-
-		path = path.Replace( '\\', '/' ).TrimStart( '/' );
-		if ( path.StartsWith( "shaders/", StringComparison.OrdinalIgnoreCase ) )
-			path = path[8..];
-		if ( path.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) )
-			path = path[..^7];
-
-		return path;
+		return ComparisonPath( actualPath ).Equals( ComparisonPath( expectedPath ), StringComparison.OrdinalIgnoreCase );
 	}
 
 	internal void Render()

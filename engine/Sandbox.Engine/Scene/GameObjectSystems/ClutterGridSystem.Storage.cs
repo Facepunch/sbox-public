@@ -11,9 +11,9 @@ public sealed partial class ClutterGridSystem
 	/// </summary>
 	public sealed class ClutterStorage : BlobData, IBlobReferences
 	{
-		public override int Version => 1;
+		public override int Version => 2;
 
-		public record struct Instance( Vector3 Position, Rotation Rotation, float Scale = 1f );
+		public record struct Instance( Vector3 Position, Rotation Rotation, float Scale = 1f, bool EnablePhysics = true );
 
 		private Dictionary<string, List<Instance>> _instances = [];
 
@@ -93,7 +93,7 @@ public sealed partial class ClutterGridSystem
 		/// <summary>
 		/// Adds a single instance for a model.
 		/// </summary>
-		public void AddInstance( string modelPath, Vector3 position, Rotation rotation, float scale = 1f )
+		public void AddInstance( string modelPath, Vector3 position, Rotation rotation, float scale = 1f, bool enablePhysics = true )
 		{
 			if ( string.IsNullOrEmpty( modelPath ) ) return;
 
@@ -103,7 +103,7 @@ public sealed partial class ClutterGridSystem
 				_instances[modelPath] = list;
 			}
 
-			list.Add( new Instance( position, rotation, scale ) );
+			list.Add( new Instance( position, rotation, scale, enablePhysics ) );
 		}
 
 		/// <summary>
@@ -179,6 +179,7 @@ public sealed partial class ClutterGridSystem
 					writer.Stream.Write( instance.Position );
 					writer.Stream.Write( instance.Rotation );
 					writer.Stream.Write( instance.Scale );
+					writer.Stream.Write( instance.EnablePhysics );
 				}
 			}
 		}
@@ -210,7 +211,10 @@ public sealed partial class ClutterGridSystem
 					var rotation = reader.Stream.Read<Rotation>();
 					var scale = reader.Stream.Read<float>();
 
-					instances.Add( new Instance( position, rotation, scale ) );
+					// Version 1 had no physics flag; everything got collision.
+					var enablePhysics = reader.DataVersion < 2 || reader.Stream.Read<bool>();
+
+					instances.Add( new Instance( position, rotation, scale, enablePhysics ) );
 				}
 
 				if ( !string.IsNullOrEmpty( modelPath ) && instances.Count > 0 )

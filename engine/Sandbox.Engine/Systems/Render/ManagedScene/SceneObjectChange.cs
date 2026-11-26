@@ -50,5 +50,10 @@ internal enum SceneObjectChange
 	/// it covers.
 	/// </summary>
 	Bounds = 1 << 12,
+
+	/// <summary>
+	/// A <see cref="SceneModelInstances"/>' instances were replaced.
+	/// </summary>
+	Instances = 1 << 13,
 }
 

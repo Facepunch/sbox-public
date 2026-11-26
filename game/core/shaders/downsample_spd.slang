@@ -59,7 +59,17 @@ enum DownsampleMethod
 	int MipCount < Attribute( "MipCount" ); >; // Mips to write, 1..6
 
 	// Ping-ponged so each mip needs one barrier
-	groupshared float4 Lds[2][16][16];
+	#if D_DOWNSAMPLE_METHOD == 5 // MinMax: only R and G are reduced.
+		groupshared float2 Lds[2][16][16];
+
+		void StoreLds( uint bank, uint2 p, float4 v ) { Lds[bank][p.y][p.x] = v.xy; }
+		float4 LoadLds( uint bank, uint2 p ) { return float4( Lds[bank][p.y][p.x], 0, 1 ); }
+	#else
+		groupshared float4 Lds[2][16][16];
+
+		void StoreLds( uint bank, uint2 p, float4 v ) { Lds[bank][p.y][p.x] = v; }
+		float4 LoadLds( uint bank, uint2 p ) { return Lds[bank][p.y][p.x]; }
+	#endif
 
 	float4 Reduce( float4 a, float4 b, float4 c, float4 d )
 	{
@@ -164,7 +174,7 @@ enum DownsampleMethod
 			if ( leader )
 			{
 				Store( 2, group * 16 + p2, r );
-				Lds[0][p2.y][p2.x] = r;
+				StoreLds( 0, p2, r );
 			}
 		}
 
@@ -180,11 +190,11 @@ enum DownsampleMethod
 			uint size = 64 >> ( mip - 1 ); // Of the mip read
 			if ( thread < size * size )
 			{
-				float4 r = ReduceQuad( Lds[( mip + 1 ) & 1][p.y][p.x] );
+				float4 r = ReduceQuad( LoadLds( ( mip + 1 ) & 1, p ) );
 				if ( leader )
 				{
 					Store( mip, group * ( size / 2 ) + p / 2, r );
-					Lds[mip & 1][p.y / 2][p.x / 2] = r;
+					StoreLds( mip & 1, p / 2, r );
 				}
 			}
 		}

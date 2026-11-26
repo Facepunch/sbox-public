@@ -55,7 +55,7 @@ struct VS_OUTPUT
 	Texture2D<float>  g_tSourceDepth  < Attribute( "SourceDepth" ); >;
 #endif
 
-	int DownsampleFactor < Attribute( "DownsampleFactor" ); Default( 1 ); >;
+	float4 QuarterDepthSourceViewport < Attribute( "QuarterDepthSourceViewport" ); Default4( 0.0f, 0.0f, 0.0f, 0.0f ); >;
 	float2 OutputToSourceScale < Attribute( "OutputToSourceScale" ); Default2( 1.0f, 1.0f ); >;
 
 	[shader( "pixel" )] floatx MainPs( float4 vPositionPs : SV_Position, float2 vTexCoord : TEXCOORD0 ) : SV_Depth
@@ -70,7 +70,9 @@ struct VS_OUTPUT
 		#endif
 		uint2 sourceCoord = min( uint2( (vPositionPs.xy - g_vViewportOffset.xy) * OutputToSourceScale ), uint2( sourceWidth - 1, sourceHeight - 1 ) );
 		#else
-		uint2 sourceCoord = (g_vViewportOffset.xy + uint2(vPositionPs.xy)) * DownsampleFactor;
+		uint2 sourceCoord = QuarterDepthSourceViewport.z > 0
+			? uint2( QuarterDepthSourceViewport.xy + vPositionPs.xy * g_vInvViewportSize * QuarterDepthSourceViewport.zw )
+			: uint2( vPositionPs.xy );
 		#endif
 
 		floatx result;

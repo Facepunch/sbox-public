@@ -44,16 +44,22 @@ public static partial class Graphics
 			var gpuAssistedDescriptors = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-gpuav-descriptors" );
 			// With synchronization validation as well (hazards between passes the barriers miss; slow)
 			var syncValidation = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-syncvalidation" );
-			// Progress markers for the device-loss report, unless -borealisgpu-nomarkers. Not with synchronization validation:
-			// markers write their words unordered on purpose (only read after a loss), and the layer reports every one
+			// Progress markers for the device-loss report at each list's ends, unless -borealisgpu-nomarkers; at each pass's too
+			// with -borealisgpu-passmarkers. Not with synchronization validation: markers write their words unordered on purpose
+			// (only read after a loss), and the layer reports every one
 			var markers = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nomarkers" ) && !syncValidation;
-			// The device's pipeline cache in game/.source2/borealispipelines, apart from native's, unless -borealisgpu-nopipelinecache
+			var passMarkers = markers && Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-passmarkers" );
+			// The device's pipeline cache in game/.source2/borealispipelines, apart from native's, unless -borealisgpu-nopipelinecache.
+			// A project's editor keeps its own: the driver holds the whole loaded cache in memory, and one shared by every project
+			// opened grew to a GiB, the prewarmed draws of the others' with it
 			var pipelineCache = Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-nopipelinecache" ) ? null : System.IO.Path.Combine( EngineFileSystem.Root.GetFullPath( "/" ), ".source2", "borealispipelines" );
+			if ( pipelineCache is not null && Sandbox.Utility.CommandLine.GetSwitch( "-project", "" ).TrimQuoted() is { Length: > 0 } project )
+				pipelineCache = System.IO.Path.Combine( pipelineCache, $"{System.IO.Path.GetFileNameWithoutExtension( project )}-{System.IO.Path.GetFullPath( project ).ToLowerInvariant().FastHash():x8}" );
 
 			// Slang surfaces compile on workers while their materials draw as their .shader, and the engine's start warming at
 			// once, unless -wait-for-shaders (draws wait for each, as tests and captures do)
 			Borealis.Backend.SurfaceShaders.CompileInBackgroundByDefault = !Sandbox.Utility.CommandLine.HasSwitch( "-wait-for-shaders" );
-			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers, pipelineCacheFolder: pipelineCache, gpuAssisted: gpuAssisted, syncValidation: syncValidation, gpuAssistedDescriptors: gpuAssistedDescriptors );
+			_borealisGpu = BorealisGpuRenderBackend.Create( validation, m => Log.Info( $"Borealis.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true, markers: markers, pipelineCacheFolder: pipelineCache, gpuAssisted: gpuAssisted, syncValidation: syncValidation, gpuAssistedDescriptors: gpuAssistedDescriptors, passMarkers: passMarkers );
 
 			// Models load in the background, as Source 2 streams them, unless -borealisgpu-syncload
 			_borealisGpu.Services.AsyncModels = !Sandbox.Utility.CommandLine.HasSwitch( "-borealisgpu-syncload" );
@@ -81,6 +87,8 @@ public static partial class Graphics
 
 	/// <summary>The compiled content the process's Borealis.Gpu device reads, or null without one.</summary>
 	internal static Borealis.Source2.ContentFiles BorealisGpuContent => _borealisGpu?.Services.Content;
+
+	internal static Borealis.Gpu.Device BorealisGpuDevice => _borealisGpu?.Device;
 
 	/// <summary>
 	/// No more frames: what the process's Borealis.Gpu device kept of the last one's draws (their attributes and material)
@@ -189,13 +197,6 @@ public static partial class Graphics
 	/// to set attributes in materials/shaders. This is cleared at the end of the render block.
 	/// </summary>
 	public static RenderAttributes Attributes => _state.attributes;
-
-
-	/// <summary>
-	/// Access to the current frame's attributes.
-	/// </summary>
-	[Obsolete( "Frame attributes are deprecated, try to use Pipeline Texture Sets." )]
-	internal static RenderAttributes FrameAttributes => Attributes;
 
 	/// <summary>
 	/// The camera transform of the currently rendering view
@@ -627,7 +628,7 @@ public static partial class Graphics
 	}
 
 	/// <summary>
-	/// Render this camera to the specified texture target
+	/// Legacy camera render entry point. This overload is no longer supported and always returns false.
 	/// </summary>
 	[Obsolete( "Use CameraComponent.RenderToTexture" )]
 	public static bool RenderToTexture( SceneCamera camera, Texture target )
@@ -648,7 +649,7 @@ public static partial class Graphics
 
 		Backend.CopyTexture( srcTexture, dstTexture, 0, 0, 0, 0 );
 	}
-
+	/// <summary>Compatibility overload that copies one subresource. The legacy mip-count arguments are ignored.</summary>
 	[Obsolete( "Use the CopyTexture overload without 'srcMipLevels' and 'dstMipLevels' parameters instead." )]
 	public static void CopyTexture( Texture srcTexture, Texture dstTexture, int srcMipSlice = 0, int srcArraySlice = 0, int srcMipLevels = 1, int dstMipSlice = 0, int dstArraySlice = 0, int dstMipLevels = 1 )
 	{

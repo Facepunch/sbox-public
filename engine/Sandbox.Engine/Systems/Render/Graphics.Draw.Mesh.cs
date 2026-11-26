@@ -16,7 +16,7 @@ public static partial class Graphics
 
 		attributes ??= Attributes;
 
-		DrawModelInstanced( model, new[] { transform }, attributes );
+		DrawModelInstanced( model, new Span<Transform>( ref transform ), attributes );
 	}
 
 	/// <summary>

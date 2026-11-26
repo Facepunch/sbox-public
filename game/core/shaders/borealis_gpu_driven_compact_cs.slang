@@ -72,9 +72,9 @@ cbuffer BorealisGpuDrivenCull_t
 	uint g_nCullMeshletRuns;		// bindless slot of the meshlet runs (16 bytes per draw record) where the view's prepass culls meshlets; else None
 	uint g_nCullLodCount;
 	uint g_nCullCorners;		// bindless slot of the meshlet store's corner runs (16 bytes per draw record: in its last two words the lowest first corner and how many values from it, 0 until known), or None
+	uint g_nCullLodFadeNow;
+	uint g_nCullLodFadeTicks;
 	uint g_nCullPad0;
-	uint g_nCullPad1;
-	uint g_nCullPad2;
 };
 
 static const uint None = 0xffffffffu;
@@ -239,9 +239,9 @@ uint CountOwned( Fragment f, uint nLo, uint nHi, uint nThread )
 			nMine += t0 + GroupSize * k < nHi ? ( vWord[k] >> ( vBit[k] & 31 ) ) & 1 : 0;
 	}
 
-	nMine = WaveActiveSum( nMine );
-	if ( WaveIsFirstLane() )
-		InterlockedAdd( gs_Owned, nMine );
+	uint nWaveOwned = WaveActiveSum( nMine );
+	if ( nWaveOwned != 0 && WaveIsFirstLane() )
+		InterlockedAdd( gs_Owned, nWaveOwned );
 	GroupMemoryBarrierWithGroupSync();
 	return gs_Owned;
 }

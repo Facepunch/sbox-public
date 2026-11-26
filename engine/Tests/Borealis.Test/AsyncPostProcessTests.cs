@@ -1,7 +1,6 @@
 using Borealis;
 using Borealis.Gpu;
 using System;
-using System.Reflection;
 using static BorealisTests.TestScenes;
 
 namespace BorealisTests;
@@ -15,14 +14,6 @@ public class AsyncPostProcessTests
 		public void Render( RenderStage stage, in StageTarget target ) { }
 		public bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => stage == RenderStage.AfterDepthPrepass
 			&& (queue == StageQueue.AsyncCompute || reflections);
-	}
-
-	static readonly FieldInfo Segments = typeof( FrameRecorder ).GetField( "segments", BindingFlags.Instance | BindingFlags.NonPublic );
-
-	static int WaitFor( FrameRecorder recorder, int index )
-	{
-		var segment = ((Array)Segments.GetValue( recorder )).GetValue( index );
-		return (int)segment.GetType().GetField( "WaitFor" ).GetValue( segment );
 	}
 
 	[TestMethod]
@@ -51,7 +42,7 @@ public class AsyncPostProcessTests
 			Assert.AreEqual( computeSegments, plan.Segments.Count( s => s.Async ) );
 			if ( objects == 1 ) Assert.IsFalse( recorder.Parallel, "GPU overlap must not require CPU worker recording" );
 			if ( computeSegments > 0 ) Assert.IsTrue( recorder.SeparateContexts );
-			var waits = Enumerable.Range( 0, plan.Segments.Count ).Select( i => WaitFor( recorder, i ) ).Where( i => i >= 0 ).ToArray();
+			var waits = Enumerable.Range( 0, plan.Segments.Count ).Select( i => recorder.DependenciesOf( i ).WaitFor ).Where( i => i >= 0 ).ToArray();
 			Assert.AreEqual( computeSegments, waits.Length );
 			Assert.AreEqual( waits.Length, waits.Distinct().Count(), "a binary semaphore must never have two consumers" );
 			Assert.IsTrue( waits.All( i => plan.Segments[i].Async ) );
@@ -67,8 +58,8 @@ public class AsyncPostProcessTests
 				Assert.IsTrue( layers.FindIndex( l => l.Name.EndsWith( "(async compute)" ) ) < layers.FindIndex( l => l.Name == "Contact Shadows" ), "AO gets the overlap window before contact shadows" );
 				Assert.IsFalse( plan.Segments[depth].Async, "the depth chain runs on graphics" );
 				Assert.IsTrue( plan.Segments[ao].Async );
-				Assert.AreEqual( -1, WaitFor( recorder, ssr ), "SSR waits for nothing on the compute queue" );
-				Assert.IsTrue( Enumerable.Range( ssr + 1, hooks - ssr ).Any( i => WaitFor( recorder, i ) == ao ), "ordinary camera hooks must acquire AO" );
+				Assert.AreEqual( -1, recorder.DependenciesOf( ssr ).WaitFor, "SSR waits for nothing on the compute queue" );
+				Assert.IsTrue( Enumerable.Range( ssr + 1, hooks - ssr ).Any( i => recorder.DependenciesOf( i ).WaitFor == ao ), "ordinary camera hooks must acquire AO" );
 			}
 
 			// Reusing a recorder after an async frame must not retain waits or early-effect execution.

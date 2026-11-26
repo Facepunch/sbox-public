@@ -1168,8 +1168,8 @@ internal sealed class SurfaceProgram : IDisposable
 		lock ( pipelines )
 		{
 			if ( immediatePipelines.TryGetValue( key, out var made ) ) return made;
-			var info = Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, false, opaqueFade, false, false, stencil )
-				with { SkipUntilReady = false, Topology = topology, FragmentWave32 = wave32 };
+			var info = Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, false, opaqueFade, false, false, stencil );
+			info = info with { SkipUntilReady = false, Topology = topology, FragmentWave32 = wave32 };
 			if ( !ids ) info.VertexBuffers[1] = new VertexBufferLayout( 0, VertexStepRate.Instance );
 			if ( tools != ToolsPass.None ) ToolsViewStage.Apply( device.Shaders, ref info, tools, ToolsViews.ShaderColor( Compiled.Name ) );
 			using ( Zones.PipelineCreate.Start() ) made = device.Gpu.CreateGraphicsPipeline( info );
@@ -1301,8 +1301,10 @@ internal sealed class SurfaceProgram : IDisposable
 		try
 		{
 			using ( Zones.PipelineCreate.Start() )
-				made = device.Gpu.CreateGraphicsPipeline( Info( r.Pass, r.Layout, r.Color, r.Depth, r.Samples, r.VertexConstants, r.PixelConstants, r.State, r.Ids, r.OpaqueFade, r.DepthEqual, normals, r.Stencil )
-					with { SkipUntilReady = false, FragmentWave32 = key.FragmentWave32 } );
+			{
+				var info = Info( r.Pass, r.Layout, r.Color, r.Depth, r.Samples, r.VertexConstants, r.PixelConstants, r.State, r.Ids, r.OpaqueFade, r.DepthEqual, normals, r.Stencil );
+				made = device.Gpu.CreateGraphicsPipeline( info with { SkipUntilReady = false, FragmentWave32 = key.FragmentWave32 } );
+			}
 		}
 		catch ( Exception e ) when ( e is GpuException or InvalidOperationException or ArgumentException )
 		{
@@ -1333,8 +1335,8 @@ internal sealed class SurfaceProgram : IDisposable
 		{
 			if ( specialized is not null )
 			{
-				var info = Info( pass, layout, color, depth, samples, vertexConstants, [.. pixelConstants ?? [], .. specialized.Constants], state, ids, opaqueFade, depthEqual, normals, key.Stencil )
-					with { FragmentWave32 = key.FragmentWave32 };
+				var info = Info( pass, layout, color, depth, samples, vertexConstants, [.. pixelConstants ?? [], .. specialized.Constants], state, ids, opaqueFade, depthEqual, normals, key.Stencil );
+				info = info with { FragmentWave32 = key.FragmentWave32 };
 				if ( !device.Surfaces.SpecializeInBackground )
 				{
 					if ( BackendDevice.DumpSurfaceShaders is { } dumpNow ) Dump( dumpNow, pass, info.FragmentConstants, specialized );
@@ -1354,8 +1356,10 @@ internal sealed class SurfaceProgram : IDisposable
 			}
 
 			using ( Zones.PipelineCreate.Start() )
-				pipeline = device.Gpu.CreateGraphicsPipeline( Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual, normals, key.Stencil )
-					with { FragmentWave32 = key.FragmentWave32 } );
+			{
+				var info = Info( pass, layout, color, depth, samples, vertexConstants, pixelConstants, state, ids, opaqueFade, depthEqual, normals, key.Stencil );
+				pipeline = device.Gpu.CreateGraphicsPipeline( info with { FragmentWave32 = key.FragmentWave32 } );
+			}
 			pipelines[key] = pipeline;
 
 			// A miss, never a frame's every draw: kept for the next run to make ahead

@@ -1,7 +1,6 @@
 using Borealis;
 using Borealis.Gpu;
 using System;
-using System.Reflection;
 
 namespace BorealisTests;
 
@@ -28,8 +27,6 @@ public class AsyncSchedulingTests
 		public override void AddTo( FrameRecorder recorder, RenderFrame frame ) => recorder.AddFrame( child );
 	}
 
-	static readonly FieldInfo Layers = typeof( RenderSystem ).GetField( "layers", BindingFlags.Instance | BindingFlags.NonPublic );
-	static readonly FieldInfo Segments = typeof( FrameRecorder ).GetField( "segments", BindingFlags.Instance | BindingFlags.NonPublic );
 	IDisposable _asyncCompute;
 
 	[TestInitialize]
@@ -38,43 +35,37 @@ public class AsyncSchedulingTests
 	[TestCleanup]
 	public void RestoreCompute() => _asyncCompute.Dispose();
 
-	static int WaitFor( FrameRecorder recorder, int index )
-	{
-		var segment = ((Array)Segments.GetValue( recorder )).GetValue( index );
-		return (int)segment.GetType().GetField( "WaitFor" ).GetValue( segment );
-	}
-
 	static int SegmentFor( FrameRecorder recorder, string name ) => recorder.Snapshot( "test" ).Frames[0].Layers.Single( l => l.Name == name ).Segment;
 
 	static void AssertSingleConsumers( FrameRecorder recorder )
 	{
 		var plan = recorder.Snapshot( "test" );
-		var waits = Enumerable.Range( 0, plan.Segments.Count ).Select( i => WaitFor( recorder, i ) ).Where( i => i >= 0 ).ToArray();
+		var waits = Enumerable.Range( 0, plan.Segments.Count ).Select( i => recorder.DependenciesOf( i ).WaitFor ).Where( i => i >= 0 ).ToArray();
 		Assert.AreEqual( waits.Length, waits.Distinct().Count(), "binary semaphores must have one consumer" );
 		Assert.IsTrue( waits.All( i => plan.Segments[i].Async ) );
 		for ( int i = 0; i < plan.Segments.Count; i++ )
-			Assert.IsTrue( WaitFor( recorder, i ) < i );
+			Assert.IsTrue( recorder.DependenciesOf( i ).WaitFor < i );
 	}
 
 	[TestMethod]
 	public void IntermediateResultsReleaseGraphicsWithoutWaitingForTheRest()
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[
+		system.Layers = [
 			new Pass( "before" ),
 			new Pass( "producer", writes: FrameResources.QuarterDepth, compute: true ),
 			new Pass( "independent compute", compute: true ),
 			new Pass( "reader", reads: FrameResources.QuarterDepth ),
 			new Pass( "second reader", reads: FrameResources.QuarterDepth ),
-			new UnknownPass()] );
+			new UnknownPass()];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 
 		Assert.IsTrue( system.Frame.AsyncCompute );
 		Assert.IsFalse( recorder.Parallel, "GPU overlap must not depend on CPU worker recording" );
-		Assert.AreEqual( SegmentFor( recorder, "producer" ), WaitFor( recorder, SegmentFor( recorder, "reader" ) ) );
+		Assert.AreEqual( SegmentFor( recorder, "producer" ), recorder.DependenciesOf( SegmentFor( recorder, "reader" ) ).WaitFor );
 		Assert.AreEqual( SegmentFor( recorder, "reader" ), SegmentFor( recorder, "second reader" ), "same-queue ordering reuses the first acquisition" );
-		Assert.AreEqual( SegmentFor( recorder, "independent compute" ), WaitFor( recorder, SegmentFor( recorder, "unknown access" ) ) );
+		Assert.AreEqual( SegmentFor( recorder, "independent compute" ), recorder.DependenciesOf( SegmentFor( recorder, "unknown access" ) ).WaitFor );
 		AssertSingleConsumers( recorder );
 	}
 
@@ -82,7 +73,7 @@ public class AsyncSchedulingTests
 	public void GraphicsProducersSeparateComputeBatchesAutomatically()
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[
+		system.Layers = [
 			new Pass( "a", writes: FrameResources.QuarterDepth, compute: true ),
 			new Pass( "b", writes: FrameResources.BloomObjects, compute: true ),
 			new Pass( "tail", compute: true ),
@@ -90,18 +81,18 @@ public class AsyncSchedulingTests
 			new Pass( "read b", reads: FrameResources.BloomObjects ),
 			new Pass( "graphics producer", writes: FrameResources.RefractionStencil ),
 			new Pass( "second compute", reads: FrameResources.RefractionStencil, compute: true ),
-			new Pass( "second graphics" )] );
+			new Pass( "second graphics" )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 
 		Assert.IsTrue( system.Frame.AsyncCompute );
-		Assert.AreEqual( SegmentFor( recorder, "a" ), WaitFor( recorder, SegmentFor( recorder, "read a" ) ) );
-		Assert.AreEqual( SegmentFor( recorder, "b" ), WaitFor( recorder, SegmentFor( recorder, "read b" ) ) );
+		Assert.AreEqual( SegmentFor( recorder, "a" ), recorder.DependenciesOf( SegmentFor( recorder, "read a" ) ).WaitFor );
+		Assert.AreEqual( SegmentFor( recorder, "b" ), recorder.DependenciesOf( SegmentFor( recorder, "read b" ) ).WaitFor );
 		var plan = recorder.Snapshot( "test" );
 		Assert.AreEqual( 4, plan.Segments.Count( s => s.Async ) );
 		Assert.IsTrue( SegmentFor( recorder, "graphics producer" ) < SegmentFor( recorder, "second compute" ), "compute handoff follows its graphics producer" );
-		Assert.AreEqual( SegmentFor( recorder, "tail" ), WaitFor( recorder, SegmentFor( recorder, "second compute" ) - 1 ) );
-		Assert.AreEqual( SegmentFor( recorder, "second compute" ), WaitFor( recorder, plan.Segments.Count - 1 ), "the frame still joins outstanding compute" );
+		Assert.AreEqual( SegmentFor( recorder, "tail" ), recorder.DependenciesOf( SegmentFor( recorder, "second compute" ) - 1 ).WaitFor );
+		Assert.AreEqual( SegmentFor( recorder, "second compute" ), recorder.DependenciesOf( plan.Segments.Count - 1 ).WaitFor, "the frame still joins outstanding compute" );
 		AssertSingleConsumers( recorder );
 	}
 
@@ -114,12 +105,12 @@ public class AsyncSchedulingTests
 			? new Pass( "compute", writes: FrameResources.QuarterDepth, compute: true )
 			: new Pass( "compute", reads: FrameResources.QuarterDepth, compute: true );
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[compute, new Pass( "tail", compute: true ),
-			new Pass( "writer", writes: FrameResources.QuarterDepth ), new Pass( "consumer", reads: FrameResources.QuarterDepth )] );
+		system.Layers = [compute, new Pass( "tail", compute: true ),
+			new Pass( "writer", writes: FrameResources.QuarterDepth ), new Pass( "consumer", reads: FrameResources.QuarterDepth )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		Assert.IsTrue( system.Frame.AsyncCompute );
-		Assert.AreEqual( SegmentFor( recorder, "compute" ), WaitFor( recorder, SegmentFor( recorder, "writer" ) ) );
+		Assert.AreEqual( SegmentFor( recorder, "compute" ), recorder.DependenciesOf( SegmentFor( recorder, "writer" ) ).WaitFor );
 		AssertSingleConsumers( recorder );
 	}
 
@@ -130,7 +121,7 @@ public class AsyncSchedulingTests
 	public void DisabledOrUnsupportedSchedulingFallsBackAndClearsPreviousWaits( bool parallel, bool enabled, bool supported )
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "compute", compute: true ), new Pass( "graphics" )] );
+		system.Layers = [new Pass( "compute", compute: true ), new Pass( "graphics" )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		Assert.IsTrue( system.Frame.AsyncCompute );
@@ -139,7 +130,7 @@ public class AsyncSchedulingTests
 		Assert.IsFalse( system.Frame.AsyncCompute );
 		Assert.IsFalse( recorder.SeparateContexts );
 		Assert.IsTrue( recorder.Snapshot( "test" ).Segments.All( s => !s.Async ) );
-		Assert.AreEqual( -1, WaitFor( recorder, 0 ) );
+		Assert.AreEqual( -1, recorder.DependenciesOf( 0 ).WaitFor );
 	}
 
 	[TestMethod]
@@ -148,7 +139,7 @@ public class AsyncSchedulingTests
 		var graphics = new Pass( "graphics" );
 		var unused = new Pass( "unused", writes: FrameResources.RefractionStencil, compute: true );
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[unused, new Pass( "compute", compute: true ), graphics] );
+		system.Layers = [unused, new Pass( "compute", compute: true ), graphics];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		Assert.IsTrue( system.Frame.AsyncCompute );
@@ -163,8 +154,8 @@ public class AsyncSchedulingTests
 	public void FullyDependentBranchesStaySerial()
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "producer", writes: FrameResources.QuarterDepth, compute: true ),
-			new Pass( "reader", reads: FrameResources.QuarterDepth ), new Pass( "later graphics" )] );
+		system.Layers = [new Pass( "producer", writes: FrameResources.QuarterDepth, compute: true ),
+			new Pass( "reader", reads: FrameResources.QuarterDepth ), new Pass( "later graphics" )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		Assert.IsFalse( system.Frame.AsyncCompute, "separate queues cannot overlap a single producer and its consumer" );
@@ -174,12 +165,12 @@ public class AsyncSchedulingTests
 	public void ReadOnlyInputsDoNotSerializeQueues()
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "compute", reads: FrameResources.Depth, compute: true ),
-			new Pass( "graphics", reads: FrameResources.Depth )] );
+		system.Layers = [new Pass( "compute", reads: FrameResources.Depth, compute: true ),
+			new Pass( "graphics", reads: FrameResources.Depth )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		Assert.IsTrue( system.Frame.AsyncCompute );
-		Assert.AreEqual( -1, WaitFor( recorder, SegmentFor( recorder, "graphics" ) ) );
+		Assert.AreEqual( -1, recorder.DependenciesOf( SegmentFor( recorder, "graphics" ) ).WaitFor );
 		AssertSingleConsumers( recorder );
 	}
 
@@ -187,7 +178,7 @@ public class AsyncSchedulingTests
 	public void UnknownAccessIsABoundaryEvenWithoutDeclaredInputs()
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "compute", compute: true ), new UnknownPass(), new Pass( "graphics" )] );
+		system.Layers = [new Pass( "compute", compute: true ), new UnknownPass(), new Pass( "graphics" )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		Assert.IsFalse( system.Frame.AsyncCompute, "work after the unknown pass cannot provide an overlap window" );
@@ -197,7 +188,7 @@ public class AsyncSchedulingTests
 	public void SideEffectsAreKeptEvenWhenTheirOutputsAreUnused()
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "output", writes: FrameResources.Depth ) { SideEffects = true }] );
+		system.Layers = [new Pass( "output", writes: FrameResources.Depth ) { SideEffects = true }];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		Assert.AreEqual( 1, recorder.Planned.Length );
@@ -208,23 +199,17 @@ public class AsyncSchedulingTests
 	{
 		using var system = new RenderSystem();
 		using var child = new RenderSystem();
-		Layers.SetValue( child, (RenderLayer[])[new Pass( "child graphics" )] );
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "compute", compute: true ), new Pass( "independent" ),
-			new ChildFramePass( child.Frame ), new Pass( "after child" )] );
+		child.Layers = [new Pass( "child graphics" )];
+		system.Layers = [new Pass( "compute", compute: true ), new Pass( "independent" ),
+			new ChildFramePass( child.Frame ), new Pass( "after child" )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		var plan = recorder.Snapshot( "test" );
 		var childSegment = plan.Frames[1].Layers[0].Segment;
 		Assert.IsTrue( system.Frame.AsyncCompute );
 		Assert.IsFalse( child.Frame.AsyncCompute );
-		Assert.AreEqual( SegmentFor( recorder, "compute" ), WaitFor( recorder, childSegment - 1 ) );
+		Assert.AreEqual( SegmentFor( recorder, "compute" ), recorder.DependenciesOf( childSegment - 1 ).WaitFor );
 		AssertSingleConsumers( recorder );
-	}
-
-	static int Borrows( FrameRecorder recorder, int index )
-	{
-		var segment = ((Array)Segments.GetValue( recorder )).GetValue( index );
-		return (int)segment.GetType().GetField( "Borrows" ).GetValue( segment );
 	}
 
 	/// <summary>
@@ -236,9 +221,9 @@ public class AsyncSchedulingTests
 	{
 		using var system = new RenderSystem();
 		using var child = new RenderSystem();
-		Layers.SetValue( child, (RenderLayer[])[new Pass( "child graphics" )] );
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "compute", compute: true ), new Pass( "independent" ),
-			new ChildFramePass( child.Frame ), new Pass( "after child" )] );
+		child.Layers = [new Pass( "child graphics" )];
+		system.Layers = [new Pass( "compute", compute: true ), new Pass( "independent" ),
+			new ChildFramePass( child.Frame ), new Pass( "after child" )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 
@@ -246,11 +231,11 @@ public class AsyncSchedulingTests
 		var childSegment = plan.Frames[1].Layers[0].Segment;
 		var after = SegmentFor( recorder, "after child" );
 		var join = childSegment - 1;
-		Assert.IsTrue( WaitFor( recorder, join ) >= 0, "the segment before the child frame waits for compute" );
-		Assert.AreEqual( -1, Borrows( recorder, join ), "so it has a list of its own" );
-		Assert.AreEqual( -1, Borrows( recorder, SegmentFor( recorder, "compute" ) ), "as compute does" );
-		Assert.AreEqual( join, Borrows( recorder, childSegment ), "the child frame records into it" );
-		Assert.AreEqual( join, Borrows( recorder, after ), "and so does the segment after, into the first of the run" );
+		Assert.IsTrue( recorder.DependenciesOf( join ).WaitFor >= 0, "the segment before the child frame waits for compute" );
+		Assert.AreEqual( -1, recorder.DependenciesOf( join ).Borrows, "so it has a list of its own" );
+		Assert.AreEqual( -1, recorder.DependenciesOf( SegmentFor( recorder, "compute" ) ).Borrows, "as compute does" );
+		Assert.AreEqual( join, recorder.DependenciesOf( childSegment ).Borrows, "the child frame records into it" );
+		Assert.AreEqual( join, recorder.DependenciesOf( after ).Borrows, "and so does the segment after, into the first of the run" );
 		Assert.IsTrue( recorder.SharedLists >= 2 );
 
 		FrameRecorder.ShareMainLists = false;
@@ -269,9 +254,9 @@ public class AsyncSchedulingTests
 	public void ComputeOutputPreparationCannotOverwriteEarlierInputs()
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "reader", reads: FrameResources.QuarterDepth, compute: true ),
+		system.Layers = [new Pass( "reader", reads: FrameResources.QuarterDepth, compute: true ),
 			new Pass( "writer", writes: FrameResources.QuarterDepth, compute: true ) { SideEffects = true },
-			new Pass( "independent graphics" )] );
+			new Pass( "independent graphics" )];
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		var plan = recorder.Snapshot( "test" );
@@ -299,21 +284,19 @@ public class AsyncSchedulingTests
 				passes[i] = new Pass( $"pass {i}", reads, (FrameResources)random.Next( 8 ), random.Next( 2 ) == 0 ) { SideEffects = true };
 			}
 
-			Layers.SetValue( system, passes );
+			system.Layers = passes;
 			recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 			var plan = recorder.Snapshot( "test" );
 			var count = plan.Segments.Count;
 			var ordered = new bool[count, count];
 			int graphics = -1, compute = -1;
-			var segments = (Array)Segments.GetValue( recorder );
 			for ( int i = 0; i < count; i++ )
 			{
 				var previous = plan.Segments[i].Async ? compute : graphics;
 				if ( previous >= 0 ) ordered[previous, i] = true;
-				var wait = WaitFor( recorder, i );
+				var (wait, _, handOff) = recorder.DependenciesOf( i );
 				if ( wait >= 0 ) ordered[wait, i] = true;
-				var segment = segments.GetValue( i );
-				if ( (int)segment.GetType().GetField( "HandOff" ).GetValue( segment ) >= 0 && graphics >= 0 )
+				if ( handOff >= 0 && graphics >= 0 )
 					ordered[graphics, i] = true;
 				if ( plan.Segments[i].Async ) compute = i;
 				else graphics = i;
@@ -347,8 +330,8 @@ public class AsyncSchedulingTests
 	public void WarmPlanningDoesNotAllocate()
 	{
 		using var system = new RenderSystem();
-		Layers.SetValue( system, (RenderLayer[])[new Pass( "producer", writes: FrameResources.QuarterDepth, compute: true ),
-			new Pass( "tail", compute: true ), new Pass( "reader", reads: FrameResources.QuarterDepth )] );
+		system.Layers = [new Pass( "producer", writes: FrameResources.QuarterDepth, compute: true ),
+			new Pass( "tail", compute: true ), new Pass( "reader", reads: FrameResources.QuarterDepth )];
 		using var recorder = new FrameRecorder();
 		for ( int i = 0; i < 100; i++ )
 			recorder.Plan( system.Frame, parallel: true, asyncCompute: true );

@@ -78,10 +78,10 @@ public partial class RenderAttributes
 }
 
 /// <summary>
-/// Render attribute values by token, as a backend that lowers them itself reads them: numbers and vectors as floats
-/// (a matrix as 16, in memory order: M11, M12 ... M44), textures with a mip, buffers, samplers, constant buffer bytes,
-/// and combos. Setting a value again reuses its array (and a cleared value's), so a set filled every frame allocates
-/// nothing in steady state: readers read the values they're handed before they're set again, and keep none.
+/// Render attribute values by token: a backend's numeric inputs as float arrays (a matrix as 16, in memory order),
+/// exact integral scalars for managed reads, textures with a mip, buffers, samplers, constant buffer bytes, and combos.
+/// Setting a value again reuses its array (and a cleared value's), so a set filled every frame allocates nothing in
+/// steady state: readers read the values they're handed before they're set again, and keep none.
 /// </summary>
 internal sealed class ManagedRenderAttributes
 {
@@ -97,6 +97,8 @@ internal sealed class ManagedRenderAttributes
 	{
 		public T Value;
 		public int Stamp;
+		// Only scalar integer attributes carry exact bits. Value is still the float array used by existing shader lowering.
+		public uint? IntegerBits;
 	}
 
 	/// <summary>The values and combos, and what reuses their arrays.</summary>
@@ -132,7 +134,7 @@ internal sealed class ManagedRenderAttributes
 					if ( !other.Borrowed.Contains( k ) ) value = Copy( k, Unsafe.As<byte[]>( value ) );
 					else Borrowed.Add( k );
 				}
-				Values[k] = new Entry<object> { Value = value, Stamp = entry.Stamp };
+				Values[k] = new Entry<object> { Value = value, Stamp = entry.Stamp, IntegerBits = entry.IntegerBits };
 			}
 
 			Combos.Clear();
@@ -156,12 +158,13 @@ internal sealed class ManagedRenderAttributes
 			return length == 0 ? [] : new T[length];
 		}
 
-		public void Put( uint k, object value, int stamp )
+		public void Put( uint k, object value, int stamp, uint? integerBits = null )
 		{
 			ref var entry = ref CollectionsMarshal.GetValueRefOrAddDefault( Values, k, out var existed );
 			if ( existed && !ReferenceEquals( entry.Value, value ) ) Keep( k, entry.Value );
 			entry.Value = value;
 			entry.Stamp = stamp;
+			entry.IntegerBits = integerBits;
 		}
 
 		// An array this store made (numbers', copied bytes') waits to be reused for its token
@@ -256,7 +259,7 @@ internal sealed class ManagedRenderAttributes
 	{
 		var store = Writing();
 		// The same numbers again change nothing, so a reader that keeps what it made from the set at a version finds it still good
-		if ( store.Values.TryGetValue( k.Value, out var held ) && IsFloats( held.Value ) && Unsafe.As<float[]>( held.Value ).AsSpan().SequenceEqual( value ) ) return;
+		if ( store.Values.TryGetValue( k.Value, out var held ) && held.IntegerBits is null && IsFloats( held.Value ) && Unsafe.As<float[]>( held.Value ).AsSpan().SequenceEqual( value ) ) return;
 		var array = store.Array<float>( k.Value, value.Length );
 		value.CopyTo( array );
 		store.Put( k.Value, array, ++store.Version );
@@ -264,6 +267,19 @@ internal sealed class ManagedRenderAttributes
 	}
 
 	public void Set( StringToken k, in Matrix value ) => Set( k, MemoryMarshal.Cast<Matrix, float>( new ReadOnlySpan<Matrix>( in value ) ) );
+
+	public void SetInteger( StringToken k, int value ) => SetInteger( k, unchecked((uint)value), value );
+	public void SetInteger( StringToken k, uint value ) => SetInteger( k, value, value );
+
+	void SetInteger( StringToken k, uint bits, float projection )
+	{
+		var store = Writing();
+		if ( store.Values.TryGetValue( k.Value, out var held ) && held.IntegerBits == bits && Unsafe.As<float[]>( held.Value )[0] == projection ) return;
+		var array = store.Array<float>( k.Value, 1 );
+		array[0] = projection;
+		store.Put( k.Value, array, ++store.Version, bits );
+		store.Own( k.Value );
+	}
 
 	/// <summary>A constant buffer's bytes, copied.</summary>
 	public void SetBytes( StringToken k, ReadOnlySpan<byte> data )
@@ -369,6 +385,7 @@ internal sealed class ManagedRenderAttributes
 		foreach ( var (k, entry) in mine.Values )
 		{
 			if ( !theirs.Values.TryGetValue( k, out var their ) ) return false;
+			if ( entry.IntegerBits != their.IntegerBits ) return false;
 			var same = IsFloats( entry.Value ) ? IsFloats( their.Value ) && Unsafe.As<float[]>( entry.Value ).AsSpan().SequenceEqual( Unsafe.As<float[]>( their.Value ) )
 				: IsBytes( entry.Value ) ? IsBytes( their.Value ) && Unsafe.As<byte[]>( entry.Value ).AsSpan().SequenceEqual( Unsafe.As<byte[]>( their.Value ) )
 				: Equals( entry.Value, their.Value );
@@ -389,6 +406,20 @@ internal sealed class ManagedRenderAttributes
 	public int? GetCombo( StringToken k ) => Reading.Combos.TryGetValue( k.Value, out var entry ) ? entry.Value : null;
 
 	public float[] GetFloats( StringToken k ) => Get( k ) as float[];
+
+	public int GetInt( StringToken k, int fallback )
+	{
+		if ( !Reading.Values.TryGetValue( k.Value, out var entry ) ) return fallback;
+		if ( entry.IntegerBits is { } bits ) return unchecked((int)bits);
+		return entry.Value is float[] { Length: > 0 } f ? (int)f[0] : fallback;
+	}
+
+	public uint GetUInt( StringToken k, uint fallback )
+	{
+		if ( !Reading.Values.TryGetValue( k.Value, out var entry ) ) return fallback;
+		if ( entry.IntegerBits is { } bits ) return bits;
+		return entry.Value is float[] { Length: > 0 } f ? (uint)f[0] : fallback;
+	}
 
 	public void Clear()
 	{
@@ -415,7 +446,7 @@ internal sealed class ManagedRenderAttributes
 			var value = entry.Value;
 			if ( IsFloats( value ) )
 			{
-				to.Put( k, to.Copy( k, Unsafe.As<float[]>( value ) ), stamp );
+				to.Put( k, to.Copy( k, Unsafe.As<float[]>( value ) ), stamp, entry.IntegerBits );
 				to.Own( k );
 			}
 			else if ( IsBytes( value ) && from.Borrowed.Contains( k ) )

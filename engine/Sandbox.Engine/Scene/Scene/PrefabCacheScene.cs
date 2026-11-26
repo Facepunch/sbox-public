@@ -18,9 +18,10 @@ internal partial class PrefabCacheScene : PrefabScene
 	/// </summary>
 	internal JsonObject FullPrefabInstanceJson { get; private set; }
 
-	private Func<JsonObject, Json.Patch> calculateDifferences;
+	// Only patch computation needs this, and it holds a tracked-object graph the size of the whole prefab.
+	private Lazy<Func<JsonObject, Json.Patch>> calculateDifferences;
 
-	internal Json.Patch CalculateDifferences( JsonObject instance ) => calculateDifferences( instance );
+	internal Json.Patch CalculateDifferences( JsonObject instance ) => calculateDifferences.Value( instance );
 
 	/// <summary>
 	/// Contains all the prefab files that are referenced by this prefab scene.
@@ -36,7 +37,10 @@ internal partial class PrefabCacheScene : PrefabScene
 		using var sourceScope = ActionGraph.PushSerializationOptions( resource.SerializationOptions with { ForceUpdateCached = IsEditor } );
 		using var suppressBlobs = BlobDataSerializer.Suppress();
 		FullPrefabInstanceJson = Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
-		calculateDifferences = Json.CreateDifferenceCalculator( FullPrefabInstanceJson, TrackedDiffDefinitions );
+		var fullJson = FullPrefabInstanceJson;
+
+		// FullPrefabInstanceJson is never mutated and is replaced (not edited) on every Load, so the calculator may borrow it.
+		calculateDifferences = new Lazy<Func<JsonObject, Json.Patch>>( () => Json.CreateBorrowingDifferenceCalculator( fullJson, TrackedDiffDefinitions ) );
 
 		// Iterate all gameobjects in scene and find prefab instances, add them to reference set
 		referencedPrefabs = GetAllObjects( false ).Where( o => o.IsPrefabInstanceRoot ).Select( p => ResourceLibrary.Get<PrefabFile>( p.PrefabInstanceSource ) ).ToHashSet();

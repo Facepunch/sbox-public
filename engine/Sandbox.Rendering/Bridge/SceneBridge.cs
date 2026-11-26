@@ -15,13 +15,28 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// Released on deletion or shutdown; unreported invalid entries are swept next frame.
 	/// </summary>
 	readonly Dictionary<SceneWorld, WorldRender> renders = new();
-	readonly Dictionary<ViewKey, CameraState> views = new();
+	readonly Dictionary<ViewKey, ViewStates> views = new();
 
 	/// <summary>
 	/// A camera's view: the camera, and the <see cref="ViewSetup.ViewHash"/> it was rendered with, as native keys a view's history
-	/// (<c>ViewUniqueId</c>). A camera's main view and a capture from it keep their own history.
+	/// (<c>ViewUniqueId</c>). A camera's main view and captures from it keep separate history.
 	/// </summary>
-	readonly record struct ViewKey( int Camera, int View );
+	readonly record struct ViewKey( int Camera, int View, bool DirectCapture = false );
+
+	sealed class ViewStates : IDisposable
+	{
+		public CameraState Main;
+		public List<CameraState> Captures;
+
+		public bool IsEmpty => Main is null && Captures is not { Count: > 0 };
+
+		public void Dispose()
+		{
+			Main?.Dispose();
+			if ( Captures is null ) return;
+			foreach ( var state in Captures ) state.Dispose();
+		}
+	}
 
 	/// <summary>
 	/// Persistent per-view renderer, shadow cache and pooled state.
@@ -33,9 +48,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public readonly SceneObjectDrawer Drawer;
 		public readonly WeakReference<SceneCamera> Camera;
 
-		public CameraState( SceneCamera camera )
+		public CameraState( SceneCamera camera, bool directCapture = false )
 		{
 			Camera = new WeakReference<SceneCamera>( camera );
+			DirectCapture = directCapture;
 
 			// Routes stage and custom-object Graphics.Render calls.
 			Drawer = new SceneObjectDrawer( System );
@@ -53,11 +69,33 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public PlanarFrustum PlanarFrustum;
 
 		/// <summary>
-		/// Whether this view's frame is being rendered now: a child view asked for while it draws can't be this view again.
+		/// Whether this view is in its drawing scope, and which view's drawing asked for it, if any.
 		/// </summary>
 		public bool Rendering;
+		public CameraState Parent;
+		public bool DirectCapture { get; }
+		public int ViewHash;
 
-		/// <summary>The engine frame this view last rendered in, and when (<see cref="IdleLongEnough"/>).</summary>
+		// A published capture can be sampled after recording. Its destinations don't stay alive for the renderer's cache.
+		WeakReference<object> destination;
+		WeakReference<Texture> captureDepth;
+
+		public object Destination => destination is not null && destination.TryGetTarget( out var owner ) ? owner : null;
+		public Texture CaptureDepth => captureDepth is not null && captureDepth.TryGetTarget( out var depth ) ? depth : null;
+
+		public void SetDestinations( object owner, Texture depth )
+		{
+			if ( destination is null ) destination = new( owner );
+			else destination.SetTarget( owner );
+			if ( captureDepth is not null ) captureDepth.SetTarget( depth );
+			else if ( depth is not null ) captureDepth = new( depth );
+		}
+
+		public bool Available( ulong frame ) => LastFrame != frame && !Rendering && !System.IsUnfinished;
+		public bool CanFree( ulong frame ) => !Rendering && !System.IsUnfinished
+			&& (IsOrphaned || CaptureIdlePolicy.Expired( frame, LastFrame, LastTicks ));
+
+		/// <summary>The engine frame this view last rendered in, and when.</summary>
 		public ulong LastFrame;
 		public long LastTicks;
 
@@ -76,23 +114,17 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 		/// <summary>The camera's upscaler on Borealis.Gpu, made the first time its frame can upscale.</summary>
 		public BorealisGpuUpscaler GpuUpscaler;
+		public Borealis.Backend.AutoExposure Exposure;
 
 		/// <summary>
-		/// What a child view draws into for an 8-bit texture (<see cref="RenderChildOnGpu"/>); a float one draws into
+		/// What a child view resolves into for an 8-bit texture; a float one draws straight into
 		/// <see cref="GpuTarget"/>.
 		/// </summary>
 		public GpuTexture GpuOutput;
 
 		/// <summary>
-		/// The child view's float target of the size before <see cref="GpuTarget"/>'s, kept: one camera's views drawn at two sizes
-		/// in turn (the window's and a 128 px cube face's) made a new target, the driver's allocation, at every turn.
-		/// </summary>
-		public ViewTarget GpuOtherTarget;
-
-		/// <summary>
 		/// A top-level view's own attributes (its planar reflection), and what Borealis reads them as.
 		/// </summary>
-		public RenderAttributes GpuViewAttributes;
 		public ShaderParameters GpuViewParameters;
 
 		/// <summary>The camera's attributes as Borealis reads them, and the version of them last written there.</summary>
@@ -107,12 +139,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			System.Dispose();
 			GpuFrame?.Dispose();
 			GpuFrame = null;
+			GpuStages?.Dispose();
+			GpuStages = null;
+			Exposure?.Dispose();
 			GpuUpscaler?.Dispose();
 			GpuUpscaler = null;
 			GpuTarget?.Dispose();
 			GpuTarget = null;
-			GpuOtherTarget?.Dispose();
-			GpuOtherTarget = null;
 			GpuOutput?.Dispose();
 			GpuOutput = null;
 		}
@@ -207,44 +240,39 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		invalidViews.Clear();
 	}
 
-	/// <summary>
-	/// Frames a view keeps its renderer and targets without rendering, as well as <see cref="ViewIdleSeconds"/>: an editor
-	/// widget that isn't shown (the game view behind the scene view) or a camera that stopped drawing gives them back, and
-	/// starts again from nothing (no history, shadows drawn again, its targets and buffers the driver's allocations) if it
-	/// renders later.
-	/// </summary>
-	internal const ulong ViewIdleFrames = 600;
-
-	/// <summary>
-	/// Seconds a view keeps its renderer and targets without rendering, as well as <see cref="ViewIdleFrames"/>: at a few
-	/// hundred frames a second, 600 frames are two seconds, and a water body's refraction view that went off screen and came
-	/// back was made again from nothing each time (a frame of 10-15 ms).
-	/// </summary>
-	internal const double ViewIdleSeconds = 5;
-
-	/// <summary>Whether a view (or the capture faces) last rendered in <paramref name="last"/>, at <paramref name="lastTicks"/>, has been idle long enough to free.</summary>
-	internal static bool IdleLongEnough( ulong frame, ulong last, long lastTicks )
-		=> frame - last > ViewIdleFrames && System.Diagnostics.Stopwatch.GetElapsedTime( lastTicks ).TotalSeconds >= ViewIdleSeconds;
-
 	// The frame FreeInvalid last ran in, and how often BeginFrame runs it while no view is prepared
 	ulong freedFrame;
 	const ulong FreeIdleEveryFrames = 60;
 
 	/// <summary>
-	/// Release views whose camera went away or that haven't rendered for a while (<see cref="IdleLongEnough"/>), and worlds deleted,
-	/// without being reported.
+	/// Release orphaned or idle views, and deleted worlds that went away without being reported.
 	/// </summary>
 	void FreeInvalid()
 	{
 		var frame = Application.FrameCount;
 		freedFrame = frame;
-		foreach ( var (key, state) in views )
+		foreach ( var (key, states) in views )
 		{
-			if ( state.IsOrphaned || (!state.Rendering && IdleLongEnough( frame, state.LastFrame, state.LastTicks )) ) invalidViews.Add( key );
+			if ( states.Main is { } main && main.CanFree( frame ) )
+			{
+				main.Dispose();
+				states.Main = null;
+			}
+
+			if ( states.Captures is { } captures )
+			{
+				for ( int i = captures.Count - 1; i >= 0; i-- )
+				{
+					if ( !captures[i].CanFree( frame ) ) continue;
+					captures[i].Dispose();
+					captures.RemoveAt( i );
+				}
+			}
+
+			if ( states.IsEmpty ) invalidViews.Add( key );
 		}
 
 		FreeIdleCaptures( frame );
-		MirrorContent.FreeCollected();
 
 		foreach ( var (world, _) in renders )
 		{
@@ -275,8 +303,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		extras.Clear();
 
 		ShutdownCaptures();
-		bitmapTarget?.Dispose();
-		bitmapTarget = null;
+		mainOutput?.Dispose();
+		renderOutput?.Dispose();
+		mainOutput = renderOutput = null;
 
 		foreach ( var (_, render) in renders )
 			render.Dispose();
@@ -294,7 +323,12 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// Make the shaders Borealis's render systems share, at startup: layers otherwise make them as they first render, and the
 	/// first frames draw differently.
 	/// </summary>
-	public void WarmUp() => RenderSystem.WarmUp();
+	public void WarmUp()
+	{
+		// Material creation is main-thread only. The native material is immutable; each draw has its own attributes.
+		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
+		RenderSystem.WarmUp();
+	}
 
 	/// <summary>Which envmap probes capture, and when: those the camera sees, within a budget.</summary>
 	internal EnvmapScheduler Envmaps => envmaps ??= new EnvmapScheduler( this );
@@ -303,11 +337,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 	/// <inheritdoc/>
 	public void RenderEnvmaps( Scene scene ) => Envmaps.Run( scene );
-
-	/// <summary>
-	/// Whether envmap captures wait while Borealis.Gpu makes a loaded scene's models (on). For comparisons.
-	/// </summary>
-	internal static bool HoldCapturesWhileLoading { get; set; } = true;
 
 	/// <summary>The longest captures wait for models, so a scene that keeps loading them still gets its probes.</summary>
 	const long MaxCaptureHoldMs = 8000;
@@ -334,7 +363,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 				loading = render.PendingChanges >= LoadedSceneChanges;
 			}
 
-			if ( !HoldCapturesWhileLoading || !loading )
+			if ( !loading )
 			{
 				captureHeldSince = 0;
 				return false;
@@ -348,9 +377,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		}
 	}
 
-	/// <summary>Whether a game scene loading behind a loading screen has its objects made each frame (on). For comparisons.</summary>
-	internal static bool LoadAhead { get; set; } = true;
-
 	/// <summary>
 	/// Unseen renders of a game scene nothing has shown yet (<see cref="BeginFrame"/>), at most: one a game only ever draws
 	/// into textures isn't rendered unseen for ever.
@@ -363,6 +389,11 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// <inheritdoc/>
 	public void BeginFrame()
 	{
+		if ( rendering is null && MirrorContent.HasCollected && Gpu is { } collector )
+		{
+			collector.FollowFrame();
+			MirrorContent.FreeCollected();
+		}
 		// Views and worlds are let go of as views are prepared; with none prepared (the menu has no scene of its own) a
 		// closed game's worlds and views would stay until the next scene renders
 		if ( rendering is null && Gpu is { } device && Application.FrameCount - freedFrame > FreeIdleEveryFrames )
@@ -373,19 +404,15 @@ internal sealed partial class SceneBridge : ISceneRenderer
 			Borealis.Shadows.ShadowMapper.Update();
 			Borealis.Shadows.ShadowMapper.ForgetStaleCascades();
 
-			// What the last view drew from (its world's drawer and lighting), set again by the next view prepared
-			if ( gpuView is not null )
-			{
-				gpuView.RenderSceneObject = null;
-				gpuView.LightingWorld = null;
-			}
+			mainOutput?.ClearRouting();
+			renderOutput?.ClearRouting();
 		}
 
 		// Until the game first draws its scene (behind the loading screen, and in the frames the game starts in after its load)
 		// nothing renders the scene's world, so nothing would ask for its models until the first frame that does: its
 		// objects are applied each frame instead, as they arrive, so their models are read and made, within the device's
 		// loading budget, before the first frame shows them
-		if ( !LoadAhead || Application.IsEditor || Gpu is not { } gpu || MirrorContent.Gpu is not { AsyncModels: true } services ) return;
+		if ( Application.IsEditor || Gpu is not { } gpu || MirrorContent.Gpu is not { AsyncModels: true } services ) return;
 
 		// The game's scene, whichever context is current: the frame's output runs outside the game's
 		if ( Sandbox.Engine.GlobalContext.Game?.ActiveScene is not { IsValid: true } scene || scene.SceneWorld is not { } world || !world.IsValid() ) return;
@@ -398,7 +425,6 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		if ( GameLoading( scene ) ) render.LoadedFrame = 0;
 		else if ( render.LoadedFrame == 0 ) render.LoadedFrame = frame;
 		else if ( frame - render.LoadedFrame > LoadAheadFramesAfterLoad ) return;
-		LoadAheadFrames++;
 
 		gpu.FollowFrame();
 		services.Loading = true;
@@ -408,7 +434,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// the view's resident lists, child views (water's refraction), pipelines and targets made, and its textures streamed.
 		// Its shaders compile on workers meanwhile (nothing waits for them unseen); it goes on past its cap until they're done,
 		// so one more render makes the pipelines they draw with
-		if ( !WarmWhileLoading || gpu.Services.LoadingModels || Application.FrameCount < warmFrame ) return;
+		if ( gpu.Services.LoadingModels || Application.FrameCount < warmFrame ) return;
 		if ( render.UnseenRenders >= MaxUnseenRenders )
 		{
 			if ( GameLoading( scene ) && gpu.Services.CompilingShaders ) render.UnseenOwed = true;
@@ -433,7 +459,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		finally
 		{
 			warming = false;
-			System.Threading.Interlocked.Increment( ref BorealisGpuRenderBackend.UnseenRenders );
+			BorealisGpuRenderBackend.MarkUnseenRendered( scene );
 		}
 	}
 
@@ -482,16 +508,10 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		return size.x >= 1 && size.y >= 1;
 	}
 
-	/// <summary>Whether a loading scene's camera renders unseen once its models are made (<see cref="BeginFrame"/>; on). For comparisons.</summary>
-	internal static bool WarmWhileLoading { get; set; } = true;
-
 	/// <summary>Frames between a loading scene's unseen renders.</summary>
 	const int WarmEveryFrames = 4;
 
 	ulong warmFrame;
-
-	/// <summary>Frames a game scene was loaded ahead in (<see cref="BeginFrame"/>), for measuring.</summary>
-	internal static int LoadAheadFrames { get; private set; }
 
 	// The game window's size and samples, from its last render, for unseen renders; whether one is under way
 	Vector2 warmSize;
@@ -510,39 +530,64 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		return render;
 	}
 
-	CameraState StateFor( SceneCamera camera, int viewHash )
+	ViewStates StatesFor( SceneCamera camera, int hash, bool directCapture = false )
 	{
-		var key = new ViewKey( camera._cameraId, viewHash );
-		if ( !views.TryGetValue( key, out var state ) ) views[key] = state = new CameraState( camera );
-		return state;
+		var key = new ViewKey( camera._cameraId, hash, directCapture );
+		if ( !views.TryGetValue( key, out var states ) ) views[key] = states = new();
+		return states;
+	}
+
+	CameraState StateFor( SceneCamera camera, int hash ) => StatesFor( camera, hash ).Main ??= new( camera );
+
+	/// <summary>
+	/// Reserve one state per destination use in the frame, preferring the same destination for its temporal history.
+	/// An aliased capture may only replace a state whose old output is no longer sampled.
+	/// </summary>
+	CameraState CaptureStateFor( SceneCamera camera, int hash, object destination, Texture depth, bool directCapture )
+	{
+		var captures = StatesFor( camera, hash, directCapture ).Captures ??= [];
+		var frame = Application.FrameCount;
+		CameraState reusable = null;
+		foreach ( var state in captures )
+		{
+			if ( !state.Available( frame ) ) continue;
+			var old = state.Destination;
+			var oldDepth = state.CaptureDepth;
+			if ( ReferenceEquals( old, destination ) && ReferenceEquals( oldDepth, depth ) ) return state;
+			if ( directCapture && reusable is null && CanReplace( old, destination ) && CanReplace( oldDepth, depth ) )
+				reusable = state;
+		}
+
+		if ( reusable is null )
+		{
+			reusable = new CameraState( camera, directCapture );
+			captures.Add( reusable );
+		}
+		reusable.SetDestinations( destination, depth );
+		return reusable;
+
+		static bool CanReplace( object old, object next )
+			=> old is null || ReferenceEquals( old, next ) || old is Texture texture && (texture.native.IsNull || !texture.DrawnByView);
 	}
 
 	/// <summary>
-	/// What a view needs that Borealis doesn't do yet, or null when it can render it. Each is a gap listed in
-	/// docs/reference/borealis-render-paths.md.
+	/// Prepare the world and a view: the camera's default view, or the destination's or cube face's <paramref name="given"/> state.
 	/// </summary>
-	internal static string NotYetInBorealis( SceneCamera camera, in ViewSetup setup )
-	{
-		if ( !camera.World.IsValid() ) return "a camera without a world";
-
-		return null;
-	}
-
-	/// <summary>
-	/// Prepare the world and the camera's view, in <paramref name="given"/> (a cube capture's face) rather than the
-	/// camera view's own state when one is given.
-	/// </summary>
-	(WorldRender Render, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, CameraState given = null )
+	(WorldRender Render, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, CameraState given = null, bool fullTarget = false )
 	{
 		// A child view prepares while its parent's frame records, on workers too, from the worlds the parent prepared: it
 		// changes no world anyone's drawing (an unseen world's is new, and prepared once)
 		var parent = rendering;
+		var state = given ?? StateFor( camera, setup.ViewHash );
+		state.ViewHash = setup.ViewHash;
+		state.LastFrame = Application.FrameCount;
+		state.LastTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 		if ( parent is null )
 		{
 			// A top-level view, on the main thread (a scene panel before the window acquires, a cube capture first in the frame):
 			// the engine frame's device frame starts now if it hasn't, not in the middle of this view's recording
 			Gpu?.FollowFrame();
-			FreeInvalid();
+			if ( freedFrame != state.LastFrame ) FreeInvalid();
 		}
 
 		// Borealis traces screen-space reflections as the graphics settings leave them (r_ssr_downsample_ratio)
@@ -550,17 +595,15 @@ internal sealed partial class SceneBridge : ISceneRenderer
 
 		var prepareStart = System.Diagnostics.Stopwatch.GetTimestamp();
 		var render = RenderFor( camera.World );
-		if ( parent is null || !render.HasPrepared ) render.Prepare( camera );
-		PrepareSkybox( render, camera, setup );
+		if ( parent is null || !render.HasPrepared ) render.Prepare();
 
-		var state = given ?? StateFor( camera, setup.ViewHash );
-		state.LastFrame = Application.FrameCount;
-		state.LastTicks = System.Diagnostics.Stopwatch.GetTimestamp();
 		state.Drawer.Render = render;
 		state.View.SubWorlds = PrepareExtraWorlds( render, camera, setup, state.Drawer.ExtraWorlds );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( prepareStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
-		FillView( state.View, camera, setup, size, render );
+		FillView( state.View, camera, setup, size, render, fullTarget );
+		render.FillViewLighting( state.View, camera, setup );
+		PrepareSkybox( render, camera, setup, state.View );
 
 		// The camera's attributes under the view's, as native's camera renderer sets them on its view: what the camera
 		// component and the scene's render attributes set (Rust Legacy lights its models by its time of day there)
@@ -572,9 +615,7 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// A child view takes its parent's render time unless it has its own, as native's child views do
 		// (CSceneSystem::AddDynamicView)
 		if ( parent is not null ) state.View.Time ??= parent.View.Time;
-
-		// A top-level view's planar reflection is its camera frame's (RenderPlanarReflectionOnGpu)
-		else state.View.ViewAttributes = null;
+		state.View.ViewAttributes = null;
 		return (render, state);
 	}
 
@@ -638,6 +679,31 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	internal const int MaxChildDepth = 4;
 
+	public bool TryGetCurrentView( out ActiveSceneView view )
+	{
+		view = default;
+		if ( rendering is not { } state || !state.Camera.TryGetTarget( out var camera ) ) return false;
+
+		var current = state.View;
+		// A 3D skybox pass has a transformed eye and its own world. It cannot take a capture from the main camera's world.
+		if ( BridgeDrawCallbacks.CurrentView is { } drawn && !ReferenceEquals( drawn, current ) ) return false;
+		view = new ActiveSceneView( camera, new Transform( current.Position, current.Rotation ), current.FieldOfView,
+			current.ZNear, current.ZFar, current.Viewport.Size, current.Orthographic, current.Projection,
+			current.Capture || current.Reflection || state.DirectCapture );
+		return true;
+	}
+
+	// Recursion is about the logical view, not which of its capture destinations or slots it draws into.
+	bool IsDrawing( SceneCamera camera, int viewHash )
+	{
+		for ( var state = rendering; state is not null; state = state.Parent )
+		{
+			if ( state.ViewHash == viewHash && state.Camera.TryGetTarget( out var active ) && ReferenceEquals( active, camera ) ) return true;
+		}
+
+		return false;
+	}
+
 	/// <summary>
 	/// Marks a view's frame as being rendered, for the views asked for while it draws, until disposed.
 	/// </summary>
@@ -649,14 +715,16 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		public Drawing( SceneBridge bridge, CameraState state )
 		{
 			this.state = state;
-			scope = bridge.drawingFrames.Enter( state );
+			state.Parent = bridge.rendering;
 			state.Rendering = true;
+			scope = bridge.drawingFrames.Enter( state );
 		}
 
 		public void Dispose()
 		{
-			state.Rendering = false;
 			scope.Dispose();
+			state.Rendering = false;
+			state.Parent = null;
 		}
 	}
 
@@ -728,9 +796,12 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// <summary>
 	/// The world's <c>MapSkybox3D</c>, origin and scale.
 	/// </summary>
-	void PrepareSkybox( WorldRender render, SceneCamera camera, in ViewSetup setup )
+	void PrepareSkybox( WorldRender render, SceneCamera camera, in ViewSetup setup, RenderView view )
 	{
 		var source = camera.World.GetRenderingSkybox();
+		view.SkyboxFog = camera.ResolveFogForSkybox( setup, source ).ToBorealis( render.TextureResolver );
+		// The shared descriptor is geometry only. A child of this world uses what the parent prepared.
+		if ( rendering is not null && render.World.InRender ) return;
 
 		if ( source is null )
 		{
@@ -739,14 +810,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		}
 
 		var skyRender = RenderFor( source.SkyboxWorld );
-		if ( rendering is null || !skyRender.HasPrepared ) skyRender.Prepare( camera, skyboxView: true );
+		if ( rendering is null || !skyRender.HasPrepared ) skyRender.Prepare();
 
 		var skybox = render.World.Skybox3D;
 		if ( skybox?.World != skyRender.World ) skybox = render.World.Skybox3D = new Borealis.Skybox3D( skyRender.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
 		skybox.Rotation = source.Rotation;
-		skybox.Fog = setup.Fog.HasValue ? setup.Fog.ToBorealis( render.TextureResolver ) : camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBorealis( render.TextureResolver ) : null;
 	}
 
 	/// <summary>A camera's debug view: <c>mat_toolsvis</c> over its own mode, as <c>CameraRenderer.Configure</c> takes them.</summary>
@@ -760,12 +830,14 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// Copy the native camera, including applied modifiers/shake and horizontal FOV, with a view's overrides on top, as
 	/// <c>CameraRenderer.Configure</c> applies them.
 	/// </summary>
-	internal static void FillView( RenderView view, SceneCamera camera, in ViewSetup setup, Vector2 size, WorldRender render = null )
+	internal static void FillView( RenderView view, SceneCamera camera, in ViewSetup setup, Vector2 size, WorldRender render = null, bool fullTarget = false )
 	{
 		view.Name = camera.Name;
 		view.Position = setup.Transform?.Position ?? camera.Position;
 		view.Rotation = setup.Transform?.Rotation ?? camera.Rotation;
-		view.FieldOfView = setup.FieldOfView ?? camera.FieldOfView;
+		view.Viewport = PixelViewport( camera, size, fullTarget );
+		var aspect = view.Viewport.Height > 0 ? view.Viewport.Width / view.Viewport.Height : 1;
+		view.FieldOfView = setup.FieldOfView ?? camera.FieldOfViewForAspect( aspect );
 		view.ZNear = setup.ZNear ?? camera.ZNear;
 		view.ZFar = setup.ZFar ?? camera.ZFar;
 		view.ClearColor = setup.ClearColor ?? camera.BackgroundColor;
@@ -778,15 +850,11 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		view.Reflection = setup.Reflection;
 		view.ReflectionShadows = setup.Reflection && CommandList.ReflectionShadows;
 
-		var rect = camera.Rect;
-		view.Viewport = new Rect( rect.Left * size.x, rect.Top * size.y, rect.Width * size.x, rect.Height * size.y );
-
 		// The scales on the texture sizes draws ask streaming for, which the scenesystem reads from its convars each view
 		view.TextureLodScale = RenderTools.GetTextureLodScale( false );
 		view.FallbackTextureLodScale = RenderTools.GetTextureLodScale( true );
 
 		view.Orthographic = camera.Ortho;
-		var aspect = view.Viewport.Height > 0 ? view.Viewport.Width / view.Viewport.Height : 1;
 		view.OrthoSize = new Vector2( camera.OrthoHeight * aspect, camera.OrthoHeight );
 
 		view.RenderTags = Tokens( setup.RenderTags ?? camera.RenderTags, view.RenderTags );
@@ -813,6 +881,13 @@ internal sealed partial class SceneBridge : ISceneRenderer
 		// Only a texture render's final copy is flipped (RenderPixels clears them for bitmaps)
 		view.FlipX = setup.FlipX == true;
 		view.FlipY = setup.FlipY == true;
+	}
+
+	static Rect PixelViewport( SceneCamera camera, Vector2 size, bool fullTarget = false )
+	{
+		if ( fullTarget ) return new Rect( Vector2.Zero, size );
+		var rect = camera.Rect;
+		return new Rect( rect.Left * size.x, rect.Top * size.y, rect.Width * size.x, rect.Height * size.y );
 	}
 
 	/// <summary>
@@ -877,104 +952,84 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	static BorealisGpuRenderBackend Gpu => RenderBackend.Default as BorealisGpuRenderBackend;
 
 	/// <summary>
-	/// A texture render: between blocks on Borealis.Gpu's device (<see cref="RenderIntoTexture"/>), inside one of our frames as
-	/// its child (<see cref="RenderChildOnGpu"/>), or inside another block as a child copied into the texture there
-	/// (<see cref="RenderInBlock"/>).
+	/// A texture render can draw on the device between blocks, as a child of the scene recording, or in a standalone
+	/// block that receives a copy of the capture.
 	/// </summary>
 	public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup )
-	{
-		if ( target is null || target.native.IsNull || Gpu is not { } gpu ) return;
+		=> RenderTexture( camera, target, null, size, setup, out _ );
 
-		if ( !Graphics.IsActive )
-		{
-			RenderIntoTexture( gpu, camera, target, size ?? target.Size, setup );
-			return;
-		}
+	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, out ViewData viewData )
+		=> RenderTexture( camera, target, depthTarget, null, setup, out viewData );
 
-		// Inside one of our frames (a command list's view), as its child on the device
-		if ( rendering is not null )
-		{
-			RenderChild( camera, setup, target, null, out _ );
-			return;
-		}
-
-		RenderInBlock( gpu, camera, setup, target, null, out _ );
-	}
-
-	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, in ViewSetup setup, string name, out ViewData viewData )
+	bool RenderTexture( SceneCamera camera, Texture target, Texture depthTarget, Vector2? size, in ViewSetup setup, out ViewData viewData )
 	{
 		viewData = default;
-		if ( Gpu is not { } gpu ) return false;
+		if ( target is null || target.native.IsNull || !camera.World.IsValid() || Gpu is not { } gpu ) return false;
+		if ( depthTarget is not null && depthTarget.native.IsNull ) return false;
 
-		// Between blocks, a texture with no depth of the caller's renders on the device
-		if ( !Graphics.IsActive && depthTarget is null && target is { native.IsNull: false } )
-		{
-			RenderIntoTexture( gpu, camera, target, target.Size, setup );
-			return true;
-		}
+		if ( !Graphics.IsActive && depthTarget is null )
+			return RenderIntoTexture( gpu, camera, target, size ?? target.Size, setup, out viewData );
 
-		// Inside one of our frames (a command list's view, water's refraction), as its child on the device
-		if ( Graphics.IsActive && rendering is not null )
-		{
-			return RenderChild( camera, setup, target, depthTarget, out viewData );
-		}
+		if ( !Graphics.IsActive || rendering is not null )
+			return RenderAliasedCapture( camera, setup, target, depthTarget, out viewData );
 
-		if ( target is null || target.native.IsNull ) return false;
-
-		// Inside another block, as a child copied into the caller's textures there
-		if ( Graphics.IsActive ) return RenderInBlock( gpu, camera, setup, target, depthTarget, out viewData );
-
-		// With a depth target of the caller's outside a frame, the same in a block of its own
-		using ( Graphics.Scope.CreateOn( gpu ) )
-			return RenderInBlock( gpu, camera, setup, target, depthTarget, out viewData );
+		return RenderInBlock( gpu, camera, setup, target, depthTarget, out viewData );
 	}
 
 	/// <summary>
-	/// Render a view asked for while one of ours draws (a command list's <c>DrawView</c>, water's refraction) as its child: in a
-	/// frame of its own, prepared, recorded and submitted now, on this thread, in the middle of the parent's recording. The
-	/// parent submits after it, so what samples it (a later command, the object drawn next) reads it finished, this frame.
-	/// The parent's workers carry on recording meanwhile. The parent's frame goes to the GPU through its shadow layers first,
-	/// so the child uses the shadow maps it drew (<c>RenderSystem.SubmitShadowsFor</c>).
+	/// Render a standalone capture or a child of the current scene. Publish the matching GPU targets for subsequent sampling.
+	/// A child records while its parent continues recording. The parent's shadows submit first so the child can reuse them;
+	/// the parent's sampling lists submit after the child.
 	/// </summary>
-	bool RenderChild( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out ViewData viewData )
+	bool RenderAliasedCapture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out ViewData viewData )
 	{
 		viewData = default;
 
-		// A view can't draw itself, and views asking for views asking for views stop somewhere
-		if ( ChildDepth >= MaxChildDepth ) return false;
-		if ( views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var drawing ) && drawing.Rendering ) return false;
+		if ( !RenderCapture( camera, setup, target, depthTarget, out var output ) ) return false;
+		if ( !MirrorContent.CaptureMatches( target, output.Color )
+			|| (depthTarget is not null && !MirrorContent.CaptureMatches( depthTarget, output.Depth )) ) return false;
+		MirrorContent.SetCapture( target, output.Color );
+		if ( depthTarget is not null ) MirrorContent.SetCapture( depthTarget, output.Depth );
+		viewData = ViewDataFor( output.State, target );
+		return true;
+	}
 
+	bool RenderCapture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depth, out CaptureOutput output, object destination = null )
+	{
+		output = default;
+		if ( ChildDepth >= MaxChildDepth || IsDrawing( camera, setup.ViewHash ) ) return false;
+
+		var parent = rendering;
 		ChildDepth++;
-		CameraState state;
 		try
 		{
-			if ( !RenderChildOnGpu( camera, setup, target, depthTarget, out state ) ) return false;
+			using ( Borealis.Zones.ChildView.Start() )
+				return RenderOnGpu( camera, setup, target, depth, parent?.View.ToneMapScalar ?? 1.0f, out output, parent is not null, destination );
 		}
 		finally
 		{
 			ChildDepth--;
 		}
-
-		viewData = ViewDataFor( state, target );
-		return true;
 	}
 
 	/// <summary>
 	/// What native's texture render hands a view's samplers (<c>CCameraRenderer::RenderToTexture</c>): the inverse reverse-Z
 	/// projection, in the engine's column-vector layout, the main world's viewport and depth range, and how the colour was flipped.
 	/// </summary>
-	static ViewData ViewDataFor( CameraState state, Texture target )
+	static ViewData ViewDataFor( CameraState state, Texture target, bool? flipX = null, bool? flipY = null )
 	{
 		var view = state.View;
 		var size = new Vector2( target.Width, target.Height );
 		var viewport = view.Viewport;
+		bool x = flipX ?? view.FlipX;
+		bool y = flipY ?? view.FlipY;
 		return new ViewData
 		{
 			IsValid = true,
 			ProjectionToView = view.ViewToProjection.Inverted.Transpose(),
 			Viewport = new Vector4( viewport.Left / size.x, viewport.Top / size.y, viewport.Width / size.x, viewport.Height / size.y ),
 			DepthRange = new Vector2( state.System.DepthMin, state.System.DepthMax ),
-			DepthUvScaleBias = new Vector4( view.FlipX ? -1 : 1, view.FlipY ? -1 : 1, view.FlipX ? 1 : 0, view.FlipY ? 1 : 0 ),
+			DepthUvScaleBias = new Vector4( x ? -1 : 1, y ? -1 : 1, x ? 1 : 0, y ? 1 : 0 ),
 		};
 	}
 
@@ -983,7 +1038,9 @@ internal sealed partial class SceneBridge : ISceneRenderer
 	/// </summary>
 	internal WorldCacheCounts? CachesFor( SceneCamera camera, in ViewSetup setup )
 	{
-		if ( !views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var state ) ) return null;
-		return state.Drawer.Render?.Caches;
+		var key = new ViewKey( camera._cameraId, setup.ViewHash );
+		if ( !views.TryGetValue( key, out var states ) && !views.TryGetValue( key with { DirectCapture = true }, out states ) ) return null;
+		var state = states.Main ?? (states.Captures is { Count: > 0 } captures ? captures[0] : null);
+		return state?.Drawer.Render?.Caches;
 	}
 }

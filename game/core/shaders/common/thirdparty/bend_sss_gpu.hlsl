@@ -243,7 +243,7 @@ void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int
 
 	// Common shared data
 	groupshared float DepthData[READ_COUNT * WAVE_SIZE];
-	groupshared bool LdsEarlyOut;
+	groupshared uint LdsActive;
 
 	// Generate the shadow
 	//	Call this function from a compute shader with thread dimensions: numthreads[WAVE_SIZE, 1, 1]
@@ -340,47 +340,35 @@ void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int
 				shadowing_depth[i] = use_point_filter ? edge_depth : shadow_depth;
 			}
 
+			// Reject empty waves as soon as the receiver depth is known, before sampling the rest of the ray.
+			if (i == 0 && inParameters.UseEarlyOut && !(inParameters.DebugOutputWaveIndex || inParameters.DebugOutputThreadIndex || inParameters.DebugOutputEdgeMask))
+			{
+				skip_pixel = EarlyOutPixel(inParameters, (int2)write_xy, sampling_depth[0]);
+				bool wave_active = WaveActiveAnyTrue(!skip_pixel);
+				if (WaveGetLaneCount() == WAVE_SIZE)
+				{
+					if (!wave_active)
+						return;
+				}
+				else
+				{
+					// A wave with no receivers still supplies occluders if any other wave has receivers.
+					if (inGroupThreadID == 0)
+						LdsActive = 0;
+					GroupMemoryBarrierWithGroupSync();
+					if (wave_active && WaveIsFirstLane())
+						InterlockedOr(LdsActive, 1u);
+					GroupMemoryBarrierWithGroupSync();
+					if (LdsActive == 0)
+						return;
+				}
+			}
+
 			// Store for later
 			sample_distance[i] = pixel_distance + (WAVE_SIZE * i) * direction;
 
 			// Iterate to the next pixel along the ray. This will be WAVE_SIZE pixels along the ray...
 			pixel_xy += xy_delta * direction;
-		}
-
-		// Using early out, and no debug mode is enabled?
-		if (inParameters.UseEarlyOut && (inParameters.DebugOutputWaveIndex == false && inParameters.DebugOutputThreadIndex == false && inParameters.DebugOutputEdgeMask == false))
-		{
-			// read the depth of the pixel we are shadowing, and early-out
-			// The compiler will typically rearrange this code to put it directly after the first depth read
-			skip_pixel = EarlyOutPixel(inParameters, (int2)write_xy, sampling_depth[0]);
-
-			// are all threads in this wave out of bounds?
-			bool early_out = WaveActiveAnyTrue(!skip_pixel) == false;
-
-			// WaveGetLaneCount returns the hardware wave size
-			if (WaveGetLaneCount() == WAVE_SIZE)
-			{
-				// Optimal case:
-				// If each wavefront is just a single wave, then we can trivially early-out.
-				if (early_out == true)
-					return;
-			}
-			else
-			{
-				// This wavefront is made up of multiple small waves, so we need to coordinate them for all to early-out together.
-				// Doing this can make the worst case (all pixels drawn) a bit more expensive (~15%), but the best-case (all early-out) is typically 2-3x better.
-				LdsEarlyOut = true;
-
-				GroupMemoryBarrierWithGroupSync();
-
-				[branch] if (early_out == false)
-					LdsEarlyOut = false;
-
-				GroupMemoryBarrierWithGroupSync();
-
-				[branch] if (LdsEarlyOut)
-					return;
-			}
 		}
 
 		// Write the shadow depths to LDS

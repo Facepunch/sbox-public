@@ -1,7 +1,7 @@
 #ifndef UI_GAMMA_HLSL
 #define UI_GAMMA_HLSL
 
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 
 // UI gamma output ---------------------------------------------------------------------------------------------------------------------------------------
 //

@@ -112,11 +112,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 		command.Reset();
 
 		// Reset tile counts, classify fills these in on the GPU
-		command.SetBufferData( DispatchArgsBuffer, new GpuBuffer.IndirectDispatchArguments[]
-		{
-			new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 }, // Back
-			new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 }, // Front
-		} );
+		command.SetBufferData( DispatchArgsBuffer, ResetDispatchArgs );
 
 		const int downsample = 2;
 		const int tileSize = 16;
@@ -194,7 +190,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 		//
 		// Hexagonal blur + composite, back layer first so the front layer blends over it
 		//
-		foreach ( DoFTypes type in Enum.GetValues( typeof( DoFTypes ) ) )
+		foreach ( var type in DoFLayers )
 		{
 			if ( !BackBlur && type == DoFTypes.BackBlur )
 				continue;
@@ -256,4 +252,12 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 		BackBlur,
 		FrontBlur,
 	};
+
+	private static readonly DoFTypes[] DoFLayers = [DoFTypes.BackBlur, DoFTypes.FrontBlur];
+
+	private static readonly GpuBuffer.IndirectDispatchArguments[] ResetDispatchArgs =
+	[
+		new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 }, // Back
+		new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 }, // Front
+	];
 }

@@ -71,6 +71,18 @@ public class GizmoInputTests
 	}
 
 	[TestMethod]
+	public void PressEventSurvivesAFrameWhosePolledButtonsLag()
+	{
+		using var view = new View();
+		view.Frame( 200, false );
+		view.Pointer( 0, true );
+		// The widget renders before the editor copies Qt's buttons into Input
+		view.Frame( 0, false );
+		Assert.IsTrue( view.Frame( 50, true ) );
+		Assert.AreEqual( 50f, view.Position.y, 0.001f );
+	}
+
+	[TestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
 	public void RelinquishingAClickPreservesThePressCoordinatesForBoxSelection( bool entireGestureBetweenFrames )

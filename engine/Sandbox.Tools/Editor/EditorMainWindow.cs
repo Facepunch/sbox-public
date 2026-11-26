@@ -350,8 +350,8 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 		// needed for relative mouse capture mode. SDL adopts it as its keyboard focus window only if it
 		// holds OS focus when wrapped, so register right after showing - before the layout restore below
 		// hands focus to a native dock child (e.g. a viewport).
-		NativeEngine.InputSystem.RegisterWindowWithSDL( _widget.winId() );
-		Sandbox.Engine.WindowInput.SetEditorMainWindow( _widget.winId() );
+		var sdlWindow = Sandbox.Engine.QtSdlBridge.Register( _widget.winId(), isEditorMainWindow: true );
+		Sandbox.Engine.WindowInput.SetEditorMainWindow( sdlWindow );
 
 		// This will attempt to restore the last used layout (or default layout if first time)
 		// Which means it will create dock widgets and move them around

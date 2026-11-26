@@ -68,6 +68,10 @@ Mode( Default );
 
 		int4		g_vFroxelMin;		// The froxels the fog volumes cover, max exclusive: only these are lit
 		int4		g_vFroxelMax;
+
+		float4		g_vViewOriginDX;
+		float4		g_vViewOriginDY;
+		float4		g_vViewOriginCorner;
 	};
 
 	//------------------------------------------------------------------------------------------------------------------------------
@@ -294,11 +298,18 @@ Mode( Default );
 		return vIndirectLighting;
 	}
 	
-	float3 GetViewVector( uint2 nThreadId )
+	void GetViewRay( uint2 nThreadId, out float3 origin, out float3 direction )
 	{
-		return g_vViewCorner.xyz 
-			+ ( float( nThreadId.x ) + 0.5f ) * g_vViewDX.xyz 
-			+ ( float( nThreadId.y ) + 0.5f ) * g_vViewDY.xyz;
+		float2 uv = float2( nThreadId ) + 0.5f;
+		float4 homogeneousOrigin = g_vViewOriginCorner + uv.x * g_vViewOriginDX + uv.y * g_vViewOriginDY;
+		origin = homogeneousOrigin.xyz;
+		direction = g_vViewCorner.xyz + uv.x * g_vViewDX.xyz + uv.y * g_vViewDY.xyz;
+		if ( g_vViewPos.w != 0.0f )
+		{
+			float invW = 1.0f / homogeneousOrigin.w;
+			origin *= invW;
+			direction *= invW;
+		}
 	}
 
     float GetScattering(float3 vViewVector, float flDepthSlice, float flDepthDelta)
@@ -341,7 +352,9 @@ Mode( Default );
 		if ( z > 0 && SliceStartDepth( z - 1 ) > flDepthMax )
 			return;
 
-		float3 vViewVector = GetViewVector( nThreadId.xy );
+		float3 vViewOrigin, vViewVector;
+		GetViewRay( nThreadId.xy, vViewOrigin, vViewVector );
+		float3 vViewDir = normalize( vViewVector );
 		float vJitterValue = 0.0f;
 
 		#if (D_JITTER)
@@ -356,7 +369,7 @@ Mode( Default );
 		float4 vIncomingLightAndDensity = float4(0, 0, 0, 0);
 		// The view vector is unit depth, so this is view depth
 		float flJitteredDepth = flCurrentSliceDepth - vJitterValue * flCurrentDeltaDepth;
-		float3 vJitteredWorldPos = g_vViewPos.xyz + vViewVector * flJitteredDepth;
+		float3 vJitteredWorldPos = g_vViewPos.xyz + vViewOrigin + vViewVector * flJitteredDepth;
 
 		// Calculate contributions
 		float4 vVolumeContribution = GetContributionInBoundingVolumes(vJitteredWorldPos);
@@ -381,7 +394,7 @@ Mode( Default );
 						vDirLightColor *= LightModulators::EvaluateSun( vJitteredWorldPos, vPositionToLightDirWs );
 
 					const float flDensity = vIncomingLightAndDensity.a;
-					float flLightScattering = GetPhaseFunction( dot( vPositionToLightDirWs, CalculateCameraToPositionDirWs( vJitteredWorldPos ) ), flDensity );
+					float flLightScattering = GetPhaseFunction( dot( vPositionToLightDirWs, vViewDir ), flDensity );
 
 					vIncomingLightAndDensity.rgb += vDirLightColor * flShadowScalar * flLightScattering * flDirFogScale;
 				}
@@ -396,7 +409,7 @@ Mode( Default );
 
 			// Lights with no fog contribution (NONE or BAKED modes)
 			if ( light.FogIntensity != 0.0f )
-				vIncomingLightAndDensity.rgb += CalculateLightingAtPoint( vJitteredWorldPos, CalculateCameraToPositionDirWs( vJitteredWorldPos ), vIncomingLightAndDensity.a, light );
+				vIncomingLightAndDensity.rgb += CalculateLightingAtPoint( vJitteredWorldPos, vViewDir, vIncomingLightAndDensity.a, light );
 		}
 
 		float4 ddgi = DDGI::EvaluateVolumes( vJitteredWorldPos, vViewVector.xyz );
@@ -455,7 +468,8 @@ Mode( Default );
 	{
 		uint nView = nThreadId.z;
 
-		float3 vViewVector			= GetViewVector( nThreadId.xy );
+		float3 vViewOrigin, vViewVector;
+		GetViewRay( nThreadId.xy, vViewOrigin, vViewVector );
 
 		float flSliceSize			= 1.0f * g_vOoVogFogWidthHeightDepth.z;
 		float flCurrentSlice		= 0.5 * g_vOoVogFogWidthHeightDepth.z;
@@ -468,9 +482,8 @@ Mode( Default );
 		float3 vLitMin = ( g_vFroxelMin.xyz + 0.5f ) * g_vOoVogFogWidthHeightDepth.xyz;
 		float3 vLitMax = ( g_vFroxelMax.xyz - 0.5f ) * g_vOoVogFogWidthHeightDepth.xyz;
 
-		// Bounds of the four trilinear corner samples below the first slice
-		float4 vBelowMin, vBelowMax;
-		CornerBounds( ( float2( nThreadId.xy ) + 0.5f ) * g_vOoVogFogWidthHeightDepth.xy, 0.5f * g_vOoVogFogWidthHeightDepth.xy, 0.0f, vLitMin, vLitMax, vBelowMin, vBelowMax );
+		// Initialise the carried bounds at the first lit slice, not for the unlit part of the column.
+		float4 vBelowMin = 0.0f, vBelowMax = 0.0f;
 
 		[unroll]
 		for ( uint zSlice = 0; zSlice < g_nVolFogWidthHeightDepth.z; zSlice++ )
@@ -479,7 +492,6 @@ Mode( Default );
 			float flCurrentDeltaDepth = ( flCurrentSliceDepth - flLastSliceDepth );
 
 			float4 vTemporalColor = 0.0f;
-            float4 vCurrentColor = InLightingTexture[vCoord];
 
 			//
 			// Do denoising from previous frame using temporal antialiasing, only where the volumes are: there's no fog anywhere else
@@ -487,15 +499,17 @@ Mode( Default );
 			[branch]
 			if ( all( int3( vCoord ) >= g_vFroxelMin.xyz ) && all( int3( vCoord ) < g_vFroxelMax.xyz ) )
             {
+				float4 vCurrentColor = InLightingTexture[vCoord];
+
 				//
                 // Previous position at reprojected location
 				// Use view-relative position to avoid precision loss far from world origin.
 				// g_matLastViewFrustum bakes in the camera translation on the CPU side.
                 //
-				float4 vVoxelPos = float4(vViewVector * flCurrentSliceDepth, 1.0f);
+				float4 vVoxelPos = float4( vViewOrigin + vViewVector * flCurrentSliceDepth, 1.0f );
                 vVoxelPos = mul(g_matLastViewFrustum, vVoxelPos);
                 vVoxelPos.xy /= vVoxelPos.w;
-                vVoxelPos.xyz = vVoxelPos.xyw * g_vPostWorldToFrustumScale.xyz + g_vPostWorldToFrustumBias.xyz;
+                vVoxelPos.xyz = vVoxelPos.xyz * g_vPostWorldToFrustumScale.xyz + g_vPostWorldToFrustumBias.xyz;
                 vVoxelPos.z = FogFrustumDepthToVoxelSliceZ(vVoxelPos.z);
 
 				float4 vPreviousColor = InAccumulationTexture.SampleLevel( VolumeSampler, vVoxelPos.xyz, 0 );
@@ -509,6 +523,10 @@ Mode( Default );
 				// 8 trilinear samples at texel corners to cover 3x3x3 neighborhood
 				float3 vCenterUV = (float3(vCoord) + 0.5f) * g_vOoVogFogWidthHeightDepth.xyz;
 				float3 vHalfTexel = 0.5f * g_vOoVogFogWidthHeightDepth.xyz;
+
+				[branch]
+				if ( zSlice == uint( g_vFroxelMin.z ) )
+					CornerBounds( vCenterUV.xy, vHalfTexel.xy, float( zSlice ) * g_vOoVogFogWidthHeightDepth.z, vLitMin, vLitMax, vBelowMin, vBelowMax );
 
 				// The four corners above this froxel are the four below the next one: sample only those, and keep them
 				float4 vAboveMin, vAboveMax;
@@ -533,10 +551,6 @@ Mode( Default );
 			else
 			{
 				OutAccumulationTexture[vCoord] = 0;
-
-				// The next froxel's plane below is this one's above: kept, whether or not this one is lit
-				float3 vCenterUV = (float3(vCoord) + 0.5f) * g_vOoVogFogWidthHeightDepth.xyz;
-				CornerBounds( vCenterUV.xy, 0.5f * g_vOoVogFogWidthHeightDepth.xy, float( zSlice + 1 ) * g_vOoVogFogWidthHeightDepth.z, vLitMin, vLitMax, vBelowMin, vBelowMax );
 			}
 
 			//
@@ -572,6 +586,10 @@ Mode( Default );
 	// Farthest depth around this froxel column, a bit conservative to avoid disocclusion ghosting
 	float GetDepthMax( uint2 nThreadId )
 	{
+		// An oblique depth mip has no screen-independent conversion from its minimum device Z.
+		if ( g_vViewDir.w != 0.0f )
+			return g_flFarClipPlane;
+
 		// Rows run bottom to top in the froxels, top to bottom in the depth chain
 		nThreadId.y = g_nVolFogWidthHeightDepth.y - 1 - nThreadId.y;
 

@@ -198,6 +198,9 @@ public partial class Scene : GameObject
 		// Drop unused definitions, including broken links recovered as ordinary objects.
 		InstanceState = IsEditor ? ExportInstanceState( InstanceState.Instances.Keys ) : SceneInstanceState.Empty;
 
+		// The editor's scene has no loading screen to finish (WaitForLoading): compact what its load left once it's drawn
+		if ( IsEditor && !options.IsAdditive && this is not PrefabScene ) _ = ClosedGameMemory.CompactAfterLoad( this );
+
 		return true;
 	}
 

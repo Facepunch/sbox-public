@@ -387,32 +387,34 @@ public sealed class TypeDescription : ISourceLineProvider
 		}*/
 
 		Dictionary<string, MemberDescription> previousPool = Members?.ToDictionary( x => x.Ident, x => x );
-		ConcurrentBag<MemberDescription> md = new();
-		System.Threading.Tasks.Parallel.ForEach( members, x =>
+		Dictionary<string, MemberDescription> inheritedPool = InheritedMemberPool( type, members );
+		var created = new MemberDescription[members.Count];
+		System.Threading.Tasks.Parallel.For( 0, members.Count, i =>
 		{
+			var x = members[i];
 			var ident = StringPool.Get( GetMemberIdentity( x ) );
 
 			MemberDescription previous = null;
 			previousPool?.TryGetValue( ident, out previous );
-			var memberDesc = MemberDescription.Create( this, x, previous );
 
-			if ( memberDesc is not null )
-			{
-				memberDesc.Ident = ident;
-				md.Add( memberDesc );
-			}
+			MemberDescription inherited = null;
+			if ( inheritedPool is not null && inheritedPool.TryGetValue( ident, out inherited ) && !inherited.CanBeSharedWith( x ) )
+				inherited = null;
+
+			var memberDesc = MemberDescription.Create( this, x, previous, inherited );
+			if ( memberDesc is null ) return;
+
+			memberDesc.Ident = ident;
+
+			// If we don't have source lines, then order by the order we were in the GetMembers array.
+			// which is usually ordered by source lines anyway.
+			if ( memberDesc.SourceLine == 0 )
+				memberDesc.SourceLine = i;
+
+			created[i] = memberDesc;
 		} );
 
-		//
-		// If we don't have source lines, then order by the order we were in the GetMembers array.
-		// which is usually ordered by source lines anyway.
-		//
-		foreach ( var member in md.Where( x => x.SourceLine == 0 ) )
-		{
-			member.SourceLine = members.IndexOf( member.MemberInfo );
-		}
-
-		Members = md.OrderBy( x => x.SourceLine ).ToArray();
+		Members = created.Where( x => x is not null ).OrderBy( x => x.SourceLine ).ToArray();
 		DeclaredMembers = Members.Where( x => x.MemberInfo.DeclaringType == type ).ToArray();
 		Methods = Members.OfType<MethodDescription>().ToArray();
 		Operators = Methods.Where( x => x.IsOperator ).ToArray();
@@ -427,6 +429,29 @@ public sealed class TypeDescription : ISourceLineProvider
 		{
 			Sandbox.Internal.TypeLibrary.OnClassName?.Invoke( displayInfo.ClassName );
 		}
+	}
+
+	/// <summary>
+	/// Members of our base types that are already described in this library, by <see cref="MemberDescription.Ident"/>.
+	/// Inherited members borrow their reflection data, so every derived type doesn't keep its own copies alive.
+	/// </summary>
+	Dictionary<string, MemberDescription> InheritedMemberPool( Type type, List<MemberInfo> members )
+	{
+		Dictionary<string, MemberDescription> pool = null;
+
+		foreach ( var declaringType in members.Select( x => x.DeclaringType ).Where( x => x != type ).Distinct() )
+		{
+			if ( !library.TryGetType( declaringType, out var baseDesc ) || !baseDesc.IsValid || baseDesc.DeclaredMembers is null )
+				continue;
+
+			pool ??= new();
+			foreach ( var member in baseDesc.DeclaredMembers )
+			{
+				pool.TryAdd( member.Ident, member );
+			}
+		}
+
+		return pool;
 	}
 
 	internal void Dispose()

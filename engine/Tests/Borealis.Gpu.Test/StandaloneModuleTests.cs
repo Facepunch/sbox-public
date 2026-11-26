@@ -1,5 +1,4 @@
 using Borealis.Backend;
-using Borealis.Source2;
 using Borealis.Source2.Shaders;
 using Sandbox.ShaderCompiler;
 using System.IO;
@@ -49,10 +48,29 @@ public class StandaloneModuleTests : GpuTest
 		foreach ( var feature in (string[])["F_ALPHA_TEST", "F_TRANSLUCENT", "F_RENDER_BACKFACES"] ) Assert.IsTrue( shader.FeatureIndex( feature ) >= 0, feature );
 		Assert.AreSame( shader, backend.Shaders.GpuDriven( shader ), "its GPU-driven form is the module's" );
 
-		// Skipped, it's the .shader_c again where one is left from before depth_only.shader went (the A/B switch), else nothing
+		// The A/B switch can use a compatible .shader_c if one remains, but a leftover from an older ABI cannot draw.
 		using var skipped = new BackendDevice( Device );
 		skipped.Passes.Skip.Add( "depth_only" );
-		if ( skipped.Content.Find( DepthOnly ) is not null ) Assert.IsFalse( skipped.Shaders.Load( DepthOnly ).ModuleOnly );
+		var compiledPath = skipped.Content.Find( DepthOnly );
+		if ( compiledPath is null )
+		{
+			var module = skipped.Shaders.Load( DepthOnly );
+			Assert.IsTrue( module is { ModuleOnly: true }, "only the module describes depth_only" );
+			Assert.IsNull( skipped.Shaders.Variant( module, "Depth", [] ), "the skipped module has no compiled programs to draw" );
+			return;
+		}
+
+		try
+		{
+			ShaderFile.Load( compiledPath );
+		}
+		catch ( ShaderOutdatedException )
+		{
+			Assert.IsNull( skipped.Shaders.Load( DepthOnly ), "the skipped module cannot fall back to an outdated .shader_c" );
+			return;
+		}
+
+		Assert.IsTrue( skipped.Shaders.Load( DepthOnly ) is { ModuleOnly: false }, "the skipped module falls back to a compatible .shader_c" );
 	}
 
 	/// <summary>
@@ -146,9 +164,9 @@ public class StandaloneModuleTests : GpuTest
 	}
 
 	/// <summary>
-	/// Each standalone module that still has a <c>.shader_c</c> beside it (Source 2's twin, or the last one built before its
-	/// <c>.shader</c> went) describes the same shader: modes, features and each stage's combos. And its variants in each mode
-	/// bind what the compiled file's do, with the dynamic combos at their first values.
+	/// Each standalone module with a compiled legacy shader still built from source describes the same shader: modes,
+	/// features and each stage's combos. And its variants in each mode bind what the compiled file's do, with the dynamic
+	/// combos at their first values.
 	/// </summary>
 	[TestMethod]
 	public void StandaloneModulesMatchTheirShaders() => CompareStandalone( firstCombos: true );
@@ -172,12 +190,16 @@ public class StandaloneModuleTests : GpuTest
 		var compared = 0;
 		foreach ( var file in Directory.EnumerateFiles( Path.Combine( core, "shaders" ), "*.slang", SearchOption.AllDirectories ).Order( StringComparer.Ordinal ) )
 		{
-			var compiledPath = Path.ChangeExtension( file, ".shader_c" );
-			if ( !File.Exists( compiledPath ) ) continue;
+			// A .shader_c without its source is a leftover, not a reference for the Slang shader that replaced it.
+			var shaderPath = Path.ChangeExtension( file, ".shader" );
+			var compiledPath = shaderPath + "_c";
+			if ( !File.Exists( shaderPath ) || !File.Exists( compiledPath ) ) continue;
 			var text = File.ReadAllText( file );
 			if ( !text.Contains( "sbox/pass.slangh", StringComparison.Ordinal ) || PassModule.FromText( file, text ) is not { Standalone: true } passModule ) continue;
 
-			var path = Path.GetRelativePath( core, Path.ChangeExtension( file, ".shader" ) ).Replace( '\\', '/' );
+			var compiled = ShaderFile.Load( compiledPath );
+			described++;
+			var path = Path.GetRelativePath( core, shaderPath ).Replace( '\\', '/' );
 			var module = backend.Shaders.Load( path );
 			if ( module is not { ModuleOnly: true } )
 			{
@@ -185,17 +207,6 @@ public class StandaloneModuleTests : GpuTest
 				continue;
 			}
 
-			ShaderFile compiled;
-			try
-			{
-				compiled = ShaderFile.Load( compiledPath );
-			}
-			catch ( InvalidDataException )
-			{
-				continue;
-			}
-
-			described++;
 			var before = differences.Count;
 			differences.AddRange( Describe( compiled, module, passModule.Has( StageKind.Mesh ) ).Select( d => $"{path}: {d}" ) );
 
@@ -250,9 +261,10 @@ public class StandaloneModuleTests : GpuTest
 			}
 		}
 
-		if ( described == 0 ) Assert.Inconclusive( "No standalone module has a .shader_c beside it" );
+		if ( described == 0 ) Assert.Inconclusive( "No standalone module has a compiled legacy shader with source beside it" );
 		Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors.Take( 5 ) ) );
 		Assert.AreEqual( 0, differences.Count, $"{differences.Count} differences over {described} shaders, {compared} variants:\n" + string.Join( "\n", differences.Take( 60 ) ) );
+		Assert.IsTrue( compared > 0, "at least one variant was compared" );
 		TestContext.WriteLine( $"{described} shaders described, {compared} variants compared" );
 	}
 

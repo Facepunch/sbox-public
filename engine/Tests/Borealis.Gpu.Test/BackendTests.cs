@@ -10,7 +10,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class BackendTests : GpuTest
+public class BackendTests : RenderGpuTest
 {
 	/// <summary>
 	/// The sample's world through a whole Borealis frame: the sky is the view's clear colour, the ground and objects are lit

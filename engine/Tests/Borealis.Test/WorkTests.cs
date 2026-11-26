@@ -336,14 +336,15 @@ public class WorkTests
 			foreach ( var obj in world.Objects )
 			{
 				var aggregate = (AggregateObject)obj;
-				if ( aggregate.TransformsGeneration != transforms.Generation ) continue;
+				var firstInstance = transforms.AggregateFirstInstance( aggregate.Index );
+				if ( firstInstance < 0 ) continue;
 
 				for ( int i = 0; i < aggregate.Fragments.Length; i++ )
 				{
 					var fragment = aggregate.Fragments[i];
 					var tint = new Color( aggregate.Tint.r * fragment.DrawTint.x, aggregate.Tint.g * fragment.DrawTint.y, aggregate.Tint.b * fragment.DrawTint.z, aggregate.Tint.a );
 					var expected = new TransformBuffer.Entry { Row0 = fragment.Transform.Row0, Row1 = fragment.Transform.Row1, Row2 = fragment.Transform.Row2, Alpha = tint.a, TintRgb888 = TransformBuffer.PackRgb888( tint ) };
-					Assert.AreEqual( expected, entries[transforms.InstanceSlot( aggregate.FirstInstance + i )], $"frame {frame}, aggregate {obj.Index}, fragment {i}" );
+					Assert.AreEqual( expected, entries[transforms.InstanceSlot( firstInstance + i )], $"frame {frame}, aggregate {obj.Index}, fragment {i}" );
 				}
 
 				drawn++;

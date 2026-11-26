@@ -12,6 +12,7 @@ internal enum GpuOp
 	Bind,
 	SetViewport,
 	Clear,
+	ClearDepthRegion,
 	SetConstants,
 	Upload,
 	BindInstances,
@@ -71,6 +72,9 @@ internal sealed record GpuCommand( GpuOp Op, string Scope )
 
 	/// <summary>Depth bound or cleared.</summary>
 	public GpuTexture Depth { get; init; }
+
+	/// <summary>Depth clear rectangle in attachment coordinates.</summary>
+	public RectInt Region { get; init; }
 
 	/// <summary>A copy's or resolve's source.</summary>
 	public GpuTexture Source { get; init; }

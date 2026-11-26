@@ -43,10 +43,6 @@ public sealed unsafe partial class CommandList
 			var rt = commandList.GetRenderTarget( (string)entry.Object5 );
 			if ( rt == null ) return;
 
-			// This is a secondary view, don't draw reflections in it
-			// or we'll end up with an infinite loop!
-			if ( Graphics.IsChildView ) return;
-
 			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, commandList.PlayedViewSetup( entry ), out var result );
 			commandList.state.views[entry.ViewId] = result;
 		}
@@ -55,10 +51,8 @@ public sealed unsafe partial class CommandList
 		return view;
 	}
 
-	/// <summary>
-	/// Render a planar reflection using the specified camera and the specified plane.
-	/// When present, the target's depth texture receives the oblique camera depth before colour flips.
-	/// </summary>
+	/// <summary>Renders a planar reflection into the specified render target.</summary>
+	/// <remarks>A capture rejected by the renderer returns invalid metadata.</remarks>
 	/// <returns>Deferred metadata for this view, available to subsequent attribute commands.</returns>
 	public ViewHandle DrawReflection( CameraComponent camera, Plane plane, in RenderTargetHandle target, ReflectionSetup reflectionSetup = default )
 	{
@@ -81,20 +75,11 @@ public sealed unsafe partial class CommandList
 			if ( !plane.IsInFront( Graphics.CameraTransform.Position ) && !setup.RenderBehind )
 				return;
 
-			// This is a secondary view, don't draw reflections in it
-			// or we'll end up with an infinite loop!
-			if ( Graphics.IsChildView )
-			{
-				if ( setup.FallbackColor is { } clearColor )
-				{
-					Graphics.RenderTarget = rt;
-					Graphics.Clear( clearColor );
-					Graphics.RenderTarget = null;
-				}
-				return;
-			}
-
-			commandList.state.views[entry.ViewId] = RenderReflection( camera, plane, rt, setup );
+			var viewport = Graphics.Viewport;
+			var reflection = ReflectionView( Graphics.CameraTransform, Graphics.FieldOfView, viewport.Width / viewport.Height,
+				camera.ZNear, camera.ZFar, plane, setup );
+			camera.SceneCamera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, reflection, out var result );
+			commandList.state.views[entry.ViewId] = result;
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = camera, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) }, ReflectionSetupStore, reflectionSetup );
@@ -108,52 +93,29 @@ public sealed unsafe partial class CommandList
 	[ConVar( "r.reflections.shadows", Help = "Render shadows in planar reflections. Off, reflections are lit but unshadowed and render before every other view." )]
 	internal static bool ReflectionShadows { get; set; }
 
-	/// <summary>
-	/// Render the current view mirrored in a plane into a render target, clipped to the plane's far side.
-	/// Called during playback, outside a child view.
-	/// </summary>
-	internal static ViewData RenderReflection( CameraComponent camera, Plane plane, RenderTarget rt, ReflectionSetup setup )
-	{
-		var viewport = Graphics.Viewport;
-		return RenderReflection( camera.SceneCamera, Graphics.CameraTransform, Graphics.FieldOfView, viewport.Width / viewport.Height,
-			camera.ZNear, camera.ZFar, plane, rt, setup, $"{camera.GameObject.Name}.Reflection" );
-	}
-
-	/// <summary>
-	/// Render a view seen from <paramref name="eye"/> mirrored in a plane into a render target, clipped to the plane's
-	/// far side: a child of the frame being drawn, or a top-level view outside one.
-	/// </summary>
-	internal static ViewData RenderReflection( SceneCamera camera, Transform eye, float fieldOfView, float aspect,
-		float zNear, float zFar, Plane plane, RenderTarget rt, ReflectionSetup setup, string name )
-	{
-		var view = ReflectionView( eye, fieldOfView, aspect, zNear, zFar, plane, setup );
-		camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, view, name, out var result );
-		return result;
-	}
-
-	/// <summary>
-	/// The view <see cref="RenderReflection(SceneCamera, Transform, float, float, float, float, Plane, RenderTarget, ReflectionSetup, string)"/>
-	/// renders: the eye mirrored in the plane, an oblique projection clipped to the plane's far side, flipped, with the
-	/// reflection flag. Borealis renders a top-level view's planar reflection from it itself.
-	/// </summary>
+	/// <summary>Prepare the mirrored view, with an oblique near plane unless the caller supplies a projection.</summary>
 	internal static ViewSetup ReflectionView( Transform eye, float fieldOfView, float aspect, float zNear, float zFar, Plane plane, ReflectionSetup setup )
 	{
 		var reflectedTransform = eye.Mirror( plane );
-		var projection = Matrix.CreateProjection( zNear, zFar, fieldOfView, aspect, setup.ViewSetup.ClipSpaceBounds ?? new Vector4( -1, -1, 1, 1 ) );
-
-		var clipOffset = setup.ClipOffset;
-		var clipPlane = new Plane( plane.Position - clipOffset * plane.Normal, plane.Normal );
-
-		var oblique = Matrix.CreateObliqueProjection( in reflectedTransform, in clipPlane, in projection );
+		if ( setup.ViewSetup.ProjectionMatrix is null )
+		{
+			var clipPlane = new Plane( plane.Position - setup.ClipOffset * plane.Normal, plane.Normal );
+			setup.ViewSetup.ProjectionMatrix = ClippedProjection( reflectedTransform, clipPlane, fieldOfView, aspect, zNear, zFar, setup.ViewSetup.ClipSpaceBounds );
+		}
 
 		setup.ViewSetup.Transform ??= reflectedTransform;
 		setup.ViewSetup.FieldOfView ??= fieldOfView;
 		setup.ViewSetup.ZNear ??= zNear;
 		setup.ViewSetup.ZFar ??= zFar;
-		setup.ViewSetup.ProjectionMatrix ??= oblique;
 		setup.ViewSetup.FlipX ??= true; // we're mirroring!
 		setup.ViewSetup.Reflection = true;
 		return setup.ViewSetup;
+	}
+
+	static Matrix ClippedProjection( in Transform eye, in Plane clip, float fieldOfView, float aspect, float zNear, float zFar, Vector4? bounds )
+	{
+		var projection = Matrix.CreateProjection( zNear, zFar, fieldOfView, aspect, bounds ?? new Vector4( -1, -1, 1, 1 ) );
+		return Matrix.CreateObliqueProjection( in eye, in clip, in projection );
 	}
 
 	/// <summary>
@@ -161,6 +123,7 @@ public sealed unsafe partial class CommandList
 	/// regular view with a plane clipping it. Usually used for rendering under water.
 	/// When present, the target's depth texture receives the oblique camera depth before colour flips.
 	/// </summary>
+	/// <remarks>A capture rejected by the renderer returns invalid metadata.</remarks>
 	/// <returns>Deferred metadata for this view, available to subsequent attribute commands.</returns>
 	public ViewHandle DrawRefraction( CameraComponent camera, Plane plane, in RenderTargetHandle target, RefractionSetup refractionSetup = default )
 	{
@@ -183,35 +146,19 @@ public sealed unsafe partial class CommandList
 			if ( !plane.IsInFront( Graphics.CameraTransform.Position ) && !setup.RenderBehind )
 				return;
 
-			// This is a secondary view, don't draw reflections in it
-			// or we'll end up with an infinite loop!
-			if ( Graphics.IsChildView )
-			{
-				if ( setup.FallbackColor is { } clearColor )
-				{
-					Graphics.RenderTarget = rt;
-					Graphics.Clear( clearColor );
-					Graphics.RenderTarget = null;
-				}
-				return;
-			}
-
 			var transform = Graphics.CameraTransform;
-			var projection = Matrix.CreateProjection( camera.ZNear, camera.ZFar, Graphics.FieldOfView, Graphics.Viewport.Width / Graphics.Viewport.Height, setup.ViewSetup.ClipSpaceBounds ?? new Vector4( -1, -1, 1, 1 ) );
-
-			var eyeDistance = plane.GetDistance( transform.Position );
-			var clipOffset = setup.ClipOffset;
-
-			var clipPlane = new Plane( plane.Position + clipOffset * plane.Normal, plane.Normal );
-
-			var oblique = Matrix.CreateObliqueProjection( in transform, in clipPlane, in projection );
+			if ( setup.ViewSetup.ProjectionMatrix is null )
+			{
+				var clipPlane = new Plane( plane.Position + setup.ClipOffset * plane.Normal, plane.Normal );
+				var viewport = Graphics.Viewport;
+				setup.ViewSetup.ProjectionMatrix = ClippedProjection( transform, clipPlane, Graphics.FieldOfView,
+					viewport.Width / viewport.Height, camera.ZNear, camera.ZFar, setup.ViewSetup.ClipSpaceBounds );
+				// The 3D skybox uses the same oblique plane; a caller's own projection has none.
+				setup.ViewSetup.ClipPlane = clipPlane;
+			}
 
 			setup.ViewSetup.Transform ??= transform;
 			setup.ViewSetup.FieldOfView ??= Graphics.FieldOfView;
-
-			// The oblique projection's plane, which the view's 3D skybox is clipped at too; a caller's own projection has none
-			if ( setup.ViewSetup.ProjectionMatrix is null ) setup.ViewSetup.ClipPlane = clipPlane;
-			setup.ViewSetup.ProjectionMatrix ??= oblique;
 
 			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, setup.ViewSetup, out var result );
 			commandList.state.views[entry.ViewId] = result;

@@ -1,7 +1,7 @@
 #ifndef TOOLVIS_HLSL
 #define TOOLVIS_HLSL
 
-#include "ambient_cube.fxc"
+#include "sbox/ambient_cube.slangh"
 #include "common/BRDF.hlsl"
 #include "common/lightbinner.hlsl"
 

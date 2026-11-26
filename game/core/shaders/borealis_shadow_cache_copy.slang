@@ -23,6 +23,14 @@ float4 g_vShadowCacheWrap < Attribute( "ShadowCacheWrap" ); >;
 Texture2D<float2> g_tShadowCacheTiles < Attribute( "ShadowCacheTiles" ); >;
 float g_flShadowCacheSparse < Attribute( "ShadowCacheSparse" ); Default( 0 ); >;
 
+// Coordinates are already nonnegative and at most one texture wrap outside.
+uint2 WrapCacheTexel( uint2 vTexel, uint2 vSize )
+{
+	if ( vTexel.x >= vSize.x ) vTexel.x -= vSize.x;
+	if ( vTexel.y >= vSize.y ) vTexel.y -= vSize.y;
+	return vTexel;
+}
+
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 #if ( PROGRAM == VFX_PROGRAM_VS )
 #include "sbox/view.slangh"
@@ -36,14 +44,12 @@ struct VS_INPUT
 struct VS_OUTPUT
 {
 	float4 vPositionPs : SV_Position;
-	float2 vTexCoord : TEXCOORD0;
 };
 
 [shader( "vertex" )] VS_OUTPUT MainVs( VS_INPUT i, uint nInstance : SV_InstanceID )
 {
 	VS_OUTPUT o;
 	o.vPositionPs = float4( i.vPositionOs.xyz, 1.0 );
-	o.vTexCoord = i.vTexCoord;
 
 	if ( g_flShadowCacheSparse > 1 )
 	{
@@ -51,13 +57,15 @@ struct VS_OUTPUT
 		uint2 vSize = uint2( g_vShadowCacheWrap.zw );
 		uint nTilesX = vSize.x / 32;
 		uint2 vTile = uint2( nInstance % nTilesX, nInstance / nTilesX );
-		uint2 vAt = ( vTile * 32 + vSize - uint2( g_vShadowCacheWrap.xy ) ) % vSize;
+		// No caster in it: every corner in one place, nothing drawn.
+		if ( g_tShadowCacheTiles.Load( int3( vTile, 0 ) ).y <= 0 )
+		{
+			o.vPositionPs = float4( -2.0, -2.0, 0.0, 1.0 );
+			return o;
+		}
+		uint2 vAt = WrapCacheTexel( vTile * 32 + vSize - uint2( g_vShadowCacheWrap.xy ), vSize );
 		float2 vTexel = float2( vAt ) + i.vTexCoord * 32.0;
 		o.vPositionPs = float4( vTexel.x / vSize.x * 2.0 - 1.0, 1.0 - vTexel.y / vSize.y * 2.0, i.vPositionOs.z, 1.0 );
-
-		// No caster in it: every corner in one place, nothing drawn
-		if ( g_tShadowCacheTiles.Load( int3( vTile, 0 ) ).y <= 0 )
-			o.vPositionPs = float4( -2.0, -2.0, 0.0, 1.0 );
 	}
 
 	return o;
@@ -79,10 +87,10 @@ struct VS_OUTPUT
 	RenderState( BlendEnable, false );
 	RenderState( CullMode, NONE );
 
-	[shader( "pixel" )] float MainPs( float4 vPositionPs : SV_Position, float2 vTexCoord : TEXCOORD0 ) : SV_Depth
+	[shader( "pixel" )] float MainPs( float4 vPositionPs : SV_Position ) : SV_Depth
 	{
 		uint2 vSize = uint2( g_vShadowCacheWrap.zw );
-		uint2 vTexel = ( uint2( vPositionPs.xy ) + uint2( g_vShadowCacheWrap.xy ) ) % vSize;
+		uint2 vTexel = WrapCacheTexel( uint2( vPositionPs.xy ) + uint2( g_vShadowCacheWrap.xy ), vSize );
 		if ( g_flShadowCacheSparse == 1 && g_tShadowCacheTiles.Load( int3( vTexel / 32, 0 ) ).y <= 0 )
 			discard;
 		return g_tShadowCache.Load( int3( vTexel, 0 ) );

@@ -48,7 +48,7 @@ internal static class GameDrawExtract
 		public int CubeFace;
 		public bool IsCapture;
 		public Texture DepthTexture;
-		public StringToken ShaderMode;
+		public Texture ColorTexture;
 		public ImageFormat ColorFormat;
 		public MultisampleAmount Msaa;
 		public Borealis.RenderWorld LightingWorld;
@@ -377,22 +377,19 @@ internal static class GameDrawExtract
 		else frustum.InitCamera( camera.Position, camera.Rotation.Angles(), camera.ZNear, camera.ZFar, camera.FieldOfView, aspect );
 	}
 
-	// What a slot's view says before it has drawn: the camera's whole size, its post processing, the layer's shader mode
-	static ViewFacts Defaults( SceneCamera camera, SceneLayerType layer ) => new()
+	// What a slot's view says before it has drawn.
+	static ViewFacts Defaults( SceneCamera camera ) => new()
 	{
 		Viewport = new RenderViewport( new Rect( 0, 0, camera.Size.x, camera.Size.y ), 0, 1 ),
 		PostProcessEnabled = camera.EnablePostProcessing,
 		CubeFace = -1,
-		ShaderMode = layer is SceneLayerType.Shadow or SceneLayerType.DepthPrepass ? DepthMode : default,
 		ColorFormat = ImageFormat.RGBA16161616F,
 	};
-
-	static readonly StringToken DepthMode = new( "Depth" );
 
 	static void Record( Slot slot, SceneCustomObject custom, SceneCamera camera )
 	{
 		var recording = slot.Recording;
-		var facts = slot.Facts.Known ? slot.Facts : Defaults( camera, slot.Layer );
+		var facts = slot.Facts.Known ? slot.Facts : Defaults( camera );
 		view.Into = recording;
 		view.Facts = facts;
 		backend.Begin( recording, facts.Viewport );
@@ -509,7 +506,7 @@ internal static class GameDrawExtract
 		facts.CubeFace = gpu.CubeFace;
 		facts.IsCapture = frameView.IsCapture;
 		facts.DepthTexture = frameView.DepthTexture;
-		facts.ShaderMode = gpu.ShaderMode;
+		facts.ColorTexture = frameView.ColorTexture;
 		facts.LightingWorld = gpu.LightingWorld;
 		facts.LightingSubWorlds = gpu.LightingSubWorlds;
 	}

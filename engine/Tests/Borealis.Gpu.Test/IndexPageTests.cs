@@ -8,7 +8,6 @@ namespace BorealisGpuTests;
 /// start and generated levels from its end, and a page keeps free only the room for the levels its meshes' ranges may get.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class IndexPageTests : GpuTest
 {
 	[TestMethod]

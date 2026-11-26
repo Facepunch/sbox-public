@@ -1,5 +1,3 @@
-using Sandbox.Rendering.Bridge;
-
 namespace BorealisTests;
 
 /// <summary>
@@ -13,20 +11,20 @@ public class ViewIdleTests
 	public void ManyFramesInAMomentArentIdle()
 	{
 		var now = System.Diagnostics.Stopwatch.GetTimestamp();
-		Assert.IsFalse( SceneBridge.IdleLongEnough( 10_000, 10_000 - 2 * SceneBridge.ViewIdleFrames, now ) );
+		Assert.IsFalse( CaptureIdlePolicy.Expired( 10_000, 10_000 - 2 * CaptureIdlePolicy.Frames, now ) );
 	}
 
 	[TestMethod]
 	public void FewFramesOverManySecondsArentIdle()
 	{
-		var longAgo = System.Diagnostics.Stopwatch.GetTimestamp() - (long)(2 * SceneBridge.ViewIdleSeconds * System.Diagnostics.Stopwatch.Frequency);
-		Assert.IsFalse( SceneBridge.IdleLongEnough( 10_000, 10_000 - SceneBridge.ViewIdleFrames, longAgo ) );
+		var longAgo = System.Diagnostics.Stopwatch.GetTimestamp() - (long)(2 * CaptureIdlePolicy.Seconds * System.Diagnostics.Stopwatch.Frequency);
+		Assert.IsFalse( CaptureIdlePolicy.Expired( 10_000, 10_000 - CaptureIdlePolicy.Frames, longAgo ) );
 	}
 
 	[TestMethod]
 	public void ManyFramesOverManySecondsAreIdle()
 	{
-		var longAgo = System.Diagnostics.Stopwatch.GetTimestamp() - (long)(2 * SceneBridge.ViewIdleSeconds * System.Diagnostics.Stopwatch.Frequency);
-		Assert.IsTrue( SceneBridge.IdleLongEnough( 10_000, 10_000 - 2 * SceneBridge.ViewIdleFrames, longAgo ) );
+		var longAgo = System.Diagnostics.Stopwatch.GetTimestamp() - (long)(2 * CaptureIdlePolicy.Seconds * System.Diagnostics.Stopwatch.Frequency);
+		Assert.IsTrue( CaptureIdlePolicy.Expired( 10_000, 10_000 - 2 * CaptureIdlePolicy.Frames, longAgo ) );
 	}
 }

@@ -9,7 +9,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class MaterialObjectTests : GpuTest
+public class MaterialObjectTests : RenderGpuTest
 {
 	/// <summary>
 	/// The sample's world, depth prepass, shadow maps and forward, draws the same pixels through material objects as through

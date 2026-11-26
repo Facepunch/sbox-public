@@ -89,6 +89,7 @@ public sealed partial class Model : Resource
 		BaseModel = default;
 
 		MeshInfo = null;
+		ResetTraceTriangles();
 
 		// Native gave every scene object of it new mesh instances: their managed draws and flags follow
 		SceneObject.ModelReloaded( this );

@@ -132,6 +132,7 @@ internal sealed class HeadlessParameters : ShaderParameters
 	public override void Set( StringToken name, GpuTexture value, int mip = -1 ) => Store( name, value );
 	public override void Set( StringToken name, GpuBuffer value ) => Store( name, value );
 	public override void SetData<T>( StringToken name, in T value ) => Store( name, value );
+	public override void SetData( StringToken name, ReadOnlySpan<byte> data ) => Store( name, data.ToArray() );
 
 	public override void SetCombo( StringToken name, int value )
 	{

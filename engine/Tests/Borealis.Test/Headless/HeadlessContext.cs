@@ -272,10 +272,10 @@ internal sealed class HeadlessContext : GpuContext
 		return true;
 	}
 
-	public override bool DrawSky( SceneLighting lighting, StringToken shaderMode )
+	public override bool DrawSky( GpuMaterial skyMaterial, Color tint, Rotation rotation, in SkyFog fog, StringToken shaderMode )
 	{
-		if ( lighting.SkyMaterial is null ) return false;
-		Record( Command( GpuOp.DrawSky ) with { Material = lighting.SkyMaterial, Mode = shaderMode, Texture = bound.Color, Depth = bound.Depth } );
+		if ( skyMaterial is null ) return false;
+		Record( Command( GpuOp.DrawSky ) with { Material = skyMaterial, Mode = shaderMode, Texture = bound.Color, Depth = bound.Depth } );
 		return true;
 	}
 
@@ -303,7 +303,7 @@ internal sealed class HeadlessContext : GpuContext
 	public override void Resolve( in RenderOutput output )
 	{
 		if ( output.Target is not { Samples: > 1 } target ) return;
-		Record( Command( GpuOp.Resolve ) with { Texture = target.Resolved, Source = bound.Color } );
+		Record( Command( GpuOp.Resolve ) with { Texture = target.Resolved, Source = target.Color } );
 	}
 
 	public override void ResolveScratch( in RenderOutput output )
@@ -336,9 +336,6 @@ internal sealed class HeadlessContext : GpuContext
 	public override void BarrierToComputeRead( GpuTexture depth ) => Barrier( depth, GpuStage.LateFragmentTests, GpuAccess.DepthStencilAttachmentWrite,
 		GpuStage.ComputeShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
 
-	public override void BarrierColorToComputeRead( GpuTexture texture ) => Barrier( texture, GpuStage.ColorAttachmentOutput, GpuAccess.ColorAttachmentWrite,
-		GpuStage.ComputeShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
-
 	public override void BarrierComputeToPixelShaderRead( GpuTexture texture ) => Barrier( texture, GpuStage.ComputeShader, GpuAccess.ShaderWrite,
 		GpuStage.FragmentShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
 
@@ -361,6 +358,9 @@ internal sealed class HeadlessContext : GpuContext
 
 	public override void Clear( Color color, bool clearColor = true, bool clearDepth = true )
 		=> Record( Command( GpuOp.Clear ) with { Texture = clearColor ? bound.Color : null, Depth = clearDepth ? bound.Depth : null } );
+
+	public override void ClearDepthRegion( int x, int y, int width, int height )
+		=> Record( Command( GpuOp.ClearDepthRegion ) with { Depth = bound.Depth, Region = new RectInt( x, y, width, height ) } );
 
 	public override void SetConstants<T>( StringToken name, in T value )
 	{

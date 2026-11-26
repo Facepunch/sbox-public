@@ -336,13 +336,22 @@ public sealed unsafe partial class Device : IDisposable
 	{
 		using var strings = new NativeStrings();
 		var layerName = layer is null ? null : strings.Add( layer );
+		// The count can change between the two calls (another thread's instance loading layers, as parallel tests do): ask
+		// again while the array came back too small, and read no further than it
 		uint count;
-		VkGlobal.vkEnumerateInstanceExtensionProperties( layerName, &count, null ).Check( "vkEnumerateInstanceExtensionProperties" );
-		var props = new VkExtensionProperties[count];
-		fixed ( VkExtensionProperties* p = props ) VkGlobal.vkEnumerateInstanceExtensionProperties( layerName, &count, p ).Check( "vkEnumerateInstanceExtensionProperties" );
+		VkExtensionProperties[] props;
+		VkResult result;
+		do
+		{
+			VkGlobal.vkEnumerateInstanceExtensionProperties( layerName, &count, null ).Check( "vkEnumerateInstanceExtensionProperties" );
+			props = new VkExtensionProperties[count];
+			fixed ( VkExtensionProperties* p = props ) result = VkGlobal.vkEnumerateInstanceExtensionProperties( layerName, &count, p );
+			result.Check( "vkEnumerateInstanceExtensionProperties" );
+		}
+		while ( result == VkResult.Incomplete );
 
 		var names = new HashSet<string>();
-		for ( int i = 0; i < count; i++ )
+		for ( int i = 0; i < Math.Min( count, (uint)props.Length ); i++ )
 		{
 			fixed ( byte* name = props[i].extensionName ) names.Add( Utf8( name, 256 ) );
 		}

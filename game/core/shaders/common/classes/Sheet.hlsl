@@ -1,7 +1,7 @@
 #ifndef SHEET_HLSL
 #define SHEET_HLSL
 
-#include "sheet_sampling.fxc"
+#include "sbox/sheet.slangh"
 
 //
 // garry: I don't want people having to define this shit in their shaeders when it's a backend, built in thing.

@@ -24,6 +24,11 @@ public ref struct WheelEvent
 		}
 	}
 
+	/// <summary>
+	/// Both axes in eighths of a degree (120 a notch), as Qt reports them: with Alt held it swaps them.
+	/// </summary>
+	internal readonly Vector2 AngleDelta => new( ptr.angleDelta().x, ptr.angleDelta().y );
+
 	public readonly Vector2 Position => (Vector2)ptr.position();
 	public readonly Vector2 GlobalPosition => (Vector2)ptr.globalPosition();
 

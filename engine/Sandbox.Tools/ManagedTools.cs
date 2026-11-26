@@ -208,6 +208,10 @@ internal static class ManagedTools
 
 	internal static bool GlobalKeyPressed( bool press, QKeyEvent keyEvent )
 	{
+		// The play widget passes its keys to the game while it has focus, so the editor's shortcuts must not take them
+		if ( PlayWidgetInput.HasGameFocus )
+			return false;
+
 		var ev = new KeyEvent( keyEvent );
 		KeyCode key = ev.Key;
 
@@ -255,7 +259,7 @@ internal static class ManagedTools
 
 	internal static bool GlobalShortcutPressed()
 	{
-		return !EditorShortcuts.AllowShortcuts;
+		return !EditorShortcuts.AllowShortcuts || PlayWidgetInput.HasGameFocus;
 	}
 
 	internal static void RunConsoleCommand( string command ) => Sandbox.ConVarSystem.Run( command );

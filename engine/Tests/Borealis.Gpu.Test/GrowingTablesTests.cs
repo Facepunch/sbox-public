@@ -8,7 +8,6 @@ namespace BorealisGpuTests;
 /// must read the buffer that holds what it looks up, not one read before the growth, or it reads past that buffer's end.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class GrowingTablesTests : GpuTest
 {
 	/// <summary>

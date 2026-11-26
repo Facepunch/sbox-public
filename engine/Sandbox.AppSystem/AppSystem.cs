@@ -403,6 +403,9 @@ public class AppSystem
 		commandLine ??= Utility.CommandLine.CommandLineString ?? System.Environment.CommandLine;
 		commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
 
+		// Sound reads wave data from memory-mapped files instead of a 256 MiB arena native commits up front (S_Init)
+		commandLine += " -memory_map_sound";
+
 		_appSystem = CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() );
 
 		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsEditor ) )

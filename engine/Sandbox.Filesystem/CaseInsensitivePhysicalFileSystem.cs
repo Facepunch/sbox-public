@@ -70,9 +70,13 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 
 			if ( entries is null || !entries.TryResolve( components[i], out var realName ) )
 			{
-				// Nothing more we can say about this path - keep whatever is left as-is, and
-				// don't cache it, it might well exist by the time we're asked again.
-				return Append( resolved, string.Join( '/', components, i, components.Length - i ) );
+				entries = GetDirectoryEntries( resolved, missed: true );
+				if ( entries is null || !entries.TryResolve( components[i], out realName ) )
+				{
+					// Nothing more we can say about this path - keep whatever is left as-is, and
+					// don't cache it, it might well exist by the time we're asked again.
+					return Append( resolved, string.Join( '/', components, i, components.Length - i ) );
+				}
 			}
 
 			resolved = Append( resolved, realName );
@@ -89,11 +93,14 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 	}
 
 	/// <summary>
-	/// The names inside <paramref name="directory"/>, or null if it doesn't exist.
+	/// The names inside <paramref name="directory"/>, or null if it doesn't exist. A cached listing is read again once
+	/// the directory has changed since: files written straight through System.IO, or by another process, never pass the
+	/// mutation overrides below, and the shared instance behind <see cref="ResolveNativeCasing"/> sees no writes at all.
+	/// Only asked on a miss, so a path that resolves costs nothing more.
 	/// </summary>
-	private DirectoryEntries GetDirectoryEntries( string directory )
+	private DirectoryEntries GetDirectoryEntries( string directory, bool missed = false )
 	{
-		if ( _directoryCache.TryGetValue( directory, out var entries ) )
+		if ( _directoryCache.TryGetValue( directory, out var entries ) && (!missed || entries.IsCurrent( directory )) )
 			return entries;
 
 		if ( !Directory.Exists( directory ) )
@@ -101,9 +108,11 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 
 		try
 		{
-			entries = new DirectoryEntries( new DirectoryInfo( directory ).GetFileSystemInfos() );
+			// Its write time first: a change made while it's listed reads it again next time
+			var written = Directory.GetLastWriteTimeUtc( directory );
+			entries = new DirectoryEntries( new DirectoryInfo( directory ).GetFileSystemInfos(), written );
 
-			_directoryCache.TryAdd( directory, entries );
+			_directoryCache[directory] = entries;
 
 			return entries;
 		}
@@ -222,8 +231,14 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 		/// </summary>
 		private readonly HashSet<string> alsoSpelled;
 
-		public DirectoryEntries( FileSystemInfo[] infos )
+		/// <summary>
+		/// The directory's write time when it was listed: an entry added, removed or renamed since changes it.
+		/// </summary>
+		private readonly DateTime written;
+
+		public DirectoryEntries( FileSystemInfo[] infos, DateTime written )
 		{
+			this.written = written;
 			names = new Dictionary<string, string>( infos.Length, StringComparer.OrdinalIgnoreCase );
 
 			foreach ( var info in infos )
@@ -235,6 +250,11 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 				}
 			}
 		}
+
+		/// <summary>
+		/// Whether <paramref name="directory"/> still holds what was listed.
+		/// </summary>
+		public bool IsCurrent( string directory ) => Directory.GetLastWriteTimeUtc( directory ) == written;
 
 		/// <summary>
 		/// Find the real on-disk name for <paramref name="name"/>, preferring an exact match.

@@ -504,7 +504,7 @@ public class PostProcessingComponentTest
 			var cam = camGo.Components.Create<CameraComponent>();
 
 			Update();
-			Assert.IsNotNull( cam.SceneCamera.ScreenSpaceReflections, "A camera should render screen-space reflections by default" );
+			Assert.IsTrue( cam.SceneCamera.TracesScreenSpaceReflections, "A camera should render screen-space reflections by default" );
 			Assert.AreEqual( 0, TotalLayerCount( cam ), "Screen-space reflections aren't a post process effect" );
 			Assert.IsTrue( cam.SceneCamera.Attributes.GetBool( "NeedsDepthNormals" ), "The trace reads the depth-normals G-buffer" );
 

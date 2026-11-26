@@ -6,7 +6,7 @@ namespace Sandbox.Rendering.Bridge;
 /// reflections, drawn into the frame's own list at their point of it (<see cref="BorealisGpuFrame.RunStage"/>). The rest
 /// run over the finished frame (<see cref="SceneBridge"/>'s camera frame on Borealis.Gpu), so here they do nothing.
 /// </summary>
-internal sealed class GpuCameraStages : IRenderStages
+internal sealed class GpuCameraStages : IRenderStages, IDisposable
 {
 	/// <summary>The camera whose stages these are, this frame.</summary>
 	public SceneCamera Camera { get; set; }
@@ -27,9 +27,12 @@ internal sealed class GpuCameraStages : IRenderStages
 	// AfterDepthPrepass stage, which starts them otherwise. The history after opaque ends a frame that traced
 	bool traced;
 
+	public bool RendersInsideFrame( RenderStage stage )
+		=> stage is RenderStage.AfterDepthPrepass or RenderStage.AfterOpaque or RenderStage.AfterSkybox;
+
 	public void Render( RenderStage stage, in StageTarget target )
 	{
-		if ( stage is not (RenderStage.AfterDepthPrepass or RenderStage.AfterOpaque or RenderStage.AfterSkybox) ) return;
+		if ( !RendersInsideFrame( stage ) ) return;
 		if ( Camera is null || Frame is null || View is null ) return;
 
 		var layer = View.LayerType;
@@ -108,15 +111,52 @@ internal sealed class GpuCameraStages : IRenderStages
 		}
 	}
 
-	// The reflections' trace and history capture as delegates, made once per reflections pass
-	ScreenSpaceReflectionsPass reflectionsDrawn;
+	// These stages belong to one CameraState (one view), so the pass's history does too.
+	ScreenSpaceReflectionsPass reflections;
 	Action trace, captureHistory;
+
+	/// <summary>Make the pass and its shaders before the view's render job, or release it while SSR is disabled.</summary>
+	internal void PrepareScreenSpaceReflections()
+	{
+		traced = false;
+		if ( Camera?.TracesScreenSpaceReflections != true )
+		{
+			ReleaseScreenSpaceReflections();
+			return;
+		}
+
+		if ( reflections is not null ) return;
+		reflections = new();
+		trace = TraceScreenSpaceReflections;
+		captureHistory = reflections.CaptureHistory;
+	}
+
+	void TraceScreenSpaceReflections()
+	{
+		var frame = System.Frame;
+		// The trace stage doesn't bind colour. Read the actual opaque target's format before using history, not
+		// the default format of the depth-only block or the format of the final output.
+		var (color, _) = Borealis.Backend.BackendDevice.Unwrap( frame.Output.Target.Color );
+		var backend = (BorealisGpuRenderBackend)Graphics.Backend;
+		var format = BorealisGpuRenderBackend.ImageFormatOf( backend.Device.InfoOf( color ).Format );
+		reflections.Trace( frame.View.Position, frame.View.Rotation, frame.World, format );
+	}
+
+	public void Dispose() => ReleaseScreenSpaceReflections();
+
+	void ReleaseScreenSpaceReflections()
+	{
+		reflections?.Dispose();
+		reflections = null;
+		trace = null;
+		captureHistory = null;
+	}
 
 	/// <summary>
 	/// A top-level camera's frame with screen-space reflections on (<c>r_ssr_downsample_ratio</c>): child views, reflections
 	/// and cube faces render without stages here.
 	/// </summary>
-	public bool HasScreenSpaceReflections => Camera?.ScreenSpaceReflections is not null;
+	public bool HasScreenSpaceReflections => reflections is not null;
 
 	/// <summary>
 	/// Trace the camera's reflections from the frame's depth chain and last frame's normals and roughness
@@ -125,13 +165,12 @@ internal sealed class GpuCameraStages : IRenderStages
 	/// </summary>
 	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
 	{
-		if ( Camera?.ScreenSpaceReflections is not { } reflections || Frame is null || View is null ) return;
+		if ( reflections is null || Frame is null || View is null ) return;
 
 		var layer = View.LayerType;
 		View.LayerType = history ? SceneLayerType.Opaque : SceneLayerType.DepthPrepass;
 		try
 		{
-			if ( !ReferenceEquals( reflectionsDrawn, reflections ) ) (reflectionsDrawn, trace, captureHistory) = (reflections, reflections.Trace, reflections.CaptureHistory);
 			Frame.RunStage( target, System.Frame.Constants, View, first: !history, history ? captureHistory : trace );
 		}
 		finally

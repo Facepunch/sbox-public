@@ -154,7 +154,6 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		var layer = context.Camera.PostProcess.CreateLayer( stage );
 		layer.Order = order;
 		layer.Name = debugName;
-		layer.NeedsDepthNormals = NeedsDepthNormals;
 		layer.EarlyQueue = stage == Sandbox.Rendering.Stage.AfterDepthPrepass ? EarlyQueue : null;
 		return layer;
 	}
@@ -166,12 +165,6 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	/// stage order. Null keeps a command list at its normal stage.
 	/// </summary>
 	internal virtual PostProcessQueue? EarlyQueue => null;
-
-	/// <summary>
-	/// Whether the effect reads the normals and roughness G-buffer the depth-normals prepass writes. Informational (perf hub):
-	/// both renderers draw it for any camera with post-process layers.
-	/// </summary>
-	internal virtual bool NeedsDepthNormals => false;
 }
 
 /// <summary>

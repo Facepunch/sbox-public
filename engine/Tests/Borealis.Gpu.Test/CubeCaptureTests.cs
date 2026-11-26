@@ -11,7 +11,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class CubeCaptureTests : GpuTest
+public class CubeCaptureTests : RenderGpuTest
 {
 	/// <summary>The smallest cube with the filter's seven mips.</summary>
 	const int Size = 64;

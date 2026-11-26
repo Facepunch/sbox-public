@@ -247,7 +247,11 @@ internal sealed partial class GameWindow
 			BorealisGpuFrameThread.Doing = "the game's cameras";
 			using ( gameRender.Start() )
 			{
-				if ( drawnScene is not null ) drawnScene.DrawRender( drawnCameras, default, null );
+				if ( drawnScene is not null )
+				{
+					drawnScene.DrawRender( drawnCameras, default, null );
+					if ( drawnCameras.Count > 0 ) BorealisGpuRenderBackend.MarkRevealRendered( drawnScene );
+				}
 				else if ( !extractThrew ) IGameInstanceDll.Current?.OnRender( default );
 			}
 		}

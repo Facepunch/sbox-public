@@ -18,6 +18,7 @@ Mode( Default );
 #if ( PROGRAM == VFX_PROGRAM_CS )
 #include "sbox/view.slangh"
 #include "borealis_records.fxc"
+#include "sbox/lod_fade.slangh"
 
 // The raw buffer array in the bindless set (binding 63): the fragment and draw tables
 #ifndef BINDLESS_VERTEX_BUFFERS_DECLARED
@@ -59,9 +60,9 @@ cbuffer BorealisGpuDrivenCull_t
 	uint g_nCullMeshletRuns;		// a prepass that culls meshlets: bindless slot of the meshlet runs (16 bytes per draw record); else None
 	uint g_nCullLodCount;		// draw records the LOD table covers
 	uint g_nCullCorners;		// compaction's (borealis_gpu_driven_compact_cs)
+	uint g_nCullLodFadeNow;		// this frame's stamp for LOD fades: time in ticks of 1/256 s (bits 0-13) and frame (bits 14-23) (sbox/lod_fade.slangh)
+	uint g_nCullLodFadeTicks;	// how long a LOD fade lasts, in ticks; 0: LODs switch at once
 	uint g_nCullPad0;
-	uint g_nCullPad1;
-	uint g_nCullPad2;
 };
 
 static const uint None = 0xffffffffu;
@@ -369,7 +370,9 @@ uint TakeSlot( uint nRun )
 	uint4 vVisibility = uint4( g_Frame.Load( nBatchAt + BatchRecord_FirstVisibility ), g_Frame.Load( nBatchAt + BatchRecord_Moved ), g_Frame.Load( nBatchAt + BatchRecord_Flags ), g_Frame.Load( nBatchAt + BatchRecord_FirstVertexBit ) );
 	bool bInstances = ( vVisibility.z & 4 ) != 0;
 	bool bMeshes = ( vVisibility.z & 8 ) != 0;
-	uint nBatchLod = ( vVisibility.z >> 4 ) & 15;
+	// Resident meshes: bit 7 means the draw dithers its LOD cross-fades (then below LOD 8)
+	bool bBatchDithers = ( vVisibility.z & 0x88u ) == 0x88u;
+	uint nBatchLod = ( vVisibility.z >> 4 ) & ( bBatchDithers ? 7u : 15u );
 	uint nStride = vVisibility.z >> 8;
 
 	ByteAddressBuffer fragments = g_bindless_VertexBuffers[ g_nCullFragments ];
@@ -431,8 +434,23 @@ uint TakeSlot( uint nRun )
 				if ( bMeshSize && vCamera.w < 0 && flRadiusSquared < -vCamera.w )
 					bVisible = false;
 
-				bVisible = bVisible && MeshLod( vHeader0, vHeader1, vCenter, asfloat( fragments.Load( nMeshAt + ResidentMeshRecord_LodScale ) ), vLodCamera, flLodWidth, bLodTexels ) == nBatchLod;
+				// Fading in the view that owns LOD fades (flag 64): in its old LOD's batch too, the transform word carrying how
 				nTransform = fragments.Load( nMeshAt + ResidentMeshRecord_Transform );
+				if ( bVisible )
+				{
+					float flLodScale = asfloat( fragments.Load( nMeshAt + ResidentMeshRecord_LodScale ) );
+					uint nLod = MeshLod( vHeader0, vHeader1, vCenter, flLodScale, vLodCamera, flLodWidth, bLodTexels );
+					uint nFade = 0;
+					if ( ( vViewFlags.x & 64 ) != 0 && ( vHeader0.x & 0x10000u ) != 0 )
+					{
+						uint nNear = MeshLod( vHeader0, vHeader1, vCenter, flLodScale, vLodCamera, flLodWidth * ( 1 + LodFadeHysteresis ), bLodTexels );
+						uint nFar = MeshLod( vHeader0, vHeader1, vCenter, flLodScale, vLodCamera, flLodWidth * ( 1 - LodFadeHysteresis ), bLodTexels );
+						bVisible = LodFadeKeep( nTransform, nLod, nNear, nFar, nBatchLod, bBatchDithers, g_nCullLodFadeNow, g_nCullLodFadeTicks, nFade );
+					}
+					else
+						bVisible = nLod == nBatchLod;
+					nTransform |= nFade << 24;
+				}
 				nDrawRecord = ( vBatch.z & 0x80000000u ) != 0 ? fragments.Load( ( vBatch.z & 0x7fffffffu ) * FragmentRecord_Size + i * 4 ) : vBatch.z;
 
 				// A model without LODs of its own: its draw's generated level, as a fragment's

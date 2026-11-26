@@ -656,8 +656,15 @@ public static partial class Json
 	/// Recreate the calculator when the source or object definitions change.
 	/// </summary>
 	internal static Func<JsonObject, Patch> CreateDifferenceCalculator( JsonObject source, HashSet<TrackedObjectDefinition> definitions )
+		=> CreateBorrowingDifferenceCalculator( source?.DeepClone().AsObject(), definitions );
+
+	/// <summary>
+	/// Like <see cref="CreateDifferenceCalculator"/> but keeps references into <paramref name="source"/> instead of
+	/// cloning it. The calculator only reads those nodes, so the caller must never mutate <paramref name="source"/>.
+	/// </summary>
+	internal static Func<JsonObject, Patch> CreateBorrowingDifferenceCalculator( JsonObject source, HashSet<TrackedObjectDefinition> definitions )
 	{
-		var oldObjects = FindTrackedObjectsInJson( source?.DeepClone().AsObject(), definitions, forDiff: true );
+		var oldObjects = FindTrackedObjectsInJson( source, definitions, forDiff: true );
 		return target => CalculateDifferences( oldObjects, FindTrackedObjectsInJson( target, definitions, forDiff: true ) );
 	}
 

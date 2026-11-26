@@ -1,6 +1,5 @@
 using Sandbox.Rendering;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace RenderTests;
 
@@ -14,8 +13,6 @@ public class CommandListDrawRendererTest : SceneTests.SceneTest
 		internal override void RenderSceneObject( RendererSetup rendererSetup = default ) => Setups.Add( rendererSetup );
 	}
 
-	static void Execute( CommandList list ) => typeof( CommandList ).GetMethod( "ExecuteEntries", BindingFlags.Instance | BindingFlags.NonPublic ).Invoke( list, null );
-
 	[TestMethod]
 	public void SetupOverridesReachTheRenderer()
 	{
@@ -28,7 +25,7 @@ public class CommandListDrawRendererTest : SceneTests.SceneTest
 		list.DrawRenderer( renderer );
 		list.DrawRenderer( renderer, new RendererSetup { Transform = transform } );
 		list.DrawRenderer( renderer, new RendererSetup { Color = new Color( 0.1f, 0.2f, 0.3f, 0.4f ) } );
-		Execute( list );
+		list.Execute();
 
 		Assert.AreEqual( 3, renderer.Setups.Count );
 		Assert.IsNull( renderer.Setups[0].Transform );

@@ -104,25 +104,34 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 
 		if ( ColorSpace == ColorSpaceEnum.RGB )
 		{
-			ProcessCurve( RedCurve, "R", Attributes );
-			ProcessCurve( GreenCurve, "G", Attributes );
-			ProcessCurve( BlueCurve, "B", Attributes );
+			ProcessCurve( RedCurve, CurveTokens.R, Attributes );
+			ProcessCurve( GreenCurve, CurveTokens.G, Attributes );
+			ProcessCurve( BlueCurve, CurveTokens.B, Attributes );
 		}
 		if ( ColorSpace == ColorSpaceEnum.HSV )
 		{
-			ProcessCurve( HueCurve, "H", Attributes );
-			ProcessCurve( SaturationCurve, "S", Attributes );
-			ProcessCurve( ValueCurve, "V", Attributes );
+			ProcessCurve( HueCurve, CurveTokens.H, Attributes );
+			ProcessCurve( SaturationCurve, CurveTokens.S, Attributes );
+			ProcessCurve( ValueCurve, CurveTokens.V, Attributes );
 		}
 
 		var blit = BlitMode.WithBackbuffer( Shader, Stage.AfterPostProcess, 4000, false );
 		Blit( blit, "ColorGrading" );
 	}
 
+	sealed class CurveTokens( string channel )
+	{
+		public static readonly CurveTokens R = new( "R" ), G = new( "G" ), B = new( "B" ), H = new( "H" ), S = new( "S" ), V = new( "V" );
+
+		public readonly StringToken Frames = new( "CurveFrames" + channel );
+		public readonly StringToken Divisors = new( "CurveDivisors" + channel );
+		public readonly StringToken[] Frame = [new( "CurveFrame" + channel + 0 ), new( "CurveFrame" + channel + 1 ), new( "CurveFrame" + channel + 2 ), new( "CurveFrame" + channel + 3 )];
+	}
+
 	/// <summary>
 	/// Represent our curves into shaders
 	/// </summary>
-	void ProcessCurve( Curve curve, string ChannelLetter, RenderAttributes attributes )
+	void ProcessCurve( Curve curve, CurveTokens tokens, RenderAttributes attributes )
 	{
 		int TotalFrames = curve.Length;
 
@@ -132,14 +141,14 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 			TotalFrames = 4;
 		}
 
-		float[] xArray = new float[TotalFrames];
-		attributes.Set( "CurveFrames" + ChannelLetter, TotalFrames );
+		Span<float> xArray = stackalloc float[4];
+		attributes.Set( tokens.Frames, TotalFrames );
 		for ( int i = 0; i < TotalFrames; ++i )
 		{
 			var frame = curve.Frames[i];
 			xArray[i] = frame.Time;
 			Vector4 localFrame = new Vector4( frame.Time, frame.Value, frame.In, frame.Out );
-			attributes.Set( "CurveFrame" + ChannelLetter + i, localFrame );
+			attributes.Set( tokens.Frame[i], localFrame );
 		}
 
 		// Store the reciprocals of the 'x' deltas  (time in Curve.cs)  between successive point pairs.  
@@ -157,6 +166,6 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 				}
 			}
 		}
-		attributes.Set( "CurveDivisors" + ChannelLetter, divisorVector );
+		attributes.Set( tokens.Divisors, divisorVector );
 	}
 }

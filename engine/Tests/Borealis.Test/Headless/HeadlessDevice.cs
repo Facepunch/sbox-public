@@ -121,6 +121,16 @@ internal sealed class HeadlessDevice : GpuDevice
 	internal override bool DrawsAggregatesResident => ResidentAggregates;
 
 	/// <summary>
+	/// Whether it claims resident meshes (<see cref="GpuDevice.DrawsMeshesResident"/>, with <see cref="ResidentAggregates"/>) and takes
+	/// every material resident. Off by default; a test that turns it on is <c>[DoNotParallelize]</c>.
+	/// </summary>
+	public bool ResidentMeshes { get; set; }
+
+	internal override bool DrawsMeshesResident => ResidentMeshes;
+
+	internal override bool TakesResident( GpuMaterial material ) => ResidentMeshes;
+
+	/// <summary>
 	/// Whether it claims to stream textures (<see cref="GpuDevice.StreamsTextures"/>), so what draws without a size of its own
 	/// gives one through <see cref="AddTextureSizes"/>. Off by default; a test that turns it on is <c>[DoNotParallelize]</c>.
 	/// </summary>

@@ -38,12 +38,33 @@ cbuffer BorealisGpuDrivenMaterial_t
 	uint g_nBorealisPixelMaterial;
 };
 
-// The instance's transform slot and draw
+// The instance's transform slot and draw (the transform word's top byte is its LOD fade's, sbox/lod_fade.slangh)
 uint2 BorealisGpuDrivenInstance( uint nInstance )
 {
 	ByteAddressBuffer instances = g_bindless_VertexBuffers[ g_nBorealisInstances ];
 	uint nAt = nInstance * InstanceRecord_Size;
-	return uint2( instances.Load( nAt + InstanceRecord_Transform ), instances.Load( nAt + InstanceRecord_Draw ) );
+	uint2 vRecord = instances.Load2( nAt + InstanceRecord_Transform );
+	return uint2( vRecord.x & 0xffffffu, vRecord.y );
+}
+
+// The instance's LOD fade (LodFadeKeep in sbox/lod_fade.slangh): 0 none; else the share of pixels the new LOD keeps, of
+// 128, bit 7 set for the LOD it fades from
+uint BorealisGpuDrivenFade( uint nInstance )
+{
+	return g_bindless_VertexBuffers[ g_nBorealisInstances ].Load( nInstance * InstanceRecord_Size + InstanceRecord_Transform ) >> 24;
+}
+
+// A LOD cross-fade's dither: the new LOD keeps the pixels whose noise is under its share, the old one the rest, so the two
+// cover each pixel once, in every pass and whatever the multisampling
+void BorealisLodFadeClip( uint nFade, float2 vPositionSs )
+{
+	if ( nFade == 0 )
+		return;
+
+	float flNoise = frac( 52.9829189 * frac( dot( floor( vPositionSs ), float2( 0.06711056, 0.00583715 ) ) ) );
+	bool bNew = flNoise < ( nFade & 127 ) / 128.0;
+	if ( bNew == ( ( nFade & 128 ) != 0 ) )
+		discard;
 }
 
 // The vertex's bit in the visibility mask: its aggregate's first vertex bit (written beside the instance records, where
@@ -93,7 +114,7 @@ uint4 BorealisGpuDrivenFetch( uint nGeometry, uint nSemantic, uint nVertex, bool
 
 	// Its stream (GeometryStream): page + 1, byte offset of element 0, format and stride, element count and per-instance flag
 	uint nStreamAt = nGeometry + GeometryRecord_Size + nAttribute * GeometryStream_Size;
-	uint4 attribute = uint4( geometry.Load( nStreamAt + GeometryStream_Page ), geometry.Load( nStreamAt + GeometryStream_Offset ), geometry.Load( nStreamAt + GeometryStream_Format ), geometry.Load( nStreamAt + GeometryStream_Count ) );
+	uint4 attribute = geometry.Load4( nStreamAt + GeometryStream_Page );
 	if ( nVertex >= ( attribute.w >> 1 ) )
 		return result;
 

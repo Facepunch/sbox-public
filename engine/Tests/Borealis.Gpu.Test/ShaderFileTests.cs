@@ -326,6 +326,34 @@ public class ShaderDrawTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// A shader that's a surface alone (standard: a Slang file, no .shader, no compiled file) loads as nothing, so nothing is
+	/// kept and every material of it loads it again: that mustn't ask every mounted file system for a compiled file, which
+	/// would be a leftover anyway.
+	/// </summary>
+	[TestMethod]
+	public void SurfaceOnlyShadersDontAskTheMounts()
+	{
+		var folder = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"borealis-surface-only-{Guid.NewGuid():N}" );
+		var shaders = System.IO.Path.Combine( folder, "shaders" );
+		System.IO.Directory.CreateDirectory( shaders );
+		try
+		{
+			System.IO.File.WriteAllText( System.IO.Path.Combine( shaders, "surface_only_test.slang" ), "import sbox.surface;\n" );
+			using var backend = new Borealis.Backend.BackendDevice( Device );
+			backend.Content.Add( folder );
+			var mountLookups = 0;
+			backend.Content.Resolve = _ => { mountLookups++; return null; };
+			Assert.IsNull( backend.Shaders.Load( "shaders/surface_only_test.shader" ) );
+			Assert.IsNull( backend.Shaders.Load( "shaders/surface_only_test.shader" ) );
+			Assert.AreEqual( 0, mountLookups );
+		}
+		finally
+		{
+			System.IO.Directory.Delete( folder, true );
+		}
+	}
+
 	static Vector4 Half4( byte[] pixels, int x, int y )
 	{
 		var i = (y * Size + x) * 8;

@@ -16,7 +16,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class GeneratedLevelTests : GpuTest
+public class GeneratedLevelTests : RenderGpuTest
 {
 	const string Model = "models/dev/sphere.vmdl";
 

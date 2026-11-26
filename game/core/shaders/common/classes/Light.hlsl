@@ -4,8 +4,8 @@
 #include "common/Shadow.hlsl"
 #include "common/lightbinner.hlsl"
 #include "common/classes/LightModulators.hlsl"
-#include "light_probe_volume.fxc"
-#include "baked_lighting_constants.fxc"
+#include "sbox/light_probe_volume.slangh"
+#include "sbox/baked_lighting.slangh"
 
 //-----------------------------------------------------------------------------
 // A baked light read out of a probe volume or a lightmap, before it becomes a Light.  Keeping this
@@ -43,7 +43,13 @@ struct StaticLightSample
 //-----------------------------------------------------------------------------
 // Lightmapped Probe
 //-----------------------------------------------------------------------------
+#ifdef SBOX_SURFACE_PASSES_SLANGH
+// Surface draw attributes fix the baked source for a pipeline, including GPU-driven buckets. Specialize so the driver
+// can discard unused lightmap, probe and ambient paths; the classic shader path keeps its existing uniforms.
+bool UsesBakedLightingFromProbe < Attribute( "UsesBakedLightingFromProbe" ); SpecializedConstant(); >;
+#else
 bool UsesBakedLightingFromProbe < Attribute("UsesBakedLightingFromProbe"); > ;
+#endif
 
 struct ProbeLight
 {
@@ -72,7 +78,11 @@ struct ProbeLight
 //-----------------------------------------------------------------------------
 // 2D Lightmap
 //-----------------------------------------------------------------------------
+#ifdef SBOX_SURFACE_PASSES_SLANGH
+bool UsesBakedLightmaps < Attribute( "UsesBakedLightmaps" ); SpecializedConstant(); >;
+#else
 bool UsesBakedLightmaps < Attribute("UsesBakedLightmaps"); > ;
+#endif
 
 // Bless this
 #define LightMap(a) Bindless::GetTexture2DArray( g_nLightmapTextureIndices[a] )

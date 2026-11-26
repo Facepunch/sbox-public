@@ -42,14 +42,40 @@ public class SceneRenderingWidget : Frame
 	protected override void OnMousePress( MouseEvent e )
 	{
 		QueueGizmoPointerEvent( e, true );
+		PlayWidgetInput.For( this )?.OnMouseButton( e.Button, e.LocalPosition, true );
 		base.OnMousePress( e );
 	}
 
 	protected override void OnMouseReleased( MouseEvent e )
 	{
 		QueueGizmoPointerEvent( e, false );
+		PlayWidgetInput.For( this )?.OnMouseButton( e.Button, e.LocalPosition, false );
 		base.OnMouseReleased( e );
 	}
+
+	protected override void OnMouseWheel( WheelEvent e )
+	{
+		PlayWidgetInput.For( this )?.OnMouseWheel( e );
+		base.OnMouseWheel( e );
+	}
+
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		if ( PlayWidgetInput.For( this )?.OnKey( true, e ) == true ) return;
+		base.OnKeyPress( e );
+	}
+
+	protected override void OnKeyRelease( KeyEvent e )
+	{
+		if ( PlayWidgetInput.For( this )?.OnKey( false, e ) == true ) return;
+		base.OnKeyRelease( e );
+	}
+
+	// Qt moves focus on Tab before the press reaches OnKeyPress, unless the widget says it keeps focus:
+	// while the game has the play widget's keys, Tab is the game's
+	protected override bool FocusNext() => PlayWidgetInput.For( this ) is not null && PlayWidgetInput.HasGameFocus || base.FocusNext();
+
+	protected override bool FocusPrevious() => PlayWidgetInput.For( this ) is not null && PlayWidgetInput.HasGameFocus || base.FocusPrevious();
 
 	protected override void OnBlur( FocusChangeReason reason )
 	{
@@ -209,7 +235,7 @@ public class SceneRenderingWidget : Frame
 
 		if ( Camera.IsValid() )
 		{
-			Camera.Scene?.PreCameraRender();
+			Camera.Scene?.PrepareSceneForRendering();
 			Camera.AddToRenderList( default, Size * DpiScale );
 		}
 		else if ( Scene.IsValid() )
@@ -359,7 +385,7 @@ public class SceneRenderingWidget : Frame
 		Sandbox.Rendering.GameDrawExtract.BeginFrame();
 		using ( ExtractZone.Start() )
 		{
-			drawnScene?.PreCameraRender();
+			drawnScene?.PrepareSceneForRendering();
 			if ( Camera.PrepareForRenderList() ) drawnCameras.Add( Camera );
 			Sandbox.Rendering.GameDrawExtract.Extract( drawnCameras, record: true );
 		}

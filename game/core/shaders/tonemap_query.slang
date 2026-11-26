@@ -93,15 +93,9 @@ float g_flMeterRed < Attribute( "MeterRedAsMultisampled" ); Default( 0.0 ); >;
 float3 g_vTonemapMaskColor < Default3( -1.0, -1.0, -1.0 ); >;
 
 // Main ---------------------------------------------------------------------------------------------------------------------------------------------------
-struct PS_OUTPUT
+// Counts are the only output; there is no colour attachment in Borealis's query scope.
+[shader( "pixel" )] void MainPs( PS_INPUT i )
 {
-	float4 vColor : SV_Target0;
-};
-
-[shader( "pixel" )] PS_OUTPUT MainPs( PS_INPUT i )
-{
-	PS_OUTPUT o;
-
 	float4 cColor;
 	#if ( D_MSAA_COLOR_BUFFER )
 	{
@@ -146,9 +140,6 @@ struct PS_OUTPUT
 
 	// Kill any pixel not in the luminance range
 	clip( flInRange - 1.0 );
-
-	o.vColor = flInRange.xxxx;
-	return o;
 }
 
 #endif // PS

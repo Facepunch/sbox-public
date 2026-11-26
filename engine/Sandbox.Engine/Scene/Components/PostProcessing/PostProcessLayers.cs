@@ -8,7 +8,6 @@ namespace Sandbox;
 internal class PostProcessLayers
 {
 	public Dictionary<Stage, List<PostProcessLayer>> Layers = new();
-	readonly HashSet<Stage> _earlyScheduled = [];
 
 	// Layers are rebuilt every frame, so reuse them (and their blit command lists) in creation order
 	readonly List<PostProcessLayer> _pool = [];
@@ -25,7 +24,6 @@ internal class PostProcessLayers
 		foreach ( var list in Layers.Values )
 			list.Clear();
 
-		_earlyScheduled.Clear();
 		_poolUsed = 0;
 	}
 
@@ -59,16 +57,10 @@ internal class PostProcessLayers
 		if ( !Layers.TryGetValue( stage, out var list ) )
 			return;
 
-		var scheduled = _earlyScheduled.Contains( stage );
-		if ( !scheduled )
-			list.Sort();
+		list.Sort();
 
 		foreach ( var entry in list )
 		{
-			// Native records procedural layers concurrently. Assign effects before jobs start so this
-			// hook can be recorded before the early effects without executing them twice.
-			if ( scheduled && entry.EarlyQueue.HasValue ) continue;
-
 			// Already run ahead of this stage on its selected queue
 			if ( entry.RanEarly )
 			{
@@ -78,22 +70,6 @@ internal class PostProcessLayers
 
 			entry.Render();
 		}
-	}
-
-	/// <summary>Assign early effects before native starts recording procedural layers on worker threads.</summary>
-	internal void ScheduleEarlyPostProcess( Stage stage, bool enabled )
-	{
-		if ( !enabled )
-		{
-			_earlyScheduled.Remove( stage );
-			return;
-		}
-
-		if ( !Layers.TryGetValue( stage, out var list ) )
-			return;
-
-		list.Sort();
-		_earlyScheduled.Add( stage );
 	}
 
 	/// <summary>
@@ -119,17 +95,14 @@ internal class PostProcessLayers
 	{
 		if ( !Layers.TryGetValue( stage, out var list ) ) return;
 
-		var scheduled = _earlyScheduled.Contains( stage );
-		if ( !scheduled )
-			list.Sort();
+		list.Sort();
 
 		foreach ( var entry in list )
 		{
-			if ( entry.EarlyQueue != queue || (!scheduled && entry.RanEarly) ) continue;
+			if ( entry.EarlyQueue != queue || entry.RanEarly ) continue;
 
 			entry.Render();
-			if ( !scheduled )
-				entry.RanEarly = true;
+			entry.RanEarly = true;
 		}
 	}
 }
@@ -154,11 +127,6 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	public string Name;
 
 	/// <summary>
-	/// Whether it reads the depth-normals prepass's G-buffer (<see cref="BasePostProcess.NeedsDepthNormals"/>).
-	/// </summary>
-	public bool NeedsDepthNormals;
-
-	/// <summary>
 	/// Where it may run ahead of its stage (<see cref="BasePostProcess.EarlyQueue"/>), and whether it has this frame.
 	/// </summary>
 	public PostProcessQueue? EarlyQueue;
@@ -174,7 +142,6 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 		CommandList = null;
 		Order = 0;
 		Name = null;
-		NeedsDepthNormals = false;
 		EarlyQueue = null;
 		RanEarly = false;
 	}

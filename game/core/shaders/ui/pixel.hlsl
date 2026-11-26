@@ -1,5 +1,5 @@
 #include "common.fxc"
-#include "math_general.fxc"
+#include "sbox/math.slangh"
 #include "ui/scissor.hlsl"
 #include "ui/gamma.hlsl"
 #include "common/blendmode.hlsl"

@@ -158,7 +158,16 @@ internal sealed partial class BorealisGpuRenderBackend
 		{
 			var key = (draw.Mesh, draw.DrawCall, draw.StartIndex, vertexCache);
 			if ( Draws.TryGetValue( key, out var made ) ) return made;
-			made = backend.Unroll( model, draw, vertexCache );
+			try
+			{
+				made = backend.Unroll( model, draw, vertexCache );
+			}
+			catch ( Exception e ) when ( e is System.IO.IOException or System.IO.InvalidDataException or ArgumentOutOfRangeException )
+			{
+				Log.Warning( $"Borealis.Gpu: {model.File.Name} can't be unrolled: {e.Message}" );
+				made = null;
+			}
+
 			Draws[key] = made;
 			return made;
 		}
@@ -212,12 +221,15 @@ internal sealed partial class BorealisGpuRenderBackend
 
 		// Padded by a triangle, as CPU vertices are: an expanding draw's per-instance streams step a triangle at a time
 		var data = new byte[(count + 3) * outStride];
+		var sourceData = source.Data;
+		var indexData = indices.Data;
 		for ( int k = 0; k < count; k++ )
 		{
-			var vertex = call.BaseVertex + (int)indices[firstIndex + k];
+			var index = indices.Size == 2 ? System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian( indexData.AsSpan( (firstIndex + k) * 2 ) ) : System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian( indexData.AsSpan( (firstIndex + k) * 4 ) );
+			var vertex = call.BaseVertex + (int)index;
 			var at = vertexOffset + (long)vertex * stride;
-			if ( vertex < 0 || at + stride > source.Data.Length ) return null;
-			source.Data.AsSpan( (int)at, stride ).CopyTo( data.AsSpan( k * outStride ) );
+			if ( vertex < 0 || at + stride > sourceData.Length ) return null;
+			sourceData.AsSpan( (int)at, stride ).CopyTo( data.AsSpan( k * outStride ) );
 
 			if ( cache is { } c )
 			{

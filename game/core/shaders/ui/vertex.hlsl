@@ -3,8 +3,8 @@
 #include "common.fxc"
 #include "vr_common.fxc"
 #include "vr_lighting.fxc"
-#include "math_general.fxc"
-#include "instancing.fxc"
+#include "sbox/math.slangh"
+#include "sbox/instancing.slangh"
 
 #define EPSILON 0.000001
 

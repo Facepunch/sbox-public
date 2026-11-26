@@ -24,15 +24,9 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 		RenderOnGpu( context, layerType, view.View, after );
 	}
 
-	internal override bool Counts => Source.IsValid() && Source.CountsSamples;
-
-	internal override void Counted( ulong samples )
-	{
-		if ( Source.IsValid() ) Source.Counted( samples );
-	}
-
-	// The context a command list ran for; callbacks run on the main thread
-	static GpuContext running;
+	// The context and the actual render pass's view can differ from the logical camera (for example, a 3D skybox).
+	[ThreadStatic] static GpuContext running;
+	[ThreadStatic] internal static RenderView CurrentView;
 	Action runBefore, runAfter;
 
 	/// <summary>
@@ -44,7 +38,9 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 	{
 		var run = after ? runAfter ??= () => Run( Source.ExecuteAfter ) : runBefore ??= () => Run( Source.ExecuteBefore );
 		var previous = running;
+		var previousView = CurrentView;
 		running = context;
+		CurrentView = camera;
 		try
 		{
 			using ( Borealis.Zones.DrawCallbacks.Start() )
@@ -53,6 +49,7 @@ internal sealed class BridgeDrawCallbacks : DrawCallbacks
 		finally
 		{
 			running = previous;
+			CurrentView = previousView;
 		}
 	}
 

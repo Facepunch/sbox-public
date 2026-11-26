@@ -1,5 +1,3 @@
-using NativeEngine;
-
 namespace Sandbox;
 
 /// <summary>
@@ -13,9 +11,6 @@ namespace Sandbox;
 [Obsolete]
 public class SceneParticles : SceneObject
 {
-	internal SceneParticles() { }
-	internal SceneParticles( HandleCreationData _ ) { }
-
 	/// <summary>
 	/// Create scene particles.
 	/// </summary>
@@ -111,10 +106,6 @@ public class SceneParticles : SceneObject
 	/// </summary>
 	/// <param name="f">Amount of time has passed since last simulation.</param>
 	public void Simulate( float f ) { }
-
-	internal override void OnNativeInit( CSceneObject ptr ) { }
-
-	internal override void OnNativeDestroy() { }
 
 	/// <summary>
 	/// The amount of particles 

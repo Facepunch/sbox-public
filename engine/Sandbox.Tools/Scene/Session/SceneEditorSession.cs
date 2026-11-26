@@ -308,15 +308,17 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 			return;
 
 		var source = Scene.Source;
+		SceneFile editFile = null;
 		if ( source is SceneFile sceneFile && SceneSource.FindAsset( sceneFile ) is Asset asset && File.Exists( asset.GetSourceFile( true ) ) )
 		{
 			var file = SceneSource.LoadForEditing( asset );
 			SceneSource.TrackSource( file );
-			source = file;
+			source = editFile = file;
 		}
 
 		InitUndo();
 		Scene.Load( source );
+		if ( editFile is not null ) SceneSource.ReleaseBlobData( editFile );
 
 		Selection.Clear();
 	}
@@ -587,6 +589,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 			using var _ = openingScene.Push();
 
 			openingScene.Load( sceneFile );
+			SceneSource.ReleaseBlobData( sceneFile );
 			SceneSource.TrackSource( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );

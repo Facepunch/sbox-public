@@ -34,13 +34,15 @@ public sealed partial class MethodDescription : MemberDescription
 
 	ParameterInfo[] parameters;
 
-	internal static MethodDescription Create( MethodInfo i, TypeDescription td, MemberDescription previous )
+	internal static MethodDescription Create( MethodInfo i, TypeDescription td, MemberDescription previous, MethodDescription inherited )
 	{
 		MethodDescription o = previous as MethodDescription;
 
 		o ??= new MethodDescription( td.library );
 		o.TypeDescription = td;
-		o.InitMethod( i );
+
+		if ( inherited is not null ) o.InitFrom( inherited );
+		else o.InitMethod( i );
 
 		return o;
 	}
@@ -60,6 +62,19 @@ public sealed partial class MethodDescription : MemberDescription
 		parameters = x.GetParameters();
 
 		base.Init( x );
+	}
+
+	private void InitFrom( MethodDescription inherited )
+	{
+		IsStatic = inherited.IsStatic;
+		IsPublic = inherited.IsPublic;
+		IsFamily = inherited.IsFamily;
+		IsVirtual = inherited.IsVirtual;
+		IsSpecialName = inherited.IsSpecialName;
+		OperatorKind = inherited.OperatorKind;
+		parameters = inherited.parameters;
+
+		base.InitFrom( inherited );
 	}
 
 	internal override void Dispose()

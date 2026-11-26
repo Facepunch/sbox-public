@@ -27,42 +27,17 @@ public static partial class Graphics
 		int ToolsVisMode { get; }
 
 		/// <summary>
-		/// Whether the view is another's child - a reflection or a render to texture from inside a view, which don't render
-		/// views of their own.
-		/// </summary>
-		bool IsChildView { get; }
-
-		/// <summary>
 		/// Which face of a cube capture the view draws (its render target array index), or -1.
 		/// </summary>
 		int CubeFace { get; }
 
 		/// <summary>
-		/// Whether the view is a capture other rendering samples rather than a camera's own frame: a cube face, a child view (a
-		/// refraction, <c>DrawView</c>, <c>DrawReflection</c>) or a reflection (<see cref="Rendering.CaptureFrames.IsCapture"/>).
+		/// Whether this stage belongs to a capture rather than a camera's own image.
 		/// </summary>
 		bool IsCapture { get; }
 
-		/// <summary>
-		/// The colour being drawn into. When <paramref name="owned"/>, it's a strong handle the caller destroys.
-		/// </summary>
-		ITexture GetColorTarget( out bool owned );
-
-		/// <summary>
-		/// The depth being drawn into, like <see cref="GetColorTarget"/>.
-		/// </summary>
-		ITexture GetDepthTarget( out bool owned );
-
-		/// <summary>
-		/// The depth being drawn into as an engine texture, where it is one (a frame on another device than Source 2's, whose
-		/// targets have no native handle); null for a native view, which <see cref="GetDepthTarget"/> answers.
-		/// </summary>
+		Texture ColorTexture { get; }
 		Texture DepthTexture { get; }
-
-		/// <summary>
-		/// The shader mode <c>RenderTools.DrawModel</c> draws with when it has no native layer to take one from.
-		/// </summary>
-		StringToken DrawShaderMode { get; }
 
 		/// <summary>
 		/// Put an object's own lighting - its light probe volume - into attributes, as
@@ -99,12 +74,6 @@ public static partial class Graphics
 	static IFrameView View => _state.view ?? throw new InvalidOperationException( "A standalone render block has no view." );
 
 	/// <summary>
-	/// The shader mode <c>RenderTools.DrawModel</c> draws with when there's no native layer to take it from: a managed
-	/// frame's, or none (a material's default) in a standalone render block.
-	/// </summary>
-	internal static StringToken DrawShaderMode => _state.view?.DrawShaderMode ?? default;
-
-	/// <summary>
 	/// The current view's frustum.
 	/// </summary>
 	internal static CFrustum ViewFrustum => View.Frustum;
@@ -120,33 +89,18 @@ public static partial class Graphics
 	internal static int ToolsVisMode => View.ToolsVisMode;
 
 	/// <summary>
-	/// Whether the current view is another's child: a native child view, or a managed frame rendered inside another.
-	/// </summary>
-	internal static bool IsChildView => View.IsChildView;
-
-	/// <summary>
 	/// Which face of a cube capture the current view draws (<c>SceneCamera.RenderToCubeTexture</c>), or -1.
 	/// </summary>
 	internal static int CubeFace => View.CubeFace;
 
 	/// <summary>
-	/// Whether the current view is a capture other rendering samples rather than a camera's own frame (<see cref="Rendering.CaptureFrames"/>).
+	/// Whether this stage belongs to a capture rather than a camera's own image.
 	/// </summary>
 	internal static bool IsCapture => View.IsCapture;
 
-	/// <summary>
-	/// The current frame's colour target. When <paramref name="owned"/>, it's a strong handle the caller destroys.
-	/// </summary>
-	internal static ITexture GetColorTarget( out bool owned ) => View.GetColorTarget( out owned );
+	internal static Texture BoundColorTexture => _state.renderTarget?.ColorTarget ?? _state.view?.ColorTexture;
+	internal static Texture BoundDepthTexture => _state.renderTarget is { } target ? target.DepthTarget : _state.view?.DepthTexture;
 
-	/// <summary>
-	/// The current frame's depth target, like <see cref="GetColorTarget"/>.
-	/// </summary>
-	internal static ITexture GetDepthTarget( out bool owned ) => View.GetDepthTarget( out owned );
-
-	/// <summary>
-	/// The current frame's depth target as an engine texture, where it is one (a frame on Borealis.Gpu); null where
-	/// <see cref="GetDepthTarget"/> answers (a native view).
-	/// </summary>
+	/// <summary>The frame's own depth texture, regardless of an override bound by the current draw.</summary>
 	internal static Texture DepthTexture => View.DepthTexture;
 }

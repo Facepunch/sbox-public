@@ -317,10 +317,7 @@ public partial class Texture
 		var t = LoadInternal( filesystem, filepath, warnOnMissing );
 		if ( t == null ) return null;
 
-		while ( !t.IsLoaded )
-		{
-			await Task.Delay( 10, ct );
-		}
+		await t.WhenLoaded( ct );
 
 		return t;
 	}

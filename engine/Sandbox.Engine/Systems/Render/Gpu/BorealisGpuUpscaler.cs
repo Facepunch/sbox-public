@@ -54,6 +54,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	static bool settingsRead;
 	static int settingsChanges;
 	static (Mode Mode, float Scale) settings;
+	static float settingsSharpness;
 
 	static (Mode Mode, float Scale) ReadSettings()
 	{
@@ -65,6 +66,13 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			Mode.Fsr3 => QualityScale( ConVarSystem.GetInt( "r_fsr3_quality", 1, true ) ),
 			Mode.Dlss => QualityScale( ConVarSystem.GetInt( "r_dlss_quality", 1, true ) ),
 			_ => Math.Clamp( ConVarSystem.GetFloat( "r_render_scale", 1.0f, true ), 0.4f, 1.0f ),
+		};
+
+		settingsSharpness = mode switch
+		{
+			Mode.Fsr1 => Math.Clamp( ConVarSystem.GetFloat( "r_fsr_rcas_sharpness", 0.25f, true ), 0.0f, 1.0f ),
+			Mode.Fsr3 => Math.Clamp( ConVarSystem.GetFloat( "r_fsr3_sharpness", 0.5f, true ), 0.0f, 1.0f ),
+			_ => 0,
 		};
 
 		if ( mode == Mode.Off && scale < 1.0f ) mode = Mode.Stretch;
@@ -114,6 +122,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	TemporalUpscaler temporal;
 	CutDetector cuts;
 	bool debugReactiveMask;
+	float sharpness;
 	int jitterIndex;
 	double lastDispatch = -1;
 	bool resetHistory;
@@ -132,12 +141,19 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 	/// <summary>
 	/// Before the camera's scene renders, outside any block: what this frame does at <paramref name="display"/>, its render size
 	/// and jitter, the upscaler made (again) when the settings or size changed. <paramref name="allowed"/> is native's main
-	/// view outside the tools: false renders at the display size. Returns whether the frame upscales.
+	/// view outside the tools: false renders at the display size. <paramref name="temporalAllowed"/> permits jitter and
+	/// history; otherwise temporal settings keep their scale with spatial FSR1, or no upscaler at native size.
 	/// </summary>
-	public bool Begin( Vector2Int display, bool allowed, bool debugReactiveMask = false )
+	public bool Begin( Vector2Int display, bool allowed, bool debugReactiveMask = false, bool temporalAllowed = true )
 	{
 		this.debugReactiveMask = debugReactiveMask;
 		var (mode, scale) = allowed ? Settings() : (Mode.Off, 1.0f);
+		sharpness = allowed ? settingsSharpness : 0;
+		if ( !temporalAllowed && mode is Mode.Fsr3 or Mode.Dlss )
+		{
+			mode = scale < 1.0f ? Mode.Fsr1 : Mode.Off;
+			sharpness = mode == Mode.Fsr1 ? 0.25f : 0;
+		}
 		DisplaySize = display;
 		var render = new Vector2Int( Math.Max( 1, (int)(scale * display.x) ), Math.Max( 1, (int)(scale * display.y) ) );
 
@@ -363,7 +379,6 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 			depthAttributes.Set( SourceDepth, sceneDepth );
 			depthAttributes.SetCombo( "D_MSAA", false );
 			depthAttributes.SetCombo( "D_UPSCALE", false );
-			depthAttributes.Set( "DownsampleFactor", 1 );
 			Graphics.Blit( DepthResolve, depthAttributes );
 
 			Graphics.RenderTarget = motionTarget;
@@ -454,7 +469,6 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		easuAttributes.Set( FsrOutputSize, fullSize );
 		easu.DispatchWithAttributes( easuAttributes, groups.x * 64, groups.y, 1 );
 
-		var sharpness = Math.Clamp( ConVarSystem.GetFloat( "r_fsr_rcas_sharpness", 0.25f, true ), 0.0f, 1.0f );
 		rcasAttributes.Set( FsrInput, intermediate );
 		rcasAttributes.Set( FsrOutput, output );
 		rcasAttributes.Set( FsrInputViewportSize, fullSize );
@@ -475,7 +489,7 @@ internal sealed class BorealisGpuUpscaler : IDisposable
 		{
 			JitterX = Jitter.x,
 			JitterY = Jitter.y,
-			Sharpness = Active == Mode.Fsr3 ? Math.Clamp( ConVarSystem.GetFloat( "r_fsr3_sharpness", 0.5f, true ), 0.0f, 1.0f ) : 0,
+			Sharpness = sharpness,
 			FrameTimeDeltaMs = delta,
 			CameraNear = zNear,
 			CameraFovVertical = verticalFov,

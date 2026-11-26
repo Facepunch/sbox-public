@@ -11,7 +11,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class SkinningTests : GpuTest
+public class SkinningTests : RenderGpuTest
 {
 	const string Citizen = "models/citizen/citizen.vmdl";
 	const string Human = "models/citizen_human/human.vmdl";

@@ -1,3 +1,4 @@
+using Borealis.Gpu;
 using Borealis;
 using Borealis.Culling;
 using Borealis.Features;
@@ -452,5 +453,164 @@ public class CascadeCacheTests
 		Move();
 		Quiet( SettledCasters.Seconds + 1 );
 		Assert.IsTrue( Settled(), "and starts over" );
+	}
+
+	/// <summary>
+	/// A tree whose LODs 0 and 1 sway and LOD 2 doesn't. By the far cascade's texels, a placement of scale 1 takes LOD 2 and
+	/// one of scale 2 takes LOD 0 (<paramref name="metric"/> is what its switch distances are measured against).
+	/// </summary>
+	static RenderMesh Tree( GpuMaterial sways, GpuMaterial still, float metric )
+	{
+		RenderMesh.Draw Draw( GpuMaterial material ) => new( 0, 0, 0, 36, 24, 0, material );
+		var bounds = new BBox( new Vector3( -50 ), new Vector3( 50 ) );
+		return new RenderMesh( new HeadlessMesh( "tree" ), bounds, [[Draw( sways )], [Draw( sways )], [Draw( still )]], [0, metric * 0.6f, metric * 0.9f] );
+	}
+
+	/// <summary>
+	/// Placements the views draw at each LOD of <see cref="Tree"/>.
+	/// </summary>
+	static int[] LodsDrawn( RenderSystem system, IEnumerable<ViewPass> passes )
+	{
+		var drawn = new int[3];
+		foreach ( var pass in passes )
+		{
+			foreach ( var run in system.GetFeature<MeshRenderFeature>().RunsFor( pass ).Opaque ) drawn[run.Lod] += run.Count;
+		}
+
+		return drawn;
+	}
+
+	/// <summary>
+	/// A world whose first frame has made the far cascade, and the metric its texels give LODs.
+	/// </summary>
+	static float FirstFrame( RenderSystem system, RenderWorld world, RenderView view )
+	{
+		Box( world, new Vector3( 100, 0, 0 ), isStatic: true );
+		CollectAndPrepare( system, world, view );
+		return 50.0f / FarView( system ).LodTexelsPerUnit;
+	}
+
+	/// <summary>
+	/// A static caster that sways at LODs 0 and 1 and not at LOD 2 is held by the far cascade's cache at LOD 2 and drawn over
+	/// it at LOD 0, by each placement's own texel LOD: the cache's parts draw the placement that takes LOD 2 and not the one
+	/// that takes LOD 0, the view over it the reverse. Instances and plain meshes both.
+	/// </summary>
+	[TestMethod]
+	public void FarCascadeHoldsTheLodsOfACasterThatDontAnimate()
+	{
+		var world = SunWorld();
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		var metric = FirstFrame( system, world, view );
+
+		using var sways = new ShadowCacheTests.AnimatingMaterial { Animates = true };
+		using var still = new ShadowCacheTests.AnimatingMaterial { Animates = false };
+		var tree = Tree( sways, still, metric );
+		var instanced = new InstancedMeshObject { Mesh = tree, IsStatic = true };
+		instanced.SetInstances( [new Transform( new Vector3( 100, -300, 0 ) ), new Transform( new Vector3( 100, 300, 0 ), Rotation.Identity, 2 )], default );
+		world.Add( instanced );
+		CollectAndPrepare( system, world, view );
+
+		var cache = LodsDrawn( system, CacheViews( system ) );
+		var live = LodsDrawn( system, [FarView( system )] );
+		Assert.IsTrue( cache[2] > 0 && cache[0] == 0 && cache[1] == 0, $"the cache draws the LOD 2 placement only: {string.Join( ",", cache )}" );
+		Assert.IsTrue( live[0] == 1 && live[1] == 0 && live[2] == 0, $"the view over it draws the LOD 0 placement only: {string.Join( ",", live )}" );
+
+		// Plain meshes: LOD by the object's scale
+		world.Remove( instanced );
+		var small = new MeshObject( tree, new Transform( new Vector3( 100, -300, 0 ) ) ) { IsStatic = true };
+		var large = new MeshObject( tree, new Transform( new Vector3( 100, 300, 0 ), Rotation.Identity, 2 ) ) { IsStatic = true };
+		world.Add( small );
+		world.Add( large );
+		CollectAndPrepare( system, world, view );
+
+		var mesh = system.GetFeature<MeshRenderFeature>();
+		Assert.IsTrue( CacheViews( system ).Any( p => p.Visible( mesh ).Contains( small.Index ) ), "the cache holds the one at LOD 2" );
+		Assert.IsTrue( FarView( system ).Visible( mesh ).Contains( small.Index ), "the view over it collects it too, and draws only the LODs that animate" );
+		cache = LodsDrawn( system, CacheViews( system ) );
+		live = LodsDrawn( system, [FarView( system )] );
+		Assert.IsTrue( cache[2] > 0 && cache[0] == 0 && cache[1] == 0, $"meshes, the cache draws LOD 2 only: {string.Join( ",", cache )}" );
+		Assert.IsTrue( live[0] == 1 && live[1] == 0 && live[2] == 0, $"meshes, the view over it draws LOD 0 only: {string.Join( ",", live )}" );
+	}
+
+	/// <summary>
+	/// A material that wasn't known to animate and then does moves its LOD out of the cache, which is drawn again where the
+	/// caster is, and into the view over it.
+	/// </summary>
+	[TestMethod]
+	public void FarCascadeRedrawsWhenALodStartsToAnimate()
+	{
+		var world = SunWorld();
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		var metric = FirstFrame( system, world, view );
+
+		using var sways = new ShadowCacheTests.AnimatingMaterial { Animates = true };
+		using var still = new ShadowCacheTests.AnimatingMaterial { Animates = null };
+		var instanced = new InstancedMeshObject { Mesh = Tree( sways, still, metric ), IsStatic = true };
+		instanced.SetInstances( [new Transform( new Vector3( 100, -300, 0 ) )], default );
+		world.Add( instanced );
+		CollectAndPrepare( system, world, view );
+		CollectAndPrepare( system, world, view );
+		var far = ShadowMapper.FarCaches.Single();
+		var drawn = far.Draws + far.CellsDrawn;
+		Assert.AreEqual( 0, CacheViews( system ).Length, "kept" );
+		Assert.AreEqual( 0, LodsDrawn( system, [FarView( system )] )[2], "the material doesn't say yet: LOD 2 isn't drawn over the cache" );
+
+		still.Animates = true;
+		CollectAndPrepare( system, world, view );
+		Assert.IsTrue( CacheViews( system ).Length > 0, "drawn again without it" );
+		Assert.IsTrue( far.Draws + far.CellsDrawn > drawn );
+		Assert.AreEqual( 0, LodsDrawn( system, CacheViews( system ) ).Sum(), "the cache holds none of it: every LOD animates" );
+		Assert.AreEqual( 1, LodsDrawn( system, [FarView( system )] )[2], "the view over it draws LOD 2 now" );
+	}
+
+	/// <summary>
+	/// What a resident list of the far cascade's cache makes of such a tree: its group leaves out the LODs that animate, with
+	/// no device batch for them, and the view over the cache has no list and draws them itself.
+	/// </summary>
+	[TestMethod]
+	public void ResidentFarCacheLeavesOutTheLodsThatAnimate()
+	{
+		var device = HeadlessRenderHost.Headless;
+		(device.ResidentAggregates, device.ResidentMeshes) = (true, true);
+		var wasWhole = ShadowMapper.FarCacheRedrawWhole;
+		ShadowMapper.FarCacheRedrawWhole = true;
+		try
+		{
+			var world = SunWorld();
+			var view = LookingDownX();
+			using var system = new RenderSystem { DepthPrepass = false };
+			var metric = FirstFrame( system, world, view );
+
+			using var sways = new ShadowCacheTests.AnimatingMaterial { Animates = true };
+			using var still = new ShadowCacheTests.AnimatingMaterial { Animates = false };
+			var instanced = new InstancedMeshObject { Mesh = Tree( sways, still, metric ), IsStatic = true };
+			instanced.SetInstances( [new Transform( new Vector3( 100, -300, 0 ) ), new Transform( new Vector3( 100, 300, 0 ), Rotation.Identity, 2 )], default );
+			world.Add( instanced );
+
+			// Its run of transforms is made the frame after it's added
+			for ( int i = 0; i < 3; i++ ) CollectAndPrepare( system, world, view );
+
+			var aggregates = system.GetFeature<AggregateRenderFeature>();
+			var list = CacheViews( system ).Select( aggregates.ResidentFor ).First( l => l is { MeshGroups.Count: 1 } );
+			var group = list.MeshGroups.Single();
+			Assert.AreEqual( 3UL, group.LiveLods, "a list that splits LODs leaves out LODs 0 and 1" );
+			Assert.AreEqual( 3, list.DeviceCount, "a batch a LOD" );
+
+			var batches = new GpuContext.GpuDrivenBatch[list.DeviceCount];
+			Assert.IsTrue( aggregates.MeshDeviceBatches( list.MeshGroups, false, false, batches ) );
+			Assert.IsTrue( batches[0].Material is null && batches[1].Material is null, "none for the LODs that animate" );
+			Assert.IsTrue( batches[2].Material is not null && batches[2].Lod == 2, "one for the LOD that doesn't" );
+
+			Assert.IsNull( aggregates.ResidentFor( FarView( system ) ), "the view over the cache has no list" );
+			Assert.AreEqual( 1, LodsDrawn( system, [FarView( system )] )[0], "it draws the LOD that animates itself" );
+			Assert.AreEqual( 0, LodsDrawn( system, [FarView( system )] )[2] );
+		}
+		finally
+		{
+			ShadowMapper.FarCacheRedrawWhole = wasWhole;
+			(device.ResidentAggregates, device.ResidentMeshes) = (false, false);
+		}
 	}
 }

@@ -564,6 +564,11 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	if ( DirectionalLightDebug > 0 && g_DirectionalLightCascadeCount > 0 )
 		o.vDiffuse += DirectionalLightShadow::GetDebugColor( f.vPositionWs );
 
+	// A view without dynamic lights needs no cluster lookup or per-wave light test
+	[branch]
+	if ( NumDynamicLights == 0 )
+		return;
+
 	ClusterRange lights = Cluster::Query( ClusterItemType_Light, nClusterIndex );
 
 	// A wave with no lights skips the loop by ballot. This cut the forward pass by a third on an RX 580 even with no local

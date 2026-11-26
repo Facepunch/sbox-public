@@ -571,10 +571,24 @@ internal static class GpuFontText
 	static void BinTiles( ReadOnlySpan<GPUBoxInstance> instances, List<uint> tiles, int tilesX, int tilesY )
 	{
 		int tileCount = tilesX * tilesY;
-		int start = tiles.Count;
-
-		Span<int> counts = tileCount <= 4096 ? stackalloc int[tileCount] : new int[tileCount];
+		int[] rented = tileCount > 4096 ? System.Buffers.ArrayPool<int>.Shared.Rent( tileCount ) : null;
+		Span<int> counts = rented is null ? stackalloc int[tileCount] : rented.AsSpan( 0, tileCount );
 		counts.Clear();
+
+		try
+		{
+			BinTiles( instances, tiles, tilesX, tilesY, counts );
+		}
+		finally
+		{
+			if ( rented is not null ) System.Buffers.ArrayPool<int>.Shared.Return( rented );
+		}
+	}
+
+	static void BinTiles( ReadOnlySpan<GPUBoxInstance> instances, List<uint> tiles, int tilesX, int tilesY, Span<int> counts )
+	{
+		int tileCount = tilesX * tilesY;
+		int start = tiles.Count;
 
 		for ( int i = 0; i < instances.Length; i++ )
 		{

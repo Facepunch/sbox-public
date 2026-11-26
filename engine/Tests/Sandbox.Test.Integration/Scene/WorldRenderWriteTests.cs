@@ -20,7 +20,6 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		try
 		{
@@ -33,7 +32,7 @@ public class WorldRenderWriteTests
 			var prepare = RenderType.GetMethod( "Prepare", Any );
 			var find = RenderType.GetMethod( "Find", Any );
 			var pending = RenderType.GetProperty( "PendingChanges", Any );
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			Assert.AreEqual( 0, (int)pending.GetValue( render ), "prepared" );
 
 			var moved = new Transform( new Vector3( 10, 20, 30 ) );
@@ -69,7 +68,6 @@ public class WorldRenderWriteTests
 		finally
 		{
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}
@@ -84,7 +82,6 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		try
 		{
@@ -95,7 +92,7 @@ public class WorldRenderWriteTests
 			var custom = new SceneCustomObject( world );
 			var dynamic = new SceneDynamicObject( world );
 			var box = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
-			RenderType.GetMethod( "Prepare", Any ).Invoke( render, [camera, false] );
+			RenderType.GetMethod( "Prepare", Any ).Invoke( render, null );
 			Assert.IsInstanceOfType<Borealis.LightObject>( light.RenderObject );
 			Assert.AreEqual( Borealis.LightObject.LightKind.Spot, ((Borealis.LightObject)spot.RenderObject).Kind );
 			var find = RenderType.GetMethod( "Find", Any );
@@ -138,7 +135,6 @@ public class WorldRenderWriteTests
 		finally
 		{
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}
@@ -154,7 +150,6 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		try
 		{
@@ -166,7 +161,7 @@ public class WorldRenderWriteTests
 
 			var prepare = RenderType.GetMethod( "Prepare", Any );
 			var pending = RenderType.GetProperty( "PendingChanges", Any );
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			var mesh = (Borealis.MeshObject)human.RenderObject;
 
 			// No device makes the human's mesh here: it draws a skinned stand-in with as many bones
@@ -185,7 +180,7 @@ public class WorldRenderWriteTests
 			CollectionAssert.AreEqual( before, mesh.BoneMatrices.ToArray(), "drawn from the pose before until the next prepare" );
 			Assert.AreEqual( 1, (int)pending.GetValue( render ), "the bounds and pose wait" );
 
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			CollectionAssert.AreEqual( expected, mesh.BoneMatrices.ToArray(), "the pose written on the worker, drawn from the prepare" );
 			var bounds = SceneObject.ToLocal( human.Bounds, mesh.Transform );
 			Assert.IsTrue( bounds.Mins.Distance( mesh.LocalBounds.Mins ) < 1e-3f && bounds.Maxs.Distance( mesh.LocalBounds.Maxs ) < 1e-3f, "bounds after the next frame" );
@@ -193,7 +188,6 @@ public class WorldRenderWriteTests
 		finally
 		{
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}
@@ -209,7 +203,6 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		var deferred = RenderSync.DeferWrites;
 		try
@@ -221,7 +214,7 @@ public class WorldRenderWriteTests
 			var prepare = RenderType.GetMethod( "Prepare", Any );
 			var find = RenderType.GetMethod( "Find", Any );
 			var pending = RenderType.GetProperty( "PendingChanges", Any );
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			var lightObject = (Borealis.LightObject)find.Invoke( render, [light] );
 			var boxObject = (Borealis.MeshObject)find.Invoke( render, [box] );
 			Assert.IsNotNull( find.Invoke( render, [gone] ), "made" );
@@ -241,7 +234,7 @@ public class WorldRenderWriteTests
 			Assert.AreNotEqual( moved.Position * 2, boxObject.Transform.Position, "the box waits" );
 			Assert.IsNotNull( find.Invoke( render, [gone] ), "the deleted object stays until the prepare" );
 
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			Assert.AreEqual( 0, (int)pending.GetValue( render ), "written" );
 			Assert.AreEqual( moved.Position, lightObject.Transform.Position, "light moved" );
 			Assert.AreEqual( Color.Red, lightObject.Color, "light colour" );
@@ -253,7 +246,6 @@ public class WorldRenderWriteTests
 		{
 			RenderSync.DeferWrites = deferred;
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}
@@ -271,8 +263,6 @@ public class WorldRenderWriteTests
 		var shown = new SceneWorld();
 		var inside = new SceneWorld();
 		var unseen = new SceneWorld();
-		var camera = new SceneCamera { World = shown };
-		var insideCamera = new SceneCamera { World = inside };
 		var shownRender = (System.IDisposable)System.Activator.CreateInstance( RenderType, [shown] );
 		var insideRender = (System.IDisposable)System.Activator.CreateInstance( RenderType, [inside] );
 		var unseenRender = (System.IDisposable)System.Activator.CreateInstance( RenderType, [unseen] );
@@ -286,8 +276,8 @@ public class WorldRenderWriteTests
 			var prepare = RenderType.GetMethod( "Prepare", Any );
 			var find = RenderType.GetMethod( "Find", Any );
 			var pending = RenderType.GetProperty( "PendingChanges", Any );
-			prepare.Invoke( shownRender, [camera, false] );
-			prepare.Invoke( insideRender, [insideCamera, false] );
+			prepare.Invoke( shownRender, null );
+			prepare.Invoke( insideRender, null );
 			var boxObject = (Borealis.MeshObject)find.Invoke( shownRender, [box] );
 			var skyObject = (Borealis.MeshObject)find.Invoke( insideRender, [sky] );
 			Assert.IsTrue( RenderSync.Worlds >= 3, "each world's renderer is registered" );
@@ -308,9 +298,9 @@ public class WorldRenderWriteTests
 			Assert.IsTrue( (int)pending.GetValue( unseenRender ) > 0, "a world no view has drawn waits for its first" );
 
 			// A view after the sync point finds the world ready, and writes what changed after it
-			prepare.Invoke( shownRender, [camera, false] );
+			prepare.Invoke( shownRender, null );
 			box.Position = moved * 2;
-			prepare.Invoke( shownRender, [camera, false] );
+			prepare.Invoke( shownRender, null );
 			Assert.AreEqual( moved * 2, boxObject.Transform.Position, "a change after the sync point is written by the next prepare" );
 		}
 		finally
@@ -319,8 +309,6 @@ public class WorldRenderWriteTests
 			unseenRender.Dispose();
 			insideRender.Dispose();
 			shownRender.Dispose();
-			insideCamera.Dispose();
-			camera.Dispose();
 			unseen.Delete();
 			inside.Delete();
 			shown.Delete();
@@ -338,7 +326,6 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld { WrittenByItsViews = true };
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		var deferred = RenderSync.DeferWrites;
 		try
@@ -347,7 +334,7 @@ public class WorldRenderWriteTests
 			var prepare = RenderType.GetMethod( "Prepare", Any );
 			var find = RenderType.GetMethod( "Find", Any );
 			var pending = RenderType.GetProperty( "PendingChanges", Any );
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			var boxObject = (Borealis.MeshObject)find.Invoke( render, [box] );
 
 			RenderSync.DeferWrites = true;
@@ -357,7 +344,7 @@ public class WorldRenderWriteTests
 			Assert.AreNotEqual( moved, boxObject.Transform.Position, "not written at the sync point" );
 			Assert.IsTrue( (int)pending.GetValue( render ) > 0, "the change waits" );
 
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			Assert.AreEqual( moved, boxObject.Transform.Position, "the view drawing it writes it" );
 			Assert.AreEqual( 0, (int)pending.GetValue( render ), "nothing waits after it" );
 		}
@@ -365,7 +352,6 @@ public class WorldRenderWriteTests
 		{
 			RenderSync.DeferWrites = deferred;
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}
@@ -384,7 +370,6 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		try
 		{
@@ -402,14 +387,13 @@ public class WorldRenderWriteTests
 			model.Destroy();
 
 			var drawn = new SceneObject( world, model );
-			RenderType.GetMethod( "Prepare", Any ).Invoke( render, [camera, false] );
+			RenderType.GetMethod( "Prepare", Any ).Invoke( render, null );
 			Assert.IsNull( Sandbox.Rendering.Bridge.MirrorContent.Mesh( model, out var pending ), "nothing to draw" );
 			Assert.IsFalse( pending );
 		}
 		finally
 		{
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}
@@ -424,7 +408,6 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		try
 		{
@@ -435,7 +418,7 @@ public class WorldRenderWriteTests
 			var prepare = RenderType.GetMethod( "Prepare", Any );
 			var pending = RenderType.GetProperty( "PendingChanges", Any );
 			var renderWorld = (Borealis.RenderWorld)RenderType.GetProperty( "World" ).GetValue( render );
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			Assert.AreEqual( Color.Red, renderWorld.Lighting.SunColor );
 
 			sun.LightColor = Color.Blue;
@@ -443,13 +426,12 @@ public class WorldRenderWriteTests
 			Assert.AreEqual( 0, (int)pending.GetValue( render ), "nothing waits for a prepare" );
 			Assert.AreEqual( new Vector3( 10, 20, 30 ), renderWorld.LightProbeVolumes[0].Transform.Position, "the volume moved" );
 
-			prepare.Invoke( render, [camera, false] );
+			prepare.Invoke( render, null );
 			Assert.AreEqual( Color.Blue, renderWorld.Lighting.SunColor, "the next view lights with the new colour" );
 		}
 		finally
 		{
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}
@@ -464,24 +446,22 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		try
 		{
 			var box = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
-			RenderType.GetMethod( "Prepare", Any ).Invoke( render, [camera, false] );
+			RenderType.GetMethod( "Prepare", Any ).Invoke( render, null );
 			var mesh = (Borealis.MeshObject)box.RenderObject;
 			Assert.IsTrue( mesh.CastShadows );
 
 			box.ChangeFlags( SceneObjectFlags.MaterialSupportsShadows, SceneObjectFlags.CastShadows );
-			RenderType.GetMethod( "Prepare", Any ).Invoke( render, [camera, false] );
+			RenderType.GetMethod( "Prepare", Any ).Invoke( render, null );
 			Assert.IsTrue( box.Flags.CastShadows, "the flag reads as on with either bit" );
 			Assert.IsFalse( mesh.CastShadows, "casting isn't enabled" );
 		}
 		finally
 		{
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}
@@ -500,7 +480,6 @@ public class WorldRenderWriteTests
 		typeof( ThreadSafe ).GetMethod( "MarkMainThread", Any ).Invoke( null, null );
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera { World = world };
 		var render = (System.IDisposable)System.Activator.CreateInstance( RenderType, [world] );
 		try
 		{
@@ -509,7 +488,7 @@ public class WorldRenderWriteTests
 			var pane = new SceneObject( world, Model.Load( "models/dev/box.vmdl" ) );
 			pane.SetMaterialOverride( glass );
 			pane.ChangeFlags( SceneObjectFlags.IsOpaque, SceneObjectFlags.IsOpaque | SceneObjectFlags.IsTranslucent );
-			RenderType.GetMethod( "Prepare", Any ).Invoke( render, [camera, false] );
+			RenderType.GetMethod( "Prepare", Any ).Invoke( render, null );
 
 			var mesh = (Borealis.MeshObject)pane.RenderObject;
 			Assert.IsNotNull( mesh.Mesh, "the box's mesh" );
@@ -519,7 +498,6 @@ public class WorldRenderWriteTests
 		finally
 		{
 			render.Dispose();
-			camera.Dispose();
 			world.Delete();
 		}
 	}

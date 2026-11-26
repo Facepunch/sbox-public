@@ -1,5 +1,6 @@
 using Borealis.Source2.Materials;
 using NativeEngine;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -66,12 +67,21 @@ public partial class Texture : Resource, IDisposable
 	/// In which case we should change all this code to use that way instead of doing this.
 	/// </summary>
 	/// <summary>
-	/// What the texture was made with, kept when the process draws on a device other than Source 2's
-	/// (<see cref="RenderBackend.Default"/>) or has another device beside it, which makes its copy from them: the pixel
-	/// data, or the colour it was cleared to.
+	/// What the texture was made with, until the device that draws it has made its copy from it: a process whose only device is
+	/// Borealis.Gpu's (<see cref="RenderBackend.IsOnlyDevice"/>) lets the pixels go then, and what reads them back
+	/// (<see cref="GetPixels(int)"/> and the rest) reads that copy. Kept where another device might still make its own copy from them,
+	/// and where nothing draws (<see cref="HeadlessRenderBackend"/> reads them back): the pixel data, or the colour it was cleared to.
 	/// Null once the texture has been changed since.
 	/// </summary>
-	internal byte[] InitialPixels { get; set; }
+	internal byte[] InitialPixels { get => initialPixels; set => initialPixels = value; }
+	byte[] initialPixels;
+
+	/// <summary>
+	/// Let <see cref="InitialPixels"/> go if they're still <paramref name="consumed"/>, the array a device made its copy from:
+	/// pixels given to the texture since (<see cref="CopyFrom"/> on another thread) are kept for the copy made from them.
+	/// </summary>
+	internal void ForgetInitialPixels( byte[] consumed ) => System.Threading.Interlocked.CompareExchange( ref initialPixels, null, consumed );
+
 	internal Color? InitialColor { get; set; }
 
 	/// <summary>
@@ -90,15 +100,23 @@ public partial class Texture : Resource, IDisposable
 		get;
 		set
 		{
-			if ( value && !field ) System.Threading.Interlocked.Increment( ref viewDraws );
+			if ( value == field ) return;
 			field = value;
+			Interlocked.Increment( ref viewDraws );
 		}
+	}
+
+	/// <summary>Publish a view's backing, invalidating lowered bindings if it took over or replaced another backing.</summary>
+	internal void MarkDrawnByView( bool bindingChanged )
+	{
+		if ( bindingChanged && DrawnByView ) Interlocked.Increment( ref viewDraws );
+		else DrawnByView = true;
 	}
 
 	static int viewDraws;
 
-	/// <summary>Moves on each time a view draws into a texture (<see cref="DrawnByView"/> turns on): what a dispatch lowered before may bind a stale engine copy since.</summary>
-	internal static int ViewDraws => System.Threading.Volatile.Read( ref viewDraws );
+	/// <summary>Changes when a view takes over or replaces a backing, or when the engine takes it back.</summary>
+	internal static int ViewDraws => Volatile.Read( ref viewDraws );
 
 	internal void CopyFrom( Texture texture )
 	{
@@ -110,6 +128,9 @@ public partial class Texture : Resource, IDisposable
 		MadeAtRunTime = texture.MadeAtRunTime;
 		InitialPixels = texture.InitialPixels;
 		InitialColor = texture.InitialColor;
+
+		// A device that let the pixels go once it made its copy has nothing to make this texture from: it copies that copy
+		if ( InitialPixels is null && MadeAtRunTime ) RenderBackend.AdoptEverywhere( texture, this );
 
 		if ( !native.IsNull )
 		{
@@ -227,7 +248,45 @@ public partial class Texture : Resource, IDisposable
 	/// <summary>
 	/// Whether this texture has finished loading or not.
 	/// </summary>
-	public bool IsLoaded { get; internal set; } = true;
+	public bool IsLoaded
+	{
+		get => Volatile.Read( ref loading )?.Task.IsCompleted ?? true;
+		internal set
+		{
+			if ( value ) Volatile.Read( ref loading )?.TrySetResult();
+			else BeginLoading();
+		}
+	}
+
+	TaskCompletionSource loading;
+
+	TaskCompletionSource BeginLoading()
+	{
+		TaskCompletionSource replacement = null;
+		while ( true )
+		{
+			var current = Volatile.Read( ref loading );
+			if ( current is not null && !current.Task.IsCompleted ) return current;
+
+			replacement ??= new( TaskCreationOptions.RunContinuationsAsynchronously );
+			if ( Interlocked.CompareExchange( ref loading, replacement, current ) == current ) return replacement;
+		}
+	}
+
+	internal Task WhenLoaded( CancellationToken cancellationToken = default )
+		=> Volatile.Read( ref loading )?.Task.WaitAsync( cancellationToken ) ?? Task.CompletedTask;
+
+	internal void FailLoading( Exception error )
+	{
+		if ( Volatile.Read( ref loading ) is { } pending )
+			FailLoading( pending, error );
+	}
+
+	static void FailLoading( TaskCompletionSource pending, Exception error )
+	{
+		if ( error is OperationCanceledException canceled ) pending.TrySetCanceled( canceled.CancellationToken );
+		else pending.TrySetException( error );
+	}
 
 	/// <summary>
 	/// True if this is a multi-frame animated image (GIF, animated WebP) driven by <see cref="Tick"/>.
@@ -433,7 +492,6 @@ public partial class Texture : Resource, IDisposable
 	bool hasAnimatedSequences;
 
 	ulong _markedUsedFrame;
-	int _markedUsedMipSize;
 
 	// The frame another device than Source 2's last used it, for LastUsed; set from any thread
 	ulong _deviceUsedFrame;
@@ -442,19 +500,10 @@ public partial class Texture : Resource, IDisposable
 	internal void UsedOnDevice() => _deviceUsedFrame = Application.FrameCount;
 
 	/// <summary>
-	/// Tells texture streaming this texture is being used.
-	/// This is usually automatic, but useful for bindless pipelines.
+	/// Records the current frame as the texture's last use, including when sampling it through a bindless index.
 	/// </summary>
-	public void MarkUsed( int requiredMipSize = 0 )
-	{
-		// Streaming only needs one touch per texture per frame, skip repeat calls
-		// unless they're asking for more detail than we already reported.
-		if ( _markedUsedFrame == Application.FrameCount && requiredMipSize <= _markedUsedMipSize )
-			return;
-
-		_markedUsedFrame = Application.FrameCount;
-		_markedUsedMipSize = requiredMipSize;
-	}
+	/// <param name="requiredMipSize">Retained for source compatibility; it does not request residency.</param>
+	public void MarkUsed( int requiredMipSize = 0 ) => _markedUsedFrame = Application.FrameCount;
 
 	internal bool IsRenderTarget => Desc.m_nFlags.Contains( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );
 
@@ -464,30 +513,28 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	internal async Task ReplacementAsync( Task<Texture> task )
 	{
-		IsLoaded = false;
-
-		//
-		// Wait for the new texture to exist
-		//
-		var texture = await task;
-
-		//
-		// replace us with the new texture
-		//
-		if ( texture is not null && texture != this )
+		var pending = BeginLoading();
+		try
 		{
-			this.CopyFrom( texture );
-
-			// update any animation instance (eg for gifs) to point to this as well
-			if ( Animations.FirstOrDefault( x => x.Texture.TryGetTarget( out var t ) && ReferenceEquals( t, texture ) ) is { } animation )
+			var texture = await task;
+			if ( texture is not null && texture != this )
 			{
-				animation.Texture.SetTarget( this );
+				this.CopyFrom( texture );
+
+				// Retarget animated images to the public placeholder.
+				if ( Animations.FirstOrDefault( x => x.Texture.TryGetTarget( out var t ) && ReferenceEquals( t, texture ) ) is { } animation )
+					animation.Texture.SetTarget( this );
+
+				texture.Dispose();
 			}
 
-			texture.Dispose();
+			pending.TrySetResult();
 		}
-
-		IsLoaded = true;
+		catch ( Exception error )
+		{
+			FailLoading( pending, error );
+			throw;
+		}
 	}
 }
 

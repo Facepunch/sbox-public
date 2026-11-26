@@ -99,6 +99,9 @@ public static partial class Gizmo
 				}
 			}
 			current.Input = input;
+			// The polled buttons can lag the press event (a widget renders before its owner copies Qt's buttons into
+			// Input), and reading that as a release would drop the press in the frame it arrived.
+			if ( MousePressed && !HasReleaseInput ) current.Input.LeftMouse = true;
 		}
 
 		void CapturePress()

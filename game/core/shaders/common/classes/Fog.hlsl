@@ -4,8 +4,8 @@
 #include "system.fxc"
 #include "vr_common.fxc"
 #include "common_samplers.fxc"
-#include "math_general.fxc"
-#include "volumetric_fog.fxc"
+#include "sbox/math.slangh"
+#include "sbox/volumetric_fog.slangh"
 #include "common/classes/Bindless.hlsl"
 
 /// <summary>

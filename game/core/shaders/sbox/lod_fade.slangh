@@ -1,0 +1,83 @@
+// sbox/lod_fade.slangh: timed LOD cross-fades of resident meshes, for the culls (borealis_resident_cull_cs, borealis_gpu_driven_cull_cs). When a
+// mesh's LOD changes in the view that owns the fade (view flag 64), it draws in both its old and new LOD for the fade's
+// length only (BackendDevice.LodFadeTime), each dithered by the same screen noise in complementary halves
+// (BorealisLodFadeClip in borealis_gpu_driven.fxc), so the two cover each pixel once. Groups whose header says they fade
+// (bit 16 of its LOD word) keep their LOD in this state; of their draws, those whose material clips (batch bit 7) dither,
+// the rest switch when the state does.
+
+#ifndef SBOX_LOD_FADE_SLANGH
+#define SBOX_LOD_FADE_SLANGH
+
+// Each transform slot's state, a word: its LOD + 1 (bits 0-3, 0: never seen), the LOD it fades from + 1 (bits 4-7, its
+// own LOD when it isn't fading), when the fade began (bits 8-21, in ticks of 1/256 s, wrapping every 64 s) and the frame
+// it was last drawn in (bits 22-31, wrapping): bits 8-31 are laid out as the frame's stamp is (BackendDevice.LodFadeNow).
+// A mesh not drawn this frame or the last has no state (it was out of view, or its slot was another mesh's): it starts
+// at its LOD, without a fade
+RWByteAddressBuffer g_LodFade < Attribute( "BorealisLodFade" ); >;
+
+// How far past a switch distance (a share of it) a mesh's LOD changes, as nrp's clutter: one standing on the line keeps
+// its LOD instead of fading back and forth (drawn twice) as the camera stirs
+static const float LodFadeHysteresis = 0.05;
+
+// Whether a batch of LOD nBatchLod keeps a mesh, updating its slot's state, and the fade its instance record carries in
+// its transform word's top byte: 0 none; else the share of pixels the new LOD keeps, of 128 (bits 0-6), bit 7 for the LOD
+// it fades from, which keeps the rest. nTarget is the mesh's LOD here; nNear and nFar its LODs with the switch distances
+// LodFadeHysteresis further and nearer: a mesh whose LOD is between them stays. A batch that doesn't dither keeps the old
+// LOD for the first half of a fade and the new one after. nNow is the frame's stamp (time and frame). Every view and
+// dispatch of a frame computes the same state from the same LOD camera and stamp, so whichever entry of the mesh writes
+// first, the rest write the same.
+bool LodFadeKeep( uint nSlot, uint nTarget, uint nNear, uint nFar, uint nBatchLod, bool bDithers, uint nNow, uint nTicks, out uint nFade )
+{
+	nFade = 0;
+	uint nBytes;
+	g_LodFade.GetDimensions( nBytes );
+	if ( nTicks == 0 || nSlot >= nBytes / 4 || nSlot >= ( 1u << 24 ) || nTarget > 14 || nFar > 14 )
+		return nTarget == nBatchLod;
+
+	uint nTime = nNow & 0x3fffu;
+	uint nFrame = ( nNow >> 14 ) & 0x3ffu;
+	uint nAt = nSlot * 4;
+	uint nState = g_LodFade.Load( nAt );
+	bool bSeen = ( nState & 15 ) != 0 && ( ( nFrame - ( nState >> 22 ) ) & 0x3ffu ) <= 1;
+	uint nCurrent = bSeen ? ( nState & 15 ) - 1 : nTarget;
+	uint nPrevious = bSeen ? ( ( nState >> 4 ) & 15 ) - 1 : nTarget;
+	uint nElapsed = bSeen ? ( nTime - ( nState >> 8 ) ) & 0x3fffu : nTicks;
+	if ( bSeen )
+		nTarget = clamp( nCurrent, nNear, nFar );
+
+	if ( nTarget != nCurrent )
+	{
+		// Turning back mid-fade runs the same fade backwards from where it is, instead of popping
+		nElapsed = nTarget == nPrevious && nElapsed < nTicks ? nTicks - nElapsed : 0;
+		nPrevious = nCurrent;
+		nCurrent = nTarget;
+	}
+	else if ( nElapsed >= nTicks )
+	{
+		// A finished fade forgets its old LOD, so the wrapping time can't play it again
+		nPrevious = nCurrent;
+		nElapsed = 0;
+	}
+
+	uint nNew = ( nCurrent + 1 ) | ( nPrevious + 1 ) << 4 | ( ( nTime - nElapsed ) & 0x3fffu ) << 8 | nFrame << 22;
+	if ( nNew != nState )
+		g_LodFade.Store( nAt, nNew );
+
+	if ( nPrevious == nCurrent )
+		return nCurrent == nBatchLod;
+
+	if ( !bDithers )
+		return ( nElapsed * 2 < nTicks ? nPrevious : nCurrent ) == nBatchLod;
+
+	uint nShare = clamp( nElapsed * 128 / nTicks, 1u, 127u );
+	if ( nBatchLod == nCurrent )
+	{
+		nFade = nShare;
+		return true;
+	}
+
+	nFade = 0x80 | nShare;
+	return nBatchLod == nPrevious;
+}
+
+#endif // SBOX_LOD_FADE_SLANGH

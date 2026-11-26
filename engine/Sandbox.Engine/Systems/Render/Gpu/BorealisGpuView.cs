@@ -47,9 +47,6 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 	/// <summary>The kind of layer the stage is, which drawing code may check.</summary>
 	public SceneLayerType LayerType = SceneLayerType.Translucent;
 
-	/// <summary>The layer's shader mode (<c>Depth</c> in a shadow map or the depth prepass), or none for each shader's first.</summary>
-	public StringToken ShaderMode;
-
 	/// <summary>The layer of <see cref="Target"/>'s depth drawn to, when it has no colour: a shadow map's slice.</summary>
 	public int DepthSlice;
 
@@ -116,31 +113,14 @@ internal sealed class BorealisGpuView : Graphics.IFrameView, IDisposable
 
 	bool Graphics.IFrameView.PostProcessEnabled => PostProcessEnabled;
 	int Graphics.IFrameView.ToolsVisMode => ToolsVisMode;
-	bool Graphics.IFrameView.IsChildView => false;
 	int Graphics.IFrameView.CubeFace => CubeFace;
-	bool Graphics.IFrameView.IsCapture => Rendering.CaptureFrames.IsCapture( CubeFace, false, false );
+	bool Graphics.IFrameView.IsCapture => CubeFace >= 0;
 
 	/// <summary>Which face of a cube capture the frame is (a capture camera's stages run on each face), or -1.</summary>
 	public int CubeFace = -1;
 
+	Texture Graphics.IFrameView.ColorTexture => Target?.ColorTarget;
 	Texture Graphics.IFrameView.DepthTexture => Target?.DepthTarget;
-
-	// Its targets are Borealis.Gpu textures, with no native handle
-	ITexture Graphics.IFrameView.GetColorTarget( out bool owned )
-	{
-		owned = false;
-		return default;
-	}
-
-	ITexture Graphics.IFrameView.GetDepthTarget( out bool owned )
-	{
-		owned = false;
-		return default;
-	}
-
-	// Only Source 2's backend binds a material's native mode; Borealis.Gpu picks its shader's mode itself
-
-	StringToken Graphics.IFrameView.DrawShaderMode => ShaderMode;
 
 	/// <summary>
 	/// The world whose light probe volumes light what the view draws (<see cref="Graphics.SetupLighting"/>), with the sub-worlds

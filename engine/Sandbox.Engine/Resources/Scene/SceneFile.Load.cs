@@ -33,12 +33,8 @@ public partial class SceneFile
 		if ( !file.TryLoadFromData( data ) )
 			throw new InvalidDataException( $"Could not read compiled scene '{path}'." );
 
+		// In-memory only: the path may not be mounted, so keep the blobs. Resource-loaded scenes re-read them by path.
+		file.BinaryData = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, data ) ?? [];
 		return file;
-	}
-
-	internal override bool LoadFromResource( Span<byte> data )
-	{
-		BinaryData = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, data ) ?? [];
-		return true;
 	}
 }

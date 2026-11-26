@@ -1,5 +1,6 @@
 using NativeEngine;
 using Sandbox.Rendering;
+using System.Buffers;
 
 namespace Sandbox;
 
@@ -82,6 +83,43 @@ internal abstract class RenderBackend
 	/// </summary>
 	public abstract bool ReadPixels( Texture texture, NativeRect source, int slice, int mip, NativeRect destination, IntPtr data, ImageFormat format, int stride );
 
+	/// <summary>Copy a rectangle from one mip's bytes, converting a block-rounded mip only when necessary.</summary>
+	protected static unsafe bool CopyPixels( ReadOnlySpan<byte> bytes, ImageFormat stored, bool compressed, int width, int height,
+		NativeRect source, NativeRect destination, IntPtr data, ImageFormat format, int pixel, int stride )
+	{
+		if ( source.x < 0 || source.y < 0 || source.x + source.w > width || source.y + source.h > height ) return false;
+
+		int decodedWidth = compressed ? (width + 3) & ~3 : width;
+		byte[] converted = null;
+		try
+		{
+			if ( stored != format || compressed )
+			{
+				int decodedHeight = compressed ? (height + 3) & ~3 : height;
+				converted = ArrayPool<byte>.Shared.Rent( decodedWidth * decodedHeight * pixel );
+				fixed ( byte* src = bytes )
+				fixed ( byte* dst = converted )
+				{
+					if ( !ImageLoader.ConvertImageFormat( (IntPtr)src, stored, (IntPtr)dst, format, decodedWidth, decodedHeight, 0, decodedWidth * pixel ) ) return false;
+				}
+				bytes = converted;
+			}
+
+			var row = source.w * pixel;
+			for ( int y = 0; y < source.h; y++ )
+			{
+				var line = bytes.Slice( ((source.y + y) * decodedWidth + source.x) * pixel, row );
+				line.CopyTo( new Span<byte>( (byte*)data + (long)(destination.y + y) * stride + (long)destination.x * pixel, row ) );
+			}
+
+			return true;
+		}
+		finally
+		{
+			if ( converted is not null ) ArrayPool<byte>.Shared.Return( converted );
+		}
+	}
+
 	/// <summary>
 	/// Read bytes of a buffer from a byte offset, once the GPU has written them. Waits for the GPU.
 	/// </summary>
@@ -121,6 +159,16 @@ internal abstract class RenderBackend
 
 	/// <summary>Whether any device other than <see cref="Default"/> exists, which might make copies of engine resources.</summary>
 	internal static bool OthersExist => others.Length > 0;
+
+	/// <summary>
+	/// Whether <paramref name="backend"/> is the process's device (<see cref="Default"/>) and the only one that makes copies of
+	/// engine resources: nothing else will make one from the data a resource was made with, so it may let that data go.
+	/// </summary>
+	internal static bool IsOnlyDevice( RenderBackend backend )
+	{
+		var all = others;
+		return Default == backend && all.Length == 1 && all[0] == backend;
+	}
 
 	/// <summary>
 	/// A shader was compiled while running (<see cref="Shader.CompileAsync(string, string, System.Threading.CancellationToken)"/>,
@@ -176,6 +224,18 @@ internal abstract class RenderBackend
 	internal static void ReleaseEverywhere( object resource )
 	{
 		foreach ( var backend in others ) backend.Release( resource );
+	}
+
+	/// <summary>
+	/// An engine texture took another's place (<see cref="Texture.CopyFrom"/>) when the pixels the other was made with are gone:
+	/// this device's copy of <paramref name="from"/>, if it has one, becomes <paramref name="to"/>'s, which can't be made again.
+	/// </summary>
+	public virtual void Adopt( Texture from, Texture to ) { }
+
+	/// <summary>Give an engine texture's copies on every device to the texture that took its place.</summary>
+	internal static void AdoptEverywhere( Texture from, Texture to )
+	{
+		foreach ( var backend in others ) backend.Adopt( from, to );
 	}
 
 	//

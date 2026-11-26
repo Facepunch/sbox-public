@@ -250,7 +250,7 @@ public struct ReflectionSetup
 	public bool RenderBehind;
 
 	/// <summary>
-	/// If we can't render the reflection and this is set, we'll clear the render target to this color
+	/// Legacy fallback color. Borealis reports rejected captures through the returned view metadata.
 	/// </summary>
 	public Color? FallbackColor { get; set; }
 
@@ -280,7 +280,7 @@ public struct RefractionSetup
 	public bool RenderBehind;
 
 	/// <summary>
-	/// If we can't render the reflection and this is set, we'll clear the render target to this color
+	/// Legacy fallback color. Borealis reports rejected captures through the returned view metadata.
 	/// </summary>
 	public Color? FallbackColor { get; set; }
 

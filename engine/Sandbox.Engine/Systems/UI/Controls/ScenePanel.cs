@@ -175,14 +175,17 @@ namespace Sandbox.UI
 			else if ( RenderScene.IsValid() && RenderScene.Camera.IsValid() )
 			{
 				// A UI preview goes without screen-space reflections. Only while it renders here: a camera may show this scene elsewhere too.
-				var sceneCamera = RenderScene.Camera.SceneCamera;
+				// RenderToTexture skips preparation while Graphics.IsActive (UI draw), so prepare the scene and this camera here.
+				var camera = RenderScene.Camera;
+				var sceneCamera = camera.SceneCamera;
 				var wantedReflections = sceneCamera.WantsScreenSpaceReflections;
 				sceneCamera.WantsScreenSpaceReflections = false;
 
 				try
 				{
-					RenderScene.PreCameraRender(); // TODO WTF?... terrible hack to get around Graphics.IsActive guard in RenderToTexture
-					RenderScene.Camera.RenderToTexture( RenderTexture );
+					RenderScene.PrepareSceneForRendering();
+					camera.InitializeRendering();
+					camera.RenderToTexture( RenderTexture );
 				}
 				finally
 				{

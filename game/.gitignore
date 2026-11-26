@@ -28,6 +28,7 @@ launchSettings.json
 /movies
 /screenshots
 /aftermath_dumps
+/imgui.ini
 /gpu_crash_dumps/
 /netmsg_samples
 /pipeline_layers.txt

@@ -12,10 +12,7 @@ namespace Sandbox.Rendering.Bridge;
 /// </summary>
 internal sealed partial class SceneBridge
 {
-	// An engine texture that lends a frame's texture to the engine's drawing for a copy (CopyIntoEngine)
-	Texture lent;
-
-	bool warnedDepthCopy;
+	[ThreadStatic] static bool warnedDepthCopy;
 
 	/// <summary>
 	/// Render <paramref name="camera"/> into <paramref name="target"/> (and <paramref name="depthTarget"/>) from inside a render
@@ -24,42 +21,30 @@ internal sealed partial class SceneBridge
 	bool RenderInBlock( BorealisGpuRenderBackend gpu, SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out ViewData viewData )
 	{
 		viewData = default;
-		if ( ChildDepth >= MaxChildDepth ) return false;
-		if ( views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var drawing ) && drawing.Rendering ) return false;
+		if ( !RenderCapture( camera, setup, target, depthTarget, out var capture ) ) return false;
 
-		var exposure = camera.Tonemap?.GpuExposure( gpu )?.Scale ?? 1.0f;
-
-		ChildDepth++;
-		CameraState state;
-		try
+		if ( !SameShape( gpu, capture.Color, target ) ) return false;
+		if ( depthTarget is not null && !SameShape( gpu, capture.Depth, depthTarget ) )
 		{
-			using ( Borealis.Zones.ChildView.Start() )
-				if ( !RenderOnGpu( camera, setup, target, depthTarget, exposure, out state ) ) return false;
-		}
-		finally
-		{
-			ChildDepth--;
-		}
-
-		// RenderOnGpu noted what it drew into as the engine textures' captures
-		if ( MirrorContent.Texture( target ) is { } color ) CopyIntoEngine( gpu, color, target );
-		if ( depthTarget is not null && MirrorContent.Texture( depthTarget ) is { } depth )
-		{
-			if ( SameShape( gpu, depth, depthTarget ) ) CopyIntoEngine( gpu, depth, depthTarget );
-			else if ( !warnedDepthCopy )
+			if ( !warnedDepthCopy )
 			{
 				warnedDepthCopy = true;
-				Log.Warning( $"Borealis.Gpu: a texture render's depth in a render block is {depth.Format} x{depth.Samples}; the caller's {depthTarget.ImageFormat} isn't written" );
+				Log.Warning( $"Borealis.Gpu: a texture render's depth in a render block doesn't match the caller's {depthTarget.ImageFormat} target" );
 			}
+			return false;
 		}
 
-		viewData = ViewDataFor( state, target );
+		CopyIntoEngine( gpu, capture.Color, target );
+		if ( depthTarget is not null ) CopyIntoEngine( gpu, capture.Depth, depthTarget );
+
+		viewData = ViewDataFor( capture.State, target );
 		return true;
 	}
 
 	/// <summary>Whether a frame's texture and an engine texture's copy on the device can be copied between.</summary>
 	static bool SameShape( BorealisGpuRenderBackend gpu, GpuTexture drawn, Texture engine )
 	{
+		if ( drawn is null ) return false;
 		var (handle, _) = BackendDevice.Unwrap( drawn );
 		if ( !handle.IsValid || MirrorContent.Gpu is not { } device ) return false;
 
@@ -75,9 +60,8 @@ internal sealed partial class SceneBridge
 	void CopyIntoEngine( BorealisGpuRenderBackend gpu, GpuTexture drawn, Texture destination )
 	{
 		var (handle, layout) = BackendDevice.Unwrap( drawn );
-		if ( !handle.IsValid ) return;
 
-		lent ??= Texture.CreateRenderTarget().WithSize( 4, 4 ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu lent" );
+		var lent = Output.LentTexture ??= Texture.CreateRenderTarget().WithSize( 4, 4 ).WithFormat( ImageFormat.RGBA8888 ).Create( "Borealis.Gpu lent" );
 
 		// The engine's copy holds it from here, so what the block draws after reads that
 		destination.DrawnByView = false;
@@ -97,23 +81,10 @@ internal sealed partial class SceneBridge
 	/// A bitmap render inside a render block: the camera as a child view into an 8-bit texture, read back once the GPU has
 	/// drawn it.
 	/// </summary>
-	void RenderBitmapInBlock( BorealisGpuRenderBackend gpu, SceneCamera camera, Bitmap bitmap, in ViewSetup setup )
+	void RenderBitmapInBlock( SceneCamera camera, Bitmap bitmap, Texture bitmapTarget, in ViewSetup setup )
 	{
-		if ( ChildDepth >= MaxChildDepth ) return;
-
-		var exposure = camera.Tonemap?.GpuExposure( gpu )?.Scale ?? 1.0f;
-
-		ChildDepth++;
-		try
-		{
-			if ( !RenderOnGpu( camera, setup, bitmapTarget, null, exposure, out _ ) ) return;
-		}
-		finally
-		{
-			ChildDepth--;
-		}
-
-		if ( MirrorContent.Texture( bitmapTarget ) is { } drawn && ReadBack( drawn ) is { } pixels ) Write( bitmap, pixels );
+		if ( RenderCapture( camera, setup, bitmapTarget, null, out var capture, bitmap ) && ReadBack( capture.Color ) is { } pixels )
+			Write( bitmap, pixels );
 	}
 
 	/// <summary>Mip 0 of an RGBA8 texture of Borealis's, read back, waiting for the GPU.</summary>

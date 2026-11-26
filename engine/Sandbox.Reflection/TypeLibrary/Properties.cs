@@ -11,7 +11,7 @@ public partial class TypeLibrary
 		var desc = GetType( obj.GetType() );
 		if ( desc == null ) return Array.Empty<PropertyDescription>();
 
-		if ( onlyOwn ) return desc.Properties.Where( x => x.MemberInfo.DeclaringType == x.MemberInfo.ReflectedType ).ToArray();
+		if ( onlyOwn ) return desc.Properties.Where( x => x.MemberInfo.DeclaringType == desc.TargetType ).ToArray();
 		return desc.Properties;
 	}
 

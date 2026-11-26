@@ -7,16 +7,21 @@ internal static partial class DebugOverlay
 		private const string FontName = "Roboto Mono";
 		private const int FontWeight = 600;
 
+		private const int MaxRows = 20;
+
+		static readonly Dictionary<string, string> ShortNames = new();
+		static readonly List<KeyValuePair<string, NetworkDebugSystem.MessageStats>> SortedStats = new( MaxRows + 1 );
+
 		static string GetShortName( string name )
 		{
-			var shortName = name;
-			var parts = name.Split( '.' );
+			if ( ShortNames.TryGetValue( name, out var shortName ) )
+				return shortName;
 
-			if ( parts.Length >= 2 )
-			{
-				shortName = $"{parts[^2]}.{parts[^1]}";
-			}
+			var last = name.LastIndexOf( '.' );
+			var previous = last > 0 ? name.LastIndexOf( '.', last - 1 ) : -1;
+			shortName = last < 0 ? name : name[(previous + 1)..];
 
+			ShortNames[name] = shortName;
 			return shortName;
 		}
 
@@ -37,8 +42,25 @@ internal static partial class DebugOverlay
 			if ( stats is not { Count: > 0 } )
 				return false;
 
-			var sortedStats = stats.OrderByDescending( kv => kv.Value.TotalBytes ).Take( 20 );
-			var totalBytesAll = stats.Values.Sum( s => s.TotalBytes );
+			var sortedStats = SortedStats;
+			sortedStats.Clear();
+			var totalBytesAll = 0;
+
+			foreach ( var kv in stats )
+			{
+				totalBytesAll += kv.Value.TotalBytes;
+
+				var index = sortedStats.Count;
+				while ( index > 0 && sortedStats[index - 1].Value.TotalBytes < kv.Value.TotalBytes )
+					index--;
+
+				if ( index >= MaxRows )
+					continue;
+
+				sortedStats.Insert( index, kv );
+				if ( sortedStats.Count > MaxRows )
+					sortedStats.RemoveAt( MaxRows );
+			}
 
 			var x = position.x;
 			var y = position.y;

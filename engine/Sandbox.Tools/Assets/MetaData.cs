@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Editor
@@ -87,18 +88,25 @@ namespace Editor
 
 		void Save( JsonObject obj )
 		{
+			// Unchanged contents aren't written: a write changes the file's time, which native fingerprints take as
+			// the .meta changing, and that recompiles what depends on it
+			var bytes = Serialize( obj );
+			try
+			{
+				if ( System.IO.File.Exists( FilePath ) && System.IO.File.ReadAllBytes( FilePath ).AsSpan().SequenceEqual( bytes ) )
+					return;
+			}
+			catch ( System.IO.IOException )
+			{
+				// Written below, which retries
+			}
+
 			const int retries = 10;
 			for ( var i = 0; i < retries; i++ )
 			{
 				try
 				{
-					using ( var stream = System.IO.File.Open( FilePath, System.IO.FileMode.Create ) )
-					{
-						using ( Utf8JsonWriter writer = new Utf8JsonWriter( stream, new JsonWriterOptions { Indented = true, SkipValidation = true } ) )
-						{
-							obj.WriteTo( writer );
-						}
-					}
+					System.IO.File.WriteAllBytes( FilePath, bytes );
 
 					_snapshot = null;
 					return;
@@ -116,6 +124,16 @@ namespace Editor
 					System.Threading.Thread.Sleep( delay );
 				}
 			}
+		}
+
+		static byte[] Serialize( JsonObject obj )
+		{
+			using var stream = new System.IO.MemoryStream();
+			using ( var writer = new Utf8JsonWriter( stream, new JsonWriterOptions { Indented = true, SkipValidation = true } ) )
+			{
+				obj.WriteTo( writer );
+			}
+			return stream.ToArray();
 		}
 
 		public JsonElement? GetElement( string keyName )

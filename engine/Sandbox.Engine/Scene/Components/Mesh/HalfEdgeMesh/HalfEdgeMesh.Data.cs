@@ -18,6 +18,7 @@ internal interface IDataStream
 {
 	internal void Allocate( int sourceIndex );
 	internal void AllocateMultiple( int count );
+	internal void Reserve( int capacity );
 }
 
 internal sealed class VertexData<TData> : ComponentData<TData> where TData : struct
@@ -72,6 +73,8 @@ internal abstract class ComponentData<T> : IEnumerable<T>, IDataStream where T :
 		for ( var i = 0; i < count; i++ )
 			_list.Add( default );
 	}
+
+	void IDataStream.Reserve( int capacity ) => _list.EnsureCapacity( capacity );
 }
 
 internal class ComponentList<T> : IEnumerable<T>
@@ -115,6 +118,17 @@ internal class ComponentList<T> : IEnumerable<T>
 
 		foreach ( var stream in _streams.Values )
 			stream.AllocateMultiple( count );
+	}
+
+	// Exact-size lists for bulk loads; Allocate's doubling would waste up to 2x per stream.
+	public void Reserve( int count )
+	{
+		var capacity = Count + count;
+		_list.EnsureCapacity( capacity );
+		_active.EnsureCapacity( capacity );
+
+		foreach ( var stream in _streams.Values )
+			stream.Reserve( capacity );
 	}
 
 	public void Deallocate( int index )

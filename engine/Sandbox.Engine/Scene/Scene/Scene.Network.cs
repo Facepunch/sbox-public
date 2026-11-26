@@ -1,6 +1,9 @@
-﻿using Sandbox.Network;
+﻿using Borealis.Source2.World;
+using Sandbox.Network;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
+using NumericVector3 = System.Numerics.Vector3;
 
 namespace Sandbox;
 
@@ -174,30 +177,42 @@ public partial class Scene : GameObject
 			}
 		}
 
-		ProbeCleanNetworkObjects( _sendConnections );
-
-		// Partition objects into dirty (pending changes) and clean (fully ACK'd).
-		// Dirty objects are processed first so they end up in earlier clusters,
-		// which are less likely to be delayed under network congestion.
-		_snapshotObjects.Clear();
-		_cleanSnapshotObjects.Clear();
-
-		PartitionSnapshotObjects( _dirtyNetworkObjects );
-		PartitionSnapshotObjects( _awakeNetworkObjects );
-
-		_snapshotObjects.AddRange( _cleanSnapshotObjects );
-
-		// If we're the host, include any GameObjectSystems.
-		if ( Networking.IsHost )
+		// The probe and send loops test many objects against the same connection and map origin.
+		_networkVisibilityThread = Environment.CurrentManagedThreadId;
+		try
 		{
-			foreach ( var gameObjectSystem in systems.Values )
-			{
-				if ( gameObjectSystem.HasSyncProperties )
-					_snapshotObjects.Add( gameObjectSystem );
-			}
-		}
+			ProbeCleanNetworkObjects( _sendConnections );
 
-		system.DeltaSnapshots.Send( CollectionsMarshal.AsSpan( _snapshotObjects ), _sendConnections );
+			// Partition objects into dirty (pending changes) and clean (fully ACK'd).
+			// Dirty objects are processed first so they end up in earlier clusters,
+			// which are less likely to be delayed under network congestion.
+			_snapshotObjects.Clear();
+			_cleanSnapshotObjects.Clear();
+
+			PartitionSnapshotObjects( _dirtyNetworkObjects );
+			PartitionSnapshotObjects( _awakeNetworkObjects );
+
+			_snapshotObjects.AddRange( _cleanSnapshotObjects );
+
+			// If we're the host, include any GameObjectSystems.
+			if ( Networking.IsHost )
+			{
+				foreach ( var gameObjectSystem in systems.Values )
+				{
+					if ( gameObjectSystem.HasSyncProperties )
+						_snapshotObjects.Add( gameObjectSystem );
+				}
+			}
+
+			system.DeltaSnapshots.Send( CollectionsMarshal.AsSpan( _snapshotObjects ), _sendConnections );
+		}
+		finally
+		{
+			_networkVisibilityThread = 0;
+			foreach ( var row in _networkVisibilityRows.Values )
+				ArrayPool<uint>.Shared.Return( row.Words );
+			_networkVisibilityRows.Clear();
+		}
 
 		RetireSettledNetworkObjects( Time.NowDouble );
 
@@ -414,13 +429,37 @@ public partial class Scene : GameObject
 	readonly List<Connection> _sendConnectionList = new();
 	Connection[] _sendConnections = [];
 	readonly List<Connection> _clientTickConnections = new();
+	readonly Dictionary<(Connection, WorldVisibility, NumericVector3), (uint[] Words, bool AllVisible)> _networkVisibilityRows = new();
+	int _networkVisibilityThread;
+
+	ReadOnlySpan<uint> GetNetworkVisibilityRow( Connection target, WorldVisibility visibility, NumericVector3 origin, ReadOnlySpan<NumericVector3> sources )
+	{
+		var key = (target, visibility, origin);
+		if ( !_networkVisibilityRows.TryGetValue( key, out var row ) )
+		{
+			var words = ArrayPool<uint>.Shared.Rent( visibility.VisibilityWordCount );
+			try
+			{
+				row = (words, visibility.Gather( sources, origin, words ));
+				_networkVisibilityRows.Add( key, row );
+			}
+			catch
+			{
+				ArrayPool<uint>.Shared.Return( words );
+				throw;
+			}
+		}
+
+		return row.AllVisible ? default : row.Words;
+	}
 
 	/// <summary>
 	/// Are these bounds visible to the specified <see cref="Connection"/>?
 	/// </summary>
 	public bool IsBBoxVisibleToConnection( Connection target, BBox box )
 	{
-		var sources = MemoryMarshal.Cast<Vector3, System.Numerics.Vector3>( target.VisibilityOrigins.AsSpan() );
+		var sources = MemoryMarshal.Cast<Vector3, NumericVector3>( target.VisibilityOrigins.AsSpan() );
+		var useCachedRow = _networkVisibilityThread == Environment.CurrentManagedThreadId;
 
 		// Every map's visibility has to agree; a map without any sees everything
 		for ( var i = 0; i < _networkMapInstanceCache.Count; i++ )
@@ -430,7 +469,11 @@ public partial class Scene : GameObject
 			if ( visibility is null || visibility.IsEmpty )
 				continue;
 
-			if ( !visibility.IsBoxVisible( sources, box.Mins, box.Maxs, map.Origin ) )
+			NumericVector3 origin = map.Origin;
+			var visible = useCachedRow
+				? visibility.IsBoxVisibleFromRow( GetNetworkVisibilityRow( target, visibility, origin, sources ), box.Mins, box.Maxs, origin )
+				: visibility.IsBoxVisible( sources, box.Mins, box.Maxs, origin );
+			if ( !visible )
 				return false;
 		}
 
@@ -442,7 +485,8 @@ public partial class Scene : GameObject
 	/// </summary>
 	public bool IsPointVisibleToConnection( Connection target, Vector3 position )
 	{
-		var sources = MemoryMarshal.Cast<Vector3, System.Numerics.Vector3>( target.VisibilityOrigins.AsSpan() );
+		var sources = MemoryMarshal.Cast<Vector3, NumericVector3>( target.VisibilityOrigins.AsSpan() );
+		var useCachedRow = _networkVisibilityThread == Environment.CurrentManagedThreadId;
 
 		for ( var i = 0; i < _networkMapInstanceCache.Count; i++ )
 		{
@@ -451,7 +495,11 @@ public partial class Scene : GameObject
 			if ( visibility is null || visibility.IsEmpty )
 				continue;
 
-			if ( !visibility.IsPointVisible( sources, position, map.Origin ) )
+			NumericVector3 origin = map.Origin;
+			var visible = useCachedRow
+				? visibility.IsPointVisibleFromRow( GetNetworkVisibilityRow( target, visibility, origin, sources ), position, origin )
+				: visibility.IsPointVisible( sources, position, origin );
+			if ( !visible )
 				return false;
 		}
 

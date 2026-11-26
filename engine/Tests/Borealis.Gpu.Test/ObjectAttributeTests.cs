@@ -12,7 +12,7 @@ namespace BorealisGpuTests;
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class ObjectAttributeTests : GpuTest
+public class ObjectAttributeTests : RenderGpuTest
 {
 	const int Width = 480, Height = 240;
 	const int Boxes = 4;

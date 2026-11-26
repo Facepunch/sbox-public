@@ -1,7 +1,6 @@
 using Sandbox.Rendering;
 using Sandbox.Rendering.Bridge;
 using Borealis;
-using System.Reflection;
 
 namespace SceneTests;
 
@@ -20,22 +19,21 @@ public class ManagedCameraFogTests
 		using var first = new SceneCamera { Fog = new FogSetup { Color = Color.Red } };
 		using var second = new SceneCamera();
 		var view = new RenderView();
-		var bridge = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneBridge, Sandbox.Rendering", true );
-		var fillView = bridge.GetMethod( "FillView", BindingFlags.Static | BindingFlags.NonPublic );
+		var size = new Vector2( 1280, 720 );
 
-		fillView.Invoke( null, [view, first, new ViewSetup(), new Vector2( 1280, 720 ), null] );
+		SceneBridge.FillView( view, first, new ViewSetup(), size );
 		Assert.AreEqual( first.Fog.ToBorealis(), view.Fog );
 		first.Fog = new FogSetup { Color = Color.Blue };
 		Assert.AreEqual( Color.Red, view.Fog.Value.Color, "A prepared view holds its own value snapshot" );
 
-		fillView.Invoke( null, [view, second, new ViewSetup(), new Vector2( 1280, 720 ), null] );
+		SceneBridge.FillView( view, second, new ViewSetup(), size );
 		Assert.IsNull( view.Fog, "A camera inheriting legacy fog clears the preceding override" );
 		Assert.AreEqual( Color.Blue, first.Fog.Value.Color );
 
-		fillView.Invoke( null, [view, first, new ViewSetup(), new Vector2( 1280, 720 ), null] );
+		SceneBridge.FillView( view, first, new ViewSetup(), size );
 		Assert.AreEqual( Color.Blue, view.Fog.Value.Color );
 		first.EnablePostProcessing = false;
-		fillView.Invoke( null, [view, first, new ViewSetup(), new Vector2( 1280, 720 ), null] );
+		SceneBridge.FillView( view, first, new ViewSetup(), size );
 		Assert.IsNull( view.Fog );
 	}
 }

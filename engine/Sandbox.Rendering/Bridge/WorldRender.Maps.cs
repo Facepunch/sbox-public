@@ -1,5 +1,3 @@
-using System.Linq;
-
 namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
@@ -9,6 +7,8 @@ namespace Sandbox.Rendering.Bridge;
 internal sealed partial class WorldRender
 {
 	readonly Dictionary<SceneMap, (MapGeometry Geometry, MapGeometry.Instance Instance)> maps = new();
+	readonly HashSet<SceneMap> currentMaps = new();
+	readonly List<SceneMap> removedMaps = new();
 	int mapsSeen = -1;
 
 	/// <summary>Add maps the scene world gained, take out those it lost, and make what has loaded since.</summary>
@@ -20,28 +20,27 @@ internal sealed partial class WorldRender
 		{
 			mapsSeen = source.MapsVersion;
 
-			List<SceneMap> current;
-			lock ( source.InternalSceneMaps ) current = source.InternalSceneMaps.Where( x => x.Geometry is not null ).ToList();
+			lock ( source.InternalSceneMaps )
+			{
+				foreach ( var map in source.InternalSceneMaps )
+					if ( map.Geometry is not null ) currentMaps.Add( map );
+			}
 
-			List<SceneMap> gone = null;
 			foreach ( var (map, made) in maps )
-			{
-				if ( !current.Contains( map ) || map.Geometry != made.Geometry ) (gone ??= new()).Add( map );
-			}
+				if ( !currentMaps.Contains( map ) || map.Geometry != made.Geometry ) removedMaps.Add( map );
 
-			if ( gone is not null )
+			foreach ( var map in removedMaps )
 			{
-				foreach ( var map in gone )
-				{
-					maps.Remove( map, out var made );
-					made.Instance.Dispose();
-				}
+				maps.Remove( map, out var made );
+				made.Instance.Dispose();
 			}
+			removedMaps.Clear();
 
-			foreach ( var map in current )
+			foreach ( var map in currentMaps )
 			{
 				if ( !maps.ContainsKey( map ) ) maps[map] = (map.Geometry, map.Geometry.Instantiate( gpu, World, 0 ));
 			}
+			currentMaps.Clear();
 		}
 
 		foreach ( var (_, made) in maps ) made.Instance.Update();

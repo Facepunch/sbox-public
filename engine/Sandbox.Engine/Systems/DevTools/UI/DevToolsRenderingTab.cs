@@ -403,7 +403,6 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 		if ( layer.RanEarly ) yield return "ran early";
 		if ( layer.EarlyQueue is { } queue )
 			yield return queue == PostProcessQueue.AsyncCompute ? "early compute capable" : "early graphics capable";
-		if ( layer.NeedsDepthNormals ) yield return "depth normals";
 	}
 
 	void RefreshCounters( FrameStats f, ManagedFrameCounters m, bool isManaged )

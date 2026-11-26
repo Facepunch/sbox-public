@@ -20,7 +20,7 @@ Mode( Default );
 	// so a lit shader reading one tile covers any filter footprint up to a tile wide (DirectionalLightShadow.hlsl)
 	DynamicCombo( D_WIDEN, 0..1, Sys( ALL ) );
 
-	// x: the cascade's first column of tiles in the atlas, y: tiles along each side of a cascade
+	// x: the raw cascade's first column; y: tiles per side; z: widened cascade indices packed two bits per dispatch slice.
 	float4 g_vShadowTiles < Attribute( "ShadowTiles" ); >;
 
 	#if D_WIDEN
@@ -35,8 +35,9 @@ Mode( Default );
 		[numthreads( 8, 8, 1 )]
 		[shader( "compute" )] void MainCs( uint3 vThreadId : SV_DispatchThreadID )
 		{
-			int nFirst = (int)g_vShadowTiles.x;
+			uint nCascade = ((uint)g_vShadowTiles.z >> (2 * vThreadId.z)) & 3u;
 			int nTiles = (int)g_vShadowTiles.y;
+			int nFirst = (int)nCascade * nTiles;
 			int2 vTile = int2( vThreadId.xy );
 			if ( vTile.x >= nTiles || vTile.y >= nTiles )
 				return;
@@ -59,12 +60,11 @@ Mode( Default );
 	#else
 		SamplerState g_sPoint < Filter( POINT ); AddressU( CLAMP ); AddressV( CLAMP ); >;
 
-		// The min and max of each wave, for the first lane to fold together
-		groupshared float2 s_vWaveMinMax[ 64 ];
+		// Used only on hardware whose waves are smaller than the tile's 32 threads.
+		groupshared float2 s_vWaveMinMax[ 32 ];
 
-		// A group per tile. Each thread gathers four 2x2 quads, one from each 16x16 quarter of the tile, so each gather
-		// instruction reads a contiguous block across the group rather than texels four apart
-		[numthreads( 8, 8, 1 )]
+		// A group per tile. Each lane gathers eight 2x2 quads, each gather instruction reading a contiguous 16x8 block.
+		[numthreads( 8, 4, 1 )]
 		[shader( "compute" )] void MainCs( uint3 vGroupId : SV_GroupID, uint3 vGroupThreadId : SV_GroupThreadID, uint nIndex : SV_GroupIndex )
 		{
 			uint nWidth, nHeight;
@@ -74,26 +74,33 @@ Mode( Default );
 
 			float2 vMinMax = float2( 1, 0 );
 			[unroll]
-			for ( int q = 0; q < 4; q++ )
+			for ( int q = 0; q < 8; q++ )
 			{
 				// The quad's shared corner: a gather there returns its four texels
-				int2 vQuad = vBase + int2( q & 1, q >> 1 ) * 16;
+				int2 vQuad = vBase + int2( (q & 1) * 16, (q >> 1) * 8 );
 				float4 d = g_tShadowDepth.GatherRed( g_sPoint, float2( vQuad + 1 ) * vInvSize );
 				vMinMax = float2( min( vMinMax.x, min( min( d.x, d.y ), min( d.z, d.w ) ) ), max( vMinMax.y, max( max( d.x, d.y ), max( d.z, d.w ) ) ) );
 			}
 
 			vMinMax = float2( WaveActiveMin( vMinMax.x ), WaveActiveMax( vMinMax.y ) );
 			uint nLanes = WaveGetLaneCount();
+			int2 vWrite = int2( (int)g_vShadowTiles.x + (int)vGroupId.x, vGroupId.y );
+			if ( nLanes >= 32 )
+			{
+				if ( WaveIsFirstLane() ) g_tTilesOut[ vWrite ] = vMinMax;
+				return;
+			}
+
 			if ( WaveIsFirstLane() )
 				s_vWaveMinMax[ nIndex / nLanes ] = vMinMax;
 			GroupMemoryBarrierWithGroupSync();
 
 			if ( nIndex == 0 )
 			{
-				uint nWaves = ( 64 + nLanes - 1 ) / nLanes;
+				uint nWaves = ( 32 + nLanes - 1 ) / nLanes;
 				for ( uint w = 1; w < nWaves; w++ )
 					vMinMax = float2( min( vMinMax.x, s_vWaveMinMax[ w ].x ), max( vMinMax.y, s_vWaveMinMax[ w ].y ) );
-				g_tTilesOut[ int2( (int)g_vShadowTiles.x + (int)vGroupId.x, vGroupId.y ) ] = vMinMax;
+				g_tTilesOut[ vWrite ] = vMinMax;
 			}
 		}
 	#endif

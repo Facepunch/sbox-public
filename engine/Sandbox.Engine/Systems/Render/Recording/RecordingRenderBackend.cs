@@ -197,7 +197,7 @@ internal sealed class RecordingRenderBackend : RenderBackend
 
 /// <summary>
 /// The frame view a game's drawing sees while it runs in the extract: the camera's frustum and what its block reported when
-/// this drawing last replayed (post processing, debug view, shader mode, depth texture, lighting world), with lighting set
+/// this drawing last replayed (post processing, debug view, targets, lighting world), with lighting set
 /// up as that block would (from the render world, which the main thread owns during the extract). Binds, target restores
 /// and scene objects drawn again are recorded for the replay.
 /// </summary>
@@ -213,23 +213,10 @@ internal sealed class RecordingFrameView : Graphics.IFrameView, IDisposable
 
 	bool Graphics.IFrameView.PostProcessEnabled => Facts.PostProcessEnabled;
 	int Graphics.IFrameView.ToolsVisMode => Facts.ToolsVisMode;
-	bool Graphics.IFrameView.IsChildView => false;
 	int Graphics.IFrameView.CubeFace => Facts.CubeFace;
 	bool Graphics.IFrameView.IsCapture => Facts.IsCapture;
 	Texture Graphics.IFrameView.DepthTexture => Facts.DepthTexture;
-	StringToken Graphics.IFrameView.DrawShaderMode => Facts.ShaderMode;
-
-	ITexture Graphics.IFrameView.GetColorTarget( out bool owned )
-	{
-		owned = false;
-		return default;
-	}
-
-	ITexture Graphics.IFrameView.GetDepthTarget( out bool owned )
-	{
-		owned = false;
-		return default;
-	}
+	Texture Graphics.IFrameView.ColorTexture => Facts.ColorTexture;
 
 	// As BorealisGpuView sets it up, now: the volumes are the render world's, which the main thread owns during the extract
 	void Graphics.IFrameView.SetupLighting( SceneObject obj, RenderAttributes attributes )

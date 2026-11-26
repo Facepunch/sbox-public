@@ -50,7 +50,7 @@ cbuffer BorealisHiZ_t
 	uint g_nHiZDepthHeight;
 	uint g_nHiZSamples;
 	uint g_nHiZCandidates;		// pass 2: byte offset of the candidates: groups, 1, 1, count, occluded, then from byte 32 64 bytes each
-	uint g_nHiZRuns;			// byte offset of the second phase's multi-draws: first command slot and count each
+	uint g_nHiZRuns;			// byte offset of the second phase's multi-draws: each first slot is past the first phase's slots
 	uint g_nHiZListed;			// byte offset of the first phase's listed fragments (for the meshlet pass), or 0
 	uint g_nHiZListed2;			// byte offset of the second phase's: dispatch arguments and the byte offset of its first entry
 	uint g_nHiZInstances;		// byte offset of the instance records

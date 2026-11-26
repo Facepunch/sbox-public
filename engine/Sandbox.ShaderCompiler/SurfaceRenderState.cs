@@ -36,6 +36,9 @@ public readonly record struct SurfaceRenderState( SurfaceBlend Blend, bool Depth
 	/// <summary>Whether it blends with what's behind it.</summary>
 	public bool Blends => Blend != SurfaceBlend.Opaque;
 
+	/// <summary>Whether it biases its depth (static_overlay's pulls overlays off the surfaces under them).</summary>
+	public bool HasDepthBias => DepthBias != 0 || SlopeDepthBias != 0;
+
 	/// <summary>
 	/// Whether it draws in the translucent layer, after the opaque one and sorted, with the translucent colour pass (opacity
 	/// kept in alpha, as a <c>.shader</c>'s S_TRANSLUCENT): when it blends or is marked <see cref="Translucent"/>. Such a

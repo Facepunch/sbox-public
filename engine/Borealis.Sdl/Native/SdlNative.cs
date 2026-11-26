@@ -1,5 +1,6 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Borealis.Sdl.Native;
 
@@ -55,6 +56,11 @@ internal static unsafe class SdlNative
 	public static delegate* unmanaged< nint, uint > SDL_GetWindowProperties;
 	public static delegate* unmanaged< uint, byte*, nint, nint > SDL_GetPointerProperty;
 	public static delegate* unmanaged< uint, byte*, long, long > SDL_GetNumberProperty;
+	public static delegate* unmanaged< uint > SDL_CreateProperties;
+	public static delegate* unmanaged< uint, void > SDL_DestroyProperties;
+	public static delegate* unmanaged< uint, byte*, nint, byte > SDL_SetPointerProperty;
+	public static delegate* unmanaged< uint, byte*, byte, byte > SDL_SetBooleanProperty;
+	public static delegate* unmanaged< uint, nint > SDL_CreateWindowWithProperties;
 
 	public static delegate* unmanaged< SdlRawEvent*, byte > SDL_PollEvent;
 	public static delegate* unmanaged< SdlRawEvent*, int, byte > SDL_WaitEventTimeout;
@@ -122,7 +128,7 @@ internal static unsafe class SdlNative
 
 	public static bool TryLoad()
 	{
-		if ( library != 0 ) return true;
+		if ( Volatile.Read( ref library ) != 0 ) return true;
 
 		lock ( loadLock )
 		{
@@ -133,12 +139,18 @@ internal static unsafe class SdlNative
 				var rooted = System.IO.Path.IsPathRooted( candidate );
 				if ( rooted && !File.Exists( candidate ) ) continue;
 				if ( !NativeLibrary.TryLoad( candidate, out var handle ) ) continue;
-				if ( !NativeLibrary.TryGetExport( handle, "SDL_InitSubSystem", out _ ) ) continue;
-
-				Resolve( handle );
-				LoadedFrom = rooted ? System.IO.Path.GetFullPath( candidate ) : candidate;
-				library = handle;
-				return true;
+				try
+				{
+					var loadedFrom = rooted ? System.IO.Path.GetFullPath( candidate ) : candidate;
+					if ( !TryResolve( handle ) ) continue;
+					LoadedFrom = loadedFrom;
+					Volatile.Write( ref library, handle );
+					return true;
+				}
+				finally
+				{
+					if ( library == 0 ) NativeLibrary.Free( handle );
+				}
 			}
 
 			return false;
@@ -150,68 +162,137 @@ internal static unsafe class SdlNative
 		if ( !TryLoad() ) throw new SdlException( $"SDL3 wasn't found ({string.Join( ", ", FileNames )}): set SdlLibrary.Path, or put it beside the application" );
 	}
 
-	static void Resolve( nint handle )
+	static bool TryResolve( nint handle )
 	{
-		nint Need( string name ) => NativeLibrary.TryGetExport( handle, name, out var proc ) ? proc : throw new SdlException( $"This SDL3 has no {name}: Borealis.Sdl needs SDL 3.2 or later" );
+		bool Find( string name, out nint proc ) => NativeLibrary.TryGetExport( handle, name, out proc );
 
-		SDL_InitSubSystem = (delegate* unmanaged< uint, byte >)Need( "SDL_InitSubSystem" );
-		SDL_QuitSubSystem = (delegate* unmanaged< uint, void >)Need( "SDL_QuitSubSystem" );
-		SDL_GetError = (delegate* unmanaged< byte* >)Need( "SDL_GetError" );
-		SDL_GetVersion = (delegate* unmanaged< int >)Need( "SDL_GetVersion" );
-		SDL_SetHint = (delegate* unmanaged< byte*, byte*, byte >)Need( "SDL_SetHint" );
-		SDL_GetCurrentVideoDriver = (delegate* unmanaged< byte* >)Need( "SDL_GetCurrentVideoDriver" );
-		SDL_free = (delegate* unmanaged< void*, void >)Need( "SDL_free" );
+		if ( !Find( nameof( SDL_InitSubSystem ), out var initSubSystem ) ||
+			!Find( nameof( SDL_QuitSubSystem ), out var quitSubSystem ) ||
+			!Find( nameof( SDL_GetError ), out var getError ) ||
+			!Find( nameof( SDL_GetVersion ), out var getVersion ) ||
+			!Find( nameof( SDL_SetHint ), out var setHint ) ||
+			!Find( nameof( SDL_GetCurrentVideoDriver ), out var getCurrentVideoDriver ) ||
+			!Find( nameof( SDL_free ), out var free ) ||
+			!Find( nameof( SDL_CreateWindow ), out var createWindow ) ||
+			!Find( nameof( SDL_DestroyWindow ), out var destroyWindow ) ||
+			!Find( nameof( SDL_GetWindowID ), out var getWindowId ) ||
+			!Find( nameof( SDL_GetWindowFlags ), out var getWindowFlags ) ||
+			!Find( nameof( SDL_SetWindowTitle ), out var setWindowTitle ) ||
+			!Find( nameof( SDL_GetWindowTitle ), out var getWindowTitle ) ||
+			!Find( nameof( SDL_GetWindowSize ), out var getWindowSize ) ||
+			!Find( nameof( SDL_GetWindowSizeInPixels ), out var getWindowSizeInPixels ) ||
+			!Find( nameof( SDL_SetWindowSize ), out var setWindowSize ) ||
+			!Find( nameof( SDL_GetWindowPixelDensity ), out var getWindowPixelDensity ) ||
+			!Find( nameof( SDL_GetWindowDisplayScale ), out var getWindowDisplayScale ) ||
+			!Find( nameof( SDL_SetWindowFullscreen ), out var setWindowFullscreen ) ||
+			!Find( nameof( SDL_SetWindowFullscreenMode ), out var setWindowFullscreenMode ) ||
+			!Find( nameof( SDL_SyncWindow ), out var syncWindow ) ||
+			!Find( nameof( SDL_ShowWindow ), out var showWindow ) ||
+			!Find( nameof( SDL_HideWindow ), out var hideWindow ) ||
+			!Find( nameof( SDL_MinimizeWindow ), out var minimizeWindow ) ||
+			!Find( nameof( SDL_MaximizeWindow ), out var maximizeWindow ) ||
+			!Find( nameof( SDL_RestoreWindow ), out var restoreWindow ) ||
+			!Find( nameof( SDL_GetDisplayForWindow ), out var getDisplayForWindow ) ||
+			!Find( nameof( SDL_SetWindowRelativeMouseMode ), out var setWindowRelativeMouseMode ) ||
+			!Find( nameof( SDL_GetWindowRelativeMouseMode ), out var getWindowRelativeMouseMode ) ||
+			!Find( nameof( SDL_StartTextInput ), out var startTextInput ) ||
+			!Find( nameof( SDL_StopTextInput ), out var stopTextInput ) ||
+			!Find( nameof( SDL_GetWindowProperties ), out var getWindowProperties ) ||
+			!Find( nameof( SDL_GetPointerProperty ), out var getPointerProperty ) ||
+			!Find( nameof( SDL_GetNumberProperty ), out var getNumberProperty ) ||
+			!Find( nameof( SDL_CreateProperties ), out var createProperties ) ||
+			!Find( nameof( SDL_DestroyProperties ), out var destroyProperties ) ||
+			!Find( nameof( SDL_SetPointerProperty ), out var setPointerProperty ) ||
+			!Find( nameof( SDL_SetBooleanProperty ), out var setBooleanProperty ) ||
+			!Find( nameof( SDL_CreateWindowWithProperties ), out var createWindowWithProperties ) ||
+			!Find( nameof( SDL_PollEvent ), out var pollEvent ) ||
+			!Find( nameof( SDL_WaitEventTimeout ), out var waitEventTimeout ) ||
+			!Find( nameof( SDL_GetDisplays ), out var getDisplays ) ||
+			!Find( nameof( SDL_GetPrimaryDisplay ), out var getPrimaryDisplay ) ||
+			!Find( nameof( SDL_GetDisplayName ), out var getDisplayName ) ||
+			!Find( nameof( SDL_GetDisplayBounds ), out var getDisplayBounds ) ||
+			!Find( nameof( SDL_GetDisplayContentScale ), out var getDisplayContentScale ) ||
+			!Find( nameof( SDL_GetCurrentDisplayMode ), out var getCurrentDisplayMode ) ||
+			!Find( nameof( SDL_SetClipboardText ), out var setClipboardText ) ||
+			!Find( nameof( SDL_GetClipboardText ), out var getClipboardText ) ||
+			!Find( nameof( SDL_ShowCursor ), out var showCursor ) ||
+			!Find( nameof( SDL_HideCursor ), out var hideCursor ) ||
+			!Find( nameof( SDL_CreateSystemCursor ), out var createSystemCursor ) ||
+			!Find( nameof( SDL_SetCursor ), out var setCursor ) ||
+			!Find( nameof( SDL_DestroyCursor ), out var destroyCursor ) ||
+			!Find( nameof( SDL_Vulkan_LoadLibrary ), out var vulkanLoadLibrary ) ||
+			!Find( nameof( SDL_Vulkan_UnloadLibrary ), out var vulkanUnloadLibrary ) ||
+			!Find( nameof( SDL_Vulkan_GetInstanceExtensions ), out var vulkanGetInstanceExtensions ) ||
+			!Find( nameof( SDL_Vulkan_CreateSurface ), out var vulkanCreateSurface ) )
+			return false;
 
-		SDL_CreateWindow = (delegate* unmanaged< byte*, int, int, ulong, nint >)Need( "SDL_CreateWindow" );
-		SDL_DestroyWindow = (delegate* unmanaged< nint, void >)Need( "SDL_DestroyWindow" );
-		SDL_GetWindowID = (delegate* unmanaged< nint, uint >)Need( "SDL_GetWindowID" );
-		SDL_GetWindowFlags = (delegate* unmanaged< nint, ulong >)Need( "SDL_GetWindowFlags" );
-		SDL_SetWindowTitle = (delegate* unmanaged< nint, byte*, byte >)Need( "SDL_SetWindowTitle" );
-		SDL_GetWindowTitle = (delegate* unmanaged< nint, byte* >)Need( "SDL_GetWindowTitle" );
-		SDL_GetWindowSize = (delegate* unmanaged< nint, int*, int*, byte >)Need( "SDL_GetWindowSize" );
-		SDL_GetWindowSizeInPixels = (delegate* unmanaged< nint, int*, int*, byte >)Need( "SDL_GetWindowSizeInPixels" );
-		SDL_SetWindowSize = (delegate* unmanaged< nint, int, int, byte >)Need( "SDL_SetWindowSize" );
-		SDL_GetWindowPixelDensity = (delegate* unmanaged< nint, float >)Need( "SDL_GetWindowPixelDensity" );
-		SDL_GetWindowDisplayScale = (delegate* unmanaged< nint, float >)Need( "SDL_GetWindowDisplayScale" );
-		SDL_SetWindowFullscreen = (delegate* unmanaged< nint, byte, byte >)Need( "SDL_SetWindowFullscreen" );
-		SDL_SetWindowFullscreenMode = (delegate* unmanaged< nint, SdlDisplayMode*, byte >)Need( "SDL_SetWindowFullscreenMode" );
-		SDL_SyncWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_SyncWindow" );
-		SDL_ShowWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_ShowWindow" );
-		SDL_HideWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_HideWindow" );
-		SDL_MinimizeWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_MinimizeWindow" );
-		SDL_MaximizeWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_MaximizeWindow" );
-		SDL_RestoreWindow = (delegate* unmanaged< nint, byte >)Need( "SDL_RestoreWindow" );
-		SDL_GetDisplayForWindow = (delegate* unmanaged< nint, uint >)Need( "SDL_GetDisplayForWindow" );
-		SDL_SetWindowRelativeMouseMode = (delegate* unmanaged< nint, byte, byte >)Need( "SDL_SetWindowRelativeMouseMode" );
-		SDL_GetWindowRelativeMouseMode = (delegate* unmanaged< nint, byte >)Need( "SDL_GetWindowRelativeMouseMode" );
-		SDL_StartTextInput = (delegate* unmanaged< nint, byte >)Need( "SDL_StartTextInput" );
-		SDL_StopTextInput = (delegate* unmanaged< nint, byte >)Need( "SDL_StopTextInput" );
-		SDL_GetWindowProperties = (delegate* unmanaged< nint, uint >)Need( "SDL_GetWindowProperties" );
-		SDL_GetPointerProperty = (delegate* unmanaged< uint, byte*, nint, nint >)Need( "SDL_GetPointerProperty" );
-		SDL_GetNumberProperty = (delegate* unmanaged< uint, byte*, long, long >)Need( "SDL_GetNumberProperty" );
+		// Check the version only after finding SDL3 exports: SDL2's SDL_GetVersion has a different signature.
+		if ( ((delegate* unmanaged< int >)getVersion)() < 3_002_000 ) return false;
 
-		SDL_PollEvent = (delegate* unmanaged< SdlRawEvent*, byte >)Need( "SDL_PollEvent" );
-		SDL_WaitEventTimeout = (delegate* unmanaged< SdlRawEvent*, int, byte >)Need( "SDL_WaitEventTimeout" );
+		SDL_InitSubSystem = (delegate* unmanaged< uint, byte >)initSubSystem;
+		SDL_QuitSubSystem = (delegate* unmanaged< uint, void >)quitSubSystem;
+		SDL_GetError = (delegate* unmanaged< byte* >)getError;
+		SDL_GetVersion = (delegate* unmanaged< int >)getVersion;
+		SDL_SetHint = (delegate* unmanaged< byte*, byte*, byte >)setHint;
+		SDL_GetCurrentVideoDriver = (delegate* unmanaged< byte* >)getCurrentVideoDriver;
+		SDL_free = (delegate* unmanaged< void*, void >)free;
 
-		SDL_GetDisplays = (delegate* unmanaged< int*, uint* >)Need( "SDL_GetDisplays" );
-		SDL_GetPrimaryDisplay = (delegate* unmanaged< uint >)Need( "SDL_GetPrimaryDisplay" );
-		SDL_GetDisplayName = (delegate* unmanaged< uint, byte* >)Need( "SDL_GetDisplayName" );
-		SDL_GetDisplayBounds = (delegate* unmanaged< uint, SdlRect*, byte >)Need( "SDL_GetDisplayBounds" );
-		SDL_GetDisplayContentScale = (delegate* unmanaged< uint, float >)Need( "SDL_GetDisplayContentScale" );
-		SDL_GetCurrentDisplayMode = (delegate* unmanaged< uint, SdlDisplayMode* >)Need( "SDL_GetCurrentDisplayMode" );
+		SDL_CreateWindow = (delegate* unmanaged< byte*, int, int, ulong, nint >)createWindow;
+		SDL_DestroyWindow = (delegate* unmanaged< nint, void >)destroyWindow;
+		SDL_GetWindowID = (delegate* unmanaged< nint, uint >)getWindowId;
+		SDL_GetWindowFlags = (delegate* unmanaged< nint, ulong >)getWindowFlags;
+		SDL_SetWindowTitle = (delegate* unmanaged< nint, byte*, byte >)setWindowTitle;
+		SDL_GetWindowTitle = (delegate* unmanaged< nint, byte* >)getWindowTitle;
+		SDL_GetWindowSize = (delegate* unmanaged< nint, int*, int*, byte >)getWindowSize;
+		SDL_GetWindowSizeInPixels = (delegate* unmanaged< nint, int*, int*, byte >)getWindowSizeInPixels;
+		SDL_SetWindowSize = (delegate* unmanaged< nint, int, int, byte >)setWindowSize;
+		SDL_GetWindowPixelDensity = (delegate* unmanaged< nint, float >)getWindowPixelDensity;
+		SDL_GetWindowDisplayScale = (delegate* unmanaged< nint, float >)getWindowDisplayScale;
+		SDL_SetWindowFullscreen = (delegate* unmanaged< nint, byte, byte >)setWindowFullscreen;
+		SDL_SetWindowFullscreenMode = (delegate* unmanaged< nint, SdlDisplayMode*, byte >)setWindowFullscreenMode;
+		SDL_SyncWindow = (delegate* unmanaged< nint, byte >)syncWindow;
+		SDL_ShowWindow = (delegate* unmanaged< nint, byte >)showWindow;
+		SDL_HideWindow = (delegate* unmanaged< nint, byte >)hideWindow;
+		SDL_MinimizeWindow = (delegate* unmanaged< nint, byte >)minimizeWindow;
+		SDL_MaximizeWindow = (delegate* unmanaged< nint, byte >)maximizeWindow;
+		SDL_RestoreWindow = (delegate* unmanaged< nint, byte >)restoreWindow;
+		SDL_GetDisplayForWindow = (delegate* unmanaged< nint, uint >)getDisplayForWindow;
+		SDL_SetWindowRelativeMouseMode = (delegate* unmanaged< nint, byte, byte >)setWindowRelativeMouseMode;
+		SDL_GetWindowRelativeMouseMode = (delegate* unmanaged< nint, byte >)getWindowRelativeMouseMode;
+		SDL_StartTextInput = (delegate* unmanaged< nint, byte >)startTextInput;
+		SDL_StopTextInput = (delegate* unmanaged< nint, byte >)stopTextInput;
+		SDL_GetWindowProperties = (delegate* unmanaged< nint, uint >)getWindowProperties;
+		SDL_GetPointerProperty = (delegate* unmanaged< uint, byte*, nint, nint >)getPointerProperty;
+		SDL_GetNumberProperty = (delegate* unmanaged< uint, byte*, long, long >)getNumberProperty;
+		SDL_CreateProperties = (delegate* unmanaged< uint >)createProperties;
+		SDL_DestroyProperties = (delegate* unmanaged< uint, void >)destroyProperties;
+		SDL_SetPointerProperty = (delegate* unmanaged< uint, byte*, nint, byte >)setPointerProperty;
+		SDL_SetBooleanProperty = (delegate* unmanaged< uint, byte*, byte, byte >)setBooleanProperty;
+		SDL_CreateWindowWithProperties = (delegate* unmanaged< uint, nint >)createWindowWithProperties;
 
-		SDL_SetClipboardText = (delegate* unmanaged< byte*, byte >)Need( "SDL_SetClipboardText" );
-		SDL_GetClipboardText = (delegate* unmanaged< byte* >)Need( "SDL_GetClipboardText" );
-		SDL_ShowCursor = (delegate* unmanaged< byte >)Need( "SDL_ShowCursor" );
-		SDL_HideCursor = (delegate* unmanaged< byte >)Need( "SDL_HideCursor" );
-		SDL_CreateSystemCursor = (delegate* unmanaged< int, nint >)Need( "SDL_CreateSystemCursor" );
-		SDL_SetCursor = (delegate* unmanaged< nint, byte >)Need( "SDL_SetCursor" );
-		SDL_DestroyCursor = (delegate* unmanaged< nint, void >)Need( "SDL_DestroyCursor" );
+		SDL_PollEvent = (delegate* unmanaged< SdlRawEvent*, byte >)pollEvent;
+		SDL_WaitEventTimeout = (delegate* unmanaged< SdlRawEvent*, int, byte >)waitEventTimeout;
 
-		SDL_Vulkan_LoadLibrary = (delegate* unmanaged< byte*, byte >)Need( "SDL_Vulkan_LoadLibrary" );
-		SDL_Vulkan_UnloadLibrary = (delegate* unmanaged< void >)Need( "SDL_Vulkan_UnloadLibrary" );
-		SDL_Vulkan_GetInstanceExtensions = (delegate* unmanaged< uint*, byte** >)Need( "SDL_Vulkan_GetInstanceExtensions" );
-		SDL_Vulkan_CreateSurface = (delegate* unmanaged< nint, nint, void*, ulong*, byte >)Need( "SDL_Vulkan_CreateSurface" );
+		SDL_GetDisplays = (delegate* unmanaged< int*, uint* >)getDisplays;
+		SDL_GetPrimaryDisplay = (delegate* unmanaged< uint >)getPrimaryDisplay;
+		SDL_GetDisplayName = (delegate* unmanaged< uint, byte* >)getDisplayName;
+		SDL_GetDisplayBounds = (delegate* unmanaged< uint, SdlRect*, byte >)getDisplayBounds;
+		SDL_GetDisplayContentScale = (delegate* unmanaged< uint, float >)getDisplayContentScale;
+		SDL_GetCurrentDisplayMode = (delegate* unmanaged< uint, SdlDisplayMode* >)getCurrentDisplayMode;
+
+		SDL_SetClipboardText = (delegate* unmanaged< byte*, byte >)setClipboardText;
+		SDL_GetClipboardText = (delegate* unmanaged< byte* >)getClipboardText;
+		SDL_ShowCursor = (delegate* unmanaged< byte >)showCursor;
+		SDL_HideCursor = (delegate* unmanaged< byte >)hideCursor;
+		SDL_CreateSystemCursor = (delegate* unmanaged< int, nint >)createSystemCursor;
+		SDL_SetCursor = (delegate* unmanaged< nint, byte >)setCursor;
+		SDL_DestroyCursor = (delegate* unmanaged< nint, void >)destroyCursor;
+
+		SDL_Vulkan_LoadLibrary = (delegate* unmanaged< byte*, byte >)vulkanLoadLibrary;
+		SDL_Vulkan_UnloadLibrary = (delegate* unmanaged< void >)vulkanUnloadLibrary;
+		SDL_Vulkan_GetInstanceExtensions = (delegate* unmanaged< uint*, byte** >)vulkanGetInstanceExtensions;
+		SDL_Vulkan_CreateSurface = (delegate* unmanaged< nint, nint, void*, ulong*, byte >)vulkanCreateSurface;
+		return true;
 	}
 
 	/// <summary>SDL's message for the last call that failed.</summary>

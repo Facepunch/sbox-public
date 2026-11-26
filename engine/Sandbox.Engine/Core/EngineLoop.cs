@@ -196,6 +196,7 @@ internal static class EngineLoop
 		//
 		// Run Tasks
 		//
+		FrameStartWaiters.Complete();
 		RunAsyncTasks();
 
 		//

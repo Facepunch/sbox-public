@@ -150,6 +150,9 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		World.ExcludeEverywhere();
 		DisposeMaps();
 
+		foreach ( var (probe, texture) in uncaptured ) MirrorContent.StopWaitingForCube( texture, probe );
+		uncaptured.Clear();
+
 		if ( MirrorContent.Gpu is { } held )
 		{
 			lock ( heldMaterials )
@@ -196,22 +199,19 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	/// <summary>The frame the game's load was first seen finished while this world wasn't shown yet, or 0.</summary>
 	internal ulong LoadedFrame { get; set; }
 
-	/// <summary>Whether <see cref="PrepareFrame"/> defers what writing objects uploads into one list (on). For comparisons.</summary>
-	internal static bool DeferApplyUploads { get; set; } = true;
-
 	/// <summary>
-	/// Get the world ready for a camera to render it, with its lighting: <see cref="PrepareFrame"/>, then <see cref="LightView"/>.
+	/// Prepare the shared world and its lighting. Camera filters and fog are resolved separately on each view.
 	/// </summary>
-	public void Prepare( SceneCamera camera, bool skyboxView = false )
+	public void Prepare()
 	{
 		PrepareFrame();
-		using ( Borealis.Zones.WorldLighting.Start() ) LightView( camera, skyboxView );
+		using ( Borealis.Zones.WorldLighting.Start() ) UpdateLighting();
 	}
 
 	/// <summary>
 	/// Get the world's objects ready to render: make what was made since the last frame, take out what went on another thread
-	/// or during a render, write what waited, models and textures that finished loading or reloaded, and maps. Its lighting is
-	/// a view's (<see cref="LightView"/>): a world drawn in another's is lit by that one's.
+	/// or during a render, write what waited, models and textures that finished loading or reloaded, and maps.
+	/// A world drawn in another's is lit by that one's.
 	/// </summary>
 	public void PrepareFrame()
 	{
@@ -228,7 +228,6 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		{
 			CheckReloads();
 			CheckLoaded();
-			CheckCaptured();
 		}
 
 		lock ( gate )
@@ -250,7 +249,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		// What writing objects uploads to the device (models, textures, new capture cubes' clears) goes in one list with the
 		// frame's next submission, not a submission each
 		using ( Borealis.Zones.WorldWrite.Start() )
-		using ( MirrorContent.Gpu is { } gpu && DeferApplyUploads ? gpu.Gpu.DeferUploads() : default )
+		using ( MirrorContent.Gpu is { } gpu ? gpu.Gpu.DeferUploads() : default )
 		{
 			foreach ( var sceneObject in going ) Take( sceneObject, frame );
 			going.Clear();
@@ -360,22 +359,12 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 
 	readonly Dictionary<SceneLightProbe, Borealis.LightProbeVolume> lightProbes = new();
 
-	/// <summary>Whether a realtime probe's cube is made when it's first captured (on), not when the probe is made. For comparisons.</summary>
-	internal static bool LazyCaptureCubes { get; set; } = true;
-
-	// Realtime probes whose cube hasn't been made yet (nothing has captured them), with their engine texture
+	// Pending realtime cubes, keyed here so a replaced texture or deleted probe can cancel its subscription.
 	readonly Dictionary<SceneCubemap, Texture> uncaptured = new();
-	int capturesSeen;
 
-	/// <summary>Write again the probes whose cube a capture has made since the last frame (<see cref="ProbeCube"/>).</summary>
-	void CheckCaptured()
+	void StopWaitingForCube( SceneCubemap probe )
 	{
-		if ( uncaptured.Count == 0 || capturesSeen == MirrorContent.CaptureCubesMade ) return;
-		capturesSeen = MirrorContent.CaptureCubesMade;
-		foreach ( var (cubemap, texture) in uncaptured )
-		{
-			if ( MirrorContent.MadeCaptureCube( texture ) is not null ) Later( cubemap, SceneObjectChange.Settings );
-		}
+		if ( uncaptured.Remove( probe, out var texture ) ) MirrorContent.StopWaitingForCube( texture, probe );
 	}
 
 	// The file materials and textures this world's sky and fog drew with (WorldMaterial, WorldTexture), held while it lives
@@ -403,6 +392,8 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	GpuTexture ISceneWorldRender.Texture( Texture texture ) => WorldTexture( texture );
 
 	void ISceneWorldRender.WriteMesh( SceneObject sceneObject, MeshObject mesh, SceneObjectChange change ) => ApplyMesh( sceneObject, mesh, change );
+
+	void ISceneWorldRender.WriteInstances( SceneObject sceneObject, InstancedMeshObject instances, SceneObjectChange change ) => ApplyInstances( sceneObject, instances, change );
 
 	AggregateObject ISceneWorldRender.MakeAggregate( SceneObject sceneObject, out bool waiting ) => AggregateFor( sceneObject, out waiting );
 
@@ -471,7 +462,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 			return null;
 		}
 
-		// Suns and skies light the world (LightView); a kind that owns no render object isn't drawn
+		// Suns and skies light the world; a kind that owns no render object isn't drawn.
 		var obj = sceneObject.OwnsRenderObject ? sceneObject.MakeRenderObject( this ) : null;
 
 		added++;
@@ -511,8 +502,12 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 			Release( aggregate.Mesh );
 			aggregate.LightmapAttributes = null;
 		}
+		else if ( obj is InstancedMeshObject instanced )
+		{
+			Release( instanced.Mesh );
+		}
 
-		if ( sceneObject is SceneCubemap cubemap ) uncaptured.Remove( cubemap );
+		if ( sceneObject is SceneCubemap cubemap ) StopWaitingForCube( cubemap );
 		if ( sceneObject is SceneLightProbe probe && lightProbes.Remove( probe, out var volume ) ) World.LightProbeVolumes.Remove( volume );
 		else if ( obj is not null ) World.Remove( obj );
 		else if ( sceneObject is SceneDirectionalLight sun ) sunDirty |= suns.Remove( sun );
@@ -700,6 +695,43 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	}
 
 	/// <summary>
+	/// An instanced model's mesh, tint, flags and placement: what a model's mesh object takes, but for what needs one object's
+	/// own (attributes, callbacks, pose). Its instances are written by the object itself.
+	/// </summary>
+	void ApplyInstances( SceneObject sceneObject, InstancedMeshObject instances, SceneObjectChange change )
+	{
+		const SceneObjectChange Draws = SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Visibility;
+		if ( (change & Draws) != 0 )
+		{
+			var drawnModel = sceneObject.Model;
+			var drawn = sceneObject.RenderingEnabled ? VariantFor( sceneObject, ModelFor( drawnModel ) ) : null;
+			if ( drawn is null && drawnModel is not null && loading.Contains( drawnModel ) ) WaitFor( drawnModel, sceneObject );
+			if ( drawn != instances.Mesh )
+			{
+				Release( instances.Mesh );
+				Hold( drawn );
+				instances.Mesh = drawn;
+			}
+		}
+
+		if ( (change & SceneObjectChange.Tint) != 0 )
+			instances.Tint = sceneObject.ColorTint;
+
+		if ( (change & SceneObjectChange.Flags) != 0 )
+		{
+			var flags = sceneObject.Flags;
+			SceneObject.WriteLayerFlags( instances, flags );
+			instances.CastShadows = sceneObject.CastsShadows;
+			instances.IsStatic = flags.IsStatic;
+			instances.IsWorld = instances.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
+			instances.LayerMatch = SceneObject.LayerMatchFor( sceneObject.LayerMatchToken );
+		}
+
+		if ( (change & SceneObjectChange.Transform) != 0 )
+			instances.Transform = sceneObject.Transform;
+	}
+
+	/// <summary>
 	/// An aggregate's flags and tint. Its fragments are fixed when it's made.
 	/// </summary>
 	void ApplyAggregate( SceneObject sceneObject, AggregateObject aggregate, SceneObjectChange change )
@@ -773,15 +805,16 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	public GpuTexture ProbeCube( SceneCubemap cubemap )
 	{
 		var texture = cubemap.Texture;
-		if ( LazyCaptureCubes && MirrorContent.IsCaptureCube( texture ) )
-		{
-			var made = MirrorContent.MadeCaptureCube( texture );
-			if ( made is null ) uncaptured[cubemap] = texture;
-			else uncaptured.Remove( cubemap );
-			return made;
-		}
+		if ( uncaptured.TryGetValue( cubemap, out var previous ) && previous != texture )
+			StopWaitingForCube( cubemap );
 
-		uncaptured.Remove( cubemap );
+		if ( MirrorContent.IsCaptureCube( texture ) )
+		{
+			var cube = MirrorContent.CaptureForProbe( texture, cubemap );
+			if ( cube is null ) uncaptured[cubemap] = texture;
+			else uncaptured.Remove( cubemap );
+			return cube;
+		}
 		return TextureFor( texture, cubemap, SceneObjectChange.Settings );
 	}
 
@@ -877,11 +910,11 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 	static bool SameValues( ManagedRenderAttributes values, RenderAttributes other ) => other.ManagedValues is { } theirs && values.SameValues( theirs );
 
 	/// <summary>
-	/// Refresh dirty sun state, per-view sky selection and camera lighting (<c>CameraRenderer.Configure</c>).
+	/// Refresh dirty sun state and shared world lighting.
 	/// The sun is the last enabled one added, as native's binner keeps the last directional light it meets in its light list
 	/// (<c>CLightBinnerStandard::GatherVisibleLights</c>). Native lights with no other; here the rest light too, as extra suns.
 	/// </summary>
-	void LightView( SceneCamera camera, bool skyboxView )
+	void UpdateLighting()
 	{
 		var lighting = World.Lighting;
 
@@ -935,18 +968,13 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 			UpdateExtraSuns( lighting, sun );
 		}
 
-		// Sky selection is per view: cameras can exclude different skies without changing the world.
-		// Native's child skybox view does not inherit the parent camera's object-tag filters.
-		var sky = skyboxView ? source.GetSky() : source.GetSky( camera.RenderTags, camera.ExcludeTags );
+		// The world default is unfiltered: the 3D skybox's view does not inherit parent object tags.
+		var sky = source.GetSky();
 		lighting.SkyMaterial = WorldMaterial( sky?.Material );
-		if ( sky is not null )
-		{
-			lighting.SkyTint = sky.SkyTint;
-			lighting.SkyRotation = sky.Transform.Rotation;
-			lighting.SkyFog = new SkyFog( (SkyFogType)sky.FogParams.FogType, sky.FogParams.FogMinStart, sky.FogParams.FogMinEnd, sky.FogParams.FogMaxStart, sky.FogParams.FogMaxEnd );
-		}
-
-		lighting.AmbientColor = source.AmbientLightColor + camera.AmbientLightColor;
+		lighting.SkyTint = sky?.SkyTint ?? Color.White;
+		lighting.SkyRotation = sky?.Transform.Rotation ?? Rotation.Identity;
+		lighting.SkyFog = SkyFogOf( sky );
+		lighting.AmbientColor = source.AmbientLightColor;
 		lighting.GradientFog = source.GradientFog.ToBorealis();
 
 		// Per-view wind (SetWindParams).
@@ -954,8 +982,24 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		lighting.WindStrengthFreq = windStrength;
 		lighting.WindDirection = windDirection;
 
+		UpdateFogVolumes();
+		UpdateCullingBoxes();
+	}
+
+	static SkyFog SkyFogOf( SceneSkyBox sky ) => sky is null ? default : new SkyFog( (SkyFogType)sky.FogParams.FogType,
+		sky.FogParams.FogMinStart, sky.FogParams.FogMinEnd, sky.FogParams.FogMaxStart, sky.FogParams.FogMaxEnd );
+
+	internal void FillViewLighting( RenderView view, SceneCamera camera, in ViewSetup setup )
+	{
+		var sky = source.GetSky( setup.RenderTags ?? camera.RenderTags, camera.ExcludeTags, setup.ExcludeTags );
+		view.OverridesSky = true;
+		view.SkyMaterial = WorldMaterial( sky?.Material );
+		view.SkyTint = sky?.SkyTint ?? Color.White;
+		view.SkyRotation = sky?.Transform.Rotation ?? Rotation.Identity;
+		view.SkyFog = SkyFogOf( sky );
+
 		var from = camera.CubemapFog;
-		var to = lighting.CubemapFog;
+		var to = view.CubemapFog ??= new CubemapFogSettings();
 		to.Enabled = from.Enabled;
 		to.Texture = WorldTexture( from.Texture );
 		to.StartDistance = from.StartDistance;
@@ -970,7 +1014,7 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 
 		// Camera fog settings (SceneCamera.GatherVolumetricFog).
 		var fogFrom = camera.VolumetricFog;
-		var fogTo = lighting.VolumetricFog;
+		var fogTo = view.VolumetricFog ??= new VolumetricFogSettings();
 		fogTo.Enabled = fogFrom.Enabled;
 		fogTo.Anisotropy = fogFrom.Anisotropy;
 		fogTo.Scattering = fogFrom.Scattering;
@@ -979,9 +1023,6 @@ internal sealed partial class WorldRender : ISceneWorldRender, IAttributeSource,
 		fogTo.FadeInEnd = fogFrom.FadeInEnd;
 		fogTo.IndirectStrength = fogFrom.IndirectStrength;
 		fogTo.BakedIndirectTexture = WorldTexture( fogFrom.BakedIndirectTexture );
-
-		UpdateFogVolumes();
-		UpdateCullingBoxes();
 	}
 
 	int fogVolumesVersion = -1;

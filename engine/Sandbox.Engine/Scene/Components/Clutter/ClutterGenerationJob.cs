@@ -156,7 +156,8 @@ class ClutterGenerationJob
 			Rotation = bodyTransform.Rotation
 		} );
 
-		var scaleOnly = new Transform( Vector3.Zero, Rotation.Identity, transform.Scale.x );
+		// Box3D bakes scale into a per-shape hull copy and dedupes hulls by content, so 2% scale steps let instances share hulls.
+		var scaleOnly = new Transform( Vector3.Zero, Rotation.Identity, QuantizeScale( transform.Scale.x ) );
 		foreach ( var part in parts )
 		{
 			var relativePart = referenceTransform.ToLocal( part.Transform );
@@ -173,6 +174,8 @@ class ClutterGenerationJob
 
 		return body;
 	}
+
+	private static float QuantizeScale( float scale ) => scale > 0f ? MathF.Pow( 1.02f, MathF.Round( MathF.Log( scale, 1.02f ) ) ) : scale;
 
 	private void SpawnInstances( List<ClutterInstance> instances )
 	{
@@ -212,7 +215,8 @@ class ClutterGenerationJob
 							instance.Entry.Model.ResourcePath,
 							instance.Transform.Position,
 							instance.Transform.Rotation,
-							instance.Transform.Scale.x
+							instance.Transform.Scale.x,
+							instance.Entry.EnablePhysics
 						);
 					}
 

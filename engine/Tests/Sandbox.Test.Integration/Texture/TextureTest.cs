@@ -1,11 +1,48 @@
 using System;
 using Sandbox.UI;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TextureTests;
 
 [TestClass]
 public class TextureTest
 {
+	[TestMethod]
+	public async Task CancelingOneTextureWaitDoesNotCancelTheReplacement()
+	{
+		using var texture = Texture.Create( 1, 1 ).Finish();
+		var replacement = new TaskCompletionSource<Texture>();
+		var loading = texture.ReplacementAsync( replacement.Task );
+		using var cancellation = new CancellationTokenSource();
+		var canceled = texture.WhenLoaded( cancellation.Token );
+		var waiting = texture.WhenLoaded();
+
+		Assert.IsFalse( texture.IsLoaded );
+		cancellation.Cancel();
+		await Assert.ThrowsExceptionAsync<TaskCanceledException>( async () => await canceled );
+		Assert.IsFalse( waiting.IsCompleted );
+
+		replacement.SetResult( null );
+		await loading;
+		await waiting;
+		Assert.IsTrue( texture.IsLoaded );
+	}
+
+	[TestMethod]
+	public async Task AFailedReplacementCompletesTextureWaiters()
+	{
+		using var texture = Texture.Create( 1, 1 ).Finish();
+		var replacement = new TaskCompletionSource<Texture>();
+		var loading = texture.ReplacementAsync( replacement.Task );
+		var waiting = texture.WhenLoaded();
+		replacement.SetException( new InvalidOperationException( "texture load failed" ) );
+
+		await Assert.ThrowsExceptionAsync<InvalidOperationException>( async () => await loading );
+		await Assert.ThrowsExceptionAsync<InvalidOperationException>( async () => await waiting );
+		Assert.IsTrue( texture.IsLoaded, "Loading has finished even when no replacement was available." );
+	}
+
 	[TestMethod]
 	public void ArrayMipDataKeepsEverySlice()
 	{

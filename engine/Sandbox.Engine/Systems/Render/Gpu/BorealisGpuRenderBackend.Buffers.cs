@@ -1,6 +1,9 @@
 using Borealis.Gpu;
 using Borealis.Source2.Shaders;
+using System.Collections.Concurrent;
+using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using GpuCommandList = Borealis.Gpu.CommandList;
 
 namespace Sandbox;
@@ -36,6 +39,7 @@ internal sealed partial class BorealisGpuRenderBackend
 	{
 		var size = (long)buffer.ElementCount * buffer.ElementSize & ~3L;
 		if ( size == 0 ) return;
+		FromMain();
 		Fill( BufferOf( buffer ), value, 0, size );
 	}
 
@@ -115,7 +119,11 @@ internal sealed partial class BorealisGpuRenderBackend
 		gpu.Destroy( backing.Handle );
 	}
 
-	public override void SetStructureCount( GpuBuffer buffer, uint value ) => Fill( CounterOf( buffer ), value, 0, sizeof( uint ) );
+	public override void SetStructureCount( GpuBuffer buffer, uint value )
+	{
+		FromMain();
+		Fill( CounterOf( buffer ), value, 0, sizeof( uint ) );
+	}
 
 	public override void CopyStructureCount( GpuBuffer source, GpuBuffer destination, uint destinationOffset )
 	{
@@ -145,8 +153,21 @@ internal sealed partial class BorealisGpuRenderBackend
 		public SyncPoint Done;
 		public ulong Frame;
 
-		// Where the buffer goes once its callback is done with it, to be used again; null frees it
-		public System.Collections.Concurrent.ConcurrentQueue<BufferHandle> ReturnTo;
+		// Where the buffer goes once its callback is done with it
+		public ConcurrentQueue<BufferHandle> ReturnTo;
+		public nint Data;
+
+		public unsafe void Complete()
+		{
+			try
+			{
+				Callback( new Span<byte>( (void*)Data, Size ) );
+			}
+			finally
+			{
+				ReturnTo.Enqueue( Buffer );
+			}
+		}
 	}
 
 	// Recorded in the block being recorded, or in the uploads, and not yet submitted
@@ -156,8 +177,9 @@ internal sealed partial class BorealisGpuRenderBackend
 	// Submitted (or lent), waiting for the GPU
 	readonly List<Readback> pendingReadbacks = new();
 
-	// Read by their callbacks, to destroy on the next poll
-	readonly System.Collections.Concurrent.ConcurrentQueue<BufferHandle> readBuffers = new();
+	// Spare buffer readbacks, by power-of-two capacity. Larger reads cannot round up without exceeding Map's span length.
+	readonly Dictionary<int, ConcurrentQueue<BufferHandle>> bufferReadPools = new();
+	readonly ConcurrentQueue<BufferHandle> oversizedReadBuffers = new();
 
 	/// <summary>
 	/// Copy part of a buffer back and hand it to <paramref name="callback"/> on a worker once the GPU has run the copy, as
@@ -168,12 +190,23 @@ internal sealed partial class BorealisGpuRenderBackend
 		if ( size <= 0 ) return;
 		FromMain();
 		var source = BufferOf( buffer );
+		var capacity = size;
+		var pool = oversizedReadBuffers;
+		BufferHandle free = default;
+		if ( size <= (1 << 30) )
+		{
+			capacity = (int)BitOperations.RoundUpToPowerOf2( (uint)size );
+			if ( !bufferReadPools.TryGetValue( capacity, out pool ) ) bufferReadPools.Add( capacity, pool = new() );
+			pool.TryDequeue( out free );
+		}
+
 		var readback = new Readback
 		{
-			Buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Memory = MemoryLocation.Readback, Name = "Buffer readback" } ),
+			Buffer = free.IsValid ? free : gpu.CreateBuffer( new BufferInfo { Size = capacity, Memory = MemoryLocation.Readback, Name = "Buffer readback" } ),
 			Size = size,
 			Callback = callback,
 			Frame = gpu.FrameNumber,
+			ReturnTo = pool,
 		};
 
 		if ( list is not null )
@@ -202,12 +235,13 @@ internal sealed partial class BorealisGpuRenderBackend
 	}
 
 	/// <summary>
-	/// Hand back the readbacks the GPU has finished, each to its callback on a worker, and free the buffers callbacks are done
-	/// with.
+	/// Hand back the readbacks the GPU has finished, each to its callback on a worker, and free oversized buffers that
+	/// cannot be pooled.
 	/// </summary>
 	internal unsafe void PollReadbacks()
 	{
-		while ( readBuffers.TryDequeue( out var done ) ) gpu.Destroy( done );
+		while ( oversizedReadBuffers.TryDequeue( out var done ) ) gpu.Destroy( done );
+		RecycleTextureReadBuffers();
 		if ( pendingReadbacks.Count == 0 ) return;
 
 		for ( int i = 0; i < pendingReadbacks.Count; i++ )
@@ -224,19 +258,8 @@ internal sealed partial class BorealisGpuRenderBackend
 			if ( !gpu.IsComplete( readback.Done ) ) continue;
 
 			pendingReadbacks.RemoveAt( i-- );
-			var data = (nint)Unsafe.AsPointer( ref gpu.Map( readback.Buffer )[0] );
-			var queue = readback.ReturnTo ?? readBuffers;
-			System.Threading.Tasks.Task.Run( () =>
-			{
-				try
-				{
-					readback.Callback( new Span<byte>( (void*)data, readback.Size ) );
-				}
-				finally
-				{
-					queue.Enqueue( readback.Buffer );
-				}
-			} );
+			readback.Data = (nint)Unsafe.AsPointer( ref gpu.Map( readback.Buffer )[0] );
+			Task.Factory.StartNew( static state => ((Readback)state).Complete(), readback, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default );
 		}
 	}
 
@@ -247,7 +270,13 @@ internal sealed partial class BorealisGpuRenderBackend
 		pendingReadbacks.Clear();
 		blockReadbacks.Clear();
 		uploadReadbacks.Clear();
-		while ( readBuffers.TryDequeue( out var done ) ) gpu.Destroy( done );
+		foreach ( var pool in bufferReadPools.Values )
+		{
+			while ( pool.TryDequeue( out var free ) ) gpu.Destroy( free );
+		}
+		bufferReadPools.Clear();
+		while ( oversizedReadBuffers.TryDequeue( out var done ) ) gpu.Destroy( done );
+		DestroyTextureReadBuffers();
 		if ( pixelReadback.IsValid ) gpu.Destroy( pixelReadback );
 		pixelReadback = default;
 		pixelReadbackSize = 0;

@@ -2708,7 +2708,7 @@ internal sealed partial class BackendContext
 	/// <summary>
 	/// Resident meshes' records (<c>borealis_gpu_driven_cull_cs</c>): a header with the model's LOD count, its switch
 	/// distances' count (bits 8-15), whether its LODs come from the fade state (bit 16, <see cref="GpuContext.ResidentMeshes.FadesLods"/>:
-	/// <c>borealis_lod_fade.fxc</c>) and switch distances 1 to 7, then per mesh its centre and LOD scale, and its extents
+	/// <c>sbox/lod_fade.slangh</c>) and switch distances 1 to 7, then per mesh its centre and LOD scale, and its extents
 	/// and transform slot (plus <paramref name="slotOffset"/>, a tinted model's draw's entry in each mesh's run).
 	/// </summary>
 	static void WriteResidentMeshes( ResidentMeshes meshes, int slotOffset, Span<byte> bytes )

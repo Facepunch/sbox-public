@@ -1,4 +1,6 @@
-﻿namespace Sandbox.Engine.Utility.RayTrace;
+﻿using N3 = System.Numerics.Vector3;
+
+namespace Sandbox.Engine.Utility.RayTrace;
 
 public partial struct MeshTraceRequest
 {
@@ -77,15 +79,16 @@ public partial struct MeshTraceRequest
 	}
 
 	/// <summary>
-	/// Trace one object's model in its own space (<c>IModel::MeshTrace</c>, the same trace data native's world instances), then
-	/// put the hit back in world space (<see cref="ToWorld"/>). False without a hit, or when the ray misses the model's bounds.
+	/// Trace one object's model in its own space (the same triangles for every object of the model), then put the hit back in
+	/// world space (<see cref="FromTriangle"/>). False without a hit, or when the ray misses the model's bounds.
 	/// </summary>
-	static bool TraceObject( SceneObject sceneObject, Model model, in MeshTraceInput r, out MeshTraceOutput output, out Transform transform )
+	static bool TraceObject( SceneObject sceneObject, Model model, in MeshTraceInput r, out Result result )
 	{
-		output = default;
-		if ( !ToLocal( sceneObject, model, r, out var local, out transform ) ) return false;
-		if ( !model.native.MeshTrace( local, ref output ) ) return false;
-		ToWorld( ref output, r, local, transform );
+		result = default;
+		if ( !ToLocal( sceneObject, model, r, out var local, out var transform ) ) return false;
+		if ( model.TraceTriangles() is not { } triangles ) return false;
+		if ( !Nearest( triangles, local, out var triangle, out var t, out var u, out var v ) ) return false;
+		result = FromTriangle( r, local, transform, triangles, triangle, t, u, v, sceneObject );
 		return true;
 	}
 
@@ -105,25 +108,6 @@ public partial struct MeshTraceRequest
 		local.end = transform.PointToLocal( r.end );
 		local.filterDelegate = IntPtr.Zero;
 		return SegmentHitsBox( local.start, local.end, model.Bounds.Grow( 1.0f ) );
-	}
-
-	/// <summary>
-	/// A hit in an object's space put back in world space as native's instanced trace does
-	/// (<c>RayTracingResult_t::TransformFromModelSpaceToWorldSpace</c>): the point on the local ray at the hit distance taken to
-	/// world space gives the distance from the start, a point 1000 units along the local normal gives the normal; the hit
-	/// position (from the triangle's corners) goes to world space and the trace vertices stay in the model's space.
-	/// </summary>
-	static void ToWorld( ref MeshTraceOutput output, in MeshTraceInput r, in MeshTraceInput local, in Transform transform )
-	{
-		var start = (Vector3)local.start;
-		var direction = ((Vector3)local.end - start).Normal;
-		var localHit = start + direction * output.distance;
-		var worldHit = transform.PointToWorld( localHit );
-
-		output.distance = ((Vector3)r.start).Distance( worldHit );
-		output.normal = (transform.PointToWorld( localHit + (Vector3)output.normal * 1000.0f ) - worldHit).Normal;
-		output.position = transform.PointToWorld( output.position );
-		output.transform = transform;
 	}
 
 	/// <summary>Whether the segment from <paramref name="start"/> to <paramref name="end"/> touches <paramref name="box"/>.</summary>
@@ -163,10 +147,7 @@ public partial struct MeshTraceRequest
 		foreach ( var (sceneObject, model) in ObjectsToTrace() )
 		{
 			if ( !Passes( sceneObject, r ) ) continue;
-			if ( !TraceObject( sceneObject, model, r, out var output, out _ ) ) continue;
-
-			// Every hit becomes a result, so the material reference native handed out is taken either way
-			var result = Result.From( this, output, sceneObject );
+			if ( !TraceObject( sceneObject, model, r, out var result ) ) continue;
 			if ( best is null || result.Distance < best.Value.Distance ) best = result;
 		}
 
@@ -174,33 +155,27 @@ public partial struct MeshTraceRequest
 	}
 
 	/// <summary>
-	/// Every hit on the world's scene objects, as native's world trace gives them: each triangle the ray crosses
-	/// (<c>IModel::MeshTraceAll</c> per object), nearest first.
+	/// Every hit on the world's scene objects, as native's world trace gives them: each triangle the ray crosses on each
+	/// object, nearest first.
 	/// </summary>
-	readonly unsafe void TraceObjectsAll( in MeshTraceInput r, List<Result> into )
+	readonly void TraceObjectsAll( in MeshTraceInput r, List<Result> into )
 	{
 		var first = into.Count;
-		var results = NativeEngine.CUtlVectorMeshTraceOutput.Create( 32, 32 );
-		try
+		var crossed = new List<(int Triangle, float T, float U, float V)>();
+		foreach ( var (sceneObject, model) in ObjectsToTrace() )
 		{
-			foreach ( var (sceneObject, model) in ObjectsToTrace() )
-			{
-				if ( !Passes( sceneObject, r ) ) continue;
-				if ( !ToLocal( sceneObject, model, r, out var local, out var transform ) ) continue;
-				if ( !model.native.MeshTraceAll( local, results ) ) continue;
+			if ( !Passes( sceneObject, r ) ) continue;
+			if ( !ToLocal( sceneObject, model, r, out var local, out var transform ) ) continue;
+			if ( model.TraceTriangles() is not { } triangles ) continue;
 
-				var count = results.Count();
-				for ( int i = 0; i < count; i++ )
-				{
-					var output = results.Element( i );
-					ToWorld( ref output, r, local, transform );
-					into.Add( Result.From( this, output, sceneObject ) );
-				}
-			}
-		}
-		finally
-		{
-			results.DeleteThis();
+			Vector3 start = local.start, end = local.end;
+			var origin = new N3( start.x, start.y, start.z );
+			var delta = new N3( end.x, end.y, end.z ) - origin;
+			if ( delta.LengthSquared() < 1e-8f ) continue;
+
+			crossed.Clear();
+			triangles.All( origin, delta, local.cullMode, ( triangle, t, u, v ) => crossed.Add( (triangle, t, u, v) ) );
+			foreach ( var hit in crossed ) into.Add( FromTriangle( r, local, transform, triangles, hit.Triangle, hit.T, hit.U, hit.V, sceneObject ) );
 		}
 
 		into.Sort( first, into.Count - first, Comparer<Result>.Create( ( a, b ) => a.Distance.CompareTo( b.Distance ) ) );

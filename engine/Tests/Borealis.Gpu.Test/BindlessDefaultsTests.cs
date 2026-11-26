@@ -14,7 +14,6 @@ namespace BorealisGpuTests;
 /// the pixel shows a freed slot reads the default, not the white the freed texture held.
 /// </summary>
 [TestClass]
-[DoNotParallelize]
 public class BindlessDefaultsTests : GpuTest
 {
 	protected override bool GpuAssistedValidation => true;

@@ -99,12 +99,12 @@ public abstract partial class Asset
 	/// <summary>
 	/// This asset is generated in the transient folder. You don't need to see it, or keep it around. It will re-generate from something else.
 	/// </summary>
-	public virtual bool IsTransient => AbsolutePath.Contains( "/.sbox/transient/" ) || AbsolutePath.Contains( "/addons/menu/transients/" );
+	public virtual bool IsTransient => AbsolutePath is { } path && (path.Contains( "/.sbox/transient/" ) || path.Contains( "/addons/menu/transients/" ));
 
 	/// <summary>
 	/// This asset is from the cloud, it's in the cloud folder
 	/// </summary>
-	public virtual bool IsCloud => AbsolutePath.Contains( "/.sbox/cloud/" );
+	public virtual bool IsCloud => AbsolutePath?.Contains( "/.sbox/cloud/" ) == true;
 
 	/// <summary>
 	/// The asset was generated from another asset compile and has no source asset of its own. For example model break gibs .vmdl, .vtex files for materials, etc.

@@ -105,24 +105,12 @@ internal sealed partial class WorldRender
 		if ( model is null ) return null;
 		if ( models.TryGetValue( model, out var cached ) ) return cached;
 
-		RenderMesh mesh;
-		try
+		var mesh = MirrorContent.Mesh( model, out var pending, pin: false );
+		// Don't cache incomplete loads. A missing mesh after loading is a real negative result.
+		if ( pending )
 		{
-			mesh = MirrorContent.Mesh( model, out var pending, pin: false );
-
-			// Still loading on Borealis.Gpu: nothing is cached, and what draws it is asked again once it's read (CheckLoaded)
-			if ( pending )
-			{
-				loading.Add( model );
-				return null;
-			}
-
-			if ( mesh is null ) throw new InvalidOperationException( "No compiled model" );
-		}
-		catch ( InvalidOperationException )
-		{
-			// No render geometry
-			mesh = null;
+			loading.Add( model );
+			return null;
 		}
 
 		cached = new CachedModel { Model = model, Mesh = mesh, Revision = model.Revision };
@@ -313,8 +301,10 @@ internal sealed partial class WorldRender
 	/// <summary>Models loading asynchronously, which what draws them waits for.</summary>
 	public int ModelsLoading => loading.Count;
 
-	// Textures loading asynchronously on Borealis.Gpu (TextureFor), with the object to apply again once each is read
-	readonly List<(string Path, SceneObject Object, SceneObjectChange Change)> textureWaits = new();
+	// Readiness is per resource path; merge repeated requests to rewrite the same object.
+	readonly Dictionary<string, Dictionary<SceneObject, SceneObjectChange>> textureWaits = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<SceneObject, int> pendingTextures = new();
+	readonly List<string> readyTextures = new();
 
 	/// <summary>
 	/// A texture an object draws with; on Borealis.Gpu loading asynchronously, null while it loads, and the object is applied
@@ -332,7 +322,16 @@ internal sealed partial class WorldRender
 		}
 
 		var loaded = gpu.LoadTextureAsync( path, out var pending, hold: true );
-		if ( pending ) textureWaits.Add( (path, sceneObject, change) );
+		if ( pending )
+		{
+			if ( !textureWaits.TryGetValue( path, out var waiting ) ) textureWaits[path] = waiting = new();
+			if ( waiting.TryGetValue( sceneObject, out var existing ) ) waiting[sceneObject] = existing | change;
+			else
+			{
+				waiting.Add( sceneObject, change );
+				pendingTextures[sceneObject] = pendingTextures.GetValueOrDefault( sceneObject ) + 1;
+			}
+		}
 		else if ( loaded is not null )
 		{
 			lock ( heldTextures ) heldTextures.Add( path );
@@ -342,15 +341,7 @@ internal sealed partial class WorldRender
 	}
 
 	/// <summary>Whether an object waits for a texture (<see cref="TextureFor"/>).</summary>
-	bool TexturesWaiting( SceneObject sceneObject )
-	{
-		foreach ( var wait in textureWaits )
-		{
-			if ( wait.Object == sceneObject ) return true;
-		}
-
-		return false;
-	}
+	bool TexturesWaiting( SceneObject sceneObject ) => pendingTextures.ContainsKey( sceneObject );
 
 	/// <summary>
 	/// Queue what waits for a model that has finished loading in the background: an object drawing it is asked for its model
@@ -360,14 +351,22 @@ internal sealed partial class WorldRender
 	{
 		if ( MirrorContent.Gpu is not { } gpu ) return;
 
-		// Textures first: an object waiting on one is applied again once it's read, and asks for it again then
-		for ( int i = textureWaits.Count - 1; i >= 0; i-- )
+		// Texture decode can finish before its GPU upload has budget; rewriting re-registers pending paths.
+		foreach ( var (path, _) in textureWaits )
+			if ( gpu.TextureRead( path ) ) readyTextures.Add( path );
+
+		foreach ( var path in readyTextures )
 		{
-			var (path, sceneObject, change) = textureWaits[i];
-			if ( !gpu.TextureRead( path ) ) continue;
-			textureWaits.RemoveAt( i );
-			if ( sceneObject.IsValid() ) Later( sceneObject, change );
+			textureWaits.Remove( path, out var waiting );
+			foreach ( var (sceneObject, change) in waiting )
+			{
+				int remaining = pendingTextures[sceneObject] - 1;
+				if ( remaining == 0 ) pendingTextures.Remove( sceneObject );
+				else pendingTextures[sceneObject] = remaining;
+				if ( sceneObject.IsValid() ) Later( sceneObject, change );
+			}
 		}
+		readyTextures.Clear();
 
 		if ( loading.Count == 0 ) return;
 
@@ -385,7 +384,7 @@ internal sealed partial class WorldRender
 			foreach ( var sceneObject in waiters )
 			{
 				if ( !sceneObject.IsValid() || !Added( sceneObject, out var obj ) ) continue;
-				if ( obj is MeshObject { Mesh: null } ) Later( sceneObject, SceneObjectChange.Model );
+				if ( obj is MeshObject { Mesh: null } or InstancedMeshObject { Mesh: null } ) Later( sceneObject, SceneObjectChange.Model );
 				else if ( obj is null && (sceneObject is SceneAggregateObject || sceneObject.GetType() == typeof( SceneObject )) ) remake.Add( sceneObject );
 			}
 		}
@@ -443,6 +442,10 @@ internal sealed partial class WorldRender
 			switch ( Find( sceneObject ) )
 			{
 				case MeshObject mesh when mesh.Mesh is { } drawn ? staleMeshes.Contains( drawn ) : staleFailed.Count > 0 && sceneObject.IsValid() && staleFailed.Contains( sceneObject.Model ):
+					Later( sceneObject, SceneObjectChange.Model );
+					break;
+
+				case InstancedMeshObject instanced when instanced.Mesh is { } drawn ? staleMeshes.Contains( drawn ) : staleFailed.Count > 0 && sceneObject.IsValid() && staleFailed.Contains( sceneObject.Model ):
 					Later( sceneObject, SceneObjectChange.Model );
 					break;
 
