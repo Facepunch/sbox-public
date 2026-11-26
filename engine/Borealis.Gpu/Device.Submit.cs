@@ -1105,8 +1105,24 @@ public sealed unsafe partial class Device
 		var semaphore = queue.Timeline;
 		var value = point.Value;
 		var info = new VkSemaphoreWaitInfo { sType = VkStructureType.SemaphoreWaitInfo, semaphoreCount = 1, pSemaphores = &semaphore, pValues = &value };
-		var result = Vk.vkWaitSemaphores( Vk.Device, &info, (ulong)Math.Max( 0, timeout.Ticks ) * 100 );
+		return TryWaitDone( Vk.vkWaitSemaphores( Vk.Device, &info, (ulong)Math.Max( 0, timeout.Ticks ) * 100 ) );
+	}
+
+	/// <summary>
+	/// What <see cref="TryWait"/> makes of its wait's <paramref name="result"/>: false on the timeout, true once reached, and
+	/// true once the device is lost, taken as lost then rather than thrown. Its watcher waits on a thread of its own, where a
+	/// throw ended the process before the frame's own check of the loss could log what the GPU was doing and say so.
+	/// </summary>
+	internal bool TryWaitDone( VkResult result )
+	{
 		if ( result == VkResult.Timeout ) return false;
+		if ( result == VkResult.ErrorDeviceLost )
+		{
+			lostReturned = true;
+			MarkLost( "vkWaitSemaphores returned VK_ERROR_DEVICE_LOST", byDriver: true );
+			return true;
+		}
+
 		Check( result, "vkWaitSemaphores" );
 		return true;
 	}

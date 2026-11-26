@@ -72,6 +72,26 @@ public class DeviceLostTests : GpuTest
 	}
 
 	/// <summary>
+	/// A watching wait (<see cref="Device.TryWait"/>) that the driver says the device is lost to returns as done, with the
+	/// device taken as lost, rather than throwing on the watcher's own thread and ending the process before the frame's loss
+	/// handling runs.
+	/// </summary>
+	[TestMethod]
+	[Timeout( 30_000 )]
+	public void AWatchingWaitTakesALossAsDone()
+	{
+		Assert.IsFalse( Device.TryWaitDone( Borealis.Gpu.Vulkan.VkResult.Timeout ) );
+		Assert.IsFalse( Device.IsLost );
+
+		Assert.IsTrue( Device.TryWaitDone( Borealis.Gpu.Vulkan.VkResult.ErrorDeviceLost ) );
+		Assert.IsTrue( Device.IsLost );
+		StringAssert.Contains( Device.LostReport, "vkWaitSemaphores returned VK_ERROR_DEVICE_LOST" );
+
+		var errors = TakeValidationErrors();
+		CollectionAssert.AreEqual( new[] { "Borealis.Gpu.DeviceLost" }, errors, string.Join( ", ", errors ) );
+	}
+
+	/// <summary>
 	/// A timeline past everything submitted (what a driver signals once the device is lost, before any call says so) takes the
 	/// device as lost, so nothing is submitted after it: a signal below the timeline's value is invalid.
 	/// </summary>
