@@ -29,6 +29,12 @@ partial class StandaloneWizard
 
 		private string PresetsCookie = $"Standalone.Presets";
 
+		/// <summary>
+		/// Branding is the game's, not the export's, so it's remembered between exports.
+		/// </summary>
+		internal const string IconCookie = "Standalone.Icon";
+		internal const string StartupImageCookie = "Standalone.StartupImage";
+
 		private List<Preset> GetPresets()
 		{
 			if ( string.IsNullOrEmpty( PresetsCookie ) )
@@ -166,10 +172,14 @@ partial class StandaloneWizard
 							//
 							// Icon
 							//
-							var iconInput = row.Add( new BrandingInput( group, ".ico", new( 48, 48 ) ), 0 );
+							var iconInput = row.Add( new BrandingInput( group, [".ico"], new( 48, 48 ) ), 0 );
 							iconInput.IconSize = 16;
 							iconInput.Value = PublishConfig.TargetIcon;
-							iconInput.OnSelected = () => { PublishConfig.TargetIcon = iconInput.Value; };
+							iconInput.OnSelected = () =>
+							{
+								PublishConfig.TargetIcon = iconInput.Value;
+								ProjectCookie.Set( IconCookie, iconInput.Value );
+							};
 
 							//
 							// 
@@ -217,9 +227,13 @@ partial class StandaloneWizard
 							w.Layout.Spacing = 4;
 							w.Layout.Add( new Label( "Startup Image" ) );
 
-							var startupInput = w.Layout.Add( new BrandingInput( w, ".vtex", new( 512, 512 ) ), 0 );
+							var startupInput = w.Layout.Add( new BrandingInput( w, [".png", ".jpg", ".jpeg", ".vtex"], new( 1920, 1080 ) ), 0 );
 							startupInput.Value = PublishConfig.StartupImage;
-							startupInput.OnSelected = () => { PublishConfig.StartupImage = startupInput.Value; };
+							startupInput.OnSelected = () =>
+							{
+								PublishConfig.StartupImage = startupInput.Value;
+								ProjectCookie.Set( StartupImageCookie, startupInput.Value );
+							};
 
 							w.Layout.AddStretchCell();
 							group.Layout.Add( w );
@@ -301,17 +315,19 @@ file class ControlSheet : Editor.ControlSheet
 file class BrandingInput : Widget
 {
 	private Vector2 _targetSize;
-	private string _extension;
+	private string[] _extensions;
+	private string _previewPath;
+	private Pixmap _preview;
 
 	public string Value { get; set; }
 	public Action OnSelected { get; set; }
 
 	public float IconSize { get; set; } = 32;
 
-	public BrandingInput( Widget parent, string extension, Vector2 targetSize ) : base( parent )
+	public BrandingInput( Widget parent, string[] extensions, Vector2 targetSize ) : base( parent )
 	{
 		_targetSize = targetSize;
-		_extension = extension;
+		_extensions = extensions;
 
 		Cursor = CursorShape.Finger;
 		FixedSize = CalculateSize();
@@ -323,7 +339,7 @@ file class BrandingInput : Widget
 
 		var maxWidth = 256f;
 		if ( _targetSize.x > maxWidth )
-			return new Vector2( maxWidth, (maxWidth * aspect) );
+			return new Vector2( maxWidth, maxWidth / aspect );
 
 		return _targetSize;
 	}
@@ -339,17 +355,30 @@ file class BrandingInput : Widget
 		var fd = new FileDialog( null );
 		fd.Title = "Select File...";
 		fd.Directory = Path.GetDirectoryName( Project.Current.GetAssetsPath() );
-		fd.DefaultSuffix = _extension;
+		fd.DefaultSuffix = _extensions[0];
 
 		fd.SetFindFile();
 		fd.SetModeOpen();
-		fd.SetNameFilter( $"Image (*{_extension})" );
+		fd.SetNameFilter( $"Image ({string.Join( " ", _extensions.Select( x => $"*{x}" ) )})" );
 
 		if ( !fd.Execute() )
 			return;
 
 		Value = fd.SelectedFile;
 		OnSelected?.Invoke();
+		Update();
+	}
+
+	/// <summary>
+	/// The chosen image, if it's one Qt can show.
+	/// </summary>
+	private Pixmap GetPreview()
+	{
+		if ( _previewPath == Value ) return _preview;
+
+		_previewPath = Value;
+		_preview = Path.GetExtension( Value )?.ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" && File.Exists( Value ) ? Pixmap.FromFile( Value ) : null;
+		return _preview;
 	}
 
 	protected override void OnPaint()
@@ -369,6 +398,20 @@ file class BrandingInput : Widget
 			var r = ContentRect;
 			r.Width = SizeHint().x;
 			Paint.DrawRect( r, 4f );
+		}
+
+		//
+		// Preview
+		//
+		if ( Width >= 128 && GetPreview() is { } preview )
+		{
+			var r = ContentRect;
+			r.Width = SizeHint().x;
+
+			var scale = Math.Min( r.Width / preview.Width, r.Height / preview.Height );
+			var size = new Vector2( preview.Width, preview.Height ) * scale;
+			Paint.Draw( new Rect( r.Center - size / 2, size ), preview, borderRadius: 4f );
+			return;
 		}
 
 		// 

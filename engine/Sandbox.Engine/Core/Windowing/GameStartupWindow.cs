@@ -12,7 +12,10 @@ namespace Sandbox.Engine;
 [SkipHotload]
 internal sealed class GameStartupWindow : IDisposable
 {
-	const string LogoPath = "/core/materials/startup_background_color.png";
+	/// <summary>
+	/// The splash's image. An exported game's is its own startup image, and it has none without one.
+	/// </summary>
+	internal const string LogoPath = "/core/materials/startup_background_color.png";
 	const string BackdropPath = "/core/materials/startup_backdrop_color.png";
 
 	static readonly Color BarColor = new( 0.88f, 0.009f, 0.015f, 1 );
@@ -21,6 +24,10 @@ internal sealed class GameStartupWindow : IDisposable
 	/// <summary>How long the sheen takes to sweep along the bar.</summary>
 	const float SheenSeconds = 1.6f;
 
+	/// <summary>
+	/// An exported game's splash is neutral, the same as <see cref="StandaloneLoadingScreen"/> which carries it on: its
+	/// own image on black and a plain bar, without the platform's branding or status.
+	/// </summary>
 	readonly bool standalone;
 	Bitmap logo;
 	Bitmap backdrop;
@@ -100,7 +107,8 @@ internal sealed class GameStartupWindow : IDisposable
 			SdlWindow.Check( Sdl.SetWindowBordered( Handle, !borderless ) );
 			SdlWindow.Check( Sdl.SetWindowResizable( Handle, true ) );
 			SdlWindow.WarnIfFailed( Sdl.SyncWindow( Handle ) );
-			if ( !Sdl.FillWindowColor( Handle, 27, 36, 51, 255 ) )
+			var (red, green, blue) = standalone ? ((byte)0, (byte)0, (byte)0) : ((byte)27, (byte)36, (byte)51);
+			if ( !Sdl.FillWindowColor( Handle, red, green, blue, 255 ) )
 			{
 				Log.Warning( $"Couldn't fill the startup window: {Sdl.GetError()}" );
 				drawFailed = true;
@@ -108,7 +116,7 @@ internal sealed class GameStartupWindow : IDisposable
 			}
 
 			softwareSurfaceAvailable = true;
-			logo = LoadBitmap( LogoPath, "startup logo" );
+			logo = LoadBitmap( LogoPath, "startup logo", warnIfMissing: !standalone );
 			if ( !standalone ) backdrop = LoadBitmap( BackdropPath, "startup backdrop" );
 
 			// Composed while hidden and drawn the moment it's shown, so Windows' open animation plays with the splash
@@ -130,13 +138,13 @@ internal sealed class GameStartupWindow : IDisposable
 		}
 	}
 
-	static Bitmap LoadBitmap( string path, string label )
+	static Bitmap LoadBitmap( string path, string label, bool warnIfMissing = true )
 	{
 		try
 		{
 			if ( EngineFileSystem.Root is null || !EngineFileSystem.Root.FileExists( path ) )
 			{
-				Log.Warning( $"Startup {label} not found: {path}" );
+				if ( warnIfMissing ) Log.Warning( $"Startup {label} not found: {path}" );
 				return null;
 			}
 
@@ -466,12 +474,21 @@ internal sealed class GameStartupWindow : IDisposable
 
 		if ( logo is null ) return;
 
-		var scale = Math.Min( width / 1920.0f, height / 1080.0f );
-		scale = Math.Min( scale, Math.Min( width / (float)logo.Width, height / (float)logo.Height ) );
-		var logoWidth = Math.Max( 1, (int)(logo.Width * scale + 0.5f) );
-		var logoHeight = Math.Max( 1, (int)(logo.Height * scale + 0.5f) );
+		var (x, y, logoWidth, logoHeight) = LogoRect( width, height, logo.Width, logo.Height );
 		using var scaledLogo = logo.Resize( logoWidth, logoHeight );
-		background.DrawBitmap( scaledLogo, new Rect( (width - logoWidth) / 2, (height - logoHeight) / 2, logoWidth, logoHeight ) );
+		background.DrawBitmap( scaledLogo, new Rect( x, y, logoWidth, logoHeight ) );
+	}
+
+	/// <summary>
+	/// Where the logo goes: centred, at its size on a 1080p screen, and never bigger than the screen.
+	/// </summary>
+	internal static (int X, int Y, int Width, int Height) LogoRect( int width, int height, int logoWidth, int logoHeight )
+	{
+		var scale = Math.Min( width / 1920.0f, height / 1080.0f );
+		scale = Math.Min( scale, Math.Min( width / (float)logoWidth, height / (float)logoHeight ) );
+		var scaledWidth = Math.Max( 1, (int)(logoWidth * scale + 0.5f) );
+		var scaledHeight = Math.Max( 1, (int)(logoHeight * scale + 0.5f) );
+		return ((width - scaledWidth) / 2, (height - scaledHeight) / 2, scaledWidth, scaledHeight);
 	}
 
 	void PrepareBackdrop( int width, int height )
@@ -510,7 +527,7 @@ internal sealed class GameStartupWindow : IDisposable
 		return (Math.Max( 0, barY - (int)(56 * scale) ), Math.Min( height, barY + barHeight ));
 	}
 
-	static (int X, int Y, int Width, int Height) BarRect( int width, int height )
+	internal static (int X, int Y, int Width, int Height) BarRect( int width, int height )
 	{
 		var scale = UiScale( height );
 		var barWidth = Math.Clamp( (int)(320 * scale), 1, width );
@@ -523,6 +540,12 @@ internal sealed class GameStartupWindow : IDisposable
 		var scale = UiScale( height );
 		var (barX, barY, barWidth, barHeight) = BarRect( width, height );
 		var statusMaxWidth = Math.Max( 1, width - (int)(32 * scale) );
+
+		if ( standalone )
+		{
+			DrawNeutralBar( barX, barY, barWidth, barHeight );
+			return;
+		}
 
 		if ( statusImage is null || statusImageText != status || statusImageMaxWidth != statusMaxWidth || statusImageScale != scale )
 		{
@@ -567,6 +590,19 @@ internal sealed class GameStartupWindow : IDisposable
 				pixel[3] = color.a;
 			}
 		}
+	}
+
+	void DrawNeutralBar( int x, int y, int width, int height )
+	{
+		framebuffer.SetAntialias( false );
+		framebuffer.SetFill( StandaloneLoadingScreen.TrackColor );
+		framebuffer.DrawRect( new Rect( x, y, width, height ) );
+
+		var filledWidth = (int)(width * shownProgress);
+		if ( filledWidth <= 0 ) return;
+
+		framebuffer.SetFill( StandaloneLoadingScreen.BarColor );
+		framebuffer.DrawRect( new Rect( x, y, filledWidth, height ) );
 	}
 
 	void DiscardScaledBackdrop()

@@ -33,29 +33,15 @@ partial class StandaloneExporter
 		return files.Where( x => x.EndsWith( ".dll" ) );
 	}
 
+	/// <summary>
+	/// Core files that aren't compiled resources but are read at runtime.
+	/// </summary>
 	private static string[] CoreWhitelist = [
-		// Shaders
-		"shaders/**/*.shader_c",
-		
-		// Dev textures, models (contains error assets etc.)
-		"textures/dev/**/*.vtex_c",
-		"models/dev/**/*.vmdl_c",
-		"models/dev/**/*.vmat_c",
-		"models/dev/**/*.vtex_c",
-		"textures/**/*.vtex_c",
 		"debug/*",
 
-		// Default materials
-		"materials/**/*.vmat_c",
-		"materials/**/*.vtex_c",
-		"dev/helper/**/*.vmat_c",
-		"dev/helper/**/*.vtex_c",
-		"dev/vgui/**/*.vmat_c",
-		"dev/*.vtex_c",
-		// Splash screen images. The software splash reads these raw PNGs before the resource system starts.
-		"materials/startup_background_color.png",
-		"materials/startup_backdrop_color.png",
-		"materials/startup_background.vtex_c",
+		// Loaded as an image by WaterOverlay
+		"textures/water/splashwake1.png",
+
 		// Interface
 		"fonts/*.ttf",
 		"styles/**/*",
@@ -63,40 +49,71 @@ partial class StandaloneExporter
 
 		// Config files
 		"cfg/*",
-
-		// Physics surfaces - materials find these by name, so nothing references them as assets
-		"surfaces/*.surface_c",
 	];
 
+	/// <summary>
+	/// Core folders only the editor uses.
+	/// </summary>
+	private static readonly string[] CoreEditorFolders = ["tools", "templates", "maps"];
+
+	/// <summary>
+	/// Every compiled core resource, apart from the editor's, and the loose files the engine reads. The engine loads plenty
+	/// of core resources by name - error assets, lighting lookups, physics surfaces, default effects and sounds - so
+	/// nothing references them as assets.
+	/// </summary>
 	private IEnumerable<string> GetCoreFiles( string engineDir )
 	{
-		return GetWhitelistedFiles( CoreWhitelist, Path.Combine( engineDir, "core" ) );
+		var core = Path.Combine( engineDir, "core" );
+
+		var compiled = Directory.EnumerateFiles( core, "*_c", SearchOption.AllDirectories )
+			.Where( x => !CoreEditorFolders.Contains( Path.GetRelativePath( core, x ).Split( Path.DirectorySeparatorChar )[0], StringComparer.OrdinalIgnoreCase ) );
+
+		return compiled.Concat( GetWhitelistedFiles( CoreWhitelist, core ) ).Distinct( StringComparer.OrdinalIgnoreCase ).ToList();
 	}
 
 	/// <summary>
-	/// Everything the core surfaces reference (impact sounds, decals, prefabs). Some of these
-	/// live outside core, so they're found through the asset system rather than a whitelist.
+	/// Resources outside core that engine code loads by name, so nothing references them as assets, and what in the
+	/// export means the game needs them.
 	/// </summary>
-	private static IEnumerable<CodeResource> GetSurfaceReferences( IEnumerable<string> coreFiles )
+	private static readonly (string UsedBy, string[] Resources)[] ImpliedResources =
+	[
+		// Dressing a human adds default underwear
+		("models/citizen_human/human.vmdl", [Dresser.DefaultUnderwearPath, Dresser.DefaultBraPath]),
+	];
+
+	/// <summary>
+	/// The resources outside core that engine code loads by name for what the export has: what core surfaces reference
+	/// (impact sounds, decals, prefabs), and <see cref="ImpliedResources"/>. Core's own are shipped already.
+	/// </summary>
+	private IEnumerable<CodeResource> GetImpliedResources( string engineDir, IEnumerable<string> coreFiles )
 	{
-		foreach ( var file in coreFiles.Where( x => x.EndsWith( ".surface_c", StringComparison.OrdinalIgnoreCase ) ) )
+		var core = Path.GetFullPath( Path.Combine( engineDir, "core" ) ) + Path.DirectorySeparatorChar;
+		var exported = PackageManifest.Assets.Select( x => x.Name.Replace( '\\', '/' ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+
+		var assets = coreFiles.Where( x => x.EndsWith( ".surface_c", StringComparison.OrdinalIgnoreCase ) )
+			.Concat( ImpliedResources.Where( x => exported.Contains( x.UsedBy + "_c" ) ).SelectMany( x => x.Resources ) );
+
+		foreach ( var path in assets )
 		{
-			var asset = AssetSystem.FindByPath( file );
+			var asset = AssetSystem.FindByPath( path );
 			if ( asset is null )
 			{
-				Logger.Warning( $"Couldn't find surface asset for {file}, its references won't be exported" );
+				Logger.Warning( $"Couldn't find {path}, it and its references won't be exported" );
 				continue;
 			}
 
-			foreach ( var reference in asset.GetReferences( true ) )
+			foreach ( var reference in asset.GetReferences( true ).Prepend( asset ) )
 			{
-				var relativePath = reference.GetCompiledFile( false );
+				var relativePath = reference.GetCompiledFile( false )?.TrimStart( '/', '\\' );
 				var absolutePath = reference.GetCompiledFile( true );
 
 				if ( string.IsNullOrEmpty( relativePath ) || string.IsNullOrEmpty( absolutePath ) )
 					continue;
 
-				yield return new CodeResource( relativePath.TrimStart( '/', '\\' ), absolutePath );
+				if ( Path.GetFullPath( absolutePath ).StartsWith( core, StringComparison.OrdinalIgnoreCase ) )
+					continue;
+
+				yield return new CodeResource( relativePath, absolutePath );
 			}
 		}
 	}

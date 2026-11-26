@@ -20,6 +20,7 @@ public partial class StandaloneExporter
 
 	private List<QueuedFile> _files = new();
 	private readonly List<string> _temporarySources = new();
+	private readonly Dictionary<string, int> _destinations = new( StringComparer.OrdinalIgnoreCase );
 	private ExportConfig _exportConfig;
 
 	StandaloneExporter( ExportConfig config )
@@ -193,37 +194,19 @@ public partial class StandaloneExporter
 		}
 
 		{
-			// Get all core files - only the ones we absolutely need, because everything else should
-			// already have been copied into the addon itself.
-			// This is mainly stuff like dev textures that are necessary for the engine to run.
+			// The engine's own content. The game's assets, and anything they reference, are already in the manifest.
 			var coreFiles = GetCoreFiles( engineDir );
 			QueueFrom( coreFiles );
 
-			// Surfaces aren't any use without their impact sounds, decals etc.
-			foreach ( var reference in GetSurfaceReferences( coreFiles ) )
+			// Resources the engine loads by name for what the game uses, like surfaces' impact sounds and decals. Beside the
+			// game's assets, so ones it has already are only copied once.
+			foreach ( var reference in GetImpliedResources( engineDir, coreFiles ) )
 			{
-				QueueCopy( reference.AbsolutePath, Path.Combine( baseDir, "core", reference.RelativePath ), BuildStep.CopyCoreAssets );
+				QueueCopy( reference.AbsolutePath, Path.Combine( baseDir, Standalone.GamePath, reference.RelativePath ), BuildStep.CopyCoreAssets );
 			}
 
 			// Fetch all the DLLs we need to run the engine
 			QueueFrom( GetDllFiles( engineDir ) );
-		}
-
-		//
-		// Copy core compiled files
-		//
-		{
-			// Get all core files - only the ones we absolutely need, because everything else should
-			// already have been copied into the addon itself.
-			// This is mainly stuff like dev textures that are necessary for the engine to run.
-			foreach ( var file in GetCoreFiles( engineDir ) )
-			{
-				var relativePath = Path.GetRelativePath( engineDir, file );
-				var targetPath = Path.Combine( baseDir, relativePath );
-
-				if ( Path.GetExtension( file ).EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
-					QueueCopy( file, targetPath, BuildStep.CopyCoreAssets );
-			}
 		}
 
 		//
@@ -257,41 +240,54 @@ public partial class StandaloneExporter
 		}
 
 		//
-		// Splash screen image
-		// Has to be part of core (maybe we can change this)
+		// Splash screen image, which the splash reads as a PNG before the resource system starts. Without one, the
+		// game starts on black: an exported game's loading screens don't show the platform's logo.
 		//
 		if ( !string.IsNullOrEmpty( _exportConfig.StartupImage ) )
 		{
-			var path = _exportConfig.StartupImage;
-			var startupImagePath = Path.Combine( _exportConfig.Project.GetAssetsPath(), path + "_c" );
-
-			// The image picker stores the file's absolute path, but the resource system only loads asset-relative paths
-			if ( Path.IsPathRooted( path ) && AssetSystem.FindByPath( path ) is { } startupAsset )
-			{
-				path = startupAsset.Path;
-				startupImagePath = startupAsset.GetCompiledFile( true ) ?? startupImagePath;
-			}
-
-			QueueCopy( startupImagePath, $"{baseDir}/core/materials/startup_background.vtex_c", BuildStep.CopyMisc );
-			QueueStartupImagePng( path, $"{baseDir}/core/materials/startup_background_color.png" );
+			using var image = LoadStartupImage( _exportConfig.StartupImage );
+			QueueStartupImagePng( image, $"{baseDir}/core/materials/startup_background_color.png" );
 		}
 	}
 
-	private void QueueStartupImagePng( string resourcePath, string destination )
-	{
-		var texture = Texture.Load( resourcePath, false );
-		if ( texture is null || !texture.IsValid || texture.IsError )
-			throw new InvalidOperationException( $"Couldn't load selected startup image '{resourcePath}'" );
+	static readonly string[] StartupImageExtensions = [".png", ".jpg", ".jpeg"];
 
-		using var bitmap = texture.GetBitmap();
-		if ( bitmap is null || !bitmap.IsValid )
-			throw new InvalidOperationException( $"Couldn't read selected startup image '{resourcePath}'" );
+	/// <summary>
+	/// The startup image as a bitmap, from an image file or a texture asset. Paths are absolute, as the image picker
+	/// stores them, or relative to the project's assets.
+	/// </summary>
+	private Bitmap LoadStartupImage( string path )
+	{
+		if ( StartupImageExtensions.Contains( Path.GetExtension( path ), StringComparer.OrdinalIgnoreCase ) )
+		{
+			var file = Path.IsPathRooted( path ) ? path : Path.Combine( Project.GetAssetsPath(), path );
+			var bitmap = File.Exists( file ) ? Bitmap.CreateFromBytes( File.ReadAllBytes( file ) ) : null;
+			if ( bitmap is null || !bitmap.IsValid )
+				throw new InvalidOperationException( $"Couldn't read selected startup image '{path}'" );
+
+			return bitmap;
+		}
+
+		// The resource system only loads asset-relative paths
+		if ( Path.IsPathRooted( path ) && AssetSystem.FindByPath( path ) is { } asset )
+			path = asset.Path;
+
+		var texture = Texture.Load( path, false );
+		if ( texture is null || !texture.IsValid || texture.IsError )
+			throw new InvalidOperationException( $"Couldn't load selected startup image '{path}'" );
+
+		using var textureBitmap = texture.GetBitmap();
+		if ( textureBitmap is null || !textureBitmap.IsValid )
+			throw new InvalidOperationException( $"Couldn't read selected startup image '{path}'" );
 
 		var desc = g_pRenderDevice.GetTextureDesc( texture.native );
-		var width = desc.m_nDisplayRectWidth > 0 ? Math.Min( desc.m_nDisplayRectWidth, bitmap.Width ) : bitmap.Width;
-		var height = desc.m_nDisplayRectHeight > 0 ? Math.Min( desc.m_nDisplayRectHeight, bitmap.Height ) : bitmap.Height;
-		using var image = bitmap.Crop( new Rect( 0, 0, width, height ) );
+		var width = desc.m_nDisplayRectWidth > 0 ? Math.Min( desc.m_nDisplayRectWidth, textureBitmap.Width ) : textureBitmap.Width;
+		var height = desc.m_nDisplayRectHeight > 0 ? Math.Min( desc.m_nDisplayRectHeight, textureBitmap.Height ) : textureBitmap.Height;
+		return textureBitmap.Crop( new Rect( 0, 0, width, height ) );
+	}
 
+	private void QueueStartupImagePng( Bitmap image, string destination )
+	{
 		var source = Path.Combine( Path.GetTempPath(), $"sbox-startup-{Guid.NewGuid():N}.png" );
 		try
 		{
@@ -306,9 +302,22 @@ public partial class StandaloneExporter
 		}
 	}
 
+	/// <summary>
+	/// Copy a file into the export, once. The last queued for a destination wins, like a chosen startup image over the default.
+	/// </summary>
 	private void QueueCopy( string source, string dest, BuildStep type )
 	{
-		_files.Add( new QueuedFile( source, dest, type ) );
+		var file = new QueuedFile( source, dest, type );
+		var destination = Path.GetFullPath( dest );
+
+		if ( _destinations.TryGetValue( destination, out var index ) )
+		{
+			_files[index] = file;
+			return;
+		}
+
+		_destinations[destination] = _files.Count;
+		_files.Add( file );
 	}
 
 	private async Task CopyFileAsync( QueuedFile file )

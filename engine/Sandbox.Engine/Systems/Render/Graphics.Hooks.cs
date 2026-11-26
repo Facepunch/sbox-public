@@ -52,8 +52,12 @@ public static partial class Graphics
 
 	static void RenderUiOverlay()
 	{
+		// An exported game has no menu, just its loading screen
 		if ( Application.IsStandalone )
+		{
+			StandaloneLoadingScreen.Render();
 			return;
+		}
 
 		using var _ = GlobalContext.MenuScope();
 		GlobalContext.Current.UISystem.Render();

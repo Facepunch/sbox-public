@@ -109,8 +109,14 @@ internal sealed partial class GameWindow : IDisposable
 		}
 		Screen.UpdateFromEngine();
 
-		// The splash carries on over the menu until it's ready to be seen, then fades out. Standalone games have no menu.
-		if ( splash.IsDrawable && !Application.IsStandalone ) StartupScreen.Show( splash );
+		// The splash carries on over the menu until it's ready to be seen, then fades out. An exported game has no
+		// menu: its own loading screen takes over from the splash, where the splash's bar left off.
+		if ( Application.IsStandalone )
+		{
+			StandaloneLoadingScreen.TakeOver( splash.ShownProgress );
+			splash.Dispose();
+		}
+		else if ( splash.IsDrawable ) StartupScreen.Show( splash );
 		else splash.Dispose();
 
 		if ( renderingRequested ) InitializeRendering();

@@ -548,6 +548,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			Connection.ClearUpdateContextInput();
 		}
 
+		StandaloneLoadingScene.Tick();
+
 		if ( !Application.IsDedicatedServer )
 		{
 			RichPresenceSystem.Tick();

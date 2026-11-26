@@ -123,6 +123,9 @@ internal partial class StandaloneGameInstance : GameInstance
 			}
 		}
 
+		// Its code and content are in, so its own loading screen can cover the rest
+		StandaloneLoadingScene.Path = Package.GetMeta<string>( "LoadingScene", null );
+
 		return true;
 	}
 }

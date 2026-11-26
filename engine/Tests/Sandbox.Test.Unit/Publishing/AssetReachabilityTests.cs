@@ -27,7 +27,8 @@ public class AssetReachabilityTests
 		config.SetMeta( "MapStartupScene", "scenes/map.scene" );
 		config.SetMeta( "DedicatedServerStartupScene", "scenes/server.scene" );
 		config.SetMeta( "SystemScene", "scenes/system.scene" );
-		string[] scenes = ["scenes/start.scene", "scenes/map.scene", "scenes/server.scene", "scenes/system.scene"];
+		config.SetMeta( "LoadingScene", "scenes/loading.scene" );
+		string[] scenes = ["scenes/start.scene", "scenes/map.scene", "scenes/server.scene", "scenes/system.scene", "scenes/loading.scene"];
 		var roots = Roots( [.. scenes, "scenes/unused.scene"], GetConfiguredScenePaths( config ).ToArray() );
 		CollectionAssert.AreEquivalent( scenes, roots.ToArray() );
 	}

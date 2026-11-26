@@ -35,6 +35,11 @@ public static class Standalone
 	/// </summary>
 	internal static string ProjectConfigJson { get; private set; }
 
+	/// <summary>
+	/// True while the game is loading itself at startup, up to opening its first scene, which shows its own loading screen.
+	/// </summary>
+	internal static bool IsLoadingGame { get; set; }
+
 	internal static void Init()
 	{
 		if ( !Application.IsStandalone )

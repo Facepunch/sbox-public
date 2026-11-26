@@ -32,6 +32,11 @@ internal sealed partial class GameWindow
 				IGameInstanceDll.Current?.OnRender( window.SwapChain );
 			using ( menuRender.Start() )
 				IMenuDll.Current?.OnRender( window.SwapChain );
+
+			// The menu adds the overlay: its UI, the loading screen, debug overlays and screen capture. An exported game
+			// has no menu, but still needs the rest.
+			if ( IMenuDll.Current is null )
+				CCameraRenderer.RenderOverlay( window.SwapChain );
 		}
 		finally
 		{

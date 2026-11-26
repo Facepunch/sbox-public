@@ -78,6 +78,7 @@ public partial class ProjectPublisher
 			yield return config.GetMetaOrDefault( "DedicatedServerStartupScene", "" );
 			yield return config.GetMetaOrDefault( "SystemScene", "" );
 			yield return config.GetMetaOrDefault( "MenuScene", "" );
+			yield return config.GetMetaOrDefault( "LoadingScene", "" );
 		}
 
 		internal IEnumerable<string> GetSettingsPaths( ProjectFile file )

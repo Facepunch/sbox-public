@@ -354,9 +354,9 @@ public sealed partial class Dresser
 		}
 	}
 
-	// Default underwear paths, cached to avoid repeated allocations
-	const string DefaultUnderwearPath = "models/citizen_clothes/underwear/y_front_pants/y_front_pants_white.clothing";
-	const string DefaultBraPath = "models/citizen_clothes/underwear/bra/bra_white.clothing";
+	// Default underwear paths, cached to avoid repeated allocations. Nothing references these as assets, so exports add them.
+	internal const string DefaultUnderwearPath = "models/citizen_clothes/underwear/y_front_pants/y_front_pants_white.clothing";
+	internal const string DefaultBraPath = "models/citizen_clothes/underwear/bra/bra_white.clothing";
 	static readonly Lazy<Sandbox.Clothing> DefaultUnderwear = new( () => ResourceLibrary.Get<Sandbox.Clothing>( DefaultUnderwearPath ) );
 	static readonly Lazy<Sandbox.Clothing> DefaultBra = new( () => ResourceLibrary.Get<Sandbox.Clothing>( DefaultBraPath ) );
 

@@ -44,6 +44,7 @@ public class StandaloneAppSystem : AppSystem
 
 	private void LoadStandaloneGame()
 	{
+		Standalone.IsLoadingGame = true;
 		_standaloneLoadTask = IGameInstanceDll.Current.LoadGamePackageAsync( Standalone.Manifest.Ident, GameLoadingFlags.Host, default );
 	}
 
@@ -56,6 +57,7 @@ public class StandaloneAppSystem : AppSystem
 		{
 			if ( _standaloneLoadTask.IsCompleted )
 			{
+				Standalone.IsLoadingGame = false;
 				var loaded = _standaloneLoadTask.GetAwaiter().GetResult();
 				_standaloneLoadTask = null;
 

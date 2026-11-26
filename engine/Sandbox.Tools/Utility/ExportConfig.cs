@@ -36,9 +36,9 @@ public class ExportConfig
 	public string TargetIcon { get; set; }
 
 	/// <summary>
-	/// The splash screen to use
+	/// The image shown while the game starts and loads: a PNG or JPG file, or a texture. A 1920x1080 image fills a 16:9 window.
 	/// </summary>
-	[Title( "Startup Image" ), ResourceType( "vtex" )] // should make this png
+	[Title( "Startup Image" )]
 	public string StartupImage { get; set; }
 
 	/// <summary>

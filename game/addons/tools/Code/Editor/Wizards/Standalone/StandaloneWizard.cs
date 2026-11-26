@@ -27,6 +27,8 @@ partial class StandaloneWizard : BaseWizard
 		Config.TargetDir = Path.Combine( project.GetRootPath(), "Exports", dateString );
 		Config.ExecutableName = project.Package.Ident;
 		Config.AppId = 480; // SpaceWar AppID
+		Config.TargetIcon = RememberedFile( ReviewWizardPage.IconCookie );
+		Config.StartupImage = RememberedFile( ReviewWizardPage.StartupImageCookie );
 
 		AddStep( new ReviewWizardPage() { Project = project, PublishConfig = Config } );      // this the right ident?
 		AddStep( new ProgressWizardPage( this ) { Project = project, PublishConfig = Config } );
@@ -34,6 +36,11 @@ partial class StandaloneWizard : BaseWizard
 
 		Current = Steps.First();
 	}
+
+	/// <summary>
+	/// A file chosen in an earlier export, if it's still there.
+	/// </summary>
+	static string RememberedFile( string cookie ) => ProjectCookie.Get<string>( cookie, null ) is { } path && File.Exists( path ) ? path : null;
 
 	public override void OnSave()
 	{

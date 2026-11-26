@@ -84,6 +84,10 @@ public static partial class Game
 
 	internal static void Render( SwapChainHandle_t swapChain )
 	{
+		// An exported game's own loading screen, in place of whatever's loading
+		if ( StandaloneLoadingScene.Render( swapChain ) )
+			return;
+
 		// IToolsDll.OnRender handles the case where game is not playing (render from editor scene)
 		if ( !IsPlaying )
 			return;

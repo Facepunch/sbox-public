@@ -330,6 +330,8 @@ internal static class EngineLoop
 		{
 			IMenuDll.Current?.SimulateUI();
 		}
+
+		StandaloneLoadingScreen.Tick();
 	}
 
 	static Superluminal _clientOutput = new Superluminal( "OnClientOutput", "#3a6ea5" );

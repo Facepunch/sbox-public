@@ -275,16 +275,22 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	/// <summary>
 	/// The screen-space reflections this camera's views render: part of every camera, or null when the graphics settings
-	/// turn them off (<see cref="ScreenSpaceReflectionsPass.IsEnabled"/>).
+	/// turn them off (<see cref="ScreenSpaceReflectionsPass.IsEnabled"/>) or the camera goes without them.
 	/// </summary>
-	internal ScreenSpaceReflectionsPass ScreenSpaceReflections => ScreenSpaceReflectionsPass.IsEnabled ? _reflections : null;
+	internal ScreenSpaceReflectionsPass ScreenSpaceReflections => ScreenSpaceReflectionsPass.IsEnabled && WantsScreenSpaceReflections ? _reflections : null;
+
+	/// <summary>
+	/// False for cameras that shouldn't trace reflections, like a <see cref="UI.ScenePanel"/>'s: UI previews are often drawn
+	/// once, so have no history to trace against, and their transparent backgrounds reflect as black.
+	/// </summary>
+	internal bool WantsScreenSpaceReflections { get; set; } = true;
 
 	/// <summary>
 	/// Make the pass while reflections are on. On the main thread: it makes its shaders here, which a render job can't.
 	/// </summary>
 	internal void UpdateScreenSpaceReflections()
 	{
-		if ( ScreenSpaceReflectionsPass.IsEnabled )
+		if ( ScreenSpaceReflectionsPass.IsEnabled && WantsScreenSpaceReflections )
 			_reflections ??= new();
 	}
 

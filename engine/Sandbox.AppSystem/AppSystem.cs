@@ -452,7 +452,7 @@ public class AppSystem
 		gameWindow?.InitializeRendering();
 		gameWindow?.UpdateStartupProgress( 0.22f, "Loading shaders" );
 		Bootstrap.Init();
-		gameWindow?.UpdateStartupProgress( 0.4f, "Building the menu" );
+		gameWindow?.UpdateStartupProgress( 0.4f, Application.IsStandalone ? "Loading the game" : "Building the menu" );
 	}
 
 	protected void SetWindowTitle( string title )
