@@ -167,6 +167,41 @@ float SampleShadowTent( ShadowPCFInput i, uint nAxisTaps )
 }
 
 //--------------------------------------------------------------------------------------------------
+// The 16-tap tent's four central taps, as SampleShadowTent takes them: 1 where all four are lit, 0 where all four are shadowed,
+// else -1. They carry over half the tent's weight and cover its middle 4x4 texels, so where they agree the whole tent returns
+// the same but where a caster edge lies only in its outer ring, at a penumbra's faint end. A cascade takes these first and
+// the other twelve only where they don't agree: most receivers are lit or shadowed through and through
+//--------------------------------------------------------------------------------------------------
+float SampleShadowTentCentre( ShadowPCFInput i )
+{
+    const float flGrid = i.InvShadowMapRes * max( rcp( i.Hardness ), 1.0 );
+    const float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
+
+    float2 vGridPosition = i.ShadowPos.xy / flGrid - 0.5;
+    float2 vPhase = frac( vGridPosition );
+    float2 vFloor = floor( vGridPosition );
+    float flMin = 1.0;
+    float flMax = 0.0;
+    [unroll]
+    for ( uint y = 1; y <= 2; y++ )
+    {
+        [unroll]
+        for ( uint x = 1; x <= 2; x++ )
+        {
+            int2 c0 = 2 * int2( x, y ) - 3;
+            float2 w0 = 4.0 - abs( float2( c0 ) - vPhase );
+            float2 w1 = 4.0 - abs( float2( c0 + 1 ) - vPhase );
+            float2 vUV = ( ( vFloor + float2( 2 * c0 + 1 ) * 0.5 ) + w1 / ( w0 + w1 ) ) * flGrid;
+            float flTap = i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vUV, flCompareDepth );
+            flMin = min( flMin, flTap );
+            flMax = max( flMax, flTap );
+        }
+    }
+
+    return flMin >= 1.0 ? 1.0 : flMax <= 0.0 ? 0.0 : -1.0;
+}
+
+//--------------------------------------------------------------------------------------------------
 // Spot light and cascade PCF. Quality 0 is one hardware 2x2 tap, then 4, 9 and 16-tap tents.
 //--------------------------------------------------------------------------------------------------
 float SampleShadowPCF( ShadowPCFInput i )

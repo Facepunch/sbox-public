@@ -91,7 +91,7 @@ struct DirectionalLightShadow
 
 		// Nearer the sun than every caster the filter could reach is lit, behind every one of them shadowed: the filter
 		// would return exactly that, so skip it. The tiles hold each 32x32 texel tile's farthest and nearest caster depth
-		// over it and its neighbours, cascades side by side (Borealis's; native sets no index)
+		// over it and its neighbours, cascades side by side (Borealis's, when ShadowMapper.CascadeTiles is on; else no index)
 		uint nTiles = g_DirectionalLightFlags >> 5;
 		if ( nTiles != 0 )
 		{
@@ -104,6 +104,18 @@ struct DirectionalLightShadow
 			if ( flCompareDepth < vMinMax.x )
 				return 0.0;
 		}
+
+		// The 16-tap tent's central four first, which agree for most receivers, then the rest only where they don't. The tiles
+		// above are off by default: they cost every receiver a read and pass few (a lit slope's own depth varies across a
+		// tile by more than the bias)
+	#ifndef FORCE_BILINEAR_PCF_SHADOWS_ONLY
+		if ( UserShadowFilterQuality >= 3 )
+		{
+			float flCentre = SampleShadowTentCentre( pcfInput );
+			if ( flCentre >= 0.0 )
+				return flCentre;
+		}
+	#endif
 
         return SampleShadowPCF( pcfInput );
     }
