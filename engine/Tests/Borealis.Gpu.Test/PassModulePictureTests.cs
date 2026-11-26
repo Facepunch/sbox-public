@@ -24,10 +24,14 @@ public class PassModulePictureTests : GpuTest
 		string[] shaders = ["shaders/line.shader", "shaders/eyeball.shader", "shaders/terrain_brush.shader", "shaders/lpv_debug.shader"];
 		var differences = new List<string>();
 		var compared = 0;
+
+		// A device for each route, shared by the shaders: each made its own, with every pipeline of the frame made again
+		using var classicBackend = new BackendDevice( Device ) { SlangPasses = false };
+		using var moduleBackend = new BackendDevice( Device ) { SlangPasses = true };
 		foreach ( var shader in shaders )
 		{
-			var classic = Draw( slangPasses: false, backend => Textured( backend, shader ), shader );
-			var module = Draw( slangPasses: true, backend => Textured( backend, shader ), shader );
+			var classic = Draw( classicBackend, backend => Textured( backend, shader ), shader );
+			var module = Draw( moduleBackend, backend => Textured( backend, shader ), shader );
 			if ( classic is null || module is null )
 			{
 				TestContext.WriteLine( $"{shader}: not compiled" );
@@ -76,12 +80,18 @@ public class PassModulePictureTests : GpuTest
 	}
 
 	/// <summary>
-	/// A box in <paramref name="material"/> lit by the sun, with an optional sky, as 8-bit gamma bytes; null when the
-	/// material's shader (<paramref name="shader"/>, when given) or the sky's isn't compiled.
+	/// A box in <paramref name="material"/> lit by the sun, with an optional sky, as 8-bit gamma bytes, on a device of its
+	/// own; null when the material's shader (<paramref name="shader"/>, when given) or the sky's isn't compiled.
 	/// </summary>
 	byte[] Draw( bool slangPasses, Func<BackendDevice, GpuMaterial> material, string shader = null, string sky = null )
 	{
 		using var backend = new BackendDevice( Device ) { SlangPasses = slangPasses };
+		return Draw( backend, material, shader, sky );
+	}
+
+	/// <summary>The same picture on <paramref name="backend"/>, drawn by a render system and a target of its own.</summary>
+	byte[] Draw( BackendDevice backend, Func<BackendDevice, GpuMaterial> material, string shader = null, string sky = null )
+	{
 		var errors = new List<string>();
 		backend.Passes.Error = errors.Add;
 		var previousHost = RenderHost.Current;
