@@ -144,15 +144,16 @@ internal static partial class ToolSceneViews
 	}
 
 	/// <summary>
-	/// <c>ToolSceneText_t</c> (src/public/toolrenderutils/toolmatsysutils.h): a tool text object's text and where it's laid out.
+	/// <c>ToolSceneText_t</c> (src/public/toolrenderutils/toolmatsysutils.h): a tool text object's text and where it goes.
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct Text
 	{
 		public IntPtr Utf8;
 		public Vector3 World;
-		public Vector2 Mins;
-		public Vector2 Maxs;
+		public Vector2 Position;
+		public float LineHeight;
+		public int Justification;
 		public float MaxDistance;
 		public Color32 Color;
 		public int InWorld;
@@ -781,8 +782,9 @@ internal static partial class ToolSceneViews
 		{
 			public string Text;
 			public Vector3 World;
-			public Vector2 Mins;
-			public Vector2 Maxs;
+			public Vector2 Position;
+			public float LineHeight;
+			public int Justification;
 			public float MaxDistance;
 			public Color Color;
 			public bool InWorld;
@@ -814,8 +816,9 @@ internal static partial class ToolSceneViews
 					{
 						Text = value,
 						World = text.World,
-						Mins = text.Mins,
-						Maxs = text.Maxs,
+						Position = text.Position,
+						LineHeight = text.LineHeight,
+						Justification = text.Justification,
 						MaxDistance = text.MaxDistance,
 						Color = text.Color.ToColor(),
 						InWorld = text.InWorld != 0,
@@ -847,8 +850,9 @@ internal static partial class ToolSceneViews
 		public Action DrawTextAction( SceneCamera camera ) => () => DrawText( camera );
 
 		/// <summary>
-		/// Draw the text gathered for the frame over it, in pixels: world-anchored text at its anchor's projection, as the
-		/// scene system's debug text draws (<c>CDebugTextObjectDesc::DrawArray</c>).
+		/// Draw the text gathered for the frame over it, in pixels: world-anchored text from its anchor's projection. Each line
+		/// is <see cref="TextItem.LineHeight"/> high, the first centred vertically on the text's position, and the lines are
+		/// justified left, centre or right about it (<c>HorizJustification_e</c>).
 		/// </summary>
 		void DrawText( SceneCamera camera )
 		{
@@ -862,15 +866,24 @@ internal static partial class ToolSceneViews
 					origin = new Vector2( MathF.Floor( screen.x ), MathF.Floor( screen.y ) );
 				}
 
-				var size = text.Maxs - text.Mins;
-				if ( size.y <= 0 ) continue;
+				var line = text.LineHeight;
+				if ( line <= 0 ) continue;
 
-				// Its laid out glyphs' box, a line each; the glyphs are about four fifths of a line
 				var lines = 1;
 				foreach ( var c in text.Text )
 					if ( c == '\n' ) lines++;
-				var line = size.y / lines;
-				Graphics.DrawText( new Rect( origin + text.Mins, size + new Vector2( line, 0 ) ), text.Text, text.Color, "Roboto", line * 0.8f, 600, TextFlag.LeftTop );
+
+				// A box wide enough for any line, its left, centre or right edge on the text's position; the glyphs are
+				// about four fifths of a line
+				const float width = 8192;
+				var (left, flags) = text.Justification switch
+				{
+					1 => (-width / 2, TextFlag.CenterTop),
+					2 => (-width, TextFlag.RightTop),
+					_ => (0.0f, TextFlag.LeftTop),
+				};
+				var position = origin + text.Position + new Vector2( left, -line / 2 );
+				Graphics.DrawText( new Rect( position, new Vector2( width, line * lines ) ), text.Text, text.Color, "Roboto", line * 0.8f, 600, flags );
 			}
 		}
 

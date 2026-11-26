@@ -51,6 +51,10 @@ public class ToolSceneViewsTests
 		// ToolSceneText_t
 		Assert.AreEqual( 48, Marshal.SizeOf<ToolSceneViews.Text>() );
 		Assert.AreEqual( 8, (int)Marshal.OffsetOf<ToolSceneViews.Text>( nameof( ToolSceneViews.Text.World ) ) );
+		Assert.AreEqual( 20, (int)Marshal.OffsetOf<ToolSceneViews.Text>( nameof( ToolSceneViews.Text.Position ) ) );
+		Assert.AreEqual( 28, (int)Marshal.OffsetOf<ToolSceneViews.Text>( nameof( ToolSceneViews.Text.LineHeight ) ) );
+		Assert.AreEqual( 32, (int)Marshal.OffsetOf<ToolSceneViews.Text>( nameof( ToolSceneViews.Text.Justification ) ) );
+		Assert.AreEqual( 36, (int)Marshal.OffsetOf<ToolSceneViews.Text>( nameof( ToolSceneViews.Text.MaxDistance ) ) );
 		Assert.AreEqual( 40, (int)Marshal.OffsetOf<ToolSceneViews.Text>( nameof( ToolSceneViews.Text.Color ) ) );
 		Assert.AreEqual( 44, (int)Marshal.OffsetOf<ToolSceneViews.Text>( nameof( ToolSceneViews.Text.InWorld ) ) );
 
