@@ -26,12 +26,16 @@ public sealed partial class FourWheelVehicle : Component.ICollisionListener, IDa
 		var other = collision.Other.GameObject;
 		if ( other.IsValid() && (other.Tags.Has( "player" ) || other.Tags.Has( "playercontroller" )) ) return;
 
-		ReportImpact( MathF.Abs( collision.Contact.NormalSpeed ), collision.Contact.Point );
+		// The driver feels how hard the hit stopped the vehicle: something loose barely jolts it, a wall stops it dead
+		var closing = MathF.Abs( collision.Contact.NormalSpeed );
+		var jolt = _body.IsValid() && _body.PhysicsBody is { Mass: > 0 } body ? collision.Contact.Impulse / body.Mass : closing;
+
+		ReportImpact( closing, jolt, collision.Contact.Point );
 	}
 
-	private void ReportImpact( float speed, Vector3 position )
+	private void ReportImpact( float speed, float jolt, Vector3 position )
 	{
-		DamageDriverFromImpact( speed, position );
+		DamageDriverFromImpact( MathF.Min( jolt, speed ), position );
 		Impacted?.Invoke( speed, position );
 	}
 
