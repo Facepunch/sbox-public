@@ -145,6 +145,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			|| AssemblyEnroller?.GetLoadedAssemblies().Length > 0;
 		gameLoadStarted = false;
 
+		// The menu's resources after the last close's rescan, before anything is unmounted or mounted again
+		IMenuDll.Current?.FinishReset();
+
 		// The menu loaded its resources moments ago during startup, so there is nothing to reset yet. Nor when no package
 		// has been mounted or unmounted since the last reset: closing a game resets and starting the next one does again.
 		var menuResourcesCurrent = !Application.IsEditor && (!hadPreviousEnvironment

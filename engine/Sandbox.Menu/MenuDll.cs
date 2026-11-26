@@ -188,6 +188,11 @@ internal sealed class MenuDll : IMenuDll
 
 	public void Exiting()
 	{
+		// Not with a rescan still walking the file system
+		try { resetScan?.Wait(); }
+		catch ( Exception ) { }
+		resetScan = null;
+
 		using ( EnterScope() )
 		{
 			// Shutdown menu system
@@ -234,9 +239,26 @@ internal sealed class MenuDll : IMenuDll
 		}
 	}
 
-	void LoadResources()
+	// The resource database rescan a game's close started on a worker (Reset), until the menu's resources have loaded after it
+	Task resetScan;
+
+	/// <summary>
+	/// The menu's resources again after a close's rescan (<see cref="Reset"/>), waiting for the scan if it's still running:
+	/// from the menu's tick once it's done, or before anything else is mounted or loaded (a game starting).
+	/// </summary>
+	public void FinishReset()
 	{
-		g_pResourceSystem.InvalidateDatabase();
+		if ( resetScan is not { } scan ) return;
+		resetScan = null;
+
+		try { scan.Wait(); }
+		catch ( Exception e )
+		{
+			Log.Warning( e, "Resource scan failed, scanning again" );
+			g_pResourceSystem.InvalidateDatabase();
+		}
+
+		using var _ = EnterScope();
 		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
 	}
 
@@ -309,6 +331,8 @@ internal sealed class MenuDll : IMenuDll
 	{
 		using var _ = EnterScope();
 
+		if ( resetScan is { IsCompleted: true } ) FinishReset();
+
 		if ( startDeferredResources is { } startDeferred && Application.FrameCount > 120 )
 		{
 			startDeferredResources = null;
@@ -357,8 +381,11 @@ internal sealed class MenuDll : IMenuDll
 		if ( Application.IsEditor )
 			return;
 
-		using var _ = EnterScope();
-		LoadResources();
+		FinishReset();
+
+		// Rescanning walks every mounted file, half a second after Construct: on a worker, as startup's scan is
+		// (Bootstrap.BeginResourceScan), so closing a game doesn't hold the menu's first frame for it
+		resetScan = Task.Run( () => g_pResourceSystem.InvalidateDatabase() );
 	}
 
 

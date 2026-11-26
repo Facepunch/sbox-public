@@ -21,6 +21,7 @@ internal interface IMenuDll
 	void OnRender( SwapChainHandle_t swapChain );
 	void LateTick();
 	void Reset();
+	void FinishReset();
 
 	IDisposable PushScope();
 }
