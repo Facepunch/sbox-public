@@ -1301,10 +1301,13 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		lock ( mapLightmaps )
 		{
 			if ( mapLightmaps.ContainsKey( folder ) || lightmapReads.ContainsKey( folder ) ) return;
+			QueueWorkItem();
 			lightmapReads[folder] = System.Threading.Tasks.Task.Run( () =>
 			{
 				try
 				{
+					if ( !StartWorkItem( "lightmaps" ) ) return null;
+
 					// The world file too, kept for where they're made: parsing it took 100 ms of the first frame after a load
 					var world = Borealis.Source2.World.WorldFile.Load( Content, $"{folder}/world.vwrld" );
 					System.Threading.Tasks.Parallel.ForEach( world.Lightmaps, path => ReadTextureAhead( path ) );
@@ -1314,6 +1317,10 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				{
 					// Read where they're made, which reports it
 					return null;
+				}
+				finally
+				{
+					EndWorkItem();
 				}
 			} );
 		}
@@ -3204,6 +3211,48 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	// Views whose resources are being made on a worker
 	readonly HashSet<object> visibilityMaking = new( ReferenceEqualityComparer.Instance );
 
+	// Items queued on workers that make this device's resources (views' visibility and ids targets, content reads and a
+	// map's lightmaps, which make images ahead): Dispose waits for every one, and once it has begun they make nothing. One
+	// that made a resource after the device went crashed the process. Monitor.Wait gives the lock up while it waits
+	readonly object workItemsLock = new();
+	int workItems;
+	volatile bool disposing;
+
+	/// <summary>For tests: called on the worker as each item <see cref="Dispose"/> waits for starts, with what it makes.</summary>
+	internal Action<string> WorkItemStarting { get; set; }
+
+	// Counted when queued, so Dispose waits for those not started yet too
+	void QueueWorkItem()
+	{
+		lock ( workItemsLock ) workItems++;
+	}
+
+	// At the start of a queued item: whether it may go on making resources (the device isn't going)
+	bool StartWorkItem( string what )
+	{
+		WorkItemStarting?.Invoke( what );
+		return !disposing;
+	}
+
+	void EndWorkItem()
+	{
+		lock ( workItemsLock )
+		{
+			if ( --workItems == 0 ) Monitor.PulseAll( workItemsLock );
+		}
+	}
+
+	// Items still running, bounded so one stuck can't hold up the shutdown for good
+	void WaitForWorkItems()
+	{
+		disposing = true;
+		lock ( workItemsLock )
+		{
+			var until = Environment.TickCount64 + 10_000;
+			while ( workItems > 0 && Environment.TickCount64 < until ) Monitor.Wait( workItemsLock, 100 );
+		}
+	}
+
 	/// <summary>
 	/// A view's visibility resources, made the first time and remade when its depth target changes size; null while they're
 	/// made on a worker the first time (<see cref="MakeVisibilityAhead"/>).
@@ -3220,6 +3269,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 				if ( !visibilityMaking.Add( view ) ) return null;
 			}
 
+			QueueWorkItem();
 			System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static state => state.Device.MakeVisibility( state.View, state.Depth ), (Device: this, View: view, Depth: depth), preferLocal: false );
 			return null;
 		}
@@ -3272,6 +3322,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		try
 		{
+			if ( !StartWorkItem( "visibility" ) ) return;
 			using var zone = Zones.VisibilityMake.Start();
 			var compacted = CompactedIndicesFor( depth );
 			var (mask, stamps) = (VisibilityMask(), VisibilityStamps());
@@ -3316,6 +3367,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 		finally
 		{
 			lock ( visibilityViews ) visibilityMaking.Remove( view );
+			EndWorkItem();
 		}
 	}
 
@@ -3391,7 +3443,12 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 
 			if ( MakeVisibilityAhead && AsyncModels )
 			{
-				if ( idsMaking.Add( state ) ) System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static s => s.Device.MakeIdsTargets( s.State, ahead: true ), (Device: this, State: state), preferLocal: false );
+				if ( idsMaking.Add( state ) )
+				{
+					QueueWorkItem();
+					System.Threading.ThreadPool.UnsafeQueueUserWorkItem( static s => s.Device.MakeIdsTargets( s.State, ahead: true ), (Device: this, State: state), preferLocal: false );
+				}
+
 				return;
 			}
 		}
@@ -3405,6 +3462,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	{
 		try
 		{
+			if ( ahead && !StartWorkItem( "ids" ) ) return;
 			using var zone = Zones.VisibilityMake.Start();
 			int width, height, samples;
 			lock ( visibilityViews )
@@ -3442,6 +3500,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 			if ( ahead )
 			{
 				lock ( visibilityViews ) idsMaking.Remove( state );
+				EndWorkItem();
 			}
 		}
 	}
@@ -3928,16 +3987,8 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public void Dispose()
 	{
-		// Views' visibility being made on workers is finished first
-		while ( true )
-		{
-			lock ( visibilityViews )
-			{
-				if ( visibilityMaking.Count == 0 ) break;
-			}
-
-			System.Threading.Thread.Sleep( 1 );
-		}
+		// What workers are making on this device (views' visibility and ids targets, reads' images) is finished first
+		WaitForWorkItems();
 
 		// Builds read on workers make their images there: finished before the device can go
 		streamer?.Finish();

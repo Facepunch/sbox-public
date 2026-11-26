@@ -426,16 +426,19 @@ public sealed partial class BackendDevice
 	public Task<ModelFile> ReadModelAsync( Func<byte[]> save )
 	{
 		Interlocked.Increment( ref readsPending );
+		QueueWorkItem();
 		return Read( () =>
 		{
 			try
 			{
+				if ( !StartWorkItem( "read" ) ) return null;
 				using var zone = Zones.ModelRead.Start();
 				return ReadModelAhead( save() );
 			}
 			finally
 			{
 				Interlocked.Decrement( ref readsPending );
+				EndWorkItem();
 			}
 		} );
 	}
@@ -518,16 +521,19 @@ public sealed partial class BackendDevice
 	Task StartTextureRead( string path )
 	{
 		Interlocked.Increment( ref readsPending );
+		QueueWorkItem();
 		return Read( () =>
 		{
 			try
 			{
+				if ( !StartWorkItem( "read" ) ) return false;
 				ReadTextureAhead( path );
 				return true;
 			}
 			finally
 			{
 				Interlocked.Decrement( ref readsPending );
+				EndWorkItem();
 			}
 		} );
 	}
@@ -544,16 +550,19 @@ public sealed partial class BackendDevice
 	Task<ModelFile> StartRead( string path )
 	{
 		Interlocked.Increment( ref readsPending );
+		QueueWorkItem();
 		return Read( () =>
 		{
 			try
 			{
+				if ( !StartWorkItem( "read" ) ) return null;
 				using var zone = Zones.ModelRead.Start();
 				return ReadModelAhead( path );
 			}
 			finally
 			{
 				Interlocked.Decrement( ref readsPending );
+				EndWorkItem();
 			}
 		} );
 	}
@@ -608,7 +617,8 @@ public sealed partial class BackendDevice
 
 	void ReadTextureAhead( string path, bool tail = false )
 	{
-		if ( string.IsNullOrEmpty( path ) || readTextures.ContainsKey( path ) ) return;
+		// Nothing more once the device is going (Dispose waits for the read this is part of)
+		if ( disposing || string.IsNullOrEmpty( path ) || readTextures.ContainsKey( path ) ) return;
 		lock ( loadedTextures )
 		{
 			if ( loadedTextures.ContainsKey( path ) ) return;
