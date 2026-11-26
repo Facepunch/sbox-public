@@ -1,5 +1,6 @@
 using Editor;
 using System.IO;
+using System.Threading;
 
 namespace FilesystemTests;
 
@@ -76,6 +77,57 @@ public class BakeCacheTests
 		}
 		finally
 		{
+			EngineFileSystem.Shutdown();
+			temp.Delete( recursive: true );
+		}
+	}
+
+	/// <summary>
+	/// A thumbnail in the shipped pack loads on a worker: a caller isn't held while the pack is busy (the first lookup reads
+	/// its whole index, which took seconds on the game's main thread with the disk under load).
+	/// </summary>
+	[TestMethod]
+	[DoNotParallelize]
+	public async Task ThumbnailLoadsOffTheCaller()
+	{
+		var temp = Directory.CreateTempSubdirectory();
+		temp.CreateSubdirectory( "core" );
+		EngineFileSystem.Initialize( temp.FullName, skipBaseFolderInit: true );
+		using var release = new ManualResetEventSlim();
+		using var held = new ManualResetEventSlim();
+		try
+		{
+			const string model = "mount://hl2/models/crate.vmdl";
+			using ( var icon = new Bitmap( 4, 2 ) )
+			using ( var writer = new BakeCacheWriter() )
+			{
+				writer.Set( ThumbnailCache.GetBakedModelKey( model ), icon.ToPng() );
+				writer.Save();
+			}
+
+			// Stand in for a stalled read: another thread holds the pack's lock.
+			var sync = typeof( BakeCache ).GetField( "sync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static ).GetValue( null );
+			var holder = new Thread( () => { lock ( sync ) { held.Set(); release.Wait(); } } );
+			holder.Start();
+			held.Wait();
+
+			Task<Bitmap> load = null;
+			var cache = new ThumbnailCache( model );
+			var caller = new Thread( () => load = cache.LoadBitmapAsync() );
+			caller.Start();
+			Assert.IsTrue( caller.Join( 2000 ), "the load waited for the pack on the caller" );
+			Assert.IsFalse( load.IsCompleted );
+
+			release.Set();
+			using var bitmap = await load;
+			Assert.IsNotNull( bitmap );
+			Assert.AreEqual( 4, bitmap.Width );
+			Assert.AreEqual( 2, bitmap.Height );
+			holder.Join();
+		}
+		finally
+		{
+			release.Set();
 			EngineFileSystem.Shutdown();
 			temp.Delete( recursive: true );
 		}

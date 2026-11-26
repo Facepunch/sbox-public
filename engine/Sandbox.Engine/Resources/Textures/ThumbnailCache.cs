@@ -65,6 +65,21 @@ internal sealed class ThumbnailCache
 	/// </summary>
 	internal Bitmap LoadBitmap() => LoadLooseBitmap() ?? LoadBakedBitmap();
 
+	/// <summary>
+	/// Loads the cached texture like <see cref="Load"/>, but reads and decodes the file on a worker: the first lookup in the
+	/// shipped pack reads its whole index, and a busy disk stalls the caller for seconds.
+	/// </summary>
+	public async Task<Texture> LoadAsync()
+	{
+		using var bitmap = await LoadBitmapAsync();
+		return bitmap?.ToTexture();
+	}
+
+	/// <summary>
+	/// <see cref="LoadBitmap"/> on a worker thread.
+	/// </summary>
+	internal Task<Bitmap> LoadBitmapAsync() => Task.Run( LoadBitmap );
+
 	Bitmap LoadBakedBitmap()
 	{
 		var bakedKey = GetBakedKeyForPath( bakedModelPath );

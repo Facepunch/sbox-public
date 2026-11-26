@@ -24,7 +24,7 @@ public partial class PrefabFile
 		} ) : null;
 
 		var cache = string.IsNullOrEmpty( ResourcePath ) ? null : new ThumbnailCache( ResourcePath, $"prefab/{previewModelPath}/{framing}" );
-		if ( cache?.Load() is { } cached ) return cached;
+		if ( cache is not null && await cache.LoadAsync() is { } cached ) return cached;
 
 		Model model = null;
 		if ( !string.IsNullOrWhiteSpace( previewModelPath ) )
