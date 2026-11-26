@@ -388,21 +388,18 @@ internal sealed partial class BackendContext
 	{
 		combos = specialization = 0;
 		var shift = 0;
-		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel] )
+		foreach ( var token in comboTokens.GetValue( material.Shader, static shader => [.. System.Linq.Enumerable.Select( [.. shader[ShaderProgramType.Vertex]?.DynamicCombos ?? [], .. shader[ShaderProgramType.Pixel]?.DynamicCombos ?? []], combo => Token( combo.Name ) )] ) )
 		{
-			foreach ( var combo in material.Shader[type]?.DynamicCombos ?? [] )
-			{
-				var value = LookupCombo( Token( combo.Name ) ) ?? 0;
-				if ( shift == 64 || (uint)value > byte.MaxValue ) return false;
-				combos |= (ulong)value << shift;
-				shift += 8;
-			}
+			var value = LookupCombo( token ) ?? 0;
+			if ( shift == 64 || (uint)value > byte.MaxValue ) return false;
+			combos |= (ulong)value << shift;
+			shift += 8;
 		}
 
 		shift = 0;
-		foreach ( var name in material.SpecializationAttributes )
+		foreach ( var token in specializationTokens.GetValue( material.SpecializationAttributes, static names => System.Linq.Enumerable.ToArray( System.Linq.Enumerable.Select( names, Token ) ) ) )
 		{
-			var value = Integer( Lookup( Token( name ) ) ) ?? 0;
+			var value = Integer( Lookup( token ) ) ?? 0;
 			if ( shift == 64 || (uint)value > byte.MaxValue ) return false;
 			specialization |= (ulong)value << shift;
 			shift += 8;
@@ -410,6 +407,11 @@ internal sealed partial class BackendContext
 
 		return true;
 	}
+
+	// The tokens of a shader's vertex and pixel dynamic combos, and of a material's specialization attributes, in the order
+	// ComboBits reads them: found once, not by name each pass state
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderFile, StringToken[]> comboTokens = new();
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<string[], StringToken[]> specializationTokens = new();
 
 	string BuildComboKey( BackendMaterial material, string mode )
 	{

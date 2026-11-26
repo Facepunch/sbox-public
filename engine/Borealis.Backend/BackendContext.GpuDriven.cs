@@ -2598,29 +2598,56 @@ internal sealed partial class BackendContext
 		return tables.Material( key, size, (Context: this, Material: material, Stage: stage, Uncompressed: uncompressedTangentFrame), static ( s, record ) => s.Context.WriteMaterialRecord( s.Material, s.Stage, s.Uncompressed, record ) );
 	}
 
-	readonly Dictionary<ShaderStage, (long PassEpoch, long LayerEpoch, int Hash)> attributeHashes = new( ReferenceEqualityComparer.Instance );
+	/// <summary>A stage's attribute-sourced constants as <see cref="AttributeHash"/> reads them, and its last hash.</summary>
+	sealed class StageAttributes
+	{
+		public StringToken[] Tokens;
+		public bool Layered;
+		public int LayerNames = int.MinValue;
+		public long PassEpoch = -1, LayerEpoch = -1;
+		public int Hash;
+	}
+
+	readonly Dictionary<ShaderStage, StageAttributes> attributeHashes = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>
 	/// What a stage's attribute-sourced constants read now, as part of a material record's key: the same for every
-	/// material, so it's worked out once per stage, pass state and object attributes.
+	/// material, so it's worked out once per stage and pass state, and again per object attributes only where they can set
+	/// one of its constants' attributes.
 	/// </summary>
 	int AttributeHash( ShaderStage stage )
 	{
-		if ( attributeHashes.TryGetValue( stage, out var known ) && known.PassEpoch == passEpoch && known.LayerEpoch == layerEpoch ) return known.Hash;
-
-		var hash = new HashCode();
-		// By index: a foreach over the list would allocate its enumerator each pass
-		var constants = stage.MaterialConstants;
-		for ( int i = 0; i < constants.Count; i++ )
+		if ( !attributeHashes.TryGetValue( stage, out var known ) )
 		{
-			var variable = constants[i].Variable;
-			if ( variable.Source != VariableSource.Attribute || variable.Attribute == "UncompressedTangentFrame" ) continue;
-			hash.Add( Lookup( Token( variable.Attribute ) ) );
+			// By index: a foreach over the list would allocate its enumerator
+			var tokens = new List<StringToken>();
+			var constants = stage.MaterialConstants;
+			for ( int i = 0; i < constants.Count; i++ )
+			{
+				var variable = constants[i].Variable;
+				if ( variable.Source != VariableSource.Attribute || variable.Attribute == "UncompressedTangentFrame" ) continue;
+				tokens.Add( Token( variable.Attribute ) );
+			}
+
+			attributeHashes[stage] = known = new StageAttributes { Tokens = [.. tokens] };
 		}
 
-		var made = hash.ToHashCode();
-		attributeHashes[stage] = (passEpoch, layerEpoch, made);
-		return made;
+		// Whether an object's attributes can set one (without material objects, which keep the names objects set, assumed so)
+		var layerNames = device.MaterialObjects ? device.MaterialCache.LayerNames : int.MinValue + 1;
+		if ( known.LayerNames != layerNames )
+		{
+			var layered = !device.MaterialObjects;
+			foreach ( var token in known.Tokens ) layered |= device.MaterialCache.IsLayerName( token.Value );
+			(known.Layered, known.LayerNames, known.PassEpoch) = (layered, layerNames, -1);
+		}
+
+		var layer = known.Layered ? layerEpoch : 0;
+		if ( known.PassEpoch == passEpoch && known.LayerEpoch == layer ) return known.Hash;
+
+		var hash = new HashCode();
+		foreach ( var token in known.Tokens ) hash.Add( Lookup( token ) );
+		(known.PassEpoch, known.LayerEpoch, known.Hash) = (passEpoch, layer, hash.ToHashCode());
+		return known.Hash;
 	}
 
 	readonly Dictionary<ShaderStage, StringToken[]> matrixAttributes = new( ReferenceEqualityComparer.Instance );
