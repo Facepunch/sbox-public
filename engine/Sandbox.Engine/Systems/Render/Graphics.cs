@@ -94,6 +94,9 @@ public static partial class Graphics
 
 		if ( _borealisGpu is not null )
 		{
+			// The windows' swap chains go first, once the render thread has drawn the frame handed to it
+			BorealisGpuRenderBackend.JoinRenderThread();
+			BorealisGpuWindow.DisposeAll();
 			RenderBackend.SetDefault( null );
 			_borealisGpu.Dispose();
 			_borealisGpu = null;

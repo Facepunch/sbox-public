@@ -41,6 +41,7 @@ internal sealed partial class BorealisGpuWindow : IDisposable
 		TryPresenting( width, height );
 		if ( swapChain is null ) Log.Warning( $"Borealis.Gpu: the game window can't be presented to ({unpresentable}); its frames are drawn but not shown until it can be" );
 		timestamps = CreateTimestamps( backend, out timestampMs );
+		lock ( Live ) Live.Add( this );
 	}
 
 	string unpresentable;
@@ -76,6 +77,38 @@ internal sealed partial class BorealisGpuWindow : IDisposable
 		swapChain.PresentOnThread = true;
 		Size = pixelSize;
 		timestamps = CreateTimestamps( backend, out timestampMs );
+		lock ( Live ) Live.Add( this );
+	}
+
+	// Every window not disposed yet, so the device's shutdown can let go of them first (DisposeAll)
+	static readonly List<BorealisGpuWindow> Live = new();
+	bool disposed;
+
+	/// <summary>
+	/// At shutdown, before the device goes: every window still alive presents an image acquired ahead and lets go of its swap
+	/// chain. The editor's widgets let go of theirs only when the editor shuts down, after the device, and presenting on it
+	/// then crashed the process at exit; their own Dispose later does nothing.
+	/// </summary>
+	internal static void DisposeAll()
+	{
+		BorealisGpuWindow[] windows;
+		lock ( Live ) windows = Live.ToArray();
+
+		foreach ( var window in windows )
+		{
+			try
+			{
+				window.PresentAhead();
+			}
+			catch ( GpuException e )
+			{
+				Log.Warning( $"Borealis.Gpu: a window's last frame wasn't presented at shutdown: {e.Message}" );
+			}
+			finally
+			{
+				window.Dispose();
+			}
+		}
 	}
 
 	/// <summary>
@@ -503,6 +536,10 @@ internal sealed partial class BorealisGpuWindow : IDisposable
 
 	public void Dispose()
 	{
+		if ( disposed ) return;
+		disposed = true;
+		lock ( Live ) Live.Remove( this );
+
 		// The frame thread may be acquiring for this window
 		if ( backend.FrameAhead ) backend.FollowFrame();
 		if ( swapChain is not null )
