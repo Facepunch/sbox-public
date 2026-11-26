@@ -106,7 +106,8 @@ class TimedCallbackList
 			}
 			catch ( System.Exception e )
 			{
-				Log.Error( e, $"{ClassName}.{Description}: {e.Message}" );
+				if ( ExceptionThrottle.ShouldLog( e, action.Method.DeclaringType, Description, out var suffix ) )
+					Log.Error( e, $"{ClassName}.{Description}: {e.Message}{suffix}" );
 			}
 		}
 

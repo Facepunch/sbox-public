@@ -263,7 +263,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 			return;
 
 		try { OnPreRender(); }
-		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnPreRender' on {this}" ); }
+		catch ( System.Exception e ) { LogFrameException( e, "OnPreRender" ); }
 	}
 
 	private Action _onComponentUpdate;

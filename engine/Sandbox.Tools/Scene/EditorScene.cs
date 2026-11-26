@@ -272,6 +272,7 @@ public static class EditorScene
 			return;
 
 		OnPlayStore();
+		ExceptionThrottle.Clear();
 
 		Game.IsPlaying = true;
 

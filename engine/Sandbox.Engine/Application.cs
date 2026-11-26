@@ -198,6 +198,7 @@ public static class Application
 		GameIdent = default;
 		GamePackage = default;
 		ExceptionCount = default;
+		ExceptionThrottle.Clear();
 		Map = default;
 
 		// Cheats, and anything they allowed, shouldn't carry over into the next game

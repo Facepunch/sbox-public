@@ -53,12 +53,12 @@ public abstract partial class Component
 		InternalOnStart();
 
 		try { OnUpdate(); }
-		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'Update' on {this}" ); }
+		catch ( System.Exception e ) { LogFrameException( e, "Update" ); }
 
 		if ( Scene is not null && !Scene.IsEditor )
 		{
 			try { OnComponentUpdate?.Invoke(); }
-			catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'Update' on {this}" ); }
+			catch ( System.Exception e ) { LogFrameException( e, "Update" ); }
 		}
 	}
 
@@ -70,12 +70,21 @@ public abstract partial class Component
 		InternalOnStart();
 
 		try { OnFixedUpdate(); }
-		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'FixedUpdate' on {this}" ); }
+		catch ( System.Exception e ) { LogFrameException( e, "FixedUpdate" ); }
 
 		if ( Scene is not null && !Scene.IsEditor )
 		{
 			try { OnComponentFixedUpdate?.Invoke(); }
-			catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'FixedUpdate' on {this}" ); }
+			catch ( System.Exception e ) { LogFrameException( e, "FixedUpdate" ); }
 		}
+	}
+
+	/// <summary>
+	/// Logs an exception from a callback that runs every frame, throttled so it can't flood the log.
+	/// </summary>
+	void LogFrameException( System.Exception e, string call )
+	{
+		if ( ExceptionThrottle.ShouldLog( e, GetType(), call, out var suffix ) )
+			Log.Error( e, $"Exception when calling '{call}' on {this}{suffix}" );
 	}
 }
