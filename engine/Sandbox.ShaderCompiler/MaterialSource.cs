@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Sandbox.ShaderCompiler.Slang;
 
@@ -42,13 +43,48 @@ internal static partial class MaterialSource
 				: [];
 			materials.Add( new Declared( m.Groups["name"].Value, interfaces ) );
 
-			result.Append( text, at, open + 1 - at );
-			result.Append( Fields( text.Substring( open + 1, close - open - 1 ) ) );
+			// The struct's engine-bound fields become globals ahead of it, each on a line of its own in place of the field's
+			var globals = new System.Text.StringBuilder();
+			var body = Fields( text.Substring( open + 1, close - open - 1 ), globals );
+			result.Append( text, at, m.Index - at );
+			result.Append( globals );
+			result.Append( text, m.Index, open + 1 - m.Index );
+			result.Append( body );
 			at = close;
 		}
 
 		result.Append( text, at, text.Length - at );
-		return PublicVaryings( result.ToString() );
+		return PublicVaryings( EngineGlobals( result.ToString() ) );
+	}
+
+	/// <summary>
+	/// A module's own engine-bound globals written as fields are (<c>[Engine( "Terrain" )] StructuredBuffer&lt;T&gt; X;</c>,
+	/// <c>[Sampler( "Bilinear", "Clamp" )] SamplerState Y;</c>), outside any struct: each as the annotated global, in place.
+	/// </summary>
+	static string EngineGlobals( string text )
+	{
+		if ( !text.Contains( "[Engine", StringComparison.Ordinal ) && !text.Contains( "[Sampler", StringComparison.Ordinal ) ) return text;
+		var lines = text.Split( '\n' );
+		var depth = 0;
+		for ( int i = 0; i < lines.Length; i++ )
+		{
+			if ( depth == 0 && EngineField().Match( lines[i] ) is { Success: true } engine )
+			{
+				lines[i] = $"{engine.Groups["indent"].Value}{engine.Groups["type"].Value} {engine.Groups["name"].Value} < {Annotations( engine.Groups["attributes"].Value )}>;{engine.Groups["rest"].Value}";
+				continue;
+			}
+
+			var code = lines[i];
+			var comment = code.IndexOf( "//", StringComparison.Ordinal );
+			if ( comment >= 0 ) code = code[..comment];
+			foreach ( var c in code )
+			{
+				if ( c == '{' ) depth++;
+				else if ( c == '}' ) depth--;
+			}
+		}
+
+		return string.Join( '\n', lines );
 	}
 
 	[GeneratedRegex( @"\btypealias\s+Varyings\s*=\s*(?<type>\w+)\s*;" )]
@@ -103,12 +139,32 @@ internal static partial class MaterialSource
 	/// A [Material] struct's body with its fields rewritten: textures as bindless slots, and every field public, since the
 	/// engine's passes read the record and the generated class writes it. Only lines at the body's own depth are fields.
 	/// </summary>
-	static string Fields( string body )
+	static string Fields( string body, StringBuilder globals )
 	{
-		var lines = body.Split( '\n' );
+		var lines = body.Split( '\n' ).ToList();
 		var depth = 0;
-		for ( int i = 0; i < lines.Length; i++ )
+		for ( int i = 0; i < lines.Count; i++ )
 		{
+			if ( depth == 0 && EngineField().Match( lines[i] ) is { Success: true } engine )
+			{
+				// What the engine binds rather than the material: a module global the passes bind by attribute, on a line of
+				// its own before the struct (a specialization constant is a #define); the field's line goes, so the lines
+				// from the last such field on keep their numbers (a comment after the field stays, on its line)
+				globals.Append( engine.Groups["type"].Value ).Append( ' ' ).Append( engine.Groups["name"].Value ).Append( " < " ).Append( Annotations( engine.Groups["attributes"].Value ) ).Append( ">;\n" );
+				if ( engine.Groups["rest"].Value.TrimEnd( '\r' ).Length > 0 )
+				{
+					lines[i] = engine.Groups["indent"].Value + engine.Groups["rest"].Value;
+					globals.Length--;
+					globals.Append( ' ' );
+				}
+				else
+				{
+					lines.RemoveAt( i-- );
+				}
+
+				continue;
+			}
+
 			if ( depth == 0 )
 			{
 				var line = TextureField().Replace( lines[i], "${lead}MaterialTexture2D" );
@@ -128,6 +184,57 @@ internal static partial class MaterialSource
 
 		return string.Join( '\n', lines );
 	}
+
+	// A field the engine binds: [Engine( "Attribute" )] or [Sampler( "Filter", "Address" )] among its attributes, all on one line
+	[GeneratedRegex( @"^(?<indent>[ \t]*)\[(?<attributes>[^\]\r\n]*\b(?:Engine|Sampler)[ \t]*\([^\]\r\n]*)\][ \t]*(?<type>[A-Za-z_][\w:]*(?:[ \t]*<[^>\r\n]*>)?)[ \t]+(?<name>\w+)[ \t]*;(?<rest>.*)$" )]
+	private static partial Regex EngineField();
+
+	/// <summary>
+	/// The vfx annotations of an engine-bound field's attributes: <c>Engine( "A" )</c> is <c>Attribute( "A" )</c>,
+	/// <c>Srgb</c> <c>SrgbRead( true )</c>, <c>Specialized</c> a specialization constant, <c>Default*( ... )</c> as written, <c>Sampler( "Trilinear", "Mirror" )</c> the filter
+	/// (<c>"Anisotropic 8"</c> with its maximum) and every address mode.
+	/// </summary>
+	static string Annotations( string attributes )
+	{
+		var text = new StringBuilder();
+		foreach ( Match a in AttributeCall().Matches( attributes ) )
+		{
+			var arguments = a.Groups["args"].Value.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ).Select( s => s.Trim( '"' ) ).ToArray();
+			switch ( a.Groups["name"].Value )
+			{
+				case "Engine":
+					text.Append( "Attribute( \"" ).Append( arguments[0] ).Append( "\" ); " );
+					break;
+				case "Srgb":
+					text.Append( "SrgbRead( true ); " );
+					break;
+				case "Specialized":
+					text.Append( "SpecializedConstant(); " );
+					break;
+				case "Default" or "Default2" or "Default3" or "Default4":
+					text.Append( a.Value ).Append( "; " );
+					break;
+				case "Sampler":
+					var filter = arguments[0].Split( ' ', StringSplitOptions.RemoveEmptyEntries );
+					text.Append( "Filter( " ).Append( filter[0].ToUpperInvariant() ).Append( " ); " );
+					if ( filter.Length > 1 ) text.Append( "MaxAniso( " ).Append( filter[1] ).Append( " ); " );
+					if ( arguments.Length > 1 )
+					{
+						var address = arguments[1].ToUpperInvariant();
+						text.Append( $"AddressU( {address} ); AddressV( {address} ); AddressW( {address} ); " );
+					}
+
+					break;
+				default:
+					throw new ShaderCompileException( null, $"[{a.Groups["name"].Value}] isn't for a field the engine binds ([Engine] or [Sampler])" );
+			}
+		}
+
+		return text.ToString();
+	}
+
+	[GeneratedRegex( @"(?<name>\w+)(?:[ \t]*\((?<args>[^()]*)\))?" )]
+	private static partial Regex AttributeCall();
 
 	static int MatchingBrace( string text, int open )
 	{

@@ -6,8 +6,6 @@
 // HEADER: Version = 1;
 import sbox.surface;
 
-// blendable.shader samples with g_sDefault, which has no state of its own: native's default, anisotropic and wrapped
-SamplerState g_BlendableFiltering < Filter( ANISOTROPIC ); >;
 
 /// The mesh's vertex paint.
 public struct BlendablePaint
@@ -23,6 +21,9 @@ public struct BlendablePaint
 	Attribute( "SupportsMappingDimensions" )]
 public struct Blendable : IInterpolatedSurface
 {
+	// blendable.shader samples with g_sDefault, which has no state of its own: native's default, anisotropic and wrapped
+	[Sampler( "Anisotropic", "Wrap" )] SamplerState g_BlendableFiltering;
+
 	typealias Varyings = BlendablePaint;
 
 	[Group( "Number Of Blendable Layers" ), Feature( "F_MULTIBLEND" ), Options( "1 Layers | 2 Layers | 3 Layers | 4 Layers" ), Range( 0, 3 )] int ExtraLayers;   // layers past A

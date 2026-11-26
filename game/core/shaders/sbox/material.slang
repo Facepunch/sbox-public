@@ -281,3 +281,8 @@ public struct VertexAttribute { string Inputs; };
 // A packed texture type's packing ("Rma"), which the compiler writes for a field declared with that type (Rma Rma;)
 [__AttributeUsage( _AttributeTargets.Var )]
 public struct PackedAttribute { string Type; };
+
+// Fields the engine binds rather than the material, which the compiler makes module globals bound by attribute outside
+// the record (a module the surface imports writes its own the same way, at its top level): [Engine( "Attribute" )] with
+// [Srgb], [Default( x )] and [Specialized] (a specialization constant) as wanted, and [Sampler( "Trilinear", "Mirror" )]
+// on a SamplerState ("Anisotropic 8" for a maximum). Each is on one line. They never reach Slang as attributes.

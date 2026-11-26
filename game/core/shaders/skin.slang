@@ -8,16 +8,7 @@
 // Per-vertex curvature (F_USE_PER_VERTEX_CURVATURE) isn't done: such materials stay on skin.shader.
 import sbox.surface;
 
-// skin.shader's g_sTrilinearWrap (the combined masks) and g_sTrilinearClamp (the tint lookup and face occlusion); the
-// rest use g_sAniso, the surfaces' standard filtering
-SamplerState g_SkinTrilinearWrap < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
-SamplerState g_SkinTrilinearClamp < Filter( TRILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
 
-// The object's skin tint and age (a dresser sets them on every renderer of a citizen), and the face occlusion
-// projection, from the object's attributes
-float g_flSkinTintAttribute < Attribute( "skin_tint" ); Default( 0.5 ); >;
-float g_flSkinAgeAttribute < Attribute( "skin_age" ); Default( 0.5 ); >;
-float4x4 g_matSkinFaceOcclusionWorldToTexture < Attribute( "EyeOcclusionViewProj" ); >;
 
 // skin.shader's COMMON defines these after vr_common.fxc, so S_POWER_SPECULAR_AMBIENT_OCCLUSION never reaches
 // PowerSpecularOcclusion and DISABLE_STATIC_LIGHTING nothing at all: both are left out to light as it does
@@ -26,6 +17,16 @@ float4x4 g_matSkinFaceOcclusionWorldToTexture < Attribute( "EyeOcclusionViewProj
 	AttributeIf( "alphatest", "UseAlphaTest" ), Attribute( "transmissive" ), AttributeExpression( "DoNotCastShadows", "DoNotCastShadows" ), Attribute( "ShadowFastPath" )]
 public struct Skin : ICombinerSurface
 {
+	// skin.shader's g_sTrilinearWrap (the combined masks) and g_sTrilinearClamp (the tint lookup and face occlusion); the
+	// rest use g_sAniso, the surfaces' standard filtering
+	[Sampler( "Trilinear", "Wrap" )] SamplerState g_SkinTrilinearWrap;
+	[Sampler( "Trilinear", "Clamp" )] SamplerState g_SkinTrilinearClamp;
+	// The object's skin tint and age (a dresser sets them on every renderer of a citizen), and the face occlusion
+	// projection, from the object's attributes
+	[Engine( "skin_tint" ), Default( 0.5 )] float g_flSkinTintAttribute;
+	[Engine( "skin_age" ), Default( 0.5 )] float g_flSkinAgeAttribute;
+	[Engine( "EyeOcclusionViewProj" )] float4x4 g_matSkinFaceOcclusionWorldToTexture;
+
 	// Features
 	[Group( "Shadows" ), Feature( "F_DO_NOT_CAST_SHADOWS" )] bool DoNotCastShadows;
 	[Group( "Translucent" ), Feature( "F_ALPHA_TEST" ), RenderState( "AlphaTest" )] bool UseAlphaTest;

@@ -11,30 +11,30 @@
 // D_SKYBOX. Not done: the tools' refraction view.
 import sbox.surface;
 
-// The engine's, bound by attribute as glass.shader's are
-Texture2D GlassFrameBufferCopy < Attribute( "FrameBufferCopyTexture" ); SrgbRead( false ); >;
-Texture2D GlassBrdfLookup < Attribute( "BRDFLookup" ); >;
-SamplerState GlassTrilinearMirror < Filter( TRILINEAR ); AddressU( MIRROR ); AddressV( MIRROR ); AddressW( MIRROR ); >;
-SamplerState GlassTrilinearClamp < Filter( TRILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
-
-static const int GlassRefractive = 0;
-static const int GlassSimple = 1;
-static const int GlassLayered = 2;
-
-/// common/BRDF.hlsl's CalcBRDFReflectionFactor: the environment's reflected share from the BRDF lookup.
-float3 ReflectionFactor( float nDotV, float roughness, float3 specular )
-{
-	float2 terms = GlassBrdfLookup.SampleLevel( GlassTrilinearClamp, float2( nDotV, roughness ), 0.0 ).rg;
-	terms *= terms;
-	return specular * terms.x + terms.y;
-}
-
 [Material, DepthWrite, Translucent, Features( "Common" ), Vertex( "Common" ),
 	Attribute( "NeedsLightProbe" ), Attribute( "CanBatchWithDynamicShaderConstants" ), AttributeExpression( "DoNotCastShadows", "F_DO_NOT_CAST_SHADOWS" ),
 	Attribute( "SupportsMappingDimensions" ), AttributeExpression( "renderbackfaces", "RenderBackfaces" ), Attribute( "translucent" ),
 	AttributeOf( "bWantsFBCopyTexture", "Quality != 1" )]
 public struct Glass : ICompositeSurface, IShadowSurface
 {
+	// The engine's, bound by attribute as glass.shader's are
+	[Engine( "FrameBufferCopyTexture" )] Texture2D GlassFrameBufferCopy;
+	[Engine( "BRDFLookup" )] Texture2D GlassBrdfLookup;
+	[Sampler( "Trilinear", "Mirror" )] SamplerState GlassTrilinearMirror;
+	[Sampler( "Trilinear", "Clamp" )] SamplerState GlassTrilinearClamp;
+
+	static const int GlassRefractive = 0;
+	static const int GlassSimple = 1;
+	static const int GlassLayered = 2;
+
+	/// common/BRDF.hlsl's CalcBRDFReflectionFactor: the environment's reflected share from the BRDF lookup.
+	static float3 ReflectionFactor( float nDotV, float roughness, float3 specular )
+	{
+		float2 terms = GlassBrdfLookup.SampleLevel( GlassTrilinearClamp, float2( nDotV, roughness ), 0.0 ).rg;
+		terms *= terms;
+		return specular * terms.x + terms.y;
+	}
+
 	// Features
 	[Group( "Glass" ), Feature( "F_GLASS_QUALITY" ), Options( "Default Glass ( Refractive, Tinted ) | Simple Glass ( Faster To Render ) | Layered Glass ( Multi-Layer Compositing )" ), Range( 0, 2 ), RenderState( "Blend: Opaque, Alpha, Premultiplied" )] int Quality;
 	[Group( "Glass" ), Feature( "F_OVERLAY_LAYER" )] bool OverlayLayer;

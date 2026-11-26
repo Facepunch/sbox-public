@@ -4,23 +4,7 @@
 // projected from the object's attribute over the whole lit colour. It lights itself through the engine's lighting
 // (ILayeredSurface) with eyeball.shader's lighting features ([Combiner]), as eyeball.shader does.
 import sbox.surface;
-
-// eyeball.shader's g_sAnisoClamp (the eye occlusion); the rest use g_sAniso, the surfaces' standard filtering
-SamplerState g_EyeballAnisoClamp < Filter( ANISOTROPIC ); MaxAniso( 8 ); AddressU( CLAMP ); AddressV( CLAMP ); >;
-
-// The eye occlusion projection, from the object's attributes
-float4x4 g_matEyeballOcclusionWorldToTexture < Attribute( "EyeOcclusionViewProj" ); >;
-
-/// What Evaluate and Shade both work out: the surface, and the iris layer and eye occlusion only Shade lights with.
-struct EyeballLayers
-{
-	Material Surface;          // the cornea and sclera's normal, the albedo, self-illumination and opacity
-	float3 IrisNormal;
-	float2 IrisRoughness;
-	float IrisReflectance;
-	float IrisMask;
-	float Occlusion;
-}
+import eyeball_surface_layers;
 
 [Material, Combiner( "S_SUBSURFACE_SCATTERING = SUBSURFACE_SCATTERING_WRAP, S_SPECULAR = 1" )]
 public struct Eyeball : ILayeredSurface

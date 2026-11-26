@@ -1,15 +1,15 @@
 // terrain_preview: a surface, the whole shader for Borealis.Gpu (docs/reference/borealis-slang-materials.md).
 import sbox.surface;
 
-Texture2D g_tBCR < Attribute( "BCR" ); SrgbRead( false ); >;
-Texture2D g_tNHO < Attribute( "NHO" ); SrgbRead( false ); >;
-float g_flUVScale < Attribute( "UVScale" ); Default( 1.0 ); >;
-float g_flNormalStrength < Attribute( "NormalStrength" ); Default( 1.0 ); >;
-float g_flMetalness < Attribute( "Metalness" ); Default( 0.0 ); >;
-
 [Material, Features( "Common" ), Vertex( "Common" ), Attribute( "NeedsLightProbe" ), Attribute( "CanBatchWithDynamicShaderConstants" )]
 public struct TerrainPreview : ISurface
 {
+	[Engine( "BCR" )] Texture2D g_tBCR;
+	[Engine( "NHO" )] Texture2D g_tNHO;
+	[Engine( "UVScale" ), Default( 1.0 )] float g_flUVScale;
+	[Engine( "NormalStrength" ), Default( 1.0 )] float g_flNormalStrength;
+	[Engine( "Metalness" ), Default( 0.0 )] float g_flMetalness;
+
 	[Group( "Fog,300" ), Default( 1 )] bool FogEnabled;
 
 	public Material Evaluate( SurfaceInput i )

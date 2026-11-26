@@ -5,14 +5,14 @@
 // (Material.OverlayMode). Unlit unless F_LIT. It lights through the final combiner (ICombinerSurface).
 import sbox.surface;
 
-// static_overlay.shader's g_sTrilinearWrap, for occlusion and self-illumination (the rest use g_sAniso)
-SamplerState g_OverlayTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
-
 [Material, NoDepthWrite, DepthBias( 250, 0.5 ), Features( "Sbox" ), Vertex( "Standard" ),
 	AttributeIf( "NeedsLightProbe", "Lit" ), Attribute( "CanBatchWithDynamicShaderConstants" ), Attribute( "SupportsLightmapping" ), Attribute( "PerVertexLighting" ),
 	Attribute( "AllowPerDrawCulling" ), Attribute( "overlay" ), AttributeIf( "NoZPrepass", "BlendMode == 2" )]
 public struct StaticOverlay : ICombinerSurface
 {
+	// static_overlay.shader's g_sTrilinearWrap, for occlusion and self-illumination (the rest use g_sAniso)
+	[Sampler( "Trilinear", "Wrap" )] SamplerState g_OverlayTrilinear;
+
 	// Features
 	[Group( "Lit" ), Feature( "F_LIT" )] bool Lit;
 	[Group( "Blend Mode" ), Feature( "F_BLEND_MODE" ), Options( "Opaque | Translucent | Alpha Test | Mod2x | Additive | Multiply | ModThenAdd" ), Range( 0, 6 ),

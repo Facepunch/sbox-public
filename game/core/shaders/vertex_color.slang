@@ -4,8 +4,6 @@
 // vertex colour is the surface's Varyings, read from the mesh and interpolated to Evaluate.
 import sbox.surface;
 
-// g_sTrilinearWrap, for occlusion
-SamplerState g_VertexColorTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 
 public struct VertexColorPaint
 {
@@ -17,6 +15,9 @@ public struct VertexColorPaint
 	Attribute( "SupportsMappingDimensions" ), AttributeExpression( "renderbackfaces", "F_RENDER_BACKFACES" ), Attribute( "ShadowFastPath" )]
 public struct VertexColor : IInterpolatedCombinerSurface
 {
+	// g_sTrilinearWrap, for occlusion
+	[Sampler( "Trilinear", "Wrap" )] SamplerState g_VertexColorTrilinear;
+
 	typealias Varyings = VertexColorPaint;
 
 	[Group( "Color" ), Srgb, Opacity, Input( "TextureColor", "Color/10" ), Pack( "RGB: Color", "DXT1" ), TextureAttribute( "RepresentativeTexture" )] Texture2D Color;

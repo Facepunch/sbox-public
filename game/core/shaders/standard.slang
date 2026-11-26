@@ -19,16 +19,15 @@
 // uv set and wrinkles, and generic's vertex paint.
 import sbox.surface;
 
-// complex.shader's g_sTrilinearWrap (occlusion, metalness, self-illumination and transmission); the rest of complex's use
-// g_sAniso, the surfaces' standard filtering
-SamplerState g_StandardTrilinear < Filter( TRILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
-
-// generic.shader's g_sDefault (every texture), which has no state of its own: native's default, anisotropic and wrapped
-SamplerState g_StandardDefault < Filter( ANISOTROPIC ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
-
 [Material, Features( "Sbox" ), Vertex( "Standard, SecondaryUv if SecondaryUv, VertexPaintTint if PaintVertexColors" ), Attribute( "NeedsLightProbe" )]
 public struct Standard : ICombinerSurface
 {
+	// complex.shader's g_sTrilinearWrap (occlusion, metalness, self-illumination and transmission); the rest of complex's use
+	// g_sAniso, the surfaces' standard filtering
+	[Sampler( "Trilinear", "Wrap" )] SamplerState g_StandardTrilinear;
+	// generic.shader's g_sDefault (every texture), which has no state of its own: native's default, anisotropic and wrapped
+	[Sampler( "Anisotropic", "Wrap" )] SamplerState g_StandardDefault;
+
 	// Which shader the material was made for: 0 complex, 1 simple, 2 generic (their textures are packed differently)
 	[Source( "Shader: complex simple generic" ), Range( 0, 2 )] int Packing;
 

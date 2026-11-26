@@ -1,17 +1,17 @@
 // water_simple: a surface, the whole shader for Borealis.Gpu (docs/reference/borealis-slang-materials.md).
 import sbox.surface;
 
-Texture2D g_RefractionTexture < Attribute("RefractionTexture");   SrgbRead( true ); Filter(MIN_MAG_MIP_LINEAR);    AddressU( CLAMP );     AddressV( CLAMP ); >;
-SamplerState g_RefractionTexture_sampler < Attribute("RefractionTexture");   SrgbRead( true ); Filter(MIN_MAG_MIP_LINEAR);    AddressU( CLAMP );     AddressV( CLAMP ); >;
-Texture2D g_ReflectionTexture < Attribute("ReflectionTexture");   SrgbRead( true ); Filter(MIN_MAG_MIP_LINEAR);    AddressU( CLAMP );     AddressV( CLAMP ); >;
-SamplerState g_ReflectionTexture_sampler < Attribute("ReflectionTexture");   SrgbRead( true ); Filter(MIN_MAG_MIP_LINEAR);    AddressU( CLAMP );     AddressV( CLAMP ); >;
-bool g_bRefraction < Default(0.0f); Attribute( "HasRefractionTexture" ); > ;
-bool g_bReflection < Default(0.0f); Attribute( "HasReflectionTexture" ); > ;
-
 [Material, Features( "Common" ), Vertex( "Common" ), Attribute( "NeedsLightProbe" ), Attribute( "CanBatchWithDynamicShaderConstants" ),
 	AttributeExpression( "DoNotCastShadows", "F_DO_NOT_CAST_SHADOWS" ), Attribute( "SupportsMappingDimensions" ), AttributeExpression( "renderbackfaces", "F_RENDER_BACKFACES" )]
 public struct WaterSimple : ICompositeSurface
 {
+	[Engine( "RefractionTexture" ), Srgb] Texture2D g_RefractionTexture;
+	[Engine( "RefractionTexture" ), Srgb, Sampler( "MIN_MAG_MIP_LINEAR", "Clamp" )] SamplerState g_RefractionTexture_sampler;
+	[Engine( "ReflectionTexture" ), Srgb] Texture2D g_ReflectionTexture;
+	[Engine( "ReflectionTexture" ), Srgb, Sampler( "MIN_MAG_MIP_LINEAR", "Clamp" )] SamplerState g_ReflectionTexture_sampler;
+	[Default( 0.0f ), Engine( "HasRefractionTexture" )] bool g_bRefraction;
+	[Default( 0.0f ), Engine( "HasReflectionTexture" )] bool g_bReflection;
+
 	[Group( "Material,10" ), Srgb, Opacity, TextureAttribute( "RepresentativeTexture" )] Texture2D Color;
 	[Group( "Material,10" )] Texture2D Normal;
 	[Group( "Material,10" )] Rma Rma;

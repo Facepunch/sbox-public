@@ -7,8 +7,6 @@
 // the normal map too) and the new one (colour with the noise in its alpha, normal, roughness-metalness-occlusion).
 import sbox.surface;
 
-// common_samplers.fxc's g_sBilinearWrap, for the wind's noise
-SamplerState FurBilinearWrap < Filter( BILINEAR ); AddressU( WRAP ); AddressV( WRAP ); AddressW( WRAP ); >;
 
 public struct FurVaryings
 {
@@ -19,6 +17,9 @@ public struct FurVaryings
 	Attribute( "NeedsLightProbe" ), Attribute( "AnimatesVertices" ), Attribute( "CanBatchWithDynamicShaderConstants" ), Attribute( "alphatest" )]
 public struct Fur : IInterpolatedVertexSurface
 {
+	// common_samplers.fxc's g_sBilinearWrap, for the wind's noise
+	[Sampler( "Bilinear", "Wrap" )] SamplerState FurBilinearWrap;
+
 	typealias Varyings = FurVaryings;
 
 	// Features (F_NEW_TEXTURE_PACKING is old materials' alone: ShaderCompatibility)
