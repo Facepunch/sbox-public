@@ -63,6 +63,16 @@ namespace Sandbox
 				{
 					stream.WriteLine( $"                 {lines[i]}" );
 				}
+
+				// The console is the only log a headless server usually keeps, so say what the exception was.
+				// One line only: a game that throws every frame shouldn't multiply its log size. The full stack
+				// trace still goes to the log file.
+				if ( logEvent.Exception is { } exception )
+				{
+					var baseException = exception.GetBaseException();
+					var firstLine = (baseException.Message ?? "").Split( '\n', '\r' )[0];
+					stream.WriteLine( $"                 {baseException.GetType().Name}: {firstLine}" );
+				}
 			}
 		}
 
