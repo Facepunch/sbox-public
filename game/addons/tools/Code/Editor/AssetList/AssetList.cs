@@ -802,7 +802,14 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 
 			var session = SceneEditorSession.Resolve( target );
 			using var scene = session.Scene.Push();
-			using ( session.UndoScope( "Convert GameObject To Prefab" ).WithGameObjectChanges( target, GameObjectUndoFlags.All ).Push() )
+			var undoScope = session.UndoScope( "Convert GameObject To Prefab" ).WithGameObjectChanges( target, GameObjectUndoFlags.All ).WithGameObjectCreations();
+
+			// ConvertGameObjectToPrefab replaces a prefab instance with a clone and destroys the original,
+			// so the destruction has to be recorded for undo to bring the original back
+			if ( target.IsPrefabInstance )
+				undoScope = undoScope.WithGameObjectDestructions( target );
+
+			using ( undoScope.Push() )
 			{
 				EditorUtility.Prefabs.ConvertGameObjectToPrefab( target, location );
 				EditorUtility.InspectorObject = target;
