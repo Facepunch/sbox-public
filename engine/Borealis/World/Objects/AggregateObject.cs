@@ -38,9 +38,12 @@ internal sealed class AggregateObject : RenderObject
 	/// </summary>
 	public RenderMesh Mesh { get; }
 
-	FragmentDraw[] fragments;
-	Vector3[] centers;
-	Vector3[] extents;
+	// Its fragments are one draw at one LOD: it animates whole or not at all
+	internal override RenderMesh.LodAnimation MaterialAnimation => Mesh.Animation.Whole();
+
+	readonly FragmentDraw[] fragments;
+	readonly Vector3[] centers;
+	readonly Vector3[] extents;
 
 	/// <summary>
 	/// Every fragment, by index - the base instance its draw names.
@@ -53,8 +56,8 @@ internal sealed class AggregateObject : RenderObject
 	public ReadOnlySpan<Vector3> Centers => centers;
 	public ReadOnlySpan<Vector3> Extents => extents;
 
-	/// <summary>The fragments' array: a new one each <see cref="SetFragments"/>, so a list kept of what they were sees the change.</summary>
-	internal object FragmentsKey => fragments;
+	/// <summary>The most indices any fragment's draw has: what bounds the meshlets a fragment can have.</summary>
+	public uint MaxIndexCount { get; }
 
 	public AggregateObject( RenderMesh mesh, ReadOnlySpan<FragmentDraw> fragments )
 	{
@@ -63,30 +66,24 @@ internal sealed class AggregateObject : RenderObject
 
 		// Fragments are already in world space; the object's bounds are all of theirs
 		Transform = Transform.Zero;
-		SetFragments( fragments );
-	}
-
-	/// <summary>
-	/// Replace the fragments, and the bounds they make.
-	/// </summary>
-	public void SetFragments( ReadOnlySpan<FragmentDraw> value )
-	{
-		fragments = value.ToArray();
+		this.fragments = fragments.ToArray();
 		centers = new Vector3[fragments.Length];
 		extents = new Vector3[fragments.Length];
 
 		var bounds = fragments.Length > 0 ? new BBox( fragments[0].BoundsMin, fragments[0].BoundsMax ) : default;
+		var maxIndexCount = 0u;
 		for ( int i = 0; i < fragments.Length; i++ )
 		{
 			ref readonly var fragment = ref fragments[i];
 			centers[i] = (fragment.BoundsMin + fragment.BoundsMax) * 0.5f;
 			extents[i] = (fragment.BoundsMax - fragment.BoundsMin) * 0.5f;
 			bounds = bounds.AddPoint( fragment.BoundsMin ).AddPoint( fragment.BoundsMax );
+			maxIndexCount = Math.Max( maxIndexCount, fragment.Args.IndexCount );
 		}
 
-		TransformsGeneration = -1;
+		MaxIndexCount = maxIndexCount;
+
 		LocalBounds = bounds;
-		Changed( WorldNote.Object );
 	}
 
 	/// <summary>
@@ -166,17 +163,6 @@ internal sealed class AggregateObject : RenderObject
 			Changed( WorldNote.Object );
 		}
 	}
-
-	/// <summary>
-	/// Where this frame's instance ids for the fragments start: fragment i's transform is the id at this plus i.
-	/// Valid while <see cref="TransformsGeneration"/> is the frame's.
-	/// </summary>
-	internal int FirstInstance;
-
-	/// <summary>
-	/// The <see cref="Gpu.TransformBuffer.Generation"/> its fragments' transforms were last written in.
-	/// </summary>
-	internal int TransformsGeneration = -1;
 }
 
 /// <summary>

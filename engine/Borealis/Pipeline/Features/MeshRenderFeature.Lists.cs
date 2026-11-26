@@ -188,5 +188,5 @@ internal sealed partial class MeshRenderFeature
 	/// <summary>
 	/// Only enabled casters without an exclusive layer match enter shadow maps.
 	/// </summary>
-	internal override bool CastsShadow( RenderObject obj ) => obj.LayerMatch == LayerMatch.None && obj is MeshObject { CastShadows: true } or CustomObject { CastShadows: true };
+	internal override bool CastsShadow( RenderObject obj ) => obj.LayerMatch == LayerMatch.None && obj is MeshObject { CastShadows: true } or CustomObject { CastShadows: true } or InstancedMeshObject { CastShadows: true };
 }

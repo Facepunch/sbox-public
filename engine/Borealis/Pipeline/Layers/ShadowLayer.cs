@@ -57,8 +57,5 @@ internal sealed class ShadowsReadyLayer : RenderLayer
 	public override bool RecordsOffMainThread => true;
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
-	{
-		frame.System.ShadowMaps.BarrierToRead( rc );
-		frame.System.ShadowMaps.BuildTiles( rc );
-	}
+		=> frame.System.ShadowMaps.ReadyForSampling( rc );
 }

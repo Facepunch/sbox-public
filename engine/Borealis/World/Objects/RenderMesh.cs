@@ -250,30 +250,63 @@ public sealed class RenderMesh
 	/// </summary>
 	internal bool NeedsStencil => needsStencil ??= lods.Any( lod => lod.Any( draw => draw.Material is { NeedsStencil: true } ) );
 
-	bool? animatesVertices;
+	LodAnimation? animation;
 
 	/// <summary>
-	/// Whether any LOD draws with a material that animates vertices (<see cref="GpuMaterial.AnimatesVertices"/>); null while
-	/// one that doesn't may still say it does (a surface compiling). Kept once known.
+	/// Which LODs draw with a material that animates vertices (<see cref="GpuMaterial.AnimatesVertices"/>). Kept once every
+	/// material has said; until then its <see cref="LodAnimation.Pending"/> is set, and a LOD whose draws may still say they do
+	/// counts as one that doesn't.
 	/// </summary>
-	internal bool? AnimatesVertices
+	internal LodAnimation Animation
 	{
 		get
 		{
-			if ( animatesVertices is { } known ) return known;
-			bool? animates = false;
-			foreach ( var lod in lods )
+			if ( animation is { } known ) return known;
+
+			ulong animating = 0, all = 0;
+			var pending = false;
+			for ( int lod = 0; lod < lods.Length; lod++ )
 			{
-				foreach ( var draw in lod )
+				var bit = LodAnimation.Bit( lod );
+				all |= bit;
+				foreach ( var draw in lods[lod] )
 				{
 					var draws = draw.Material?.AnimatesVertices;
-					if ( draws == true ) return animatesVertices = true;
-					if ( draws is null ) animates = null;
+					if ( draws == true )
+					{
+						animating |= bit;
+						break;
+					}
+
+					if ( draws is null ) pending = true;
 				}
 			}
 
-			return animatesVertices = animates;
+			var made = new LodAnimation( animating, all, pending );
+			if ( !pending ) animation = made;
+			return made;
 		}
+	}
+
+	/// <summary>
+	/// Which LODs of a mesh animate vertices, as one bit per LOD (<see cref="Bit"/>) out of <see cref="All"/> of them.
+	/// </summary>
+	internal readonly record struct LodAnimation( ulong Animating, ulong All, bool Pending )
+	{
+		/// <summary>A LOD's bit; LODs past the 64th share the last (a model has a handful).</summary>
+		internal static ulong Bit( int lod ) => 1UL << Math.Min( lod, 63 );
+
+		/// <summary>Whether any LOD animates.</summary>
+		public bool Any => Animating != 0;
+
+		/// <summary>Whether every LOD animates: nothing of it is a static caster.</summary>
+		public bool AllAnimate => Animating != 0 && (Animating & All) == All;
+
+		/// <summary>Whether this LOD animates.</summary>
+		public bool Animates( int lod ) => (Animating & Bit( lod )) != 0;
+
+		/// <summary>Every LOD animating if any does, for what has one set of draws, not a LOD's own.</summary>
+		public LodAnimation Whole() => Any ? this with { Animating = All } : this;
 	}
 
 	/// <summary>

@@ -23,14 +23,34 @@ internal sealed partial class MeshRenderFeature
 
 		// What needs a stencil is prepared, so its view's depth gets one (MeshRenderFeature.WantsStencil)
 		if ( obj.WantsStencil ) return false;
+		return ResidentModel( model, obj.MaterialOverride, obj.OverrideTranslucent, device );
+	}
+
+	/// <summary>
+	/// Whether an <see cref="InstancedMeshObject"/> may be resident: a rigid model that's opaque at every LOD and whose every
+	/// material the device takes resident, with no frame copy or stencil to take. Its flags give it a new draw version when they change.
+	/// </summary>
+	internal bool ResidentCandidate( InstancedMeshObject obj, GpuDevice device )
+	{
+		if ( obj.Mesh is not { } model || model.IsSkinned || obj.LayerMatch != LayerMatch.None ) return false;
+		if ( model.NeedsStencil || (model.ReadsFrameBufferCopy && NoGpuDrivenReaders) ) return false;
+		return ResidentModel( model, null, false, device );
+	}
+
+	/// <summary>
+	/// Whether a model's draws are all ones the device takes resident: at most <see cref="MaxResidentLods"/> LODs with the
+	/// switch distances the GPU reads, opaque at every LOD (an override blends as <paramref name="overrideTranslucent"/> says),
+	/// and every material one it takes.
+	/// </summary>
+	bool ResidentModel( RenderMesh model, GpuMaterial materialOverride, bool overrideTranslucent, GpuDevice device )
+	{
 		if ( !UseMeshMaterials || model.LodCount > MaxResidentLods || model.SwitchDistances.Length > Gpu.GpuContext.ResidentMeshes.MaxSwitchDistances ) return false;
 		if ( depthOnlyMaterial is not null && !device.TakesResident( depthOnlyMaterial ) ) return false;
 
-		var materialOverride = obj.MaterialOverride;
 		if ( materialOverride is not null && !device.TakesResident( materialOverride ) ) return false;
 		for ( int lod = 0; lod < model.LodCount; lod++ )
 		{
-			if ( obj.BlendForLod( lod ) != MeshBlend.Opaque ) return false;
+			if ( materialOverride is not null ? overrideTranslucent : model.BlendForLod( lod ) != MeshBlend.Opaque ) return false;
 			foreach ( ref readonly var draw in model.DrawsForLod( lod ) )
 			{
 				if ( draw.Translucent ) return false;

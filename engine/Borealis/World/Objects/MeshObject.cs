@@ -77,7 +77,10 @@ public sealed class MeshObject : RenderObject
 	}
 
 	/// <inheritdoc/>
-	internal override bool? MaterialAnimates => MaterialOverride is { } material ? material.AnimatesVertices : mesh is null ? false : mesh.AnimatesVertices;
+	internal override RenderMesh.LodAnimation MaterialAnimation => MaterialOverride is { } material ? Override( material.AnimatesVertices ) : mesh is null ? default : mesh.Animation;
+
+	/// <summary>An override material draws every LOD: all of them animate or none does.</summary>
+	static RenderMesh.LodAnimation Override( bool? animates ) => new( animates == true ? ulong.MaxValue : 0, ulong.MaxValue, animates is null );
 
 	/// <summary>
 	/// Whether a material it draws with needs a stencil in the view's depth (<see cref="GpuMaterial.NeedsStencil"/>).

@@ -2,7 +2,7 @@ namespace Borealis;
 
 /// <summary>
 /// Depth-only pass for unfaded opaque meshes (<c>DepthOnlyPrepassLayer</c>), with conservative alpha testing.
-/// Tests the overlay stencil to preserve viewmodel depth inside walls (<c>ISceneLayer::SetOverlayStencil</c>).
+/// Tests the overlay stencil when available to preserve viewmodel depth inside walls (<c>ISceneLayer::SetOverlayStencil</c>).
 /// Depth only for every view: Borealis draws no normals G-buffer (native's <c>DepthNormalPrepassLayer</c>); ambient occlusion
 /// rebuilds its normals from depth.
 /// </summary>

@@ -39,13 +39,12 @@ internal sealed class OcclusionCullLayer : RenderLayer
 	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		shader ??= RenderHost.Current.Device.MaterialFromShader( "shaders/occlusion_cull_cs.shader" );
-		SharedPasses.WarmUp();
 		if ( early ) return;
 
 		var history = frame.System.OcclusionHistory;
 		frozen = history.IsFrozen;
-		var scratch = frame.System.Transients.Get( OcclusionDepth.QuarterChain( frame.View.Viewport ), "Occlusion Chain" );
-		current = history.LateDepth( frame.View.Viewport, new Vector2( frame.DepthMin, frame.DepthMax ), frame.View.WorldToProjection, scratch );
+		if ( !frozen ) SharedPasses.WarmUp();
+		current = history.LateDepth( frame.View.Viewport, new Vector2( frame.DepthMin, frame.DepthMax ), frame.View.WorldToProjection, frame.System.Transients );
 	}
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )

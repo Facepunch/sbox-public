@@ -14,6 +14,7 @@ public sealed class RenderWorld
 	public const int MaxSubWorlds = 64;
 
 	RenderObject[] _objects = new RenderObject[InitialCapacity];
+	int[] _objectTypeIndices = new int[InitialCapacity];
 	Vector3[] _boundsCenters = new Vector3[InitialCapacity];
 	Vector3[] _boundsExtents = new Vector3[InitialCapacity];
 	Matrix[] _localToWorld = new Matrix[InitialCapacity];
@@ -66,24 +67,35 @@ public sealed class RenderWorld
 	internal ReadOnlySpan<ulong> MovedStamps => _movedStamps.AsSpan( 0, Count );
 
 	/// <summary>
+	/// Counts up whenever a moved stamp is written or an object's <see cref="RenderObject.AnimatesVertices"/> may have changed
+	/// (adding and removing objects counts <see cref="Structure"/>): what keeps a list made from those finds out it's stale.
+	/// </summary>
+	internal long MovedVersion { get; private set; }
+
+	/// <summary>
 	/// Where settled casters that aren't static moved or changed, so the sun's cached far cascade, which holds them, is redrawn
 	/// when a change reaches it.
 	/// </summary>
 	internal StaticCasterChanges SettledChanges { get; } = new();
 
 	/// <summary>
-	/// Objects that are never size culled - lights - by index. Few, so views just test them all.
+	/// Objects outside the spatial trees, encoded for the candidate lists.
 	/// </summary>
-	readonly List<int> _unculledObjectIndices = [];
+	readonly List<int> _unculledCandidates = [];
+	readonly List<int> _unculledShadowCandidates = [];
 
-	internal ReadOnlySpan<int> Unculled => System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _unculledObjectIndices );
+	/// <summary>Shadow views need only the unculled objects that could cast; keep the main view's order in both lists.</summary>
+	internal ReadOnlySpan<int> UnculledCandidates( bool shadow ) => System.Runtime.InteropServices.CollectionsMarshal.AsSpan( shadow ? _unculledShadowCandidates : _unculledCandidates );
 
 	readonly List<Type> _objectTypes = [];
 
 	/// <summary>
-	/// All types ever added, used to warm feature caches before parallel culling.
+	/// All types ever added, in the order of their stable <see cref="ObjectTypeIndices"/>.
 	/// </summary>
 	internal ReadOnlySpan<Type> ObjectTypes => System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _objectTypes );
+
+	/// <summary>The registered type's index for each entry, in the same order as <see cref="Objects"/>.</summary>
+	internal ReadOnlySpan<int> ObjectTypeIndices => _objectTypeIndices.AsSpan( 0, Count );
 
 	// A leaf in the tree, or one of these
 	const int NotAdded = -1;
@@ -138,18 +150,23 @@ public sealed class RenderWorld
 		if ( included == 0 )
 		{
 			drawnVolumes = null;
-			if ( standIns.Count > 0 ) standIns.Clear();
+			standIns.Clear();
+			drawnSources.Clear();
 			return;
 		}
 
-		// The same volumes in the same order keep the list; each stand-in is copied again only when its volume changed
+		// The same volumes in the same order and sub-worlds keep the list; each stand-in is copied again only when its volume changed
 		var same = drawnSources.Count == LightProbeVolumes.Count + included;
 		var n = 0;
 		foreach ( var own in LightProbeVolumes ) same &= n < drawnSources.Count && ReferenceEquals( drawnSources[n++], own );
 		for ( int i = 0; i < this.included.Length; i++ )
 		{
 			if ( this.included[i] is not { } other ) continue;
-			foreach ( var volume in other.LightProbeVolumes ) same &= n < drawnSources.Count && ReferenceEquals( drawnSources[n++], volume );
+			foreach ( var volume in other.LightProbeVolumes )
+			{
+				same &= n < drawnSources.Count && ReferenceEquals( drawnSources[n], volume ) && drawnVolumes[n].SubWorld == i + 1;
+				n++;
+			}
 		}
 
 		if ( !same )
@@ -165,7 +182,7 @@ public sealed class RenderWorld
 				foreach ( var volume in other.LightProbeVolumes )
 				{
 					if ( !standIns.TryGetValue( volume, out var standIn ) ) standIns[volume] = standIn = (new LightProbeVolume(), int.MinValue);
-					standIn.StandIn.SubWorld = i + 1;
+					if ( standIn.StandIn.SubWorld != i + 1 ) standIn.StandIn.SubWorld = i + 1;
 					standIns[volume] = standIn;
 					drawnSources.Add( volume );
 					drawnVolumes.Add( standIn.StandIn );
@@ -317,20 +334,25 @@ public sealed class RenderWorld
 	internal int AttributeSources { get; set; }
 
 	/// <summary>
+	/// <see cref="InstancedMeshObject"/>s held: a world without any skips looking for them as the mesh feature prepares a view.
+	/// </summary>
+	internal int InstancedObjects { get; private set; }
+
+	/// <summary>
 	/// Counts up whenever an object is added or removed (so indices may have moved): what keeps a list of some of the
 	/// world's objects by index finds out it must look again.
 	/// </summary>
 	internal int Structure { get; private set; }
 
 	/// <summary>
-	/// Counts up whenever an aggregate or a mesh is added or removed, or moves to another index (another object's remove moved
-	/// it): what keeps a list of the world's aggregates and meshes by index finds out it must look again. Lights, decals and
-	/// custom objects (particles, beams) coming and going leave it, so a game spawning effects every frame doesn't make the
-	/// resident lists again every frame.
+	/// Counts up whenever an aggregate, a mesh or an instanced mesh is added or removed, or moves to another index (another
+	/// object's remove moved it): what keeps a list of the world's aggregates and meshes by index finds out it must look again.
+	/// Lights, decals and custom objects (particles, beams) coming and going leave it, so a game spawning effects every frame
+	/// doesn't make the resident lists again every frame.
 	/// </summary>
 	internal int MeshStructure { get; private set; }
 
-	static bool IndexesMeshes( RenderObject obj ) => obj is AggregateObject or MeshObject;
+	static bool IndexesMeshes( RenderObject obj ) => obj is AggregateObject or MeshObject or InstancedMeshObject;
 
 	/// <summary>
 	/// Add an object. An object can be in one world at a time; worlds drawing this one as a sub-world (<see cref="Include"/>)
@@ -353,12 +375,18 @@ public sealed class RenderWorld
 	void Insert( RenderObject obj, int subWorld )
 	{
 		var type = obj.GetType();
-		if ( !_objectTypes.Contains( type ) ) _objectTypes.Add( type );
+		var typeIndex = _objectTypes.IndexOf( type );
+		if ( typeIndex < 0 )
+		{
+			typeIndex = _objectTypes.Count;
+			_objectTypes.Add( type );
+		}
 
 		if ( Count == _objects.Length )
 		{
 			var capacity = _objects.Length * 2;
 			Array.Resize( ref _objects, capacity );
+			Array.Resize( ref _objectTypeIndices, capacity );
 			Array.Resize( ref _boundsCenters, capacity );
 			Array.Resize( ref _boundsExtents, capacity );
 			Array.Resize( ref _localToWorld, capacity );
@@ -379,7 +407,9 @@ public sealed class RenderWorld
 		Structure++;
 		if ( IndexesMeshes( obj ) ) MeshStructure++;
 		if ( obj is MeshObject { AttributesFrom: not null } ) AttributeSources++;
+		if ( obj is InstancedMeshObject ) InstancedObjects++;
 		_objects[index] = obj;
+		_objectTypeIndices[index] = typeIndex;
 		_subWorlds[index] = (byte)subWorld;
 		_treeLeaves[index] = NotAdded;
 		_dynamicTreeLeaves[index] = NotAdded;
@@ -420,7 +450,11 @@ public sealed class RenderWorld
 		else if ( IsSettledCaster( obj, index ) ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );
 
 		if ( _treeLeaves[index] >= 0 ) Tree.Remove( _treeLeaves[index] );
-		else _unculledObjectIndices.Remove( index );
+		else
+		{
+			_unculledCandidates.Remove( index << 1 );
+			if ( CastsShadows( obj ) ) _unculledShadowCandidates.Remove( index << 1 );
+		}
 		if ( _dynamicTreeLeaves[index] >= 0 ) DynamicTree.Remove( _dynamicTreeLeaves[index] );
 		PendingAnimation.Remove( obj );
 
@@ -428,6 +462,7 @@ public sealed class RenderWorld
 		{
 			var moved = _objects[last];
 			_objects[index] = moved;
+			_objectTypeIndices[index] = _objectTypeIndices[last];
 			_boundsCenters[index] = _boundsCenters[last];
 			_boundsExtents[index] = _boundsExtents[last];
 			_localToWorld[index] = _localToWorld[last];
@@ -442,12 +477,17 @@ public sealed class RenderWorld
 			moved.SetIndexIn( this, index );
 
 			if ( _treeLeaves[index] >= 0 ) Tree.SetItem( _treeLeaves[index], index );
-			else _unculledObjectIndices[_unculledObjectIndices.IndexOf( last )] = index;
+			else
+			{
+				_unculledCandidates[_unculledCandidates.IndexOf( last << 1 )] = index << 1;
+				if ( CastsShadows( moved ) ) _unculledShadowCandidates[_unculledShadowCandidates.IndexOf( last << 1 )] = index << 1;
+			}
 			if ( _dynamicTreeLeaves[index] >= 0 ) DynamicTree.SetItem( _dynamicTreeLeaves[index], index );
 		}
 
 		_objects[last] = null;
 		if ( obj is MeshObject { AttributesFrom: not null } ) AttributeSources--;
+		if ( obj is InstancedMeshObject ) InstancedObjects--;
 		if ( !ReferenceEquals( obj.World, this ) ) obj.RemoveHost( this );
 	}
 
@@ -554,14 +594,7 @@ public sealed class RenderWorld
 		_entryVersions[index]++;
 		Changed( index );
 
-		// Transform centre/extents to avoid eight corner transforms.
-		var local = obj.LocalBounds;
-		var center = matrix.Transform( local.Center );
-		var halfSize = local.Size * 0.5f;
-		var extents = new Vector3(
-			MathF.Abs( matrix.M11 ) * halfSize.x + MathF.Abs( matrix.M21 ) * halfSize.y + MathF.Abs( matrix.M31 ) * halfSize.z,
-			MathF.Abs( matrix.M12 ) * halfSize.x + MathF.Abs( matrix.M22 ) * halfSize.y + MathF.Abs( matrix.M32 ) * halfSize.z,
-			MathF.Abs( matrix.M13 ) * halfSize.x + MathF.Abs( matrix.M23 ) * halfSize.y + MathF.Abs( matrix.M33 ) * halfSize.z );
+		TransformBounds( matrix, obj.LocalBounds, out var center, out var extents );
 
 		_boundsCenters[index] = center;
 		_boundsExtents[index] = extents;
@@ -574,10 +607,22 @@ public sealed class RenderWorld
 		else if ( leaf == NotAdded )
 		{
 			_treeLeaves[index] = NotInTree;
-			_unculledObjectIndices.Add( index );
+			_unculledCandidates.Add( index << 1 );
+			if ( CastsShadows( obj ) ) _unculledShadowCandidates.Add( index << 1 );
 		}
 
 		SyncDynamic( obj );
+	}
+
+	/// <summary>Transform an AABB without transforming its eight corners.</summary>
+	internal static void TransformBounds( in Matrix matrix, in BBox local, out Vector3 center, out Vector3 extents )
+	{
+		center = matrix.Transform( local.Center );
+		var half = local.Size * 0.5f;
+		extents = new Vector3(
+			MathF.Abs( matrix.M11 ) * half.x + MathF.Abs( matrix.M21 ) * half.y + MathF.Abs( matrix.M31 ) * half.z,
+			MathF.Abs( matrix.M12 ) * half.x + MathF.Abs( matrix.M22 ) * half.y + MathF.Abs( matrix.M32 ) * half.z,
+			MathF.Abs( matrix.M13 ) * half.x + MathF.Abs( matrix.M23 ) * half.y + MathF.Abs( matrix.M33 ) * half.z );
 	}
 
 	/// <summary>
@@ -585,6 +630,7 @@ public sealed class RenderWorld
 	/// </summary>
 	internal void SyncDynamic( RenderObject obj )
 	{
+		MovedVersion++;
 		var index = obj.IndexIn( this );
 		if ( index < 0 ) return;
 		var leaf = _dynamicTreeLeaves[index];
@@ -646,6 +692,7 @@ public sealed class RenderWorld
 	/// </summary>
 	void Moved( int index, bool wasSettled )
 	{
+		MovedVersion++;
 		if ( wasSettled && (_movedStamps[index] & Shadows.SettledCasters.Restless) != 0 ) _settleMoves[index] = 0;
 		if ( wasSettled && _settleMoves[index] < byte.MaxValue ) _settleMoves[index]++;
 		var restless = _settleMoves[index] >= Shadows.SettledCasters.MaxSettles ? Shadows.SettledCasters.Restless : 0;

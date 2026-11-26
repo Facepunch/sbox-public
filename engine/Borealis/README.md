@@ -5,12 +5,12 @@ It manages render objects, visibility, lighting and frame execution, and draws t
 (`GpuDevice`, `GpuContext`). In s&box that is [Borealis.Backend](../Borealis.Backend/) on Borealis.Gpu, Borealis's own
 Vulkan backend, with the game's own compiled shaders, materials and textures.
 
-Borealis knows nothing about GameObject scenes, cameras or native's scene views. s&box connects to it from
-[Sandbox.Rendering](../Sandbox.Rendering/README.md), which mirrors scenes into Borealis and also holds the layers of
-native's own rendering pipeline. Keep it that way: code that needs `SceneObject`, `SceneWorld` or `ISceneView` goes there.
+Borealis knows nothing about GameObject scenes, cameras or native scene views. [Sandbox.Rendering](../Sandbox.Rendering/README.md)
+mirrors scenes into Borealis and reads native scene objects used by tools. Keep engine and tool-specific scene integration
+in the bridge, not in Borealis.
 
-The renderer is experimental. A process launched with `-borealisgpu` draws on Borealis.Gpu and renders every
-GameObject scene through Borealis; any other process renders through native's scene system.
+The managed scene renderer runs when the process uses Borealis.Gpu (`-borealisgpu`). Otherwise the managed scene seam does
+not render the scene; it does not fall back to another renderer.
 [BorealisLab](../Launcher/BorealisLab/) runs Borealis on its own Borealis.Gpu device, for captures, render tests and
 benchmarks.
 
@@ -39,7 +39,7 @@ part of a world into a frame. Features prepare and draw different kinds of objec
 steps of the frame. `FrameRecorder` decides which layers are needed and records their work for submission.
 
 Rendering records through the host's `GpuDevice` and `GpuContext`, not native `ISceneSystem`, `ISceneView` or
-`ISceneLayer` objects. The renderer still shares engine code with native's: shader sources and the shadow-map policy.
+`ISceneLayer` objects. The two renderers still share shader sources.
 
 ### Source layout
 
@@ -85,8 +85,8 @@ can do useful work for the current frame.
 Large frames record work in parallel. Each recording segment has its own native context, created on
 the thread that records it. Shadow culling is also parallelized. Camera stages and custom-object work
 that requires the main thread stay there. Small frames avoid the overhead of parallel recording.
-When the host allows async compute (`RenderHost.AsyncCompute`), depth-chain, contact-shadow and AO work can overlap
-shadow-map rendering; s&box's host (`SboxRenderHost`) turns it off. Borealis draws no normals G-buffer: AO rebuilds normals from depth, and SSR is off.
+When the host and device allow async compute (`RenderHost.AsyncCompute`), contact shadows and AO can overlap shadow-map
+rendering. The depth chain stays on graphics. AO rebuilds its normals from depth; SSR uses the previous frame's forward normals.
 
 Declare each pass's inputs, outputs and compute capability. The pipeline itself stays a plain list:
 
@@ -128,8 +128,8 @@ that already exist before the batch. Early camera effects stay at their normal s
 - [ManagedScene](../Sandbox.Engine/Systems/Render/ManagedScene/) owns the `-borealisgpu` check, the convars, scene-change notifications
   and shutdown integration. The app system registers Sandbox.Rendering's bridge with the engine at startup
   ([EngineHooks.cs](../Sandbox.Rendering/EngineHooks.cs)).
-- [ShadowMapper](../Sandbox.Engine/Systems/Render/Shadows/) supplies shared shadow allocation, caching
-  and time-slicing policy for both renderers.
+- [ShadowMapper](Shadows/) owns managed shadow allocation, caching and time slicing; [ShadowSystem](Pipeline/Shadows/)
+  prepares and records its views.
 - [Graphics.IFrameView](../Sandbox.Engine/Systems/Render/Graphics.FrameView.cs) lets camera effects and
   custom drawing operate on either renderer. Use the `Graphics` abstraction rather than assuming a
   native scene view or layer exists.
@@ -150,12 +150,20 @@ dotnet run --project engine/Tools/SboxBuild/SboxBuild.csproj -- build --skip-nat
 
 # Run the renderer's unit tests after building.
 dotnet test -c Release --no-build engine/Tests/Borealis.Test
+
+# Run the offscreen Vulkan suite with validation when the Khronos layer is installed.
+dotnet test -c Release engine/Tests/Borealis.Gpu.Test
 ```
 
 The [tests](../Tests/Borealis.Test/) run on a headless device that records what frames submit, with
 nothing of the engine. They cover culling, object storage, transforms, GPU layouts, light packing,
 layer selection, allocation behavior, and the order and queues of a whole frame's work. Tests that prepare frames use
 `[DoNotParallelize]` because `ShadowMapper` and `Application.FrameCount` contain shared static state.
+
+The [Vulkan tests](../Tests/Borealis.Gpu.Test/) use a fresh device per test and check validation through device
+shutdown. Tests that exercise only the shader compiler don't need a device. Independent tests can run in
+parallel; tests that install a render host or prepare renderer frames use `RenderGpuTest` and run serially
+so they don't share frame or shadow state across tests.
 
 Visual changes require inspecting captured images. A passing comparison alone cannot show that a feature rendered
 correctly: both sides might have drawn nothing or used the same missing asset. Disable the feature once to confirm the

@@ -45,18 +45,17 @@ internal struct ShadowLight
 	public bool Baked;
 
 	/// <summary>
-	/// Where the light's world has changed static casters, which its static cache must redraw for.
+	/// Where the light's world has changed static casters, which its cache must redraw for.
 	/// </summary>
 	public StaticCasterChanges StaticChanges;
 
 	/// <summary>
-	/// Where the light's world has changed settled casters, which its cached far cascade, or a local light's static cache that
-	/// holds them, must redraw for.
+	/// Where the light's world has changed settled casters, which its cache, or a sun's cached far cascade, must redraw for.
 	/// </summary>
 	public StaticCasterChanges SettledChanges;
 
 	/// <summary>
-	/// A light that doesn't move keeps its static casters in a cache, and only re-renders dynamic ones.
+	/// A light that doesn't move keeps its static and settled casters in a cache, and only re-renders the others.
 	/// </summary>
 	public bool Static;
 
@@ -118,6 +117,11 @@ internal struct ShadowViewInfo
 	/// The view's tags, which shadow views filter casters by, as native's inherit their parent view's. Null for none.
 	/// </summary>
 	public uint[] RenderTags, ExcludeTags;
+
+	/// <summary>
+	/// This view's exclusions remove no casters, so its local maps have the same casters as an unexcluded view.
+	/// </summary>
+	public bool IgnoreLocalExcludeTags;
 
 	/// <summary>
 	/// A planar refraction's view (<see cref="RenderView.ClipPlane"/>): it takes the cascades another view drew this frame
@@ -197,8 +201,8 @@ internal struct ShadowViewDesc
 	public int Slice;
 
 	/// <summary>
-	/// Which casters it draws: only static ones for a static cache, or no static ones when they come from lightmaps or a
-	/// cache.
+	/// Which casters it draws: a cache's static and settled ones, what moves on top of one, or none of the static ones when
+	/// they come from lightmaps.
 	/// </summary>
 	public StaticFilter StaticFilter;
 
@@ -209,8 +213,8 @@ internal struct ShadowViewDesc
 	public float SlopeScaledDepthBias;
 
 	/// <summary>
-	/// Static casters already rendered into this map: it's copied in instead of clearing, and only
-	/// dynamic casters are rendered on top.
+	/// A cache of the static and settled casters already rendered for this map: it's copied in instead of clearing, and only
+	/// the casters that move are rendered on top.
 	/// </summary>
 	public ShadowMap CachedStatic;
 
@@ -223,6 +227,12 @@ internal struct ShadowViewDesc
 	/// Orthographic: pick mesh LODs by this view's texel size rather than the main view's screen.
 	/// </summary>
 	public bool TexelLods;
+
+	/// <summary>
+	/// With <see cref="TexelLods"/> in the far cascade's cache and the view over it: a static caster that animates only some of
+	/// its LODs is cached at the others (<see cref="ViewPass.SplitsLods"/>).
+	/// </summary>
+	public bool SplitsLods;
 
 	/// <summary>
 	/// The <see cref="SettledCasters"/> stamp a <see cref="StaticFilter.Settled"/> or <see cref="StaticFilter.Unsettled"/> view
@@ -254,11 +264,6 @@ internal struct ShadowViewDesc
 	/// <see cref="CachedStatic"/> is held wrapped around: the target's texel (x, y) is its texel ((x + offset.x) mod size, ...).
 	/// </summary>
 	public Vector2Int CacheOffset;
-
-	/// <summary>
-	/// A cleared depth tile copied over <see cref="Viewport"/> before drawing, instead of clearing all of the target.
-	/// </summary>
-	public ShadowMap Blank;
 }
 
 /// <summary>
@@ -289,11 +294,6 @@ internal interface IShadowRenderer
 	/// The depth target an extra sun's shadow renders into this frame.
 	/// </summary>
 	ShadowMap GetExtraSunTarget( int sun, int resolution );
-
-	/// <summary>
-	/// Bindless index of a directional light's contact shadow mask, or 0 for none.
-	/// </summary>
-	uint GetShadowMaskIndex( object light );
 }
 
 /// <summary>
@@ -316,6 +316,7 @@ internal sealed class ShadowMap : IDisposable
 	}
 
 	public bool HasTexture => texture is not null;
+	public bool IsDisposed { get; private set; }
 
 	/// <summary>
 	/// Moves on each time a shadow view draws into it, so a copy of it can tell whether it changed.
@@ -329,5 +330,6 @@ internal sealed class ShadowMap : IDisposable
 	{
 		texture?.Dispose();
 		texture = null;
+		IsDisposed = true;
 	}
 }

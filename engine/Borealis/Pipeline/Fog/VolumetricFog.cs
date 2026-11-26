@@ -34,7 +34,7 @@ internal sealed class VolumetricFog : IDisposable
 	static readonly StringToken OutScatteringName = new( "OutScatteringTexture" );
 
 	/// <summary>
-	/// Mirrors <c>CVolumetricFog::VolumetricFogConstantBuffer_t</c>, including native VMatrix layout.
+	/// Mirrors <c>CVolumetricFog::VolumetricFogConstantBuffer_t</c> with Borealis's froxel bounds and ray origins.
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential )]
 	unsafe struct Constants
@@ -55,6 +55,7 @@ internal sealed class VolumetricFog : IDisposable
 		public Vector4 OoWidthHeightDepth;
 		public fixed int FroxelMin[4];
 		public fixed int FroxelMax[4];
+		public Vector4 ViewOriginDX, ViewOriginDY, ViewOriginCorner;
 	}
 
 	Constants constants;
@@ -65,7 +66,6 @@ internal sealed class VolumetricFog : IDisposable
 	static readonly ConditionalWeakTable<GpuDevice, GpuTexture> opaqueBlack = new();
 	GpuMaterial computeShader;
 
-	uint frameIndex;
 	uint frameOffset;
 
 	// The jitter's random offsets, from the same seed every time, so the fog's frames repeat run to run
@@ -77,8 +77,8 @@ internal sealed class VolumetricFog : IDisposable
 	GpuTexture bakedTexture;
 	Vector3 boxMin, boxMax;
 
-	// Last frame's world to projection, row-vector: native keeps its transpose (m_lastViewFrustum, GetViewProjTranspose)
-	Matrix lastWorldToProjection;
+	// Last rendered frame's world-to-fog projection, with linear view depth in Z.
+	Matrix? lastFogProjection;
 
 	/// <summary>
 	/// Whether fog is enabled, has volumes and remains active (<c>CRenderingPipelineStandard::AddLayersToView</c>).
@@ -129,7 +129,6 @@ internal sealed class VolumetricFog : IDisposable
 
 		// FrameUpdate: a fog that has scattered nothing for 100 frames switches itself off
 		renderingDisabled = false;
-		frameIndex++;
 		if ( scattering == 0.0f )
 		{
 			scatteringAtZeroCount++;
@@ -145,7 +144,6 @@ internal sealed class VolumetricFog : IDisposable
 
 		Resize( RenderHost.Current.VolumetricFogSize );
 		EnsureResources();
-		frameOffset = frameIndex & 1;
 		Active = !renderingDisabled;
 	}
 
@@ -180,7 +178,8 @@ internal sealed class VolumetricFog : IDisposable
 		accumulated[1] = MakeVolume( "accumulated_fog_rt1" );
 		fogVolume = MakeVolume( "volumetric_fog_rt0" );
 
-		frameIndex = 0;
+		frameOffset = 0;
+		lastFogProjection = null;
 		jitter = new Random( 0 );
 		scattering = 0.0f;
 		anisotropy = 0.2f;
@@ -226,14 +225,26 @@ internal sealed class VolumetricFog : IDisposable
 		vr.VolumetricFogEnabled = 1;
 		vr.VolFogVolumeScaleShiftNearRange = new( 1.0f / depth, 0.0f, near, clipRange );
 		vr.VolFogDitherScaleBias = new( dither, -0.5f * dither, 0.0f, 0.0f );
-		vr.VolFogPostWorldToFrustumScale = new( 0.5f, 0.5f, 1.0f / clipRange, 0.0f );
+		vr.VolFogPostWorldToFrustumScale = new( 0.5f, 0.5f, 1.0f / clipRange, 1.0f );
 		vr.VolFogPostWorldToFrustumBias = new( 0.5f, 0.5f, -near / clipRange, 0.0f );
 
-		// GetViewProjTranspose matches row-vector layout; Z is unused, so reverse-Z works.
+		// The fog uses linear view depth rather than device Z.
 		// Transform skybox positions into the main world first (skyboxToWorld).
-		var toFog = fromWorld is { } toWorld ? toWorld * view.WorldToProjection : view.WorldToProjection;
+		var projection = FogProjection( view );
+		var toFog = fromWorld is { } toWorld ? toWorld * projection : projection;
 		vr.VolFogFromWorld0 = toFog;
 		vr.VolFogFromWorld1 = toFog;
+	}
+
+	static Matrix FogProjection( RenderView view )
+	{
+		var projection = view.UnjitteredWorldToProjection;
+		var forward = view.Rotation.Forward;
+		projection.M13 = forward.x;
+		projection.M23 = forward.y;
+		projection.M33 = forward.z;
+		projection.M43 = -Vector3.Dot( view.Position, forward );
+		return projection;
 	}
 
 	/// <summary>
@@ -275,6 +286,7 @@ internal sealed class VolumetricFog : IDisposable
 
 		// What the next frame's draws read, sampled
 		rc.BarrierComputeToPixelShaderRead( fogVolume );
+		frameOffset ^= 1;
 	}
 
 	ShaderParameters parameters;
@@ -289,29 +301,46 @@ internal sealed class VolumetricFog : IDisposable
 	{
 		CalculateBounds( volumes );
 
-		// Unit-depth corner rays: bottom left, bottom right, top left (ComputeScreenSpaceVertices, CFrustum::BuildRay).
-		var rotation = view.Rotation;
-		var forward = rotation.Forward;
-		var right = rotation.Right;
-		var up = rotation.Up;
-		var tanX = MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
-		var tanY = tanX * view.Viewport.Height / view.Viewport.Width;
-		var ray0 = forward - right * tanX - up * tanY;
-		var ray1 = forward + right * tanX - up * tanY;
-		var ray2 = forward - right * tanX + up * tanY;
+		// Unproject each corner at unit view depth, keeping the ray's origin separately for parallel projections.
+		var forward = view.Rotation.Forward;
+		var projection = view.UnjitteredViewToProjection;
+		var projectionToView = projection.Inverted;
+		var viewToWorld = view.WorldToViewRotation.Transpose();
+		var clipZ = projectionToView.Transform( new Vector4( 0, 0, 1, 0 ) );
+		var varyingClipW = projection.M14 != 0.0f || projection.M24 != 0.0f;
+
+		void CornerRay( float x, float y, out Vector4 origin, out Vector4 direction )
+		{
+			var corner = projectionToView.Transform( new Vector4( x, y, 0, 1 ) );
+			// Eliminate clip Z so (origin + direction * depth) / origin.w lies at the requested view depth.
+			origin = viewToWorld.Transform( corner * clipZ.z - clipZ * corner.z );
+			direction = viewToWorld.Transform( corner * clipZ.w - clipZ * corner.w );
+		}
+
+		CornerRay( -1, -1, out var origin0, out var ray0 );
+		CornerRay( 1, -1, out var origin1, out var ray1 );
+		CornerRay( -1, 1, out var origin2, out var ray2 );
+
+		var rayScale = varyingClipW ? 1.0f : 1.0f / origin0.w;
+		var dx = (ray1 - ray0) * rayScale;
+		var dy = (ray2 - ray0) * rayScale;
 
 		var camera = view.Position;
-		constants.ViewDX = new( (ray1 - ray0) / width, 0.0f );
-		constants.ViewDY = new( (ray2 - ray0) / height, 0.0f );
-		constants.ViewCorner = new( ray0, 0.0f );
-		constants.ViewPos = new( camera, 0.0f );
-		constants.ViewDir = new( forward, 0.0f );
+		constants.ViewDX = dx * (1.0f / width);
+		constants.ViewDY = dy * (1.0f / height);
+		constants.ViewCorner = ray0 * rayScale;
+		constants.ViewOriginDX = (origin1 - origin0) * (rayScale / width);
+		constants.ViewOriginDY = (origin2 - origin0) * (rayScale / height);
+		constants.ViewOriginCorner = origin0 * rayScale;
+		constants.ViewPos = new( camera, varyingClipW ? 1.0f : 0.0f );
+		constants.ViewDir = new( forward, varyingClipW || projection.M13 != 0.0f || projection.M23 != 0.0f ? 1.0f : 0.0f );
 
 		// Reproject camera-relative positions using the current camera offset and previous projection.
-		constants.LastViewFrustum = Matrix.CreateTranslation( camera ) * lastWorldToProjection;
-		lastWorldToProjection = view.WorldToProjection;
+		var fogProjection = FogProjection( view );
+		constants.LastViewFrustum = Matrix.CreateTranslation( camera ) * (lastFogProjection ?? fogProjection);
+		lastFogProjection = fogProjection;
 
-		constants.AnisotropyScatteringXYJitterScale = new( anisotropy, scattering, (ray1 - ray0).Length, (ray2 - ray0).Length );
+		constants.AnisotropyScatteringXYJitterScale = new( anisotropy, scattering, dx.Length, dy.Length );
 
 		var near = NearClip;
 		var clipRange = farClip - near;
@@ -328,8 +357,7 @@ internal sealed class VolumetricFog : IDisposable
 
 		// The volumes the view sees, in the world's order, and the froxels they cover
 		var count = 0;
-		var dx = (ray1 - ray0) / width;
-		var dy = (ray2 - ray0) / height;
+		var cameraToProjection = view.WorldToViewRotation * projection;
 		var froxelMin = new Vector3( float.MaxValue );
 		var froxelMax = new Vector3( -float.MaxValue );
 
@@ -339,10 +367,19 @@ internal sealed class VolumetricFog : IDisposable
 			for ( int c = 0; c < 8; c++ )
 			{
 				var point = new Vector3( (c & 1) != 0 ? worldMax.x : worldMin.x, (c & 2) != 0 ? worldMax.y : worldMin.y, (c & 4) != 0 ? worldMax.z : worldMin.z ) - camera;
-				var distance = Vector3.Dot( point, forward );
-				var ray = point / distance - ray0;
-				var behind = distance < near;
-				var froxel = behind ? new Vector3( width, height, 0 ) : new Vector3( Vector3.Dot( ray, dx ) / dx.LengthSquared, Vector3.Dot( ray, dy ) / dy.LengthSquared, MathF.Sqrt( (distance - near) / clipRange ) * depth );
+				var viewDepth = Vector3.Dot( point, forward );
+				var froxel = new Vector3( width, height, 0 );
+				var behind = viewDepth < near;
+				if ( !behind )
+				{
+					var clip = cameraToProjection.Transform( new Vector4( point, 1.0f ) );
+					behind = clip.w <= 0.0f;
+					if ( !behind )
+					{
+						var invW = 0.5f / clip.w;
+						froxel = new( (clip.x * invW + 0.5f) * width, (clip.y * invW + 0.5f) * height, MathF.Sqrt( (viewDepth - near) / clipRange ) * depth );
+					}
+				}
 				froxelMin = Vector3.Min( froxelMin, behind ? Vector3.Zero : froxel );
 				froxelMax = Vector3.Max( froxelMax, froxel );
 			}

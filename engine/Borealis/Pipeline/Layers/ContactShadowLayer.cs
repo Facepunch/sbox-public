@@ -37,7 +37,7 @@ internal sealed class ContactShadowLayer : RenderLayer
 		if ( width < 1 || height < 1 ) return null;
 
 		ContactShadows.WarmUp();
-		return frame.System.Transients.Get( TextureDesc.Target( width, height, TextureFormat.A8 ) with { Storage = true }, "Contact Shadow Mask" );
+		return frame.System.Transients.Get( TransientTextureRole.ContactShadowMask, TextureDesc.Target( width, height, TextureFormat.A8 ) with { Storage = true } );
 	}
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )

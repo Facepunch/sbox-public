@@ -8,12 +8,17 @@ public sealed partial class RenderSystem
 	RenderLayer[] layers;
 
 	/// <summary>
-	/// This system's layers, in frame order: the standard pipeline's, or a 3D skybox's.
+	/// This system's layers, in frame order. Tests can supply their own pipeline.
 	/// </summary>
-	internal RenderLayer[] Layers => layers ??= isSkybox ? SkyboxLayers() : StandardLayers();
+	internal RenderLayer[] Layers
+	{
+		get => layers ??= isSkybox ? SkyboxLayers() : StandardLayers();
+		set => layers = value;
+	}
 
 	ContactShadowLayer contactShadows;
 	ScreenSpaceReflectionsLayer reflections;
+	OverlayDepthPrepassLayer overlayPrepass;
 
 	RenderLayer[] StandardLayers()
 	{
@@ -21,7 +26,7 @@ public sealed partial class RenderSystem
 		contactShadows = new ContactShadowLayer();
 		var opaque = new OpaqueLayer();
 		reflections = new ScreenSpaceReflectionsLayer( opaque );
-		var overlayPrepass = new OverlayDepthPrepassLayer();
+		overlayPrepass = new OverlayDepthPrepassLayer();
 		return
 		[
 			new OcclusionCullLayer( early: true ),

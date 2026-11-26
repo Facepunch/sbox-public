@@ -150,8 +150,6 @@ internal sealed partial class SpatialTree
 		Version++;
 	}
 
-	[ThreadStatic] static int[] s_markStack;
-
 	/// <summary>
 	/// By node, whether its subtree has a leaf whose item <paramref name="leftOut"/> keeps (zero, or past its end), for a query
 	/// that leaves the rest out (<see cref="QueryClassified{T}(ref T, List{int}, out int, bool[])"/>).
@@ -159,36 +157,17 @@ internal sealed partial class SpatialTree
 	public void Mark( ReadOnlySpan<byte> leftOut, ref bool[] kept )
 	{
 		if ( kept.Length < nodes.Length ) kept = new bool[nodes.Length];
-		if ( root == Null ) return;
+		if ( root != Null )
+			MarkSubtree( root, leftOut, kept );
+	}
 
-		var stack = s_markStack;
-		var capacity = 2 * (Height + 2);
-		if ( stack is null || stack.Length < capacity ) s_markStack = stack = new int[Math.Max( 64, capacity )];
-
-		// Children before their parent: an entry's low bit says its children are done
-		var count = 1;
-		stack[0] = root << 1;
-		while ( count > 0 )
-		{
-			var entry = stack[--count];
-			var index = entry >> 1;
-			ref readonly var node = ref nodes[index];
-			if ( node.IsLeaf )
-			{
-				kept[index] = (uint)node.Item >= (uint)leftOut.Length || leftOut[node.Item] == 0;
-				continue;
-			}
-
-			if ( (entry & 1) != 0 )
-			{
-				kept[index] = kept[node.Child1] || kept[node.Child2];
-				continue;
-			}
-
-			stack[count++] = index << 1 | 1;
-			stack[count++] = node.Child1 << 1;
-			stack[count++] = node.Child2 << 1;
-		}
+	bool MarkSubtree( int index, ReadOnlySpan<byte> leftOut, bool[] kept )
+	{
+		ref readonly var node = ref nodes[index];
+		bool keep = node.IsLeaf
+			? (uint)node.Item >= (uint)leftOut.Length || leftOut[node.Item] == 0
+			: MarkSubtree( node.Child1, leftOut, kept ) | MarkSubtree( node.Child2, leftOut, kept );
+		return kept[index] = keep;
 	}
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]

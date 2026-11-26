@@ -103,13 +103,13 @@ internal sealed class OutputLayer : RenderLayer
 	public OutputLayer() : base( "Output" ) { }
 
 	/// <summary>
-	/// Bind, resolve and copy the frame.
+	/// Resolve and copy the frame. Transfers name their own textures, so they need no draw targets bound.
 	/// </summary>
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
-		frame.BindFrame( rc );
-		rc.Resolve( frame.Output );
-		rc.CopyToOutput( frame.Output, frame.View.Viewport );
+		var output = frame.Output;
+		if ( output.Target.Samples > 1 ) rc.Resolve( output );
+		if ( output.Texture is not null ) rc.CopyToOutput( output, frame.View.Viewport );
 	}
 }
 
@@ -144,9 +144,6 @@ internal sealed class OutputFlipLayer : RenderLayer
 	static readonly StringToken VolumeCombo = new( "D_VOLUME_TEXTURE" );
 	static readonly StringToken SrgbTransferCombo = new( "D_SRGB_TRANSFER" );
 
-	static GpuMaterial material;
-	static GpuDevice materialDevice;
-
 	public OutputFlipLayer() : base( "Output Flip" ) { }
 
 	/// <summary>
@@ -154,14 +151,7 @@ internal sealed class OutputFlipLayer : RenderLayer
 	/// (<see cref="RenderSystem.WarmUp"/>): the engine makes no materials while a frame draws, and a flipped child view (a
 	/// reflection) records inside its parent's frame.
 	/// </summary>
-	internal static void WarmUp()
-	{
-		var device = RenderHost.Current.Device;
-		if ( material is not null && materialDevice == device ) return;
-
-		material = device.MaterialFromShader( "shaders/copytexture.shader" );
-		materialDevice = device;
-	}
+	internal static void WarmUp() => _ = RenderHost.Current.Device.PassMaterial( GpuPassMaterial.OutputFlip );
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.Output.FlipInto is not null;
 
@@ -185,7 +175,7 @@ internal sealed class OutputFlipLayer : RenderLayer
 			Samples = 1,
 		} );
 
-		var parameters = ParameterPool.Get();
+		using var lease = ParameterPool.Borrow( out var parameters );
 		parameters.Set( SourceName, source );
 		parameters.Set( FlipXName, output.FlipX );
 		parameters.Set( FlipYName, output.FlipY );
@@ -193,7 +183,6 @@ internal sealed class OutputFlipLayer : RenderLayer
 		parameters.SetCombo( MsaaColorCombo, 0 );
 		parameters.SetCombo( VolumeCombo, 0 );
 		parameters.SetCombo( SrgbTransferCombo, 0 );
-		rc.DrawFullscreen( material, parameters, ForwardMode );
-		ParameterPool.Return( parameters );
+		rc.DrawFullscreen( RenderHost.Current.Device.PassMaterial( GpuPassMaterial.OutputFlip ), parameters, ForwardMode );
 	}
 }

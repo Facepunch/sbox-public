@@ -174,6 +174,16 @@ public sealed class RenderView
 	/// </summary>
 	public FogSettings? Fog { get; set; }
 
+	// The bridge supplies these per view; null fog or an unset sky override inherits world settings.
+	internal FogSettings? SkyboxFog { get; set; }
+	internal CubemapFogSettings CubemapFog { get; set; }
+	internal VolumetricFogSettings VolumetricFog { get; set; }
+	internal bool OverridesSky { get; set; }
+	internal GpuMaterial SkyMaterial { get; set; }
+	internal Color SkyTint { get; set; }
+	internal Rotation SkyRotation { get; set; }
+	internal SkyFog SkyFog { get; set; }
+
 	/// <summary>
 	/// The view's ambient light, in place of the world's <see cref="SceneLighting.AmbientColor"/>: native works one out for each
 	/// view, from the world's and the camera's, tinted and added to by the view's setup (<c>CameraRenderer.Configure</c>). Null
@@ -261,12 +271,18 @@ public sealed class RenderView
 
 	/// <summary>The tag part of <see cref="Shows(RenderObject, int)"/>: whether an object with these tags (a world object, tagged <c>world</c>) passes.</summary>
 	internal bool ShowsTags( uint[] tags, bool isWorld )
+		=> IncludesTags( tags, isWorld ) && !ExcludesTags( tags, isWorld );
+
+	internal bool IncludesTags( uint[] tags, bool isWorld )
 	{
 		var render = RenderTags;
+		return render.Length == 0 || (isWorld ? Contains( render, WorldTag ) : Overlaps( render, tags ));
+	}
+
+	internal bool ExcludesTags( uint[] tags, bool isWorld )
+	{
 		var exclude = ExcludeTags;
-		if ( render.Length > 0 && !(isWorld ? Contains( render, WorldTag ) : Overlaps( render, tags )) ) return false;
-		if ( exclude.Length > 0 && ((isWorld && Contains( exclude, WorldTag )) || Overlaps( exclude, tags )) ) return false;
-		return true;
+		return exclude.Length > 0 && ((isWorld && Contains( exclude, WorldTag )) || Overlaps( exclude, tags ));
 	}
 
 	/// <summary>
@@ -347,13 +363,19 @@ public sealed class RenderView
 			SquareViewToProjection = ViewToProjection;
 		}
 
-		var translation = Matrix.CreateTranslation( -Position );
+		var worldToView = Matrix.CreateTranslation( -Position ) * WorldToViewRotation;
 		var previousUnjittered = UnjitteredWorldToProjection;
 		UnjitteredViewToProjection = ViewToProjection;
-		UnjitteredWorldToProjection = translation * WorldToViewRotation * ViewToProjection;
-		if ( Jitter != Vector2.Zero ) ViewToProjection *= ClipSpaceOffset( Jitter );
-
-		WorldToProjection = translation * WorldToViewRotation * ViewToProjection;
+		UnjitteredWorldToProjection = worldToView * ViewToProjection;
+		if ( Jitter != Vector2.Zero )
+		{
+			ViewToProjection *= ClipSpaceOffset( Jitter );
+			WorldToProjection = worldToView * ViewToProjection;
+		}
+		else
+		{
+			WorldToProjection = UnjitteredWorldToProjection;
+		}
 		Frustum = ViewFrustum.FromReverseZ( WorldToProjection );
 
 		PreviousWorldToProjection = _updated ? previous : WorldToProjection;
@@ -382,23 +404,36 @@ public sealed class RenderView
 	/// </summary>
 	internal void FillUpscaledConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize )
 	{
-		var viewToProjection = UnjitteredViewToProjection;
-		var worldToProjection = WorldToViewRotation * viewToProjection;
-		var projectionToView = viewToProjection.Inverted;
+		FillProjectionConstants( ref c, UnjitteredViewToProjection, PreviousUnjitteredWorldToProjection );
+		FillViewportConstants( ref c, viewport, targetSize, 1, PreviousUnjitteredWorldToProjection );
+	}
+
+	void FillProjectionConstants( ref ViewConstants c, in Matrix projection, in Matrix previous )
+	{
+		var worldToProjection = WorldToViewRotation * projection;
+		var projectionToView = projection.Inverted;
 		c.WorldToProjection = worldToProjection;
 		c.ProjectionToWorld = worldToProjection.Inverted;
-		c.ViewToProjection = viewToProjection;
+		c.ViewToProjection = projection;
 		c.ProjectionToView = projectionToView;
 		c.InvProjRow3 = new( projectionToView.M14, projectionToView.M24, projectionToView.M34, projectionToView.M44 );
 
-		c.InvViewportSize = new( 1.0f / viewport.Width, 1.0f / viewport.Height );
+		// Native's previous inverse view projection is forward-Z (GetInvViewProjTranspose).
+		c.PrevProjectionToWorld = (previous * ReverseDepth).Inverted;
+	}
+
+	static void FillViewportConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize, int samples, in Matrix previous )
+	{
+		var invWidth = 1.0f / viewport.Width;
+		var invHeight = 1.0f / viewport.Height;
+		c.InvViewportSize = new( invWidth, invHeight );
 		c.ViewportOffset = new( viewport.Left, viewport.Top );
 		c.ViewportSize = new( viewport.Width, viewport.Height );
 		c.RenderTargetSize = targetSize;
 		c.ViewportToGBufferRatio = new( viewport.Width / targetSize.x, viewport.Height / targetSize.y );
 		c.InvGBufferSize = new( 1.0f / targetSize.x, 1.0f / targetSize.y, 1.0f, 1.0f );
-		c.FrameBufferCopyInvSizeAndUvScale = new( 1.0f / viewport.Width, 1.0f / viewport.Height, 1, 1 );
-		c.MsaaSampleCount = 1;
+		c.FrameBufferCopyInvSizeAndUvScale = new( invWidth, invHeight, 1, 1 );
+		c.MsaaSampleCount = samples;
 
 		var w = 0.5f * viewport.Width;
 		var h = 0.5f * viewport.Height;
@@ -407,15 +442,16 @@ public sealed class RenderView
 			0, -h, 0, 0,
 			0, 0, 1, 0,
 			w, h, 0, 1 );
-		var viewToWorld = c.WorldToView.Inverted;
-		c.ViewToScreen = viewToProjection * screen;
-		c.CurrFrameViewToPrevFrameProj = viewToWorld * PreviousUnjitteredWorldToProjection * screen;
-		var forwardZ = new Matrix(
-			1, 0, 0, 0,
-			0, 1, 0, 0,
-			0, 0, -1, 0,
-			0, 0, 1, 1 );
-		c.PrevProjectionToWorld = (PreviousUnjitteredWorldToProjection * forwardZ).Inverted;
+		c.ViewToScreen = c.ViewToProjection * screen;
+		c.CurrFrameViewToPrevFrameProj = c.WorldToView.Inverted * previous * screen;
+	}
+
+	/// <summary>Replace only the target and depth-range constants of an already populated main view.</summary>
+	internal void FillPassConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize, int samples, float minZ, float maxZ )
+	{
+		c.ViewportMinZ = minZ;
+		c.ViewportMaxZ = maxZ;
+		FillViewportConstants( ref c, viewport, targetSize, samples, PreviousWorldToProjection );
 	}
 
 	/// <summary>
@@ -452,7 +488,9 @@ public sealed class RenderView
 	/// The engine's column-vector, forward-Z projection as this one's row-vector reverse-Z: transposed, then depth turned
 	/// round (native's <c>ComputeZReversalProjectionMatrix</c>, z' = w - z).
 	/// </summary>
-	internal static Matrix FromEngineProjection( in Matrix projection ) => projection.Transpose() * new Matrix(
+	internal static Matrix FromEngineProjection( in Matrix projection ) => projection.Transpose() * ReverseDepth;
+
+	static readonly Matrix ReverseDepth = new(
 		1, 0, 0, 0,
 		0, 1, 0, 0,
 		0, 0, -1, 0,
@@ -492,15 +530,6 @@ public sealed class RenderView
 	}
 
 	/// <summary>
-	/// World-to-texture matrix for shadow lookup: UVs in [0, 1], Y flipped, full translation.
-	/// </summary>
-	internal Matrix WorldToTexture => WorldToProjection * new Matrix(
-		0.5f, 0, 0, 0,
-		0, -0.5f, 0, 0,
-		0, 0, 1, 0,
-		0.5f, 0.5f, 0, 1 );
-
-	/// <summary>
 	/// Fill shader view constants for the target size, MSAA count and depth range (<c>CSceneSystem::FillOutViewConstants</c>).
 	/// </summary>
 	internal void FillConstants( ref ViewConstants c, Vector2 targetSize, float time, int samples = 1, float minZ = 0, float maxZ = 1 )
@@ -512,19 +541,8 @@ public sealed class RenderView
 	/// </summary>
 	internal void FillConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize, float time, int samples = 1, float minZ = 0, float maxZ = 1, bool square = false )
 	{
-		var viewToProjection = square ? SquareViewToProjection : ViewToProjection;
-		var worldToProjection = WorldToViewRotation * viewToProjection;
-		var projectionToWorld = worldToProjection.Inverted;
-		var projectionToView = viewToProjection.Inverted;
-
-		var translation = Matrix.CreateTranslation( -Position );
-
-		c.WorldToProjection = worldToProjection;
-		c.ProjectionToWorld = projectionToWorld;
-		c.WorldToView = translation * WorldToViewRotation;
-		c.ViewToProjection = viewToProjection;
-		c.ProjectionToView = projectionToView;
-		c.InvProjRow3 = new( projectionToView.M14, projectionToView.M24, projectionToView.M34, projectionToView.M44 );
+		c.WorldToView = Matrix.CreateTranslation( -Position ) * WorldToViewRotation;
+		FillProjectionConstants( ref c, square ? SquareViewToProjection : ViewToProjection, PreviousWorldToProjection );
 
 		c.ToneMapScalarLinear = ToneMapScalar;
 		c.LightMapScalar = 1.0f;
@@ -541,43 +559,13 @@ public sealed class RenderView
 		c.CameraFov = FieldOfView.DegreeToRadian();
 		c.DepthPsToVsConversion = new( ZNear * ZFar, ZFar - ZNear, -ZFar );
 
-		c.ViewportMinZ = minZ;
-		c.ViewportMaxZ = maxZ;
-		c.InvViewportSize = new( 1.0f / viewport.Width, 1.0f / viewport.Height );
-		c.ViewportOffset = new( viewport.Left, viewport.Top );
-		c.ViewportSize = new( viewport.Width, viewport.Height );
-		c.RenderTargetSize = targetSize;
-		c.ViewportToGBufferRatio = new( viewport.Width / targetSize.x, viewport.Height / targetSize.y );
-		c.InvGBufferSize = new( 1.0f / targetSize.x, 1.0f / targetSize.y, 1.0f, 1.0f );
+		FillPassConstants( ref c, viewport, targetSize, samples, minZ, maxZ );
 
 		c.Mod2xIdentity = 0.5f;
 		c.RoughnessParams = new( 1, 1 );
-		c.MsaaSampleCount = samples;
 
 		var angles = Rotation.Angles();
 		c.CameraAngles = new( angles.pitch.DegreeToRadian(), angles.yaw.DegreeToRadian(), angles.roll.DegreeToRadian(), 0 );
 		c.WorldToCameraOffset = new( -Position, 0 );
-
-		// Glass sampling and reprojection constants (CreatePerLayerViewConstants), in row-vector layout.
-		c.FrameBufferCopyInvSizeAndUvScale = new( 1.0f / viewport.Width, 1.0f / viewport.Height, 1, 1 );
-
-		var w = 0.5f * viewport.Width;
-		var h = 0.5f * viewport.Height;
-		var screen = new Matrix(
-			w, 0, 0, 0,
-			0, -h, 0, 0,
-			0, 0, 1, 0,
-			w, h, 0, 1 );
-		var viewToWorld = c.WorldToView.Inverted;
-		c.ViewToScreen = viewToProjection * screen;
-		c.CurrFrameViewToPrevFrameProj = viewToWorld * PreviousWorldToProjection * screen;
-
-		// The previous frame's inverse view projection, from native's forward-Z one (GetInvViewProjTranspose): depth w - z
-		var forwardZ = new Matrix(
-			1, 0, 0, 0,
-			0, 1, 0, 0,
-			0, 0, -1, 0,
-			0, 0, 1, 1 );
-		c.PrevProjectionToWorld = (PreviousWorldToProjection * forwardZ).Inverted;
 	}
 }

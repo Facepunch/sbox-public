@@ -13,7 +13,6 @@ public sealed partial class RenderSystem : IDisposable
 	static readonly StringToken TransformBufferName = new( "g_TransformBuffer" );
 
 	readonly List<RenderFeature> features = new();
-	readonly Dictionary<Type, int> featureByType = new();
 	readonly GpuContext context = RenderHost.Current.Device.CreateContext();
 	readonly TransformBuffer transforms = new();
 	readonly ViewEnvironment environment = new();
@@ -148,7 +147,6 @@ public sealed partial class RenderSystem : IDisposable
 
 		feature.Index = features.Count;
 		features.Add( feature );
-		featureByType.Clear();
 	}
 
 	/// <summary>
@@ -157,10 +155,10 @@ public sealed partial class RenderSystem : IDisposable
 	internal const float MainWorldMinZ = 0.02f;
 
 	/// <summary>
-	/// The depth format its views draw into: 32-bit float (reverse-Z), with an 8-bit stencil once something it drew needed
-	/// one (<see cref="GpuMaterial.NeedsStencil"/>), or always on a device that can't tell (<see cref="GpuDevice.KnowsStencilUse"/>).
-	/// A view whose prepared draws need a stencil gets it before it records (<see cref="GiveStencil"/>) and keeps it, so
-	/// nothing is made again from frame to frame.
+	/// The depth format its views draw into: 32-bit float (reverse-Z), with an 8-bit stencil once an overlay prepass or a
+	/// material (<see cref="GpuMaterial.NeedsStencil"/>) needs it, or always on a device that can't tell
+	/// (<see cref="GpuDevice.KnowsStencilUse"/>). The view gets its stencil before it records (<see cref="GiveStencil"/>) and
+	/// keeps it, so nothing is made again from frame to frame.
 	/// </summary>
 	internal TextureFormat DepthFormat => stencil || StencilAlways || RenderHost.Current.Device is not { KnowsStencilUse: true } ? TextureFormat.D32FS8 : TextureFormat.D32;
 
@@ -171,14 +169,14 @@ public sealed partial class RenderSystem : IDisposable
 	bool stencil;
 
 	/// <summary>
-	/// Before the frame records: if its prepared draws (its own or its 3D skybox's) need a stencil, the depth it draws into
-	/// gets one, made again once if it has none, and keeps it. A depth the caller owns (<see cref="ViewTarget"/> over its
-	/// textures) is left as it is.
+	/// Before the frame records: if its overlay prepass or prepared draws (its own or its 3D skybox's) need a stencil,
+	/// the depth it draws into gets one, made again once if it has none, and keeps it. A depth the caller owns
+	/// (<see cref="ViewTarget"/> over its textures) is left as it is.
 	/// </summary>
 	void GiveStencil( RenderFrame skyFrame )
 	{
 		if ( RenderHost.Current.Device is not { KnowsStencilUse: true } ) return;
-		if ( !stencil && (meshes.WantsStencil( mainPass ) || (skyFrame is not null && skybox.meshes.WantsStencil( skyFrame.MainPass ))) ) stencil = true;
+		if ( !stencil && (overlayPrepass?.IsNeeded( frame ) == true || meshes.WantsStencil( mainPass ) || (skyFrame is not null && skybox.meshes.WantsStencil( skyFrame.MainPass ))) ) stencil = true;
 		if ( !stencil || frame.Output.Target is not { } target || target.Depth?.Format.HasStencil() != false ) return;
 
 		// A flipped view draws with the view's depth through a target of its own
@@ -187,6 +185,7 @@ public sealed partial class RenderSystem : IDisposable
 			if ( !source.GiveStencil() ) return;
 			flipTarget = new ViewTarget( flipTarget.Color, source.Depth, flipResolved );
 			frame.Output = frame.Output with { Target = flipTarget };
+			if ( skyFrame is not null ) skyFrame.Output = frame.Output;
 			return;
 		}
 
@@ -196,12 +195,12 @@ public sealed partial class RenderSystem : IDisposable
 	/// <summary>
 	/// Blend in an HDR intermediate, then copy to the texture for final stages (<c>CCameraRenderer::RenderToLayer</c>).
 	/// </summary>
-	internal void Render( RenderWorld world, RenderView view, GpuTexture output, int samples, IRenderStages stages )
+	internal void Render( RenderWorld world, RenderView view, GpuTexture output, int samples, IRenderStages stages, ViewTarget intermediate = null )
 	{
 		ArgumentNullException.ThrowIfNull( output );
 
 		var size = new Vector2Int( output.Width, output.Height );
-		if ( textureTarget is null || textureTarget.Size != size || textureTarget.Samples != samples )
+		if ( intermediate is null && (textureTarget is null || textureTarget.Size != size || textureTarget.Samples != samples) )
 		{
 			textureTarget?.Dispose();
 			textureTarget = ViewTarget.Create( size, samples, TextureFormat.RGBA16161616F, DepthFormat, "Borealis output" );
@@ -223,7 +222,7 @@ public sealed partial class RenderSystem : IDisposable
 		// A flipped view draws into a texture of its own, then into the output mirrored
 		var flipped = view.FlipX || view.FlipY;
 		var drawn = flipped ? FlipColor( size, output.Format, 1 ) : output;
-		Render( world, view, RenderOutput.ForTexture( textureTarget, drawn, scratch ) with { FlipInto = flipped ? output : null, FlipX = view.FlipX, FlipY = view.FlipY }, stages );
+		Render( world, view, RenderOutput.ForTexture( intermediate ?? textureTarget, drawn, scratch ) with { FlipInto = flipped ? output : null, FlipX = view.FlipX, FlipY = view.FlipY }, stages );
 	}
 
 	ViewTarget textureTarget;
@@ -267,12 +266,7 @@ public sealed partial class RenderSystem : IDisposable
 	/// Render and submit to a target. The viewport uses target pixels; MSAA resolves into <see cref="ViewTarget.Resolved"/>.
 	/// </summary>
 	public void Render( RenderWorld world, RenderView view, ViewTarget target )
-	{
-		ArgumentNullException.ThrowIfNull( target );
-		if ( target.Color is null ) throw new ObjectDisposedException( nameof( ViewTarget ) );
-
-		Render( world, view, RenderOutput.ForTarget( target ) );
-	}
+		=> Render( world, view, target, stages: null );
 
 	/// <summary>
 	/// Render into a target, drawing <paramref name="stages"/> at native's stage points. A frame shown in a window
@@ -283,7 +277,8 @@ public sealed partial class RenderSystem : IDisposable
 		ArgumentNullException.ThrowIfNull( target );
 		if ( target.Color is null ) throw new ObjectDisposedException( nameof( ViewTarget ) );
 
-		var output = view.FlipX || view.FlipY ? FlippedOutput( target, view ) : RenderOutput.ForTarget( target );
+		ArgumentNullException.ThrowIfNull( view );
+		var output = !window && (view.FlipX || view.FlipY) ? FlippedOutput( target, view ) : RenderOutput.ForTarget( target );
 		Render( world, view, output with { Window = window }, stages );
 	}
 
@@ -291,8 +286,7 @@ public sealed partial class RenderSystem : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull( world );
 
-		// A render of this system's still waiting for its workers (a child view's, RenderSystem.Unfinished.cs) is finished
-		// before it renders again
+		// Finish this system's deferred frame before reusing the system.
 		if ( unfinished.World is not null ) Finish();
 
 		// Not while another render of the world is under way (a child view's): its frame reads them
@@ -348,6 +342,7 @@ public sealed partial class RenderSystem : IDisposable
 		frame.Begin( world, view, output, stages );
 		BloomObjects = null;
 		ReactiveDepth = null;
+		DepthChain = null;
 
 		var allocStart = GC.GetAllocatedBytesForCurrentThread();
 		var start = Stopwatch.GetTimestamp();
@@ -374,7 +369,7 @@ public sealed partial class RenderSystem : IDisposable
 		lap = prepared;
 
 		// Update fog settings, history and resources.
-		fog.BeginFrame( world.Lighting.VolumetricFog, world.FogVolumes.Count > 0 && !view.Reflection, RenderHost.Current.VolumetricFog );
+		fog.BeginFrame( view.VolumetricFog ?? world.Lighting.VolumetricFog, world.FogVolumes.Count > 0 && !view.Reflection, RenderHost.Current.VolumetricFog );
 
 		// Acquire the mask before setup writes its index to sun constants.
 		_ = Layers;
@@ -411,7 +406,6 @@ public sealed partial class RenderSystem : IDisposable
 		context.Attributes?.Clear();
 		context.Begin();
 		var started = false;
-		var childrenFrom = UnfinishedOnThread.Count;
 		try
 		{
 			// Skinning can be recorded on a worker only when the frame's draws aren't on the setup context it must precede
@@ -432,7 +426,7 @@ public sealed partial class RenderSystem : IDisposable
 			stats.SetupMs = Lap();
 
 			// Frame attributes are read-only during recording. A child view rendered meanwhile (a draw's callback) may leave
-			// its workers recording until this one's done (RenderSystem.Unfinished.cs)
+			// its workers recording until this one's done.
 			using ( Zones.Record.Start() )
 			{
 				var outer = recordingHere;
@@ -451,13 +445,14 @@ public sealed partial class RenderSystem : IDisposable
 		}
 		finally
 		{
-			if ( !started ) Abandon( skyFrame, childrenFrom );
+			if ( !started ) Abandon( skyFrame );
 		}
 
-		unfinished = new Unfinished { World = world, View = view, Stats = stats, Start = start, Collected = collected, Prepared = prepared, AllocStart = allocStart, AllocCollected = allocCollected, AllocPrepared = allocPrepared, Plan = plan, SkyFrame = skyFrame, Window = output.Window, ChildrenFrom = childrenFrom };
+		unfinished = new Unfinished { World = world, View = view, Stats = stats, Start = start, Collected = collected, Prepared = prepared, AllocStart = allocStart, AllocCollected = allocCollected, AllocPrepared = allocPrepared, Plan = plan, SkyFrame = skyFrame, Window = output.Window };
 		if ( LeavesUnfinished( output ) )
 		{
-			UnfinishedOnThread.Add( this );
+			unfinished.Parent = recordingHere;
+			(recordingHere.deferredChildren ??= new()).Add( this );
 			return true;
 		}
 
@@ -473,18 +468,21 @@ public sealed partial class RenderSystem : IDisposable
 	{
 		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		var (world, view, stats, start, collected, prepared, skyFrame, plan) = (unfinished.World, unfinished.View, unfinished.Stats, unfinished.Start, unfinished.Collected, unfinished.Prepared, unfinished.SkyFrame, unfinished.Plan);
-		var (allocStart, allocCollected, allocPrepared, window, childrenFrom) = (unfinished.AllocStart, unfinished.AllocCollected, unfinished.AllocPrepared, unfinished.Window, unfinished.ChildrenFrom);
+		var (allocStart, allocCollected, allocPrepared, window) = (unfinished.AllocStart, unfinished.AllocCollected, unfinished.AllocPrepared, unfinished.Window);
+		var parent = unfinished.Parent;
 		unfinished = default;
-		var left = UnfinishedOnThread.IndexOf( this );
-		if ( left >= 0 ) UnfinishedOnThread.RemoveAt( left );
-		if ( left >= 0 ) world.Rendering--;
+		if ( parent is not null )
+		{
+			parent.deferredChildren.Remove( this );
+			world.Rendering--;
+		}
 
 		var host = RenderHost.Current;
 		var submitted = false;
 		try
 		{
 			using ( Zones.Record.Start() ) recorder.EndRecording( ref stats );
-			FinishChildren( childrenFrom );
+			FinishChildren();
 			if ( plan is not null ) recorder.FillTimes( plan );
 			RenderStats.AddCounts( ref stats, frame.Recorded );
 			aggregates.AddCulledCounts( ref stats );
@@ -514,7 +512,7 @@ public sealed partial class RenderSystem : IDisposable
 		}
 		finally
 		{
-			if ( !submitted ) Abandon( skyFrame, childrenFrom );
+			if ( !submitted ) Abandon( skyFrame );
 			else EndFrame( skyFrame );
 		}
 		stats.SubmitMs = Lap();
@@ -560,11 +558,11 @@ public sealed partial class RenderSystem : IDisposable
 	}
 
 	/// <summary>A frame that failed: what it recorded is dropped, child views rendered meanwhile are finished.</summary>
-	void Abandon( RenderFrame skyFrame, int childrenFrom )
+	void Abandon( RenderFrame skyFrame )
 	{
 		try
 		{
-			FinishChildren( childrenFrom );
+			FinishChildren();
 		}
 		finally
 		{
@@ -747,6 +745,12 @@ public sealed partial class RenderSystem : IDisposable
 	internal GpuTexture ReactiveDepth { get; set; }
 
 	/// <summary>
+	/// The depth chain the last frame built after its depth prepass (<see cref="DepthChainLayer"/>: min and max of its depth,
+	/// mipped, which <c>Depth::Get</c> reads), readable, or null when it built none. Valid until this system renders again.
+	/// </summary>
+	internal GpuTexture DepthChain { get; set; }
+
+	/// <summary>
 	/// Milliseconds since the last lap, starting the next.
 	/// </summary>
 	double Lap()
@@ -918,8 +922,7 @@ public sealed partial class RenderSystem : IDisposable
 		if ( !collectedResident ) transforms.Clear();
 		collectedResident = false;
 
-		// Shadows, skyboxes and views without a prepass never cull
-		var wanted = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox && !view.Capture;
+		var wanted = occlusionWanted;
 		Occlusion.Begin();
 		meshes.Occlusion = wanted ? Occlusion : null;
 		aggregates.Occlusion = meshes.Occlusion;

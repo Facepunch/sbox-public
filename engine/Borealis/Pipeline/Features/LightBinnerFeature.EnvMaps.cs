@@ -77,33 +77,20 @@ internal sealed partial class LightBinnerFeature
 			}
 
 			envMapObjects[EnvMapCount] = envMap;
-			envMaps[EnvMapCount] = Pack( envMap );
-			envMapKeys[EnvMapCount] = (envMaps[EnvMapCount].Priority, envMap.ProjectionBounds.Size.Length);
+			envMapKeys[EnvMapCount] = (PriorityKey( envMap.Priority ), envMap.ProjectionSize);
 			EnvMapCount++;
 		}
 
 		// What's left is the lights
 		visible.RemoveRange( lightCount, visible.Count - lightCount );
 
-		if ( EnvMapCount > 1 )
-		{
-			var keys = envMapKeys.AsSpan( 0, EnvMapCount );
-			var order = envMapOrder.Length < EnvMapCount ? envMapOrder = new int[envMaps.Length] : envMapOrder;
-			for ( int i = 0; i < EnvMapCount; i++ ) order[i] = i;
-			keys.Sort( order.AsSpan( 0, EnvMapCount ) );
-
-			for ( int i = 0; i < EnvMapCount; i++ ) sortedEnvMaps[i] = envMaps[order[i]];
-			for ( int i = 0; i < EnvMapCount; i++ ) sortedEnvMapObjects[i] = envMapObjects[order[i]];
-			sortedEnvMaps.AsSpan( 0, EnvMapCount ).CopyTo( envMaps );
-			sortedEnvMapObjects.AsSpan( 0, EnvMapCount ).CopyTo( envMapObjects );
-		}
+		// Sort only the object references, then copy each packed record once in GPU order.
+		var probes = envMapObjects.AsSpan( 0, EnvMapCount );
+		if ( probes.Length > 1 ) envMapKeys.AsSpan( 0, probes.Length ).Sort( probes );
+		for ( int i = 0; i < probes.Length; i++ ) envMaps[i] = probes[i].Packed;
 
 		envMapObjects.AsSpan( EnvMapCount ).Clear();
 	}
-
-	int[] envMapOrder = new int[8];
-	GpuEnvMap[] sortedEnvMaps = new GpuEnvMap[MaxEnvMaps];
-	EnvMapObject[] sortedEnvMapObjects = new EnvMapObject[MaxEnvMaps];
 
 	/// <summary>
 	/// Match <c>CLightBinnerStandard</c> packing; defer cubemap indices until setup.
@@ -134,9 +121,11 @@ internal sealed partial class LightBinnerFeature
 			Color = new( tint.r, tint.g, tint.b, envMap.Feathering ),
 
 			// Offset because it's unsigned, and flipped so higher priority sorts first
-			Priority = (uint)(10000 + (10000 - Math.Clamp( envMap.Priority, -10000, 10000 ))),
+			Priority = PriorityKey( envMap.Priority ),
 		};
 	}
+
+	static uint PriorityKey( int priority ) => (uint)(10000 + (10000 - Math.Clamp( priority, -10000, 10000 )));
 
 	/// <summary>
 	/// Resolve cubemap indices during setup; missing cubemaps reflect black.

@@ -1,19 +1,15 @@
 namespace Borealis;
 
 /// <summary>
-/// Which casters a shadow view takes, by <see cref="RenderObject.IsStatic"/>.
+/// Which casters a shadow view takes, by <see cref="RenderObject.IsStatic"/> and when each last moved
+/// (<see cref="Shadows.SettledCasters"/>).
 /// </summary>
 internal enum StaticFilter
 {
 	Any,
 
 	/// <summary>
-	/// Rendering a light's static cache.
-	/// </summary>
-	OnlyStatic,
-
-	/// <summary>
-	/// Rendering on top of a static cache, or for a baked light.
+	/// Rendering for a baked light, whose lightmaps hold its static casters.
 	/// </summary>
 	NoStatic,
 
@@ -23,19 +19,18 @@ internal enum StaticFilter
 	Nothing,
 
 	/// <summary>
-	/// Rendering the sun's cached far cascade: static casters, and those settled by <see cref="ViewPass.SettledStamp"/>
-	/// (<see cref="Shadows.SettledCasters"/>).
+	/// Rendering a cache, a light's or the sun's far cascade's: static casters, and those settled by
+	/// <see cref="ViewPass.SettledStamp"/> (<see cref="Shadows.SettledCasters"/>).
 	/// </summary>
 	Settled,
 
 	/// <summary>
-	/// <see cref="Settled"/> for a baked sun: only the settled casters that aren't static.
+	/// <see cref="Settled"/> for a baked light: only the settled casters that aren't static.
 	/// </summary>
 	SettledNoStatic,
 
 	/// <summary>
-	/// Rendering on top of the sun's cached far cascade: casters that aren't static and weren't settled by
-	/// <see cref="ViewPass.SettledStamp"/>.
+	/// Rendering on top of a cache: casters that aren't static and weren't settled by <see cref="ViewPass.SettledStamp"/>.
 	/// </summary>
 	Unsettled,
 }
@@ -89,10 +84,31 @@ internal sealed class ViewPass
 	public bool TexelSized { get; set; }
 
 	/// <summary>
+	/// Draws a cache that's kept while the camera moves, so it isn't size culled by where the camera was when it was drawn. A
+	/// texel-sized cull doesn't depend on the camera, so it keeps that.
+	/// </summary>
+	public bool KeepsSmallCasters => StaticFilter is StaticFilter.Settled or StaticFilter.SettledNoStatic && !TexelSized;
+
+	/// <summary>
 	/// Picks its meshes' LODs by its own texels, how many a world unit covers, rather than by <see cref="Root"/>'s screen;
 	/// 0 for the root's.
 	/// </summary>
 	public float LodTexelsPerUnit { get; set; }
+
+	/// <summary>
+	/// A view of the sun's cached far cascade, the cache's parts (<see cref="StaticFilter.Settled"/>) and what's drawn over it
+	/// (<see cref="StaticFilter.Unsettled"/>), which pick LODs by their own texels (<see cref="LodTexelsPerUnit"/>): the camera
+	/// doesn't change which LOD each takes, so they agree on it. A static caster that animates vertices at some of its LODs is
+	/// then held by the cache at the others, and drawn live only at the ones that animate (<see cref="DrawsLod"/>). A view that
+	/// picks LODs from the main camera doesn't split them: its cache can't tell which LOD it will draw.
+	/// </summary>
+	public bool SplitsLods { get; set; }
+
+	/// <summary>
+	/// Whether this view draws a LOD of a caster. Only a view that <see cref="SplitsLods"/> leaves one out, of a caster that
+	/// animates some LODs: the cache takes the ones that don't, what's drawn over it those that do.
+	/// </summary>
+	public bool DrawsLod( RenderObject obj, int lod ) => !SplitsLods || !obj.AnimatesVertices || obj.Animation.Animates( lod ) == (StaticFilter == StaticFilter.Unsettled);
 
 	/// <summary>
 	/// The <see cref="Shadows.SettledCasters"/> stamp a <see cref="StaticFilter.Settled"/> or <see cref="StaticFilter.Unsettled"/>
@@ -117,9 +133,9 @@ internal sealed class ViewPass
 	public Vector2Int CacheOffset { get; set; }
 
 	/// <summary>
-	/// A cleared depth tile copied over the view's viewport instead of clearing the target, for a view of part of it.
+	/// A wrapped shadow-cache update clears only its viewport, leaving the other regions intact.
 	/// </summary>
-	public ShadowMap Blank { get; set; }
+	public bool ClearShadowRegion { get; set; }
 
 	/// <summary>
 	/// While <see cref="DebugViews.CullReasons"/> is on, the main view's <see cref="CullReason"/> by world index for meshes it
@@ -206,6 +222,7 @@ internal sealed class ViewPass
 		StaticFilter = StaticFilter.Any;
 		TexelSized = false;
 		LodTexelsPerUnit = 0;
+		SplitsLods = false;
 		SettledStamp = 0;
 		RestlessStamp = 0;
 		NewlySettled = null;
@@ -214,7 +231,7 @@ internal sealed class ViewPass
 		TreeKept = null;
 		ResidentInView = false;
 		CacheOffset = default;
-		Blank = null;
+		ClearShadowRegion = false;
 		TargetSlice = 0;
 		DepthBias = 0;
 		SlopeScaledDepthBias = 0;

@@ -49,10 +49,10 @@ internal sealed class BloomLayer : MeshLayer
 	{
 		SharedPasses.WarmUp();
 		var viewport = frame.View.Viewport;
-		Viewport = new Rect( (int)(viewport.Left / 4), (int)(viewport.Top / 4), (int)(viewport.Width / 4), (int)(viewport.Height / 4) );
+		Viewport = new Rect( 0, 0, Math.Max( 1, (int)viewport.Width / 4 ), Math.Max( 1, (int)viewport.Height / 4 ) );
 		var transients = frame.System.Transients;
-		BloomColor = transients.Get( TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.RGBA1010102 ) with { Storage = true }, "Bloom" );
-		BloomDepth = transients.Get( TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.D32 ), "Bloom Depth" );
+		BloomColor = transients.Get( TransientTextureRole.Bloom, TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.RGBA1010102 ) with { Storage = true } );
+		BloomDepth = transients.Get( TransientTextureRole.BloomDepth, TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.D32 ) );
 		frameContext.Attributes.Set( BloomInput, BloomColor );
 		frame.System.BloomObjects = BloomColor;
 	}
@@ -110,6 +110,6 @@ internal sealed class QuarterDepthDownsampleLayer : RenderLayer
 		rc.Clear( Color.Transparent, clearColor: false, clearDepth: true );
 
 		var hdr = frame.Output.Target;
-		SharedPasses.DownsampleQuarterDepth( rc, hdr.Depth, hdr.Samples > 1 );
+		SharedPasses.DownsampleQuarterDepth( rc, hdr.Depth, hdr.Samples > 1, frame.View.Viewport );
 	}
 }

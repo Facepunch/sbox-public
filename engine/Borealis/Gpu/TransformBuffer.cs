@@ -52,6 +52,12 @@ internal sealed class TransformBuffer : IDisposable
 	uint[] ids = new uint[256];
 
 	/// <summary>
+	/// First instance ID of each aggregate's fragment run, by world index and stamped with the frame that wrote it.
+	/// Shared by the passes using this buffer, never by another render system drawing the same world.
+	/// </summary>
+	(int Generation, int FirstInstancePlusOne)[] aggregateInstances = [];
+
+	/// <summary>
 	/// Uploaded instance IDs. Owned here to avoid the scenesystem's fixed capacity.
 	/// </summary>
 	public GpuBuffer<uint> InstanceIds => idRing.Current;
@@ -243,12 +249,16 @@ internal sealed class TransformBuffer : IDisposable
 
 	/// <summary>
 	/// The runs asked for last frame, between frames, each in one piece with no entry written yet: one given back of the
-	/// same length, else from the slots kept for runs, which grow by half at least when they run out.
+	/// same length, else from the slots kept for runs, which grow by half at least when they run out. An object's run asked
+	/// for twice is made once.
 	/// </summary>
 	void MakeRuns()
 	{
 		foreach ( var (owner, index, count) in wantedRuns )
 		{
+			// Asked for twice in a frame (the resident refresh and a view that draws it itself): made once
+			if ( (uint)index < (uint)keptByIndex.Length && keptByIndex[index] is { Version: int.MinValue, Slot: var made } && (uint)made < (uint)keptCapacity && owners[made] == owner && runs[made] == count ) continue;
+
 			int start;
 			if ( freeRuns.TryGetValue( count, out var given ) && given.Count > 0 )
 			{
@@ -397,6 +407,21 @@ internal sealed class TransformBuffer : IDisposable
 		}
 
 		return slot.Slot;
+	}
+
+	/// <summary>Where the aggregate's fragment instance IDs start this frame, or -1 when none were written.</summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal int AggregateFirstInstance( int index )
+	{
+		if ( (uint)index >= (uint)aggregateInstances.Length ) return -1;
+		ref readonly var run = ref aggregateInstances[index];
+		return run.Generation == Generation ? run.FirstInstancePlusOne - 1 : -1;
+	}
+
+	internal void SetAggregateFirstInstance( int index, int firstInstance )
+	{
+		if ( index >= aggregateInstances.Length ) Array.Resize( ref aggregateInstances, Math.Max( index + 1, aggregateInstances.Length * 2 ) );
+		aggregateInstances[index] = (Generation, firstInstance + 1);
 	}
 
 	/// <summary>

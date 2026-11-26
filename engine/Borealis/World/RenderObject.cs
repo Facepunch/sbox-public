@@ -179,40 +179,53 @@ public abstract class RenderObject
 	}
 
 	/// <summary>
-	/// Whether the materials it draws with move vertices in the shader (<see cref="GpuMaterial.AnimatesVertices"/>): known to,
-	/// or false while that isn't known yet (<see cref="AnimationPending"/>). A custom object's materials aren't asked.
+	/// Which of the LODs of what it draws have materials that move vertices in the shader (<see cref="GpuMaterial.AnimatesVertices"/>):
+	/// those known to, with <see cref="RenderMesh.LodAnimation.Pending"/> while some aren't known yet. A custom object's
+	/// materials aren't asked.
 	/// </summary>
-	internal virtual bool? MaterialAnimates => false;
+	internal virtual RenderMesh.LodAnimation MaterialAnimation => default;
 
 	/// <summary>
-	/// Whether it's known to animate vertices. A static object that does isn't a static caster (<see cref="CachesAsStatic"/>):
-	/// a light's static shadow cache can't hold its motion.
+	/// Which LODs of a static object animate vertices; none for one that isn't static, whose casting a light's cache never holds.
 	/// </summary>
-	internal bool AnimatesVertices { get; private set; }
-
-	/// <summary>Whether <see cref="MaterialAnimates"/> isn't known yet: the world asks again each frame (<see cref="RenderWorld.PendingAnimation"/>).</summary>
-	internal bool AnimationPending { get; private set; }
+	internal RenderMesh.LodAnimation Animation { get; private set; }
 
 	/// <summary>
-	/// Whether lights keep it in their static shadow caches: it's static and its vertices don't animate. One that does is
-	/// drawn live in every light, as a dynamic caster is.
+	/// Whether any LOD is known to animate vertices, so it has a part drawn live. A static object that does isn't a static
+	/// caster (<see cref="CachesAsStatic"/>): a light's static shadow cache can't hold its motion.
+	/// </summary>
+	internal bool AnimatesVertices => Animation.Any;
+
+	/// <summary>Whether every LOD is known to animate vertices: nothing of it is a static caster, at any LOD.</summary>
+	internal bool AnimatesAllLods => Animation.AllAnimate;
+
+	/// <summary>Whether <see cref="MaterialAnimation"/> isn't known yet in full: the world asks again each frame (<see cref="RenderWorld.PendingAnimation"/>).</summary>
+	internal bool AnimationPending => Animation.Pending;
+
+	/// <summary>
+	/// Whether lights keep it in their static shadow caches: it's static and none of its LODs animate vertices. One that does
+	/// is drawn live in every light, as a dynamic caster is. The sun's far cascade cache, which picks LODs by its own texels,
+	/// keeps the LODs of it that don't (<see cref="ViewPass.SplitsLods"/>).
 	/// </summary>
 	internal bool CachesAsStatic => IsStatic && !AnimatesVertices;
 
 	/// <summary>
-	/// Work out <see cref="AnimatesVertices"/> again, after what it comes from changed or a material that wasn't known resolved.
+	/// Work out <see cref="Animation"/> again, after what it comes from changed or a material that wasn't known resolved.
 	/// </summary>
 	internal void UpdateAnimation()
 	{
-		var animates = IsStatic ? MaterialAnimates : false;
-		var pending = animates is null;
-		if ( (animates == true) == AnimatesVertices && pending == AnimationPending ) return;
+		var animation = IsStatic ? MaterialAnimation : default;
 
-		var moved = (animates == true) != AnimatesVertices;
-		AnimatesVertices = animates == true;
-		AnimationPending = pending;
+		// How many LODs there are only matters once one animates
+		if ( !animation.Any ) animation = animation with { All = 0 };
+		if ( animation == Animation ) return;
+
+		var moved = animation.Animating != Animation.Animating || animation.All != Animation.All;
+		Animation = animation;
 		Changed( WorldNote.SyncDynamic );
 		if ( !moved ) return;
+
+		// Which LODs animate decides what the far cascade's cache holds of it as well as whether a light's does
 		Changed( WorldNote.StaticCaster );
 		DrawChanged();
 	}
@@ -285,6 +298,7 @@ public abstract class RenderObject
 			if ( field == value ) return;
 			field = value;
 			World?.SetSubWorld( this, value );
+			ShadowChanged();
 			DrawChanged();
 		}
 	}

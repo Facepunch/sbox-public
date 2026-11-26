@@ -14,11 +14,13 @@ internal sealed class ViewEnvironment : IDisposable
 	static readonly StringToken DirectionalLight = new( "DirectionalLightCB" );
 	static readonly StringToken CubemapFogTexture = new( "CubemapFogTexture" );
 	static readonly StringToken CubemapFogColor = new( "CubemapFogColor" );
+	static readonly StringToken FogSunColor = new( "FogSunColor" );
+	static readonly StringToken FogSunDirection = new( "FogSunDirection" );
 
 	/// <summary>
 	/// Empty fallback buffers; null descriptors are not supported on every GPU.
 	/// </summary>
-	static readonly string[] EmptyBuffers =
+	static readonly StringToken[] EmptyBuffers =
 	[
 		"DecalsBuffer", "DecalsExtraDataBuffer",
 	];
@@ -55,12 +57,14 @@ internal sealed class ViewEnvironment : IDisposable
 		public Vector4 AmbientLightColor;
 	}
 
+	LightingConfigData lightingConfig;
+
 	GpuBuffer<uint> emptyBuffer;
 
 	/// <summary>
 	/// Required per-view lookup tables (renderingpipeline_standard.cpp). Missing BRDF lookup produces reflection rings.
 	/// </summary>
-	static readonly (string Attribute, string Path)[] ViewTextures =
+	static readonly (StringToken Attribute, string Path)[] ViewTextures =
 	[
 		("BRDFLookup", "textures/dev/ggx_integrate_brdf_lut_schlick.vtex"),
 		("BlueNoise", "textures/dev/blue_noise_256.vtex"),
@@ -137,12 +141,13 @@ internal sealed class ViewEnvironment : IDisposable
 		vr.WindStrengthFreqMulHighStrength = viewLighting.WindStrengthFreq;
 		// A view's own gradient fog and ambient light (ViewSetup.GradientFog, AmbientLightTint/Add) replace the world's
 		SetupGradientFog( ref vr, view?.GradientFog ?? viewLighting.GradientFog, scale, space.OffsetZ );
-		var fogCube = SetupCubemapFog( ref vr, viewLighting.CubemapFog, scale, space.OffsetZ );
+		var cubemapFog = view?.CubemapFog ?? viewLighting.CubemapFog;
+		var fogCube = SetupCubemapFog( ref vr, cubemapFog, scale, space.OffsetZ );
 		// Match CameraRenderer.Configure and native Add3DSkyboxLayers without mutating world lighting.
 		context.SetConstants( FogConstants.BufferName, (view?.Fog ?? default( FogSettings )).ToConstants( scale, space.OffsetZ, view?.Rotation.Forward ?? Vector3.Forward ) );
 		var fogSun = space.Lighting is null ? sun : space.FogSun;
-		attributes.Set( "FogSunColor", fogSun.Enabled ? (Vector3)fogSun.Color : Vector3.Zero );
-		attributes.Set( "FogSunDirection", -(Vector3)fogSun.Direction );
+		attributes.Set( FogSunColor, fogSun.Enabled ? (Vector3)fogSun.Color : Vector3.Zero );
+		attributes.Set( FogSunDirection, -(Vector3)fogSun.Direction );
 
 		// Bind fog or opaque black. Skybox positions map into the main world's fog volume.
 		var skyboxFog = space.Fog is not null;
@@ -161,22 +166,27 @@ internal sealed class ViewEnvironment : IDisposable
 
 		blackCube ??= RenderHost.Current.Device.LoadTexture( "dev/env_cubemap_black.vtex" );
 		attributes.Set( CubemapFogTexture, fogCube ?? blackCube );
-		attributes.Set( CubemapFogColor, viewLighting.CubemapFog.Tint );
+		attributes.Set( CubemapFogColor, cubemapFog.Tint );
 
-		// Binned light and envmap counts, and the ambient light
-		var config = new LightingConfigData();
-		config.NumLights[0] = dynamicLights;
-		config.NumLights[1] = bakedLights;
-		config.NumLights[2] = envMaps;
-		config.NumLights[3] = decals;
+		// Reuse the block: only the x lanes of the int4 light indices are written; the other lanes stay zero.
+		fixed ( LightingConfigData* config = &lightingConfig )
+		{
+			config->NumLights[0] = dynamicLights;
+			config->NumLights[1] = bakedLights;
+			config->NumLights[2] = envMaps;
+			config->NumLights[3] = decals;
 
-		// int4s, the index in x (LightIndexMapping)
-		for ( int i = 0; i < bakedIndexMapping.Length && i < 256; i++ )
-			config.BakedLightIndexMapping[i * 4] = bakedIndexMapping[i];
+			var count = Math.Min( bakedIndexMapping.Length, 256 );
+			for ( int i = 0; i < count; i++ )
+				config->BakedLightIndexMapping[i * 4] = bakedIndexMapping[i];
+			for ( int i = count; i < 256; i++ )
+				config->BakedLightIndexMapping[i * 4] = 0;
+		}
+
 		var ambient = view?.AmbientLight ?? viewLighting.AmbientColor;
 		// Alpha blends probe ambient (0) with flat ambient (1).
-		config.AmbientLightColor = new( ambient.r, ambient.g, ambient.b, Math.Clamp( ambient.a, 0, 1 ) );
-		context.SetConstants( LightingConfig, config );
+		lightingConfig.AmbientLightColor = new( ambient.r, ambient.g, ambient.b, Math.Clamp( ambient.a, 0, 1 ) );
+		context.SetConstants( LightingConfig, lightingConfig );
 
 		// The sun and its cascades, from the shadow system
 		context.SetConstants( DirectionalLight, sun );

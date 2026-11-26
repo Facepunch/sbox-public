@@ -448,20 +448,9 @@ internal partial class ShadowMapper
 		var staticFilter = light.Baked ? StaticFilter.NoStatic : StaticFilter.Any;
 
 		GPUDirectionalLight gpuShadowData = new();
-		gpuShadowData.Enabled = true;
-
-		// A bit overreach for shadowmapper
-		gpuShadowData.Color = new Vector4( light.Color, light.FogStrength );
-		gpuShadowData.Direction = new Vector4( light.Direction, 0 );
-
-		// 3D skybox is fully static with baked light, keep the directional light for shading but skip shadow cascades.
-		// Reflections without shadows skip them too, so they don't wait on this frame's cascades.
+		// Skyboxes and reflections without shadows still receive the directional lighting set by DoDirectionalLight.
 		if ( View.IsSkybox || View.NoShadows )
-		{
-			gpuShadowData.CascadeCount = 0;
-			GPUDirectionalLightData = gpuShadowData;
 			return;
-		}
 
 		// The cascades face the way the light travels
 		var rotation = light.Direction.EulerAngles.ToRotation();
@@ -496,7 +485,6 @@ internal partial class ShadowMapper
 			if ( !leading ) LastCascades.ForLead = false;
 
 			gpuShadowData = LastCascades.Data;
-			gpuShadowData.ShadowMaskTextureIndex = Renderer.GetShadowMaskIndex( light.Key );
 
 			CascadeShadowMapCount = (int)gpuShadowData.CascadeCount;
 			for ( int i = 0; i < CascadeShadowMapCount; i++ )
@@ -558,7 +546,7 @@ internal partial class ShadowMapper
 			gpuShadowData.WorldToShadowMatrices[i] = viewProjection * texScaleBiasMat.Transpose();
 			gpuShadowData.ShadowMapIndex[i] = 0; // filled in by ResolveTextureIndices
 			CascadeShadowMaps[i] = rt;
-			LastCascadeMaps[i] = rt;
+			if ( !View.IsReflection ) LastCascadeMaps[i] = rt;
 
 			// Bound the world-space kernel scaling without clamping away the hardness control.
 			gpuShadowData.CascadeHardness[i] = i == 0 ? baseHardness
@@ -604,9 +592,6 @@ internal partial class ShadowMapper
 			ForLead = leading,
 			Fit = fit,
 		};
-
-		// Ensure we have our screenspace texture index before we actually render them if we use it, so it's already ready when we composite.
-		gpuShadowData.ShadowMaskTextureIndex = Renderer.GetShadowMaskIndex( light.Key );
 
 		GPUDirectionalLightData = gpuShadowData;
 	}

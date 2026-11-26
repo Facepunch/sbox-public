@@ -140,7 +140,9 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 
 			EnsureLightCapacity( Count + 1 );
 			packedObjects[Count] = light;
-			packedScreenSize[Count] = span.Length < 2 ? ComputeScreenSize( light, extents[span[i]], view ) : -sortKeys[i].Size;
+			packedScreenSize[Count] = span.Length < 2
+				? ComputeScreenSize( light.Transform.Position.Distance( view.Position ), extents[span[i]], MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f ) )
+				: -sortKeys[i].Size;
 			lights[Count] = light.NativePacked ?? Pack( light );
 			if ( light.Cookie is { } cookie )
 			{
@@ -254,18 +256,29 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 		var view = pass.View;
 
 		var attributes = context.Attributes;
-		var lightBuffer = lightRing.Upload( context, UploadedLights );
 
 		// A specialization constant: the baked loop leaves the shadow filters out when no light it reaches has a map
 		attributes.Set( NoBakedLightShadowsName, BakedLightsShadowed() ? 0 : 1 );
 		attributes.Set( NoClusteredLightShadowsName, ClusteredLightsShadowed() ? 0 : 1 );
 
 		ResolveCubemaps();
-		var envMapBuffer = envMapRing.Upload( context, envMaps.AsSpan( 0, EnvMapCount ) );
 
 		PackDecals();
-		var decalBuffer = decalRing.Upload( context, decals.AsSpan( 0, DecalCount ) );
-		var decalExtraBuffer = decalExtraRing.Upload( context, decalExtras.AsSpan( 0, decalExtraWords ) );
+
+		// The uploads write separate buffers and have no intervening readers.
+		GpuBuffer lightBuffer, envMapBuffer, decalBuffer, decalExtraBuffer;
+		context.BeginBufferUploadBatch();
+		try
+		{
+			lightBuffer = lightRing.Upload( context, UploadedLights );
+			envMapBuffer = envMapRing.Upload( context, envMaps.AsSpan( 0, EnvMapCount ) );
+			decalBuffer = decalRing.Upload( context, decals.AsSpan( 0, DecalCount ) );
+			decalExtraBuffer = decalExtraRing.Upload( context, decalExtras.AsSpan( 0, decalExtraWords ) );
+		}
+		finally
+		{
+			context.EndBufferUploadBatch();
+		}
 
 		attributes.Set( LightBufferName, lightBuffer );
 		attributes.Set( EnvMapBufferName, envMapBuffer );

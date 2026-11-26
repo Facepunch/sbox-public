@@ -22,15 +22,13 @@ public sealed partial class RenderSystem
 		public FramePlan Plan;
 		public RenderFrame SkyFrame;
 		public bool Window;
-		public int ChildrenFrom;
+		public RenderSystem Parent;
 	}
 
 	Unfinished unfinished;
 
-	// The frames left to finish on this thread, oldest first
-	[ThreadStatic] static List<RenderSystem> unfinishedOnThread;
-
-	static List<RenderSystem> UnfinishedOnThread => unfinishedOnThread ??= new();
+	// This system's own deferred children, oldest first. Allocated only by a system that actually defers a child.
+	List<RenderSystem> deferredChildren;
 
 	// What waits for this system's frame to be submitted
 	readonly List<(Action<GpuTexture> Action, GpuTexture Texture)> afterSubmit = new();
@@ -44,7 +42,7 @@ public sealed partial class RenderSystem
 	/// <summary>Whether the frame being recorded is left to finish after its workers: a child view's, not a window's.</summary>
 	bool LeavesUnfinished( in RenderOutput output ) => LeaveChildrenUnfinished && MayFinishLater && recordingHere is not null && !output.Window;
 
-	/// <summary>Whether this system's last frame is still waiting for its workers, for the tests.</summary>
+	/// <summary>Whether this system's last frame is still waiting for its workers.</summary>
 	internal bool IsUnfinished => unfinished.World is not null;
 
 	/// <summary>
@@ -76,25 +74,23 @@ public sealed partial class RenderSystem
 	}
 
 	/// <summary>
-	/// Finish the frames left unfinished on this thread since <paramref name="from"/> of them were, oldest first: a parent's
-	/// child views, before it submits. The first failure is thrown once all are finished.
+	/// Finish this frame's children, oldest first, before it submits. A child's own children submit ahead of it, not the
+	/// later siblings in this list. The first failure is thrown once all children are finished.
 	/// </summary>
-	static void FinishChildren( int from )
+	void FinishChildren()
 	{
-		var left = UnfinishedOnThread;
 		Exception failed = null;
-		while ( left.Count > from )
+		while ( deferredChildren is { Count: > 0 } children )
 		{
 			try
 			{
-				left[from].Finish();
+				children[0].Finish();
 			}
 			catch ( Exception e )
 			{
 				failed ??= e;
 			}
 		}
-
 		if ( failed is not null ) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw( failed );
 	}
 }

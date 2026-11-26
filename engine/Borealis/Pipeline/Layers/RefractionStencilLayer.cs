@@ -36,8 +36,8 @@ internal sealed class RefractionStencilLayer : MeshLayer
 	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		var full = frame.View.Viewport;
-		viewport = new Rect( (int)(full.Left / 4), (int)(full.Top / 4), (int)(full.Width / 4), (int)(full.Height / 4) );
-		depth = frame.System.Transients.Get( TextureDesc.Target( (int)viewport.Width, (int)viewport.Height, TextureFormat.D16 ), "Refraction Stencil" );
+		viewport = new Rect( 0, 0, Math.Max( 1, (int)full.Width / 4 ), Math.Max( 1, (int)full.Height / 4 ) );
+		depth = frame.System.Transients.Get( TransientTextureRole.RefractionStencil, TextureDesc.Target( (int)viewport.Width, (int)viewport.Height, TextureFormat.D16 ) );
 		frameContext.Attributes.Set( RefractionDepth, depth );
 	}
 

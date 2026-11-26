@@ -33,7 +33,7 @@ internal sealed class ReactiveDepthLayer : MeshLayer
 	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		var size = frame.Output.Size;
-		depth = frame.System.Transients.Get( TextureDesc.Target( (int)size.x, (int)size.y, TextureFormat.D32 ), "Reactive Depth" );
+		depth = frame.System.Transients.Get( TransientTextureRole.ReactiveDepth, TextureDesc.Target( (int)size.x, (int)size.y, TextureFormat.D32 ) );
 		frame.System.ReactiveDepth = depth;
 	}
 

@@ -5,11 +5,6 @@ namespace Borealis.Shadows;
 
 internal partial class ShadowMapper
 {
-	internal static int ProjectedShadowsRendered { get; set; }
-	internal static int ProjectedShadowsCulled { get; set; }
-	internal static int ProjectedShadowsRenderedLastFrame { get; set; }
-	internal static int ProjectedShadowsCulledLastFrame { get; set; }
-
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct GPUProjectedShadow
 	{
@@ -32,29 +27,15 @@ internal partial class ShadowMapper
 	{
 		// Cull shadows below the screen size threshold
 		if ( flScreenSize < (SizeCullThreshold / 100.0f) )
-		{
-			ProjectedShadowsCulled++;
 			return InvalidShadowIndex;
-		}
 
 		// Don't exceed GPU buffer capacity
 		if ( GPUProjectedShadows.Count >= ProjectedShadowBufferSize )
-		{
-			ProjectedShadowsCulled++;
 			return InvalidShadowIndex;
-		}
 
-		bool isBakedLight = light.Baked;
+		var cacheEntry = GetOrCreateCacheEntry( light, isCube: false, flScreenSize );
 
-		// How big do we want it, it's okay if our cached is bigger, but not if it's smaller
-		int desiredResolution = GetDesiredResolution( flScreenSize, (int)Math.Max( View.ViewportSize.x, View.ViewportSize.y ) );
-
-		var cacheEntry = GetOrCreateCacheEntry( light, desiredResolution, isCube: false, flScreenSize );
-
-		// Already rendered this frame, or not this light's turn. A light filling the view never waits its turn. A frame in flight
-		// drew it this frame: it's drawn again for this one, submitted first
-		var inFlight = DrawnInFlight( cacheEntry );
-		if ( !inFlight && (cacheEntry.RenderedFrame == FrameCount || (cacheEntry.RenderedFrame != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f)) )
+		if ( ReusesLocalMap( cacheEntry, out var inFlight ) )
 			return AddProjectedShadow( cacheEntry );
 
 		Matrix ScaleBias = Matrix.Identity;
@@ -63,44 +44,18 @@ internal partial class ShadowMapper
 		ScaleBias._numerics[0, 3] = 0.5f;
 		ScaleBias._numerics[1, 3] = 0.5f;
 
-		float biasScale = ComputeBiasScale( light.ConeOuter, light.Radius, cacheEntry.CurrentResolution );
+		var shadowView = LocalView( light, cacheEntry, light.ConeOuter );
 
-		var shadowView = new ShadowViewDesc
+		// Static lights, and ones that have kept still, draw their static and settled casters once into a cache that's copied in
+		// each update, and only the casters that move are drawn on top
+		if ( DrawsCache( light, cacheEntry, inFlight ) )
 		{
-			Name = cacheEntry.DebugName,
-			Position = light.Position,
-			Rotation = light.Rotation,
-			FieldOfView = 2.0f * light.ConeOuter,
-			ZNear = 1.0f,
-			ZFar = light.Radius,
-			Resolution = cacheEntry.CurrentResolution,
-			DepthBias = (int)(ShadowDepthBias * biasScale),
-			SlopeScaledDepthBias = ShadowSlopeScale * biasScale,
-		};
-
-		// Static lights, and ones that have kept still, render their static (and settled) casters once into a cache that gets
-		// copied in each frame, and only the other casters are re-rendered on top.
-		DropUnsettledCache( cacheEntry );
-		if ( CachesStatic( light, cacheEntry ) && !isBakedLight && (cacheEntry.StaticCache is null || (inFlight && cacheEntry.StaticRenderedFrame == FrameCount)) )
-		{
-			cacheEntry.StaticCache ??= AcquireTexture( cacheEntry.CurrentResolution, isCube: false );
-
-			// Render static objects to the static cache, once
 			var staticView = shadowView;
-			staticView.Name = cacheEntry.DebugName + "_StaticCache";
-			staticView.Target = cacheEntry.StaticCache;
-			BeginStaticCache( cacheEntry, light, ref staticView );
+			ToCache( light, cacheEntry, ref staticView );
 			Renderer.RenderShadowView( staticView );
 		}
 
-		// Not once the light is baked: the lightmap holds its static casters (a cache made before it was baked would shadow them twice)
-		bool useStaticCache = cacheEntry.StaticCache is not null && !isBakedLight;
-
-		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps.
-		// Cached lights exclude what the cache holds.
-		shadowView.Target = cacheEntry.ShadowMap;
-		shadowView.StaticFilter = isBakedLight ? StaticFilter.NoStatic : StaticFilter.Any;
-		if ( useStaticCache ) OverStaticCache( cacheEntry, ref shadowView );
+		ToMap( light, cacheEntry, ref shadowView );
 
 		Matrix viewProjection = Renderer.RenderShadowView( shadowView );
 
@@ -111,10 +66,7 @@ internal partial class ShadowMapper
 		shadow.InvShadowMapRes = 1.0f / (float)cacheEntry.ShadowMap.Resolution;
 
 		cacheEntry.Projected = shadow;
-		cacheEntry.RenderedFrame = FrameCount;
-		cacheEntry.DrawnBy = this;
-		Drawn.Add( cacheEntry );
-		ProjectedShadowsRendered++;
+		MarkLocalMapDrawn( cacheEntry );
 
 		return AddProjectedShadow( cacheEntry );
 	}
@@ -124,14 +76,7 @@ internal partial class ShadowMapper
 		GPUProjectedShadows.Add( cacheEntry.Projected );
 		ProjectedShadowMaps.Add( cacheEntry.ShadowMap );
 		SpotEntries.Add( cacheEntry );
-		ShadowsAllocated++;
-
-		cacheEntry.LastFrame = RealTime.Now;
-		cacheEntry.UsedFrame = FrameCount;
-
-		// Return the index we just inserted
-		var index = GPUProjectedShadows.Count - 1;
-		cacheEntry.DebugLightIndex = index;
-		return (uint)index;
+		UseLocalMap( cacheEntry );
+		return (uint)(GPUProjectedShadows.Count - 1);
 	}
 }

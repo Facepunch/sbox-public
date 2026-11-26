@@ -17,7 +17,7 @@ public class RenderHost
 	public virtual GpuDevice Device => throw new InvalidOperationException( "This RenderHost has no graphics device: set RenderHost.Current to one that does" );
 
 	/// <summary>
-	/// Run the depth chain, contact shadows and AO on the async compute queue, beside SSR and shadow rendering.
+	/// Allow contact shadows and AO to run on the async compute queue beside graphics work.
 	/// </summary>
 	public virtual bool AsyncCompute => true;
 

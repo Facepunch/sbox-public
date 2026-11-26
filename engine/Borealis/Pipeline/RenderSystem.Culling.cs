@@ -6,6 +6,7 @@ namespace Borealis;
 public sealed partial class RenderSystem
 {
 	readonly List<int> candidates = new();
+	bool occlusionWanted;
 
 	/// <summary>
 	/// Collect visible objects for the main view.
@@ -32,10 +33,11 @@ public sealed partial class RenderSystem
 			mainPass.CullReasons = cullReasons;
 		}
 
-		// What the view's resident list draws (the GPU culls it) is left out: the frame's transforms begin here, as the list is
-		// worked out from them
-		var occlusion = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox && !view.Capture;
-		collectedResident = CollectSkipsResident && !reasons && frame.DebugViews == DebugViews.None && !occlusion;
+		// Shadows, skyboxes and views without a prepass never use occlusion culling.
+		occlusionWanted = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox && !view.Capture;
+
+		// Start the frame's transforms here if the GPU will cull the resident list instead of Collect.
+		collectedResident = CollectSkipsResident && !reasons && frame.DebugViews == DebugViews.None && !occlusionWanted;
 		if ( collectedResident )
 		{
 			transforms.World = world;
@@ -48,10 +50,11 @@ public sealed partial class RenderSystem
 		stats.ObjectsSizeCulled += rejected;
 		if ( reasons ) stats.ObjectsFrustumCulled += world.Count - candidates.Count;
 
+		var typeFeatures = PrepareCullFeatures( world );
 		if ( ParallelRecording && candidates.Count >= MinParallelCullCandidates && JobDispatcher.MaxDegreeOfParallelism > 1 )
-			CullInChunks( world, mainPass, candidates, inTree, inFrustum, ref stats );
+			CullInChunks( world, mainPass, candidates, inTree, inFrustum, typeFeatures, ref stats );
 		else
-			Cull( world, mainPass, candidates, inTree, inFrustum, ref stats );
+			Cull( world, mainPass, candidates, inTree, inFrustum, typeFeatures, ref stats );
 	}
 
 	/// <summary>
@@ -78,17 +81,14 @@ public sealed partial class RenderSystem
 	// Each chunk's visible objects by feature, and its counts, merged in candidate order after
 	List<int>[][] chunkVisible = [];
 	RenderStats[] chunkStats = [];
-	(RenderWorld World, ViewPass Pass, List<int> Candidates, int InTree, bool InFrustum) chunkCull;
+	(RenderWorld World, ViewPass Pass, List<int> Candidates, int InTree, bool InFrustum, int[] TypeFeatures) chunkCull;
 
 	/// <summary>
 	/// <see cref="Cull"/> split into chunks of candidates across the job dispatcher's threads, each into its own lists,
 	/// then joined in candidate order - the same visible lists and counts as culling them in one go.
 	/// </summary>
-	void CullInChunks( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, ref RenderStats stats )
+	void CullInChunks( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, int[] typeFeatures, ref RenderStats stats )
 	{
-		// Feature lookups that miss write the shared cache
-		WarmFeatureTypes( world );
-
 		var chunks = (candidates.Count + CullChunkCandidates - 1) / CullChunkCandidates;
 		if ( chunkVisible.Length < chunks )
 		{
@@ -111,13 +111,13 @@ public sealed partial class RenderSystem
 			chunkStats[c] = default;
 		}
 
-		chunkCull = (world, pass, candidates, inTree, inFrustum);
+		chunkCull = (world, pass, candidates, inTree, inFrustum, typeFeatures);
 		JobDispatcher.For( chunks, this, static ( system, c ) =>
 		{
-			var (world, pass, candidates, inTree, inFrustum) = system.chunkCull;
+			var (world, pass, candidates, inTree, inFrustum, typeFeatures) = system.chunkCull;
 			var start = c * CullChunkCandidates;
 			var end = Math.Min( start + CullChunkCandidates, candidates.Count );
-			system.CullRange( world, pass, candidates, start, end, inTree, inFrustum, system.chunkVisible[c], ref system.chunkStats[c] );
+			system.CullRange( world, pass, candidates, start, end, inTree, inFrustum, typeFeatures, system.chunkVisible[c], ref system.chunkStats[c] );
 		}, itemsPerBatch: 1 );
 		chunkCull = default;
 
@@ -152,7 +152,7 @@ public sealed partial class RenderSystem
 			return true;
 		}
 
-		var size = sizeCull && !KeepsSmallCasters( pass ) ? SizeCull.ForPass( pass ) : default;
+		var size = sizeCull && !pass.KeepsSmallCasters ? SizeCull.ForPass( pass ) : default;
 
 		// Avoid traversing static objects for dynamic-only shadows.
 		var tree = pass.StaticFilter is StaticFilter.NoStatic or StaticFilter.SettledNoStatic or StaticFilter.Unsettled ? world.DynamicTree : world.Tree;
@@ -172,12 +172,65 @@ public sealed partial class RenderSystem
 			inFrustum = true;
 		}
 
-		// Lights, custom objects and anything else that's never size culled
+		// Non-tree casters are kept separately so each shadow face can skip lights, probes and decals.
 		inTree = candidates.Count;
-		foreach ( var i in world.Unculled )
-			candidates.Add( i << 1 );
+		candidates.AddRange( world.UnculledCandidates( pass.IsShadow && pass.CullReasons is null ) );
 
 		return inFrustum;
+	}
+
+	// HasExcludedShadowCaster's answer kept between frames: by object index whether it's an excluded caster, and how many
+	// are. Objects that move count as changes every frame, so only those changed since the last check are looked at again;
+	// the world's structure, the view's tags or sub-worlds, or the features changing look at them all
+	bool[] excludedCasters = [];
+	int excludedCasterCount;
+	RenderWorld excludedWorld;
+	int excludedStructure = -1, excludedFeatureCount;
+	long excludedChanges;
+	uint[] excludedTags = [], excludedRenderTags = [];
+	ulong excludedSubWorlds;
+
+	/// <summary>
+	/// Whether removing the view's exclusion tags could add a caster to its local shadow maps. Check the whole world,
+	/// not the visible list: a light's map can hold casters outside the main view's frustum.
+	/// </summary>
+	internal bool HasExcludedShadowCaster( RenderWorld world, RenderView view )
+	{
+		var full = !ReferenceEquals( excludedWorld, world ) || excludedStructure != world.Structure || excludedFeatureCount != features.Count
+			|| excludedSubWorlds != view.SubWorlds || !excludedTags.AsSpan().SequenceEqual( view.ExcludeTags ) || !excludedRenderTags.AsSpan().SequenceEqual( view.RenderTags );
+		if ( !full && excludedChanges == world.Changes ) return excludedCasterCount > 0;
+
+		var objects = world.Objects;
+		if ( full )
+		{
+			if ( excludedCasters.Length < objects.Length ) excludedCasters = new bool[Math.Max( objects.Length, excludedCasters.Length * 2 )];
+			excludedCasters.AsSpan().Clear();
+			excludedCasterCount = 0;
+			(excludedWorld, excludedStructure, excludedFeatureCount, excludedSubWorlds) = (world, world.Structure, features.Count, view.SubWorlds);
+			if ( !excludedTags.AsSpan().SequenceEqual( view.ExcludeTags ) ) excludedTags = [.. view.ExcludeTags];
+			if ( !excludedRenderTags.AsSpan().SequenceEqual( view.RenderTags ) ) excludedRenderTags = [.. view.RenderTags];
+		}
+
+		var subWorlds = world.SubWorlds;
+		var types = world.ObjectTypeIndices;
+		var changedAt = world.ChangedAt;
+		var typeFeatures = PrepareCullFeatures( world );
+		for ( int i = 0; i < objects.Length; i++ )
+		{
+			if ( !full && changedAt[i] <= excludedChanges ) continue;
+
+			var obj = objects[i];
+			var feature = typeFeatures[types[i]];
+			var excluded = view.ShowsSubWorld( subWorlds[i] ) && view.ExcludesTags( obj.Tags, obj.IsWorld ) && view.IncludesTags( obj.Tags, obj.IsWorld )
+				&& feature >= 0 && features[feature].DrawsShadows && features[feature].CastsShadow( obj );
+			if ( excluded == excludedCasters[i] ) continue;
+
+			excludedCasters[i] = excluded;
+			excludedCasterCount += excluded ? 1 : -1;
+		}
+
+		excludedChanges = world.Changes;
+		return excludedCasterCount > 0;
 	}
 
 	/// <summary>
@@ -185,18 +238,24 @@ public sealed partial class RenderSystem
 	/// Shadow views also apply caster and static filters. With <see cref="ViewPass.CullReasons"/>, meshes culled for their
 	/// size or tags are kept with their reason, and not counted visible.
 	/// </summary>
-	internal void Cull( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, ref RenderStats stats )
-		=> CullRange( world, pass, candidates, 0, candidates.Count, inTree, inFrustum, pass.VisibleByFeature, ref stats );
+	internal void Cull( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, int[] typeFeatures, ref RenderStats stats )
+		=> CullRange( world, pass, candidates, 0, candidates.Count, inTree, inFrustum, typeFeatures, pass.VisibleByFeature, ref stats );
+
+	/// <summary>Cull a shadow view without collecting main-view statistics.</summary>
+	internal void CullShadow( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, int[] typeFeatures )
+		=> CullRange( world, pass, candidates, 0, candidates.Count, inTree, inFrustum, typeFeatures, pass.VisibleByFeature,
+			ref System.Runtime.CompilerServices.Unsafe.NullRef<RenderStats>() );
 
 	/// <summary>
 	/// <see cref="Cull"/> candidates [<paramref name="start"/>, <paramref name="end"/>) into <paramref name="visible"/>, by
 	/// feature index.
 	/// </summary>
-	void CullRange( RenderWorld world, ViewPass pass, List<int> candidates, int start, int end, int inTree, bool inFrustum, List<int>[] visible, ref RenderStats stats )
+	void CullRange( RenderWorld world, ViewPass pass, List<int> candidates, int start, int end, int inTree, bool inFrustum, ReadOnlySpan<int> typeFeatures, List<int>[] visible, ref RenderStats stats )
 	{
+		var countStats = !System.Runtime.CompilerServices.Unsafe.IsNullRef( ref stats );
 		var frustum = pass.View.Frustum;
 		var root = pass.Root;
-		var sizeCull = KeepsSmallCasters( pass ) ? default : SizeCull.ForPass( pass );
+		var sizeCull = pass.KeepsSmallCasters ? default : SizeCull.ForPass( pass );
 		var shadow = pass.IsShadow;
 		var filter = pass.StaticFilter;
 		var objects = world.Objects;
@@ -208,10 +267,7 @@ public sealed partial class RenderSystem
 		var holds = pass.ResidentHolds;
 		var boxes = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( world.CullingBoxes );
 
-		// Neighbours are mostly of one type: look its feature up again only when the type changes
-		Type lastType = null;
-		var lastFeature = -1;
-
+		var types = world.ObjectTypeIndices;
 		var entries = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( candidates );
 		for ( int k = start; k < end; k++ )
 		{
@@ -226,7 +282,7 @@ public sealed partial class RenderSystem
 
 			if ( !(inFrustum && (entry & 1) != 0) && !frustum.Intersects( centers[i], extents[i] ) )
 			{
-				if ( reasons is not null ) stats.ObjectsFrustumCulled++;
+				if ( countStats && reasons is not null ) stats.ObjectsFrustumCulled++;
 				continue;
 			}
 
@@ -234,7 +290,7 @@ public sealed partial class RenderSystem
 			var reason = CullReason.None;
 			if ( k < inTree && sizeCull.Culls( centers[i], extents[i] ) )
 			{
-				stats.ObjectsSizeCulled++;
+				if ( countStats ) stats.ObjectsSizeCulled++;
 				if ( reasons is null ) continue;
 				reason = CullReason.Size;
 			}
@@ -244,7 +300,7 @@ public sealed partial class RenderSystem
 			var obj = objects[i];
 			if ( reason == CullReason.None && !root.ShowsShown( obj ) )
 			{
-				stats.ObjectsTagCulled++;
+				if ( countStats ) stats.ObjectsTagCulled++;
 				if ( reasons is null ) continue;
 				reason = CullReason.Tags;
 			}
@@ -252,18 +308,11 @@ public sealed partial class RenderSystem
 			// Hidden by the world's culling boxes, in every view
 			if ( boxes.Length > 0 && CullingBox.CullsObject( obj ) && CullingBox.Culls( boxes, centers[i], extents[i] ) )
 			{
-				stats.ObjectsBoxCulled++;
+				if ( countStats ) stats.ObjectsBoxCulled++;
 				continue;
 			}
 
-			var type = obj.GetType();
-			if ( type != lastType )
-			{
-				lastType = type;
-				lastFeature = FeatureFor( type );
-			}
-
-			var feature = lastFeature;
+			var feature = typeFeatures[types[i]];
 			if ( feature < 0 ) continue;
 			var f = features[feature];
 
@@ -280,21 +329,39 @@ public sealed partial class RenderSystem
 			{
 				if ( !f.DrawsShadows || !f.CastsShadow( obj ) ) continue;
 				// A static caster that animates vertices is drawn live: never in a cache, the sun's settled far cascade included
-				var cached = obj.CachesAsStatic;
-				if ( filter == StaticFilter.OnlyStatic && !cached ) continue;
-				if ( filter == StaticFilter.NoStatic && cached ) continue;
-				if ( filter >= StaticFilter.Settled && !(obj.AnimatesVertices ? filter == StaticFilter.Unsettled : TakesSettled( pass, filter, obj.IsStatic, world.MovedStamps[i] )) ) continue;
+				if ( filter == StaticFilter.NoStatic && obj.CachesAsStatic ) continue;
+				if ( filter >= StaticFilter.Settled && !TakesCaster( pass, filter, obj, world.MovedStamps[i] ) ) continue;
 			}
 
 			visible[feature].Add( i );
-			stats.ObjectsVisible++;
+			if ( countStats ) stats.ObjectsVisible++;
 		}
 	}
 
 	/// <summary>
-	/// Whether the sun's cached far cascade (<see cref="StaticFilter.Settled"/>, <see cref="StaticFilter.SettledNoStatic"/>) or
-	/// what's drawn on top of it (<see cref="StaticFilter.Unsettled"/>) takes a caster that last moved at <paramref name="moved"/>.
-	/// The one on top counts those it takes that have settled since its cache was drawn.
+	/// Whether a cache (<see cref="StaticFilter.Settled"/>, <see cref="StaticFilter.SettledNoStatic"/>) or what's drawn on top
+	/// of it (<see cref="StaticFilter.Unsettled"/>) takes a caster, which <see cref="DrawnLive"/> or <see cref="TakesSettled"/>
+	/// decides, but for one that animates only some of its LODs in a view that <see cref="ViewPass.SplitsLods"/>: both take it,
+	/// for the LODs each draws (<see cref="ViewPass.DrawsLod"/>).
+	/// </summary>
+	static bool TakesCaster( ViewPass pass, StaticFilter filter, RenderObject obj, ulong moved )
+	{
+		if ( !DrawnLive( pass, obj ) ) return TakesSettled( pass, filter, obj.IsStatic, moved );
+		return filter == StaticFilter.Unsettled || (pass.SplitsLods && obj.AnimatesVertices && !obj.AnimatesAllLods);
+	}
+
+	/// <summary>
+	/// A caster no cache holds, drawn live on top of one: a static caster that animates vertices, and in a light's cache, a
+	/// custom object that isn't static, whose draws change without anything moving. The sun's far cascade, far from the
+	/// camera, keeps custom objects once they've settled. Its cache keeps the LODs of a static caster that don't animate
+	/// (<see cref="ViewPass.SplitsLods"/>).
+	/// </summary>
+	static bool DrawnLive( ViewPass pass, RenderObject obj ) => obj.AnimatesVertices || (pass.LightSphere is not null && !obj.IsStatic && obj is CustomObject);
+
+	/// <summary>
+	/// Whether a cache (<see cref="StaticFilter.Settled"/>, <see cref="StaticFilter.SettledNoStatic"/>) or what's drawn on top
+	/// of it (<see cref="StaticFilter.Unsettled"/>) takes a caster that last moved at <paramref name="moved"/>. The one on top
+	/// counts those it takes that have settled since its cache was drawn.
 	/// </summary>
 	static bool TakesSettled( ViewPass pass, StaticFilter filter, bool isStatic, ulong moved )
 	{
@@ -308,35 +375,34 @@ public sealed partial class RenderSystem
 		return true;
 	}
 
-	/// <summary>
-	/// A static shadow cache is kept while the camera moves, so it isn't size culled by where the camera was when it was drawn:
-	/// a light's, and its settled casters too where it holds them. A texel-sized cull doesn't depend on the camera, so it keeps
-	/// that.
-	/// </summary>
-	internal static bool KeepsSmallCasters( ViewPass pass )
-		=> (pass.StaticFilter == StaticFilter.OnlyStatic || (pass.StaticFilter == StaticFilter.Settled && pass.LightSphere is not null)) && !pass.TexelSized;
-
-	/// <summary>
-	/// Warm type lookups before parallel culling; cache misses write shared state.
-	/// </summary>
-	internal void WarmFeatureTypes( RenderWorld world )
+	sealed class CullFeatures
 	{
-		foreach ( var type in world.ObjectTypes )
-			FeatureFor( type );
+		public int FeatureCount = -1;
+		public int TypeCount;
+		public int[] ByType = [];
 	}
 
-	int FeatureFor( Type type )
-	{
-		return featureByType.TryGetValue( type, out var index ) ? index : FindFeature( type );
-	}
+	readonly System.Runtime.CompilerServices.ConditionalWeakTable<RenderWorld, CullFeatures> cullFeatures = new();
 
-	/// <summary>
-	/// Keep the capturing lambda off the cache-hit path; closures allocate on method entry.
-	/// </summary>
-	int FindFeature( Type type )
+	/// <summary>Resolve world type indices against this renderer's feature order before giving the map to cull jobs.</summary>
+	internal int[] PrepareCullFeatures( RenderWorld world )
 	{
-		var index = features.FindIndex( f => f.Accepts( type ) );
-		featureByType[type] = index;
-		return index;
+		var map = cullFeatures.GetValue( world, static _ => new CullFeatures() );
+		var types = world.ObjectTypes;
+		if ( map.FeatureCount != features.Count )
+		{
+			map.FeatureCount = features.Count;
+			map.TypeCount = 0;
+		}
+
+		if ( map.ByType.Length < types.Length ) Array.Resize( ref map.ByType, Math.Max( types.Length, map.ByType.Length * 2 ) );
+		for ( int t = map.TypeCount; t < types.Length; t++ )
+		{
+			var feature = 0;
+			while ( feature < features.Count && !features[feature].Accepts( types[t] ) ) feature++;
+			map.ByType[t] = feature < features.Count ? feature : -1;
+		}
+		map.TypeCount = types.Length;
+		return map.ByType;
 	}
 }

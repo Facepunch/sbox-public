@@ -71,11 +71,9 @@ internal sealed partial class LightBinnerFeature
 	/// <summary>
 	/// Screen size from world-AABB radius (<c>CFrustum::ComputeScreenSize</c>): sqrt(3) times reach for point lights.
 	/// </summary>
-	static float ComputeScreenSize( LightObject light, in Vector3 worldExtents, RenderView view )
+	static float ComputeScreenSize( float distance, in Vector3 worldExtents, float tanHalfFov )
 	{
 		var radius = worldExtents.Length;
-		var distance = light.Transform.Position.Distance( view.Position );
-		var tanHalfFov = MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
 		return distance < radius ? 1.0f : Math.Clamp( radius / (distance * tanHalfFov), 0, 1 );
 	}
 
@@ -90,13 +88,15 @@ internal sealed partial class LightBinnerFeature
 		if ( sortKeys.Length < visible.Length ) sortKeys = new (float, float)[Math.Max( visible.Length, sortKeys.Length * 2 )];
 
 		var camera = view.Position;
+		var tanHalfFov = MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
 
 		for ( int i = 0; i < visible.Length; i++ )
 		{
 			var light = (LightObject)objects[visible[i]];
 
 			// CFrustum::ComputeScreenSize - negated so an ascending sort puts the biggest first
-			sortKeys[i] = (-ComputeScreenSize( light, extents[visible[i]], view ), light.Transform.Position.Distance( camera ));
+			var distance = light.Transform.Position.Distance( camera );
+			sortKeys[i] = (-ComputeScreenSize( distance, extents[visible[i]], tanHalfFov ), distance);
 		}
 
 		sortKeys.AsSpan( 0, visible.Length ).Sort( visible );

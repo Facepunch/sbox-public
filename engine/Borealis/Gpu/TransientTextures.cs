@@ -1,5 +1,19 @@
 namespace Borealis.Gpu;
 
+/// <summary>Stable scratch roles, independent of GPU debug labels.</summary>
+internal enum TransientTextureRole
+{
+	Bloom,
+	BloomDepth,
+	ContactShadowMask,
+	DepthChain,
+	IdsNormals,
+	IdsView,
+	OcclusionChain,
+	ReactiveDepth,
+	RefractionStencil,
+}
+
 /// <summary>
 /// Textures a render borrows and gives back once it's submitted, kept for later renders that want the same, and released
 /// after <see cref="IdleRendersBeforeRelease"/> renders unused - as the engine's temporary render targets are. One per
@@ -9,10 +23,20 @@ internal sealed class TransientTextures : IDisposable
 {
 	const int IdleRendersBeforeRelease = 8;
 
+	static readonly string[] labels = ["Bloom", "Bloom Depth", "Contact Shadow Mask", "Depth Chain", "Ids Normals", "Ids View", "Occlusion Chain", "Reactive Depth", "Refraction Stencil"];
+
+	readonly record struct Shape( int Width, int Height, int Depth, TextureFormat Format, int Samples, int Mips,
+		bool RenderTarget, bool Cube, bool Storage, bool GenerateMips, bool SampledMultisampled )
+	{
+		public Shape( in TextureDesc desc ) : this( desc.Width, desc.Height, desc.Depth, desc.Format, desc.Samples, desc.Mips,
+			desc.RenderTarget, desc.Cube, desc.Storage, desc.GenerateMips, desc.SampledMultisampled )
+		{ }
+	}
+
 	sealed class Entry
 	{
-		public TextureDesc Desc;
-		public string Name;
+		public Shape Shape;
+		public TransientTextureRole Role;
 		public GpuTexture Texture;
 		public bool Loaned;
 		public int Idle;
@@ -20,31 +44,30 @@ internal sealed class TransientTextures : IDisposable
 
 	readonly List<Entry> entries = new();
 
-	// What this render borrowed, and what the render before it did (GraphMeasure): names, sizes and formats, in order
+	// This render's loan roles and shapes, and the render before it (GraphMeasure).
 	int borrowed, lastBorrowed;
 
 	/// <summary>
-	/// A texture like <paramref name="desc"/> for this render: one no earlier part of it borrowed, or a new one.
+	/// Borrow uninitialized scratch of this role and shape. It is not lent out again in the same render.
 	/// </summary>
-	public GpuTexture Get( in TextureDesc desc, string name )
+	public GpuTexture Get( TransientTextureRole role, in TextureDesc desc )
 	{
-		if ( GraphMeasure.Enabled ) borrowed = HashCode.Combine( borrowed, name, desc.Width, desc.Height, desc.Format, desc.Samples, desc.Mips, desc.Depth );
+		if ( !desc.Data.IsEmpty ) throw new ArgumentException( "Transient textures cannot have initial pixels.", nameof( desc ) );
+		var shape = new Shape( desc );
+		if ( GraphMeasure.Enabled ) borrowed = HashCode.Combine( borrowed, role, shape );
 
 		foreach ( var entry in entries )
 		{
-			if ( entry.Loaned || entry.Name != name || !Same( entry.Desc, desc ) ) continue;
+			if ( entry.Loaned || entry.Role != role || entry.Shape != shape ) continue;
 			entry.Loaned = true;
 			entry.Idle = 0;
 			return entry.Texture;
 		}
 
-		var created = new Entry { Desc = desc, Name = name, Texture = RenderHost.Current.Device.CreateTexture( desc, $"Borealis {name}" ), Loaned = true };
+		var created = new Entry { Shape = shape, Role = role, Texture = RenderHost.Current.Device.CreateTexture( desc, $"Borealis {labels[(int)role]}" ), Loaned = true };
 		entries.Add( created );
 		return created.Texture;
 	}
-
-	static bool Same( in TextureDesc a, in TextureDesc b ) => a.Width == b.Width && a.Height == b.Height && a.Depth == b.Depth && a.Format == b.Format
-		&& a.Samples == b.Samples && a.Mips == b.Mips && a.RenderTarget == b.RenderTarget && a.Cube == b.Cube && a.Storage == b.Storage && a.GenerateMips == b.GenerateMips;
 
 	/// <summary>
 	/// The render is submitted: give everything back, and release what's gone unused. The device keeps textures alive for

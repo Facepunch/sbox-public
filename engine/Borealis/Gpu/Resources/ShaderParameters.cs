@@ -45,6 +45,9 @@ public abstract class ShaderParameters
 	/// <summary>Set a struct of shader constants.</summary>
 	public abstract void SetData<T>( StringToken name, in T value ) where T : unmanaged;
 
+	/// <summary>Set a constant buffer's bytes, as the engine's <c>RenderAttributes.SetData</c> keeps them.</summary>
+	public abstract void SetData( StringToken name, ReadOnlySpan<byte> data );
+
 	/// <summary>Set a shader combo on or off.</summary>
 	public void SetCombo( StringToken name, bool value ) => SetCombo( name, value ? 1 : 0 );
 

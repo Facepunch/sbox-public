@@ -207,9 +207,8 @@ internal sealed class RenderFrame
 			return;
 		}
 
-		var perLayer = new ViewConstants();
-		View.FillConstants( ref perLayer, key.Viewport, key.TargetSize, Time, key.Samples, key.MinZ, key.MaxZ );
-		perLayer.RandomFloats = randomFloats;
+		var perLayer = constants;
+		View.FillPassConstants( ref perLayer, key.Viewport, key.TargetSize, key.Samples, key.MinZ, key.MaxZ );
 		if ( key.ToneMapScalar >= 0 ) perLayer.ToneMapScalarLinear = key.ToneMapScalar;
 		rc.SetViewConstants( perLayer, key );
 	}
@@ -302,12 +301,12 @@ internal sealed class RenderFrame
 
 	internal void RunStage( GpuContext rc, RenderStage stage, bool color = true, bool final = false )
 	{
-		if ( Stages is null ) return;
+		if ( Stages is not { } stages || !stages.RendersInsideFrame( stage ) ) return;
 
 		var start = Stopwatch.GetTimestamp();
 		var stageTarget = Target( rc, color, final );
 		rc.Bind( stageTarget );
-		Stages.Render( stage, stageTarget );
+		stages.Render( stage, stageTarget );
 		rc.Invalidate();
 		StagesMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}

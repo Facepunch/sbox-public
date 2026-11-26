@@ -21,10 +21,7 @@ internal partial class ShadowMapper
 			return InvalidShadowIndex;
 
 		if ( GPUProjectedShadows.Count >= ProjectedShadowBufferSize )
-		{
-			ProjectedShadowsCulled++;
 			return InvalidShadowIndex;
-		}
 
 		int size = MaxCascadeResolution;
 		var rotation = light.Direction.EulerAngles.ToRotation();
@@ -73,7 +70,6 @@ internal partial class ShadowMapper
 		GPUProjectedShadows.Add( shadow );
 		ProjectedShadowMaps.Add( target );
 		ShadowsAllocated++;
-		ProjectedShadowsRendered++;
 		return (uint)(GPUProjectedShadows.Count - 1);
 	}
 }

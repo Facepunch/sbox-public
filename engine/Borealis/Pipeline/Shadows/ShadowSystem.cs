@@ -26,7 +26,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 	readonly ShadowMap[] cascadeTargets = new ShadowMap[MaxCascades];
 	readonly ShadowMap[] extraSunTargets = new ShadowMap[SceneLighting.MaxExtraSuns];
-	readonly List<GpuTexture> targets = new();
+	readonly List<ShadowMap> targets = new();
 
 	// Group shared queries after all views are known, then cull chunks in parallel.
 	readonly List<int> groupStarts = new();
@@ -68,8 +68,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	public ReadOnlySpan<ViewPass> Passes => CollectionsMarshal.AsSpan( passes );
 
 	/// <summary>
-	/// The <see cref="Passes"/> the frame draws, after <see cref="PreparePasses"/>: all but the cascade views that would leave
-	/// their maps as they are (<see cref="KeepUnchangedCascades"/>).
+	/// The <see cref="Passes"/> the frame draws, after <see cref="PreparePasses"/>: all but those that would leave their maps
+	/// as they are (<see cref="KeepUnchangedMaps"/>).
 	/// </summary>
 	public ReadOnlySpan<ViewPass> Drawn => CollectionsMarshal.AsSpan( drawn );
 
@@ -97,6 +97,14 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 	// The cascades whose views were left out this frame, a bit each
 	uint keptCascades;
+
+	/// <summary>
+	/// A local light's map that holds only a copy of its cache, as <see cref="Source"/> was at <see cref="SourceVersion"/>,
+	/// while the map is at <see cref="Version"/>.
+	/// </summary>
+	readonly record struct CopiedCache( ShadowMap Source, ulong SourceVersion, ulong Version );
+
+	readonly Dictionary<ShadowMap, CopiedCache> copiedCaches = new();
 
 	/// <summary>
 	/// The sun's constants, cascades and all, for <c>DirectionalLightCB</c>.
@@ -130,6 +138,18 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		PrepareSun( world.Lighting, enabled || skybox );
 		if ( enabled ) PrepareLocalLights( lightBinner );
 		if ( enabled ) PrepareExtraSuns( world.Lighting, lightBinner );
+
+		foreach ( var (key, pass) in passPool )
+		{
+			if ( !key.Map.IsDisposed ) continue;
+			RenderHost.Current?.Device?.ReleaseView( pass );
+			passPool.Remove( key );
+		}
+
+		foreach ( var map in copiedCaches.Keys )
+		{
+			if ( map.IsDisposed ) copiedCaches.Remove( map );
+		}
 	}
 
 	/// <summary>
@@ -169,8 +189,9 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		// Nor were the cache's tiles made
 		cacheTilesOf = null;
 
-		// Nor did its cascade views or tiles
+		// Nor did its cascade views or tiles, or its local maps' copies
 		Array.Clear( cascadeContents );
+		copiedCaches.Clear();
 	}
 
 	/// <summary>
@@ -185,16 +206,15 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	public JobHandle BeginCull()
 	{
 		if ( passes.Count == 0 ) return default;
+		var typeFeatures = system.PrepareCullFeatures( world );
 
 		if ( !system.ParallelRecording )
 		{
-			CullPasses();
+			CullPasses( typeFeatures );
 			return default;
 		}
 
-		// Lookups that miss write the shared cache, which the main view's features mustn't race
-		system.WarmFeatureTypes( world );
-		return JobDispatcher.Begin( 1, this, static ( shadows, _ ) => shadows.CullPasses() );
+		return JobDispatcher.Begin( 1, (Shadows: this, TypeFeatures: typeFeatures), static ( state, _ ) => state.Shadows.CullPasses( state.TypeFeatures ) );
 	}
 
 	/// <summary>
@@ -205,24 +225,37 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		foreach ( var pass in Passes )
 			system.Prepare( world, pass, transforms );
 
-		KeepUnchangedCascades();
+		KeepUnchangedMaps();
 
 		this.world = null;
 		this.main = null;
 	}
 
 	/// <summary>
-	/// Leave out the cascade views that would leave their maps as they are: ones that draw no casters, into a map that holds
-	/// just the clear or the copy of an unchanged cache they'd start from. Their tiles stay too (<see cref="MarkCascades"/>).
-	/// Every other view is drawn, and its map's version moves on.
+	/// Leave out the views that would leave their maps as they are: a cascade's that draw no casters, into a map that holds
+	/// just the clear or the copy of an unchanged cache they'd start from (their tiles stay too, <see cref="MarkCascades"/>),
+	/// and a local light's whose faces draw no casters over a copy of its cache the map already holds. Every other view is
+	/// drawn, and its map's version moves on.
 	/// </summary>
-	void KeepUnchangedCascades()
+	void KeepUnchangedMaps()
 	{
 		drawn.Clear();
 		keptCascades = 0;
 		var cascades = mapper.Cascades;
-		foreach ( var pass in passes )
+		var all = Passes;
+		for ( int start = 0, end; start < all.Length; start = end )
 		{
+			var pass = all[start];
+			end = start + 1;
+
+			// A local light's map over a copy of its cache: its faces' views run together, and are kept or drawn together
+			if ( pass.LightSphere is not null && pass.CachedStatic is not null )
+			{
+				while ( end < all.Length && all[end].TargetMap == pass.TargetMap ) end++;
+				KeepOrDraw( all[start..end] );
+				continue;
+			}
+
 			var cascade = -1;
 			for ( int i = 0; i < cascades.Length; i++ )
 			{
@@ -241,6 +274,37 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	}
 
 	/// <summary>
+	/// Draw a local light's map from <paramref name="faces"/>, unless none draws a caster and the map holds the copy of their
+	/// cache, unchanged since, that they'd leave in it. Drawn, the first face copies the cache into all of them, so the others
+	/// are drawn only if they draw casters on top.
+	/// </summary>
+	void KeepOrDraw( ReadOnlySpan<ViewPass> faces )
+	{
+		var map = faces[0].TargetMap;
+		var source = faces[0].CachedStatic;
+		var plain = true;
+		foreach ( var face in faces )
+			plain &= !DrawsOnTop( face );
+
+		if ( plain && copiedCaches.TryGetValue( map, out var held ) && held == new CopiedCache( source, source.Version, map.Version ) ) return;
+
+		for ( int i = 0; i < faces.Length; i++ )
+		{
+			if ( i > 0 && !DrawsOnTop( faces[i] ) ) continue;
+			map.Version++;
+			drawn.Add( faces[i] );
+		}
+
+		if ( plain ) copiedCaches[map] = new CopiedCache( source, source.Version, map.Version );
+		else copiedCaches.Remove( map );
+	}
+
+	/// <summary>
+	/// Whether a view draws casters: its own, or its resident list's, which its culling left out.
+	/// </summary>
+	bool DrawsOnTop( ViewPass pass ) => HasCasters( pass ) || system.DrawsResident( pass );
+
+	/// <summary>
 	/// Whether the cascade's map already holds what <paramref name="pass"/> would leave in it; if not, it's what the view will.
 	/// </summary>
 	bool Keeps( ref CascadeContents held, ViewPass pass )
@@ -249,7 +313,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		var source = pass.CachedStatic;
 
 		// A whole clear or copy with nothing drawn on top. Resident lists draw what the visible lists don't show
-		var plain = pass.Blank is null && pass.TargetSlice == 0 && !HasCasters( pass ) && !system.DrawsResident( pass );
+		var plain = !pass.ClearShadowRegion && pass.TargetSlice == 0 && !HasCasters( pass ) && !system.DrawsResident( pass );
 		if ( plain && held.Map == map && held.Plain && held.Source == source
 			&& (source is null || (held.SourceVersion == source.Version && held.Offset == pass.CacheOffset)) )
 			return true;
@@ -292,11 +356,6 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		};
 
 		mapper.DoDirectionalLight( sun );
-
-		// FindOrCreateDirectionalShadowMaps skips colour/direction without cascades; fill them explicitly.
-		ref var data = ref mapper.DirectionalLightData;
-		data.Color = new Vector4( sun.Color, sun.FogStrength );
-		data.Direction = new Vector4( sun.Direction, 0 );
 	}
 
 	/// <summary>
@@ -330,10 +389,19 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	void PrepareLocalLights( LightBinnerFeature lightBinner )
 	{
 		var lights = lightBinner.PackedLights;
+		var view = main.View;
+		// Cube captures can filter casters by capture-only flags as well, so leave their keys alone.
+		bool checkExclusions = !view.Capture && view.ExcludeTags.Length > 0 && !mapper.View.NoShadows && ShadowMapper.LocalShadowsEnabled;
 		for ( int i = 0; i < lights.Length; i++ )
 		{
 			var light = lights[i];
 			if ( !light.RendersShadowMap ) continue;
+
+			if ( checkExclusions )
+			{
+				mapper.View.IgnoreLocalExcludeTags = !system.HasExcludedShadowCaster( world, view );
+				checkExclusions = false;
+			}
 
 			var transform = light.Transform;
 			var shadowLight = new ShadowLight
@@ -380,11 +448,12 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		pass.StaticFilter = desc.StaticFilter;
 		pass.TexelSized = desc.Orthographic && desc.TexelSized;
 		pass.LodTexelsPerUnit = desc.Orthographic && desc.TexelLods ? viewport.Width / MathF.Max( desc.Width, 1 ) : 0;
+		pass.SplitsLods = desc.SplitsLods && pass.LodTexelsPerUnit > 0;
 		pass.SettledStamp = desc.SettledStamp;
 		pass.RestlessStamp = desc.RestlessStamp;
 		pass.NewlySettled = desc.NewlySettled;
 		pass.CacheOffset = desc.CacheOffset;
-		pass.Blank = desc.Blank;
+		pass.ClearShadowRegion = desc.Region != 0;
 
 		var view = pass.View;
 		view.Name = desc.Name;
@@ -407,7 +476,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// Group views sharing a light-sphere query, then cull balanced chunks.
 	/// Workers read the world and write only per-view lists; cascades use separate groups.
 	/// </summary>
-	void CullPasses()
+	void CullPasses( int[] typeFeatures )
 	{
 		using var rendererAllocations = Borealis.RendererAllocations.Measure();
 		var count = passes.Count;
@@ -444,15 +513,12 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 		if ( chunkCount == 1 )
 		{
-			CullChunk( 0 );
+			CullChunk( 0, typeFeatures );
 			return;
 		}
 
-		// Warm feature lookups before concurrent reads.
-		system.WarmFeatureTypes( world );
-
 		// Workers and the caller share chunk claiming.
-		JobDispatcher.For( chunkCount, this, static ( shadows, chunk ) => shadows.CullChunk( chunk ), itemsPerBatch: 1 );
+		JobDispatcher.For( chunkCount, (Shadows: this, TypeFeatures: typeFeatures), static ( state, chunk ) => state.Shadows.CullChunk( chunk, state.TypeFeatures ), itemsPerBatch: 1 );
 	}
 
 	readonly List<UnsettledMarks> unsettledMarks = new();
@@ -463,8 +529,9 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	internal static bool MarksUnsettled { get; set; } = true;
 
 	/// <summary>
-	/// Give each <see cref="StaticFilter.Unsettled"/> view tree marks that leave out the casters its far cascade's cache holds:
-	/// its filter takes none of them, and its query would otherwise visit every caster that isn't static.
+	/// Give the far cascade's <see cref="StaticFilter.Unsettled"/> view tree marks that leave out the casters its cache holds:
+	/// its filter takes none of them, and its query would otherwise visit every caster that isn't static. A light's views
+	/// query only the casters in its reach, which their own marks wouldn't make fewer than a scan of the world costs.
 	/// </summary>
 	void MarkUnsettled()
 	{
@@ -481,7 +548,9 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 	/// <summary>
 	/// An <see cref="StaticFilter.Unsettled"/> view's tree marks, made again only when the tree or which casters count as
-	/// cached have changed since.
+	/// cached have changed since. Which casters count only changes when the world's stamps or animation do
+	/// (<see cref="RenderWorld.MovedVersion"/>, <see cref="RenderWorld.Structure"/>), the view's stamps move, or time settles one:
+	/// the world is scanned again only then, not every frame.
 	/// </summary>
 	sealed class UnsettledMarks
 	{
@@ -492,23 +561,63 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		int count = -1;
 		bool[] kept = [];
 
+		// What the last scan was made from
+		RenderWorld scanned;
+		long scannedMoves;
+		int scannedStructure;
+		ulong scannedSettled, scannedRestless;
+
+		// The earliest stamps of casters the scan left out that settle with time (the view's stamps reaching them), by kind
+		ulong nextSettles, nextRestlessSettles;
+
 		public bool[] For( RenderWorld world, ViewPass pass )
 		{
 			var stamps = world.MovedStamps;
-			if ( scratch.Length < stamps.Length ) scratch = new byte[Math.Max( stamps.Length, scratch.Length * 2 )];
-
-			// What the cache holds, by world index: the same test the view's filter rejects them by. A static caster that
-			// animates vertices is never in it (it's drawn live over it), however long ago it last moved
-			var now = scratch.AsSpan( 0, stamps.Length );
-			var objects = world.Objects;
-			for ( int i = 0; i < stamps.Length; i++ )
-				now[i] = !objects[i].AnimatesVertices && SettledCasters.SettledBy( stamps[i], pass.SettledStamp, pass.RestlessStamp ) ? (byte)1 : (byte)0;
-
 			var dynamic = world.DynamicTree;
-			if ( ReferenceEquals( tree, dynamic ) && treeVersion == dynamic.Version && count == stamps.Length && now.SequenceEqual( cached.AsSpan( 0, count ) ) )
-				return kept;
+			var changed = false;
 
-			(cached, scratch) = (scratch, cached);
+			// Stamps that only rise can only settle more, and none of those left out is reached yet
+			var current = ReferenceEquals( scanned, world ) && scannedMoves == world.MovedVersion && scannedStructure == world.Structure
+				&& pass.SettledStamp >= scannedSettled && pass.RestlessStamp >= scannedRestless
+				&& pass.SettledStamp < nextSettles && pass.RestlessStamp < nextRestlessSettles;
+
+			if ( !current )
+			{
+				if ( scratch.Length < stamps.Length ) scratch = new byte[Math.Max( stamps.Length, scratch.Length * 2 )];
+
+				// What the cache holds, by world index: the same test the view's filter rejects them by, which keeps casters whose
+				// vertices animate at any LOD (CullRange draws them in this view however settled they are, at the LODs that animate)
+				var objects = world.Objects;
+				var now = scratch.AsSpan( 0, stamps.Length );
+				ulong plain = ulong.MaxValue, restless = ulong.MaxValue;
+				for ( int i = 0; i < stamps.Length; i++ )
+				{
+					var moved = stamps[i];
+					if ( objects[i].AnimatesVertices )
+					{
+						now[i] = 0;
+					}
+					else if ( SettledCasters.SettledBy( moved, pass.SettledStamp, pass.RestlessStamp ) )
+					{
+						now[i] = 1;
+					}
+					else
+					{
+						now[i] = 0;
+						if ( (moved & SettledCasters.Restless) != 0 ) restless = Math.Min( restless, moved & ~SettledCasters.Restless );
+						else plain = Math.Min( plain, moved );
+					}
+				}
+
+				(scanned, scannedMoves, scannedStructure, scannedSettled, scannedRestless) = (world, world.MovedVersion, world.Structure, pass.SettledStamp, pass.RestlessStamp);
+				(nextSettles, nextRestlessSettles) = (plain, restless);
+
+				changed = count != stamps.Length || !now.SequenceEqual( cached.AsSpan( 0, count ) );
+				if ( changed ) (cached, scratch) = (scratch, cached);
+			}
+
+			if ( !changed && ReferenceEquals( tree, dynamic ) && treeVersion == dynamic.Version ) return kept;
+
 			dynamic.Mark( cached.AsSpan( 0, stamps.Length ), ref kept );
 			tree = dynamic;
 			treeVersion = dynamic.Version;
@@ -526,7 +635,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// Cull the groups in chunk <paramref name="chunk"/>, with that chunk's own candidate list.
 	/// </summary>
-	void CullChunk( int chunk )
+	void CullChunk( int chunk, int[] typeFeatures )
 	{
 		using var zone = Zones.ShadowCull.Start();
 		var candidates = chunkCandidates[chunk];
@@ -535,47 +644,30 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			var first = groupStarts[g];
 			var inFrustum = RenderSystem.FindCandidates( world, passes[first], candidates, out var inTree, out _ );
 
-			// Culled the same way as the main view, into counts nobody reads
-			var stats = new RenderStats();
 			for ( int i = first; i < groupStarts[g + 1]; i++ )
-				system.Cull( world, passes[i], candidates, inTree, inFrustum, ref stats );
+				system.CullShadow( world, passes[i], candidates, inTree, inFrustum, typeFeatures );
 		}
 	}
 
 	/// <summary>
 	/// Reuse one persistent target per cascade.
 	/// </summary>
-	public ShadowMap GetCascadeTarget( int cascade, int resolution )
-	{
-		ref var target = ref cascadeTargets[cascade];
-		if ( target is null || target.Resolution != resolution )
-		{
-			target?.Dispose();
-			target = new ShadowMap( resolution, false, TextureFormat.D32 );
-		}
-
-		return target;
-	}
+	public ShadowMap GetCascadeTarget( int cascade, int resolution ) => KeepTarget( ref cascadeTargets[cascade], resolution );
 
 	/// <summary>
 	/// Reuse one persistent target per extra sun.
 	/// </summary>
-	public ShadowMap GetExtraSunTarget( int sun, int resolution )
+	public ShadowMap GetExtraSunTarget( int sun, int resolution ) => KeepTarget( ref extraSunTargets[sun], resolution );
+
+	static ShadowMap KeepTarget( ref ShadowMap target, int resolution )
 	{
-		ref var target = ref extraSunTargets[sun];
 		if ( target is null || target.Resolution != resolution )
 		{
 			target?.Dispose();
 			target = new ShadowMap( resolution, false, TextureFormat.D32 );
 		}
-
 		return target;
 	}
-
-	/// <summary>
-	/// Contact-shadow indices are assigned later in Setup.
-	/// </summary>
-	public uint GetShadowMaskIndex( object light ) => 0;
 
 	/// <summary>
 	/// Resolve shadow textures/indices and upload lighting buffers before render passes.
@@ -592,8 +684,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		foreach ( var pass in Drawn )
 		{
 			pass.Target = pass.TargetMap.Texture;
-			if ( targets.Count == 0 || targets[^1] != pass.Target )
-				targets.Add( pass.Target );
+			if ( targets.Count == 0 || targets[^1] != pass.TargetMap )
+				targets.Add( pass.TargetMap );
 		}
 
 		MarkCascades();
@@ -621,8 +713,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	static readonly StringToken ShadowTilesOutName = new( "ShadowTilesOut" );
 	static readonly StringToken WidenCombo = new( "D_WIDEN" );
 
-	static GpuMaterial tilesCompute;
-	static GpuMaterial TilesCompute => tilesCompute ??= RenderHost.Current.Device.MaterialFromShader( "shaders/borealis_shadow_tiles_cs.shader" );
+	static GpuMaterial TilesCompute => RenderHost.Current.Device.PassMaterial( GpuPassMaterial.ShadowTiles );
 
 	/// <summary>
 	/// Make the tiles' shader on the main thread: made where it's first dispatched, on a recording thread, it isn't there
@@ -716,32 +807,22 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// Make the tiles of the cascades drawn this frame, once their shadow passes are done: the min and max depth of each 32x32
 	/// texel tile, then each over its neighbours too, so one read covers the widest filter.
 	/// </summary>
-	public void BuildTiles( GpuContext context )
+	void BuildTiles( GpuContext context, ReadOnlySpan<ShadowMap> cascades )
 	{
 		if ( tileCascades == 0 ) return;
 		context.Invalidate();
 
-		var cascades = mapper.Cascades;
 		var side = tiles.Height;
 		context.TextureBarrier( tilesRaw, GpuStage.ComputeShader, GpuAccess.ShaderRead, GpuStage.ComputeShader, GpuAccess.ShaderWrite, TextureLayout.General );
 
-		// Every map readable before the first dispatch, so no barrier sits between the dispatches
-		for ( int i = 0; i < cascades.Length; i++ )
-		{
-			if ( (tileCascades & (1u << i)) == 0 ) continue;
-			context.TextureBarrier( cascades[i].Texture, GpuStage.LateFragmentTests, GpuAccess.DepthStencilAttachmentWrite, GpuStage.ComputeShader | GpuStage.FragmentShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
-		}
-
-		var parameters = ParameterPool.Get();
+		using var lease = ParameterPool.Borrow( out var parameters );
+		var material = TilesCompute;
 		parameters.Set( ShadowTilesOutName, tilesRaw );
 		parameters.SetCombo( WidenCombo, false );
 		for ( int i = 0; i < cascades.Length; i++ )
 		{
 			if ( (tileCascades & (1u << i)) == 0 ) continue;
-			var depth = cascades[i].Texture;
-			parameters.Set( ShadowTileDepthName, depth );
-			parameters.Set( ShadowTilesName, new Vector4( i * side, side, 0, 0 ) );
-			context.Dispatch( TilesCompute, parameters, side * 8, side * 8, 1 );
+			DispatchRawTiles( context, material, parameters, cascades[i].Texture, i * side, side, side );
 		}
 
 		context.TextureBarrier( tilesRaw, GpuStage.ComputeShader, GpuAccess.ShaderWrite, GpuStage.ComputeShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
@@ -751,14 +832,17 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		parameters.Set( ShadowTilesInName, tilesRaw );
 		parameters.Set( ShadowTilesOutName, tiles );
 		parameters.SetCombo( WidenCombo, true );
-		for ( int i = 0; i < cascades.Length; i++ )
+		// Compact the active cascade indices so each dispatch slice widens one populated atlas column.
+		uint columns = 0;
+		int slices = 0;
+		for ( uint pending = tileCascades; pending != 0; pending &= pending - 1 )
 		{
-			if ( (tileCascades & (1u << i)) == 0 ) continue;
-			parameters.Set( ShadowTilesName, new Vector4( i * side, side, 0, 0 ) );
-			context.Dispatch( TilesCompute, parameters, side, side, 1 );
+			int i = System.Numerics.BitOperations.TrailingZeroCount( pending );
+			columns |= (uint)i << (2 * slices++);
 		}
+		parameters.Set( ShadowTilesName, new Vector4( 0, side, columns, 0 ) );
+		context.Dispatch( material, parameters, side, side, slices );
 
-		ParameterPool.Return( parameters );
 		context.TextureBarrier( tiles, GpuStage.ComputeShader, GpuAccess.ShaderWrite, GpuStage.FragmentShader | GpuStage.ComputeShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
 	}
 
@@ -858,16 +942,36 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	public void BarrierToWrite( GpuContext context )
 	{
 		foreach ( var target in targets )
-			context.BarrierToDepthWrite( target );
+			context.BarrierToDepthWrite( target.Texture );
 	}
 
 	/// <summary>
-	/// Leave the shadow maps readable by the main view's pixel shaders, after every shadow view has rendered.
+	/// Make shadow maps readable and build tile ranges for the cascades that need them.
 	/// </summary>
-	public void BarrierToRead( GpuContext context )
+	public void ReadyForSampling( GpuContext context )
 	{
+		var cascades = mapper.Cascades;
 		foreach ( var target in targets )
-			context.BarrierToPixelShaderRead( target );
+		{
+			var pending = tileCascades;
+			while ( pending != 0 )
+			{
+				int i = System.Numerics.BitOperations.TrailingZeroCount( pending );
+				if ( target == cascades[i] ) break;
+				pending &= pending - 1;
+			}
+
+			if ( pending == 0 ) context.BarrierToPixelShaderRead( target.Texture );
+		}
+
+		// A retained cascade may still need new tiles (e.g. after the tile atlas was rebuilt).
+		for ( uint pending = tileCascades; pending != 0; pending &= pending - 1 )
+		{
+			int i = System.Numerics.BitOperations.TrailingZeroCount( pending );
+			BarrierToTileRead( context, cascades[i].Texture );
+		}
+
+		BuildTiles( context, cascades );
 	}
 
 	/// <summary>
@@ -885,24 +989,12 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		{
 			var scope = context.BeginGpuScope( "Shadow cache copy" );
 			var whole = !cached.IsCube && cached.Texture.Width == pass.Target.Width && cached.Texture.Height == pass.Target.Height;
-			var tiles = whole && cacheTiles is not null && cacheTilesOf == cached ? cacheTiles : null;
+			var tiles = whole && cacheTilesForCopy == cached ? cacheTiles : null;
 			if ( tiles is not null && buildCacheTiles ) BuildCacheTiles( context, cached.Texture, tiles );
 			var drawn = whole && DrawCache( context, cached.Texture, pass.Target, pass.CacheOffset, tiles );
 			if ( !drawn && pass.CacheOffset == default ) context.CopyTexture( cached.Texture, pass.Target, cached.IsCube ? 6 : 1 );
 			else if ( !drawn ) CopyWrapped( context, cached.Texture, pass.Target, pass.CacheOffset );
 			context.EndGpuScope( scope );
-		}
-
-		// A view of part of a map clears only that part, from a cleared tile
-		if ( clear && cached is null && pass.Blank is { } blank )
-		{
-			var tile = blank.Resolution;
-			var rect = view.Viewport;
-			for ( int y = (int)rect.Top; y < (int)rect.Bottom; y += tile )
-			{
-				for ( int x = (int)rect.Left; x < (int)rect.Right; x += tile )
-					context.CopyTextureRegion( blank.Texture, pass.Target, 0, 0, x, y, Math.Min( tile, (int)rect.Right - x ), Math.Min( tile, (int)rect.Bottom - y ) );
-			}
 		}
 
 		context.Bind( new StageTarget
@@ -917,7 +1009,18 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			ColorFormat = TextureFormat.None,
 			Samples = 1,
 		} );
-		if ( clear && cached is null && pass.Blank is null ) context.Clear( Color.Black, clearColor: false );
+		if ( clear && cached is null )
+		{
+			if ( pass.ClearShadowRegion )
+			{
+				var rect = view.Viewport;
+				context.ClearDepthRegion( (int)rect.Left, (int)rect.Top, (int)rect.Right - (int)rect.Left, (int)rect.Bottom - (int)rect.Top );
+			}
+			else
+			{
+				context.Clear( Color.Black, clearColor: false );
+			}
+		}
 
 		// The shadow view's own, which no key describes
 		var constants = new ViewConstants();
@@ -926,55 +1029,42 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	}
 
 
-	// The device's own: a material is made per device
-	static GpuMaterial cacheCopy;
-	static GpuDevice cacheCopyDevice;
-	static GpuMaterial CacheCopy
-	{
-		get
-		{
-			var device = RenderHost.Current.Device;
-			if ( cacheCopy is null || cacheCopyDevice != device ) (cacheCopy, cacheCopyDevice) = (device.MaterialFromShader( "shaders/borealis_shadow_cache_copy.shader" ), device);
-			return cacheCopy;
-		}
-	}
+	static GpuMaterial CacheCopy => RenderHost.Current.Device.PassMaterial( GpuPassMaterial.ShadowCacheCopy );
 
 	static readonly StringToken CacheDepthName = new( "ShadowCacheDepth" );
 	static readonly StringToken CacheWrapName = new( "ShadowCacheWrap" );
 	static readonly StringToken CacheTilesName = new( "ShadowCacheTiles" );
 	static readonly StringToken CacheSparseName = new( "ShadowCacheSparse" );
 
-	/// <summary>
-	/// The far cascade's cache is copied into its cascade only where it holds a caster (<see cref="DrawCache"/>): the map is
-	/// cleared, and each 32x32 tile of the cache whose depth is all clear, which <see cref="cacheTiles"/> says, is left so.
-	/// Off: every texel is copied.
-	/// </summary>
-	internal static bool SparseCacheCopy { get; set; } = true;
-
-	// Each 32x32 tile of the far cascade's cache: its min and max depth, made again when the cache is drawn
+	// The far cascade's cache is copied only where its 32x32 min/max tiles show a caster.
 	GpuTexture cacheTiles;
 	ShadowMap cacheTilesOf;
 	ulong cacheTilesVersion;
 	bool buildCacheTiles;
+	ShadowMap cacheTilesForCopy;
 
 	/// <summary>
 	/// Whether this frame's far cascade copies its cache sparsely, and whether the cache's tiles are made again first: when it's
-	/// a different cache or drawn since (its version moved on). After <see cref="KeepUnchangedCascades"/> has moved versions on.
+	/// a different cache or drawn since (its version moved on). After <see cref="KeepUnchangedMaps"/> has moved versions on.
 	/// </summary>
 	void PlanCacheTiles()
 	{
 		buildCacheTiles = false;
+		cacheTilesForCopy = null;
+
 		ShadowMap cache = null;
 		foreach ( var pass in Drawn )
 		{
-			if ( pass.CachedStatic is { } c && c == mapper.FarCacheMap ) cache = c;
+			if ( pass.CachedStatic is { } c && c == mapper.FarCacheMap )
+			{
+				cache = c;
+				break;
+			}
 		}
 
-		if ( !SparseCacheCopy || cache is null )
-		{
-			cacheTilesOf = null;
-			return;
-		}
+		// A frame that skips copying doesn't invalidate the tiles of an unchanged cache.
+		if ( cache is null ) return;
+		cacheTilesForCopy = cache;
 
 		var side = Math.Max( cache.Resolution / TileTexels, 1 );
 		if ( cacheTiles is null || cacheTiles.Width != side )
@@ -997,17 +1087,26 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	internal static void BuildCacheTiles( GpuContext context, GpuTexture cache, GpuTexture tiles )
 	{
 		context.Invalidate();
-		context.TextureBarrier( cache, GpuStage.LateFragmentTests, GpuAccess.DepthStencilAttachmentWrite, GpuStage.ComputeShader | GpuStage.FragmentShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
+		BarrierToTileRead( context, cache );
 		context.TextureBarrier( tiles, GpuStage.FragmentShader, GpuAccess.ShaderRead, GpuStage.ComputeShader, GpuAccess.ShaderWrite, TextureLayout.General );
-		var parameters = ParameterPool.Get();
+		using var lease = ParameterPool.Borrow( out var parameters );
 		parameters.Set( ShadowTilesOutName, tiles );
 		parameters.SetCombo( WidenCombo, false );
-		parameters.Set( ShadowTileDepthName, cache );
-		parameters.Set( ShadowTilesName, new Vector4( 0, tiles.Width, 0, 0 ) );
-		context.Dispatch( TilesCompute, parameters, tiles.Width * 8, tiles.Height * 8, 1 );
-		ParameterPool.Return( parameters );
+		DispatchRawTiles( context, TilesCompute, parameters, cache, 0, tiles.Width, tiles.Height );
 		context.TextureBarrier( tiles, GpuStage.ComputeShader, GpuAccess.ShaderWrite, GpuStage.FragmentShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
 	}
+
+	static void BarrierToTileRead( GpuContext context, GpuTexture texture )
+		=> context.TextureBarrier( texture, GpuStage.EarlyFragmentTests | GpuStage.LateFragmentTests, GpuAccess.DepthStencilAttachmentWrite,
+			GpuStage.ComputeShader | GpuStage.FragmentShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
+
+	static void DispatchRawTiles( GpuContext context, GpuMaterial material, ShaderParameters parameters, GpuTexture depth, int x, int width, int height )
+	{
+		parameters.Set( ShadowTileDepthName, depth );
+		parameters.Set( ShadowTilesName, new Vector4( x, width, 0, 0 ) );
+		context.Dispatch( material, parameters, width * 8, height * 4, 1 );
+	}
+
 	static readonly StringToken DefaultMode = new( "Default" );
 
 	/// <summary>
@@ -1035,7 +1134,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		// With the cache's tiles: the map cleared, and only the tiles that hold a caster written
 		if ( tiles is not null ) context.Clear( Color.Black, clearColor: false );
 
-		var parameters = ParameterPool.Get();
+		using var lease = ParameterPool.Borrow( out var parameters );
 		parameters.Set( CacheDepthName, source );
 		parameters.Set( CacheWrapName, new Vector4( ox, oy, w, h ) );
 		if ( tiles is not null ) parameters.Set( CacheTilesName, tiles );
@@ -1055,7 +1154,6 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			drew = context.DrawFullscreenNow( CacheCopy, parameters, DefaultMode );
 		}
 
-		ParameterPool.Return( parameters );
 		return drew;
 	}
 

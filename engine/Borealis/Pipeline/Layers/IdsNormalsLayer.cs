@@ -45,7 +45,7 @@ internal sealed class IdsNormalsLayer : RenderLayer
 		}
 
 		var viewport = frame.View.Viewport;
-		target = frame.System.Transients.Get( TextureDesc.Target( (int)viewport.Width, (int)viewport.Height, TextureFormat.RGBA16161616F ) with { Storage = true }, "Ids Normals" );
+		target = frame.System.Transients.Get( TransientTextureRole.IdsNormals, TextureDesc.Target( (int)viewport.Width, (int)viewport.Height, TextureFormat.RGBA16161616F ) with { Storage = true } );
 		frameContext.Attributes.Set( NormalsName, target );
 		frameContext.Attributes.Set( NormalsOnName, 1 );
 	}

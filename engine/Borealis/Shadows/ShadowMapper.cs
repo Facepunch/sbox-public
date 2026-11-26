@@ -22,7 +22,7 @@ internal partial class ShadowMapper
 	static int MaxCascadeResolution => Settings.MaxCascadeResolution;
 	static float CascadeDistance => Settings.CascadeDistance;
 	static bool CSMEnabled => Settings.CascadesEnabled;
-	static bool LocalShadowsEnabled => Settings.LocalEnabled;
+	internal static bool LocalShadowsEnabled => Settings.LocalEnabled;
 	static int MaxUpdatesPerFrame => Settings.MaxUpdatesPerFrame;
 	static int ShadowDepthBias => Settings.DepthBias;
 	static float ShadowSlopeScale => Settings.SlopeScale;
@@ -35,6 +35,9 @@ internal partial class ShadowMapper
 	// Absolute upper limits, no harm in increasing these
 	internal const int ProjectedShadowBufferSize = 512;
 	internal const int ProjectedCubeShadowBufferSize = 256;
+
+	const int ResolutionShrinkFrames = 4;
+	const float ResolutionShrinkFraction = 0.8f;
 
 	int ShadowsAllocated { get; set; }
 
@@ -106,12 +109,6 @@ internal partial class ShadowMapper
 		GPUDirectionalLightData.Flags = 0;
 		GPUDirectionalLightData.ShadowMaskTextureIndex = 0;
 		ShadowsAllocated = 0;
-
-		// Save statistics from last frame, then reset
-		ProjectedShadowsRenderedLastFrame = ProjectedShadowsRendered;
-		ProjectedShadowsCulledLastFrame = ProjectedShadowsCulled;
-		ProjectedShadowsRendered = 0;
-		ProjectedShadowsCulled = 0;
 	}
 
 	/// <summary>
@@ -189,12 +186,17 @@ internal partial class ShadowMapper
 		internal WeakReference<object> Light;
 
 		public float LastFrame;
+
+		/// <summary>
+		/// The light's static casters, but a baked light's, and the casters settled when it was drawn
+		/// (<see cref="SettledCasters"/>): copied into <see cref="ShadowMap"/> each update, which draws the rest on top.
+		/// </summary>
 		public ShadowMap StaticCache;
 		public ShadowMap ShadowMap;
 		public float ScreenSize;
 		public int CurrentResolution;
-		public int DesiredResolution;
-		public int DebugLightIndex;
+		internal float RequestedSize;
+		internal int UndersizedFrames;
 		public bool IsCube;
 		public string DebugName;
 		public int CachedTransformVersion;
@@ -223,6 +225,29 @@ internal partial class ShadowMapper
 		public ulong StaticRenderedFrame;
 
 		/// <summary>
+		/// When <see cref="StaticCache"/> was drawn.
+		/// </summary>
+		public float StaticDrawnAt;
+
+		/// <summary>
+		/// Whether the light was baked when <see cref="StaticCache"/> was drawn: a cache drawn before it was baked holds the
+		/// static casters its lightmap holds too, and would shadow them twice.
+		/// </summary>
+		public bool StaticCacheBaked;
+
+		/// <summary>
+		/// The <see cref="SettledCasters"/> stamps <see cref="StaticCache"/> was drawn at: casters that moved after them are drawn
+		/// on top each update.
+		/// </summary>
+		public ulong SettledStamp, RestlessStamp;
+
+		/// <summary>
+		/// The casters its last update drew on top of <see cref="StaticCache"/> that have settled since: drawn again, the cache
+		/// would hold them.
+		/// </summary>
+		internal readonly CasterCount NewlySettled = new();
+
+		/// <summary>
 		/// The mapper whose view last drew the map.
 		/// </summary>
 		internal ShadowMapper DrawnBy;
@@ -233,31 +258,9 @@ internal partial class ShadowMapper
 		public long StaticRevision;
 
 		/// <summary>
-		/// Whether <see cref="StaticCache"/> holds the casters settled by <see cref="SettledStamp"/> too, not only the static
-		/// ones (<see cref="SettledLocalCaches"/>): the map's updates draw the rest on top.
-		/// </summary>
-		public bool HoldsSettled;
-
-		/// <summary>
-		/// The <see cref="SettledCasters"/> stamps <see cref="StaticCache"/> was drawn at, when it <see cref="HoldsSettled"/>.
-		/// </summary>
-		public ulong SettledStamp, RestlessStamp;
-
-		/// <summary>
-		/// The world's settled changes' <see cref="StaticCasterChanges.Revision"/> <see cref="StaticCache"/> is up to date with.
+		/// The world's <see cref="RenderWorld.SettledChanges"/> revision <see cref="StaticCache"/> is up to date with.
 		/// </summary>
 		public long SettledRevision;
-
-		/// <summary>
-		/// When <see cref="StaticCache"/> was drawn.
-		/// </summary>
-		public float StaticDrawnAt;
-
-		/// <summary>
-		/// The casters the map's last update drew on top of its cache that have settled since: drawn again, the cache would
-		/// hold them.
-		/// </summary>
-		internal readonly CasterCount NewlySettled = new();
 
 		/// <summary>
 		/// The tags of the views this map is for: it holds the casters they show.
@@ -301,15 +304,41 @@ internal partial class ShadowMapper
 	/// Get or create the cache entry for a light seen through <see cref="View"/>'s tags, handling resolution changes and
 	/// dropping the static cache if the light moved or a static caster it reaches changed.
 	/// </summary>
-	LightEntry GetOrCreateCacheEntry( in ShadowLight light, int desiredResolution, bool isCube, float flScreenSize )
+	LightEntry GetOrCreateCacheEntry( in ShadowLight light, bool isCube, float flScreenSize )
 	{
 		// A map holds the casters its view's tags show, so views with other tags keep maps of their own
 		var renderTags = View.RenderTags ?? [];
-		var excludeTags = View.ExcludeTags ?? [];
+		uint[] excludeTags = View.IgnoreLocalExcludeTags ? [] : View.ExcludeTags ?? [];
 		Cache.TryGetValue( light.Key, out var first );
 		var entry = first;
 		while ( entry is not null && !(SameTags( entry.RenderTags, renderTags ) && SameTags( entry.ExcludeTags, excludeTags ) && entry.SubWorlds == View.SubWorlds) )
 			entry = entry.NextFilter;
+
+		// ComputeScreenSize returns an area fraction; take its square root to get a fraction of the viewport edge.
+		float linearSize = MathF.Sqrt( flScreenSize ) * (int)Math.Max( View.ViewportSize.x, View.ViewportSize.y );
+		var frame = FrameCount;
+		float previousSize = 0;
+		if ( entry is not null )
+		{
+			if ( entry.UsedFrame == frame )
+			{
+				linearSize = Math.Max( entry.RequestedSize, linearSize );
+			}
+			else if ( entry.UsedFrame == frame - 1 )
+			{
+				previousSize = entry.RequestedSize;
+				entry.UndersizedFrames = previousSize < entry.CurrentResolution * ResolutionShrinkFraction
+					? Math.Min( entry.UndersizedFrames + 1, ResolutionShrinkFrames )
+					: 0;
+			}
+			else
+			{
+				entry.UndersizedFrames = 0;
+			}
+		}
+
+		float requestedSize = Math.Max( previousSize, linearSize );
+		int desiredResolution = GetDesiredResolution( requestedSize );
 
 		if ( entry is null )
 		{
@@ -360,23 +389,24 @@ internal partial class ShadowMapper
 		entry.Bias = light.Bias;
 		entry.ConeOuter = light.ConeOuter;
 
-		// Keep track of how big we actually want it, if we run low on budget we can downgrade these out of scope
-		entry.DesiredResolution = desiredResolution;
 		entry.ScreenSize = flScreenSize;
+		entry.RequestedSize = linearSize;
 
-		// A smaller view later in the same frame (probe bake, mirror) keeps the bigger map already rendered this frame
-		// A map another frame in flight drew keeps its size: that frame's commands draw into it
-		if ( entry.RenderedFrame == FrameCount && (desiredResolution < entry.CurrentResolution || DrawnInFlight( entry )) )
-			desiredResolution = entry.CurrentResolution;
+		if ( desiredResolution < entry.CurrentResolution )
+		{
+			bool hold = entry.CurrentResolution <= MaxResolution
+				&& (entry.UndersizedFrames < ResolutionShrinkFrames || requestedSize >= entry.CurrentResolution * ResolutionShrinkFraction);
+			if ( hold || entry.RenderedFrame == frame ) desiredResolution = entry.CurrentResolution;
+		}
 
-		// Do we want a different resolution for this shadow map now?
-		if ( entry.CurrentResolution != desiredResolution )
+		if ( entry.CurrentResolution != desiredResolution && !DrawnInFlight( entry ) )
 		{
 			ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
 			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 			entry.ShadowMap = AcquireTexture( desiredResolution, isCube );
 			entry.StaticCache = null;
 			entry.CurrentResolution = desiredResolution;
+			entry.UndersizedFrames = 0;
 			entry.RenderedFrame = 0;
 		}
 
@@ -390,29 +420,17 @@ internal partial class ShadowMapper
 			entry.RenderedFrame = 0;
 		}
 
-		// The static cache holds the static casters as they were drawn: a change within the light's reach redraws it
+		// The cache holds the static and settled casters as they were drawn: a change within the light's reach redraws it, and
+		// so does a settled caster in it moving, where it was and is
 		if ( entry.StaticCache is not null && light.StaticChanges is { } changes && entry.StaticRevision != changes.Revision )
 		{
-			if ( changes.Touches( entry.StaticRevision, light.Position, light.Radius ) )
-			{
-				ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
-				entry.StaticCache = null;
-				entry.RenderedFrame = 0;
-			}
-
+			if ( changes.Touches( entry.StaticRevision, light.Position, light.Radius ) ) DropCache( entry );
 			entry.StaticRevision = changes.Revision;
 		}
 
-		// A cache that holds settled casters too: the same for a change to one of those
-		if ( entry.StaticCache is not null && entry.HoldsSettled && light.SettledChanges is { } settled && entry.SettledRevision != settled.Revision )
+		if ( entry.StaticCache is not null && light.SettledChanges is { } settled && entry.SettledRevision != settled.Revision )
 		{
-			if ( settled.Touches( entry.SettledRevision, light.Position, light.Radius ) )
-			{
-				ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
-				entry.StaticCache = null;
-				entry.RenderedFrame = 0;
-			}
-
+			if ( settled.Touches( entry.SettledRevision, light.Position, light.Radius ) ) DropCache( entry );
 			entry.SettledRevision = settled.Revision;
 		}
 
@@ -420,69 +438,71 @@ internal partial class ShadowMapper
 	}
 
 	/// <summary>
-	/// Whether the light keeps its static casters in a cache, drawn once and copied in each time it updates: a static light,
-	/// and one that hasn't moved or changed shape for as long as a caster takes to settle (<see cref="SettledCasters.Seconds"/>).
-	/// Nothing flags a scene's lights static, so without the second most would redraw every static caster each update. The
-	/// cache is dropped when the light moves, so a moving light draws everything, as before.
+	/// Drop an entry's cache, which no longer holds what's there: it's drawn again with the map, now.
+	/// </summary>
+	static void DropCache( LightEntry entry )
+	{
+		ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+		entry.StaticCache = null;
+		entry.RenderedFrame = 0;
+	}
+
+	/// <summary>
+	/// Whether the light keeps a cache, drawn once and copied in each time it updates: a static light, and one that hasn't
+	/// moved or changed shape for as long as a caster takes to settle (<see cref="SettledCasters.Seconds"/>). Nothing flags a
+	/// scene's lights static, so without the second most would redraw every caster each update. The cache is dropped when the
+	/// light moves, so a moving light draws everything, as before.
 	/// </summary>
 	static bool CachesStatic( in ShadowLight light, LightEntry entry ) => light.Static || SettledCasters.Settled( entry.MovedStamp );
 
 	/// <summary>
-	/// A local light's static cache holds the casters that have settled too (<see cref="SettledCasters"/>), as the sun's far
-	/// cascade does, so an update draws only the casters that move on top of it, and in a still scene nothing. The cache is
-	/// drawn again when a settled caster within the light's reach changes, or when casters an update drew have settled
-	/// since. Off: it holds only static casters, and each update draws every other caster in reach.
+	/// Whether the light's cache is drawn this update: it has none yet, it was drawn before the light was baked or unbaked
+	/// (<see cref="LightEntry.StaticCacheBaked"/>), a frame in flight drew it this frame (it's drawn again for this one,
+	/// submitted first), or casters drawn on top of it have settled, and it was drawn as long ago as they take to, so it
+	/// isn't drawn more often than they settle.
 	/// </summary>
-	internal static bool SettledLocalCaches { get; set; } = true;
+	static bool DrawsCache( in ShadowLight light, LightEntry entry, bool inFlight ) => CachesStatic( light, entry )
+		&& (entry.StaticCache is null || entry.StaticCacheBaked != light.Baked || (inFlight && entry.StaticRenderedFrame == FrameCount)
+			|| (entry.NewlySettled.Value > 0 && RealTime.Now - entry.StaticDrawnAt >= SettledCasters.Seconds));
 
 	/// <summary>
-	/// Start drawing <paramref name="entry"/>'s static cache into <paramref name="view"/>: its casters, and what it then holds.
+	/// Make <paramref name="view"/> draw the light's cache, made if it has none: its static casters, but a baked light's,
+	/// whose lightmaps hold them, and the casters settled now.
 	/// </summary>
-	static void BeginStaticCache( LightEntry entry, in ShadowLight light, ref ShadowViewDesc view )
+	static void ToCache( in ShadowLight light, LightEntry entry, ref ShadowViewDesc view )
 	{
-		entry.StaticRenderedFrame = FrameCount;
-		entry.StaticRevision = light.StaticChanges?.Revision ?? 0;
-		entry.HoldsSettled = SettledLocalCaches;
-		view.StaticFilter = StaticFilter.OnlyStatic;
-		if ( !entry.HoldsSettled ) return;
-
-		view.StaticFilter = StaticFilter.Settled;
+		entry.StaticCache ??= AcquireTexture( entry.CurrentResolution, entry.IsCube );
+		view.Name = entry.DebugName + "_StaticCache";
+		view.Target = entry.StaticCache;
+		view.StaticFilter = light.Baked ? StaticFilter.SettledNoStatic : StaticFilter.Settled;
 		view.SettledStamp = entry.SettledStamp = SettledCasters.Stamp;
 		view.RestlessStamp = entry.RestlessStamp = SettledCasters.RestlessStamp;
-		entry.SettledRevision = light.SettledChanges?.Revision ?? 0;
+		entry.StaticRenderedFrame = FrameCount;
 		entry.StaticDrawnAt = RealTime.Now;
-		entry.NewlySettled.Value = 0;
+		entry.StaticCacheBaked = light.Baked;
+		entry.StaticRevision = light.StaticChanges?.Revision ?? 0;
+		entry.SettledRevision = light.SettledChanges?.Revision ?? 0;
 	}
 
 	/// <summary>
-	/// Draw <paramref name="view"/>, of the map over <paramref name="entry"/>'s static cache, with what the cache doesn't hold:
-	/// the casters that aren't static, or with a cache that <see cref="LightEntry.HoldsSettled"/>, those that haven't settled.
+	/// Make <paramref name="view"/> draw the light's map: a copy of its cache with the casters it doesn't hold on top, counting
+	/// those that have settled since; without one, every caster, but a baked light's static ones.
 	/// </summary>
-	static void OverStaticCache( LightEntry entry, ref ShadowViewDesc view )
+	static void ToMap( in ShadowLight light, LightEntry entry, ref ShadowViewDesc view )
 	{
+		view.Target = entry.ShadowMap;
 		view.CachedStatic = entry.StaticCache;
-		view.StaticFilter = StaticFilter.NoStatic;
-		if ( !entry.HoldsSettled ) return;
+		if ( entry.StaticCache is null )
+		{
+			view.StaticFilter = light.Baked ? StaticFilter.NoStatic : StaticFilter.Any;
+			return;
+		}
 
 		view.StaticFilter = StaticFilter.Unsettled;
 		view.SettledStamp = entry.SettledStamp;
 		view.RestlessStamp = entry.RestlessStamp;
 		entry.NewlySettled.Value = 0;
 		view.NewlySettled = entry.NewlySettled;
-	}
-
-	/// <summary>
-	/// Before drawing a map whose static cache <see cref="LightEntry.HoldsSettled"/>: drop the cache when casters its last
-	/// update drew have settled since, and it's been as long as they take to settle since it was drawn, so it's drawn again
-	/// holding them. Not one drawn this frame, which another frame in flight still draws from.
-	/// </summary>
-	static void DropUnsettledCache( LightEntry entry )
-	{
-		if ( entry.StaticCache is null || !entry.HoldsSettled || entry.NewlySettled.Value == 0 || entry.StaticRenderedFrame == FrameCount ) return;
-		if ( RealTime.Now - entry.StaticDrawnAt < SettledCasters.Seconds ) return;
-
-		ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
-		entry.StaticCache = null;
 	}
 
 	/// <summary>
@@ -681,25 +701,59 @@ internal partial class ShadowMapper
 	/// same idea as CSM Width/Far — not world-space texel size.
 	/// Normalized so a 45° half-angle map at BiasScaleReferenceResolution is 1.0.
 	/// </summary>
-	internal static float ComputeBiasScale( float halfAngleDegrees, float range, int resolution )
+	static float ComputeBiasScale( float halfAngleDegrees, int resolution )
 	{
 		const int BiasScaleReferenceResolution = 1024;
 
-		// (tanθ / resolution) / (tan45° / referenceRes) — range is unused (cancels for depth-unit bias).
+		// (tanθ / resolution) / (tan45° / referenceRes).
 		// Cap at 1: scaling *up* for low-res/wide cones only detaches shadows (peter-panning).
 		return Math.Min( 1f, MathF.Tan( halfAngleDegrees * MathF.PI / 180f )
 			* BiasScaleReferenceResolution
 			/ Math.Max( resolution, 1 ) );
 	}
 
-	internal static int GetDesiredResolution( float screenSizePercent, int viewportSize )
+	// A light filling the screen never waits its turn. A map still in flight must be drawn again for the view submitting first.
+	bool ReusesLocalMap( LightEntry entry, out bool inFlight )
 	{
-		// screenSizePercent is a screen-area fraction from ComputeScreenSize.
-		// Convert to linear dimension: sqrt(area) gives the fraction of the viewport edge.
-		float linearSize = MathF.Sqrt( screenSizePercent ) * viewportSize;
+		inFlight = DrawnInFlight( entry );
+		return !inFlight && (entry.RenderedFrame == FrameCount || (entry.RenderedFrame != 0 && !entry.Scheduled && entry.ScreenSize < 1f));
+	}
 
+	static ShadowViewDesc LocalView( in ShadowLight light, LightEntry entry, float halfAngle )
+	{
+		var bias = ComputeBiasScale( halfAngle, entry.CurrentResolution );
+		return new ShadowViewDesc
+		{
+			Name = entry.DebugName,
+			Position = light.Position,
+			Rotation = light.Rotation,
+			FieldOfView = 2.0f * halfAngle,
+			ZNear = 1.0f,
+			ZFar = light.Radius,
+			Resolution = entry.CurrentResolution,
+			DepthBias = (int)(ShadowDepthBias * bias),
+			SlopeScaledDepthBias = ShadowSlopeScale * bias,
+		};
+	}
+
+	void MarkLocalMapDrawn( LightEntry entry )
+	{
+		entry.RenderedFrame = FrameCount;
+		entry.DrawnBy = this;
+		Drawn.Add( entry );
+	}
+
+	void UseLocalMap( LightEntry entry )
+	{
+		ShadowsAllocated++;
+		entry.LastFrame = RealTime.Now;
+		entry.UsedFrame = FrameCount;
+	}
+
+	static int GetDesiredResolution( float linearSize )
+	{
 		// Round down to nearest power of two
-		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( linearSize, 1 ) ) >> 1;
+		int desiredSize = 1 << BitOperations.Log2( (uint)Math.Max( linearSize, 1 ) );
 
 		return Math.Clamp( desiredSize, 128, MaxResolution );
 	}
@@ -715,10 +769,7 @@ internal partial class ShadowMapper
 
 		// Unified shadow budget — reject if we've hit the limit
 		if ( ShadowsAllocated >= MaxShadows )
-		{
-			ProjectedShadowsCulled++;
 			return InvalidShadowIndex;
-		}
 
 		// Reflections without shadows don't wait on this frame's shadow maps
 		if ( View.NoShadows )
@@ -732,7 +783,7 @@ internal partial class ShadowMapper
 		};
 	}
 
-	internal int DoDirectionalLight( in ShadowLight light )
+	internal void DoDirectionalLight( in ShadowLight light )
 	{
 		if ( CSMEnabled )
 			FindOrCreateDirectionalShadowMaps( light );
@@ -741,6 +792,5 @@ internal partial class ShadowMapper
 		GPUDirectionalLightData.Enabled = true;
 		GPUDirectionalLightData.Color = new Vector4( light.Color, light.FogStrength );
 		GPUDirectionalLightData.Direction = new Vector4( light.Direction, 0 );
-		return 0;
 	}
 }

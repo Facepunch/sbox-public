@@ -6,6 +6,23 @@ namespace Borealis;
 /// </summary>
 public abstract class GpuDevice
 {
+	internal ParameterPool PassParameters { get; } = new();
+	readonly GpuMaterial[] passMaterials = new GpuMaterial[(int)GpuPassMaterial.Count];
+
+	internal GpuMaterial PassMaterial( GpuPassMaterial pass ) => passMaterials[(int)pass] ??= MaterialFromShader( pass switch
+	{
+		GpuPassMaterial.DepthResolveCompute => "shaders/depthresolve_cs.shader",
+		GpuPassMaterial.DepthResolve => "shaders/depthresolve.shader",
+		GpuPassMaterial.Spd => "downsample_spd",
+		GpuPassMaterial.ContactShadows => "screen_space_shadows_cs",
+		GpuPassMaterial.ShadowTiles => "shaders/borealis_shadow_tiles_cs.shader",
+		GpuPassMaterial.ShadowCacheCopy => "shaders/borealis_shadow_cache_copy.shader",
+		GpuPassMaterial.OutputFlip => "shaders/copytexture.shader",
+		GpuPassMaterial.ShadowDebug => "shaders/debug_shadow_map.shader",
+		GpuPassMaterial.IdsView => "shaders/debug_show_texture.shader",
+		_ => throw new ArgumentOutOfRangeException( nameof( pass ) ),
+	} );
+
 	/// <summary>Where the device and the features drawing with it report what they draw differently from what was asked; the console by default.</summary>
 	public Action<string> Warn { get; set; } = message => Console.WriteLine( message );
 
@@ -120,7 +137,8 @@ public abstract class GpuDevice
 
 	/// <summary>
 	/// Raised each time a program the device was compiling in the background becomes ready: what <see cref="TakesResident"/>
-	/// and <see cref="TakesOverlay"/> said of its materials meanwhile is looked at again.
+	/// and <see cref="TakesOverlay"/> said of its materials meanwhile is looked at again, and resident meshes whose draws it left
+	/// while compiling are taken back.
 	/// </summary>
 	internal virtual int ProgramsVersion => 0;
 

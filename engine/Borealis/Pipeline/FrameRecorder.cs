@@ -57,6 +57,9 @@ internal sealed partial class FrameRecorder : IDisposable
 
 		/// <summary>Graphics preparation for the first compute segment in a batch, or -1.</summary>
 		public int HandOff;
+
+		/// <summary>Compute batch handed off at the end of this graphics list, or -1.</summary>
+		public int TailHandOff;
 		public bool Signal;
 		public GpuSemaphore Completion;
 
@@ -263,6 +266,7 @@ internal sealed partial class FrameRecorder : IDisposable
 
 		PlanSegments( parallel, asyncCompute );
 		PlanSharedLists();
+		if ( _computeBatchCount > 0 ) PlanComputeHandOffs();
 	}
 
 	// The last plan's structure (GraphMeasure): the segments' shapes and how their lists are shared
@@ -288,10 +292,17 @@ internal sealed partial class FrameRecorder : IDisposable
 
 	internal int SegmentCount => segmentCount;
 
+	/// <summary>Dependencies of a planned segment, for scheduler tests.</summary>
+	internal (int WaitFor, int Borrows, int HandOff) DependenciesOf( int index )
+	{
+		ref var segment = ref segments[index];
+		return (segment.WaitFor, segment.Borrows, segment.HandOff);
+	}
+
 	/// <summary>
 	/// Short names of <see cref="FrameResources"/>, by bit, for the plan overlay.
 	/// </summary>
-	static readonly string[] ResourceNames = ["chain", "qdepth", "bloom", "bloom in", "refract", "depth", "normals", "ao", "contact", "reflections", "shadows", "", "", "", "", "untracked"];
+	static readonly string[] ResourceNames = ["chain", "qdepth", "bloom", "", "refract", "depth", "", "ao", "contact", "reflections", "shadows", "culled instances", "ids normals", "", "", "untracked"];
 
 	/// <summary>
 	/// The last plan, for the dev tools's frame plan: each frame's layers, whether each ran and why not, what it made and read
@@ -595,6 +606,7 @@ internal sealed partial class FrameRecorder : IDisposable
 			WaitFor = -1,
 			TakeBackFrom = -1,
 			HandOff = -1,
+			TailHandOff = -1,
 			Context = contexts[segmentCount]
 		};
 		segmentCount++;
@@ -890,25 +902,8 @@ internal sealed partial class FrameRecorder : IDisposable
 		var recording = GpuContext.Recording;
 		try
 		{
-			// The async segment's graphics work first, into a context submitted just before it
-			if ( segment.HandOff >= 0 )
-			{
-				var batch = _computeBatches[segment.HandOff];
-				var handOff = batch.Context;
-				handOff.BeginSegment( frame.System.FrameContext, null );
-				handOff.InheritViewConstants( frame.ConstantsKey );
-				GpuContext.Recording = handOff;
-
-				// The graphics-side handoff lives outside the compute layers' own timing scopes.
-				var handOffScope = handOff.BeginGpuScope( "Async compute handoff" );
-				for ( int l = batch.From; l < batch.From + batch.Count; l++ )
-				{
-					frame.UseFrameConstants( handOff );
-					layers[l].Layer.HandOff( frame, handOff );
-					handOff.EndPass();
-				}
-				handOff.EndGpuScope( handOffScope );
-			}
+			if ( segment.HandOff >= 0 && _computeBatches[segment.HandOff] is { Shared: false } batch )
+				RecordComputeHandOff( batch, frame, null );
 
 			// Context command memory is thread-owned (CRenderBatchList::Start). Only fully serial frames share the first context.
 			// or, recording beside workers, a main-thread segment straight after another shares that one's (PlanSharedLists)
@@ -935,6 +930,7 @@ internal sealed partial class FrameRecorder : IDisposable
 			}
 
 			RecordSegment( ref segment, rc, frame, ref stats, layerCosts );
+			if ( segment.TailHandOff >= 0 ) RecordComputeHandOff( _computeBatches[segment.TailHandOff], frame, rc );
 		}
 		finally
 		{
@@ -946,6 +942,27 @@ internal sealed partial class FrameRecorder : IDisposable
 		segment.EndedAt = Stopwatch.GetTimestamp();
 		segment.Thread = Environment.CurrentManagedThreadId;
 		segment.Ms = Stopwatch.GetElapsedTime( start, segment.EndedAt ).TotalMilliseconds;
+	}
+
+	void RecordComputeHandOff( ComputeBatch batch, RenderFrame frame, GpuContext shared )
+	{
+		var handOff = batch.Context;
+		handOff.BeginSegment( frame.System.FrameContext, shared );
+		handOff.InheritViewConstants( frame.ConstantsKey );
+		GpuContext.Recording = handOff;
+
+		// Keep the graphics-side preparation timed apart from the compute layers.
+		var scope = handOff.BeginGpuScope( "Async compute handoff" );
+		for ( int l = batch.From; l < batch.From + batch.Count; l++ )
+		{
+			frame.UseFrameConstants( handOff );
+			layers[l].Layer.HandOff( frame, handOff );
+			handOff.EndPass();
+		}
+		handOff.EndGpuScope( scope );
+
+		// Release the borrowing context; the graphics segment still owns and submits its list.
+		if ( shared is not null ) handOff.Submit();
 	}
 
 	/// <summary>
@@ -975,16 +992,18 @@ internal sealed partial class FrameRecorder : IDisposable
 		var (first, end) = segment.Kind == SegmentKind.Draw
 			? (HashCode.Combine( work[segment.Index].Layer, ViewShape( work[segment.Index].View ) ), HashCode.Combine( work[last].Layer, ViewShape( work[last].View ) ))
 			: segment.Count > 0 ? (HashCode.Combine( layers[segment.Index].Layer ), HashCode.Combine( layers[last].Layer )) : (0, 0);
-		return HashCode.Combine( segment.Kind, segment.Frame, first, end, segment.Count, segment.HandOff, segment.WaitFor, segment.Async );
+		// Nonnegative values identify compute consumers, -1 means no handoff, and lower values identify graphics producers.
+		var handOff = segment.TailHandOff < 0 ? segment.HandOff : -2 - segment.TailHandOff;
+		return HashCode.Combine( segment.Kind, segment.Frame, first, end, segment.Count, handOff, segment.WaitFor, segment.Async );
 	}
 
 	/// <summary>
 	/// A view in the frame's shape: a main view itself, a shadow view by what it draws (its filter, and whether it starts
-	/// from a static cache or a blank tile). The pooled shadow views take whichever lights' maps are drawn this frame, which
+	/// from a static cache or clears a region). The pooled shadow views take whichever lights' maps are drawn this frame, which
 	/// rotate as point lights update a few a frame, and keyed by which view they are the layout plan never held. A plan
 	/// that guessed a layout wrong costs a fix-up, as having none does (<c>BackendContext.SubmitLayoutFixUps</c>).
 	/// </summary>
-	static int ViewShape( ViewPass view ) => view is { IsShadow: true } ? HashCode.Combine( view.StaticFilter, view.CachedStatic is not null, view.Blank is not null ) : view?.GetHashCode() ?? 0;
+	static int ViewShape( ViewPass view ) => view is { IsShadow: true } ? HashCode.Combine( view.StaticFilter, view.CachedStatic is not null, view.ClearShadowRegion ) : view?.GetHashCode() ?? 0;
 
 	/// <summary>
 	/// Where a layer's recording started: the time, and the counts it's measured against.
@@ -1096,10 +1115,13 @@ internal sealed partial class FrameRecorder : IDisposable
 			ref var segment = ref segments[i];
 			if ( segment.HandOff >= 0 )
 			{
-				var handOff = _computeBatches[segment.HandOff].Context;
-				var handedOff = handOff.SignalAtEnd();
-				handOff.Submit();
-				segment.Context.WaitAtBegin( handedOff );
+				var batch = _computeBatches[segment.HandOff];
+				if ( !batch.Shared )
+				{
+					batch.Ready = batch.Context.SignalAtEnd();
+					batch.Context.Submit();
+				}
+				segment.Context.WaitAtBegin( batch.Ready );
 			}
 			else if ( segment.WaitFor >= 0 )
 			{
@@ -1108,6 +1130,7 @@ internal sealed partial class FrameRecorder : IDisposable
 
 			// Binary semaphores have one consumer. A later compute submission is already ordered on its own queue.
 			if ( segment.Signal ) segment.Completion = segment.Context.SignalAtEnd();
+			if ( segment.TailHandOff >= 0 ) _computeBatches[segment.TailHandOff].Ready = segment.Context.SignalAtEnd();
 
 			segment.Context.Submit();
 		}

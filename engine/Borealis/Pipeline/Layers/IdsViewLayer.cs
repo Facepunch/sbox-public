@@ -16,8 +16,6 @@ internal sealed class IdsViewLayer : RenderLayer
 	/// <summary><c>debug_show_texture</c>'s RGBA mode: blended over the frame by its alpha.</summary>
 	const int ShowRgba = 3;
 
-	// Per layer, as a render system is made for one device
-	GpuMaterial material;
 	static int lastResult;
 	static long lastAt;
 
@@ -36,13 +34,16 @@ internal sealed class IdsViewLayer : RenderLayer
 	public override bool IsNeeded( RenderFrame frame ) => ToolsViews.IdsViewOf( frame.View ) != IdsView.None && !frame.IsSkybox && !frame.View.Reflection
 		&& !frame.View.Capture && (frame.Stages is not null || frame.World.Rendering <= 1);
 
+	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
+		=> _ = RenderHost.Current.Device.PassMaterial( GpuPassMaterial.IdsView );
+
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		var viewport = frame.View.Viewport;
 		var (width, height) = ((int)viewport.Width, (int)viewport.Height);
 		if ( width <= 0 || height <= 0 ) return;
 
-		var colors = frame.System.Transients.Get( TextureDesc.Target( width, height, TextureFormat.RGBA8888 ) with { Storage = true }, "Ids View" );
+		var colors = frame.System.Transients.Get( TransientTextureRole.IdsView, TextureDesc.Target( width, height, TextureFormat.RGBA8888 ) with { Storage = true } );
 		var result = rc.ResolveIdsView( frame.MainPass, colors, viewport, ToolsViews.IdsViewOf( frame.View ) );
 		System.Threading.Volatile.Write( ref lastResult, (int)result );
 		System.Threading.Volatile.Write( ref lastAt, Environment.TickCount64 );
@@ -50,14 +51,12 @@ internal sealed class IdsViewLayer : RenderLayer
 		if ( result != IdsViewResult.Drawn ) return;
 
 		rc.BarrierComputeToPixelShaderRead( colors );
-		material ??= RenderHost.Current.Device.MaterialFromShader( "shaders/debug_show_texture.shader" );
 		rc.Bind( frame.Target( rc, color: true, final: true ) with { Depth = null } );
 
-		var parameters = ParameterPool.Get();
+		using var lease = ParameterPool.Borrow( out var parameters );
 		parameters.SetCombo( ShowModeCombo, ShowRgba );
 		parameters.SetCombo( SrgbCombo, 0 );
 		parameters.Set( TextureName, colors );
-		rc.DrawFullscreen( material, parameters, DefaultMode );
-		ParameterPool.Return( parameters );
+		rc.DrawFullscreen( RenderHost.Current.Device.PassMaterial( GpuPassMaterial.IdsView ), parameters, DefaultMode );
 	}
 }

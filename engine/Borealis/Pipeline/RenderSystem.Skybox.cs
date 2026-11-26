@@ -20,6 +20,12 @@ public sealed partial class RenderSystem
 	public bool Draw3DSkybox { get; set; } = true;
 
 	/// <summary>
+	/// Whether the 3D skybox draws its own depth prepass before its forward pass (on by default, as native's
+	/// <c>Skybox3DPipeline</c>). BorealisLab turns it off to time the skybox without one.
+	/// </summary>
+	internal bool SkyboxDepthPrepass { get; set; } = true;
+
+	/// <summary>
 	/// Lazily created skybox system and view.
 	/// </summary>
 	RenderSystem skybox;
@@ -83,10 +89,12 @@ public sealed partial class RenderSystem
 
 			// Baked lighting needs no shadows (C3DSkyboxRenderer::Render); foliage still needs a prepass.
 			Shadows = false,
-			DepthPrepass = true,
+			DepthPrepass = SkyboxDepthPrepass,
 		};
+		skybox.aggregates.Skybox = true;
 		skybox.ParallelRecording = ParallelRecording;
 		skybox.DrawSky = DrawSky;
+		skybox.DepthPrepass = SkyboxDepthPrepass;
 
 		skyboxView ??= new RenderView { Name = "3D Skybox" };
 		FillSkyboxView( skyboxView, view, sky );
@@ -124,9 +132,11 @@ public sealed partial class RenderSystem
 		into.ZNear = main.ZNear;
 		into.ZFar = main.ZFar;
 		into.Viewport = main.Viewport;
+		into.Jitter = main.Jitter;
 		into.ClearColor = main.ClearColor;
 		into.ToneMapScalar = main.ToneMapScalar;
-		into.Fog = sky.Fog ?? main.Fog;
+		into.Fog = main.SkyboxFog ?? sky.Fog ?? main.Fog;
+		into.CubemapFog = main.CubemapFog;
 		into.SizeCullThreshold = 0;
 
 		// Native's template frustum takes the main view's clip-space bounds but not its projection override

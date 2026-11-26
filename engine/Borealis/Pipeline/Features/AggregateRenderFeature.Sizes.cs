@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Threading.Tasks;
-
 namespace Borealis.Features;
 
 /// <summary>
@@ -14,10 +11,7 @@ namespace Borealis.Features;
 internal sealed partial class AggregateRenderFeature
 {
 	/// <summary>Frames between the worker's sizings.</summary>
-	internal static int SizeEveryFrames { get; set; } = 8;
-
-	/// <summary>Size aggregates the GPU culls on a worker (on by default where the device streams); off, they ask for every mip.</summary>
-	internal static bool SizeOnWorker { get; set; } = true;
+	internal const int SizeEveryFrames = 8;
 
 	AggregateSizes sizes;
 	int sizedGeneration = -1;
@@ -27,7 +21,7 @@ internal sealed partial class AggregateRenderFeature
 	// this one's could all be odd and a multiple of SizeEveryFrames never come, leaving resident draws asking for nothing
 	int framesUnsized = int.MaxValue;
 
-	/// <summary>The worker's sizings, for measuring: the last one's time and fragments, and the total.</summary>
+	/// <summary>Worker sizing state, for tests.</summary>
 	internal AggregateSizes Sizes => sizes;
 
 	/// <summary>
@@ -43,6 +37,8 @@ internal sealed partial class AggregateRenderFeature
 		if ( !pass.IsShadow && ReferenceEquals( pass.View, pass.Root ) && sizedGeneration != argGeneration )
 		{
 			sizedGeneration = argGeneration;
+			if ( sizes.TakeFailure() is { } failure )
+				device.Warn( $"Borealis aggregate texture sizing failed: {failure}" );
 			if ( framesUnsized < int.MaxValue ) framesUnsized++;
 			if ( framesUnsized >= SizeEveryFrames && !sizes.Running )
 			{
@@ -58,7 +54,7 @@ internal sealed partial class AggregateRenderFeature
 	/// <summary>The size a batch the worker sizes asks for itself: none while the worker sizes it, every mip when it doesn't.</summary>
 	int WorkerSize( GpuDevice device )
 	{
-		if ( !SizeOnWorker || device is not { StreamsTextures: true } ) return TextureSizes.All;
+		if ( device is not { StreamsTextures: true } ) return TextureSizes.All;
 		if ( sizes is null )
 		{
 			sizes = new AggregateSizes();
@@ -82,6 +78,10 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 	MeshObject[] meshes = [];
 	Vector3[] meshCenters = [], meshExtents = [];
 	int meshCount;
+	RenderMesh[] instancedModels = [];
+	InstancedMeshObject.Placement[] instancedPlacements = [];
+	int instancedCount;
+	float[] lodScale = [], lodFallback = [];
 
 	// From these on, aggregates and meshes of a resident list the collect left out: the worker culls them as it would have
 	int firstHeld, firstHeldMesh;
@@ -93,6 +93,10 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 
 	// Whether a sizing runs on the pool now: this queued as its own work item, so starting one allocates no task
 	volatile bool running;
+	Exception failure;
+
+	/// <summary>Report a fault once, without invoking the host from the worker.</summary>
+	internal Exception TakeFailure() => System.Threading.Interlocked.Exchange( ref failure, null );
 
 	/// <summary>Whether a sizing runs on a worker now: <see cref="Start"/> does nothing until it's done.</summary>
 	public bool Running => running;
@@ -103,9 +107,14 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 		{
 			Size();
 		}
-		catch ( Exception )
+		catch ( Exception error )
 		{
-			// As a task's unobserved failure: this sizing gives no answer, the next starts again
+			Array.Clear( aggregates, 0, count );
+			Array.Clear( meshes, 0, meshCount );
+			Array.Clear( instancedModels, 0, instancedCount );
+			Array.Clear( instancedPlacements, 0, instancedCount );
+			working.Clear();
+			System.Threading.Interlocked.Exchange( ref failure, error );
 		}
 		finally
 		{
@@ -117,17 +126,8 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 	List<(GpuMaterial Material, int Size)> working = new(), answer = new();
 	bool fresh;
 
-	/// <summary>The last sizing's worker time in milliseconds and the fragments it looked at.</summary>
-	public double LastMs { get; private set; }
-	public int LastFragments { get; private set; }
-	public int LastAggregates { get; private set; }
-
-	/// <summary>Sizings done, and their total worker time.</summary>
+	/// <summary>Sizings completed successfully.</summary>
 	public int Count { get; private set; }
-	public double TotalMs { get; private set; }
-
-	/// <summary>Main thread time spent starting sizings, in milliseconds.</summary>
-	public double StartMs { get; private set; }
 
 	/// <summary>Sizings started so far.</summary>
 	public int Started { get; private set; }
@@ -141,7 +141,6 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 	{
 		if ( running ) return;
 		Started++;
-		var start = Stopwatch.GetTimestamp();
 
 		var objects = world.Objects;
 		var objectCenters = world.BoundsCenter;
@@ -199,6 +198,15 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 			}
 		}
 
+		instancedCount = 0;
+		if ( meshesVisible is not null && holds is not null )
+		{
+			foreach ( var index in meshesVisible )
+			{
+				if ( index < holds.Length && holds[index] && objects[index] is InstancedMeshObject instance ) AddInstanced( instance );
+			}
+		}
+
 		firstHeldMesh = meshCount;
 		if ( held is not null )
 		{
@@ -231,15 +239,21 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 		camera = pass.View.Position;
 		running = true;
 		System.Threading.ThreadPool.UnsafeQueueUserWorkItem( this, preferLocal: false );
-		StartMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}
 
 	void AddHeld( RenderWorld world, AggregateRenderFeature.MeshGroup group, ReadOnlySpan<RenderObject> objects, ReadOnlySpan<Vector3> objectCenters, ReadOnlySpan<Vector3> objectExtents )
 	{
-		foreach ( var mesh in group.Members )
+		foreach ( var member in group.Members )
 		{
-			var index = mesh.IndexIn( world );
+			var index = member.IndexIn( world );
 			if ( index < 0 || index >= objects.Length ) continue;
+			if ( member is InstancedMeshObject instance )
+			{
+				AddInstanced( instance );
+				continue;
+			}
+
+			var mesh = (MeshObject)member;
 			meshes[meshCount] = mesh;
 			meshCenters[meshCount] = objectCenters[index];
 			meshExtents[meshCount] = objectExtents[index];
@@ -247,12 +261,24 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 		}
 	}
 
+	void AddInstanced( InstancedMeshObject instance )
+	{
+		if ( instance.Mesh is not { } model ) return;
+		if ( instancedCount == instancedModels.Length )
+		{
+			Array.Resize( ref instancedModels, Math.Max( 8, instancedCount * 2 ) );
+			Array.Resize( ref instancedPlacements, instancedModels.Length );
+		}
+
+		// The placements' arrays are never changed once made, so the worker reads this snapshot
+		instancedModels[instancedCount] = model;
+		instancedPlacements[instancedCount++] = instance.Placed;
+	}
+
 	// On a worker: each aggregate's size as the CPU's cull works it out, the largest per material
 	void Size()
 	{
-		var start = Stopwatch.GetTimestamp();
 		working.Clear();
-		var fragmentsSeen = 0;
 		for ( int a = 0; a < count; a++ )
 		{
 			var aggregate = aggregates[a];
@@ -268,11 +294,10 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 			var size = 0.0f;
 			for ( int i = 0; i < fragments.Length; i++ )
 			{
-				if ( !frustum.Intersects( fragmentCenters[i], fragmentExtents[i] ) || sizeCull.Culls( fragmentCenters[i], fragmentExtents[i] ) ) continue;
-				size = MathF.Max( size, textureSizes.ForFragment( fragments[i].UvDensity, fragmentCenters[i], fragmentExtents[i], camera, fallback ) );
+				if ( textureSizes.TrySizeFragment( frustum, sizeCull, fragments[i].UvDensity, fragmentCenters[i], fragmentExtents[i], camera, fallback, out var requested ) )
+					size = MathF.Max( size, requested );
 			}
 
-			fragmentsSeen += fragments.Length;
 			if ( size > 0 ) working.Add( (material, TextureSizes.Clamp( size )) );
 		}
 
@@ -294,16 +319,52 @@ internal sealed class AggregateSizes : ITextureSizeSource, System.Threading.IThr
 			}
 		}
 
-		var ms = Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
+		// Resident instanced objects: the LODs the CPU would pick for the placements in view, each draw sized by the nearest
+		// placement that takes its LOD, as the mesh feature sizes a run's draws
+		for ( int o = 0; o < instancedCount; o++ )
+		{
+			var model = instancedModels[o];
+			var placement = instancedPlacements[o];
+			instancedModels[o] = null;
+			instancedPlacements[o] = null;
+			var lods = model.LodCount;
+			if ( lodScale.Length < lods )
+			{
+				lodScale = new float[lods];
+				lodFallback = new float[lods];
+			}
+
+			Array.Fill( lodScale, -1.0f, 0, lods );
+			Array.Clear( lodFallback, 0, lods );
+			var seen = false;
+			for ( int i = 0; i < placement.Centers.Length; i++ )
+			{
+				var center = placement.Centers[i];
+				var extent = placement.Extents[i];
+				if ( !frustum.Intersects( center, extent ) || sizeCull.Culls( center, extent ) ) continue;
+
+				var lod = lods > 1 ? MeshRenderFeature.LodOf( model, center, placement.Scales[i], camera, tanHalfFov, screenWidth ) : 0;
+				textureSizes.AccumulateObject( center, extent, ref lodScale[lod], ref lodFallback[lod] );
+				seen = true;
+			}
+
+			if ( !seen ) continue;
+			for ( int lod = 0; lod < lods; lod++ )
+			{
+				if ( lodScale[lod] == -1.0f && lodFallback[lod] == 0 ) continue;
+				foreach ( ref readonly var draw in model.DrawsForLod( lod ) )
+				{
+					var size = TextureSizes.ForDraw( draw.UvDensity, lodScale[lod], lodFallback[lod] );
+					if ( draw.Material is not null && size > 0 ) working.Add( (draw.Material, size) );
+				}
+			}
+		}
+
 		lock ( gate )
 		{
 			(working, answer) = (answer, working);
 			fresh = true;
-			LastMs = ms;
-			LastFragments = fragmentsSeen;
-			LastAggregates = count;
 			Count++;
-			TotalMs += ms;
 		}
 	}
 

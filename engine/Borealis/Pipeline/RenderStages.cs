@@ -9,6 +9,11 @@ internal interface IRenderStages
 	void Render( RenderStage stage, in StageTarget target );
 
 	/// <summary>
+	/// Whether the stage uses this frame's recording context. Keep the stage in the plan even if its work runs elsewhere.
+	/// </summary>
+	bool RendersInsideFrame( RenderStage stage ) => true;
+
+	/// <summary>
 	/// Whether an independent effect can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.
 	/// </summary>
 	bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => false;
@@ -87,6 +92,13 @@ internal readonly struct StageTarget
 	public Rect Viewport { get; init; }
 	public float MinZ { get; init; }
 	public float MaxZ { get; init; }
+
+	/// <summary>
+	/// Whether a depth prepass already wrote depth for this colour pass's opaque draws, as <see cref="GameOverlayDepthLayer"/>
+	/// does for <see cref="GameOverlayLayer"/>: their surfaces then test it without writing it again, which keeps early depth
+	/// testing where their pixel stage can discard.
+	/// </summary>
+	public bool DepthPrepassed { get; init; }
 
 	public TextureFormat ColorFormat { get; init; }
 	public int Samples { get; init; }

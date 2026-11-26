@@ -6,12 +6,38 @@ internal sealed partial class FrameRecorder
 	{
 		public readonly GpuContext Context = RenderHost.Current.Device.CreateContext( frame );
 		public int From, Count;
+		public bool Shared;
+		public GpuSemaphore Ready;
 
 		public void Dispose() => Context.Dispose();
 	}
 
 	readonly List<ComputeBatch> _computeBatches = [];
 	int _computeBatchCount;
+
+	/// <summary>
+	/// Record a batch's graphics preparation at the end of the previous graphics list when it can signal the batch,
+	/// keeping the preparation in submission order without an extra list or separate layout tracking.
+	/// </summary>
+	void PlanComputeHandOffs()
+	{
+		for ( int i = 0; i < segmentCount; i++ )
+		{
+			ref var compute = ref segments[i];
+			if ( compute.HandOff < 0 ) continue;
+
+			var batch = _computeBatches[compute.HandOff];
+			batch.Shared = false;
+			batch.Ready = default;
+			if ( i == 0 ) continue;
+
+			ref var previous = ref segments[i - 1];
+			if ( previous.Frame != compute.Frame || previous.Async || previous.Borrows >= 0 || previous.Signal ) continue;
+
+			batch.Shared = true;
+			previous.TailHandOff = compute.HandOff;
+		}
+	}
 
 	void PlanSegments( bool parallel, bool asyncCompute )
 	{

@@ -26,6 +26,7 @@ internal readonly struct TextureSizes
 	readonly float tanHalfFov;
 	readonly float orthoWidth;
 	readonly bool orthographic;
+	readonly bool enabled;
 
 	public TextureSizes( RenderView view, RenderView root )
 	{
@@ -37,18 +38,30 @@ internal readonly struct TextureSizes
 		tanHalfFov = MathF.Tan( root.FieldOfView.DegreeToRadian() * 0.5f );
 		orthoWidth = root.OrthoSize.x;
 		orthographic = root.Orthographic;
+		enabled = true;
 	}
 
 	/// <summary>
 	/// An object's sizes from its world bounds: <see cref="ForDraw"/>'s scale and fallback for its draws.
+	/// The default sizing state leaves the size unknown when the device doesn't stream textures.
 	/// </summary>
 	public (float Scale, float Fallback) ForObject( Vector3 center, Vector3 extents )
 	{
+		if ( !enabled ) return (-1, ushort.MaxValue);
+
 		// CalcSqrDistanceToAABB
 		var outside = Vector3.Max( (center - camera).Abs() - extents, Vector3.Zero );
 		var distance = MathF.Sqrt( outside.LengthSquared );
 		var scale = viewAreaScale < 0 ? -1 : viewAreaScale / MathF.Max( distance, 1.0f );
 		return (scale, ScreenSize( center, extents.Length ) * fallbackScale);
+	}
+
+	/// <summary>Keep the largest size so far for a group of objects sharing a draw.</summary>
+	public void AccumulateObject( Vector3 center, Vector3 extents, ref float scale, ref float fallback )
+	{
+		var sizing = ForObject( center, extents );
+		scale = MathF.Max( scale, sizing.Scale );
+		fallback = MathF.Max( fallback, sizing.Fallback );
 	}
 
 	/// <summary>
@@ -75,6 +88,19 @@ internal readonly struct TextureSizes
 
 		var outside = Vector3.Max( (center - fragmentCamera).Abs() - extents, Vector3.Zero );
 		return uvDensity * viewAreaScale / MathF.Max( MathF.Sqrt( outside.LengthSquared ), 1.0f );
+	}
+
+	/// <summary>Size one aggregate fragment that survives the CPU view's box cull.</summary>
+	public bool TrySizeFragment( in ViewFrustum frustum, in SizeCull sizeCull, float uvDensity, Vector3 center, Vector3 extents, Vector3 fragmentCamera, float objectFallback, out float size )
+	{
+		if ( !frustum.Intersects( center, extents ) || sizeCull.Culls( center, extents ) )
+		{
+			size = 0;
+			return false;
+		}
+
+		size = ForFragment( uvDensity, center, extents, fragmentCamera, objectFallback );
+		return true;
 	}
 
 	/// <summary>

@@ -11,8 +11,7 @@ internal static class ContactShadows
 	const int WaveSize = 64;
 	const int MaxDispatches = 8;
 
-	static GpuMaterial compute;
-	static GpuMaterial Compute => compute ??= RenderHost.Current.Device.MaterialFromShader( "screen_space_shadows_cs" );
+	static GpuMaterial Compute => RenderHost.Current.Device.PassMaterial( GpuPassMaterial.ContactShadows );
 
 	static readonly StringToken OutputShadow = new( "OutputShadow" );
 	static readonly StringToken SssConstantsName = new( "SssConstants" );
@@ -59,9 +58,10 @@ internal static class ContactShadows
 
 		if ( (steps & Steps.Dispatch) != 0 )
 		{
-			var parameters = ParameterPool.Get();
+			using var lease = ParameterPool.Borrow( out var parameters );
 			parameters.Set( OutputShadow, mask );
 
+			var material = Compute;
 			for ( int i = 0; i < dispatchCount; i++ )
 			{
 				ref readonly var d = ref dispatches[i];
@@ -70,10 +70,8 @@ internal static class ContactShadows
 				parameters.SetData( SssConstantsName, constants );
 
 				// Bend group counts: Dispatch divides by numthreads[WAVE_SIZE,1,1].
-				context.Dispatch( Compute, parameters, d.WaveCount0 * WaveSize, d.WaveCount1, d.WaveCount2 );
+				context.Dispatch( material, parameters, d.WaveCount0 * WaveSize, d.WaveCount1, d.WaveCount2 );
 			}
-
-			ParameterPool.Return( parameters );
 		}
 
 		if ( (steps & Steps.Finish) != 0 )

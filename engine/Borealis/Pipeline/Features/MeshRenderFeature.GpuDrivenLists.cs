@@ -104,19 +104,18 @@ internal sealed partial class MeshRenderFeature
 		GpuContext.GpuDrivenBatch[] batches, int[] taken, bool[] drawn, DrawItem[] left )
 	{
 		var depth = layer.Depth;
+		var forceDepthOnly = layer.ForceDepthFastPath;
 		var shadow = layer.LayerType == MeshLayerType.Shadow;
 		var count = 0;
 		for ( int k = 0; k < items.Length; k++ )
 		{
 			ref readonly var run = ref runs[items[k].Run];
-			var batch = ListTakes( run, skinned, readers ) ? BatchOf( run, items[k], depth, layer.ForceDepthFastPath ) : null;
-			if ( batch is null )
+			if ( !ListTakes( run, skinned, readers ) || !TryBatchOf( run, items[k], depth, forceDepthOnly, out batches[count] ) )
 			{
 				if ( inOrder ) break;
 				continue;
 			}
 
-			batches[count] = batch.Value;
 			taken[count++] = k;
 		}
 

@@ -30,11 +30,12 @@ internal class GameOverlayLayer : MeshLayer
 	public override bool IsNeeded( RenderFrame frame ) => frame.RunCount( this ) > 0;
 
 	/// <summary>
-	/// Bind overlay depth and matching view constants so shaders select the correct light clusters.
+	/// Bind overlay depth and matching view constants so shaders select the correct light clusters. Its opaque draws' depth
+	/// is <see cref="GameOverlayDepthLayer"/>'s (<see cref="StageTarget.DepthPrepassed"/>).
 	/// </summary>
 	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
-		frame.BeginPass( rc, frame.Target( rc, color: true, final: false ) with { MinZ = 1 - DepthRange, MaxZ = 1 } );
+		frame.BeginPass( rc, frame.Target( rc, color: true, final: false ) with { MinZ = 1 - DepthRange, MaxZ = 1, DepthPrepassed = true } );
 	}
 }
 

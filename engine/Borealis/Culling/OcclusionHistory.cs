@@ -1,5 +1,3 @@
-using System.Threading;
-
 namespace Borealis.Culling;
 
 /// <summary>
@@ -13,7 +11,6 @@ internal sealed class OcclusionHistory : IDisposable
 	Matrix keptWorldToProjection;
 	Vector2 keptDepthRange;
 	bool kept;
-	ulong claimed;
 
 	// The late cull's chain from the frame a freeze started, which freeze that was (<see cref="RenderHost.OcclusionFreezes"/>), and its depth
 	// once the late cull has built it
@@ -41,11 +38,6 @@ internal sealed class OcclusionHistory : IDisposable
 	/// This frame's debug output, or null when not debugging.
 	/// </summary>
 	public OcclusionDebugOutput Debug { get; private set; }
-
-	/// <summary>
-	/// Only the first view in a frame may use history, so stereo views can't change it between early and late culls.
-	/// </summary>
-	public bool Claim( ulong frame ) => Interlocked.Exchange( ref claimed, frame ) != frame;
 
 	/// <summary>
 	/// Settles what this frame's culls test against, from what was kept and the debug convars, so both culls agree on it.
@@ -77,11 +69,14 @@ internal sealed class OcclusionHistory : IDisposable
 	}
 
 	/// <summary>
-	/// What the late cull tests against this frame: the frozen depth, or this frame's for it to build, into the freeze's
-	/// chain when one is starting, otherwise into <paramref name="scratch"/> (<see cref="OcclusionDepth.QuarterChain"/>).
+	/// What the late cull tests against: the frozen depth, a new freeze's chain, or scratch borrowed for this frame.
 	/// </summary>
-	public OcclusionDepth LateDepth( Rect viewport, Vector2 depthRange, Matrix worldToProjection, GpuTexture scratch )
-		=> IsFrozen ? frozen : OcclusionDepth.Quarter( frozenChain ?? scratch, viewport, depthRange, worldToProjection );
+	public OcclusionDepth LateDepth( Rect viewport, Vector2 depthRange, Matrix worldToProjection, TransientTextures transients )
+	{
+		if ( IsFrozen ) return frozen;
+		var target = frozenChain ?? transients.Get( TransientTextureRole.OcclusionChain, OcclusionDepth.QuarterChain( viewport ) );
+		return OcclusionDepth.Quarter( target, viewport, depthRange, worldToProjection );
+	}
 
 	void BeginFreeze( bool freezing, Rect viewport )
 	{
@@ -128,10 +123,7 @@ internal sealed class OcclusionHistory : IDisposable
 	}
 
 	static GpuTexture CreateChain( int width, int height, string name )
-	{
-		var mips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
-		return RenderHost.Current.Device.CreateTexture( TextureDesc.Target( width, height, TextureFormat.RG3232F, mips: mips ) with { Storage = true }, name );
-	}
+		=> RenderHost.Current.Device.CreateTexture( SharedPasses.DepthChainDesc( width, height ), name );
 
 	public void Keep( Matrix worldToProjection, float minZ, float maxZ )
 	{

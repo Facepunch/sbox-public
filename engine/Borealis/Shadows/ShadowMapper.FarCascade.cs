@@ -66,12 +66,6 @@ internal partial class ShadowMapper
 		internal ShadowMap Cache;
 
 		/// <summary>
-		/// A cleared cell, copied over a region before it's drawn again.
-		/// </summary>
-		internal ShadowMap Blank;
-		internal ulong BlankFrame;
-
-		/// <summary>
 		/// Whether <see cref="Cache"/> holds what the rest describes.
 		/// </summary>
 		internal bool Valid;
@@ -135,7 +129,6 @@ internal partial class ShadowMapper
 	{
 		public bool Whole;
 		public float Grid, Near, Range;
-		public int Regions;
 	}
 
 	static readonly List<FarCascade> FarCascades = new();
@@ -167,10 +160,7 @@ internal partial class ShadowMapper
 		if ( found.Cache is null || found.Cache.Resolution != resolution )
 		{
 			found.Cache?.Dispose();
-			found.Blank?.Dispose();
 			found.Cache = new ShadowMap( resolution, false, TextureFormat.D32 );
-			found.Blank = new ShadowMap( Math.Max( resolution / FarCacheCells, 1 ), false, TextureFormat.D32 );
-			found.BlankFrame = 0;
 			found.Valid = false;
 		}
 
@@ -266,7 +256,7 @@ internal partial class ShadowMapper
 		// One depth encoding for every window (FarCacheDepthRange)
 		const float near = -FarCacheDepthRange;
 		const float range = FarCacheDepthRange * 2.0f;
-		fit = new FarFit { Whole = whole, Grid = grid, Near = near, Range = range, Regions = farRegions.Count };
+		fit = new FarFit { Whole = whole, Grid = grid, Near = near, Range = range };
 
 		return new Cascade
 		{
@@ -317,27 +307,12 @@ internal partial class ShadowMapper
 		view.TexelSized = true;
 		view.TexelLods = true;
 
+		// A baked sun's cache holds no static caster, whose lightmaps do: a static caster that animates is drawn whole over it
+		view.SplitsLods = !baked;
+
 		var resolution = far.Cache.Resolution;
 		var cellTexels = resolution / FarCacheCells;
 		Vector3 right = far.Rotation.Right, up = far.Rotation.Up, forward = far.Rotation.Forward;
-
-		if ( fit.Regions > 0 && far.BlankFrame == 0 )
-		{
-			// The cleared cell the regions start from, cleared once
-			Renderer.RenderShadowView( new ShadowViewDesc
-			{
-				Name = "CSM Far Blank",
-				Rotation = far.Rotation,
-				Orthographic = true,
-				Width = 1,
-				Height = 1,
-				ZFar = 1,
-				Resolution = far.Blank.Resolution,
-				Target = far.Blank,
-				StaticFilter = StaticFilter.Nothing,
-			} );
-			far.BlankFrame = FrameCount;
-		}
 
 		var region = 0;
 		foreach ( var cells in farRegions )
@@ -360,7 +335,6 @@ internal partial class ShadowMapper
 					part.Width = (x1 - x0) * fit.Grid;
 					part.Height = (y1 - y0) * fit.Grid;
 					part.Viewport = new Rect( Wrap( x0 ) * cellTexels, Wrap( -y1 ) * cellTexels, (x1 - x0) * cellTexels, (y1 - y0) * cellTexels );
-					part.Blank = far.Blank;
 					part.CacheOffset = default;
 					Renderer.RenderShadowView( part );
 					if ( !fit.Whole ) far.CellsDrawn += (int)((x1 - x0) * (y1 - y0));
@@ -394,7 +368,6 @@ internal partial class ShadowMapper
 		foreach ( var far in FarCascades )
 		{
 			if ( far.DrawnBy == this && far.DrawnFrame == FrameCount ) far.Valid = false;
-			if ( far.BlankFrame == FrameCount ) far.BlankFrame = 0;
 		}
 	}
 
@@ -409,7 +382,6 @@ internal partial class ShadowMapper
 			if ( far.Camera.TryGetTarget( out _ ) && now - far.LastUsed < FarCacheEvictionTime ) continue;
 
 			far.Cache?.Dispose();
-			far.Blank?.Dispose();
 			FarCascades.RemoveAt( i );
 		}
 	}
@@ -424,11 +396,7 @@ internal partial class ShadowMapper
 
 	static void ResetFarCascades()
 	{
-		foreach ( var far in FarCascades )
-		{
-			far.Cache?.Dispose();
-			far.Blank?.Dispose();
-		}
+		foreach ( var far in FarCascades ) far.Cache?.Dispose();
 
 		FarCascades.Clear();
 	}
