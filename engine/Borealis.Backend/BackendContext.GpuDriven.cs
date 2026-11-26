@@ -226,10 +226,18 @@ internal sealed partial class BackendContext
 		// A call whose first batches are a resident list's: those drawn from what an earlier call of their kind made of them,
 		// when nothing it was made from has changed (GpuDrivenPlan), and the rest bucketed after them as usual
 		var prefix = cull is { Plan: not null } resident && UsesPlans ? Math.Clamp( resident.PlanBatches, 0, batches.Length ) : 0;
-		if ( prefix > 0 && CurrentPlan( shaderMode, batches[..prefix], cull.Value ) is { } plan )
+		GpuDrivenPlan plan = null;
+		if ( prefix > 0 )
+		{
+			using ( Zones.GpuDrivenPlanFind.Start() ) plan = CurrentPlan( shaderMode, batches[..prefix], cull.Value );
+		}
+
+		if ( plan is not null )
 		{
 			// Culled already, by the setup's resident cull
-			if ( DrawResidentCulled( shaderMode, batches, args, transforms, depthBias, slopeScaledDepthBias, drawn, cull.Value, plan, prefix ) )
+			bool residentDrawn;
+			using ( Zones.GpuDrivenResidentDraw.Start() ) residentDrawn = DrawResidentCulled( shaderMode, batches, args, transforms, depthBias, slopeScaledDepthBias, drawn, cull.Value, plan, prefix );
+			if ( residentDrawn )
 			{
 				System.Threading.Interlocked.Increment( ref device.GpuDrivenPlanHits );
 				return;
@@ -257,6 +265,7 @@ internal sealed partial class BackendContext
 	/// </summary>
 	bool DrawBucketed( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn, in GpuDrivenCull? cull, GpuDrivenPlan plan, int prefix )
 	{
+		using var zone = Zones.GpuDrivenBucketed.Start();
 		var start = device.TimeDraws ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 		gpuDrivenBuckets = ownBuckets;
 		var tables = device.GpuDrivenTables;

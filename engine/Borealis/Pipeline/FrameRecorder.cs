@@ -1029,6 +1029,7 @@ internal sealed partial class FrameRecorder : IDisposable
 						var to = w == last ? segment.End : item.Runs;
 
 						var mark = layerCosts is null ? default : CostMark.Of( rc, stats );
+						using var shadowZone = item.View.IsShadow ? Zones.ShadowRecord.Start() : default;
 						var started = item.Layer is DepthPrepassLayer ? Stopwatch.GetTimestamp() : 0;
 						var scope = rc.BeginGpuScope( rc.Census ? CensusScope( item.View.View?.Name, item.View.IsShadow, item.Layer.Name ) : item.Layer.Name );
 						if ( GraphMeasure.Listing ) GraphMeasure.Pass( MeasureRender, item.Layer.Name );

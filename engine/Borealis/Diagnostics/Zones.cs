@@ -18,6 +18,7 @@ internal static class Zones
 	public static readonly Zone ShadowSelect = new( "Borealis Shadow Select", Color.Green );
 	public static readonly Zone ShadowResident = new( "Borealis Shadow Resident", Color.Green );
 	public static readonly Zone ShadowCull = new( "Borealis Shadow Cull", Color.Yellow );
+	public static readonly Zone ShadowRecord = new( "Borealis Shadow Record", Color.Red );
 	public static readonly Zone TreeQuery = new( "Borealis Tree Query", Color.Yellow );
 	public static readonly Zone Setup = new( "Borealis Setup", Color.Orange );
 	public static readonly Zone ResidentCull = new( "Borealis Resident Cull", Color.Orange );
@@ -26,6 +27,9 @@ internal static class Zones
 	public static readonly Zone LayoutFixUps = new( "Borealis Layout Fix-ups", Color.Blue );
 	public static readonly Zone Record = new( "Borealis Record", Color.Red );
 	public static readonly Zone GpuDrivenDraw = new( "Borealis GPU-driven Draw", Color.Red );
+	public static readonly Zone GpuDrivenPlanFind = new( "Borealis GPU-driven Plan Find", Color.Red );
+	public static readonly Zone GpuDrivenResidentDraw = new( "Borealis GPU-driven Resident Draw", Color.Red );
+	public static readonly Zone GpuDrivenBucketed = new( "Borealis GPU-driven Bucketed", Color.Red );
 	public static readonly Zone OverlayDraw = new( "Borealis Overlay Draw", Color.Red );
 	public static readonly Zone Segment = new( "Borealis Segment", Color.Magenta );
 	public static readonly Zone RecordWait = new( "Borealis Record Wait", Color.Gray );
