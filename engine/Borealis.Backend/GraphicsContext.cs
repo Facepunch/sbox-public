@@ -791,7 +791,10 @@ public sealed class GraphicsContext
 	/// as <c>Graphics.GenerateMipMaps</c> does for its gaussian methods (<paramref name="method"/> is
 	/// <c>D_DOWNSAMPLE_METHOD</c>: 1 gaussian blur, 2 gaussian with a transparent border). Mips smaller than a texel on
 	/// either side are left as they are, as native leaves them. Mips before <paramref name="initialMip"/> are kept. The
-	/// texture ends readable.
+	/// texture ends readable. Each mip turns readable once, just before the dispatch that reads it, waiting only for the
+	/// dispatch that wrote it (the first for anything), and stays so: no barrier back after each dispatch, which left the
+	/// GPU idle between the small mips' dispatches. A texture of more than one layer (whose barriers here take its first) goes
+	/// back to General after each dispatch as before, and is made readable whole at the end.
 	/// </summary>
 	public void GenerateMips( TextureHandle texture, ShaderFile downsample, int method, int initialMip = 0 )
 	{
@@ -801,25 +804,29 @@ public sealed class GraphicsContext
 
 		var attributes = PassAttributes();
 		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", method );
+		var next = initialMip;
+		var once = info.Dimension == TextureDimension.Texture2D && info.Layers <= 1;
 		for ( int i = initialMip; i < info.Mips - 1; i++ )
 		{
 			int width = info.Width >> (i + 1), height = info.Height >> (i + 1);
 			if ( width < 1 || height < 1 ) break;
 
-			// Mip i was written (copied, drawn or dispatched) in General; now it's read
+			// Mip i was written in General: by anything before for the first, else by the last dispatch; now it's read
+			var first = i == initialMip;
 			List.Barrier( new TextureBarrier
 			{
 				Texture = texture,
 				OldLayout = ImageLayout.General,
 				NewLayout = ImageLayout.ShaderRead,
-				SourceStage = PipelineStage.AllCommands,
-				SourceAccess = MemoryAccess.MemoryWrite,
+				SourceStage = first ? PipelineStage.AllCommands : PipelineStage.ComputeShader,
+				SourceAccess = first ? MemoryAccess.MemoryWrite : MemoryAccess.ShaderWrite,
 				DestinationStage = PipelineStage.ComputeShader,
 				DestinationAccess = MemoryAccess.ShaderRead,
 				BaseMip = i,
 				MipCount = 1,
 				LayerCount = 1,
 			} );
+			next = i + 1;
 
 			attributes.Set( "MipLevel0", MipView( texture, i ) );
 			attributes.Set( "MipLevel1", MipView( texture, i + 1 ) );
@@ -828,6 +835,7 @@ public sealed class GraphicsContext
 			// GGX's 8x8 groups each write a 16x16 tile, so a thread stands for 2x2 texels of the mip
 			int threadsX = method == GgxMethod ? (width + 1) / 2 : width, threadsY = method == GgxMethod ? (height + 1) / 2 : height;
 			if ( !drawer.Dispatch( List, downsample, attributes, threadsX, threadsY, 1 ) ) throw new InvalidOperationException( $"{downsample.Name} didn't dispatch" );
+			if ( once ) continue;
 
 			// Put mip i back in General so the whole texture is in one layout again
 			List.Barrier( new TextureBarrier
@@ -845,7 +853,41 @@ public sealed class GraphicsContext
 			} );
 		}
 
-		Transition( texture, ImageLayout.ShaderRead );
+		if ( !once )
+		{
+			Transition( texture, ImageLayout.ShaderRead );
+			return;
+		}
+
+		// Every mip readable by whatever reads the texture after, once everything above is done: those read above are in
+		// ShaderRead already but visible to this chain's dispatches only; the rest (before the first, the last written and
+		// any left as they were) are still in General
+		if ( initialMip > 0 ) MipsReadable( texture, 0, initialMip, ImageLayout.General );
+		MipsReadable( texture, initialMip, next - initialMip, ImageLayout.ShaderRead );
+		MipsReadable( texture, next, info.Mips - next, ImageLayout.General );
+		SetLayout( texture, ImageLayout.ShaderRead );
+	}
+
+	/// <summary>
+	/// <paramref name="count"/> mips from <paramref name="baseMip"/>, in <paramref name="from"/>, readable in ShaderRead by
+	/// anything after what wrote them.
+	/// </summary>
+	void MipsReadable( TextureHandle texture, int baseMip, int count, ImageLayout from )
+	{
+		if ( count <= 0 ) return;
+		List.Barrier( new TextureBarrier
+		{
+			Texture = texture,
+			OldLayout = from,
+			NewLayout = ImageLayout.ShaderRead,
+			SourceStage = PipelineStage.AllCommands,
+			SourceAccess = MemoryAccess.MemoryWrite,
+			DestinationStage = PipelineStage.AllCommands,
+			DestinationAccess = MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite,
+			BaseMip = baseMip,
+			MipCount = count,
+			LayerCount = 1,
+		} );
 	}
 
 	/// <summary>
