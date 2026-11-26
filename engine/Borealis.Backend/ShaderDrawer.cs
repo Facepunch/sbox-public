@@ -730,6 +730,9 @@ public sealed partial class ShaderDrawer : IDisposable
 	/// <summary>Material objects made, descriptor sets written through them, and sets held now, for tests and benchmarks.</summary>
 	public (int Objects, int SetsWritten, int SetsHeld) MaterialObjectStats => cache is null ? default : (cache.Count, cache.SetsWritten, cache.SetCount);
 
+	/// <summary>Times its material objects resolved what its draws bind (<see cref="MaterialObjectCache.Resolves"/>), for tests.</summary>
+	internal long MaterialObjectResolves => cache?.Resolves ?? 0;
+
 	/// <summary>
 	/// The instance id stream draws read <c>TEXCOORD13</c> (<c>InstanceTransformUv</c>) from, per instance, from an offset in
 	/// bytes: a frame's, where a custom object draws inside it, whose shaders index <c>g_TransformBuffer</c> with it as

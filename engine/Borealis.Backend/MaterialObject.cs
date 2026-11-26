@@ -597,24 +597,30 @@ internal sealed class MaterialObject
 		}
 
 		/// <summary>The structures an object's draws of one material come back to: a pass binds the same few frame after frame.</summary>
-		const int Leaves = 8;
+		public const int Leaves = 8;
 
-		long key = -1;
+		/// <summary>
+		/// The structures its draws without a material come back to. A drawer's draws and dispatches of one shader share them:
+		/// a skinning dispatch a mesh's vertex buffer, a frame buffer copy's mip a dispatch, each a structure of its own, come
+		/// to more than <see cref="Leaves"/> a frame, and going round fewer resolves every bind again.
+		/// </summary>
+		public const int ImmediateLeaves = 64;
+
 		Resolved[] leaves;
+		long[] leafKeys;
 		int nextLeaf;
 
-		/// <summary>This material's state under <paramref name="structure"/>, else a new one.</summary>
-		public Resolved ForStructure( long structure )
+		/// <summary>This state's under <paramref name="structure"/>, else a new one, of the last <paramref name="count"/> kept.</summary>
+		public Resolved ForStructure( long structure, int count )
 		{
-			var held = leaves ??= new Resolved[Leaves];
-			foreach ( var leaf in held )
-			{
-				if ( leaf is not null && leaf.key == structure ) return leaf;
-			}
+			var held = leaves ??= new Resolved[count];
+			var keys = leafKeys ??= [.. Enumerable.Repeat( -1L, count )];
+			var at = Array.IndexOf( keys, structure );
+			if ( at >= 0 ) return held[at];
 
 			var made = held[nextLeaf] ??= new Resolved();
-			nextLeaf = (nextLeaf + 1) % Leaves;
-			made.key = structure;
+			keys[nextLeaf] = structure;
+			nextLeaf = (nextLeaf + 1) % held.Length;
 			made.Structure = -1;
 			return made;
 		}
@@ -747,7 +753,7 @@ internal sealed class MaterialObject
 		var context = ContextState( pass.Slot );
 		var node = material is null ? context : context.ForMaterial( material );
 		var structure = pass.Structure;
-		var state = structure >= 0 ? node.ForStructure( structure ) : node;
+		var state = structure >= 0 ? node.ForStructure( structure, material is null ? Resolved.ImmediateLeaves : Resolved.Leaves ) : node;
 		var values = pass.AttributesEpoch;
 		var current = structure >= 0 && state.Structure == structure && state.MaterialVersion == materialVersion && !AnyDead( state );
 		if ( !current || (state.Values != values && !Layout.Refreshable) )
@@ -782,6 +788,7 @@ internal sealed class MaterialObject
 
 	void Resolve( Resolved state, long passEpoch, PassBindings resolver )
 	{
+		cache.CountResolve();
 		state.Epoch = passEpoch;
 		state.Layer = resolver.LayerEpoch;
 		state.ValuesVersion = ValuesVersion;
@@ -1085,6 +1092,12 @@ internal sealed class MaterialObjectCache : IDisposable
 	int setsWritten;
 
 	internal void CountSetWritten() => Interlocked.Increment( ref setsWritten );
+
+	/// <summary>Times an object resolved what a context's pass binds for it, for tests.</summary>
+	public long Resolves => Interlocked.Read( ref resolves );
+	long resolves;
+
+	internal void CountResolve() => Interlocked.Increment( ref resolves );
 
 	/// <summary>Sets and constant buffers freed for not being bound, for tests.</summary>
 	public int Evicted { get; private set; }

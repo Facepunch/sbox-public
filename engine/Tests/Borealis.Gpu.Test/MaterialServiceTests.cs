@@ -130,6 +130,38 @@ public class MaterialServiceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A shader dispatched with more structures a frame than a material's draws keep (a mip chain's ten dispatches, each
+	/// binding its own two mips) resolves each once: the next frame's dispatches find what they resolved.
+	/// </summary>
+	[TestMethod]
+	public void ManyStructuresOfOneShaderResolveOnce()
+	{
+		var downsample = library.Load( "shaders/downsample_cs.shader" );
+		var context = new GraphicsContext( Device, drawer, null );
+		context.Begin( Device.BeginCommandList( QueueType.Graphics, "Targets" ) );
+		var mipped = context.CreateTarget( 1024, 1024, Format.RGBA8Unorm, mips: 11, name: "Mipped" );
+		context.Finish();
+		Device.Submit( context.List );
+
+		long Frame()
+		{
+			var before = drawer.MaterialObjectResolves;
+			Device.BeginFrame();
+			context.Begin( Device.BeginCommandList( QueueType.Graphics, "Mips" ) );
+			context.SetTarget( mipped );
+			context.Clear( new Vector4( 1, 0.5f, 0, 1 ) );
+			context.GenerateMips( mipped, downsample, method: 2 );
+			context.Finish();
+			Device.Wait( Device.Submit( context.List ) );
+			return drawer.MaterialObjectResolves - before;
+		}
+
+		Assert.IsTrue( Frame() >= 10, "the first frame resolves each mip's dispatch" );
+		Assert.AreEqual( 0, Frame(), "the next frame's dispatches find what the first resolved" );
+		context.Release();
+	}
+
+	/// <summary>
 	/// A set that binds a texture which has gone is freed once nothing has bound it for
 	/// <see cref="MaterialObjectCache.EvictAfterFrames"/> frames; a set still in use stays.
 	/// </summary>

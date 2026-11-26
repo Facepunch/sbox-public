@@ -10,8 +10,8 @@ internal sealed record TextureMip( GpuTexture Texture, int Mip );
 
 /// <summary>
 /// Compute dispatches with parameters of their own (<see cref="GpuContext.Dispatch(GpuMaterial, ShaderParameters, int, int, int)"/>):
-/// what Borealis's shared passes run, the depth chain among them. Each binds through a <see cref="ShaderDrawer"/> of the
-/// device's, with material objects (persistent sets, as the engine's dispatches bind): the parameters over this context's
+/// what Borealis's shared passes run, the depth chain among them. Each binds through this context's own <see cref="ShaderDrawer"/>,
+/// with material objects (persistent sets, as the engine's dispatches bind): the parameters over this context's
 /// attributes, found by the tokens and attribute ids worked out once a variant (<see cref="DispatchPlan"/>), single mips as
 /// views of one mip, and the textures it writes moved to <see cref="ImageLayout.General"/> (a mip it reads of a texture it writes moved to
 /// <see cref="ImageLayout.ShaderRead"/> for the dispatch alone), the textures it only reads to
@@ -19,8 +19,11 @@ internal sealed record TextureMip( GpuTexture Texture, int Mip );
 /// </summary>
 internal sealed partial class BackendContext
 {
-	/// <summary>The drawer parameterised dispatches bind with, one a device; locked while used.</summary>
-	static readonly ConditionalWeakTable<BackendDevice, ShaderDrawer> drawers = new();
+	/// <summary>
+	/// The drawer parameterised dispatches bind with, this context's own: contexts recording on several threads at once
+	/// (the depth chain beside a frame buffer copy's mips) don't wait for each other's binds.
+	/// </summary>
+	ShaderDrawer dispatchDrawer;
 
 	/// <summary>Single-mip views made for parameterised dispatches, one a texture and mip.</summary>
 	static readonly ConditionalWeakTable<BackendTexture, Dictionary<int, TextureViewHandle>> mipViews = new();
@@ -38,75 +41,73 @@ internal sealed partial class BackendContext
 
 		object Value( StringToken token ) => given?.Get( token ) ?? Lookup( token );
 
-		var drawer = drawers.GetValue( device, static d => new ShaderDrawer( d ) );
-		lock ( drawer )
+		var drawer = dispatchDrawer ??= new ShaderDrawer( device );
+
+		// Kept on the context and emptied for each dispatch: dispatches allocate nothing in steady state
+		var attributes = dispatchAttributes ??= new ShaderAttributes();
+		attributes.Clear();
+		foreach ( var (name, token) in dispatchCombos.GetValue( shader, static s => [.. s[ShaderProgramType.Compute].DynamicCombos.Select( c => (c.Name, Token( c.Name )) )] ) )
 		{
-			// Kept on the context and emptied for each dispatch: dispatches allocate nothing in steady state
-			var attributes = dispatchAttributes ??= new ShaderAttributes();
-			attributes.Clear();
-			foreach ( var (name, token) in dispatchCombos.GetValue( shader, static s => [.. s[ShaderProgramType.Compute].DynamicCombos.Select( c => (c.Name, Token( c.Name )) )] ) )
+			if ( (given?.GetCombo( token ) ?? LookupCombo( token )) is int value ) attributes.SetCombo( name, value );
+		}
+
+		var variant = drawer.Variant( shader, attributes );
+		if ( variant?.Compute?.Bytecode is null ) return;
+
+		var plan = dispatchPlans.GetValue( variant, DispatchPlan.Of );
+		foreach ( var (token, id) in plan.Constants ) SetDispatchFloats( attributes, id, Value( token ) );
+
+		CloseScope();
+		var written = dispatchWritten;
+		var sampled = dispatchSampled;
+		var sampledMips = dispatchSampledMips;
+		written.Clear();
+		sampled.Clear();
+		sampledMips.Clear();
+		foreach ( var (index, token, id) in plan.Resources )
+		{
+			ref readonly var resource = ref variant.ResourceSpan[index];
+			var storage = resource.Kind == ShaderResourceKind.StorageTexture;
+			switch ( Value( token ) )
 			{
-				if ( (given?.GetCombo( token ) ?? LookupCombo( token )) is int value ) attributes.SetCombo( name, value );
+				case TextureMip { Texture: BackendTexture texture, Mip: var mip }:
+					attributes.SetById( id, MipView( texture, mip ) );
+					if ( storage ) written.Add( texture );
+					else sampledMips.Add( (texture, mip) );
+					break;
+
+				case BackendTexture texture when resource.Kind is ShaderResourceKind.Texture or ShaderResourceKind.StorageTexture:
+					attributes.SetById( id, texture.Handle );
+					if ( storage ) written.Add( texture );
+					else sampled.Add( texture );
+					break;
+
+				case GpuBuffer { Resource: BackendBuffer buffer }:
+					attributes.SetById( id, buffer.Handle );
+					break;
+
+				case byte[] data when resource.Kind == ShaderResourceKind.ConstantBuffer:
+					attributes.SetById( id, (object)data );
+					break;
 			}
+		}
 
-			var variant = drawer.Variant( shader, attributes );
-			if ( variant?.Compute?.Bytecode is null ) return;
+		// Writes in General; reads in ShaderRead, a read mip of a written texture only for this dispatch
+		foreach ( var texture in written ) Transition( texture, ImageLayout.General );
+		foreach ( var texture in sampled ) if ( !written.Contains( texture ) ) Transition( texture, ImageLayout.ShaderRead );
+		foreach ( var (texture, mip) in sampledMips )
+		{
+			if ( written.Contains( texture ) ) List.Barrier( MipBarrier( texture.Handle, mip, ImageLayout.General, ImageLayout.ShaderRead ) );
+			else Transition( texture, ImageLayout.ShaderRead );
+		}
 
-			var plan = dispatchPlans.GetValue( variant, DispatchPlan.Of );
-			foreach ( var (token, id) in plan.Constants ) SetDispatchFloats( attributes, id, Value( token ) );
+		drawer.Dispatch( List, shader, attributes, x, y, z );
+		recording.Pipeline = default;
+		recording.Binder = null;
 
-			CloseScope();
-			var written = dispatchWritten;
-			var sampled = dispatchSampled;
-			var sampledMips = dispatchSampledMips;
-			written.Clear();
-			sampled.Clear();
-			sampledMips.Clear();
-			foreach ( var (index, token, id) in plan.Resources )
-			{
-				ref readonly var resource = ref variant.ResourceSpan[index];
-				var storage = resource.Kind == ShaderResourceKind.StorageTexture;
-				switch ( Value( token ) )
-				{
-					case TextureMip { Texture: BackendTexture texture, Mip: var mip }:
-						attributes.SetById( id, MipView( texture, mip ) );
-						if ( storage ) written.Add( texture );
-						else sampledMips.Add( (texture, mip) );
-						break;
-
-					case BackendTexture texture when resource.Kind is ShaderResourceKind.Texture or ShaderResourceKind.StorageTexture:
-						attributes.SetById( id, texture.Handle );
-						if ( storage ) written.Add( texture );
-						else sampled.Add( texture );
-						break;
-
-					case GpuBuffer { Resource: BackendBuffer buffer }:
-						attributes.SetById( id, buffer.Handle );
-						break;
-
-					case byte[] data when resource.Kind == ShaderResourceKind.ConstantBuffer:
-						attributes.SetById( id, (object)data );
-						break;
-				}
-			}
-
-			// Writes in General; reads in ShaderRead, a read mip of a written texture only for this dispatch
-			foreach ( var texture in written ) Transition( texture, ImageLayout.General );
-			foreach ( var texture in sampled ) if ( !written.Contains( texture ) ) Transition( texture, ImageLayout.ShaderRead );
-			foreach ( var (texture, mip) in sampledMips )
-			{
-				if ( written.Contains( texture ) ) List.Barrier( MipBarrier( texture.Handle, mip, ImageLayout.General, ImageLayout.ShaderRead ) );
-				else Transition( texture, ImageLayout.ShaderRead );
-			}
-
-			drawer.Dispatch( List, shader, attributes, x, y, z );
-			recording.Pipeline = default;
-			recording.Binder = null;
-
-			foreach ( var (texture, mip) in sampledMips )
-			{
-				if ( written.Contains( texture ) ) List.Barrier( MipBarrier( texture.Handle, mip, ImageLayout.ShaderRead, ImageLayout.General ) );
-			}
+		foreach ( var (texture, mip) in sampledMips )
+		{
+			if ( written.Contains( texture ) ) List.Barrier( MipBarrier( texture.Handle, mip, ImageLayout.ShaderRead, ImageLayout.General ) );
 		}
 	}
 
