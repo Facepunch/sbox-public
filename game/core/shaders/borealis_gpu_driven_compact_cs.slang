@@ -129,6 +129,12 @@ uint LargeCapacity() { return g_Large.Load( 32 ); }
 uint PartAt( uint nPart ) { return 48 + nPart * 4; }
 uint LargeRecord( uint nLarge ) { return 48 + PartCapacity() * 4 + nLarge * LargeWords * 4; }
 
+// After the fragments, for the first of the parts (the header's tenth word says how many): a byte a thread, which of
+// the thread's eight triangles own a sample, as the parts' count found them (a part of one chunk at most), for their
+// copy to read instead of the triangles. Four threads' bytes a word
+uint BitsParts() { return g_Large.Load( 36 ); }
+uint PartBits( uint nPart, uint nThread ) { return LargeRecord( LargeCapacity() ) + nPart * GroupSize + ( nThread & ~3u ); }
+
 groupshared uint gs_Owned;
 groupshared uint gs_Start;
 groupshared uint gs_Cursor;
@@ -350,6 +356,63 @@ void CopyOwned( Fragment f, uint nLo, uint nHi, uint nStart, uint nThread )
 	}
 }
 
+// A scan of nLo to nHi, at most one chunk (every lane's eight triangles at once): each lane's triangles' first indices
+// and which own a sample (a bit each), read once for both the count and the copy
+void ScanChunk( Fragment f, uint nLo, uint nHi, uint nThread, out uint vFirst[Batch], out uint nOwnedBits )
+{
+	[unroll] for ( uint k = 0; k < Batch; k++ )
+		vFirst[k] = TriangleIndex( f, min( nLo + nThread + GroupSize * k, nHi - 1 ), 0 );
+	uint vWord[Batch];
+	[unroll] for ( uint k = 0; k < Batch; k++ )
+		vWord[k] = g_Mask.Load( ( ( f.nVertexBase + vFirst[k] ) >> 5 ) * 4 );
+	nOwnedBits = 0;
+	[unroll] for ( uint k = 0; k < Batch; k++ )
+	{
+		if ( nLo + nThread + GroupSize * k < nHi && ( ( vWord[k] >> ( ( f.nVertexBase + vFirst[k] ) & 31 ) ) & 1 ) != 0 )
+			nOwnedBits |= 1u << k;
+	}
+}
+
+// The group's sum of each thread's nMine
+uint GroupSum( uint nMine, uint nThread )
+{
+	if ( nThread == 0 )
+		gs_Owned = 0;
+	GroupMemoryBarrierWithGroupSync();
+	nMine = WaveActiveSum( nMine );
+	if ( WaveIsFirstLane() )
+		InterlockedAdd( gs_Owned, nMine );
+	GroupMemoryBarrierWithGroupSync();
+	return gs_Owned;
+}
+
+// CopyOwned for a scan ScanChunk read from nLo: its owned triangles' first indices from it (bFirst), or else from the
+// page as their other two
+void CopyChunk( Fragment f, uint nLo, uint nStart, uint nThread, uint vFirst[Batch], bool bFirst, uint nOwnedBits )
+{
+	if ( nThread == 0 )
+		gs_Cursor = 0;
+	GroupMemoryBarrierWithGroupSync();
+	[unroll] for ( uint k = 0; k < Batch; k++ )
+	{
+		bool bOwned = ( nOwnedBits & ( 1u << k ) ) != 0;
+		uint nWave = WaveActiveCountBits( bOwned );
+		if ( nWave == 0 )
+			continue;
+		uint nBase = 0;
+		if ( WaveIsFirstLane() )
+			InterlockedAdd( gs_Cursor, nWave * 3, nBase );
+		nBase = WaveReadLaneFirst( nBase );
+		if ( !bOwned )
+			continue;
+		uint t = nLo + nThread + GroupSize * k;
+		uint nAt = nStart + nBase + WavePrefixCountBits( bOwned ) * 3;
+		g_Compacted.Store( ( nAt + 0 ) * 4, bFirst ? vFirst[k] : TriangleIndex( f, t, 0 ) );
+		g_Compacted.Store( ( nAt + 1 ) * 4, TriangleIndex( f, t, 1 ) );
+		g_Compacted.Store( ( nAt + 2 ) * 4, TriangleIndex( f, t, 2 ) );
+	}
+}
+
 // Its listed fragment's bit in the next prepass's visible fragments (two-phase Hi-Z occlusion)
 void SetVisible( uint nEntry )
 {
@@ -415,7 +478,19 @@ void PartRange( Fragment f, uint nParts, uint nPart, out uint nLo, out uint nHi 
 	}
 #endif
 
-	uint nOwned = CountOwned( f, 0, f.nScan, nThread );
+	// A fragment of one chunk at most (all but D_PARTS 0's large ones) reads its triangles once: the copy takes what the
+	// count read
+	bool bChunk = f.nScan <= Chunk;
+	uint vFirst[Batch];
+	uint nOwnedBits = 0;
+	uint nOwned;
+	if ( bChunk )
+	{
+		ScanChunk( f, 0, f.nScan, nThread, vFirst, nOwnedBits );
+		nOwned = GroupSum( countbits( nOwnedBits ), nThread );
+	}
+	else
+		nOwned = CountOwned( f, 0, f.nScan, nThread );
 	if ( nOwned == 0 )
 		return;
 	if ( nThread == 0 )
@@ -425,7 +500,11 @@ void PartRange( Fragment f, uint nParts, uint nPart, out uint nLo, out uint nHi 
 	}
 	GroupMemoryBarrierWithGroupSync();
 	uint nStart = gs_Start;
-	if ( nStart != None )
+	if ( nStart == None )
+		return;
+	if ( bChunk )
+		CopyChunk( f, 0, nStart, nThread, vFirst, true, nOwnedBits );
+	else
 		CopyOwned( f, 0, f.nScan, nStart, nThread );
 #elif ( D_PARTS == 3 )
 	// A thread a listed fragment: drawn as one group would draw it, once
@@ -453,8 +532,23 @@ void PartRange( Fragment f, uint nParts, uint nPart, out uint nLo, out uint nHi 
 	PartRange( f, nParts, nPart, nLo, nHi );
 
 	#if ( D_PARTS == 2 )
-		// Each part's owned triangles, and the fragment's
-		uint nOwned = CountOwned( f, nLo, nHi, nThread );
+		// Each part's owned triangles, and the fragment's; a part of one chunk keeps which for its copy
+		uint nOwned;
+		if ( nHi - nLo <= Chunk && vGroupId.x < BitsParts() )
+		{
+			uint vFirst[Batch];
+			uint nOwnedBits;
+			ScanChunk( f, nLo, nHi, nThread, vFirst, nOwnedBits );
+
+			// Each fourth lane stores its own and the next three lanes' bytes (a wave's lanes are a multiple of four)
+			uint nLane = WaveGetLaneIndex();
+			uint nWord = nOwnedBits | WaveReadLaneAt( nOwnedBits, nLane | 1 ) << 8 | WaveReadLaneAt( nOwnedBits, nLane | 2 ) << 16 | WaveReadLaneAt( nOwnedBits, nLane | 3 ) << 24;
+			if ( ( nThread & 3 ) == 0 )
+				g_Large.Store( PartBits( vGroupId.x, nThread ), nWord );
+			nOwned = GroupSum( countbits( nOwnedBits ), nThread );
+		}
+		else
+			nOwned = CountOwned( f, nLo, nHi, nThread );
 		if ( nThread == 0 )
 		{
 			g_Large.Store( nRecord + ( 4 + nPart ) * 4, nOwned );
@@ -475,7 +569,17 @@ void PartRange( Fragment f, uint nParts, uint nPart, out uint nLo, out uint nHi 
 		if ( nThread < nPart )
 			InterlockedAdd( gs_Start, g_Large.Load( nRecord + ( 4 + nThread ) * 4 ) );
 		GroupMemoryBarrierWithGroupSync();
-		CopyOwned( f, nLo, nHi, nStart + gs_Start * 3, nThread );
+		nStart += gs_Start * 3;
+		if ( nHi - nLo <= Chunk && vGroupId.x < BitsParts() )
+		{
+			uint vFirst[Batch];
+			[unroll] for ( uint k = 0; k < Batch; k++ )
+				vFirst[k] = 0;
+			uint nOwnedBits = ( g_Large.Load( PartBits( vGroupId.x, nThread ) ) >> ( ( nThread & 3 ) * 8 ) ) & 0xff;
+			CopyChunk( f, nLo, nStart, nThread, vFirst, false, nOwnedBits );
+		}
+		else
+			CopyOwned( f, nLo, nHi, nStart, nThread );
 	#endif
 #endif
 }

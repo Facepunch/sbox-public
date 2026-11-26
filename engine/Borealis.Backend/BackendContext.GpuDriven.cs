@@ -1214,7 +1214,7 @@ internal sealed partial class BackendContext
 			if ( large )
 			{
 				r.List.Barrier( PipelineStage.ComputeShader | PipelineStage.DrawIndirect, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite | MemoryAccess.IndirectRead, PipelineStage.Transfer, MemoryAccess.TransferWrite );
-				r.List.UpdateBuffer<uint>( largeList, [0u, 1u, 1u, (uint)visibility.CompactParts, 0u, 1u, 1u, 0u, (uint)visibility.CompactLargeFragments, 0u, 0u, 0u] );
+				r.List.UpdateBuffer<uint>( largeList, [0u, 1u, 1u, (uint)visibility.CompactParts, 0u, 1u, 1u, 0u, (uint)visibility.CompactLargeFragments, (uint)CompactBitsParts( visibility.CompactParts ), 0u, 0u] );
 				r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 			}
 
@@ -2084,10 +2084,13 @@ internal sealed partial class BackendContext
 
 	/// <summary>
 	/// Bytes of a compaction's list of large fragments (<c>borealis_gpu_driven_compact_cs</c>'s, <see cref="BackendDevice.CompactLargeFor"/>):
-	/// 48 of dispatch arguments and capacities, a word a part and 68 words a fragment. A fragment of more triangles than a
-	/// group scans at once is counted and copied by up to <see cref="CompactMaxParts"/> groups.
+	/// 48 of dispatch arguments and capacities, a word a part and 68 words a fragment, then 256 bytes for each of the first
+	/// <see cref="CompactBitsParts"/> parts (which of each thread's triangles own a sample, from the parts' count for their
+	/// copy). A fragment of more triangles than a group scans at once is counted and copied by up to
+	/// <see cref="CompactMaxParts"/> groups.
 	/// </summary>
-	internal static long CompactLargeBytes( int parts, int fragments ) => 48 + parts * 4L + fragments * (4 + CompactMaxParts) * 4L;
+	internal static long CompactLargeBytes( int parts, int fragments ) => 48 + parts * 4L + fragments * (4 + CompactMaxParts) * 4L + CompactBitsParts( parts ) * 256L;
+	internal static int CompactBitsParts( int parts ) => Math.Min( parts, 2048 );
 	internal const uint CompactMaxParts = 64;
 	/// <summary>The attribute ids the GPU-driven passes' own dispatches bind by: found once, not by name each dispatch.</summary>
 	static class Ids

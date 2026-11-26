@@ -130,6 +130,123 @@ public class GpuDrivenTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// Forward over only the triangles that own a sample, for fragments a wall mostly hides: one of more triangles than a
+	/// compaction group scans at once (counted and copied in parts) and one of fewer (read once for its count and copy),
+	/// each drawn from its owned triangles alone, the classic pixels.
+	/// </summary>
+	[TestMethod]
+	public void MostlyHiddenFragmentsCompactTheirOwnedTriangles()
+	{
+		using var backend = new BackendDevice( Device ) { GpuDrivenGeometry = true, GpuDrivenMeshes = true };
+		RequireGpuDrivenDepth( backend );
+
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Hidden compaction test" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunColor = new Color( 1.25f, 1.15f, 1.0f );
+			world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
+			world.Lighting.SunShadowCascades = 0;
+
+			// Two walls of quads facing the camera (both windings, so either faces it), 19,600 and 1,120 triangles, and a box
+			// in front hiding the left three quarters of both (a quad's triangles share their first vertex, so a quad seen
+			// owns all four)
+			var vertices = new List<MeshVertex>();
+			var indices = new List<uint>();
+			var fragments = new List<AggregateObject.FragmentDraw>();
+			void Fragment( Action build, Vector3 min, Vector3 max )
+			{
+				var firstIndex = indices.Count;
+				build();
+				fragments.Add( new AggregateObject.FragmentDraw
+				{
+					Transform = Matrix3x4.Identity,
+					BoundsMin = min,
+					BoundsMax = max,
+					DrawTint = Vector3.One,
+					Args = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)(indices.Count - firstIndex), InstanceCount = 1, FirstIndex = (uint)firstIndex, BaseVertex = 0, FirstInstance = (uint)fragments.Count },
+				} );
+			}
+
+			void Grid( float z0, float z1, int columns, int rows )
+			{
+				for ( int r = 0; r < rows; r++ )
+				{
+					for ( int c = 0; c < columns; c++ )
+					{
+						float y0 = -200 + 400f * c / columns, y1 = -200 + 400f * (c + 1) / columns;
+						float za = z0 + (z1 - z0) * r / rows, zb = z0 + (z1 - z0) * (r + 1) / rows;
+						var first = (uint)vertices.Count;
+						vertices.Add( new MeshVertex( new Vector3( 300, y0, za ), Vector3.Backward, new Vector2( 0, 1 ) ) );
+						vertices.Add( new MeshVertex( new Vector3( 300, y1, za ), Vector3.Backward, new Vector2( 1, 1 ) ) );
+						vertices.Add( new MeshVertex( new Vector3( 300, y1, zb ), Vector3.Backward, new Vector2( 1, 0 ) ) );
+						vertices.Add( new MeshVertex( new Vector3( 300, y0, zb ), Vector3.Backward, new Vector2( 0, 0 ) ) );
+						indices.AddRange( [first, first + 1, first + 2, first, first + 2, first + 3, first, first + 2, first + 1, first, first + 3, first + 2] );
+					}
+				}
+			}
+
+			Fragment( () => Grid( 0, 150, 70, 70 ), new Vector3( 299, -200, 0 ), new Vector3( 301, 200, 150 ) );
+			Fragment( () => Grid( 160, 260, 20, 14 ), new Vector3( 299, -200, 160 ), new Vector3( 301, 200, 260 ) );
+			Fragment( () => Box( vertices, indices, new Vector3( 100, -108, 130 ), 150 ), new Vector3( -50, -258, -20 ), new Vector3( 250, 42, 280 ) );
+			var triangles = indices.Count / 3;
+			var mesh = BackendMesh.Create( backend, vertices.ToArray(), indices.ToArray(), backend.CreateMaterial( "Hidden", new Color( 0.6f, 0.6f, 0.5f ) ), "Hidden" );
+			world.Add( new AggregateObject( mesh, fragments.ToArray() ) );
+
+			var view = new RenderView { Name = "Hidden compaction test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -300, 0, 130 );
+			view.Rotation = Rotation.LookAt( Vector3.Forward );
+
+			byte[] Frame( bool gpuDriven, bool visibility, DrawCensus census = null )
+			{
+				backend.GpuDriven = gpuDriven;
+				backend.GpuDrivenVisibility = visibility;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				backend.Census = census;
+				try
+				{
+					system.Render( world, view, target );
+				}
+				finally
+				{
+					backend.Census = null;
+				}
+
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var classic = Frame( false, false );
+			Frame( true, true );
+			var census = new DrawCensus();
+			var visible = Frame( true, true, census );
+			census.Resolve( Device );
+			var visibleAgain = Frame( true, true );
+			var compacted = census.Draws.Where( d => d.Kind?.Contains( "compacted", StringComparison.Ordinal ) == true ).Sum( d => d.Triangles );
+			var kinds = string.Join( "; ", census.Draws.Select( d => $"{d.Pass} {d.Kind} {d.Triangles}" ) );
+
+			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
+			Assert.IsTrue( compacted > 0 && compacted < triangles / 2, $"forward drew compacted triangles, fewer than half of the {triangles:N0}: {kinds}" );
+			Assert.AreEqual( 0, Different( classic, visible ), "forward over only the triangles that own a sample draws the classic pixels" );
+			Assert.AreEqual( 0, Different( classic, visibleAgain ), "and the next frame" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>A camera's stages with nothing in them, with screen-space reflections or not.</summary>
 	sealed class ReflectingStages( bool reflections ) : IRenderStages
 	{

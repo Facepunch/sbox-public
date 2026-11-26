@@ -2994,7 +2994,7 @@ public sealed partial class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// A view's compaction list of large fragments (<see cref="VisibilityView.CompactLarge"/>, <c>borealis_gpu_driven_compact_cs</c>),
 	/// made the first time its forward pass compacts: a part per 512 of its compacted indices (64 to 8192, so a 64x32 view's is
-	/// 9 KiB and a 1920x1080 4x view's 590 KiB) and a fragment per four parts. Its arguments are written by each compaction.
+	/// 41 KiB and a 1920x1080 4x view's 1.1 MiB, with the parts' owned bits) and a fragment per four parts. Its arguments are written by each compaction.
 	/// </summary>
 	internal BufferHandle CompactLargeFor( VisibilityView state )
 	{

@@ -104,11 +104,12 @@ internal partial class ShadowMapper
 	internal static bool TexelSizedCascades { get; set; } = true;
 
 	/// <summary>
-	/// Lit shaders skip the sun's shadow filter where a cascade drew nothing, and, from each cascade's min/max depth tiles,
-	/// where the receiver is nearer the sun than every caster the filter reaches or behind all of them: the filter's own
-	/// answer there. Off: every receiver in a cascade is filtered.
+	/// Lit shaders read each cascade's min/max depth tiles before the sun's shadow filter, and skip it where the receiver is
+	/// nearer the sun than every caster the filter reaches or behind all of them: the filter's own answer there. Off by
+	/// default: the read costs every receiver more than the few it lets through save, as the filter's own central taps
+	/// decide most receivers first (<c>SampleShadowTentCentre</c>). Cascades that drew nothing are flagged either way.
 	/// </summary>
-	internal static bool CascadeTiles { get; set; } = true;
+	internal static bool CascadeTiles { get; set; }
 
 	/// <summary>
 	/// Lab experiment (<c>borealislab -freeze-far-cascade</c>): the last cascade is drawn once into a cache, then each frame
