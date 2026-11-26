@@ -323,6 +323,16 @@ public sealed class RenderWorld
 	internal int Structure { get; private set; }
 
 	/// <summary>
+	/// Counts up whenever an aggregate or a mesh is added or removed, or moves to another index (another object's remove moved
+	/// it): what keeps a list of the world's aggregates and meshes by index finds out it must look again. Lights, decals and
+	/// custom objects (particles, beams) coming and going leave it, so a game spawning effects every frame doesn't make the
+	/// resident lists again every frame.
+	/// </summary>
+	internal int MeshStructure { get; private set; }
+
+	static bool IndexesMeshes( RenderObject obj ) => obj is AggregateObject or MeshObject;
+
+	/// <summary>
 	/// Add an object. An object can be in one world at a time; worlds drawing this one as a sub-world (<see cref="Include"/>)
 	/// hold it too.
 	/// </summary>
@@ -367,6 +377,7 @@ public sealed class RenderWorld
 		else obj.AddHost( this, index );
 
 		Structure++;
+		if ( IndexesMeshes( obj ) ) MeshStructure++;
 		if ( obj is MeshObject { AttributesFrom: not null } ) AttributeSources++;
 		_objects[index] = obj;
 		_subWorlds[index] = (byte)subWorld;
@@ -403,6 +414,7 @@ public sealed class RenderWorld
 
 		var last = --Count;
 		Structure++;
+		if ( IndexesMeshes( obj ) || (index != last && IndexesMeshes( _objects[last] )) ) MeshStructure++;
 
 		if ( obj.IsStatic ) StaticCasterChanged( obj );
 		else if ( IsSettledCaster( obj, index ) ) SettledChanges.Add( _boundsCenters[index], _boundsExtents[index] );

@@ -503,7 +503,7 @@ internal sealed partial class AggregateRenderFeature
 
 		// A material's program compiled in the background since: meshes it kept from being resident may be now
 		var programs = meshesWanted ? RenderHost.Current?.Device?.ProgramsVersion ?? 0 : 0;
-		if ( !ReferenceEquals( world, residentWorld ) || world.Structure != residentStructure || meshesWanted != residentMeshes || overlaysWanted != residentOverlays || volumesKey != residentVolumesKey
+		if ( !ReferenceEquals( world, residentWorld ) || world.MeshStructure != residentStructure || meshesWanted != residentMeshes || overlaysWanted != residentOverlays || volumesKey != residentVolumesKey
 			|| meshesLeftChanged || overlaysStale || settled || programs != residentPrograms )
 		{
 			residentPrograms = programs;
@@ -971,7 +971,7 @@ internal sealed partial class AggregateRenderFeature
 	void Rescan( RenderWorld world )
 	{
 		residentWorld = world;
-		residentStructure = world.Structure;
+		residentStructure = world.MeshStructure;
 		quietChanges = -1;
 		memberCount = 0;
 		meshMemberCount = 0;

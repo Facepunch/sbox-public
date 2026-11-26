@@ -160,6 +160,21 @@ public class AggregateTests
 			Assert.AreSame( list, feature.ResidentFor( system.MainPass ), "the same list the next frame" );
 			Assert.AreEqual( made, feature.ResidentListsMade, "no list made again" );
 
+			// Lights coming and going (a particle effect's, every frame) leave the lists alone, even when a remove moves one
+			// into another's place
+			var first = new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 30, 0, 0 ) ) ) { Radius = 50, CastShadows = false };
+			var second = new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 30, 10, 0 ) ) ) { Radius = 50, CastShadows = false };
+			world.Add( first );
+			world.Add( second );
+			CollectAndPrepare( system, world, view );
+			world.Remove( first );
+			CollectAndPrepare( system, world, view );
+			world.Remove( second );
+			CollectAndPrepare( system, world, view );
+			Assert.AreSame( list, feature.ResidentFor( system.MainPass ), "the same list after lights came and went" );
+			Assert.AreEqual( made, feature.ResidentListsMade, "no list made again for lights" );
+			Assert.AreEqual( 0, feature.BatchesFor( system.MainPass ).Count, "the view still prepares none of its own" );
+
 			// A view hiding the tag: the other class only
 			var hiding = LookingDownX();
 			hiding.ExcludeTags = tagged.Tags;
