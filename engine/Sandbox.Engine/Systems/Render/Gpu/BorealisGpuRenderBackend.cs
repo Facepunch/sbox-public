@@ -2509,6 +2509,7 @@ internal sealed partial class BorealisGpuRenderBackend : RenderBackend, IDisposa
 		if ( geometry.Draws.Length == 0 ) return;
 
 		var (buffer, ids) = UploadTransforms( transforms );
+		if ( CullView is { } view && DrawCulled( model, geometry, attributes, view, buffer, (int)(ids.Offset / sizeof( uint )), transforms.Length ) ) return;
 		DrawModelGeometry( geometry, attributes, transforms.Length, transforms: buffer, ids: ids );
 	}
 

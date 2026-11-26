@@ -488,6 +488,99 @@ internal sealed partial class BorealisGpuRenderBackend
 	}
 
 	/// <summary>
+	/// The view of the pass a custom object draws in (<see cref="BorealisGpuCustomDraw.Draw"/>), which its instanced model draws are
+	/// culled against (<see cref="DrawCulled"/>); null outside one, where nothing is culled.
+	/// </summary>
+	internal Borealis.RenderView CullView { get; set; }
+
+	/// <summary>
+	/// Whether instanced model draws in a custom object's depth pass leave out, on the GPU, the instances its view doesn't see.
+	/// Off by default (an experiment); <c>-instance-cull</c> turns it on. On the A10, Mow the Lawn's grass draws a fifth of its
+	/// triangles with it, in the same time: it costs its fragments, and each draw's cull breaks the pass.
+	/// </summary>
+	internal static bool CullInstances = Utility.CommandLine.HasSwitch( "-instance-cull" );
+
+	/// <summary>The fewest instances worth culling: a draw of fewer draws them all.</summary>
+	const int MinCulledInstances = 64;
+
+	ShaderAttributes cullAttributes;
+
+	/// <summary>
+	/// Draw <paramref name="count"/> instances of a model, their transforms in <paramref name="transforms"/> from entry
+	/// <paramref name="first"/>, without those outside <paramref name="view"/>'s sides: one group of
+	/// <c>borealis_instance_cull_cs</c> writes the instances whose transformed bounds it sees after one another, in order, and
+	/// each draw's instance count into indirect arguments, and every draw of the model reads them. The same pixels: an
+	/// instance outside a side draws none (whether the view clips or clamps depth, which the near and far planes would care
+	/// about), and the kept ones draw in their order. False, drawing nothing, where it doesn't cull: too few instances, a draw
+	/// that isn't indexed, or one whose shader reads its instance's index, which leaving instances out would change.
+	/// </summary>
+	bool DrawCulled( Model model, ModelGeometry geometry, RenderAttributes attributes, Borealis.RenderView view, BufferHandle transforms, int first, int count )
+	{
+		if ( !CullInstances || count < MinCulledInstances || view.Orthographic && view.OrthoSize.x <= 0 ) return false;
+
+		var commands = 0;
+		foreach ( var draw in geometry.Draws )
+		{
+			if ( draw.Material is null ) continue;
+			if ( !draw.Geometry.Indices.IsValid ) return false;
+
+			var (shader, surface) = PrepareDraw( draw.Material );
+			if ( context.ReadsInstanceIndex( shader, surface, LoweredForModel( attributes, transforms, draw.Uncompressed ) ) ) return false;
+			commands = Math.Max( commands, draw.Slot + 1 );
+		}
+
+		if ( commands == 0 ) return false;
+
+		// Each draw's indexed arguments, as it draws directly; the cull writes their instance counts
+		var list = Recording;
+		var arguments = list.AllocateUpload( commands * 20, 16 );
+		var words = MemoryMarshal.Cast<byte, uint>( arguments.Data );
+		words.Clear();
+		foreach ( var draw in geometry.Draws )
+		{
+			if ( draw.Material is null ) continue;
+			var at = draw.Slot * 5;
+			words[at] = (uint)draw.Geometry.Count;
+			words[at + 2] = (uint)draw.Geometry.First;
+			words[at + 3] = (uint)draw.Geometry.BaseVertex;
+		}
+
+		var kept = list.AllocateUpload( count * TransformSize, TransformSize );
+		var keptFirst = (int)(kept.Offset / TransformSize);
+
+		var bounds = model.Bounds;
+		var frustum = view.Frustum;
+		var cull = cullAttributes ??= new ShaderAttributes();
+		cull.Set( "CullTransforms", transforms );
+		cull.Set( "CullKept", kept.Buffer );
+		cull.Set( "CullArguments", arguments.Buffer );
+		cull.Set( "CullFirst", first );
+		cull.Set( "CullCount", count );
+		cull.Set( "CullKeptFirst", keptFirst );
+		cull.Set( "CullArgumentsOffset", arguments.Offset );
+		cull.Set( "CullCommands", commands );
+		cull.Set( "CullBoundsCenter", bounds.Center.x, bounds.Center.y, bounds.Center.z );
+		var extents = bounds.Size * 0.5f;
+		cull.Set( "CullBoundsExtents", extents.x, extents.y, extents.z );
+		for ( int i = 0; i < 4; i++ )
+		{
+			var plane = frustum.Plane( i );
+			cull.Set( CullPlaneNames[i], plane.x, plane.y, plane.z, plane.w );
+		}
+
+		drawer.Material = null;
+		if ( !context.Dispatch( Shader( "shaders/borealis_instance_cull_cs.shader" ), cull, 1, 1, 1 ) ) return false;
+
+		// Only the draws that read what it wrote wait for it, not the work before it
+		list.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead );
+
+		DrawModelGeometry( geometry, attributes, 1, arguments.Buffer, arguments.Offset, kept.Buffer, InstanceIds( keptFirst, count ) );
+		return true;
+	}
+
+	static readonly string[] CullPlaneNames = ["CullPlane0", "CullPlane1", "CullPlane2", "CullPlane3"];
+
+	/// <summary>
 	/// <see cref="Rendering.GpuInstanceTransform.From"/>'s entry, made straight from the transform's rotation, scale and position:
 	/// the rows of its 3x4 matrix, alpha 1 and a white tint.
 	/// </summary>

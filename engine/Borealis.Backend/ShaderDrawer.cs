@@ -1088,6 +1088,13 @@ public sealed partial class ShaderDrawer : IDisposable
 	}
 
 	/// <summary>
+	/// Whether a draw of <paramref name="shader"/> with these attributes in <paramref name="mode"/> reads its instance's index
+	/// (<c>SV_InstanceID</c>), so leaving instances out would change what it draws; true when it can't tell.
+	/// </summary>
+	public bool ReadsInstanceIndex( ShaderFile shader, ShaderAttributes attributes, string mode = null )
+		=> Variant( shader, attributes, mode )?.Vertex?.Reflection is not { } reflection || reflection.ReadsInstanceIndex;
+
+	/// <summary>
 	/// Draw <paramref name="vertexCount"/> vertices of <paramref name="layout"/> from <paramref name="vertices"/> at
 	/// <paramref name="offset"/>, as <paramref name="topology"/>, inside the list's open rendering scope. The rest is as
 	/// <see cref="DrawIndexedInstanced(CommandList, ShaderFile, ShaderAttributes, Format, int, BufferHandle, int, int, System.Numerics.Vector4, string)"/>.

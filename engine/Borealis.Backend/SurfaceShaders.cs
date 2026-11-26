@@ -917,6 +917,11 @@ internal sealed class SurfaceProgram : IDisposable
 		/// <summary>The pixel stage's outputs, read once (<see cref="FitOutputs"/>); its modules without some of them, by locations.</summary>
 		internal IReadOnlyList<SpirvInput> PixelOutputs;
 		internal readonly Dictionary<uint, ShaderHandle> PixelWithoutOutputs = new();
+
+		/// <summary>Whether the vertex stage reads its instance's index (<see cref="SpirvReflection.ReadsInstanceIndex"/>), read once.</summary>
+		internal bool ReadsInstanceIndex => readsInstanceIndex ??= Pass.Vertex?.Spirv is not { } spirv || SpirvReflection.Read( spirv ).ReadsInstanceIndex;
+
+		bool? readsInstanceIndex;
 	}
 
 	/// <summary>The device it's made on.</summary>

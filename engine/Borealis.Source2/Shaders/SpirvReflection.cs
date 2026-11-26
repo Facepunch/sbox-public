@@ -42,9 +42,16 @@ public sealed class SpirvReflection
 	/// </summary>
 	public bool Discards { get; }
 
-	SpirvReflection( List<SpirvBinding> bindings, List<SpirvInput> inputs, List<SpirvInput> outputs, List<string> entryPoints, List<uint> specialization, List<SpirvBlock> blocks, bool discards )
+	/// <summary>
+	/// Whether the stage reads its instance's index (<c>SV_InstanceID</c>, <c>SV_VulkanInstanceID</c>): draws that change which
+	/// instance is which (culled instances left out) would change what it does with it.
+	/// </summary>
+	public bool ReadsInstanceIndex { get; }
+
+	SpirvReflection( List<SpirvBinding> bindings, List<SpirvInput> inputs, List<SpirvInput> outputs, List<string> entryPoints, List<uint> specialization, List<SpirvBlock> blocks, bool discards, bool readsInstanceIndex )
 	{
 		Discards = discards;
+		ReadsInstanceIndex = readsInstanceIndex;
 		Bindings = bindings;
 		Inputs = inputs;
 		Outputs = outputs;
@@ -60,7 +67,7 @@ public sealed class SpirvReflection
 	const int DecorationOffset = 35;
 	const int DecorationBinding = 33, DecorationDescriptorSet = 34;
 	const int StorageUniformConstant = 0, StorageInput = 1, StorageUniform = 2, StorageBuffer = 12;
-	const int OpKill = 252, OpTerminateInvocation = 4416, OpDemoteToHelperInvocation = 5380, BuiltInSampleMask = 20, BuiltInFragDepth = 22;
+	const int OpKill = 252, OpTerminateInvocation = 4416, OpDemoteToHelperInvocation = 5380, BuiltInSampleMask = 20, BuiltInFragDepth = 22, BuiltInInstanceIndex = 43, BuiltInBaseInstance = 4425;
 
 	/// <summary>Reflect a SPIR-V module.</summary>
 	public static SpirvReflection Read( ReadOnlySpan<byte> spirv )
@@ -134,6 +141,7 @@ public sealed class SpirvReflection
 		var inputs = new List<SpirvInput>();
 		var outputs = new List<SpirvInput>();
 		var blocks = new List<SpirvBlock>();
+		var readsInstanceIndex = false;
 		foreach ( var (id, pointerType, storage) in variables )
 		{
 			decorations.TryGetValue( id, out var decorated );
@@ -141,6 +149,7 @@ public sealed class SpirvReflection
 
 			if ( storage == StorageInput )
 			{
+				if ( decorated is not null && decorated.TryGetValue( DecorationBuiltIn, out var inBuiltIn ) && inBuiltIn is BuiltInInstanceIndex or BuiltInBaseInstance ) readsInstanceIndex = true;
 				if ( decorated is null || !decorated.TryGetValue( DecorationLocation, out var location ) || decorated.ContainsKey( DecorationBuiltIn ) ) continue;
 				inputs.Add( Input( (int)location, pointee, types, words ) );
 				continue;
@@ -214,7 +223,7 @@ public sealed class SpirvReflection
 		inputs.Sort( ( a, b ) => a.Location.CompareTo( b.Location ) );
 		outputs.Sort( ( a, b ) => a.Location.CompareTo( b.Location ) );
 		blocks.Sort( ( a, b ) => a.Set != b.Set ? a.Set.CompareTo( b.Set ) : a.Binding.CompareTo( b.Binding ) );
-		return new SpirvReflection( bindings, inputs, outputs, entryPoints, specialization, blocks, discards );
+		return new SpirvReflection( bindings, inputs, outputs, entryPoints, specialization, blocks, discards, readsInstanceIndex );
 	}
 
 	/// <summary>A member type's size in bytes as laid out: scalars by width, vectors by count, matrices by stride, arrays by stride; 0 if unknown.</summary>

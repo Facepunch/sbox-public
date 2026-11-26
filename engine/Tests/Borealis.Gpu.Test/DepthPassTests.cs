@@ -105,6 +105,25 @@ public class DepthPassTests : GpuTest
 	}
 
 	/// <summary>
+	/// Whether a vertex stage reads its instance's index shows in its SPIR-V (<c>SpirvReflection.ReadsInstanceIndex</c>), which
+	/// decides whether an instanced model draw's instances can be culled: depth_only's classic stage finds its transform through
+	/// the instance id stream and doesn't; its GPU-driven one reads its instance record by <c>SV_VulkanInstanceID</c> and does.
+	/// </summary>
+	[TestMethod]
+	public void VertexStagesReadingTheInstanceIndexAreKnown()
+	{
+		using var backend = new BackendDevice( Device, Fixtures.WithCompiledShaders() );
+		var shader = backend.Shaders.Load( "shaders/depth_only.shader" );
+		var features = new int[shader.Features.StaticCombos.Length];
+		var classic = backend.Shaders.Variant( shader, "Depth", features );
+		var gpuDriven = backend.Shaders.Variant( shader, "Depth", features, null, null, gpuDriven: true );
+		Assert.IsNotNull( classic?.Vertex?.Reflection );
+		Assert.IsNotNull( gpuDriven?.Vertex?.Reflection );
+		Assert.IsFalse( classic.Vertex.Reflection.ReadsInstanceIndex, "the classic stage reads the id stream" );
+		Assert.IsTrue( gpuDriven.Vertex.Reflection.ReadsInstanceIndex, "the GPU-driven one its instance index" );
+	}
+
+	/// <summary>
 	/// A fading object (tint alpha under 1) casts a dithered shadow: its shadow-map draws take the depth-only material with
 	/// <c>D_OPAQUE_FADE</c>, whose pixel stage dithers, so a half-faded box shades the floor less than an opaque one does.
 	/// On both routes, classic and GPU-driven.

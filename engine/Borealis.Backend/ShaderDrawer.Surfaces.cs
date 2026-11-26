@@ -68,6 +68,16 @@ public sealed partial class ShaderDrawer
 	}
 
 	/// <summary>
+	/// Whether <see cref="DrawSurface"/> of <paramref name="material"/> with these attributes, targets and mode reads its
+	/// instance's index (<c>SV_InstanceID</c>), so leaving instances out would change what it draws; true when it can't tell.
+	/// </summary>
+	public bool SurfaceReadsInstanceIndex( SurfaceMaterial material, ShaderAttributes attributes, Format color, string mode = null )
+	{
+		if ( device is null || material is null || device.Surfaces.For( material ) is not { } program ) return true;
+		return SurfacePass( program, material.RenderState, color, mode, attributes.GetCombo( LightmapId ) is > 0 ) is not { } pass || pass.ReadsInstanceIndex;
+	}
+
+	/// <summary>
 	/// The pass a surface draws with: in a colour pass (no mode, or <c>Forward</c>) the forward pass for its render state; into
 	/// depth alone (no colour target, or the <c>Depth</c> mode) its depth pass, or, where it writes no depth or draws in the
 	/// translucent layer, the dithered depth of a surface with a shadow of its own. The lightmapped pass where the draw's

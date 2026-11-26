@@ -72,6 +72,9 @@ internal static class BorealisGpuCustomDraw
 		// The object's transform, as its run bound it (MeshRenderFeature binds instance ids before a custom object renders)
 		var (transforms, ids, offset) = ((BackendContext)context).LentInstances;
 		backend.LendInstances( transforms, ids, offset );
+		// Into depth alone (shadow maps, the prepass) its instanced draws are culled: there the cull's break in the pass costs
+		// less than the vertices it saves, in a multisampled colour pass more
+		backend.CullView = depthAlone ? camera : null;
 		backend.DrawMode = shaderMode.Value == 0 ? null : StringToken.GetValue( shaderMode.Value );
 		backend.DepthBias = depthAlone ? (depthBias, slopeScaledDepthBias) : default;
 		// A debug view's tools pass (wireframe, overdraw, shader IDs) over the custom object's draws too
@@ -88,6 +91,7 @@ internal static class BorealisGpuCustomDraw
 			drawer.ToolsPass = ToolsPass.None;
 			view.LightingWorld = null;
 			backend.LendInstances( default, default, 0 );
+			backend.CullView = null;
 			backend.DrawMode = null;
 			backend.DepthBias = default;
 		}

@@ -423,6 +423,17 @@ public sealed class GraphicsContext
 	/// The mode a draw of <paramref name="shader"/> draws: its first (null) when no <see cref="Mode"/> is asked for, else that
 	/// mode's name as the shader spells it. False when the shader has no such mode, and the draw is skipped.
 	/// </summary>
+	/// <summary>
+	/// Whether a draw with <paramref name="surface"/> (a surface material) or else <paramref name="shader"/> and these attributes,
+	/// into the bound targets in <see cref="Mode"/>, reads its instance's index (<c>SV_InstanceID</c>): leaving some of its
+	/// instances out would change what the rest draw. True when it can't tell.
+	/// </summary>
+	public bool ReadsInstanceIndex( ShaderFile shader, SurfaceMaterial surface, ShaderAttributes attributes )
+	{
+		if ( surface is not null ) return drawer.SurfaceReadsInstanceIndex( surface, attributes, TargetFormat, Mode );
+		return shader is null || !ModeOf( shader, out var mode ) || drawer.ReadsInstanceIndex( shader, attributes, mode );
+	}
+
 	bool ModeOf( ShaderFile shader, out string mode )
 	{
 		mode = null;
