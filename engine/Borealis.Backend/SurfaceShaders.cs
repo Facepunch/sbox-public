@@ -1305,7 +1305,9 @@ internal sealed class SurfaceProgram : IDisposable
 				if ( !disposed && building.Add( key ) )
 				{
 					builds.RemoveAll( b => b.IsCompleted );
-					builds.Add( Specialize( key, pass, info, specialized ) );
+					// On a worker from the start: run where it's asked for, it made the pipeline there when a slot was free and
+					// nothing held it (it awaited nothing), under the pipelines' lock, 0.3-1.5 s of a frame on a cold cache
+					builds.Add( Task.Run( () => Specialize( key, pass, info, specialized ) ) );
 				}
 
 				return unspecialized;

@@ -1695,6 +1695,54 @@ public class SurfaceTests : GpuTest
 	}
 
 	/// <summary>
+	/// A material's specialised pipeline is made on a worker even when nothing holds it: never on the thread whose draw asked
+	/// for it, which records a frame (and holds the program's pipelines while it asks).
+	/// </summary>
+	[TestMethod]
+	public void SpecializedPipelinesAreNeverMadeWhereTheyAreAskedFor()
+	{
+		var previousHost = RenderHost.Current;
+		try
+		{
+			using var backend = new BackendDevice( Device );
+			var errors = new List<string>();
+			backend.Surfaces.Error = errors.Add;
+			backend.Surfaces.SpecializeFeatures = true;
+			backend.Surfaces.SpecializeInBackground = true;
+			var drawing = Environment.CurrentManagedThreadId;
+			var onDrawingThread = 0;
+			backend.Surfaces.SpecializeHeld = () =>
+			{
+				if ( Environment.CurrentManagedThreadId == drawing ) System.Threading.Interlocked.Increment( ref onDrawingThread );
+				return false;
+			};
+			RenderHost.Current = new BackendRenderHost( backend );
+			if ( ((GpuDevice)backend).LoadMaterial( "materials/default.vmat" ) is not SurfaceMaterial material )
+			{
+				Assert.Inconclusive( "default.vmat isn't compiled, or isn't a surface" );
+				return;
+			}
+
+			// Its program compiled first, so the draw asks for the specialised pipeline
+			Draw( backend, material );
+			Assert.IsTrue( backend.Surfaces.WaitForCompiles( TimeSpan.FromSeconds( 120 ) ), "compiled" );
+			Draw( backend, material );
+			var program = material.Program;
+			Assert.IsNotNull( program, "a surface program" );
+			var deadline = Environment.TickCount64 + 60_000;
+			while ( program.Specialized.Building > 0 && Environment.TickCount64 < deadline ) System.Threading.Thread.Sleep( 10 );
+			Assert.IsTrue( program.Specialized.Made > 0, "a specialised pipeline made" );
+			Assert.AreEqual( 0, onDrawingThread, "made on the thread that drew" );
+			Assert.AreEqual( 0, errors.Count, string.Join( "\n", errors ) );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// A water_simple material loads as its surface (water_simple has no .shader: the surface is the whole shader), its
 	/// fields from the material's values whatever vfx prefix they carry (<c>g_fRoughness</c> for <c>Roughness</c>).
 	/// </summary>
