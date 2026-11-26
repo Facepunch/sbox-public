@@ -187,6 +187,8 @@ public class MaterialCompileTests
 		if ( !File.Exists( Path.Combine( native, EngineFolders.Library( "slang" ) ) ) ) Assert.Inconclusive( "The engine's Slang isn't built" );
 		var compiler = new SlangCompiler( native, [shaders] );
 
+		// Every stage started before any is waited for: the compiler runs them on its own threads, and one after another took 4 s
+		var compiles = new List<System.Threading.Tasks.Task>();
 		foreach ( var name in new[] { "material", "unlit", "compute" } )
 		{
 			var module = PassModule.Read( Path.Combine( templates, name + ".slang" ), [shaders] );
@@ -195,12 +197,15 @@ public class MaterialCompileTests
 			foreach ( var stage in new[] { StageKind.Vertex, StageKind.Pixel, StageKind.Compute } )
 			{
 				if ( !module.Has( stage ) ) continue;
-				compiler.CompilePass( module, stage, module.Combos( stage ).ToDictionary( c => c.Name, c => c.Min ) );
+				compiles.Add( compiler.CompilePassAsync( module, stage, module.Combos( stage ).ToDictionary( c => c.Name, c => c.Min ) ) );
 				compiled++;
 			}
 
 			Assert.IsTrue( compiled > 0, name );
 		}
+
+		// A compile error throws here, as each compile did
+		foreach ( var compile in compiles ) compile.GetAwaiter().GetResult();
 	}
 
 	/// <summary>
