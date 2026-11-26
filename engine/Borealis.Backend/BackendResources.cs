@@ -48,12 +48,16 @@ internal sealed class BackendTexture : GpuTexture
 		}
 
 		Layout = ImageLayout.ShaderRead;
+		FrameBufferMipShader = null;
 		BackendContext.ForgetMipViews( this, device.Gpu );
 		device.Gpu.Replace( Handle, image );
 	}
 
 	/// <summary>The layout the last recorded use left it in.</summary>
 	public ImageLayout Layout { get; set; }
+
+	/// <summary>The tiled shader that last made a complete frame copy mip chain; null if it must be rebuilt.</summary>
+	internal ShaderFile FrameBufferMipShader { get; set; }
 
 	/// <summary>Its shape, which a shader binding it must expect.</summary>
 	public TextureDimension Dimension { get; init; }
@@ -284,7 +288,7 @@ internal sealed class BackendParameters : ShaderParameters
 		if ( values.TryGet( name, out var old ) && !ReferenceEquals( old, value ) )
 		{
 			if ( old is byte[] previous ) KeepBytes( name, previous );
-			else if ( old is not null && old.GetType().IsValueType && !IsShared( old ) ) KeepBox( name, old );
+			else if ( old is ValueType && !IsShared( old ) ) KeepBox( name, old );
 		}
 
 		values.Set( name, value );
@@ -307,9 +311,15 @@ internal sealed class BackendParameters : ShaderParameters
 
 	public override void Set( StringToken name, GpuBuffer value ) => Store( name, value );
 
+	// Keep the ABI's marshalled size (which can differ from sizeof(T)) without asking the marshaller at every bind.
+	static class ConstantSize<T> where T : unmanaged
+	{
+		public static readonly int Marshalled = Marshal.SizeOf<T>();
+	}
+
 	public override void SetData<T>( StringToken name, in T value )
 	{
-		var size = Marshal.SizeOf<T>();
+		var size = ConstantSize<T>.Marshalled;
 		lock ( gate )
 		{
 			// The same bytes again change nothing
@@ -320,6 +330,20 @@ internal sealed class BackendParameters : ShaderParameters
 			var bytes = TakeBytes( name.Value, size );
 			bytes.AsSpan( length ).Clear();
 			MemoryMarshal.Write( bytes, in value );
+			Replace( name.Value, bytes );
+			version++;
+		}
+	}
+
+	public override void SetData( StringToken name, ReadOnlySpan<byte> data )
+	{
+		lock ( gate )
+		{
+			// The same bytes again change nothing
+			if ( values.TryGet( name.Value, out var old ) && old is byte[] current && current.AsSpan().SequenceEqual( data ) ) return;
+
+			var bytes = TakeBytes( name.Value, data.Length );
+			data.CopyTo( bytes );
 			Replace( name.Value, bytes );
 			version++;
 		}
@@ -552,7 +576,7 @@ internal sealed class BackendParameters : ShaderParameters
 		{
 			if ( !values.At( i, out var key, out var value ) ) continue;
 			if ( value is byte[] bytes ) KeepBytes( key, bytes );
-			else if ( value is not null && value.GetType().IsValueType && !IsShared( value ) ) KeepBox( key, value );
+			else if ( value is ValueType && !IsShared( value ) ) KeepBox( key, value );
 		}
 
 		values.Clear();
@@ -586,27 +610,36 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 
 	void Load( ShaderFile shader, MaterialFile file, Dictionary<string, BackendTexture> textures )
 	{
-		Shader = shader;
+		Inputs = shader is null ? null : shaderInputs.GetValue( shader, static s => new ShaderInputs( s ) );
 		File = file;
 		Textures = textures ?? new( StringComparer.OrdinalIgnoreCase );
 		Streamed();
 
 		Features = FeatureValues( shader, file, featuresSetInCode );
-
-		SpecializationAttributes = shader is null ? [] : new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute }
-			.SelectMany( t => shader[t]?.Variables ?? [] )
-			.Where( v => v.Register == RegisterType.Specialization && v.Source == VariableSource.Attribute && !string.IsNullOrEmpty( v.Attribute ) )
-			.Select( v => v.Attribute ).Distinct( StringComparer.Ordinal ).ToArray();
 	}
 
-	/// <summary>
-	/// The attributes the shader's specialization constants come from (<c>SpecializedConstant()</c>, such as
-	/// <c>ToolsVisMode</c>): like dynamic combos, their values pick the variant.
-	/// </summary>
-	public string[] SpecializationAttributes { get; private set; } = [];
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderFile, ShaderInputs> shaderInputs = new();
+
+	/// <summary>The names and tokens used to choose a variant, in shader key order.</summary>
+	internal sealed class ShaderInputs( ShaderFile shader )
+	{
+		public readonly ShaderFile Shader = shader;
+
+		public readonly (string Name, StringToken Token)[] Combos = new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel }
+			.SelectMany( t => shader[t]?.DynamicCombos ?? [] )
+			.Select( c => (c.Name, BackendContext.Token( c.Name )) ).ToArray();
+
+		public readonly (string Name, StringToken Token)[] Specialization = new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute }
+			.SelectMany( t => shader[t]?.Variables ?? [] )
+			.Where( v => v.Register == RegisterType.Specialization && v.Source == VariableSource.Attribute && !string.IsNullOrEmpty( v.Attribute ) )
+			.Select( v => v.Attribute ).Distinct( StringComparer.Ordinal )
+			.Select( name => (name, BackendContext.Token( name )) ).ToArray();
+	}
+
+	internal ShaderInputs Inputs { get; private set; }
 
 	/// <summary>The shader, or null when there's no compiled one: draws with it are skipped.</summary>
-	public ShaderFile Shader { get; private set; }
+	public ShaderFile Shader => Inputs?.Shader;
 
 	/// <summary>The compiled material, or null for a material made from a shader.</summary>
 	public MaterialFile File { get; private set; }
@@ -660,6 +693,7 @@ internal sealed class BackendMaterial : GpuMaterial, IStreamDependent
 	{
 		lock ( valuesGate )
 		{
+			// Replaced whole, as the recording threads read it without a lock
 			if ( values.TryGetValue( variable, out var current ) && current is not null && current.AsSpan().SequenceEqual( value ) ) return;
 			Store( variable, value.ToArray() );
 		}

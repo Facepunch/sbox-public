@@ -17,8 +17,8 @@ internal sealed partial class BackendContext
 	internal sealed class PassResolver( BackendContext context ) : PassBindings
 	{
 		long epoch = -1;
-		readonly Dictionary<(string Name, int Size), (Binding Binding, uint Offset)> constants = new();
-		readonly Dictionary<(string Name, ShaderResourceKind Kind, SpirvImageDimension Dimension, int RenderStateId), Binding> resources = new();
+		readonly Dictionary<(uint Name, int Size), (Binding Binding, uint Offset)> constants = new();
+		readonly Dictionary<(uint Name, ShaderResourceKind Kind, SpirvImageDimension Dimension, int RenderStateId), Binding> resources = new();
 
 		public void Begin( long passEpoch )
 		{
@@ -36,13 +36,13 @@ internal sealed partial class BackendContext
 		/// What the object's attributes bind for a pass resource: constant buffers copied once a frame per object (at a
 		/// dynamic offset when the slot is dynamic), buffers and textures by name.
 		/// </summary>
-		public override bool ResolveLayer( in ShaderResource resource, ShaderStage stage, bool dynamic, out Binding binding, out uint dynamicOffset )
+		public override bool ResolveLayer( in ShaderResource resource, ShaderStage stage, in MaterialLayout.PassInput input, bool dynamic, out Binding binding, out uint dynamicOffset )
 		{
 			binding = default;
 			dynamicOffset = 0;
 			if ( resource.Name is not { } name ) return false;
 
-			var token = Token( name );
+			var token = input.Token;
 			var value = context.LayerValue( token, out var from );
 			if ( value is null ) return false;
 
@@ -52,13 +52,7 @@ internal sealed partial class BackendContext
 				case ShaderResourceKind.ConstantBuffer when value is byte[] data:
 					{
 						HandFilledConstants.CheckSize( stage, name, data.Length );
-						var size = data.Length;
-						foreach ( var layout in stage.Program.ConstantBuffers )
-						{
-							if ( layout.Name == name ) size = Math.Max( size, layout.Size );
-						}
-
-						size = (size + 15) & ~15;
+						var size = (Math.Max( data.Length, input.BufferSize ) + 15) & ~15;
 						var cache = device.MaterialCache;
 						var offset = ObjectLayer.Of( from, cache ).Constants( cache, token.Value, size, data, dynamic, from.Version );
 						if ( dynamic )
@@ -87,25 +81,22 @@ internal sealed partial class BackendContext
 			}
 		}
 
-		public override Binding Resolve( in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset )
+		public override Binding Resolve( MaterialLayout layout, int set, int slot, in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset )
 		{
 			dynamicOffset = 0;
 			var device = context.device;
+			ref readonly var input = ref layout.Input( set, slot );
 			switch ( resource.Kind )
 			{
 				case ShaderResourceKind.ConstantBuffer:
 					{
-						var data = context.attributes.Get( Token( resource.Name ) ) as byte[];
+						var data = context.attributes.Get( input.Token ) as byte[];
 						if ( data is not null ) HandFilledConstants.CheckSize( stage, resource.Name, data.Length );
-						var size = data?.Length ?? 0;
-						foreach ( var layout in stage.Program.ConstantBuffers )
-						{
-							if ( layout.Name == resource.Name ) size = Math.Max( size, layout.Size );
-						}
+						var size = Math.Max( data?.Length ?? 0, input.BufferSize );
 
 						if ( size == 0 )
 						{
-							var placeholder = device.Defaults.For( resource );
+							var placeholder = layout.Placeholder( set, slot );
 							if ( dynamic ) placeholder.Type = BindingType.UniformBufferDynamic;
 							return placeholder;
 						}
@@ -120,13 +111,14 @@ internal sealed partial class BackendContext
 							return Binding.Uniform( resource.Binding, device.MaterialCache.MaterialBuffer, device.MaterialCache.KeepPassConstants( padded, size ), size );
 						}
 
-						if ( !constants.TryGetValue( (resource.Name, size), out var found ) )
+						var key = (input.Token.Value, size);
+						if ( !constants.TryGetValue( key, out var found ) )
 						{
 							var offset = device.MaterialCache.AllocatePassConstants( size, out var target );
 							target.Clear();
 							data?.CopyTo( target );
 							found = (new Binding { Slot = resource.Binding, Type = BindingType.UniformBufferDynamic, Buffer = device.MaterialCache.PassBuffer, Size = size }, (uint)offset);
-							constants[(resource.Name, size)] = found;
+							constants[key] = found;
 						}
 
 						dynamicOffset = found.Offset;
@@ -135,13 +127,13 @@ internal sealed partial class BackendContext
 
 				default:
 					{
-						var key = (resource.Name, resource.Kind, resource.Dimension, resource.Variable?.RenderStateId ?? 0);
+						var key = (input.Token.Value, resource.Kind, resource.Dimension, resource.Variable?.RenderStateId ?? 0);
 						if ( !resources.TryGetValue( key, out var found ) )
 						{
 							// A hidden counter binds its placeholder here, as before counters were told apart
 							found = resource.Kind == ShaderResourceKind.Buffer
-								? context.attributes.Get( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer { Live: true } buffer } ? Binding.Storage( resource.Binding, buffer.Handle ) : device.Defaults.For( resource )
-								: resource.Kind == ShaderResourceKind.Counter ? device.Defaults.For( resource ) : context.AttributeTexture( resource );
+								? context.attributes.Get( input.Token ) is GpuBuffer { Resource: BackendBuffer { Live: true } buffer } ? Binding.Storage( resource.Binding, buffer.Handle ) : layout.Placeholder( set, slot )
+								: resource.Kind == ShaderResourceKind.Counter ? layout.Placeholder( set, slot ) : context.AttributeTexture( resource, input.Token );
 							resources[key] = found;
 						}
 
@@ -202,7 +194,7 @@ internal sealed partial class BackendContext
 		{
 			// Where the surface can't draw (a mode it has no pass for), the .shader it stands in for does
 			if ( DrawSurface( surface, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, indirect ) ) return true;
-			if ( surface.Fallback is not BackendMaterial fallback ) return false;
+			if ( surface.Fallback is not { } fallback ) return false;
 			material = fallback;
 		}
 
@@ -224,9 +216,9 @@ internal sealed partial class BackendContext
 	readonly Dictionary<ShaderFile, (long Epoch, string Layer, string Key)> comboKeys = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>An attribute's texture for a pass binding, readable where this context records, else the default.</summary>
-	Binding AttributeTexture( in ShaderResource resource )
+	Binding AttributeTexture( in ShaderResource resource, StringToken token )
 	{
-		var texture = attributes.Get( Token( resource.Name ) ) as BackendTexture;
+		var texture = attributes.Get( token ) as BackendTexture;
 		return TextureBinding( device.Gpu, device.Defaults, texture, texture is null ? ImageLayout.Undefined : SampledLayoutOf( texture ), resource );
 	}
 
@@ -284,12 +276,14 @@ internal sealed partial class BackendContext
 		if ( variant?.Vertex?.Bytecode is null ) return false;
 
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
+		var depth = r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth );
+		var stencil = depth.HasStencil() ? OverlayStencil : OverlayStencil.None;
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, variant, noColor, stripPixelShader, LookupCombo( OpaqueFadeCombo ) is > 0 );
 		var geometry = DepthGeometry( GeometryFor( source, draw ), variant, depthOnly );
-		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame, Normals: !noColor && r.Normals is not null, Tools: noColor ? ToolsPass.None : ToolsPass );
+		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, noColor ? Format.Unknown : color, depth, (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame, Normals: !noColor && r.Normals is not null, Tools: noColor ? ToolsPass.None : ToolsViewStage.ReadyPass( device.Shaders, ToolsPass ), Stencil: stencil );
 
-		var materialObject = lastObject is not null && key.Same( lastKey ) && !lastObject.Stale ? lastObject : cache.Get( key, immediate: false, (device, geometry.Layout, key), static ( s, layout ) => s.device.Pipeline( s.key.Variant, s.Layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, layout.Sets, normals: s.key.Normals, tools: s.key.Tools ) );
+		var materialObject = lastObject is not null && key.Same( lastKey ) && !lastObject.Stale ? lastObject : cache.Get( key, immediate: false, (device, geometry.Layout, key), static ( s, layout ) => s.device.Pipeline( s.key.Variant, s.Layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, layout.Sets, normals: s.key.Normals, tools: s.key.Tools, stencil: s.key.Stencil ) );
 		(lastKey, lastObject) = (key, materialObject);
 
 		resolver.LayerEpoch = layerEpoch;
@@ -297,7 +291,8 @@ internal sealed partial class BackendContext
 		r.Binder = null;
 
 		if ( noColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
-		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
+		else if ( variant.State.HasDepthBias ) r.List.SetDepthBias( variant.State.DepthBiasConstant, variant.State.DepthBiasSlope, variant.State.DepthBiasClamp );
+		BackendDevice.SetStencilReference( r.List, depth, stencil, variant.State );
 
 		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect, variant );
 		return true;
@@ -353,10 +348,11 @@ internal sealed partial class BackendContext
 	/// <summary>The variant key <see cref="Variant"/> builds, made once per shader, pass state and object combos.</summary>
 	string ComboKey( BackendMaterial material, string mode )
 	{
-		if ( comboKeys.TryGetValue( material.Shader, out var cached ) && cached.Epoch == passEpoch && ReferenceEquals( cached.Layer, layerCombos ) && cached.Key.StartsWith( mode, StringComparison.Ordinal ) && (cached.Key.Length == mode.Length || cached.Key[mode.Length] == ';') ) return cached.Key;
+		var inputs = material.Inputs;
+		if ( comboKeys.TryGetValue( inputs.Shader, out var cached ) && cached.Epoch == passEpoch && ReferenceEquals( cached.Layer, layerCombos ) && cached.Key.StartsWith( mode, StringComparison.Ordinal ) && (cached.Key.Length == mode.Length || cached.Key[mode.Length] == ';') ) return cached.Key;
 
-		var made = ComboKeyByValue( material, mode );
-		comboKeys[material.Shader] = (passEpoch, layerCombos, made);
+		var made = ComboKeyByValue( inputs, mode );
+		comboKeys[inputs.Shader] = (passEpoch, layerCombos, made);
 		return made;
 	}
 
@@ -364,15 +360,15 @@ internal sealed partial class BackendContext
 	/// <see cref="ComboKey"/> from the values as they are now: values seen before (another pass, an earlier frame) give the
 	/// key made then, so it isn't built again.
 	/// </summary>
-	string ComboKeyByValue( BackendMaterial material, string mode )
+	string ComboKeyByValue( BackendMaterial.ShaderInputs inputs, string mode )
 	{
-		if ( !ComboBits( material, out var combos, out var specialization ) ) return BuildComboKey( material, mode );
+		if ( !ComboBits( inputs, out var combos, out var specialization ) ) return BuildComboKey( inputs, mode );
 
-		var known = (material.Shader, mode, combos, specialization);
+		var known = (inputs.Shader, mode, combos, specialization);
 		if ( !comboKeysByValue.TryGetValue( known, out var key ) )
 		{
 			if ( comboKeysByValue.Count >= 4096 ) comboKeysByValue.Clear();
-			comboKeysByValue[known] = key = BuildComboKey( material, mode );
+			comboKeysByValue[known] = key = BuildComboKey( inputs, mode );
 		}
 
 		return key;
@@ -384,11 +380,11 @@ internal sealed partial class BackendContext
 	/// The values <see cref="BuildComboKey"/> reads, a byte each: the shader's dynamic combos, then its specialization
 	/// attributes. False when there are more than eight of either or a value doesn't fit.
 	/// </summary>
-	bool ComboBits( BackendMaterial material, out ulong combos, out ulong specialization )
+	bool ComboBits( BackendMaterial.ShaderInputs inputs, out ulong combos, out ulong specialization )
 	{
 		combos = specialization = 0;
 		var shift = 0;
-		foreach ( var token in comboTokens.GetValue( material.Shader, static shader => [.. System.Linq.Enumerable.Select( [.. shader[ShaderProgramType.Vertex]?.DynamicCombos ?? [], .. shader[ShaderProgramType.Pixel]?.DynamicCombos ?? []], combo => Token( combo.Name ) )] ) )
+		foreach ( var (_, token) in inputs.Combos )
 		{
 			var value = LookupCombo( token ) ?? 0;
 			if ( shift == 64 || (uint)value > byte.MaxValue ) return false;
@@ -397,7 +393,7 @@ internal sealed partial class BackendContext
 		}
 
 		shift = 0;
-		foreach ( var token in specializationTokens.GetValue( material.SpecializationAttributes, static names => System.Linq.Enumerable.ToArray( System.Linq.Enumerable.Select( names, Token ) ) ) )
+		foreach ( var (_, token) in inputs.Specialization )
 		{
 			var value = Integer( Lookup( token ) ) ?? 0;
 			if ( shift == 64 || (uint)value > byte.MaxValue ) return false;
@@ -408,23 +404,17 @@ internal sealed partial class BackendContext
 		return true;
 	}
 
-	// The tokens of a shader's vertex and pixel dynamic combos, and of a material's specialization attributes, in the order
-	// ComboBits reads them: found once, not by name each pass state
-	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ShaderFile, StringToken[]> comboTokens = new();
-	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<string[], StringToken[]> specializationTokens = new();
-
-	string BuildComboKey( BackendMaterial material, string mode )
+	string BuildComboKey( BackendMaterial.ShaderInputs inputs, string mode )
 	{
 		var key = new System.Text.StringBuilder( mode );
-		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel] )
+		foreach ( var (name, token) in inputs.Combos )
 		{
-			foreach ( var combo in material.Shader[type]?.DynamicCombos ?? [] )
-			{
-				if ( LookupCombo( Token( combo.Name ) ) is int value && value != 0 ) key.Append( ';' ).Append( combo.Name ).Append( '=' ).Append( value );
-			}
+			if ( LookupCombo( token ) is int value && value != 0 ) key.Append( ';' ).Append( name ).Append( '=' ).Append( value );
 		}
-
-		AppendSpecialization( key, material );
+		foreach ( var (name, token) in inputs.Specialization )
+		{
+			if ( Integer( Lookup( token ) ) is int value && value != 0 ) key.Append( ";#" ).Append( name ).Append( '=' ).Append( value );
+		}
 		return key.ToString();
 	}
 }

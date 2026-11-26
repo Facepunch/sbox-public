@@ -74,35 +74,34 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// <see cref="AlphaTest"/> and <see cref="TwoSided"/> on top. Resolved again when a field changes. A blended one draws
 	/// in the translucent layer.
 	/// </summary>
-	public SurfaceRenderState RenderState
+	public SurfaceRenderState RenderState => ResolveState().State;
+
+	Resolved ResolveState()
 	{
-		get
-		{
-			var v = StateVersion;
-			var known = resolved;
-			if ( known is not null && known.Version == v ) return known.State;
-			SurfaceRenderState state;
-			lock ( record ) state = States.Resolve( record );
-			state = state with { AlphaTest = state.AlphaTest || alphaTest, TwoSided = state.TwoSided || twoSided };
-			resolved = new Resolved( v, state );
-			return state;
-		}
+		var v = StateVersion;
+		var known = resolved;
+		if ( known is not null && known.Version == v ) return known;
+		SurfaceRenderState state;
+		lock ( record ) state = States.Resolve( record );
+		state = state with { AlphaTest = state.AlphaTest || alphaTest, TwoSided = state.TwoSided || twoSided };
+		var depthOnly = state is { Blend: SurfaceBlend.Opaque, DepthWrite: true, DepthTest: true, DepthBias: 0, SlopeDepthBias: 0, TwoSided: false, AlphaTest: false, Translucent: false };
+		return resolved = new Resolved( v, state, depthOnly );
 	}
 
-	sealed record Resolved( int Version, SurfaceRenderState State );
+	sealed record Resolved( int Version, SurfaceRenderState State, bool DepthOnly );
 
 	Resolved resolved;
 
 	/// <summary>
 	/// What draws where the surface can't (a skinned mesh, a mode surfaces have no pass for): the <c>.shader</c> material a
-	/// converted <c>.vmat</c> stands in for, made the first time it's needed; null for none.
+	/// converted <c>.vmat</c> stands in for, made with the surface; null for none.
 	/// </summary>
-	internal GpuMaterial Fallback => fallback?.Value;
+	internal BackendMaterial Fallback => fallback;
 
-	Lazy<GpuMaterial> fallback;
+	BackendMaterial fallback;
 
 	/// <summary>Set what draws where the surface can't (<see cref="Fallback"/>).</summary>
-	internal void SetFallback( Func<GpuMaterial> make ) => fallback = new Lazy<GpuMaterial>( make, LazyThreadSafetyMode.ExecutionAndPublication );
+	internal void SetFallback( BackendMaterial material ) => fallback = material;
 
 	/// <summary>
 	/// A bool attribute of the material as the scene reads it for its objects' flags (<c>overlay</c>, <c>NoZPrepass</c>,
@@ -113,7 +112,7 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// </summary>
 	internal bool Attribute( string name, bool fallback )
 	{
-		var source = attributes?.Value;
+		var source = Fallback ?? attributes;
 		if ( source?.Shader is not null ) return source.Attribute( name, fallback );
 		var declared = ModuleAttribute( name ) ?? fallback;
 		return source is null ? declared : source.Attribute( name, declared );
@@ -125,10 +124,10 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// </summary>
 	private protected virtual bool? ModuleAttribute( string name ) => null;
 
-	Lazy<BackendMaterial> attributes;
+	BackendMaterial attributes;
 
 	/// <summary>Set where <see cref="Attribute"/> reads from: the <c>.shader</c> material, without its textures.</summary>
-	internal void SetAttributes( Func<BackendMaterial> make ) => attributes = new Lazy<BackendMaterial>( make, LazyThreadSafetyMode.ExecutionAndPublication );
+	internal void SetAttributes( BackendMaterial material ) => attributes = material;
 
 	/// <summary>
 	/// Its values of <paramref name="features"/> (its shader's <see cref="Sandbox.ShaderCompiler.MaterialLayout.Features"/>), as
@@ -264,7 +263,11 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// <summary>The texture sizes its draws ask for, for its streamed textures.</summary>
 	internal MaterialAsks Asks { get; } = new();
 
-	void IStreamDependent.TexturesChanged() => Changed();
+	void IStreamDependent.TexturesChanged()
+	{
+		Changed();
+		((IStreamDependent)Fallback)?.TexturesChanged();
+	}
 
 	/// <summary>A float field.</summary>
 	protected float GetFloat( int offset )
@@ -325,6 +328,9 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// <inheritdoc/>
 	public override bool IsAlphaTest => RenderState.AlphaTest;
 
+	/// <summary>An opaque alpha-tested surface: its GPU-driven depth and forward pixel entries clip the fade's dither too.</summary>
+	public override bool DithersLodFade => RenderState is { AlphaTest: true, Translucent: false };
+
 	/// <summary>
 	/// Never by itself, as a <c>.shader</c> material: the scene asks for the frame-buffer copy from the material's
 	/// <c>bWantsFBCopyTexture</c> attribute (<see cref="Attribute"/>; native's object flags in the game).
@@ -339,7 +345,7 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	/// one-sided, depth tested and written, without alpha test or depth bias: its depth is the shared depth-only material's,
 	/// as native's fast path draws a <c>ShadowFastPath</c> material's.
 	/// </summary>
-	public override bool DepthOnlyNow => Program is { Displaces: false, Stale: false } && RenderState is { Blend: SurfaceBlend.Opaque, DepthWrite: true, DepthTest: true, DepthBias: 0, SlopeDepthBias: 0, TwoSided: false, AlphaTest: false, Translucent: false };
+	public override bool DepthOnlyNow => Program is { Displaces: false, Stale: false } && ResolveState().DepthOnly;
 
 	/// <summary>Until its program is found, or while a hotload has dropped it.</summary>
 	public override bool DepthOnlyPending => Program is null or { Stale: true };
@@ -372,5 +378,5 @@ public abstract class SurfaceMaterial : GpuMaterial, IStreamDependent
 	public override ulong SimilarityKey => (ulong)StringComparer.OrdinalIgnoreCase.GetHashCode( Shader );
 
 	/// <inheritdoc/>
-	public override void Dispose() { }
+	public override void Dispose() => Interlocked.Exchange( ref fallback, null )?.Dispose();
 }

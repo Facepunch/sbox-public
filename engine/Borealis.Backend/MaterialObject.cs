@@ -29,10 +29,7 @@ internal abstract class PassBindings
 	/// The binding the pass makes for <paramref name="resource"/>; a dynamic constant buffer's offset goes in
 	/// <paramref name="dynamicOffset"/>.
 	/// </summary>
-	public abstract Binding Resolve( in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset );
-
-	/// <summary>As <see cref="Resolve(in ShaderResource, ShaderStage, bool, out uint)"/> for a pass slot, taking the layout's placeholder instead of making one (<see cref="MaterialLayout.Placeholder"/>).</summary>
-	public virtual Binding Resolve( MaterialLayout layout, int set, int slot, in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset ) => Resolve( resource, stage, dynamic, out dynamicOffset );
+	public abstract Binding Resolve( MaterialLayout layout, int set, int slot, in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset );
 
 	/// <summary>An attribute as floats, for the material constants read from attributes; null when it isn't set.</summary>
 	public abstract float[] Floats( string attribute );
@@ -50,7 +47,7 @@ internal abstract class PassBindings
 	/// The binding the object's attributes make for <paramref name="resource"/>, if they set it; false leaves the pass's.
 	/// A dynamic constant buffer's offset goes in <paramref name="dynamicOffset"/>.
 	/// </summary>
-	public virtual bool ResolveLayer( in ShaderResource resource, ShaderStage stage, bool dynamic, out Binding binding, out uint dynamicOffset )
+	public virtual bool ResolveLayer( in ShaderResource resource, ShaderStage stage, in MaterialLayout.PassInput input, bool dynamic, out Binding binding, out uint dynamicOffset )
 	{
 		binding = default;
 		dynamicOffset = 0;
@@ -92,10 +89,8 @@ internal sealed class MaterialLayout
 	/// <summary>Per set, the bindings the pass fills (constant buffers, buffers and textures named by attributes).</summary>
 	public readonly int[][] PassSlots = new int[ShaderAbi.BindlessSet][];
 
-	/// <summary>Per set, the <see cref="PassSlots"/> an immediate draw binds from its material.</summary>
-	public readonly bool[][] MaterialSlots = new bool[ShaderAbi.BindlessSet][];
-
-	public readonly int[][] MaterialIndices = new int[ShaderAbi.BindlessSet][];
+	readonly (int Slot, int Resource, int Dynamic)[][] attributeSlots = new (int, int, int)[ShaderAbi.BindlessSet][];
+	readonly (int Slot, int Resource, int Dynamic)[][] materialSlots = new (int, int, int)[ShaderAbi.BindlessSet][];
 
 	/// <summary>Bytes of dynamic constants a draw of an immediate layout writes, at most.</summary>
 	public readonly int ImmediateBytes;
@@ -139,8 +134,11 @@ internal sealed class MaterialLayout
 
 	readonly MaterialObjectCache cache;
 
-	/// <summary>Per set, the name (token value) of each pass slot's attribute, to match what objects set.</summary>
-	readonly uint[][] passNames = new uint[ShaderAbi.BindlessSet][];
+	/// <summary>Each pass slot's precomputed attribute token and minimum size, when it reads a constant buffer.</summary>
+	internal readonly record struct PassInput( StringToken Token, int BufferSize );
+	readonly PassInput[][] passInputs = new PassInput[ShaderAbi.BindlessSet][];
+
+	internal ref readonly PassInput Input( int set, int slot ) => ref passInputs[set][slot];
 
 	/// <summary>
 	/// The pass slots (set, index into <see cref="PassSlots"/>) and attribute constants objects' attributes can set, as
@@ -161,10 +159,10 @@ internal sealed class MaterialLayout
 		var slots = new List<(int, int)>();
 		for ( int set = 0; set < Sets.Length; set++ )
 		{
-			if ( passNames[set] is not { } names ) continue;
-			for ( int k = 0; k < names.Length; k++ )
+			if ( passInputs[set] is not { } inputs ) continue;
+			for ( int k = 0; k < inputs.Length; k++ )
 			{
-				if ( cache.IsLayerName( names[k] ) ) slots.Add( (set, k) );
+				if ( cache.IsLayerName( inputs[k].Token.Value ) ) slots.Add( (set, k) );
 			}
 		}
 
@@ -214,7 +212,7 @@ internal sealed class MaterialLayout
 		{
 			var i = PassSlots[set][k];
 			var dynamic = DynamicIndex[set][i];
-			if ( !resolver.ResolveLayer( Resources[set][i], StageOf( set ), dynamic >= 0, out var binding, out var dynamicOffset ) ) continue;
+			if ( !resolver.ResolveLayer( Resources[set][i], StageOf( set ), Input( set, k ), dynamic >= 0, out var binding, out var dynamicOffset ) ) continue;
 
 			if ( (changed & (1 << set)) == 0 )
 			{
@@ -271,18 +269,13 @@ internal sealed class MaterialLayout
 			var bindings = pass.Bindings[set] ??= new Binding[slots.Length];
 			var offsets = pass.Offsets[set] ??= new uint[DynamicCount[set]];
 			var stage = StageOf( set );
-			var dynamicIndex = DynamicIndex[set];
 			var resources = Resources[set];
 			var identity = 14695981039346656037UL;
 			if ( partial ) identity = pass.AttributeIdentity[set];
 			else
 			{
-				var material = MaterialSlots[set];
-				for ( int k = 0; k < slots.Length; k++ )
+				foreach ( var (k, i, dynamic) in attributeSlots[set] )
 				{
-					if ( material[k] ) continue;
-					var i = slots[k];
-					var dynamic = dynamicIndex[i];
 					bindings[k] = resolver.Resolve( this, set, k, resources[i], stage, dynamic >= 0, out var dynamicOffset );
 					if ( dynamic >= 0 ) offsets[dynamic] = dynamicOffset;
 					identity = MaterialObject.Mix( identity, bindings[k] );
@@ -291,10 +284,8 @@ internal sealed class MaterialLayout
 				pass.AttributeIdentity[set] = identity;
 			}
 
-			foreach ( var k in MaterialIndices[set] )
+			foreach ( var (k, i, dynamic) in materialSlots[set] )
 			{
-				var i = slots[k];
-				var dynamic = dynamicIndex[i];
 				bindings[k] = resolver.Resolve( this, set, k, resources[i], stage, dynamic >= 0, out var dynamicOffset );
 				if ( dynamic >= 0 ) offsets[dynamic] = dynamicOffset;
 				identity = MaterialObject.Mix( identity, bindings[k] );
@@ -419,22 +410,30 @@ internal sealed class MaterialLayout
 			Resources[set] = [.. resources];
 			DynamicIndex[set] = [.. dynamicIndex];
 			PassSlots[set] = [.. Enumerable.Range( 0, resources.Count ).Where( i => IsPassBinding( resources[i], immediate ) )];
-			MaterialSlots[set] = [.. PassSlots[set].Select( i => FromMaterial( resources[i] ) )];
-			MaterialIndices[set] = [.. Enumerable.Range( 0, PassSlots[set].Length ).Where( k => MaterialSlots[set][k] )];
+			var inputs = passInputs[set] = new PassInput[PassSlots[set].Length];
+			var attributes = new List<(int, int, int)>();
+			var material = new List<(int, int, int)>();
+			var stage = StageOf( set );
 
 			// Non-dynamic constants (past the device limit) are kept by content, so values change their set
 			var dynamicSlots = new List<(int, int, int, bool)>();
 			for ( int k = 0; k < PassSlots[set].Length; k++ )
 			{
 				var i = PassSlots[set][k];
-				if ( DynamicIndex[set][i] >= 0 ) dynamicSlots.Add( (k, i, DynamicIndex[set][i], MaterialSlots[set][k]) );
-				else if ( resources[i].Kind is ShaderResourceKind.MaterialConstants or ShaderResourceKind.ConstantBuffer ) refreshable = false;
+				var resource = resources[i];
+				var isMaterial = FromMaterial( resource );
+				var dynamic = DynamicIndex[set][i];
+				(isMaterial ? material : attributes).Add( (k, i, dynamic) );
+				inputs[k] = new PassInput( resource.Name is { } name ? BackendContext.Token( name ) : default, DeclaredBufferSize( stage, resource ) );
+				if ( dynamic >= 0 ) dynamicSlots.Add( (k, i, dynamic, isMaterial) );
+				else if ( resource.Kind is ShaderResourceKind.MaterialConstants or ShaderResourceKind.ConstantBuffer ) refreshable = false;
 			}
 
 			DynamicSlots[set] = [.. dynamicSlots];
-			passNames[set] = [.. PassSlots[set].Select( i => resources[i].Name is { } name ? BackendContext.Token( name ).Value : 0u )];
+			attributeSlots[set] = attributes.ToArray();
+			materialSlots[set] = material.ToArray();
 			Sets[set] = cache.Layout( slots );
-			if ( immediate && StageOf( set ) is { } stage ) immediateBytes += stage.MaterialBuffer.Size + 256;
+			if ( immediate && stage is not null ) immediateBytes += stage.MaterialBuffer.Size + 256;
 		}
 
 		ImmediateBytes = immediateBytes;
@@ -468,17 +467,12 @@ internal sealed class MaterialLayout
 		{
 			if ( PassSlots[set] is not { } slots ) continue;
 			key.Append( set ).Append( ':' ).Append( Sets[set].Index ).Append( ';' );
-			foreach ( var i in slots )
+			for ( int k = 0; k < slots.Length; k++ )
 			{
+				var i = slots[k];
 				var r = Resources[set][i];
 				key.Append( r.Name ).Append( '/' ).Append( (int)r.Kind ).Append( '/' ).Append( (int)r.Dimension ).Append( '/' ).Append( r.Variable?.RenderStateId ?? 0 ).Append( '/' ).Append( DynamicIndex[set][i] ).Append( '/' ).Append( r.Binding ).Append( ';' );
-				if ( r.Kind == ShaderResourceKind.ConstantBuffer )
-				{
-					foreach ( var layout in StageOf( set ).Program.ConstantBuffers )
-					{
-						if ( layout.Name == r.Name ) key.Append( layout.Size ).Append( ';' );
-					}
-				}
+				if ( r.Kind == ShaderResourceKind.ConstantBuffer ) key.Append( Input( set, k ).BufferSize ).Append( ';' );
 			}
 		}
 
@@ -488,6 +482,19 @@ internal sealed class MaterialLayout
 		}
 
 		signature = cache.Signature( key.ToString() );
+	}
+
+	static int DeclaredBufferSize( ShaderStage stage, in ShaderResource resource )
+	{
+		var size = 0;
+		if ( resource.Kind == ShaderResourceKind.ConstantBuffer && stage is not null )
+		{
+			foreach ( var layout in stage.Program.ConstantBuffers )
+			{
+				if ( layout.Name == resource.Name ) size = Math.Max( size, layout.Size );
+			}
+		}
+		return size;
 	}
 
 	static bool IsPassBinding( in ShaderResource resource, bool immediate ) => resource.Kind switch
@@ -543,6 +550,7 @@ internal sealed class MaterialObject
 	public readonly int MaterialVersion;
 	public readonly MaterialLayout Layout;
 	public readonly PipelineHandle Pipeline;
+	internal bool OwnsPipeline { get; init; }
 	public readonly bool DepthOnly;
 	public readonly bool UncompressedTangentFrame;
 
@@ -1015,6 +1023,7 @@ internal sealed class MaterialObjectCache : IDisposable
 {
 	public readonly Device Gpu;
 	public readonly ShaderDefaults Defaults;
+	internal readonly object Identity = new();
 	readonly Dictionary<string, BindingLayoutHandle> layouts = new();
 	readonly Dictionary<(ShaderVariant Variant, bool Immediate), MaterialLayout> variantLayouts = new();
 	// Found without a lock by every recording thread; changed under its own lock
@@ -1044,6 +1053,7 @@ internal sealed class MaterialObjectCache : IDisposable
 	long sweptFrame = -1;
 	readonly Lock sweepLock = new();
 	readonly List<(long Frame, SetEntry Set, ConstantVariant Constants, long Kept, int KeptSize)> retired = new();
+	Queue<(long Frame, PipelineHandle Pipeline)> retiredPipelines;
 
 	/// <summary>The device frame now, as sets and constants record their last use.</summary>
 	public long Frame => (long)Gpu.FrameNumber;
@@ -1173,6 +1183,11 @@ internal sealed class MaterialObjectCache : IDisposable
 			// Freed two frames after they were retired: a context that bound one just before it was marked dead submitted
 			// within its frame, and the device's own deferral covers the GPU from there
 			var due = frame - 2;
+			while ( retiredPipelines is not null && retiredPipelines.TryPeek( out var pipeline ) && pipeline.Frame <= due )
+			{
+				Gpu.Destroy( retiredPipelines.Dequeue().Pipeline );
+			}
+
 			var i = 0;
 			for ( ; i < retired.Count && retired[i].Frame <= due; i++ )
 			{
@@ -1205,7 +1220,7 @@ internal sealed class MaterialObjectCache : IDisposable
 			{
 				foreach ( var (key, entry) in keptConstants )
 				{
-					if ( entry.LastUsed >= before ) continue;
+					if ( !entry.TryRetire( before ) ) continue;
 					retired.Add( (frame, null, null, entry.Offset, key.Size) );
 					keptConstants.Remove( key );
 				}
@@ -1225,15 +1240,16 @@ internal sealed class MaterialObjectCache : IDisposable
 
 	/// <summary>
 	/// How a material object draws: the material (none for a shader drawn on its own), its variant, the vertex layout
-	/// (Borealis's <see cref="VertexLayout"/> or a <see cref="VertexStreamLayout"/>), the targets' formats, the topology, and
-	/// whether the opaque pass's normals target follows colour, the tools pass it draws in (<see cref="ToolsPass"/>), and whether its draws are redrawn every frame (<see cref="RedrawnEveryFrame"/>: its pipeline may still be being made).
+	/// (Borealis's <see cref="VertexLayout"/> or a <see cref="VertexStreamLayout"/>), the targets' formats, the topology,
+	/// whether the opaque pass's normals target follows colour, the tools and overlay stencil overrides, and whether its
+	/// draws are redrawn every frame (<see cref="RedrawnEveryFrame"/>: its pipeline may still be being made).
 	/// </summary>
-	internal readonly record struct Key( BackendMaterial Material, ShaderVariant Variant, object Layout, Format Color, Format Depth, int Samples, bool DepthOnly, bool UncompressedTangentFrame, PrimitiveTopology Topology = PrimitiveTopology.TriangleList, bool Normals = false, ToolsPass Tools = ToolsPass.None, bool Redrawn = false )
+	internal readonly record struct Key( BackendMaterial Material, ShaderVariant Variant, object Layout, Format Color, Format Depth, int Samples, bool DepthOnly, bool UncompressedTangentFrame, PrimitiveTopology Topology = PrimitiveTopology.TriangleList, bool Normals = false, ToolsPass Tools = ToolsPass.None, bool Redrawn = false, OverlayStencil Stencil = OverlayStencil.None )
 	{
 		/// <summary>Equal by reference for the material, variant and layout (layouts are made once each).</summary>
 		public bool Same( in Key other ) => ReferenceEquals( Material, other.Material ) && ReferenceEquals( Variant, other.Variant ) && ReferenceEquals( Layout, other.Layout )
 			&& Color == other.Color && Depth == other.Depth && Samples == other.Samples && DepthOnly == other.DepthOnly && UncompressedTangentFrame == other.UncompressedTangentFrame && Topology == other.Topology && Normals == other.Normals
-			&& Tools == other.Tools && Redrawn == other.Redrawn;
+			&& Tools == other.Tools && Redrawn == other.Redrawn && Stencil == other.Stencil;
 	}
 
 	sealed class KeyComparer : IEqualityComparer<Key>
@@ -1241,7 +1257,7 @@ internal sealed class MaterialObjectCache : IDisposable
 		public bool Equals( Key a, Key b ) => a.Same( b );
 
 		public int GetHashCode( Key k ) => HashCode.Combine( RuntimeHelpers.GetHashCode( k.Material ), RuntimeHelpers.GetHashCode( k.Variant ), RuntimeHelpers.GetHashCode( k.Layout ),
-			(int)k.Color, (int)k.Depth, k.Samples, (k.DepthOnly ? 1 : 0) | (k.UncompressedTangentFrame ? 2 : 0) | (k.Normals ? 4 : 0) | (int)k.Tools << 4 | (k.Redrawn ? 8 : 0), (int)k.Topology );
+			(int)k.Color, (int)k.Depth, k.Samples, (k.DepthOnly ? 1 : 0) | (k.UncompressedTangentFrame ? 2 : 0) | (k.Normals ? 4 : 0) | (int)k.Tools << 4 | (k.Redrawn ? 8 : 0) | (int)k.Stencil << 8, (int)k.Topology );
 	}
 
 	/// <summary>The layout a variant's objects share, made once.</summary>
@@ -1256,22 +1272,47 @@ internal sealed class MaterialObjectCache : IDisposable
 
 	/// <summary>
 	/// The object for a material drawn this way, made the first time (or again, after its material changed), with the
-	/// pipeline <paramref name="pipeline"/> makes for the layout's sets.
+	/// pipeline <paramref name="pipeline"/> makes for the layout's sets. A pipeline made only for this object must pass
+	/// <paramref name="ownsPipeline"/> so the cache can destroy it; shared device pipelines are owned by the device cache.
 	/// </summary>
-	public MaterialObject Get<TState>( in Key key, bool immediate, TState state, Func<TState, MaterialLayout, PipelineHandle> pipeline )
+	public MaterialObject Get<TState>( in Key key, bool immediate, TState state, Func<TState, MaterialLayout, PipelineHandle> pipeline, bool ownsPipeline = false )
 	{
 		if ( objects.TryGetValue( key, out var found ) && !found.Stale ) return found;
 
 		var layout = LayoutOf( key.Variant, immediate );
-		var made = new MaterialObject( this, key.Material, layout, pipeline( state, layout ), key.DepthOnly, key.UncompressedTangentFrame );
+		var handle = pipeline( state, layout );
+		MaterialObject made;
+		try
+		{
+			made = new MaterialObject( this, key.Material, layout, handle, key.DepthOnly, key.UncompressedTangentFrame ) { OwnsPipeline = ownsPipeline };
+		}
+		catch
+		{
+			if ( ownsPipeline ) Gpu.Destroy( handle );
+			throw;
+		}
+
 		Interlocked.Increment( ref objectsMade );
 		MaterialObject replaced;
 		lock ( objects )
 		{
-			if ( objects.TryGetValue( key, out replaced ) && !replaced.Stale ) return replaced;
-			objects[key] = made;
-			allObjects.Add( made );
-			if ( replaced is not null ) allObjects.Remove( replaced );
+			if ( objects.TryGetValue( key, out replaced ) && !replaced.Stale )
+			{
+				found = replaced;
+			}
+			else
+			{
+				found = made;
+				objects[key] = made;
+				allObjects.Add( made );
+				if ( replaced is not null ) allObjects.Remove( replaced );
+			}
+		}
+
+		if ( !ReferenceEquals( found, made ) )
+		{
+			if ( ownsPipeline ) Gpu.Destroy( handle );
+			return found;
 		}
 
 		if ( replaced is not null ) Retire( replaced );
@@ -1299,13 +1340,14 @@ internal sealed class MaterialObjectCache : IDisposable
 		foreach ( var value in dropped ?? [] ) Retire( value );
 	}
 
-	/// <summary>Retire an object's sets and constants; never called holding the objects' lock, which a sweep takes after its own.</summary>
+	/// <summary>Retire an object's resources; never called holding the objects' lock, which a sweep takes after its own.</summary>
 	void Retire( MaterialObject value )
 	{
 		lock ( sweepLock )
 		{
 			retireFrame = Frame;
 			value.Retire( retireSet ??= RetireSet, retireConstants ??= RetireConstants );
+			if ( value.OwnsPipeline ) (retiredPipelines ??= new()).Enqueue( (retireFrame, value.Pipeline) );
 		}
 	}
 
@@ -1333,10 +1375,30 @@ internal sealed class MaterialObjectCache : IDisposable
 		return offset;
 	}
 
-	sealed class Kept
+	internal sealed class Kept( long offset, long frame )
 	{
-		public long Offset;
-		public long LastUsed;
+		public readonly long Offset = offset;
+		long lastUsed = frame;
+
+		// A version hit needs no shared dictionary lock, but cannot revive an offset that a sweep reclaimed.
+		public bool TryTouch( long frame )
+		{
+			long last;
+			do
+			{
+				last = Volatile.Read( ref lastUsed );
+				if ( last < 0 ) return false;
+				if ( last >= frame ) return true;
+			}
+			while ( Interlocked.CompareExchange( ref lastUsed, frame, last ) != last );
+			return true;
+		}
+
+		public bool TryRetire( long before )
+		{
+			var last = Volatile.Read( ref lastUsed );
+			return last < before && Interlocked.CompareExchange( ref lastUsed, -1, last ) == last;
+		}
 	}
 
 	readonly Dictionary<(ulong Hash, int Size), Kept> keptConstants = new();
@@ -1345,23 +1407,26 @@ internal sealed class MaterialObjectCache : IDisposable
 	/// Pass constants for a binding that isn't dynamic: kept by content, so the same values land at the same place every
 	/// frame and the sets pointing at them stay valid. Evicted like sets, when nothing has asked for them for a while.
 	/// </summary>
-	public long KeepPassConstants( ReadOnlySpan<byte> data, int size )
+	public long KeepPassConstants( ReadOnlySpan<byte> data, int size ) => KeepPassConstantsEntry( data, size ).Offset;
+
+	internal Kept KeepPassConstantsEntry( ReadOnlySpan<byte> data, int size )
 	{
+		// Hash meaningful bytes only: explicit and implicit zero padding share one entry.
+		data = data[..(data.LastIndexOfAnyExcept( (byte)0 ) + 1)];
 		var hash = 14695981039346656037UL;
 		foreach ( var b in data ) hash = (hash ^ b) * 1099511628211UL;
 		lock ( keptConstants )
 		{
 			if ( keptConstants.TryGetValue( (hash, size), out var kept ) )
 			{
-				kept.LastUsed = Frame;
-				return kept.Offset;
+				kept.TryTouch( Frame );
+				return kept;
 			}
 
 			var offset = AllocateMaterialConstants( size, out var target );
-			target.Clear();
 			data.CopyTo( target );
-			keptConstants[(hash, size)] = new Kept { Offset = offset, LastUsed = Frame };
-			return offset;
+			target[data.Length..].Clear();
+			return keptConstants[(hash, size)] = new Kept( offset, Frame );
 		}
 	}
 
@@ -1411,7 +1476,11 @@ internal sealed class MaterialObjectCache : IDisposable
 	{
 		lock ( objects )
 		{
-			foreach ( var value in objects.Values ) value.Retire( s => Gpu.Destroy( s.Handle ), _ => { } );
+			foreach ( var value in objects.Values )
+			{
+				value.Retire( s => Gpu.Destroy( s.Handle ), _ => { } );
+				if ( value.OwnsPipeline ) Gpu.Destroy( value.Pipeline );
+			}
 			objects.Clear();
 			allObjects.Clear();
 		}
@@ -1424,6 +1493,10 @@ internal sealed class MaterialObjectCache : IDisposable
 			}
 
 			retired.Clear();
+			while ( retiredPipelines is not null && retiredPipelines.TryDequeue( out var pipeline ) )
+			{
+				Gpu.Destroy( pipeline.Pipeline );
+			}
 		}
 
 		lock ( layouts )

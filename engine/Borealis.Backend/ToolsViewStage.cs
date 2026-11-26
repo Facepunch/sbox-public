@@ -43,6 +43,10 @@ internal static class ToolsViewStage
 		}
 	}
 
+	/// <summary>The pass to draw and cache: ordinary material draws until the tools stage is ready.</summary>
+	public static ToolsPass ReadyPass( ShaderLibrary shaders, ToolsPass pass )
+		=> pass != ToolsPass.None && Of( shaders ) is not null ? pass : ToolsPass.None;
+
 	/// <summary>
 	/// Make a colour pipeline draw in a tools pass: its own vertex (or mesh) stage, rasterizer and culling, with the tools
 	/// view's pixel stage writing the first target (the others written nothing), and the pass's state over the pipeline's:

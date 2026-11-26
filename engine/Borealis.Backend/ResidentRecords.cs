@@ -32,6 +32,10 @@ internal struct ResidentCullConstants
 	/// </summary>
 	public uint Expand, ExpandMap, ExpandHeaders, MeshletRuns;
 
-	/// <summary>The generated LOD table's bindless slot (none when there's none) and the draw records it covers (<see cref="Lods.LodStore.Table"/>).</summary>
-	public uint LodTable, LodCount, Pad0, Pad1;
+	/// <summary>
+	/// The generated LOD table's bindless slot (none when there's none) and the draw records it covers (<see cref="Lods.LodStore.Table"/>);
+	/// this frame's stamp for LOD fades: time in ticks of 1/256 s (bits 0-13) and frame (bits 14-23); a fade's length, in
+	/// ticks (<see cref="BackendDevice.LodFades"/>).
+	/// </summary>
+	public uint LodTable, LodCount, LodFadeNow, LodFadeTicks;
 }

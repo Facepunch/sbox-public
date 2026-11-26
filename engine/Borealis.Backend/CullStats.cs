@@ -80,7 +80,7 @@ internal sealed class CullStats : IDisposable
 		var list = gpu.BeginCommandList( QueueType.Graphics, "Cull stats" );
 		list.Barrier( PipelineStage.AllCommands, MemoryAccess.ShaderWrite, PipelineStage.Transfer, MemoryAccess.TransferRead );
 		list.CopyBuffer( Buffer, 0, ring[at], 0, Words * 4 );
-		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Host, MemoryAccess.HostRead );
+		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferRead | MemoryAccess.TransferWrite, PipelineStage.ComputeShader | PipelineStage.Host, MemoryAccess.ShaderWrite | MemoryAccess.HostRead );
 		gpu.SubmitLater( list );
 	}
 

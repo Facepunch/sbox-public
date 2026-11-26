@@ -101,8 +101,8 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
-	/// Seconds and device frames a scratch texture kept at the target's size (<see cref="countDepth"/>,
-	/// <see cref="resolvedTarget"/>, <see cref="targetCopy"/>) goes unused before it's destroyed: a game uses them most
+	/// Seconds and device frames a scratch texture kept at the target's size (<see cref="resolvedTarget"/>,
+	/// <see cref="targetCopy"/>) goes unused before it's destroyed: a game uses them most
 	/// frames; the menu after one, nothing does, and they'd keep a screen's worth of video memory each.
 	/// </summary>
 	internal static double ScratchIdleSeconds { get; set; } = 20;
@@ -110,20 +110,19 @@ public sealed class GraphicsContext
 	internal static ulong ScratchIdleFrames { get; set; } = 120;
 
 	// When each scratch texture was last used: Stopwatch ticks and the device frame
-	long countDepthUsed, resolvedUsed, copyUsed, scratchChecked;
-	ulong countDepthFrame, resolvedFrame, copyFrame;
+	long resolvedUsed, copyUsed, scratchChecked;
+	ulong resolvedFrame, copyFrame;
 
 	/// <summary>Scratch textures it holds now, for tests.</summary>
-	internal int ScratchTextures => (countDepth.IsValid ? 1 : 0) + (resolvedTarget.IsValid ? 1 : 0) + (targetCopy.IsValid ? 1 : 0);
+	internal int ScratchTextures => (resolvedTarget.IsValid ? 1 : 0) + (targetCopy.IsValid ? 1 : 0);
 
 	// At a block's start, now and then: what's gone unused long enough was last recorded into a list submitted long since
 	void ReleaseIdleScratch()
 	{
-		if ( !countDepth.IsValid && !resolvedTarget.IsValid && !targetCopy.IsValid ) return;
+		if ( !resolvedTarget.IsValid && !targetCopy.IsValid ) return;
 		var now = System.Diagnostics.Stopwatch.GetTimestamp();
 		if ( (now - scratchChecked) < System.Diagnostics.Stopwatch.Frequency * Math.Min( ScratchIdleSeconds, 1 ) ) return;
 		scratchChecked = now;
-		DropIfIdle( ref countDepth, countDepthUsed, countDepthFrame, now );
 		DropIfIdle( ref resolvedTarget, resolvedUsed, resolvedFrame, now );
 		DropIfIdle( ref targetCopy, copyUsed, copyFrame, now );
 	}
@@ -454,10 +453,8 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
-	/// Draw vertices into depth alone - a target of the bound colour target's size, which only this draw's scope uses, its
-	/// contents never read - counting the samples that pass into occlusion query <paramref name="query"/>, which is reset
-	/// first: how native counts the pixels of a frame in a luminance range for auto exposure (<c>tonemap_query</c>, with
-	/// colour writes and depth testing off, over the colour it samples).
+	/// Count the samples that pass into occlusion query <paramref name="query"/> without binding any attachments. Auto
+	/// exposure's <c>tonemap_query</c> has colour writes and depth testing off; its extent is the bound colour target's.
 	/// </summary>
 	public bool DrawCounted( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology, OcclusionQueries queries, int query )
 	{
@@ -470,36 +467,18 @@ public sealed class GraphicsContext
 		}
 
 		var info = gpu.InfoOf( Target );
-		if ( !countDepth.IsValid || gpu.InfoOf( countDepth ).Width != info.Width || gpu.InfoOf( countDepth ).Height != info.Height )
-		{
-			if ( countDepth.IsValid )
-			{
-				owned.Remove( countDepth );
-				layouts.Remove( countDepth );
-				gpu.Destroy( countDepth );
-			}
-
-			countDepth = gpu.CreateTexture( TextureInfo.RenderTarget( info.Width, info.Height, Format.D32Float, name: "Counted draws" ) );
-			SetLayout( countDepth, ImageLayout.Undefined );
-			owned.Add( countDepth );
-		}
-
-		countDepthUsed = System.Diagnostics.Stopwatch.GetTimestamp();
-		countDepthFrame = gpu.FrameNumber;
 		List.ResetQueries( queries, query, 1 );
-		Transition( countDepth, ImageLayout.DepthReadOnly );
-		List.BeginRendering( [], new DepthTarget { Texture = countDepth, Load = LoadOp.Load, Store = StoreOp.Store, ReadOnly = true } );
+		List.BeginRenderingWithoutAttachments( info.Width, info.Height );
+
 		var upload = List.AllocateUpload( vertices.Length, 16 );
 		vertices.CopyTo( upload.Data );
 		List.BeginQuery( queries, query );
 		Draws++;
-		var drawn = drawer.Draw( List, shader, attributes, Format.Unknown, Format.D32Float, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
+		var drawn = drawer.Draw( List, shader, attributes, Format.Unknown, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
 		List.EndQuery( queries, query );
 		List.EndRendering();
 		return drawn;
 	}
-
-	TextureHandle countDepth;
 
 	/// <summary>Fill a whole texture with <paramref name="color"/>, bound or not.</summary>
 	public void ClearTexture( TextureHandle texture, Num.Vector4 color )
@@ -982,23 +961,23 @@ public sealed class GraphicsContext
 		Transition( chain, ImageLayout.General );
 
 		var attributes = PassAttributes();
-		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", 5 );
+		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", SharedPasses.MinMax );
 		// A multisampled depth gives its first sample, as native's depth resolve does
 		attributes.SetCombo( "D_MSAA", gpu.InfoOf( depth ).Samples > 1 ? 1 : 0 );
 		attributes.Set( "SourceDepth", depth );
 		var fused = true;
-		var lastMip = Math.Min( info.Mips - 1, System.Numerics.BitOperations.Log2( (uint)Math.Min( info.Width, info.Height ) ) );
+		var lastMip = SharedPasses.LastSpdMip( info.Width, info.Height, info.Mips );
 		for ( int source = 0; source < lastMip; )
 		{
-			int width = info.Width >> source, height = info.Height >> source;
-			var mipCount = Math.Min( lastMip - source, 6 );
+			var (width, height, mipCount) = SharedPasses.SpdBatch( info.Width, info.Height, source, lastMip );
 			attributes.SetCombo( "D_FUSED_DEPTH", fused ? 1 : 0 );
 			if ( fused ) attributes.Set( "Mip0Out", MipView( chain, source ) );
 			else List.Barrier( MipBarrier( chain, source, ImageLayout.General, ImageLayout.ShaderRead ) );
-			for ( int i = fused ? 1 : 0; i <= 6; i++ ) attributes.Set( MipNames[i], MipView( chain, source + Math.Min( i, mipCount ) ) );
+			for ( int i = fused ? 1 : 0; i <= SharedPasses.MipsPerSpdBatch; i++ ) attributes.Set( MipNames[i], MipView( chain, source + Math.Min( i, mipCount ) ) );
 			attributes.Set( "SourceSize", width, height );
 			attributes.Set( "MipCount", mipCount );
-			if ( !drawer.Dispatch( List, spd, attributes, (width + 63) / 64 * 256, (height + 63) / 64, 1 ) ) throw new InvalidOperationException( $"{spd.Name} didn't dispatch" );
+			var (x, y) = SharedPasses.SpdDispatch( width, height );
+			if ( !drawer.Dispatch( List, spd, attributes, x, y, 1 ) ) throw new InvalidOperationException( $"{spd.Name} didn't dispatch" );
 
 			if ( !fused ) List.Barrier( MipBarrier( chain, source, ImageLayout.ShaderRead, ImageLayout.General ) );
 			MemoryBarrier();
@@ -1206,7 +1185,7 @@ public sealed class GraphicsContext
 		mipViews.Clear();
 		viewMips.Clear();
 		owned.Clear();
-		countDepth = resolvedTarget = targetCopy = default;
+		resolvedTarget = targetCopy = default;
 		quadIndices = default;
 		identityTransform = default;
 		Array.Clear( readableSets );
@@ -1284,6 +1263,7 @@ public sealed class GraphicsContext
 	{
 		if ( deferredChain.Chain.IsValid ) BuildDeferredChainFor( attributes, shader, variant, mode );
 		if ( depth == DepthUse.None && !Target.IsValid ) depth = DepthUse.ReadOnly;
+		if ( drawer.OverlayStencil == OverlayStencil.Write && Depth.IsValid && depthFormat.HasStencil() ) depth = DepthUse.Write;
 
 		if ( dispatched.Count > 0 ) ReadableAfterDispatches( attributes );
 

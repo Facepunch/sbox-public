@@ -24,14 +24,13 @@ internal sealed partial class BackendContext
 
 	BackendParameters skyAttributes;
 
-	public override bool DrawSky( SceneLighting lighting, StringToken shaderMode )
+	public override bool DrawSky( GpuMaterial skyMaterial, Color tint, Rotation rotation, in SkyFog fog, StringToken shaderMode )
 	{
-		if ( lighting.SkyMaterial is not BackendMaterial { Shader: { } shader } material || shader.Modes.Count == 0 ) return false;
+		if ( skyMaterial is not BackendMaterial { Shader: { } shader } material || shader.Modes.Count == 0 ) return false;
 
 		// The material's mode, else its first, as native's GetMode() falls back
 		var mode = CachedModeName( shader, shaderMode ) is null ? Token( shader.Modes[0].Name ) : shaderMode;
 
-		var rotation = lighting.SkyRotation;
 		Vector3 forward = rotation.Forward, left = rotation.Left, up = rotation.Up;
 		var constants = new SkyConstants
 		{
@@ -47,10 +46,8 @@ internal sealed partial class BackendContext
 		var sky = skyAttributes ??= new BackendParameters();
 		sky.Clear();
 		sky.SetData( SkyConstantBuffer, constants );
-		var tint = lighting.SkyTint;
 		sky.Set( SkyTint, new Vector3( tint.r, tint.g, tint.b ) );
 
-		var fog = lighting.SkyFog;
 		sky.SetCombo( FogType, (int)fog.Type );
 		if ( fog.Type == SkyFogType.Angular )
 		{

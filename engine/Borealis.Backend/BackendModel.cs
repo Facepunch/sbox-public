@@ -2,6 +2,7 @@ using Borealis.Gpu;
 using Borealis.Source2.Models;
 using Borealis.Source2.Shaders;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace Borealis.Backend;
 
@@ -150,7 +151,8 @@ internal sealed class VertexLayout : IEquatable<VertexLayout>
 /// Skinned meshes are given their skinning as native's model gives it (<c>RenderTools.GetModelMeshSkinning</c>): bones,
 /// inverse bind poses, the model bone each is and the bind pose. Borealis then poses them by bones, in the vertex shader
 /// with one weight and by compute skinning into the vertex cache with more, as native does. Morphs
-/// aren't applied.
+/// aren't applied. Once its buffers are on the GPU their CPU copies are let go (<see cref="ModelFile.ReleaseBuffers"/>) when
+/// the file can be read again; meshlet and level builds and traces decode them again as they need them.
 /// </remarks>
 public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 {
@@ -171,6 +173,22 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 
 	// The materials its draws hold (BackendDevice.ModelMaterial), let go when it's freed
 	readonly List<string> materialPaths = new();
+
+	Dictionary<string, BackendTexture> morphTextures;
+	ConditionalWeakTable<BackendMorphs, Dictionary<int, (float[] Delayed, float Time)>> delayedMorphs;
+
+	/// <summary>The morph atlas texture held by this model from the first draw that needs it.</summary>
+	internal BackendTexture MorphTexture( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		var textures = morphTextures ??= new( StringComparer.OrdinalIgnoreCase );
+		if ( !textures.TryGetValue( path, out var texture ) ) textures[path] = texture = (BackendTexture)device.HoldTexture( path );
+		return texture;
+	}
+
+	/// <summary>Delayed morph weights by mesh index for this model and the given source.</summary>
+	internal Dictionary<int, (float[] Delayed, float Time)> DelayedMorphs( BackendMorphs source )
+		=> (delayedMorphs ??= new()).GetValue( source, static _ => new() );
 
 	/// <summary>Whether this is the first ask for a draw's meshlets: a shadow view asks for a static mesh draw's once.</summary>
 	internal bool FirstMeshletRequest( int mesh, int call )
@@ -241,6 +259,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		try
 		{
 			Make( file );
+
+			// Its buffers are on the GPU: the CPU copies go, and what reads one later (meshlets, levels, a trace) decodes it again
+			file.ReleaseBuffers();
 		}
 		catch
 		{
@@ -264,7 +285,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 			if ( call.IndexBuffer.Buffer == buffer && call.IndexCount / 3 >= Lods.LodConfig.Default.MinRangeTriangles ) bytes += (long)call.IndexCount * size;
 		}
 
-		return (int)Math.Min( bytes, mesh.IndexBuffers[buffer].Data.Length );
+		return (int)Math.Min( bytes, (long)mesh.IndexBuffers[buffer].Count * size );
 	}
 
 	void Make( ModelFile file )
@@ -319,17 +340,18 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 			for ( int i = 0; i < indexBuffers.Length; i++ )
 			{
 				var source = mesh.IndexBuffers[i];
+				var data = source.Data;
 				var format = source.Size == 4 ? IndexFormat.UInt32 : IndexFormat.UInt16;
 				if ( indexTables is not null )
 				{
-					var (page, slot, first) = indexTables.AddIndices( source.Data, format, skinned || !GeneratesLevels ? 0 : LevelCandidateBytes( file, mesh, i ) );
-					pageRanges.Add( (slot, source.Data.Length) );
+					var (page, slot, first) = indexTables.AddIndices( data, format, skinned || !GeneratesLevels ? 0 : LevelCandidateBytes( file, mesh, i ) );
+					pageRanges.Add( (slot, data.Length) );
 					indexBuffers[i] = (page, first * (long)source.Size, format, page, slot, first);
 					continue;
 				}
 
-				var buffer = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( source.Data.Length, 4 ), Usage = BufferUsage.Index, Name = $"{file.Name} {mesh.Name} indices {i}" } );
-				if ( source.Data.Length > 0 ) gpu.WriteBuffer( buffer, source.Data );
+				var buffer = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( data.Length, 4 ), Usage = BufferUsage.Index, Name = $"{file.Name} {mesh.Name} indices {i}" } );
+				if ( data.Length > 0 ) gpu.WriteBuffer( buffer, data );
 				buffers.Add( buffer );
 				indexBuffers[i] = (buffer, 0, format, default, -1, 0);
 			}
@@ -364,7 +386,8 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 				// the vertex cache has a record of its own (below). Neither has a positions-only copy: its positions aren't
 				// where they're drawn
 				PooledGeometry? pooled = null;
-				var vertexCount = (int)((mesh.VertexBuffers[vertexIndex].Data.Length - vertexOffset) / Math.Max( vertices.Layout.Stride, 1 ));
+				var vertexSource = mesh.VertexBuffers[vertexIndex];
+				var vertexCount = (int)(((long)vertexSource.Count * vertexSource.Stride - vertexOffset) / Math.Max( vertices.Layout.Stride, 1 ));
 				if ( indexTables is not null && indices.Page.IsValid && vertices.PageSlot >= 0 )
 				{
 					var record = indexTables.Geometry( vertices.PageSlot, vertices.Offset + vertexOffset, vertices.Layout, vertexCount );
@@ -519,7 +542,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	/// </summary>
 	internal long LastUsedFrame => System.Threading.Volatile.Read( ref lastUsedFrame );
 
-	bool IBackendGeometry.Use()
+	bool IBackendGeometry.Use() => Use();
+
+	internal bool Use()
 	{
 		if ( Freed ) return false;
 
@@ -575,7 +600,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	public static RenderMesh Load( BackendDevice device, string path, ulong? meshGroups = null, int materialGroup = 0 )
 	{
 		if ( device.Content.TryRead( path ) is not { } data ) return null;
-		return Create( device, ModelFile.Read( data, device.Content.TryRead ), meshGroups, materialGroup );
+		return Create( device, ModelFile.Read( data, device.Content.TryRead, () => device.Content.TryRead( path ) ), meshGroups, materialGroup );
 	}
 
 	/// <summary>
@@ -661,9 +686,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 	volatile bool freed;
 
 	/// <summary>
-	/// Free its buffers, once the GPU is done with them; otherwise they go with the device. Again does nothing. From then on
-	/// it draws and skins nothing (<see cref="IBackendGeometry.Use"/>), and nothing it keeps names its buffers or pages: a
-	/// draw recorded after its buffers were destroyed would bind them through a binding set cached by their handles.
+	/// Free its buffers, materials and morph resources, once the GPU is done with them; otherwise they go with the device.
+	/// Again does nothing. From then on it draws and skins nothing (<see cref="IBackendGeometry.Use"/>), and nothing it
+	/// keeps names its buffers or pages: a draw recorded after they were destroyed would bind them through a cached set.
 	/// </summary>
 	public void Free()
 	{
@@ -687,5 +712,8 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 		pageRanges.Clear();
 		foreach ( var path in materialPaths ) device.ReleaseModelMaterial( path );
 		materialPaths.Clear();
+		if ( morphTextures is not null ) device.ReleaseTextures( morphTextures.Keys );
+		morphTextures = null;
+		delayedMorphs = null;
 	}
 }

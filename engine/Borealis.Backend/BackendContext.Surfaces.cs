@@ -2,6 +2,7 @@ using Borealis.Gpu;
 using Borealis.Source2.Shaders;
 using Sandbox.ShaderCompiler;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 
 namespace Borealis.Backend;
 
@@ -114,7 +115,7 @@ internal sealed partial class BackendContext
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey ) : null;
 		// Opaque colour whose depth the layer before drew (DepthDrawnFirst): tested, not written again, keeping early depth testing
 		var depthEqual = DepthDrawnFirst && BackendDevice.ColourAfterDepthDrawn && !noColor && state.DepthWrite && !state.DrawsTranslucent;
-		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual: depthEqual, specialized: program.Features( material ), normals: r.Normals is not null, tools: noColor ? ToolsPass.None : ToolsPass );
+		var pipeline = program.Pipeline( pass, geometry.Layout, color, depth, (r.Color ?? r.Depth).Samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, opaqueFade: LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual: depthEqual, specialized: program.Features( material ), normals: r.Normals is not null, tools: noColor ? ToolsPass.None : ToolsPass, stencil: OverlayStencil );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
@@ -124,9 +125,8 @@ internal sealed partial class BackendContext
 		uncompressedTangentFrame = geometry.UncompressedTangentFrame;
 		var record = device.Surfaces.Records.Offset( material, out drawRecords );
 
-		// The frame's view set, as classic draws bind it: a list whose draws so far are all surfaces has the default
-		// (zeroed) one otherwise, which lights and fogs as no view
-		BindViewSet( r.List );
+		// Both stages share the same view and attribute epoch.
+		NextPassState( device.MaterialCache );
 		boundRecords = default;
 		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
 		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
@@ -137,6 +137,7 @@ internal sealed partial class BackendContext
 
 		if ( noColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 		else SurfaceProgram.ColorDepthBias( r.List, state );
+		BackendDevice.SetStencilReference( r.List, depth, OverlayStencil );
 		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect, material );
 		return true;
 	}
@@ -161,7 +162,7 @@ internal sealed partial class BackendContext
 	/// passes of its own. A skinned batch (<paramref name="skinned"/>) draws in buckets of its own, under its own object
 	/// attributes (<paramref name="own"/>), with the pass that reads the vertex cache when it does (<paramref name="vertexCache"/>).
 	/// </summary>
-	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key, bool skinned = false, bool vertexCache = false, ShaderParameters own = null )
+	GpuDrivenBucket SurfaceBucket( SurfaceMaterial material, StringToken shaderMode, bool noColor, ShaderParameters attributes, long key, OverlayStencil stencil, bool skinned = false, bool vertexCache = false, ShaderParameters own = null )
 	{
 		var state = material.RenderState;
 		if ( noColor && (!state.DepthWrite || state.Translucent) ) return null;
@@ -176,7 +177,7 @@ internal sealed partial class BackendContext
 		{
 			var bucket = gpuDrivenBuckets[i];
 			if ( ReferenceEquals( bucket.Surface, pass ) && bucket.AttributesKey == key && bucket.NoColor == noColor && bucket.SurfaceState == state && ReferenceEquals( bucket.SurfaceFeatures, features )
-				&& bucket.Skinned == skinned && ReferenceEquals( bucket.Own, own ) ) return bucket;
+				&& bucket.Stencil == stencil && bucket.Skinned == skinned && ReferenceEquals( bucket.Own, own ) ) return bucket;
 		}
 
 		if ( gpuDrivenBucketCount == gpuDrivenBuckets.Count ) gpuDrivenBuckets.Add( new GpuDrivenBucket() );
@@ -191,6 +192,7 @@ internal sealed partial class BackendContext
 		made.AttributesKey = key;
 		made.DepthOnly = depthOnly;
 		made.NoColor = noColor;
+		made.Stencil = stencil;
 		made.SurfaceState = state;
 		made.SurfaceFeatures = features;
 		made.PixelMaterial = 0;
@@ -200,6 +202,7 @@ internal sealed partial class BackendContext
 		made.Skinned = skinned;
 		made.Own = own;
 		made.Fragments = 0;
+		made.MeshletChunks32 = made.MeshletChunks16 = 0;
 		return made;
 	}
 
@@ -254,20 +257,21 @@ internal sealed partial class BackendContext
 		var vertexConstants = SurfaceConstants( pass.Pass.Vertex, out var vertexKey, gpuDriven: true );
 		ulong pixelKey = 0;
 		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceConstants( pixel, out pixelKey, gpuDriven: true ) : null;
-		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual, bucket.SurfaceFeatures, r.Normals is not null, bucket.NoColor || color == Format.Unknown ? ToolsPass.None : ToolsPass );
+		var pipeline = bucket.SurfaceProgram.Pipeline( pass, device.PulledLayout, color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, bucket.SurfaceState, ids, LookupCombo( OpaqueFadeCombo ) is > 0, depthEqual, bucket.SurfaceFeatures, r.Normals is not null, bucket.NoColor || color == Format.Unknown ? ToolsPass.None : ToolsPass, bucket.Stencil );
 		if ( r.Pipeline != pipeline )
 		{
 			r.List.SetPipeline( pipeline );
 			r.Pipeline = pipeline;
 		}
 
-		BindViewSet( r.List );
+		NextPassState( device.MaterialCache );
 		BindSurface( pass, pass.Pass.Vertex, ShaderAbi.VertexSet );
 		if ( pass.Pass.Pixel is not null ) BindSurface( pass, pass.Pass.Pixel, ShaderAbi.FragmentSet );
 		r.Binder = null;
 
 		// Colour with the surface's own depth bias (a static overlay's); depth and ids passes set the pass's after binding
 		if ( !ids && color != Format.Unknown && !bucket.NoColor ) SurfaceProgram.ColorDepthBias( r.List, bucket.SurfaceState );
+		BackendDevice.SetStencilReference( r.List, depth, bucket.Stencil );
 	}
 
 	/// <summary>
@@ -494,8 +498,6 @@ internal sealed partial class BackendContext
 	{
 		if ( !pass.Sets[set].IsValid ) return;
 		var info = StageBindings( stage );
-		var cache = device.MaterialCache;
-		NextPassState( cache );
 		var list = recording.List;
 		if ( !device.SurfacePassBindings ) info.Epoch = -1;
 		if ( info.Epoch != passEpoch || !ReferenceEquals( info.List, list ) )
@@ -504,7 +506,7 @@ internal sealed partial class BackendContext
 			info.Resolved.AsSpan().Clear();
 		}
 
-		var perObject = layerEpoch != 0 ? info.ObjectNames( stage, cache ) : null;
+		var perObject = layerEpoch != 0 ? info.ObjectNames( stage, device.MaterialCache ) : null;
 		Span<Binding> bindings = stackalloc Binding[64];
 		var count = 0;
 		for ( int i = 0; i < stage.Bindings.Count; i++ )
@@ -808,7 +810,7 @@ internal sealed partial class BackendContext
 		}
 	}
 
-	/// <summary>An attribute's value as up to sixteen floats (a matrix), as <see cref="Floats"/> reads it, without allocating; 0 for none.</summary>
+	/// <summary>An attribute's value as up to sixteen floats (a matrix), as <see cref="ScratchFloats"/> reads it, without allocating; 0 for none.</summary>
 	static int Components( object attribute, Span<float> into )
 	{
 		switch ( attribute )

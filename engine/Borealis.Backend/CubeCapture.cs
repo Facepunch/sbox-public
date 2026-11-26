@@ -8,7 +8,7 @@ namespace Borealis.Backend;
 /// (<c>CubemapRendering.Render</c> through <c>SceneBridge.RenderToCube</c>): mip 0 cleared to red, six 90-degree faces, each
 /// a Borealis frame of its own (<see cref="RenderView.Capture"/>, no MSAA, an RGBA16F colour and a depth target the size of
 /// the cube) copied into its slice as it finishes, so later faces see the earlier ones; then <c>envmap_filtering_cs</c>'s
-/// downsample (each mip from mip 0) and its GGX filter, run twice, as <c>CubemapRendering.Filter</c> runs them. The faces
+/// downsample (each mip from mip 0) and its GGX filter, run twice. The faces
 /// are this capture's own views of a world (<see cref="Render(RenderWorld, Vector3, Rotation, float, float, GpuTexture, RenderView)"/>)
 /// or the caller's (<see cref="Render(GpuTexture, Action{int, ViewTarget}, int?, Action{int, ViewTarget})"/>: the engine's cube cameras).
 /// </summary>
@@ -19,7 +19,7 @@ namespace Borealis.Backend;
 /// </remarks>
 public sealed class CubeCapture : IDisposable
 {
-	/// <summary>The mips <c>CubemapRendering.Filter</c> requires.</summary>
+	/// <summary>The number of output mip levels required by the environment map filter.</summary>
 	public const int Mips = 7;
 
 	/// <summary>
@@ -214,8 +214,7 @@ public sealed class CubeCapture : IDisposable
 	}
 
 	/// <summary>
-	/// <c>CubemapRendering.FilterDownsample</c> then <c>FilterGGX</c> (twice) at <paramref name="quality"/>, leaving the cube
-	/// readable.
+	/// Downsample the cube, then filter it twice at <paramref name="quality"/>, leaving it readable.
 	/// </summary>
 	void Filter( BackendTexture cube, int quality )
 	{
@@ -270,7 +269,7 @@ public sealed class CubeCapture : IDisposable
 		for ( int i = 1; i < Mips; i++ ) gpu.Destroy( mips[i] );
 	}
 
-	/// <summary>1² + 2² + 4² + ... up to <paramref name="n"/>: the GGX pass's texels across its mips (<c>CubemapRendering.SumOfSquaresTwo</c>).</summary>
+	/// <summary>1² + 2² + 4² + ... up to <paramref name="n"/>: the GGX pass's texels across its mips.</summary>
 	internal static int SumOfSquaresOfPowersOfTwo( int n )
 	{
 		var sum = 0;

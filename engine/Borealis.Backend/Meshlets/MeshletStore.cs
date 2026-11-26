@@ -584,6 +584,32 @@ internal sealed class MeshletStore : IDisposable
 		}
 	}
 
+	/// <summary>Stop publishing runs for retired draw records, without changing the runs in-flight frames can read.</summary>
+	internal void ForgetDraws( HashSet<uint> draws )
+	{
+		lock ( gate )
+		{
+			Predicate<uint> retired = draws.Contains;
+			foreach ( var entry in entries.Values ) entry.Draws.RemoveAll( retired );
+			foreach ( var waiting in waitingDraws.Values ) waiting.RemoveAll( retired );
+		}
+	}
+
+	/// <summary>Clear the old mappings before a retired draw record's slot is reused for a different range.</summary>
+	internal void ClearDraws( List<uint> draws )
+	{
+		lock ( gate )
+		{
+			var runData = runs.IsValid ? gpu.Map( runs ) : Span<byte>.Empty;
+			var cornerData = corners.IsValid ? gpu.Map( corners ) : Span<byte>.Empty;
+			foreach ( var draw in draws )
+			{
+				if ( draw < runData.Length / RunBytes ) runData.Slice( (int)draw * RunBytes, RunBytes ).Clear();
+				if ( draw < cornerData.Length / CornerRunBytes ) cornerData.Slice( (int)draw * CornerRunBytes, CornerRunBytes ).Clear();
+			}
+		}
+	}
+
 	/// <summary>
 	/// Forget the ranges in the index page at <paramref name="slot"/>, whose meshes have all gone (the page is being freed,
 	/// and its slot may name another page later); false while one is being built or uploaded, to be asked again next frame.

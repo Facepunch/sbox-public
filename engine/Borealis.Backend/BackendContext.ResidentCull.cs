@@ -61,6 +61,9 @@ internal sealed partial class BackendContext
 	const int ResidentViewBytes = ResidentCullView.Size;
 	const int ResidentHeaderBytes = ResidentMeshHeader.Size;
 
+	/// <summary>Bytes of one group of 64 entries' bounds in a plan's records (borealis_resident_cull_cs GroupBoundsBytes).</summary>
+	const int ResidentGroupBoundsBytes = 32;
+
 	/// <summary>Bytes of a plan's survivor flags in a view's region: a word per batch, which the resident cull sets for the draw counters.</summary>
 	static int SeenBytes( GpuDrivenPlan plan ) => (plan.Batches * 4 + 15) & ~15;
 
@@ -69,10 +72,12 @@ internal sealed partial class BackendContext
 	/// record a word per batch is cleared for the cull to set where the batch has a survivor (<see cref="SeenBytes"/>), so
 	/// that its stats count each batch once; the multi-draws follow.
 	/// </summary>
-	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands, int HiZ) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists, bool hiz = false )
+	static (int Bytes, int Runs, int Listed, int Instances, int FragmentWords, int Commands, int HiZ, int HiZFirstSlot) ResidentRegion( GpuDrivenPlan plan, bool ids, bool lists, bool hiz = false )
 	{
 		var fragments = plan.Fragments;
-		var slots = fragments * (plan.Key.Meshlets ? 1 + 2 * (int)MeshletChunks : lists ? 2 : 1);
+		var slots = plan.Written + plan.CompactUsed;
+		var hizFirstSlot = hiz ? slots : 0;
+		slots += hizFirstSlot;
 		var runs = CullViewBytes + SeenBytes( plan );
 		var listed = (runs + plan.Runs.Length * MultiDraw.Size + 15) & ~15;
 		var instances = listed + (lists ? ListedArguments.Size + fragments * ListedFragment.Size : 0);
@@ -81,7 +86,7 @@ internal sealed partial class BackendContext
 		var bytes = (commands + slots * GpuDrivenTables.CommandStride + 15) & ~15;
 		var tail = hiz ? bytes : 0;
 		if ( hiz ) bytes += HiZTailBytes( plan.Runs.Length * MultiDraw.Size, fragments );
-		return (bytes, runs, listed, instances, fragmentWords, commands, tail);
+		return (bytes, runs, listed, instances, fragmentWords, commands, tail, hizFirstSlot);
 	}
 
 	/// <summary>
@@ -92,15 +97,17 @@ internal sealed partial class BackendContext
 	static int HiZTailBytes( int runBytes, int fragments ) => ((runBytes + 15) & ~15) + ListedArguments.Size + HiZCandidates.Size + fragments * HiZCandidate.Size;
 
 	/// <summary>
-	/// Write a region's Hi-Z tail at <paramref name="tail"/>: the second phase's multi-draws as the first's <paramref name="runs"/>
-	/// (first slots, zeroed counts), and both arguments with no groups. Its offsets: multi-draws, listed fragments, candidates.
+	/// Write a region's Hi-Z tail at <paramref name="tail"/>: the second phase's multi-draws at <paramref name="firstSlot"/>
+	/// past the first phase's slots, with zeroed counts and both arguments with no groups. Returns the tail's offsets.
 	/// </summary>
-	static (int Runs2, int Listed2, int Candidates) WriteHiZTail( Span<byte> region, int tail, ReadOnlySpan<uint> runs )
+	static (int Runs2, int Listed2, int Candidates) WriteHiZTail( Span<byte> region, int tail, ReadOnlySpan<MultiDraw> runs, int firstSlot )
 	{
 		var runs2 = tail;
-		var listed2 = tail + ((runs.Length * 4 + 15) & ~15);
+		var runBytes = runs.Length * MultiDraw.Size;
+		var listed2 = tail + ((runBytes + 15) & ~15);
 		var candidates = listed2 + ListedArguments.Size;
-		runs.CopyTo( MemoryMarshal.Cast<byte, uint>( region.Slice( runs2, runs.Length * 4 ) ) );
+		var second = MemoryMarshal.Cast<byte, MultiDraw>( region.Slice( runs2, runBytes ) );
+		for ( int i = 0; i < runs.Length; i++ ) second[i] = new MultiDraw { FirstSlot = runs[i].FirstSlot + (uint)firstSlot };
 		MemoryMarshal.Write( region.Slice( listed2, ListedArguments.Size ), new ListedArguments { GroupsY = 1, GroupsZ = 1 } );
 		MemoryMarshal.Write( region.Slice( candidates, HiZCandidates.Size ), new HiZCandidates { GroupsY = 1, GroupsZ = 1 } );
 		return (runs2, listed2, candidates);
@@ -123,7 +130,8 @@ internal sealed partial class BackendContext
 		var planes = view.Planes;
 		(planes[0], planes[1], planes[2], planes[3], planes[4], planes[5]) = (cull.Left, cull.Right, cull.Bottom, cull.Top, cull.Near, cull.Far);
 		view.CameraAndThreshold = cull.CameraAndThreshold;
-		view.Flags = (cull.Shadow ? 1u : 0u) | (uint)cull.Filter << 1 | StatsFlags( cull, noColor );
+		// Flag 64: the view that owns LOD fades (BackendDevice.OwnsLodFade), where resident meshes cross-fade their LODs
+		view.Flags = (cull.Shadow ? 1u : 0u) | (uint)cull.Filter << 1 | StatsFlags( cull, noColor ) | (device.OwnsLodFade( cull.FadeView ) ? 64u : 0u);
 		view.KeepsSmallMeshes = cull.KeepsSmallMeshes ? 1u : 0u;
 		view.SettledStamp = cull.Filter != ResidentFilter.None ? cull.SettledStamp : 0;
 		view.RestlessStamp = cull.Filter != ResidentFilter.None ? cull.RestlessStamp : 0;
@@ -190,7 +198,8 @@ internal sealed partial class BackendContext
 			var plans = device.PlansFor( cull.Plan );
 			foreach ( var key in residentKeys )
 			{
-				var plan = plans.Find( key, cull.PlanVersion, cull.PlanBatches, device.GpuDrivenTables.VisibilityEpoch );
+				if ( key.Filter != cull.Filter ) continue;
+				var plan = plans.Find( key, cull.PlanVersion, cull.PlanBatches, device.GpuDrivenTables );
 				if ( plan is null || plan.Fragments == 0 || plan.Runs.Length == 0 ) continue;
 
 				// The visibility-driven pass's state, cleared now rather than before the segments: the prepass's culling stamps it
@@ -400,7 +409,7 @@ internal sealed partial class BackendContext
 	{
 		var run = plan.Runs[i];
 		var page = run.Format == IndexFormat.UInt16 && compacted16.IsValid ? compacted16 : compacted;
-		return plan.Compacted[i] ? run with { Page = page, First = run.First - plan.CompactBase + plan.Fragments } : run;
+		return plan.Compacted[i] ? run with { Page = page, First = run.First - plan.CompactBase + plan.Written } : run;
 	}
 
 	static bool ReadsStamps( ResidentAssignment work ) => work.Lists && !work.FromPrepass;
@@ -465,7 +474,7 @@ internal sealed partial class BackendContext
 			var listing = work.Lists || work.Plan.Key.Meshlets && (work.Visibility is not null || !ids);
 			var layout = ResidentRegion( work.Plan, ids, listing, work.HiZ );
 			bytes += layout.Bytes;
-			stagedBytes += layout.Listed + (listing ? ListedArguments.Size : 0);
+			stagedBytes += layout.Listed + (listing ? ListedArguments.Size : 0) - (deviceRegion ? SeenBytes( work.Plan ) : 0);
 		}
 
 		var list = recording.List;
@@ -500,24 +509,26 @@ internal sealed partial class BackendContext
 			var meshlets = plan.Key.Meshlets && (work.Visibility is not null || !ids);
 			var listing = work.Lists || meshlets;
 			var layout = ResidentRegion( plan, ids, listing, work.HiZ );
-			var inputBytes = layout.Listed + (listing ? ListedArguments.Size : 0);
+			// Staged for a device region without the survivor flags (the GPU clears those), so what follows them sits earlier
+			var shift = deviceRegion ? SeenBytes( plan ) : 0;
+			var inputBytes = layout.Listed + (listing ? ListedArguments.Size : 0) - shift;
 			var region = deviceRegion ? data.Slice( stagedAt, inputBytes ) : data.Slice( at, layout.Bytes );
 			var (compacted, compacted16) = meshlets ? MeshletCompacted( work.Visibility ) : work.Visibility is { } own ? (own.Compacted, default) : default;
 			var regionOffset = offset + at;
 
 			var runWords = plan.ResidentRunWords ??= ResidentRunWords( plan );
-			runWords.CopyTo( MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Runs, runWords.Length * 4 ) ) );
-			var hiz = work.HiZ ? WriteHiZTail( region, layout.HiZ, runWords ) : default;
+			runWords.CopyTo( MemoryMarshal.Cast<byte, uint>( region.Slice( layout.Runs - shift, runWords.Length * 4 ) ) );
+			var hiz = work.HiZ ? WriteHiZTail( region, layout.HiZ, MemoryMarshal.Cast<uint, MultiDraw>( runWords.AsSpan() ), layout.HiZFirstSlot ) : default;
 			WriteCullView( views[work.ViewIndex], region, plan.Key.NoColor, work.HiZ ? HiZBitsSlot( work.Visibility ) : uint.MaxValue, work.HiZ ? (uint)(regionOffset + hiz.Candidates) : 0 );
-			region.Slice( CullViewBytes, SeenBytes( plan ) ).Clear();
+			if ( !deviceRegion ) region.Slice( CullViewBytes, SeenBytes( plan ) ).Clear();
 
 			if ( listing )
 			{
-				MemoryMarshal.Write( region.Slice( layout.Listed, ListedArguments.Size ), new ListedArguments { GroupsX = 0, GroupsY = 1, GroupsZ = 1, Entries = 0 } );
+				MemoryMarshal.Write( region.Slice( layout.Listed - shift, ListedArguments.Size ), new ListedArguments { GroupsX = 0, GroupsY = 1, GroupsZ = 1, Entries = 0 } );
 			}
 
 			var firstInstance = (uint)((regionOffset + layout.Instances) / GpuDrivenTables.InstanceStride);
-			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, listing ? compacted : default, meshlets ? compacted16 : default, hiz.Runs2, hiz.Listed2, hiz.Candidates );
+			work.Region = new CulledRegion( buffer, slot, regionOffset, layout.Runs, layout.Listed, layout.Instances, layout.FragmentWords, layout.Commands, firstInstance, listing ? compacted : default, meshlets ? compacted16 : default, hiz.Runs2, hiz.Listed2, hiz.Candidates, layout.HiZFirstSlot );
 			viewRecords[w] = new ResidentCullView
 			{
 				View = (uint)regionOffset,
@@ -531,7 +542,11 @@ internal sealed partial class BackendContext
 			};
 			if ( deviceRegion )
 			{
-				list.CopyBuffer( upload.Buffer, upload.Offset + stagedAt, buffer, regionOffset, inputBytes );
+				list.CopyBuffer( upload.Buffer, upload.Offset + stagedAt, buffer, regionOffset, CullViewBytes );
+				list.CopyBuffer( upload.Buffer, upload.Offset + stagedAt + CullViewBytes, buffer, regionOffset + layout.Runs, inputBytes - CullViewBytes );
+
+				// Only views that count read the flags
+				if ( CountsOnDevice( views[work.ViewIndex] ) ) list.FillBuffer( buffer, 0, regionOffset + CullViewBytes, SeenBytes( plan ) );
 				stagedAt += inputBytes;
 			}
 			at += layout.Bytes;
@@ -540,6 +555,7 @@ internal sealed partial class BackendContext
 		var slots = tables.Slots;
 		var lodTable = device.LodStore?.Table ?? (-1, 0u);
 		residentConstants ??= new byte[Marshal.SizeOf<ResidentCullConstants>()];
+		var fades = device.LodFades();
 		MemoryMarshal.Write( residentConstants, new ResidentCullConstants
 		{
 			Items = (uint)offset,
@@ -553,13 +569,15 @@ internal sealed partial class BackendContext
 			MeshletRuns = device.MeshletStore is { } store ? (uint)store.RunSlotCovering( tables.DrawRecords ) : uint.MaxValue,
 			LodTable = lodTable.Slot >= 0 ? (uint)lodTable.Slot : uint.MaxValue,
 			LodCount = lodTable.Records,
+			LodFadeNow = device.LodFadeNow,
+			LodFadeTicks = fades.Ticks,
 		} );
 		if ( deviceRegion )
 		{
 			list.CopyBuffer( upload.Buffer, upload.Offset, buffer, offset, headerBytes );
 			BarrierCullInputs( list );
 		}
-		DispatchResidentShader( shader, buffer, visibility?.Stamps ?? default, (int)entries );
+		DispatchResidentShader( shader, buffer, visibility?.Stamps ?? default, (int)entries, fades.States );
 		device.CountResidentCull( residentItems.Count, group.Count, entries );
 	}
 
@@ -580,7 +598,7 @@ internal sealed partial class BackendContext
 			ExpandMap = (uint)plan.EntryMap,
 			ExpandHeaders = (uint)plan.Headers,
 		} );
-		DispatchResidentShader( shader, plan.Records, default, plan.Entries );
+		DispatchResidentShader( shader, plan.Records, default, plan.Entries, default );
 		plan.EntryRecordsWritten = true;
 	}
 
@@ -588,6 +606,7 @@ internal sealed partial class BackendContext
 	const string StampsAttribute = "BorealisCullStamps";
 	const string LevelsAttribute = "BorealisCullLevels";
 	const string StatsAttribute = "BorealisCullStats";
+	internal const string LodFadeAttribute = "BorealisLodFade";
 	const string ConstantsAttribute = "BorealisResidentCull_t";
 	ShaderFile residentShader;
 	ShaderVariant residentVariant;
@@ -599,7 +618,7 @@ internal sealed partial class BackendContext
 	/// transient set filled straight from the frame's region, the stamps (a placeholder for none) and <see cref="residentConstants"/>,
 	/// without the generic binding's attribute lookups (which a variant with material constants still takes).
 	/// </summary>
-	void DispatchResidentShader( ShaderFile shader, BufferHandle frameBuffer, BufferHandle stamps, int threads )
+	void DispatchResidentShader( ShaderFile shader, BufferHandle frameBuffer, BufferHandle stamps, int threads, BufferHandle lodFade )
 	{
 		cullDrawer ??= new ShaderDrawer( device );
 		residentAttributes ??= new ShaderAttributes();
@@ -621,6 +640,7 @@ internal sealed partial class BackendContext
 			if ( stamps.IsValid ) residentAttributes.Set( StampsAttribute, stamps );
 			if ( levels.IsValid ) residentAttributes.Set( LevelsAttribute, levels );
 			if ( stats.IsValid ) residentAttributes.Set( StatsAttribute, stats );
+			if ( lodFade.IsValid ) residentAttributes.Set( LodFadeAttribute, lodFade );
 			residentAttributes.SetData( ConstantsAttribute, residentConstants );
 			cullDrawer.Dispatch( recording.List, shader, residentAttributes, threads, 1, 1 );
 			return;
@@ -657,6 +677,7 @@ internal sealed partial class BackendContext
 				else if ( resource.Kind == ShaderResourceKind.Buffer && name == StampsAttribute && stamps.IsValid ) bindings[count++] = Binding.Storage( resource.Binding, stamps );
 				else if ( resource.Kind == ShaderResourceKind.Buffer && name == LevelsAttribute && levels.IsValid ) bindings[count++] = Binding.Storage( resource.Binding, levels );
 				else if ( resource.Kind == ShaderResourceKind.Buffer && name == StatsAttribute && stats.IsValid ) bindings[count++] = Binding.Storage( resource.Binding, stats );
+				else if ( resource.Kind == ShaderResourceKind.Buffer && name == LodFadeAttribute && lodFade.IsValid ) bindings[count++] = Binding.Storage( resource.Binding, lodFade );
 				else bindings[count++] = device.Defaults.For( resource );
 			}
 
@@ -707,7 +728,9 @@ internal sealed partial class BackendContext
 		var mapOffset = records.Length * 4;
 		var movedOffset = mapOffset + entries * Marshal.SizeOf<ResidentCullEntry>();
 		var entryRecordsOffset = (movedOffset + (plan.Moved?.Length ?? 0) * 4 + 15) & ~15;
-		var headersOffset = entryRecordsOffset + entries * Marshal.SizeOf<ResidentCullEntryRecord>();
+		// The bounds of each group of 64 entries follow the entry records (the expand dispatch writes them; the culls find them
+		// from the entry count), then the batch headers
+		var headersOffset = entryRecordsOffset + entries * Marshal.SizeOf<ResidentCullEntryRecord>() + (entries + 63) / 64 * ResidentGroupBoundsBytes;
 		var bytes = headersOffset + batches * ResidentHeaderBytes;
 		var copied = entryRecordsOffset;
 		// Written into the frame's chunk and copied into video memory, before this setup's dispatches
@@ -800,7 +823,7 @@ internal sealed partial class BackendContext
 		if ( CountsOnDevice( cull ) ) GpuCountedBatches = prefix;
 		try
 		{
-			if ( prefix < batches.Length && EnsureScope() )
+			if ( prefix < batches.Length && PrepareGpuDrivenTargets() )
 				DrawBucketed( shaderMode, batches[prefix..], args, transforms, depthBias, slopeScaledDepthBias, drawn[prefix..], cull with { Plan = null, PlanBatches = 0 }, null, 0 );
 		}
 		finally

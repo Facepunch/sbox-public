@@ -36,7 +36,7 @@ internal sealed partial class BackendContext
 	public override void Dispatch( GpuMaterial computeShader, ShaderParameters parameters, int x, int y, int z )
 	{
 		if ( recording is null || computeShader is not BackendMaterial { Shader: { } shader } ) return;
-		if ( shader[ShaderProgramType.Compute] is not { } program || shader.Modes.Count == 0 ) return;
+		if ( shader[ShaderProgramType.Compute] is null || shader.Modes.Count == 0 ) return;
 		var given = parameters as BackendParameters;
 
 		object Value( StringToken token ) => given?.Get( token ) ?? Lookup( token );
@@ -46,16 +46,21 @@ internal sealed partial class BackendContext
 		// Kept on the context and emptied for each dispatch: dispatches allocate nothing in steady state
 		var attributes = dispatchAttributes ??= new ShaderAttributes();
 		attributes.Clear();
-		foreach ( var (name, token) in dispatchCombos.GetValue( shader, static s => [.. s[ShaderProgramType.Compute].DynamicCombos.Select( c => (c.Name, Token( c.Name )) )] ) )
+		foreach ( var (id, token) in dispatchCombos.GetValue( shader, static s => [.. s[ShaderProgramType.Compute].DynamicCombos.Select( c => (AttributeIds.Of( c.Name ), Token( c.Name )) )] ) )
 		{
-			if ( (given?.GetCombo( token ) ?? LookupCombo( token )) is int value ) attributes.SetCombo( name, value );
+			if ( (given?.GetCombo( token ) ?? LookupCombo( token )) is int value ) attributes.SetComboById( id, value );
 		}
 
 		var variant = drawer.Variant( shader, attributes );
 		if ( variant?.Compute?.Bytecode is null ) return;
 
 		var plan = dispatchPlans.GetValue( variant, DispatchPlan.Of );
-		foreach ( var (token, id) in plan.Constants ) SetDispatchFloats( attributes, id, Value( token ) );
+		Span<float> floats = stackalloc float[16];
+		foreach ( var (token, id) in plan.Constants )
+		{
+			var count = Components( Value( token ), floats );
+			if ( count != 0 ) SetDispatchFloats( attributes, id, floats[..count] );
+		}
 
 		CloseScope();
 		var written = dispatchWritten;
@@ -101,7 +106,7 @@ internal sealed partial class BackendContext
 			else Transition( texture, ImageLayout.ShaderRead );
 		}
 
-		drawer.Dispatch( List, shader, attributes, x, y, z );
+		drawer.Dispatch( List, variant, attributes, x, y, z );
 		recording.Pipeline = default;
 		recording.Binder = null;
 
@@ -133,7 +138,10 @@ internal sealed partial class BackendContext
 			var span = variant.ResourceSpan;
 			for ( int i = 0; i < span.Length; i++ )
 			{
-				if ( span[i].Name is { } name ) resources.Add( (i, Token( name ), AttributeIds.Of( name )) );
+				if ( span[i].Name is not { } name ) continue;
+				// An append buffer's hidden counter is set under its counter's name, where the drawer looks for it
+				if ( span[i].Kind == ShaderResourceKind.Counter ) name = ShaderResource.CounterName( name );
+				resources.Add( (i, Token( name ), AttributeIds.Of( name )) );
 			}
 
 			return new DispatchPlan { Constants = [.. constants], Resources = [.. resources] };
@@ -141,7 +149,7 @@ internal sealed partial class BackendContext
 	}
 
 	static readonly ConditionalWeakTable<ShaderVariant, DispatchPlan> dispatchPlans = new();
-	static readonly ConditionalWeakTable<ShaderFile, (string Name, StringToken Token)[]> dispatchCombos = new();
+	static readonly ConditionalWeakTable<ShaderFile, (int Id, StringToken Token)[]> dispatchCombos = new();
 
 	// Arrays for constants of more than four floats (matrices), one an attribute id, refilled each dispatch
 	readonly Dictionary<int, float[]> dispatchFloats = new();
@@ -150,17 +158,16 @@ internal sealed partial class BackendContext
 	/// A parameter's value as floats under an attribute id: one to four in the arrays the attributes own, more in an array this
 	/// context keeps for the id, so a dispatch allocates nothing in steady state.
 	/// </summary>
-	void SetDispatchFloats( ShaderAttributes into, int id, object value )
+	void SetDispatchFloats( ShaderAttributes into, int id, ReadOnlySpan<float> values )
 	{
-		if ( ScratchFloats( value ) is not { } f ) return;
-		if ( f.Length is >= 1 and <= 4 )
+		if ( values.Length <= 4 )
 		{
-			into.SetFloatsById( id, f.AsSpan() );
+			into.SetFloatsById( id, values );
 			return;
 		}
 
-		if ( !dispatchFloats.TryGetValue( id, out var kept ) || kept.Length != f.Length ) dispatchFloats[id] = kept = new float[f.Length];
-		f.CopyTo( kept, 0 );
+		if ( !dispatchFloats.TryGetValue( id, out var kept ) || kept.Length != values.Length ) dispatchFloats[id] = kept = new float[values.Length];
+		values.CopyTo( kept );
 		into.SetById( id, (object)kept );
 	}
 
@@ -209,10 +216,11 @@ internal sealed partial class BackendContext
 		{
 			var (x0, y0, x1, y1) = ReadRegion( Math.Min( copy.Width, (int)viewport.Width ), Math.Min( copy.Height, (int)viewport.Height ) );
 			parameters.Set( MaskRegion, new Vector4( x0, y0, x1, y1 ) );
-			parameters.SetCombo( MaskCopies, source.Samples > 1 ? 2 : 1 );
-			if ( source.Samples > 1 ) parameters.Set( MaskSource, source );
+			var samples = source.Samples;
+			parameters.SetCombo( MaskCopies, samples switch { 1 => 1, 4 => 3, _ => 2 } );
+			if ( samples > 1 ) parameters.Set( MaskSource, source );
 			else parameters.Set( MaskSource, source, 0 );
-			parameters.Set( MaskSamples, (float)source.Samples );
+			if ( samples > 1 && samples != 4 ) parameters.Set( MaskSamples, (float)samples );
 			Dispatch( mask, parameters, x1 - x0, y1 - y0, 1 );
 		}
 

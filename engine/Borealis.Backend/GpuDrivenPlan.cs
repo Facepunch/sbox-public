@@ -12,16 +12,17 @@ internal sealed class GpuDrivenPlans
 	readonly List<GpuDrivenPlan> plans = new();
 
 	/// <summary>
-	/// The plan for this kind of call made at <paramref name="version"/> of the list, or null; one whose records name
-	/// visibility runs only while <see cref="GpuDrivenTables.VisibilityEpoch"/> is the one it was made in.
+	/// The plan for this kind of call made at <paramref name="version"/> of the list, or null. Plans cannot outlive a
+	/// change in the draw and fragment records, or in the visibility runs for a call that names them.
 	/// </summary>
-	public GpuDrivenPlan Find( in GpuDrivenPlan.CallKey key, int version, int batches, int visibilityEpoch )
+	public GpuDrivenPlan Find( in GpuDrivenPlan.CallKey key, int version, int batches, GpuDrivenTables tables )
 	{
 		lock ( plans )
 		{
 			foreach ( var plan in plans )
 			{
-				if ( plan.Key == key ) return plan.Version == version && plan.Batches == batches && (plan.VisibilityEpoch == visibilityEpoch || !(key.Ids || key.Lists || key.Visibility)) ? plan : null;
+				if ( plan.Key == key ) return plan.Version == version && plan.Batches == batches && plan.RecordEpoch == tables.RecordEpoch
+					&& (plan.VisibilityEpoch == tables.VisibilityEpoch || !(key.Ids || key.Lists || key.Visibility)) ? plan : null;
 			}
 
 			return null;
@@ -69,12 +70,13 @@ internal sealed class GpuDrivenPlans
 /// What a GPU-culled call of a resident list made, kept for the next call of the same kind while the list's version is
 /// the same: its buckets, each batch's 32-byte record, its multi-draws, and which batches it drew. Before it's used, each
 /// bucket's variant and attribute hashes are worked out again from its first batch (what the pass's attributes decide), and
-/// each material's version is compared; any difference makes the plan again. Read by every worker; never changed once made.
+/// each material's version is compared; any difference makes the plan again. Read by every worker; never changed once made
+/// but for what a check notes of it (<see cref="Reads"/>).
 /// </summary>
 internal sealed class GpuDrivenPlan
 {
 	/// <summary>What a call's kind is: the same key, the same buckets and records for the same list.</summary>
-	public readonly record struct CallKey( uint Mode, Format Color, Format Depth, int Samples, bool NoColor, bool Ids, bool Lists, bool Visibility, bool Positions, bool KeepsOrder, bool Meshlets = false, bool MeshTasks = false );
+	public readonly record struct CallKey( uint Mode, Format Color, Format Depth, int Samples, bool NoColor, bool Ids, bool Lists, bool Visibility, bool Positions, bool KeepsOrder, GpuContext.ResidentFilter Filter, bool Meshlets = false, bool MeshTasks = false, OverlayStencil Stencil = OverlayStencil.None );
 
 	public CallKey Key;
 	public int Version;
@@ -82,6 +84,9 @@ internal sealed class GpuDrivenPlan
 
 	/// <summary>The visibility epoch its records' runs were named in (<see cref="GpuDrivenTables.VisibilityEpoch"/>).</summary>
 	public int VisibilityEpoch;
+
+	/// <summary>The draw and fragment record epoch the plan was made in (<see cref="GpuDrivenTables.RecordEpoch"/>).</summary>
+	public int RecordEpoch;
 
 	/// <summary>Its buckets' commands and fragments, its multi-draws' slots, and the compacted slots it uses.</summary>
 	public int Commands, Fragments, Written, CompactUsed;
@@ -96,13 +101,19 @@ internal sealed class GpuDrivenPlan
 	public (GpuMaterial Material, ShaderParameters Attributes, ShaderVariant Variant, int VertexAttributes, int PixelAttributes)[] Checks;
 
 	/// <summary>Every material the batches draw with, and its version then.</summary>
-	public (GpuMaterial Material, int Version)[] Materials;
+	public (BackendMaterial Material, int Version)[] Materials;
+	public (SurfaceMaterial Material, int Version)[] SurfaceMaterials;
+	public GpuMaterial[] OtherMaterials;
 
 	/// <summary>Every set of object attributes the batches draw with (their lighting records come from them), and its version then.</summary>
 	public (BackendParameters Attributes, int Version)[] Attributes;
 
-	/// <summary>Every geometry the batches draw: the plan is made again once one of them is freed (<see cref="IBackendGeometry.Use"/>).</summary>
+	/// <summary>Geometry with a lifetime check or a frame-use side effect; kept plans must still call Use.</summary>
+	public BackendModel[] Models;
 	public IBackendGeometry[] Geometries;
+
+	/// <summary>What its bucket checks read of the pass's attributes, made once a check has passed (<see cref="GpuDrivenPlanReads"/>); null until then.</summary>
+	public GpuDrivenPlanReads Reads;
 
 	public uint[] BatchRecords;
 
@@ -147,4 +158,49 @@ internal sealed class GpuDrivenPlan
 	/// were last found as it was made at and its <see cref="Geometries"/> in use; 0 for never.
 	/// </summary>
 	public uint CheckedFrame;
+}
+
+/// <summary>
+/// What a plan's bucket checks (<see cref="BackendContext"/>'s PlanCurrent) read that its versions don't tell: the pass's
+/// combos its variants' keys and surfaces' passes take, the integers their specialization takes, and the attributes its
+/// stages' records read (their hashes, as the records' keys take them), as they were before the last check that passed
+/// in full; and each surface bucket's material and program. A pass's attributes are made again each frame, so their
+/// version moves on every frame, but the few values the checks read mostly don't: with those the same and the plan's
+/// materials and object attributes at their versions, every bucket checks as it did, and isn't worked out again.
+/// The first successful fingerprint stays immutable so the usual hit does not take a lock.
+/// </summary>
+internal sealed class GpuDrivenPlanReads
+{
+	public StringToken[] Combos, Integers, Hashed;
+	public (SurfaceMaterial Material, SurfaceProgram Program)[] Surfaces;
+
+	public int ValueCount => Combos.Length + Integers.Length + Hashed.Length;
+
+	long[] first, recent;
+
+	internal bool Matches( ReadOnlySpan<long> values )
+	{
+		var baseline = System.Threading.Volatile.Read( ref first );
+		if ( baseline is null ) return false;
+		if ( values.SequenceEqual( baseline ) ) return true;
+		if ( System.Threading.Volatile.Read( ref recent ) is null ) return false;
+		lock ( this ) return values.SequenceEqual( recent );
+	}
+
+	internal void Keep( ReadOnlySpan<long> values )
+	{
+		lock ( this )
+		{
+			if ( first is null )
+			{
+				System.Threading.Volatile.Write( ref first, values.ToArray() );
+			}
+			else if ( !values.SequenceEqual( first ) )
+			{
+				// A different pass can pass the full check too. Reuse this storage if the fingerprint changes again.
+				if ( recent is null ) System.Threading.Volatile.Write( ref recent, values.ToArray() );
+				else values.CopyTo( recent );
+			}
+		}
+	}
 }

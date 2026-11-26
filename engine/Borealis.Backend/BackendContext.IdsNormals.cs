@@ -67,7 +67,7 @@ internal sealed partial class BackendContext
 		var slots = tables.Slots;
 		var corners = device.MeshletStore?.CornerSlotCovering( tables.DrawRecords ) ?? -1;
 		var timer = device.PassTimer;
-		var scope = timer?.Begin( r.List, "Ids normals", PassTimer.ScopeKind.Own ) ?? -1;
+		var scope = timer?.Begin( r.List, "Ids normals", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 		r.List.Marker( "Ids normals" );
 
 		// The depth and the output in their layouts, then the ids (left readable by the last call's mark) and the calls' table

@@ -137,7 +137,9 @@ internal sealed class LodStore : IDisposable
 	/// and its slot may name another page later), with their levels; false while one is being built or waits to be placed,
 	/// to be asked again next frame. Their draws' LOD records are cleared at the next frame's start, before any record made
 	/// over one of their slots (<see cref="GpuDrivenTables"/> reuses them) is written: it reads no levels until its own
-	/// range's are published, rather than the freed range's levels' draw records.
+	/// range's are published, rather than the freed range's levels' draw records. A range built but asked for only by depth
+	/// passes is never placed (no colour pass draws it: <see cref="Request"/>), so it's dropped with its staging rather than
+	/// waited for.
 	/// </summary>
 	public bool TryForgetPage( int slot )
 	{
@@ -145,7 +147,16 @@ internal sealed class LodStore : IDisposable
 		{
 			foreach ( var (range, entry) in entries )
 			{
-				if ( range.PageSlot == slot && entry.State is Phase.Building or Phase.Built ) return false;
+				if ( range.PageSlot == slot && (entry.State is Phase.Building || entry.State is Phase.Built && entry.Color) ) return false;
+			}
+
+			for ( int i = ready.Count - 1; i >= 0; i-- )
+			{
+				var entry = ready[i];
+				if ( entry.Range.PageSlot != slot ) continue;
+				if ( entry.Staging.IsValid ) gpu.Destroy( entry.Staging );
+				entry.Staging = default;
+				ready.RemoveAt( i );
 			}
 
 			foreach ( var range in entries.Keys.Where( r => r.PageSlot == slot ).ToList() )
@@ -173,6 +184,9 @@ internal sealed class LodStore : IDisposable
 	// thread while it waits (a map's thousands of ranges starved the pool, so the load's own work on it waited seconds)
 	readonly TaskScheduler workers;
 	readonly Action<object> build;
+
+	// Draw records whose slots go back for reuse (ClearDraws): their LOD records are cleared in the next upload
+	readonly List<List<uint>> drawClears = new();
 
 	BufferHandle table;
 	int tableSlot = -1;
@@ -587,6 +601,20 @@ internal sealed class LodStore : IDisposable
 		records.Enqueue( (draw, MakeRecord( draw, entry )) );
 	}
 
+	/// <summary>Stop generating LOD records for retired draws, without changing records for in-flight frames.</summary>
+	internal void ForgetDraws( HashSet<uint> draws )
+	{
+		lock ( gate )
+		{
+			Predicate<uint> retired = draws.Contains;
+			foreach ( var entry in entries.Values ) entry.Draws.RemoveAll( retired );
+			foreach ( var waiting in waitingDraws.Values ) waiting.RemoveAll( retired );
+		}
+	}
+
+	/// <summary>Clear retired draw slots in this frame's upload, before recording can read them under their new draw.</summary>
+	internal void ClearDraws( List<uint> draws ) => drawClears.Add( draws );
+
 	/// <summary>A draw record's LOD record: a draw record per level, with the base's geometry, materials and flags.</summary>
 	uint[] MakeRecord( uint draw, Entry entry )
 	{
@@ -660,7 +688,7 @@ internal sealed class LodStore : IDisposable
 		}
 
 		var shrinkTo = ShrinkTo();
-		if ( publish is null && records.IsEmpty && cleared && !CountChanges && clears.Length == 0 && shrinkTo == 0 ) return;
+		if ( publish is null && records.IsEmpty && cleared && !CountChanges && clears.Length == 0 && shrinkTo == 0 && drawClears.Count == 0 ) return;
 
 		using var zone = Zones.LodUpload.Start();
 		var list = gpu.BeginCommandList( QueueType.Graphics, "LOD uploads" );
@@ -746,6 +774,9 @@ internal sealed class LodStore : IDisposable
 			foreach ( var draw in draws ) records.Enqueue( (draw, MakeRecord( draw, entry )) );
 		}
 
+		// Slots going back for reuse first: a record this upload writes may be for one's new draw record
+		if ( drawClears.Count > 0 ) ClearRetiredDraws( list );
+
 		// The LOD records, in a table grown to the highest draw record they're for
 		if ( !records.IsEmpty )
 		{
@@ -820,6 +851,33 @@ internal sealed class LodStore : IDisposable
 
 	/// <summary>Times the LOD table shrank (<see cref="ShrinkTo"/>), for tests and reports.</summary>
 	public int TableShrinks { get; private set; }
+
+	void ClearRetiredDraws( CommandList list )
+	{
+		// After this upload's earlier writes to the table (its ranges' cleared records)
+		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+		foreach ( var draws in drawClears )
+		{
+			draws.Sort();
+			for ( int i = 0; i < draws.Count && draws[i] < tableRecords; )
+			{
+				var first = draws[i++];
+				var end = first + 1;
+				while ( i < draws.Count && draws[i] == end && end < tableRecords )
+				{
+					i++;
+					end++;
+				}
+
+				list.FillBuffer( table, 0, first * (long)RecordBytes, (end - first) * (long)RecordBytes );
+			}
+		}
+
+		drawClears.Clear();
+
+		// Before the table grows (a copy of it) or this upload's records are written over the slots
+		list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite | MemoryAccess.TransferRead );
+	}
 
 	/// <summary>A table covering at least <paramref name="needed"/> draw records: the old one copied in, the rest zero.</summary>
 	void GrowTable( CommandList list, long needed )

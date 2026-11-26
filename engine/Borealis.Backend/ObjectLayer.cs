@@ -17,7 +17,8 @@ internal sealed class ObjectLayer
 	/// <summary>The combos it sets, as a key: interned, so equal keys are the same string; empty for none.</summary>
 	public string Combos = "";
 
-	readonly Dictionary<(uint Name, int Size, bool Dynamic), (ulong Frame, int Version, long Offset)> constants = new();
+	object cacheIdentity;
+	readonly Dictionary<(uint Name, int Size, bool Dynamic), (long Frame, int Version, long Offset, MaterialObjectCache.Kept Kept)> constants = new();
 
 	/// <summary>
 	/// Where constant buffer <paramref name="name"/> is this frame, copied at <paramref name="size"/>: in this frame's
@@ -26,26 +27,36 @@ internal sealed class ObjectLayer
 	/// </summary>
 	public long Constants( MaterialObjectCache cache, uint name, int size, byte[] data, bool dynamic, int version )
 	{
-		var frame = cache.Gpu.FrameNumber;
+		var frame = cache.Frame;
 		lock ( constants )
 		{
-			if ( constants.TryGetValue( (name, size, dynamic), out var found ) && found.Frame == frame && found.Version == version ) return found.Offset;
+			if ( !ReferenceEquals( cacheIdentity, cache.Identity ) )
+			{
+				constants.Clear();
+				cacheIdentity = cache.Identity;
+			}
+
+			if ( constants.TryGetValue( (name, size, dynamic), out var found ) && found.Version == version
+				&& (dynamic ? found.Frame == frame : found.Kept.TryTouch( frame )) )
+				return found.Offset;
+
+			var bytes = data.AsSpan( 0, Math.Min( data.Length, size ) );
+			MaterialObjectCache.Kept kept = null;
 
 			long offset;
 			if ( dynamic )
 			{
 				offset = cache.AllocatePassConstants( size, out var target );
-				target.Clear();
-				data.AsSpan( 0, Math.Min( data.Length, size ) ).CopyTo( target );
+				bytes.CopyTo( target );
+				target[bytes.Length..].Clear();
 			}
 			else
 			{
-				var padded = new byte[size];
-				data.AsSpan( 0, Math.Min( data.Length, size ) ).CopyTo( padded );
-				offset = cache.KeepPassConstants( padded, size );
+				kept = cache.KeepPassConstantsEntry( bytes, size );
+				offset = kept.Offset;
 			}
 
-			constants[(name, size, dynamic)] = (frame, version, offset);
+			constants[(name, size, dynamic)] = (frame, version, offset, kept);
 			return offset;
 		}
 	}

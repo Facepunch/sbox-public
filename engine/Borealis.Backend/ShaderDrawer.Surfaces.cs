@@ -25,14 +25,14 @@ public sealed partial class ShaderDrawer
 		if ( SurfacePass( program, state, color, mode, attributes.GetCombo( LightmapId ) is > 0 ) is not { } pass ) return false;
 
 		var ids = InstanceIds.Buffer.IsValid;
-		var vertexConstants = SurfaceStageConstants( pass.Pass.Vertex, attributes, out var vertexKey );
-		ulong pixelKey = 0;
-		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceStageConstants( pixel, attributes, out pixelKey ) : null;
+		var vertexConstants = SurfaceStageConstants( pass.Pass.Vertex, attributes );
+		var pixelConstants = pass.Pass.Pixel is { } pixel ? SurfaceStageConstants( pixel, attributes ) : null;
 		var fade = attributes.GetCombo( OpaqueFadeId ) is > 0;
-		var pipeline = program.ImmediatePipeline( pass, SurfaceLayoutOf( draw.Layout ), color, depth, samples, vertexConstants, pixelConstants, vertexKey * 31 + pixelKey, state, draw.Topology, ids, fade, ToolsPass );
+		var pipeline = program.ImmediatePipeline( pass, SurfaceLayoutOf( draw.Layout ), color, depth, samples, vertexConstants, pixelConstants, state, draw.Topology, ids, fade, ToolsPass, OverlayStencil );
 
 		if ( BackendDevice.DrawMarkers ) list.Marker( $"{material.Name} {pass.Pass.Name} (engine draw)" );
 		list.SetPipeline( pipeline );
+		BackendDevice.SetStencilReference( list, depth, OverlayStencil );
 		SetViewport( list, viewport );
 
 		var record = device.Surfaces.Records.Offset( material, out var records );
@@ -41,7 +41,7 @@ public sealed partial class ShaderDrawer
 		if ( pass.Pass.Pixel is not null ) BindSurfaceStage( list, pass, pass.Pass.Pixel, ShaderAbi.FragmentSet, attributes, records, tangent );
 		list.PushConstants( record );
 
-		// Into depth alone, the depth bias is dynamic, as for classic draws (DepthBias)
+		// Into depth alone, the depth bias is dynamic, as for classic draws (DepthBias); with colour, the material's own
 		if ( color == Format.Unknown && depth != Format.Unknown ) list.SetDepthBias( DepthBias.Constant, DepthBias.Slope );
 		else if ( color != Format.Unknown ) SurfaceProgram.ColorDepthBias( list, state );
 
@@ -50,8 +50,7 @@ public sealed partial class ShaderDrawer
 		else
 		{
 			// Instance id 0 for every instance: the transform the draw binds first, as a classic draw reads it from the default stream
-			var zero = list.AllocateUpload( 16, 16 );
-			zero.Data[..16].Clear();
+			var zero = SurfaceUniform( list, zeroInstanceId );
 			list.SetVertexBuffer( 1, zero.Buffer, zero.Offset );
 		}
 
@@ -114,7 +113,6 @@ public sealed partial class ShaderDrawer
 		public int Version;
 		public bool PerPixel;
 		public SpecializationConstant[] Constants;
-		public ulong Key;
 	}
 
 	readonly StageConstants[] stageConstants = new StageConstants[4];
@@ -124,7 +122,7 @@ public sealed partial class ShaderDrawer
 	static readonly int OpaqueFadeId = Borealis.Source2.Shaders.AttributeIds.Of( "D_OPAQUE_FADE" );
 	static readonly int SkyboxComboId = Borealis.Source2.Shaders.AttributeIds.Of( "D_SKYBOX" );
 
-	SpecializationConstant[] SurfaceStageConstants( CompiledStage stage, ShaderAttributes attributes, out ulong key )
+	SpecializationConstant[] SurfaceStageConstants( CompiledStage stage, ShaderAttributes attributes )
 	{
 		var perPixel = device.Surfaces.MaterialOffsetPerPixel;
 		if ( attributes.Stable )
@@ -132,33 +130,29 @@ public sealed partial class ShaderDrawer
 			foreach ( ref var kept in stageConstants.AsSpan() )
 			{
 				if ( ReferenceEquals( kept.Stage, stage ) && ReferenceEquals( kept.Attributes, attributes ) && kept.Version == attributes.Version && kept.PerPixel == perPixel )
-				{
-					key = kept.Key;
 					return kept.Constants;
-				}
 			}
 		}
 
-		var made = MakeSurfaceStageConstants( stage, attributes, perPixel, out key );
+		var made = MakeSurfaceStageConstants( stage, attributes, perPixel );
 		if ( attributes.Stable )
 		{
-			stageConstants[stageConstantsNext] = new StageConstants { Stage = stage, Attributes = attributes, Version = attributes.Version, PerPixel = perPixel, Constants = made, Key = key };
+			stageConstants[stageConstantsNext] = new StageConstants { Stage = stage, Attributes = attributes, Version = attributes.Version, PerPixel = perPixel, Constants = made };
 			stageConstantsNext = (stageConstantsNext + 1) & 3;
 		}
 
 		return made;
 	}
 
-	// Constant sets already made per stage, reused instead of allocated per draw
-	readonly ConditionalWeakTable<CompiledStage, List<SpecializationConstant[]>> internedConstants = new();
+	// Interned per stage so all drawers use the same identity for equal values in a program's pipeline cache
+	static readonly ConditionalWeakTable<CompiledStage, List<SpecializationConstant[]>> internedConstants = new();
 
 	[ThreadStatic] static SpecializationConstant[] constantsScratch;
 
-	SpecializationConstant[] MakeSurfaceStageConstants( CompiledStage stage, ShaderAttributes attributes, bool perPixel, out ulong key )
+	SpecializationConstant[] MakeSurfaceStageConstants( CompiledStage stage, ShaderAttributes attributes, bool perPixel )
 	{
 		var fade = attributes.GetCombo( OpaqueFadeId ) is > 0;
 		var skybox = attributes.GetCombo( SkyboxComboId ) is > 0;
-		key = (perPixel ? 1u : 2u) + (fade ? 4u : 0u) + (skybox ? 8u : 0u);
 
 		var length = stage.Specializations.Count + 3;
 		if ( constantsScratch is null || constantsScratch.Length < length ) constantsScratch = new SpecializationConstant[Math.Max( length, 16 )];
@@ -169,7 +163,6 @@ public sealed partial class ShaderDrawer
 			var value = attributes.Get( slot.Attribute ) is float[] { Length: > 0 } given ? (int)given[0]
 				: attributes.GetCombo( slot.Attribute ) ?? (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);
 			constants[i] = new SpecializationConstant( (uint)slot.Id, (uint)value );
-			key = key * 1000003 + (uint)value + 1;
 		}
 
 		constants[^3] = new SpecializationConstant( BackendContext.SkyboxId, skybox ? 1u : 0u );
@@ -246,39 +239,100 @@ public sealed partial class ShaderDrawer
 	{
 		var size = (Math.Max( data?.Length ?? 0, b.Size ) + 15) & ~15;
 		if ( size == 0 ) return Binding.Uniform( b.Binding, defaults.Uniform, 0, Borealis.Source2.Shaders.ShaderDefaults.UniformSize );
-		var allocation = list.AllocateUpload( size, gpu.Capabilities.UniformAlignment );
-		allocation.Data[..size].Clear();
-		data?.CopyTo( allocation.Data );
-		return Binding.Uniform( b.Binding, allocation.Buffer, allocation.Offset, size );
+		var bytes = Scratch( size );
+		bytes.Clear();
+		data?.CopyTo( bytes );
+		var (buffer, offset) = SurfaceUniform( list, bytes );
+		return Binding.Uniform( b.Binding, buffer, offset, size );
 	}
 
 	/// <summary>A stage's <c>$Globals</c> for a draw: the attribute-bound members from the draw's attributes, the rest their defaults.</summary>
 	Binding SurfaceGlobals( CommandList list, GlobalConstants globals, int binding, ShaderAttributes attributes, bool tangent )
 	{
 		var size = Math.Max( globals?.Size ?? 16, 16 );
-		var allocation = list.AllocateUpload( size, gpu.Capabilities.UniformAlignment );
-		var data = allocation.Data[..size];
+		var data = Scratch( size );
 		data.Clear();
-		if ( globals is null ) return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
-
-		var layout = BackendContext.GlobalLayouts.GetValue( globals, static g => new BackendContext.SurfaceGlobalsLayout( g ) );
-		layout.Defaults.AsSpan( 0, Math.Min( layout.Defaults.Length, size ) ).CopyTo( data );
-		Span<float> one = stackalloc float[1];
-		for ( int a = 0; a < layout.Bound.Length; a++ )
+		if ( globals is not null )
 		{
-			var member = globals.Members[layout.Bound[a]];
-			if ( layout.Ids[a] == TangentFrameId )
+			var layout = BackendContext.GlobalLayouts.GetValue( globals, static g => new BackendContext.SurfaceGlobalsLayout( g ) );
+			layout.Defaults.AsSpan( 0, Math.Min( layout.Defaults.Length, size ) ).CopyTo( data );
+			Span<float> one = stackalloc float[1];
+			for ( int a = 0; a < layout.Bound.Length; a++ )
 			{
-				one[0] = tangent ? 1 : 0;
-				BackendContext.SurfaceGlobalsLayout.Write( data, member, one );
-			}
-			else if ( attributes.Get( layout.Ids[a] ) is float[] value )
-			{
-				BackendContext.SurfaceGlobalsLayout.Write( data, member, value );
+				var member = globals.Members[layout.Bound[a]];
+				if ( layout.Ids[a] == TangentFrameId )
+				{
+					one[0] = tangent ? 1 : 0;
+					BackendContext.SurfaceGlobalsLayout.Write( data, member, one );
+				}
+				else if ( attributes.Get( layout.Ids[a] ) is float[] value )
+				{
+					BackendContext.SurfaceGlobalsLayout.Write( data, member, value );
+				}
 			}
 		}
 
-		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+		var (buffer, offset) = SurfaceUniform( list, data );
+		return Binding.Uniform( binding, buffer, offset, size );
+	}
+
+	// A draw's uniform bytes are made here and only then copied out: upload memory is write-combined and very slow to read back
+	byte[] uniformScratch = new byte[256];
+	static readonly byte[] zeroInstanceId = new byte[16];
+
+	Span<byte> Scratch( int size )
+	{
+		if ( uniformScratch.Length < size ) uniformScratch = new byte[Math.Max( size, uniformScratch.Length * 2 )];
+		return uniformScratch.AsSpan( 0, size );
+	}
+
+	// Uniforms surface draws wrote into the list being recorded, by content. Consecutive draws with the same attributes write
+	// the same $Globals and constant buffers: binding the copy already written keeps the stage's bindings as they were, so
+	// the list keeps the descriptor set it wrote and bound for them instead of allocating, writing and binding another.
+	sealed class SurfaceUpload
+	{
+		public byte[] Bytes = [];
+		public int Size = -1;
+		public BufferHandle Buffer;
+		public long Offset;
+	}
+
+	const int SurfaceUploadsKept = 8;
+	readonly SurfaceUpload[] surfaceUploads = new SurfaceUpload[SurfaceUploadsKept];
+	int surfaceUploadNext;
+
+	// The recording the kept uploads are in: a list recycled within a frame (Device.TryRecycle) was submitted in between
+	CommandList uploadList;
+	ulong uploadFrame;
+	long uploadSubmit;
+
+	/// <summary>Where <paramref name="data"/> is in the list's upload memory: a copy written earlier in this recording with the same bytes, else a new one.</summary>
+	(BufferHandle Buffer, long Offset) SurfaceUniform( CommandList list, ReadOnlySpan<byte> data )
+	{
+		var frame = gpu.FrameNumber;
+		if ( !ReferenceEquals( list, uploadList ) || frame != uploadFrame || list.SubmitOrder != uploadSubmit )
+		{
+			(uploadList, uploadFrame, uploadSubmit) = (list, frame, list.SubmitOrder);
+			foreach ( var kept in surfaceUploads )
+			{
+				if ( kept is not null ) kept.Size = -1;
+			}
+		}
+
+		foreach ( var kept in surfaceUploads )
+		{
+			if ( kept is not null && kept.Size == data.Length && data.SequenceEqual( kept.Bytes.AsSpan( 0, kept.Size ) ) ) return (kept.Buffer, kept.Offset);
+		}
+
+		var allocation = list.AllocateUpload( data.Length, gpu.Capabilities.UniformAlignment );
+		data.CopyTo( allocation.Data );
+
+		var made = surfaceUploads[surfaceUploadNext] ??= new SurfaceUpload();
+		surfaceUploadNext = (surfaceUploadNext + 1) % SurfaceUploadsKept;
+		if ( made.Bytes.Length < data.Length ) made.Bytes = new byte[data.Length];
+		data.CopyTo( made.Bytes );
+		(made.Size, made.Buffer, made.Offset) = (data.Length, allocation.Buffer, allocation.Offset);
+		return (allocation.Buffer, allocation.Offset);
 	}
 
 	readonly ConditionalWeakTable<VertexStreamLayout, VertexLayout> surfaceLayouts = new();

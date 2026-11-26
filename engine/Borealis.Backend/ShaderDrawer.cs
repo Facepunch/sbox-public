@@ -119,11 +119,13 @@ public sealed class ShaderAttributes
 	public void Set( string name, TextureViewHandle view ) => Put( AttributeIds.Of( name ), Box( viewBoxes, view ) );
 
 	/// <summary>A constant buffer's bytes.</summary>
-	public void SetData( string name, byte[] data )
+	public void SetData( string name, byte[] data ) => SetDataById( AttributeIds.Of( name ), data );
+
+	internal void SetDataById( int id, byte[] data )
 	{
 		external = true;
 		version++;
-		Put( AttributeIds.Of( name ), data );
+		Put( id, data );
 	}
 
 	/// <summary>A dynamic combo (<c>D_*</c>).</summary>
@@ -305,6 +307,13 @@ public sealed class ShaderAttributes
 
 	/// <summary>Moves on when a handle is added, replaced or cleared; numbers in owned arrays and combos don't move it.</summary>
 	internal int Revision => under is null ? revision : HashCode.Combine( revision, under.revision, RuntimeHelpers.GetHashCode( under ) );
+
+	// A single layer's structure revision is exact; the composite revision above is a hash.
+	internal bool TryGetStructureRevision( out int value )
+	{
+		value = revision;
+		return under is null && !external;
+	}
 
 	/// <summary>Moves on any set, replace or clear; equal versions mean equal values only while <see cref="Stable"/>.</summary>
 	internal int Version => under is null ? version : HashCode.Combine( version, under.version, RuntimeHelpers.GetHashCode( under ) );
@@ -685,24 +694,27 @@ public sealed partial class ShaderDrawer : IDisposable
 	readonly BackendDevice device;
 	readonly ShaderLibrary shaders;
 	readonly ShaderDefaults defaults;
-	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos, ulong Specialization), ShaderVariant> variants = new();
+	// Lookup accelerators only: ShaderLibrary owns the variants. Bound these so old shaders and combinations fall out.
+	const int MaxCachedVariants = 4096;
+	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos, FeatureKey Features, ulong Specialization), ShaderVariant> variants = new();
 
-	// Variants by their combos' values packed (ShaderAttributes.ComboBits) and the material's features array, built with no
+	// Variants by their combos' values packed (ShaderAttributes.ComboBits) and the material's feature values, built with no
 	// strings: what most draws find theirs by
-	readonly Dictionary<(ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More, ulong Specialization), ShaderVariant> packedVariants = new( new PackedKeyComparer() );
+	readonly Dictionary<(ShaderFile Shader, string Mode, FeatureKey Features, ulong Combos, ulong More, ulong Specialization), ShaderVariant> packedVariants = new( new PackedKeyComparer() );
 
 	// Compared without hashing the mode name: a variant is looked up every draw
-	sealed class PackedKeyComparer : IEqualityComparer<(ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More, ulong Specialization)>
+	sealed class PackedKeyComparer : IEqualityComparer<(ShaderFile Shader, string Mode, FeatureKey Features, ulong Combos, ulong More, ulong Specialization)>
 	{
-		public bool Equals( (ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More, ulong Specialization) a, (ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More, ulong Specialization) b )
-			=> ReferenceEquals( a.Shader, b.Shader ) && ReferenceEquals( a.Features, b.Features ) && a.Combos == b.Combos && a.More == b.More && a.Specialization == b.Specialization && string.Equals( a.Mode, b.Mode );
+		public bool Equals( (ShaderFile Shader, string Mode, FeatureKey Features, ulong Combos, ulong More, ulong Specialization) a, (ShaderFile Shader, string Mode, FeatureKey Features, ulong Combos, ulong More, ulong Specialization) b )
+			=> ReferenceEquals( a.Shader, b.Shader ) && a.Combos == b.Combos && a.More == b.More && a.Specialization == b.Specialization
+				&& EqualityComparer<FeatureKey>.Default.Equals( a.Features, b.Features ) && string.Equals( a.Mode, b.Mode );
 
-		public int GetHashCode( (ShaderFile Shader, string Mode, int[] Features, ulong Combos, ulong More, ulong Specialization) key )
-			=> HashCode.Combine( RuntimeHelpers.GetHashCode( key.Shader ), RuntimeHelpers.GetHashCode( key.Features ), key.Combos, key.More, key.Specialization );
+		public int GetHashCode( (ShaderFile Shader, string Mode, FeatureKey Features, ulong Combos, ulong More, ulong Specialization) key )
+			=> HashCode.Combine( RuntimeHelpers.GetHashCode( key.Shader ), key.Features, key.Combos, key.More, key.Specialization );
 	}
 	// A record struct, not a tuple: a tuple of eight or more keeps the rest in a tuple of its own, which its hash and equality
 	// box until the JIT has optimised them
-	readonly record struct PipelineKey( ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids, ToolsPass Tools, bool Redrawn );
+	readonly record struct PipelineKey( ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology, bool Ids, ToolsPass Tools, bool Redrawn, OverlayStencil Stencil );
 	readonly Dictionary<PipelineKey, PipelineHandle> pipelines = new();
 
 	/// <summary>
@@ -710,6 +722,10 @@ public sealed partial class ShaderDrawer : IDisposable
 	/// its own vertex stage and the engine's tools view pixel stage (<see cref="ToolsViewStage"/>).
 	/// </summary>
 	internal ToolsPass ToolsPass { get; set; }
+
+	/// <summary>The depth prepass's overlay stencil override for custom objects.</summary>
+	internal OverlayStencil OverlayStencil { get; set; }
+
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
 	MaterialObjectCache cache;
 	readonly bool ownsCache;
@@ -855,15 +871,14 @@ public sealed partial class ShaderDrawer : IDisposable
 	}
 
 	// Material objects key their pipelines by layout object: a layout with instance ids is another one, so it has a key of its own
-	readonly Dictionary<VertexStreamLayout, object> idsLayouts = new();
+	readonly ConditionalWeakTable<VertexStreamLayout, object> idsLayouts = new();
 	readonly object noLayoutIds = new();
 
 	object LayoutKey( VertexStreamLayout layout, bool ids )
 	{
 		if ( !ids ) return layout;
 		if ( layout is null ) return noLayoutIds;
-		if ( !idsLayouts.TryGetValue( layout, out var key ) ) idsLayouts[layout] = key = new object();
-		return key;
+		return idsLayouts.GetValue( layout, static _ => new() );
 	}
 
 	static bool IsInstanceId( in VertexInput input ) => input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13;
@@ -913,6 +928,11 @@ public sealed partial class ShaderDrawer : IDisposable
 		foreach ( var pipeline in computePipelines.Values ) gpu.Destroy( pipeline );
 		computePipelines.Clear();
 		computeObjects.Clear();
+		variants.Clear();
+		packedVariants.Clear();
+		featureKeys.Clear();
+		idsLayouts.Clear();
+		ReleasePass();
 		if ( ownsCache ) cache?.Dispose();
 		cache = null;
 	}
@@ -937,6 +957,7 @@ public sealed partial class ShaderDrawer : IDisposable
 	/// </summary>
 	public ShaderVariant Variant( ShaderFile shader, ShaderAttributes attributes, string mode = null )
 	{
+		pendingVariant = false;
 		mode ??= shader.Modes[0].Name;
 		var material = MaterialOf( shader );
 		var materialVersion = material?.Version ?? 0;
@@ -952,7 +973,6 @@ public sealed partial class ShaderDrawer : IDisposable
 			if ( ReferenceEquals( memo.Attributes, attributes ) && memo.Version == version && ReferenceEquals( memo.Shader, shader ) && ReferenceEquals( memo.Material, material ) && memo.MaterialVersion == materialVersion && (ReferenceEquals( memo.Mode, mode ) || memo.Mode == mode) ) return memo.Found;
 		}
 
-		pendingVariant = false;
 		var found = FindVariant( shader, attributes, mode, material?.Features ?? [] );
 
 		// Not while its module compiles: it changes when that's done
@@ -967,16 +987,21 @@ public sealed partial class ShaderDrawer : IDisposable
 	ShaderVariant FindVariant( ShaderFile shader, ShaderAttributes attributes, string mode, int[] features )
 	{
 		var specialization = SpecializationKey( shader, attributes );
+		var featureKey = features.Length == 0 ? null : featureKeys.GetValue( features, static f => new FeatureKey( f ) );
 		if ( attributes.ComboBits( shader, out var bits, out var more ) )
 		{
-			var packed = (shader, mode, features, bits, more, specialization);
+			var packed = (shader, mode, featureKey, bits, more, specialization);
 			if ( packedVariants.TryGetValue( packed, out var found ) ) return found;
-			found = VariantByName( shader, attributes, mode, features, specialization );
-			if ( found is not null && !pendingVariant ) packedVariants[packed] = found;
+			found = VariantByName( shader, attributes, mode, featureKey, specialization );
+			if ( found is not null && !pendingVariant )
+			{
+				if ( packedVariants.Count >= MaxCachedVariants ) packedVariants.Clear();
+				packedVariants[packed] = found;
+			}
 			return found;
 		}
 
-		return VariantByName( shader, attributes, mode, features, specialization );
+		return VariantByName( shader, attributes, mode, featureKey, specialization );
 	}
 
 	/// <summary>The values of the shader's specialization attributes in <paramref name="attributes"/>, as one key.</summary>
@@ -989,10 +1014,28 @@ public sealed partial class ShaderDrawer : IDisposable
 		return key;
 	}
 
-	// A material's feature values as a variant key's part, made once per array (materials keep theirs)
-	readonly ConditionalWeakTable<int[], string> featureKeys = new();
+	// Feature arrays are immutable once published: cache their hash, but compare values across materials and reloads.
+	readonly ConditionalWeakTable<int[], FeatureKey> featureKeys = new();
 
-	string FeaturesKey( int[] features ) => featureKeys.GetValue( features, static f => string.Join( ',', f ) );
+	sealed class FeatureKey : IEquatable<FeatureKey>
+	{
+		public readonly int[] Values;
+		readonly int hash;
+
+		public FeatureKey( int[] values )
+		{
+			Values = values;
+			var code = new HashCode();
+			foreach ( var value in values ) code.Add( value );
+			hash = code.ToHashCode();
+		}
+
+		public bool Equals( FeatureKey other ) => ReferenceEquals( this, other )
+			|| (other is not null && hash == other.hash && Values.AsSpan().SequenceEqual( other.Values ));
+
+		public override bool Equals( object obj ) => Equals( obj as FeatureKey );
+		public override int GetHashCode() => hash;
+	}
 
 	// Whether the last VariantByName's variant was one whose module is still compiling
 	bool pendingVariant;
@@ -1003,19 +1046,22 @@ public sealed partial class ShaderDrawer : IDisposable
 	/// </summary>
 	public bool VariantPending => pendingVariant;
 
-	ShaderVariant VariantByName( ShaderFile shader, ShaderAttributes attributes, string mode, int[] features, ulong specialization )
+	ShaderVariant VariantByName( ShaderFile shader, ShaderAttributes attributes, string mode, FeatureKey features, ulong specialization )
 	{
 		pendingVariant = false;
 		var combos = attributes.ComboKey( shader );
-		if ( features.Length > 0 ) combos = string.Concat( combos, "|", FeaturesKey( features ) );
-		var key = (shader, mode, combos, specialization);
+		var key = (shader, mode, combos, features, specialization);
 		if ( variants.TryGetValue( key, out var variant ) ) return variant;
 		if ( MakeVariantsAside && RedrawnEveryFrame.Active && !waitedVariants.Contains( key ) && MadeAside( key, shader, attributes, mode, features, out variant ) ) return variant;
 
 		// Not kept while its module compiles: its programs draw until then
-		variant = shaders.Variant( shader, mode, features, attributes.GetCombo, name => attributes.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null, false, out var pending );
+		variant = shaders.Variant( shader, mode, features?.Values ?? [], attributes.GetCombo, name => attributes.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null, false, out var pending );
 		pendingVariant = pending;
-		if ( !pending ) variants[key] = variant;
+		if ( !pending )
+		{
+			if ( variants.Count >= MaxCachedVariants ) variants.Clear();
+			variants[key] = variant;
+		}
 		return variant;
 	}
 
@@ -1029,14 +1075,14 @@ public sealed partial class ShaderDrawer : IDisposable
 
 	// Variants being made on a worker for draws redrawn every frame, by key; and those whose made variant still waited for its
 	// module, which are asked for here as before (its programs draw meanwhile, rather than nothing every other frame)
-	readonly Dictionary<(ShaderFile, string, string, ulong), Task<(ShaderVariant Variant, bool Pending)>> makingVariants = new();
-	readonly HashSet<(ShaderFile, string, string, ulong)> waitedVariants = new();
+	readonly Dictionary<(ShaderFile, string, string, FeatureKey, ulong), Task<(ShaderVariant Variant, bool Pending)>> makingVariants = new();
+	readonly HashSet<(ShaderFile, string, string, FeatureKey, ulong)> waitedVariants = new();
 
 	/// <summary>Variants a worker is still making for draws redrawn every frame, for tests.</summary>
 	internal int VariantsBeingMadeAside => makingVariants.Values.Count( t => !t.IsCompleted );
 
 	// True with the variant (null: none, or not made yet; pendingVariant set then) when it's made aside; false to ask here
-	bool MadeAside( (ShaderFile, string, string, ulong) key, ShaderFile shader, ShaderAttributes attributes, string mode, int[] features, out ShaderVariant variant )
+	bool MadeAside( (ShaderFile, string, string, FeatureKey, ulong) key, ShaderFile shader, ShaderAttributes attributes, string mode, FeatureKey features, out ShaderVariant variant )
 	{
 		variant = null;
 		if ( !makingVariants.TryGetValue( key, out var making ) )
@@ -1045,7 +1091,7 @@ public sealed partial class ShaderDrawer : IDisposable
 			var library = shaders;
 			makingVariants[key] = Task.Run( () =>
 			{
-				var made = library.Variant( shader, mode, features, inputs.GetCombo, name => inputs.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null, false, out var pending );
+				var made = library.Variant( shader, mode, features?.Values ?? [], inputs.GetCombo, name => inputs.Get( name ) is float[] { Length: > 0 } f ? (int)f[0] : null, false, out var pending );
 				return (made, pending);
 			} );
 			pendingVariant = true;
@@ -1221,6 +1267,7 @@ public sealed partial class ShaderDrawer : IDisposable
 		public int Samples;
 		public PrimitiveTopology Topology;
 		public ToolsPass Tools;
+		public OverlayStencil Stencil;
 		public MaterialObject Found;
 	}
 
@@ -1230,10 +1277,10 @@ public sealed partial class ShaderDrawer : IDisposable
 	static int ObjectSlot( ShaderVariant variant, VertexStreamLayout layout, Format color, Format depth, int samples ) =>
 		(RuntimeHelpers.GetHashCode( variant ) + RuntimeHelpers.GetHashCode( layout ) * 31 + (int)color * 7 + (int)depth * 13 + samples) & (ObjectMemos - 1);
 
-	MaterialObject RememberedObject( ShaderVariant variant, VertexStreamLayout layout, bool ids, Format color, Format depth, int samples, PrimitiveTopology topology, ToolsPass tools, bool redrawn )
+	MaterialObject RememberedObject( ShaderVariant variant, VertexStreamLayout layout, bool ids, Format color, Format depth, int samples, PrimitiveTopology topology, ToolsPass tools, bool redrawn, OverlayStencil stencil )
 	{
 		ref readonly var memo = ref objectMemo[ObjectSlot( variant, layout, color, depth, samples )];
-		if ( ReferenceEquals( memo.Variant, variant ) && ReferenceEquals( memo.Layout, layout ) && memo.Ids == ids && memo.Color == color && memo.Depth == depth && memo.Samples == samples && memo.Topology == topology && memo.Tools == tools && memo.Redrawn == redrawn ) return memo.Found;
+		if ( ReferenceEquals( memo.Variant, variant ) && ReferenceEquals( memo.Layout, layout ) && memo.Ids == ids && memo.Color == color && memo.Depth == depth && memo.Samples == samples && memo.Topology == topology && memo.Tools == tools && memo.Redrawn == redrawn && memo.Stencil == stencil ) return memo.Found;
 		return null;
 	}
 
@@ -1243,16 +1290,17 @@ public sealed partial class ShaderDrawer : IDisposable
 		if ( BackendDevice.DrawMarkers ) list.Marker( BackendDevice.DrawMarkerName( variant ) );
 		var ids = ReadsInstanceIds( variant );
 		var redrawn = RedrawnEveryFrame.Active;
-		var tools = color == Format.Unknown ? ToolsPass.None : ToolsPass;
-		var materialObject = MaterialObjects ? RememberedObject( variant, layout, ids, color, depth, samples, topology, tools, redrawn ) : null;
+		var tools = color == Format.Unknown ? ToolsPass.None : ToolsViewStage.ReadyPass( shaders, ToolsPass );
+		var stencil = depth.HasStencil() ? OverlayStencil : OverlayStencil.None;
+		var materialObject = MaterialObjects ? RememberedObject( variant, layout, ids, color, depth, samples, topology, tools, redrawn, stencil ) : null;
 		if ( materialObject is not null ? HasPassSpace( materialObject.Layout ) : Objects( variant ) )
 		{
 			if ( materialObject is null )
 			{
-				var key = new MaterialObjectCache.Key( null, variant, LayoutKey( layout, ids ), color, depth, samples, false, false, topology, Tools: tools, Redrawn: redrawn );
-				materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant, Color: color, Depth: depth, Samples: samples, Layout: layout, Topology: topology, Ids: ids, Redrawn: redrawn),
-					static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Depth, s.Samples, s.Layout, s.Topology, materialLayout.Sets, s.Ids, s.Redrawn ) );
-				objectMemo[ObjectSlot( variant, layout, color, depth, samples )] = new ObjectMemo { Variant = variant, Layout = layout, Ids = ids, Redrawn = redrawn, Color = color, Depth = depth, Samples = samples, Topology = topology, Tools = tools, Found = materialObject };
+				var key = new MaterialObjectCache.Key( null, variant, LayoutKey( layout, ids ), color, depth, samples, false, false, topology, Tools: tools, Redrawn: redrawn, Stencil: stencil );
+				materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant, Color: color, Depth: depth, Samples: samples, Layout: layout, Topology: topology, Tools: tools, Ids: ids, Redrawn: redrawn, Stencil: stencil),
+					static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Depth, s.Samples, s.Layout, s.Topology, materialLayout.Sets, s.Tools, s.Ids, s.Redrawn, s.Stencil ), ownsPipeline: true );
+				objectMemo[ObjectSlot( variant, layout, color, depth, samples )] = new ObjectMemo { Variant = variant, Layout = layout, Ids = ids, Redrawn = redrawn, Color = color, Depth = depth, Samples = samples, Topology = topology, Tools = tools, Stencil = stencil, Found = materialObject };
 			}
 
 			SetViewport( list, viewport );
@@ -1260,16 +1308,16 @@ public sealed partial class ShaderDrawer : IDisposable
 		}
 		else
 		{
-			list.SetPipeline( Pipeline( variant, color, depth, samples, layout, topology, null, ids, redrawn ) );
+			list.SetPipeline( Pipeline( variant, color, depth, samples, layout, topology, null, tools, ids, redrawn, stencil ) );
 			SetViewport( list, viewport );
 			Bind( list, variant, attributes, viewport );
 		}
 
-		// The stencil reference is dynamic state: a shader that tests or writes stencil (gizmos, tool overlays) sets its own
-		if ( variant.State.StencilTest && depth.HasStencil() ) list.SetStencilReference( (byte)variant.State.StencilReference );
+		BackendDevice.SetStencilReference( list, depth, stencil, variant.State );
 
-		// So is the depth bias drawing into depth alone (a shadow map's)
+		// The depth bias drawing into depth alone (a shadow map's) is dynamic; with colour, the shader's own
 		if ( color == Format.Unknown && depth != Format.Unknown ) list.SetDepthBias( DepthBias.Constant, DepthBias.Slope );
+		else if ( variant.State.HasDepthBias ) list.SetDepthBias( variant.State.DepthBiasConstant, variant.State.DepthBiasSlope, variant.State.DepthBiasClamp );
 		return ids;
 	}
 
@@ -1328,14 +1376,22 @@ public sealed partial class ShaderDrawer : IDisposable
 	}
 
 	readonly Dictionary<int, StructureKey> structures = new();
+	(ShaderAttributes Source, int Revision, long Id) lastStructure;
 
 	long StructureOf( ShaderAttributes attributes )
 	{
+		var stable = attributes.TryGetStructureRevision( out var revision );
+		if ( stable && ReferenceEquals( attributes, lastStructure.Source ) && revision == lastStructure.Revision ) return lastStructure.Id;
+
 		var hash = attributes.StructureHash();
 		structures.TryGetValue( hash, out var first );
 		for ( var known = first; known is not null; known = known.Next )
 		{
-			if ( attributes.SameStructure( known.Reference ) ) return known.Id;
+			if ( attributes.SameStructure( known.Reference ) )
+			{
+				if ( stable ) lastStructure = (attributes, revision, known.Id);
+				return known.Id;
+			}
 		}
 
 		// Past the limit: forget them all; ids stay unique, so what was resolved under them is only resolved again
@@ -1348,6 +1404,7 @@ public sealed partial class ShaderDrawer : IDisposable
 		var made = new StructureKey { Next = first, Id = cache.NextEpoch() };
 		made.Reference.CopyValuesFrom( attributes );
 		structures[hash] = made;
+		if ( stable ) lastStructure = (attributes, revision, made.Id);
 		return made.Id;
 	}
 
@@ -1397,9 +1454,10 @@ public sealed partial class ShaderDrawer : IDisposable
 	/// <summary>Forget the last draws' lists, materials and attributes so their owners can be collected.</summary>
 	internal void ReleasePass()
 	{
-		passList = null;
+		passList = uploadList = null;
 		foreach ( var state in attributeStates ) state?.Forget();
 		structures.Clear();
+		lastStructure = default;
 		Array.Clear( variantMemo );
 		Array.Clear( objectMemo );
 		Array.Clear( stageConstants );
@@ -1462,7 +1520,7 @@ public sealed partial class ShaderDrawer : IDisposable
 			if ( !computeObjects.TryGetValue( variant, out var materialObject ) )
 			{
 				var key = new MaterialObjectCache.Key( null, variant, null, Format.Unknown, Format.Unknown, 0, false, false );
-				computeObjects[variant] = materialObject = Cache.Get( key, immediate: true, (Drawer: this, Variant: variant), static ( s, layout ) => s.Drawer.ComputePipeline( s.Variant, layout.Sets ) );
+				computeObjects[variant] = materialObject = Cache.Get( key, immediate: true, (Drawer: this, Variant: variant), static ( s, layout ) => s.Drawer.ComputePipeline( s.Variant, layout.Sets ), ownsPipeline: true );
 			}
 
 			// As Objects: while the frame's pass constants have room for it
@@ -1520,7 +1578,7 @@ public sealed partial class ShaderDrawer : IDisposable
 
 	/// <summary>
 	/// The rasterizer depth bias of draws into depth alone, none by default: a shadow map's, as native's shadow layers override
-	/// their draws' (<c>RsDepthBiasStateOverride_t</c>). Draws with colour have none.
+	/// their draws' (<c>RsDepthBiasStateOverride_t</c>). Draws with colour take their shader's own.
 	/// </summary>
 	public (int Constant, float Slope) DepthBias { get; set; }
 
@@ -1535,10 +1593,9 @@ public sealed partial class ShaderDrawer : IDisposable
 	/// draws <paramref name="redrawn"/> every frame (<see cref="RedrawnEveryFrame"/>) one not made yet is made on the device's
 	/// workers and its draws skipped meanwhile; those are kept apart from the ones other draws wait for.
 	/// </summary>
-	PipelineHandle Pipeline( ShaderVariant variant, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets, bool ids = false, bool redrawn = false )
+	PipelineHandle Pipeline( ShaderVariant variant, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets, ToolsPass tools, bool ids, bool redrawn, OverlayStencil stencil )
 	{
-		var tools = color == Format.Unknown ? ToolsPass.None : ToolsPass;
-		var key = new PipelineKey( variant, color, depth, samples, layout, topology, ids, tools, redrawn );
+		var key = new PipelineKey( variant, color, depth, samples, layout, topology, ids, tools, redrawn, stencil );
 		if ( sets is null && pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 		// Inputs the stream lacks (or every input, with no stream) read the default stream. No colour format draws into
@@ -1586,6 +1643,7 @@ public sealed partial class ShaderDrawer : IDisposable
 
 		info.Topology = topology;
 		if ( sets is not null ) info.Sets = sets;
+		BackendDevice.ApplyOverlayStencil( ref info, stencil );
 		if ( tools != ToolsPass.None ) ToolsViewStage.Apply( shaders, ref info, tools, ToolsViews.ShaderColor( variant.Shader?.Name ) );
 		info.SkipUntilReady = redrawn;
 		using ( Zones.PipelineCreate.Start() ) pipeline = gpu.CreateGraphicsPipeline( info );
@@ -1903,8 +1961,6 @@ public sealed partial class ShaderDrawer : IDisposable
 
 		public override float[] Floats( string attribute ) => Attributes.Get( attribute ) as float[];
 
-		public override Binding Resolve( in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset ) => Resolve( null, 0, 0, resource, stage, dynamic, out dynamicOffset );
-
 		public override Binding Resolve( MaterialLayout layout, int set, int slot, in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset )
 		{
 			dynamicOffset = 0;
@@ -1931,7 +1987,7 @@ public sealed partial class ShaderDrawer : IDisposable
 
 				case ShaderResourceKind.ConstantBuffer:
 					{
-						var placeholder = layout is null ? drawer.defaults.For( resource ) : layout.Placeholder( set, slot );
+						var placeholder = layout.Placeholder( set, slot );
 						if ( dynamic ) placeholder.Type = BindingType.UniformBufferDynamic;
 						return placeholder;
 					}

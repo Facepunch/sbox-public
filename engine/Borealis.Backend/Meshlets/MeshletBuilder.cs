@@ -33,11 +33,12 @@ internal static unsafe class MeshletBuilder
 		// result's arrays are new
 		var vertexCount = (int)(max - min + 1);
 		var bound = (int)MeshOptimizer.BuildMeshletsBound( (nuint)count, (nuint)config.MaxVertices, (nuint)config.MaxTriangles );
+		var triangleBytes = checked(count + 3 * Math.Min( bound, count / 3 ));
 		var positions = System.Buffers.ArrayPool<V3>.Shared.Rent( vertexCount );
 		var local = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
 		var meshlets = System.Buffers.ArrayPool<MeshOptimizer.Meshlet>.Shared.Rent( bound );
 		var meshletVertices = System.Buffers.ArrayPool<uint>.Shared.Rent( count );
-		var meshletTriangles = System.Buffers.ArrayPool<byte>.Shared.Rent( count );
+		var meshletTriangles = System.Buffers.ArrayPool<byte>.Shared.Rent( triangleBytes );
 		try
 		{
 			for ( int v = 0; v < vertexCount; v++ ) positions[v] = position( baseVertex + (int)min + v );

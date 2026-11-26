@@ -52,6 +52,9 @@ internal sealed class PassTimer : IDisposable
 		public double Ms => End - Start;
 	}
 
+	/// <summary>A scope in the GPU's absolute timestamp domain, for joining an external trace.</summary>
+	public readonly record struct TickTiming( string Name, ScopeKind Kind, ulong Start, ulong End, int Draws );
+
 	readonly Device gpu;
 	readonly GpuCounters counters;
 	readonly TimestampQueries timestamps;
@@ -143,8 +146,15 @@ internal sealed class PassTimer : IDisposable
 	public int Begin( CommandList list, string name, ScopeKind kind, bool count = true )
 	{
 		if ( slot < 0 ) return -1;
-		var begin = Interlocked.Increment( ref usedTimestamps[slot] ) - 1;
-		if ( begin >= PerSlot - 1 ) return -1;
+		ref var used = ref usedTimestamps[slot];
+		int begin;
+		do
+		{
+			begin = Volatile.Read( ref used );
+			if ( begin >= PerSlot - 1 ) return -1;
+		}
+		while ( Interlocked.CompareExchange( ref used, begin + 1, begin ) != begin );
+
 		var query = -1;
 		// Not on an async compute list: the pool counts graphics stages, which a compute-only queue can't begin (device lost)
 		if ( statistics is not null && count && kind != ScopeKind.List && list.Queue == QueueType.Graphics )
@@ -212,10 +222,12 @@ internal sealed class PassTimer : IDisposable
 	/// Read frame <paramref name="frame"/>'s scopes into <paramref name="into"/>, in the order they began on the GPU; false
 	/// if the GPU hasn't finished them or the frame's slot has been reused. One caller at a time; allocates nothing once
 	/// <paramref name="into"/> has grown.
+	/// If supplied, <paramref name="absolute"/> also receives the scopes' raw ticks, in recording order.
 	/// </summary>
-	public bool TryRead( long frame, List<Timing> into )
+	public bool TryRead( long frame, List<Timing> into, List<TickTiming> absolute = null )
 	{
 		into.Clear();
+		absolute?.Clear();
 		var s = (int)(frame % Slots);
 		if ( frames[s] != frame ) return false;
 
@@ -244,6 +256,7 @@ internal sealed class PassTimer : IDisposable
 			if ( scope.End < 0 || scope.End >= used ) continue;
 			var c = scope.Query >= 0 && scope.Query < counts.Length ? counts[scope.Query] : default;
 			into.Add( new Timing( scope.Name, scope.Kind, (ticks[scope.Begin] - origin) * period, (ticks[scope.End] - origin) * period, c, scope.Recorded ) );
+			absolute?.Add( new TickTiming( scope.Name, scope.Kind, ticks[scope.Begin], ticks[scope.End], scope.Recorded.Draws ) );
 		}
 
 		into.Sort( ( a, b ) => a.Start.CompareTo( b.Start ) );

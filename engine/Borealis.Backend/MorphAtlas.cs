@@ -56,7 +56,6 @@ internal sealed class MorphAtlas( BackendDevice device )
 		else values.CopyTo( into );
 		return into;
 	}
-	readonly Dictionary<MorphSet, BackendTexture> sources = new();
 	bool generated;
 	BackendTexture texture;
 
@@ -144,7 +143,7 @@ internal sealed class MorphAtlas( BackendDevice device )
 	/// Queue a mesh's morphs with their flex descs' weights and delayed weights; the handle <see cref="Subrect"/> takes once
 	/// they're generated. A frame's first queue after the last generation starts a new list.
 	/// </summary>
-	public int Queue( MorphSet set, string texturePath, ReadOnlySpan<float> weights, ReadOnlySpan<float> delayed )
+	public int Queue( MorphSet set, BackendTexture source, ReadOnlySpan<float> weights, ReadOnlySpan<float> delayed )
 	{
 		lock ( queued )
 		{
@@ -156,7 +155,6 @@ internal sealed class MorphAtlas( BackendDevice device )
 				generated = false;
 			}
 
-			if ( !sources.TryGetValue( set, out var source ) ) sources[set] = source = texturePath is null ? null : device.LoadTexture( texturePath ) as BackendTexture;
 			Queued q;
 			if ( spareQueued.Count > 0 )
 			{
@@ -304,13 +302,14 @@ internal sealed class MorphAtlas( BackendDevice device )
 		var first = vertices.Count;
 		foreach ( var q in queued )
 		{
-			if ( q.Source is null || q.W <= 1 && q.H <= 1 && q.X == 0 ) continue;
-			var set = q.Set;
-			var atlasIndex = (uint)q.Source.BindlessIndex;
+			var (set, source) = (q.Set, q.Source);
+			if ( normals ) (q.Set, q.Source) = (null, null);
+			if ( source is not { IsValid: true } || q.W <= 1 && q.H <= 1 && q.X == 0 ) continue;
+			var atlasIndex = (uint)source.BindlessIndex;
 			var toDstX = (float)q.W / set.Width;
 			var toDstY = (float)q.H / set.Height;
-			var uToX = q.Source.Width * toDstX;
-			var vToY = q.Source.Height * toDstY;
+			var uToX = source.Width * toDstX;
+			var vToY = source.Height * toDstY;
 
 			for ( int desc = 0; desc < q.Weights.Length; desc++ )
 			{
@@ -375,7 +374,6 @@ internal sealed class MorphAtlas( BackendDevice device )
 public sealed class BackendMorphs( BackendDevice device ) : IMorphSource
 {
 	readonly Dictionary<string, float> values = new( StringComparer.OrdinalIgnoreCase );
-	readonly Dictionary<(GpuMesh, int), (float[] Delayed, float Time)> delayed = new();
 	[ThreadStatic] static float[] scratchWeights;
 
 	/// <summary>Set a flex controller by name.</summary>
@@ -387,7 +385,7 @@ public sealed class BackendMorphs( BackendDevice device ) : IMorphSource
 	/// <inheritdoc/>
 	public int Queue( GpuMesh mesh, int modelMesh )
 	{
-		if ( values.Count == 0 || mesh is not BackendModel model || (uint)modelMesh >= (uint)model.File.Meshes.Count ) return -1;
+		if ( values.Count == 0 || mesh is not BackendModel { Freed: false } model || (uint)modelMesh >= (uint)model.File.Meshes.Count ) return -1;
 		var source = model.File.Meshes[modelMesh];
 		if ( source.Morphs is not { } set ) return -1;
 
@@ -402,7 +400,8 @@ public sealed class BackendMorphs( BackendDevice device ) : IMorphSource
 
 		// Delayed weights ease towards the weights (ExponentialDecay( 0.8, 0.033, dt )), from the weights the first time
 		var now = device.RenderTime;
-		if ( !delayed.TryGetValue( (mesh, modelMesh), out var last ) || last.Delayed.Length != weights.Length )
+		var delayed = model.DelayedMorphs( this );
+		if ( !delayed.TryGetValue( modelMesh, out var last ) || last.Delayed.Length != weights.Length )
 		{
 			last = (weights.ToArray(), now);
 		}
@@ -413,10 +412,10 @@ public sealed class BackendMorphs( BackendDevice device ) : IMorphSource
 			last.Time = now;
 		}
 
-		delayed[(mesh, modelMesh)] = last;
+		delayed[modelMesh] = last;
 
 		var any = false;
 		for ( int i = 0; i < weights.Length && !any; i++ ) any = (MathF.Abs( weights[i] ) > 1e-5f || MathF.Abs( last.Delayed[i] ) > 1e-5f) && set.MorphFor( i ) is not null;
-		return any ? device.Morphs.Queue( set, set.TextureAtlas ?? source.MorphTexture, weights, last.Delayed ) : -1;
+		return any ? device.Morphs.Queue( set, model.MorphTexture( set.TextureAtlas ?? source.MorphTexture ), weights, last.Delayed ) : -1;
 	}
 }

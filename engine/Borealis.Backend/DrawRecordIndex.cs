@@ -125,11 +125,11 @@ internal sealed class DrawRecordIndex
 		Volatile.Write( ref shard.Entries, entries );
 	}
 
-	/// <summary>Forget every record over the index page at <paramref name="slot"/> (its meshes have gone), adding them to <paramref name="removed"/> when it's given.</summary>
-	public void RemovePage( int slot, List<uint> removed = null ) => Remove( slot, static ( slot, key ) => key.IndexPage == slot, removed );
+	/// <summary>Forget every record over the index page at <paramref name="slot"/> (its meshes have gone), adding them to <paramref name="retired"/> when it's given.</summary>
+	public void RemovePage( int slot, List<uint> retired = null ) => Remove( slot, static ( slot, key ) => key.IndexPage == slot, retired );
 
 	/// <summary>Forget every record naming one of <paramref name="materials"/>' records, which are never asked for again; how many.</summary>
-	public long RemoveMaterials( IReadOnlySet<uint> materials )
+	public long RemoveMaterials( IReadOnlySet<uint> materials, List<uint> retired = null )
 	{
 		// Almost every key names none of them: a bit per hash of the records turns those away without asking the set, which
 		// a walk of millions of keys would do twice for each
@@ -142,7 +142,7 @@ internal sealed class DrawRecordIndex
 			filter[bit >> 6] |= 1ul << (int)(bit & 63);
 		}
 
-		return Remove( (materials, filter, shift), static ( state, key ) => Names( state, key.Vertex ) || Names( state, key.Pixel ) );
+		return Remove( (materials, filter, shift), static ( state, key ) => Names( state, key.Vertex ) || Names( state, key.Pixel ), retired );
 	}
 
 	const uint FilterMultiplier = 0x9E3779B1u;
@@ -153,7 +153,7 @@ internal sealed class DrawRecordIndex
 		return (state.Filter[bit >> 6] & (1ul << (int)(bit & 63))) != 0 && state.Materials.Contains( record );
 	}
 
-	long Remove<TState>( TState state, Func<TState, DrawRecordKey, bool> match, List<uint> into = null )
+	long Remove<TState>( TState state, Func<TState, DrawRecordKey, bool> match, List<uint> retired )
 	{
 		long total = 0;
 		foreach ( var shard in shards )
@@ -164,7 +164,7 @@ internal sealed class DrawRecordIndex
 				foreach ( ref var entry in shard.Entries.AsSpan() )
 				{
 					if ( entry.Value == 0 || entry.Value == Removed || !match( state, entry.Key ) ) continue;
-					into?.Add( entry.Value );
+					retired?.Add( entry.Value );
 					Volatile.Write( ref entry.Value, Removed );
 					removed++;
 				}

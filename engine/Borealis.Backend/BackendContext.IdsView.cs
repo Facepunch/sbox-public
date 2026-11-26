@@ -42,7 +42,7 @@ internal sealed partial class BackendContext
 
 		var r = recording;
 		var timer = device.PassTimer;
-		var scope = timer?.Begin( r.List, "Ids view", PassTimer.ScopeKind.Own ) ?? -1;
+		var scope = timer?.Begin( r.List, "Ids view", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 		r.List.Marker( "Ids view" );
 
 		// The output in its layout, then the ids (left readable by the last call's mark) after their writers

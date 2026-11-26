@@ -27,6 +27,9 @@ internal sealed partial class BackendContext : GpuContext
 	sealed class Session
 	{
 		public CommandList List;
+
+		/// <summary>Its list has gone to the device: <see cref="End"/> leaves it alone rather than discarding it.</summary>
+		public bool Submitted;
 		public bool Rendering;
 		public BackendTexture Color, Depth;
 
@@ -73,8 +76,8 @@ internal sealed partial class BackendContext : GpuContext
 			BindVersion = -1;
 			layouts.Clear();
 			Layouts = ownLayouts ? layouts : null;
-			Readbacks.Clear();
 			TimerScope = Counting = -1;
+			Submitted = false;
 		}
 	}
 
@@ -220,10 +223,11 @@ internal sealed partial class BackendContext : GpuContext
 	public override void Submit()
 	{
 		if ( recording is null ) return;
-		if ( Census ) CensusScope( null, pop: false );
 
 		try
 		{
+			if ( Census ) CensusScope( null, pop: false );
+
 			if ( borrowed )
 			{
 				// The owner submits; leave the list as a scope boundary for whoever records next
@@ -245,9 +249,24 @@ internal sealed partial class BackendContext : GpuContext
 				if ( GraphMeasure.Enabled ) GraphMeasure.AddFixUps( GraphMeasure.Now() - fixUpStart, LayoutFixUps != fixUpLists );
 			}
 
+			recording.Submitted = true;
 			var point = waitCount == 0 && device.BatchSubmits ? Gpu.SubmitLater( recording.List ) : Gpu.Submit( recording.List, waits[..waitCount] );
+			var readbacks = recording.Readbacks;
+			var transferred = 0;
+			try
+			{
+				for ( ; transferred < readbacks.Count; transferred++ )
+				{
+					var (buffer, bytes, callback) = readbacks[transferred];
+					device.AddReadback( point, buffer, bytes, callback );
+				}
+			}
+			finally
+			{
+				readbacks.RemoveRange( 0, transferred );
+			}
+
 			if ( signal.Handle != IntPtr.Zero ) device.Signalled( signal, point );
-			foreach ( var (buffer, bytes, callback) in recording.Readbacks ) device.AddReadback( point, buffer, bytes, callback );
 		}
 		finally
 		{
@@ -315,32 +334,38 @@ internal sealed partial class BackendContext : GpuContext
 
 		CommandList fixUps = null;
 		var timed = -1;
-		foreach ( var (texture, (first, current)) in session.Layouts )
+		try
 		{
-			if ( planned && texture.Layout != ImageLayout.Undefined ) plannedLayouts[texture] = texture.Layout;
-
-			if ( texture.Layout != first )
+			foreach ( var (texture, (first, current)) in session.Layouts )
 			{
-				if ( fixUps is null )
+				if ( planned && texture.Layout != ImageLayout.Undefined ) plannedLayouts[texture] = texture.Layout;
+
+				if ( texture.Layout != first )
 				{
-					fixUps = Gpu.BeginCommandList( session.List.Queue, "Borealis layouts" );
-					timed = device.PassTimer?.Begin( fixUps, fixUps.Name, PassTimer.ScopeKind.List ) ?? -1;
+					if ( fixUps is null )
+					{
+						fixUps = Gpu.BeginCommandList( session.List.Queue, "Borealis layouts" );
+						timed = device.PassTimer?.Begin( fixUps, fixUps.Name, PassTimer.ScopeKind.List ) ?? -1;
+					}
+
+					fixUps.Barrier( LayoutBarrier( texture.Handle, texture.Layout, first ) );
 				}
 
-				fixUps.Barrier( LayoutBarrier( texture.Handle, texture.Layout, first ) );
+				texture.Layout = current;
 			}
 
-			texture.Layout = current;
+			if ( fixUps is not null ) device.PassTimer?.End( fixUps, timed );
 		}
-
-		if ( fixUps is not null )
+		catch
 		{
-			device.PassTimer?.End( fixUps, timed );
-			if ( device.BatchSubmits && waits.IsEmpty ) Gpu.SubmitLater( fixUps );
-			else Gpu.Submit( fixUps, waits );
+			fixUps?.Discard();
+			throw;
 		}
 
-		LayoutFixUps += fixUps is null ? 0 : 1;
+		if ( fixUps is null ) return;
+		if ( device.BatchSubmits && waits.IsEmpty ) Gpu.SubmitLater( fixUps );
+		else Gpu.Submit( fixUps, waits );
+		LayoutFixUps++;
 	}
 
 	/// <summary>Fix-up lists submitted before segments recorded beside others, for tests.</summary>
@@ -417,8 +442,11 @@ internal sealed partial class BackendContext : GpuContext
 	/// </summary>
 	internal ImageLayout SampledLayoutOf( BackendTexture texture )
 	{
-		var layout = LayoutOf( texture );
-		if ( layout == ImageLayout.ShaderRead && recording?.Layouts is { } local ) local.TryAdd( texture, (layout, layout) );
+		var local = recording?.Layouts;
+		if ( local is not null && local.TryGetValue( texture, out var known ) ) return known.Current;
+
+		var layout = PlannedLayout( texture, out var planned ) ? planned : texture.Layout;
+		if ( layout == ImageLayout.ShaderRead && local is not null ) local.Add( texture, (layout, layout) );
 		return layout;
 	}
 
@@ -428,6 +456,24 @@ internal sealed partial class BackendContext : GpuContext
 		{
 			GraphMeasure.AddTransitions( measuredTransitions, measuredTicks, measuredBarriers );
 			measuredTransitions = measuredTicks = measuredBarriers = 0;
+		}
+
+		if ( !borrowed && recording is { } owned )
+		{
+			try
+			{
+				if ( !owned.Submitted )
+				{
+					owned.Submitted = true;
+					owned.List?.Discard();
+				}
+			}
+			finally
+			{
+				// Undelivered readbacks have no data: cancel their callbacks and release their buffers.
+				foreach ( var (buffer, _, _) in owned.Readbacks ) Gpu.Destroy( buffer );
+				owned.Readbacks.Clear();
+			}
 		}
 
 		recording = null;
@@ -449,6 +495,8 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override void Dispose()
 	{
+		End();
+
 		if ( viewSet.IsValid ) Gpu.Destroy( viewSet );
 		viewSet = default;
 
@@ -469,6 +517,14 @@ internal sealed partial class BackendContext : GpuContext
 	// The view set
 	//
 
+	// The descriptor ABI's names never change; resolve them once instead of hashing them for every view.
+	static readonly (int Binding, BindingType Type, StringToken Name, bool IsEnvironment)[] ViewSetBindings =
+		Array.ConvertAll( ShaderAbi.ViewSetBindings, static entry => (entry.Binding, entry.Type, new StringToken( entry.Attribute ), entry.Attribute == ShaderAbi.ViewEnvironment) );
+	static readonly (StringToken Name, int Offset, int Size)[] ViewEnvironmentBlocks =
+		Array.ConvertAll( ShaderAbi.ViewEnvironmentBlocks, static entry => (new StringToken( entry.Attribute ), entry.Offset, entry.Size) );
+	static readonly StringToken[] ViewEnvironmentLookups =
+		Array.ConvertAll( ShaderAbi.ViewEnvironmentLookups, static name => new StringToken( name ) );
+
 	// A frame context's view set (ShaderAbi.ViewSet): a new one each frame, the last destroyed once the GPU is done with it
 	BindingSetHandle viewSet;
 	bool viewSetWritten;
@@ -485,26 +541,26 @@ internal sealed partial class BackendContext : GpuContext
 		viewSetWritten = true;
 
 		var cache = device.MaterialCache;
-		viewBindings ??= new Binding[ShaderAbi.ViewSetBindings.Length];
+		viewBindings ??= new Binding[ViewSetBindings.Length];
 		for ( int i = 0; i < viewBindings.Length; i++ )
 		{
-			var (binding, type, name) = ShaderAbi.ViewSetBindings[i];
-			if ( name == ShaderAbi.ViewEnvironment )
+			var (binding, type, name, isEnvironment) = ViewSetBindings[i];
+			if ( isEnvironment )
 			{
 				// The environment's blocks, each from the constant buffer set by its name, back to back
 				var offset = cache.AllocatePassConstants( ShaderAbi.ViewEnvironmentSize, out var target );
 				target.Clear();
-				foreach ( var (block, blockOffset, blockSize) in ShaderAbi.ViewEnvironmentBlocks )
+				foreach ( var (block, blockOffset, blockSize) in ViewEnvironmentBlocks )
 				{
-					if ( attributes.Get( Token( block ) ) is byte[] data )
+					if ( attributes.Get( block ) is byte[] data )
 						data.AsSpan( 0, Math.Min( data.Length, blockSize ) ).CopyTo( target[blockOffset..] );
 				}
 
 				// Then the lookup textures' bindless indices, read through the bindless set
 				var lookups = MemoryMarshal.Cast<byte, uint>( target[ShaderAbi.ViewEnvironmentLookupsOffset..] );
-				for ( int l = 0; l < ShaderAbi.ViewEnvironmentLookups.Length; l++ )
+				for ( int l = 0; l < ViewEnvironmentLookups.Length; l++ )
 				{
-					lookups[l] = attributes.Get( Token( ShaderAbi.ViewEnvironmentLookups[l] ) ) is BackendTexture texture
+					lookups[l] = attributes.Get( ViewEnvironmentLookups[l] ) is BackendTexture texture
 						? (uint)texture.BindlessIndex
 						: (uint)Math.Max( Gpu.BindlessIndex( device.Defaults.Texture( SpirvImageDimension.Texture2D ) ), 0 );
 				}
@@ -513,7 +569,7 @@ internal sealed partial class BackendContext : GpuContext
 				continue;
 			}
 
-			var value = attributes.Get( Token( name ) );
+			var value = attributes.Get( name );
 			if ( type == BindingType.UniformBuffer )
 			{
 				if ( value is byte[] { Length: > 0 } data )
@@ -748,6 +804,19 @@ internal sealed partial class BackendContext : GpuContext
 		clearValue = color;
 	}
 
+	public override void ClearDepthRegion( int x, int y, int width, int height )
+	{
+		if ( recording is null || !boundValid || bound.Depth is not BackendTexture depth ) return;
+
+		// Cache regions can overlap, including in separately recorded lists. First-use layout fix-ups
+		// don't emit barriers when the preceding list has already left the image in DepthTarget.
+		CloseScope();
+		Transition( depth, ImageLayout.DepthTarget );
+		List.Barrier( LayoutBarrier( depth.Handle, ImageLayout.DepthTarget, ImageLayout.DepthTarget ) );
+		resumeFirst = false;
+		if ( EnsureScope() ) List.ClearDepthRegion( x, y, width, height );
+	}
+
 	//
 	// Layouts: every texture remembers where its last recorded use left it
 	//
@@ -755,25 +824,28 @@ internal sealed partial class BackendContext : GpuContext
 	// Layout tracking's calls, time and barriers since this context's list began, while measuring (GraphMeasure)
 	long measuredTransitions, measuredTicks, measuredBarriers;
 
-	void Transition( BackendTexture texture, ImageLayout layout, bool always = false )
+	void Transition( BackendTexture texture, ImageLayout layout, bool always = false, int firstMip = 0 )
 	{
 		if ( texture is null ) return;
 		if ( !GraphMeasure.Enabled )
 		{
-			Move( texture, layout, always );
+			Move( texture, layout, always, firstMip );
 			return;
 		}
 
 		var start = System.Diagnostics.Stopwatch.GetTimestamp();
-		var moved = Move( texture, layout, always );
+		var moved = Move( texture, layout, always, firstMip );
 		measuredTicks += System.Diagnostics.Stopwatch.GetTimestamp() - start;
 		measuredTransitions++;
 		if ( moved ) measuredBarriers++;
 		if ( GraphMeasure.Listing ) GraphMeasure.Used( recording.List, texture.Handle.Index, texture.Handle.Generation, texture.Name, (int)layout, moved );
 	}
 
-	/// <summary>Move <paramref name="texture"/> to <paramref name="layout"/> where this list uses it; whether that took a barrier.</summary>
-	bool Move( BackendTexture texture, ImageLayout layout, bool always )
+	/// <summary>
+	/// Move a texture to the layout this list uses, returning whether that took a barrier.
+	/// If <paramref name="firstMip"/> is specified, preceding mips are already in the destination layout.
+	/// </summary>
+	bool Move( BackendTexture texture, ImageLayout layout, bool always, int firstMip )
 	{
 		// A list recorded beside others: its first use of a texture is what it needs, moved there before it's submitted,
 		// unless the plan says where the lists before leave it
@@ -796,7 +868,7 @@ internal sealed partial class BackendContext : GpuContext
 
 		// A barrier can't sit between a suspended scope and its resumption: this list's scopes begin anew
 		resumeFirst = false;
-		recording.List.Barrier( LayoutBarrier( texture.Handle, from, layout ) );
+		recording.List.Barrier( LayoutBarrier( texture.Handle, from, layout ) with { BaseMip = firstMip } );
 		if ( local is null ) texture.Layout = layout;
 		else local[texture] = (known.First, layout);
 		return true;
@@ -909,7 +981,6 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override void BarrierToDepthWrite( GpuTexture depth ) => Barrier( depth, ImageLayout.DepthTarget );
 	public override void BarrierToComputeRead( GpuTexture depth ) => Barrier( depth, ImageLayout.ShaderRead );
-	public override void BarrierColorToComputeRead( GpuTexture texture ) => Barrier( texture, ImageLayout.ShaderRead );
 	public override void BarrierComputeToPixelShaderRead( GpuTexture texture ) => Barrier( texture, ImageLayout.ShaderRead );
 	public override void BarrierToPixelShaderRead( GpuTexture depth ) => Barrier( depth, ImageLayout.ShaderRead );
 
@@ -1038,10 +1109,11 @@ internal sealed partial class BackendContext : GpuContext
 
 		var r = recording;
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
+		var depth = r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth );
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, variant, noColor, stripPixelShader, LookupCombo( OpaqueFadeCombo ) is > 0 );
 		var geometry = DepthGeometry( GeometryFor( source, draw ), variant, depthOnly );
-		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, normals: !noColor && r.Normals is not null, tools: noColor ? ToolsPass.None : ToolsPass );
+		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, depth, (r.Color ?? r.Depth).Samples, depthOnly, normals: !noColor && r.Normals is not null, tools: noColor ? ToolsPass.None : ToolsPass, stencil: OverlayStencil );
 
 		if ( r.Pipeline != pipeline )
 		{
@@ -1052,7 +1124,8 @@ internal sealed partial class BackendContext : GpuContext
 		uncompressedTangentFrame = geometry.UncompressedTangentFrame;
 		BindSets( m, variant, depthOnly );
 		if ( noColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
-		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
+		else if ( variant.State.HasDepthBias ) r.List.SetDepthBias( variant.State.DepthBiasConstant, variant.State.DepthBiasSlope, variant.State.DepthBiasClamp );
+		BackendDevice.SetStencilReference( r.List, depth, OverlayStencil, variant.State );
 
 		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect, variant );
 		return true;
@@ -1144,16 +1217,7 @@ internal sealed partial class BackendContext : GpuContext
 		// The key DrawWithMaterialObject uses, made once per values; the lookups made once per context
 		comboLookup ??= name => LookupCombo( Token( name ) );
 		specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
-		return material.Variant( device.Shaders, mode, ComboKeyByValue( material, mode ), comboLookup, specializationLookup );
-	}
-
-	/// <summary>The values of the material's specialization attributes that are set, for its variant key.</summary>
-	void AppendSpecialization( System.Text.StringBuilder key, BackendMaterial material )
-	{
-		foreach ( var name in material.SpecializationAttributes )
-		{
-			if ( Integer( Lookup( Token( name ) ) ) is int value && value != 0 ) key.Append( ";#" ).Append( name ).Append( '=' ).Append( value );
-		}
+		return material.Variant( device.Shaders, mode, ComboKeyByValue( material.Inputs, mode ), comboLookup, specializationLookup );
 	}
 
 	static int? Integer( object value ) => value switch
@@ -1166,11 +1230,8 @@ internal sealed partial class BackendContext : GpuContext
 	};
 
 	/// <summary>
-	/// An attribute as floats, for constants: numbers, bools, vectors and matrices (in the order view constants hold them).
-	/// </summary>
-	/// <summary>
-	/// <see cref="Floats"/> into an array this thread reuses for the count, so reading attributes every pass allocates
-	/// nothing: the caller reads it before its next call.
+	/// An attribute as floats for constants, in an array this thread reuses by component count.
+	/// The caller reads it before its next call.
 	/// </summary>
 	internal static float[] ScratchFloats( object value )
 	{
@@ -1190,7 +1251,7 @@ internal sealed partial class BackendContext : GpuContext
 				(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]) = (m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24);
 				(a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]) = (m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44);
 				return a;
-			default: return Floats( value );
+			default: return null;
 		}
 	}
 
@@ -1227,21 +1288,6 @@ internal sealed partial class BackendContext : GpuContext
 
 		return array;
 	}
-
-	static float[] Floats( object value ) => value switch
-	{
-		int i => [i],
-		uint u => [u],
-		float f => [f],
-		bool b => [b ? 1 : 0],
-		Vector2 v => [v.x, v.y],
-		Vector3 v => [v.x, v.y, v.z],
-		Vector4 v => [v.x, v.y, v.z, v.w],
-		Color c => [c.r, c.g, c.b, c.a],
-		Vector2Int v => [v.x, v.y],
-		Matrix m => [m.M11, m.M12, m.M13, m.M14, m.M21, m.M22, m.M23, m.M24, m.M31, m.M32, m.M33, m.M34, m.M41, m.M42, m.M43, m.M44],
-		_ => null,
-	};
 
 	/// <summary>
 	/// Bind a variant's sets 0 to 3 for a draw with <paramref name="material"/>.
@@ -1292,16 +1338,28 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		var size = stage.MaterialBuffer.Size;
 		var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
-		stage.WriteMaterialConstants( allocation.Data[..size], variable => variable.Source switch
-		{
-			VariableSource.Material or VariableSource.MaterialAndExpression => material.Value( variable.Name ),
-			VariableSource.ShaderVersion => [material.ShaderVersion],
-			// Per draw from its vertex layout, as native's BindModelDrawCall sets it
-			VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [uncompressedTangentFrame ? 1 : 0],
-			VariableSource.Attribute => Floats( Lookup( Token( variable.Attribute ) ) ),
-			_ => null,
-		}, material.Features );
+		WriteMaterialConstants( material, stage, uncompressedTangentFrame, allocation.Data[..size] );
 		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+	}
+
+	void WriteMaterialConstants( BackendMaterial material, ShaderStage stage, bool uncompressedTangentFrame, Span<byte> buffer )
+	{
+		buffer.Clear();
+		var features = material.Features;
+		for ( int i = 0; i < stage.MaterialConstants.Count; i++ )
+		{
+			var variable = stage.MaterialConstants[i].Variable;
+			var value = variable.Source switch
+			{
+				VariableSource.Material or VariableSource.MaterialAndExpression => material.Value( variable.Name ),
+				VariableSource.ShaderVersion => Scratch( 1, material.ShaderVersion ),
+				// Per draw from its vertex layout, as native's BindModelDrawCall sets it
+				VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => Scratch( 1, uncompressedTangentFrame ? 1 : 0 ),
+				VariableSource.Attribute => ScratchFloats( Lookup( Token( variable.Attribute ) ) ),
+				_ => null,
+			};
+			stage.WriteMaterialConstant( buffer, i, value, features );
+		}
 	}
 
 	/// <summary>
@@ -1356,9 +1414,32 @@ internal sealed partial class BackendContext : GpuContext
 	// Transfers
 	//
 
+	bool batchingBufferUploads;
+
+	internal override void BeginBufferUploadBatch()
+	{
+		if ( recording is null ) return;
+		CloseScope();
+		List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryRead, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+		batchingBufferUploads = true;
+	}
+
+	internal override void EndBufferUploadBatch()
+	{
+		if ( !batchingBufferUploads ) return;
+		batchingBufferUploads = false;
+		List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead );
+	}
+
 	public override void UploadBuffer<T>( GpuBuffer buffer, ReadOnlySpan<T> data, int offsetBytes )
 	{
 		if ( recording is null || buffer.Resource is not BackendBuffer target ) return;
+		if ( batchingBufferUploads )
+		{
+			List.UpdateBuffer( target.Handle, MemoryMarshal.AsBytes( data ), offsetBytes );
+			return;
+		}
+
 		CloseScope();
 		List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryRead, PipelineStage.Transfer, MemoryAccess.TransferWrite );
 		List.UpdateBuffer( target.Handle, MemoryMarshal.AsBytes( data ), offsetBytes );
@@ -1411,8 +1492,8 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		// Only texture outputs: windows present what a ViewTarget holds themselves (BackendDevice.Unwrap)
 		if ( recording is null || output.Texture is not BackendTexture texture || output.Target?.Resolved is not BackendTexture source ) return;
-		Invalidate();
 		CloseScope();
+		Invalidate();
 
 		var destination = output.Scratch as BackendTexture ?? texture;
 		Transition( source, ImageLayout.CopySource, always: true );
@@ -1472,35 +1553,40 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override void CopyFrameBuffer()
 	{
-		if ( frameBufferCopy is null || frameBufferCopied || bound.Color is null ) return;
+		if ( recording is null || frameBufferCopied || frameBufferCopy is not BackendTexture copy || bound.Color is not BackendTexture source ) return;
 		frameBufferCopied = true;
 
 		// Made by an earlier part of the layer, in a list submitted before this one, which left it readable. Timed on its own,
 		// its mips (and mask) apart
 		var scope = frameBufferMadeBefore ? default : BeginGpuScope( "Frame Buffer Copy" );
 		var viewport = frameBufferCopyViewport;
-		var copy = frameBufferCopy as BackendTexture;
 
 		// With mips, the depth-aware mask, made with the copy in one pass where it can be; then the mips for blurred refraction
-		var masked = !frameBufferMadeBefore && device.FrameBufferCopyMips && copy is { Mips: > 1 };
-		if ( !frameBufferMadeBefore && !(masked && CopyFrameBufferMasked( bound.Color as BackendTexture, copy, viewport )) )
+		var masked = !frameBufferMadeBefore && device.FrameBufferCopyMips && copy.Mips > 1;
+		if ( !frameBufferMadeBefore && !(masked && CopyFrameBufferMasked( source, copy, viewport )) )
 		{
-			CopyTexture( bound.Color, frameBufferCopy, 1 );
+			int x = (int)viewport.Left, y = (int)viewport.Top;
+			CloseScope();
+			Transition( source, ImageLayout.CopySource, always: true );
+			Transition( copy, ImageLayout.CopyDestination, always: true );
+			if ( source.Samples > 1 )
+				List.ResolveTexture( source.Handle, copy.Handle, (x, y, copy.Width, copy.Height) );
+			else if ( source.Format == copy.Format )
+				List.CopyTextureRegion( source.Handle, copy.Handle, x, y, 0, 0, copy.Width, copy.Height );
+			else
+				List.Blit( source.Handle, (x, y, copy.Width, copy.Height), copy.Handle, (0, 0, copy.Width, copy.Height), Filter.Nearest );
 			if ( masked ) MaskFrameBufferCopy( copy, viewport, null );
 		}
 
-		if ( copy is not null )
+		if ( masked )
 		{
-			if ( masked )
-			{
-				var mips = BeginGpuScope( "Frame Buffer Copy Mips" );
-				GenerateFrameBufferCopyMips( copy, viewport );
-				EndGpuScope( mips );
-			}
-
-			// Then readable by the draws after it: they bind only what's readable
-			Transition( copy, ImageLayout.ShaderRead );
+			var mips = BeginGpuScope( "Frame Buffer Copy Mips" );
+			GenerateFrameBufferCopyMips( copy, viewport );
+			EndGpuScope( mips );
 		}
+
+		// Then readable by the draws after it: they bind only what's readable
+		Transition( copy, ImageLayout.ShaderRead );
 
 		EndGpuScope( scope );
 

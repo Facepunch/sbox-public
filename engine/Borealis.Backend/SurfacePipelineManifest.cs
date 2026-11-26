@@ -28,7 +28,7 @@ internal sealed class SurfacePipelineManifest
 	public static string PathBeside( string pipelineCachePath ) => string.IsNullOrEmpty( pipelineCachePath ) ? null : Path.Combine( Path.GetDirectoryName( pipelineCachePath ) ?? "", "surface-pipelines.txt" );
 
 	/// <summary>What a pipeline was asked for with (<see cref="SurfaceProgram.Pipeline"/>'s arguments, unspecialised).</summary>
-	public readonly record struct Request( PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, SpecializationConstant[] VertexConstants, SpecializationConstant[] PixelConstants, ulong ConstantsKey, SurfaceRenderState State, bool Ids, bool OpaqueFade, bool DepthEqual, bool Normals );
+	public readonly record struct Request( PassObjects Pass, VertexLayout Layout, Format Color, Format Depth, int Samples, SpecializationConstant[] VertexConstants, SpecializationConstant[] PixelConstants, ulong ConstantsKey, SurfaceRenderState State, bool Ids, bool OpaqueFade, bool DepthEqual, bool Normals, OverlayStencil Stencil = OverlayStencil.None );
 
 	readonly string path;
 	readonly object gate = new();
@@ -159,13 +159,13 @@ internal sealed class SurfacePipelineManifest
 		}
 	}
 
-	// One line: file, pass, layout, colour, depth, samples, constants key, vertex and pixel constants, render state, flags
+	// One line: file, pass, layout, colour, depth, samples, constants key, vertex and pixel constants, render state, flags, optional overlay stencil
 	static string Write( string file, in Request r )
 	{
 		if ( r.Pass?.Pass is not { } pass || r.Layout is null ) return null;
 		var s = r.State;
 		var fields = string.Join( ";", r.Layout.Fields.Select( f => $"{(int)f.Semantic},{f.Index},{(int)f.Format},{f.Offset}" ) );
-		return string.Join( '\t',
+		var line = string.Join( '\t',
 			file, pass.Name, r.Layout.Stride.ToString( CultureInfo.InvariantCulture ), r.Layout.VertexCache ? "1" : "0", fields,
 			((int)r.Color).ToString( CultureInfo.InvariantCulture ), ((int)r.Depth).ToString( CultureInfo.InvariantCulture ), r.Samples.ToString( CultureInfo.InvariantCulture ),
 			r.ConstantsKey.ToString( CultureInfo.InvariantCulture ),
@@ -174,6 +174,7 @@ internal sealed class SurfacePipelineManifest
 			s.DepthBias.ToString( "R", CultureInfo.InvariantCulture ), s.SlopeDepthBias.ToString( "R", CultureInfo.InvariantCulture ),
 			Flag( s.TwoSided ), Flag( s.AlphaTest ), Flag( s.Translucent ),
 			Flag( r.Ids ), Flag( r.OpaqueFade ), Flag( r.DepthEqual ), Flag( r.Normals ) );
+		return r.Stencil == OverlayStencil.None ? line : line + "\t" + ((int)r.Stencil).ToString( CultureInfo.InvariantCulture );
 	}
 
 	static string Flag( bool value ) => value ? "1" : "0";
@@ -193,11 +194,17 @@ internal sealed class SurfacePipelineManifest
 	{
 		request = default;
 		var p = line.Split( '\t' );
-		if ( p.Length != 23 ) return false;
+		if ( p.Length is not (23 or 24) ) return false;
 		if ( program.Pass( p[1] ) is not { } pass ) return false;
 		if ( !Int( p[2], out var stride ) || !Int( p[5], out var color ) || !Int( p[6], out var depth ) || !Int( p[7], out var samples ) ) return false;
 		if ( !ulong.TryParse( p[8], NumberStyles.None, CultureInfo.InvariantCulture, out var constantsKey ) ) return false;
 		if ( !Enum.IsDefined( (Format)color ) || !Enum.IsDefined( (Format)depth ) || samples is not (1 or 2 or 4 or 8) ) return false;
+		var stencil = OverlayStencil.None;
+		if ( p.Length == 24 )
+		{
+			if ( !Int( p[23], out var value ) || (OverlayStencil)value is not (OverlayStencil.Write or OverlayStencil.Test) || !((Format)depth).HasStencil() ) return false;
+			stencil = (OverlayStencil)value;
+		}
 
 		var fields = new List<VertexLayout.Field>();
 		foreach ( var text in p[4].Split( ';', StringSplitOptions.RemoveEmptyEntries ) )
@@ -220,7 +227,7 @@ internal sealed class SurfacePipelineManifest
 		}
 
 		var state = new SurfaceRenderState( (SurfaceBlend)blend, flags[0], flags[1], bias, slopeBias, flags[2], flags[3], flags[4] );
-		request = new Request( pass, new VertexLayout( stride, [.. fields], p[3] == "1" ), (Format)color, (Format)depth, samples, vertexConstants, pixelConstants, constantsKey, state, flags[5], flags[6], flags[7], flags[8] );
+		request = new Request( pass, new VertexLayout( stride, [.. fields], p[3] == "1" ), (Format)color, (Format)depth, samples, vertexConstants, pixelConstants, constantsKey, state, flags[5], flags[6], flags[7], flags[8], stencil );
 		return true;
 	}
 

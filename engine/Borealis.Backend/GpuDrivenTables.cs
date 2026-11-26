@@ -17,7 +17,7 @@ internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandl
 /// <summary>
 /// The buffers GPU-driven drawing reads (<c>borealis_gpu_driven.fxc</c>, docs/reference/borealis-gpu-driven.md): meshes'
 /// vertices and indices in shared pages, and the geometry, draw and material tables, all reached through the bindless raw
-/// buffer array (<c>g_bindless_VertexBuffers</c>, binding 63). Tables only grow: a record, once written, is read by every
+/// buffer array (<c>g_bindless_VertexBuffers</c>, binding 63). Live records keep their offsets and are read by every
 /// later frame, so nothing is uploaded per frame but each frame's instance records and indirect commands, and the material
 /// records of stages that ring (<see cref="Rings(GpuMaterial)"/>), rewritten in their frame slot's copies.
 /// <para>
@@ -78,7 +78,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	long pageBytes, levelBytes;
 
 	/// <summary>
-	/// A table in host-visible memory that only grows: records are appended and never change. Growing copies it into a
+	/// A table in host-visible memory that only grows: live records keep their offsets. Growing copies it into a
 	/// bigger buffer with a slot of its own. The old buffer is kept a few frames (<see cref="FreeRetired"/>): draws recorded
 	/// earlier in the frame being recorded read it at its slot, and a destroy only waits for what's been submitted.
 	/// </summary>
@@ -90,10 +90,16 @@ internal sealed class GpuDrivenTables : IDisposable
 		long size;
 		readonly List<(BufferHandle Buffer, ulong Frame)> retired = new();
 
-		public uint Append( ReadOnlySpan<byte> record )
+		public uint Append( ReadOnlySpan<byte> record, Stack<uint> free = null )
 		{
 			lock ( this )
 			{
+				if ( free is not null && free.TryPop( out var reused ) )
+				{
+					record.CopyTo( gpu.Map( Buffer )[(int)reused..] );
+					return reused;
+				}
+
 				var aligned = (record.Length + 15) & ~15;
 				if ( Buffer.IsValid == false || Used + aligned > size ) Grow( Used + aligned );
 				var offset = Used;
@@ -376,10 +382,10 @@ internal sealed class GpuDrivenTables : IDisposable
 		lock ( pagesLock )
 		{
 			var room = LevelRoom > 0 ? ((long)(rangeBytes * (double)LevelRoom) + 15) & ~15L : 0;
-			indexPages.TryGetValue( format, out var page );
-			page = Place( ref page, data.Length, IndexPageSize, BufferUsage.Index | BufferUsage.Storage, $"Borealis index page {format}", room );
+			indexPages.TryGetValue( format, out var current );
+			var page = Place( ref current, data.Length, IndexPageSize, BufferUsage.Index | BufferUsage.Storage, $"Borealis index page {format}", room );
 			page.Reserved += room;
-			indexPages[format] = page;
+			if ( ReferenceEquals( page, current ) ) indexPages[format] = current;
 			indexPagesBySlot[page.Slot] = page;
 			var offset = page.Used;
 			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
@@ -476,10 +482,22 @@ internal sealed class GpuDrivenTables : IDisposable
 						if ( key.Page == slot ) geometryRecords.Remove( key );
 					}
 				}
+				lock ( cacheGeometryRecords )
+				{
+					foreach ( var (key, _) in cacheGeometryRecords )
+					{
+						if ( key.Page == slot ) cacheGeometryRecords.Remove( key );
+					}
+				}
 
 				// Nothing makes a draw over a freed page's slot meanwhile: its meshes have gone. The meshlet and LOD stores have
 				// forgotten its ranges (above), so nothing of theirs names its draw records any more
 				drawRecords.RemovePage( slot, removedDraws );
+				if ( removedDraws.Count > 0 )
+				{
+					ForgetOwnerRecords( slot, static ( page, key ) => key.IndexPage == page );
+					Interlocked.Increment( ref recordEpoch );
+				}
 				ForgetDraws( removedDraws );
 
 				if ( vertexPagesBySlot.Remove( slot ) is false && indexPagesBySlot.Remove( slot, out var index ) ) levelBytes -= index.Size - index.Limit;
@@ -555,7 +573,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// </summary>
 	(int Slot, long Offset) VertexIds()
 	{
-		lock ( cacheGeometryRecords )
+		lock ( pagesLock )
 		{
 			if ( vertexIds.Slot >= 0 ) return vertexIds;
 			var ids = new float[BackendDevice.MaxVertexIds];
@@ -717,7 +735,9 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <summary>
 	/// Draw records that went (<see cref="ForgetDraws"/>) become free once no frame that may have drawn them is still on the
 	/// GPU: <see cref="Device.BeginFrame"/> has waited for every frame but the last <see cref="Device.FramesInFlight"/>.
-	/// At a frame's start; allocates nothing once the queue has room.
+	/// Their meshlet runs and LOD records are cleared first: a draw record forgotten for its materials
+	/// (<see cref="ForgetMaterialUsers"/>) is over a page that stays, so the stores still had them. At a frame's start;
+	/// allocates nothing once the queue has room.
 	/// </summary>
 	void FreeDraws()
 	{
@@ -729,10 +749,24 @@ internal sealed class GpuDrivenTables : IDisposable
 			while ( goneDraws.TryPeek( out var gone ) && frame - gone.Frame >= after )
 			{
 				goneDraws.Dequeue();
-				freeDraws.Enqueue( gone.Draw, gone.Draw );
+				freedDraws.Add( gone.Draw );
 			}
 		}
+
+		if ( freedDraws.Count == 0 ) return;
+		Meshlets?.ClearDraws( freedDraws );
+		if ( Lods is not null ) Lods.ClearDraws( [.. freedDraws] );
+		lock ( freeDraws )
+		{
+			foreach ( var draw in freedDraws ) freeDraws.Enqueue( draw, draw );
+		}
+
+		freedDraws.Clear();
 	}
+
+	// The draw records FreeDraws frees this frame, and those ForgetMaterialUsers forgets (under its own lock)
+	readonly List<uint> freedDraws = new();
+	readonly List<uint> materialDraws = new();
 
 	/// <summary>Where draw records find their ranges' generated levels (<see cref="BackendDevice.GeneratedLods"/>), or null.</summary>
 	public Lods.LodStore Lods { get; set; }
@@ -757,25 +791,27 @@ internal sealed class GpuDrivenTables : IDisposable
 		public OwnerDraw[] Draws = [];
 	}
 
-	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), OwnerDraws>> ownerDraws = new();
+	readonly record struct OwnerRecordKey( uint Geometry, uint Vertex, uint Pixel, uint Flags, int IndexPage );
+	readonly ConditionalWeakTable<object, Dictionary<OwnerRecordKey, OwnerDraws>> ownerDraws = new();
 
 	/// <summary>
 	/// Where an owner (an aggregate, whose fragments don't change) remembers its fragments' draw records, so a frame finds
 	/// them by index rather than by record key. Lock it while reading or writing.
 	/// </summary>
-	public OwnerDraws DrawsOf( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags )
+	public OwnerDraws DrawsOf( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags, int indexPage )
 	{
 		var byKey = ownerDraws.GetValue( owner, static _ => new() );
 		lock ( byKey )
 		{
-			if ( !byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var draws ) ) byKey[(geometry, vertexMaterial, pixelMaterial, flags)] = draws = new();
+			var key = new OwnerRecordKey( geometry, vertexMaterial, pixelMaterial, flags, indexPage );
+			if ( !byKey.TryGetValue( key, out var draws ) ) byKey[key] = draws = new();
 			return draws;
 		}
 	}
 
 	public const int FragmentStride = FragmentRecord.Size;
 
-	readonly ConditionalWeakTable<object, System.Collections.Concurrent.ConcurrentDictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags), uint>> ownerFragments = new();
+	readonly ConditionalWeakTable<object, System.Collections.Concurrent.ConcurrentDictionary<OwnerRecordKey, uint>> ownerFragments = new();
 
 	/// <summary>
 	/// The first of an owner's fragment records for one geometry and pair of material records, made once by
@@ -784,11 +820,12 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// <paramref name="releasable"/> owner's runs are a power of two records long, and <see cref="ReleaseFragments"/> gives
 	/// them back for another owner's.
 	/// </summary>
-	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags, int count, T state, Action<T, Span<byte>> write, bool releasable = false )
+	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, uint flags, int count, T state, Action<T, Span<byte>> write, bool releasable = false, int indexPage = -1 )
 	{
 		// Found without a lock: the views recording on other workers draw the same owners
+		var key = new OwnerRecordKey( geometry, vertexMaterial, pixelMaterial, flags, indexPage );
 		var byKey = ownerFragments.GetValue( owner, static _ => new() );
-		if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var known ) ) return known;
+		if ( byKey.TryGetValue( key, out var known ) ) return known;
 
 		// Written outside the lock: writing makes draw records, under the draw table's lock
 		var sizeClass = releasable ? SizeClass( count ) : -1;
@@ -796,17 +833,18 @@ internal sealed class GpuDrivenTables : IDisposable
 		write( state, records.AsSpan( 0, count * FragmentStride ) );
 		lock ( byKey )
 		{
-			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial, flags), out var first ) ) return first;
-			return byKey[(geometry, vertexMaterial, pixelMaterial, flags)] = releasable ? AppendReleasable( records, sizeClass ) : fragments.Append( records ) / FragmentStride;
+			if ( byKey.TryGetValue( key, out var first ) ) return first;
+			return byKey[key] = releasable ? AppendReleasable( records, sizeClass, key, byKey ) : fragments.Append( records ) / FragmentStride;
 		}
 	}
 
 	/// <summary>Size classes of releasable fragment runs: <c>1 &lt;&lt; class</c> records each.</summary>
 	static int SizeClass( int count ) => count <= 1 ? 0 : 32 - System.Numerics.BitOperations.LeadingZeroCount( (uint)count - 1 );
 
-	/// <summary>Released runs that no frame can read any more, by size class; and each releasable run's class, by its first record.</summary>
+	/// <summary>Released runs that no frame can read any more, by size class; and live releasable runs, by first record.</summary>
 	readonly Stack<uint>[] freeFragments = new Stack<uint>[32];
-	readonly Dictionary<uint, int> releasableFragments = new();
+	readonly record struct FragmentRun( int SizeClass, OwnerRecordKey Key, System.Collections.Concurrent.ConcurrentDictionary<OwnerRecordKey, uint> Cache );
+	readonly Dictionary<uint, FragmentRun> releasableFragments = new();
 
 	/// <summary>Runs released, by the frame they were released in: reused once the frames that could read them are done.</summary>
 	readonly List<(long Frame, uint First, int Class)> releasedFragments = new();
@@ -816,7 +854,7 @@ internal sealed class GpuDrivenTables : IDisposable
 	internal int FragmentRunsReused { get; private set; }
 	internal int FragmentRunsReleased { get; private set; }
 
-	uint AppendReleasable( byte[] records, int sizeClass )
+	uint AppendReleasable( byte[] records, int sizeClass, OwnerRecordKey key, System.Collections.Concurrent.ConcurrentDictionary<OwnerRecordKey, uint> cache )
 	{
 		lock ( releasableFragments )
 		{
@@ -824,13 +862,13 @@ internal sealed class GpuDrivenTables : IDisposable
 			{
 				var reused = free.Pop();
 				fragments.Write( reused * FragmentStride, records );
-				releasableFragments[reused] = sizeClass;
+				releasableFragments[reused] = new( sizeClass, key, cache );
 				FragmentRunsReused++;
 				return reused;
 			}
 
 			var first = fragments.Append( records ) / FragmentStride;
-			releasableFragments[first] = sizeClass;
+			releasableFragments[first] = new( sizeClass, key, cache );
 			return first;
 		}
 	}
@@ -847,13 +885,18 @@ internal sealed class GpuDrivenTables : IDisposable
 		ownerFragments.Remove( owner );
 		lock ( releasableFragments )
 		{
-			foreach ( var first in byKey.Values )
+			foreach ( var (_, first) in byKey )
 			{
-				if ( !releasableFragments.Remove( first, out var sizeClass ) ) continue;
-				releasedFragments.Add( (frameNumber, first, sizeClass) );
-				FragmentRunsReleased++;
+				if ( releasableFragments.TryGetValue( first, out var run ) ) RetireFragmentRun( first, run.SizeClass );
 			}
 		}
+	}
+
+	void RetireFragmentRun( uint first, int sizeClass )
+	{
+		releasableFragments.Remove( first );
+		releasedFragments.Add( (frameNumber, first, sizeClass) );
+		FragmentRunsReleased++;
 	}
 
 	/// <summary>No visibility fragment, or no vertex bits for an aggregate.</summary>
@@ -1332,8 +1375,8 @@ internal sealed class GpuDrivenTables : IDisposable
 	/// Forget what is stale, in one walk of the draw records: the records the stages that began ringing made, which take
 	/// frame copies from now on, so nothing asks for those again; the records of a material's older versions, once a
 	/// record was made at a newer one; and the copies of stages that calmed (<see cref="CalmRinging"/>). Each draw record
-	/// that names one would otherwise stay in <see cref="drawRecords"/> for good. Their bytes stay in the tables, where
-	/// frames still in flight read them. At a frame's start, and not before one of the last <see cref="ForgetEvery"/> frames
+	/// that names one would otherwise stay in <see cref="drawRecords"/> for good. Draw slots aren't reused until the
+	/// in-flight frames can no longer read them. At a frame's start, and not before one of the last <see cref="ForgetEvery"/> frames
 	/// has walked: a draw made meanwhile with one of the records is made again if asked for, and a call this frame may still
 	/// look up the version it read before the newer one.
 	/// </summary>
@@ -1357,7 +1400,7 @@ internal sealed class GpuDrivenTables : IDisposable
 			CalmRinging( frame, ref records );
 		}
 
-		if ( records is not null ) DrawRecordsForgotten += drawRecords.RemoveMaterials( records );
+		if ( records is not null ) ForgetMaterialUsers( records );
 	}
 
 	// The records the stages that began ringing made. Under materialRecords' lock
@@ -1443,16 +1486,22 @@ internal sealed class GpuDrivenTables : IDisposable
 	public void ForgetMaterials( IReadOnlySet<GpuMaterial> freed )
 	{
 		if ( freed.Count == 0 ) return;
+
+		HashSet<uint> records = null;
 		lock ( materialRecords )
 		{
-			foreach ( var key in materialRecords.Keys )
+			foreach ( var (key, record) in materialRecords )
 			{
-				if ( key.Material is { } material && freed.Contains( material ) ) materialRecords.TryRemove( key, out _ );
+				if ( key.Material is not { } material || !freed.Contains( material ) ) continue;
+				(records ??= new()).Add( record );
+				materialRecords.TryRemove( key, out _ );
 			}
 
-			foreach ( var key in frameRecords.Keys )
+			foreach ( var (key, record) in frameRecords )
 			{
-				if ( key.Material is { } material && freed.Contains( material ) ) frameRecords.TryRemove( key, out _ );
+				if ( key.Material is not { } material || !freed.Contains( material ) ) continue;
+				(records ??= new()).Add( record );
+				frameRecords.TryRemove( key, out _ );
 			}
 
 			foreach ( var (stage, made) in recordsPerStage )
@@ -1461,6 +1510,10 @@ internal sealed class GpuDrivenTables : IDisposable
 				recordsPerStage.TryRemove( stage, out _ );
 				if ( made.Classic ) Interlocked.Decrement( ref churning );
 				if ( made.Ring ) Interlocked.Decrement( ref ringing );
+				foreach ( var slot in made.Copies )
+				{
+					if ( slot is not null ) (records ??= new()).UnionWith( slot );
+				}
 			}
 
 			foreach ( var material in freed )
@@ -1472,6 +1525,58 @@ internal sealed class GpuDrivenTables : IDisposable
 
 			newlyRinging.RemoveAll( stage => stage.Material is not null && freed.Contains( stage.Material ) );
 			ringingStages.RemoveAll( stage => stage.Material is not null && freed.Contains( stage.Material ) );
+		}
+
+		if ( records is not null ) ForgetMaterialUsers( records );
+	}
+
+	/// <summary>Changes when cached fragment or draw references may have been retired.</summary>
+	public int RecordEpoch => Volatile.Read( ref recordEpoch );
+	int recordEpoch;
+
+	void ForgetMaterialUsers( HashSet<uint> records )
+	{
+		ForgetOwnerRecords( records, static ( records, key ) => records.Contains( key.Vertex ) || records.Contains( key.Pixel ) );
+		lock ( materialDraws )
+		{
+			DrawRecordsForgotten += drawRecords.RemoveMaterials( records, materialDraws );
+
+			// Their pages stay, so the stores still write runs and LOD records for them: they stop now, and what they wrote is
+			// cleared before the slots are reused (FreeDraws)
+			if ( materialDraws.Count > 0 && (Meshlets is not null || Lods is not null) )
+			{
+				var gone = materialDraws.ToHashSet();
+				Meshlets?.ForgetDraws( gone );
+				Lods?.ForgetDraws( gone );
+			}
+
+			ForgetDraws( materialDraws );
+		}
+
+		Interlocked.Increment( ref recordEpoch );
+	}
+
+	void ForgetOwnerRecords<T>( T state, Func<T, OwnerRecordKey, bool> matches )
+	{
+		foreach ( var (_, cache) in ownerDraws )
+		{
+			lock ( cache )
+			{
+				foreach ( var (key, _) in cache )
+				{
+					if ( matches( state, key ) ) cache.Remove( key );
+				}
+			}
+		}
+
+		lock ( releasableFragments )
+		{
+			foreach ( var (first, run) in releasableFragments )
+			{
+				if ( !matches( state, run.Key ) ) continue;
+				run.Cache.TryRemove( run.Key, out _ );
+				RetireFragmentRun( first, run.SizeClass );
+			}
 		}
 	}
 
@@ -1501,6 +1606,17 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>Turns of its frame slot a frame chunk past a slot's first can go unused before it's freed (a map's busy frames grew them).</summary>
 	internal const int IdleChunkTurns = 200;
+
+	/// <summary>
+	/// Turns a cull region chunk bigger than <see cref="ChunkBytes"/> (made for one cull's region) goes unused before it's
+	/// freed: a cull that outgrew it took a bigger one (a map loading grows them frame by frame), and held for
+	/// <see cref="IdleChunkTurns"/> the ones it outgrew took gigabytes of video memory, which pushed the map's own textures
+	/// and geometry to system memory.
+	/// </summary>
+	const int IdleLargeCullChunkTurns = 2;
+
+	/// <summary>Bytes of a frame chunk, unless one allocation needs more.</summary>
+	const long ChunkBytes = 4L << 20;
 
 	/// <summary>Frame chunks there are, for tests.</summary>
 	internal int FrameChunks
@@ -1603,7 +1719,9 @@ internal sealed class GpuDrivenTables : IDisposable
 				var chunk = chunks[i];
 				chunk.IdleTurns = chunk.Used == 0 ? chunk.IdleTurns + 1 : 0;
 				chunk.Used = 0;
-				if ( (i == 0 && keepFirst) || chunk.IdleTurns <= IdleChunkTurns ) continue;
+				if ( i == 0 && keepFirst ) continue;
+				var idleTurns = !keepFirst && chunk.Size > ChunkBytes ? IdleLargeCullChunkTurns : IdleChunkTurns;
+				if ( chunk.IdleTurns <= idleTurns ) continue;
 
 				// The frame that last used it is done; its buffer goes once the GPU is done like anything destroyed.
 				chunks.RemoveAt( i );
@@ -1648,7 +1766,7 @@ internal sealed class GpuDrivenTables : IDisposable
 
 			if ( found is null )
 			{
-				var size = Math.Max( 4L << 20, aligned );
+				var size = Math.Max( ChunkBytes, aligned );
 				var buffer = gpu.CreateBuffer( new BufferInfo { Size = size, Usage = BufferUsage.Storage | BufferUsage.Indirect, Memory = memory, Name = memory == MemoryLocation.Upload ? "Borealis GPU-driven frame" : "Borealis GPU-driven cull regions" } );
 				lock ( pagesLock ) owned.Add( buffer );
 				found = new Chunk { Buffer = buffer, Slot = gpu.BindlessIndex( buffer ), Size = size };
