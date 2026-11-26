@@ -44,7 +44,7 @@ namespace Sandbox
 				var stream = e.Level == LogLevel.Error ? Console.Error : Console.Out;
 
 				Console.ForegroundColor = ConsoleColor.Cyan;
-				stream.Write( now.ToString( "hh:mm:ss " ) );
+				stream.Write( now.ToString( "HH:mm:ss " ) );
 
 				var logger = e.Logger ?? " ";
 				if ( logger.Length > 8 ) logger = logger.Substring( 0, 8 );
