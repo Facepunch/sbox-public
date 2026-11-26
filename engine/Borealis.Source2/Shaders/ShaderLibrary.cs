@@ -448,6 +448,12 @@ public sealed class ShaderLibrary : IDisposable
 			if ( gpuDriven.TryGetValue( shader, out var cached ) ) return cached;
 		}
 
+		// Still compiling: nothing to look for on disk until it's done (draws ask every frame, for a minute or more)
+		lock ( gpuDrivenPending )
+		{
+			if ( gpuDrivenPending.Contains( shader ) && !gpuDrivenCompiled.Contains( shader ) ) return null;
+		}
+
 		ShaderFile variant = null;
 		const string suffix = ".shader_c";
 		if ( shader.Name.EndsWith( suffix, StringComparison.OrdinalIgnoreCase ) )
