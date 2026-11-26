@@ -786,12 +786,22 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	Allocation? FindShared( int type, bool image, bool large, bool content, bool fallback, ulong size, ulong alignment )
 	{
 		if ( !kinds.TryGetValue( (type, image, large, content, fallback), out var kind ) ) return null;
+
+		// A move out of a draining block never fills an empty one: that block would only be the next to drain. But for the
+		// one block the drain may make, when an empty one of that size is kept as a spare (one drained just before)
+		var spareMayTake = ExistingBlocksOnly && kind.Draining is not null && kind.DrainMayMake && !kind.DrainMade;
 		MemoryBlock best = null;
 		foreach ( var block in kind.Blocks )
 		{
-			// A move out of a draining block never fills an empty one: that block would only be the next to drain
-			if ( block.Draining || (best is not null && block.Used <= best.Used) || (ExistingBlocksOnly && block.Used == 0 && block != movesInto) ) continue;
+			if ( block.Draining || (best is not null && block.Used <= best.Used) ) continue;
+			if ( ExistingBlocksOnly && block.Used == 0 && block != movesInto && !(spareMayTake && block.Size == kind.DrainMakes) ) continue;
 			if ( block.Fits( size, alignment ) ) best = block;
+		}
+
+		if ( ExistingBlocksOnly && best is { Used: 0 } && best != movesInto )
+		{
+			kind.DrainMade = true;
+			movesInto = best;
 		}
 
 		var empty = best is not null && best.Used == 0;
@@ -862,8 +872,18 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 	/// </summary>
 	public bool Defragment { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_DEFRAGMENT" ) != "0";
 
-	/// <summary>How full a content block may be to be drained.</summary>
+	/// <summary>How full a content block may be to be drained into the room its kind has.</summary>
 	public const double DrainBelow = 0.5;
+
+	/// <summary>
+	/// Whether content image blocks over <see cref="DrainBelow"/> full are compacted (on): once their kind has a block and a
+	/// quarter free in all, the emptiest is drained into the others' room and one new block of its size, which the next ones
+	/// drained fill. Streaming leaves each block of a loaded map's textures a few holes the size of the mips it gave up, too
+	/// small for the textures there are (Construct: 30-42 MiB over 52 blocks); moved, the textures pack tight, and every few
+	/// blocks drained one goes back. A move is a copy on the GPU (the texture streamer's). <c>BOREALIS_COMPACT_CONTENT=0</c>
+	/// turns it off, for comparisons.
+	/// </summary>
+	public bool CompactContent { get; set; } = Environment.GetEnvironmentVariable( "BOREALIS_COMPACT_CONTENT" ) != "0";
 
 	/// <summary>
 	/// How full a block that isn't content may be to be drained: any, as long as the kind's other blocks have room for what
@@ -921,23 +941,36 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			var quiet = frame - kind.LastNewBlock >= QuietFrames && System.Diagnostics.Stopwatch.GetElapsedTime( kind.LastNewBlockTicks ).TotalSeconds >= QuietSeconds;
 			if ( !quiet || !Movable( key.Type, key.Images, key.Content ) || key.Fallback || kind.Blocks.Count == 0 ) continue;
 
-			MemoryBlock emptiest = null;
-			var emptiestPacks = true;
 			ulong free = 0;
 			foreach ( var block in kind.Blocks )
 			{
 				if ( block.Used != 0 ) free += block.Size - block.Used;
-				if ( block.Used == 0 || block.Pinned || frame < block.DrainFrame || block.Used > block.Size * (key.Content ? DrainBelow : MoveBelow) ) continue;
+			}
+
+			MemoryBlock emptiest = null;
+			var emptiestPacks = true;
+			var emptiestCompacts = false;
+			foreach ( var block in kind.Blocks )
+			{
+				if ( block.Used == 0 || block.Pinned || frame < block.DrainFrame ) continue;
 				if ( emptiest is not null && emptiestPacks && block.Used >= emptiest.Used ) continue;
+
+				// A content block over half full is compacted (CompactContent) once its kind has a block and a quarter free. The
+				// block the moves before made is what the next drains fill, not drained itself while that goes on
+				var compacting = key.Content && CompactContent && free >= block.Size + block.Size / 4;
+				var compacts = key.Content && block.Used > block.Size * DrainBelow;
+				if ( (compacts && !compacting) || (compacting && block == movesInto) ) continue;
+				if ( !key.Content && block.Used > block.Size * MoveBelow ) continue;
 
 				// What the device moves is made again at once, all of it or none: only a block whose contents would pack into the
 				// others' room (making the copies to find out costs the frame a driver call per resource), or into one smaller
 				// block of their own. One that packs is taken before one that needs a block made, then the emptiest
-				var packs = key.Content || PacksElsewhere( kind, block );
-				if ( !packs && SmallerBlockFor( block, 0 ) == 0 ) continue;
+				var packs = (key.Content && !compacts) || (!key.Content && PacksElsewhere( kind, block ));
+				if ( !packs && !compacts && SmallerBlockFor( block, 0 ) == 0 ) continue;
 				if ( emptiest is not null && (packs == emptiestPacks ? block.Used >= emptiest.Used : !packs) ) continue;
 				emptiest = block;
 				emptiestPacks = packs;
+				emptiestCompacts = compacts;
 			}
 
 			// Only when the rest of the kind has room for what it holds (moves never make a block), and the kind has a block's
@@ -949,7 +982,7 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 			var mayMake = false;
 			if ( !emptiestPacks || elsewhere < emptiest.Used || free < emptiest.Size )
 			{
-				var makes = SmallerBlockFor( emptiest, emptiestPacks ? elsewhere : 0 );
+				var makes = emptiestCompacts ? emptiest.Size : SmallerBlockFor( emptiest, emptiestPacks ? elsewhere : 0 );
 				if ( makes == 0 ) continue;
 				mayMake = true;
 				kind.DrainMakes = makes;
@@ -1250,8 +1283,9 @@ internal sealed unsafe class MemoryAllocator : IDisposable
 		heapReserved[properties.Type( block.TypeIndex ).heapIndex] += (long)block.Size;
 
 		// Only shared blocks: allocations of their own (big streamed textures, upload pages) come and go all the time and
-		// leave no holes, and counting them kept blocks from ever draining while textures streamed
-		if ( !block.Dedicated )
+		// leave no holes, and counting them kept blocks from ever draining while textures streamed. Nor the one block moves
+		// out of a block being drained make: that's draining, not a load, and the next drain waits for no quiet after it
+		if ( !block.Dedicated && !ExistingBlocksOnly )
 		{
 			var kind = KindOf( block );
 			kind.LastNewBlock = frame;

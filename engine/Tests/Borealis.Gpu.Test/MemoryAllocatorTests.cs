@@ -395,6 +395,76 @@ public class MemoryAllocatorTests : GpuTest
 	}
 
 	/// <summary>
+	/// Content blocks three quarters full, each with two holes too small for what they hold, are compacted once their kind has
+	/// a block and a quarter free: each drain moves into the room there is and one block of its own size (an emptied one it
+	/// finds kept as a spare), until the textures are packed tight and a block has gone back.
+	/// </summary>
+	[TestMethod]
+	public void FullContentBlocksWithSmallHolesCompact()
+	{
+		using var allocator = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false };
+		var quarter = new VkMemoryRequirements { size = allocator.BlockSize / 4, alignment = 256, memoryTypeBits = ~0u };
+		var eighth = quarter with { size = allocator.BlockSize / 8 };
+		var live = new List<Allocation>();
+		var holes = new List<Allocation>();
+		for ( int i = 0; i < 5; i++ )
+		{
+			live.Add( allocator.Allocate( quarter, MemoryLocation.Device, image: true, content: true ) );
+			holes.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+			live.Add( allocator.Allocate( quarter, MemoryLocation.Device, image: true, content: true ) );
+			holes.Add( allocator.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+			live.Add( allocator.Allocate( quarter, MemoryLocation.Device, image: true, content: true ) );
+		}
+
+		foreach ( var hole in holes ) allocator.Free( hole );
+		Assert.AreEqual( (long)(5 * allocator.BlockSize), (long)allocator.Reserved );
+
+		// As the texture streamer does: what's in the draining block is made again with ExistingBlocksOnly, then let go
+		ulong frame = MemoryAllocator.QuietFrames + 30;
+		var drains = 0;
+		for ( ; drains < 20; drains++, frame += 30 )
+		{
+			allocator.Trim( frame );
+			if ( !allocator.AnyDraining ) break;
+			for ( int i = 0; i < live.Count; i++ )
+			{
+				if ( !allocator.Draining( live[i] ) ) continue;
+				MemoryAllocator.ExistingBlocksOnly = true;
+				Allocation moved;
+				try
+				{
+					moved = allocator.Allocate( quarter, MemoryLocation.Device, image: true, content: true );
+				}
+				finally
+				{
+					MemoryAllocator.ExistingBlocksOnly = false;
+				}
+
+				allocator.Free( live[i] );
+				live[i] = moved;
+			}
+
+			Assert.IsFalse( allocator.AnyDraining, "each drain empties its block" );
+		}
+
+		allocator.Trim( frame + 2 * MemoryAllocator.SpareFrames );
+		Assert.IsTrue( drains is > 0 and < 20, $"{drains} drains, and then it stops" );
+		Assert.AreEqual( (long)(4 * allocator.BlockSize), (long)allocator.Reserved, "fifteen quarters in four blocks" );
+		Assert.IsTrue( allocator.DriverAllocations <= 5 + drains );
+
+		// Off, nothing over half full drains
+		using var off = new MemoryAllocator( Device.Vk, Device.Allocator.MemoryProperties, false ) { QuietSeconds = 0, GrowBlocks = false, MakeBlocksAhead = false, CompactContent = false };
+		var kept = new List<Allocation>();
+		for ( int i = 0; i < 40; i++ ) kept.Add( off.Allocate( eighth, MemoryLocation.Device, image: true, content: true ) );
+		for ( int i = 0; i < 40; i += 4 ) off.Free( kept[i] );
+		off.Trim( MemoryAllocator.QuietFrames + 30 );
+		Assert.IsFalse( off.AnyDraining );
+
+		foreach ( var allocation in live ) allocator.Free( allocation );
+		for ( int i = 0; i < 40; i++ ) if ( i % 4 != 0 ) off.Free( kept[i] );
+	}
+
+	/// <summary>
 	/// A block of device buffers that aren't content drains, however full, only when what it holds would pack into the other
 	/// blocks' free ranges: the device makes every copy at once, so a block whose biggest buffer finds no hole is passed over
 	/// for one that packs.
