@@ -233,7 +233,10 @@ internal static partial class SteamNetwork
 				if ( !timeUntilFetchStats )
 					return cachedStats;
 
+				// No Steam (-nosteam): no connection to measure
 				var net = Steam.SteamNetworkingSockets();
+				if ( !net.IsValid ) return cachedStats;
+
 				var info = net.GetConnectionInfo( Handle );
 
 				cachedStats = new( DisplayName )
