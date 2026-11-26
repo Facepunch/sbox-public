@@ -13,6 +13,7 @@
 		<EmbeddedResource Include="..\..\..\game\core\fonts\Roboto-Regular.ttf" LogicalName="Roboto-Regular.ttf" />
 		<!-- Exercise the menu's pure party grouping without Steam or the UI runtime. -->
 		<Compile Include="..\..\..\game\addons\menu\Code\MenuUI\Front\FriendPartyGrouping.cs" Link="Menu\FriendPartyGrouping.cs" />
+		<Compile Include="..\..\Launcher\StandaloneTest\PanelUI\RunningEditors.cs" Link="Launcher\RunningEditors.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
