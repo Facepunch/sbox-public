@@ -34,7 +34,7 @@ public partial class Project
 	/// <summary>
 	/// Whether to save/load compiled assemblies to disk.
 	/// </summary>
-	bool CacheAssemblies => IsBuiltIn && Application.IsEditor && !Application.IsUnitTest;
+	bool CacheAssemblies => IsBuiltIn && Application.IsEditor && !Application.IsUnitTest && !Application.IsConsoleApp;
 
 	/// <summary>
 	/// What a cached assembly was compiled from: this project's compile settings and code files, the code files of

@@ -2,7 +2,6 @@
 using Sandbox.Tasks;
 using System;
 using System.IO;
-using System.Linq;
 
 namespace Facepunch.MenuBuild;
 
@@ -11,31 +10,16 @@ class Program
 	[STAThread]
 	public static int Main( string[] args )
 	{
-		var projectPath = GetArgument( args, "--project" );
-		if ( projectPath is not null )
-		{
-			var outputPath = GetArgument( args, "--out" );
-			if ( outputPath is null )
-			{
-				Console.Error.WriteLine( "MenuBuild: --project needs --out <dir> to write the compiled assembly to" );
-				return 1;
-			}
+		var projectPath = GetArgument( args, "--project" ) ?? "addons/menu/.sbproj";
+		var outputPath = GetArgument( args, "--out" );
 
-			return BuildProject( Path.GetFullPath( projectPath ), Path.GetFullPath( outputPath ) );
+		if ( !string.IsNullOrEmpty( outputPath ) )
+		{
+			outputPath = Path.GetFullPath( outputPath );
 		}
 
-		using ( new ToolAppSystem() )
-		{
-			SyncContext.RunBlocking( Project.InitializeBuiltIn( false ) );
-			var menuProject = Project.FindByIdent( "local.menu" );
-
-			SyncContext.RunBlocking( Project.CompileAsync() );
-
-			var outputPath = Path.Combine( menuProject.GetRootPath(), ".bin" );
-			if ( !CopyCompilerOutput( menuProject, outputPath ) ) return 1;
-		}
-
-		return 0;
+		using var appSystem = new ToolAppSystem();
+		return BuildProject( Path.GetFullPath( projectPath ), outputPath );
 	}
 
 	static string GetArgument( string[] args, string name )
@@ -46,32 +30,37 @@ class Program
 
 	/// <summary>
 	/// Compiles a single project's game code (not its editor code) the same way the client would
-	/// on load, and writes the assembly into <paramref name="outputPath"/>. Used to precompile mounts.
+	/// on load, and writes the assembly into <paramref name="outputPath"/>.
 	/// </summary>
-	static int BuildProject( string projectPath, string outputPath )
+	static int BuildProject( string projectPath, string outputPath = null )
 	{
-		// ToolAppSystem moves the working directory to game/, resolve paths before it does
-		using ( new ToolAppSystem() )
+		var project = Project.AddFromFile( projectPath );
+		outputPath ??= Path.Combine( project.GetRootPath(), ".bin" );
+
+		var compiler = project.Compiler;
+		if ( compiler is null )
 		{
-			var project = Project.AddFromFile( projectPath );
-
-			if ( project.Compiler is null )
-			{
-				Console.Error.WriteLine( $"MenuBuild: {projectPath} has no code to compile" );
-				return 1;
-			}
-
-			SyncContext.RunBlocking( Project.CompileAsync() );
-
-			if ( !CopyCompilerOutput( project, outputPath ) )
-			{
-				Console.Error.WriteLine( $"MenuBuild: {project.Config.FullIdent} failed to compile" );
-				return 1;
-			}
-
-			Console.WriteLine( $"MenuBuild: compiled to {outputPath}" );
+			Console.Error.WriteLine( $"MenuBuild: {projectPath} has no code to compile" );
+			return 1;
 		}
 
+		var settings = compiler.GetConfiguration() with
+		{
+			ReleaseMode = Compiler.ReleaseMode.Release
+		};
+		compiler.SetConfiguration( settings );
+
+		bool success = SyncContext.RunBlocking( Project.CompileAsync() );
+		if ( !success )
+		{
+			Console.Error.WriteLine( $"MenuBuild: {project.Config.FullIdent} failed to compile" );
+			return 1;
+		}
+
+		if ( !CopyCompilerOutput( project, outputPath ) )
+			return 1;
+
+		Console.WriteLine( $"MenuBuild: compiled to {outputPath}" );
 		return 0;
 	}
 
