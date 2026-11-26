@@ -4,6 +4,8 @@ namespace Borealis;
 /// Quarter-resolution glass depth for <c>depthaware_mask_cs</c> (native: <c>StandardPipeline</c>).
 /// The mask uses reprojected history to keep foreground objects out of refraction.
 /// Draws unfaded translucent readers with forced depth material and both faces; runs only when a frame copy is needed.
+/// Records on a worker as one segment (<see cref="MaxSegments"/>): a view full of glass has hundreds of draws, which split
+/// into many small lists cost more in submits and plan checks than they save; custom objects among them stay on the main thread.
 /// </summary>
 internal sealed class RefractionStencilLayer : MeshLayer
 {
@@ -12,7 +14,7 @@ internal sealed class RefractionStencilLayer : MeshLayer
 	static readonly StringToken RefractionTest = new( "D_REFRACTION_TEST" );
 	static readonly StringToken RenderBackfaces = new( "D_RENDER_BACKFACES" );
 
-	// Pooled target for this frame.
+	// Pooled target for this frame, made before its segments record
 	GpuTexture depth;
 	Rect viewport;
 
@@ -24,7 +26,7 @@ internal sealed class RefractionStencilLayer : MeshLayer
 		Runs = MeshRuns.Refraction;
 	}
 
-	public override bool IsShared => false;
+	public override int MaxSegments => 1;
 
 	public override FrameResources Writes => FrameResources.RefractionStencil;
 
@@ -60,11 +62,5 @@ internal sealed class RefractionStencilLayer : MeshLayer
 
 		rc.SetPassCombo( RefractionTest, 1 );
 		rc.SetPassCombo( RenderBackfaces, 1 );
-	}
-
-	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
-	{
-		base.Record( frame, rc, ref stats );
-		depth = null;
 	}
 }

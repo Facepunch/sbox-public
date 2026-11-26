@@ -164,12 +164,12 @@ internal sealed partial class FrameRecorder
 				&& segments[segmentCount - 1] is { Kind: SegmentKind.Layers, Count: 0 } join && join.Frame == planned.Frame )
 			{
 				var first = --segmentCount;
-				AddDrawSegments( planned.Frame, planned.WorkFrom, planned.WorkTo, maxSegments );
+				AddDrawSegments( planned.Frame, planned.WorkFrom, planned.WorkTo, Math.Min( maxSegments, planned.Layer.MaxSegments ) );
 				AcquireCompute( first, join.TakeBackFrom, join.WaitFor );
 			}
 			else
 			{
-				AddDrawSegments( planned.Frame, planned.WorkFrom, planned.WorkTo, maxSegments );
+				AddDrawSegments( planned.Frame, planned.WorkFrom, planned.WorkTo, Math.Min( maxSegments, planned.Layer.MaxSegments ) );
 			}
 		}
 		else

@@ -42,6 +42,47 @@ public class FrameBufferCopyTests
 	}
 
 	/// <summary>
+	/// A view full of glass records the refraction stencil's draws on a record worker, in one segment: its target cleared
+	/// once and every glass mesh drawn into it.
+	/// </summary>
+	[TestMethod]
+	public void RefractionStencilRecordsOnOneWorker()
+	{
+		var world = new RenderWorld();
+		using var material = new HeadlessMaterial( "glass", "complex" );
+		var meshes = new RenderMesh[200];
+		for ( int i = 0; i < meshes.Length; i++ )
+		{
+			meshes[i] = Glass( material );
+			world.Add( new MeshObject( meshes[i], new Transform( new Vector3( 20 + i, (i % 9) - 4, 0 ) ) ) { WantsFrameBufferCopy = true } );
+		}
+
+		using var target = ViewTarget.Create( new Vector2Int( 640, 480 ) );
+		using var system = new RenderSystem { ParallelRecording = true };
+		HeadlessRenderHost.WantsPlans = true;
+		try
+		{
+			using var frame = Device.Capture();
+			RenderHost.Current.NextFrame();
+			system.Render( world, LookingDownX(), target, null, window: true );
+
+			const string stencil = "Refraction Stencil Layer";
+			var segments = HeadlessRenderHost.LastPlan.Segments.Where( s => s.First == stencil ).ToArray();
+			Assert.AreEqual( 1, segments.Length, "one segment" );
+			if ( System.Environment.ProcessorCount > 2 ) Assert.IsTrue( segments[0].Worker, "recorded on a worker" );
+
+			Assert.AreEqual( 1, frame.Commands.Count( c => c.Op == GpuOp.Clear && c.In( stencil ) ), "its target cleared once" );
+			var drawn = frame.Commands.Where( c => c.IsDraw && c.In( stencil ) ).Select( c => c.Mesh ).ToHashSet();
+			Assert.IsTrue( meshes.All( drawn.Contains ), "every glass mesh drawn into it" );
+		}
+		finally
+		{
+			HeadlessRenderHost.WantsPlans = false;
+			HeadlessRenderHost.LastPlan = null;
+		}
+	}
+
+	/// <summary>
 	/// Where a reader is on the screen (<see cref="FrameBufferReadArea"/>): in front, the rectangle around its bounds'
 	/// projection; crossing the camera's plane, the whole screen; behind it, past the far plane or off to the side, nowhere.
 	/// </summary>
